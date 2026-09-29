@@ -1,0 +1,211 @@
+{
+  "id": "pi",
+  "name": "pi coding agent",
+  "vendor": "Earendil Works (created by Mario Zechner)",
+  "homepage": "https://pi.dev",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "pi in a terminal (process.title rewritten to 'pi')",
+      "process": {
+        "names": ["pi"]
+      },
+      "session_id_args": ["--session-id", "--session"]
+    },
+    {
+      "kind": "tui",
+      "label": "pi in a terminal, node launched with the real script path (fallback if the title is not rewritten in ps; a shim launch shows the symlink path instead and is NOT matched)",
+      "process": {
+        "names": ["node"],
+        "args_contain": ["pi-coding-agent/dist/cli.js"]
+      },
+      "session_id_args": ["--session-id", "--session"]
+    }
+  ],
+  "session_store": {
+    "glob": "~/.pi/agent/sessions/*/*.jsonl",
+    "per_session": "~/.pi/agent/sessions/*/*_{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "The built-in bash tool spawns a detached shell child per command, so a non-caffeinate child means a tool call is running. Caveat: extensions such as background-terminals keep long-lived children while idle."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "The session file is appended once per finished message (user, assistant, tool result), never per streamed token, so a long model stream or a long tool call shows no writes. A brand-new session has no file until its first assistant message ends."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "Inferred, not measured: the TUI redraws a 'Working...' spinner while streaming. No pi process was running to calibrate the floor."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "none_builtin",
+      "meaning": "pi has no permission prompts by design (README: 'No permission popups'). Being blocked on the human only happens when an extension calls ctx.ui.confirm/select/input (this Mac's ask-user extension registers an ask_user tool that does). It is invisible from outside the process unless that extension emits its own signal."
+    },
+    {
+      "signal": "extension_event",
+      "event": "agent_settled",
+      "meaning": "Turn fully over, no retry, compaction or queued follow-up left: pi is idle at the prompt waiting for the next user message. Only observable from an extension or via RPC/JSON mode."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "No hook config file. Lifecycle handlers are TypeScript extensions: ~/.pi/agent/extensions/*.ts and */index.ts (global), .pi/extensions/ (project, after trust), plus 'extensions' and 'packages' arrays in ~/.pi/agent/settings.json or .pi/settings.json, or --extension <path>",
+    "events": [
+      "project_trust",
+      "session_start",
+      "resources_discover",
+      "input",
+      "before_agent_start",
+      "agent_start",
+      "turn_start",
+      "context",
+      "before_provider_request",
+      "after_provider_response",
+      "message_start",
+      "message_update",
+      "message_end",
+      "tool_execution_start",
+      "tool_call",
+      "tool_execution_update",
+      "tool_result",
+      "tool_execution_end",
+      "turn_end",
+      "agent_end",
+      "agent_settled",
+      "session_before_compact",
+      "session_compact",
+      "session_shutdown"
+    ],
+    "docs": "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "Not in 0.82.0. The only network telemetry is an anonymous install/update ping to pi.dev (opt out: PI_TELEMETRY=0 or enableInstallTelemetry=false). The repo has a vendor-neutral @earendil-works/pi-telemetry package (spans named pi.ai.*, pi.harness.*, pi.session.*) with no exporter; an app or extension must supply an OpenTelemetry adapter. The installed package bundles only @opentelemetry/api and semantic-conventions as transitive deps of pi-ai, with no SDK or exporter."
+  },
+  "sources": [
+    {
+      "claim": "Installed here: npm global package @earendil-works/pi-coding-agent 0.82.0, bin symlink pi -> dist/cli.js (a #!/usr/bin/env node script)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls -la $(which pi) printed '/Users/frikkjarl/.nvm/versions/node/v22.22.2/bin/pi -> ../lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js'; pi --version printed 0.82.0; head -1 dist/cli.js printed '#!/usr/bin/env node'"
+    },
+    {
+      "claim": "The process retitles itself 'pi' at startup, so ps args/name show 'pi' rather than 'node .../cli.js'. Inferred for ps on macOS: not observed, no pi process was running and starting one is out of bounds.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/cli.js line 11 'process.title = APP_NAME;' and dist/config.js line 392 'export const APP_NAME = piConfigName || \"pi\";' (package.json piConfig.configDir is .pi, no piConfig.name). dist/bun/cli.js (the bun-compiled binary entry) also sets process.title = APP_NAME. Supporting, not proof: libuv src/unix/proctitle.c uv_set_process_title() memcpy's the title over the original argv[0] region and zero-fills the rest of it, which is the memory ps reads for args. Local: ps -axo pid=,ppid=,pcpu=,tty=,args= | grep for pi/cli.js printed nothing at 2026-09-29 verification time as well."
+    },
+    {
+      "claim": "No macOS app bundle: pi is a CLI only, no bundle id",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls /Applications | grep -i -E '^pi|earendil' printed nothing; ls ~/Library/Application\\ Support | grep -i -E '^pi' printed nothing"
+    },
+    {
+      "claim": "Installer alternative (pi.dev/install.sh) also installs the same npm package under a managed Node (~/.local/share/pi-node) and a shell wrapper that execs the real bin, so the process is still node running cli.js",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://pi.dev/install.sh : PI_PACKAGE=\"@earendil-works/pi-coding-agent\"; 'npm install -g --ignore-scripts ... \"$PI_PACKAGE\"'; wrapper ends 'exec \"$pi_release_bin\" \"$@\"'. README also mentions standalone bun-compiled binaries (package.json script build:binary)."
+    },
+    {
+      "claim": "Session flags: --session-id <id> (exact id, created if missing), --session <path|id>, --fork <path|id>, --session-dir, --no-session. --resume/-r and --continue/-c take no id.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "pi --help printed '--session-id <id>  Use exact project session ID, creating it if missing', '--session <path|id>', '--resume, -r  Select a session to resume', '--continue, -c  Continue previous session'"
+    },
+    {
+      "claim": "Sessions are JSONL at ~/.pi/agent/sessions/--<cwd with / replaced by ->--/<ISO timestamp>_<uuid>.jsonl; header id equals the uuid in the filename",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "docs/session-format.md 'File Location' (installed at .../pi-coding-agent/docs/session-format.md; upstream https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/session-format.md). Local: ls of ~/.pi/agent/sessions showed dirs '--Users-frikkjarl-.pi-agent--' and '--Users-frikkjarl-Documents-GitHub--' with 5 files named like 2026-07-25T21-02-18-620Z_<uuid>.jsonl; python check printed True for filename-suffix == header id on all 5."
+    },
+    {
+      "claim": "Record shape: header type 'session' with keys cwd,id,timestamp,type,version (version 3); then entries with keys id,parentId,timestamp,type ('model_change','thinking_level_change','message'); message has role and content, assistant messages add api,model,provider,stopReason,usage. Tree via id/parentId.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 json.load of one file, printing only sorted(keys) per line: 'session [cwd,id,timestamp,type,version]', 'message [id,message,parentId,timestamp,type] [content,role,timestamp]', 'message ... [api,content,model,provider,role,stopReason,timestamp,usage]'. No content printed."
+    },
+    {
+      "claim": "Transcript writes are per finished message with appendFileSync; the file is created only when the first assistant message exists; the file is not held open",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/core/session-manager.js _persist(): 'const hasAssistant = ...; if (!hasAssistant) {... this.flushed = false} ... openSync(this.sessionFile, \"wx\") ... appendFileSync(this.sessionFile, ...)' (lines ~723-752). Upstream: packages/coding-agent/src/core/session-manager.ts"
+    },
+    {
+      "claim": "Session dir and config dir are overridable, so the glob is a default only",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "docs/environment-variables.md: PI_CODING_AGENT_DIR (default ~/.pi/agent), PI_CODING_AGENT_SESSION_DIR, overridden by --session-dir"
+    },
+    {
+      "claim": "Bash tool runs each command as a detached child shell; PI_CODING_AGENT=true is set by the CLI and RPC entry points (not when embedded through the SDK) and inherited by children; PI_SESSION_ID and PI_SESSION_FILE are exported to bash-tool commands only (since 0.82.0)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/core/tools/bash.js line 54-56 'spawn(shellConfig.shell, ..., { detached: process.platform !== \"win32\"'; docs/environment-variables.md lines 6-13; CHANGELOG.md 0.82.0 'Exposed PI_SESSION_ID, PI_SESSION_FILE ...'"
+    },
+    {
+      "claim": "Turn boundaries: agent_start .. agent_end, then agent_settled when no retry/compaction/follow-up remains; agent_end alone is not idle",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "docs/extensions.md 'Agent Events': 'agent_end fires when that run ends, but Pi may still auto-retry, auto-compact and retry, or continue with queued follow-up messages. Use agent_settled for status integrations that need to know Pi will not continue running automatically.'"
+    },
+    {
+      "claim": "Out-of-process state query exists only in RPC mode: get_state returns isStreaming; --mode json streams agent_start/agent_end events on stdout",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "docs/rpc.md 'get_state' example with \"isStreaming\": false; docs/json.md AgentEvent union. Both need pi to have been started with --mode rpc/json; an interactive TUI exposes neither."
+    },
+    {
+      "claim": "No permission prompts and no hooks config: extensions are the mechanism",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "README.md Philosophy: '**No permission popups.** Run in a container, or build your own confirmation flow with extensions'; docs/extensions.md 'Extension Locations' table"
+    },
+    {
+      "claim": "Terminal title (escape sequence to the terminal, not the ps title) is set to 'π - <session name> - <cwd basename>', or 'π - <cwd basename>' without a session name, and does not change with working/idle. APP_TITLE is the Greek letter π unless package.json piConfig.name is set (it is not).",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/modes/interactive/interactive-mode.js lines 572 and 575: ui.terminal.setTitle(`${APP_TITLE} - ${sessionName} - ${cwdBasename}`) and line 575 the no-name variant; dist/config.js line 393 'export const APP_TITLE = piConfigName ? APP_NAME : \"π\";'; no other setTitle call except the extension passthrough at line 1685"
+    },
+    {
+      "claim": "Project moved: canonical repo is earendil-works/pi (was badlogic/pi-mono); npm scope is @earendil-works (was @mariozechner)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/badlogic/pi-mono redirected to https://github.com/earendil-works/pi (firecrawl scrape url field); package.json repository.url 'git+https://github.com/earendil-works/pi.git'"
+    },
+    {
+      "claim": "OpenTelemetry: none built in. Telemetry package is contracts only, with no exporter",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/earendil-works/pi/tree/main/packages/telemetry README: 'no exporter, global current-span state, or dependency on a telemetry backend'; 'Applications can ... provide an adapter for OpenTelemetry'. Local: grep -rn -i 'opentelemetry\\|OTEL_' dist/*.js printed nothing; node_modules/@opentelemetry holds only api and semantic-conventions; README 'Telemetry and update checks' covers only the pi.dev install ping."
+    },
+    {
+      "claim": "Running pi processes on this Mac at research time: none, so the row's process matching and idle/working classification were not exercised against a live instance",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ps -axo pid=,ppid=,pcpu=,tty=,args= | grep -i -E 'pi-coding-agent|/bin/pi|\\bpi\\b|dist/cli.js' printed nothing; tools/agents_probe.py --row registry/agents/pi.json reported 0 agent sessions"
+    },
+    {
+      "claim": "Verification 2026-09-29: the removed third surface (names node, args_contain '/bin/pi') was too loose and also missed the pi.dev installer layout",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Ran the probe's own matches() from tools/agents_probe.py on synthetic args: 'node /usr/local/bin/pinact serve', 'node /opt/homebrew/bin/pio run', 'node /usr/local/bin/pino-pretty' and 'node /usr/local/bin/piscina-worker' all matched it; 'node .../v22/bin/pi' matched. The installer wrapper (https://pi.dev/install.sh: pi_release_bin=$pi_release_dir/node_modules/.bin/pi, then exec) launches through '.../node_modules/.bin/pi', which contains '/.bin/pi' and not '/bin/pi', so the surface would not have matched it either."
+    },
+    {
+      "claim": "Vendor and homepage: package author Mario Zechner, GitHub org and npm scope earendil-works, site pi.dev",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "package.json: \"author\": \"Mario Zechner\", repository.url git+https://github.com/earendil-works/pi.git; README.md links https://pi.dev and https://pi.dev/install.sh. Whether 'Earendil Works' is the legal vendor name is inferred from the org name."
+    }
+  ],
+  "confidence": "inferred",
+  "notes": "pi is a Node script, not a native binary. Match on the process title 'pi' (node sets process.title at startup; libuv source says ps args show it, but no live pi has been seen in ps yet, so this is the row's main unverified step). Confidence is inferred for that reason: on the first live run, check ps. If it shows 'node .../bin/pi' instead of 'pi', add a node surface keyed on the exact shim path; the earlier loose '/bin/pi' substring surface was removed because it matches pino, pinact, pio and the like. The same runtime is embedded by other products (the SDK, RPC mode, `pi -p` print mode, subagent extensions that spawn pi children), so a match can be headless with no TTY. Sessions in the same cwd share one folder; the probe maps by uuid in the filename only when --session-id was passed (--session may carry a path or partial uuid, which the exact per_session template cannot resolve); a detector may fall back to the newest file in the cwd's folder (--<cwd with / as ->--). pi exposes no reliable external 'turn in progress' flag from a TUI process: the honest signals are bash-tool children, transcript appends at message boundaries, and CPU. Bundle ids: none."
+}

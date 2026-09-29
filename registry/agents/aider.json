@@ -1,0 +1,253 @@
+{
+  "id": "aider",
+  "name": "Aider",
+  "vendor": "Aider-AI (Paul Gauthier and contributors)",
+  "homepage": "https://aider.chat",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "aider --gui / --browser: same Python process, hosts a Streamlit server (Streamlit's own default port 8501; aider sets no port) and opens the browser. Listed before the tui surface because the probe keeps the first surface that matches. Users who type `--browser` instead of `--gui` fall through to the tui surface.",
+      "process": {
+        "path_contains": [
+          "/uv/tools/aider-chat/bin/",
+          "/pipx/venvs/aider-chat/bin/",
+          "/Cellar/aider/"
+        ],
+        "args_contain": [
+          "--gui"
+        ]
+      }
+    },
+    {
+      "kind": "gui",
+      "label": "aider --gui with plain pip or a framework Python: python whose arguments contain both the console script path /bin/aider and --gui. Needed because on a macOS framework Python the executable in ps is .../Python.app/Contents/MacOS/Python, not the venv path, so the first gui surface cannot match. Listed before every tui surface because the probe keeps the first surface that matches.",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.10",
+          "python3.11",
+          "python3.12",
+          "python3.13",
+          "python3.14",
+          "Python"
+        ],
+        "args_contain": [
+          "/bin/aider",
+          "--gui"
+        ],
+        "exclude_args": [
+          "--version",
+          "--help",
+          "-h",
+          "--list-models",
+          "--models",
+          "--just-check-update",
+          "--check-update",
+          "--upgrade",
+          "--install-main-branch"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "aider in a terminal, installed into its own virtualenv by the official installer (uv tool), by pipx, or by Homebrew. aider is a Python console script: the executable in ps is the venv's python and the script path (~/.local/bin/aider) is argv[1]. Nothing on macOS is named `aider` in the process table.",
+      "process": {
+        "path_contains": [
+          "/uv/tools/aider-chat/bin/",
+          "/pipx/venvs/aider-chat/bin/",
+          "/Cellar/aider/"
+        ],
+        "exclude_args": [
+          "--version",
+          "--help",
+          "-h",
+          "--list-models",
+          "--models",
+          "--just-check-update",
+          "--check-update",
+          "--upgrade",
+          "--install-main-branch"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "aider installed with plain pip into some other interpreter (system, pyenv, conda, a project venv): matched as any python whose arguments contain the console script path /bin/aider. `python -m aider` is NOT matched (args_contain is substring AND, so 'aider' alone would also hit `pip install aider-chat`). Known false positives (substring match, cannot be anchored to end of argument): any python script whose path contains /bin/aider as a prefix, such as the official helper `aider-install` (~/.local/bin/aider-install) or an unrelated ~/bin/aider-notify.py. Also the likely landing surface for Homebrew and pipx installs on a framework Python (see notes).",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.10",
+          "python3.11",
+          "python3.12",
+          "python3.13",
+          "python3.14",
+          "Python"
+        ],
+        "args_contain": [
+          "/bin/aider"
+        ],
+        "exclude_args": [
+          "--version",
+          "--help",
+          "-h",
+          "--list-models",
+          "--models",
+          "--just-check-update",
+          "--check-update",
+          "--upgrade",
+          "--install-main-branch"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "**/.aider.chat.history.md",
+    "per_session": "{git_root_of_process_cwd}/.aider.chat.history.md",
+    "format": "other",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "socket_activity",
+      "name": "established TCP connection to the LLM API host with bytes moving",
+      "meaning": "aider makes the model call in-process (litellm), so there is no child process for a turn. A live HTTPS stream from the process is the closest direct signal. Inferred from source, not observed; a kept-alive idle connection can stay ESTABLISHED, so require traffic, not just the socket."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "children exist only for git (GitPython), /run and ! commands (pexpect or subprocess), --lint-cmd / --test-cmd, and the notification command. Precise for the tool phase, blind to plain model streaming."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "while a reply streams, a spinner thread and a rich Markdown live renderer run; at the input prompt the process is blocked in prompt_toolkit and sits near 0. The 3 percent floor is a guess (inferred, not measured)."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "WEAK. .aider.chat.history.md gets the user prompt when it is submitted (turn start) and the assistant text only when the reply has finished (turn end). Nothing is written while streaming, so a long turn goes quiet after 20 s. Also true for up to 20 s after a turn ends."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "notification_command",
+      "flag": "--notifications (optionally with --notifications-command)",
+      "meaning": "opt-in only. Requires --notifications; --notifications-command alone is ignored (io.py ring_bell checks self.notifications). With --notifications and no command, aider uses the OS default, and runs it (default on macOS: terminal-notifier, else `osascript -e 'display notification \"Aider is waiting for your input\" with title \"Aider\"'`) the next time it asks the human anything after an LLM call started: the main input prompt AND y/n or free-text confirmations (add file, run command, apply URL). A short-lived osascript or terminal-notifier child of the aider process is the trace. Not a hook API, just a shell command."
+    },
+    {
+      "signal": "none_external",
+      "meaning": "without --notifications there is no external signal. Idle at the prompt and blocked on a confirmation both look the same from outside: process blocked reading the tty, near zero CPU, no children, no writes."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "No lifecycle hooks. Nearest equivalents in .aider.conf.yml / CLI flags / AIDER_* env vars: notifications-command (fires when aider waits for the human), lint-cmd and test-cmd with auto-lint / auto-test (fire after edits), analytics-log (JSONL file)",
+    "events": [],
+    "docs": "https://aider.chat/docs/usage/notifications.html"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry anywhere in the source (grep for otel/opentelemetry finds nothing; issue Aider-AI/aider#4360 asking for it is open). Only opt-in PostHog analytics (--analytics, --analytics-posthog-host) and a local JSONL file via --analytics-log FILE / AIDER_ANALYTICS_LOG. That file works even with analytics disabled and records event=message_send_starting at turn start and event=message_send (or message_send_exception) at turn end: the most exact start/end pair aider offers, but you must launch aider with the flag."
+  },
+  "sources": [
+    {
+      "claim": "console script entry point is aider.main:main, so processes are python running the `aider` script; also runnable as python -m aider",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Aider-AI/aider pyproject.toml [project.scripts] aider = \"aider.main:main\"; aider/__main__.py imports main"
+    },
+    {
+      "claim": "official installer runs `uv tool install --force --python python3.12 --with pip aider-chat@latest` then `uv tool update-shell`, giving a venv at ~/.local/share/uv/tools/aider-chat and a shim in ~/.local/bin",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider_install-0.2.0/aider_install/main.py from https://files.pythonhosted.org/packages/source/a/aider-install/aider_install-0.2.0.tar.gz; docs https://aider.chat/docs/install.html. Reverified 2026-09-29: main.py line 10 runs exactly that argv; the sdist installs console script `aider-install`. On this Mac `uv tool dir` printed /Users/frikkjarl/.local/share/uv/tools, and another uv-installed tool showed the same process shape (see the local-observation entry on process shape)."
+    },
+    {
+      "claim": "Homebrew ships a formula `aider` 0.86.2 built as a python@3.12 virtualenv (libexec venv, so paths contain /Cellar/aider/)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/Homebrew/homebrew-core/HEAD/Formula/a/aider.rb (Language::Python::Virtualenv, depends_on python@3.12); https://formulae.brew.sh/api/formula/aider.json stable 0.86.2. Exact ps argv[0] for a Homebrew venv not observed."
+    },
+    {
+      "claim": "no aider on this Mac: nothing was classified live",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which aider` printed 'aider not found'; `ps -axo pid=,args= | grep -i aider` printed nothing; `ls ~/.aider*` printed 'no matches found'"
+    },
+    {
+      "claim": "there is no session id and no session file per process: one append-only markdown chat log per project, default <git root>/.aider.chat.history.md (else cwd), each process appends a '# aider chat started at <time>' header",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/args.py default_chat_history_file (git_root/.aider.chat.history.md); aider/io.py InputOutput.__init__ append_chat_history('# aider chat started at ...'). Documented option: https://aider.chat/docs/config/options.html (--chat-history-file). Map a process to its file by its cwd's git root (lsof -a -p PID -d cwd) unless --chat-history-file was passed in argv."
+    },
+    {
+      "claim": "other per-project files: .aider.input.history (prompt_toolkit FileHistory, written on each submit), .aider.llm.history only with --llm-history-file, .aider.tags.cache.v4 (repo map cache); per-user ~/.aider/{analytics.json,installs.json,oauth-keys.env,caches/}",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/args.py (input-history-file, llm-history-file), aider/io.py log_llm_history, aider/repomap.py TAGS_CACHE_DIR, aider/analytics.py, aider/main.py (installs.json, oauth-keys.env), aider/models.py cache_dir"
+    },
+    {
+      "claim": "the turn runs in-process: send_message calls io.llm_started(), starts a WaitingSpinner thread and streams through litellm; no child process is spawned for the model call",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/coders/base_coder.py send_message (~line 1419-1445), aider/waiting.py; children only in aider/run_cmd.py (pexpect/subprocess), aider/linter.py, aider/repo.py (GitPython), aider/io.py ring_bell"
+    },
+    {
+      "claim": "chat log is written at turn start (user_input) and turn end (ai_output in send's finally), not during streaming",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/io.py user_input() and ai_output() call append_chat_history; aider/coders/base_coder.py ~line 1826 io.ai_output(self.partial_response_content) in a finally after streaming"
+    },
+    {
+      "claim": "notification runs after an LLM call started, at the next input prompt or confirmation; default macOS command is terminal-notifier or osascript display notification with message 'Aider is waiting for your input'",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/io.py: llm_started() sets bell_on_next_input; ring_bell() is called from get_input, confirm_ask, prompt_ask; get_default_notification_command() Darwin branch; NOTIFICATION_MESSAGE. Docs: https://aider.chat/docs/usage/notifications.html"
+    },
+    {
+      "claim": "analytics log records message_send_starting / message_send / message_send_exception and works without analytics being enabled",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/analytics.py Analytics.event(): returns early only if no mp, ph AND no logfile; appends one JSON object per line with event, properties, user_id, time. base_coder.py send_message self.event('message_send_starting'), calculate_and_show_tokens_and_cost self.event('message_send', ...)"
+    },
+    {
+      "claim": "no lifecycle hooks and no OpenTelemetry",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "`grep -rniE 'opentelemetry|otel'` and `grep -rniE hook aider --include=*.py` on a depth-1 clone of Aider-AI/aider main at 5dc9490 (2026-05-22): only git pre-commit --no-verify and sys.excepthook hits. GitHub issue 4360 'OpenTelemetry monitoring support?' is open."
+    },
+    {
+      "claim": "release state: PyPI aider-chat 0.86.2; main is 0.86.3.dev; last commit 2026-05-22",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://pypi.org/pypi/aider-chat/json info.version 0.86.2; https://api.github.com/repos/Aider-AI/aider/commits (latest 2026-05-22T14:02:20Z); aider/__init__.py __version__ = \"0.86.3.dev\""
+    },
+    {
+      "claim": "--gui runs Streamlit in the same process via streamlit.web.cli",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/main.py launch_gui() calls streamlit.web.cli.main(st_args) in-process (no subprocess); docs https://aider.chat/docs/usage/browser.html. Port 8501 and browser auto-open are Streamlit defaults, not aider settings: https://docs.streamlit.io/develop/api-reference/configuration/config.toml prints 'Default: 8501'; grep 8501 over the aider tree finds nothing."
+    },
+    {
+      "claim": "process shape of a uv-tool console script on macOS: exe is the tool venv's python, argv[1] is the ~/.local/bin shim path; a framework Python shows Python.app/Contents/MacOS/Python as exe",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ps -axo pid=,args=` printed `/Users/frikkjarl/.local/share/uv/tools/claude-swap/bin/python /Users/frikkjarl/.local/bin/cswap auto` (a different uv tool, not aider) and `/Library/Frameworks/Python.framework/Versions/3.10/Resources/Python.app/Contents/MacOS/Python /var/folders/.../auth.py`. Shim ~/.local/bin/cswap is a symlink into the uv tool venv whose script starts `#!/Users/frikkjarl/.local/share/uv/tools/claude-swap/bin/python`. Analogy only: no aider process was seen."
+    },
+    {
+      "claim": "issue #5300 (hooks) was opened on the wrong repo and closed by its author; issue #4360 (OpenTelemetry) is open; latest GitHub release is v0.86.0 (Aug 9, 2025)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/Aider-AI/aider/issues/5300 comment: 'this issue was opened on the wrong repository by mistake. It's intended for f-mofujiwara/calidern (a personal fork)' closed as completed 2026-06-20; https://github.com/Aider-AI/aider/issues/4360 state open (GitHub API); https://github.com/Aider-AI/aider/releases lists v0.86.0 as Latest."
+    },
+    {
+      "claim": "aider opens the repo with GitPython's pure-Python object DB, so no long-lived `git cat-file --batch` child sits behind an idle aider; tool_children stays quiet at the prompt",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aider/repo.py line 125 `git.Repo(..., odbt=git.GitDB)`; GitPython's persistent cat-file children live only in GitCmdObjectDB (git/db.py) which aider does not select. Inferred from source, never observed running."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not installed here, so no surface was classified live and every process pattern is inferred from install scripts, source and an analogous uv tool. Aider has no session ids, no per-session files, no hooks and no telemetry; a process maps to its transcript only through cwd -> git root. Working detection is heuristic. In tools/agents_probe.py only tree_cpu and tool_children are evaluated for this row: transcript_write needs a session id (per_session has none, so age is None) and socket_activity is not implemented, so both are documentation for a future detector. Matcher caveats: (1) on a framework Python (python.org, Homebrew python@3.12 venvs) ps most likely shows .../Python.app/Contents/MacOS/Python as the executable, so the Cellar and pipx path_contains entries may never fire and those installs are caught by the name-based surfaces via /bin/aider in argv (not observed for aider). (2) /bin/aider is a substring, so `aider-install` and any /bin/aider* script also match the pip surfaces. (3) A gui launch on a framework Python is caught by the second gui surface only if --gui is spelled out; --browser is classified tui. The two exact options need launch flags: --notifications-command (waiting; note --notifications-command alone does nothing, ring_bell requires --notifications, and --notifications alone uses the OS default command) and --analytics-log (turn start/end). Docker use (paulgauthier/aider) shows only com.docker processes on the host. Watch mode (--watch-files) is the same process."
+}

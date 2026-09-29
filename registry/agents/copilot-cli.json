@@ -1,0 +1,317 @@
+{
+  "id": "copilot-cli",
+  "name": "GitHub Copilot CLI",
+  "vendor": "GitHub",
+  "homepage": "https://github.com/github/copilot-cli",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "copilot in a terminal. A native arm64/x64 Mach-O (Node single-executable app), not a node process. Homebrew cask symlinks /opt/homebrew/bin/copilot, install.sh writes ~/.local/bin/copilot or /usr/local/bin/copilot, npm runs node npm-loader.js which spawns .../@github/copilot-darwin-arm64/copilot as a child (match the child, never the node parent). Also covers -p one-shot runs and --ui-server (TUI plus local server, optionally with --port N). NAME COLLISION: the AWS Copilot CLI (Homebrew formula 'copilot', end-of-support 2026-06-12) also installs a binary named copilot at the same path, so a name match alone is not proof. Confirm with ~/.copilot/session-state/*/inuse.<pid>.lock or ~/.copilot/logs/process-<timestamp>-<pid>.log for the pid.",
+      "process": {
+        "names": [
+          "copilot"
+        ],
+        "path_contains": [
+          "/@github/copilot-darwin-",
+          "/Caskroom/copilot-cli/"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--server",
+          "--headless",
+          "--ahp-host"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "gui",
+      "label": "GitHub Copilot desktop app (Tauri, installed at /Applications/GitHub Copilot.app). A separate product from the CLI. It hosts the Copilot runtime itself: it can spawn the CLI or the bundled copilot-runtime wrapper over TCP or stdio, and its Rust SDK also has an in-process transport, so children may not exist at all. That it shares the ~/.copilot session store is inferred (COPILOT_HOME defaults to ~/.copilot), not observed. The probe splits ps args on spaces, so this path never matches; detect the app by bundle id.",
+      "bundle_ids": [
+        "com.github.githubapp"
+      ],
+      "process": {
+        "path_contains": [
+          "/GitHub Copilot.app/Contents/MacOS/github"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "copilot --acp: Agent Client Protocol server, spawned by an editor (Zed, JetBrains and other ACP clients). Requires --stdio or --port N; stdio is the default when --port is absent.",
+      "process": {
+        "names": [
+          "copilot"
+        ],
+        "args_contain": [
+          "--acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "copilot --server: headless JSON-RPC session server for the Copilot SDK (stdio or --port N TCP). The CLI itself spawns `--server --port 0 --managed-server` children behind a feature flag; the outermost-process rule in the probe folds those into their parent.",
+      "process": {
+        "names": [
+          "copilot"
+        ],
+        "args_contain": [
+          "--server"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "copilot --headless: alias of --server. The Copilot SDK and desktop app start the runtime as `<runtime> --headless --no-auto-update [--stdio | --port N]`.",
+      "process": {
+        "names": [
+          "copilot"
+        ],
+        "args_contain": [
+          "--headless"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "copilot --ahp-host: headless AHP (agent host protocol) host, default listen 127.0.0.1:8765, awaits forever and may outlive the CLI that started it. Own log ahp-host-<pid>.log. New in 1.0.8x, not in the vendor docs.",
+      "process": {
+        "names": [
+          "copilot"
+        ],
+        "args_contain": [
+          "--ahp-host"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "copilot-runtime: the small Mach-O wrapper that the Copilot SDK and desktop app extract from the package (prebuilds/darwin-arm64/copilot-runtime) and start with --headless/--server. Not the copilot binary, so the names above do not cover it. Exact argv unverified.",
+      "process": {
+        "names": [
+          "copilot-runtime"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "label": "Copilot cloud agent and remote sessions (--remote, --connect): same harness on GitHub-hosted Linux. No local process, no macOS signal."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.copilot/session-state/*/events.jsonl",
+    "per_session": "~/.copilot/session-state/{session_id}/events.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "Exact only when the user runs /keep-alive busy (setting keepAlive=busy): the CLI then spawns `caffeinate -dis -w <its own pid>` for the length of the turn. Default is keepAlive=off, so it is normally absent. In mode `on` or a timed keep-alive the child is held for the whole session including idle, so it is a false positive there."
+    },
+    {
+      "signal": "power_assertion",
+      "name": "PreventUserIdleSystemSleep",
+      "meaning": "GUI surface only. The Copilot app process (com.github.githubapp) creates an IOPMAssertion 'GitHub Copilot app ... N active session(s)' while a session is busy, with a grace period after idle. Only when its Keep Awake setting is on. Default of that setting not determined."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "events.jsonl is expected to get a line at user.message, assistant.turn_start, tool.execution_start/complete, assistant.message and assistant.turn_end: these are typed as not-always-transient (`ephemeral?: boolean`) in the SDK typings, but no real file was read. Events typed `ephemeral: true` (assistant.message_delta, assistant.usage, assistant.idle, session.idle, user_input.requested, elicitation.requested, exit_plan_mode.requested, tool.execution_partial_result, session.usage_info) are never written, so a long model stream or a long shell command can leave a quiet file during a live turn. The probe needs a session id and a plain interactive process carries none in argv; map pid to session dir through ~/.copilot/session-state/*/inuse.<pid>.lock (undocumented, Linux report only)."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured. The Ink TUI animates a spinner while a turn runs; idle is expected near 0 percent. A turn blocked on the network can sit below the floor."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "notification",
+      "meaning": "Fires asynchronously with notification_type permission_prompt (tool needs approval) or elicitation_dialog (agent asks the user). Also agent_idle, agent_completed, shell_completed, shell_detached_completed. Fire-and-forget."
+    },
+    {
+      "signal": "hook",
+      "event": "permissionRequest",
+      "meaning": "Fires before the permission engine runs, so it also fires for calls that are then auto-approved. Not proof that a human is being asked."
+    },
+    {
+      "signal": "hook",
+      "event": "agentStop",
+      "meaning": "Main agent finished a turn and is back at the prompt. Pair with userPromptSubmitted for exact busy windows."
+    },
+    {
+      "signal": "terminal_progress",
+      "meaning": "Terminal side, not visible to ps. OSC 9;4;3 (indeterminate progress) while the agent works and OSC 9;4;0 when it stops. Setting terminalProgress, default true. Rendered by iTerm2, Ghostty, Windows Terminal, ConEmu."
+    },
+    {
+      "signal": "terminal_title",
+      "meaning": "Terminal side. OSC 0 title carries the current intent (setting updateTerminalTitle, default true). No documented idle/working/waiting vocabulary in the title."
+    },
+    {
+      "signal": "session_event",
+      "meaning": "session.idle (transient, never on disk) marks the turn end for SDK, --server and --ui-server clients. permission.requested, user_input.requested, elicitation.requested and exit_plan_mode.requested mark waiting; the last three are transient. Needs a live connection to the CLI's own server, which is intrusive, so not used here."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "JSON with {\"version\":1,\"hooks\":{...}}. Loaded and merged from: /etc/github-copilot/policy.d/*.json (root-owned, cannot be disabled), .github/hooks/*.json in the repo, ~/.copilot/hooks/*.json ($COPILOT_HOME/hooks), a hooks block in .github/copilot/settings.json or settings.local.json, a hooks block in ~/.copilot/settings.json, plugin hooks.json. Cross-tool .claude/settings.json and .claude/settings.local.json in the repo are also read. Command, http and prompt (sessionStart only) hook types.",
+    "events": [
+      "sessionStart",
+      "sessionEnd",
+      "userPromptSubmitted",
+      "userPromptTransformed",
+      "preToolUse",
+      "postToolUse",
+      "postToolUseFailure",
+      "permissionRequest",
+      "notification",
+      "agentStop",
+      "subagentStart",
+      "subagentStop",
+      "preCompact",
+      "errorOccurred"
+    ],
+    "docs": "https://docs.github.com/en/copilot/reference/hooks-reference"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Off by default. Enabled by COPILOT_OTEL_ENABLED=true, or OTEL_EXPORTER_OTLP_ENDPOINT, or COPILOT_OTEL_FILE_EXPORTER_PATH (JSONL file). Exporter otlp-http (http/json default, http/protobuf optional) or file. service.name github-copilot. One invoke_agent root span per user message with chat and execute_tool children; gen_ai.conversation.id is the session id. Prompt and response content is off unless OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true. Also settable by the enterprise managed-settings telemetry block."
+  },
+  "sources": [
+    {
+      "claim": "Not installed on this Mac, no ~/.copilot, no running copilot process. Nothing in this row was observed on a live instance.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which copilot` printed 'copilot not found'; `ls ~/.copilot` printed 'No such file or directory'; `ps -axo pid,args | grep -i copilot` printed nothing; `ls /Applications | grep -i -E 'copilot|github'` printed only 'GitHub Desktop.app' (a different product). Re-run 2026-09-29 by the verifier with the same results."
+    },
+    {
+      "claim": "The github/copilot-cli repo holds no source, only README.md, LICENSE.md, changelog.md, install.sh and a .github dir. Latest commit 'Update changelog.md for version 1.0.89' (2026-09-28T19:20Z; corrected from 1.0.88, which was the commit of 2026-09-22). npm latest is 1.0.89, prerelease 1.0.90-2.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/github/copilot-cli (tree JSON lists .github, LICENSE.md, README.md, changelog.md, install.sh); https://github.com/github/copilot-cli/commits/main.atom (newest entry 'Update changelog.md for version 1.0.89' 2026-09-28T19:20:52Z, then 1.0.88 2026-09-22T20:00:59Z); https://registry.npmjs.org/@github/copilot dist-tags {latest:1.0.89, prerelease:1.0.90-2}"
+    },
+    {
+      "claim": "Binary name is copilot. install.sh downloads copilot-darwin-<arm64|x64>.tar.gz and untars `copilot` into $PREFIX/bin (default $HOME/.local/bin non-root, /usr/local/bin as root).",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/github/copilot-cli/blob/main/install.sh (DOWNLOAD_URL, INSTALL_DIR=$PREFIX/bin, tar -xz -C \"$INSTALL_DIR\")"
+    },
+    {
+      "claim": "Homebrew cask copilot-cli links the binary to $HOMEBREW_PREFIX/bin/copilot; zap removes ~/.copilot and ~/Library/Caches/copilot.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/cask/copilot-cli.json -> artifacts [{binary:[copilot], target:$HOMEBREW_PREFIX/bin/copilot}, {zap:[{trash:[~/.copilot, ~/Library/Caches/copilot]}]}]"
+    },
+    {
+      "claim": "npm package @github/copilot is a tiny loader (12,968 bytes unpacked, npm-loader.js itself 1,185 bytes): bin copilot -> npm-loader.js, which spawnSync()s the native @github/copilot-<platform>-<arch> binary with stdio inherit. So under npm there is a node parent and a native child.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "@github/copilot@1.0.89 npm-loader.js (`spawnSync(r,process.argv.slice(2),{stdio:\"inherit\"})`, r = import.meta.resolve(`@github/copilot-${platform}-${arch}`)); package.json optionalDependencies @github/copilot-darwin-arm64 and -x64"
+    },
+    {
+      "claim": "The native package is a Node single-executable app: one Mach-O binary that embeds copilot.tgz (index.js, app.js, runtime.node), extracts it to a pkg cache and import()s index.js inside the same process. No node child. Auto-update packages are loaded the same way, so the process stays the native copilot binary.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Downloaded https://registry.npmjs.org/@github/copilot-darwin-arm64/-/copilot-darwin-arm64-1.0.89.tgz into the scratchpad (not executed). `file package/copilot` -> 'Mach-O 64-bit executable arm64'; `strings` shows NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 and sea-loader.js with `await import(pathToFileURL(r))`, the extraction cache is COPILOT_PKG_CACHE_HOME|COPILOT_CACHE_HOME|~/Library/Caches/copilot + /pkg/darwin-arm64/1.0.89 (function Wi in sea-loader.js), with $COPILOT_HOME/pkg and ~/.copilot/pkg as fallback lookups Verifier re-extracted the embedded copilot.tgz from the binary and confirmed sea-loader.js loads index.js in-process via `await import(pathToFileURL(r))` and contains no spawn of node."
+    },
+    {
+      "claim": "Session history lives in ~/.copilot/session-state/<session-id>/ with events.jsonl plus workspace artifacts; COPILOT_HOME or --config-dir moves ~/.copilot. session-store.db is a SQLite cross-session index (rebuilt by /chronicle reindex). logs/ holds process-{timestamp}-{pid}.log, one per process. Only the pid is in the log file name; the docs do not say the log holds the session id, so the log is a pid marker, not a pid to session map.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (sections session-state/, session-store.db, logs/)"
+    },
+    {
+      "claim": "Each live process drops session-state/<id>/inuse.<pid>.lock containing only its pid. This is the pid to session map when argv has no id. Files are left behind after crashes, so check the pid is alive. Undocumented.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/github/copilot-cli/issues/2609 (user report on 1.0.21, Linux only: 'Multiple stale inuse.[pid].lock files ... Each file contains only its PID'). Corroborated by the string 'inuse.' next to 'held session lock files mutex poisoned' in prebuilds/darwin-arm64/runtime.node of 1.0.89."
+    },
+    {
+      "claim": "Session id reaches argv via --session-id ID (or --session-id=ID), --resume[=VALUE] / -r (value may be an id, id prefix or name), --connect[=ID]. A plain `copilot` carries no id. -p/--prompt runs one turn and exits. --acp is documented; --server, --headless, --ui-server and --port are NOT in the option table of the official command reference (only --ui-server is mentioned once, in the `copilot workflow run` conflict list) and are sourced from app.js and the changelog instead (see next entry).",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference (Command-line options table: --acp, --connect[=SESSION-ID], -p/--prompt, -r/--resume[=VALUE], --session-id ID, --remote; no --server/--headless/--port row)"
+    },
+    {
+      "claim": "--server, --headless (alias), --acp, --ui-server (TUI plus server), --ahp-host, --managed-server, --stdio and --port exist in the 1.0.89 runtime. --acp needs --stdio or --port (stdio default). --port is meaningful only with --server/--headless, --acp or --ui-server. --ahp-host starts a headless host that awaits forever. `--server` and `--headless` are named in changelog.md 1.x entries; --ahp-host in the 1.0.88 changelog line about managed settings.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "app.js in @github/copilot-darwin-arm64@1.0.89 (embedded copilot.tgz): option-conflict table [[\"server\",\"--server\"],[\"headless\",\"--headless\"],[\"acp\",\"--acp\"],[\"uiServer\",\"--ui-server\"],[\"ahpHost\",\"--ahp-host\"],...]; 'Either --stdio or --port must be specified for ACP mode.'; 'Cannot use --server/--headless with --ui-server. Use --server or --headless for headless mode, or --ui-server for TUI + server mode.'; embeddedServer:e.uiServer?{enabled:!0,port:e.port,host:e.host}; startAhpHostMode default listen 127.0.0.1:8765 then `await new Promise(()=>{})`; ylo() builds ['--server','--port','0','--managed-server',...]; https://raw.githubusercontent.com/github/copilot-cli/main/changelog.md lines 53 (--acp, --ahp-host, --server) and 1458 (--server / --headless)."
+    },
+    {
+      "claim": "The CLI spawns `caffeinate -dis -w <process.pid>` on macOS (systemd-inhibit on Linux) as its keep-alive. It is opt-in: setting keepAlive is \"off\" by default, \"busy\" holds it only while the agent works, \"on\" or a duration holds it for the session. Slash command /keep-alive (alias /caffeinate).",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "app.js in @github/copilot-darwin-arm64@1.0.89 (embedded copilot.tgz): class with startChildProcessKeepAlive({command:\"caffeinate\",args:[\"-dis\",\"-w\",String(process.pid)]}) and command /keep-alive with choices on|off|busy; docs: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference row keepAlive default \"off\""
+    },
+    {
+      "claim": "session.idle, assistant.idle, assistant.usage, assistant.message_delta, tool.execution_partial_result, user_input.requested, elicitation.requested and exit_plan_mode.requested are typed `ephemeral: true` ('transient and not persisted to the session event log on disk'). session.idle is emitted with emitEphemeral. user.message, assistant.turn_start, assistant.turn_end, assistant.message, tool.execution_start/complete, abort and permission.requested are typed only `ephemeral?: boolean`, so 'persisted' is inferred from the absence of `ephemeral: true`, not observed on a real events.jsonl. Every event type has id, parentId, timestamp, type, data, optional agentId, optional ephemeral. assistant.turn_start fires per model round-trip, not per user message (OTel doc: github.copilot.turn_count = 'Number of LLM round-trips').",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "GitHub Copilot.app/Contents/Resources/copilot-sdk/generated/session-events.d.ts (app v1.1.23, downloaded GitHub-Copilot-darwin-arm64.zip, read one file); runtime emits it with emitEphemeral(\"session.idle\") in app.js. assistant.turn_start fires per model round-trip, not per user message (OTel doc: github.copilot.turn_count = 'Number of LLM round-trips'). Verifier re-read session-events.d.ts from the v1.1.23 zip. Corroboration in the app binary: 'Those events [session.usage_info] are ephemeral and never persisted to the CLI's events.jsonl'."
+    },
+    {
+      "claim": "Terminal-side turn indicators: OSC 9;4 progress while the agent works (terminalProgress, default true) and OSC 0 tab title with current intent (updateTerminalTitle, default true). The CLI also writes BEL and OSC 777 notify.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (rows terminalProgress, updateTerminalTitle); app.js escape table PROGRESS_INDETERMINATE:\"\\x1B]9;4;3;0\\x07\", PROGRESS_OFF:\"\\x1B]9;4;0;0\\x07\", vLn=(e,t)=>`\\x1B]777;notify;${e};${t}\\x1B\\\\`"
+    },
+    {
+      "claim": "14 hook events, hook file locations and the notification types (permission_prompt, elicitation_dialog, agent_idle, agent_completed, shell_completed, shell_detached_completed). PascalCase event names give VS Code / Claude style snake_case payloads. agentStop payload carries transcriptPath.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.github.com/en/copilot/reference/hooks-reference (Hooks locations, Hook events, Notification sections)"
+    },
+    {
+      "claim": "OpenTelemetry export: env vars, spans (invoke_agent, chat, execute_tool), metrics, defaults (off, otlp-http, http/json, service github-copilot).",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#opentelemetry-monitoring"
+    },
+    {
+      "claim": "Desktop app: bundle id com.github.githubapp, executable Contents/MacOS/github, installed to /Applications/GitHub Copilot.app; cask github-copilot-app; URL schemes github-app, ghapp, gh.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Read Info.plist from GitHub-Copilot-darwin-arm64.zip (release v1.1.23 of github/app): CFBundleIdentifier com.github.githubapp, CFBundleExecutable github, CFBundleDisplayName GitHub Copilot; https://formulae.brew.sh/api/cask/github-copilot-app.json artifacts app 'GitHub Copilot.app'"
+    },
+    {
+      "claim": "The app holds a PreventUserIdleSystemSleep IOPMAssertion while sessions are busy, with a grace period, and starts the Copilot runtime over TCP or stdio using the Rust copilot-sdk crate (the SDK starts `<runtime> --headless --no-auto-update [--stdio | --port N]`). The same crate has an in-process transport (Transport::InProcess), so whether a given session has a child process is not established. The exact assertion name is truncated in the binary (strings show 'GitHub Copilot app ' and ' active session(s)' as adjacent fragments).",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "`strings`-style scan of Contents/MacOS/github (v1.1.23): 'IOPMAssertionCreateWithName failed', 'PreventUserIdleSystemSleep', 'Session became busy (keep-awake tracking)', 'Session became idle (keep-awake tracking)', 'grace_period_minutes', 'spawning copilot CLI (tcp)--port', 'spawning copilot CLI (stdio)--stdio'. Changelog https://github.com/github/app/blob/main/changelog.md mentions a Keep Awake setting. Verifier also read Contents/Resources/copilot-sdk/index.js (startCLIServer: args=[...connectionExtraArgs,\"--headless\",\"--no-auto-update\"], then --stdio or --port N; runtime wrapper name copilot-runtime) and app changelog lines 1294 and 3190 mention Keep Awake. Static reading only; the app was not run."
+    },
+    {
+      "claim": "The CLI ships a helper app 'Copilot Computer Use.app' (bundle id com.github.computeruse.service, LSUIElement) inside its package. It is a tool helper, not an agent surface, and must not be counted as a session.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "package/plugins/computer-use/Copilot Computer Use.app/Contents/Info.plist in the embedded copilot.tgz of @github/copilot-darwin-arm64@1.0.89"
+    },
+    {
+      "claim": "copilot-runtime is a separate 453 KB Mach-O wrapper (prebuilds/darwin-arm64/copilot-runtime) that loads runtime.node and errors with 'SDK server mode requires --server or --headless'. The SDK extracts it as the bundled runtime, so an SDK or desktop-app hosted runtime appears as process name copilot-runtime, not copilot.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "`file package/prebuilds/darwin-arm64/copilot-runtime` -> 'Mach-O 64-bit executable arm64' inside the embedded copilot.tgz of @github/copilot-darwin-arm64@1.0.89; `strings` shows 'SDK server mode requires --server or --headless', '--stdio cannot be combined with --port'; app copilot-sdk/index.js ensureRuntimeBundle: wrapperName = 'copilot-runtime'."
+    },
+    {
+      "claim": "Name collision: the AWS Copilot CLI (ECS/Fargate) installs a binary named `copilot` too. Homebrew-core formula 'copilot' 1.34.1 and the GitHub cask 'copilot-cli' both link $HOMEBREW_PREFIX/bin/copilot. A process whose name is copilot is therefore not necessarily GitHub Copilot CLI.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/formula/copilot.json -> desc 'CLI tool for Amazon ECS and AWS Fargate', homepage https://aws.github.io/copilot-cli/, tap homebrew/core; https://raw.githubusercontent.com/aws/copilot-cli/mainline/README.md (end-of-support 2026-06-12)"
+    },
+    {
+      "claim": "False-positive check of the process patterns with the probe's own matches(): the earlier path_contains '/.local/bin/copilot' also matched '/.local/bin/copilot-language-server' and any other binary whose path starts that way, and names:['copilot'] already covers the real binary, so the entry was removed. exclude_args '--port' wrongly demoted `copilot --ui-server --port N` (a TUI) to a daemon, so it was removed together with the unsupported '--port' daemon surface.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "tools/agents_probe.py matches() run in-process on synthetic ps rows (no process started); results in registry/evidence/copilot-cli.md ## Verification."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Documented and source-read, never observed running. Verified 2026-09-29 by an independent pass, see registry/evidence/copilot-cli.md ## Verification. Things that differ from the Claude Code row. (1) Only the exact `session.idle` event marks turn end and it is never written to disk, so the transcript cannot say idle; use hooks (userPromptSubmitted -> agentStop) for exact windows. (2) caffeinate is opt-in and can be held while idle, so it is not a safe standalone turn signal. (3) The interactive process has no session id in argv; map pid to session with ~/.copilot/session-state/*/inuse.<pid>.lock (undocumented, one Linux report on 1.0.21 plus an 'inuse.' string in runtime.node). The process log name process-<timestamp>-<pid>.log gives the pid only. (4) The name `copilot` is shared with the AWS Copilot CLI; the probe cannot tell them apart from argv, so a detector should also require a live inuse lock or process log for the pid. Excluding AWS subcommand words is not safe because the probe matches exclude_args against every space-separated token, prompt words included. (5) The probe splits ps args on spaces, so the GUI path '/Applications/GitHub Copilot.app/...' never matches; detect the app by bundle id com.github.githubapp. (6) `--resume=ID` and `--session-id=ID` (equals form, the form the CLI prints in its exit hint) are not read by the probe's session_id_args logic; a bare `--resume` makes the probe take the next argv as an id. (7) session_store.glob does not follow COPILOT_HOME or --config-dir. (8) A `copilot -p` run is a turn for its whole life but shows no caffeinate and may show low CPU. (9) SDK/app-hosted runtimes appear as `copilot-runtime`; if the SDK resolves a .js entry it runs `node <index.js>`, which no row here matches. Not determined: real ps args, CPU behaviour and child processes of a live TUI; the app's Keep Awake default."
+}

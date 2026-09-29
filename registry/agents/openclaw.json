@@ -1,0 +1,238 @@
+{
+  "id": "openclaw",
+  "name": "OpenClaw",
+  "vendor": "OpenClaw (open source, github.com/openclaw/openclaw)",
+  "homepage": "https://github.com/openclaw/openclaw",
+  "surfaces": [
+    {
+      "kind": "daemon",
+      "label": "Gateway as launchd runs it: node .../openclaw/dist/index.js gateway --port 18789 (WebSocket + HTTP on 127.0.0.1:18789, LaunchAgent ai.openclaw.gateway). Runs every turn for every channel, cron and heartbeat. In 2026.4.29 the foreground-gateway fast path (dist/cli/run-main.js tryRunGatewayRunFastPath) builds a bare commander program with no preAction hook, so this process is never retitled and ps keeps the full argument string. A gateway started from a terminal with `openclaw gateway` is titled just `openclaw` (dist/entry.js) and cannot be matched by name.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "openclaw/dist/index.js",
+          "gateway",
+          "--port"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "openclaw tui (its aliases terminal and chat run the same command and are titled openclaw-tui) or one-shot openclaw agent: clients of the gateway. tui --local and agent --local run the agent loop in their own process. openclaw agent lives for one turn only.",
+      "process": {
+        "names": [
+          "openclaw-tui",
+          "openclaw-agent"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "openclaw acp: ACP stdio bridge that an IDE launches; forwards prompts to the gateway",
+      "process": {
+        "names": [
+          "openclaw-acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "openclaw node run: headless node host that lets a remote gateway run system.run and canvas on this Mac. Every `openclaw node <subcommand>` (status, install, start, stop...) is also titled openclaw-node for its short life, so a short-lived status call looks like a node host.",
+      "process": {
+        "names": [
+          "openclaw-node"
+        ]
+      }
+    },
+    {
+      "kind": "gui",
+      "label": "OpenClaw.app menu bar companion (optional; owns TCC permissions, attaches to the launchd gateway). Recognise by bundle id only: it never runs turns, so it carries no process spec and is never classified.",
+      "bundle_ids": [
+        "ai.openclaw.mac",
+        "ai.openclaw.mac.debug"
+      ]
+    }
+  ],
+  "session_store": {
+    "glob": "~/.openclaw/agents/*/sessions/*.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "Only when the agent runtime is claude-cli (the default for this install): the gateway keeps a long-lived `claude` stdio child per session and that Claude Code should hold a caffeinate for the length of each turn. Inferred from the claude-code row plus OpenClaw source; never observed for a claude -p stream-json child, and the gateway is not running on this Mac. Does not fire for the built-in pi runtime, which runs in-process."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "Valid for the installed 2026.4.29 only: any ~/.openclaw/agents/*/sessions/*.jsonl or *.trajectory.jsonl modified in the last 20 s means the gateway has a turn in flight. One gateway serves all sessions, so this cannot be attributed to a process, only to the gateway. Precise form of the same fact: a <session>.jsonl.lock file exists whose JSON pid is alive (session write lock, held for the whole run, deleted at the end). Current upstream docs (fetched 2026-09-29) say runtime session rows, transcripts and trajectory events moved to ~/.openclaw/agents/<agentId>/agent/openclaw-agent.sqlite and the lock became a durable activeWriterRunId claim, so on newer releases neither the jsonl mtime nor the .lock file will exist; this signal is then silent and only tree_cpu remains."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Gateway process tree CPU. Weak: the gateway also burns CPU on channel I/O, so use only as a fallback."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "gateway_event",
+      "event": "exec.approval.requested",
+      "meaning": "Gateway broadcasts this WebSocket event to operator clients (Control UI, macOS app) when a tool call needs a human decision; exec.approval.resolved ends it. Also plugin.approval.* for plugin approval flows. `exec.approval.list` lists pending ones. Cannot happen on this install: exec-approvals ask is off."
+    },
+    {
+      "signal": "channel_prompt",
+      "meaning": "Approval prompts and questions are delivered as chat messages on the channel (Telegram, Discord, Slack, WhatsApp...), so the human may be waiting on a phone, not a terminal. No process-level or file-level waiting signal exists."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.openclaw/openclaw.json under hooks.internal (enable with `openclaw hooks enable <name>`); hook dirs: bundled, plugin, ~/.openclaw/hooks/, <workspace>/hooks/ (each a directory with HOOK.md + handler.ts). Typed plugin hooks are registered in code by plugins, not in config.",
+    "events": [
+      "command:new",
+      "command:reset",
+      "command:stop",
+      "session:compact:before",
+      "session:compact:after",
+      "session:patch",
+      "agent:bootstrap",
+      "gateway:startup",
+      "gateway:shutdown",
+      "gateway:pre-restart",
+      "message:received",
+      "message:transcribed",
+      "message:preprocessed",
+      "message:sent",
+      "plugin: before_model_resolve",
+      "plugin: before_prompt_build",
+      "plugin: before_agent_reply",
+      "plugin: agent_end",
+      "plugin: before_tool_call",
+      "plugin: after_tool_call",
+      "plugin: session_start",
+      "plugin: session_end",
+      "plugin: gateway_start",
+      "plugin: gateway_stop"
+    ],
+    "docs": "https://docs.openclaw.ai/automation/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Bundled diagnostics-otel plugin, OTLP/HTTP protobuf only (grpc ignored), off by default: plugins.allow + plugins.entries.diagnostics-otel.enabled=true and diagnostics.otel.enabled=true with endpoint (or OTEL_EXPORTER_OTLP_ENDPOINT). Exports metrics (openclaw.session.state, openclaw.run.duration_ms, openclaw.queue.depth, openclaw.tokens), traces (openclaw.run, openclaw.model.call, tool exec) and logs. Content capture is opt-in per key. Docs: https://docs.openclaw.ai/gateway/opentelemetry"
+  },
+  "sources": [
+    {
+      "claim": "Installed: OpenClaw 2026.4.29 (a448042) at /opt/homebrew/lib/node_modules/openclaw via /opt/homebrew/bin/openclaw -> ../lib/node_modules/openclaw/openclaw.mjs; upstream has since moved on (update-check.json says 2026.7.1-2 available)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`openclaw --version` printed 'OpenClaw 2026.4.29 (a448042)'; `ls -la /opt/homebrew/bin/openclaw`; ~/.openclaw/update-check.json lastAvailableVersion=2026.7.1-2"
+    },
+    {
+      "claim": "Gateway is a launchd LaunchAgent, label ai.openclaw.gateway, exec'ing node .../openclaw/dist/index.js gateway --port 18789 through an env wrapper; it is loaded but NOT running on this Mac (runs = 0, no KeepAlive/RunAtLoad)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`launchctl print gui/501/ai.openclaw.gateway` printed 'state = not running', 'runs = 0', 'last exit code = (never exited)', arguments = wrapper, node v22.22.2, /opt/homebrew/lib/node_modules/openclaw/dist/index.js, gateway, --port, 18789; `ps -axo args | grep -i openclaw` found nothing; `lsof -nP -iTCP:18789` found no listener"
+    },
+    {
+      "claim": "LaunchAgent label ai.openclaw.gateway (ai.openclaw.<profile> for --profile); macOS app is a menu bar companion that attaches to it and does not spawn it as a child",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openclaw.ai/platforms/macos (local copy /opt/homebrew/lib/node_modules/openclaw/docs/platforms/macos.md, sections 'Local vs remote mode' and 'Launchd control')"
+    },
+    {
+      "claim": "macOS app bundle id is ai.openclaw.mac (debug builds ai.openclaw.mac.debug); app is built to dist/OpenClaw.app; not installed on this Mac",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "docs/platforms/mac/permissions.md ('sudo tccutil reset Accessibility ai.openclaw.mac'), docs/platforms/mac/signing.md ('ai.openclaw.mac.debug', 'dist/OpenClaw.app'); `ls /Applications | grep -i claw` printed nothing; verified 2026-09-29 in local docs. The live https://docs.openclaw.ai/platforms/macos no longer names the bundle id and describes an app that can install and own the local launchd gateway"
+    },
+    {
+      "claim": "Process title: setProcessTitleForCommand sets process.title = '<cli>-<top-level command name>' in the commander preAction hook, but the launchd gateway command (`gateway --port 18789`) never reaches that hook. dist/cli/run-main.js tryRunGatewayRunFastPath builds a bare Command with only the gateway/run subcommands, and isGatewayRunFastPathArgv accepts `gateway`, `gateway run` and the run flags (--port, --bind, --token, --verbose...). So the real daemon keeps its full node args and is NOT titled openclaw-gateway; only non-run subcommands (gateway status, health, call, install...) are. dist/entry.js:274 sets process.title = 'openclaw' for anything started through openclaw.mjs (for example `openclaw gateway` typed in a terminal), and for non-gateway commands entry.js respawns a node child, so a client appears as a parent titled openclaw plus a child titled openclaw-<command>. tui aliases terminal and chat have name() = tui, so openclaw-terminal and openclaw-chat never occur",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/program-BrS1V7cf.js:46 (setProcessTitleForCommand, registered only in buildProgram at line 108); dist/cli/run-main.js:118-175 (fast path) and :341-366 (buildProgram only after the fast path and route decline); dist/entry.js:274 and :~160-215 (respawn plan, skipped for foreground gateway run); dist/tui-cli-DcNLae-q.js:7 program.command(\"tui\").alias(\"terminal\").alias(\"chat\"). Executed consumeGatewayRunOptionToken from dist/command-path-policy-CYON1JVG.js: ['--port','18789'] -> 2, ['status'] -> 0. Commander test with the installed package: preAction sees name 'tui' for tui, terminal and chat. Only two process.title assignments exist in dist (grep). Not observed on a live gateway: it was not running"
+    },
+    {
+      "claim": "On macOS a Node process.title assignment replaces the whole `ps args` string (arguments become invisible), so a retitled openclaw client (openclaw-tui, openclaw-acp, openclaw-node, or the bare openclaw parent) loses its argv, and only the un-retitled gateway keeps its args",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`node -e \"process.title='openclaw-gateway'; console.log(require('child_process').execSync('ps -p '+process.pid+' -o args=').toString())\"` printed 'openclaw-gateway' and nothing else. Reproduced 2026-09-29 by the verifier with nvm node v22.22.2: ps showed 'openclaw-gateway' only, and agents_probe --row matched that fake process as a daemon (so the name is spoofable and any process titled that way matches). Emulation only, no real OpenClaw process was running"
+    },
+    {
+      "claim": "Installed 2026.4.29 stores sessions as ~/.openclaw/agents/<agentId>/sessions/sessions.json plus <sessionId>.jsonl; state is owned by the gateway, so a transcript cannot be mapped from a process because one gateway serves all sessions. Current upstream docs no longer say this: they put runtime rows and transcripts in ~/.openclaw/agents/<agentId>/agent/openclaw-agent.sqlite and call sessions.json the legacy migration source",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls -la ~/.openclaw/agents/main/sessions (2026-09-29): <uuid>.jsonl, <uuid>.trajectory.jsonl, <uuid>.trajectory-path.json, sessions.json. Local docs of 2026.4.29 (docs/concepts/session.md) say jsonl. https://docs.openclaw.ai/concepts/session ('Where state lives', fetched 2026-09-29) now says SQLite, so this URL no longer supports the jsonl store"
+    },
+    {
+      "claim": "Transcript record shape (2026.4.29): <session>.jsonl header line has keys cwd,id,timestamp,type,version (type 'session'); later lines are type message (keys id,parentId,timestamp,message) or thinking_level_change. Trajectory sidecar lines have keys data,modelApi,modelId,provider,runId,schemaVersion,seq,sessionId,sessionKey,source,sourceSeq,traceId,traceSchema,ts,type,workspaceDir with types session.started, trace.metadata, context.compiled, prompt.submitted, model.fallback_step, model.completed, trace.artifacts, session.ended. sessions.json is a dict keyed by session key (agent:main:main) whose row carries status, startedAt, endedAt, updatedAt, runtimeMs, abortedLastRun, sessionFile, sessionId, claudeCliSessionId, cliSessionIds, cliSessionBindings, lastInteractionAt, sessionStartedAt",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python json key listing of one record of each file under ~/.openclaw/agents/main/sessions, re-run 2026-09-29 (key names and type values only, no content read); event names match https://docs.openclaw.ai/tools/trajectory, which now says live capture goes to SQLite and .trajectory.jsonl files are legacy"
+    },
+    {
+      "claim": "A per-session write lock file <session>.jsonl.lock exists for the duration of a run in 2026.4.29; it stores pid and createdAt (and starttime) and is treated as stale if the pid is dead or recycled. Current upstream replaced it with a durable activeWriterRunId claim in SQLite",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/session-write-lock-Cij7epjy.js: lockPath = `${normalizedSessionFile}.lock`, payload {pid, createdAt, starttime}, isPidAlive check, released in releaseHeldLock; docs/concepts/agent-loop.md 'Queueing + concurrency' says the lock is process-aware and file-based. No lock file present now (gateway idle/stopped); https://docs.openclaw.ai/concepts/agent-loop 'Queueing and concurrency' (fetched 2026-09-29) describes activeWriterRunId and a state-directory lock instead of per-session .lock files"
+    },
+    {
+      "claim": "Turn lifecycle is a serialized per-session run emitting lifecycle start/end/error events; agent.wait resolves on lifecycle end",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openclaw.ai/concepts/agent-loop"
+    },
+    {
+      "claim": "This install runs turns through Claude Code: agentRuntime.id=claude-cli, model anthropic/claude-opus-4-7. The gateway keeps one long-lived `claude` stdio child per session (live session closes after ~10 min idle) and spawns it with -p --output-format stream-json --input-format stream-json --permission-prompt-tool stdio --replay-user-messages and, when resuming, --resume <claude session id>. --session-id is STRIPPED from the live child's args (stripLiveProcessArgs), so the child does not carry --session-id",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "~/.openclaw/openclaw.json keys agents.defaults.agentRuntime.id='claude-cli'; dist/claude-live-session-DMjCNM6M.js line 383 (appendArg ... '--input-format','stream-json' ... '--permission-prompt-tool','stdio','--replay-user-messages'); docs/gateway/cli-backends.md ('keeps a Claude stdio process alive per OpenClaw session'); ~/.openclaw/logs/gateway.log lines 'claude live session start/turn/close ... reason=idle' (2026-05-02); dist/extensions/anthropic/cli-backend.js (command 'claude', args, resumeArgs with --resume {sessionId}, sessionArg '--session-id'); dist/claude-live-session-DMjCNM6M.js stripLiveProcessArgs and buildClaudeLiveArgs; gateway.log 2026-05-02 12:15:35 turn then 12:25:35 'close ... reason=idle'"
+    },
+    {
+      "claim": "Turns start with no human present: heartbeat runs a main-session turn on a timer, and cron jobs and channel messages start turns too. Docs say the default is 30m, or 1h when Anthropic OAuth/token auth (including Claude CLI reuse) is detected and heartbeat.every is unset. On this Mac gateway.log holds 3474 'trigger=heartbeat' cli exec lines and 2 'trigger=user' between 2026-05-02 and 2026-07-24, at about 30 minute spacing (12:15, 12:45, 13:15 on 2026-05-02), so the observed cadence here is 30m, not 1h",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openclaw.ai/gateway/heartbeat (fetched 2026-09-29: 'default is 30m, or 1h when Anthropic OAuth/token auth is configured, including Claude CLI reuse'); grep -c trigger=heartbeat ~/.openclaw/logs/gateway.log printed 3474; grep -o 'trigger=[a-z]*' | sort | uniq -c printed 3474 heartbeat and 2 user"
+    },
+    {
+      "claim": "Hook system: internal hooks (HOOK.md + handler.ts, config hooks.internal in ~/.openclaw/openclaw.json, dirs ~/.openclaw/hooks and <workspace>/hooks) with the events listed; separate typed plugin hooks (before_tool_call, agent_end, session_start/end, gateway_start/stop...). No Notification-style hook exists. A plugin before_tool_call hook can return requireApproval, which pauses the run and asks the user through plugin approvals, so 'waiting' can come from a plugin as well as from exec approvals",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openclaw.ai/automation/hooks and https://docs.openclaw.ai/concepts/agent-loop ('Hook points'); `openclaw hooks --help` printed check/disable/enable/info/list; every event name in the row was grepped in the local 2026.4.29 docs (automation/hooks.md, plugins/hooks.md, concepts/agent-loop.md) and found; docs/plugins/hooks.md lines 94 and 161 for requireApproval"
+    },
+    {
+      "claim": "Waiting on the human is the gateway WS event exec.approval.requested (resolved by exec.approval.resolve; list via exec.approval.list); plugin.approval.* for plugins",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "docs/tools/exec-approvals.md 'Approval flow'; docs/gateway/protocol.md 'Approval families' and event list"
+    },
+    {
+      "claim": "OpenTelemetry export exists via the bundled diagnostics-otel plugin, OTLP/HTTP protobuf only, off by default; metric openclaw.session.state, span openclaw.run",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openclaw.ai/gateway/opentelemetry. Not enabled here: ~/.openclaw/openclaw.json has no diagnostics key and plugins.entries lists only anthropic"
+    },
+    {
+      "claim": "`openclaw acp` is the ACP stdio bridge for IDEs; `openclaw tui --session <key>` takes a session KEY (default main), not a UUID; `openclaw node run` is the headless node host",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`openclaw tui --help` ('--session <key>  Session key (default: \"main\"...)', '--local'), `openclaw acp --help`, `openclaw node --help` (install/run/start/stop/status)"
+    },
+    {
+      "claim": "Probe result for this row on this Mac before the repair: 0 agent sessions because the gateway is not running. After the repair, a fake process running node .../openclaw/dist/index.js gateway --port 18789 is classified as an idle daemon, and a fake process titled openclaw-gateway is not matched",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`tools/agents_probe.py --row registry/agents/openclaw.json` printed the header row and '0 agent sessions: 0 working, 0 idle' on 2026-09-29 (real machine); synthetic-process results are in registry/evidence/openclaw.md ## Verification"
+    },
+    {
+      "claim": "The gateway has run on this Mac outside the current launchd load: gateway.log shows '[gateway] starting...' then 'ready' on 2026-06-03 09:27 and 2026-07-24 01:17, and SIGTERM shutdown at 2026-07-24 01:31, while launchctl shows runs = 0 for this load. So a gateway can run without being the launchd job (started from a terminal), in which case its title is the bare `openclaw`",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "grep -n -E '\\[gateway\\] (starting|ready)|SIGTERM' ~/.openclaw/logs/gateway.log; launchctl print gui/501/ai.openclaw.gateway printed 'runs = 0'; plutil -p ~/Library/LaunchAgents/ai.openclaw.gateway.plist printed KeepAlive 0, RunAtLoad 0. How it was started is inferred"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "One gateway process serves every session, so a process cannot be mapped to one transcript: report working/idle for the gateway as a whole and list session rows from sessions.json (status running/done/failed/timeout, updatedAt). Scope: process patterns, session store and lock claims are for the installed 2026.4.29; upstream (2026.7.x and later) moved sessions to SQLite and changed the lock, and has not been checked for process titles. No real OpenClaw process was observed running, so nothing here is verified-locally. Recognising the gateway: on 2026.4.29 the launchd daemon is `node .../openclaw/dist/index.js gateway --port 18789` with full args (never retitled). A gateway typed in a terminal as `openclaw gateway` shows the bare title `openclaw` and is not matched (a bare `openclaw` is also the wrapper parent of every respawned client, so matching it would be wrong); confirm a gateway by the listener on 18789 (lsof). `openclaw-gateway` is NOT matched on purpose: on 2026.4.29 it appears only on short-lived `openclaw gateway status|health|call|install...` runs, never on the daemon. Client processes (tui, acp, node host, macOS app) do not run turns except `tui --local` and `agent --local`. openclaw-node also covers short-lived `openclaw node status|install|...`. Warning: with the default claude-cli runtime the gateway's child is a real `claude` process (args carry --resume <id> when resuming, not --session-id), so the claude-code row will also match it; a detector should drop any claude whose parent is the gateway or it will double count. The waiting state is not observable from disk or ps."
+}

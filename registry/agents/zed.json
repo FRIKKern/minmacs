@@ -1,0 +1,205 @@
+{
+  "id": "zed",
+  "name": "Zed agent",
+  "vendor": "Zed Industries",
+  "homepage": "https://zed.dev/docs/ai/agent-panel",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "Zed editor: Agent Panel + Threads Sidebar. ONE Zed process hosts every Zed Agent thread and every external-agent thread; there is no per-thread process.",
+      "bundle_ids": [
+        "dev.zed.Zed",
+        "dev.zed.Zed-Preview",
+        "dev.zed.Zed-Nightly",
+        "dev.zed.Zed-Dev"
+      ],
+      "process": {
+        "path_contains": [
+          "/Zed.app/Contents/MacOS/zed",
+          "/Zed Preview.app/Contents/MacOS/zed",
+          "/Zed Nightly.app/Contents/MacOS/zed",
+          "/Zed Dev.app/Contents/MacOS/zed"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Zed Preview / Nightly / Dev: bundle names contain a space, so agents_probe.py (ps args split on spaces) sees the executable as just /Applications/Zed and the Preview/Nightly/Dev path_contains above can never match. This entry keys on the path prefix plus the rest of the path arriving as argv[1]. The Contents/MacOS/cli terminal command has no arg containing Contents/MacOS/zed, so it does not match. A detector that reads the full executable path can rely on the first entry alone.",
+      "bundle_ids": [
+        "dev.zed.Zed-Preview",
+        "dev.zed.Zed-Nightly",
+        "dev.zed.Zed-Dev"
+      ],
+      "process": {
+        "path_contains": [
+          "/Applications/Zed"
+        ],
+        "args_contain": [
+          "Contents/MacOS/zed"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "External agent over ACP: one child process of Zed per connected agent (registry npx agents run under node, registry binary agents run directly). Speaks JSON-RPC on stdio.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "path_contains": [
+          "/Library/Application"
+        ],
+        "args_contain": [
+          "Zed/external_agents/registry/"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Terminal Threads: an ordinary pty shell under Zed running any CLI/TUI. No Zed-specific process; the CLI matches its own registry row, with Zed as an ancestor."
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/Zed/threads/threads.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "name": "PreventUserIdleSystemSleep, reason string \"Agent thread in progress\", owned by the Zed main process",
+      "meaning": "Zed takes it (NSProcessInfo beginActivityWithOptions UserInitiated) while an agent thread has a turn running (Zed Agent AND external ACP agents share this code) and drops it when the turn ends OR the thread blocks on a tool confirmation or question. One assertion per running, unblocked thread, all owned by the same pid, so it counts threads but cannot name them. Default on (agent.prevent_idle_sleep = true); if the user turns it off there is no assertion and this signal is silent. Read from source and docs, not observed: Zed is not installed here."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "Zed Agent (native) threads only, UNVERIFIED: the native agent re-saves the thread into ~/Library/Application Support/Zed/threads/threads.db every time the thread entity changes, so the db (or its -wal file) mtime moves during a turn. One shared file for all threads and it says nothing about external agents. The probe cannot use it because there is no per_session path."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "power_assertion_dropped",
+      "meaning": "While a thread waits for tool confirmation or an elicitation question, Zed releases the assertion (is_waiting_for_confirmation in acp_thread). From outside, waiting looks the same as idle at the OS level. Zed itself shows a popup window titled 'Waiting for tool confirmation' or 'Waiting for input' and bounces the Dock icon (agent.notify_when_agent_waiting, default primary_screen), but neither is readable by another process."
+    },
+    {
+      "signal": "none",
+      "meaning": "No hook, log line or file records the waiting state for a third party. In-app only: 'dev: open acp logs' shows ACP messages between Zed and an external agent."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "Zed has no agent lifecycle hooks. The only hook is a task hook, create_worktree, in tasks.json (~/.config/zed/tasks.json or .zed/tasks.json), which fires after Zed creates a linked git worktree and says nothing about turns. External agents may have their own hooks (for example Claude Code settings.json hooks) but whether they run under the ACP wrapper was not checked.",
+    "events": [],
+    "docs": "https://zed.dev/docs/tasks.html"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry exporter found in Zed's docs or root Cargo.toml. Zed sends its own telemetry to Zed servers (Sentry, Snowflake), controlled by telemetry.diagnostics and telemetry.metrics in settings.json; audit with 'zed: open telemetry log'. An external agent may export OTel by itself if its env is set through agent_servers.<id>.env in Zed settings (not tested)."
+  },
+  "sources": [
+    {
+      "claim": "Zed asks the OS not to idle-sleep only while a thread is generating, not while it waits for confirmation; setting agent.prevent_idle_sleep turns it off",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://zed.dev/docs/ai/agent-panel (section on preventing idle sleep)"
+    },
+    {
+      "claim": "the assertion is taken per AcpThread with reason \"Agent thread in progress\" when running_turn is set, prevent_idle_sleep is true and the thread is not waiting for confirmation; AcpThread is the shared thread type for the Zed Agent and external ACP agents",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/acp_thread/src/acp_thread.rs: fn update_idle_sleep_prevention (cx.prevent_idle_sleep(\"Agent thread in progress\")), fn is_waiting_for_confirmation, ThreadStatus::Generating when running_turn.is_some()"
+    },
+    {
+      "claim": "on macOS prevent_idle_sleep is NSProcessInfo beginActivityWithOptions with NSActivityOptions::UserInitiated, which includes idle system sleep disabled; the separate prevent_app_nap uses UserInitiatedAllowingIdleSystemSleep and does not",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/gpui_macos/src/platform.rs fn prevent_idle_sleep; crates/gpui_macos/src/dispatcher.rs fn prevent_app_nap and MacActivity::begin. That UserInitiated shows as PreventUserIdleSystemSleep in pmset is Apple's documented flag composition, not observed here. Local check 2026-09-29: pmset -g assertions on this Mac lists Chrome's IOPMAssertion as 'NoIdleSleepAssertion named: \"Playing audio\"' but caffeinate and Insomnia as 'PreventUserIdleSystemSleep named: ...', so the type label pmset prints for an NSProcessInfo activity is NOT confirmed. Match on owner pid plus the name string 'Agent thread in progress', not on the type label alone."
+    },
+    {
+      "claim": "waiting for the human triggers Zed notifications 'Waiting for tool confirmation' and 'Waiting for input'; stop triggers 'New message' or 'Finished running tools'; notifications are skipped while the agent thread is visible in an active window; default notify_when_agent_waiting is primary_screen, play_sound_when_agent_done is never",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/agent_ui/src/conversation_view.rs (AcpThreadEvent::ToolAuthorizationRequested, ElicitationRequested, Stopped handlers calling notify_with_sound); assets/settings/default.json lines for notify_when_agent_waiting and play_sound_when_agent_done; show_notification computes should_notify = !agent_status_visible(...) and calls window.request_attention(). Re-verified 2026-09-29 against main."
+    },
+    {
+      "claim": "bundle ids per release channel and the executable name zed",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/zed/Cargo.toml [package.metadata.bundle-stable|preview|nightly|dev] identifier = dev.zed.Zed | dev.zed.Zed-Preview | dev.zed.Zed-Nightly | dev.zed.Zed-Dev; script/bundle-mac copies target/.../zed to Contents/MacOS/zed and cli to Contents/MacOS/cli. Bundle names Zed, Zed Preview, Zed Nightly, Zed Dev from the same file."
+    },
+    {
+      "claim": "macOS install layout: /Applications/Zed.app, Contents/MacOS/cli is the terminal 'zed' command, settings in ~/.config/zed, data in ~/Library/Application Support/Zed, logs in ~/Library/Logs/Zed",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://zed.dev/docs/macos.md and https://zed.dev/docs/uninstall.md; crates/paths/src/paths.rs (data_dir = ~/Library/Application Support/Zed, logs_dir = ~/Library/Logs/Zed)"
+    },
+    {
+      "claim": "Zed Agent threads are stored in SQLite ~/Library/Application Support/Zed/threads/threads.db, table threads(id, summary, updated_at, data_type, data BLOB, parent_id, folder_paths, folder_paths_order, created_at), data is zstd-compressed JSON",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/agent/src/db.rs (paths::data_dir().join(\"threads\").join(\"threads.db\"), CREATE TABLE IF NOT EXISTS threads, zstd::encode_all). Not seen on disk."
+    },
+    {
+      "claim": "the sidebar keeps a separate index (sidebar_threads keyed by session_id with agent_id, title, folder_paths, archived; sidebar_terminal_threads) in Zed's shared db at ~/Library/Application Support/Zed/db/0-<channel>/db.sqlite; for external-agent threads this is the only Zed-side record of the ACP session id",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/agent_ui/src/thread_metadata_store.rs (Domain ThreadMetadataDb, CREATE TABLE sidebar_threads), crates/agent_ui/src/terminal_thread_metadata_store.rs, crates/db/src/db.rs (db_path = db_dir/0-<scope>/db.sqlite), crates/paths database_dir = data_dir/db, release_channel dev_name stable|preview|nightly|dev. Inferred combination; not seen on disk."
+    },
+    {
+      "claim": "external agents come from the ACP registry; npx agents are installed under ~/Library/Application Support/Zed/external_agents/registry/npx/<id>/ and started as <node> <path to package bin> [args]; binary agents are extracted under external_agents/registry/<id>/v_<version>_<hash>_<hash>/ and run directly",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/project/src/agent_server_store.rs (installation_dir external_agents_dir/registry/<id>, install_dir external_agents/registry/npx/<id>, AgentServerCommand{path: node_binary, args:[executable,...]}), crates/paths/src/paths.rs external_agents_dir. Which node (Zed-managed or system) was not determined."
+    },
+    {
+      "claim": "registry entries: claude-acp = npx @agentclientprotocol/claude-agent-acp (bin claude-agent-acp, dist/index.js); codex-acp = npx @agentclientprotocol/codex-acp; gemini = npx @google/gemini-cli with --acp; opencode binary ./opencode acp; cursor binary ./dist-package/cursor-agent acp; pi-acp npx pi-acp; amp-acp binary ./amp-acp",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "curl https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json (version field per agent, distribution.npx / distribution.binary); npm registry metadata for @agentclientprotocol/claude-agent-acp@0.84.0 (bin claude-agent-acp, dep @anthropic-ai/claude-agent-sdk 0.3.284) and codex-acp@2.0.0 (dep @openai/codex ^0.158.0)"
+    },
+    {
+      "claim": "external-agent sessions are not stored by Zed as transcripts: the sidebar index holds metadata only (no message column); Zed imports sessions by connecting to the agent over ACP; Cursor and Gemini CLI cannot be imported",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "zed-industries/zed crates/agent_ui/src/thread_metadata_store.rs impl Domain for ThreadMetadataDb: sidebar_threads(session_id, agent_id, title, updated_at, created_at, folder_paths, folder_paths_order, archived, main_worktree_paths...) has no content column; the only content table is threads in crates/agent/src/db.rs, written by the native agent's save_thread (crates/agent/src/agent.rs). Docs: https://zed.dev/docs/ai/external-agents#importing-threads ('Zed connects to each selected agent over ACP and adds sessions') and https://zed.dev/docs/ai/parallel-agents.md#importing-threads ('Some agents (such as Cursor and Gemini CLI) are not currently supported'). The docs never say external agents own their transcripts; that is inferred from the schema. Where each agent keeps its own files was not checked here."
+    },
+    {
+      "claim": "Terminal Threads are pty threads with no agent protocol; the only signals are the terminal bell (notification) and the terminal title; Claude Code needs preferredNotifChannel=terminal_bell to ring on finish or permission",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://zed.dev/docs/ai/terminal-threads"
+    },
+    {
+      "claim": "the only hook Zed documents is the create_worktree task hook",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://zed.dev/docs/tasks.html#hooks (raw source: docs/src/tasks.md, section Hooks); no agent hook or event settings exist in https://zed.dev/docs/ai/agent-settings"
+    },
+    {
+      "claim": "telemetry goes to Zed's own pipeline; no OTLP export",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://zed.dev/docs/telemetry.md (Sentry, Snowflake, Hex, Amplitude; telemetry.diagnostics and telemetry.metrics). Absence of opentelemetry crates: grep of root Cargo.toml printed nothing. Re-checked: GitHub code search 'opentelemetry repo:zed-industries/zed filename:Cargo.toml' returns 0 files; the 4 files matching 'opentelemetry' anywhere are the telemetry-log menu action and docs, not an exporter."
+    },
+    {
+      "claim": "Zed is not installed on this Mac, so nothing was observed running",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls -d /Applications/Zed* ~/Applications/Zed* -> no matches; mdfind kMDItemCFBundleIdentifier=='dev.zed.Zed' -> empty; ps -axo pid,args | grep -i zed -> nothing; ls ~/Library/Application Support | grep -i zed -> nothing; which zed -> 'zed not found'; pmset -g assertions shows system-wide counts only, no zed"
+    },
+    {
+      "claim": "the Claude Agent SDK ships a native `claude` binary as an optionalDependency (darwin-arm64 among others), and claude-agent-acp depends on it; codex-acp depends on @openai/codex whose bin/codex.js fronts per-platform native packages",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "curl https://registry.npmjs.org/@anthropic-ai/claude-agent-sdk/0.3.284 -> optionalDependencies include @anthropic-ai/claude-agent-sdk-darwin-arm64 0.3.284; tarball listing of claude-agent-sdk-darwin-arm64-0.3.284.tgz first entry: package/claude (-rwxr-xr-x, 226563088 bytes). curl https://registry.npmjs.org/@openai/codex/0.158.0 -> bin {codex: bin/codex.js}, optionalDependencies @openai/codex-darwin-arm64 etc."
+    },
+    {
+      "claim": "probe behaviour against this row: agents_probe.py --row matches the app and ACP children but never reports Zed as working",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 tools/agents_probe.py --row registry/agents/zed.json printed '0 agent sessions' (Zed not running). Offline matches() calls with synthetic ps lines: /Applications/Zed.app/Contents/MacOS/zed -> ide; '/Applications/Zed Preview.app/Contents/MacOS/zed' -> no match before the added Preview/Nightly/Dev surface, match after; Contents/MacOS/cli -> no match; node/opencode/claude-sdk lines containing Zed/external_agents/registry/ -> daemon; unrelated node and ~/Library/Application Support/Claude processes -> no match. classify() in tools/agents_probe.py has no branch for signal power_assertion, and transcript_write needs per_session, so the probe reports every Zed process idle."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Zed is one process, so 'working' is per Zed window set, not per session. Best signal: a PreventUserIdleSystemSleep-class assertion owned by the Zed pid named 'Agent thread in progress' (count = running threads, dropped while a thread waits for you). The pmset type label is unconfirmed, key on pid and name. LIMIT OF THE PROBE: tools/agents_probe.py does not implement power_assertion, so under the probe every Zed and Zed-child row reads idle; the row is correct data for a detector that reads assertions (IOPMCopyAssertionsByProcess). CAVEAT for the other rows: a Claude agent under Zed runs as node -> claude-agent-acp -> the Claude Agent SDK's bundled native `claude` binary (package/claude in @anthropic-ai/claude-agent-sdk-darwin-arm64); likewise codex under Zed runs a native codex. A detector that takes the executable name from the real path (proc_pidpath) sees name `claude` and the claude-code row would report a TUI session. agents_probe.py does NOT: the install path contains 'Application Support', ps args are split on spaces, so its exe is '/Users/<u>/Library/Application' and neither claude-code surface matches (checked offline); the Zed ACP surface matches it instead, and the probe's parent-dedup then drops it because its parent node also matches. Suppress by checking for a Zed ancestor (Zed.app/Contents/MacOS/zed) or a process whose path is under Application Support/Zed/external_agents. The ACP surface's path_contains '/Library/Application' is a deliberate hack: agents_probe.py splits args on spaces, so 'Application Support' is cut and only the args_contain check on 'Zed/external_agents/registry/' is discriminating; do not reuse that path_contains alone. The same space-splitting is why the second ide surface exists (Zed Preview/Nightly/Dev). Gaps: custom agents (agent_servers type custom) and legacy extension agents do not live under external_agents/registry/, so the ACP surface will not see them; they still count in the Zed process's assertions. Dev builds run from target/ bundles are not covered by the path patterns. The ide surface reports Zed whenever it is open, agents or not. Session mapping: no session id in argv; ACP session ids travel over stdio, so a process cannot be mapped to a thread from outside."
+}

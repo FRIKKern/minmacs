@@ -1,0 +1,294 @@
+{
+  "id": "warp",
+  "name": "Warp",
+  "vendor": "Warp (Denver Technologies, Inc)",
+  "homepage": "https://www.warp.dev",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Warp app (terminal + built-in Warp Agent, in-process). One process for every tab; the shells and the agent all live under it. Channels: Stable, Preview, Dev, Local, OSS.",
+      "bundle_ids": [
+        "dev.warp.Warp-Stable",
+        "dev.warp.Warp-Preview",
+        "dev.warp.Warp-Dev",
+        "dev.warp.Warp-Local",
+        "dev.warp.WarpOss"
+      ],
+      "process": {
+        "path_contains": [
+          "/Warp.app/Contents/MacOS/stable",
+          "/WarpPreview.app/Contents/MacOS/preview",
+          "/WarpDev.app/Contents/MacOS/dev",
+          "/WarpLocal.app/Contents/MacOS/warp",
+          "/WarpOss.app/Contents/MacOS/warp-oss"
+        ],
+        "exclude_args": [
+          "terminal-server",
+          "ripgrep-search",
+          "installation-detection-server",
+          "minidump-server",
+          "remote-server-proxy",
+          "remote-server-daemon"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Warp Agent CLI: the `warp` command (binary warp-tui-<channel>), standalone terminal agent, no app needed. The name `warp` is shared with MinIO's S3 benchmark tool (`brew install minio-warp` installs bin/warp); exclude_args lists its subcommands, which the Warp CLI never accepts (its only subcommand is dump-settings-schema).",
+      "process": {
+        "names": [
+          "warp",
+          "warp-tui-stable",
+          "warp-tui-preview",
+          "warp-tui-dev",
+          "warp-tui-oss",
+          "warp-tui"
+        ],
+        "path_contains": [
+          "/.warp/tui/versions/",
+          "/warp-tui-"
+        ],
+        "exclude_args": [
+          "--version",
+          "--help",
+          "--set-provider-api-key",
+          "--clear-provider-api-key",
+          "dump-settings-schema",
+          "terminal-server",
+          "ripgrep-search",
+          "installation-detection-server",
+          "minidump-server",
+          "remote-server-proxy",
+          "remote-server-daemon",
+          "analyze",
+          "append",
+          "client",
+          "cmp",
+          "delete",
+          "fanout",
+          "get",
+          "list",
+          "merge",
+          "mixed",
+          "multipart",
+          "put",
+          "retention",
+          "run",
+          "snowball",
+          "stat",
+          "zip"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Oz CLI: `oz agent run` (deprecated for `warp` after end of September 2026). Bundled wrapper Warp.app/Contents/Resources/bin/oz execs the app binary with argv[0] set to the wrapper path.",
+      "process": {
+        "names": [
+          "oz",
+          "oz-preview",
+          "oz-dev",
+          "oz-local"
+        ],
+        "path_contains": [
+          "/Contents/Resources/bin/oz",
+          "/Contents/Resources/bin/warp-oss"
+        ],
+        "args_contain": [
+          "agent"
+        ],
+        "exclude_args": [
+          "--version",
+          "--help"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "label": "Cloud agents (Automation Platform, 'Oz'): run on Warp or self-hosted infrastructure; nothing local to match"
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Group Containers/2BBY89MBSN.dev.warp/Library/Application Support/dev.warp.Warp-Stable/warp.sqlite",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "name": "NSProcessInfo activity (UserInitiated) with reason \"Agent Mode request in-progress\", owned by the Warp app process or the warp-tui process",
+      "meaning": "Held for the lifetime of each streaming request to the agent backend, in both the app and the Warp Agent CLI, and dropped when the stream ends or is dropped. It is per request, not per turn, and app-wide (not per tab), so it can flicker off while a long local tool call runs between two requests. The same request path also fires for passive suggestion requests. Warp logs 'Preventing sleep with reason: Agent Mode request in-progress' and 'No longer preventing sleep with reason: ...' at info level to ~/Library/Logs/warp.log (app) as a second view of the same edge. Read from source only, never seen in pmset because Warp is not installed here."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Weak fallback, INFERRED and unmeasured. The app is a Rust GPU-rendered UI whose whole tree includes every shell and every command you run, so it false-positives on any busy terminal command. tool_children and child_process are deliberately absent because the app always has a terminal-server helper and the CLI always has its own shell child."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "osc",
+      "sequence": "OSC 777;notify;warp://cli-agent;{json}",
+      "events": [
+        "permission_request",
+        "question_asked",
+        "permission_replied"
+      ],
+      "meaning": "Warp Agent CLI writes these to its own stdout when it runs inside a Warp app pane (env WARP_CLI_AGENT_PROTOCOL_VERSION and WARP_CLIENT_VERSION both set). Only the hosting terminal can read them, so an outside observer such as MinMacs cannot. permission_request means blocked on approval, question_asked means the agent asked a question, permission_replied means the human answered. Other events in the same stream: session_start, prompt_submit, tool_complete, stop, stop_failure."
+    },
+    {
+      "signal": "state",
+      "where": "in-memory ConversationStatus::Blocked{blocked_action} (app/src/ai/agent/conversation.rs)",
+      "meaning": "The app shows this as the tab status icon (working, blocked, completed, errored) and the notification mailbox category Request. Not exposed over any local API (warpctrl has no agent actions) and not confirmed to be flushed to warp.sqlite."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "none for Warp's own agent. Warp instead consumes lifecycle events from OTHER agents via per-agent plugins (Claude Code, OpenCode) and native config (Codex) that emit the OSC 777 warp://cli-agent protocol.",
+    "events": [],
+    "docs": "https://docs.warp.dev/agents/cli-agents/overview/"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry export for local interactive use. The source has an OTLP/HTTP traces exporter (app/src/tracing/native.rs), but it is opt-in for cloud-agent runs only: needs WARP_CLOUD_AGENT_OTLP_ENDPOINT plus a valid dispatch token, exports spans tagged cloud_agent under service name warp-cloud-agent, traces only. Regular product telemetry goes to Warp's own backend, not OTLP."
+  },
+  "sources": [
+    {
+      "claim": "Warp is an open source agentic development environment (terminal + built-in agent); Warp Agent CLI is the `warp` command; three ways to use the agent: app, CLI, cloud",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.warp.dev/ ; https://docs.warp.dev/agents/cli/"
+    },
+    {
+      "claim": "Bundle ids per channel: Stable dev.warp.Warp-Stable (app name Warp, binary stable), Preview dev.warp.Warp-Preview (WarpPreview, preview), Dev dev.warp.Warp-Dev, Local dev.warp.Warp-Local (binary warp), OSS dev.warp.WarpOss (binary warp-oss)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp app/Cargo.toml [package.metadata.bundle.bin.*] identifier/name; script/macos/bundle sets WARP_BIN, BUNDLE_ID, WARP_APP_NAME per channel"
+    },
+    {
+      "claim": "Homebrew cask confirms /Applications/Warp.app, bundle id dev.warp.Warp-Stable paths, and the log file ~/Library/Logs/warp.log*",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/cask/warp.json (artifacts.app Warp.app; zap trash ~/Library/Application Support/dev.warp.Warp-Stable, ~/Library/Logs/warp.log*, ~/Library/Preferences/dev.warp.Warp-Stable.plist)"
+    },
+    {
+      "claim": "The app spawns helper processes as `<same executable> <subcommand> --parent-pid N`: terminal-server (owns the PTYs), ripgrep-search, installation-detection-server, minidump-server, remote-server-proxy/daemon",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp crates/warp_cli/src/lib.rs (WorkerCommand, ParentOpts --parent-pid, terminal_server_subcommand); crates/warp_terminal/src/local_tty/server/mod.rs:186 passes the terminal-server subcommand"
+    },
+    {
+      "claim": "Oz CLI wrapper Warp.app/Contents/Resources/bin/oz (oz-<channel> for other channels) does `exec -a \"$0\" .../MacOS/<bin> \"$@\"`, so argv[0] is the wrapper path; command names oz, oz-dev, oz-preview, oz-local, warp-oss",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp script/macos/bundle (CLI_SCRIPT_PATH block); crates/warp_core/src/channel/mod.rs cli_command_name()"
+    },
+    {
+      "claim": "Oz CLI is being deprecated in favour of `warp`; oz supported through end of September 2026; `oz agent run` runs a local agent",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.warp.dev/reference/cli/ ; https://docs.warp.dev/reference/cli/quickstart/"
+    },
+    {
+      "claim": "Warp Agent CLI install layout: ~/.warp/tui/versions/<v>/warp-tui-stable, ~/.warp/tui/current symlink, ~/.local/bin/warp symlink to current/warp-tui-stable. Homebrew cask warp-agent-cli links warp-tui-stable as `warp`. Flags: --resume TOKEN, --version, --help, --api-key",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://app.warp.dev/download/agent-cli (install script header, read not run); https://formulae.brew.sh/api/cask/warp-agent-cli.json (binary warp-tui-stable -> warp); https://docs.warp.dev/agents/cli/reference/"
+    },
+    {
+      "claim": "App conversations are stored in SQLite warp.sqlite (tables agent_conversations, agent_tasks, ai_queries, blocks). Path: the App Group container ~/Library/Group Containers/2BBY89MBSN.dev.warp/Library/Application Support/dev.warp.Warp-Stable/warp.sqlite when the container resolves (signed release builds; the old ~/Library/Application Support/dev.warp.Warp-Stable/warp.sqlite is MIGRATED into it and remains only the fallback); the standalone TUI uses a separate DB in a tui/ subdirectory of the same base",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp app/src/persistence/sqlite.rs (app_database_file_path, tui_database_file_path, WARP_SQLITE_FILE_NAME); crates/warp_core/src/paths.rs (state_dir, secure_state_dir, tui_state_dir); crates/persistence/src/schema.rs; script/Entitlements.plist application-groups; app/src/persistence/sqlite.rs migrate_old_sqlite_into_secure_container_if_needed (renames the old file into the container); app_group_container_path() returns Some only if a temp file can be created in the container. Table names also present as strings in the shipped warp-tui-stable binary (22 agent_conversations, 8 agent_tasks, 21 ai_queries)."
+    },
+    {
+      "claim": "Not documented by Warp as a stable interface: the DB is an internal Diesel schema with migrations, and no docs promise its path or columns",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp app/src/persistence/README.md (migration workflow only); no mention under https://docs.warp.dev/_llms-txt/*.txt"
+    },
+    {
+      "claim": "CLI settings at ~/.warp_cli/settings.toml on macOS; GUI config dir ~/.warp (Stable) and ~/.warp-preview etc.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.warp.dev/agents/cli/configuration/ ; warpdotdev/warp crates/warp_core/src/paths.rs macos_config_dir_name_for, macos_tui_config_dir_name"
+    },
+    {
+      "claim": "Power assertion: every agent request calls prevent_sleep(\"Agent Mode request in-progress\"); on macOS this is NSProcessInfo beginActivityWithOptions(UserInitiated, reason) held by a Guard and ended on Drop; also wraps the response stream so it lasts as long as the stream is polled",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp crates/warp_multi_agent_client/src/lib.rs:64; crates/prevent_sleep/src/mac.rs; crates/prevent_sleep/src/lib.rs (Stream::wrap); crates/http_client/src/lib.rs:381,554"
+    },
+    {
+      "claim": "macOS log directory is ~/Library/Logs/; app writes warp.log (channel logfile_name), Warp Agent CLI writes under ~/Library/Logs/warp-cli/, oz under ~/Library/Logs/oz/. Stable logfile_name is \"warp.log\", so the stable Warp Agent CLI log is ~/Library/Logs/warp-cli/warp.log",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp crates/warp_logging/src/native.rs (init_log_directory, TUI_LOG_SUBDIRECTORY=warp-cli, CLI_LOG_SUBDIRECTORY=oz; default filter Info); brew cask warp-agent-cli zap trash ~/Library/Logs/warp-cli; strings -a on warp-tui-stable 0.2026.09.16.08.27.stable_02 (extracted from https://releases.warp.dev/stable/v0.2026.09.16.08.27.stable_02/tui/macos/aarch64/warp-tui-stable-macos-aarch64.tar.gz, never run) contains the embedded stable channel config with \"app_id\": \"dev.warp.Warp-Stable\" and \"logfile_name\": \"warp.log\". Composition of dir + file name is from source, not seen on disk."
+    },
+    {
+      "claim": "ConversationStatus values: InProgress, Success, Error, TransientError, Cancelled, Blocked{blocked_action}, WaitingForEvents",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp app/src/ai/agent/conversation.rs:5001"
+    },
+    {
+      "claim": "Warp Agent CLI emits OSC 777 structured events (session_start, prompt_submit, permission_request, question_asked, permission_replied, tool_complete, stop, stop_failure) only when env WARP_CLI_AGENT_PROTOCOL_VERSION and WARP_CLIENT_VERSION are set by a Warp host",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp crates/warp_tui/src/cli_agent_osc_event_publisher.rs (host_supports_cli_agent_notifications, status_osc_event, publish); crates/warp_core/src/cli_agent_protocol.rs (CLIAgentNotification, sentinel warp://cli-agent)"
+    },
+    {
+      "claim": "Notification categories Complete / Request (blocked: approval, permission, idle prompt) / Error; tab status icons working/blocked/completed/errored; agent notifications need a per-agent plugin for Claude Code and OpenCode, native config for Codex",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.warp.dev/agents/capabilities/agent-notifications/ ; https://docs.warp.dev/agents/cli-agents/overview/"
+    },
+    {
+      "claim": "No lifecycle-hook system for Warp's own agent: no PreToolUse/hooks.json style config anywhere in the repo or docs; only the plugin specs for third-party agents mention hooks",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rl 'PreToolUse|hooks.json|UserPromptSubmit' over the master tarball (codeload.github.com/warpdotdev/warp/tar.gz/refs/heads/master, 2026-09-29) matched only specs/APP-4067/PRODUCT.md, which is about the gemini-warp plugin; docs llms.txt sets have no hooks page"
+    },
+    {
+      "claim": "OTLP export exists but only for cloud-agent runs: opt-in via WARP_CLOUD_AGENT_OTLP_ENDPOINT plus dispatch token, HTTP/protobuf traces to <base>/v1/traces, service warp-cloud-agent; otherwise a no-op subscriber is installed",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp app/src/tracing/native.rs init(), build_provider(), traces_endpoint()"
+    },
+    {
+      "claim": "warpctrl local-control API exists (loopback HTTP + Unix broker socket, discovery records) but is compiled only into the dev channel bundle and has no agent/conversation status actions",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp crates/local_control/src/catalog.rs (action names: instance/app/window/tab/pane/session/theme/setting/surface, no agent); script/macos/bundle line 409 adds warp_control_cli only in the RELEASE_CHANNEL=dev branch"
+    },
+    {
+      "claim": "Warp is not installed on this Mac: nothing running, no app, no config dirs, no CLI",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls -d /Applications/Warp*.app ~/.warp ~/.warp_cli ~/.local/bin/warp ~/Library/Logs/warp* \"$HOME/Library/Application Support/dev.warp.\"* printed no matches; mdfind kMDItemCFBundleIdentifier == 'dev.warp.Warp-Stable' printed nothing; ps -axo pid,args | grep -iE 'warp|/oz' printed nothing; which warp oz printed 'not found'"
+    },
+    {
+      "claim": "Shipped Stable Warp Agent CLI artifact contains a single executable named warp-tui-stable (arm64 Mach-O) plus resources/, and its strings include 'Agent Mode request in-progress', 'Preventing sleep with reason', 'warp://cli-agent', WARP_CLI_AGENT_PROTOCOL_VERSION, WARP_CLIENT_VERSION, WARP_CLOUD_AGENT_OTLP_ENDPOINT and the App Group id 2BBY89MBSN.dev.warp",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl -L https://releases.warp.dev/stable/v0.2026.09.16.08.27.stable_02/tui/macos/aarch64/warp-tui-stable-macos-aarch64.tar.gz (84 MB, saved to scratchpad only); tar tzvf listed warp-tui-stable, resources/; file printed 'Mach-O 64-bit executable arm64'; strings -a | grep confirmed each string once. The binary was never executed. This proves the source claims describe the shipped build, not that the assertion appears in pmset."
+    },
+    {
+      "claim": "Warp Agent CLI accepts only flags (--resume, --auto-approve, --api-key, --set-provider-api-key, --clear-provider-api-key, --help, --version) and one subcommand, dump-settings-schema; --resume must be a UUID token; all worker subcommands exist in the TUI binary too",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "warpdotdev/warp crates/warp_tui/src/session.rs (TuiArgs, TuiCommand::DumpSettingsSchema, parse_resume_token) and session_tests.rs parses_resume_server_token; strings of warp-tui-stable show terminal-server, ripgrep-search, minidump-server, remote-server-proxy/daemon, parent-pid"
+    },
+    {
+      "claim": "Another common product installs a binary literally named `warp`: MinIO warp, an S3 benchmarking tool (Homebrew formula minio-warp, executables ['warp']; subcommands get, put, mixed, list, delete, stat, analyze, cmp, merge, retention, multipart, snowball, zip, fanout, append, client, run). A name-only match on `warp` would report it as the Warp Agent CLI",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/formula/minio-warp.json (desc 'S3 benchmarking tool', executables ['warp']); https://raw.githubusercontent.com/minio/warp/master/README.md (subcommand list)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Nothing was observed live: every process, path and signal is from docs, the public source (warpdotdev/warp, master as of 2026-09-29), Homebrew metadata, or the shipped Stable CLI binary inspected with strings (never run). Warp is two things: a host terminal for other agents (Claude Code, Codex, OpenCode and 12 more, which keep their own rows) and a harness in its own right (Warp Agent, in-process in the app, and standalone in the `warp` CLI). Inside the Warp app there is one process for all tabs, so a per-tab or per-session status cannot come from the process table. For the CLI the process maps 1:1 to a conversation, but the session id is only on argv after --resume, and whether that token equals agent_conversations.conversation_id is not confirmed. The main app binary is named for the channel (stable, preview, dev, warp, warp-oss), not 'warp'; the Stable executable is Contents/MacOS/stable, taken from source and build scripts, not from a shipped app bundle (the DMG was not opened). The probe only reads `--resume <id>` as two argv elements, which matches the documented `warp --resume TOKEN` but not clap's `--resume=TOKEN` form. Known false-positive and false-negative limits of the process patterns: (1) the name `warp` is not unique (MinIO warp); the tui surface therefore excludes MinIO subcommands and Warp's own one-shot/worker arguments, but a bare `warp` with no arguments from another product would still match and cannot be told apart from an idle Warp Agent CLI by argv[0] alone. (2) On the Local channel the app binary is also named `warp`, so its helper processes match the tui names; the probe hides them only because it keeps the outermost process, so a detector without that rule must keep the worker exclusions. (3) The oz surface matches `oz agent ...` by substring, so short-lived `oz agent list` style commands also match; only `oz agent run` is documented as a long-running local agent. (4) Session DB: the primary path is the App Group container, the old Application Support path is legacy/fallback; the standalone TUI adds a tui/ subfolder and may fall back to Application Support because a bare binary may not get the group container. None of these was observed on disk."
+}

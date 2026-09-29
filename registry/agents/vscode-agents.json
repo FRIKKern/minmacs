@@ -1,0 +1,395 @@
+{
+  "id": "vscode-agents",
+  "name": "VS Code extension agents (Cline, Roo Code, Kilo Code, Copilot in VS Code)",
+  "vendor": "Microsoft (VS Code, GitHub Copilot), Cline Bot (Cline), Kilo-Org (Kilo Code), Roo Code Inc (Roo Code, sunset 2026-05-15)",
+  "homepage": "https://code.visualstudio.com",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "VS Code main Electron process (Stable, Insiders, VSCodium, Code - OSS). One process per app; every window, every chat and every extension agent sits below it. The main executable name inside Contents/MacOS is unverified (Code or Electron), so match on the bundle path. The path has spaces: the reference probe splits ps args on spaces and cannot match it, a proc_pidpath based detector can. Known false positive: the `code` shell command runs ELECTRON_RUN_AS_NODE=1 <Contents/MacOS/<name>> .../out/cli.js (resources/darwin/bin/code.sh in microsoft/vscode), so `code --list-extensions`, `code --wait` and similar CLI runs also match this path. They are not the IDE and are not excluded here because exclude_args needs an exact argv element and cli.js sits under a path with spaces.",
+      "bundle_ids": [
+        "com.microsoft.VSCode",
+        "com.microsoft.VSCodeInsiders",
+        "com.vscodium",
+        "com.visualstudio.code.oss"
+      ],
+      "process": {
+        "path_contains": [
+          "/Visual Studio Code.app/Contents/MacOS/",
+          "/Visual Studio Code - Insiders.app/Contents/MacOS/",
+          "/VSCodium.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Extension host: utility process run from the 'Code Helper (Plugin)' helper app. Electron launches a utility process through the (Plugin) helper only when it was started with allowLoadingUnsignedLibraries, and the extension host is started that way. This is where Cline, Roo Code, the Kilo Code client and the Copilot 'Local' harness run in-process, sharing one process per window (each window has its own extension host, so several can exist). Cline's sessions.db pid column is this process. Chromium argv shows only --type=utility --utility-sub-type=node.mojom.NodeService; nothing names the extension or the session. Not exclusive: the on-device dictation runtime (localTranscriptionService) and any utility-process worker started with allowLoadingUnsignedLibraries use the same helper and the same argv shape. Forked language servers from extensions use the same helper binary but carry no --utility-sub-type argument and do not match. The path_contains entry covers the Stable helper name only; the Insiders and VSCodium helper names were not verified and are not listed. Reported by the probe only if it is not a child of a matched main process, which it always is.",
+      "process": {
+        "path_contains": [
+          "/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)"
+        ],
+        "args_contain": [
+          "--utility-sub-type=node.mojom.NodeService"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Kilo Code 7.x backend: the extension spawns its bundled binary as `<extensionPath>/bin/kilo serve --port 0` (detached, child of the extension host, loopback HTTP + SSE, random port, Basic auth kilo:<random password>). One server hosts every Kilo session of that VS Code. Extension dir on macOS: ~/.vscode/extensions/kilocode.kilo-code-<ver>-darwin-arm64/ (Cursor and other forks use their own extensions dir). Matching is by substring over argv elements, so args_contain serve alone also matched `kilo run reserve`; requiring --port as well removes that case (checked with the reference probe matches() on synthetic lines). The path test also matches the same extension in Cursor or another fork's extensions dir, which is still Kilo. The status set is idle, busy, retry, offline, scheduled.",
+      "process": {
+        "path_contains": [
+          "/kilocode.kilo-code-"
+        ],
+        "args_contain": [
+          "serve",
+          "--port"
+        ],
+        "exclude_args": [
+          "--version",
+          "--help"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "VS Code Agent Host: a separate Electron utility process (type agentHost, name agent-host) that runs the Copilot harness, the Claude harness (setting chat.agentHost.claudeAgent.enabled, default true, experimental) and the Codex harness (chat.agentHost.codexAgent.enabled, default false, experimental). Started without allowLoadingUnsignedLibraries, so it uses the plain 'Code Helper' helper, not the (Plugin) helper. Not tied to a window's lifetime: a turn can continue with no client connected, but it is a child of the VS Code main process, so it ends when the app quits. Its ps line is a plain 'Code Helper' NodeService utility (inferred: upstream bootstrap-fork sets no process title), indistinguishable by argv from the shared process, pty host and file watcher, so no process spec is given. Identify it from the endpoint entry file <userData>/agent-host/local-endpoint/entries/*.json (key pid, type editor) or a unix socket <os.tmpdir()>/vscode-ah-<hash>/<instance>.sock. Also runnable standalone as `code agent host`. Not observed: no VS Code is installed and the local Cursor predates it."
+    },
+    {
+      "kind": "cloud",
+      "label": "Session target Cloud (Copilot, Claude, Codex cloud agents), Roo Code Cloud (also sunset 2026-05-15). Runs on provider infrastructure; nothing local to match."
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/Code/User/workspaceStorage/*/chatSessions/*.jsonl",
+    "format": "jsonl",
+    "documented": false,
+    "note": "No per_session path: no process carries a session id, so a process cannot be mapped to a file. The row lists the first store of a family that has six. VS Code Insiders uses 'Code - Insiders', VSCodium 'VSCodium', in place of 'Code'. Extension storage is <userData>/User/globalStorage/<publisher.name lowercase>/. Do not read message content.",
+    "stores": [
+      {
+        "surface": "Copilot Local harness (extension host), VS Code core store",
+        "path": "~/Library/Application Support/Code/User/workspaceStorage/<workspace hash>/chatSessions/<sessionId>.jsonl (append log, default on via chat.useLogSessionStorage) plus <sessionId>.json (older flat format); empty windows use User/globalStorage/emptyWindowChatSessions/",
+        "format": "jsonl",
+        "documented": false
+      },
+      {
+        "surface": "Copilot Local harness, Copilot Chat extension transcript",
+        "path": "~/Library/Application Support/Code/User/workspaceStorage/<workspace hash>/GitHub.copilot-chat/transcripts/<sessionId>.jsonl (records session.start, user.message, assistant.turn_start, assistant.message, tool.execution_start, tool.execution_complete, assistant.turn_end; 20 retained by default)",
+        "format": "jsonl",
+        "documented": false
+      },
+      {
+        "surface": "Copilot on the Agent Host (SDK conversation, shared with Copilot CLI)",
+        "path": "~/.copilot/session-state/<sdk conversation id>/events.jsonl (COPILOT_HOME moves it); the Agent Host's own registry is <userData>/User/globalStorage/agent-host.db, SQLite, tables sessions_v2, session_chat_catalogs, session_chats; per-session data lives under <userData>/agentSessionData/<sessionId>/ (SQLite). Claude and Codex harness stores on the Agent Host were not looked at.",
+        "format": "jsonl",
+        "documented": false
+      },
+      {
+        "surface": "Cline 4.x (SDK core, in-process, backendMode local)",
+        "path": "~/.cline/data/db/sessions.db (SQLite, table sessions: session_id, source, pid, status, cwd, updated_at, messages_path ...) plus ~/.cline/data/sessions/<id>/<id>.messages.json and <id>.json. CLINE_DIR, CLINE_DATA_DIR, CLINE_DB_DATA_DIR and CLINE_SESSION_DATA_DIR move them. Pre-SDK tasks: <globalStorage>/saoudrizwan.claude-dev/tasks/<id>/{api_conversation_history,ui_messages,task_metadata}.json",
+        "format": "sqlite",
+        "documented": false
+      },
+      {
+        "surface": "Kilo Code 7.x (opencode fork, kilo serve)",
+        "path": "~/.local/share/kilo/kilo.db (SQLite, XDG_DATA_HOME moves it; kilo-<channel>.db for non-prod channels)",
+        "format": "sqlite",
+        "documented": false
+      },
+      {
+        "surface": "Roo Code 3.x (sunset)",
+        "path": "~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/tasks/<taskId>/{api_conversation_history.json,ui_messages.json,task_metadata.json,history_item.json} and tasks/_index.json; customStoragePath setting moves it",
+        "format": "json",
+        "documented": false
+      }
+    ]
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "Cline: sessions.db row status = 'running' with source = 'vscode' and a live pid",
+      "meaning": "Exact for Cline 4.x. The SDK writes status running when a turn starts and idle when it ends (markTurnRunning / markTurnIdle in local-runtime-host.ts) and a reconciler flips rows whose pid is dead to failed. pid is process.pid of the extension host. Read the status column, not the file mtime. Caveat: it stays running while a tool approval is pending (approval is awaited inside the turn, inferred from source), and the persisted update can trail the real end of the turn. Read-only SQLite on a WAL database; never touch the messages columns. Not observed, Cline is not installed."
+    },
+    {
+      "signal": "socket_activity",
+      "name": "Kilo: GET /session/status on the kilo serve loopback port returns type busy or retry",
+      "meaning": "Exact for Kilo 7.x, per session (idle, busy, retry, offline, scheduled; scheduled means asleep on a pending wakeup). Needs the listening port (lsof -iTCP -sTCP:LISTEN -a -p <kilo pid>) and the Basic auth password, which exists only in the server's environment (KILO_SERVER_PASSWORD) and in the extension. Using it means reading another process's environment or sniffing, so treat as documented-but-intrusive. The extension itself watches the same state over SSE (session.status)."
+    },
+    {
+      "signal": "socket_activity",
+      "name": "VS Code Agent Host: AHP session status has the InProgress bit",
+      "meaning": "Exact for Copilot, Claude and Codex sessions that run on the Agent Host: session status is one of Idle, InProgress, InputNeeded, Error. Reachable by an external same-user client through the endpoint entry file (WebSocket over unix socket, connectionToken query parameter). Requires speaking AHP, and the entry file holds a bearer token. Not observed."
+    },
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "Kilo Keep Awake only, and OFF by default: the extension host spawns /usr/bin/caffeinate -i -w <extension host pid> while any Kilo session is busy or retrying or has a scheduled wakeup, and kills it when all are idle. Only this exact shape counts: the caffeinate must be a direct child of the extension host (Code Helper (Plugin)) and its -w value must be that host's pid. A caffeinate elsewhere in the VS Code tree is NOT this signal: the tree also holds terminals (pty host, shell), where Claude Code or a user command spawns its own caffeinate, so bare presence anywhere under the main process is a false positive for Kilo working. Absence says nothing. The reference probe matches child_process by name over the whole tree and cannot enforce the parent and -w checks."
+    },
+    {
+      "signal": "transcript_write",
+      "name": "Copilot Local: GitHub.copilot-chat/transcripts/<id>.jsonl newest record is assistant.turn_start with no later assistant.turn_end",
+      "within_seconds": 20,
+      "meaning": "Precise form for the Local harness. The recency form (any chatSessions/<id>.jsonl or transcript appended within 20 s) is weaker because a long model stream or tool run writes nothing for tens of seconds; the window is a guess, no turn was measured. Not per process: all sessions share one extension host."
+    },
+    {
+      "signal": "transcript_write",
+      "name": "Copilot on Agent Host: ~/.copilot/session-state/<id>/events.jsonl modified recently",
+      "within_seconds": 20,
+      "meaning": "Inferred from the Agent Host source (it reads the Copilot SDK's session-state files); write cadence and end-of-turn record names are unverified."
+    },
+    {
+      "signal": "transcript_write",
+      "name": "Roo Code: tasks/<taskId>/ui_messages.json modified recently",
+      "within_seconds": 20,
+      "meaning": "Weak, inferred. Roo is sunset, so this only matters for machines still running the last build (3.54.0)."
+    },
+    {
+      "signal": "power_assertion",
+      "name": "Electron powerSaveBlocker prevent-app-suspension owned by the VS Code main process, taken by Copilot Chat around each model request",
+      "meaning": "Copilot Local harness only. Taken around each model request (not for ChatLocation.Other) through the proposed API environmentPower, gated by the experiment-based team-internal setting chat.advanced.chatRequestPowerSaveBlocker whose source default is true, so an experiment can still switch it off and absence means nothing. Held per model request and released 2 minutes after the last one ends (RELEASE_DELAY_MS), so presence means 'a turn ran in the last two minutes', not 'a turn is running'. The pmset assertion name is unverified. Any other extension or feature in the same VS Code that takes a power save blocker looks identical."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Weak fallback over the whole VS Code tree. An idle Electron IDE tree read 0.0 percent on this Mac (Cursor, same base), but typing, scrolling, extensions and language servers burn CPU too, and a turn that waits on the network burns none. Floor is a guess. Cannot say which agent or session."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "ahp_status",
+      "value": "InputNeeded",
+      "meaning": "Agent Host sessions: session status InputNeeded, with SessionState.inputNeeded listing each outstanding block (tool approval, question, tool client execution, tool authentication). Exact. Needs an AHP client."
+    },
+    {
+      "signal": "http",
+      "endpoint": "GET /permission and GET /question on the kilo serve port; SSE permission.asked, question.asked",
+      "meaning": "Kilo: pending approvals and questions. session.status stays busy while blocked (opencode behaviour, inferred for Kilo), so busy does not mean working. Plugin hook permission.ask can auto-answer."
+    },
+    {
+      "signal": "os_notification",
+      "setting": "chat.notifyWindowOnConfirmation",
+      "meaning": "Copilot Local and Agent Host: OS notification when a chat needs input; default windowNotFocused, values off, windowNotFocused, always. A notification banner, nothing a process can read. chat.notifyWindowOnResponseReceived is the same for finished responses."
+    },
+    {
+      "signal": "hook",
+      "event": "PreToolUse returning permissionDecision ask",
+      "meaning": "Copilot Local: a decision hook, not a waiting event. The Local hook docs list eight events (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PreCompact, SubagentStart, SubagentStop, Stop) and no Notification or idle event. How a Claude-format Notification entry is treated is not documented: the docs say only that Local parses nested commands and ignores matcher values."
+    },
+    {
+      "signal": "ipc_event",
+      "event": "taskInteractive / taskResumable / taskIdle (Roo Code)",
+      "meaning": "Roo: emitted 2 s after a blocking ask (followup, command, tool) and only on an IpcServer that exists when ROO_CODE_IPC_SOCKET_PATH was set at extension activation. Off by default. Roo is sunset."
+    },
+    {
+      "signal": "none_observable",
+      "meaning": "Cline: the SDK turn phases awaiting_approval and awaiting_followup are tracked by TurnStateTracker in the extension and pushed to the webview as TurnState. No source shows them persisted, written to sessions.db or exposed as a hook (inferred from absence). The classic Notification hook exists but is not wired in the VS Code adapter."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Cline: executable file named after the event in ~/Documents/Cline/Hooks/ or <workspace>/.clinerules/hooks/ (stdin JSON, stdout JSON, chmod +x, 'Enable Hooks' setting, default on in source). The SDK's own ~/.cline/hooks and .cline/hooks are switched off in the VS Code host. Copilot Local: .github/hooks/*.json, ~/.copilot/hooks/*.json, hooks in .agent.md frontmatter, plugin hooks.json, Claude-format .claude/settings.json only with chat.useClaudeHooks; chat.useHooks (default on) and chat.hookFilesLocations. Copilot on Agent Host: the provider's own hooks (Copilot SDK, Claude Agent SDK, Codex). Kilo: plugins in ~/.config/kilo/plugin/, .kilo/plugin/ or the plugin array of kilo.json(c). Roo Code: none found.",
+    "events": [
+      "cline:TaskStart",
+      "cline:UserPromptSubmit",
+      "cline:PreToolUse",
+      "cline:PostToolUse",
+      "cline:TaskComplete",
+      "cline:TaskCancel",
+      "copilot-local:SessionStart",
+      "copilot-local:UserPromptSubmit",
+      "copilot-local:PreToolUse",
+      "copilot-local:PostToolUse",
+      "copilot-local:PreCompact",
+      "copilot-local:SubagentStart",
+      "copilot-local:SubagentStop",
+      "copilot-local:Stop",
+      "kilo:event",
+      "kilo:tool.execute.before",
+      "kilo:tool.execute.after",
+      "kilo:chat.message",
+      "kilo:permission.ask"
+    ],
+    "docs": "https://code.visualstudio.com/docs/agent-customization/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Per surface, all opt-in and all read from the extension host or server environment, which a Dock-launched VS Code does not inherit from a shell. Copilot Local: github.copilot.chat.otel.enabled (or COPILOT_OTEL_ENABLED=true, or any OTEL_EXPORTER_OTLP_ENDPOINT, or github.copilot.chat.otel.dbSpanExporter.enabled), exporter otlp-http, otlp-grpc, console, file, plus a local SQLite span store, traces + metrics + events. Agent Host: chat.agentHost.otel.* settings, traces to OTLP, file or <userData>/agent-host/otel/agent-host-traces.db. Cline 4.x: CLINE_OTEL_TELEMETRY_ENABLED plus CLINE_OTEL_* (metrics and logs, gRPC or HTTP) or org remote config. Kilo 7.x: OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS on the kilo serve process (traces and logs, HTTP); its own product telemetry is PostHog. Roo Code: none found in source."
+  },
+  "sources": [
+    {
+      "claim": "VS Code has a dedicated Agent Host utility process running Copilot, Claude and Codex harnesses; the Local harness stays in the extension host; earlier versions ran agents in the extension host",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://code.visualstudio.com/docs/agents/concepts/agent-host and https://code.visualstudio.com/docs/agents/concepts/agent-harnesses (both dated 9/16/2026); https://www.electronjs.org/docs/latest/api/utility-process (allowLoadingUnsignedLibraries launches the process via the Helper (Plugin) app, so the extension host uses the Plugin helper and the Agent Host, which sets no such flag, does not)"
+    },
+    {
+      "claim": "Agent Host is spawned as an Electron UtilityProcess type agentHost, name agent-host, entry vs/platform/agentHost/node/agentHostMain, with env VSCODE_ESM_ENTRYPOINT; no allowLoadingUnsignedLibraries, unlike the extension host",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "microsoft/vscode src/vs/platform/agentHost/electron-main/electronAgentHostStarter.ts (start()); src/vs/platform/extensions/electron-main/extensionHostStarter.ts lines 116-121 (type extensionHost, name extension-host, allowLoadingUnsignedLibraries: true); src/vs/platform/utilityProcess/electron-main/utilityProcess.ts, utilityProcessWorkerMainService.ts and workbench/services/localTranscription/electron-browser/localTranscriptionService.ts (other users of allowLoadingUnsignedLibraries: utility-process workers and the dictation runtime)"
+    },
+    {
+      "claim": "Agent Host publishes a per-process endpoint entry file with pid, type, instanceId, protocolVersion, connectionToken and a unix-socket or pipe endpoint; socket at <tmpdir>/vscode-ah-<hash>/<instance>.sock",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "microsoft/vscode src/vs/platform/agentHost/LOCAL_ENDPOINT.md (<userDataPath>/agent-host/local-endpoint/entries/<identity>.json)"
+    },
+    {
+      "claim": "AHP session status bits Idle / InProgress / InputNeeded / Error and a session-level inputNeeded roll-up",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/microsoft/agent-host-protocol docs/specification/session-channel.md (lines on status and SessionState.inputNeeded)"
+    },
+    {
+      "claim": "Agent Host registry is <appSettingsHome>/globalStorage/agent-host.db, i.e. <userData>/User/globalStorage/agent-host.db (sessions_v2, session_chat_catalogs, session_chats); per-session data under <userData>/agentSessionData/<sessionId>/; Copilot SDK conversations live under COPILOT_HOME/session-state/<id>/events.jsonl",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "microsoft/vscode src/vs/platform/agentHost/node/agentHostBootstrap.ts (rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json')); node/agentHostServices.ts (databasePath = joinPath(dirname(rootConfigResource), 'agent-host.db')); src/vs/platform/environment/common/environmentService.ts (appSettingsHome = <userDataPath>/User); node/agentHostDatabase.ts (CREATE TABLE sessions_v2, session_chat_catalogs, session_chats); node/sessionDataService.ts (<userDataPath>/agentSessionData/<sessionId>/); node/copilot/copilotAgent.ts (join(getCopilotHomePath(...), 'session-state', sessionId, 'events.jsonl')); environment/common/copilotHome.ts (COPILOT_HOME || ~/.copilot). Correction: an earlier draft of this row put the registry at <userData>/agent-host/agent-host.db, which no source supports."
+    },
+    {
+      "claim": "Local harness chat store: workspaceStorage/<workspace id>/chatSessions (emptyWindowChatSessions under globalStorage for empty windows), .jsonl log written by default, .json legacy",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "microsoft/vscode src/vs/workbench/contrib/chat/common/model/chatSessionStore.ts lines 72-79 and 738-740 (chat.useLogSessionStorage !== false selects the .jsonl log)"
+    },
+    {
+      "claim": "An old VS Code data dir on this Mac confirms the workspaceStorage/<hash>/chatSessions/<uuid>.json layout; record keys are creationDate, initialLocation, isImported, lastMessageDate, requesterAvatarIconUri, requesterUsername, requests, responderAvatarIconUri, responderUsername, sessionId, version",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls -la ~/Library/Application Support/Code/User/workspaceStorage/*/chatSessions printed one file e5d1a3f1-804e-43e3-9bb0-0da6ff63ea74.json, 513 bytes, Apr 14 2025; python json.load printed the sorted top-level key names above and 'requests 0'. The app itself is gone (ls /Applications: no Visual Studio Code.app), remnants from April 2025 only (GitHub.copilot-chat 0.26.7 in ~/.vscode/extensions)."
+    },
+    {
+      "claim": "Nothing in this family is installed or running here",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "test -e on /Applications/Visual Studio Code.app, ... Insiders.app, VSCodium.app, ~/.cline, ~/Documents/Cline, ~/.copilot, ~/.local/share/kilo, ~/.config/kilo, ~/.kilocode, ~/.roo all printed absent; ls ~/.cursor/extensions and Cursor globalStorage grepped for cline|claude-dev|roo|kilo|copilot returned nothing; ps -axo pid=,args= grepped for kilo|cline|roo-cline|copilot returned nothing; which code kilo cline: not found"
+    },
+    {
+      "claim": "Electron IDE process shape on macOS: main process ppid 1 with Helper children; shared-process, mcp-process and pty-host titled '<Product> Helper: <name>'; Helper (Plugin) app exists for the extension host; an idle tree reads 0.0 percent",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ps -axo pid=,ppid=,pcpu=,args= grep Cursor printed 70991 (Cursor.app/Contents/MacOS/Cursor, ppid 1, 0.0) with children 71313 'Cursor Helper --type=gpu-process', 71315 '--type=utility --utility-sub-type=network.mojom.NodeService', 71902 'Cursor Helper: shared-process', 71915 'Cursor Helper: mcp-process', 72098 'Cursor Helper: terminal pty-host', all 0.0; ls /Applications/Cursor.app/Contents/Frameworks printed 'Cursor Helper (Plugin).app'. The title comes from VSCODE_PROCESS_TITLE in Cursor's bootstrap-fork.js; upstream microsoft/vscode main has no such string, so stock VS Code helpers probably show plain 'Code Helper --type=utility ...' (inferred)."
+    },
+    {
+      "claim": "Bundle ids and app names: com.microsoft.VSCode (Visual Studio Code.app), com.microsoft.VSCodeInsiders (Visual Studio Code - Insiders), com.vscodium; user data dirs Code, Code - Insiders, VSCodium",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/cask/visual-studio-code.json (artifacts app 'Visual Studio Code.app', uninstall quit com.microsoft.VSCode, zap ~/Library/Application Support/Code, version 1.139.1), .../visual-studio-code@insiders.json (com.microsoft.VSCodeInsiders, 1.140.0-insider), .../vscodium.json (com.vscodium). Upstream src product.json is the OSS build: darwinBundleIdentifier com.visualstudio.code.oss."
+    },
+    {
+      "claim": "Copilot Chat extension (GitHub.copilot-chat) runs in the extension host, writes transcripts to <extension storageUri>/transcripts/<sessionId>.jsonl with assistant.turn_start / assistant.turn_end records, and takes a power save blocker per model request released 2 minutes later, gated by an experiment",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "microsoft/vscode extensions/copilot/src/extension/chat/vscode-node/sessionTranscriptService.ts (URI.joinPath(storageUri, 'transcripts'), type 'assistant.turn_start' / 'assistant.turn_end'); extensions/copilot/src/extension/power/vscode-node/powerService.ts (RELEASE_DELAY_MS = 2 * 60 * 1000, startPowerSaveBlocker('prevent-app-suspension')); extensions/copilot/src/extension/prompt/node/chatMLFetcher.ts line 959-960 (ConfigKey.TeamInternal.ChatRequestPowerSaveBlocker, acquirePowerSaveBlocker per request); extensions/copilot/package.json name copilot-chat, version 0.69.0, engines.vscode ^1.141.0; extensions/copilot/src/platform/configuration/common/configurationService.ts (ChatRequestPowerSaveBlocker = defineTeamInternalSetting('chat.advanced.chatRequestPowerSaveBlocker', ConfigType.ExperimentBased, true), so the source default is true); package.json enabledApiProposals contains environmentPower. The VS Marketplace lists GitHub.copilot-chat only up to 0.48.1 (2026-05-15) while the repo copy is 0.69.0, so later builds appear to ship inside VS Code; which build a given install runs was not resolved."
+    },
+    {
+      "claim": "Local hooks: events, file locations, chat.useHooks (default on), chat.hookFilesLocations, chat.useClaudeHooks (off by default), no Notification event listed",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://code.visualstudio.com/docs/agent-customization/hooks (9/16/2026); the docs do not say how a Claude-format Notification entry is handled, so 'not mapped' is inferred"
+    },
+    {
+      "claim": "chat.notifyWindowOnConfirmation and chat.notifyWindowOnResponseReceived default windowNotFocused (values off, windowNotFocused, always); github.copilot.chat.otel.* settings; chat.agentHost.claudeAgent.enabled (default true) and chat.agentHost.codexAgent.enabled (default false)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://code.visualstudio.com/docs/agents/reference/ai-settings (extracted with firecrawl query, 9/17/2026 page); the chat.agentHost.otel.* settings are not on this page, they are documented in microsoft/vscode src/vs/platform/agentHost/OTEL.md (settings table, default false for dbSpanExporter)"
+    },
+    {
+      "claim": "Copilot OpenTelemetry: Local via github.copilot.chat.otel.* or COPILOT_OTEL_ENABLED, traces + metrics + events, opt-in; Agent Host has its own pipeline chat.agentHost.otel.* with SQLite store <userData>/agent-host/otel/agent-host-traces.db",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://code.visualstudio.com/docs/agents/guides/monitoring-agents; microsoft/vscode src/vs/platform/agentHost/OTEL.md (comparison table)"
+    },
+    {
+      "claim": "Cline 4.x VS Code extension (saoudrizwan.claude-dev 4.1.21, published 2026-09-24) runs the SDK ClineCore in-process with backendMode local, not the hub daemon",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/vscode/package.json (name claude-dev, version 4.1.21, main ./dist/extension.js); apps/vscode/src/sdk/vscode-session-host.ts (ClineCore.create({ backendMode: \"local\", ... })); VS Marketplace extensionquery listed saoudrizwan.claude-dev 4.1.21 updated 2026-09-24"
+    },
+    {
+      "claim": "Cline session rows: sessions.db table with session_id, source, pid (process.pid), status idle|running|pending|completed|failed|cancelled, messages_path; default dir ~/.cline/data/db; artifacts in ~/.cline/data/sessions/<id>/<id>.messages.json; source value vscode",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/services/storage/sqlite-session-store.ts (sessionsDirPath = options.sessionsDir ?? resolveDbDataDir(); join(dir, 'sessions.db'); INSERT INTO sessions (...)); sdk/packages/shared/src/storage/paths.ts (resolveDbDataDir = <clineDataDir>/db, resolveSessionDataDir = <clineDataDir>/sessions, clineDataDir = CLINE_DATA_DIR or CLINE_DIR/data or ~/.cline/data); sdk/packages/shared/src/session/records.ts (status meanings); sdk/packages/core/src/types/common.ts (SessionSource.VSCODE = 'vscode'); sdk/packages/core/src/runtime/host/local-runtime-host.ts lines 520, 2249 (pid: process.pid), 2278-2323 (markTurnRunning / markTurnIdle); session/services/persistence-service.ts (isPidAlive, reconcileDeadRunningSession)"
+    },
+    {
+      "claim": "Cline docs say sessions.db is at ~/.cline/data/sessions/sessions.db, the code says ~/.cline/data/db/sessions.db",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "docs/sdk/architecture/hub-spoke.mdx ('~/.cline/data/sessions/  sessions.db  # SQLite index  [session-id].json') versus the source lines in the previous entry; cron.db 'lives alongside sessions.db' at .cline/data/db/cron.db in sdk/ARCHITECTURE.md agrees with the code. Not resolved by observation."
+    },
+    {
+      "claim": "Cline hooks in the VS Code host: file hooks from ~/Documents/Cline/Hooks and <workspace>/.clinerules/hooks, six events wired, five deferred; SDK file-hook extension disabled to avoid double runs; enabled unless the user turned it off",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/vscode/src/sdk/hooks-adapter.ts header comment (TaskStart, UserPromptSubmit, PreToolUse, PostToolUse, TaskComplete, TaskCancel wired; TaskResume, TaskError, SessionShutdown, PreCompact, Notification deferred); apps/vscode/src/sdk/vscode-session-host.ts (configExtensions filtered to exclude 'hooks'); apps/vscode/src/core/storage/disk.ts (getGlobalHooksDir -> Documents/Cline/Hooks, getWorkspaceHooksDirs -> .clinerules/hooks); apps/vscode/src/core/hooks/hooks-utils.ts (userSetting ?? true); .clinerules/hooks/README.md says the checkbox must be ticked"
+    },
+    {
+      "claim": "Cline turn phases idle, streaming, awaiting_approval, awaiting_followup, completed, error, resumable are tracked by TurnStateTracker in the extension and pushed to the webview; no source shows them persisted (inferred from absence)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/vscode/src/shared/ExtensionMessage.ts (type TurnPhase), apps/vscode/src/sdk/turn-state-tracker.ts"
+    },
+    {
+      "claim": "Cline OpenTelemetry is opt-in via CLINE_OTEL_* env or org remote config, metrics and logs, OTLP gRPC / HTTP",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/cline/cline/blob/main/docs/enterprise-solutions/monitoring/opentelemetry.mdx and opentelemetry_override.mdx; apps/vscode/src/shared/services/config/otel-config.ts"
+    },
+    {
+      "claim": "Roo Code: extension, cloud and router sunset on 2026-05-15; repo archived; last release v3.54.0 (2026-05-15)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "gh api repos/RooCodeInc/Roo-Code printed archived=true, pushed_at 2026-05-15; PR #12160 body 'announcing the sunsetting of the Roo Code VS Code Extension, Roo Code Cloud, and Roo Code Router on May 15th'; latest release tag v3.54.0 2026-05-15"
+    },
+    {
+      "claim": "Roo Code task store, event states, IPC socket only when ROO_CODE_IPC_SOCKET_PATH is set; no hooks or telemetry dependency found",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "RooCodeInc/Roo-Code src/utils/storage.ts (path.join(basePath, 'tasks', taskId)), src/shared/globalFileNames.ts, src/core/task-persistence/TaskHistoryStore.ts (history_item.json, _index.json), packages/types/src/events.ts (TaskActive, TaskInteractive, TaskResumable, TaskIdle), src/core/task/Task.ts lines 1335-1385 (2 s statusMutationTimeout), src/extension.ts lines 237-293 (process.env.ROO_CODE_IPC_SOCKET_PATH); src/package.json id roo-cline publisher RooVeterinaryInc; no telemetry, posthog, otel or hook files in the repo tree listing"
+    },
+    {
+      "claim": "Kilo Code 7.x (kilocode.kilo-code 7.8.1, 2026-09-25) is an opencode fork whose extension spawns `<extensionPath>/bin/kilo serve --port 0` detached with KILO_CLIENT=vscode, KILO_PARENT_PID=<extension host pid>, KILO_SERVER_PASSWORD=<random>",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Kilo-Org/kilocode packages/kilo-vscode/src/services/cli-backend/server-manager.ts (getCliPath: path.join(extensionPath, 'bin', 'kilo'); spawn(cliPath, ['serve','--port','0'], { detached: true, stdio: ['ignore','pipe','pipe'], env: { ... KILO_PARENT_PID: String(process.pid), KILO_CLIENT: 'vscode' ... } }); crypto.randomBytes(32) password); packages/opencode/src/cli/cmd/serve.ts ('kilo server listening on ...'); packages/opencode/src/server/auth.ts (username default kilo); VS Marketplace listed kilocode.Kilo-Code 7.8.1, darwin-arm64 target"
+    },
+    {
+      "claim": "Kilo session status idle | busy | retry | offline | scheduled; GET /session/status, /permission, /question; DB ~/.local/share/kilo/kilo.db",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Kilo-Org/kilocode packages/schema/src/session-status-event.ts, packages/opencode/src/server/routes/instance/httpapi/groups/session.ts (status: `${root}/status`), groups/permission.ts and question.ts (list), packages/opencode/src/storage/db.ts (path.join(Global.Path.data, 'kilo.db')), packages/core/src/global.ts (app = 'kilo', xdg data)"
+    },
+    {
+      "claim": "Kilo Keep Awake: off by default, /usr/bin/caffeinate -i -w <pid> on macOS while any session is busy or retrying or has a wakeup",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/Kilo-Org/kilocode/blob/main/packages/kilo-docs/pages/getting-started/settings/keep-awake.md; packages/core/src/kilocode/caffeination.ts (args darwin: ['-i','-w',String(pid)]); packages/kilo-vscode/src/services/caffeination/feed.ts (busy = status busy or retry); packages/kilo-vscode/src/services/caffeination/service.ts (driver.start(process.pid, ...), so -w is the extension host pid)"
+    },
+    {
+      "claim": "Kilo plugins and events: plugin dirs, hooks, session.idle, permission.asked; OTLP via OTEL_EXPORTER_OTLP_ENDPOINT and _HEADERS; PostHog product telemetry",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Kilo-Org/kilocode packages/kilo-docs/pages/automate/extending/plugins.md (lines 360-445); packages/core/src/observability/otlp.ts and packages/core/src/flag/flag.ts (OTEL_EXPORTER_OTLP_ENDPOINT / _HEADERS); packages/kilo-telemetry/package.json (posthog-node)"
+    },
+    {
+      "claim": "The reference probe cannot match a bundle path containing a space: it splits `ps args` on spaces, so argv[0] of the VS Code main process becomes '/Applications/Visual'",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "tools/agents_probe.py processes(): argv = args.split(' '), exe=argv[0]; matches() compares path_contains against p['exe']. Synthetic check in evidence notes."
+    },
+    {
+      "claim": "The `code` CLI wrapper runs the same Contents/MacOS executable as the IDE with ELECTRON_RUN_AS_NODE=1, so CLI runs match the main-process path spec",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "microsoft/vscode resources/darwin/bin/code.sh (ELECTRON=\"$CONTENTS/MacOS/@@NAME@@\"; ELECTRON_RUN_AS_NODE=1 \"$ELECTRON\" \"$CLI\" \"$@\", CLI=Contents/Resources/app/out/cli.js)"
+    },
+    {
+      "claim": "Synthetic probe check of the process specs after repair",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 loading tools/agents_probe.py matches() against synthetic ps lines: '/Applications/Visual Studio Code.app/Contents/MacOS/Electron' and the '... Code Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService' line match nothing (space in path); '<ext>/kilocode.kilo-code-7.8.1-darwin-arm64/bin/kilo serve --port 0' matches surface 2; '... kilo --version' and '... kilo run reserve' do not (the latter matched before --port was added to args_contain)."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Four agents, four architectures, and none of them is visible as its own process except Kilo's server. (1) Copilot 'Local', Cline 4.x and Roo Code run inside the extension host (Code Helper (Plugin)), one process for every session of that window group, so CPU, children and pid cannot say which agent or session works. (2) Copilot sessions targeted at Copilot, Claude or Codex run in the Agent Host utility process, which is not tied to any window. (3) Kilo 7.x runs its own `kilo serve` child. The precise signals are state reads, not process signals: Cline sessions.db status, Kilo /session/status, AHP InProgress. VS Code itself is not installed on this Mac and no agent turn was observed, so confidence is documented, not verified-locally. Roo Code is sunset (2026-05-15): its rows are for machines still running 3.54.0. The same extensions also run inside Cursor, Windsurf/Devin and VSCodium; those apps have their own rows or paths (~/.cursor/extensions, Application Support/Cursor). Cline's CLI, desktop app and hub daemon share ~/.cline/data/db/sessions.db (source cli, desktop) and must not be counted as VS Code. Adversarial review 2026-09-29: the agent-host.db path was wrong and is fixed; the caffeinate signal is only valid as a direct child of the extension host with -w equal to its pid; the extension-host process spec also matches the dictation runtime; the Kilo daemon spec needed --port; the `code` CLI matches the IDE path spec. Everything from vendor docs and public source was re-read and stands, but no agent turn was observed, so fields marked inferred stay inferred and confidence is at most documented."
+}

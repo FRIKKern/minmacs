@@ -1,0 +1,248 @@
+{
+  "id": "cursor",
+  "name": "Cursor",
+  "vendor": "Anysphere",
+  "homepage": "https://cursor.com",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "Cursor IDE and Agents Window (one Cursor.app process; many chats inside it)",
+      "bundle_ids": [
+        "com.todesktop.230313mzl4w4u92"
+      ],
+      "process": {
+        "path_contains": [
+          "/Cursor.app/Contents/MacOS/Cursor"
+        ],
+        "exclude_args": [
+          "/Applications/Cursor.app/Contents/Resources/app/out/cli.js"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "cursor-agent / agent CLI (bundled node running index.js)",
+      "process": {
+        "path_contains": [
+          "/.local/share/cursor-agent/versions/"
+        ],
+        "exclude_args": [
+          "--version",
+          "-v",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "cloud",
+      "label": "Cloud / background agents (run on Cursor VMs; nothing local to match)"
+    }
+  ],
+  "session_store": {
+    "glob": "~/.cursor/chats/*/*/store.db",
+    "per_session": "~/.cursor/chats/*/{session_id}/store.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "name": "Electron powerSaveBlocker prevent-app-suspension, owned by the main Cursor process",
+      "meaning": "IDE and Agents Window: Cursor takes a wakelock when a local chat turn starts (reason agent-loop) and drops it at generation-ended. It is also dropped while the chat waits for approval (user-approval-requested) and retaken on resume (agent-loop-resumed). App-wide, not per chat. Verified from bundled source and Cursor's own log lines; the pmset assertion itself was not observed because no turn was running. Not taken for cloud agents. The CLI does not take one."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "CLI only, UNVERIFIED: ~/.cursor/chats/<md5(cwd)>/<chat id>/store.db is written as the turn progresses. Not tested, no CLI session was run."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Weak fallback, inferred, floor unmeasured. Idle Cursor.app tree measured 0.5-1.0 percent (2026-09-29), but typing or scrolling in the IDE burns CPU, and the tree includes the integrated terminal (Terminal pty-host is a child of the main process), so a build or another agent run there can false-positive. Reasonable only for the CLI."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "log_line",
+      "file": "~/Library/Application Support/Cursor/logs/<session>/window*/renderer.log",
+      "pattern": "[ComposerWakelockManager] Released wakelock ... reason=\"user-approval-requested\" composerId=<id>",
+      "meaning": "IDE: this chat is blocked on the human (tool approval or question). Ends with reason=\"agent-loop-resumed\". Seen in real logs from 2026-06-09. Per chat, unlike the app-wide assertion. Undocumented."
+    },
+    {
+      "signal": "state",
+      "where": "composerHeaders.value JSON key hasBlockingPendingActions in ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+      "meaning": "IDE: true while the chat has a pending approval. Key exists in headers and drives the wakelock release. Whether it is flushed to disk live was not checked. Undocumented, and the file is about 1.2 GB."
+    },
+    {
+      "signal": "hook",
+      "event": "beforeShellExecution / beforeMCPExecution",
+      "meaning": "Fires just before a command or MCP call runs and may answer permission ask. This is a decision point, not a Notification. Cursor has NO Notification or idle-waiting event, and the Claude Code Notification hook is not mapped."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.cursor/hooks.json (user), <project>/.cursor/hooks.json (project), /Library/Application Support/Cursor/hooks.json (enterprise, macOS), team hooks from the web dashboard. Also reads Claude Code hook configs. Not present on this Mac.",
+    "events": [
+      "sessionStart",
+      "sessionEnd",
+      "beforeSubmitPrompt",
+      "preToolUse",
+      "postToolUse",
+      "postToolUseFailure",
+      "subagentStart",
+      "subagentStop",
+      "beforeShellExecution",
+      "afterShellExecution",
+      "beforeMCPExecution",
+      "afterMCPExecution",
+      "beforeReadFile",
+      "afterFileEdit",
+      "afterAgentResponse",
+      "afterAgentThought",
+      "preCompact",
+      "stop",
+      "beforeTabFileRead",
+      "afterTabFileEdit",
+      "workspaceOpen"
+    ],
+    "docs": "https://cursor.com/docs/hooks"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No local OTLP exporter. OpenTelemetry Export is Enterprise-only, server-side (Cursor's egress IPs push OTLP/HTTP protobuf metrics and logs to a team collector; no traces). Conversation content covers Cloud Agents and Grok Bot only, not IDE or CLI. Nothing a local monitor can read. The OTEL_* strings in the CLI bundle are the OpenTelemetry JS library, not a Cursor feature."
+  },
+  "sources": [
+    {
+      "claim": "Bundle id com.todesktop.230313mzl4w4u92, executable Cursor, version 3.15.6",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "plutil -p /Applications/Cursor.app/Contents/Info.plist printed CFBundleIdentifier com.todesktop.230313mzl4w4u92, CFBundleExecutable Cursor, CFBundleShortVersionString 3.15.6; product.json darwinBundleIdentifier matches, applicationName cursor, dataFolderName .cursor"
+    },
+    {
+      "claim": "Running IDE is /Applications/Cursor.app/Contents/MacOS/Cursor with Electron helpers as children (gpu, network, shared-process, mcp-process, terminal pty-host)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ps -axo pid=,ppid=,pcpu=,tty=,args= | grep -i cursor showed pid 70991 (main, ppid 1, 0.0% cpu) and helpers with ppid 70991. Helpers' argv[0] contains a space (Cursor Helper.app), so the probe's path_contains for the main binary does not match them."
+    },
+    {
+      "claim": "Agents Window is a window of the same Cursor.app, not a separate app",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://cursor.com/docs/agent/agents-window: 'Cmd+Shift+P > Open Agents Window' from the editor, 'Open IDE' to switch back, 'have both open simultaneously'; GA with Cursor 3 on 2026-04-02. No second bundle exists in /Applications (only Cursor.app)."
+    },
+    {
+      "claim": "CLI is a bash launcher that execs a bundled node on index.js, so the running process is named node under ~/.local/share/cursor-agent/versions/<version>/",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "~/.local/bin/cursor-agent is a symlink to ~/.local/share/cursor-agent/versions/2025.12.17-996666f/cursor-agent (bash script ending: exec \"$NODE_BIN\" --use-system-ca \"$SCRIPT_DIR/index.js\" \"$@\"); the version dir holds node, rg, spawn-helper, index.js; `cursor-agent --version` printed 2025.12.17-996666f. No CLI session was running, so the exact ps line was not observed. Re-run 2026-09-29: while `cursor-agent --version` was running, ps showed exactly `<home>/.local/share/cursor-agent/versions/2025.12.17-996666f/node --use-system-ca <same dir>/index.js --version`, so exe is the versioned node path and argv holds the flags. A real interactive session's ps line is still unobserved."
+    },
+    {
+      "claim": "Current docs call the CLI `agent` (curl https://cursor.com/install); this Mac has the older cursor-agent name. Docs show resume forms `agent ls`, `agent resume`, `agent --continue`, `agent --resume=\"chat-id\"`",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://cursor.com/docs/cli/overview. Note the equals form: the probe's session_id_args matches only the separate-token form `--resume <id>`. Re-verified: `cursor-agent --help` on this old build prints `--resume [chatId]` (space form) and subcommands install-shell-integration, uninstall-shell-integration, login, logout, mcp, status|whoami, update|upgrade, create-chat, agent, ls, resume, help; the bundle also mentions `--resume=-1`."
+    },
+    {
+      "claim": "CLI chat store is ~/.cursor/chats/<md5 of cwd>/<chat id>/store.db, SQLite with tables blobs(id, data) and meta(key, value)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "find ~/.cursor/chats showed chats/bce8a059fa2e25d4a30f162d4f09f1a1/05e8f1d9-.../store.db; `printf %s /Users/frikkjarl/Documents/GitHub/ai-training-folder | md5` printed bce8a059fa2e25d4a30f162d4f09f1a1; sqlite3 .schema printed CREATE TABLE blobs (id TEXT PRIMARY KEY, data BLOB); CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT). meta has one row, key 0, value hex-encoded JSON with keys agentId, createdAt, lastUsedModel, latestRootBlobId, mode, name. Only one CLI chat exists here, dated 2025-12-18."
+    },
+    {
+      "claim": "The CLI never takes a power assertion or spawns caffeinate",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "grep -l -iE 'caffeinate|IOPMAssertion|powerSaveBlocker' over every *.js in ~/.local/share/cursor-agent/versions/2025.12.17-996666f/ printed nothing. Only checked in this one old version."
+    },
+    {
+      "claim": "IDE agent holds an Electron wakelock exactly while a local chat turn runs and releases it while waiting for approval",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js, class ComposerWakelockManager (out-build/vs/workbench/contrib/composer/browser/composerWakelockManager.js): constructor calls _acquire('agent-loop') unless composerHandle.data.hasBlockingPendingActions; a reactive watch calls _release('user-approval-requested') when it turns true and _acquire('agent-loop-resumed') when it turns false. It is built in submitChat only when !createdFromBackgroundAgent.bcId. out/main.js powerMainService.startWakelockForOwner calls powerSaveBlocker.start('prevent-app-suspension')."
+    },
+    {
+      "claim": "Those wakelocks really fire on real turns, 10 starts with reason agent-loop and 1 with agent-loop-resumed, each release logged as generation-ended or user-approval-requested",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "grep over ~/Library/Application Support/Cursor/logs/20260609T181642/{main.log,window*/renderer.log} counted: '[ComposerWakelockManager] Acquired wakelock reason=\"agent-loop\"' x10, 'reason=\"agent-loop-resumed\"' x1, 'Released wakelock reason=\"generation-ended\"' x10, 'reason=\"user-approval-requested\"' x1. main.log line: '[PowerMainService] Started wakelock id=0 owner=window:1 reason=\"agent-loop\" activeCount=1'. Later log sessions (2026-07-24, 2026-09-29) hold no such lines."
+    },
+    {
+      "claim": "No Cursor wakelock or caffeinate is held while idle",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "pmset -g assertions at 13:59 listed caffeinate (from Claude Code sessions), Insomnia, Chrome, powerd, mds_stores and none owned by Cursor, while Cursor.app pid 70991 was running with no agent turn."
+    },
+    {
+      "claim": "IDE chats live in a 1.2 GB SQLite file state.vscdb: tables ItemTable, cursorDiskKV, composerHeaders. cursorDiskKV keys are prefixed composerData:, bubbleId:, checkpointId:, codeBlockDiff:, agentKv:, messageRequestContext:",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "sqlite3 'file:state.vscdb?mode=ro&immutable=1' on ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb: .tables printed 'ItemTable composerHeaders cursorDiskKV'; key-prefix counts bubbleId 17104, checkpointId 5393, codeBlockDiff 3579, agentKv 1459, messageRequestContext 737, composerData 160. composerData value JSON keys include composerId, status, isAgentic, unifiedMode, generatingBubbleIds (all in 146+ rows); conversationState (27 rows), subagentComposerIds (13), stopHookLoopCount (91) are only in some rows. status held none (90), completed (49), aborted (7) and no key at all in 14 rows; generatingBubbleIds (present in 146 rows) was empty in every one, at rest. composerHeaders held only 14 rows (8 with hasBlockingPendingActions, none true), not one per composer. composerHeaders columns: composerId, workspaceId, createdAt, lastUpdatedAt, isArchived, isSubagent, recency, checkpointAt, value; header value JSON keys include hasBlockingPendingActions, hasPendingPlan, hasUnreadMessages, type, unifiedMode."
+    },
+    {
+      "claim": "IDE also writes plain transcripts at ~/.cursor/projects/<workspace slug>/agent-transcripts/<chat id>/<chat id>.jsonl, one JSON object per line with keys role and message{content}",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls ~/.cursor/projects/empty-window/agent-transcripts/e14398f7-.../ printed e14398f7-....jsonl (673 bytes, 2026-06-09); Akerbrygge holds a 151249 byte .jsonl. Key names of one record printed ['role','message'] and message ['content']. Only 2 transcripts exist against 160 composers, so this is not a complete store. Hooks docs promise a transcript_path field but no directory layout."
+    },
+    {
+      "claim": "Hook events (21 names all present), config locations and priority (Enterprise, Team, Project, User), stop/subagentStop status completed/aborted/error, base input fields conversation_id, generation_id, transcript_path",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://cursor.com/docs/hooks re-fetched 2026-09-29: user ~/.cursor/hooks.json, project <root>/.cursor/hooks.json, enterprise macOS /Library/Application Support/Cursor/hooks.json; 'Priority order (highest to lowest): Enterprise -> Team -> Project -> User'; transcript_path is typed 'string | null'"
+    },
+    {
+      "claim": "Cursor does not map Claude Code's Notification or PermissionRequest hooks; it maps PreToolUse, PostToolUse, UserPromptSubmit, Stop, SubagentStop, SessionStart, SessionEnd, PreCompact",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://cursor.com/docs/reference/third-party-hooks, 'Supported Features' table re-read in full 2026-09-29: 'Notification | - | No', 'PermissionRequest | - | No'"
+    },
+    {
+      "claim": "Cloud agent hooks: sessionStart, sessionEnd, beforeMCPExecution/afterMCPExecution, beforeTabFileRead/afterTabFileEdit and workspaceOpen do not run in cloud agents; project .cursor/hooks.json is loaded, ~/.cursor/hooks.json is not. On self-hosted workers sessionStart/sessionEnd do fire (claim/release)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://cursor.com/docs/hooks section 'Cloud agent support'"
+    },
+    {
+      "claim": "Cloud agents report status via REST: agent status ACTIVE (a turn is running, waiting on background work, or about to start), IDLE (last turn finished), ARCHIVED; ids look like bc-<uuid>",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://cursor.com/docs/cloud-agent/api/endpoints (needs an API key). Scraped through a query extractor, so field names beyond the three status words were not read in full."
+    },
+    {
+      "claim": "OpenTelemetry Export is Enterprise, server-side, OTLP/HTTP protobuf metrics and logs only, no traces, IDE/CLI conversation content not covered",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://cursor.com/docs/enterprise/opentelemetry-export: 'Export runs server-side', 'Cursor doesn't send traces', 'IDE, CLI, and desktop conversations are not on this family yet'"
+    },
+    {
+      "claim": "No hooks configured on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls ~/.cursor/hooks.json printed 'No such file or directory'. Project-level .cursor/hooks.json files were not searched for."
+    },
+    {
+      "claim": "Probe result for this row on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "see registry/evidence/cursor.md, section Probe run"
+    },
+    {
+      "claim": "`cursor <path>` (the shell command installed from the IDE) starts a short-lived process whose executable is the IDE binary itself, so it matches the ide process spec without being the IDE",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "/Applications/Cursor.app/Contents/Resources/app/bin/cursor: find_cursor_cli sets ELECTRON=\"$CONTENTS/MacOS/Cursor\" and CLI=\"$CONTENTS/Resources/app/out/cli.js\", and use_cursor_cli runs ELECTRON_RUN_AS_NODE=1 \"$ELECTRON\" \"$CLI\" \"$@\". Its parent is the user's shell, so the probe's outermost-process rule does not drop it. Fix: exclude_args holds the cli.js path (exact-token match, so it covers only /Applications installs). Not run live, to avoid opening the app; ps shows no such process now."
+    },
+    {
+      "claim": "Non-session CLI subcommands are NOT excluded: only -v/--version and -h/--help are in exclude_args, so login, logout, mcp, status, whoami, update, upgrade, create-chat, ls, resume, help and install-shell-integration would show as brief idle CLI sessions",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "cursor-agent --help lists them. Not added to exclude_args because the probe matches exact argv tokens anywhere, so an unquoted prompt containing 'login' or 'status' would hide a real session. Trade-off left open."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Cursor is one Electron process for all local chats, so the process is the wrong unit: one Cursor.app can hold many chats and the Agents Window is just another window in it. Per-chat state needs Cursor's log lines or hooks. The best cheap live signal is the app-wide wakelock (drops while any chat waits for approval, so with two chats a wait can be masked by the other still running). The CLI is a separate node process with no power assertion and no per-turn child marker known. Cloud agents have no local footprint. Confidence is documented, not verified-locally, because no agent turn was running to watch the assertion or the CLI process live. Verification 2026-09-29: the IDE process spec also matched the short-lived `cursor <path>` launcher (ELECTRON_RUN_AS_NODE running out/cli.js); fixed with exclude_args. tree_cpu floor 10 is not measured against a real turn, and the IDE tree includes integrated-terminal children (pty-host), so a build or another agent running in Cursor's terminal can mark the IDE working; treat it as a last resort."
+}

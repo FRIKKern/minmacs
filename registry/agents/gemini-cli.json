@@ -1,0 +1,226 @@
+{
+  "id": "gemini-cli",
+  "name": "Gemini CLI",
+  "vendor": "Google",
+  "homepage": "https://github.com/google-gemini/gemini-cli",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "gemini launched by npm, Homebrew or MacPorts (node running the bin symlink)",
+      "process": {
+        "names": ["node"],
+        "args_contain": ["bin/gemini"],
+        "exclude_args": ["--acp", "--experimental-acp"]
+      },
+      "session_id_args": ["--session-id", "--resume", "-r"]
+    },
+    {
+      "kind": "tui",
+      "label": "node run directly on the bundle path (npx cache, source checkout, npm layout where argv[1] is the real script). Note: the relaunch child inherits the parent argv[1], so on a symlinked install it matches the first surface, not this one",
+      "process": {
+        "names": ["node"],
+        "args_contain": ["gemini-cli/bundle/gemini.js"],
+        "exclude_args": ["--acp", "--experimental-acp"]
+      },
+      "session_id_args": ["--session-id", "--resume", "-r"]
+    },
+    {
+      "kind": "tui",
+      "label": "standalone single-executable binary (release asset gemini-darwin-<arch>-unsigned.zip contains the file gemini; the relaunch child is also named gemini)",
+      "process": {
+        "names": ["gemini"],
+        "exclude_args": ["--acp", "--experimental-acp"]
+      },
+      "session_id_args": ["--session-id", "--resume", "-r"]
+    },
+    {
+      "kind": "daemon",
+      "label": "gemini --acp: Agent Client Protocol server over stdio, spawned by an editor (Zed and other ACP clients). Needs a gemini needle because other node agents (for example the qwen-code fork) also take --acp",
+      "process": {
+        "names": ["node", "gemini"],
+        "args_contain": ["gemini", "--acp"]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "gemini --experimental-acp: the deprecated spelling of the same ACP server. Separate surface because args_contain is substring AND and '--acp' is not a substring of '--experimental-acp'",
+      "process": {
+        "names": ["node", "gemini"],
+        "args_contain": ["gemini", "--experimental-acp"]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.gemini/tmp/*/chats/session-*.jsonl",
+    "per_session": "~/.gemini/tmp/*/chats/session-*-{session_id_first8}.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "Bursty. A record is appended when the user prompt is accepted, when a model response completes, and when tool calls finish. Nothing is written while a response is streaming or a long tool runs, so a stale file does not mean idle."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured. The Ink UI redraws its spinner and streamed text during a turn; idle is expected near 0 percent. Not observed on a real instance."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "meaning": "Fires with notification_type ToolPermission when a tool call needs approval. Observability only. The docs list ToolPermission as the only type."
+    },
+    {
+      "signal": "terminal_title",
+      "meaning": "OSC 0 title starts with the hand icon and 'Action Required' while a confirmation is pending. Dynamic titles: '◇  Ready' idle, '✦  <thought or Working…>' mid-turn, '⏲  Working…' when silent for a while. Read from the terminal emulator, not from ps. Hidden by ui.hideWindowTitle, and folder-only when ui.dynamicWindowTitle is false."
+    },
+    {
+      "signal": "os_notification",
+      "meaning": "Opt-in (general.enableNotifications). OSC 9 or terminal bell on 'action required' and 'session complete'. Terminal-side only, no file or process trace."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks object in ~/.gemini/settings.json, .gemini/settings.json, or system /Library/Application Support/GeminiCli/settings.json (override with GEMINI_CLI_SYSTEM_SETTINGS_PATH); also shipped by extensions. Toggle with hooksConfig.enabled.",
+    "events": [
+      "SessionStart",
+      "SessionEnd",
+      "BeforeAgent",
+      "AfterAgent",
+      "BeforeModel",
+      "AfterModel",
+      "BeforeToolSelection",
+      "BeforeTool",
+      "AfterTool",
+      "PreCompress",
+      "Notification"
+    ],
+    "docs": "https://geminicli.com/docs/hooks/"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Off by default. GEMINI_TELEMETRY_ENABLED=true (or telemetry.enabled in settings.json). Target local or gcp, OTLP grpc or http, default endpoint http://localhost:4317, GEMINI_TELEMETRY_OUTFILE for a file. Logs, metrics and traces (traces need GEMINI_TELEMETRY_TRACES_ENABLED). Events include gemini_cli.user_prompt, gemini_cli.tool_call, gemini_cli.api_request, gemini_cli.agent.start and gemini_cli.agent.finish."
+  },
+  "sources": [
+    {
+      "claim": "npm package @google/gemini-cli exposes bin 'gemini' -> bundle/gemini.js; Homebrew formula gemini-cli depends on node",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "package.json in google-gemini/gemini-cli at fe63502: \"bin\": {\"gemini\": \"bundle/gemini.js\"}; https://formulae.brew.sh/api/formula/gemini-cli.json printed versions.stable 0.46.0, dependencies ['node']; npm dist-tags latest 0.61.0, preview 0.62.0-preview.0, nightly 0.63.0-nightly.20260929; the formula is deprecated true (date 2026-06-18, reason unsupported, replacement cask antigravity-cli, disable_date 2026-12-18)"
+    },
+    {
+      "claim": "the launcher re-executes itself as a child process (process.execPath) with GEMINI_CLI_NO_RELAUNCH=true, so a session appears as two nested processes (node+node, or gemini+gemini for the standalone binary). The child argv is [...process.execArgv, memory flag if needed, process.argv[1], ...args], so it repeats the parent's script path. The supervisor is skipped when GEMINI_CLI_NO_RELAUNCH or SANDBOX is set",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/cli/index.ts run() lines 54-131 (spawn(process.execPath, spawnArgs, {stdio: inherit+ipc}) inside `if (!GEMINI_CLI_NO_RELAUNCH && !SANDBOX)`) and packages/cli/src/utils/processUtils.ts getSpawnConfig lines 107-160. Corrected in verification: the earlier cite of relaunch.ts relaunchAppInChildProcess was wrong, that function has no call site (grep of packages/cli and packages/core). index.ts is unchanged in tag v0.61.0"
+    },
+    {
+      "claim": "standalone binary is named gemini; macOS unsigned binaries are built as dist/darwin-<arch>/gemini and shipped as release assets gemini-darwin-<arch>-unsigned.zip",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "scripts/build_binary.js line 413 binaryName = 'gemini'; .github/workflows/build-unsigned-mac-binaries.yml uploads gemini-darwin-<arch>-unsigned; GitHub API releases/latest (v0.61.0) assets: gemini-cli-bundle.zip, gemini-darwin-arm64-unsigned.zip, gemini-darwin-x64-unsigned.zip"
+    },
+    {
+      "claim": "no macOS bundle id: Gemini CLI has no desktop app in the repo; the only GUI-adjacent package is a VS Code companion extension (publisher google), not a separate agent process",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/ lists a2a-server, cli, core, devtools, sdk, test-utils, vscode-ide-companion; no Info.plist or bundle id anywhere in the tree"
+    },
+    {
+      "claim": "flags that carry a session id: --session-id <uuid> (new session with given id) and --resume/-r (value is 'latest', an index, or an id); the three session flags are mutually exclusive",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/cli/src/config/config.ts lines 242-248 (sessionFlags mutual exclusion) and options 'resume' (line 401, alias r), 'session-file', 'session-id' (line 426), present at main and v0.61.0. https://geminicli.com/docs/cli/cli-reference/ documents --resume/-r only; --session-id and --acp are source-only, the doc lists --experimental-acp"
+    },
+    {
+      "claim": "a plain 'gemini' launch has no session id in argv, so a process cannot be mapped to its transcript by argv alone; the fallback is cwd -> project slug (~/.gemini/projects.json) -> newest chats file",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/core/src/config/storage.ts (projects.json under the global runtime dir, project dir tmp/<slug>) and packages/core/src/config/projectRegistry.ts getShortId. Fallback is inferred, not observed."
+    },
+    {
+      "claim": "transcripts are JSONL at ~/.gemini/tmp/<project-slug>/chats/session-<YYYY-MM-DDTHH-mm>-<first 8 chars of session id>.jsonl; first line is metadata (sessionId, projectHash, startTime, lastUpdated, kind, directories), then one message record per line, plus {\"$set\":{...}} update lines; legacy .json files are migrated to .jsonl on resume; subagent transcripts nest under chats/<parent session id>/<id>.jsonl",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/core/src/services/chatRecordingService.ts initialize() and appendRecord(); packages/core/src/services/chatRecordingTypes.ts (SESSION_FILE_PREFIX='session-', ConversationRecord, MessageRecord types user|info|error|warning|gemini). Same jsonl code present at tags v0.46.0 and v0.61.0"
+    },
+    {
+      "claim": "docs state sessions live in ~/.gemini/tmp/<project_hash>/chats/ (docs never name the file format or file names; the hook reference calls the transcript JSON)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://geminicli.com/docs/cli/session-management/ (docs/cli/session-management.md). The code now uses a slug from projects.json rather than a hash; the docs wording is stale"
+    },
+    {
+      "claim": "records are appended only at message completion: geminiChat.ts calls recordMessage for the user prompt and the final model message, recordToolCalls after tools finish; nothing is written mid-stream",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/core/src/core/geminiChat.ts lines 547, 565, 1652 (recordMessage), 1636/1641 (queued thoughts and tokens, flushed with the message), 1715 (recordToolCalls)"
+    },
+    {
+      "claim": "the CLI writes an OSC 0 terminal title reflecting state: Action Required, Working, Ready, or a thought subject",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/cli/src/utils/windowTitle.ts computeTerminalTitle; packages/cli/src/ui/AppContainer.tsx line ~2082 writes \\x1b]0;<title>\\x07"
+    },
+    {
+      "claim": "no sleep inhibitor: no caffeinate, IOPMAssertion or power-assertion code in the packages",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rnE 'caffeinate|IOPM|powerSave|powerSaveBlocker|wake.?lock' packages (ts, tsx, js) returned no hits; inferred from absence"
+    },
+    {
+      "claim": "shell tool runs commands through node-pty, so tool commands appear as children of the node process; but MCP stdio servers and the relaunch child are also persistent children",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/core/src/services/shellExecutionService.ts imports @lydell/node-pty; relaunch.ts spawns the inner node"
+    },
+    {
+      "claim": "eleven hook events, command hooks only, configured under hooks in settings.json; Notification event has notification_type ToolPermission only and cannot grant permission",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://geminicli.com/docs/hooks/ and https://geminicli.com/docs/hooks/reference/; enum HookEventName in packages/core/src/hooks/types.ts"
+    },
+    {
+      "claim": "hook processes receive session_id, transcript_path, cwd, hook_event_name, timestamp on stdin, and GEMINI_SESSION_ID in their environment",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "docs/hooks/reference.md 'Base input schema'; packages/core/src/hooks/hookRunner.ts line 353 GEMINI_SESSION_ID: input.session_id. This is the only place a plain session gets its id exposed"
+    },
+    {
+      "claim": "settings file locations on macOS: user ~/.gemini/settings.json, project .gemini/settings.json, system /Library/Application Support/GeminiCli/settings.json (and system-defaults.json)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://geminicli.com/docs/reference/configuration/; packages/cli/src/config/settings.ts line 111"
+    },
+    {
+      "claim": "OpenTelemetry is built in, off by default; env vars and defaults as listed",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://geminicli.com/docs/cli/telemetry/ (docs/cli/telemetry.md Configuration table and Logs section)"
+    },
+    {
+      "claim": "notifications are opt-in and use OSC 9 or BEL",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://geminicli.com/docs/cli/notifications/"
+    },
+    {
+      "claim": "Gemini CLI is being retired for consumers: from 2026-06-18 it stops serving Google AI Pro/Ultra and free Code Assist for individuals users, who are moved to Antigravity CLI (binary agy, Go). Gemini Code Assist Standard/Enterprise and paid API key use continues. Antigravity CLI is a different product and needs its own row",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli (dated May 19, 2026) and the banner on https://geminicli.com/docs/cli/session-management/ 'Gemini CLI was replaced by Antigravity CLI on June 18th, 2026'; install script https://antigravity.google/cli/install.sh installs $HOME/.local/bin/agy"
+    },
+    {
+      "claim": "Gemini CLI is not installed on this Mac; nothing here was observed on a running instance",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which gemini` printed 'gemini not found'; `ls ~/.gemini` printed 'No such file or directory'; `ps -axo pid=,args= | grep -i gemini` matched nothing"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Gemini CLI is sunset for consumer accounts since 2026-06-18 (see sources), so many Macs will run Antigravity CLI (agy) instead; this row only covers the Gemini CLI. Never run against a live instance. (1) Session start is two nested node processes; the probe keeps the outermost, which is why tool_children is left out of working_signals: the inner node and any MCP stdio servers are always children, so 'has non-caffeinate children' would read as working forever. (2) Session mapping is weak: the id is in argv only for --session-id or --resume <uuid>; the transcript file name carries just the first 8 characters of the id, so per_session needs a {session_id_first8} substitution the current probe does not do. (3) Docs say <project_hash>; current code uses a slug. Glob with a wildcard. (4) The best real turn signal is the terminal title, which needs the terminal emulator, not ps. Settings can hide it. (5) headless -p runs are matched too and are simply working for their lifetime. (6) False-positive risk, unfixable with substring args_contain: 'bin/gemini' also matches any node process with an argument such as .../node_modules/.bin/gemini-mcp or /usr/local/bin/gemini-anything, and the bare name 'gemini' matches any unrelated executable called gemini (a Gemini-protocol client, for example). Not tested on a live process list. (7) On npm/Homebrew installs both the supervisor and the child match the first surface (same argv[1]); the probe keeps the outer one. (8) session_id_args '--resume'/'-r' often carry 'latest' or an index, not an id, and bare --resume is followed by nothing or a prompt, so the probe can read a wrong id. (9) The Homebrew formula is deprecated (disable date 2026-12-18) and pinned at 0.46.0."
+}

@@ -1,0 +1,393 @@
+{
+  "id": "qwen-code",
+  "name": "Qwen Code",
+  "vendor": "Alibaba (Qwen team)",
+  "homepage": "https://github.com/QwenLM/qwen-code",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Qwen Code Desktop (Tauri shell; runs a bundled `qwen serve` daemon as its child). Matched on the space-split ps argv[0] '/Applications/Qwen' plus the argument 'Desktop.app/Contents/...', because the app folder name contains spaces",
+      "bundle_ids": [
+        "com.alibaba.qwen-code"
+      ],
+      "process": {
+        "path_contains": [
+          "/Applications/Qwen"
+        ],
+        "args_contain": [
+          "Desktop.app/Contents/"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "qwen from npm or Homebrew: node running the bin symlink (.../bin/qwen -> cli-entry.js)",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/qwen"
+        ],
+        "exclude_args": [
+          "serve",
+          "--acp",
+          "--experimental-acp"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "qwen from the standalone archive: bundled node running lib/cli-entry.js (bun flavour: bun)",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "lib/cli-entry.js"
+        ],
+        "exclude_args": [
+          "serve",
+          "--acp",
+          "--experimental-acp"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "node run directly on the bundled cli.js: the relaunch child of a TUI session (its argv[1] is cli.js, not the bin symlink) or a one-shot -p run that execve replaced the launcher. npm, Homebrew and managed-update installs only; the standalone archive's lib/cli.js is not matched",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@qwen-code/qwen-code/cli.js"
+        ],
+        "exclude_args": [
+          "serve",
+          "--acp",
+          "--experimental-acp"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "qwen serve: local HTTP daemon (Web Shell, SDKs), npm or Homebrew launch",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/qwen",
+          "serve"
+        ],
+        "exclude_args": [
+          "--acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "qwen serve from the standalone archive (node or bun running <root>/lib/cli-entry.js serve). The Desktop app's own daemon is reached through the GUI surface, not this one",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "qwen",
+          "cli-entry.js",
+          "serve"
+        ],
+        "exclude_args": [
+          "--acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "qwen --acp: Agent Client Protocol child, spawned by qwen serve as `node <cli.js> --acp` (argv[1] is the bundled cli.js path) or by an editor that runs the qwen binary directly. Needs 'qwen' in some argument",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "qwen",
+          "--acp"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Qwen Code Companion in VS Code (publisher qwenlm): the editor's own Electron binary running the bundled cli.js --acp --channel=VSCode with ELECTRON_RUN_AS_NODE=1",
+      "process": {
+        "path_contains": [
+          "/Applications/Visual"
+        ],
+        "args_contain": [
+          "--acp",
+          "--channel=VSCode"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.qwen/projects/*/chats/*.jsonl",
+    "per_session": "~/.qwen/projects/*/chats/{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": true,
+    "pid_index": {
+      "note": "Not in the schema. Two JSON files map a live PID to its session without argv, which a plain `qwen` launch never carries.",
+      "runtime_sidecar": "~/.qwen/projects/*/chats/{session_id}.runtime.json  keys: schema_version, pid, session_id, work_dir, hostname, started_at, qwen_version. Interactive TUI only. Never deleted, so check the pid is alive.",
+      "session_registry": "~/.qwen/sessions/<pid>.json (ACP children: <pid>-<8hex>.json)  keys: schemaVersion, pid, procStart, pidNs, sessionId, cwd, name, startedAt, qwenVersion, kind (tui|headless|serve|external), ipcPath. Unlinked on exit.",
+      "home_override": "QWEN_HOME moves ~/.qwen, including ~/.qwen/sessions. QWEN_RUNTIME_DIR moves the runtime base (projects/<slug>/chats, tmp, debug logs and other runtime output) but not ~/.qwen/sessions or settings",
+      "project_dir": "<cwd with every non-alphanumeric character replaced by '-'>, e.g. /Users/me/x -> -Users-me-x"
+    },
+    "glob_note": "glob also matches sidecars <session_id>.ledger.jsonl in the same chats folder; only per_session is exact. Archived sessions live in chats/archive/."
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "Qwen Code runs `caffeinate -is` while it streams a model response or executes a tool (general.preventSystemSleep, default true, read at startup; off in --safe-mode). Not held at the idle prompt or during a permission prompt. It can drop for an instant between the end of a stream and the start of a tool, so debounce. If the user sets preventSystemSleep=false this signal is absent and only the two below remain."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "Bursty. Records are queued when the prompt is accepted and when an assistant turn or tool result completes; the assistant turn is recorded after the stream ends, not while it streams. A stale file does not prove idle."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured. The Ink UI redraws its spinner during a turn."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "permission_prompt",
+      "meaning": "A tool call needs approval. Hook input also carries session_id and transcript_path."
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Fires when the permission dialog is shown; matcher is the tool id."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "idle_prompt",
+      "meaning": "The turn ended and the agent is waiting for the next prompt."
+    },
+    {
+      "signal": "terminal_title",
+      "meaning": "OSC title is prefixed with a half-filled circle while responding, a sparkle asterisk while WaitingForConfirmation, and no prefix when idle. OSC 0 and OSC 2 outside tmux/screen, OSC 2 only inside a multiplexer. Read from the terminal emulator, not ps. Not written when ui.hideWindowTitle is true; the prefix is dropped when ui.showStatusInTitle is false."
+    },
+    {
+      "signal": "sleep_inhibitor_absent",
+      "meaning": "During a permission prompt the caffeinate child is not held, per the setting description. Inferred use: a turn that started but has no caffeinate child, no CPU and a stale transcript is probably blocked on the human."
+    },
+    {
+      "signal": "os_notification",
+      "meaning": "Terminal bell when an approval is needed while the terminal is unfocused (skipped when general.notificationMode is task-complete), and when a turn that ran 20 seconds or more ends while unfocused. Gated by general.terminalBell, default true. No file or process trace."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks object in ~/.qwen/settings.json, <project>/.qwen/settings.json (trusted folders only) or system /Library/Application Support/QwenCode/settings.json (override QWEN_CODE_SYSTEM_SETTINGS_PATH); system-defaults.json in the same folder. Types: command, http, prompt, function. disableAllHooks turns them off. Commands get QWEN_PROJECT_DIR (and CLAUDE_PROJECT_DIR, GEMINI_PROJECT_DIR).",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PostToolBatch",
+      "UserPromptSubmit",
+      "UserPromptExpansion",
+      "SessionStart",
+      "SessionEnd",
+      "SessionDelete",
+      "MessageDisplay",
+      "Stop",
+      "StopFailure",
+      "SubagentStart",
+      "SubagentStop",
+      "PreCompact",
+      "PostCompact",
+      "Notification",
+      "PermissionRequest",
+      "PermissionDenied",
+      "TodoCreated",
+      "TodoCompleted",
+      "InstructionsLoaded"
+    ],
+    "docs": "https://qwenlm.github.io/qwen-code-docs/en/users/features/hooks/"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Off by default. QWEN_TELEMETRY_ENABLED=true (or --telemetry, telemetry.enabled). OTLP grpc (default) or http, default endpoint http://localhost:4317 via QWEN_TELEMETRY_OTLP_ENDPOINT / QWEN_TELEMETRY_OTLP_PROTOCOL; QWEN_TELEMETRY_OUTFILE writes a file instead. Logs, metrics and traces. Events include qwen-code.user_prompt, qwen-code.tool_call, qwen-code.api_request, qwen-code.conversation_finished. logPrompts defaults to true."
+  },
+  "sources": [
+    {
+      "claim": "npm package @qwen-code/qwen-code exposes bin `qwen` -> cli-entry.js; latest 0.24.6, engines node>=22; Homebrew formula qwen-code 0.24.6 depends on node and ripgrep and symlinks libexec/bin/*",
+      "evidence": "https://registry.npmjs.org/@qwen-code/qwen-code (dist-tags.latest 0.24.6, bin {'qwen':'cli-entry.js'}); https://raw.githubusercontent.com/Homebrew/homebrew-core/HEAD/Formula/q/qwen-code.rb; scripts/prepare-package.js line 339 in QwenLM/qwen-code main at a903de1 (package 0.24.6)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "cli-entry.js is a node shebang script that imports cli.js in-process on POSIX (rewriting process.argv[1] to cli.js); llm.tsx then either continues in place, replaces the process (execve) or spawns a relaunch child node whose argv[1] is that cli.js path (not the bin symlink) with QWEN_CODE_NO_RELAUNCH=true, so a session is one or two node processes",
+      "evidence": "scripts/cli-entry.js (process.argv.splice(1, Infinity, cliPath, ...cliArgs), cliPath = <package root>/cli.js); packages/cli/src/utils/relaunch.ts relaunchAppInChildProcess (script = process.argv[1]); packages/cli/src/llm.tsx lines 190, 844; re-read at a903de1",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "standalone archive shim runs `exec <root>/node/bin/node <root>/lib/cli-entry.js` (bun flavour uses bun/bin/bun)",
+      "evidence": "scripts/create-standalone-package.js writeShims lines ~1010-1023",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "no process.title change except on Windows, so ps shows node plus the script path",
+      "evidence": "packages/cli/src/ui/utils/windowTitle.ts writeTerminalTitle (process.title only when platform is win32)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "desktop app: Tauri 2, identifier com.alibaba.qwen-code, productName 'Qwen Code Desktop', Cargo package qwen-code-desktop; it spawns <Resources>/runtime/qwen-code/node/bin/node lib/cli-entry.js serve --port 0 --hostname 127.0.0.1 --require-auth --workspace <dir> --no-open with QWEN_CODE_DESKTOP=1; logs at ~/Library/Logs/com.alibaba.qwen-code/desktop-runtime.log, state at ~/Library/Application Support/com.alibaba.qwen-code/desktop-state.json",
+      "evidence": "packages/desktop/src-tauri/tauri.conf.json; packages/desktop/src-tauri/src/runtime.rs RuntimeLayout::resolve, runtime_arguments; packages/desktop/README.md",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "the executable name inside Qwen Code Desktop.app/Contents/MacOS is not stated in the source (no mainBinaryName in tauri.conf.json; Tauri's default is the cargo binary, so it may be qwen-code-desktop or Qwen Code Desktop). The row therefore does not match the file name; it matches the app folder through the space-split argv",
+      "evidence": "packages/desktop/src-tauri/tauri.conf.json has productName 'Qwen Code Desktop' and no mainBinaryName; https://v2.tauri.app/reference/config/ (mainBinaryName: 'By default, Tauri uses the output binary from cargo'); Cargo package name qwen-code-desktop",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "daemon spawns `<node> [heap args] <cliEntry> --acp [extra args]` where cliEntry is QWEN_CLI_ENTRY or the daemon's process.argv[1] (the bundled cli.js path); the VS Code companion spawns process.execPath <cliEntryPath> --acp --channel=VSCode with ELECTRON_RUN_AS_NODE=1; the Zed extension runs `node ./package/cli.js --acp` (relative path, pinned to package 0.10.0, no 'qwen' in argv, so not matched by the daemon surface)",
+      "evidence": "packages/acp-bridge/src/spawnChannel.ts lines 471 and 555; packages/cli/src/serve/acp-child-extra-args.ts; packages/vscode-ide-companion/src/services/acpConnection.ts lines 100-120; packages/zed-extension/extension.toml",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "session id in argv only for --session-id <uuid>, --continue/-c (no id), --resume/-r [id] (id optional; without it a picker opens)",
+      "evidence": "packages/cli/src/config/top-level-options.ts lines 369-384; packages/cli/src/config/config.ts lines 791-811",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "runtime.json sidecar maps PID to session id and cwd for interactive sessions; the source comment says the CLI does not embed the session id in argv for fresh sessions; not deleted on exit",
+      "evidence": "packages/core/src/utils/runtimeStatus.ts header and RuntimeStatusOnDisk; packages/core/src/config/storage.ts getRuntimeStatusPath; packages/cli/src/ui/startInteractiveUI.tsx lines 100-118; packages/core/src/skills/bundled/stuck/SKILL.md lines 58-75",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "live-session registry ~/.qwen/sessions/<pid>.json written at start, unlinked on exit, with kind tui|headless|serve|external",
+      "evidence": "packages/core/src/services/session-registry.ts header, SessionRegistryRecord, SessionKind; startInteractiveUI.tsx line 470 (kind tui); acpAgent.ts line 5051 (kind serve or headless)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "transcripts are JSONL at ~/.qwen/projects/<sanitized-cwd>/chats/<sessionId>.jsonl; sanitizeCwd replaces every non-alphanumeric character with '-'",
+      "evidence": "https://qwenlm.github.io/qwen-code-docs/en/users/features/headless/ ('Session data is project-scoped JSONL under ~/.qwen/projects/<sanitized-cwd>/chats'); packages/core/src/services/chatRecordingService.ts ensureConversationFile line 1291; packages/core/src/utils/paths.ts sanitizeCwd line 388",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "transcript records are tree-structured, one JSON object per line, keys include uuid, parentUuid, sessionId, timestamp, type (user|assistant|tool_result|system), subtype, cwd, version, gitBranch, message; a doc comment in the same file still says ~/.qwen/tmp/<project_id>/chats, which is stale",
+      "evidence": "packages/core/src/services/chatRecordingService.ts ChatRecord interface line 336 and class comment line ~1066",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "assistant turn is recorded once the model stream has been fully processed (recordAssistantTurn at the end of processStreamResponse), not per chunk; an aborted or failed attempt is stashed as a partial record and flushed later, after the sleep inhibitor is released",
+      "evidence": "packages/core/src/core/llm-chat.ts recordAssistantTurn call near line 6635 (accepted turn) and lines 5128-5145 (deferred partial flush after sleepInhibitorHandle.release())",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "sleep inhibitor: on darwin spawns `caffeinate -is`; acquired for 'streaming a model response' (llm-chat.ts 3461) and 'executing tool' (coreToolScheduler.ts 5595, ACP Session.ts 15001); gated by Config.getPreventSystemSleepEnabled = preventSystemSleep (default true) and not safe mode",
+      "evidence": "packages/core/src/services/sleepInhibitor.ts getCommand and acquireSleepInhibitor; packages/core/src/config/config.ts lines 3551, 10660; packages/cli/src/config/settingsSchema.ts line 718",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "setting text: idle prompt time and permission prompts do not inhibit sleep; default true; read once at startup",
+      "evidence": "https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/ (general.preventSystemSleep)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "terminal title status prefix: Responding -> half-filled circle, WaitingForConfirmation -> sparkle asterisk, Idle -> none; skipped when ui.hideWindowTitle, prefix dropped when ui.showStatusInTitle is false; OSC 2 only inside tmux/screen",
+      "evidence": "packages/cli/src/ui/utils/windowTitle.ts titleStatusPrefix; packages/cli/src/ui/types.ts StreamingState; packages/cli/src/ui/AppContainer.tsx lines 5038-5067",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "idle_prompt Notification hook fires when the UI enters Idle; bell only if general.terminalBell (default true) and the terminal is unfocused, either for a task of 20 seconds or more (LONG_TASK_NOTIFICATION_THRESHOLD_SECONDS) or for an approval prompt (unless general.notificationMode is task-complete)",
+      "evidence": "packages/cli/src/ui/hooks/useAttentionNotifications.ts lines 18-150; https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/ (general.terminalBell, default true)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "22 hook events, four hook types, settings.json locations, Notification types permission_prompt|idle_prompt|auth_success, common stdin fields session_id, transcript_path, cwd, hook_event_name, timestamp, permission_mode",
+      "evidence": "https://qwenlm.github.io/qwen-code-docs/en/users/features/hooks/ (docs/users/features/hooks.md)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "settings file locations on macOS: ~/.qwen/settings.json, .qwen/settings.json, /Library/Application Support/QwenCode/settings.json and system-defaults.json",
+      "evidence": "https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/ (settings.md lines 36-39)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "OpenTelemetry built in, off by default; env vars, defaults and event names as listed",
+      "evidence": "https://qwenlm.github.io/qwen-code-docs/en/developers/development/telemetry/ (docs/developers/development/telemetry.md Configuration table, Logs section)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Qwen Code is not installed on this Mac; nothing here was observed on a running instance",
+      "evidence": "`which qwen` printed 'qwen not found'; `ls -d ~/.qwen` printed 'No such file or directory'; `ps -axo pid=,args= | grep -i qwen` matched nothing; `ls /Applications | grep -i qwen` matched nothing",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "a shebang launch through a symlink keeps the symlink path in ps args, so a session started from npm, Homebrew or nvm shows `node <prefix>/bin/qwen`, which is what the 'bin/qwen' needle relies on",
+      "evidence": "local test with a stand-in script (not Qwen): `#!/usr/bin/env node` file at lib/pkg/cli-entry.js, symlink bin/qwen -> ../lib/pkg/cli-entry.js, run bin/qwen, `ps -o args= -p <pid>` printed `node <scratchpad>/qv_symtest/bin/qwen` (node v22.22.2, macOS 15 Darwin 24.3)",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "ps args are split on spaces by the probe, so an app folder with spaces breaks path matching: `Qwen Code Desktop.app` yields argv[0]='/Applications/Qwen', name 'Qwen'",
+      "evidence": "tools/agents_probe.py processes() and matches(); evaluated matches() on synthetic ps lines for the desktop shell and its bundled node: the original row matched neither, the repaired row matches both (outermost kept by main())",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Qwen spawns its own helper node processes from other files in the same @qwen-code/qwen-code/ folder (code-mode host: codeModeHost.js), so the TUI relaunch surface needles on cli.js, not on the folder",
+      "evidence": "packages/core/src/code-mode/host-client.ts line 70 spawns process.execPath with <bundle dir>/codeModeHost.js; scripts/prepare-package.js files list",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Never run against a live instance. (1) Best working signal: a `caffeinate -is` child under the session, which Qwen Code holds while streaming or running a tool. It is on by default but the user can turn it off, and it flaps briefly between stream end and tool start. (2) Best pid-to-session map: read ~/.qwen/sessions/<pid>.json (sessionId, cwd, kind); it is unlinked on exit. runtime.json in the chats folder does the same for interactive sessions but is never deleted. Plain `qwen` has no session id in argv. (3) A session is one or two node processes. The launcher shows `node .../bin/qwen` (confirmed to survive a symlinked shebang launch); the relaunch child shows `node [--max-old-space-size=..] .../@qwen-code/qwen-code/cli.js` because cli-entry.js rewrites argv[1]. Keep the outermost, as the probe does. On the standalone archive the relaunch child (lib/cli.js) and a -p run that execve replaced the launcher are not matched. tool_children is left out of working_signals because MCP servers and the relaunch child are always children. (4) Desktop: shell -> `qwen serve` daemon -> `qwen --acp` children, all in one tree; the GUI shell is the outermost match. Daemon sessions register with kind serve and slot ids <pid>-<8hex>.json. (5) The probe's args_contain is substring per argument, so 'bin/qwen' and 'serve' can false-match other node tools; and path_contains looks at argv[0] only after splitting ps args on spaces, which is why the VS Code surface uses '/Applications/Visual' (this also covers Visual Studio Code - Insiders, but not Cursor or Windsurf) and the Desktop surface uses '/Applications/Qwen' plus 'Desktop.app/Contents/'. Another app under /Applications/Qwen* is excluded because it lacks the 'Desktop.app/Contents/' argument. `bin/qwen` also matches names like bin/qwen-proxy, and qwen subcommands run as helpers (mcp, review) look like sessions; the probe cannot anchor a needle. --resume=<id> and --session-id=<id> written with = are not read by session_id_args, and `-r` with no id makes the probe take the next argument as the id. (6) Headless -p runs match the tui surfaces and simply count as working for their lifetime."
+}

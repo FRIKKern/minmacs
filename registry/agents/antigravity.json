@@ -1,0 +1,301 @@
+{
+  "id": "antigravity",
+  "name": "Google Antigravity",
+  "vendor": "Google",
+  "homepage": "https://antigravity.google",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Antigravity CLI: agy, a single Go binary (also runs headless with -p; also serves the local language server)",
+      "process": {
+        "names": [
+          "agy"
+        ],
+        "path_contains": [
+          "/.local/bin/agy",
+          "/Caskroom/antigravity-cli/"
+        ]
+      },
+      "session_id_args": [
+        "--conversation"
+      ]
+    },
+    {
+      "kind": "gui",
+      "label": "Antigravity 2.0 desktop app (agent command center), Antigravity.app",
+      "bundle_ids": [
+        "com.google.antigravity"
+      ],
+      "process": {
+        "path_contains": [
+          "/Antigravity.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Antigravity IDE standalone, Antigravity IDE.app (VS Code style editor with agent panel). The bundle name contains a space, see notes",
+      "bundle_ids": [
+        "com.google.antigravity-ide"
+      ],
+      "process": {
+        "path_contains": [
+          "/Antigravity"
+        ],
+        "args_contain": [
+          "IDE.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Python SDK: google.antigravity spawns the Go 'localharness' binary as a child",
+      "process": {
+        "names": [
+          "localharness"
+        ],
+        "path_contains": [
+          "google/antigravity/bin/localharness"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.gemini/antigravity-cli/conversations/*.db",
+    "per_session": "~/.gemini/antigravity-cli/conversations/{session_id}.db*",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "The per-conversation SQLite file is in WAL mode, so the live signal is the mtime of conversations/<id>.db-wal, not the .db (the CLI checkpoints on exit). The per_session glob ends in .db* so the probe's newest-mtime pick includes the -wal file. Write cadence during streaming or a long tool run is unmeasured; a stale file may not mean idle."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred. Changelog v1.1.20 fixed a spinner loop that kept ticking after turn completion 'eliminating idle CPU wakeups', so idle agy should sit near 0 percent. The same agy process also hosts the local language server and Remote Control tunnel, so an idle agy is not guaranteed silent. Floor is a guess. On the IDE the process tree includes the persistent language_server_macos_arm child, and a forum bug report (discuss.ai.google.dev, 'High CPU Usage (400%) by language_server_macos_arm') shows it can burn CPU with no agent turn, so tree_cpu on the IDE is a weak signal."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "statusline_json",
+      "field": "tool_confirmation_pending",
+      "meaning": "True while a tool confirmation dialog is showing. Exact and documented, but only reachable if the user configures statusLine in ~/.gemini/antigravity-cli/settings.json to a command that writes the payload somewhere; no file or process trace otherwise. agy runs the command on every agent state change and pipes JSON on stdin."
+    },
+    {
+      "signal": "statusline_json",
+      "field": "agent_state",
+      "meaning": "One of idle, thinking, working, tool_use, initializing. There is no 'waiting' value; waiting shows up in tool_confirmation_pending and pending_input_count (queued user messages). The same payload feeds the custom terminal title script (settings.json 'title')."
+    },
+    {
+      "signal": "hook",
+      "event": "PreToolUse",
+      "meaning": "Only gating event. The hook itself returns decision allow, deny, ask, force_ask or deny_unless_prior_grant. Per the hooks doc, ask prompts the user but respects Always Allow grants, so it may not prompt; force_ask always prompts. A hook returning force_ask (or ask on a not-yet-granted call) marks 'about to prompt the human'. There is no Notification event, so built-in permission prompts that no hook triggered cannot be seen by hooks."
+    },
+    {
+      "signal": "hook",
+      "event": "Stop",
+      "meaning": "Input field fullyIdle: true when the agent is finished and all background commands are done, false while background tasks still run. Best documented 'turn over' event, and the only one that separates 'model stopped' from 'background work still running'."
+    },
+    {
+      "signal": "os_notification",
+      "setting": "notifications",
+      "meaning": "Opt-in (default false). System desktop notification plus terminal bell when a long-running task completes or needs attention. Terminal and OS side only."
+    },
+    {
+      "signal": "headless_status",
+      "value": "WAITING",
+      "meaning": "agy -p --output-format json reports status WAITING when the run ended while waiting on input. Ended runs only, not a live signal."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks.json: workspace .agents/hooks.json, global ~/.gemini/config/hooks.json, or inside an installed plugin's hooks.json. The CLI also reads a 'hooks' block in ~/.gemini/antigravity-cli/settings.json. Same file format for 2.0, CLI and IDE. Inspect with /hooks in the TUI. Command hooks only, JSON on stdin and stdout, camelCase, default timeout 30 s. Custom Markdown agents can list hook files in front matter.",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "PreInvocation",
+      "PostInvocation",
+      "Stop"
+    ],
+    "docs": "https://antigravity.google/docs/hooks/"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "The CLI has no documented OpenTelemetry exporter. Feature request google-antigravity/antigravity-cli#366 is open; a reporter set OTEL_EXPORTER_OTLP_ENDPOINT and friends on agy --print and saw nothing sent. Not checked for the 2.0 app or the IDE. settings.json 'enableTelemetry' is Google's own collection, not OTLP. The Python SDK (google-antigravity 0.1.5+) does emit OpenTelemetry GenAI spans, see examples/deep_dives/observability_otel.py in google-antigravity/antigravity-sdk-python. Community route for the CLI: a PreToolUse/PostToolUse/Stop hook script that emits OTLP (e.g. danistrebel/agy-hooks)."
+  },
+  "sources": [
+    {
+      "claim": "Product family: Antigravity 2.0 (desktop command center), Antigravity CLI, Antigravity IDE (standalone), Antigravity SDK (Python), IDE extensions. Downloads for Apple Silicon and Intel.",
+      "evidence": "https://antigravity.google (WebFetch summary); https://antigravity.google/download printed: Antigravity 2.0 v2.18.1, Antigravity CLI v1.2.11, Antigravity IDE (Standalone) v2.5.5, Antigravity SDK v0.1.18",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "CLI binary is agy, a single compiled Go executable (no Node; the ~160 MB size is third-party, from continuumcode.ai), installed to ~/.local/bin/agy; self-updates in the background; updater state in ~/.gemini/antigravity-cli/updater/ (update.lock, last_check.timestamp); AGY_CLI_DISABLE_AUTO_UPDATE turns updates off",
+      "evidence": "https://antigravity.google/cli/install.sh (curl; read, not run): TARGET_DIR=$HOME/.local/bin, BINARY_PATH=$TARGET_DIR/agy, manifest https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/darwin_arm64.json printed version 1.2.13 url .../cli_mac_arm64.tar.gz; https://antigravity.google/docs/cli/troubleshooting/ (updater section); https://continuumcode.ai/guides/antigravity-cli/ ('a compiled binary, roughly 160 MB on macOS, with no Node dependency')",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Homebrew installs the CLI as cask antigravity-cli: cask binary 'antigravity' is linked as $HOMEBREW_PREFIX/bin/agy; zap trashes ~/.gemini/antigravity-cli",
+      "evidence": "https://formulae.brew.sh/api/cask/antigravity-cli.json printed version 1.2.13, artifacts binary ['antigravity', {target: 'agy'}], zap trash '~/.gemini/antigravity-cli'",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Bundle ids and app names: Antigravity 2.0 is Antigravity.app, com.google.antigravity; the standalone IDE is 'Antigravity IDE.app', com.google.antigravity-ide (also puts antigravity-ide and agy-ide on PATH from Contents/Resources/app/bin/antigravity-ide). Both cask zap lists carry a ShipIt cache dir. The IDE is Electron (see next entry); the 2.0 app being Electron is inferred.",
+      "evidence": "https://formulae.brew.sh/api/cask/antigravity.json (uninstall quit com.google.antigravity, app Antigravity.app, zap ~/.gemini/antigravity, ~/Library/Application Support/Antigravity, ~/Library/Caches/com.google.antigravity.ShipIt) and .../antigravity-ide.json (quit com.google.antigravity-ide, app 'Antigravity IDE.app', zap ~/.gemini/antigravity-ide, ~/.antigravity-ide, ~/.antigravity-ide-server, ~/Library/Application Support/Antigravity IDE)",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Main executable inside the IDE bundle is Contents/MacOS/Electron, not Antigravity (corrected on verification). The 2.0 app's is Contents/MacOS/Antigravity, third-party only. The row's path_contains and args_contain do not depend on the executable name.",
+      "evidence": "IDE: https://discuss.ai.google.dev/t/antigravity-ide-prevents-my-mac-from-sleeping/180431 ('The Electron parent process owns NoIdleSleepAssertion named Electron', Antigravity IDE 2.5.5, macOS 15.6.1); https://discuss.ai.google.dev/t/antigravity-ide-appears-to-have-invoked-bin-rm-on-my-desktop-files/180232 (TCC log 'binary_path=/Applications/Antigravity IDE.app/Contents/MacOS/Electron'); https://github.com/yuexps/Antigravity-Hans/blob/main/config.go (buildAppIDE darwin Exe 'Electron', path /Applications/Antigravity IDE.app/Contents/MacOS/Electron; buildAppNormal darwin Exe 'Antigravity', path /Applications/Antigravity.app/Contents/MacOS/Antigravity). Not checked against a bundle: neither app is installed and no DMG was downloaded.",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "The IDE app runs a child language_server_macos_arm from Contents/Resources/app/extensions/antigravity/bin/, listening on 127.0.0.1 with --csrf_token and --extension_server_port; ps prints the path unquoted so the space in 'Antigravity IDE.app' splits the command. Verified for the IDE only. The 2.0 app also has an app-local language_server (CodexBar docs) but its file name and path are not verified.",
+      "evidence": "https://github.com/kunchenguid/quota-axi/issues/164 (ps -x output quoted in the issue body)",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "A plain 'agy' is reported by ps as just 'agy', and agy itself is the local language server: it listens on 127.0.0.1 over HTTPS (LanguageServerService/RetrieveUserQuotaSummary), so there is no separate server child for the CLI",
+      "evidence": "https://github.com/j-kizt/gyredeck-macos/pull/66 ('ps reports a bare invocation as just agy ... agy was running at pid 39336, listening on 127.0.0.1:55827'); https://github.com/steipete/CodexBar/blob/main/docs/antigravity.md ('the agy CLI's embedded HTTPS localhost server')",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Session flags: --conversation <id> resumes by id; -c/--continue resumes the most recent conversation for the workspace and carries no id; a plain launch has no id in argv. No --session-id flag is documented.",
+      "evidence": "https://antigravity.google/docs/cli/headless/ (flag table) and https://antigravity.google/docs/cli/commands/resume/",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "-c resolves through a cache file mapping absolute workspace dir to last conversation id, so a process can be mapped by its cwd as a fallback",
+      "evidence": "https://antigravity.google/docs/cli/commands/resume/ ('~/.gemini/antigravity-cli/cache/last_conversations.json ... a JSON map associating absolute workspace directory paths with their most recently active conversation ID'). Fallback use is inferred.",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "CLI conversation store: conversations/<uuid>.db, one SQLite database per conversation, uuid = conversation id = agy --conversation value; plus conversation_summaries.db (columns include conversation_id, title, preview, step_count, last_modified_time, workspace_uris, status, parent_conversation_id, not_fully_idle, killed, last_user_input_time), history.jsonl prompt log (keys display, timestamp, workspace, optional conversationId), and a JSONL display mirror at brain/<uuid>/.system_generated/logs/transcript.jsonl. Observed on agy 1.1.24 and 1.2.1 by third parties. Not vendor-documented.",
+      "evidence": "https://github.com/tenequm/pond/issues/201 (observed agy 1.1.24, macOS, 2026-09-02); https://agentgrep.org/backends/antigravity-cli (observed agy v1.2.1, 2026-09-11; stores conversations sqlite, transcript jsonl, history jsonl)",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Vendor confirms the SQLite switch: 'Added SQLite (.db) conversation support and will be CLI's conversation format'; SQLite WAL is checkpointed on CLI exit (v1.1.26 fix)",
+      "evidence": "https://antigravity.google/docs/changelog/ (CLI release notes, Sep 2026, v1.1.26 and the entry introducing .db)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Vendor documents the transcript mirror path and that hook payloads carry it: <app_data_dir>/brain/<conversationId>/.system_generated/logs/transcript.jsonl, with app_data_dir ~/.gemini/antigravity (2.0), ~/.gemini/antigravity-cli (CLI), ~/.gemini/antigravity-ide (IDE)",
+      "evidence": "https://antigravity.google/docs/hooks/ ('Common Input Fields', transcriptPath). Note the page's own examples show ~/.gemini/antigravity/brain/... even for CLI payloads.",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Legacy IDE (Antigravity 1.104.0) and 2.0 share ~/.gemini/antigravity; conversations there are loose .pb files that look encrypted. Format for the current 2.0 and IDE 2.5.5 stores is not determined.",
+      "evidence": "https://agentgrep.org/backends/antigravity-ide ('~/.gemini/antigravity/conversations/<conversation_uuid>.pb ... appear encrypted or custom-encoded'); https://antigravity.google/docs/cli/commands/resume/ (CLI can import 2.0 conversations, changelog says a 2.0 SQLite conversation import bug was fixed)",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Five hook events, hooks.json locations per surface, stdin fields conversationId, workspacePaths, transcriptPath, artifactDirectoryPath, modelName; Stop carries fullyIdle; PreToolUse returns decision allow/deny/ask/force_ask/deny_unless_prior_grant; PostInvocation can force_continue",
+      "evidence": "https://antigravity.google/docs/hooks/ (fetched with curl and read in full); SDK-side hook design https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/hooks/README.md",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Status line and title scripts get a JSON payload on every state change with agent_state (idle, thinking, working, tool_use, initializing), tool_confirmation_pending, pending_input_count, task_count, conversation_id, session_id, transcript_path, cwd",
+      "evidence": "https://antigravity.google/docs/cli/statusline/ and https://antigravity.google/docs/cli/title/ (settings.json keys statusLine and title, type command)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Engine-level run states in the public SDK protos: STATE_RUNNING, STATE_WAITING_FOR_TASKS, STATE_FULLY_IDLE, STATE_CANCELLED",
+      "evidence": "google-antigravity/antigravity-sdk-python: google/antigravity/proto/state_update.proto (message StateUpdate.State)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Python SDK launches a Go binary 'localharness' (google/antigravity/bin/localharness in the wheel, ANTIGRAVITY_HARNESS_PATH override, else PATH) via subprocess.Popen. stdin/stdout carry only a length-prefixed protobuf config handshake; the session then runs over a WebSocket to a localhost port the harness reports (corrected: not 'over stdio').",
+      "evidence": "google-antigravity/antigravity-sdk-python: google/antigravity/connections/local/local_connection.py _get_default_binary_path_external (lines ~761-816) and class LocalConnection ('Connection to the Go-based local harness')",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "The CLI source is not public: the google-antigravity/antigravity-cli repo holds README, CHANGELOG, examples and issue templates only; only the Python SDK is Apache-2.0 source",
+      "evidence": "https://github.com/google-antigravity/antigravity-cli (file tree: .github/ISSUE_TEMPLATE, examples, CHANGELOG.md, README.md, agy-cli-demo.gif); https://github.com/google-antigravity (two public repos); https://github.com/tenequm/pond/issues/201 ('The CLI is closed source')",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "The FAQ says Antigravity prevents sleep while an agent runs. Contradicted for the IDE: a user report shows the IDE 2.5.5 Electron parent holds NoIdleSleepAssertion 'Electron' for the whole app lifetime with no agent running, so power_assertion was removed from working_signals. CLI and 2.0 app behaviour unobserved.",
+      "evidence": "https://antigravity.google/docs/faq/ ('What happens when my computer goes to sleep? If an agent is running, Antigravity will prevent your computer from sleeping.'); https://discuss.ai.google.dev/t/antigravity-ide-prevents-my-mac-from-sleeping/180431 (pmset -g assertions output: 'PID 38654(Electron) Released NoIdleSleepAssertion \"Electron\" 94:57:31', assertion 'immediately created and retained indefinitely, even when no agent task is running'; user report, 2026-09-01)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Idle CPU: v1.1.20 fixed the conversation spinner loop that kept ticking after turn completion",
+      "evidence": "https://antigravity.google/docs/changelog/ v1.1.20 (August 25, 2026): 'eliminating idle CPU wakeups'",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Remote Control: interactive agy --remote-control or /remote-control (tunnel lives with the process); agy remote-control start|status|stop registers an always-on headless daemon as a LaunchAgent on macOS; tool confirmations can be answered from either side",
+      "evidence": "https://antigravity.google/docs/remote-control/",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Headless: agy -p/--print/--prompt runs once and exits; --output-format text|json|stream-json; json envelope has conversation_id and status SUCCESS|ERROR|CANCELED|INTERRUPTED|INVALID|WAITING|RUNNING; errors print an AGY_ERROR line on stderr and exit 3",
+      "evidence": "https://antigravity.google/docs/cli/headless/ and changelog v1.2.x",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Notifications setting: desktop notification plus terminal bell when a long-running task completes or requires attention; default false",
+      "evidence": "https://antigravity.google/docs/cli/reference/ (settings table: notifications boolean false) and https://antigravity.google/docs/settings/",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "No documented OpenTelemetry in the CLI: open feature request, reporter's OTEL_* env vars produced no export. Nothing was checked for the 2.0 app or the IDE.",
+      "evidence": "https://github.com/google-antigravity/antigravity-cli/issues/366 (state open when read via gh api)",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "The SDK does have OpenTelemetry: 'native OpenTelemetry tracing support' translating session, turn, step and tool events into GenAI semantic-convention spans",
+      "evidence": "https://antigravity.google/docs/changelog/ (SDK v0.1.5, June 25, 2026); google-antigravity/antigravity-sdk-python examples/deep_dives/observability_otel.py present in the tree",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Antigravity is not installed on this Mac and nothing was observed live",
+      "evidence": "`which agy` printed 'agy not found'; `ls ~/.gemini` printed 'No such file or directory'; `ls /Applications | grep -i -E 'antigrav|gemini'` matched nothing; `ps -axo pid=,args= | grep -i -E 'antigravity|agy|language_server|localharness'` matched 0 lines; `pmset -g assertions | grep -i -E 'antigravity|agy'` matched nothing",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Custom Markdown agents can list hook files in front matter with a hooks: entry",
+      "evidence": "https://antigravity.google/docs/changelog/ ('Custom agents can declare their own hooks. A Markdown agent can list hook files in its front matter with a hooks: entry.'); not on the /docs/hooks/ page",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Gemini CLI stopped serving Google AI Pro, Ultra and free individual accounts on 18 June 2026 in favour of Antigravity CLI",
+      "evidence": "https://github.com/google-gemini/gemini-cli/discussions/28017 (maintainer post dated Jun 18, 2026); https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not installed here; nothing was run. Verification 2026-09-29: power_assertion removed from working_signals because the IDE holds a NoIdleSleepAssertion for its whole lifetime (user report), which would read as always working. Remaining working signals (transcript_write on .db-wal, tree_cpu) are inferred and unmeasured, and so is the session-store mapping, hence documented is the ceiling and only for identity, hooks, statusLine and flags. Known false positive: a transient agy-ide / antigravity-ide CLI wrapper run may match the ide surface. The ide surface's path_contains '/Antigravity' is broad by design and relies on args_contain. Four surfaces share ~/.gemini but have separate data dirs: CLI ~/.gemini/antigravity-cli, 2.0 app ~/.gemini/antigravity, IDE ~/.gemini/antigravity-ide, sidecars under ~/.gemini/antigravity/sidecar_data. Config: ~/.gemini/config/{hooks.json,mcp_config.json,config.json,sidecars/,plugins/}. (1) agy is NOT Gemini CLI: Go binary named agy, not node, and a different store than ~/.gemini/tmp/*/chats. Do not let the gemini-cli row and this row overlap. (2) The row's session_store and per_session cover the CLI only. For the 2.0 app and IDE, the documented mirror is <app_data_dir>/brain/<conversationId>/.system_generated/logs/transcript.jsonl and a hook or statusLine script is the only documented way to learn the id; the 2.0 and IDE primary stores were not determined. (3) A plain agy launch has no id in argv; map it by cwd through ~/.gemini/antigravity-cli/cache/last_conversations.json (inferred) or by lsof of the open conversations/<id>.db-wal (inferred, unverified). (4) 'Antigravity IDE.app' has a space: ps prints the path unquoted, and the probe splits args on spaces, so argv[0] arrives as '/Applications/Antigravity' and the rest as 'IDE.app/Contents/MacOS/Electron' (the IDE main executable is named Electron, per third-party reports; the 2.0 app's is Antigravity). The IDE surface is written to match under both a space-splitting parser and a full-path detector; the 2.0 surface path_contains '/Antigravity.app/Contents/MacOS/' cannot match the IDE. Electron helper processes are excluded by the same test. (5) The IDE runs a child language_server_macos_arm (Contents/Resources/app/extensions/antigravity/bin/, seen in a real ps line); the 2.0 app also has an app-local language_server, name and path unverified. Either is a persistent child that must not count as tool_children; that is why tool_children is left out. MCP servers and daemon background tasks are also persistent children. (6) agy remote-control start installs a LaunchAgent, so an always-on headless agy can exist with no terminal; it is idle unless a remote conversation is running. Its argv was not determined, so it is matched by the tui surface. (7) agy -p runs are matched and are simply working for their lifetime. (8) Conversation summaries.db has a not_fully_idle column and Stop has fullyIdle: the engine tracks 'idle' and 'fully idle' separately, so a turn can end while background tasks run. The column is community-observed, not documented, and this schema has no signal type for reading a database. (9) Versions seen 2026-09-29: CLI 1.2.13 (manifest, cask) vs 1.2.11 (download page), 2.0 app 2.18.1 (page) vs 2.17.0 (cask), IDE 2.5.5."
+}

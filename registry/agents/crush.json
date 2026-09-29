@@ -1,0 +1,267 @@
+{
+  "id": "crush",
+  "name": "Crush",
+  "vendor": "Charm",
+  "homepage": "https://github.com/charmbracelet/crush",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "crush in a terminal (default command; also `crush -s <id>` and `crush -C`). One native Go binary named `crush`. By default the agent runs inside this same process. npm installs the same binary at node_modules/@charmland/crush/bin/crush (downloaded by the postinstall script, and again by run-crush.js if missing) and launches it as a child of `node run-crush.js` (that node parent does not match; the crush child does). With CRUSH_CLIENT_SERVER=1 this process is a client and the agent (LLM stream, tools, database writes) runs in the separate `crush server` daemon below, so the client has no tool children and the turn's db writes come from the daemon; whether the client's own cpu stays low is not verified.",
+      "process": {
+        "names": [
+          "crush"
+        ],
+        "exclude_args": [
+          "run",
+          "r",
+          "server",
+          "session",
+          "sessions",
+          "s",
+          "logs",
+          "dirs",
+          "projects",
+          "stats",
+          "models",
+          "login",
+          "auth",
+          "logout",
+          "signout",
+          "schema",
+          "update-providers",
+          "completion",
+          "man",
+          "help",
+          "--version",
+          "-v",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "crush server: detached background server (Setsid) that the client auto-starts only when CRUSH_CLIENT_SERVER=1 is set (opt-in in v0.97.0); `crush server` can also be run by hand. Its parent is the client that spawned it until that client exits, then launchd, so the probe's outermost-process rule hides it while that client is alive. It shuts itself down 60 s after its last workspace is released. Listens on unix socket $TMPDIR/crush-<uid>.sock (or $XDG_RUNTIME_DIR, or /tmp/crush-<uid>.sock when the path exceeds 104 bytes). Loose match: args_contain is a substring test, so exclude_args carries every other subcommand (a `crush run \"restart the server\"` line would otherwise match).",
+      "process": {
+        "names": [
+          "crush"
+        ],
+        "args_contain": [
+          "server"
+        ],
+        "exclude_args": [
+          "run",
+          "r",
+          "session",
+          "sessions",
+          "s",
+          "logs",
+          "dirs",
+          "projects",
+          "stats",
+          "models",
+          "login",
+          "auth",
+          "logout",
+          "signout",
+          "schema",
+          "update-providers",
+          "completion",
+          "man",
+          "help",
+          "--version",
+          "-v",
+          "--help",
+          "-h"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "**/.crush/crush.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "<project>/.crush/crush.db-wal",
+      "within_seconds": 15,
+      "meaning": "Every streamed text and reasoning delta is written to the messages table (SQLite, WAL mode), coalesced to one write per ~33 ms. The db is per project, found by walking up from the process cwd to the nearest .crush directory (or --data-dir), and shared by every crush process in that project, so a fresh -wal mtime says 'some session in this project wrote to the db', not which one or that a turn is running (other writes, such as file tracking, also touch it). Quiet during a long tool run or a slow first token, so 15 s is an unmeasured guess. No per_session path is given because the file is not per session."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Unmeasured floor. Source: the chat redraws a spinner animation at 20 fps (internal/ui/anim/anim.go fps = 20, driven from internal/ui/model/chat.go) while items are pending, and the UI has no idle ticker of comparable rate. Not observed on a live instance."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "os_notification",
+      "meaning": "On macOS a local session sends an OSC 99 or OSC 777 terminal notification titled 'Crush is waiting...' with message 'Permission required to execute \"<tool>\"' or 'N questions need your input'. The same title is used when the turn finishes ('Agent's turn completed in ...'), so tell them apart by the message. Sent only when the terminal reports focus events and the Crush window is NOT focused, and notifications is not 'disabled'. Terminal-side only, no file or process trace. notifications option: auto, native, osc, bell, disabled."
+    },
+    {
+      "signal": "herdr_socket",
+      "meaning": "Inside a herdr pane (HERDR_ENV=1) crush reports state idle, working or blocked over HERDR_SOCKET_PATH with pane.report_agent. blocked means a permission request is pending. Only readable by herdr."
+    },
+    {
+      "signal": "server_events",
+      "meaning": "Client-server mode only: GET /v1/workspaces/{id}/events on the unix socket streams permission and question requests, and GET /v1/workspaces/{id}/agent returns is_busy. Not reachable in the default single-process mode."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks object in ~/.config/crush/crush.json, project crush.json or .crush.json, or `hook add` in crushrc (~/.config/crush/crushrc, ./crushrc, ./.crushrc). Project overrides global.",
+    "events": [
+      "PreToolUse"
+    ],
+    "docs": "https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry exporter in the source. Only PostHog product metrics to https://data.charm.land, disabled by CRUSH_DISABLE_METRICS=1, DO_NOT_TRACK=1 or options.disable_metrics. go.mod lists otel only as indirect dependencies."
+  },
+  "sources": [
+    {
+      "claim": "Repo state researched: tag v0.97.0, commit 792cb84, released 2026-09-29",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "git clone --depth 1 https://github.com/charmbracelet/crush; git describe --tags printed v0.97.0; GitHub releases/latest API printed v0.97.0 published 2026-09-29T10:48:18Z"
+    },
+    {
+      "claim": "Not installed on this Mac, nothing running",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which crush` printed 'crush not found'; ls ~/.config/crush ~/.local/share/crush: No such file or directory; ps -axo pid=,args= | grep -i crush: no rows"
+    },
+    {
+      "claim": "Binary name `crush`; macOS release archives crush_0.97.0_Darwin_arm64.tar.gz and _x86_64.tar.gz; Homebrew tap and npm install routes",
+      "kind": "official-docs",
+      "evidence": "https://github.com/charmbracelet/crush README.md (brew install charmbracelet/tap/crush; npm install -g @charmland/crush; go install); .goreleaser.yml archives, brews; GitHub releases API asset list"
+    },
+    {
+      "claim": "npm package downloads the Go binary in its postinstall script (and again from run-crush.js if bin/ is missing) and spawns it from <pkg>/bin/crush as a child of node run-crush.js",
+      "kind": "source-code",
+      "evidence": "@charmland/crush@0.97.0 tarball from registry.npmjs.org (unpacked and read, not installed): package.json scripts.postinstall = 'node install.js', bin = {crush: run-crush.js}; lib.js run() calls install() then spawnSync(path.join(binDir, bin), args) with binDir = __dirname/bin and args = process.argv.slice(2)"
+    },
+    {
+      "claim": "CLI subcommands and flags: run (alias r), server, session (aliases sessions, s), logs, dirs, projects, stats, models, login (alias auth), logout (alias signout), schema, update-providers; -s/--session, -C/--continue, -c/--cwd, -D/--data-dir, -H/--host, -y/--yolo",
+      "kind": "source-code",
+      "evidence": "internal/cmd/root.go init() and rootCmd; internal/cmd/server.go; internal/cmd/session.go (Aliases sessions, s); internal/cmd/run.go (Aliases r); internal/cmd/login.go (Aliases auth); internal/cmd/logout.go (Aliases signout); internal/cmd/models.go (rootCmd.AddCommand(modelsCmd)). Root -c/--cwd calls os.Chdir (ResolveCwd), so the process cwd is the project"
+    },
+    {
+      "claim": "Default mode is a single process (in-process app.App). Client/server is opt-in via CRUSH_CLIENT_SERVER",
+      "kind": "source-code",
+      "evidence": "internal/cmd/root.go: useClientServer() reads CRUSH_CLIENT_SERVER; setupWorkspace() picks setupLocalWorkspace otherwise"
+    },
+    {
+      "claim": "In client-server mode the client spawns `crush server` detached (Setsid, Process.Release; not reparented until the client exits) with stdout/stderr in $XDG_CACHE_HOME or ~/.cache/crush/server-<host>/; socket crush-<uid>.sock in $XDG_RUNTIME_DIR or os.TempDir(), falling back to /tmp when over 104 bytes",
+      "kind": "source-code",
+      "evidence": "internal/cmd/root.go startDetachedServer, perHostServerDir; internal/server/server.go DefaultHost, socketDir, maxUnixSocketPathLen; internal/backend/backend.go DefaultIdleShutdownDelay = 60s after the last workspace is released"
+    },
+    {
+      "claim": "Sessions live in SQLite at <data dir>/crush.db, WAL mode, data dir defaults to .crush found by walking up from cwd; tables sessions, messages, files, read_files; session ids are UUIDs",
+      "kind": "source-code",
+      "evidence": "internal/db/connect.go (dbPath = filepath.Join(dataDir, \"crush.db\"), pragma journal_mode WAL); internal/config/load.go lines 586-594 (LookupClosestBounded for defaultDataDirectory \".crush\"); internal/db/migrations/20250424200609_initial.sql; internal/session/session.go (uuid.New)"
+    },
+    {
+      "claim": "The db path is not promised by docs; only ./.crush/logs/crush.log is documented",
+      "kind": "official-docs",
+      "evidence": "README.md line 910: 'Logs are stored in ./.crush/logs/crush.log relative to the project.' grep for crush.db in README.md and docs/ finds nothing"
+    },
+    {
+      "claim": "Each streamed delta is persisted (coalesced to one db write per 33 ms), so the db file changes during a turn",
+      "kind": "source-code",
+      "evidence": "internal/agent/agent.go: OnReasoningDelta (line 938) and OnTextDelta (line 962) both return a.messages.Update(genCtx, *currentAssistant); internal/message/message.go defaultUpdateDebounce = 33ms, Update() buffers and flushes on the debounce tick or a terminal-state update"
+    },
+    {
+      "claim": "Busy state is in-memory only: activeRequests map, IsBusy/IsSessionBusy; exposed as is_busy over the server API",
+      "kind": "source-code",
+      "evidence": "internal/agent/agent.go activeRequests, IsSessionBusy; internal/proto/proto.go AgentInfo.IsBusy; internal/server/endpoints.go GET /v1/workspaces/{id}/agent"
+    },
+    {
+      "claim": "No process-to-session id in argv unless resumed with -s; the -s value may be a UUID, a session hash or a hash prefix. Map by cwd (lsof -d cwd) to the project db; lsof on the process should also show crush.db open",
+      "kind": "source-code",
+      "evidence": "internal/cmd/root.go: session flag only on resume; db opened per process via modernc.org/sqlite (internal/db/connect_modernc.go, darwin arm64/amd64). The open-file part is inferred, not observed; internal/cmd/root.go resolveWorkspaceSessionID: 'UUID, full hash, or hash prefix'. The pid-to-db open-file part is inferred, not observed"
+    },
+    {
+      "claim": "Data dir lock file crush.lock (JSON with pid, version, started_at) exists only for server workspaces",
+      "kind": "source-code",
+      "evidence": "internal/db/datadirlock.go; connect.go WithDataDirLock: 'The lock is off by default so local-mode invocations do not regress'"
+    },
+    {
+      "claim": "projects.json lists every project path and data dir Crush has run in",
+      "kind": "source-code",
+      "evidence": "internal/projects/projects.go: projectsFilePath = dir(GlobalConfigData())/projects.json, i.e. ~/.local/share/crush/projects.json; Register() called from setupLocalWorkspace"
+    },
+    {
+      "claim": "Only one hook event exists: PreToolUse. Config in crush.json hooks object; crushrc `hook add`. Claude Code compatible shape; env CRUSH=1, AGENT=crush, AI_AGENT=crush; exit 2 blocks, exit 49 halts the turn",
+      "kind": "official-docs",
+      "evidence": "https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md ('Crush currently supports just one hook, PreToolUse'); internal/hooks/hooks.go (only EventPreToolUse); internal/skills/builtin/crush-hooks/SKILL.md; internal/shellconfig/hook.go"
+    },
+    {
+      "claim": "UserPromptSubmit and other events are planned, not shipped",
+      "kind": "source-code",
+      "evidence": "docs/hooks/FUTURE.md ('UserPromptSubmit event' design section); no EventUserPromptSubmit constant in internal/hooks/hooks.go"
+    },
+    {
+      "claim": "PreToolUse fires before the permission check and only for top-level agent tool calls, so it is not a 'waiting on human' signal",
+      "kind": "official-docs",
+      "evidence": "docs/hooks/README.md Building Hooks step 5 and PreToolUse Scope paragraph"
+    },
+    {
+      "claim": "Human-wait notifications: title 'Crush is waiting...' on permission request, on questions, and on turn end. On darwin the auto backend is OSC (99 or 777), not native. Sent only when focus reporting is on and the window is unfocused",
+      "kind": "source-code",
+      "evidence": "internal/ui/model/ui.go: pubsub.Event[permission.PermissionRequest] (~line 1086), pubsub.Event[question.Request], handleAgentNotification TypeAgentFinished; selectNotificationBackend lines ~700-706 (runtime.GOOS == \"darwin\" -> NewOSCBackend); internal/config/config.go Options.Notifications; shouldSendNotification (ui.go ~728): m.caps.ReportFocusEvents && !m.notifyWindowFocused, false when notifications == disabled"
+    },
+    {
+      "claim": "herdr integration reports idle, working, blocked",
+      "kind": "source-code",
+      "evidence": "internal/herdr/client.go: states stateIdle/stateWorking/stateBlocked; newFromEnv requires HERDR_ENV=1, HERDR_SOCKET_PATH, HERDR_PANE_ID; PermissionRequested -> blocked"
+    },
+    {
+      "claim": "Terminal window title is static, not a spinner; OSC 9;4 progress bar while busy only for ghostty, iterm2, rio and Windows Terminal",
+      "kind": "source-code",
+      "evidence": "internal/ui/model/ui.go line 3656 (v.WindowTitle = \"crush \" + home.Short(WorkingDir)); lines 803-804, 1110-1111, applyProgressBar 3691-3695"
+    },
+    {
+      "claim": "No caffeinate, no power assertion",
+      "kind": "source-code",
+      "evidence": "grep -rn -i -E 'caffeinate|IOPMAssertion|prevent.*sleep' --include='*.go' over the checkout: no hits"
+    },
+    {
+      "claim": "bash tool runs in an embedded mvdan.cc/sh interpreter; external commands are exec'd with Setsid. On macOS Go coreutils are OFF by default (ls, cat, grep etc. are real children); only shell builtins run in-process",
+      "kind": "source-code",
+      "evidence": "internal/shell/dispatch.go, exec_unix.go (cmd.SysProcAttr.Setsid = true); internal/shell/coreutils.go: useGoCoreUtils = runtime.GOOS == \"windows\" unless CRUSH_CORE_UTILS is set; docs/hooks/README.md Execution model"
+    },
+    {
+      "claim": "No OpenTelemetry. Metrics are PostHog to data.charm.land, opt-out",
+      "kind": "source-code",
+      "evidence": "grep -rn -i -E 'otel|opentelemetry|otlp' over *.go: no hits outside go.mod indirect requires; internal/event/event.go (posthog, endpoint https://data.charm.land); internal/cmd/root.go shouldEnableMetrics"
+    },
+    {
+      "claim": "Long-lived children make tool_children unusable as a working signal: stdio MCP servers and LSP servers are children of the crush process for the whole session, and bash background jobs outlive a turn. The probe treats any non-caffeinate child as 'tools running', so it would read such a session as working forever. Signal removed",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "internal/agent/tools/mcp/init.go ~1186 (exec.CommandContext for mcp.CommandTransport, stdio); README.md 'lsp add go --command \"gopls\"'; internal/shell/background.go (MaxBackgroundJobs, completed-job retention). tools/agents_probe.py classify(): `[k for k in kids if k not in (\"caffeinate\",)]`"
+    },
+    {
+      "claim": "Process match tested with the probe's own matches(): earlier row matched `crush r x`, `crush models`, `crush auth`, `crush signout` as tui, `crush run explain the server` as daemon, and /opt/homebrew/bin/crushtool, /usr/local/bin/crush-monitor, ~/go/bin/crush-cli as tui (path_contains is a substring test). Repaired row matches none of these",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 driving tools/agents_probe.matches() over made-up ps lines; before/after output compared. path_contains dropped because names already matches the basename of any path"
+    },
+    {
+      "claim": "Notifications on darwin auto to OSC (also with SSH_TTY); user setting 'native' uses beeep on macOS",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "internal/ui/model/ui.go selectNotificationBackend lines 663-705"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not installed on the research Mac, so no surface was classified live. Sessions sharing a project share one crush.db, so a process maps to a project by cwd, and to one session only when started with -s. `crush run` (non-interactive) is deliberately not a surface: it is excluded from every match and, while alive, is by definition mid-turn. Windows names and paths are out of scope. Homebrew formula path (/opt/homebrew/Cellar/crush/...) is inferred from the tap config, not fetched; the match does not depend on it because the executable basename is `crush`. Thresholds are unmeasured heuristics (transcript_write within_seconds 15, tree_cpu floor 3): the source supports the mechanism, not the numbers. The `--session=<id>` form is not read by the probe's session_id_args (space-separated only). A different program that is also named `crush` cannot be told apart by name alone; not checked against other products."
+}

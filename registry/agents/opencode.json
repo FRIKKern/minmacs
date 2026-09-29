@@ -1,0 +1,421 @@
+{
+  "id": "opencode",
+  "name": "OpenCode",
+  "vendor": "Anomaly (anomalyco, formerly SST)",
+  "homepage": "https://opencode.ai",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "OpenCode v1 desktop app (1.x, Electron). Matched on the utility helper that hosts the server, NOT on the main app process: the main process has Chromium helper children that would always look like tool children. Prod bundle id ai.opencode.desktop; beta and dev channels append .beta / .dev (their app names contain a space, which the probe's space-splitting cannot match by path). The v2 desktop (2.x, same bundle id) has no NodeService helper at all: it runs the bundled CLI as a background service, see the last daemon surface.",
+      "bundle_ids": [
+        "ai.opencode.desktop",
+        "ai.opencode.desktop.beta",
+        "ai.opencode.desktop.dev"
+      ],
+      "process": {
+        "path_contains": [
+          "/OpenCode.app/Contents/Frameworks/OpenCode"
+        ],
+        "args_contain": [
+          "--utility-sub-type=node.mojom.NodeService"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "opencode in a terminal (default command, also `opencode attach <url>`; also the VS Code/Cursor extension terminal, which adds --port). Native Bun-compiled binary named `opencode`; the npm package installs it as bin/opencode.exe. v1 (1.x): agent and server run in a Worker thread of this process, so tree signals on it are meaningful. v2 (2.x, @opencode/cli): this process is a thin client of a shared background service (`opencode serve --service`, see the daemon surface), so its own tree_cpu and tool_children read idle while a turn runs. The name `opencode` is also the archived Go project's binary, installed to the same ~/.opencode/bin path (false positive, see notes).",
+      "process": {
+        "names": [
+          "opencode",
+          "opencode.exe"
+        ],
+        "path_contains": [
+          "/.opencode/bin/opencode",
+          "/Cellar/opencode/",
+          "/opencode-ai/bin/opencode",
+          "/node_modules/opencode-darwin-",
+          "/node_modules/@opencode/cli-darwin-",
+          "/node_modules/@opencode/cli/bin/opencode"
+        ],
+        "exclude_args": [
+          "serve",
+          "web",
+          "run",
+          "acp",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "db",
+          "auth",
+          "models",
+          "session",
+          "stats",
+          "export",
+          "import",
+          "mcp",
+          "agent",
+          "github",
+          "pr",
+          "plugin",
+          "upgrade",
+          "uninstall",
+          "debug",
+          "providers",
+          "generate",
+          "console",
+          "completion",
+          "api",
+          "pair",
+          "reload",
+          "service"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "opencode serve / opencode web: headless HTTP server on 127.0.0.1:4096 by default (v1), `web` also opens a browser. In v2 the same match catches `opencode serve --service`, the detached background service every v2 CLI and desktop client shares (default port 49374 = 0xc0de, registration file ~/.local/state/opencode/service.json); it outlives the TUI and serves all sessions, so its tool children cannot be attributed to one session. Loose match: args_contain is a substring test, so a project path containing 'serve' or 'web' also matches.",
+      "process": {
+        "names": [
+          "opencode",
+          "opencode.exe"
+        ],
+        "path_contains": [
+          "/.opencode/bin/opencode",
+          "/Cellar/opencode/",
+          "/opencode-ai/bin/opencode",
+          "/node_modules/opencode-darwin-",
+          "/node_modules/@opencode/cli-darwin-",
+          "/node_modules/@opencode/cli/bin/opencode"
+        ],
+        "args_contain": [
+          "serve"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "opencode web (server plus browser UI)",
+      "process": {
+        "names": [
+          "opencode",
+          "opencode.exe"
+        ],
+        "path_contains": [
+          "/.opencode/bin/opencode",
+          "/Cellar/opencode/",
+          "/opencode-ai/bin/opencode",
+          "/node_modules/opencode-darwin-",
+          "/node_modules/@opencode/cli-darwin-",
+          "/node_modules/@opencode/cli/bin/opencode"
+        ],
+        "args_contain": [
+          "web"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "opencode run <message>: non-interactive one-shot. The process lives for exactly one prompt, so existing implies working (inferred; no listed signal encodes it), unless it is `run --attach`, where the work happens in the remote server. Loose match: the probe splits ps args on spaces, so a prompt or path containing the words run, serve or web is mistaken for a subcommand.",
+      "process": {
+        "names": [
+          "opencode",
+          "opencode.exe"
+        ],
+        "path_contains": [
+          "/.opencode/bin/opencode",
+          "/Cellar/opencode/",
+          "/opencode-ai/bin/opencode",
+          "/node_modules/opencode-darwin-",
+          "/node_modules/@opencode/cli-darwin-",
+          "/node_modules/@opencode/cli/bin/opencode"
+        ],
+        "args_contain": [
+          "run"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "opencode acp: Agent Client Protocol server over stdio, spawned by an editor such as Zed",
+      "process": {
+        "names": [
+          "opencode",
+          "opencode.exe"
+        ],
+        "path_contains": [
+          "/.opencode/bin/opencode",
+          "/Cellar/opencode/",
+          "/opencode-ai/bin/opencode",
+          "/node_modules/opencode-darwin-",
+          "/node_modules/@opencode/cli-darwin-",
+          "/node_modules/@opencode/cli/bin/opencode"
+        ],
+        "args_contain": [
+          "acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "OpenCode v2 desktop (2.x): the app runs its bundled CLI as the background service. Packaged builds copy Contents/Resources/opencode-cli to <userData>/cli/<version>/opencode-cli, i.e. under ~/Library/Application Support/<app>/, and spawn `<that> serve --service` detached. There is no Electron utility helper. The path contains a space, and the probe splits ps args on spaces, so the executable name cannot be matched: this surface matches the exe prefix /Library/Application plus the arguments opencode-cli and --service, which are both required. Same shared service as the CLI's `serve --service` above.",
+      "process": {
+        "path_contains": [
+          "/Library/Application"
+        ],
+        "args_contain": [
+          "opencode-cli",
+          "--service"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/opencode/opencode*.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "The bash tool spawns one detached child shell per command, so a child that is not an LSP or MCP server means a tool call is running. Caveat: LSP servers and stdio MCP servers are long-lived children while idle, so this over-reports. Meaningful on the v1 TUI/serve/run surfaces and on the v1 desktop utility helper. For v2 the tools are children of the shared `serve --service` process, not of the TUI or desktop app, and that process serves every session, so a hit says only that some session runs a tool."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "Inferred, not measured: the TUI animates a spinner while a session is busy and the model stream is parsed in-process. No opencode process was available to calibrate the floor. Does not apply to a v2 TUI or the v2 desktop app: the model stream is parsed in the shared service process."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "plugin_event",
+      "event": "permission.asked",
+      "meaning": "A tool needs approval (bash is 'ask' in the plan agent, and any 'ask' rule). Cleared by permission.replied. session.status stays 'busy' the whole time, so busy does not mean working."
+    },
+    {
+      "signal": "plugin_event",
+      "event": "question.asked",
+      "meaning": "The model called the question tool and waits for an answer. Cleared by question.replied or question.rejected. Source-only: not in the docs event list."
+    },
+    {
+      "signal": "http",
+      "endpoint": "GET /permission and GET /question",
+      "meaning": "Pending requests on a server you can reach: opencode serve/web, or a TUI started with --port/--hostname. Add ?directory=<cwd> or header x-opencode-directory. A plain TUI has no listening port, and the desktop app's server password is random per launch."
+    },
+    {
+      "signal": "tui_attention",
+      "event": "tui.json attention.enabled",
+      "meaning": "Optional sound and terminal notification on question, permission, error and done. Off by default. Not readable from outside."
+    },
+    {
+      "signal": "http",
+      "endpoint": "v2: GET /api/session/active and GET /api/permission/request",
+      "meaning": "v2 only, source-level (packages/protocol/openapi.json, tag v2.0.19), not exercised. /api/session/active returns {data:{<sessionID>:{type:'running'}}} and 'sessions absent from the result are inactive', the precise turn signal. /api/permission/request lists pending permission requests. The service URL, pid and password are in ~/.local/state/opencode/service.json (XDG_STATE_HOME/opencode/service.json), which `Service.discover` reads with the same user's rights. Basic auth, user 'opencode'."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "No shell-command hook config. Lifecycle handlers are JS/TS plugins: ~/.config/opencode/plugins/ (global), .opencode/plugins/ (project), or the `plugin` array of npm packages in ~/.config/opencode/opencode.json(c) or project opencode.json. The `event` hook receives every bus event.",
+    "events": [
+      "session.created",
+      "session.status",
+      "session.idle",
+      "session.error",
+      "session.compacted",
+      "session.updated",
+      "session.deleted",
+      "permission.asked",
+      "permission.replied",
+      "question.asked",
+      "question.replied",
+      "message.updated",
+      "message.part.updated",
+      "tool.execute.before",
+      "tool.execute.after",
+      "permission.ask",
+      "chat.message",
+      "shell.env",
+      "todo.updated",
+      "server.connected"
+    ],
+    "docs": "https://opencode.ai/docs/plugins"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Undocumented, source-only. Set OTEL_EXPORTER_OTLP_ENDPOINT (optional OTEL_EXPORTER_OTLP_HEADERS as k=v,k=v and OTEL_RESOURCE_ATTRIBUTES): OTLP over HTTP, traces to <endpoint>/v1/traces and logs to <endpoint>/v1/logs, no metrics. Resource service.name=opencode with opencode.client (cli or desktop), opencode.run and service.instance.id. Nothing is exported when the variable is unset. Separately, config experimental.openTelemetry=true turns on AI SDK spans (function id session.llm, session id in metadata). A GUI app does not see shell env, so the desktop app needs launchctl setenv or a launch from a shell. v2 (2.x): packages/cli/src/index.ts passes the same OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS to its own Observability.layer; span and log shape not checked."
+  },
+  "sources": [
+    {
+      "claim": "Two live release lines. v1: opencode-ai 1.18.33 (GitHub release 2026-09-28, repo anomalyco/opencode, default branch dev, MIT); this is what opencode.ai/install, brew formula opencode (1.18.30) and cask opencode-desktop (1.18.33) install. v2: @opencode/cli 2.0.19 (npm latest, published 2026-09-29), tag v2.0.19, announced by a 'OpenCode v2 is now available' banner on every docs page.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://registry.npmjs.org/opencode-ai dist-tags latest 1.18.33, time 2026-09-28T04:23:28Z; https://registry.npmjs.org/@opencode/cli dist-tags latest 2.0.19, time 2026-09-29T04:31:14Z, bin {opencode: bin/opencode.exe, opencode2: bin/opencode.exe}; https://api.github.com/repos/anomalyco/opencode returned full_name anomalyco/opencode, default_branch dev, license MIT; https://formulae.brew.sh/api/formula/opencode.json versions.stable 1.18.30 (homebrew/core); https://formulae.brew.sh/api/cask/opencode-desktop.json version 1.18.33; github tags list v2.0.19, v2.0.18; https://opencode.ai/v2 (firecrawl scrape) documents curl https://opencode.ai/v2/install, brew install anomalyco/tap/opencode-v2, npm install -g @opencode/cli, `opencode pair`, and downloads under https://opencode.ai/files/bin/2.0.6/. Correction to the first draft, which found only v1 and called v2 unreleased."
+    },
+    {
+      "claim": "Install locations: curl installer puts the binary at ~/.opencode/bin/opencode; npm package opencode-ai has bin 'opencode' -> bin/opencode.exe (postinstall hard-links the native binary from the opencode-darwin-arm64 optional dependency); brew formula 'opencode' and cask 'opencode-desktop' installing /Applications/OpenCode.app",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://opencode.ai/install line 68 'INSTALL_DIR=$HOME/.opencode/bin' and line 350 'cp \"$binary_path\" \"${INSTALL_DIR}/opencode\"'; packages/opencode/script/postinstall.mjs 'const targetBinary = path.join(__dirname, \"bin\", \"opencode.exe\")' and copyBinary(); https://registry.npmjs.org/opencode-ai/1.18.33 printed bin {'opencode': 'bin/opencode.exe'}; https://formulae.brew.sh/api/cask/opencode-desktop.json artifacts app OpenCode.app target /Applications/OpenCode.app"
+    },
+    {
+      "claim": "Desktop bundle (v1 1.18.33): CFBundleIdentifier ai.opencode.desktop, CFBundleExecutable OpenCode, URL scheme opencode; helpers are 'OpenCode Helper', '(GPU)', '(Renderer)', '(Plugin)' with bundle ids ai.opencode.desktop.helper, .helper.GPU, .helper.Renderer, .helper.Plugin; no bundled opencode CLI in the prod zip",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Downloaded https://github.com/anomalyco/opencode/releases/download/v1.18.33/opencode-desktop-mac-arm64.zip to scratchpad (not installed). unzip -p ... OpenCode.app/Contents/Info.plist | plutil -p - printed CFBundleIdentifier => ai.opencode.desktop, CFBundleExecutable => OpenCode, CFBundleShortVersionString => 1.18.33, CFBundleURLSchemes => opencode. Helper Info.plist printed CFBundleIdentifier => ai.opencode.desktop.helper. unzip -l | grep -c opencode-cli printed 0. Re-run on 2026-09-29: the four Helper Info.plist files printed CFBundleIdentifier ai.opencode.desktop.helper, ai.opencode.desktop.helper.Plugin, ai.opencode.desktop.helper.GPU, ai.opencode.desktop.helper.Renderer (the first draft gave the bare helper id for all four)."
+    },
+    {
+      "claim": "Channel bundle ids: prod ai.opencode.desktop, beta ai.opencode.desktop.beta, dev ai.opencode.desktop.dev; productName OpenCode / OpenCode Beta / OpenCode Dev",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/desktop/electron-builder.config.ts: APP_IDS = { dev: 'ai.opencode.desktop.dev', beta: 'ai.opencode.desktop.beta', prod: 'ai.opencode.desktop' } and productName per channel"
+    },
+    {
+      "claim": "v1 desktop (1.x) only: the app runs the server inside an Electron utilityProcess (serviceName 'opencode server'), on 127.0.0.1 with a random free port and a random per-launch password. Not a separate `opencode serve` child. The default sidecar is v1; v2 (bundled CLI daemon) needs OPENCODE_SIDECAR_V2=1 and a dev-only bundled CLI. (This 'v2' is a sidecar switch inside 1.x, not the 2.x product line.)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/desktop/src/main/server.ts spawnLocalServer(): 'utilityProcess.fork(sidecar, [], { ... serviceName: SIDECAR_SERVICE_NAME })' with SIDECAR_SERVICE_NAME = 'opencode server'; packages/desktop/src/main/index.ts lines 64 'const SIDECAR_VERSION = process.env.OPENCODE_SIDECAR_V2 === \"1\" ? \"v2\" : \"v1\"', 350-375 (socket.listen(0, '127.0.0.1'), password = randomUUID()); packages/desktop/electron-builder.config.ts extraResources opencode-cli* only when channel === 'dev'"
+    },
+    {
+      "claim": "On macOS that utility process shows as an Electron helper with args '--type=utility --utility-sub-type=node.mojom.NodeService' (helper name is 'Helper' or 'Helper (Plugin)' depending on Electron flags; not observed for OpenCode on macOS, so the row matches the shared path prefix and the sub-type arg)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/anomalyco/opencode/issues/48020 ('its Electron utility process (--type=utility --utility-sub-type=node.mojom.NodeService, which hosts the OpenCode sidecar server)'); https://releases.electronjs.org/pr/50278 shows a macOS 'Electron Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService ...' ps line Re-checked: the issue text quotes the flags but is from a Linux Flatpak build (1.18.25), not macOS; the Electron PR output is a macOS ps line for a utilityProcess forked with allowLoadingUnsignedLibraries (Plugin helper). OpenCode's fork call (server.ts line 64) passes only cwd, env, serviceName and stdio, so on macOS the helper is expected to be plain 'OpenCode Helper'. Both start with the path prefix the row matches. The only utilityProcess.fork in packages/desktop/src is that one."
+    },
+    {
+      "claim": "TUI is one process: the server and agent run in a Bun Worker thread inside it. No listening socket unless --port, --hostname or --mdns is passed; otherwise the TUI talks to the worker through in-process RPC fetch on 'http://opencode.internal'.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/cli/cmd/tui.ts: 'const worker = new Worker(file, ...)', 'const external = hasArg(\"--port\") || hasArg(\"--hostname\") || network.mdns === true', 'url: \"http://opencode.internal\", fetch: createWorkerFetch(client)'. Docs (https://opencode.ai/docs/server) say the TUI 'randomly assigns a port', which the source contradicts."
+    },
+    {
+      "claim": "A process cannot be mapped to its session by argv. Only -s/--session <id> carries an id, and only on resume; -c/--continue carries none. Otherwise map by working directory (lsof cwd) to session.directory in the DB, newest time_updated, parent_id IS NULL. All v1 processes on the latest, beta and prod channels and the v1 desktop app share one database; a dev-channel build uses opencode-dev.db. In v2 the sessions are in table session_v2 of the same opencode.db file (see the v2 store source).",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://opencode.ai/docs/cli tui flags table: '--continue -c Continue the last session', '--session -s Session ID to continue'; packages/core/src/session/sql.ts SessionTable columns id, project_id, parent_id, directory, title, time_created, time_updated, time_archived; session ids start 'ses_' (packages/schema/src/session-id.ts)"
+    },
+    {
+      "claim": "Sessions live in SQLite, WAL mode, at ~/.local/share/opencode/opencode.db (channels latest, beta and prod; other channels get opencode-<channel>.db; OPENCODE_DB or OPENCODE_DISABLE_CHANNEL_DB overrides). Table names session, message, part, todo, session_message, session_input. Tables include session, message, part, todo. `opencode db path` prints the path. The docs page still describes the older JSON layout (project/<slug>/storage/), which is stale.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/core/src/database/database.ts path(): 'return join(Global.Path.data, \"opencode.db\")' and 'PRAGMA journal_mode = WAL'; packages/core/src/global.ts data = path.join(xdgData, 'opencode') (xdg-basedir, ~/.local/share on macOS); https://opencode.ai/docs/troubleshooting#storage lists ~/.local/share/opencode/ with 'project/ ... ./<project-slug>/storage/'; https://opencode.ai/docs/cli documents `opencode db path` Re-checked on tag v1.18.33: database.ts path() tests ['latest','beta','prod'].includes(InstallationChannel); the first draft wrote 'stable', which is not a channel name. sql.ts sqliteTable names: session, message, part, todo, session_message, session_input."
+    },
+    {
+      "claim": "The desktop app does not move the data dir: it only sets XDG_STATE_HOME to its userData path, so desktop and CLI sessions share ~/.local/share/opencode/opencode.db",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/desktop/src/main/server.ts preferAppEnv(): sets OPENCODE_CLIENT: 'desktop' and XDG_STATE_HOME only; packages/desktop/src/main/sidecar.ts prepareSidecarEnv()"
+    },
+    {
+      "claim": "Message text deltas are not persisted, only published on the event bus; the DB is written when a part or message is created or finishes. So DB writes stall during a long model stream, and the shared -wal file mtime cannot say which session wrote.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/session/session.ts updatePartDelta(): 'yield* events.publish(MessageV2.Event.PartDelta, input)' with no DB write; packages/core/src/database/database.ts sets PRAGMA synchronous = NORMAL"
+    },
+    {
+      "claim": "The precise in-process 'turn in progress' state is session status busy | retry | idle, set busy when a run starts and idle when it ends. Events session.status and (deprecated) session.idle. Exposed by GET /session/status (per directory) and the /event and /global/event SSE streams. GET /session/status returns only sessions that are busy or retrying: set(idle) deletes the entry, list() returns the map, the handler returns Object.fromEntries(list()). An idle session is absent, not reported as idle.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/schema/src/session-status-event.ts (Info union idle|retry|busy, Status 'session.status', Idle '// deprecated' 'session.idle'); packages/opencode/src/session/status.ts set(); packages/opencode/src/session/run-state.ts onBusy: status.set(sessionID, { type: 'busy' }); https://opencode.ai/docs/server table: GET /session/status 'Get session status for all sessions', GET /global/event, GET /event; middleware/workspace-routing.ts line 87: url.searchParams.get('directory') || request.headers['x-opencode-directory'] || process.cwd() Re-checked: packages/opencode/src/session/status.ts set() 'if (status.type === \"idle\") { ... data.delete(sessionID); return }'; handlers/session.ts status(): 'return Object.fromEntries(yield* statusSvc.list())'."
+    },
+    {
+      "claim": "Waiting on the human does NOT change status: a permission or question request awaits a Deferred while status stays busy. The only signals are the permission.asked / question.asked events and the pending lists.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/permission/index.ts lines 98-102: 'const deferred = yield* Deferred.make...; yield* events.publish(Event.Asked, info); ... Deferred.await(deferred)' with no SessionStatus call; packages/opencode/src/question/index.ts same shape; packages/tui/src/feature-plugins/system/notifications.ts subscribes to permission.asked and question.asked separately from session.status. Routes GET /permission and GET /question: packages/opencode/src/server/routes/instance/httpapi/groups/permission.ts and question.ts"
+    },
+    {
+      "claim": "Hooks are JS/TS plugins with an `event` hook plus named hooks (permission.ask, tool.execute.before/after, chat.message, shell.env). Plugin dirs and npm `plugin` array. Docs list session.idle, permission.asked, etc.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://opencode.ai/docs/plugins ('.opencode/plugins/', '~/.config/opencode/plugins/', event list, notification example using event.type === 'session.idle'); packages/plugin/src/index.ts interface Hooks (event, permission.ask, tool.execute.before, tool.execute.after, chat.message, shell.env)"
+    },
+    {
+      "claim": "The opencode process exports AGENT=1, OPENCODE=1 and OPENCODE_PID=<pid> into its environment, inherited by tool children; the desktop server runs with OPENCODE_CLIENT=desktop; the VS Code extension launches its terminal with OPENCODE_CALLER=vscode and --port",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/index.ts lines 75-77 'process.env.AGENT = \"1\"; process.env.OPENCODE = \"1\"; process.env.OPENCODE_PID = String(process.pid)'; packages/desktop/src/main/server.ts OPENCODE_CLIENT: 'desktop'; sdks/vscode/src/extension.ts lines 37-60 (_EXTENSION_OPENCODE_PORT, OPENCODE_CALLER: 'vscode')"
+    },
+    {
+      "claim": "No power assertion, caffeinate or sleep inhibitor tied to a turn anywhere in the v1 source, so none can be used as a working signal. The v2 desktop has only a user-toggled 'keep screen active' setting (powerSaveBlocker prevent-display-sleep), not tied to a turn.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rIl -E 'caffeinate|powerSaveBlocker|IOPMAssertion|preventSleep|sleep inhibit' packages/ over the dev-branch tarball (codeload.github.com/anomalyco/opencode/tar.gz/refs/heads/dev, extracted to scratchpad) printed nothing Repeated on tags v1.18.33 (nothing) and v2.0.19: the grep hits only packages/desktop/src/main/native/screen-activity.ts, which starts powerSaveBlocker when the KEEP_SCREEN_ACTIVE_KEY setting is 'true'."
+    },
+    {
+      "claim": "Terminal title is static per session ('OpenCode' or 'OC | <session title>'), not a working indicator",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/tui/src/app.tsx lines 456-476: renderer.setTerminalTitle('OpenCode') and renderer.setTerminalTitle(`OC | ${title}`); disabled by OPENCODE_DISABLE_TERMINAL_TITLE"
+    },
+    {
+      "claim": "OpenTelemetry: OTLP/HTTP traces and logs when OTEL_EXPORTER_OTLP_ENDPOINT is set; experimental.openTelemetry adds AI SDK spans. Not mentioned anywhere in the official docs.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/core/src/flag/flag.ts lines 16-17 (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS); packages/core/src/observability/otlp.ts (url `${endpoint}/v1/logs`, `${endpoint}/v1/traces`, resource serviceName 'opencode'); packages/opencode/src/effect/app-runtime.ts line 109 Layer.provideMerge(Observability.layer); packages/core/src/v1/config/config.ts line 173 experimental.openTelemetry; packages/opencode/src/session/llm.ts line 344 experimental_telemetry. grep -rn -i 'otel|opentelemetry' packages/web/src/content/docs/*.mdx printed nothing."
+    },
+    {
+      "claim": "REFUTED first-draft claim 'lildax is unreleased'. The successor CLI shipped as OpenCode v2 under the npm name @opencode/cli (2.0.19, bins opencode and opencode2), not @opencode-ai/cli (which is still 0.0.0-* only). Source: branch 2.0 and tag v2.0.19, packages/cli/package.json name @opencode/cli.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://registry.npmjs.org/@opencode/cli dist-tags latest 2.0.19; https://registry.npmjs.org/@opencode-ai/cli dist-tags latest 0.0.0-beta-17823; https://codeload.github.com/anomalyco/opencode/tar.gz/refs/tags/v2.0.19 unpacked to scratchpad: packages/cli/package.json name '@opencode/cli' version 2.0.19 bin {opencode: ./bin/opencode.cjs, opencode2: ./bin/opencode2.cjs}; root package.json name opencode version 2.0.19. The dev branch tarball still has packages/cli named @opencode-ai/cli with bin lildax, which is what the first draft read."
+    },
+    {
+      "claim": "OpenCode is not installed on this Mac and nothing was running, so no surface was classified live",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "which -a opencode printed 'opencode not found'; ps -axo pid=,args= | grep -i -E 'opencode|OpenCode' printed nothing; ls /Applications | grep -i opencode printed nothing; mdfind \"kMDItemCFBundleIdentifier == 'ai.opencode.desktop*'\" printed nothing; ls ~/.local/share/opencode ~/.config/opencode both failed 'No such file or directory'; tools/agents_probe.py --row registry/agents/opencode.json reported 0 agent sessions"
+    },
+    {
+      "claim": "Row matching checked against synthetic ps lines with the probe's own matches(): brew, curl and npm TUI paths hit the tui surface; `opencode serve` hits the daemon surface; the desktop main process and GPU helper do not match; the NodeService helper hits the gui surface. Synthetic input, not a live process.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 loading tools/agents_probe.py and calling matches(surface, {exe,name,argv}) for 7 made-up command lines printed: tui brew [1 tui], tui curl [1 tui], tui npm [1 tui], serve [2 daemon], desktop main [], desktop gpu [], desktop node [0 gui] Re-run 2026-09-29 with 14 more made-up lines through matches(): v2 native npm path -> tui; `opencode serve --service` -> daemon; v2 desktop staged path with a space (/Users/me/Library/Application Support/.../opencode-cli serve --service) -> no match before the added surface; plain 'OpenCode Helper' and 'OpenCode Helper (Plugin)' NodeService lines -> gui; GPU helper -> none; `opencode --prompt run the tests` -> run surface (wrong); `opencode --prompt fix serve bug` -> serve daemon (wrong); `opencode run --dir /Users/me/web-app x` -> web daemon first (wrong); Go opencode `-d` and `-c <dir>` lines -> tui (false positive)."
+    },
+    {
+      "claim": "v2 architecture: the CLI TUI is a thin client. `opencode` resolves a shared background service (ServerConnection.resolve -> Service.ensure), starting it if missing by spawning `<self> serve --service` detached and unref'd; the service default port is 0xc0de (49374) for channels latest/dev/beta/next; the registration file is <XDG_STATE_HOME or ~/.local/state>/opencode/service.json with url, pid, version and a private password. `--standalone` runs an in-process server instead; `--server <url>` attaches to a remote one. Flags -c/--continue and -s/--session are kept. Subcommands new in v2: api, mini, pair, reload, service (serve gains --service).",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "tag v2.0.19: packages/cli/src/commands/handlers/default.ts (ServerConnection.resolve({server, standalone, mismatch:'replace'}), 'Starting background server...'); packages/cli/src/services/server-connection.ts; packages/cli/src/services/service-config.ts (defaultPort returns 0xc0de, options() command [...selfCommand(), 'serve', '--service']); packages/cli/src/util/process.ts selfCommand() returns [process.execPath] for a compiled binary; packages/client/src/service-contender.ts spawn(..., {detached: true}) and child.unref(); packages/client/src/effect/service.ts fallback() join(XDG_STATE_HOME ?? ~/.local/state, 'opencode', 'service.json') and Info {version, url, pid, password}; packages/cli/src/commands/commands.ts flags continue (alias c) and session (alias s); https://opencode.ai/v2 docs `opencode pair` printing http://127.0.0.1:49374."
+    },
+    {
+      "claim": "v2 desktop (2.0.19): same bundle id ai.opencode.desktop, CFBundleExecutable OpenCode, but it bundles Contents/Resources/opencode-cli (about 180 MB) with opencode-cli.version 2.0.19 and has no utilityProcess. Packaged builds stage the CLI to <userData>/cli/<version>/opencode-cli and spawn `<staged> serve --service` as the background service, the same service the CLI uses.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Downloaded https://opencode.ai/files/bin/2.0.19/opencode-desktop-mac-arm64.zip to scratchpad (not mounted, installed or run). unzip -p ... OpenCode.app/Contents/Info.plist | plutil -p - printed CFBundleIdentifier => ai.opencode.desktop, CFBundleExecutable => OpenCode, CFBundleShortVersionString => 2.0.19. unzip -l | grep Resources/opencode-cli printed OpenCode.app/Contents/Resources/opencode-cli (179553920 bytes) and opencode-cli.version; unzip -p ... opencode-cli.version printed 2.0.19. Source, tag v2.0.19: grep -rn utilityProcess packages/desktop/src printed nothing; packages/desktop/src/main/service/background-service.ts command [...cli.command, 'serve', '--service']; desktop-cli.ts installCli() destination join(app.getPath('userData'), 'cli', version, 'opencode-cli'); electron-builder.config.ts extraResources opencode-cli and APP_IDS unchanged. Not observed running."
+    },
+    {
+      "claim": "v2 store: sessions are in table session_v2 (columns include directory, parent_id, time_created, time_updated, time_idle, time_viewed, idle_outcome, time_suspended) of ~/.local/share/opencode/opencode.db, the same file name v1 uses (channels latest, dev, beta, next, prod). The v1 table `session` is a different table, so a query keyed on `session` may miss v2 sessions and one keyed on `session_v2` misses v1 sessions. Whether both tables exist in one file after an upgrade was not checked.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "tag v2.0.19: packages/cli/src/database-path.ts databasePath() (['latest','dev','beta','next','prod'] -> opencode.db); packages/util/src/global-roots.ts data = path.join(xdg data, 'opencode'); packages/core/src/session/sql.ts sqliteTable('session_v2', ...) with time_idle, time_viewed, idle_outcome, time_suspended; packages/core/src/database/migration/ lists 20260910120000_clear_v1_session_permission.ts (name only read, contents not read). Whether the v1 tables persist next to session_v2 in a v2 database was not checked."
+    },
+    {
+      "claim": "v2 turn state over HTTP: GET /api/session/active returns {data:{<sessionID>:{type:'running'}}}, 'Sessions absent from the result are inactive'; GET /api/permission/request lists pending permission requests; GET /api/info returns version and pid. Not exercised: no service was running.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "tag v2.0.19: packages/protocol/openapi.json paths /api/session/active (summary 'List active sessions', description 'Retrieve foreground Session drains currently owned by this OpenCode process. Sessions absent from the result are inactive.'), /api/permission/request, /api/info (python3 json load printed those three paths); packages/server/src/handlers/session.ts session.active handler maps each active id to {type:'running'}; V2_HTTP_API_AUDIT.md rows 050, 094, 098."
+    },
+    {
+      "claim": "The process name `opencode` and the path ~/.opencode/bin/opencode are not unique to this product: the archived Go project opencode-ai/opencode (now Charm's Crush) installs a binary named opencode to the same $HOME/.opencode/bin, also via `brew install opencode-ai/tap/opencode` and `go install github.com/opencode-ai/opencode@latest`. The row cannot tell them apart from ps alone.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/opencode-ai/opencode/main/README.md ('Archived: Project has Moved ... continued under the name Crush', 'brew install opencode-ai/tap/opencode', 'go install github.com/opencode-ai/opencode@latest'); https://raw.githubusercontent.com/opencode-ai/opencode/refs/heads/main/install line 39 'INSTALL_DIR=$HOME/.opencode/bin' and line 92 'mv opencode $INSTALL_DIR'; probe matches() on '/Users/me/.opencode/bin/opencode -d' printed surface index 1 (tui)."
+    },
+    {
+      "claim": "Local re-check: OpenCode is still not installed or running on this Mac, so no surface was classified live and confidence cannot exceed documented.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "which -a opencode printed 'opencode not found'; ps -axo pid=,args= | grep -i opencode printed nothing; ls /Applications | grep -i opencode printed nothing; mdfind \"kMDItemCFBundleIdentifier == 'ai.opencode.desktop*'\" printed nothing; ls ~/.local/share/opencode ~/.config/opencode ~/.opencode all failed 'No such file or directory'; tools/agents_probe.py --row registry/agents/opencode.json printed '0 agent sessions: 0 working, 0 idle'."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Two product lines with different shapes; treat them separately. V1 (1.x, opencode-ai, what opencode.ai/install and brew give today). (1) Terminal: one native process named `opencode` (npm installs it as `opencode.exe`), agent and server in a Worker thread, no socket unless --port. From outside it exposes no turn flag: use tool_children (noisy, LSP/MCP children) and CPU. If it was started with --port/--hostname (VS Code extension, `opencode attach` targets, serve, web), GET /session/status?directory=<cwd> returns a map of sessions that are busy or retrying; an idle session is absent from it. (2) Desktop: Electron app ai.opencode.desktop; the server is a utility helper (--utility-sub-type=node.mojom.NodeService) with a random port and per-launch password, so its status API is not reachable from outside. Match that helper, not the main process. V2 (2.x, @opencode/cli and the 2.x desktop, released 2026-09, docs banner 'OpenCode v2 is now available'). The TUI and the desktop app are both thin clients of one detached background service, `<opencode or opencode-cli> serve --service`, that serves every session and outlives them. The TUI process and the desktop main process do no agent work, so tree_cpu and tool_children on them read idle; the work shows in the service process and cannot be attributed to a session by process tree. Precise signals exist (GET /api/session/active, GET /api/permission/request) at the URL and password in ~/.local/state/opencode/service.json, but this is source-level only and was not exercised. Sessions live in table session_v2 of the same opencode.db. The v2 plugin/hook API, event names and OTLP payloads were NOT checked; the hooks and telemetry fields describe v1. Common: busy also covers 'waiting for permission'; use permission.asked / question.asked (plugin event or SSE) to see the human wait. Map a process to a session by cwd against ~/.local/share/opencode/opencode.db (v1 table session, v2 table session_v2; session.directory, newest time_updated, parent_id IS NULL), unless -s was given. The DB is shared by every process and the desktop app, so file mtime cannot attribute activity. Open the DB read-only; it is WAL. Known false positives and misses of the process patterns: (a) the archived Go opencode-ai/opencode is also named `opencode` and installs to the same ~/.opencode/bin, so it matches the tui surface; nothing in ps separates them; (b) the probe splits ps args on spaces, so a prompt or path containing the exact word run, serve or web changes the surface, and a project path containing serve or web matches the loose daemon surfaces; (c) the v2 desktop service path contains 'Application Support', so it is matched by the /Library/Application prefix plus args opencode-cli and --service, which is a workaround and untested against a real process; (d) beta and dev desktop apps contain a space in the app name and are not matched. Not verified live: no OpenCode process or install exists on this Mac; every pattern was tested only against made-up ps lines, so confidence stays documented at most, and the CPU floor and working signals are inferred."
+}

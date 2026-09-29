@@ -1,0 +1,390 @@
+{
+  "id": "codex",
+  "name": "OpenAI Codex",
+  "vendor": "OpenAI",
+  "homepage": "https://github.com/openai/codex",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "ChatGPT desktop app (Codex). The agent is the bundled `codex app-server` child, not the Electron host.",
+      "bundle_ids": [
+        "com.openai.codex"
+      ],
+      "process": {
+        "path_contains": [
+          "/ChatGPT.app/Contents/Resources/codex"
+        ],
+        "args_contain": [
+          "app-server"
+        ],
+        "exclude_args": [
+          "daemon",
+          "proxy",
+          "generate-ts",
+          "generate-json-schema"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "OpenAI ChatGPT/Codex extension (VS Code, Cursor). Runs its bundled `codex -c features.code_mode_host=true app-server --analytics-default-enabled` (argv read from the extension's out/extension.js).",
+      "bundle_ids": [
+        "com.todesktop.230313mzl4w4u92",
+        "com.microsoft.VSCode"
+      ],
+      "process": {
+        "path_contains": [
+          "/extensions/openai.chatgpt-"
+        ],
+        "args_contain": [
+          "app-server"
+        ],
+        "exclude_args": [
+          "daemon",
+          "proxy",
+          "generate-ts",
+          "generate-json-schema"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Any other `codex app-server`: the shared local daemon (`codex app-server [--remote-control] --listen unix://`) or a third-party stdio client. Hosts many threads.",
+      "process": {
+        "names": [
+          "codex",
+          "codex-aarch64-apple-darwin",
+          "codex-x86_64-apple-darwin"
+        ],
+        "args_contain": [
+          "app-server"
+        ],
+        "exclude_args": [
+          "daemon",
+          "proxy",
+          "generate-ts",
+          "generate-json-schema"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "codex exec (headless terminal run, also what the TypeScript SDK spawns as `codex exec --experimental-json [resume <id>]`). `codex e` and `codex review` are not matched by this surface; review has its own surface below.",
+      "process": {
+        "names": [
+          "codex",
+          "codex-aarch64-apple-darwin",
+          "codex-x86_64-apple-darwin"
+        ],
+        "args_contain": [
+          "exec"
+        ],
+        "exclude_args": [
+          "exec-server",
+          "app-server",
+          "mcp-server",
+          "mcp",
+          "login",
+          "logout",
+          "doctor",
+          "debug",
+          "completion",
+          "features"
+        ]
+      },
+      "session_id_args": [
+        "resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "codex review: headless code-review turn (`codex review --help`: 'Run a code review non-interactively'). Separate surface because args_contain is AND-only and the interactive TUI surface excludes the word `review`.",
+      "process": {
+        "names": [
+          "codex",
+          "codex-aarch64-apple-darwin",
+          "codex-x86_64-apple-darwin"
+        ],
+        "args_contain": [
+          "review"
+        ],
+        "exclude_args": [
+          "exec",
+          "e",
+          "app-server",
+          "exec-server",
+          "mcp-server",
+          "mcp",
+          "proxy",
+          "login",
+          "logout",
+          "doctor",
+          "debug",
+          "sandbox",
+          "completion",
+          "features",
+          "plugin",
+          "apply",
+          "update",
+          "queue",
+          "archive",
+          "delete",
+          "unarchive",
+          "migrate-rollouts",
+          "remote-control",
+          "cloud",
+          "help",
+          "--version",
+          "--help"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "codex in a terminal (interactive TUI, also `codex resume` / `codex fork` / `codex agents`)",
+      "process": {
+        "names": [
+          "codex",
+          "codex-aarch64-apple-darwin",
+          "codex-x86_64-apple-darwin"
+        ],
+        "exclude_args": [
+          "app-server",
+          "exec",
+          "e",
+          "review",
+          "exec-server",
+          "mcp-server",
+          "mcp",
+          "proxy",
+          "login",
+          "logout",
+          "doctor",
+          "debug",
+          "sandbox",
+          "completion",
+          "features",
+          "plugin",
+          "apply",
+          "update",
+          "queue",
+          "archive",
+          "delete",
+          "unarchive",
+          "migrate-rollouts",
+          "remote-control",
+          "cloud",
+          "help",
+          "--version",
+          "--help"
+        ]
+      },
+      "session_id_args": [
+        "resume",
+        "fork"
+      ]
+    },
+    {
+      "kind": "cloud",
+      "label": "Codex cloud tasks (chatgpt.com/codex, `codex cloud`). No local process; runs in OpenAI's sandbox."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.codex/sessions/*/*/*/rollout-*.jsonl",
+    "per_session": "~/.codex/sessions/*/*/*/rollout-*-{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "name": "Codex is running an active turn",
+      "meaning": "IOPMAssertion PreventUserIdleSystemSleep held in-process (no caffeinate child) for exactly the length of a turn, but ONLY when features.prevent_idle_sleep=true. That flag is experimental and off by default (off on this Mac), so treat presence as proof of working and absence as no information."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "name": "rollout tail has an open turn",
+      "meaning": "Precise form: the newest turn-lifecycle record in the rollout is event_msg/task_started with no later task_complete or turn_aborted, AND the file was written recently. Measured in-turn gaps between records: p50 0.1s, p90 14.5s, p99 56.8s, max 528s (long tool call), so a 30s window misses 4.2% of gaps (72 of 1732) and a 20s window 7.3% (127 of 1732); one 16-turn session only; a bare open turn with a quiet file is either a long tool call, a permission prompt, or a crashed process."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Summed CPU of the process that HOSTS the thread. For a TUI attached to the shared daemon, or the desktop app, that is the `codex app-server` process (one process, many threads), so CPU cannot say which thread is working."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Runs when Codex is about to ask for approval (shell escalation, apply_patch, MCP tool, managed-network). Does not run for commands that need no approval. There is no Notification-style hook, and no hook for request_user_input questions."
+    },
+    {
+      "signal": "app_server_notification",
+      "method": "thread/status/changed",
+      "meaning": "status {type: active, activeFlags: [waitingOnApproval | waitingOnUserInput]} from a client connected to the app-server (stdio, or unix socket ~/.codex/app-server-control/app-server-control.sock inferred from strings in the binary). The only source that also covers request_user_input."
+    },
+    {
+      "signal": "tui_notification",
+      "config": "tui.notifications (event types agent-turn-complete, approval-requested), tui.notification_method auto|osc9|bel, tui.notification_condition unfocused|always",
+      "meaning": "Terminal escape sequence or bell only. Nothing a process outside the terminal can read."
+    },
+    {
+      "signal": "transcript_absence",
+      "meaning": "Approval requests, request_user_input and elicitations are NOT persisted to the rollout (rollout/src/policy.rs lists them as not persisted), so a waiting agent looks like a quiet open turn in the transcript."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.codex/hooks.json or [hooks] tables in ~/.codex/config.toml; <repo>/.codex/hooks.json or config.toml (trusted projects only); plugin hooks/hooks.json; managed requirements.toml. New or changed non-managed hooks are skipped until reviewed and trusted in the CLI /hooks screen. Separate legacy `notify = [argv...]` in config.toml fires only for agent-turn-complete and is a single command (already taken on this Mac by the desktop app's Computer Use plugin).",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "PreCompact",
+      "PostCompact",
+      "SubagentStart",
+      "SubagentStop",
+      "Stop",
+      "Interrupt",
+      "SessionEnd"
+    ],
+    "docs": "https://learn.chatgpt.com/docs/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Off by default. Set [otel] in ~/.codex/config.toml (user level only; ignored in project .codex/config.toml): exporter = { otlp-http = {...} } or { otlp-grpc = {...} } for log events (codex.conversation_starts, codex.api_request, codex.sse_event, codex.user_prompt, codex.tool_decision, codex.tool_result), trace_exporter for traces, metrics_exporter for metrics (turn.e2e_duration_ms, tool.call, approval.requested, hooks.run, thread.started). log_user_prompt=false redacts prompts. Separately, anonymous usage metrics go to OpenAI by default unless [analytics] enabled=false."
+  },
+  "sources": [
+    {
+      "claim": "Installed: codex-cli 0.154.0, standalone install, symlink into ~/.local/bin, Mach-O arm64",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ls -la ~/.local/bin/codex` -> ~/.codex/packages/standalone/current/bin/codex -> releases/0.154.0-aarch64-apple-darwin; `file -L` printed 'Mach-O 64-bit executable arm64'; `codex --version` printed 'codex-cli 0.154.0'"
+    },
+    {
+      "claim": "Desktop app is /Applications/ChatGPT.app, bundle id com.openai.codex, display name ChatGPT, version 26.825.51511, and bundles its own codex (0.151.0-alpha.7.2)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`plutil -p /Applications/ChatGPT.app/Contents/Info.plist`: CFBundleIdentifier com.openai.codex, CFBundleDisplayName ChatGPT, CFBundleExecutable ChatGPT; `/Applications/ChatGPT.app/Contents/Resources/codex --version` printed 'codex-cli 0.151.0-alpha.7.2'"
+    },
+    {
+      "claim": "Desktop app launches the agent as `codex ... app-server --analytics-default-enabled` from CODEX_CLI_PATH or Resources/codex",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "regex over /Applications/ChatGPT.app/Contents/Resources/app.asar printed: function LH(){return[...lH,...,`app-server`,`--analytics-default-enabled`]} and CODEX_CLI_PATH lookup; ~/.codex/config.toml sets CODEX_CLI_PATH = /Applications/ChatGPT.app/Contents/Resources/codex. The `...lH` prefix (extra -c flags) was not resolved."
+    },
+    {
+      "claim": "IDE extension ships its own codex binary under bin/macos-aarch64/ and launches it as `codex -c features.code_mode_host=true app-server --analytics-default-enabled`",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "~/.cursor/extensions/openai.chatgpt-26.908.40401-darwin-arm64/bin/macos-aarch64/codex --version printed 'codex-cli 0.154.0-alpha.6.2'. Extension present in Cursor only (two versions installed: 26.602.71036 bundles 0.137.0-alpha.4, 26.908.40401 bundles 0.154.0-alpha.6.2); VS Code is not installed here. Launch argv: `grep` of ~/.cursor/extensions/openai.chatgpt-26.908.40401-darwin-arm64/out/extension.js shows logger 'Spawning codex app-server' and spawn args [\"-c\",\"features.code_mode_host=true\",\"app-server\",\"--analytics-default-enabled\"] via SPe(), which cS.spawn()s the bundled binary. Never seen in live ps."
+    },
+    {
+      "claim": "No Codex process of any surface was running during research, so the probe could not classify a live instance",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ps -axo pid=,ppid=,pcpu=,tty=,args= | grep -i -E 'codex|chatgpt|openai|app-server'` printed nothing; `pmset -g assertions` listed no Codex-owned assertion; `tools/agents_probe.py --row registry/agents/codex.json` printed '0 agent sessions'"
+    },
+    {
+      "claim": "Sessions are JSONL rollouts under ~/.codex/sessions/YYYY/MM/DD/rollout-<timestamp>-<thread-uuid>.jsonl; the file name embeds the session id",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`find ~/.codex/sessions -type f` listed 34 files, e.g. sessions/2026/09/29/rollout-2026-09-29T13-22-51-01a0ecb0-4ab2-7b01-8b3d-01b0f23bc9f0.jsonl; state_5.sqlite table threads has a rollout_path column pointing at these files"
+    },
+    {
+      "claim": "Rollout record shape: {timestamp, ordinal, type, payload}; types session_meta, turn_context, response_item, event_msg (task_started, task_complete, item_completed, token_count), token_usage_record, world_state",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "key-name census (no values printed) of rollout-2026-09-29T13-22-51-*.jsonl: event_msg payload keys for task_started = [type, turn_id, started_at, model_context_window, collaboration_mode_kind]; task_complete = [type, turn_id, last_agent_message, started_at, completed_at, duration_ms, time_to_first_token_ms]; session_meta keys include id, cwd, originator, cli_version, source, thread_source, history_mode"
+    },
+    {
+      "claim": "Turn boundaries are persisted: TurnStarted (task_started), TurnComplete (task_complete), TurnAborted (turn_aborted) are always written; approval requests, request_user_input and elicitations are not",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/openai/codex/blob/main/codex-rs/rollout/src/policy.rs should_persist_event_msg: TurnAborted|TurnStarted|TurnComplete => true; ExecApprovalRequest|RequestPermissions|RequestUserInput|ElicitationRequest|ApplyPatchApprovalRequest listed in the branch ending `=> false`. Wire names: codex-rs/protocol/src/protocol.rs serde(rename = \"task_started\") / \"task_complete\""
+    },
+    {
+      "claim": "A SQLite projection mirrors turn state live: thread_history_1.sqlite thread_turns.status is inProgress or completed (protocol also has interrupted, failed). It can be stale: a crashed run stays inProgress forever",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`sqlite3 'file:thread_history_1.sqlite?mode=ro&immutable=1' 'select status,count(*) from thread_turns group by 1'` printed completed|22 and inProgress|1. The inProgress turn belongs to thread 01a0ebbe-3827-... (source exec, originator codex_sdk_ts) started 2026-09-29 08:58, ~5 hours ago, with no codex process running and no ~/.codex/thread-writer-locks/01a0ebbe-...lock file. TurnStatus enum: codex-rs/app-server-protocol/src/protocol/v2/turn.rs"
+    },
+    {
+      "claim": "Session index: state_5.sqlite table threads (id, rollout_path, updated_at, source, originator, cwd, cli_version, history_mode, archived, ...); source values seen: cli, exec, vscode; originator seen: codex-tui, codex_sdk_ts",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`sqlite3 'file:state_5.sqlite?mode=ro&immutable=1' '.schema threads'` and `select source,originator,history_mode,cli_version,count(*) from threads group by 1,2,3,4` (rows: cli|codex-tui|paginated|0.154.0|1; exec|codex_sdk_ts|paginated|0.155.0|4; vscode||legacy|0.39.0..0.47.0|22; vscode||paginated|0.150.0-alpha.8|1). Titles and previews were not read."
+    },
+    {
+      "claim": "A process can be mapped to its thread through an flock on ~/.codex/thread-writer-locks/<thread-id>.lock (lsof shows the holder pid). Holding the lock means the process owns the thread, not that a turn is running.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/openai/codex/blob/main/codex-rs/rollout/src/writer_lock.rs: WRITER_LOCK_DIR = \"thread-writer-locks\", path = directory.join(format!(\"{thread_id}.lock\")), file.try_lock() with WouldBlock => 'thread already has an active writer'; stale locks are removed when try_lock succeeds. Locally only .coordination.lock exists (nothing running); the per-thread lock-and-lsof path itself was NOT exercised."
+    },
+    {
+      "claim": "macOS sleep inhibitor: IOPMAssertionCreateWithName(PreventUserIdleSystemSleep, name 'Codex is running an active turn'), native, no caffeinate. Gated by experimental feature prevent_idle_sleep, default false",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/openai/codex/blob/main/codex-rs/utils/sleep-inhibitor/src/macos.rs (ASSERTION_REASON, ASSERTION_TYPE_PREVENT_USER_IDLE_SYSTEM_SLEEP) and lib.rs ('macOS: Uses native IOKit power assertions instead of spawning `caffeinate`'); local `codex features list` printed 'prevent_idle_sleep  experimental  false'; `strings` on the 0.154.0 binary contains 'Codex is running an active turn'; docs config reference: 'features.prevent_idle_sleep ... (experimental; off by default)'"
+    },
+    {
+      "claim": "In-turn rollout write gaps: p50 0.1s, p90 14.5s, p99 56.8s, max 528s; 127 of 1732 gaps exceed 20s",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "timestamp-only scan (record type and timestamp, no content) of one 16-turn paginated rollout, sessions/2026/09/14/rollout-2026-09-14T18-03-54-01a0a0a9-*.jsonl, between each task_started and its task_complete. One session only; legacy-format 2025 rollouts have no ordinal field and were not measured."
+    },
+    {
+      "claim": "Hooks: events, config locations, trust review, PermissionRequest semantics, matcher rules, `notify` limited to agent-turn-complete",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://learn.chatgpt.com/docs/hooks (developers.openai.com/codex/hooks redirects there) and https://learn.chatgpt.com/docs/config-file/config-advanced sections 'Hooks' and 'Notifications'; JSON schemas in https://github.com/openai/codex/tree/main/codex-rs/hooks/schema/generated"
+    },
+    {
+      "claim": "No hooks.json, no [hooks] table and no [otel] table exist on this Mac, so hooks and OTel are unconfigured; config.toml has `notify` pointing at the desktop app's SkyComputerUseClient turn-ended",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ls ~/.codex/hooks.json` -> No such file; `grep -c '^\\[hooks' ~/.codex/config.toml` printed 0; `grep -n -i otel ~/.codex/config.toml` printed nothing; `grep -n notify ~/.codex/config.toml` printed line 5 (path redacted here)"
+    },
+    {
+      "claim": "OpenTelemetry: opt-in [otel] with otlp-http/otlp-grpc exporters, event names, metrics names; metrics_exporter defaults to statsig; [analytics] enabled=false turns off default anonymous metrics; otel/notify keys are ignored in project-local config",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://learn.chatgpt.com/docs/config-file/config-advanced ('Observability and telemetry', 'Project config files') and https://learn.chatgpt.com/docs/config-file/config-reference (otel.exporter, otel.trace_exporter, otel.metrics_exporter 'defaults to `statsig`', otel.log_user_prompt); implementation in https://github.com/openai/codex/tree/main/codex-rs/otel"
+    },
+    {
+      "claim": "Waiting on the human is exposed by app-server as thread status active with activeFlags waitingOnApproval / waitingOnUserInput, via thread/status/changed",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://learn.chatgpt.com/docs/app-server (example {\"method\":\"thread/status/changed\",\"params\":{\"threadId\":\"thr_123\",\"status\":{\"type\":\"active\",\"activeFlags\":[\"waitingOnApproval\"]}}}); enum ThreadActiveFlag { WaitingOnApproval, WaitingOnUserInput } and ThreadStatus { NotLoaded, Idle, SystemError, Active } in codex-rs/app-server-protocol/src/protocol/v2/thread.rs; the strings waitingOnApproval and waitingOnUserInput are in the local binary"
+    },
+    {
+      "claim": "Shared daemon runs as `codex app-server [--remote-control] --listen unix://` (plus a long-lived `codex app-server daemon pid-update-loop` helper that is not an agent), tracked by ~/.codex/app-server-daemon/daemon.pid; TUI attaches to it implicitly and falls back to an embedded server",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/openai/codex/blob/main/codex-rs/app-server-daemon/src/backend/pid.rs (command_args: ['app-server','--remote-control','--listen','unix://'] or ['app-server','--listen','unix://']; updater: ['app-server','daemon','pid-update-loop']) and lib.rs DAEMON_PID_FILE_NAME='daemon.pid', STATE_DIR_NAME='app-server-daemon'; README.md of the crate; local `codex agents --help` 'Browse all agent sessions on the shared local app-server daemon'. No daemon was running and ~/.codex/app-server-daemon does not exist."
+    },
+    {
+      "claim": "Cloud tasks have no local process; managed via `codex cloud` (exec, status, list, apply, diff)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`codex cloud --help` printed 'Browse tasks from Codex Cloud and apply changes locally' with subcommands exec, status, list, apply, diff. Not queried (needs network and login)."
+    },
+    {
+      "claim": "Release tarballs contain a binary named codex-aarch64-apple-darwin, so Homebrew/manual installs may run under that name",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://api.github.com/repos/openai/codex/releases/latest (rust-v0.159.0) asset names codex-aarch64-apple-darwin.tar.gz/.dmg. The inner binary name and Homebrew's symlink behaviour were not verified: inferred. Upstream README (https://raw.githubusercontent.com/openai/codex/main/README.md line 64): 'Each archive contains a single entry with the platform baked into the name (e.g., codex-x86_64-unknown-linux-musl), so you likely want to rename it to codex after extracting it.' The npm vendor binary and the TS SDK resolver (sdk/typescript/src/exec.ts) use the name `codex`. Release also ships a separate codex-app-server-aarch64-apple-darwin asset; whether a process runs under that name is unknown."
+    },
+    {
+      "claim": "Process rules classify the expected argv shapes (synthetic test, not a live process)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "imported tools/agents_probe.matches() and fed it 13 made-up argv lines: desktop `.../ChatGPT.app/Contents/Resources/codex app-server ...` -> gui; extension path -> ide; `codex app-server --listen unix://` -> daemon; `codex`, `codex resume <id>` -> tui (sid extracted); `codex exec ...`, `codex exec resume abc` -> exec surface; `app-server daemon pid-update-loop`, `codex doctor`, `codex exec-server`, codex-code-mode-host, the Electron host `.../MacOS/ChatGPT` and `node .../codex.js` -> no match. Confirms rule logic only; real ps output for these processes was not observed. Re-tested in the verification pass with 13 more lines after adding exclude_args to gui/ide and a review surface: `app-server proxy` and `app-server daemon pid-update-loop` under the ChatGPT.app or extension path no longer match; `codex review` now matches; `codex exec --experimental-json resume <uuid>` yields the uuid via session_id_args."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not verified-locally: no Codex process was running, so the probe never classified a live instance. The agent loop lives in `codex app-server` (desktop app asar and IDE extension JS both spawn it; the TUI embeds one or attaches to the shared daemon, per app-server-daemon/README.md), so 'one process = one session' is false: one app-server hosts many threads and its CPU and children cannot be attributed to a thread. Best per-thread working check: newest rollout record is task_started (no task_complete/turn_aborted) AND the file grew in the last ~30s AND ~/.codex/thread-writer-locks/<thread>.lock is held by a live pid (lsof). Read thread_history_1.sqlite with mode=ro (not immutable=1) if used live. tool_children is deliberately absent: MCP servers (node_repl etc.) are long-lived children of the host and would read as work; unverified without a live process. Session-id flag mapping only works for `codex resume <id>` / `codex fork <id>`; a fresh TUI session carries no id in argv, use the writer lock. Executable names seen: `codex` (standalone, SDK, extension, desktop-bundled). $CODEX_HOME relocates everything above. Known gaps: the `codex e` alias matches no surface (a bare `e` cannot be expressed: args_contain is AND-only and substring-based); `codex review` is handled by its own surface; because exclude_args is matched against whitespace-split argv words, a TUI started with a prompt containing an excluded word (`codex fix the update logic`) is missed, and args_contain is a substring test so a prompt mentioning `app-server` or `exec` can land on the wrong surface (same kind, so harmless); path_contains is a prefix match on argv[0], so any binary under ChatGPT.app/Contents/Resources/codex* (e.g. codex-code-mode-host, codex_chronicle) would match if it ever received an `app-server` argument; `codex agents` (a session browser attached to the daemon, `codex agents --help`) is counted as a TUI session, unverified whether it should be; a different product with a binary simply named `codex` would match the TUI surface, since names carry no path check; the release asset codex-app-server-aarch64-apple-darwin is not in names (unknown whether it is ever run); the npm wrapper `node .../codex.js` is not matched on purpose (its child, the vendor `codex`, is)."
+}

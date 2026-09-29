@@ -1,0 +1,222 @@
+{
+  "id": "t3-code",
+  "name": "T3 Code",
+  "vendor": "T3 Tools (pingdotgg)",
+  "homepage": "https://t3.codes",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "T3 Code desktop app (Electron). The main process and its backend child share one executable; the backend is the same binary run with ELECTRON_RUN_AS_NODE=1 on apps/server/dist/bin.mjs. Claude Code and Codex sessions run as descendants of it.",
+      "bundle_ids": [
+        "com.t3tools.t3code"
+      ],
+      "process": {
+        "path_contains": [
+          "/T3 Code (Alpha).app/Contents/MacOS/",
+          "/T3 Code (Nightly).app/Contents/MacOS/",
+          "/Applications/T3"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "t3 CLI server: `t3` / `t3 start` / `t3 serve`, or the launchd service (`t3 __service-launcher` supervising `t3 serve`). Self-contained executable unpacked to ~/.t3/runtime/versions/<version>/t3 and symlinked at ~/.local/bin/t3; matched by executable name `t3`. One-shot subcommands (update, uninstall, trace, service, app, auth, connect, pair, project, theme, triage) are excluded so they are not counted as a server.",
+      "process": {
+        "names": [
+          "t3"
+        ],
+        "path_contains": [
+          "/.t3/runtime/versions/"
+        ],
+        "exclude_args": [
+          "update",
+          "uninstall",
+          "trace",
+          "service",
+          "app",
+          "auth",
+          "connect",
+          "pair",
+          "project",
+          "theme",
+          "triage",
+          "--version",
+          "--help"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "npx t3@latest / npm-installed t3: the published `t3` package's bin is bin/t3.js, a node launcher that spawnSync's the native executable from @t3code/t3-darwin-arm64/t3 (the server proper, matched by the `t3` name above). This entry matches the outer node launcher via its .bin/t3 argv; the probe keeps the outermost process. Loose substring match (also hits .bin/t3-*).",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/node_modules/.bin/t3"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.t3/userdata/state.sqlite",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "~/.t3/userdata/state.sqlite-wal",
+      "within_seconds": 10,
+      "meaning": "T3 keeps every thread in one SQLite database in WAL mode, not one file per session. Assistant deltas go through the orchestration event store, so the -wal file is expected to be appended while a turn streams (not observed; responseStreamingMode 'turn' or 'paragraph' buffers deltas, so gaps are possible). Not a per-session signal, and agents_probe cannot evaluate it (no session id on any T3 process). Exact truth is projection_thread_sessions.status='running' with a non-null active_turn_id, read from state.sqlite. Inferred, never observed."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "Sum over the T3 process tree (app or t3 serve, its provider children `claude`/`codex app-server`, and their tool children). The floor is a guess: no idle-versus-turn measurement exists because T3 Code is not installed here."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "sqlite",
+      "table": "projection_threads",
+      "columns": [
+        "pending_approval_count",
+        "pending_user_input_count"
+      ],
+      "meaning": "Either count above 0 means the thread is blocked on the human (tool approval, or a question from the agent). Also projection_pending_approvals.status='pending'. Read-only query of ~/.t3/userdata/state.sqlite; never select message columns."
+    },
+    {
+      "signal": "ui",
+      "meaning": "The T3 UI, and its mobile push notifications ('needs approval' / 'asks for input'), show the same state. Nothing is visible in ps: the provider child stays alive with no CPU and no transcript writes while blocked."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "T3 Code has no agent lifecycle hooks of its own. Its `t3.json` holds project actions and worktree settings, not turn events. Claude Code sessions it starts pass settingSources user, project, local to the Claude Agent SDK, and Anthropic's SDK docs say shell command hooks from settings files load for enabled setting sources, so Claude Code's own hooks should fire under T3 Code (documented for the SDK; not observed under T3, and Notification may not fire when approval is answered through the canUseTool callback).",
+    "events": [],
+    "docs": "https://github.com/pingdotgg/t3code/blob/main/docs/user/project-settings.md"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Opt-in OTLP over HTTP (http/json default, http/protobuf) for traces, metrics and logs from the backend (service t3code-server) and traces plus logs from the desktop main process (service t3code-desktop). Set T3CODE_OTLP_TRACES_URL / T3CODE_OTLP_METRICS_URL / T3CODE_OTLP_LOGS_URL (or standard OTEL_EXPORTER_OTLP_*_ENDPOINT) in the environment of the process that starts T3 Code; launching from Finder does not inherit shell variables. Metrics include t3_provider_turns_total and t3_provider_turn_duration. A local trace file ~/.t3/userdata/logs/server.trace.ndjson is always written, but only for finished spans. Separate from this, product analytics go to PostHog unless T3CODE_TELEMETRY_ENABLED=false."
+  },
+  "sources": [
+    {
+      "claim": "Product is an Electron desktop app, a web app, mobile apps and a `t3` CLI/server; it drives Codex, Claude Code, Cursor, Grok Build, OpenCode and Antigravity",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/pingdotgg/t3code README (desktop, web, mobile, provider list: Claude Code, Codex, Cursor, Grok Build, OpenCode, Antigravity); latest non-prerelease v0.0.42 published 2026-09-16T04:59:02Z per https://api.github.com/repos/pingdotgg/t3code/releases/latest"
+    },
+    {
+      "claim": "Bundle id is com.t3tools.t3code for every channel",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "scripts/build-desktop-artifact.ts: const DESKTOP_APP_ID = \"com.t3tools.t3code\"; appId: DESKTOP_APP_ID. Homebrew cask zap stanzas list ~/Library/Preferences/com.t3tools.t3code.plist for both t3-code and t3-code@nightly (https://formulae.brew.sh/api/cask/t3-code.json)"
+    },
+    {
+      "claim": "macOS app names are 'T3 Code (Alpha).app' (stable) and 'T3 Code (Nightly).app'; the Mach-O inside Contents/MacOS is inferred to carry the same name (electron-builder default from productName)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/desktop/package.json productName \"T3 Code (Alpha)\"; scripts/build-desktop-artifact.ts resolveDesktopProductName returns \"T3 Code (Nightly)\" for -nightly versions; brew cask artifacts: app 'T3 Code (Alpha).app' and 'T3 Code (Nightly).app'. Executable name itself: inferred. Corroboration: docs/operations/observability.md shows the older path \"/Applications/T3 Code.app/Contents/MacOS/T3 Code\" (Mach-O named after productName). The Alpha executable name is still not observed."
+    },
+    {
+      "claim": "The desktop app spawns its backend as a child using its own executable in Node mode",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/desktop/src/backend/DesktopBackendConfiguration.ts: executablePath: process.execPath; args [ (--require compileCache), backendEntryPath, \"--bootstrap-fd\", \"3\" ]; env ELECTRON_RUN_AS_NODE: \"1\". apps/desktop/src/app/DesktopEnvironment.ts: backendEntryPath = <serverRoot>/apps/server/dist/bin.mjs"
+    },
+    {
+      "claim": "Claude Code is driven through the Claude Agent SDK with the user's own `claude` binary; the SDK spawns it as a child with stream-json in/out, `--session-id=<uuid>` for new threads and `--resume=<uuid>` for resumed ones (equals form, one argv token)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/server/src/provider/Layers/ClaudeAdapter.ts queryOptions: pathToClaudeCodeExecutable: claudeBinaryPath, settingSources user/project/local, resume, sessionId, includePartialMessages, canUseTool. @anthropic-ai/claude-agent-sdk 0.3.284 tarball (sdk.mjs, read locally, not installed): H=[\"--output-format\",\"stream-json\",\"--verbose\",\"--input-format\",\"stream-json\"]; H.push(`--resume=${L}`); H.push(`--session-id=${this.options.sessionId}`); env CLAUDE_CODE_ENTRYPOINT=\"sdk-ts\". T3 pins ^0.3.276 (apps/server/package.json)"
+    },
+    {
+      "claim": "Codex is driven by spawning `codex app-server` as a child, one per session runtime",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/server/src/provider/Layers/codexLaunchArgs.ts (\"app-server\" arg) and CodexSessionRuntime.ts (spawner.spawn(ChildProcess.make(spawnCommand.command, spawnCommand.args, {cwd, env: CODEX_HOME ...})))"
+    },
+    {
+      "claim": "T3 state lives under ~/.t3/userdata (T3CODE_HOME or --base-dir overrides ~/.t3; dev runs use ~/.t3/dev): state.sqlite (WAL), settings.json, logs/server.trace.ndjson, server-runtime.json (pid, port, origin)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/server/src/config.ts deriveServerPaths (stateDir = baseDir/userdata, dbPath = state.sqlite, serverRuntimeStatePath = server-runtime.json); apps/server/src/os-jank.ts resolveBaseDir (homedir/.t3); apps/server/src/persistence/Layers/Sqlite.ts (PRAGMA journal_mode = WAL). Docs name ~/.t3/userdata only as the place projects, threads and settings live: docs/user/background-service.md"
+    },
+    {
+      "claim": "Session status vocabulary: idle, starting, running, ready, interrupted, stopped, error; turn states running, interrupted, completed, error; pending approvals table; per-thread pending counts",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/contracts/src/orchestration.ts (OrchestrationSessionStatus, OrchestrationLatestTurnState, ProjectionPendingApprovalStatus = pending|resolved); apps/server/src/persistence/Migrations/005_Projections.ts (projection_thread_sessions.status, active_turn_id; projection_turns.state; projection_pending_approvals) and 023_ProjectionThreadShellSummary.ts (projection_threads.pending_approval_count, pending_user_input_count)"
+    },
+    {
+      "claim": "A turn ending and its follow-up work settling are separate; the turn is settled from session status, and late checkpoint work must not keep the client showing work as active",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/pingdotgg/t3code/blob/main/docs/internals/overview.md section 'Turn completion and checkpoints'"
+    },
+    {
+      "claim": "A Claude turn can sit 'working' while the subscription usage limit window is closed",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-claude.md section 'Usage limits': 'Claude Code holds the turn until that window reopens, so it can keep showing as working'"
+    },
+    {
+      "claim": "Approvals and questions are modelled as thread activities approval.requested/approval.resolved and user-input.requested/user-input.resolved",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/server/src/orchestration/Layers/ProviderRuntimeIngestion.ts (kind: \"approval.requested\", \"user-input.requested\"); docs/user/permission-modes.md (Supervised asks for approval; default for new threads is Full access)"
+    },
+    {
+      "claim": "CLI install and background service layout on macOS",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/pingdotgg/t3code/blob/main/docs/user/install.md and background-service.md: `t3` in ~/.local/bin; scripts/install.sh unpacks to $T3CODE_HOME/runtime/versions/<version> and symlinks ~/.local/bin/t3; service is ~/Library/LaunchAgents/com.t3tools.t3code.service.plist; apps/server/src/cli/serviceLauncher.ts: the service manager runs `t3 __service-launcher`, which spawns the server (`serve`)"
+    },
+    {
+      "claim": "OpenTelemetry export: env names, protocols, service names, kill switch, desktop main process as second producer",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/pingdotgg/t3code/blob/main/docs/operations/observability.md; apps/server/src/config.ts otlpResource: serviceName \"t3code-server\", service.namespace \"t3code\"; apps/server/src/observability/Layers/Observability.ts (OtlpTracer, OtlpMetrics)"
+    },
+    {
+      "claim": "T3 Code is not installed on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls /Applications | grep -iE 't3|claude|codex' printed nothing; ps -axo pid,ppid,args | grep -iE 't3|app-server' printed nothing; ls ~/.t3 -> No such file or directory; ls ~/Library/LaunchAgents | grep -i t3 -> nothing; which t3 t3code -> not found. Local claude is 2.1.284 (claude --help lists --session-id <uuid>, --resume, --input-format, --output-format)"
+    },
+    {
+      "claim": "Published npm package `t3` (0.0.42) is a node launcher, bin ./bin/t3.js, that spawnSync's the native `t3` from optional dependency @t3code/t3-darwin-arm64 (also linux-arm64/x64, win32); the monorepo apps/server/package.json bin (./dist/bin.mjs) is not what npx runs",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://registry.npmjs.org/t3/-/t3-0.0.42.tgz unpacked in scratchpad, not installed: package.json bin {t3: ./bin/t3.js}, optionalDependencies @t3code/t3-darwin-arm64 0.0.42; bin/t3.js: #!/usr/bin/env node, require.resolve('@t3code/t3-'+platform-arch), spawnSync(join(packageDir,'t3'), process.argv.slice(2), {stdio:'inherit'})"
+    },
+    {
+      "claim": "t3 CLI has one-shot subcommands (update, uninstall, trace, service install/status/restart/uninstall, app, auth, connect, pair, project, theme, triage) besides the long-running start/serve/__service-launcher",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/server/src/cli/{update,uninstall,trace,service,app,auth,connect,pair,project,theme,triage,server}.ts Command.make(...) and withDescription (e.g. pair: 'Mint a pairing token for a running T3 Code server and print it as a QR code')"
+    },
+    {
+      "claim": "Shell command hooks in settings files load in Agent SDK sessions when the matching settingSources entry is enabled",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://code.claude.com/docs/en/agent-sdk/hooks.md: 'shell command hooks from settings files when the corresponding settingSources ... entry is enabled'"
+    },
+    {
+      "claim": "server-runtime.json holds pid, port and origin",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/server/src/serverRuntimeState.ts PersistedServerRuntimeState: pid: Schema.Int, port: Schema.Int, origin: Schema.String"
+    },
+    {
+      "claim": "Process-pattern false positives, evaluated with agents_probe.matches() on synthetic argv (no real process)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Before repair: '/.local/bin/t3d' matched the t3 daemon surface (substring path), 't3 service status' and 't3 project add x' matched, '/Applications/T3 Chat.app/...' matched the gui surface. After repair: t3d, service, project no longer match; the /Applications/T3 prefix remains (probe splits args on spaces, so it cannot be made more specific)."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "T3 Code is a control surface, not an agent: the model work happens in provider children (`claude` via the Claude Agent SDK, `codex app-server`) that are descendants of the T3 backend. A claude child under T3 has no TTY, carries `--input-format stream-json` and `--session-id=<uuid>` or `--resume=<uuid>` (equals form, so a matcher that expects a separate value token will miss it), and has CLAUDE_CODE_ENTRYPOINT=sdk-ts in its environment. Its transcript is a normal ~/.claude/projects/*/<uuid>.jsonl, so the claude-code row's transcript_write applies to it once the equals form is parsed; attribute it to T3 by parent chain and avoid double counting. Do not use tool_children on the T3 tree: provider children stay alive between turns, so it would always fire. Provider processes are kept per thread session and reaped later (ProviderSessionReaper), so their existence is not a working signal. The agents_probe cannot match the desktop app by path with spaces: it splits `ps args` on spaces, so exe is '/Applications/T3'; the loose '/Applications/T3' path_contains entry exists for that, while a proc_pidpath based detector matches the exact 'T3 Code (Alpha).app/Contents/MacOS/' entries. Residual false positives: the gui entry '/Applications/T3' is a prefix match and would also hit another app whose path starts with it (e.g. a hypothetical '/Applications/T3 Chat.app'), and the node entry matches any argv containing '/node_modules/.bin/t3' including '.bin/t3-*'. A proc_pidpath detector should match the exact bundle paths or bundle id com.t3tools.t3code instead. Under npx the real server is a native `t3` child of a node launcher, not node running dist/bin.mjs. Never verified against a running instance: every field is from docs and source; executable names and ps forms are inferred."
+}

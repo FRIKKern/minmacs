@@ -1,0 +1,334 @@
+{
+  "id": "hermes",
+  "name": "Hermes Agent",
+  "vendor": "Nous Research",
+  "homepage": "https://hermes-agent.nousresearch.com",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Hermes Desktop (Electron). Turns do NOT run in this process: they run in a `hermes serve` Python backend the app spawns or attaches to. Bundle name is inconsistent in the vendor tree: Hermes.app (installer docs and update code) vs Hermes Agent.app (product-identity.cjs, bundled variant).",
+      "bundle_ids": [
+        "com.nousresearch.hermes",
+        "com.nousresearch.hermes-bundled",
+        "com.nousresearch.hermes-light",
+        "com.nousresearch.hermes-canary",
+        "com.nousresearch.hermes-bundled-canary",
+        "com.nousresearch.hermes-light-canary"
+      ],
+      "process": {
+        "path_contains": [
+          "/Hermes.app/Contents/MacOS/Hermes",
+          "/Hermes Agent.app/Contents/MacOS/Hermes Agent",
+          "/Hermes Light.app/Contents/MacOS/Hermes Light"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Messaging gateway (`hermes gateway run`). On macOS a launchd job, label ai.hermes.gateway or ai.hermes.gateway-<profile>, plist ~/Library/LaunchAgents/<label>.plist. Tree: osascript -> sh -> python wrapper (hermes_cli.stderr_timestamp) -> python gateway run.",
+      "process": {
+        "names": ["python3", "python", "Python", "python3.14", "python3.13", "python3.12", "python3.11"],
+        "args_contain": ["hermes_cli", "gateway"]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Headless backend `hermes serve --host 127.0.0.1 --port 0 [--profile P]` that Hermes Desktop spawns (or attaches to; one per host). `hermes mcp serve` (a stdio MCP bridge that other agents such as Claude Code or Cursor spawn as a helper, not an agent turn runner) is excluded by the argv token `mcp`.",
+      "process": {
+        "names": ["python3", "python", "Python", "python3.14", "python3.13", "python3.12", "python3.11"],
+        "args_contain": ["hermes_cli.main", "serve"],
+        "exclude_args": ["mcp"]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Legacy Desktop backend `python -m hermes_cli.main dashboard --no-open` (older runtimes fall back to it) and the user-run `hermes dashboard` web UI (chat is served over /api/pty).",
+      "process": {
+        "names": ["python3", "python", "Python", "python3.14", "python3.13", "python3.12", "python3.11"],
+        "args_contain": ["hermes_cli.main", "dashboard"]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "ACP server for Zed, VS Code, JetBrains: `hermes-acp` launcher or `python -m acp_adapter`",
+      "process": {
+        "names": ["python3", "python", "Python", "python3.14", "python3.13", "python3.12", "python3.11"],
+        "args_contain": ["acp_adapter"]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "ACP server started as the `hermes acp` subcommand",
+      "process": {
+        "names": ["python3", "python", "Python", "python3.14", "python3.13", "python3.12", "python3.11"],
+        "args_contain": ["hermes_cli.main", "acp"]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Hermes CLI and TUI (`hermes`, `hermes --tui`). ps shows the store Python interpreter running an inline `-I -c` (source install) or `-P -c` (bundled payload) bootstrap that imports hermes_cli.main, not a process called hermes. TUI tree: this python -> node --expose-gc .../dist/entry.js -> python -m tui_gateway.entry (the agent lives in the last one).",
+      "process": {
+        "names": ["python3", "python", "Python", "python3.14", "python3.13", "python3.12", "python3.11"],
+        "args_contain": ["hermes_cli.main"],
+        "exclude_args": ["gateway", "serve", "dashboard", "acp", "mcp"]
+      },
+      "session_id_args": ["--resume", "-r"]
+    },
+    {
+      "kind": "tui",
+      "label": "Fallback: a process titled `hermes`. Only when the optional setproctitle package is installed, which then also hides all argv from ps. Not shipped by default.",
+      "process": {
+        "names": ["hermes"]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.hermes/state.db",
+    "format": "sqlite",
+    "documented": true,
+    "profile_glob": "~/.hermes/profiles/*/state.db",
+    "note": "One SQLite database (WAL mode) per profile home, shared by CLI, TUI, Desktop, gateway, cron and ACP. Not one file per session, so there is no per_session path. HERMES_HOME moves it. Tables sessions and messages hold the private conversation: read only session_turn_leases, gateway_heartbeats and sessions metadata columns. JSONL appears only as an emergency spill at ~/.hermes/sessions/<id>.jsonl when state.db was replaced under a live process."
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "state.db-wal mtime",
+      "within_seconds": 20,
+      "meaning": "Weak and database-wide, not per session: any Hermes process writing any session moves the WAL mtime. Messages are flushed per tool round and at turn end, and last_activity_at heartbeats about every 60 s, so a long model stream shows no writes. The reference probe cannot evaluate this (no per_session path), so it is inert there."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "Inferred and uncalibrated: no Hermes process was available to measure idle versus streaming. Sum over the whole tree, including the Node renderer and the tui_gateway child. Misses a turn that is only waiting on the network."
+    }
+  ],
+  "x_precise_working_signal": {
+    "note": "Not expressible in the schema's working_signals enum. Proposed new kind: sqlite_row. Read-only query against each state.db (default and every profiles/*/state.db).",
+    "query": "SELECT holder, conversation_id, expires_at FROM session_turn_leases WHERE expires_at > strftime('%s','now')",
+    "meaning": "A non-expired row means a turn is running right now. The row is taken when run_conversation starts and deleted when it ends, so it is per turn, not per open session. TTL 300 s, refreshed every 60 s, so a SIGKILLed holder leaves a row for up to 5 minutes: also require the holder pid to be alive.",
+    "holder_format": "pid=<pid>:turn=<session_id>:<task_id>:<8 hex>:platform=<cli|tui|desktop|telegram|subagent|...>",
+    "pid_to_process": "pid is the process running the agent: the hermes python for the classic CLI, the tui_gateway python (grandchild of the outer hermes) for the TUI, the hermes serve backend for Desktop and dashboard chat, the gateway process for messaging. Walk up to the matching surface. Turns in a compute-host child may name that child pid.",
+    "session_mapping": "conversation_id is the compression-lineage root session id; the turn= part of holder is the live session id. Subagents take their own rows with platform=subagent.",
+    "gateway_shortcut": "~/.hermes/gateway_state.json (and profiles/<p>/gateway_state.json): active_agents > 0 with gateway_state running or degraded means the gateway is busy (foreground turns + cron jobs + API runs). Stale after 120 s without updated_at."
+  },
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "pre_approval_request",
+      "meaning": "A dangerous-command approval (once/session/always/deny) is about to be asked of the human. Observer hook, so a shell hook or plugin has to write the marker. Paired with post_approval_response, which carries the choice (deny, timeout, cancelled)."
+    },
+    {
+      "signal": "none_builtin",
+      "meaning": "clarify, sudo and secret questions have no hook and no marker on disk. In TUI and Desktop they are server-to-client JSON-RPC requests (approval, clarify, sudo, secret) held open on the tui_gateway connection, invisible from outside. While blocked, the turn lease stays held and refreshed, so the lease query keeps saying working."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Shell hooks: `hooks:` block in ~/.hermes/config.yaml (per profile: ~/.hermes/profiles/<p>/config.yaml), each entry {matcher, command, timeout, fail_closed}; first-use consent stored in ~/.hermes/shell-hooks-allowlist.json (bypass: --accept-hooks, HERMES_ACCEPT_HOOKS=1, hooks_auto_accept: true). Python plugin hooks: ~/.hermes/plugins/<name>/ via ctx.register_hook, enabled in plugins.enabled. Gateway-only hooks: ~/.hermes/hooks/<name>/HOOK.yaml + handler.py (trusted by placement). Signed HTTP webhooks: `hooks.outbound:` list in ~/.hermes/config.yaml. Inspect with `hermes hooks list|test|revoke|doctor`.",
+    "events": [
+      "on_session_start",
+      "pre_llm_call",
+      "post_llm_call",
+      "pre_tool_call",
+      "post_tool_call",
+      "pre_api_request",
+      "post_api_request",
+      "api_request_error",
+      "on_stream_start",
+      "on_stream_end",
+      "pre_approval_request",
+      "post_approval_response",
+      "agent_loop_stopped",
+      "subagent_start",
+      "subagent_stop",
+      "on_session_end",
+      "on_session_finalize",
+      "on_session_reset",
+      "gateway:startup",
+      "session:start",
+      "session:end",
+      "agent:start",
+      "agent:step",
+      "agent:end",
+      "command:*"
+    ],
+    "docs": "https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks",
+    "note": "Turn boundaries: pre_llm_call fires once per turn before the loop; on_session_end fires at each turn finalization (canonical payload has completed, failed, interrupted, turn_exit_reason), NOT only when the session closes; post_llm_call fires only for successful, non-interrupted turns. Shell hooks get JSON on stdin and follow the Claude Code wire shape (exit 2 or {decision:block} blocks pre_tool_call). Full list is VALID_HOOKS in hermes_cli/plugins.py; the gateway:* names apply only to messaging sessions."
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Opt-in, gateway and cron only. config.yaml monitoring.gateway_health_export.enabled and monitoring.export.otlp {enabled, endpoint, headers_env}, OTLP/HTTP, needs the `otlp` extra (opentelemetry-sdk 1.39.1). Exports gateway up/state/busy/active_agents/background_work gauges, gateway.lifecycle spans and content-free warning logs. Never prompts, messages or tool data. No OTEL_* environment variables are read, and CLI, TUI and Desktop turns are not exported. Rich per-turn traces are a separate path: the observer hooks (telemetry_schema_version hermes.observer.v1), a Langfuse plugin, and NeMo Relay. Check with `hermes monitoring status`."
+  },
+  "sources": [
+    {
+      "claim": "Multi-surface: CLI, TUI (Node/Ink + Python tui_gateway over stdio JSON-RPC), Electron Desktop, messaging gateway, ACP adapter, dashboard; same agent core, one state.db",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "github.com/NousResearch/hermes-agent @6ffe3b2 AGENTS.md (What Hermes Is, Project Structure), tui_gateway/AGENTS.md (Process model), website/docs/user-guide/desktop.md"
+    },
+    {
+      "claim": "Session store is SQLite ~/.hermes/state.db in WAL mode, profile homes have their own state.db, JSONL was replaced",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://hermes-agent.nousresearch.com/docs/developer-guide/session-storage (also website/docs/developer-guide/session-storage.md @6ffe3b2)"
+    },
+    {
+      "claim": "JSONL only as emergency spill to ~/.hermes/sessions/<id>.jsonl when state.db was replaced under a live process",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_state.py divert_session_transcript_jsonl @6ffe3b2"
+    },
+    {
+      "claim": "Per-turn cross-process lease row in state.db: session_turn_leases(conversation_id, holder, acquired_at, expires_at); acquired at run_conversation start, TTL 300 s, refreshed every 60 s, released in finally; holder is pid=<pid>:turn=<relay_turn_id>:platform=<p>",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_state_common.py SCHEMA_SQL; agent/turn_facade_lease.py (LEASE_TTL_SECONDS = 300.0, refresh_interval default 60.0, holder f-string in admit_durable_turn_lease); agent/turn_facade.py run_conversation; hermes_state_compression.py try_acquire/refresh/release_session_turn_lease"
+    },
+    {
+      "claim": "Lease renewal is not evidence of progress, and a dead-pid holder is reclaimed only on proof the pid is gone. CORRECTED in verification: a stalled turn does not renew forever by default, because a liveness watchdog (agent.turn_liveness.timeout_s, default 600 s, 0 disables) aborts a turn with no activity and stops the refresher, so the row can still read as working for up to about 600 s of stall plus up to 300 s of TTL",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "agent/turn_facade_lease.py DurableTurnLease.build_threads and stop_refresher docstrings; agent/turn_liveness.py DEFAULT_TURN_LIVENESS_TIMEOUT_S = 600.0, resolve_turn_liveness_settings; hermes_state.py _compression_lock_holder_process_is_dead"
+    },
+    {
+      "claim": "On macOS ps shows the Python interpreter, not `hermes`: the process title is set with setproctitle only if installed, else pthread_setname_np, which the code itself says is not visible in ps aux; setproctitle is not a declared dependency",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_cli/main.py _set_process_title (docstring: 'macOS — lldb/top only, not ps aux'); grep -rn setproctitle pyproject.toml pm/ uv.lock printed nothing"
+    },
+    {
+      "claim": "Source-install launcher is `#!/bin/sh exec <store python> -I -c <bootstrap> \"$@\"`; bundled payload launcher execs `\"$PYTHON\" -P -c <code importing hermes_cli.main>`. Store python is <root>/bin/python3 under ~/.hermes/tools by default",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_cli/_launchers.py (_write_shell, _launcher_script, resolve_store_python); pm/environments.py store_root; scripts/build/launchers.py posix_launcher; hermes_cli/_launchers.py _symlink_sealed_launchers links ~/.local/bin/{hermes,hermes-agent,hermes-acp} into the .app payload on macOS"
+    },
+    {
+      "claim": "Hermes' own canonical process matcher: executables hermes, hermes-agent, hermes-acp, or python running module hermes_cli.main / acp_adapter or script hermes_cli/main.py / run_agent.py",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_state_holders.py _HERMES_EXECUTABLES, _HERMES_PYTHON_MODULES, _HERMES_PYTHON_SCRIPTS, _looks_like_hermes"
+    },
+    {
+      "claim": "TUI process tree: hermes python (subprocess.call, stays alive) -> node --expose-gc <ui-tui|hermes_cli/tui_dist>/dist/entry.js -> python -m tui_gateway.entry; TUI writes {session_id} to $TMPDIR/hermes-tui-active-session-*.json named in env HERMES_TUI_ACTIVE_SESSION_FILE",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_cli/main_tui_launch.py _launch_tui, _make_tui_argv; ui-tui/src/gatewayClient.ts:455 spawn(python, ['-m','tui_gateway.entry']); ui-tui/src/app/useSessionLifecycle.ts writeActiveSessionFile"
+    },
+    {
+      "claim": "--resume/-r takes a session id or title; a fresh session has no id on argv; --continue/-c takes an optional title",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_cli/_parser.py lines 175-190 (add('--resume','-r', metavar='SESSION'), add('--continue','-c', nargs='?'))"
+    },
+    {
+      "claim": "Desktop backend is `hermes serve --host 127.0.0.1 --port 0 [--profile P]`, one per host, registered in ~/.hermes/spawn-ledger.json (pid, create_time, purpose cli|serve|dashboard|gateway|mcp-helper, host, port, profile, argv)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/desktop/electron/backend-command.ts serveBackendArgs; backend-discovery.ts; hermes_cli/process_identity.py (LEDGER_FILENAME, register_self, REAPABLE_PURPOSES); cli.py:1747 register_self('cli')"
+    },
+    {
+      "claim": "Desktop bundle ids are com.nousresearch.<hermes|hermes-light|hermes-bundled>[-canary|-<sha7>]; macOS release workflow builds the bundled variant",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/desktop/product-identity.cjs (appId, displayName); .github/workflows/desktop-bundled-release.yml HERMES_DESKTOP_VARIANT: bundled; website/docs/developer-guide/macos-bundle-updates.md"
+    },
+    {
+      "claim": "Installed app path is /Applications/Hermes.app, executable Contents/MacOS/Hermes, bundle id com.nousresearch.hermes, userData ~/Library/Application Support/Hermes; product-identity.cjs would name the bundled variant 'Hermes Agent' (unresolved contradiction)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_cli/gui_uninstall.py packaged_gui_app_paths; hermes_cli/main_desktop.py:1578; hermes_cli/uninstall.py _macos_cache_leftover_dirs; https://hermes-agent.nousresearch.com/docs/getting-started/installation (copy Hermes.app to Applications); apps/desktop/product-identity.cjs variants.bundled.display"
+    },
+    {
+      "claim": "No per-turn power assertion: Desktop keep-awake is a user setting (default false) that starts an Electron powerSaveBlocker prevent-app-suspension; nothing in the agent runs caffeinate. Docs only tell operators to run caffeinate themselves for a gateway",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/desktop/electron/power-save.ts; apps/desktop/src/store/keep-awake.ts (storedBoolean(KEY, false)); website/docs/user-guide/multi-profile-gateways.md lines 1024-1041; grep for caffeinate/IOPMAssertion in non-test code found only those"
+    },
+    {
+      "claim": "Gateway daemon on macOS: launchd label ai.hermes.gateway[-suffix], plist ~/Library/LaunchAgents, ProgramArguments /usr/bin/osascript -l JavaScript running `exec <python -I -c ... hermes_cli.stderr_timestamp ... gateway run --external-supervisor>`",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_cli/gateway_launchd.py get_launchd_label, launchd_program_arguments, _timestamped_stderr_gateway_command; hermes_cli/gateway.py get_launchd_plist_path"
+    },
+    {
+      "claim": "Gateway publishes ~/.hermes/gateway_state.json with active_agents (foreground turns + cron + API runs), rewritten at each turn boundary; busy iff running/degraded and active_agents > 0; stale after 120 s",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "gateway/status.py (_RUNTIME_STATUS_FILE = 'gateway_state.json', _RUNTIME_STATUS_STALE_TTL_S = 120, derive_gateway_busy); gateway/run.py _persist_active_agents. The gateway-monitoring docs page defines active_agents (foreground message turns plus in-flight cron jobs) but never mentions gateway_state.json or the 120 s window, so those two details are source-only. Verification note: derive_gateway_busy keys liveness off gateway_running, never updated_at, so a stale file is a health warning, not proof the gateway is dead"
+    },
+    {
+      "claim": "Four hook systems (gateway, plugin, shell, outbound webhooks); shell hooks configured in config.yaml `hooks:`; consent file ~/.hermes/shell-hooks-allowlist.json",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks (sections Event Hooks, Shell Hooks, Consent model, Outbound Webhooks)"
+    },
+    {
+      "claim": "Hook events list and approval observers; no hook for clarify/sudo/secret prompts; on_session_end fires per turn finalization",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "hermes_cli/plugins.py VALID_HOOKS (pre_approval_request, post_approval_response, agent_loop_stopped, on_session_end ...); website/docs/user-guide/features/hooks.md plugin-hook catalog rows on_session_end, pre_approval_request"
+    },
+    {
+      "claim": "Approval/clarify/sudo/secret are server-to-client JSON-RPC requests that block the agent thread until answered",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "tui_gateway/AGENTS.md (Transport, Key surfaces table), tui_gateway/server_requests.py"
+    },
+    {
+      "claim": "OpenTelemetry: opt-in OTLP/HTTP export of gateway and cron health only, content-free, configured in config.yaml, SDK in the `otlp` extra; no OTEL_* env vars in the tree",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://hermes-agent.nousresearch.com/docs/developer-guide/gateway-monitoring; agent/monitoring/otlp_exporter.py; pyproject.toml extra otlp (opentelemetry-sdk==1.39.1); grep -rn OTEL_ over *.py *.md excluding tests and i18n printed nothing"
+    },
+    {
+      "claim": "VERIFICATION: the lease query in x_precise_working_signal is valid SQLite against the real schema (expires_at is REAL epoch seconds; strftime returns text, the REAL column affinity coerces it) and excludes expired rows",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 sqlite3 :memory: with CREATE TABLE copied from hermes_state_common.py line 555 (conversation_id TEXT PRIMARY KEY, holder TEXT NOT NULL, acquired_at REAL NOT NULL, expires_at REAL NOT NULL), one row expiring in +300 s and one at -100 s: the query returned only the live row. Constructed data, not a real Hermes database"
+    },
+    {
+      "claim": "VERIFICATION: holder string format is pid=<pid>:turn=<relay_turn_id>:platform=<p>, where relay_turn_id = <session_id or 'session'>:<task_id>:<uuid4 hex[:8]>; platform falls back to 'unknown'. Agents with persistence disabled (e.g. background_review) or no session DB take no lease row",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "agent/turn_facade.py:64 (relay_turn_id f-string); agent/turn_facade_lease.py admit_durable_turn_lease (holder f-string, _persist_disabled early return); agent/background_review.py:1000 sets _persist_disabled = True"
+    },
+    {
+      "claim": "VERIFICATION: the legacy Desktop backend is `-m hermes_cli.main dashboard --no-open`, produced by rewriting the serve argv; the previous serve surface did not match it, so a dashboard surface was added",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/desktop/electron/backend-command.ts dashboardFallbackArgs (returns [...args.slice(0, i), 'dashboard', '--no-open', ...args.slice(i + 1)]); hermes_cli/web_server.py imports run_reaper from hermes_cli.pty_session and serves /api/pty"
+    },
+    {
+      "claim": "VERIFICATION: `hermes mcp serve` is a stdio MCP server that other agents launch as a helper; it does not run agent turns, so it must not be classified as a Hermes backend",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "mcp_serve.py module docstring ('A stdio MCP server letting any MCP client (Claude Code, Cursor, Codex, ...)... Client config: {\"command\": \"hermes\", \"args\": [\"mcp\", \"serve\"]}'); hermes_cli/main.py:2959 'mcp': ('mcp_action', {'serve'})"
+    },
+    {
+      "claim": "VERIFICATION: reference matcher behaviour on constructed ps argv (not observed processes). Result after repair: `hermes`/`--tui`/`--resume` -> tui; `gateway run` -> gateway; `serve` -> serve; `dashboard` -> dashboard; `acp` -> acp; `mcp serve` -> nothing; `python -m tui_gateway.entry` -> nothing. Known misfires: any argv TOKEN CONTAINING the substring gateway, serve, dashboard or acp_adapter (e.g. a `hermes chat -q` prompt with the word 'server' or 'preserve', or `pytest tests/hermes_cli/test_gateway.py`) is filed under that daemon or ide surface, because args_contain is a substring test while exclude_args is an exact-token test",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 importing tools/agents_probe.py matches() over registry/agents/hermes.json with argv built from hermes_cli/_launchers.py _launcher_script text; python3 -I -c <script> [args]"
+    },
+    {
+      "claim": "VERIFICATION: Desktop bundle executable is CFBundleExecutable = displayName, and displayName gets ' Canary' or ' <sha7>' appended, so canary and commit builds are 'Hermes Canary.app' / 'Hermes <sha7>.app'; path_contains does not cover them (bundle_ids do). Bundle-id formula com.nousresearch.<hermes|hermes-light|hermes-bundled>[-canary|-<sha7>] confirmed",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "apps/desktop/electron-builder.config.cjs mac.extendInfo CFBundleExecutable; apps/desktop/product-identity.cjs (displayName, appId, kebabSuffix)"
+    },
+    {
+      "claim": "VERIFICATION: /Applications/Hermes.app is the shared install path for both installer and desktop app; a different, unrelated macOS app is also called Hermes (a Pandora client), so the path_contains match on /Hermes.app/Contents/MacOS/Hermes cannot by itself prove Nous Research's app (its .app and executable names are inferred, not stated on the page)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/NousResearch/hermes-agent/issues/125245 (log lines 'Installed the rebuilt Desktop app at /Applications/Hermes.app'); https://github.com/HermesApp/Hermes ('Compact macOS Pandora client that doesn't use Flash')"
+    },
+    {
+      "claim": "Hermes is not installed on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which hermes hermes-acp` -> not found; `ls -d ~/.hermes ~/Library/Application\\ Support/Hermes` -> No such file or directory; `ls /Applications | grep -i hermes` -> nothing; `ps -axo pid=,args= | grep -iE 'hermes|tui_gateway' | grep -v grep | wc -l` -> 0"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Every claim comes from the vendor's public source at commit 6ffe3b2 (2026-09-29) and its docs site; nothing was run because Hermes is not installed here, so confidence cannot exceed documented. Best turn signal is the session_turn_leases row (see x_precise_working_signal), which the schema cannot express yet; it is missing for agents with persistence disabled and can lag a wedged turn by up to about 15 minutes (600 s liveness watchdog plus 300 s TTL). Do not key on process name `hermes` or on caffeinate. The generic tui surface matches the python interpreter by argv, so it also catches one-shot `hermes chat -q` runs (cron, kanban workers) and any process whose argv mentions hermes_cli.main. Surface order matters for the reference probe (first match wins): gateway, serve, dashboard and acp surfaces come before the generic one, and the generic one excludes them by exact argv token. Misfiling is by SUBSTRING, not by whole word: args_contain is a substring test, so any argv token containing gateway, serve, dashboard or acp_adapter (a prompt saying 'server' or 'preserve', `pytest tests/hermes_cli/test_gateway.py`) is filed under that surface. `hermes mcp serve` is excluded on purpose because other agents spawn it as a helper. The GUI path match is /Hermes.app/Contents/MacOS/Hermes, which an unrelated Pandora client called Hermes would also satisfy: confirm com.nousresearch.* in Info.plist before trusting it. The fallback surface names=[hermes] is unreachable in a default install (setproctitle is not a dependency) and would also match any other executable called hermes; it is kept only for hand-configured installs. Canary and commit desktop builds are named 'Hermes Canary.app' / 'Hermes <sha7>.app' and are not covered by path_contains. The reference probe splits ps output on spaces, so 'Hermes Agent.app' paths cannot match there. Verified 2026-09-29 by an adversarial pass: see registry/evidence/hermes.md section Verification."
+}

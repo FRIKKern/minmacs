@@ -1,0 +1,273 @@
+{
+  "id": "goose",
+  "name": "goose",
+  "vendor": "Block, now Linux Foundation Agentic AI Foundation (repo aaif-goose/goose)",
+  "homepage": "https://goose-docs.ai",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "goose desktop app (Electron). Matched on the bundled Rust binary that the app starts as `goose serve --tls --platform desktop --enable-scheduler --host 127.0.0.1 --port N`, one per chat window, cwd = that window's working dir. NOT matched on the main Electron process (Goose.app/Contents/MacOS/Goose), whose Chromium helper children would always look like tool children. Bundle id is the Electron default com.electron.goose.",
+      "bundle_ids": [
+        "com.electron.goose"
+      ],
+      "process": {
+        "path_contains": [
+          "/Goose.app/Contents/Resources/bin/goose"
+        ],
+        "args_contain": [
+          "serve"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "goose CLI in a terminal: `goose session` (alias `goose s`, interactive) and `goose run` (headless one-shot). One native Rust binary named `goose`; the agent loop runs in that process. The npm package @aaif/goose-acp puts a Node launcher (bin/goose.mjs) in front of the same binary, so match the native one. The name `goose` is shared with pressly/goose, a Go database-migration CLI (Homebrew formula `goose`, `go install`); its argv is a driver, a migration command or -dir, so those are in exclude_args.",
+      "process": {
+        "names": [
+          "goose"
+        ],
+        "path_contains": [
+          "/.local/bin/goose",
+          "/Cellar/block-goose-cli/",
+          "/@aaif/goose-binary-darwin-"
+        ],
+        "exclude_args": [
+          "serve",
+          "acp",
+          "mcp",
+          "configure",
+          "info",
+          "doctor",
+          "update",
+          "term",
+          "recipe",
+          "skills",
+          "plugin",
+          "schedule",
+          "sched",
+          "gateway",
+          "gw",
+          "roam",
+          "review",
+          "local-models",
+          "lm",
+          "completion",
+          "help",
+          "list",
+          "remove",
+          "export",
+          "import",
+          "diagnostics",
+          "rename",
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "up",
+          "up-by-one",
+          "up-to",
+          "down",
+          "down-to",
+          "redo",
+          "reset",
+          "status",
+          "version",
+          "create",
+          "fix",
+          "validate",
+          "postgres",
+          "mysql",
+          "sqlite3",
+          "spanner",
+          "mssql",
+          "azuresql",
+          "redshift",
+          "tidb",
+          "clickhouse",
+          "ydb",
+          "starrocks",
+          "turso",
+          "-dir",
+          "--dir"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--id"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "Standalone `goose serve` (ACP over HTTP and WebSocket, default 127.0.0.1:3284). The desktop app's own server matches the gui surface first. Also `goose serve` started by hand or by a remote-access setup.",
+      "process": {
+        "names": [
+          "goose"
+        ],
+        "args_contain": [
+          "serve"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "`goose acp`: ACP agent over stdio, started by an ACP client (editor or other UI) as a child process. Same native binary. Not seen in a real editor; from the CLI definition only.",
+      "process": {
+        "names": [
+          "goose"
+        ],
+        "args_contain": [
+          "acp"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/goose/sessions/sessions.db*",
+    "format": "sqlite",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "The developer shell tool runs in-process and spawns one `$SHELL -c <command>` child of the goose process per call, so a child of the goose process means a shell tool call is running. Blind while the model is streaming or thinking, and while a non-shell tool runs in-process. Over-reports if the user configured a stdio MCP extension (npx, uvx, a binary): those are long-lived children while idle. Default builtin extensions run in-process (duplex streams), so a default install has no idle children. Inferred from source; no running instance was observed."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "UNVERIFIED and coarse. Every session of every surface writes one shared WAL database, so a fresh mtime on sessions.db-wal means some goose session persisted a message (user prompt at turn start, each assistant message, each tool response). It cannot be tied to one process, so the row has no per_session template and tools/agents_probe.py never evaluates this signal. A long model stream writes nothing until the message completes."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Weak fallback, inferred and uncalibrated. The Rust process should sit near 0 percent idle. Not measured because goose is not installed here."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "none_external",
+      "meaning": "No hook and no OS-visible signal fires while goose waits on the human. Approve and SmartApprove modes (GOOSE_MODE, default auto) block in tool_execution.rs on a confirmation channel: the CLI shows a terminal prompt, the desktop gets an ACP session/request_permission request over its private WebSocket. MCP elicitation also blocks and is persisted to the session store as an action-required message (agent.rs ToolStreamItem::ActionRequired). The PreToolUse hook is emitted inside dispatch_tool_call, which runs only after the user allows, so it is not a waiting signal."
+    },
+    {
+      "signal": "acp_request",
+      "event": "session/request_permission",
+      "meaning": "Desktop and `goose serve`: the pending approval exists on the ACP connection. Reachable only with the per-launch GOOSE_SERVER__SECRET_KEY the desktop app generates and passes to the server in its environment (a hand-started `goose serve` also needs it unless started with --dangerously-unauthenticated). Not read here."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Plugin-based, Open Plugins spec, shell-command actions. <plugin>/hooks/hooks.json inside ~/.agents/plugins/<name>/ (user), <project>/.agents/plugins/<name>/ (project, loaded when goose starts from that project) or goose's plugin install dir. Disable through `disabledPlugins` (docs) or `enabledPlugins` (source only) in ~/.config/goose/settings.json, <project>/.config/goose/settings.json or settings.local.json, or through the per-plugin `enabled` flag in the `plugins` map of ~/.config/goose/config.yaml (source only, keyed by plugin path). Actions run with `sh -c`, payload JSON on stdin, default timeout 30 s. Only type `command` exists. Applies to CLI and desktop because it lives in the agent core.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PreToolUseResult",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "BeforeReadFile",
+      "AfterFileEdit",
+      "BeforeShellExecution",
+      "AfterShellExecution",
+      "Stop",
+      "SessionEnd"
+    ],
+    "docs": "https://goose-docs.ai/docs/guides/context-engineering/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Documented and in the default build features. Set OTEL_EXPORTER_OTLP_ENDPOINT (e.g. http://localhost:4318) or otel_exporter_otlp_endpoint in ~/.config/goose/config.yaml. Traces, metrics and logs, OTLP over http/protobuf by default (gRPC only if built with grpc-tonic). Per-signal control with OTEL_{TRACES,METRICS,LOGS}_EXPORTER=otlp|console|none, OTEL_SDK_DISABLED=true to turn off. Resource service.name=goose (override OTEL_SERVICE_NAME), service.namespace=goose, host.name, user.name. Spans follow GenAI conventions (gen_ai.*). Message and tool argument content only with OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true. Nothing is exported when no endpoint is set. A GUI-launched desktop app does not inherit shell env, so use config.yaml or launchctl setenv."
+  },
+  "sources": [
+    {
+      "claim": "Canonical repo moved from block/goose to aaif-goose/goose; latest release v1.52.0 published 2026-09-23 with Goose-darwin-arm64.zip and goose-aarch64-apple-darwin.tar.gz",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "curl -sI https://github.com/block/goose printed `HTTP/2 301` with `location: https://github.com/aaif-goose/goose`; https://api.github.com/repos/aaif-goose/goose/releases/latest gave tag_name v1.52.0, published_at 2026-09-23T14:59:14Z; README says goose is part of the Agentic AI Foundation at the Linux Foundation"
+    },
+    {
+      "claim": "Desktop bundle: Goose.app, CFBundleExecutable Goose, CFBundleIdentifier com.electron.goose, helpers com.electron.goose.helper, URL scheme goose://, version 1.52.0; bundled Rust binary at Contents/Resources/bin/goose (Mach-O arm64)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "Downloaded https://github.com/aaif-goose/goose/releases/download/v1.52.0/Goose-darwin-arm64.zip to scratchpad, not mounted or run. `unzip -p ... Goose.app/Contents/Info.plist | plutil -p -` printed CFBundleExecutable=Goose, CFBundleIdentifier=com.electron.goose, CFBundleShortVersionString=1.52.0, CFBundleURLSchemes=[goose]; `unzip -l` listed Contents/Resources/bin/goose 258932912 bytes; `file` on the extracted binary printed `Mach-O 64-bit executable arm64`"
+    },
+    {
+      "claim": "Desktop starts one `goose serve --tls --platform desktop --enable-scheduler --host 127.0.0.1 --port N` per chat window with cwd = window working dir, binary resolved to <resources>/bin/goose when packaged, secret in GOOSE_SERVER__SECRET_KEY",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aaif-goose/goose main: ui/desktop/src/gooseServe.ts (args array around line 362, spawn at line 401, findGooseBinaryPath), ui/desktop/src/main.ts:1198 startGooseServe inside createChat with tls: true and dir: workingDir"
+    },
+    {
+      "claim": "CLI binary is named goose (clap [[bin]] name = goose); commands session/s, run, serve, acp, term, mcp, schedule, gateway; session takes --resume, --session-id/--id, -n/--name; agent loop runs in-process in the CLI",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/goose-cli/Cargo.toml [[bin]] name=\"goose\"; crates/goose-cli/src/cli.rs Identifier struct (long = \"session-id\", alias = \"id\"), Command::Session, Command::Run, Command::Serve, Command::Acp; crates/goose-cli/src/session/mod.rs process_agent_response calls self.agent.reply in-process"
+    },
+    {
+      "claim": "Install locations: curl installer defaults to $HOME/.local/bin; Homebrew formula block-goose-cli; Homebrew cask block-goose (same app); npm @aaif/goose-acp provides a Node launcher that spawns @aaif/goose-binary-darwin-arm64/bin/goose",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "download_cli.sh line 66 DEFAULT_BIN_DIR=\"$HOME/.local/bin\"; documentation/docs/getting-started/installation.md (brew install block-goose-cli, brew install --cask block-goose); ui/goose-acp/bin/goose.mjs spawn(binaryPath, process.argv.slice(2), {stdio: \"inherit\"}); ui/goose-binary/README.md"
+    },
+    {
+      "claim": "Sessions are one shared SQLite WAL database ~/.local/share/goose/sessions/sessions.db with tables sessions (id, name, working_dir, session_type, updated_at, ...) and messages (session_id, role, content_json, created_timestamp); ids look like YYYYMMDD_N; pre-1.10 sessions were per-session .jsonl",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://goose-docs.ai/docs/guides/logs (source file documentation/docs/guides/logs.md lines 13, 34-39); crates/goose/src/session/session_manager.rs DB_NAME=\"sessions.db\", SESSIONS_FOLDER=\"sessions\", journal_mode Wal (line 954), CREATE TABLE sessions/messages (lines 1027-1075), id built from %Y%m%d (line 1627)"
+    },
+    {
+      "claim": "Data dir resolves to ~/.local/share/goose on macOS (XDG, not ~/Library/Application Support). GOOSE_PATH_ROOT (absolute path) relocates config, data and state under <root>/{config,data,state}, and the desktop app forwards it to its server",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/goose/src/config/paths.rs (etcetera choose_app_strategy with app_name goose; path_root() reads GOOSE_PATH_ROOT); docs/guides/logs.md gives ~/.local/share/goose/sessions/sessions.db for macOS and Linux; docs/troubleshooting/known-issues.md lists ~/.config/goose for macOS logs and config and ~/Library/Application Support/Goose as Application Data (that is the Electron userData folder, not the session store). The XDG choice on macOS is my reading of etcetera plus the docs, not observed"
+    },
+    {
+      "claim": "Hooks: plugin hooks.json, 12 events, shell command actions, payload on stdin, Stop = turn finished, UserPromptSubmit = turn start; docs list no Notification or permission-wait event",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://goose-docs.ai/docs/guides/context-engineering/hooks (documentation/docs/guides/context-engineering/hooks.md, Where Hooks Live, Supported Events); crates/goose/src/hooks/mod.rs HookEvent enum; crates/goose/src/agents/agent.rs:2165 SessionStart, :2171 UserPromptSubmit, :526 Stop"
+    },
+    {
+      "claim": "PreToolUse hook is emitted in dispatch_tool_call, which for calls needing approval runs only after the user answers Allow, so it does not fire while waiting on the human",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/goose/src/agents/tool_execution.rs:171-206 (confirmation_rx.await, then dispatch_tool_call only for AllowOnce/AlwaysAllow); crates/goose/src/agents/agent.rs:1067-1103 dispatch_tool_call emits HookEvent::PreToolUse"
+    },
+    {
+      "claim": "OpenTelemetry export: OTLP traces, metrics, logs, http/protobuf default, env vars and config.yaml keys; otel is a default cargo feature; the shipped 1.52.0 binary contains the strings",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://goose-docs.ai/docs/guides/environment-variables (Observability section, documentation/docs/guides/environment-variables.md:401-440) and guides/config-files.md:203-212; crates/goose/src/otel/otlp.rs (signal_exporter, create_resource service.name=goose); crates/goose-cli/Cargo.toml default features include \"otel\"; `strings -a` on the extracted 1.52.0 goose binary matched OTEL_EXPORTER_OTLP_ENDPOINT (3 hits), UserPromptSubmit, PostToolUseFailure, hooks.json, sessions.db, GOOSE_SERVER__SECRET_KEY"
+    },
+    {
+      "claim": "No power assertion from goose: the CLI binary has no IOPMAssertion or caffeinate strings, and the desktop app's Prevent Sleep setting (default off) never calls powerSaveBlocker.start, only .stop, in both main-branch source and the shipped 1.52.0 app.asar",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "`grep -c -F IOPMAssertion` and `caffeinate` on `strings -a` of the extracted CLI binary printed 0 and 0. `grep -o 'powerSaveBlocker\\.[a-zA-Z]*(' ` on `strings -a app.asar` printed only powerSaveBlocker.stop (3 hits) and no `prevent-app-suspension`. ui/desktop/src/main.ts has windowPowerSaveBlockers map, powerSaveBlocker.stop at lines 1494, 2150, 3184 and no start; utils/settings.ts enableWakelock default false; i18n en.json: settings.preventSleep.description `Keep your computer awake while goose is running a task (screen can still lock)` (v1.52.0 tag)"
+    },
+    {
+      "claim": "The executable name `goose` collides with pressly/goose, a Go database-migration CLI, so matching on name alone would report `goose up` or `goose sqlite3 ./foo.db status` as an idle agent",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/pressly/goose/main/README.md (`brew install goose`, `go install github.com/pressly/goose/v3/cmd/goose@latest`, usage `goose DRIVER DBSTRING [OPTIONS] COMMAND`); cmd/goose/main.go usagePrefix/usageCommands list the drivers and commands now in exclude_args; https://raw.githubusercontent.com/Homebrew/homebrew-core/HEAD/Formula/b/block-goose-cli.rb has `conflicts_with \"goose\", because: \"both install `goose` binaries\"`; probe matches() test with made-up argv lines: before the fix `goose up` and `goose postgres URL status` matched tui, after the fix they match nothing"
+    },
+    {
+      "claim": "Plugin enable/disable: settings.json (user, project, project-local) with enabledPlugins/disabledPlugins, plus a `plugins` map in config.yaml keyed by plugin path with an `enabled` flag",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "aaif-goose/goose tag v1.52.0 crates/goose/src/plugins/discovery.rs (PluginSettings serde renames, user_settings_path, project_settings_path, filter_by_config, PLUGINS_CONFIG_KEY=\"plugins\"); docs hooks.md 'Disable a Hook Plugin' only documents disabledPlugins in settings.json"
+    },
+    {
+      "claim": "Desktop answers approvals as an ACP client: the server sends session/request_permission and the desktop's GooseAcpClient implements requestPermission",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "ui/desktop/src/acp/gooseAcpClient.ts (`.onRequest(methods.client.session.requestPermission`); method name from https://agentclientprotocol.com/protocol/tool-calls; crates/goose-cli/src/cli.rs Serve has --dangerously-unauthenticated described as `Start the ACP endpoint without requiring GOOSE_SERVER__SECRET_KEY`"
+    },
+    {
+      "claim": "Not installed and not running on this Mac, so nothing was classified live",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which goose` printed `goose not found`; `ls /Applications | grep -i goose` empty; `ls ~/.config/goose ~/.local/share/goose ~/.local/state/goose` all `No such file or directory`; `ps -axo pid=,args= | grep -i goose` empty; `mdfind \"kMDItemCFBundleIdentifier == 'com.block.goose'\"` empty"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Nothing was observed running, so process shapes come from source, the release zip and the docs. Desktop: one `goose serve` per chat window, each hosting that window's sessions in-process; there is no per-session process and no per-session file, so a process maps to a session only by cwd (sessions.working_dir in the DB) or, for the CLI, by --session-id/--id (a new interactive session has no id in argv). `goose term init <shell>` exports AGENT_SESSION_ID into the user's shell, which is a shell-integration session, not the agent process. Session content lives in private conversations: never read messages. The most precise turn signals are configuration-dependent: the UserPromptSubmit/Stop hook pair, or an OTLP span stream. Without them, tool_children is the best OS-level signal and it is blind during model streaming. exclude_args is an exact argv match, so a value such as `-t list` or `-n list` wrongly excludes a real session; args_contain is a substring test: `serve` and `acp` as substrings also match a path containing them. Independent verification 2026-09-29: the shared executable name `goose` also belongs to pressly/goose (database migrations), which the original row matched as an idle agent; exclude_args now carries its drivers and commands, still an exact argv test, so a real session whose argument equals one of them (for example `goose run -t status`) is missed. path_contains `/.local/bin/goose` is a substring test on argv[0] and also matches `/.local/bin/goose-<anything>`. `goose term run <prompt>` (the `@goose` alias) runs an agent turn in a short-lived process and is excluded along with the other term subcommands, so it is not detected. Still nothing observed running, so confidence stays documented."
+}

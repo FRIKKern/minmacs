@@ -1,0 +1,241 @@
+{
+  "id": "rovo-dev",
+  "name": "Rovo Dev CLI",
+  "vendor": "Atlassian",
+  "homepage": "https://support.atlassian.com/rovo/docs/use-rovo-dev-cli/",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "Atlassian for VS Code extension (atlassian.atlascode) Rovo Dev panel. The extension downloads a standalone binary and runs it as a local HTTP server, one per workspace: <workspaceStorage>/atlassian.atlascode/atlascode-rovodev-bin/<version>/atlassian_cli_rovodev serve <port 40000-41000> --xid rovodev-ide-vscode --site-url https://<site> [--respect-configured-permissions]. On macOS <workspaceStorage> is under ~/Library/Application Support/<host>/User/workspaceStorage/, a path with a space, so a ps-based reader that splits args on spaces sees the executable as .../Library/Application; the pattern below therefore also matches that fragment and relies on args_contain to stay specific. Also runs in VS Code forks that load the extension (Cursor has it installed on this Mac); the fork's bundle id is the host, not the agent.",
+      "bundle_ids": [
+        "com.microsoft.VSCode",
+        "com.todesktop.230313mzl4w4u92"
+      ],
+      "process": {
+        "path_contains": [
+          "/atlascode-rovodev-bin/",
+          "/Library/Application"
+        ],
+        "args_contain": [
+          "atlascode-rovodev-bin",
+          "serve"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "acli rovodev run (interactive terminal UI; `acli rovodev run <instruction>` is the one-shot non-interactive form, `--web` swaps the TUI for a web UI). Executable is the Go binary `acli`; an `atlassian_cli_rovodev` process (embedded or downloaded plugin) may appear as its child or in its place, so both names are listed. Short-lived `acli rovodev auth|config|mcp` also match while they run.",
+      "process": {
+        "names": [
+          "acli",
+          "atlassian_cli_rovodev"
+        ],
+        "path_contains": [
+          "/atlassian_cli_rovodev"
+        ],
+        "args_contain": [
+          "rovodev"
+        ],
+        "exclude_args": [
+          "serve"
+        ]
+      },
+      "session_id_args": [
+        "--restore"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "acli rovodev serve <port> (server mode, docs use the bare form `rovodev serve 8123`): local HTTP API, used by third-party wrappers such as gnhf and opencode-rovodev-auth, usually with --disable-session-token. Turn state is only visible over HTTP, not in the process table. Keep this surface after the tui surface: args_contain is a substring test, so `acli rovodev run fix the server config` also satisfies it, and the tui surface (which excludes only an exact `serve` argument) must claim it first.",
+      "process": {
+        "names": [
+          "acli",
+          "atlassian_cli_rovodev"
+        ],
+        "args_contain": [
+          "rovodev",
+          "serve"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "label": "Rovo Dev in Jira, Bitbucket, GitHub (rovo-dev-action) and the Rovo Dev web experience: nothing runs on this Mac"
+    }
+  ],
+  "session_store": {
+    "glob": "~/.rovodev/sessions/*/session_context.json",
+    "per_session": "~/.rovodev/sessions/{session_id}/session_context.json",
+    "format": "json",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "Inferred, not observed: a bash tool call should run as a child of the agent process while a turn is executing a command. Blind while the model streams or thinks. Rovo Dev spawns long-lived MCP server children (the healthcheck lists filesystem-tools, atlassian and bitbucket servers), so this may fire on an idle process; treat as weak until seen on a live instance."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20,
+      "meaning": "Inferred: session_context.json holds the full conversation, so it should be rewritten as a turn progresses. Write cadence (per step or per turn end) is not documented."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "Fallback. Guess: the docs' config example shows console theme `textual-dark`, which suggests a Textual-based TUI that may redraw while idle; no doc or source says so, so the floor is a guess."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "on_tool_permission",
+      "meaning": "Fires when the agent needs the user to approve a tool call (documented by Atlassian: 'blocked while waiting for user permission'). Default toolPermissions is ask, so this is the common stall."
+    },
+    {
+      "signal": "http_stream",
+      "event": "on_call_tools_start with permission_required=true",
+      "meaning": "Server mode only: GET /v3/stream_chat?pause_on_call_tools_start=true pauses until POST /v3/resume_tool_calls allows or denies. Seen in the Atlassian VS Code extension source (responseParser.ts)."
+    },
+    {
+      "signal": "http_status",
+      "event": "GET /healthcheck status='pending user review'",
+      "meaning": "NOT a turn-level permission wait: the extension uses it for MCP server terms that need accepting (POST /accept-mcp-terms). Do not treat as waiting-on-human for a running turn."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.rovodev/config.yml, key eventHooks.events[] with name and commands[].command; edit interactively with /hooks. The event hooks log path is listed under eventHooks in /config. Payload is JSON on stdin (attributes.transcript_path, attributes.tool_input); the transcript file is deleted once the hook command exits.",
+    "events": [
+      "on_complete",
+      "on_error",
+      "on_tool_permission",
+      "on_user_prompt",
+      "on_tool_start",
+      "on_tool_end",
+      "on_session_start",
+      "on_session_end"
+    ],
+    "docs": "https://www.atlassian.com/blog/development/streamline-rovo-dev-cli-with-event-hooks"
+  },
+  "telemetry": {
+    "how": "Unknown. No OpenTelemetry export is documented or exposed as a user setting (absence of evidence). A third-party reverse-engineering README lists LogFire (OpenTelemetry-based) among the embedded agent's dependencies, unverified. For local signals use eventHooks or the serve-mode HTTP stream."
+  },
+  "sources": [
+    {
+      "claim": "Rovo Dev CLI is an extension of ACLI; run with `acli rovodev run`; auth with `acli rovodev auth login`",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/ (page modified 2026-04-10)"
+    },
+    {
+      "claim": "ACLI on macOS is a single binary named acli (Homebrew tap atlassian/homebrew-acli, or curl to /usr/local/bin/acli)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://developer.atlassian.com/cloud/acli/guides/install-macos/"
+    },
+    {
+      "claim": "Command surface: run, run <instruction>, run --web, run --restore [id], run --yolo, run --worktree, run --config-file, serve [port], config, mcp; /hooks, /status, /sessions",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://support.atlassian.com/rovo/docs/rovo-dev-cli-commands/"
+    },
+    {
+      "claim": "Sessions stored under ~/.rovodev/sessions/ (configurable via sessions.persistenceDir) as session_context.json (full conversation) and metadata.json (title, workspace, fork info); sessions are per workspace; restore by UUID with `acli rovodev run --restore <UUID>`; UUID shown by /status as Session ID",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://support.atlassian.com/rovo/docs/manage-sessions-in-rovo-dev-cli/ and https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/"
+    },
+    {
+      "claim": "The per-session subdirectory (~/.rovodev/sessions/<uuid>/) is inferred: the docs name the directory and the two file names but not the nesting. The session_context.json content shape (message_history[].kind, parts[].part_kind) is inferred from a third-party adapter reading the hook transcript, and the JSON vs JSONL distinction rests on the .json file name",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "inferred; https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/rovodev.sh (jq over .message_history / .parts / .part_kind). Not verified: no Rovo Dev install or session store exists on this Mac (ls ~/.rovodev printed 'No such file or directory')"
+    },
+    {
+      "claim": "Config at ~/.rovodev/config.yml, MCP config at ~/.rovodev/mcp_config.json (docs) or mcp.json (extension), log at ~/.rovodev/logs/rovodev.log; toolPermissions default is ask",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/; extension src/rovo-dev/rovoDevUtils.ts reads ~/.rovodev/config.yml, ~/.rovodev/mcp.json, ~/.rovodev/logs/rovodev.log"
+    },
+    {
+      "claim": "Standalone binary is named atlassian_cli_rovodev, downloaded from https://acli.atlassian.com/plugins/rovodev/<platform>/<arch>/<version>/rovodev.zip into <extension storage>/atlascode-rovodev-bin/<version>/, and spawned as `atlassian_cli_rovodev serve <port> --xid rovodev-ide-vscode --site-url https://<host> --respect-configured-permissions` with cwd = workspace and env ROVODEV_SERVE_SESSION_TOKEN; ports 40000-41000",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "github.com/atlassian/atlascode src/rovo-dev/rovoDevProcessManager.ts (GetRovoDevURIs, startRovoDev, portRange)"
+    },
+    {
+      "claim": "Two installed extension builds exist. atlascode 4.0.32 (in ~/.cursor/extensions, the current one) pins Rovo Dev 202607.24.1 and matches the public source: child_process spawn of atlassian_cli_rovodev with `serve <port> --xid rovodev-ide-vscode --site-url https://<host> --respect-configured-permissions`, env ROVODEV_SERVE_SESSION_TOKEN. atlascode 3.8.18 (in ~/.vscode/extensions, stale) pins 0.11.24 and instead opens a hidden VS Code terminal with shellPath = the binary, no --respect-configured-permissions and no session token; the site-url argument is wrapped in literal double quotes there",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 json of package.json: ~/.cursor/extensions/atlassian.atlascode-4.0.32-universal printed rovoDev {'version': '202607.24.1'}; ~/.vscode/extensions/atlassian.atlascode-3.8.18 printed {'version': '0.11.24'}. Search of build/extension/extension.js in 4.0.32 found `\"--xid\"`, `--respect-configured-permissions`, `ROVODEV_SERVE_SESSION_TOKEN` and a spawn(...) call, and no createTerminal({name:\"Rovo Dev\"; in 3.8.18 it found createTerminal({name:\"Rovo Dev\",shellPath:this.rovoDevBinPath,shellArgs:[\"serve\",...,\"--xid\",\"rovodev-ide-vscode\",\"--site-url\",g]}) and no ROVODEV_SERVE_SESSION_TOKEN. Neither binary is downloaded (no atlassian.atlascode dir under ~/Library/Application Support/{Code,Cursor}/User/workspaceStorage)"
+    },
+    {
+      "claim": "Server mode (docs): `rovodev serve 8123` with optional initial message and --shadow; GET /healthcheck; /v3/set_chat_message, /v3/stream_chat (SSE), /v3/cancel, /v3/resume_tool_calls, /v3/sessions/{list,current_session,create,{id}/restore}; ?pause_on_call_tools_start=true is 'recommended to enable tool permissions flows'",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://support.atlassian.com/rovo/docs/use-server-mode-in-rovo-dev-cli/"
+    },
+    {
+      "claim": "Not in the server-mode docs, only in the extension source: /healthcheck status values unknown|healthy|unhealthy|pending user review|entitlement check failed and the x-session-id response header; GET /v3/status returning cliVersion.{version,sessionId}; SSE event kinds on_call_tools_start (with permission_required), deferred-request, tool-call, tool-return, exception, close",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "github.com/atlassian/atlascode main, src/rovo-dev/client/rovoDevApiClient.ts (healthcheck(): x-session-id; status(): /v3/status), rovoDevApiClientInterfaces.ts (status union, cliVersion), responseParser.ts (event_kind values, permission_required)"
+    },
+    {
+      "claim": "'pending user review' in /healthcheck concerns MCP servers awaiting terms acceptance, not tool permission",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "grep -o in installed extension.js printed `\"pending user review\"===u.mcp_servers[r]` and `if(\"pending user review\"===u.status){const r=Object.keys(u.mcp_servers).filter(...`; client has acceptMcpTerms() -> POST /accept-mcp-terms"
+    },
+    {
+      "claim": "Event hooks exist, are configured with /hooks, and cover finishing a response, errors and tool-permission requests; the blog names only on_tool_permission (the other event names on_complete and on_error are third-party); more events were promised and hook input/output support was still being explored",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.atlassian.com/blog/development/streamline-rovo-dev-cli-with-event-hooks (2026-01-26): 'blocked while waiting for user permission', quick start selects on_tool_permission via /hooks, 'we're adding more events and exploring event hook input and output support'. The official settings page still has no eventHooks section. /hooks is now listed on the commands page ('Manage event hook configurations'); a community answer (community.atlassian.com/forums/Rovo-questions/Is-there-any-document-about-the-hooks-command-in-the-Rovo-Dev/qaq-p/3195370) says there is no official documentation for it, which is out of date as to the command list but still true of the config schema"
+    },
+    {
+      "claim": "eventHooks YAML shape, and the full event list (on_user_prompt, on_tool_start, on_tool_end, on_complete, on_error, on_tool_permission, on_session_start, on_session_end), stdin JSON payload with attributes.transcript_path / attributes.tool_input, transcript deleted after hook exit",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/rovodev.sh and install.sh (peon-ping, whose adapter header reads 'copyright (c) 2026 Atlassian US, Inc.' and which Atlassian endorses at https://www.atlassian.com/blog/development/developer-workflow-rovo-dev-notifications). Only three events are confirmed by Atlassian itself"
+    },
+    {
+      "claim": "Process names as seen by ps are not verified. acli is a Go binary with an embedded Python agent (June 2025 reverse-engineering report), so `acli rovodev run` may show as acli, as atlassian_cli_rovodev, or both",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "inferred; https://github.com/ghuntley/atlassian-rovo-source-code-z80-dump README (Mach-O 64-bit arm64, language Go, embedded ZIP archive, 'atlassian_cli_rovodev package references', dependencies MCP, Pydantic, Rich, Typer, LogFire; repository created 2025-06-14). I read only the README, not the extracted proprietary source"
+    },
+    {
+      "claim": "Rovo Dev is not installed on this Mac; no process to classify",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "which -a acli atlassian_cli_rovodev rovodev printed 'acli not found' 'atlassian_cli_rovodev not found' 'rovodev not found'; ps -axo pid=,args= | grep -i -E 'rovo|acli|atlassian_cli' printed nothing; ls ~/.rovodev ~/.config/acli printed 'No such file or directory' for both"
+    },
+    {
+      "claim": "No OpenTelemetry export in the docs (absence of evidence only, so telemetry.otel is left unset)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "none found: searched the settings, commands, sessions, tools, server-mode and hooks pages listed above and a web search for Rovo Dev CLI OpenTelemetry/OTEL; no OTEL_* variable or exporter setting appears (absence of evidence, not proof)"
+    },
+    {
+      "claim": "Third-party wrappers run `acli rovodev serve <port> --disable-session-token`",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/kunchenguid/gnhf src/core/agents/rovodev.ts (spawns bin 'acli' with args 'rovodev' ... '--disable-session-token'; picks an ephemeral port via listen(0), not 40000-41000); https://github.com/lutfi238/opencode-rovodev-auth README (`acli rovodev serve 8123 --disable-session-token`)"
+    },
+    {
+      "claim": "Bundle id of the IDE host: Cursor is com.todesktop.230313mzl4w4u92 and has atlascode installed; VS Code's com.microsoft.VSCode is well known but not verified here (no VS Code app in /Applications)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "mdls -name kMDItemCFBundleIdentifier /Applications/Cursor.app printed com.todesktop.230313mzl4w4u92; ls ~/.cursor/extensions printed atlassian.atlascode-4.0.31-universal and atlassian.atlascode-4.0.32-universal; VS Code id is inferred"
+    },
+    {
+      "claim": "Process patterns, exercised through tools/agents_probe.py matches() on synthetic ps lines: the IDE server under a path containing 'Application Support' matches the ide surface; `acli rovodev run`, `run --restore <id>` and `run fix the server config` match tui first; `acli rovodev serve 8123` matches daemon; `acli jira workitem view X` and `vim ~/.rovodev/config.yml` match nothing. With the original row the first case matched nothing and the third matched daemon",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 harness importing tools/agents_probe.py and calling matches() per surface; ps args are split on single spaces by the probe, so argv[0] of a path containing 'Application Support' is cut at '/Users/<u>/Library/Application'. Synthetic input only: no live Rovo Dev process exists"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Nothing here was seen on a running instance: Rovo Dev is not installed on this Mac and the CLI is closed source, so the working signals are inferred and the process names rest on docs, the VS Code extension source and one third-party report. Verify on a live install before trusting any detector built from this row: run `ps -axo pid=,ppid=,args=` during a turn, and `lsof -p <pid> -a -d cwd`. session_store.documented is false: the docs name ~/.rovodev/sessions/ and the file names session_context.json and metadata.json but not the per-session subdirectory, so the glob is inferred (two fixed file names per session make one directory per session likely). Process matching caveats: (1) surface order matters, keep tui before daemon, because args_contain is a substring test; a one-shot instruction that contains the exact word `serve` is still read as a server. (2) The IDE surface matches the fragment '/Library/Application' only in combination with args_contain atlascode-rovodev-bin and serve; that fragment exists only because the probe cuts argv[0] at the first space, and a reader using the full executable path matches '/atlascode-rovodev-bin/' directly. (3) The name `acli` is shared with Acquia CLI (docs.acquia.com, `acli auth:login`); args_contain rovodev keeps it out, but any acli command whose arguments mention rovodev would match. (4) Helper processes started by the agent (MCP servers) are ignored only while their parent still matches; reparented orphans could show as extra sessions. Unverified. Hook payload facts (stdin JSON, attributes.transcript_path, transcript deleted after the hook exits, ROVODEV_SESSION_ID) and all event names except on_tool_permission come from the peon-ping adapter, not from Atlassian. In server mode the exact answer for 'is a turn in progress' is over HTTP: hold GET /v3/stream_chat open or watch for tool-call events; the extension sets ROVODEV_SERVE_SESSION_TOKEN (current build) so requests need that token unless started with --disable-session-token. Map a process to its session by the --restore value when present (the flag's value is optional and a fresh session has no id in argv), by the port in `serve <port>` plus GET /healthcheck x-session-id, or by matching the process cwd against the workspace recorded in each session's metadata.json. The session directory can be moved with sessions.persistenceDir and the config file with --config-file. Version drift: the server-mode doc example shows 0.11.26, the stale extension pins 0.11.24 and the current one pins 202607.24.1, so the Rovo Dev version scheme has changed."
+}

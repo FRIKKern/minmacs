@@ -1,0 +1,303 @@
+{
+  "id": "droid",
+  "name": "Factory Droid",
+  "vendor": "Factory",
+  "homepage": "https://docs.factory.ai",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Factory App (Electron desktop app, Homebrew cask `factory`, /Applications/Factory.app). Deliberately no process rule: the Electron host and its Chromium helpers would always look busy, and what process runs the agent inside the app (a `droid` child, a `droid daemon`, or in-process) is not documented. Bundle id is inferred from the cask zap list (Preferences/ai.factory.desktop.plist), never read from an Info.plist. Any `droid` process the app starts is caught by the daemon or exec surfaces below.",
+      "bundle_ids": [
+        "ai.factory.desktop"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Editor ACP client (Zed extension, JetBrains AI Agents): the editor spawns `droid exec --output-format acp`. Parent is the editor, not a TUI.",
+      "process": {
+        "names": [
+          "droid"
+        ],
+        "args_contain": [
+          "acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`droid daemon [--remote-access]`: the Factory daemon (SDK example URL ws://127.0.0.1:37643). Hosts many sessions and can run turns concurrently, so its CPU cannot be attributed to one session.",
+      "process": {
+        "names": [
+          "droid"
+        ],
+        "args_contain": [
+          "daemon"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "`droid exec`: headless run. Spawned by CI, scripts, the Python/TypeScript SDK (`droid exec --input-format stream-jsonrpc --output-format stream-jsonrpc`), and, per a third-party read of the 0.218.2 bundle, as the agent-loop child of every interactive TUI. The probe keeps the outermost match, so the TUI wins when there is one.",
+      "process": {
+        "names": [
+          "droid"
+        ],
+        "args_contain": [
+          "exec"
+        ],
+        "exclude_args": [
+          "acp",
+          "daemon",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "--list-tools"
+        ]
+      },
+      "session_id_args": [
+        "-s",
+        "--session-id"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "`droid` interactive terminal UI (also `droid resume`, `droid \"prompt\"`). Native single-file Bun binary named `droid`, installed to ~/.local/bin/droid by the installer, or linked into $HOMEBREW_PREFIX/bin by the cask. Matched by executable name only (plus the anchored /Caskroom/droid/ path): a bare path_contains of /.local/bin/droid is a substring test and also matched /.local/bin/droidcam and /.local/bin/droid-helper, so it was removed. `npm install -g droid` may run through a `node .../bin/droid` shim (npm package bin/droid is a node script unless postinstall hard-links the binary); the shim is not matched, its native `droid` child is. A fresh session has NO id in argv (only a hook reveals it); resumed ones carry it after `--resume`/`-r`/`resume`.",
+      "process": {
+        "names": [
+          "droid"
+        ],
+        "path_contains": [
+          "/Caskroom/droid/"
+        ],
+        "exclude_args": [
+          "exec",
+          "daemon",
+          "update",
+          "doctor",
+          "mcp",
+          "plugin",
+          "computer",
+          "search",
+          "find",
+          "rules",
+          "--version",
+          "-v",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "resume"
+      ]
+    },
+    {
+      "kind": "cloud",
+      "label": "Droid Computers (Factory-managed), Slack/Linear/Jira remote delegations, GitHub droid-action, Factory web. No local process; BYOM machines run `droid daemon --remote-access` locally."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.factory/sessions/*/*.jsonl",
+    "per_session": "~/.factory/sessions/*/{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Newest write to <session>.jsonl (message and compaction_state records). The sibling <session>.settings.json (rewritten during the session with tokenUsage) may also move, but tools/agents_probe.py only stats the per_session .jsonl, so a detector that wants the settings file must add it itself; whether it ticks during a turn is unverified. Window is inferred, not measured: no live instance was available, and Codex-style mid-turn gaps (long model calls, long tools) are likely. Cannot be used for a fresh TUI whose id is not in argv."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "CPU of the droid process tree (TUI plus its agent-loop child). Floor is a guess above Claude Code's 3 because the TUI may animate while idle; unmeasured."
+    },
+    {
+      "signal": "power_assertion",
+      "meaning": "Missions only: the CLI holds an idle-sleep inhibitor while a Mission runs (keepSystemAwakeDuringMissions, default true), and the Factory App has a keep-awake setting for agent runs. Assertion name is unverified. There is no general per-turn assertion, so a missing assertion never means idle."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "permission_prompt",
+      "meaning": "Droid is waiting for permission to run tool(s). No request id or options in the payload."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "elicitation_dialog",
+      "meaning": "Droid is asking the user structured question(s), from the AskUser tool."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "idle_prompt",
+      "meaning": "Docs: waiting for user input, including right after the user cancels a turn. Third-party bundle read: fires only after a user interrupt, no timed idle notification. Interrupt does NOT fire Stop, so this is the only hook that closes an interrupted turn."
+    },
+    {
+      "signal": "stream_jsonrpc",
+      "state": "waiting_for_tool_confirmation",
+      "meaning": "droid_working_state_changed newState, plus droid.request_permission and droid.ask_user requests. Only visible to the process that owns a `droid exec` stream (an SDK client); an external observer cannot see it."
+    },
+    {
+      "signal": "transcript",
+      "record": "assistant tool_use named AskUser with no later tool_result",
+      "meaning": "Inferred from a third-party read of the session schema; unverified on a live file."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.factory/hooks.json (user), .factory/hooks.json (project), or a top-level `hooks` key in the matching ~/.factory/settings.json / .factory/settings.json (the hooks docs name only settings.json; a settings.local.json `hooks` key is inferred from the settings merge hierarchy, not documented); org-managed settings (allowManagedHooksOnly); plugin hooks/hooks.json; legacy .factory/hooks/hooks.json; `--settings <path>` for one process; manage with /hooks; disable all with hooksDisabled",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "UserPromptSubmit",
+      "Notification",
+      "Stop",
+      "SubagentStop",
+      "PreCompact",
+      "SessionStart",
+      "SessionEnd"
+    ],
+    "docs": "https://docs.factory.ai/harness/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "OTLP over HTTP, metrics only by default, to {endpoint}/v1/metrics. Set OTEL_TELEMETRY_ENDPOINT (falls back to OTEL_EXPORTER_OTLP_ENDPOINT) and OTEL_TELEMETRY_HEADERS in the environment, or pin a `telemetry` block in org-managed settings (org wins; ignored in user/project settings). Spans (droid.message.*, droid.tool.* or gen_ai.* with OTEL_TELEMETRY_FORMAT=genai) exist only with a customer collector and OTEL_LOG_MESSAGE_CONTENT=true. In connected deployments metrics also go to Factory's own collector. Metrics use delta temporality, 60 s flush. No logs signal documented. Not a live working/idle signal: it needs a collector and lags by the flush interval."
+  },
+  "sources": [
+    {
+      "claim": "Hook config locations, nine event names, Notification types (permission_prompt, idle_prompt, auth_success, elicitation_dialog), common stdin fields session_id/transcript_path/cwd",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/harness/hooks (the older URL https://docs.factory.ai/cli/configuration/hooks-guide redirects here)"
+    },
+    {
+      "claim": "Executable is `droid`, installed to ~/.local/bin/droid; installer stops old processes with `pkill -KILL -x droid`; current CLI 0.229.0; darwin arm64/x64 single-file binary at downloads.factory.ai/factory-cli/releases/<ver>/darwin/<arch>/droid",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "curl -fsSL https://app.factory.ai/cli (the vendor's install script, read not run): binary_name=\"droid\", DST=\"$HOME/.local/bin\", VER=\"0.229.0\", `pkill -KILL -x \"droid\"`"
+    },
+    {
+      "claim": "Homebrew cask `droid` links a binary named droid into $HOMEBREW_PREFIX/bin and zaps ~/.factory and ~/.local/bin/droid; cask `factory` installs Factory.app and zaps ~/Library/Preferences/ai.factory.desktop.plist and ~/Library/Application Support/ai.factory.desktop (bundle id inferred from this, not read from an Info.plist)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "curl https://formulae.brew.sh/api/cask/droid.json and https://formulae.brew.sh/api/cask/factory.json (desktop 0.186.0, auto_updates true)"
+    },
+    {
+      "claim": "SDK transport spawns `droid exec --input-format stream-jsonrpc --output-format stream-jsonrpc` as a subprocess (default exec args)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Factory-AI/droid-sdk-python src/droid_sdk/transport.py: _DEFAULT_EXEC_ARGS = [\"exec\",\"--input-format\",\"stream-jsonrpc\",\"--output-format\",\"stream-jsonrpc\"]; asyncio.create_subprocess_exec(self._exec_path, *self._exec_args, ...)"
+    },
+    {
+      "claim": "Local sessions live at ~/.factory/sessions/<cwd slug>/<session-id>.jsonl with a sibling <session-id>.settings.json; slug is '-' plus the resolved cwd with '/' replaced by '-'; first record type is session_start (title, owner, cwd); archived sessions carry archivedAt in settings.json; the SDK also scans .jsonl files directly in the sessions root",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Factory-AI/droid-sdk-python src/droid_sdk/_high_level/discovery.py: _sessions_root() = Path.home()/\".factory\"/\"sessions\"; _project_directory_name(); `summary_dict.get(\"type\") != \"session_start\"`; settings_path = path.with_name(f\"{session_id}.settings.json\"); settings_object.get(\"archivedAt\")"
+    },
+    {
+      "claim": "The agent's own working states are idle, thinking, streaming_assistant_message, waiting_for_tool_confirmation, executing_tool, compacting_conversation, delivered as droid_working_state_changed session notifications",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Factory-AI/droid-sdk-python src/droid_sdk/schemas/enums.py: class DroidWorkingState; SessionNotificationType.DROID_WORKING_STATE_CHANGED = \"droid_working_state_changed\". Visible only to the owner of a stream-jsonrpc process."
+    },
+    {
+      "claim": "`droid exec -s/--session-id <id>` continues a session; `-r` is --resume in the TUI but --reasoning-effort in exec; `droid --resume [id]`, `--fork <id>`, `droid daemon`, `droid update`, `droid search`; install via curl, `brew install --cask droid`, `npm install -g droid`",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/droid-cli/cli-reference.md"
+    },
+    {
+      "claim": "Zed and JetBrains run `droid exec --output-format acp`; VS Code/Cursor/Windsurf use the Factory.factory-vscode-extension with droid in the integrated terminal; logs in ~/.factory/logs/",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/ide-integrations.md"
+    },
+    {
+      "claim": "`droid daemon --remote-access` registers a BYOM Droid Computer over relay.factory.ai; the Factory App's Remote Access toggle keeps the local machine connected while the app runs; SDK daemon client example URL ws://127.0.0.1:37643",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/droid-computers/byom.md and Factory-AI/droid-sdk-typescript docs/typescript-sdk-reference.md (connectToDaemon url: 'ws://127.0.0.1:37643')"
+    },
+    {
+      "claim": "OTEL export config, env var names, metrics-only by default, spans only to a customer collector, Factory collector also receives metrics, delta temporality, 60 s default flush",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/enterprise/telemetry/index.md and https://docs.factory.ai/enterprise/telemetry/data-reference.md (droid.* metrics, gen_ai.* spans, service.name=cli)"
+    },
+    {
+      "claim": "CLI holds a keep-awake only for Missions (keepSystemAwakeDuringMissions, default true); Factory App has a separate keep-awake setting for agent runs; there is no documented general per-turn sleep inhibitor",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/missions/reference.md (keepSystemAwakeDuringMissions); https://docs.factory.ai/changelog/release-notes.md: CLI v0.60.0 'CLI now prevents system idle sleep during Missions execution', CLI v0.178.0 / Desktop v0.135.0 'Keep-awake setting ... during agent runs (app)', v0.176.0 'Notification sounds no longer prevent macOS from going to sleep (app)'"
+    },
+    {
+      "claim": "Settings file ~/.factory/settings.json (+ settings.local.json), cloudSessionSync default true mirrors CLI sessions to Factory web, awaitingInputSound/completionSound settings, hooksDisabled, showHookOutput",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/droid-cli/settings.md"
+    },
+    {
+      "claim": "The stock TUI spawns its agent loop as a child `droid exec --input-format stream-jsonrpc --output-format stream-jsonrpc`; SessionStart hooks are skipped in the terminal-ui process and fire from the child; a fresh TUI's argv does not contain its session id; idle_prompt fires only after a user interrupt; Stop does not fire on interrupt; local sessions are under ~/.factory/sessions/<cwd-key>/ with session_start/message/compaction_state records and a sibling settings snapshot; message records carry visibility llm_only/user_only; AskUser appears as an assistant tool_use block",
+      "kind": "third-party",
+      "date": "2026-09-13",
+      "evidence": "https://github.com/rimio-ai/rimz/blob/main/docs/externals/agent-adapter/droid-reference.md (mirrors Droid 0.218.2; reads the embedded JS bundle's string literals and schemas; sections Hooks, Sessions, Processes). Not verified against a running instance here."
+    },
+    {
+      "claim": "Third-party parsers agree on the session record types and settings keys (session_start, message, todo_state, compaction_state; settings keys assistantActiveTimeMs, model, tokenUsage) and also scan ~/.factory/projects/<slug>/",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/yigitkonur/cli-continues src/parsers/droid.ts and src/types/schemas.ts (DroidSessionStartSchema, DroidMessageEventSchema, DroidSettingsSchema)"
+    },
+    {
+      "claim": "Public source is thin: github.com/Factory-AI/factory is docs-only; Factory-AI/droid-sdk-typescript holds only docs/ and examples/ (no src); the CLI is a closed-source binary; only Factory-AI/droid-sdk-python carries readable client source",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "gh api 'repos/Factory-AI/droid-sdk-typescript/git/trees/HEAD?recursive=1' listed: AGENTS.md LICENSE MIGRATION.md README.md docs/typescript-sdk-reference.md examples/** package.json scripts/** (no src/). gh api repos/Factory-AI/factory/git/trees/HEAD listed: .github .gitignore README.md docs"
+    },
+    {
+      "claim": "Droid is not installed or running on this Mac, so nothing here is verified against a live instance",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "command -v droid -> rc=1; ls -d ~/.factory /Applications/Factory.app ~/.local/bin/droid ~/Library/Application\\ Support/Factory -> all 'No such file or directory'; mdfind kMDItemCFBundleIdentifier=='ai.factory.desktop' -> empty; ps -axo pid=,args= | grep -i -E '(^| |/)droid( |$)|Factory\\.app' -> 0 lines; pmset -g assertions | grep -i -E 'droid|factory' -> 0 lines"
+    },
+    {
+      "claim": "Zed's Factory Droid extension downloads its own pinned droid binary and runs it as `./droid exec --output-format acp` (manifest pins CLI 0.96.0 and sets DROID_DISABLE_AUTO_UPDATE), so an ACP process under Zed has argv[0] `./droid` and may be an old CLI, not the one on PATH",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Factory-AI/factory-zed-extension extension.toml: [agent_servers.Droid.targets.darwin-aarch64] archive=https://downloads.factory.ai/factory-cli/releases/0.96.0/droid-darwin-aarch64.tar.gz, cmd=\"./droid\", args=[\"exec\",\"--output-format\",\"acp\"]"
+    },
+    {
+      "claim": "`npm install -g droid` installs a node shim: package bin/droid is `#!/usr/bin/env node` and spawns the platform binary from @factory/cli-darwin-{arm64,x64}; postinstall tries to replace the shim with a hard link to the binary",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "curl https://registry.npmjs.org/droid/-/droid-0.229.0.tgz, unpacked and read, not run: package/bin/droid (shebang node, child_process.spawnSync(binaryPath, args)), package/install.js (\"replaces bin/droid with hard link to the platform binary\"); registry.npmjs.org/droid/latest optionalDependencies @factory/cli-darwin-arm64 0.229.0"
+    },
+    {
+      "claim": "`droid resume` and `droid doctor` are real subcommands (row excludes doctor from the TUI surface and lists `resume` as a session-id word); the official cli-reference table lists neither",
+      "kind": "third-party",
+      "date": "2026-09-13",
+      "evidence": "https://github.com/rimio-ai/rimz/blob/main/docs/externals/agent-adapter/droid-reference.md: 'Source: droid --help and droid resume --help on 0.218.2'; subcommand list `exec`, `resume`, `search`, `find`, `doctor`, `update`, `daemon`, `mcp`, `plugin`, `computer`, `help`"
+    },
+    {
+      "claim": "Older CLIs ran a daemon per TUI: changelog mentions a 'TUI daemon session' (v0.105.0, 2026-04-20) and 'TUI-spawned daemon' (v0.60.0, 2026-02-20). This conflicts with, or predates, the 0.218.2 bundle read that says the TUI's agent loop is a `droid exec` child",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.factory.ai/changelog/release-notes.md: 'TUI daemon session switching - Previous TUI daemon session now closes only after the next one loads' (CLI v0.105.0); 'TUI daemon shutdown - Fixed stopping TUI-spawned daemon on shutdown' (CLI v0.60.0)"
+    },
+    {
+      "claim": "Process-rule test: the row's surfaces run through tools/agents_probe.py matches() on 23 synthetic argv lines",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 driving agents_probe.matches over the row: `droid`, `droid --resume x`, `droid resume x`, `droid exec -s x`, ACP, daemon, Caskroom path -> intended surface; `droid update`, `droid doctor`, `droid --version`, Factory.app binary, `node .../bin/droid` -> no match; BEFORE repair `/Users/x/.local/bin/droidcam` and `/Users/x/.local/bin/droid-helper` -> tui (false positive, fixed); still matches by design of the substring rule: `droid execute the plan` -> exec surface, `droid explain the daemon design` -> daemon surface, `droid fix the search bug` -> no match (missed TUI)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "No live instance was available, so no process, path or signal here was seen running. Read this row with these gotchas. (1) Per a third-party read of the 0.218.2 bundle, every interactive TUI has a persistent `droid exec` child (older builds spawned a daemon per TUI per the changelog; either child is dropped by the probe's outermost-match rule), so tool_children and child counts are expected to be non-zero: that is why tool_children is NOT a working signal here. Unverified on a live process. tree_cpu on the outer `droid` covers the child. (2) A fresh TUI has no session id in argv; map it to a transcript by the hook's session_id/transcript_path or by cwd plus newest mtime under ~/.factory/sessions/<cwd slug>/. (3) The hooks docs example shows transcript_path under ~/.factory/projects/..., while SDK source and a bundle read show ~/.factory/sessions/; the hook's transcript_path is the only pointer Factory publishes, so prefer it and fall back to the glob. Some third-party tools also scan ~/.factory/projects/<slug>/. (4) The probe splits args on spaces and args_contain is a SUBSTRING test, so any prompt word containing `exec` (execute, executor) or `daemon` (daemonize) misroutes an interactive TUI to the exec or daemon surface (session_id_args then read -s instead of --resume; the daemon surface reports kind daemon), and a prompt word exactly equal to an excluded subcommand (search, find, update, mcp, rules, computer, plugin, doctor) drops a live TUI from detection because exclude_args is an exact-element test. Most TUIs are launched without a prompt, so this is rare; it cannot be fixed in the row without changing the probe. Zed also runs its own downloaded `./droid` (pinned old CLI, so its architecture may differ). `-r` means --resume in the TUI but --reasoning-effort in exec. (5) The most precise turn signal is hook-based (UserPromptSubmit opens, Stop or Notification idle_prompt closes) or the stream-jsonrpc working state for a process you own; neither needs a live probe of CPU but both need user configuration or ownership. (6) `droid --resume` with no id returns no session; `--fork <id>` is not a session-id flag because it creates a new id."
+}

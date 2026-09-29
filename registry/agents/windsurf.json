@@ -1,0 +1,207 @@
+{
+  "id": "windsurf",
+  "name": "Windsurf (now Devin Desktop)",
+  "vendor": "Cognition (formerly Codeium / Exafunction)",
+  "homepage": "https://devin.ai/desktop",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "Devin Desktop IDE (renamed from Windsurf on 2026-06-02): Devin.app, VS Code fork, Electron. Legacy Windsurf.app (main executable Contents/MacOS/Electron) and the Next channel are matched too. Main executable name inside Devin.app/Contents/MacOS/ not observed, so match on the bundle path only. This is the editor and Agent Command Center host. Whether local agent sessions run inside this process is NOT documented; the docs describe Devin Local as an ACP agent (see the devin surface), so per-session state is not readable from this process.",
+      "bundle_ids": [
+        "com.exafunction.windsurf",
+        "com.exafunction.windsurfNext"
+      ],
+      "process": {
+        "path_contains": [
+          "/Devin.app/Contents/MacOS/",
+          "/Windsurf.app/Contents/MacOS/",
+          "/Devin - Next.app/Contents/MacOS/",
+          "/Windsurf - Next.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Devin CLI, and Devin Local (the Devin CLI harness, same agent code). Documented launch as `devin acp` (Agent Client Protocol over stdio) only for the local-registry sample in the ACP docs; the bundled Devin Local agent that Desktop 'fetches from the server' has no documented launch command or install path, so its process name and path are inferred to be `devin`. Also matches one-shot subcommands (devin mcp list, devin auth status, devin list) and long-lived `devin forward` / `devin ssh` / `devin --cloud` clients, which are not local agent turns.",
+      "process": {
+        "names": [
+          "devin"
+        ],
+        "path_contains": [
+          "/Caskroom/devin-cli/"
+        ],
+        "exclude_args": [
+          "--version",
+          "--help"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "cloud",
+      "label": "Devin Cloud sessions shown in the Devin Desktop Agent Command Center (run on Devin VMs; nothing local to match)"
+    },
+    {
+      "kind": "ide",
+      "label": "Windsurf plugin for JetBrains (maintenance mode, Cascade being deprecated). Runs inside the JetBrains IDE process; no process spec because the host IDE is not Windsurf."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/devin/cli/sessions.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "sessions.db mtime under the Devin data dir (and sessions.db-wal only if WAL journaling is used, which is unverified)",
+      "within_seconds": 20,
+      "meaning": "INFERRED, not observed. Devin CLI and the ACP server persist sessions in one SQLite database (cli/sessions.db; tables sessions and message_nodes confirmed in a third-party reader's source), and the ACP server saves on a dedicated database thread (CLI changelog). One DB serves every session, so this says 'some Devin agent wrote recently', not which one; a per-session path template is therefore not given, and the probe's transcript_write check needs per_session, so this signal is inert in tools/agents_probe.py today. Data dir: vendor docs put CLI logs at ~/.local/share/devin/cli/logs and credentials at $XDG_DATA_HOME/devin/credentials.toml else ~/.local/share/devin/credentials.toml on macOS, so the DB is expected at ~/.local/share/devin/cli/sessions.db and moves if XDG_DATA_HOME is set; a third-party reader also checks ~/Library/Application Support/devin. Whether the DB uses WAL and the write cadence during streaming are unmeasured."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "INFERRED. For a `devin` process (CLI, or the Devin Local agent process if Desktop runs it that way, which is undocumented) the tree CPU should exceed idle while a turn streams or a tool runs. For the Devin.app main process it is app-wide and noisy (editor, extension host, language server), so use it only on the `devin` surface."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "INFERRED. Devin Local runs shell tools and subagents under the `devin` process (CLI docs: shells tray, 'interrupting an agent parks running subagents'). Caveat: stdio MCP servers are also long-lived children of that process and would read as a permanent false positive; filter them by command line."
+    },
+    {
+      "signal": "power_assertion",
+      "name": "UNVERIFIED: any IOKit/pmset assertion owned by Devin or devin",
+      "meaning": "Nothing in the vendor docs or changelogs mentions a sleep inhibitor (searched the full docs.devin.ai corpus for caffeinate, prevent sleep, wake lock, powerSaveBlocker: no hits). Not checked against a running app because none is installed here. Check `pmset -g assertions` on a machine with a live turn before trusting or dropping this."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Devin Local / Devin CLI: fires when the agent needs a permission decision. A hook can auto-approve, deny or pass through; the built-in approval card is the human prompt."
+    },
+    {
+      "signal": "hook",
+      "event": "Stop",
+      "meaning": "Devin Local / Devin CLI: fires when the agent wants to stop, i.e. the turn is over. Payload carries session_id and a per-turn prompt_id (rotated on every user prompt; SessionStart has none)."
+    },
+    {
+      "signal": "os_notification",
+      "setting": "devin.agentNotifications",
+      "meaning": "Devin Desktop can send one native OS notification per session when an agent finishes or needs input while the app is in the background. Off by default. Covers Devin Local, ACP agents and legacy Cascade. Notification only, not readable by a monitor."
+    },
+    {
+      "signal": "ui_state",
+      "meaning": "Agent Command Center: 'Sessions are locked while their agent is running: they appear greyed out and are read-only until the agent finishes.' Kanban columns show working / blocked / ready. GUI state only, no file or process trace found."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Devin Local / Devin CLI (the current Desktop agent): .devin/hooks.v1.json (whole file is the hooks object), or a \"hooks\" key in .devin/config.json, .devin/config.local.json, ~/.config/devin/config.json; Claude Code format files .claude/settings.json, .claude/settings.local.json, ~/.claude/settings.json, ~/.claude.json are also read (read_config_from.claude, default on). Legacy Cascade hooks (agent removed from Desktop in v3.9.19, still documented, still used by the JetBrains plugin): hooks.json at /Library/Application Support/Devin/hooks.json (system, falls back to .../Windsurf/hooks.json), ~/.codeium/windsurf/hooks.json (user, Desktop) or ~/.codeium/hooks.json (JetBrains), .devin/hooks.json (workspace, falls back to .windsurf/hooks.json); merged system, user, workspace. Hooks do not run in Restricted Mode.",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "PermissionRequest",
+      "UserPromptSubmit",
+      "Stop",
+      "PostCompaction",
+      "SessionStart",
+      "SessionEnd"
+    ],
+    "docs": "https://docs.devin.ai/cli/extensibility/hooks/overview (Devin Local); https://docs.devin.ai/desktop/cascade/hooks (legacy Cascade: pre_read_code, post_read_code, pre_write_code, post_write_code, pre_run_command, post_run_command, pre_mcp_tool_use, post_mcp_tool_use, pre_user_prompt, post_cascade_response, post_cascade_response_with_transcript, post_setup_worktree)"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Devin CLI only, documented since v3000.11.1 (2026-09-21): an `otel` block in the user config (~/.config/devin/config.json) or the standard OTEL_EXPORTER_OTLP_* environment variables exports agent events and metrics to an OpenTelemetry collector. Whether Devin Local inside Devin Desktop honours the same config is not documented (inferred yes, same harness). The Desktop editor itself and the retired Cascade agent have no documented OTel export; enterprise analytics is a separate REST API (cascade_runs, cascade_tool_usage, cascade_lines)."
+  },
+  "sources": [
+    {
+      "claim": "Windsurf became Devin Desktop on 2026-06-02: same IDE, new name; app is Devin.app on macOS; devin-desktop shell command replaces surf",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/desktop/devin-desktop-faq (docs.windsurf.com/windsurf/getting-started and /cascade/hooks return HTTP 307 to docs.devin.ai/desktop/...); changelog confirms the date: docs.devin.ai Desktop changelog v3.0.12 (June 2, 2026) 'Windsurf is now Devin Desktop'"
+    },
+    {
+      "claim": "Bundle id is still com.exafunction.windsurf (Next channel com.exafunction.windsurfNext); app bundle Devin.app, Next is 'Devin - Next.app'; shell binary Devin.app/Contents/Resources/app/bin/devin-desktop; data in ~/Library/Application Support/Devin and ~/.devin; old cask token windsurf now devin-desktop",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "Homebrew cask JSON https://formulae.brew.sh/api/cask/devin-desktop.json (uninstall.quit com.exafunction.windsurf, app Devin.app, version 3.10.48) and https://formulae.brew.sh/api/cask/devin-desktop@next.json (old_tokens windsurf@next); user report of a real install: https://github.com/openai/codex/issues/30046 (Bundle ID com.exafunction.windsurf, URL schemes devin and windsurf)"
+    },
+    {
+      "claim": "Read paths during the transition: ~/Library/Application Support/Windsurf/ (legacy read) and Devin/ (read+write); ~/.windsurf/ and ~/.devin/; ~/.codeium/ unchanged; CLI binaries ~/.codeium/windsurf/bin/{devin-desktop,surf,windsurf} and ~/.local/bin/devin",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/desktop/devin-desktop-faq#what-local-file-paths-does-the-application-read-from-and-write-to"
+    },
+    {
+      "claim": "Cascade was removed from Devin Desktop in v3.9.19 (2026-09-08); Devin Local is the only agent; existing Cascade conversations stay in history",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/desktop/changelog (v3.9.19 note) and https://docs.devin.ai/desktop/devin-local ('New conversations never start on Cascade'). The FAQ page still says Cascade 'remains available through July', which is stale."
+    },
+    {
+      "claim": "Devin Local is the Devin CLI harness ('shared with Devin CLI'); a local-registry sample launches it as `devin acp`; the bundled agent is fetched from the server; CLI installed at ~/.local/bin/devin or via cask devin-cli (binary bin/devin)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/desktop/acp (sample local registry: cmd `devin`, args `acp`, 'Devin Desktop launches it with `devin acp`' is stated only for that sample config), https://docs.devin.ai/desktop/devin-local ('shared with Devin CLI'; 'a bundled agent that Devin Desktop fetches from the server': launch command and path for the bundled agent not documented), https://formulae.brew.sh/api/cask/devin-cli.json (binary bin/devin)"
+    },
+    {
+      "claim": "Session resume flags: -c/--continue (most recent in cwd), -r/--resume <SESSION_ID>; bare `devin --resume` opens a picker. That `devin acp` carries no session id in argv is INFERRED (ACP session ids travel over the protocol)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/cli/reference/commands (flag table: `--resume <SESSION_ID>` -r; `--continue` -c) and essential-commands (`devin -r brisk-otter`, `devin --resume` picker). CLI changelog v3000.11.1 only says ACP clients can use MCP servers supplied in session/new or session/load; it does not say argv is empty. Local check: tools/agents_probe.py session_id() on `devin -r --model opus` returns '--model', so a bare -r followed by a flag yields a wrong id."
+    },
+    {
+      "claim": "Session store is SQLite at <data dir>/cli/sessions.db with tables sessions (id, title, working_directory, model, created_at, last_activity_at, hidden, main_chain_id) and message_nodes (session_id, node_id, parent_node_id, chat_message, created_at). Vendor docs say sessions are cached in SQLite and give the logs dir ~/.local/share/devin/cli/logs on macOS but never name the DB path",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/kenn-io/agentsview internal/parser/devin.go (devinDBPath = <root>/cli/sessions.db; queries above) and internal/parser/types.go (default roots Library/Application Support/devin and .local/share/devin); https://github.com/YosefHayim/agent-session-pack README ('~/.local/share/devin/cli/sessions.db'); vendor: docs.devin.ai CLI changelog ('Session history is now cached in SQLite') and troubleshooting ('~/.local/share/devin/cli/logs/devin_<timestamp>_<pid>.log'); vendor XDG note: docs.devin.ai llms-full.txt credentials table ('$XDG_DATA_HOME/devin/credentials.toml when XDG_DATA_HOME is set; otherwise ~/.local/share/devin/credentials.toml'). Re-checked 2026-09-29: agentsview devin.go queries sessions (id, title, working_directory, model, created_at, last_activity_at, hidden, main_chain_id) and message_nodes (row_id, session_id, node_id, parent_node_id, chat_message, created_at) at <root>/cli/sessions.db; nothing in it mentions WAL."
+    },
+    {
+      "claim": "Legacy Cascade conversations are protobuf .pb files reported by users as encrypted per conversation (path ~/.codeium/windsurf/cascade/<uuid>.pb from third-party reports, not re-verified); the hook post_cascade_response_with_transcript writes JSONL to ~/.windsurf/transcripts/{trajectory_id}.jsonl (0600, capped at 100 files)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/Exafunction/codeium/issues/127 (comments: 'stored as protocol buffers with no public schema', 'they are encrypted', 'Encryption is per-UUID'; the entropy figures 7.95-7.98 and the exact cascade/ path were not found on the page); transcript path, 0600 and 100-file cap are vendor-documented at https://docs.devin.ai/desktop/cascade/hooks"
+    },
+    {
+      "claim": "Devin Local / CLI hooks: 8 events, config locations, exit code 2 blocks, stdin JSON carries session_id and prompt_id",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/cli/extensibility/hooks/overview and https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks"
+    },
+    {
+      "claim": "Legacy Cascade hooks: 12 events, three locations merged, common fields agent_action_name, trajectory_id, execution_id, timestamp, model_name",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/desktop/cascade/hooks (fetched with firecrawl scrape, maxAge 0)"
+    },
+    {
+      "claim": "OpenTelemetry export exists in Devin CLI from v3000.11.1 (2026-09-21)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "Devin CLI changelog (stable) in https://docs.devin.ai/llms-full.txt: 'Export agent events and metrics to an OpenTelemetry collector using the `otel` block in the user config or standard `OTEL_EXPORTER_OTLP_*` variables.' The config-file reference page has no otel section."
+    },
+    {
+      "claim": "Agent Command Center: sessions locked while agent runs; devin.agentNotifications gives one OS notification per session when finished or needing input; local and cloud sessions on a status Kanban board; location picker offers Local, Worktree, Cloud",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.devin.ai/desktop/agent-command-center (Kanban 'in flight / needs your attention / finished', quoted lock sentence, notifications off by default) and Desktop changelog v3.9.19 (location picker Local, Worktree, Cloud)"
+    },
+    {
+      "claim": "Legacy Windsurf ran a Go language server, language_server_macos_arm, as a child of the IDE, identified by --ide_name windsurf (or windsurf-next), --csrf_token, --extension_server_port; main executable of Windsurf.app was Contents/MacOS/Electron. It is the completion/context backend, not the agent process. Whether Devin.app still ships it under that name is not verified",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/Noisemaker111/openusage-opencode/blob/main/docs/providers/windsurf.md (ps discovery recipe, --ide_name windsurf / windsurf-next, --csrf_token, --extension_server_port; Next variant is 'Windsurf - Next.app', bundle id com.exafunction.windsurfNext; re-fetched); Windsurf.app/Contents/MacOS/Electron: https://github.com/google-gemini/gemini-cli/issues/2016 ('windsurf: aliased to /Applications/Windsurf.app/Contents/MacOS/Electron'; re-fetched). The reddit thread cited earlier could not be fetched and is dropped."
+    },
+    {
+      "claim": "Nothing from this harness is installed or running on the maintainer's Mac, so no matcher was exercised against a live process",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ls /Applications | grep -i -E 'devin|windsurf' printed nothing; which devin devin-desktop surf windsurf: all 'not found'; ls of ~/.devin ~/.windsurf ~/.local/share/devin ~/.config/devin ~/Library/Application Support/{Devin,devin}: all 'No such file'; ps and pmset -g assertions filtered for devin|windsurf|language_server: no lines; re-run 2026-09-29 by the verifier with the same result, plus tools/agents_probe.py --row registry/agents/windsurf.json printed '0 agent sessions'"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "READ FIRST: 'Windsurf' no longer exists as a product name. Since 2026-06-02 it ships as Devin Desktop (Devin.app) with bundle id com.exafunction.windsurf unchanged. Cascade, the agent everyone associates with Windsurf, was removed on 2026-09-08 (v3.9.19); the agent now is Devin Local, the Devin CLI harness. Identification (names, bundle ids, hooks, config paths, CLI flags) is documented; every working_signals entry is INFERRED because nothing was installed to observe a live turn. How the bundled Devin Local runs under Devin.app is NOT documented: the docs only show `devin acp` for a local-registry sample, and call the bundled agent 'fetched from the server'. Do not assume a child process named `devin` exists under Devin.app until seen with ps. The `devin` CLI is a distinct product surface and may deserve its own row; it is folded in because it is the same harness. Known matcher limits (checked with synthetic argv through tools/agents_probe.py matches()): Devin Helper processes and `devin --version` do not match; `devin mcp list` and other subcommands do; `probe.processes()` splits ps args on spaces so the 'Devin - Next.app' and 'Windsurf - Next.app' path entries can never fire; a bare `-r` followed by a flag yields a wrong session id. Untried candidates worth checking on a live machine: the per-process log ~/.local/share/devin/cli/logs/devin_<timestamp>_<pid>.log (vendor-documented, contains the pid, so it maps a process to a file), the AI_AGENT=devin_<version>_agent env var that agent shell commands carry since CLI v3000.11.1, and `pmset -g assertions`. Old Windsurf.app matchers are kept for machines that have not updated."
+}
