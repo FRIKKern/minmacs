@@ -38,7 +38,7 @@
 
 - (instancetype)initWithRowDirectories:(NSArray<NSString *> *)dirs {
     if ((self = [super init])) {
-        _holdSeconds = 60;
+        _holdSeconds = 30;   // from the only measurement: 30 s misses 4% of in-turn gaps, 20 s misses 7%
         _lastWorking = [NSMutableDictionary new];
         NSMutableDictionary<NSString *, NSDictionary *> *byID = [NSMutableDictionary new];
         for (NSString *dir in dirs) {
@@ -92,10 +92,19 @@ static BOOL Matches(NSDictionary *surface, NSArray<NSString *> *argv) {
 
 static NSString *SessionID(NSDictionary *surface, NSArray<NSString *> *argv) {
     for (NSString *flag in Strings(surface[@"session_id_args"])) {
-        NSUInteger i = [argv indexOfObject:flag];
-        if (i != NSNotFound && i + 1 < argv.count) return argv[i + 1];
+        NSString *eq = [flag stringByAppendingString:@"="];
+        for (NSUInteger i = 0; i < argv.count; i++) {
+            if ([argv[i] isEqualToString:flag] && i + 1 < argv.count) return argv[i + 1];
+            if ([argv[i] hasPrefix:eq]) return [argv[i] substringFromIndex:eq.length];
+        }
     }
     return nil;
+}
+
+static NSSet<NSString *> *Shells(void) {
+    static NSSet *s; static dispatch_once_t o;
+    dispatch_once(&o, ^{ s = [NSSet setWithArray:@[@"bash", @"zsh", @"sh", @"dash", @"fish", @"-bash", @"-zsh", @"-sh"]]; });
+    return s;
 }
 
 /// Seconds since the newest file matching the row's per-session pattern was written, or -1.
@@ -111,11 +120,17 @@ static NSInteger TranscriptAge(NSDictionary *row, NSString *sid) {
     return newest ? (NSInteger)(time(NULL) - newest) : -1;
 }
 
-static NSSet<NSNumber *> *PidsHoldingSleepAssertions(void) {
+/// pid -> names of the power assertions it holds.
+static NSDictionary<NSNumber *, NSArray<NSString *> *> *AssertionsByPid(void) {
     CFDictionaryRef byPid = NULL;
-    NSMutableSet *out = [NSMutableSet new];
+    NSMutableDictionary *out = [NSMutableDictionary new];
     if (IOPMCopyAssertionsByProcess(&byPid) == kIOReturnSuccess && byPid) {
-        for (NSNumber *pid in [(__bridge NSDictionary *)byPid allKeys]) [out addObject:pid];
+        NSDictionary *d = (__bridge NSDictionary *)byPid;
+        for (NSNumber *pid in d) {
+            NSMutableArray *names = [NSMutableArray new];
+            for (NSDictionary *a in d[pid]) [names addObject:a[@"AssertName"] ?: @""];
+            out[pid] = names;
+        }
         CFRelease(byPid);
     }
     return out;
@@ -132,7 +147,7 @@ static NSSet<NSNumber *> *PidsHoldingSleepAssertions(void) {
     }
     NSMutableDictionary<NSNumber *, NSArray *> *argv = [NSMutableDictionary new];
     NSArray *(^argvOf)(pid_t) = ^(pid_t pid) { if (!argv[@(pid)]) argv[@(pid)] = MMProcessArgs(pid) ?: @[]; return argv[@(pid)]; };
-    NSSet<NSNumber *> *asserting = nil;
+    NSDictionary<NSNumber *, NSArray<NSString *> *> *asserting = nil;
     NSDate *now = NSDate.date;
     NSMutableArray<MMAgent *> *found = [NSMutableArray new];
     pid_t me = getpid();
@@ -150,12 +165,12 @@ static NSSet<NSNumber *> *PidsHoldingSleepAssertions(void) {
 
             NSMutableArray<NSNumber *> *tree = [NSMutableArray arrayWithObject:@(p.pid)];
             for (NSUInteger i = 0; i < tree.count; i++) [tree addObjectsFromArray:kids[tree[i]] ?: @[]];
-            double cpu = 0; uint64_t mem = 0; NSMutableArray<NSString *> *names = [NSMutableArray new];
-            for (NSNumber *pid in tree) {
-                MMProc *q = procs[pid]; if (!q) continue;
-                cpu += q.cpuPercent; mem += q.footprint;
-                if (pid.intValue != p.pid) [names addObject:q.name];
-            }
+            double cpu = 0; uint64_t mem = 0;
+            for (NSNumber *pid in tree) { MMProc *q = procs[pid]; if (q) { cpu += q.cpuPercent; mem += q.footprint; } }
+            // Direct children only. Descendants include MCP servers, language servers and
+            // relaunch children that live as long as the session does.
+            NSMutableArray<NSString *> *names = [NSMutableArray new];
+            for (NSNumber *pid in kids[@(p.pid)]) if (procs[pid]) [names addObject:procs[pid].name];
             NSString *sid = SessionID(surface, argvOf(p.pid));
             NSInteger age = TranscriptAge(row, sid);
 
@@ -168,14 +183,19 @@ static NSSet<NSNumber *> *PidsHoldingSleepAssertions(void) {
                     double floor = sig[@"floor_percent"] ? [sig[@"floor_percent"] doubleValue] : 3;
                     if (cpu >= floor) [reasons addObject:[NSString stringWithFormat:@"cpu %.0f%%", cpu]];
                 } else if ([kind isEqualToString:@"transcript_write"]) {
-                    NSInteger within = sig[@"within_seconds"] ? [sig[@"within_seconds"] integerValue] : 20;
+                    NSInteger within = sig[@"within_seconds"] ? [sig[@"within_seconds"] integerValue] : 30;
                     if (age >= 0 && age <= within) [reasons addObject:[NSString stringWithFormat:@"transcript %lds ago", (long)age]];
                 } else if ([kind isEqualToString:@"tool_children"]) {
-                    NSMutableArray *tools = [names mutableCopy]; [tools removeObject:@"caffeinate"];
-                    if (tools.count) [reasons addObject:@"tools running"];
+                    for (NSString *n in names) if ([Shells() containsObject:n]) { [reasons addObject:@"tool shell running"]; break; }
                 } else if ([kind isEqualToString:@"power_assertion"]) {
-                    if (!asserting) asserting = PidsHoldingSleepAssertions();
-                    for (NSNumber *pid in tree) if ([asserting containsObject:pid]) { [reasons addObject:@"holds a sleep assertion"]; break; }
+                    if (!asserting) asserting = AssertionsByPid();
+                    NSString *want = [sig[@"name"] isKindOfClass:NSString.class] ? [sig[@"name"] lowercaseString] : nil;
+                    BOOL hit = NO;
+                    for (NSNumber *pid in tree) {
+                        if ([procs[pid].name isEqualToString:@"caffeinate"]) continue;   // that is the child_process signal
+                        for (NSString *n in asserting[pid]) if (!want || [n.lowercaseString containsString:want]) hit = YES;
+                    }
+                    if (hit) [reasons addObject:@"holds a sleep assertion"];
                 }
             }
             if (reasons.count) _lastWorking[@(p.pid)] = now;
@@ -184,7 +204,7 @@ static NSSet<NSNumber *> *PidsHoldingSleepAssertions(void) {
 
             MMAgent *a = [MMAgent new];
             a.harness = row[@"name"] ?: row[@"id"]; a.harnessID = row[@"id"]; a.surface = surface[@"kind"] ?: @"tui";
-            a.pid = p.pid; a.cpu = cpu; a.memory = mem; a.children = tree.count - 1; a.treePids = tree;
+            a.pid = p.pid; a.cpu = cpu; a.memory = mem; a.children = [kids[@(p.pid)] count]; a.treePids = tree;
             a.sessionID = sid; a.transcriptAge = age; a.project = WorkingDirectory(p.pid);
             a.state = (reasons.count || held) ? @"working" : @"idle";
             a.why = reasons.count ? [reasons componentsJoinedByString:@", "]

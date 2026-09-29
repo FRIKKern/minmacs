@@ -5,6 +5,19 @@
   "homepage": "https://claude.com/claude-code",
   "surfaces": [
     {
+      "kind": "ide",
+      "label": "Claude Code extension for VS Code and forks",
+      "process": {
+        "path_contains": [
+          "/extensions/anthropic.claude-code-"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume"
+      ]
+    },
+    {
       "kind": "gui",
       "label": "Claude desktop app, Code tab",
       "bundle_ids": [
@@ -24,14 +37,14 @@
           "claude"
         ],
         "path_contains": [
-          "/.local/bin/claude",
           "/claude/versions/"
         ],
         "exclude_args": [
+          "--bg-pty-host",
+          "--bg-spare",
           "bg-pty-host",
           "bg-spare"
-        ],
-        "exclude_path_contains": []
+        ]
       },
       "session_id_args": [
         "--session-id",
@@ -53,7 +66,7 @@
     },
     {
       "signal": "transcript_write",
-      "within_seconds": 20
+      "within_seconds": 30
     },
     {
       "signal": "tree_cpu",
@@ -104,8 +117,14 @@
       "kind": "third-party",
       "date": "2026-09-29",
       "evidence": "https://allaboutcoding.ghinda.com/where-ai-coding-clis-store-session-logs/"
+    },
+    {
+      "claim": "the extension's native binary lives under ~/.vscode/extensions/anthropic.claude-code-*/ and would otherwise be labelled a terminal session; ~/.local/bin/claude as a path prefix also matched claude-swap",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "completeness critic of the research storm, run against tools/agents_probe.py matches() on this Mac; ls ~/.local/bin shows claude-swap"
     }
   ],
   "confidence": "verified-locally",
-  "notes": "Sessions that share a working directory share a project folder, so map a process to its transcript by session id, never by folder. The desktop app runs sessions as child processes of a launcher at ClaudeCode.app/Contents/MacOS/claude."
+  "notes": "Sessions that share a working directory share a project folder, so map a process to its transcript by session id, never by folder. The desktop app runs sessions as child processes of a launcher at ClaudeCode.app/Contents/MacOS/claude. Matching reads the command line only: Claude Code runs bundled tools such as ugrep from its own binary under another name, so the executable path must not be used. The sleep inhibitor counts only as a direct child."
 }

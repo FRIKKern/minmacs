@@ -20,8 +20,8 @@
 + (NSArray<NSString *> *)defaultRowDirectories;       // bundled rows, then the user's own
 - (instancetype)initWithRowDirectories:(NSArray<NSString *> *)dirs;
 @property (readonly) NSInteger rowCount;
-/// A session counts as working for this long after its last working signal.
-/// Covers an agent waiting on a slow model reply. 0 for one-shot use.
+/// A session counts as working for this long after its last working signal (default 30 s).
+/// Covers an agent waiting on a slow model reply, and signals that flicker between steps. 0 for one-shot use.
 @property NSTimeInterval holdSeconds;
 - (NSArray<MMAgent *> *)detect:(MMScanner *)scanner;
 /// The working agent that owns this pid (it is in that agent's process tree), or nil.
