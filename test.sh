@@ -13,7 +13,7 @@ python3 -c "import json;p='$R';j=json.load(open(p));j['close'].append('com.apple
 
 open -g -a TextEdit; sleep 2;                       check "TextEdit launched" yes "$(running)"
 "$BIN" plan | grep -q "com.apple.TextEdit";         check "plan lists it under close" 0 "$?"
-"$BIN" plan --json | python3 -c "import json,sys; j=json.load(sys.stdin); print('yes' if any(a['bundleID']=='com.apple.TextEdit' for a in j['close']) else 'no')" | { read r; check "json plan lists it" yes "$r"; }
+r=$("$BIN" plan --json | python3 -c "import json,sys; j=json.load(sys.stdin); print('yes' if any(a['bundleID']=='com.apple.TextEdit' for a in j['close']) else 'no')"); check "json plan lists it" yes "$r"
 "$BIN" run --yes --only com.apple.TextEdit >/dev/null; sleep 1
                                                      check "run --only quits it" no "$(running)"
                                                      check "closed list recorded" yes "$(defaults read no.guerrilla.minmacs minmacs.closedBundleIDs 2>/dev/null | grep -q TextEdit && echo yes || echo no)"
