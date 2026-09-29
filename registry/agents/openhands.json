@@ -1,0 +1,327 @@
+{
+  "id": "openhands",
+  "name": "OpenHands",
+  "vendor": "OpenHands (formerly All Hands AI)",
+  "homepage": "https://openhands.dev",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "OpenHands Agent Canvas desktop app (Electron, preview build; first dmg release v1.6.1 on 2026-07-28, universal dmg from v1.23.0; productName 'OpenHands Agent Canvas'). Bundle id is the electron-builder appId. Deliberately NOT matched on the Electron main process: it runs the launcher in-process and has Chromium helpers and node/uvx services as children, so any child or CPU test on it would say working forever. The work happens in its `agent-server` child, which the daemon surfaces below match. Same for `agent-canvas` / `npx @openhands/agent-canvas` (a node launcher).",
+      "bundle_ids": [
+        "dev.openhands.agent-canvas"
+      ]
+    },
+    {
+      "kind": "tui",
+      "oneshot": true,
+      "label": "`openhands --headless -t ...` (or -f): no UI, always-approve, exits when the task ends, so alive means working. `--json` streams JSONL events to stdout. args_contain is a substring test, which is fine for the distinctive flag `--headless`. Listed first so a task text that happens to contain `acp` cannot push a headless run into the ide surface below.",
+      "process": {
+        "names": [
+          "openhands"
+        ],
+        "path_contains": [
+          "/uv/tools/openhands/bin/"
+        ],
+        "args_contain": [
+          "--headless"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "OpenHands CLI 1.x in a terminal (Textual TUI, Python 3.12). Two shapes: (1) `uv tool install openhands`: on macOS the kernel runs the shebang, so ps shows `~/.local/share/uv/tools/openhands/bin/python ~/.local/bin/openhands ...` and argv[0] is the interpreter, hence path_contains and not names; (2) the PyInstaller one-file binary from install.openhands.dev (`openhands-macos-arm64` saved as `openhands` in /usr/local/bin or ~/.local/bin), argv[0] base name `openhands`. The one-file bootloader re-executes itself, the probe keeps the outer process. Subcommands that are not agent sessions are vetoed by exact argument (serve, web, cloud, acp, mcp, login, logout, view, -v/--version, -h/--help). Listed before the acp surface on purpose: `acp` is vetoed here by exact token, so a real `openhands acp` falls through to the ide surface, while a normal session whose task text merely contains the letters `acp` stays a tui.",
+      "process": {
+        "names": [
+          "openhands"
+        ],
+        "path_contains": [
+          "/uv/tools/openhands/bin/"
+        ],
+        "exclude_args": [
+          "serve",
+          "web",
+          "cloud",
+          "acp",
+          "mcp",
+          "login",
+          "logout",
+          "view",
+          "-v",
+          "--version",
+          "-h",
+          "--help"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "`openhands acp` (Agent Client Protocol over stdio), started by Zed, JetBrains, Toad or the VS Code ACP extension as `openhands acp` (JetBrains, Toad, VS Code docs). One conversation per process. Only reached when the tui surface above vetoed the `acp` token. args_contain is a substring test, so an excluded subcommand whose other argument contains `acp` (for example `openhands mcp add my-acp-server`) would also land here; that is a short-lived, rare case. The `openhands-acp` script in pyproject is not listed: it points at openhands_cli.acp, a module that does not exist in release 1.16.0, and no doc mentions it.",
+      "process": {
+        "names": [
+          "openhands"
+        ],
+        "path_contains": [
+          "/uv/tools/openhands/bin/"
+        ],
+        "args_contain": [
+          "acp"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "`uvx openhands acp`: the command the Zed page of the OpenHands docs tells users to put in agent_servers. uvx runs the tool in a cached environment, so argv[0] is that environment's python and argv[1] is its `bin/openhands` script (same shebang shape as a uv tool install, but the path is under the uv cache, not /uv/tools/openhands/, so the surfaces above miss it). Shape inferred from the uv tool shebang seen locally; no uvx run was observed. Matches any python whose arguments contain both `/bin/openhands` and `acp`.",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12"
+        ],
+        "args_contain": [
+          "/bin/openhands",
+          "acp"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "host": true,
+      "label": "OpenHands Agent Server started by Agent Canvas (npm, npx, desktop app) or by hand with `uvx ... agent-server`. Python runs the console script, so ps shows `<uv env>/bin/python <uv env>/bin/agent-server --host 127.0.0.1 --port 8000|18000 --import-modules ...`. One process hosts every conversation of every workspace: never map its pid to one transcript.",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "/bin/agent-server"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "host": true,
+      "label": "Agent Server started as a module, the way the SDK docs show: `python -m openhands.agent_server --host 127.0.0.1 --port 8000`. Same hosting rules as the surface above.",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "openhands.agent_server"
+        ]
+      }
+    },
+    {
+      "kind": "gui",
+      "label": "Legacy local GUI: `openhands serve` runs `docker run -it --rm --pull=always ... -p 3000:3000 --add-host host.docker.internal:host-gateway --name openhands-app docker.openhands.dev/openhands/openhands:<ver>` and serves http://localhost:3000. The agent runs inside Docker's Linux VM, so the only thing visible on the Mac is the docker client process and the container is invisible to ps. Presence only; no working signal can be read from the host. Docker is not installed here, so the process shape is from the launcher source, not observed. args_contain needs `run` and `--name` as well as `openhands-app`, so `docker logs -f openhands-app`, `docker exec` or `docker stop openhands-app` are not reported as a GUI.",
+      "process": {
+        "names": [
+          "docker"
+        ],
+        "args_contain": [
+          "run",
+          "--name",
+          "openhands-app"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "label": "OpenHands Cloud (app.all-hands.dev) and `openhands cloud` (creates a cloud conversation from the CLI). Nothing runs locally."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.openhands/conversations/*/base_state.json",
+    "per_session": "~/.openhands/conversations/{session_id}/events/event-*.json",
+    "format": "json",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "per_session points at the events/ directory: one small file per conversation event (EventLog.append writes a file per event), which is the finest clock the store offers. base_state.json is the wrong clock: it is rewritten only when a public state field changes. In the released CLI (SDK 1.21.0) that is execution_status (at run start and end, and when confirmation is asked), confirmation policy and last user message, not per event. In the newer SDK inside the Agent Canvas server (1.49.x) leaf_event_id also changes per event, but saves are batched while the step holds the state lock, so a long LLM call plus tool step writes it once at the end. The precise fact is inside base_state.json: execution_status == 'running' for the whole of a run (LLM waits and tool calls too). A quiet events/ dir never proves idle: an LLM call or a long tool can outlast 30 s. A crash leaves 'running' on disk forever, so trust it only while the owning pid is alive. Only resolvable from argv on `--resume <id>`; a fresh session has no id in argv. The 30 s window is a guess, not measured."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback, unmeasured guess. A turn waiting on the network burns almost none."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "state_file",
+      "file": "base_state.json",
+      "field": "execution_status",
+      "value": "waiting_for_confirmation",
+      "meaning": "A pending action needs the user's approval. Set by the agent when the confirmation policy says so and saved when the step's state-lock block exits (at once in SDK 1.21.0, right after the step in 1.49.x). CLI default policy is AlwaysConfirm, so it happens on the first tool call unless --always-approve or --llm-approve is given. Headless is always-approve and never waits. Same value comes over the agent-server REST/WebSocket API, which needs the session API key."
+    },
+    {
+      "signal": "hook",
+      "event": "none",
+      "meaning": "No Notification-style hook exists. Events are PreToolUse, PostToolUse, UserPromptSubmit, Stop, SessionStart, SessionEnd. PreToolUse fires when the action is about to run, not when approval is requested."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "First file found wins, no merge: <working dir>/.openhands/hooks.json, then ~/.openhands/hooks.json (or $OH_PERSISTENCE_DIR/hooks.json). Snake_case keys (pre_tool_use) and Claude Code style PascalCase keys with an optional {\"hooks\": {...}} wrapper are both accepted. Shell command hooks receive JSON on stdin and OPENHANDS_EVENT_TYPE, OPENHANDS_TOOL_NAME, OPENHANDS_PROJECT_DIR, OPENHANDS_SESSION_ID in the environment.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "Stop",
+      "SessionEnd"
+    ],
+    "docs": "https://docs.openhands.dev/openhands/usage/customization/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Traces only, in the SDK, off unless configured. Set OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (plus _HEADERS, _PROTOCOL=http/protobuf|grpc), or OTEL_ENDPOINT, or LMNR_PROJECT_API_KEY for Laminar. Spans include conversation.run, conversation.send_message and agent.step; tool calls are spans named after the tool (span type TOOL) and LLM calls are LLM-type spans; session id = conversation id. Not a live signal for a monitor. Separate from this, agent-server ships product analytics to PostHog by default when launched by Agent Canvas (opt out with DO_NOT_TRACK=1)."
+  },
+  "sources": [
+    {
+      "claim": "Agent Canvas is the current local surface: repo OpenHands/OpenHands is now the Agent Canvas web client and launcher (@openhands/agent-canvas 1.24.0), and `openhands serve` is called legacy. The old repo name All-Hands-AI/OpenHands redirects.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openhands.dev/openhands/usage/agent-canvas/overview ('agent-canvas starts the current Agent Canvas UI and backend stack. openhands serve starts the legacy OpenHands CLI GUI server'); OpenHands/OpenHands package.json name @openhands/agent-canvas version 1.24.0; gh api repos/OpenHands/OpenHands/releases: v1.24.0 2026-09-25"
+    },
+    {
+      "claim": "Desktop app: macOS dmg, productName 'OpenHands Agent Canvas', appId (bundle id) dev.openhands.agent-canvas, ad-hoc signed, bundles node and uv; main process runs the launcher in-process and spawns uvx agent-server and automation as children",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "OpenHands/OpenHands electron-builder.config.mjs (appId: \"dev.openhands.agent-canvas\", productName: \"OpenHands Agent Canvas\"); electron/main.mjs (app.setAppUserModelId, startStack() importing scripts/dev-with-automation.mjs main()); docs https://docs.openhands.dev/openhands/usage/agent-canvas/setup#desktop-app-preview-build; release asset OpenHands-Agent-Canvas-1.24.0-universal.dmg; gh api repos/OpenHands/OpenHands/releases (100): first release with a dmg asset v1.6.1, 2026-07-28"
+    },
+    {
+      "claim": "Agent server is launched as `uvx --from openhands-agent-server==<ver> --with openhands-sdk==<ver> ... agent-server --import-modules ... --host 127.0.0.1 --port N`; the console script is `agent-server = openhands.agent_server.__main__:main`; cwd is <state dir>/workspaces; env sets OH_CONVERSATIONS_PATH, OH_PERSISTENCE_DIR (=~/.openhands), OH_SESSION_API_KEYS_0, LOG_JSON=true",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "OpenHands/OpenHands scripts/dev-safe.mjs buildAgentServerCommand() and buildAgentServerEnv(); scripts/dev-with-automation.mjs startAgentServer(); software-agent-sdk openhands-agent-server/pyproject.toml [project.scripts]"
+    },
+    {
+      "claim": "Agent Canvas state dir defaults to ~/.openhands/agent-canvas. npm, npx and the desktop app keep conversations at <state dir>/dev_conversations/<hex id>/; the Docker image uses ~/.openhands/agent-canvas/conversations. api-key.txt and secret-key.txt live in the state dir. Default ports: ingress 8000, agent-server 18000, automation 18001.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "OpenHands/OpenHands scripts/dev-safe.mjs buildConfigFromPorts() (stateDir = OH_CANVAS_SAFE_STATE_DIR || ~/.openhands/agent-canvas; conversationsPath = stateDir/dev_conversations; OH_CONVERSATIONS_PATH); docker/entrypoint.sh:177 (agent-canvas/conversations); config/defaults.json (ports, paths); docs https://docs.openhands.dev/openhands/usage/agent-canvas/setup (Docker mounts ~/.openhands)"
+    },
+    {
+      "claim": "CLI: two install shapes. `uv tool install openhands --python 3.12` (script entry openhands = openhands_cli.entrypoint:main, Python ==3.12.*) and a PyInstaller one-file binary named `openhands` (macOS asset openhands-macos-arm64 / openhands-macos-intel) saved to /usr/local/bin or ~/.local/bin",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "OpenHands/OpenHands-CLI pyproject.toml (scripts, requires-python), openhands-cli.spec (EXE name='openhands'), install script https://install.openhands.dev/install.sh (get_install_dir, REMOTE_BINARY_NAME); docs https://docs.openhands.dev/openhands/usage/cli/installation; gh api repos/OpenHands/OpenHands-CLI/releases/latest: 1.16.0 (2026-05-08); OpenHands-CLI README.md line 33 (commit 954f2ba, 2026-08-11): 'This project is no longer actively maintained', recommends Agent Canvas. gh api repos/OpenHands/OpenHands-CLI/releases/latest: assets openhands-macos-arm64, openhands-macos-intel"
+    },
+    {
+      "claim": "On macOS a uv-tool script runs as `<venv>/bin/python <script path>`, so argv[0] is the interpreter and names cannot match the tool name",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ps -axo pid,ppid,args on this Mac printed `/Users/frikkjarl/.local/share/uv/tools/claude-swap/bin/python /Users/frikkjarl/.local/bin/cswap auto` (a different uv tool; OpenHands itself is not installed)"
+    },
+    {
+      "claim": "Subcommands: serve (Docker GUI), web (Textual in browser, port 12000), cloud, acp, mcp, login, logout, and view (prints a stored conversation and exits; NOT in the docs); flags --resume [ID], --last, --headless, --json, --task/-t, --file/-f, --always-approve, --llm-approve, -v/--version",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openhands.dev/openhands/usage/cli/command-reference; https://docs.openhands.dev/openhands/usage/cli/headless (headless always runs always-approve; requires --task or --file); view is only in source: OpenHands-CLI openhands_cli/argparsers/view_parser.py, main_parser.py:133 add_view_parser, entrypoint.py `args.command == \"view\"`, present in tag 1.16.0 (git show 1.16.0:openhands_cli/argparsers/main_parser.py). `openhands web` runs textual-serve with the command `uv run openhands` per browser tab (openhands_cli/tui/serve.py), a uv-run child whose python is in the project env, not /uv/tools/openhands/"
+    },
+    {
+      "claim": "Session store: CLI conversations dir is ~/.openhands/conversations (override OPENHANDS_CONVERSATIONS_DIR, base OPENHANDS_PERSISTENCE_DIR); one dir per conversation named by uuid4 hex (no dashes), holding base_state.json and events/event-<5+ digit index>-<event id>.json; --resume accepts ids with or without dashes",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openhands.dev/openhands/usage/cli/resume gives the directory (~/.openhands/conversations/) but its Storage Location tree is stale: it shows `conversation.json`, not base_state.json plus events/. The real layout is from https://docs.openhands.dev/sdk/guides/convo-persistence (Tree: <conversation-id>/base_state.json and events/event-00000-<event-id>.json) and source: OpenHands-CLI openhands_cli/setup.py:151 (persistence_dir=get_conversations_dir(), 'Conversation will add /<conversation_id>'), locations.py (OPENHANDS_CONVERSATIONS_DIR, OPENHANDS_PERSISTENCE_DIR), conversations/store/local.py (uuid.uuid4().hex), deprecated_utils.py (dashes stripped); software-agent-sdk openhands-sdk/.../conversation/persistence_const.py (BASE_STATE, EVENT_FILE_PATTERN), event_store.py append() writes one file per event (checked at v1.21.0)"
+    },
+    {
+      "claim": "execution_status is a persisted field of ConversationState with values idle, running, paused, waiting_for_confirmation, finished, error, stuck, deleting; it is set to running at run start (from idle, paused, error or stuck) and stays until the run ends, and to waiting_for_confirmation when the confirmation policy asks; a new user message resets finished/stuck to idle. Public field changes autosave base_state.json. The released CLI (1.16.0) pins openhands-sdk==1.21.0, where every change writes at once and there is no per-event field; the Agent Canvas server runs SDK 1.49.6, where saves inside `with state:` are deferred to block exit and leaf_event_id changes per event",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "software-agent-sdk at tag v1.21.0 and at main b1b237c, openhands-sdk/openhands/sdk/conversation/state.py (ConversationExecutionStatus; __setattr__ autosave; main adds _save_depth/__enter__/__exit__ batching and leaf_event_id), conversation/impl/local_conversation.py (RUNNING at run start, send_message resets FINISHED/STUCK to IDLE), agent/agent.py (WAITING_FOR_CONFIRMATION); CLI pin: PyPI https://pypi.org/pypi/openhands/1.16.0/json requires_dist openhands-sdk==1.21.0 (2026-05-08); sdk 1.49.6 from OpenHands/OpenHands config/defaults.json"
+    },
+    {
+      "claim": "CLI default confirmation policy is AlwaysConfirm; --always-approve switches to NeverConfirm; headless is always-approve",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "OpenHands-CLI openhands_cli/tui/textual_app.py:166 (initial_confirmation_policy or AlwaysConfirm()); docs command-reference and headless pages"
+    },
+    {
+      "claim": "Agent server hosts many conversations, keeps a per-conversation owner_lease.json (owner_instance_id, generation, expires_at, optional owner_host and owner_pid, 45 s TTL refreshed by heartbeat) that maps a server pid to the conversations it owns, and removes it on graceful shutdown",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "software-agent-sdk openhands-agent-server/openhands/agent_server/conversation_lease.py (LeasePayload, DEFAULT_LEASE_TTL_SECONDS = 45.0); OpenHands/OpenHands scripts/dev-safe.mjs releaseStaleConversationLeases()"
+    },
+    {
+      "claim": "Shell tool: uses tmux when `tmux -V` succeeds (a dedicated tmux server on socket name 'openhands', sessions named openhands-<user>-<uuid>), else a persistent `bash -i` on a PTY that lives until the conversation closes. Either way an idle session already has that child, and with tmux the command runs under a daemonised tmux server, not as a direct child of the agent. Under Agent Canvas the tmux socket directory is <state dir>/tmux (TMUX_TMPDIR), not /private/tmp/tmux-<uid>.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "software-agent-sdk openhands-tools/openhands/tools/terminal/terminal/factory.py (_is_tmux_available, auto-detect), tmux_terminal.py:125-137, constants.py:37 (TMUX_SOCKET_NAME = \"openhands\"), subprocess_terminal.py:154-180 (bash -i via pty.openpty + Popen); OpenHands/OpenHands scripts/dev-safe.mjs buildConfigFromPorts (tmuxTmpDir: env.TMUX_TMPDIR || path.join(stateDir, \"tmux\"))"
+    },
+    {
+      "claim": "Hooks: six events, config in hooks.json, first found of <working dir>/.openhands/hooks.json then ~/.openhands/hooks.json; CLI loads them at startup and prints 'Hooks loaded'; Stop hook can deny finishing; no Notification event",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openhands.dev/openhands/usage/customization/hooks; https://docs.openhands.dev/sdk/guides/hooks; software-agent-sdk openhands-sdk/openhands/sdk/hooks/types.py (HookEventType) and config.py:281-310 (HookConfig.load search order); OpenHands-CLI openhands_cli/setup.py (HookConfig.load(working_dir=get_work_dir()))"
+    },
+    {
+      "claim": "OpenTelemetry: SDK tracing via Laminar instrumentation, activated by env vars, traces only. Span names seen in source: conversation.run, conversation.send_message, agent.step; tool spans are named after the tool (span_type TOOL); LLM spans are span_type LLM",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openhands.dev/sdk/guides/observability; software-agent-sdk openhands-sdk/openhands/sdk/observability/laminar.py (env var list: LMNR_PROJECT_API_KEY, OTEL_ENDPOINT, OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, OTEL_EXPORTER_OTLP_ENDPOINT); span names: software-agent-sdk local_conversation.py @observe(name=\"conversation.run\") and (name=\"conversation.send_message\"), agent/agent.py @observe(name=\"agent.step\") and observe(name=tool_name, span_type=\"TOOL\"), observability/laminar.py start_as_current_span(name=name, span_type=\"LLM\"). grep found no span literally named tool.execute or llm.completion"
+    },
+    {
+      "claim": "Agent Canvas passes PostHog product telemetry to agent-server by default (exporter posthog when a key is present), disabled by DO_NOT_TRACK=1 or VITE_DO_NOT_TRACK=1",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "OpenHands/OpenHands scripts/dev-safe.mjs buildAgentServerTelemetryEnv()"
+    },
+    {
+      "claim": "No sleep inhibitor: no caffeinate, IOPMAssertion or powerSaveBlocker in the CLI, SDK, tools, agent server or Electron code",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rIl -i -E 'caffeinate|wakepy|IOPMAssertion|keepawake|keep_awake|prevent.*sleep' over OpenHands-CLI/openhands_cli, software-agent-sdk/openhands-*, OpenHands/electron and OpenHands/src printed nothing; grep -rn powerSaveBlocker OpenHands/electron printed nothing"
+    },
+    {
+      "claim": "Legacy `openhands serve` runs `docker run -it --rm --pull=always -e LOG_ALL_EVENTS=true -v /var/run/docker.sock:... -v ~/.openhands:/.openhands ... -p 3000:3000 --name openhands-app docker.openhands.dev/openhands/openhands:<ver>`",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "OpenHands/OpenHands-CLI openhands_cli/gui_launcher.py:128-206; docs https://docs.openhands.dev/openhands/usage/cli/gui-server"
+    },
+    {
+      "claim": "Not installed here, nothing running, so no surface was classified live",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which openhands agent-canvas docker` printed 'openhands not found', 'agent-canvas not found', 'docker not found'; `ls ~/.openhands` -> No such file or directory (also `ls ~/.openhands/agent-canvas`); `ls /Applications | grep -i -E 'openhands|canvas'` empty; `mdfind \"kMDItemCFBundleIdentifier == 'dev.openhands.agent-canvas'\"` empty; `ps -axo pid=,args= | grep -i -E 'openhands|agent-server|agent-canvas'` 0 lines. `ls /private/tmp/tmux-501` printed only 'default', but that says little: Agent Canvas keeps its tmux socket under <state dir>/tmux, and the CLI's default is the shared tmux tmp dir"
+    },
+    {
+      "claim": "The Zed page of the docs configures OpenHands as `uvx openhands acp` (command uvx, args openhands acp); JetBrains, Toad and VS Code pages use `openhands acp`",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openhands.dev/openhands/usage/cli/ide/zed.md (agent_servers JSON: \"command\": \"uvx\", \"args\": [\"openhands\", \"acp\"]); https://docs.openhands.dev/openhands/usage/cli/ide/jetbrains.md (\"command\": \"openhands\", \"args\": [\"acp\"]); .../ide/toad.md (toad acp \"openhands acp\"); .../ide/vscode.md ('The extension runs `openhands acp` as a subprocess'). The uvx cache python shape is inferred, not observed: `ls ~/.cache/uv` here shows archive-v0 but no environments-v2 and no uvx process is running"
+    },
+    {
+      "claim": "Agent Canvas can run Claude Code, Codex or Gemini CLI as an ACP subprocess spawned by the agent-server, so those children would also match their own rows (claude-code, codex, gemini-cli) while the daemon row is the real host",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openhands.dev/openhands/usage/agent-canvas/acp-agents.md ('the Agent Server spawns the agent's own CLI as a subprocess'; defaults `npx -y @agentclientprotocol/claude-agent-acp`, `npx -y @zed-industries/codex-acp`, `npx -y @google/gemini-cli --acp`)"
+    },
+    {
+      "claim": "Docs page names differ from the shipped asset: the setup page says Agent-Canvas-<version>-universal.dmg, release 1.24.0 ships OpenHands-Agent-Canvas-1.24.0-universal.dmg; releases 1.6.1 to 1.22.0 shipped arm64-only dmgs (Agent-Canvas-<v>-arm64.dmg up to 1.8.0, OpenHands-Agent-Canvas-<v>-arm64.dmg after), so the app is Apple silicon only before 1.23.0",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "gh api repos/OpenHands/OpenHands/releases?per_page=100 --paginate, filtered on dmg assets, 20 releases: v1.6.1 2026-07-28 Agent-Canvas-1.6.1-arm64.dmg ... v1.22.0 OpenHands-Agent-Canvas-1.22.0-arm64.dmg; v1.23.0 2026-09-23 first universal; latest v1.24.0 asset OpenHands-Agent-Canvas-1.24.0-universal.dmg. Setup page: https://docs.openhands.dev/openhands/usage/agent-canvas/setup#desktop-app-preview-build"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Three things called OpenHands run on a Mac and they differ. (1) The CLI (`openhands`, release 1.16.0 of 2026-05-08, pinned to SDK 1.21.0, repo marked no longer actively maintained since 2026-08-11 in favour of Agent Canvas): one Python process per conversation, sessions in ~/.openhands/conversations/<hex id>/base_state.json. (2) Agent Canvas (npm, npx, or the Electron desktop app): the visible agent is a Python `agent-server` child that hosts every conversation, state under ~/.openhands/agent-canvas/dev_conversations/ for npm, npx and desktop, ~/.openhands/agent-canvas/conversations for Docker (undocumented paths, from launcher source; the docs only say ~/.openhands), so the row marks it host and the probe must not map its pid to one transcript. The owner_lease.json in each conversation dir carries owner_pid, which is the only pid-to-conversation side channel. (3) Legacy `openhands serve` in Docker: invisible except the docker client. The most precise 'turn in progress' is base_state.json execution_status == 'running' (and 'waiting_for_confirmation' for blocked on the human), but the probe has no signal kind to read a JSON field, so the row expresses it through transcript_write on the newest events/event-*.json (per_session) plus the meaning text; a JSON-field signal is needed. Do not use tool_children or child_process: the shell tool is either a persistent idle `bash -i` child (no tmux) or lives under a tmux server (tmux installed, which is the case on this Mac), so neither is a turn signal. `--resume --last` puts `--last` where the probe expects an id. Hooks and telemetry need the user to opt in. The legacy V0 openhands runtime and `~/.openhands-state` are gone from current docs and not covered. Added on review: `openhands view <id>` (prints a stored conversation and exits, undocumented) is vetoed. `uvx openhands acp`, the command the Zed docs page uses, runs from the uv cache and has its own ide surface (shape inferred, never observed). The `openhands-acp` script is a dead entry point in 1.16.0 and is not matched. base_state.json is not a heartbeat: the row reads events/ for the write clock and base_state.json only for the status field. Agent Canvas can run Claude Code, Codex or Gemini CLI as ACP children of its agent-server; those children match their own rows and would be counted on top of the host (registry README section 3 case 12), so a detector should drop a match whose ancestor is an OpenHands agent-server. The tmux socket of Canvas sessions is under <state dir>/tmux, not /private/tmp/tmux-<uid>. Residual weak spots: the daemon surface matches any python whose argument contains `/bin/agent-server` (no second discriminator without dropping the documented hand-run shape); `python -m pytest --cov=openhands.agent_server` would match the module surface; the ide surfaces test `acp` as a substring."
+}

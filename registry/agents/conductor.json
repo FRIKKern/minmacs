@@ -1,0 +1,244 @@
+{
+  "id": "conductor",
+  "name": "Conductor",
+  "vendor": "Melty Labs, Inc. (closed source, free plan)",
+  "homepage": "https://conductor.build",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Conductor Mac app (Tauri v2: Rust backend plus WKWebView, frontend compiled into the binary). ONE process for every repository, workspace and chat. Installed as /Applications/Conductor.app (Homebrew cask `conductor`, in-app updates); the Mach-O is lowercase `conductor`. Not the same as Contents/Resources/bin/conductor (a bundled CLI for the cloud public API) or the unrelated `conductor` CLIs (Microsoft's Python workflow tool, Netflix Conductor, agent-deck). Local agents do not run in this process: they run under the sidecar below, which is a child of this one. Its direct children also include integrated-terminal shells and run scripts, so tool_children would misfire here.",
+      "bundle_ids": [
+        "com.conductor.app"
+      ],
+      "process": {
+        "path_contains": [
+          "/Conductor.app/Contents/MacOS/conductor"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "conductor-runtime sidecar, full-path form: one per running app, child of the app, parent of every live claude/codex agent (`conductor-runtime sidecar`, binary at ~/Library/Application Support/com.conductor.app/bin/.internal/conductor-runtime, listens on $TMPDIR/conductor-sidecar-v2-<pid>.sock). A host, not a session: one process, many chats. Exact ps argv form NOT seen (Conductor not installed here). For a detector that reads the whole executable path.",
+      "process": {
+        "names": [
+          "conductor-runtime"
+        ],
+        "path_contains": [
+          "/com.conductor.app/bin/.internal/conductor-runtime"
+        ],
+        "args_contain": [
+          "sidecar"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "conductor-runtime sidecar, agents_probe.py form: `Application Support` has a space, and the probe splits ps args on spaces, so argv[0] becomes /Users/<user>/Library/Application and the rest of the path arrives as argv[1] (same workaround as the Zed row). Cannot match anything on a detector that keeps the full path.",
+      "process": {
+        "path_contains": [
+          "/Library/Application"
+        ],
+        "args_contain": [
+          "com.conductor.app/bin/.internal/conductor-runtime",
+          "sidecar"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Conductor-managed agent subprocess, full-path form: the bundled claude / codex (and, unverified, opencode) binaries in ~/Library/Application Support/com.conductor.app/bin/, run headless with no tty as children of the sidecar. Each is one chat. A Claude one also matches the claude-code row by name (`claude`), so a detector must drop the claude-code match when an ancestor is conductor-runtime or the Conductor app. `--session-id` / `--resume` carry the chat id (== sessions.id in conductor.db, == CONDUCTOR_SESSION_ID in the process environment); the flag spelling and whether codex carries any id are inferred. The user can point Conductor at a system claude/codex instead (Settings -> Storage), and then this path rule misses; ancestry still holds. VERIFIED WEAKNESS: the path rule matches EVERY process under bin/ (a probe of matches() on synthetic argv matched `bin/rg` and `.internal/conductor-runtime <any subcommand>` except `sidecar` and `actions`), so a helper binary or an unseen sidecar subcommand would list as an idle agent. Names of the bundled binaries were not seen (no install), so the rule is not narrowed to claude/codex here.",
+      "process": {
+        "path_contains": [
+          "/com.conductor.app/bin/"
+        ],
+        "exclude_args": [
+          "sidecar",
+          "actions"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "Conductor-managed agent subprocess, agents_probe.py form (space-split path, as above). Under the probe a matched sidecar or app hides these anyway (outermost-process rule).",
+      "process": {
+        "path_contains": [
+          "/Library/Application"
+        ],
+        "args_contain": [
+          "com.conductor.app/bin/"
+        ],
+        "exclude_args": [
+          "sidecar",
+          "actions"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "cloud",
+      "label": "Conductor Cloud workspaces: agents run in an isolated microVM inside a Vercel Sandbox (Conductor docs; Firecracker is Vercel's documented sandbox isolation, not stated by Conductor), files sync to the Mac. Nothing local to match. The cloud API reports GET /v0/sessions/{id}/status as idle, working or errored, but it needs an API token and covers cloud workspaces only."
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/com.conductor.app/conductor.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "~/Library/Application Support/com.conductor.app/conductor.db-wal",
+      "within_seconds": 30,
+      "meaning": "Exact truth is sessions.status = 'working' for the chat, read from conductor.db (WAL mode, a second read-only connection sees every commit live), one row per chat with id == the agent's session id. Values seen in third-party source: working, idle, error, needs_user_input, needs_plan_response. Not observed here (Conductor is not installed). Caveats: status reads 'idle' while the chat waits on a background task or subagent (the desktop shows 'Waiting for task'), so idle is not always finished; and one shared file for all chats, so the -wal mtime says only that some chat wrote. agents_probe.py cannot evaluate this (no per_session path, no sqlite signal)."
+    },
+    {
+      "signal": "power_assertion",
+      "meaning": "Opt-in only: Settings -> Experimental 'Caffeinate while agents are running' (added in 0.50.0, May 2026) keeps the Mac awake 'while an agent is actively working' and stops below 10% battery. Default not stated anywhere (the changelog calls it a new experimental setting; Big Terminal Mode docs put experimental toggles under Settings -> Experimental), so treat it as opt-in, inferred. Mechanism unknown (own assertion or a caffeinate child), assertion name unknown, so no name is given; when on it should mean an agent turn is running somewhere in the app. Read from the changelog only, never seen in pmset."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "Weak fallback, INFERRED and unmeasured. The tree of the app or sidecar holds every live agent and their tool children, so it says only that some chat is busy, never which. The app's own webview renders in separate WebKit processes that are not children, but a busy integrated terminal or run script under the app is. The floor is a guess."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "sqlite",
+      "table": "sessions",
+      "column": "status",
+      "values": [
+        "needs_user_input",
+        "needs_plan_response"
+      ],
+      "meaning": "The turn ended because the agent asked a question or has a plan waiting for approval (notify.ts wording; that needs_user_input is the AskUserQuestion tool is inferred, that tool is only named as a Conductor MCP tool in AGENTS.md). Only in the newest third-party source (conductor-remote notify.ts and its test); the same repo's older notes say status only ever holds working, idle, error, so treat these two values as recent and unconfirmed. A tool-permission prompt has no value of its own: the desktop sidebar shows 'needs permission' (0.44.0 changelog), but the third-party author found no permission table and read a permission wait as working -> idle. Not seen here."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "meaning": "Claude Code's own hook, if the user configured one; Conductor has no wait hook of its own. Inferred: whether it fires when Conductor answers permission requests over the SDK stream is untested."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "None of Conductor's own. The hosted harness's hooks pass through (inferred from the 0.9.0 changelog line; the file paths are Claude Code's own): Claude Code reads ~/.claude/settings.json and the repo's .claude/settings.json (Conductor 0.9.0: 'Global hooks and memory are now configurable in Conductor'). Conductor's own scripts (scripts.setup, scripts.run, scripts.archive in .conductor/settings.toml or ~/.conductor/settings.toml) fire on workspace events, not agent turns. Whether Claude Code hook events fire under Conductor's headless SDK mode is untested.",
+    "events": [],
+    "docs": "https://www.conductor.build/changelog/0.9.0-run-script-hooks-and-custom-fonts"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "Conductor itself has no OTLP exporter: it sends product analytics and crash logs to PostHog (privacy page). Variables set in Settings -> Environment or .conductor/settings.toml [environment_variables] reach the agents, so Claude Code's CLAUDE_CODE_ENABLE_TELEMETRY or Codex's [otel] config could export from a Conductor-run agent (inferred, untested)."
+  },
+  "sources": [
+    {
+      "claim": "Homebrew cask: app Conductor.app installs to /Applications/Conductor.app, version 0.87.6, in-app updates; zap paths name com.conductor.app under Application Support, Caches and WebKit (the WebKit dir suggests a WKWebView app: inferred)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/cask/conductor.json"
+    },
+    {
+      "claim": "Bundle id com.conductor.app, Tauri v2 app, frontend compiled into Contents/MacOS/conductor, Resources/bin holds helpers including a `conductor` API CLI and checkpointer.sh; all recorded from an installed 0.76.0 build; CFBundleURLSchemes = [conductor]",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/hyldmo/conductor-remote/blob/main/FINDINGS.md (sections 'Writes' and 'Sidecar IPC socket')"
+    },
+    {
+      "claim": "Process ancestry on a live Conductor: agent -> `conductor-runtime sidecar` (path under com.conductor.app) -> /Applications/Conductor.app/Contents/MacOS/conductor; agents are headless with no tty; the agent environment has __CFBundleIdentifier=com.conductor.app, CONDUCTOR_SESSION_ID equal to the agent's --session-id, CONDUCTOR_WORKSPACE_ID, CONDUCTOR_WORKSPACE_PATH",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/octane0411/open-vibe-island/pull/669 (a pull request, not an issue: opened 2026-08-26, merged 2026-09-02; author inspected a live Conductor-hosted process; text says 'headless, TTY-less subprocess of its own runtime'; the sidecar path is shown elided as (.../com.conductor.app/...))"
+    },
+    {
+      "claim": "One `conductor-runtime sidecar` child of the app parents every live claude/codex agent; the app drives it over $TMPDIR/conductor-sidecar-v2-<sidecarPid>.sock (newline-delimited JSON-RPC 2.0); binary lives in ~/Library/Application Support/com.conductor.app/bin/.internal/",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/hyldmo/conductor-remote/blob/main/FINDINGS.md and ARCHITECTURE.md section 'Re-deriving Conductor internals'"
+    },
+    {
+      "claim": "Bundled Claude Code and Codex live in ~/Library/Application Support/com.conductor.app/bin; a system install can be used instead (Settings -> Storage, claude_code_executable_path / codex_executable_path)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/docs/faq (question 'Which versions of Claude Code, Codex, and OpenCode does Conductor use?'), https://www.conductor.build/docs/troubleshooting/issues, https://www.conductor.build/docs/reference/settings/reference"
+    },
+    {
+      "claim": "Local chat history is saved in ~/Library/Application Support/com.conductor.app; the vendor names the directory, not the file",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/docs/reference/privacy"
+    },
+    {
+      "claim": "Store is conductor.db, SQLite in WAL mode; sessions(id, status, workspace_id, title, agent_type, model, permission_mode, context_used_percent, unread_count, updated_at, last_user_message_at ...), session_messages(session_id, role, content, turn_id, sent_at ...), workspaces, repos; sessions.id equals the Claude Code session id; status is the live agent state",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/hyldmo/conductor-remote/blob/main/FINDINGS.md ('State DB'); column list also in https://www.npmjs.com/package/condcli (package src/db.ts, npm tarball condcli-0.1.1, read in scratch, not installed)"
+    },
+    {
+      "claim": "sessions.status values working, idle, error plus needs_user_input and needs_plan_response; a turn ends in idle or one of the needs_* values; the two needs_* values appear in the newer code and test, while the older AGENTS.md says only working/idle/error",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/hyldmo/conductor-remote/blob/main/src/notifications/notify.ts (turnEnded) and tests/notifications/notify.test.ts; contradicted by AGENTS.md 'status only ever holds working/idle/error'"
+    },
+    {
+      "claim": "status reads idle while a chat waits on background tasks, so the app shows 'Waiting for task' though the DB says idle",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/hyldmo/conductor-remote/blob/main/src/reads/types.ts (comment on background_tasks) and src/reads/background-tasks.ts; vendor side: https://www.conductor.build/changelog/0.77.0-early-access-multiplayer-api-background-tasks-performance"
+    },
+    {
+      "claim": "Opt-in experimental setting 'Caffeinate while agents are running': prevents Mac sleep while an agent is actively working, shuts off below 10% battery",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/changelog/0.50.0-steering"
+    },
+    {
+      "claim": "Conductor sets CONDUCTOR_SESSION_ID in agent processes (not in setup scripts or ordinary terminals), plus CONDUCTOR_WORKSPACE_PATH, CONDUCTOR_ROOT_PATH, CONDUCTOR_WORKSPACE_NAME, CONDUCTOR_PORT; workspaces sit under ~/conductor/workspaces/<repo>/<workspace>",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/docs/reference/environment-variables and https://www.conductor.build/docs/concepts/workspaces-and-branches (llms-full.txt: 'usually created under ~/conductor/workspaces/<repo name>/<workspace name>')"
+    },
+    {
+      "claim": "Sidebar shows when a session needs input or permission; the tool_approvals_enabled setting makes approvals optional (Big Terminal Mode presets run claude --dangerously-skip-permissions when approvals are off)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/docs/troubleshooting/issues ('The agent is waiting for input'), https://www.conductor.build/changelog/0.44.0-new-sidebar-rebuilt-composer-codex-checkpoints ('The sidebar now shows when an agent needs permission'), https://www.conductor.build/docs/reference/big-terminal-mode"
+    },
+    {
+      "claim": "Conductor uses the Anthropic Agent SDK for Claude (so the claude subprocess is spawned headless by the SDK); the bundled codex binary speaks the app-server protocol (the relay author queries it for plan usage), but how Conductor itself drives Codex turns was not read",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/changelog/0.36.3-submit-a-prompt-sdk-memory-leaks ('updated the Anthropic Agent SDK to 2.1.50'); https://github.com/hyldmo/conductor-remote/blob/main/FINDINGS.md ('Plan usage': Codex 0.147 app-server, 'the exact binaries Conductor bundles')"
+    },
+    {
+      "claim": "Agents run unsandboxed as the user; model requests go straight from the Mac to the provider; Conductor collects analytics and crash logs in PostHog",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/docs/faq, https://www.conductor.build/docs/reference/privacy, https://www.conductor.build/docs/reference/security-and-permissions"
+    },
+    {
+      "claim": "Not installed on this Mac; no Conductor process, no app, no data directory",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ls /Applications | grep -i conduct` printed nothing; `ls ~/Library/Application\\ Support | grep -i conduct` printed nothing; `ps -axo pid=,ppid=,args= | grep -i conductor` printed nothing; `defaults read /Applications/Conductor.app/Contents/Info CFBundleIdentifier` said the domain/default pair does not exist"
+    },
+    {
+      "claim": "Cloud workspaces run in an isolated microVM (8 vCPU, 16 GB) in a Vercel Sandbox, us-east-1; Vercel documents each sandbox as a Firecracker microVM",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/docs/faq and llms-full.txt ('Each cloud workspace runs in an isolated microVM'); https://vercel.com/docs/vercel-sandbox ('secure Firecracker microVM')"
+    },
+    {
+      "claim": "Vendor legal name is Melty Labs, Inc. (Delaware); the app has a Free plan",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.conductor.build/llms-full.txt (Terms: 'Melty Labs, Inc., a Delaware corporation'; pricing section '### Free'; 'Conductor is free to use')"
+    }
+  ],
+  "confidence": "inferred",
+  "notes": "Closed source, so every process and database fact here comes from third-party readers of a live install (conductor-remote, condcli, open-vibe-island) plus the vendor's docs and changelog; nothing was seen on this Mac. Conductor is a HOST: one app, one sidecar, many chats, so CPU, children and pid cannot be attributed to a chat. The precise per-chat state is a read-only query of conductor.db (sessions.status), never message columns; the probe has no signal kind for it. The same agents also match other rows: a Conductor-run `claude` matches the claude-code row by name, and every ordinary terminal claude/codex started in Big Terminal Mode (a pty under the app) matches its own row with Conductor as an ancestor and a tty. Drop the claude-code match when an ancestor is conductor-runtime or the app, or the same chat is counted twice. Processes are headless (no tty), which is a discriminator against terminal sessions. Because `Application Support` has a space, agents_probe.py sees only /Users/<user>/Library/Application as argv[0]; the row carries a second, split-path form for that. Adversarial re-check 2026-09-29: the agent-subprocess rule is broader than the agent set (see that surface's label); the `conductor.db` and sidecar facts each rest on one third-party repo (hyldmo/conductor-remote) with no second reader, and none was seen live here."
+}

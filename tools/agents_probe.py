@@ -6,12 +6,28 @@ classifies what is running on this Mac. The Objective-C detector must agree with
   tools/agents_probe.py --json     machine readable
   tools/agents_probe.py --row registry/agents/codex.json   evaluate one row only
 """
-import glob, json, os, re, subprocess, sys, time
+import ctypes, ctypes.util, glob, json, os, re, struct, subprocess, sys, time
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
 def sh(*cmd):
     return subprocess.run(cmd, capture_output=True, text=True).stdout
+
+_libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+
+def real_argv(pid):
+    """The true argument vector from the kernel (KERN_PROCARGS2), the same source the
+    Objective-C detector uses. Splitting `ps` output on spaces loses every path with a space."""
+    mib = (ctypes.c_int * 3)(1, 49, pid)
+    size = ctypes.c_size_t(0)
+    if _libc.sysctl(mib, 3, None, ctypes.byref(size), None, 0) != 0 or size.value < 8: return None
+    buf = ctypes.create_string_buffer(size.value)
+    if _libc.sysctl(mib, 3, buf, ctypes.byref(size), None, 0) != 0: return None
+    raw = buf.raw[:size.value]
+    argc = struct.unpack("i", raw[:4])[0]
+    rest = raw[4:]
+    rest = rest[rest.find(b"\0"):].lstrip(b"\0")        # skip the executable path and its padding
+    return [a.decode("utf-8", "replace") for a in rest.split(b"\0")[:argc]] or None
 
 def processes():
     procs = {}
@@ -19,9 +35,9 @@ def processes():
         m = re.match(r"\s*(\d+)\s+(\d+)\s+([\d.,]+)\s+(\S+)\s+(.*)", line)
         if not m: continue
         pid, ppid, cpu, tty, args = m.groups()
-        argv = args.split(" ")
+        argv = real_argv(int(pid)) or args.split(" ")
         procs[int(pid)] = dict(pid=int(pid), ppid=int(ppid), cpu=float(cpu.replace(",", ".")), tty=tty,
-                               args=args, exe=argv[0], name=os.path.basename(argv[0]), argv=argv, kids=[])
+                               args=args, exe=argv[0], name=os.path.basename(argv[0]).lstrip("-") or argv[0], argv=argv, kids=[])
     for p in procs.values():
         if p["ppid"] in procs: procs[p["ppid"]]["kids"].append(p["pid"])
     return procs
@@ -34,13 +50,19 @@ def tree(procs, pid):
     return out
 
 def matches(surface, p):
+    """0 when the surface does not match. Otherwise a score: how specific the match was.
+    A process that matches two rows belongs to the more specific one, so the claude binary
+    that Xcode ships is an Xcode agent, not a terminal session."""
     spec = surface.get("process") or {}
-    if not spec: return False
-    hit = p["name"] in spec.get("names", []) or any(s in p["exe"] for s in spec.get("path_contains", []))
-    if not hit: return False
-    if any(a in p["argv"] for a in spec.get("exclude_args", [])): return False
+    if not spec: return 0
+    arg0 = p["argv"][0] if p["argv"] else ""
+    paths = [s for s in spec.get("path_contains", []) if s in arg0]
+    named = os.path.basename(arg0) in spec.get("names", [])
+    if not (paths or named): return 0
+    if any(a in p["argv"] for a in spec.get("exclude_args", [])): return 0
     need = spec.get("args_contain", [])
-    return all(any(n in a for a in p["argv"]) for n in need)
+    if not all(any(n in a for a in p["argv"]) for n in need): return 0
+    return 1 + max([len(s) for s in paths] or [0]) + len(need)
 
 def session_id(surface, p):
     for flag in surface.get("session_id_args", []):
@@ -98,15 +120,21 @@ def main():
     args = sys.argv[1:]
     rows = [args[args.index("--row") + 1]] if "--row" in args else sorted(glob.glob(os.path.join(ROOT, "registry/agents/*.json")))
     procs, found, held = processes(), [], assertions()
-    for path in rows:
-        row = json.load(open(path))
-        for p in procs.values():
+    loaded = [json.load(open(path)) for path in rows]
+    me = os.getpid()
+    for p in procs.values():
+        if p["pid"] == me: continue
+        best = None                                    # (score, row, surface)
+        for row in loaded:
             for surface in row["surfaces"]:
-                if matches(surface, p):
-                    parent = procs.get(p["ppid"])
-                    # a harness that re-executes itself shows up twice; keep the outermost process
-                    if parent and any(matches(s, parent) for s in row["surfaces"]): break
-                    found.append(classify(row, surface, p, procs, held)); break
+                score = matches(surface, p)
+                if score and (best is None or score > best[0]): best = (score, row, surface)
+        if not best: continue
+        _, row, surface = best
+        parent = procs.get(p["ppid"])
+        # a harness that re-executes itself shows up twice; keep the outermost process
+        if parent and any(matches(s, parent) for s in row["surfaces"]): continue
+        found.append(classify(row, surface, p, procs, held))
     found.sort(key=lambda a: (a["state"] != "working", a["harness"], a["pid"]))
     if "--json" in args:
         print(json.dumps(dict(agents=found, working=sum(a["state"] == "working" for a in found), idle=sum(a["state"] == "idle" for a in found)), indent=1)); return

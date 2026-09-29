@@ -1,0 +1,212 @@
+{
+  "id": "emdash",
+  "name": "Emdash",
+  "vendor": "General Action (generalaction/emdash, Apache-2.0, YC W26)",
+  "homepage": "https://emdash.com",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Emdash desktop app (Electron), stable channel: /Applications/Emdash.app/Contents/MacOS/Emdash. A HOST, not an agent: it runs the coding-agent CLIs of other vendors (claude, codex, opencode, amp and 30 more) in PTYs or over ACP, one worktree per task. The main process and up to 16 worker processes (the desktop worker manifest lists 16 ids) share this one executable (workers are fork()ed, run as node via ELECTRON_RUN_AS_NODE, with argv[1] = .../Resources/app.asar/out/main/<name>-runtime.js), plus Electron helper processes under Contents/Frameworks. The probe keeps only the outermost match, so workers fold into the app. The hosted agents match their own registry rows, not this one.",
+      "bundle_ids": [
+        "com.emdash.stable"
+      ],
+      "process": {
+        "path_contains": [
+          "/Emdash.app/Contents/MacOS/Emdash"
+        ]
+      }
+    },
+    {
+      "kind": "gui",
+      "label": "Emdash Canary: app name 'Emdash Canary' has a space, so agents_probe.py (ps args split on spaces) sees argv[0] as just /Applications/Emdash and argv[1] as Canary.app/Contents/MacOS/Emdash. This entry keys on that split, as the zed row does for Preview. Electron helpers do not match (their argv[1] is .../Frameworks/Emdash). A detector that reads the full executable path can rely on path_contains '/Emdash Canary.app/Contents/MacOS/' instead. User data is ~/Library/Application Support/emdash-canary.",
+      "bundle_ids": [
+        "com.emdash.canary"
+      ],
+      "process": {
+        "path_contains": [
+          "/Applications/Emdash"
+        ],
+        "args_contain": [
+          "Canary.app/Contents/MacOS/Emdash"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "tui-agents worker: the Emdash executable running app.asar/out/main/tui-agents-runtime.js. It owns every terminal-style agent session (node-pty). Each hosted agent CLI is a DIRECT child of this pid (argv is the plain agent command, no shell, when the project has no shell setup and tmux is off). This is the pid whose direct children are agents; the main app pid's direct children are only helpers and workers. Folded into the gui surface by the probe's outermost-match rule; listed so a detector that reads full command lines can find the agent parent.",
+      "process": {
+        "path_contains": [
+          "/Emdash.app/Contents/MacOS/Emdash"
+        ],
+        "args_contain": [
+          "tui-agents-runtime.js"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "acp worker: the Emdash executable running app.asar/out/main/acp-runtime.js. It owns the structured chat (ACP, JSON-RPC over stdio) sessions. Its direct children are the ACP provider processes: for Claude Code and Codex the Emdash executable again running out/main/adapters/claude-acp.mjs or codex-acp.mjs (the path most likely sits under app.asar, not app.asar.unpacked: inferred, unobserved) (ELECTRON_RUN_AS_NODE=1, CLAUDE_CODE_EXECUTABLE / CODEX_PATH pointing at the user's own CLI); for others the CLI itself (`opencode acp`, `vibe-acp`, ...). Folded into the gui surface by the probe.",
+      "process": {
+        "path_contains": [
+          "/Emdash.app/Contents/MacOS/Emdash"
+        ],
+        "args_contain": [
+          "acp-runtime.js"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/emdash/emdash4.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "~/Library/Application Support/emdash/emdash4.db-wal",
+      "within_seconds": 10,
+      "meaning": "Weak, and the only file-level signal. Emdash keeps no transcript: it stores agent status, not messages. The app database (WAL mode) has one row per conversation in table `conversations` with a device-local `agent_status` cache ('idle' | 'working' | 'awaiting-input' | 'completed' | 'error') that the app writes on each transition. Exact per-conversation truth is a read-only `SELECT id, provider, type, agent_status FROM conversations WHERE agent_status = 'working' AND location = 'local'` on that file (never select title, config or any text column). The WAL moves on a status change, not while a turn streams, and also for unrelated writes, so a quiet WAL proves nothing. Stale after a crash or a force quit: the app resets 'working' and 'awaiting-input' to 'idle' only at the next launch (boot database phase, rows with location=local of type pty and of type acp; rows of remote SSH hosts are never reset and describe agents that are not in this Mac's process table, hence the location filter). The status is hook-driven for terminal sessions, so an interrupted turn can stay 'working' (Claude Code's Stop hook does not run on a user interrupt; inferred for Emdash). Not read by agents_probe. Stable channel path; canary is ~/Library/Application Support/emdash-canary, and EMDASH_USER_DATA_DIR / EMDASH_DB_FILE override it. Never observed: Emdash is not installed here."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Last resort, unmeasured guess (Electron GUI floor from registry README section 4). The tree holds Electron renderer and GPU helpers, up to 16 node workers (git, file watcher, resource-usage polling) and every hosted agent, so typing, diffs or a build in a task terminal also raise it. Do NOT use child_process, tool_children or power_assertion on the Emdash pid: Emdash itself holds no sleep assertion (no powerSaveBlocker or caffeinate anywhere in its source), and its direct children are long-lived helpers and workers, so a child rule reads every Emdash as working forever. Better: judge each hosted agent by its own row. A hosted `claude` is a direct child of the tui-agents worker and matches the claude-code row, where its own `caffeinate` child is the precise turn signal; the transcript is ~/.claude/projects/*/<conversation id>.jsonl because Emdash launches `claude --session-id <conversation id>` (or `--resume <id>`)."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "sqlite",
+      "table": "conversations",
+      "column": "agent_status",
+      "value": "awaiting-input",
+      "meaning": "Read-only, same file as above. Terminal sessions: set when an installed hook reports notification_type permission_prompt, idle_prompt or elicitation_dialog. ACP chat sessions: set when the session has a pending permission request (pendingPermissionCount > 0). CAUTION: for Claude Code the status is 'awaiting-input' after idle_prompt too (its idle-waiting notification, classified by message text: not matching /permission|approval/ means idle_prompt), so 'awaiting-input' does not always mean 'blocked on a permission'. The permission-versus-idle distinction lives only in the in-memory TuiAgentState.notificationType, not in the database. A finished turn reads 'completed' first (Stop hook)."
+    },
+    {
+      "signal": "ui",
+      "meaning": "Emdash raises an in-app notification feed entry, a 'needs_attention' sound and an OS notification when a session needs attention or completes. None is readable by another process; the notification path uses Electron Notification (main/host/notifications/system-notification-sink.ts) and an in-renderer sound player, not a helper process; afplay and terminal-notifier appear nowhere in source. osascript does appear, but only for opening Terminal/iTerm on SSH tasks and listing fonts, not for notifications."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "Emdash has no user-facing lifecycle hooks of its own. Its `.emdash.json` (and Project Settings) hold shellSetup, preservePatterns and scripts.setup/run/teardown, which are project scripts, not turn events. Emdash is instead a hook CONSUMER: before a terminal session starts it installs marker-tagged entries into the hosted agent's USER-GLOBAL config, never the worktree (Claude Code: ~/.claude/settings.json or $CLAUDE_CONFIG_DIR/settings.json, keys SessionStart, UserPromptSubmit, Notification, Stop; each command is `EMDASH_HOOK_CONFIG_VERSION=1; if [ -z \"${EMDASH_HOOK_PORT:-}\" ] ... exit 0; fi; curl -sf -X POST ... http://127.0.0.1:$EMDASH_HOOK_PORT/hook`). The entries stay in the file for good and are no-ops outside Emdash. The running session gets EMDASH_HOOK_PORT, EMDASH_HOOK_NONCE, EMDASH_HOOK_TOKEN and EMDASH_PTY_ID (= conversation id) in its environment, and TERM_PROGRAM=emdash. Hooks or plugins are installed for 24 of 37 providers (Amp, Antigravity, Auggie, Claude Code, CodeBuddy, Codex, Command Code, Devin, Droid, GitHub Copilot, Goose, Grok, Kilocode, Kimi, Kiro, MiMo Code, Mistral Vibe, Muse Code, Oh My Pi, OpenCode, Pi, Prime Agent, Qoder CLI, Qwen Code; counted from packages/plugins/src/agents/impl/*/index.ts and the root table in agents/integrations/providers.md). Emdash does not infer status from terminal output; a provider without hooks shows no status for that event, except that an Enter keypress marks it 'working'.",
+    "events": [],
+    "docs": "https://emdash.com/docs/providers"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry. Product analytics go to PostHog (allowlisted events such as app_started, agent_run_started, agent_run_finished, plus perf_vitals), on by default in production builds, off with TELEMETRY_ENABLED=false (or 0, no) or in Settings > General > Privacy & Telemetry. Nothing to point a collector at. Git grep -i for opentelemetry, OTEL_ and otlp over all 5,194 tracked files at commit 873a3e2 matches only pnpm-lock.yaml (an optional peer dependency @opentelemetry/api of some package); no source file, package.json or config uses it."
+  },
+  "sources": [
+    {
+      "claim": "Product is an Electron desktop app that runs coding agents in parallel, one git worktree per task, locally or on SSH hosts; latest release v1.2.7 published 2026-09-27; macOS via Homebrew cask `emdash` or dmg",
+      "evidence": "https://github.com/generalaction/emdash README; https://api.github.com/repos/generalaction/emdash/releases/latest (tag v1.2.7, published_at 2026-09-27T09:29:15Z, assets emdash-arm64.dmg and emdash-x64.dmg); https://formulae.brew.sh/api/cask/emdash.json (version 1.2.7, app Emdash.app)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Bundle ids: com.emdash.stable (product 'Emdash') and com.emdash.canary (product 'Emdash Canary'); userData dir emdash, emdash-canary, emdash-dev (dev); executableName equals productName so the Mach-O is Contents/MacOS/Emdash",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/apps/emdash-desktop/src/core/primitives/app-identity/api/app-identity.ts (APP_ID, PRODUCT_NAME, USER_DATA_DIR_NAME) and apps/emdash-desktop/electron-builder.config.ts (executableName: PRODUCT_NAME, mac dmg+zip arm64). Cask uninstall stanza: quit com.emdash.stable. Cask zap also lists ~/Library/Preferences/com.emdash.plist, which points to an older bundle id com.emdash (inferred, not in current source)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Main process, workers and helpers: desktop forks up to 16 worker processes (apps/emdash-desktop/src/core/manifests/node/workers.ts lists 16 ids) with child_process.fork(entry) from the Electron main process, and Electron runs fork children with ELECTRON_RUN_AS_NODE, so workers are the Emdash executable with argv[1] = <app path>/out/main/<worker>-runtime.js; app.getAppPath() is the app.asar path in a packaged app",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/wire/src/worker/node/child-process-spawner.ts (fork(spec.entry, args, {stdio: ['ignore','pipe','pipe','ipc']}), no execPath override); apps/emdash-desktop/src/main/gateway/worker-paths.ts (join(app.getAppPath(), 'out','main', file)); apps/emdash-desktop/src/core/manifests/node/workers.ts (file `${artifact}.js`); packages/core/src/runtimes/tui-agents/api/worker.ts (artifact 'tui-agents-runtime'); runtimes/acp/api/worker.ts ('acp-runtime'); agents/architecture/acp-runtime.md: 'Desktop relies on Electron's child_process.fork behavior, which runs children with ELECTRON_RUN_AS_NODE. The packaged app must keep the RunAsNode fuse enabled'. The literal app.asar substring in ps output is inferred, not observed",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Terminal-style agents are spawned by the tui-agents worker with node-pty; on macOS with no shell setup and no tmux the agent is exec'd directly, so it is a direct child of the worker. With a shell setup or tmux the command is wrapped: `$SHELL -c '<setup> && cmd'`, or `$SHELL -c '/bin/sh -c ... tmux -u new-session -d -s <name> ... && tmux -u attach-session'`",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/core/src/runtimes/tui-agents/node/runtime/runtime.ts (spawnSpec, resolveLocalPtySpawn with intent run-command, command {kind:'argv'}); packages/core/src/services/pty/api/local-spawn.ts resolvePosixSpawn; packages/core/src/primitives/exec/node/executable-launch.ts planExecutableLaunch: `if (platform !== 'win32') return directPlan(command, args, cwd)`; packages/core/src/services/pty/api/tmux-commands.ts buildTmuxShellLine",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "tmux is optional and off by default (per-host and per-project setting); when on, agent sessions live in a tmux server and survive app restarts; tmux sessions are named <label>-<10 hex> with the option @emdash_identity",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/apps/emdash-desktop/src/core/features/machines/browser/components/host-settings-card.tsx (`settings?.tmux ?? false`, label 'Enable tmux by default'); https://emdash.com/docs/project-config ('Tmux: Keeps task terminals and agent sessions running across app restarts'); packages/core/src/services/pty/api/tmux-identity.ts (TMUX_IDENTITY_OPTION '@emdash_identity', makeTmuxSessionName)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Environment given to every agent session: TERM_PROGRAM=emdash, TERM=xterm-256color, COLORTERM=truecolor, EMDASH_HOOK_PORT, EMDASH_PTY_ID, EMDASH_HOOK_NONCE, EMDASH_HOOK_TOKEN, plus EMDASH_TASK_ID, EMDASH_TASK_NAME, EMDASH_TASK_PATH, EMDASH_ROOT_PATH, EMDASH_DEFAULT_BRANCH, EMDASH_PORT. None of this is in argv, so command-line matching cannot use it",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/core/src/runtimes/tui-agents/node/runtime/runtime.ts (spawnInto env layers; prepareHookEnv returns EMDASH_HOOK_PORT/EMDASH_PTY_ID/EMDASH_HOOK_NONCE/EMDASH_HOOK_TOKEN); packages/core/src/services/pty/api/terminal-env.ts (TERM_PROGRAM='emdash'); https://emdash.com/docs/project-config section 'Environment variables available to scripts'",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Process to session: no Emdash process carries a session id. The conversation id is the key. For Claude Code, Emdash launches `claude --session-id <conversation id> [--model m] [--dangerously-skip-permissions] [prompt]`, or `claude --resume <provider session id>` when resuming (a different id if the user ran /resume in the TUI, which the hook payload session_id reports back)",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/plugins/src/agents/impl/claude/index.ts (buildStandardCommand: resumeFlag '--resume', sessionIdFlag '--session-id', autoApproveFlag '--dangerously-skip-permissions', modelFlag '--model'); packages/core/src/services/agent-plugins/api/plugins/helpers/standard-command.ts (fresh session appends sessionIdFlag + ctx.sessionId; runtime passes sessionId: config.input.conversationId); claude/hooks.ts comment on /resume",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Status vocabulary and mapping: TUI hook events start -> working, stop -> completed, error -> error, notification with permission_prompt / idle_prompt / elicitation_dialog -> awaiting-input, other notification -> idle; ACP: pending permission -> permission notification, isGenerating -> start, stopReason -> stop or error, cancelled -> reset to idle",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/core/src/runtimes/tui-agents/node/runtime/agent-state.ts (applyCanonicalEvent, ATTENTION_NOTIFICATION_TYPES); apps/emdash-desktop/src/core/primitives/agents/api/agent-events.ts (AgentStatus = 'idle'|'working'|'awaiting-input'|'error'|'completed'); apps/emdash-desktop/src/main/core/agent-status/agent-status-service.ts (deriveAgentStatus); apps/emdash-desktop/src/main/core/acp/agent-status-transition.ts (projectAcpStatusSnapshot, deriveAcpAgentStatusActions)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "agent_status is persisted in the app SQLite database, table conversations, column agent_status, described as a 'Device-local cache converging from the live session model'; the app DB is emdash4.db in userData (previous emdash3.db), opened with journal_mode = WAL; stale 'working' / 'awaiting-input' rows of local pty and local acp conversations are reset to 'idle' at boot",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/apps/emdash-desktop/src/core/services/app-db/node/schema.ts (conversations table, agentStatus, agentStatusSeen, provider, type, providerSessionId, cwd); apps/emdash-desktop/src/main/db/default-path.ts (CURRENT_DB_FILENAME 'emdash4.db', darwin ~/Library/Application Support/<dir>); apps/emdash-desktop/src/main/db/drizzleClient.ts (db.pragma('journal_mode = WAL')); apps/emdash-desktop/src/core/features/conversations/node/reset-stale-tui-agent-statuses.ts; apps/emdash-desktop/src/main/bootstrap/boot/phases/database.ts line 80; apps/emdash-desktop/src/main/bootstrap/boot/phases/apply-identity.ts (userData = appData/<userDataDirName>, EMDASH_USER_DATA_DIR override); EMDASH_DB_FILE per AGENTS.md. The cask zap path spells the directory 'Emdash' (case-insensitive volume)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Emdash stores no transcripts. Other runtime files under userData: conversations.db (host conversation records: id, provider, type pty|acp, resume pointer), mementos.db, pull-requests.db, host-settings.json, acp-session-intents.json, tui-session-intents.json, acp-attachments/. Message history stays in each agent's own store (e.g. ~/.claude/projects) and ACP sessions are restored by provider loadSession replay",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/apps/emdash-desktop/src/main/gateway/desktop-workers.ts (join(app.getPath('userData'), 'conversations.db' | 'mementos.db' | 'pull-requests.db' | 'host-settings.json' | 'acp-attachments')); apps/emdash-desktop/src/main/core/runtime/session-intent-stores.ts; packages/core/src/runtimes/conversations/node/persistence/schema.ts (conversation_records); CONTEXT.md ('Queued Prompt payload ... Transcript storage' avoided); agents/architecture/acp-runtime.md (loadSession replay). Logs: cask zap lists ~/Library/Logs/emdash",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Hook server: the tui-agents worker runs an HTTP server on 127.0.0.1 with a random port (listen(0)); hooks POST to /hook with headers X-Emdash-Token, X-Emdash-Pty-Id, X-Emdash-Event-Type; events are start, stop, error, notification, session-start",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/core/src/runtimes/tui-agents/node/hooks/hook-server.ts; hook-pipeline.ts; packages/core/src/services/agent-plugins/api/plugins/helpers/hooks.ts (makePosixHookPostCommand, EMDASH_MARKER 'EMDASH_HOOK_PORT', EMDASH_HOOK_VERSION_MARKER)",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Hook installation is user-global and marker-tagged; Claude Code gets SessionStart, UserPromptSubmit, Notification, Stop in settings.json under $CLAUDE_CONFIG_DIR or ~/.claude; hooks are harmless outside Emdash; 37 providers, 23 ACP-capable, 24 with hook or plugin installs",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/plugins/src/agents/impl/claude/hooks.ts (buildNestedJsonHookConfig, configRoots(envConfigRoot('CLAUDE_CONFIG_DIR', '.claude'))); agents/integrations/providers.md ('Shipped hook integrations install into user-global provider configuration, never into a task worktree'; 'Emdash does not infer agent status from terminal output'); README ('installs marker-tagged entries in the agent's user-level config'); https://emdash.com/docs/providers (list of hook-supporting providers, 35 CLIs on the page dated 2026-08-31, 37 plugins in source)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Claude Code's Stop hook does not run when the turn ended by a user interrupt, and API errors fire StopFailure, which Emdash does not subscribe to; so a hook-tracked terminal session can stay 'working' after Esc or an API error (inference for Emdash, documented for Claude Code)",
+      "evidence": "https://code.claude.com/docs/en/hooks.md ('the stoppage occurred due to a user interrupt. API errors fire StopFailure instead', fetched 2026-09-29); Emdash subscribes only to SessionStart, UserPromptSubmit, Notification, Stop (claude/hooks.ts)",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "ACP adapters run as children of the acp worker: Claude and Codex through the Emdash executable in Node mode (ELECTRON_RUN_AS_NODE=1, argv = adapters/<name>-acp.mjs, asarUnpack out/main/adapters/**), OpenCode as `opencode acp`, Mistral as vibe-acp",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/packages/plugins/src/agents/impl/claude/index.ts and codex/index.ts (acp.buildSpawn: command process.execPath, env ELECTRON_RUN_AS_NODE '1', CLAUDE_CODE_EXECUTABLE / CODEX_PATH); helpers/adapter-assets.ts (adapters/<name>.mjs); claude/adapter.ts (name 'claude-acp'); opencode/index.ts (args ['acp']); mistral/index.ts; apps/emdash-desktop/electron-builder.config.ts asarUnpack",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Remote SSH hosts run a separate Linux workspace-server daemon (~/.emdash/workspace-server/); agents on those hosts are not in this Mac's process table",
+      "evidence": "https://github.com/generalaction/emdash/blob/873a3e2067f4abc136272ed2b61abea3a2c07bcf/agents/architecture/workspace-server.md ('Managed Linux installations use ~/.emdash/workspace-server/'; 'Local workers remain owned by desktop runtime bootstrap'); apps/workspace-server/",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Emdash itself holds no sleep assertion and spawns no notification helper (notifications use Electron Notification and an in-app sound player)",
+      "evidence": "git grep -il 'powerSaveBlocker|caffeinate|prevent-app-suspension|prevent-display-sleep|IOPMAssertion' over the shallow clone at commit 873a3e2067f4abc136272ed2b61abea3a2c07bcf (5,194 tracked files): no matches. git grep -n 'afplay|osascript|terminal-notifier': no afplay or terminal-notifier; osascript appears in apps/emdash-desktop/src/main/core/app/service.ts:420 (open Terminal/iTerm for SSH) and utils.ts:107,243 (font list, app bundle id lookup), none a notification. Notifications: src/main/host/notifications/system-notification-sink.ts (new Notification)",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "No OpenTelemetry; PostHog only, opt-out via TELEMETRY_ENABLED=false",
+      "evidence": "git grep -il 'opentelemetry|OTEL_|otlp' over the same clone: only pnpm-lock.yaml (optional peer dep @opentelemetry/api), no source or manifest use. https://emdash.com/docs/telemetry ('Sent to PostHog'; TELEMETRY_ENABLED default true; events agent_run_started / agent_run_finished)",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Emdash is not installed on this Mac and nothing is running",
+      "evidence": "ls /Applications | grep -i emdash printed nothing; ps -axo pid,ppid,args | grep -i emdash printed nothing; ls ~/Library/Application\\ Support | grep -i emdash printed nothing; ls ~/.emdash -> No such file or directory; which emdash -> emdash not found",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Emdash is an orchestrator: no model loop of its own, so 'is Emdash working' means 'is at least one hosted agent working'. On the Mac the process table shows one app tree: main process, Electron helpers, up to 16 workers (same executable, argv[1] = .../app.asar/out/main/<name>-runtime.js). Only two workers matter: tui-agents-runtime.js (its direct children are the terminal agents) and acp-runtime.js (its direct children are the ACP providers). Hosted agents such as claude or codex match their own rows too; classify their state with those rows and drop any match whose ancestor is a registered Emdash pid (registry README section 3, case 12), or the same turn is counted twice. Nothing in argv marks an agent as Emdash's; use the ancestor chain, or read TERM_PROGRAM=emdash / EMDASH_PTY_ID from the process environment. The exact state is in emdash4.db (read-only `conversations.agent_status`), keyed by conversation id, which for Claude Code equals the session id. Not verified live: Emdash is not installed here, so the executable name, worker argv, idle CPU and how quickly the database reflects a turn are all read from source, not observed."
+}

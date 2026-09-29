@@ -1,0 +1,267 @@
+{
+  "id": "herdr",
+  "name": "Herdr",
+  "vendor": "herdrdev (open source, Apache-2.0)",
+  "homepage": "https://herdr.dev",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "herdr client: the terminal UI you attach with `herdr`, `herdr --session <name>`, `herdr session attach <name>` or `herdr --remote <ssh-target>`. Thin viewer: it draws frames the server streams, so its own CPU is rendering, not agent work. Homebrew, mise, Nix and the install script (~/.local/bin/herdr) all give a binary whose basename is `herdr`; there is no .app bundle and no bundle id. Short-lived CLI subcommands (`herdr agent list`, `herdr pane ...`, `herdr status`, `herdr update`, `herdr server stop`) and the SSH transport helpers `remote-client-bridge` / `remote-api-bridge` are excluded by whole-token match. `herdr session attach <name>` is a real client whose name is a positional argument, so session_id_args (flag form only) cannot read it; `session list|stop|delete` are excluded via list/stop/delete.",
+      "process": {
+        "names": [
+          "herdr"
+        ],
+        "exclude_args": [
+          "server",
+          "remote-client-bridge",
+          "remote-api-bridge",
+          "update",
+          "status",
+          "config",
+          "channel",
+          "machine",
+          "workspace",
+          "worktree",
+          "tab",
+          "pane",
+          "notification",
+          "agent",
+          "terminal",
+          "plugin",
+          "integration",
+          "api",
+          "completion",
+          "completions",
+          "list",
+          "stop",
+          "delete",
+          "help",
+          "--help",
+          "-h",
+          "--version",
+          "-V",
+          "--default-config",
+          "--skill"
+        ]
+      },
+      "session_id_args": [
+        "--session"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "herdr background server: `herdr server`, spawned by the first `herdr` launch with setsid and stdio on /dev/null. It owns every pane PTY. Pane shells are its DIRECT children (login shells on macOS, argv[0] `-zsh` style); the agents (claude, codex, pi ...) are GRANDCHILDREN under those shells, not direct children. The server is a plain fork of the spawning client, so its ppid is that client until the client detaches, then launchd: the probe's outermost-process rule hides the server while the spawning client is alive, and that client's tree_cpu then contains the whole server subtree. Named sessions (`--session <name>`) start the same `herdr server` argv, and the session name reaches it only as env HERDR_SESSION, so it cannot be read from ps; map a server to its session by the listening socket (~/.config/herdr/sessions/<name>/herdr.sock, default ~/.config/herdr/herdr.sock). args_contain is a substring test, so exclude_args lists the `herdr server <verb>` and `herdr status server` management calls that would otherwise match, plus the client-only flags `--session`, `--remote`, `--machine` and `--remote-keybindings` (a client started as `herdr --remote build-server` or `herdr --session my-server` has `server` inside an argument and would otherwise read as a daemon; the real daemon argv never carries those flags). Surface order matters here: the probe takes the first surface that matches, so the TUI surface is listed BEFORE the daemon. That makes the `=` forms (`--remote=build-server`, `--session=my-server`) resolve to the TUI (its exact-match veto on `server` does not fire on them) while a real `herdr server` is vetoed by the TUI rule and falls through to this one. Still unfixable with exact-match vetoes: a client run as `herdr --remote dev --remote-keybindings server` or against a session literally named `server` is vetoed by the TUI rule's exact `server` and so matches nothing. A live-handoff replacement is also a real server: `herdr server --handoff-import <socket> <token>` (src/server/handoff.rs spawn_handoff_import); it matches this rule, and the probe hides it while the old server, its parent, is alive.",
+      "process": {
+        "names": [
+          "herdr"
+        ],
+        "args_contain": [
+          "server"
+        ],
+        "exclude_args": [
+          "stop",
+          "reload-config",
+          "update-agent-manifests",
+          "reload-agent-manifests",
+          "agent-manifests",
+          "live-handoff",
+          "status",
+          "session",
+          "agent",
+          "pane",
+          "workspace",
+          "worktree",
+          "tab",
+          "plugin",
+          "integration",
+          "machine",
+          "notification",
+          "terminal",
+          "api",
+          "config",
+          "channel",
+          "update",
+          "completion",
+          "remote-client-bridge",
+          "remote-api-bridge",
+          "--help",
+          "-h",
+          "--version",
+          "-V",
+          "--session",
+          "--remote",
+          "--machine",
+          "--remote-keybindings",
+          "help"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.config/herdr/sessions/*/session.json",
+    "per_session": "~/.config/herdr/sessions/{session_id}/session.json",
+    "format": "json",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "socket_activity",
+      "meaning": "Herdr is a host, so 'a turn is in progress' means at least one hosted agent has agent_status == working. That state is computed inside the server and is readable only through its JSON API socket (~/.config/herdr/herdr.sock, or ~/.config/herdr/sessions/<name>/herdr.sock, newline-delimited JSON): request pane.list or agent.list and read agent_status per pane (idle, working, blocked, done, unknown), or events.subscribe to pane.agent_status_changed. CLI form: `herdr agent list` (takes no flags and already prints the JSON response; `--json` is rejected with a usage error). It is per pane, and pane.process_info returns the shell pid and foreground pid so a pane can be tied to its agent process. Not a passive signal and not implemented by tools/agents_probe.py; a live query is needed. For most agents the state is scraped from the visible screen with per-agent TOML manifests, not reported by the agent."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Weak fallback, unmeasured guess. Sums the server subtree (every pane shell and every agent below it plus the server's own VT parsing and rendering). It says something in the tree is busy, not that an agent is. Do not use tool_children or child_process for Herdr: the server's direct children are pane shells that live as long as the pane, so a shell-child rule reads every Herdr server as permanently working."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "socket",
+      "method": "agent.list / pane.list agent_status == blocked; events.subscribe {type: pane.agent_status_changed, agent_status: blocked}; herdr agent wait <target> --until blocked",
+      "meaning": "blocked means the hosted agent shows a known approval, question or permission screen. Detection is deliberately strict: for a known agent other than Codex an unrecognised prompt reads idle (fallback labelled default_known_agent_idle_fallback in `herdr agent explain`); from v0.9.2 Codex falls back to unknown instead, and may stay unknown after a response, so blocked is reliable when present and can be missing. done and idle both mean ready for input; done means finished and not yet looked at."
+    },
+    {
+      "signal": "hook",
+      "event": "pane.agent_status_changed",
+      "meaning": "A Herdr plugin event hook ([[events]] on = \"pane.agent_status_changed\" in herdr-plugin.toml) runs a command with HERDR_PLUGIN_EVENT_JSON on each state change; filter for blocked there."
+    },
+    {
+      "signal": "child_process",
+      "name": "terminal-notifier",
+      "meaning": "Config-gated, source-verified. Only when [ui.toast] delivery = \"system\": on a done or needs-input notice the server sends NotifyKind::SystemToast to the foreground attached client, which runs terminal-notifier if installed, else /usr/bin/osascript (src/server/notifications.rs, src/client/notifications.rs, src/platform/macos.rs show_desktop_notification). The default is delivery = \"off\" (shipped config template `# delivery = \"off\"`, unit test asserts Off), so by default no process appears; \"herdr\" (in-app) and \"terminal\" (outer-terminal escape) also leave none. Short-lived, so a periodic ps rarely sees it. Marks 'finished or needs input', not blocked alone, and is a child of the client, never the server."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Plugins: herdr-plugin.toml manifest with [[events]] on = \"<event>\" command = [...]; installed with `herdr plugin install owner/repo/subdir` or `herdr plugin link <dir>`; registry file plugins.json next to session.json (~/.config/herdr/plugins.json); plugin state under ~/.local/state/herdr/plugins/<id>, config under ~/.config/herdr/plugins/config/<id>. A separate [[startup]] table runs one-shot commands after restore (env HERDR_PLUGIN_EVENT=startup); it is not an [[events]] `on` value, so it is not in the events list here. Herdr has no settings.json-style hook table of its own. Separately, `herdr integration install <agent>` writes Herdr's hook scripts into the hosted agent's own config (for Claude Code ~/.claude/hooks/herdr-agent-state.sh plus entries in ~/.claude/settings.json) so the agent reports its session id back over the socket.",
+    "events": [
+      "workspace.created",
+      "workspace.updated",
+      "workspace.closed",
+      "workspace.renamed",
+      "workspace.moved",
+      "workspace.reordered",
+      "workspace.focused",
+      "worktree.created",
+      "worktree.opened",
+      "worktree.removed",
+      "tab.created",
+      "tab.closed",
+      "tab.renamed",
+      "tab.moved",
+      "tab.focused",
+      "pane.created",
+      "pane.closed",
+      "pane.focused",
+      "pane.moved",
+      "pane.exited",
+      "pane.agent_detected",
+      "pane.agent_status_changed"
+    ],
+    "docs": "https://herdr.dev/docs/plugins/"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "None. No OpenTelemetry crate in Cargo.toml or Cargo.lock at v0.9.1; logging is the tracing crate to local files (~/.config/herdr/herdr.log, herdr-client.log, herdr-server.log, filtered by HERDR_LOG). Live state is the socket API and event subscriptions instead."
+  },
+  "sources": [
+    {
+      "claim": "Herdr is a terminal workspace manager, one Rust binary, background server plus attached clients; the server owns panes and process state; detach with ctrl+b q leaves agents running; agent states are blocked, working, done, idle, unknown",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://herdr.dev/docs/concepts/ (repo path docs/next/website/src/content/docs/concepts.mdx in github.com/herdrdev/herdr, tag v0.9.1); README.md"
+    },
+    {
+      "claim": "the server is spawned as `<current_exe> server` with setsid and stdio to /dev/null; the client then attaches in-process; the child is not double-forked",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr v0.9.1 src/server/autodetect.rs build_server_daemon_command (.arg(\"server\")) and spawn_server_daemon; src/platform/mod.rs detach_server_daemon_command (libc::setsid in pre_exec); src/main.rs (args[1] == \"server\" runs server::headless::run_server)"
+    },
+    {
+      "claim": "hidden `client` mode and every CLI subcommand name: server, api, status, completion, config, channel, machine, workspace, worktree, tab, notification, agent, terminal, pane, plugin, integration, session, update, remote-client-bridge, remote-api-bridge",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr v0.9.1 src/cli.rs maybe_run match arms; src/main.rs (server, client, remote-client-bridge, remote-api-bridge, update)"
+    },
+    {
+      "claim": "`herdr session attach <name>` is rewritten to an explicit session and then runs the normal client, so its argv holds the name positionally; `--session <name>` / `--session=<name>` is the flag form",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr v0.9.1 src/session.rs configure_from_args"
+    },
+    {
+      "claim": "named sessions are separate servers with their own sockets, session file and logs; default session lives directly in ~/.config/herdr",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr v0.9.1 src/session.rs data_dir_for (config_dir/sessions/<name> or config_dir), api_socket_path_for herdr.sock, client_socket_path_for herdr-client.sock; https://herdr.dev/docs/socket-api/#socket-paths; https://herdr.dev/docs/persistence-remote/"
+    },
+    {
+      "claim": "config dir is ~/.config/herdr (or $XDG_CONFIG_HOME/herdr); debug builds use herdr-dev; state dir is ~/.local/state/herdr",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr v0.9.1 src/config/io.rs app_dir_name, config_dir, state_dir; https://herdr.dev/docs/configuration/ (Config file, Logs)"
+    },
+    {
+      "claim": "session store is session.json (layout, cwd, focus, native agent session refs; not conversation content), optional session-history.json (off by default, holds pane screen text), recovery copies in session-backups/ (v0.9.1); from v0.9.2 also layout snapshots in session-snapshots/ (up to 48)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://herdr.dev/docs/session-state/; herdrdev/herdr v0.9.1 src/persist.rs header (`Stored at ~/.config/herdr/session.json`), src/persist/io.rs session_path (data_dir()/session.json); session-snapshots/ is absent from v0.9.1 (`grep -rn session-snapshots` over v0.9.1 src and docs finds nothing) and present in v0.9.2 src/persist/writer.rs and its session-state.mdx, CHANGELOG 0.9.2 (#4320)"
+    },
+    {
+      "claim": "Herdr recognises an agent from the pane's foreground process (macOS: proc_bsdinfo, KERN_PROCARGS2 argv) and then classifies idle/working/blocked from the live bottom-of-screen snapshot with TOML manifests; lifecycle hooks are authoritative only for Pi, OMP, Kimi, OpenCode, Kilo, MastraCode; for Claude Code, Codex, Copilot, Cursor, Droid, Gemini and others state comes from screen scraping and the hook only reports the session id",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://herdr.dev/docs/agents/ (Supported agents table, Status authority, Blocked state); herdrdev/herdr v0.9.1 src/platform/macos.rs foreground_job, src/detect/manifests/claude.toml (osc_title_working, live_turn_working rules); v0.9.2 agents.mdx: Codex falls back to unknown, not idle, when no rule matches"
+    },
+    {
+      "claim": "the API exposes agent_status idle|working|blocked|done|unknown per pane, pane.process_info (shell_pid, foreground_process_group_id, tty, foreground_processes), agent.wait, events.subscribe with pane.agent_status_changed",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr v0.9.1 src/api/schema/common.rs (enum AgentStatus), src/api/schema/panes.rs (PaneInfo.agent_status, PaneProcessInfo), src/api/schema/events.rs (EventKind::PaneAgentStatusChanged); https://herdr.dev/docs/socket-api/ (Event subscriptions)"
+    },
+    {
+      "claim": "plugin event hooks can fire on pane.agent_status_changed and pane.agent_detected; the allowed list is PLUGIN_HOOK_EVENT_KINDS, narrower than the subscription events (no pane.output_changed, no workspace.metadata_updated)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr v0.9.1 src/api/schema/events.rs PLUGIN_HOOK_EVENT_KINDS; https://herdr.dev/docs/plugins/ ; https://herdr.dev/docs/socket-api/#plugin-apis"
+    },
+    {
+      "claim": "no OpenTelemetry and no sleep inhibitor: grep for opentelemetry, caffeinate and IOPMAssertion over src, Cargo.toml and Cargo.lock finds nothing",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "git clone of herdrdev/herdr, `git grep -n -i -l 'caffeinate\\|IOPMAssertion\\|opentelemetry' v0.9.1 -- src Cargo.toml Cargo.lock` printed nothing; Cargo.toml dependencies list tracing and tracing-subscriber only"
+    },
+    {
+      "claim": "on macOS the server adopts the per-user Mach bootstrap context (HERDR_MACOS_SERVER_CONTEXT=user) so panes survive logout; `launchctl managername` inside a pane is normally Background; no launchd plist is installed",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://herdr.dev/docs/troubleshooting/ (Keychain-backed tools, SSH or DNS fails after macOS logout); herdrdev/herdr v0.9.1 src/platform/macos/bootstrap.rs; `git grep -n -i 'LaunchAgent\\|\\.plist\\|launchctl ' v0.9.1 -- src distribution/install.sh` found nothing outside tests"
+    },
+    {
+      "claim": "pane shells are launched as login shells on macOS (shell_mode auto) through portable-pty's default-program builder, so they carry the login argv0 convention and HERDR_ENV=1",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://herdr.dev/docs/configuration/ (shell_mode = \"auto\"); herdrdev/herdr v0.9.1 src/pane.rs shell_mode_uses_login_shell and the comment above it ('Unix login shells go through portable-pty's default-program builder so they receive the login argv0 convention'), HERDR_ENV set at pane.rs cmd.env(crate::HERDR_ENV_VAR ...)"
+    },
+    {
+      "claim": "latest GitHub release is 0.9.2 (2026-09-29T13:19Z), previous 0.9.1 (2026-09-16); macOS assets herdr-macos-aarch64 and herdr-macos-x86_64 (plus linux and a windows zip); Homebrew formula `herdr` still stable 0.9.1 with arm64 bottles; install script puts the binary in ~/.local/bin/herdr",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "gh api repos/herdrdev/herdr/releases/latest -> v0.9.2 published_at 2026-09-29T13:19:42Z, assets herdr-linux-aarch64, herdr-linux-x86_64, herdr-macos-aarch64, herdr-macos-x86_64, herdr-windows-x86_64.zip; curl https://formulae.brew.sh/api/formula/herdr.json -> versions.stable 0.9.1, desc 'Agent multiplexer that lives in your terminal', license Apache-2.0; distribution/install.sh INSTALL_DIR=${HERDR_INSTALL_DIR:-$HOME/.local/bin}"
+    },
+    {
+      "claim": "not installed on this Mac and nothing running, so no surface was classified live",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which herdr` -> herdr not found; `ls /opt/homebrew/bin/herdr ~/.local/bin/herdr ~/.config/herdr` -> No such file or directory for all three; `ps -axo pid=,args= | grep -i '[h]erdr'` matched only the inspecting shell itself"
+    },
+    {
+      "claim": "process argv shapes are unchanged between v0.9.1 and v0.9.2: hidden `client`, `server`, `update`, `remote-client-bridge`, `remote-api-bridge` handled in main.rs; CLI subcommand arms identical; `herdr server --handoff-import <sock> <token>` is a real server argv; PLUGIN_HOOK_EVENT_KINDS is the same 22 kinds",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "git archive of tags v0.9.1 and v0.9.2 of herdrdev/herdr: src/main.rs (args.get(1) matches), src/cli.rs maybe_run, src/cli/server.rs run_server_command (`--handoff-import` => Ok(None) falls through to run_server), src/server/handoff.rs spawn_handoff_import, src/server/headless/bootstrap.rs, src/api/schema/events.rs PLUGIN_HOOK_EVENT_KINDS (diff identical); tools/agents_probe.py matches() run over 30 synthetic command lines (see evidence/herdr.md Verification)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Herdr is a host, not an agent. Its own 'turn' is whatever agents it hosts; it has no transcript, no turn record and nothing like Claude Code's caffeinate. Agents are grandchildren of the server (server -> pane shell -> agent), so a Claude Code or Codex session inside Herdr also matches its own row: report the hosted agent under its own row and treat the Herdr server as a container (the same double-count case as README section 3 case 12). Only pane.list/agent.list over the API socket says which pane is working; from ps alone Herdr is 'alive' or 'idle-looking'. macOS specifics: no app bundle, so bundle_ids are omitted. The spawning client is the server's parent until it detaches. Version drift: the row was first read against tag v0.9.1 and re-checked on 2026-09-29 against v0.9.2, the latest release (published that day): process argv, CLI subcommands and plugin hook events are identical; differences that matter are Codex falling back to unknown instead of idle, and session-snapshots/ appearing in 0.9.2. Homebrew still ships 0.9.1. Unmeasured: server CPU when idle with agents attached, the 3 percent floor, whether Homebrew's symlinked bin/herdr appears in ps as the symlink or the Cellar path (the match uses only the basename, so either works). Process-pattern limits: see the daemon surface label; a client run as `herdr --remote dev --remote-keybindings server`, or attached to a session literally named `server`, matches nothing (the TUI veto on the exact token `server`); keep the tui surface listed before the daemon surface."
+}

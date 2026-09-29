@@ -1,0 +1,433 @@
+{
+  "id": "auggie",
+  "name": "Auggie",
+  "vendor": "Augment Code",
+  "homepage": "https://docs.augmentcode.com/cli/overview",
+  "surfaces": [
+    {
+      "kind": "daemon",
+      "label": "Child agent of a self-hosted Cosmos daemon, Auggie 0.x: the daemon spawns `<node> <auggie entry> [--augment-*] cloud run-as-agent <agentId> --workspace <dir> --parent-daemon-id <id> ...` per session (augment.mjs 0.36.0). The parent `auggie daemon` process is deliberately NOT matched (it holds no turn of its own); each child is matched and judged on its own direct children. The id after run-as-agent is a cloud agent id, not a conversation id. Auggie 1.x uses a different argv, see the next surface.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "auggie",
+          "run-as-agent"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Child agent of a self-hosted Cosmos daemon, Auggie 1.x (npm tags daemon and preview): the daemon spawns `<node> <auggie-v2.mjs> [--augment-*] --cloud-agent <agentId> --workspace-root <dir> --parent-daemon-id <id> ...`. There is NO `cloud run-as-agent` in this argv (1.x only rewrites that legacy form into --cloud-agent when typed by hand). `--cloud-agent` alone also marks a hand-started Cosmos agent process, which is a session too. The parent `auggie daemon` is not matched.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "auggie",
+          "--cloud-agent"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Auggie in ACP mode, launched through the npm bin shim: `node .../bin/auggie --acp [--workspace-root <dir>] [--model <m>]`, spawned by an editor (Zed, Neovim, Emacs ACP clients per docs) or by the Augment VS Code extension's sidecar (extension 0.901.1 spawns `auggie --acp --workspace-root <dir>`). One process can hold several ACP sessions. 1.x also accepts `--mode acp`, which is NOT matched (the token `acp` cannot be tested as a whole word).",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/auggie",
+          "--acp"
+        ],
+        "exclude_args": [
+          "daemon",
+          "cloud",
+          "--cloud-agent",
+          "--parent-daemon-id"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Same ACP mode, node started directly on the package file (`node .../node_modules/@augmentcode/auggie/augment.mjs --acp` or `.../auggie-v2.mjs --acp`), the shape an editor extension that resolves the package uses.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@augmentcode/auggie/",
+          "--acp"
+        ],
+        "exclude_args": [
+          "daemon",
+          "cloud",
+          "--cloud-agent",
+          "--parent-daemon-id"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "auggie --print (or -p, not matchable: args_contain is a substring test and '-p' hits '--mcp-config' and any path containing '-p'): one instruction, then exit. Alive means working. Matched on the long flag only, and only when argv also carries the shim path (`bin/auggie`) or the package path, so an unrelated `node script.js --print` in a folder named auggie is not picked up. `auggie -p ...` runs are therefore NOT seen (known gap).",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/auggie",
+          "--print"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--mcp",
+          "daemon",
+          "cloud",
+          "--cloud-agent",
+          "--parent-daemon-id"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Same print mode, node started directly on the package file.",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@augmentcode/auggie/",
+          "--print"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--mcp",
+          "daemon",
+          "cloud",
+          "--cloud-agent",
+          "--parent-daemon-id"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Auggie in a terminal, launched through the npm bin shim: `node /opt/homebrew/bin/auggie` or `node ~/.nvm/versions/node/<v>/bin/auggie` (env-shebang launch keeps the symlink path as argv[1]; inferred, no live process seen). Covers 0.x (augment.mjs) and 1.x (auggie-v2.mjs). Exact-argument vetoes drop MCP-server mode, ACP, print mode, the daemon, `cloud` subcommands, 1.x daemon children (`--cloud-agent`, `--parent-daemon-id`) and 1.x `--mode <text|json|rpc|acp>` runs (rpc and acp are host-driven helpers, not human sessions; `--mode` is 1.x only). Short admin subcommands (login, upgrade, session list, ...) are NOT vetoed: ps args are split on spaces, so a veto on a word like `list` or `model` would also drop a session started with a prompt containing that word. Such a subcommand shows up as a brief idle session. The same applies to the words `daemon` and `cloud`: a prompt containing them as separate words is dropped.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/auggie"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--mcp",
+          "--print",
+          "-p",
+          "daemon",
+          "cloud",
+          "--help",
+          "-h",
+          "--version",
+          "-v",
+          "--cloud-agent",
+          "--parent-daemon-id",
+          "--mode"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Same, node started directly on the package file: `node .../node_modules/@augmentcode/auggie/augment.mjs` (0.x) or `.../auggie-v2.mjs` (1.x). This is the shape the daemon itself uses when it re-spawns (process.execPath + resolved entry).",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@augmentcode/auggie/"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--mcp",
+          "--print",
+          "-p",
+          "daemon",
+          "cloud",
+          "--help",
+          "-h",
+          "--version",
+          "-v",
+          "--cloud-agent",
+          "--parent-daemon-id",
+          "--mode"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Augment extension for VS Code (augment.vscode-augment) and JetBrains: the Agent panel runs inside the IDE process. No separate process carries it, so nothing here can be matched; only the ACP sidecar above and the bundled one-shot migration engine (out/migration-engine/auggie-v2.mjs) are visible, and the latter is not a session. bundle_ids left out on purpose: the host app's bundle id would mark every VS Code window as Augment."
+    },
+    {
+      "kind": "cloud",
+      "label": "Cosmos cloud sessions (Augment-hosted sandbox VMs, web app). No local process. `auggie cloud ...` only manages them."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.augment/sessions/*.json",
+    "per_session": "~/.augment/sessions/{session_id}.json",
+    "format": "json",
+    "documented": false,
+    "note": "0.x (npm latest, 0.36.0). One JSON file per conversation, rewritten whole (temp file `.write-<id>.json.<ts>-<rand>.tmp` then rename), not an append log; `<id>-backup<N>.json` siblings also match the glob. The file is saved after every committed exchange (onExchangeCommitted), on loop complete, error and interrupt, so mtime moves per model round-trip, never per token. Root moves with `--augment-cache-dir`. Top-level keys (from the writer in the bundle, no local file seen): sessionId, created, modified, chatHistory, agentState, rootTaskUuid, workspaceId, remoteCreatedAt, title, customTitle, terminalId, subAgentCreditsUsed, subAgentCostUsd, summarizations, plus optional subAgents, poseidonAgentId, parentConversationId, isCloudAgent, queue (saveSession object literal, augment.mjs 0.36.0). terminalId holds the output of `tty` (for example /dev/ttys012), which is the one process-to-session link: match the process's controlling tty to terminalId and take the newest file. It is only set when stdin is a tty, so daemon children and piped print runs carry no usable terminalId (an earlier value is kept on re-save). `--resume <prefix>` accepts an unambiguous id prefix, so an id read from argv may not equal the file name. `--dont-save-session` writes nothing. Do not read chatHistory.",
+    "stores": [
+      {
+        "surface": "Auggie 1.x (npm tags preview and daemon, 1.2.0-prerelease.*): a fork of pi-mono's coding agent",
+        "path": "~/.augment/sessions-v2/--<cwd, leading / dropped, every / \\ : replaced by ->--/<sessionId>.jsonl (AUGGIE_CODING_AGENT_DIR or --augment-cache-dir moves the root, --session-dir the folder)",
+        "format": "jsonl",
+        "documented": false,
+        "note": "First line is a header {type:session, version, id, timestamp, cwd, parentSession}. Appended per finished entry and not created until the first assistant message ends. `--session <path>` takes a FILE path, not an id, so it must not go in session_id_args. In 1.x `--resume`/`-r` is a picker flag (help text 'Select a session to resume'), so `session_id_args: --resume` on a 1.x process may read a prompt word as an id; the lookup then finds no file and nothing is lost."
+      }
+    ]
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "The shell tool (`launch-process` in 0.x, `bash` in 1.x) starts each command as a detached `<shell> -c <command>` DIRECT child of the node process (0.x: child_process.spawn(cmd, [], {shell, detached:true}); 1.x: spawn(shell, [-c ...], {detached:true})). A shell child means a tool call is running. Blind while the model streams. Caveats: an MCP stdio server configured with useShellInterpolation is a long-lived `/bin/sh -c` child; hook scripts run as short shell children. Inferred from source, no live process seen. 1.x also has an opt-in `--enable-terminal` (AUGGIE_ENABLE_TERMINAL=1); whether it leaves a persistent shell child was not traced."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "0.x: ~/.augment/sessions/<id>.json is rewritten after each committed exchange and at loop end, so a fresh mtime raises working. A long model call or a long tool call leaves it quiet, so absence proves nothing. 1.x: the jsonl gains a line per finished message."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Guess, nothing measured because Auggie is not installed here. The Ink TUI redraws while a response streams; a turn waiting on the network burns almost none. Risk of false working: both lines run a workspace indexing worker thread (indexing-worker.mjs in 1.x, indexing in 0.x) inside the same process, so a fresh session that is indexing can exceed the floor while idle. Treat as a last resort."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "os_notification",
+      "meaning": "0.x with settings notificationMode = desktop_notification: when the agent needs input it runs `osascript -e 'display notification \"Agent needs your input\" with title \"Augment Agent\"'` through child_process.exec, so a sub-second direct child (or its /bin/sh wrapper) whose args carry that text. Turn end uses 'Agent response complete'. Too short-lived for polling; a process-start event would catch it. Off by default in the config wizard state (notificationMode: off)."
+    },
+    {
+      "signal": "terminal_bell",
+      "meaning": "0.x with notificationMode = bell writes BEL to the tty both when the agent needs input and when it finishes; the two are not distinguishable. `--no-bell` disables it. Changelog: 'Terminal Bell: Now correctly rings when the agent is waiting for user input' and 'Notification Bell on Ask-User'."
+    },
+    {
+      "signal": "none_reliable",
+      "meaning": "No hook is a usable wait signal. `Notification` is accepted in settings.json and listed in the docs' hook_event_name field, but the 0.36.0 bundle defines onNotification and never calls it (2 hits: the definition and a no-op stub). Tool approval prompts and the 1.x ask-user extension are invisible from outside the process."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks key in ~/.augment/settings.json (user), <workspace>/.augment/settings.json (project), <workspace>/.augment/settings.local.json (personal), /etc/augment/settings.json (managed, highest precedence; C:\\ProgramData\\Augment\\settings.json on Windows). Handler type is only `command`; the script must end in .sh, .ps1, .cmd or .bat and be executable with a shebang; timeout in ms, default 60000. Event JSON arrives on stdin.",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "Stop",
+      "SessionStart",
+      "SessionEnd",
+      "PromptSubmit",
+      "Notification"
+    ],
+    "docs": "https://docs.augmentcode.com/cli/hooks",
+    "note": "The docs page describes five events (PreToolUse, PostToolUse, Stop, SessionStart, SessionEnd). The 0.36.0 schema accepts seven. PromptSubmit is undocumented but firePromptSubmitHook runs when a user message is sent (turn start, payload user_prompt). Stop carries agent_stop_cause: end_turn, interrupted, max_iterations, error, and fires on user interrupt too, so PromptSubmit then Stop brackets a turn. Notification is declared and never fired in 0.36.0. Hook input fields: hook_event_name, conversation_id (the session id), workspace_roots. PreToolUse and PostToolUse also run inside sub-agents (0.30.0). 1.x accepts the same seven names in its config schema; firing was not traced. Cursor-style names (beforeShellExecution, stop, ...) are accepted and mapped."
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "NOT in npm latest 0.36.0: its OpenTelemetry packages are Sentry's instrumentation and no OTLP exporter or OTEL_EXPORTER_OTLP_* read exists. In 1.x (npm tags preview and daemon, 1.2.0-prerelease.*) the `otel` extension exports metrics, logs and traces over OTLP (grpc, http/protobuf default, http/json): enable with AUGGIE_ENABLE_TELEMETRY=1, CLAUDE_CODE_ENABLE_TELEMETRY=1 (accepted as an alias) or `--enable-otel`, endpoint from OTEL_EXPORTER_OTLP_ENDPOINT and per-signal variants, off by default. Events include auggie.user_prompt, auggie.api_request, auggie.tool_result, auggie.tool_decision, auggie.session.count, auggie.active_time.total. Needs a collector; not a live signal for a monitor."
+  },
+  "sources": [
+    {
+      "claim": "Terminal agent, install `npm install -g @augmentcode/auggie`, command `auggie`, interactive TUI, `--print` one-shot, `--quiet`; Node 20+, macOS/WSL/Linux",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/cli/overview and https://docs.augmentcode.com/cli/setup-auggie/install-auggie-cli.md"
+    },
+    {
+      "claim": "npm latest is 0.36.0 (published 2026-08-21), bin auggie -> augment.mjs, optionalDependency node-pty; dist-tags preview and daemon point at 1.2.0-prerelease.202609281519 with bin auggie -> auggie-v2.mjs; no non-prerelease 1.x exists among the 74 1.x versions",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "curl -s https://registry.npmjs.org/@augmentcode/auggie -> dist-tags {latest: 0.36.0, prerelease: 0.37.0-prerelease.202609282301, daemon: 1.2.0-prerelease.202609281519, preview: 1.2.0-prerelease.202609281519}; versions without '-' end at 0.36.0"
+    },
+    {
+      "claim": "Docs already call 1.x 'the rebuilt agent harness' and tell daemon hosts to `npm install -g @augmentcode/auggie@daemon`",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/cosmos/environments/daemons.md section 'Migrate from Auggie 0.x'"
+    },
+    {
+      "claim": "github.com/augmentcode/auggie holds no CLI source, only .augment/commands, examples, plugin_marketplace, CHANGELOG.md and README; the published npm bundle is the only source",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/augmentcode/auggie (folders: .augment-plugin, .augment/commands, .github, examples, plugin_marketplace; latest commit 'docs: update changelog for v0.36.0'); read the bundles from `curl https://registry.npmjs.org/@augmentcode/auggie/-/auggie-0.36.0.tgz` and `.../auggie-1.2.0-prerelease.202609281519.tgz`, unpacked in the scratchpad (nothing installed)"
+    },
+    {
+      "claim": "1.x is a fork of pi-mono's coding agent: package description 'Coding agent CLI with read, bash, edit, write tools and session management', theme schema URL raw.githubusercontent.com/badlogic/pi-mono, share URL https://pi.dev/session/, session header {type:'session', version, id, timestamp, cwd}",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "npm12/package/package.json description; strings in auggie-v2.mjs (F0o.$schema, oul=\"https://pi.dev/session/\", header object in fork/branch code)"
+    },
+    {
+      "claim": "0.x session store: <cacheDir>/sessions/<conversationId>.json, cacheDir default ~/.augment (flag --augment-cache-dir); saved on every committed exchange and at loop end/error/interrupt; keys include terminalId",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "augment.mjs 0.36.0: `getSessionFilePath(e){return gO.join(this.sessionsDir,`${e}.json`)}`, `this.sessionsDir=gO.join(e,\"sessions\")`, `.option(\"--augment-cache-dir <path>\",\"Directory to store Augment cache files (session data, chat history, etc.). Defaults to ~/.augment\", ...homedir(),\".augment\")`, callers onExchangeCommitted/onAgentLoopComplete/onMaxIterationsExceeded/interrupt, saveSession object literal"
+    },
+    {
+      "claim": "terminalId is the `tty` command output, giving a pid-to-session link through the controlling tty",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "augment.mjs 0.36.0 function L9e(): execSync(\"tty\",{encoding:\"utf8\",stdio:[\"inherit\",\"pipe\",\"pipe\"]}) with a /proc/self/fd fallback on linux; saveSession stores terminalId:L9e()??previous"
+    },
+    {
+      "claim": "1.x session store: ~/.augment/sessions-v2/--<cwd slug>--/<sessionId>.jsonl, nothing persisted until the first assistant message",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "auggie-v2.mjs: mOe=\"sessions-v2\"; pT(e,t=Ai()){let n=`--${e.replace(/^[/\\\\]/,\"\").replace(/[/\\\\:]/g,\"-\")}--`,r=sz(t,mOe,n)...}; sessionFile=NY(getSessionDir(),`${this.sessionId}.jsonl`); _persist returns unless an assistant message exists"
+    },
+    {
+      "claim": "Session flags: --continue/-c, --resume/-r [sessionId] (id or unambiguous prefix), --dont-save-session (0.x); 1.x adds --session <path>, --fork, --session-dir, --no-session; no --session-id flag exists in either. A fresh interactive session has no id in argv",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/cli/reference.md (Sessions table); `.option(\"-r, --resume [sessionId]\")` in augment.mjs; 1.x usage text in auggie-v2.mjs ('--session <path>  Use specific session file')"
+    },
+    {
+      "claim": "Debug log goes to $TMPDIR/augment-log.txt by default; daemon log to $TMPDIR/augment-daemon.txt; --log-file, --log-level flags",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/troubleshooting/logs.md (`open -R $TMPDIR/augment-log.txt`); augment.mjs `Mye=join(tmpdir(),\"augment-log.txt\"),hWr=join(tmpdir(),\"augment-daemon.txt\")`"
+    },
+    {
+      "claim": "Terminal title is the conversation title shortened to at most 15 characters (word boundary or a trailing ellipsis), or the word 'auggie' when empty or 'New Chat': it does not show working or idle",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "augment.mjs 0.36.0: function D_(t){... process.stdout.write(`\\x1B]0;${xwt(t,_wt)}\\x07`)} with _wt=15 and xwt returning \"auggie\" for an empty title; `--no-update-terminal-title` flag documented at https://docs.augmentcode.com/cli/reference.md"
+    },
+    {
+      "claim": "No sleep inhibitor in either version: no caffeinate, pmset, IOPM or powerSaveBlocker string in the 0.36.0 or 1.2.0-prerelease bundles",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "grep -a -o -e caffeinate -e pmset -e IOPM -e powerSaveBlocker augment.mjs auggie-v2.mjs | wc -l -> 0 for each"
+    },
+    {
+      "claim": "0.x shell tool: each command is spawn(commandString, [], {shell, detached: darwin/linux}) so a shell is a direct child; process groups are killed with kill(-pid); the exec tool config sets env AUGMENT_AGENT=1 (0.x only, no hit in 1.x)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "augment.mjs 0.36.0 class zT (ShellProcessTools): `kXn(e,[],{cwd:u,env:c,stdio:[\"pipe\",\"pipe\",\"pipe\"],shell:d,signal:r,detached:process.platform===\"linux\"||process.platform===\"darwin\"})` and _killProcessGroup uses process.kill(-pid,\"SIGKILL\"); env AUGMENT_AGENT=1 set for the shell"
+    },
+    {
+      "claim": "1.x bash tool: spawn(shell, [-c ...], {cwd, detached:true, stdio:[ignore,pipe,pipe]})",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "auggie-v2.mjs `Yq(){return{exec:(e,t,{onData,signal,timeout,env})=>... B_c(c,Emt(c,l,e),{cwd:t,detached:!0,env:...,stdio:[\"ignore\",\"pipe\",\"pipe\"]})`"
+    },
+    {
+      "claim": "0.x daemon spawns child agents as `<process.execPath> <auggie entry> [--augment-session-json ..] [--augment-cache-dir ..] cloud run-as-agent <agentId> --workspace <dir> --parent-daemon-id <vmId> [--daemon-command-id ...]`, non-detached, secrets redacted in logs",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "augment.mjs 0.36.0 class cOe (child manager): f.push(\"cloud\",\"run-as-agent\",e,\"--workspace\",l,\"--parent-daemon-id\",this.daemonVmId); lJo(t,e) returns {command:process.execPath,args:[t,...e]} for .mjs/.js/.cjs entries; tJo(h.command,h.args,{env:p,stdio:[\"ignore\",\"pipe\",\"pipe\"],detached:!1}); re-checked 2026-09-29 against a fresh download of auggie-0.36.0.tgz"
+    },
+    {
+      "claim": "Hooks: settings.json locations and precedence, five documented events, command type only, script extensions, stdin JSON, Stop agent_stop_cause values",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/cli/hooks.md (Settings File Locations table; 'Hook Events'; 'Stop Event' table)"
+    },
+    {
+      "claim": "Config schema accepts seven events including PromptSubmit and Notification; PromptSubmit fires on user message; Notification has a definition and a no-op stub but no caller in 0.36.0",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "augment.mjs 0.36.0: `Whn=[\"PreToolUse\",\"PostToolUse\",\"Stop\",\"SessionStart\",\"SessionEnd\",\"Notification\",\"PromptSubmit\"]`; `firePromptSubmitHook(e){...this.hookIntegration.onPromptSubmit(conversationId, prompt)}` called from the send path; grep 'onNotification' finds only `onNotification:async(u,d)=>{await c(\"Notification\",...)}` and `onNotification:async()=>{}`; hasHooksFor callers ask only Stop, PreToolUse, PostToolUse"
+    },
+    {
+      "claim": "Notifications: notificationMode off, bell or desktop_notification; on macOS desktop mode runs osascript with 'Agent needs your input' or 'Agent response complete'; terminal bell rings on completion and when waiting for input",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/cli/config.md (Notifications: Off, Bell, Desktop Notification); https://docs.augmentcode.com/cli/reference.md (--no-bell); augment.mjs 0.36.0 functions rwo/awo/swo/Zee (exec(`osascript -e '...'`)); CHANGELOG.md 'Terminal Bell: Now correctly rings when the agent is waiting for user input'"
+    },
+    {
+      "claim": "1.x OTLP export: AUGGIE_ENABLE_TELEMETRY (alias CLAUDE_CODE_ENABLE_TELEMETRY), --enable-otel, OTEL_EXPORTER_OTLP_* variables, default protocol http/protobuf, off by default; metric and event names auggie.*",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "auggie-v2.mjs.d/extensions/otel/index.js in the 1.2.0-prerelease.202609281519 tarball: `wG=(t,e,r)=>{... t.AUGGIE_ENABLE_TELEMETRY ... t.CLAUDE_CODE_ENABLE_TELEMETRY ... e.enabled??!1}`, `yG=\"http/protobuf\"`; help text '--enable-otel  Enable OpenTelemetry export for this run (telemetry is off by default)'"
+    },
+    {
+      "claim": "0.36.0 has no OTLP exporter: every OTEL_ variable in the bundle belongs to Sentry's bundled instrumentations",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "grep -a -o 'OTEL_EXPORTER_OTLP[A-Z_]*' augment.mjs -> nothing; the @opentelemetry/* names present are api plus instrumentation-http, pg, redis, koa, hapi and similar (Sentry integrations)"
+    },
+    {
+      "claim": "Augment VS Code extension 0.901.1 spawns `auggie --acp --workspace-root <dir> [--model m]` over stdio (client name augment-sidecar-acp) and ships out/migration-engine/auggie-v2.mjs; extension id augment.vscode-augment",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "curl -sL https://marketplace.visualstudio.com/_apis/public/gallery/publishers/augment/vsextensions/vscode-augment/latest/vspackage; extension/out/extension.js: `function aqt(e){const t=[\"--acp\",\"--workspace-root\",e.workspaceRoot];...}` and `(0,Pl.spawn)(\"auggie\",i,{cwd:r,stdio:[\"pipe\",\"pipe\",\"pipe\"],env:n})`; package.json name vscode-augment publisher Augment; install page https://docs.augmentcode.com/setup-augment/install-visual-studio-code.md"
+    },
+    {
+      "claim": "ACP mode: `auggie --acp`, JSON-RPC over stdio, for Zed, Neovim, Emacs and other ACP clients",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/cli/acp/agent.md and https://docs.augmentcode.com/cli/acp/clients.md (listed in llms.txt)"
+    },
+    {
+      "claim": "`auggie --mcp` runs Auggie as an MCP tool server (codebase-retrieval) for other agents, so it is a helper process and not a session",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.augmentcode.com/cli/reference.md section 'MCP Server Mode'"
+    },
+    {
+      "claim": "Not installed on this Mac: no binary, no ~/.augment, no app, no extension, no process",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which auggie augment` -> 'auggie not found' 'augment not found'; `ls -d ~/.augment` -> No such file or directory; `ls /Applications | grep -i -E 'augment|intent|cosmos'` -> nothing; `ls ~/.vscode/extensions ~/.cursor/extensions | grep -i augment` -> nothing; `ps -axo pid=,args= | grep -i -E 'auggie|augment'` -> nothing"
+    },
+    {
+      "claim": "process shape `node <path>/bin/auggie` for a shim launch and the surface argv tokens are inferred, not seen in ps",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "inferred: bin auggie -> augment.mjs with `#!/usr/bin/env node` shebang (first line of augment.mjs); same reasoning as registry/agents/pi.json for node shims"
+    },
+    {
+      "claim": "1.x daemon spawns child agents with a DIFFERENT argv: `<node> <entry> [--augment-session-json <file> | --augment-cache-dir <dir>] --cloud-agent <agentId> --workspace-root <dir> --parent-daemon-id <vmId> [--daemon-command-id ..] [--add-workspace ..] [--allow-indexing]`, non-detached; `cloud run-as-agent <id>` is only a legacy form rewritten to `--cloud-agent <id>` by the argv parser",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "auggie-v2.mjs in auggie-1.2.0-prerelease.202609281519.tgz: `y.push(\"--cloud-agent\",t,\"--workspace-root\",m,\"--parent-daemon-id\",this.daemonVmId)`, `let v=cHc(this.childLaunchCommand,y)` returning {command:executable,args:[...fixedArguments,...t]}, `YZc(v.command,v.args,{env:I,stdio:[\"ignore\",\"pipe\",\"pipe\"],detached:!1})`, and `function Sqc(e){...e[t]===\"cloud\"&&e[t+1]===\"run-as-agent\"...return[...,\"--cloud-agent\",e[t+2],...]}`; the launch command is built from process.argv[1] plus execPath (FFl)"
+    },
+    {
+      "claim": "1.x has modes beyond the TUI: `--mode <text|json|rpc|acp>`, `--acp`, `--print`/`-p`, `--session <path>`, `--fork`, `--session-dir`; it has no `--mcp` MCP-server mode (no `--mcp` token other than `--mcp-config` in the bundle); `-r/--resume` is a picker",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "auggie-v2.mjs usage text: '--acp  Start in ACP mode', '--mode <mode>  Output mode: text (default), json, rpc, or acp', '--print, -p', '--resume, -r  Select a session to resume', '--session <path>  Use specific session file'; python regex for `--mcp(?!-config)` over the bundle -> 0 hits"
+    },
+    {
+      "claim": "The indexing worker is a worker_thread inside the session process, not a separate process, so indexing-worker.mjs never appears in ps",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "auggie-v2.mjs: `import{Worker as VFc}from\"node:worker_threads\"` and `new EOa(new URL(\"./indexing-worker.mjs\",import.meta.url))`; 0.x bundle has one `indexing-worker` string and no such file in the package (files: LICENSE.md README.md augment.mjs package.json)"
+    },
+    {
+      "claim": "Process shapes for the row were tested offline by feeding synthetic argv to tools/agents_probe.py matches(): shim, --resume, package path 0.x and 1.x, --print (shim and package), --acp (shim and Zed-style package path), daemon child 0.x and 1.x match; daemon parents, --mcp, --mode rpc, --version, `-p`, `vim auggie`, `node /x/auggie-notes/build.js --print`, `node /x/auggie-notes/server.js --acp` do not",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 harness calling agents_probe.matches over each surface; `python3 tools/agents_probe.py --row registry/agents/auggie.json` -> '0 agent sessions: 0 working, 0 idle' (no such process runs here)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "No local run was possible, so every process shape is inferred from docs and the published npm bundles. Two generations share one command name. npm latest is 0.36.0 (the Node/Ink CLI, augment.mjs, JSON sessions under ~/.augment/sessions). The 1.x line (auggie-v2.mjs, JSONL sessions under ~/.augment/sessions-v2, OTLP export) is only published as prerelease tags (preview, daemon); expect it on daemon hosts first. The row is written to match both. Nothing outside the process says 'waiting on the human' unless notificationMode is on. The best outside signal for a turn is a direct shell child (tool running) plus a fresh session file; neither covers a long model stream. Hook-based tracking needs PromptSubmit then Stop, and PromptSubmit is undocumented. Verified by a second pass (2026-09-29): the 1.x daemon child argv differs from 0.x (no `cloud run-as-agent`), so it has its own surface; `-p` runs and `--mode acp|rpc` runs stay unmatched by design; tree_cpu is an unmeasured guess and indexing can trip it. Not covered: the Intent macOS app (intentapp.dev, its own daemon `intentd`, hosts Augment and other CLI agents; bundle id and process names unknown) and the Cosmos web app. Both look like separate rows or hosts."
+}

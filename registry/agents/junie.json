@@ -1,0 +1,278 @@
+{
+  "id": "junie",
+  "name": "JetBrains Junie",
+  "vendor": "JetBrains",
+  "homepage": "https://junie.jetbrains.com/",
+  "surfaces": [
+    {
+      "kind": "daemon",
+      "label": "Junie gateway daemon (Nightly builds only, undocumented): `junie --gateway` starts a detached copy of the same binary with the internal flag `--__run-gateway`, an HTTP server with Slack/voice/loop channels, state under ~/.junie/gateway/ (gateway.lock, config.json holding pid, port, host, version, startedAt). Release builds answer 'The --gateway option is not available in this version. Please use the Nightly build.' Listed first so it is claimed before the tui surface. Note the probe keeps only the outermost matching process, so a gateway spawned by a live TUI can be hidden behind it. Verification 2026-09-29: the --gateway gate message and the launcher constants are present in the STABLE 3419.7 jar too; only the gate is Nightly-specific.",
+      "bundle_ids": [
+        "com.intellij.ml.llm.matterhorn.ej.app.cli.standalone"
+      ],
+      "process": {
+        "path_contains": [
+          "/junie.app/Contents/MacOS/junie"
+        ],
+        "args_contain": [
+          "--__run-gateway"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Junie as an ACP agent: the same binary run as `.../Applications/junie.app/Contents/MacOS/junie --acp=true` by an ACP client. Clients: JetBrains IDE AI Chat (Junie by JetBrains from the agent list, downloaded automatically), JetBrains Air (Junie is one of its supported agents), Zed and any editor that reads the ACP registry (cmd ./Applications/junie.app/Contents/MacOS/junie, args --acp=true). The child, not the host app, is the process to watch. The client that spawned it cannot be told from the command line alone; look at the parent pid. Hooks are NOT run in this mode. Where the IDE or Air unpack the download is not documented (an IDE support thread says an `acp-agents` folder in the IDE caches directory).",
+      "bundle_ids": [
+        "com.jetbrains.intellij",
+        "com.jetbrains.pycharm",
+        "com.jetbrains.WebStorm",
+        "com.jetbrains.goland",
+        "com.google.android.studio",
+        "com.jetbrains.air",
+        "dev.zed.Zed"
+      ],
+      "process": {
+        "path_contains": [
+          "/junie.app/Contents/MacOS/junie"
+        ],
+        "args_contain": [
+          "--acp"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Junie CLI in a terminal (interactive TUI), and the headless form `junie \"task\"` / `--task` / `--auth=... \"task\"` (a headless run is working for as long as it lives). Install shapes all end in the same process: curl installer or Homebrew put a bash shim at ~/.local/bin/junie that `exec`s ~/.local/share/junie/versions/<build>/Applications/junie.app/Contents/MacOS/junie; npm `@jetbrains/junie` is a node wrapper (bin/index.js, spawnSync) around that same shim, so node is the parent and the junie binary is its direct child. During first run or a self-update the shim is a `/bin/bash ~/.local/bin/junie` process, which does not match. The native launcher loads the bundled JVM in-process, so one process, no java child. Matching note (verification): the process specs use path_contains only, no bare `names`: a base name of `junie` alone would also claim any unrelated executable called junie (for example /usr/local/bin/junie of another product), and every documented launch form carries the /junie.app/Contents/MacOS/junie path (shim exec of an absolute path; ACP registry cmd ./Applications/junie.app/Contents/MacOS/junie). Short-lived control invocations `--gateway`, `--gateway-status`, `--gateway-stop` (flags in SystemOptionsGroup, --gateway-status also named in the shim) are excluded like --version and update. A session id can also arrive as a positional `junie://sessions/<id>` link (parameters page), which session_id_args cannot read.",
+      "bundle_ids": [
+        "com.intellij.ml.llm.matterhorn.ej.app.cli.standalone"
+      ],
+      "process": {
+        "path_contains": [
+          "/junie.app/Contents/MacOS/junie"
+        ],
+        "exclude_args": [
+          "--acp=true",
+          "--acp",
+          "--__run-gateway",
+          "update",
+          "--version",
+          "--help",
+          "-h",
+          "--gateway",
+          "--gateway-status",
+          "--gateway-stop"
+        ]
+      },
+      "session_id_args": [
+        "--session-id"
+      ]
+    },
+    {
+      "kind": "gui",
+      "label": "JetBrains Air (macOS app, bundle id com.jetbrains.air inferred from the Homebrew cask zap list; Air.app). Air is a host for Codex, Claude Agent, Gemini CLI, Junie and any ACP agent, so the app itself is not Junie. Its Junie work runs in the `--acp=true` child matched by the ide surface. Air's own process names and where it puts the downloaded agent were not determined.",
+      "bundle_ids": [
+        "com.jetbrains.air"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Junie IDE plugin (org.jetbrains.junie, JetBrains Marketplace 26104) with its own Junie tool window, and the plugin half that ACP agents need for IDE integration. Process shape of the legacy tool-window agent (in the IDE JVM or a child) and its session store were not determined, so there is no process rule and this row cannot see it. Marked as being deprecated in favour of the ACP version by community reports only.",
+      "bundle_ids": [
+        "com.jetbrains.intellij",
+        "com.jetbrains.pycharm",
+        "com.jetbrains.WebStorm",
+        "com.jetbrains.goland",
+        "com.google.android.studio"
+      ]
+    },
+    {
+      "kind": "cloud",
+      "label": "Junie GitHub Action (JetBrains/junie-github-action), Junie GitLab CI/CD, Junie code review on pull requests, and Air cloud tasks: nothing runs on this Mac. Junie Remote mode (/remote) is NOT cloud: the process stays on the Mac and a tunnel mirrors it to the web app."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.junie/sessions/*/events.jsonl",
+    "per_session": "~/.junie/sessions/{session_id}/events.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "name": "Junie is working",
+      "meaning": "Read from the shipped binary, not observed live. Junie takes an IOKit assertion of type PreventUserIdleSystemSleep named 'Junie is working' (IOPMAssertionCreateWithName from MacKeepAwakeService, reason string from KeepAwakeController.WAKE_LOCK_REASON) while any task of the process is running, through KeepAwakeController fed by TaskActivityTracker (a counter of active tasks; the lock is held while the counter is above zero, inferred from the class shape: combine + distinctUntilChanged + collectLatest + awaitCancellation). Owned by the junie pid itself, one per process, so it says the process has a running task but not which of several live sessions. Default keepAwakeMode is WhileTaskRunning; the /settings entry 'Keep awake' (text 'Prevent system sleep while Junie is working', values Off / WhileTaskRunning, stored in ~/.junie/settings.json) can switch it off, and then this signal is silent. Confirmed present in stable build 3419.7 (re-read 2026-09-29: MacKeepAwakeService with IOPMAssertionCreateWithName and PreventUserIdleSystemSleep; the string \"Junie is working\" in KeepAwakeController$holdWakeLock$2; KeepAwakeMode.WhileTaskRunning); EAP 3479.2 not re-checked. The task counter (TaskActivityTracker) is referenced by JunieSession (TUI), JunieHostBatch and JunieProject; ACP settings carry a keepAwakeMode but no ACP class references the tracker directly, so the assertion in --acp=true processes is unproven. Whether it is dropped while a task waits for approval was not determined. `pmset -g assertions` should list it under the junie pid."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Sessions append one JSON event per line to ~/.junie/sessions/<session-id>/events.jsonl. The exact turn state is in the file, not its mtime: TaskStartedEvent opens a task, a top-level TaskState record closes it (written once per task, also after failures and cancels); every SessionA2uxEvent carries event.state in IN_PROGRESS, INPUT_REQUIRED, COMPLETED, FAILED or CANCELED. Working = the last TaskStartedEvent has no later TaskState, and the last event.state is IN_PROGRESS. A write can raise working but a quiet file never proves idle (long model calls write nothing); keep an open task working only while its junie pid is alive. Record kinds and key names taken from a third-party reader's fixtures and source, the schema is unversioned."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "Inferred from bytecode, not observed. Each shell tool call is a fresh direct child of the junie process: `bash -lc '<command> ...' </dev/null` (JVMSpawnShellExecutionEnvironment, BashShellType), prefixed on macOS with a perl one-liner (`use POSIX qw(setsid); setsid(); exec @ARGV`) or nohup that exec()s into the shell, so the child shows as a shell. State (cwd, env, jobs) is captured by markers appended to each command, not by a long-lived shell. bash may exec a single simple command directly, in which case the child carries the tool's name and not a shell name. Blind while the model streams. User-configured MCP servers are also direct children and long-lived; only shell names count here."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Unmeasured guess. The process is a JVM running a Compose-based terminal UI, so an idle baseline was not seen; raise the floor after a live run."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "transcript",
+      "event": "SessionA2uxEvent with event.state = INPUT_REQUIRED",
+      "meaning": "Junie stamps INPUT_REQUIRED on the session while it is blocked on the human: a command approval (TerminalBlockUpdatedEvent with an approval request), a question (AskAsyncRequestUpdatedEvent), or a choice (ChoiceRequestUpdatedEvent). It clears when the same step leaves INPUT_REQUIRED, or on UserAsyncResponseEvent, UserResponseEvent, CancelAgentEvent or TaskState. This is the only outside-readable wait signal in every surface, including ACP hosts. In the TUI it is shown as 'Awaiting input' in /history (statuses Working…, Awaiting input, Ready)."
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Fires just before a permission dialog would show (Bash, Edit, Read, MCP tool names), TUI host for certain (the hooks page lists it under the TUI in one paragraph and under TUI and batch in Limitations), Early Access per the docs. Caution: a hook that exits 0 without a blocking decision APPROVES the action and skips the dialog, so a monitor-only hook must not exit 0; exit 2 or decision deny auto-denies; another non-zero exit falls back to the dialog with a warning notification. There is no Notification event and no idle event, so hooks alone give no clean observe-only wait signal."
+    },
+    {
+      "signal": "terminal_notification",
+      "meaning": "The TUI writes a terminal notification 'Junie needs your input' (OSC 9, OSC 777 notify or OSC 99, protocol chosen by TerminalNotifier) and 'Junie finished' on task completion, and can set the terminal title with OSC 0. Seen in class constants only: what gates it (the enabled flag, terminal focus) and whether the title carries a status glyph were not determined. Read from the terminal host, not from ps."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks object in ~/.junie/config.json (or $JUNIE_HOME/config.json), or in a file passed with --config-location; hooks/hooks.json inside an installed extension. <project>/.junie/config.json hooks are ignored by default. Shell command hooks run via sh -c. Only the interactive TUI and batch hosts run them: ACP hosts (JetBrains IDE AI Chat, Air, Zed) and server hosts do not. Docs tag hooks as Early Access ('To try it, install the Early Access version of Junie CLI'); the stable 3419.7 jar contains HooksConfiguration, but an Env.hooksEnabled flag exists and its value for the Release channel was not determined, so treat hooks as EAP-only until seen on a stable install. UserPromptSubmit fires in the interactive TUI only; the docs list PermissionRequest under the TUI in one paragraph and under TUI and batch in the Limitations section.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "Stop",
+      "StopFailure",
+      "SessionEnd"
+    ],
+    "docs": "https://junie.jetbrains.com/docs/junie-cli-hooks.html"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry export found: no io.opentelemetry classes, no OTEL_ or OTLP strings in the stable 3419.7 and EAP 3479.2 application jars, nothing in the docs. JetBrains anonymous usage statistics exist (settings.json shareAnonymousStatistics, --share-anonymous-statistics, JUNIE_SHARE_ANONYMOUS_STATISTICS) and /feedback uploads logs; neither is an OTLP stream. Session events in events.jsonl are the only structured local stream."
+  },
+  "sources": [
+    {
+      "claim": "Junie is not installed on this Mac, so nothing here was seen on a live instance",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which junie; ls ~/.junie ~/.local/share/junie ~/.local/bin/junie` printed 'No such file or directory' for all three; `ps -axo pid=,args= | grep -i [j]unie` matched nothing; `ls /Applications | grep -i -E 'junie|jetbrains|air|intellij|pycharm|webstorm|goland'` matched nothing"
+    },
+    {
+      "claim": "install layout: shim at ~/.local/bin/junie, data in ~/.local/share/junie/versions/<build>/, macOS binary Applications/junie.app/Contents/MacOS/junie; the shim exec()s the binary and sets EJ_RUNNER_PWD, JUNIE_DATA; installs via curl, Homebrew tap jetbrains-junie/junie, npm @jetbrains/junie",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/JetBrains/junie/main/install.sh (functions get_binary_path_in, main: `exec \"$binary\" ...`); https://github.com/JetBrains/junie README 'Alternative options'"
+    },
+    {
+      "claim": "npm install path: node wrapper spawns the shim, so node is the parent of the junie binary",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "npm pack of @jetbrains/junie 3110.7.0 (curl of registry.npmjs.org/@jetbrains/junie/-/junie-3110.7.0.tgz, unpacked in scratchpad, not installed): bin/index.js `spawnSync(exe, process.argv.slice(2), {stdio: 'inherit'})`, getExecutable.js returns ~/.local/bin/junie"
+    },
+    {
+      "claim": "bundle id com.intellij.ml.llm.matterhorn.ej.app.cli.standalone, CFBundleExecutable junie, version 3419.7; the app is a jpackage launcher that loads a bundled JVM in-process (inferred single process)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "HTTP range reads (curl -r) of the zip central directory and entries of https://github.com/JetBrains/junie/releases/download/3419.7/junie-release-3419.7-macos-aarch64.zip (sha256 listed in update-info.jsonl; nothing installed or run): Applications/junie.app/Contents/Info.plist -> CFBundleIdentifier com.intellij.ml.llm.matterhorn.ej.app.cli.standalone; `strings -a Contents/MacOS/junie` (198928 bytes, Mach-O arm64) -> createJvmLauncher, findJvmLib, 'JVM library: ', src/jdk.jpackage/share/native/applauncher/JvmLauncher.cpp; archive holds Contents/runtime/Contents/Home/lib/server/libjvm.dylib"
+    },
+    {
+      "claim": "ACP mode command line: `./Applications/junie.app/Contents/MacOS/junie --acp=true` (all platforms use --acp=true)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/agentclientprotocol/registry/blob/main/junie/agent.json (version 3419.16.0, distribution.binary.darwin-aarch64.cmd and args); https://junie.jetbrains.com/docs/junie-cli-acp.html ('junie --acp true'); https://zed.dev/acp/agent/junie"
+    },
+    {
+      "claim": "JetBrains IDE AI Chat downloads and runs Junie as an ACP agent (agent id acp.registry.junie), one process handler per chat, and Junie session ids appear in the IDE log in the same session-YYMMDD-HHMMSS-xxxx form as the CLI",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://junie.jetbrains.com/docs/junie-ide-plugin.html ('select Junie by JetBrains from the list ... have it downloaded automatically'); idea.log excerpt in https://intellij-support.jetbrains.com/hc/en-us/community/posts/33266222258834 ('[Junie] Creating new session for chat ...', 'Stopping process handler for agent acp.registry.junie in chat ...', 'Session is not loaded: session-260721-145433-1q5z'); IDE cache folder named acp-agents from https://youtrack.jetbrains.com/projects/LLM/issues/LLM-26664 (search excerpt only); verification: the support thread is about the Codex agent; its acp-agents path (~/.cache/JetBrains/GoLand2026.1/acp-agents/cursor/...) is a Linux path for the Cursor agent, so the Junie location and the macOS path (likely ~/Library/Caches/JetBrains/<IDE>/acp-agents/junie/...) are inferred; the log excerpt does not show the junie command line, so `--acp=true` from an IDE is inferred from the ACP registry entry. The log line \"Killing process tree\" shows the IDE stops the whole tree per chat"
+    },
+    {
+      "claim": "JetBrains Air is an agent host (Claude Agent, Codex, Gemini CLI, Junie, own ACP agents); Air's bundle id is com.jetbrains.air",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://www.jetbrains.com/help/air/supported-agents.html ('You can add Junie by logging in to your JetBrains account'); https://formulae.brew.sh/api/cask/jetbrains-air.json artifacts app Air.app, zap ~/Library/Preferences/com.jetbrains.air.plist (bundle id inferred from the plist name); https://data.services.jetbrains.com/products/releases?code=AIR (macOS dmg only, not opened)"
+    },
+    {
+      "claim": "IDE bundle ids: IntelliJ com.jetbrains.intellij, PyCharm com.jetbrains.pycharm, WebStorm com.jetbrains.WebStorm, GoLand com.jetbrains.goland, Android Studio com.google.android.studio",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/cask/{intellij-idea,pycharm,webstorm,goland,android-studio}.json, artifacts uninstall.quit values"
+    },
+    {
+      "claim": "Junie Home layout: ~/.junie (JUNIE_HOME overrides, then junie.home property); sessions/index.jsonl, sessions/<sessionId>/{events.jsonl, state.json, summary.json, conversation-summary.md, checkpoints/, <taskId>/terminal-output/, subagents/}; logs/log-<date>-pid-<pid>.log; settings.json; acp-prompt-attachments/<runId>/.lock held while an ACP process runs",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vendor documentation shipped inside the application jar, not on the public docs site: bundled-agents/junie-cli-docs.md section 'Junie CLI: What is stored on the user's disk' and agent-skills/session-history/SKILL.md, read with `unzip -p junie-release-3419.7.jar` after fetching the jar entry by range from the release zip above; JUNIE_HOME also in https://junie.jetbrains.com/docs/environment-variables.html ('Home directory for Junie CLI. Overrides the default ~/.junie')"
+    },
+    {
+      "claim": "one junie process writes a process sidecar per session under ~/.junie/processes/<pid>-<session-id>-<hash>.json with {pid, sessionId, projectPath, startedAt}; sidecars are not cleaned up on process exit in the third-party live captures (but the binary also has latch removal and stale-latch cleanup code, so absence proves nothing); the newest startedAt for a pid is the session currently running on it; the sidecar is also a lock file (latch) held by the live process",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/ingo-eichhorst/Irrlicht core/adapters/inbound/agents/junie/pid.go and core/pkg/transcript/junie_cwd.go (third-party reader built on live captures); in the jar: com/intellij/ml/llm/matterhorn/ej/app/cli/standalone/worktree/JunieSessionsMonitorImpl.class (registerProcess, processesDir, writeLatchFile, JunieFileLock.acquire, 'Registered process latch for session') and MonitoredJunieSession.class (pid, sessionId, projectPath, startedAt)"
+    },
+    {
+      "claim": "events.jsonl record kinds and key names: UserPromptEvent {kind,prompt,requestId,timestampMs...}, TaskStartedEvent {kind,taskId,timestampMs}, SessionA2uxEvent {kind,taskId,timestampMs,event:{state,agentEvent}}, UserAsyncResponseEvent, TaskState {kind,state,timestampMs}; TaskState is written once per task after failures too; event.state values IN_PROGRESS/INPUT_REQUIRED/COMPLETED/FAILED/CANCELED",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/ingo-eichhorst/Irrlicht core/adapters/inbound/agents/junie/parser.go and testdata/real-lifecycle-session.jsonl, real-terminal-approval.jsonl (key names and state values only were read, no message text); enum confirmed in the jar: org/jetbrains/a2ux/extensions/A2uxTaskState.class constants IN_PROGRESS, INPUT_REQUIRED, COMPLETED, FAILED, CANCELED"
+    },
+    {
+      "claim": "the TUI derives Working / Awaiting input / Ready per live session from the task state; Task history shows them and also shows sessions of other Junie processes (dimmed)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://junie.jetbrains.com/docs/junie-cli-worktrees.html ('Working…', 'Awaiting input', 'Ready', 'Cross-process sessions'); jar class tui/app/state/SessionsStateKt.class constants SessionLiveStatus WORKING, AWAITING_INPUT, READY and liveStatusOf(A2uxTaskState)"
+    },
+    {
+      "claim": "Junie holds a PreventUserIdleSystemSleep IOKit assertion named 'Junie is working' while a task runs; default mode WhileTaskRunning; user setting 'Keep awake'",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "constant-pool strings of com/intellij/ml/llm/matterhorn/ej/app/cli/standalone/awake/{MacKeepAwakeService,KeepAwakeController,KeepAwakeMode,TaskActivityTracker}.class and settings/JunieSettings.class (keepAwakeMode default 'WhileTaskRunning') in junie-release-3419.7.jar and junie-eap-3479.2.jar, parsed with a 30-line Python constant-pool reader (no JDK on this Mac); tui/app/view/settings/SettingsViewModel$Companion.class holds 'Keep awake' and 'Prevent system sleep while Junie is working'; MacKeepAwakeService: PreventUserIdleSystemSleep, IOPMAssertionCreateWithName. Bytecode was not disassembled, so the mapping reason -> assertion name is inferred from the call shape"
+    },
+    {
+      "claim": "shell tool calls are fresh direct child processes: bash -lc '<cmd>' </dev/null with a perl setsid or nohup prefix, state captured by markers",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "constant pools of com/intellij/ml/llm/matterhorn/execution/{JVMSpawnShellExecutionEnvironment,BashShellType,SessionDetachWrapper,StateMarkers}.class in junie-release-3419.7.jar: ' </dev/null', '-lc ', 'use POSIX qw(setsid); setsid() or die ...; exec @ARGV', 'nohup', '___JVMSPAWN_STATE_MARKER___', env MATTERHORN_SESSION_ID, MATTERHORN_TASK, JUNIE_TMPDIR. Inferred, not seen in ps"
+    },
+    {
+      "claim": "hooks: seven events, config in ~/.junie/config.json, TUI and batch only, project hooks ignored, PermissionRequest exit 0 approves; hook stdin carries session_id and cwd",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://junie.jetbrains.com/docs/junie-cli-hooks.html (page carries an Early Access tag; 'ACP and server hosts do not yet invoke any hooks'; PermissionRequest section); https://junie.jetbrains.com/docs/junie-cli-configuration.html (`hooks` field, project hooks ignored). Also in the STABLE build: com/intellij/ml/llm/matterhorn/ej/app/cli/standalone/api/configuration/HooksConfiguration.class in junie-release-3419.7.jar lists SessionStart, UserPromptSubmit, SessionEnd, PreToolUse, Stop, StopFailure, PermissionRequest"
+    },
+    {
+      "claim": "terminal notifications 'Junie needs your input' and 'Junie finished' via OSC 9 / 777 / 99, and an OSC 0 title writer",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "constant pools of com/intellij/ml/llm/matterhorn/ej/app/cli/standalone/terminal/TerminalNotifier.class and TerminalNotifier$Companion.class in junie-release-3419.7.jar (notifyInputRequired, '* Junie needs your input', 'Junie finished', ']0;', ']9;', ']99;', ']777;notify;')"
+    },
+    {
+      "claim": "gateway daemon: `--gateway` is Nightly-only, the detached child runs `<app-path> --__run-gateway` (or java ... MainKt --__run-gateway), state in ~/.junie/gateway/",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "constant pools of standalone/cli/JunieCli.class ('The --gateway option is not available in this version. Please use the Nightly build.'), standalone/gateway/lifecycle/GatewayLauncher.class ('--__run-gateway', 'jpackage.app-path', 'gateway-out.log'), cli/gateway/lifecycle/GatewayPaths.class ('gateway', 'gateway.lock', 'config.json', 'sessions') and GatewayConfig.class (pid, port, host, version, startedAt) in junie-release-3419.7.jar"
+    },
+    {
+      "claim": "no OpenTelemetry in the application",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`unzip -Z1 junie-release-3419.7.jar | grep -c '^io/opentelemetry'` printed 0; the same for junie-eap-3479.2.jar (91,319 entries); byte scan for 'OTEL_' and 'OTLP' over the com/intellij, org/jetbrains and bundled-docs entries found 0 hits; bundled docs mention no telemetry export"
+    },
+    {
+      "claim": "events.jsonl can grow very large; the IDE plugin is reported as being replaced by the ACP version",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "search-result excerpts only, pages not opened: https://youtrack.jetbrains.com/projects/JUNIE/issues JUNIE-5070 'events.jsonl gets too big and fills up disk space' (Backlog); https://www.reddit.com/r/Jetbrains/comments/1t672zs/junie_plugin_being_deprecated_in_favour_of_the/ thread title 'Junie Plugin Being Deprecated In Favour Of The ACP Version'; verification: JUNIE-5070 excerpt (\"grows without limit ... e.g. 459 GB\") and the deprecation thread title seen in search results 2026-09-29, pages themselves blocked or empty for a plain fetch; https://blog.jetbrains.com/junie/2026/06/junie-coding-agent-out-of-beta/ (search excerpt) says the IDE integration was rebuilt on ACP"
+    },
+    {
+      "claim": "a session can be resumed with --session-id <id or junie://sessions/<id>>; --resume takes no value; /new keeps earlier sessions running in the same process; remote mode keeps the process on this Mac and needs the machine awake",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://junie.jetbrains.com/docs/parameters.html (--session-id, --resume); https://junie.jetbrains.com/docs/junie-cli.html ('Start another session'); https://junie.jetbrains.com/docs/junie-cli-remote-mode.html ('Your machine must stay awake while a remote session is active')"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Nothing here was seen on a live instance: Junie is not installed on this Mac and I did not run any downloaded binary. The strongest facts are structural (paths, bundle id, hook events, sidecars, event schema, state enum). The strongest working signal, the 'Junie is working' sleep assertion, is read from bytecode constants and is the first thing to check on a live run (`pmset -g assertions | grep -i junie` during a turn, then during an approval prompt). One process is not one session: /new and IDE window reuse mean one junie pid can serve several sessions, so map a process to its session with ~/.junie/processes/<pid>-*.json (newest startedAt wins, body authoritative, file usually survives exit per a third-party capture, but the binary has latch cleanup code, so a missing file proves nothing), `--session-id` (or a positional junie://sessions/<id> link, not readable by session_id_args) only appears on resume, and fall back to the process cwd matched against projectDir in ~/.junie/sessions/index.jsonl. events.jsonl can grow large (open YouTrack item JUNIE-5070), so tail it, and never read message text. Matching reads the command line only: the process name is `junie` in every surface, and the ide, tui and daemon surfaces differ only by an argument (--acp, --__run-gateway), so keep the surface order daemon, ide, tui. Paths with a space (an ACP client could unpack under Application Support) are cut at the space by the probe, which would lose both the name and path match. Direct children only: user MCP servers are long-lived direct children, shells are per command. Adversarial verification 2026-09-29: re-read the docs pages, ACP registry entry, install shim, npm wrapper, Homebrew formula and the 3419.7 zip/jar; confidence stays documented (cap for a harness not installed here). Repaired: bare `names` removed (false positive on any executable called junie), `--gateway`, `--gateway-status`, `--gateway-stop` excluded from the tui surface (verified on synthetic ps lines against tools/agents_probe.py), hooks marked Early Access, wrong Reddit URL fixed. Still unproven and treat as guesses: the assertion in ACP processes, the 3% CPU floor on a JVM UI, and whether a single-command bash -lc execs into the tool name."
+}

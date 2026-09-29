@@ -1,0 +1,377 @@
+{
+  "id": "grok-build",
+  "name": "Grok Build",
+  "vendor": "SpaceXAI (xAI)",
+  "homepage": "https://x.ai/build",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "`grok` in a terminal: the full-screen Rust TUI (also `grok dashboard`, `grok --resume`, and the one-shot `grok -p \"...\"` / `--single` / `--prompt-json` / `--prompt-file` headless run, which alive-means-working). One native Mach-O, ~170 MB, downloaded to ~/.grok/downloads/grok-macos-<arch> and symlinked as ~/.grok/bin/grok and ~/.grok/bin/agent (plus grok and agent symlinks in ~/.local/bin or /usr/local/bin, but only when ~/.grok/bin is not already on PATH and that directory is on PATH and writable). The agent runs on a thread inside this process, so the bash tool's shells are DIRECT children (a fresh login shell per command) unless leader mode is on. argv[0] is `grok` when run by name and the full ~/.grok/bin/grok path when a TUI spawns it. The `agent` alias is matched only by its full ~/.grok/bin/agent path: a bare `agent` is also the Cursor CLI's name. exclude_args vetoes management subcommands by exact argument; a prompt word or worktree name equal to one (`grok update ...`, `-w setup`) would be vetoed, and the probe splits ps args on spaces. The hidden `grok workspace` command is not excluded on purpose: `workspace` is also a `--sandbox` profile name, and vetoing it hid `grok --sandbox workspace`. Surface order matters: args_contain is a substring test over every argument, so with the agent-mode surfaces first a TUI launched as `grok --cwd ~/webserver-agent` (agent and serve as substrings) was labelled daemon; the TUI comes first because its exact-argument veto on `agent` already rejects every real `grok agent ...` process. A prompt that contains the bare word `agent` is still vetoed and falls through to the ide or daemon surface. `--load <id>` is a hidden alias of `--resume`. The TUI re-executes its own binary as short-lived children (`__mermaid-render`, `__mic-capture`, argv[0] the resolved ~/.grok/downloads/grok-macos-<arch> path); they match this surface too and are folded into the parent TUI by the outermost rule.",
+      "process": {
+        "names": [
+          "grok"
+        ],
+        "path_contains": [
+          "/.grok/downloads/grok-",
+          "/.grok/bin/agent"
+        ],
+        "exclude_args": [
+          "agent",
+          "inspect",
+          "doctor",
+          "leader",
+          "logout",
+          "login",
+          "mcp",
+          "plugin",
+          "memory",
+          "models",
+          "sessions",
+          "usage",
+          "setup",
+          "share",
+          "wrap",
+          "export",
+          "import",
+          "trace",
+          "update",
+          "version",
+          "v",
+          "completions",
+          "worktree",
+          "du",
+          "disk-usage",
+          "help",
+          "--version",
+          "-V",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "-s",
+        "--resume",
+        "-r",
+        "--load"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "`grok agent leader`: the shared leader process of leader mode. Spawned detached by a TUI as `<~/.grok/bin/grok> agent leader --no-exit-on-disconnect ...` (own process group, stdout /dev/null, stderr to ~/.grok/leader.log) and holds the agent and its tool shells for every attached client, so with leader mode on the shell children are its children, not the TUI's. Leader mode is off by default in the source tree (config `use_leader`, or a remote setting in release builds, or `--leader`); whether the released build turns it on remotely was not determinable. Its ppid is the spawning TUI until that exits, so the probe folds it into that TUI (the outermost rule) and that TUI's tree_cpu then contains the leader.",
+      "process": {
+        "names": [
+          "grok"
+        ],
+        "path_contains": [
+          "/.grok/downloads/grok-",
+          "/.grok/bin/agent"
+        ],
+        "args_contain": [
+          "agent",
+          "leader"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "`grok agent stdio`: ACP (Agent Client Protocol) server on stdin/stdout, spawned by an embedding client and kept alive for its whole session: the VS Code extension, the official Grok Desktop app (`grok-desktop`, bundle id not published), Zed, Xcode, Neovim, Emacs, the community desktop apps. The parent is the client, not a terminal. Sessions are created over JSON-RPC, so no session id is in argv, and this mode does not take the sleep assertion (that lives in the TUI only). A client may host many sessions in one process.",
+      "process": {
+        "names": [
+          "grok"
+        ],
+        "path_contains": [
+          "/.grok/downloads/grok-",
+          "/.grok/bin/agent"
+        ],
+        "args_contain": [
+          "agent",
+          "stdio"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`grok agent serve --bind 127.0.0.1:2419 --secret <token>`: ACP over WebSocket, keeps state across client reconnects. Many sessions per process.",
+      "process": {
+        "names": [
+          "grok"
+        ],
+        "path_contains": [
+          "/.grok/downloads/grok-",
+          "/.grok/bin/agent"
+        ],
+        "args_contain": [
+          "agent",
+          "serve"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`grok agent headless`: the relay-connected headless agent mode named in AgentMode::Headless and the agent-mode docs (`stdio`, `serve`, `headless`, `leader`). No user guide page describes it beyond the mode list; argv shape is from the docs and source enum, not from a live process.",
+      "process": {
+        "names": [
+          "grok"
+        ],
+        "path_contains": [
+          "/.grok/downloads/grok-",
+          "/.grok/bin/agent"
+        ],
+        "args_contain": [
+          "agent",
+          "headless"
+        ]
+      }
+    },
+    {
+      "kind": "gui",
+      "label": "Grok Desktop (`grok-desktop`), the official desktop client. Named in the source and docs as an ACP client of `grok agent stdio` with its own bundled shell (`shell_version` differs from the app version) and native notifications, but no download, bundle id or executable path is published, and it is not installed here. Deliberately no process rule and no bundle id: its agent shows up through the `grok agent stdio` surface above.",
+      "session_id_args": []
+    }
+  ],
+  "session_store": {
+    "glob": "~/.grok/sessions/*/*/updates.jsonl",
+    "per_session": "~/.grok/sessions/*/{session_id}/updates.jsonl",
+    "format": "jsonl",
+    "documented": true,
+    "pid_index": {
+      "note": "Not in the schema. Maps a live TUI pid to its sessions without argv, which a plain `grok` launch never carries. Source only, not in the vendor docs.",
+      "active_sessions": "~/.grok/active_sessions.json (lock: active_sessions.lock beside it), a pretty-printed JSON array. Element keys: session_id, pid, cwd, opened_at (RFC 3339). Written by the TUI when a session opens (Effect::RegisterActiveSession, pid = the TUI's own), removed on a clean exit or /new, left behind by a crash until the next register prunes dead pids. `grok -p` runs register only when GROK_TRACK_HEADLESS is set. One pid can hold several entries (dashboard, /fork, several top-level agents in one pager process). Check the pid is alive AND is a grok process.",
+      "home_override": "GROK_HOME (non-empty) replaces ~/.grok for everything here, including sessions/ and active_sessions.json",
+      "session_dir": "~/.grok/sessions/<url-encoded cwd>/<session-id>/  (cwd names over 255 bytes become <slug>-<blake3 hex16> with the real path in a .cwd file). Session ids are UUIDv7 unless a client passes -s. Files: summary.json, updates.jsonl (ACP update stream, drives /resume), chat_history.jsonl, events.jsonl (undocumented, see the open-turn signal), system_prompt.txt, prompt_context.json, tool_definitions.json, plan.json, rewind_points.jsonl, signals.json, usage.json, feedback.jsonl, compaction_checkpoints/, subagents/. Directories 0700.",
+      "open_turn_file": "~/.grok/sessions/*/{session_id}/events.jsonl, one JSON object per line with `ts` (RFC 3339 ms) and a snake_case `type`: turn_started, phase_changed (waiting_for_model, streaming_text, streaming_reasoning, tool_execution, permission_prompt), first_token, tool_started, tool_completed, permission_requested, permission_resolved, turn_ended (outcome completed, cancelled, error, interrupted). A turn is open when the newest turn_started has no later turn_ended; the vendor's own crash recovery uses exactly that test on the last 256 KiB. Keep it open only while the pid in active_sessions.json is alive, because a crash leaves it open until the next load writes turn_ended interrupted.",
+      "streaming_note": "Consecutive text chunks are merged before they are written to updates.jsonl, so a long model stream can leave it quiet. Inferred from PersistenceMsg::Update merging in persistence.rs; the flush interval was not found."
+    }
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "name": "grok: agent turn in progress",
+      "meaning": "TUI only. The Grok process holds an IOKit NoIdleSleepAssertion (kIOPMAssertionTypeNoIdleSleep) with exactly this reason string while ANY agent in that pager process is not Idle (a turn running, a turn being cancelled, or a slash command such as /compact in flight), and releases it when all are idle. On by default (`[ui.notifications] sleep_prevention = true` in pager.toml). It is NOT dropped while a permission prompt is open, because the prompt does not change the agent state, so it cannot separate working from waiting on the human. Process-wide: one assertion covers every session in that TUI. `grok agent stdio` and `grok -p` do not take it. Read from source, never seen in a live `pmset -g assertions`. Match the whole name: the same process can also hold a second, brief assertion, type PreventSystemSleep named `grok: OIDC token refresh`, during a token refresh on a dark wake (in any mode, including agent stdio), which is not a turn."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "updates.jsonl of the session named by --resume/-s, or by active_sessions.json for a plain launch. A write can raise working, its absence never proves idle: text chunks are merged before writing. events.jsonl (undocumented) moves at every phase and tool boundary and holds an exact open-turn record; see session_store.pid_index.open_turn_file. The window is a guess, not measured."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "Direct child shell of the TUI (bash or zsh, one fresh login shell per bash-tool call) while a shell tool runs. Valid only when the agent runs in the TUI process, that is with leader mode off (the default in source); with leader mode on the shell is a child of `grok agent leader`. False positives: a background command (`run_terminal_command` with `background: true`) and monitors keeps its shell alive after the turn ended. With `--sandbox` the direct child may be `sandbox-exec` instead (inferred, not checked). MCP servers and language servers are also long-lived direct children but are not shells. Inferred, not observed: the tool runs `<shell> -lc <command>`, and a shell given a single simple command may exec it, in which case the direct child would carry the command's own name instead of a shell name."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Weak fallback, unmeasured. The Rust TUI animates a spinner during a turn; release 0.2.76 stopped it sending repeated empty frames when idle, so idle should sit near 0, but no live process was available to measure. A turn waiting on the network burns no CPU, and the tree includes MCP and language-server children."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "permission_prompt",
+      "meaning": "A permission UI is actually waiting (also fired for a diff review request). Payload field is `notificationType`; the matcher tests the same value. Needs a hook installed."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "elicitation_dialog",
+      "meaning": "Fired when the ask_user_question tool puts a question to the user (session spawn code). Not in the hooks docs, seen in source only; the same call also raises the x.ai/ask_user_question request to the client."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "idle_prompt",
+      "meaning": "The turn ended (completed, interrupted or errored) and the session has sat idle for about a minute. It reports a state, not an outcome, and is cancelled if another message arrives first. This is the docs' recommended backstop for a busy/idle indicator, not a permission wait."
+    },
+    {
+      "signal": "events_jsonl",
+      "record": "phase_changed permission_prompt followed by permission_requested, with no later permission_resolved",
+      "meaning": "Exact and per session, needs no setup. permission_resolved carries decision (allow, deny, cancelled, followup) and wait_ms. Undocumented file, read from source only."
+    },
+    {
+      "signal": "terminal_title",
+      "meaning": "Terminal side, not ps. With the default title items the OSC title reads `⚠ Action Required` while any permission is pending, alternating with the rest of the title (it blinks only while the terminal is unfocused, so a single sample can miss it). While working the title starts with a braille spinner U+280B U+2819 U+2839 U+2838 U+283C U+2834 U+2826 U+2827 then Thinking, Responding or Running: <tool>; idle is the session name and `grok`. Setting [ui.notifications.title], on by default."
+    },
+    {
+      "signal": "notification_hook",
+      "meaning": "[[ui.notifications.hooks]] in pager.toml runs a command on turn_complete, approval_required, session_ready, task_complete or agent_error with $GROK_EVENT, $GROK_MESSAGE and $GROK_SESSION_ID. Separate from lifecycle hooks; approval_required and turn_complete are on by default but only fire when the terminal is unfocused for 3 s."
+    },
+    {
+      "signal": "status_line",
+      "meaning": "A `command` status line (opt in via [ui.status_line] in ~/.grok/config.toml) gets JSON on stdin with `prompt_id` and `turn.started_at_ms`, both present only while a turn runs, plus `session_id` and `transcript_path`. An exact busy flag per session, re-run on every state change, but it needs a script that writes somewhere a monitor can read. It says nothing about waiting."
+    },
+    {
+      "signal": "sleep_assertion_present",
+      "meaning": "Not a wait signal. The assertion stays held through a permission prompt, unlike Cursor, Zed and Qwen Code. Pair it with permission_requested in events.jsonl or a Notification hook to tell working from waiting."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "JSON files ~/.grok/hooks/*.json (always trusted) and <project>/.grok/hooks/*.json (needs trust: /hooks-trust or --trust, stored in ~/.grok/trusted_folders.toml); `hooks` tables in ~/.grok/config.toml, managed_config.toml and requirements.toml ($GROK_HOME and /etc/grok); plugin-bundled hooks. By default it also reads Claude Code hook files (~/.claude/settings.json, settings.local.json, project .claude/settings.json) and Cursor's (~/.cursor/hooks.json, .cursor/hooks.json, camelCase event names mapped); turn that off per vendor with [compat.<vendor>] hooks = false. Handler types: command (event JSON on stdin) and http (POST). Env for every hook: GROK_HOOK_EVENT, GROK_HOOK_NAME, GROK_SESSION_ID, GROK_WORKSPACE_ROOT. Payload keys are camelCase (hookEventName, sessionId, cwd, workspaceRoot, promptId, permissionMode, timestamp) plus a snake_case hook_event_name carrying Claude's PascalCase name. Default timeout 5 s (600 s for Stop, SubagentStop, PostToolUse); every failure is fail-open.",
+    "events": [
+      "SessionStart",
+      "SessionEnd",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PermissionDenied",
+      "Stop",
+      "StopFailure",
+      "StopCancelled",
+      "Notification",
+      "SubagentStart",
+      "SubagentStop",
+      "PreCompact",
+      "PostCompact"
+    ],
+    "docs": "https://docs.x.ai/build/features/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Two separate streams. (1) External, for your own collector: alpha, off by default, needs a double opt-in of GROK_EXTERNAL_OTEL=1 plus OTEL_METRICS_EXPORTER=otlp and/or OTEL_LOGS_EXPORTER=otlp (or [telemetry] otel_* keys in ~/.grok/config.toml). OTLP http/protobuf (default) or grpc, standard OTEL_EXPORTER_OTLP_* variables, service.name grok-cli, meter scope ai.xai.grok_code. Logs and metrics only, no traces. Metrics: grok_code.session.count, token.usage, turn.count, turn.ttft, turn.ttfm, tool.decision, tool.usage, error.count, startup.*. Events: grok_code.session_start, session_end, user_prompt, assistant_response, turn_completed, api_request, tool_result, tool_decision, subagent, compaction and more, each with session.id, prompt.id, turn_number. Content-free by default. Log batches flush every 5 s and metrics every 60 s, so it is a reporting feed, not a live busy/idle signal. (2) Internal: OTLP http/protobuf traces to xAI's own proxy (<cli_chat_proxy>/traces, Bearer auth), governed by [features] telemetry / GROK_TELEMETRY_ENABLED and [telemetry] trace_upload, not readable by a local monitor."
+  },
+  "sources": [
+    {
+      "claim": "Official installer puts a single native binary at ~/.grok/downloads/grok-macos-<aarch64|x86_64> and symlinks it as ~/.grok/bin/grok and ~/.grok/bin/agent (relative symlinks); only when ~/.grok/bin is not on PATH does it also symlink grok and agent into ~/.local/bin or /usr/local/bin (first one that is on PATH and writable); it then adds ~/.grok/bin to the shell rc; channel stable|alpha|enterprise; config lands in ~/.grok/config.toml; GROK_BIN_DIR overrides the bin dir",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://x.ai/cli/install.sh (fetched and read again 2026-09-29, not run): BIN_DIR=${GROK_BIN_DIR:-$HOME/.grok/bin}; DOWNLOAD_DIR=$HOME/.grok/downloads; binary_path=$DOWNLOAD_DIR/grok-$platform; ln -sf \"$link_target\" \"$BIN_DIR/grok\" and \"$BIN_DIR/agent\" (lines 317-318); `if [ \"$os\" != \"windows\" ] && ! path_has_dir \"$BIN_DIR\"` then for $HOME/.local/bin and /usr/local/bin that are on PATH, a directory and writable, ln -sf into it (lines 419-424)"
+    },
+    {
+      "claim": "Public source: Rust workspace, the TUI binary is crate xai-grok-pager-bin (artifact xai-grok-pager, released as `grok`); crate version 1.0.45 while the public changelog's latest is v1.0.41 (2026-09-22)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/xai-org/grok-build at 97f190f644ae1ba07fd6ee185ef54c650e142666 (shallow clone; SOURCE_REV f589e31cc17fbf9a41072a379dba4673f6aa0861 is the monorepo commit): crates/codegen/xai-grok-pager-bin/Cargo.toml `version = \"1.0.45\"`, [[bin]] name = \"xai-grok-pager\"; https://x.ai/build/changelog"
+    },
+    {
+      "claim": "The TUI holds an IOKit NoIdleSleepAssertion with reason \"grok: agent turn in progress\" while any agent is not Idle, released when all are idle; default on (sleep_prevention = true); Linux uses `systemd-inhibit --what=idle --who=grok`",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-pager/src/notifications/sleep.rs (platform_inhibit: CFString \"NoIdleSleepAssertion\", reason \"grok: agent turn in progress\", IOPMAssertionCreateWithName level 255); src/app/dispatch/ctx.rs sync_sleep_inhibitor (`any_busy = app.agents.values().any(|a| !a.session.state.is_idle())`, called after every dispatch at router.rs:1635); src/notifications/config.rs (`sleep_prevention: true`, documented as [ui.notifications])"
+    },
+    {
+      "claim": "AgentState has only Idle, TurnRunning, TurnCancelling, CommandRunning, CommandCancelling; a permission request is queued on the agent without changing that state, so the assertion stays held while waiting on the human",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-pager/src/app/agent.rs (enum AgentState, is_idle); src/app/acp_handler/permissions.rs handle_permission_request/enqueue_permission (fires the ApprovalRequired notification and pushes the prompt; no state transition). Inferred by reading, not observed."
+    },
+    {
+      "claim": "xai-system-power hold_awake() has exactly one caller outside its crate: the OIDC refresh path takes a PreventSystemSleep assertion named `grok: OIDC token refresh`, and only on a dark wake. No caffeinate spawn exists in the tree",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rn 'hold_awake\\|caffeinate\\|IOPMAssertion\\|NoIdleSleep' --include='*.rs' crates at 97f190f: crates/codegen/xai-grok-login/src/manager/refresh_chain.rs:200 `xai_system_power::hold_awake(\"grok: OIDC token refresh\")` inside `if self.is_dark_wake()`; xai-system-power/src/macos.rs ASSERTION_TYPE_PREVENT_SYSTEM_SLEEP = \"PreventSystemSleep\"; no other caller, and no `caffeinate` hit. Corrects the earlier claim that hold_awake had no caller."
+    },
+    {
+      "claim": "The agent runs on a dedicated thread inside the TUI process (no child agent process) unless leader mode is on; leader mode is off by default in source and spawns `<grok> agent leader --no-exit-on-disconnect ...` as a detached process group",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-pager/src/acp/spawn.rs spawn_agent_thread_direct (thread `acp-agent-worker`, MvpAgent in a LocalSet); src/app/mod.rs resolve_leader_mode (precedence: --no-leader, --leader, eligibility, config use_leader, remote leader_mode in release-dist, default off; a sandbox profile vetoes it); crates/codegen/xai-grok-shell/src/leader/mod.rs spawn_leader_subprocess (cmd.arg(\"agent\").arg(\"leader\"), process_group(0), stderr to ~/.grok/leader.log, socket ~/.grok/leader.sock in the module doc)"
+    },
+    {
+      "claim": "The bash tool starts a fresh non-persistent shell per command (bash or zsh, login) as a direct child of the agent process, detached from the terminal",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-tools/src/computer/local/static_shell.rs (\"replay-only ... every command replays that fixed snapshot in a fresh shell\", tokio::process::Command::new(shell_binary(shell)).args([\"-lc\", ...])); crates/codegen/xai-grok-shell-terminal/src/local_terminal.rs LocalTerminalRunner::run (Command::new(default_shell_path()).arg(\"-lc\"), detach_command). Which of the two the default bash tool uses was not confirmed."
+    },
+    {
+      "claim": "CLI shape: bare `grok` starts the TUI; `-p/--single`, `--prompt-json`, `--prompt-file` run headless; `-r/--resume [ID or title]`, `-c/--continue`, `-s/--session-id <UUID>` (new session only), `--fork-session`; subcommands login, logout, inspect, models, mcp, plugin, sessions, export, import, memory, worktree, dashboard, agent stdio, wrap, update, version, completions, setup; agent modes stdio, serve, headless, leader",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.x.ai/build/cli/reference ; https://docs.x.ai/build/cli/headless-scripting ; crates/codegen/xai-grok-pager/docs/user-guide/15-agent-mode.md (`grok agent --always-approve stdio`, `grok agent --always-approve serve --bind 127.0.0.1:2419 --secret <token>`; \"Agent options apply to every transport (stdio, serve, headless, leader)\"); crates/codegen/xai-grok-pager/src/app/cli.rs enum Command (also doctor, leader, usage, share, trace, du/disk-usage, workspace) | Re-check 2026-09-29: the hosted headless page lists -p/--single, -s and -r but not --prompt-json or --prompt-file; those two, and `--load` (hidden alias of --resume, cli.rs:556), come from crates/codegen/xai-grok-pager/docs/user-guide/14-headless-mode.md lines 9, 41-42 and src/app/cli.rs. The hosted CLI reference lists `grok agent stdio` only; serve, headless and leader come from the shipped 15-agent-mode.md."
+    },
+    {
+      "claim": "Sessions live under ~/.grok/sessions/ keyed by working directory (hosted docs); layout under <url-encoded cwd>/<session-id>/, GROK_HOME override and UUIDv7 ids (shipped user guide); updates.jsonl is the durable source of truth (source, not docs)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.x.ai/build/features/sessions says only '~/.grok/sessions/, keyed by working directory' and that -s names a new session; crates/codegen/xai-grok-pager/docs/user-guide/17-sessions.md line 18 (UUIDv7, GROK_HOME) and Storage Layout lines 22-40 (usage.json and events.jsonl are not listed there); crates/codegen/xai-grok-shell/src/session/storage/mod.rs:254 'updates.jsonl, the durable source of truth', USAGE_FILE = usage.json (:34), `.cwd` (:146); crates/codegen/xai-grok-config/src/paths.rs encode_cwd_dirname (blake3 hex16 slug over 255 bytes); lifecycle.rs:345 uuid::Uuid::now_v7()"
+    },
+    {
+      "claim": "events.jsonl per session records turn_started, phase_changed (incl. permission_prompt), tool_started/completed, permission_requested/resolved, turn_ended; the vendor treats a turn_started with no turn_ended in the last 256 KiB as an interrupted turn at load",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-session-events/src/{log.rs (EVENTS_FILE, one JSON line with ts), types.rs (enum Event, Phase, TurnOutcomeLabel), tracker.rs (permission_requested/permission_resolved)}; crates/codegen/xai-grok-shell/src/session/interrupted_turn.rs (detect_interrupted_turn, EVENTS_TAIL_BYTES 256 KiB); emitted at crates/codegen/xai-grok-shell/src/session/acp_session_impl/turn.rs:849. Not listed in the documented storage layout."
+    },
+    {
+      "claim": "~/.grok/active_sessions.json maps live TUI pids to session ids",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-active-sessions/src/lib.rs (struct ActiveSession {session_id, pid, cwd, opened_at}; register prunes dead pids, try_unregister on clean exit); crates/codegen/xai-grok-pager/src/app/effects/mod.rs Effect::RegisterActiveSession (pid: std::process::id()); src/headless.rs:1078 (register only when GROK_TRACK_HEADLESS is set)"
+    },
+    {
+      "claim": "Hosted docs page: hook locations (~/.grok/hooks/*.json, <project>/.grok/hooks/*.json), Claude Code and Cursor hook files read too (Cursor camelCase names), /hooks-trust gate stored in ~/.grok/trusted_folders.toml, default timeout 5 s, command and http handlers, fail-open. It lists 14 events (no StopCancelled) and calls PreToolUse the only blocking event",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.x.ai/build/features/hooks and https://docs.x.ai/build/features/hooks.md (fetched 2026-09-29, 2.6 KB): no mention of idle_prompt, permission_prompt, StopCancelled, promptId, the 600 s gate timeout or the busy/idle recipe. The hosted page is a condensed copy; the shipped user guide below is fuller and disagrees on which events block."
+    },
+    {
+      "claim": "Notification types emitted in source: permission_prompt, idle_prompt, task_complete, agent_error, elicitation_dialog (from ask_user_question)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-shell/src/session/acp_session_impl/hook_dispatch.rs notification_hook_for_update; .../extensions/idle_prompt.rs:69; .../spawn.rs:2338 (elicitation_dialog); crates/codegen/xai-grok-shell/src/tools/notification_bridge.rs:611 (task_complete)"
+    },
+    {
+      "claim": "Terminal title: default items action-required, spinner, activity, session-name, grok; braille spinner; `⚠ Action Required` while permissions are pending; progress bar OSC 9;4 default on",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-pager/src/notifications/title.rs (TITLE_SPINNER U+280B..U+2827, write_item ActionRequired/Activity/Spinner); src/notifications/config.rs to_toml_with_comments ([ui.notifications.title] items, progress_bar = true)"
+    },
+    {
+      "claim": "Status line command JSON carries prompt_id and turn.started_at_ms only while a turn runs, plus session_id and transcript_path (= the session's updates.jsonl)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-pager/docs/user-guide/25-status-line.md lines 87-108 (session_id, prompt_id 'present only during a turn', transcript_path, turn.started_at_ms 'absent between turns'). The hosted https://docs.x.ai/build/features/status-line page (fetched 2026-09-29) does not contain prompt_id, turn.started_at_ms or transcript_path."
+    },
+    {
+      "claim": "OpenTelemetry: external logs+metrics stream to your own collector (double opt-in GROK_EXTERNAL_OTEL=1 + OTEL_*_EXPORTER, http/protobuf or grpc, no traces), separate from xAI's internal OTLP traces pipeline",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-pager/docs/user-guide/24-monitoring-usage.md (env table, metric and event lists, \"The external stream exports logs and metrics only\"); crates/codegen/xai-grok-telemetry/src/external/config.rs (ENV_MASTER_SWITCH = \"GROK_EXTERNAL_OTEL\"); crates/codegen/xai-grok-otel/src/provider.rs (SpanExporter, Protocol::HttpBinary, service.name grok-cli); crates/codegen/xai-grok-config/src/endpoints.rs resolve_otlp_traces_endpoint (default `<proxy_url>/traces`)"
+    },
+    {
+      "claim": "Grok Desktop and other GUI/IDE clients drive `grok agent stdio` over a persistent stdio pipe; no macOS bundle id is published",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-acp-lib/src/stdin_reader.rs header (\"Every ACP client (VS Code extension, grok-desktop, the leader bridge) drives the agent over a persistent ... stdio\"); prod/mc/cli-chat-proxy-types/src/metadata_types.rs (shell_version differs for grok-desktop); user guide 05-configuration.md terminal matrix row `Grok Desktop | None (native)`; grep of the whole tree for com.x.ai, com.xai, ai.x found only the OTel scope ai.xai.grok_code"
+    },
+    {
+      "claim": "Third-party desktop clients exist that run the unmodified CLI as `grok agent stdio` (not xAI products)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/RongleCat/grok-app README (`grok agent stdio`, data dir ~/Library/Application Support/com.grokapp.grok-app/); https://www.productcompass.pm/p/grok-build-desktop (Grok Build Desktop (Community), runs xAI's real CLI unmodified)"
+    },
+    {
+      "claim": "Grok Build is not installed on this Mac and nothing is running",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`command -v grok agent` printed nothing; `ls -d ~/.grok` -> No such file or directory; `ps -axo pid=,args= | grep -i [g]rok` matched only the shell running the check; `pmset -g assertions | grep -i grok` printed nothing; `mdfind \"kMDItemCFBundleIdentifier == '*grok*'\"` printed nothing"
+    },
+    {
+      "claim": "Shipped user guide (in the vendor's public repo, more detailed than docs.x.ai): 15 events incl. StopCancelled; Claude/Cursor compatibility scanned by default and switchable per vendor; payload keys camelCase plus snake_case hook_event_name carrying Claude's PascalCase value; UserPromptSubmit, Stop and SubagentStop can block; default timeout 5 s, 600 s for Stop, SubagentStop and PostToolUse; Notification types permission_prompt and idle_prompt (idle_prompt about a minute after the session settles, needs a finished turn); the busy/idle recipe: UserPromptSubmit busy, Stop/StopFailure/StopCancelled settle, idle_prompt as backstop, key on promptId",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "crates/codegen/xai-grok-pager/docs/user-guide/10-hooks.md at 97f190f (Hook Events table lines 89-104 count 15; Input section; Stop Decision Control). Payload key `notificationType` and the types permission_prompt, idle_prompt, task_complete, agent_error, elicitation_dialog re-checked in crates/codegen/xai-grok-hooks/src/event.rs:541 and xai-grok-shell/src/session/acp_session_impl/{hook_dispatch.rs,updates.rs:959,extensions/idle_prompt.rs:69,spawn.rs:2338}; DiffReview also raises permission_prompt (hook_dispatch.rs)."
+    },
+    {
+      "claim": "`grok` is also the name of an unrelated pattern-matching tool, so a name-only match can hit it",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/formula/grok.json -> name grok, desc 'DRY and RAD for regular expressions and then some', homepage https://github.com/jordansissel/grok, deprecated true, disabled true. Being disabled in Homebrew makes a hit unlikely but a hand-built copy would still match by name."
+    },
+    {
+      "claim": "Released builds do run leader mode and grok-desktop over stdio, and 1.0.41 already has the crash-interrupted-turn marker that events.jsonl recovery implements",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://x.ai/build/changelog (fetched 2026-09-29, latest v1.0.41 Sep 22 2026): v1.0.41 'Sessions interrupted by a crash show a clear marker instead of silently dropping the turn'; 'Stale leader processes are now cleaned up when leader mode is disabled via config or remote settings'; 'Fixed `grok agent stdio` startup hangs on Windows when used with persistent clients such as VS Code or grok-desktop'; 'Agent subprocesses and idle inhibitors are cleaned up when the parent CLI process dies unexpectedly'; v0.2.76 'Idle sessions no longer send repeated empty frames to the terminal'. The tree is crate 1.0.45, four patch versions ahead of the changelog, so items marked source-only may not be in the build a user runs."
+    },
+    {
+      "claim": "Row process rules behave as intended on synthetic argv lines; one mislabel and one missing session-id flag found and repaired, one remains",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python harness importing tools/agents_probe.matches() and session_id() over 35 argv lines and every registry row (nothing executed). Before repair: `grok --cwd /work/webserver-agent` -> daemon and `grok --load <id>` -> tui with no session id; after repair: tui, and tui with the id. Not fixable with substring matching: `grok -p why does the agent stdio hang` (bare word `agent` trips the exact-argument veto) -> ide. Unchanged and correct: `grok agent stdio` -> ide; `grok agent serve`/`headless` and `<~/.grok/bin/grok> agent leader` -> daemon; `grok update|--version|mcp list|leader list|wrap ls|login` -> no match; bare `agent`, `node /usr/local/bin/grok`, `grep grok` -> no match; no other row matched any line. `/opt/homebrew/bin/grok -f patterns.txt access.log` (the unrelated tool) -> tui, an accepted false positive."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not installed on this Mac, so no live process, assertion or session file was seen; everything comes from the vendor docs and the public Rust source (xai-org/grok-build). The best signal is the TUI's IOKit NoIdleSleepAssertion named `grok: agent turn in progress` (default on), but it stays held while the TUI waits on a permission prompt, so waiting must come from events.jsonl (permission_requested with no permission_resolved), a Notification hook (permission_prompt) or the `⚠ Action Required` terminal title. One TUI process holds every session it has open (dashboard, /fork, /new), so the assertion and CPU are process-wide; map pid to sessions through ~/.grok/active_sessions.json, not argv (a plain `grok` has no session id). `grok` is also the name of an unrelated log-parsing tool, and a bare `agent` collides with the Cursor CLI, so the row matches `grok` by name and `agent` only by its ~/.grok/bin/agent path. Grok reads Claude Code's ~/.claude/settings.json hooks by default, so a Claude hook installed for monitoring will also fire in Grok with camelCase payload keys. Matching reads the command line only and tool_children looks at direct children only, so with leader mode on the shells sit under `grok agent leader` and tool_children stays quiet. Verification 2026-09-29: the shipped user guide and the hosted docs.x.ai pages differ (hosted hooks page: 14 events, PreToolUse the only blocking event; the repo guide: 15 events, three can block), so evidence names which one says what. The source tree is crate 1.0.45 against changelog 1.0.41. Besides the turn assertion, a Grok process can briefly hold a `grok: OIDC token refresh` PreventSystemSleep assertion on a dark wake, so match the assertion name in full. tool_children assumes the direct child of the TUI is a shell; a single-command `-lc` call may exec the command directly (inferred)."
+}

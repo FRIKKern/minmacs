@@ -1,0 +1,304 @@
+{
+ "id": "kiro",
+ "name": "Kiro",
+ "vendor": "Amazon Web Services",
+ "homepage": "https://kiro.dev",
+ "surfaces": [
+  {
+   "kind": "ide",
+   "label": "Kiro CLI as an ACP agent (kiro-cli acp): spawned by an editor, by Kiro Crew, or as the engine child of an interactive session",
+   "process": {
+    "names": [
+     "kiro-cli",
+     "kiro-cli-chat"
+    ],
+    "args_contain": [
+     "acp"
+    ]
+   }
+  },
+  {
+   "kind": "tui",
+   "label": "Kiro CLI in a terminal (kiro-cli, kiro-cli chat; bun TUI plus kiro-cli-chat engine). One-shot listing and delete flags of `chat` (--list-sessions, --list-models, --delete-session) are excluded as whole tokens. Known cost of the whole-token deny-list: a session started with a prompt that contains a bare word such as `mcp`, `agent`, `login` or `help` is missed. `--no-interactive` runs are kept: they are working for their whole life",
+   "process": {
+    "names": [
+     "kiro-cli",
+     "kiro-cli-chat"
+    ],
+    "exclude_args": [
+     "acp",
+     "crew",
+     "doctor",
+     "update",
+     "theme",
+     "integrations",
+     "inline",
+     "login",
+     "logout",
+     "whoami",
+     "settings",
+     "diagnostic",
+     "issue",
+     "version",
+     "mcp",
+     "agent",
+     "translate",
+     "completion",
+     "help",
+     "--help",
+     "-h",
+     "--help-all",
+     "--version",
+     "-V",
+     "--list-sessions",
+     "--list-models",
+     "--delete-session"
+    ]
+   },
+   "session_id_args": [
+    "--resume-id"
+   ]
+  },
+  {
+   "kind": "gui",
+   "label": "Kiro CLI.app in /Applications: signed wrapper that carries kiro-cli, kiro-cli-chat, kiro-cli-term and the menu-bar helper kiro_cli_desktop (LSUIElement). The helper is not a session, so no process rule",
+   "bundle_ids": [
+    "com.amazon.codewhisperer"
+   ]
+  },
+  {
+   "kind": "ide",
+   "label": "Kiro IDE (Electron, Code OSS fork). The bundled kiro.kiro-agent extension contains the agent's session server, so the agent is inferred to run inside the extension host with no per-session process; Kiro's docs call the harness 'a standalone process', so a child process is not ruled out and was not observed on macOS. The `kiro` shell shim runs Contents/MacOS/Kiro with ELECTRON_RUN_AS_NODE against Contents/Resources/app/out/cli.js for a moment; that short-lived process is excluded for the default /Applications path (macOS path inferred from the Linux shim)",
+   "bundle_ids": [
+    "dev.kiro.desktop"
+   ],
+   "process": {
+    "path_contains": [
+     "/Kiro.app/Contents/MacOS/Kiro"
+    ],
+    "exclude_args": [
+     "/Applications/Kiro.app/Contents/Resources/app/out/cli.js"
+    ]
+   }
+  },
+  {
+   "kind": "gui",
+   "label": "Kiro Crew desktop app (Electron, open source). Runs a bundled Gateway and one kiro-cli acp child per agent session. Process rule inferred from electron-builder productName, never seen running",
+   "bundle_ids": [
+    "com.amazon.kiro.crew"
+   ],
+   "process": {
+    "path_contains": [
+     "/KiroCrew.app/Contents/MacOS/KiroCrew"
+    ]
+   }
+  },
+  {
+   "kind": "daemon",
+   "label": "Kiro Crew Gateway (python -m kiro_crew gateway, dashboard on 127.0.0.1:5476). Process rule inferred from install docs (pipx or ~/.kiro/crew-venv), never seen running",
+   "process": {
+    "path_contains": [
+     "/pipx/venvs/kirocrew/",
+     "/.kiro/crew-venv/"
+    ],
+    "args_contain": [
+     "gateway"
+    ]
+   }
+  },
+  {
+   "kind": "cloud",
+   "label": "Kiro Web (app.kiro.dev), Kiro Mobile (iOS TestFlight) and kiro-cli --cloud sessions: run in a managed cloud sandbox, nothing local to see"
+  }
+ ],
+ "session_store": {
+  "glob": "~/.kiro/sessions/cli/*.jsonl",
+  "per_session": "~/.kiro/sessions/cli/{session_id}.jsonl",
+  "format": "jsonl",
+  "documented": true
+ },
+ "working_signals": [
+  {
+   "signal": "transcript_write",
+   "within_seconds": 30,
+   "meaning": "Terminal sessions on the default V2 engine append to ~/.kiro/sessions/cli/<id>.jsonl (documented for ACP sessions; the interactive TUI drives the same engine over ACP, inferred; the session-management page instead says a per-directory SQLite database, so the docs conflict for interactive chats). Only resolvable when the process was started with --resume-id, because a fresh session has no id in argv. Raises working, never lowers it. Write cadence during a long model stream not measured. V3 engine and the IDE write ~/.kiro/sessions/<bucket>/sess_<id>/messages.jsonl instead (undocumented, read from bundled source), which this row's per_session path does not cover."
+  },
+  {
+   "signal": "tree_cpu",
+   "floor_percent": 3,
+   "meaning": "Weak fallback, unmeasured guess. Sums the whole tree under the matched process: bun TUI, kiro-cli-chat engine, MCP servers. The TUI redraws a braille spinner about 10 times a second while thinking (third-party report, kiro-cli 2.11), so a working turn should show CPU. It also over-reports: in kiro-cli 2.1.1 issue 7918 the engine was asleep with zero I/O after MCP failures while the bun TUI stayed in state R animating the spinner, so a hung turn still reads as working. A turn waiting on the network is not shown to be quiet; that is unmeasured"
+  }
+ ],
+ "waiting_signals": [
+  {
+   "signal": "terminal_progress",
+   "sequence": "OSC 9;4;4;100 (paused, 100 percent)",
+   "meaning": "The TUI writes this to its own terminal while a permission prompt or a question is pending. Same channel: OSC 9;4;3 while thinking or compacting, 9;4;2 on error, and while idle either 9;4;0 or, once context usage reaches 60 percent, 9;4;4;<context percent>. So state 4 alone does not mean waiting: only percent 100 does, and a full context window at idle also reads 100. Emitted only when TERM_PROGRAM is iTerm.app or WezTerm, WT_SESSION is set, HERDR_ENV=1 (Herdr, also true inside a tmux pane started by Herdr), or ConEmuANSI=ON (and not under tmux or screen for the ConEmu case); not for Terminal.app, Ghostty, kitty or cmux by that test. KIRO_NO_PROGRESS=1 turns it off. Readable only by the terminal host, never from ps. Docs (terminal-ui.md) confirm the feature and the iTerm2, WezTerm, Windows Terminal and ConEmu list but give no sequences. Sequences and conditions read from the bundled TUI source (functions mT, gCn, m1t, A1t; threshold constant mCn=60), re-read on the Linux arm64 2.25.0 build, not observed running"
+  },
+  {
+   "signal": "notification",
+   "method": "BEL or OSC 9 (setting chat.notificationMethod: auto, bel, osc9)",
+   "meaning": "Text 'Permission required', 'Input required' and 'Response complete'. Off unless chat.enableNotifications is true. Docs list the settings; the message strings are from the bundled TUI source."
+  },
+  {
+   "signal": "notification",
+   "method": "macOS native notification from the IDE (Settings, Agent: Notifications)",
+   "meaning": "IDE only: 'Action Required' fires when the agent needs approval or input, 'Success' and 'Failure' at the end. No hook and no file; observable only as a Notification Center banner."
+  },
+  {
+   "signal": "acp",
+   "method": "session/request_permission",
+   "meaning": "For an ACP client (an editor or Crew) that owns the stdio pipes: the agent asks for approval through this request. Not visible from outside the pipe."
+  }
+ ],
+ "hooks": {
+  "supported": true,
+  "config": "CLI 3.0 and IDE 1.x: standalone JSON files, .kiro/hooks/*.json in the project and global hooks (~/.kiro/hooks/ per the IDE 1.0 page; the loader in the bundled agent has global hook directories). CLI 2.x (default engine): a hooks block inside the agent config, .kiro/agents/*.json or ~/.kiro/agents/*.json. Command hooks get JSON on stdin with session_id and cwd, and KIRO_SESSION_ID is set for shell commands (undocumented; found only as a string in the kiro-cli-chat binary).",
+  "events": [
+   "SessionStart",
+   "UserPromptSubmit",
+   "PreToolUse",
+   "PostToolUse",
+   "Stop",
+   "PreTaskExec",
+   "PostTaskExec",
+   "PostFileCreate",
+   "PostFileSave",
+   "PostFileDelete",
+   "agentSpawn",
+   "userPromptSubmit",
+   "preToolUse",
+   "postToolUse",
+   "stop"
+  ],
+  "docs": "https://kiro.dev/docs/hooks.md"
+ },
+ "telemetry": {
+  "otel": true,
+  "how": "Kiro CLI only, undocumented: KIRO_TELEMETRY_OTEL, KIRO_TELEMETRY_OTLP_ENDPOINT and KIRO_TELEMETRY_EXPORT_INTERVAL_MS are read by the binary; it exports OTLP metrics (service kiro-cli, path /v1/metrics, e.g. kiro_cli_user_turn_duration_seconds), aggregates only, not a live turn signal. The documented OpenTelemetry export is an enterprise admin feature: daily kiro.daily.* metrics pushed from Kiro's servers at 02:00 UTC, not from the Mac."
+ },
+ "sources": [
+  {
+   "claim": "Kiro CLI installs on macOS as a signed app, Kiro CLI.app, into /Applications from 'Kiro CLI.dmg'; the install script then opens it with --no-dashboard. There is no Homebrew build.",
+   "evidence": "curl -sL https://cli.kiro.dev/install: MACOS_APP_DIR=/Applications, MACOS_FILENAME='Kiro CLI.dmg', `open -g -a \"$MACOS_APP_DIR/$app_name\" --args --no-dashboard`; https://kiro.dev/docs/getting-started/installation.md says the Homebrew build is unsupported",
+   "kind": "official-docs",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "The CLI bundle id is com.amazon.codewhisperer (legacy Amazon Q id), version 2.25.0, LSUIElement=1 (no Dock icon), CFBundleExecutable kiro_cli_desktop, URL scheme kiro-cli. Contents/MacOS holds kiro-cli, kiro-cli-chat, kiro-cli-term, kiro_cli_desktop, all universal Mach-O.",
+   "evidence": "Downloaded https://prod.download.cli.kiro.dev/stable/latest/Kiro%20CLI.dmg (360741857 bytes), `hdiutil attach -readonly -nobrowse`, then `plutil -p 'Kiro CLI.app/Contents/Info.plist'` and `ls Contents/MacOS`; `codesign -dv` printed Identifier=com.amazon.codewhisperer TeamIdentifier=94KV3E626L. Nothing was executed or installed; detached afterwards.",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "The IDE is an Electron app, bundle id dev.kiro.desktop, executable Contents/MacOS/Kiro, helpers 'Kiro Helper (GPU|Plugin|Renderer)'; product.json says applicationName kiro, dataFolderName .kiro, urlProtocol kiro. The agent is the bundled extension kiro.kiro-agent 1.1.158 (dist/extension.js), so it runs inside the extension host.",
+   "evidence": "Downloaded https://prod.download.desktop.kiro.dev/releases/stable/darwin-arm64/signed/1.1.70/kiro-ide-1.1.70-stable-darwin-arm64.dmg, mounted read-only, `plutil -p Kiro.app/Contents/Info.plist` (CFBundleIdentifier dev.kiro.desktop, CFBundleExecutable Kiro), `ls Contents/Frameworks`, grep of Contents/Resources/app/product.json, `ls Contents/Resources/app/extensions`. Not run.",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "Process tree of an interactive session (Linux, kiro-cli 2.1.1): `kiro-cli chat ...` launches `kiro-cli-chat chat ...`, which starts `bun tui.js chat ...` (the TUI) and `kiro-cli-chat acp ...` (the engine, talking ACP over pipes). The bun runtime and tui.js live in the data dir, ~/.local/share/kiro-cli/ on Linux.",
+   "evidence": "https://github.com/kirodotdev/Kiro/issues/7918 (process tree and per-process states) and https://github.com/aws/amazon-q-developer-cli/issues/3820 (crash banner: Args: \"/home/kirouser/.local/share/kiro-cli/bun\" \"/home/kirouser/.local/share/kiro-cli/tui.js\" \"chat\"). Linux only; macOS shape inferred.",
+   "kind": "third-party",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "The bun TUI, the node KAS server bundle and both runtimes are embedded in kiro-cli-chat and extracted on first run; env vars KIRO_AGENT_ENGINE, KIRO_KAS_NODE_PATH and KIRO_KAS_SERVER_PATH exist; 'Bun TUI runtime' and 'KAS agent engine' are named in launch.rs messages.",
+   "evidence": "`strings -a` on 'Kiro CLI.app/Contents/MacOS/kiro-cli-chat' (424 MB) plus carving of zstd frames from a thin arm64 copy: found tui.js (13.4 MB, starts '#!/usr/bin/env bun'), a bun Mach-O, a node Mach-O and a 188 MB tar holding node_modules/@kiro/agent 0.66.11. Static reading only.",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "A turn writes a marker file <KIRO_TURN_MARKER_DIR>/<pid>-<startms>.json when it starts, refreshes last_alive_at_ms every 30 s, and deletes it when the turn ends. Keys: pid, engine, session_interface (interactive_cli), agent_mode, turn_started_at_ms, last_alive_at_ms, version_full, owner_started_at_s. The pid is the bun TUI process. A leftover file is reported by the host as an orphaned turn (metric kiro_cli_orphaned_turn_age_seconds). The directory is passed in by kiro-cli-chat; its path is not visible in strings (Rust names 'turn-markers' under a run dir chosen from XDG_RUNTIME_DIR or TMPDIR).",
+   "evidence": "Function IO(...) in the bun bundle extracted from kiro-cli-chat (const zbn=\"KIRO_TURN_MARKER_DIR\", Kbn=30000, writes `${pid}-${startMs}.json`, unref'd setInterval, rmSync on end); Rust strings in kiro-cli-chat: 'crates/chat-cli/src/turn_marker.rs', 'struct TurnMarker with 8 elements', 'turn-markers', 'orphaned turn marker not removed', 'runtime directory not found: neither XDG_RUNTIME_DIR nor TMPDIR were found'. Undocumented. Never seen on disk. Re-read 2026-09-29 on the Linux aarch64 2.25.0 build (kiro-cli-chat strings: KIRO_TURN_MARKER_DIR, turn_marker.rs, turn-markers, kiro_cli_orphaned_turn_age_seconds; carved tui.js function IO matches the description).",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "V2 engine sessions (default) are saved every turn to ~/.kiro/sessions/cli/<session-id>.json (metadata) and .jsonl (event log), session ids are UUIDs, and a session can be active in one process only. The docs also say 'SQLite database in ~/.kiro/' for chat sessions, which contradicts the file layout.",
+   "evidence": "https://kiro.dev/docs/cli/acp.md (section Session storage) and https://kiro.dev/docs/cli/chat/session-management.md (Technical details: Storage SQLite database, Troubleshooting: Session is active in another process (PID XXXXX)); tui.js: `KIRO_TEST_SESSIONS_DIR??ja(\"sessions\",\"cli\")`",
+   "kind": "official-docs",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "V3 engine and the IDE store sessions as ~/.kiro/sessions/<bucket>/sess_<id>/{session.json,messages.jsonl,sub-executions/*.jsonl}; bucket is '_global' or the first 16 hex of a sha256 of the workspace path. Not documented (the docs only say ~/.kiro/sessions/). KIRO_HOME moves the whole tree.",
+   "evidence": "@kiro/agent 0.66.11 dist/server/acp-server.js: `this.sessionsPath=r.sessionsPath??join(homeDir,\".kiro\",\"sessions\")`, `join(n,\"messages.jsonl\")`, `join(e,\"session.json\")`, `iwt=\"_global\"`, `substring(0,16)` of sha256; same sessionsPath line and a prompt string 'Sessions persist to ~/.kiro/sessions/<workspaceHash>/sess_<sessionId>/messages.jsonl' in the IDE's kiro.kiro-agent dist/extension.js. https://kiro.dev/docs/cli/v3/new-features.md says 'Session data is stored in ~/.kiro/sessions/'; https://kiro.dev/docs/reference/settings.md documents KIRO_HOME.",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "Hooks are standalone .kiro/hooks/*.json files (version v1, PascalCase triggers) in CLI 3.0 and IDE 1.x; CLI 2.x uses camelCase events (agentSpawn, userPromptSubmit, preToolUse, postToolUse, stop) inside the agent config. The docs disagree on Stop: the hooks table and hook-types page say it fires when the agent finishes responding; the CLI 3.0 migration page says 'Session ends'. The agent's own hook prompt says 'Stop: When an agent exec[ution completes]'.",
+   "evidence": "https://kiro.dev/docs/hooks.md, https://kiro.dev/docs/hooks/types.md (Agent Stop: 'completed its turn'), https://kiro.dev/docs/cli/v3/hooks-migration.md ('Stop | Session ends'), https://kiro.dev/docs/custom-agents/configuration-reference.md (`stop`: Triggered when the assistant finishes responding), https://kiro.dev/docs/ide/whats-new-v1/hooks.md (global hooks in ~/.kiro/hooks/)",
+   "kind": "official-docs",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "There is no Notification-style hook for 'waiting on the human'. PreToolUse can block a tool; whether it fires before or after the permission prompt is not stated.",
+   "evidence": "Trigger tables in https://kiro.dev/docs/hooks.md and https://kiro.dev/docs/cli/v3/hooks-migration.md list no permission or notification event.",
+   "kind": "official-docs",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "Terminal state channels: the TUI sets the terminal title with OSC 0 ('kiro: <name>') when chat.terminal title is on, and progress with OSC 9;4 (3 thinking, 4;100 waiting for approval or answer, 2 error, 0 idle) in a small set of terminals; notifications by BEL or OSC 9 with 'Permission required', 'Input required', 'Response complete' when chat.enableNotifications is true.",
+   "evidence": "https://kiro.dev/docs/cli/terminal-ui.md (Terminal features: Progress indicator), https://kiro.dev/docs/reference/settings.md (chat.enableNotifications, chat.notificationMethod auto|bel|osc9); bun bundle functions mT, gCn, m1t (state names 'waiting-approval', 'thinking', 'compacting', 'error', 'idle'; env KIRO_NO_PROGRESS; HERDR_ENV===\"1\").",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "The IDE offers native notifications: Action Required (needs approval or input), Success, Failure.",
+   "evidence": "https://kiro.dev/docs/ide/chat/notifications.md",
+   "kind": "official-docs",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "No sleep inhibitor: neither 'caffeinate' nor IOPMAssertion appears in kiro-cli, kiro-cli-chat, kiro-cli-term, kiro_cli_desktop, the TUI bundle or the @kiro/agent bundle. The IDE's out/main.js contains the string powerSaveBlocker (VS Code base code); its use was not examined, and the agent extension has none.",
+   "evidence": "`strings -a <binary> | grep -c -i caffeinate` printed 0 for all four CLI binaries; grep -a -c -i caffeinate printed 0 on the extracted tui.js and the @kiro/agent acp-server.js; grep -c 'IOPMAssertion' printed 0 in all four strings dumps; kiro.kiro-agent dist/extension.js: grep -a -c -i 'caffeinate|powerSaveBlocker' printed 0.",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "Third-party screen scraping shows what a terminal state looks like: idle placeholder 'ask a question, or describe a task', processing 'Thinking...' (older 'Kiro is working'), braille spinner redrawn about 10 times a second, permission prompt 'Allow this action? [y/n/t]', completion marker '▸ Credits:'.",
+   "evidence": "https://github.com/awslabs/cli-agent-orchestrator/blob/main/docs/kiro-cli.md (Status Detection, kiro-cli 2.11+ Notes)",
+   "kind": "third-party",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "OpenTelemetry: the enterprise export is server-side daily aggregates (kiro.daily.credits, kiro.daily.messages, service.name kiro-enterprise), configured by an admin, OTLP gRPC or HTTP/protobuf. Separately the CLI binary reads KIRO_TELEMETRY_OTEL, KIRO_TELEMETRY_OTLP_ENDPOINT and KIRO_TELEMETRY_EXPORT_INTERVAL_MS and ships opentelemetry-otlp 0.32.0 with metrics such as kiro_cli_user_turn_duration_seconds (service kiro-cli, /v1/metrics). The env vars appear in no doc I fetched.",
+   "evidence": "https://kiro.dev/docs/enterprise/monitor-and-track/user-activity/opentelemetry.md; `strings -a Kiro CLI.app/Contents/MacOS/kiro-cli-chat | grep -o -E 'kiro_cli_[a-z_]+'` and the KIRO_TELEMETRY_OTEL strings; 'crates/kiro-telemetry/src/otel.rs'",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "kiro-cli has subcommands that are not sessions (crew, agent, doctor, update, theme, integrations, inline, login, logout, whoami, settings, diagnostic, issue, version, mcp, translate); bare `kiro-cli` means chat; `kiro-cli acp` is the ACP server; `--no-interactive` is a one-shot run; --resume-id <ID> resumes a session; --v3 selects the V3 harness. `kiro-cli chat` also has one-shot flags --list-sessions, --list-models and --delete-session.",
+   "evidence": "https://kiro.dev/docs/reference/cli-commands.md (the subcommand sections and the chat argument table), https://kiro.dev/docs/cli/headless.md (--no-interactive), https://kiro.dev/docs/cli/chat/session-management.md (--resume-id, --cloud). `kiro-cli acp` is documented on https://kiro.dev/docs/cli/acp.md, not on the commands page (that page has no acp section)",
+   "kind": "official-docs",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "Matching test of the rules in this row through tools/agents_probe.py matches() and session_id() on made-up ps lines: `kiro-cli`, `kiro-cli chat --resume-id abc-123` (session abc-123), `kiro-cli-chat chat`, and `kiro-cli-chat acp` (ACP surface) match; `kiro-cli doctor|login|crew gateway|settings|--version`, `kiro-cli-term`, `kiro_cli_desktop`, the bun tui.js process, the Kiro IDE helper processes and `/usr/local/bin/kiro .` match nothing; `/Applications/Kiro.app/Contents/MacOS/Kiro` matches the IDE surface.",
+   "evidence": "python3 snippet importing tools/agents_probe (matches, session_id) against row.surfaces, 23 lines, output as described",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "Kiro Crew is an open-source (Apache-2.0) personal agent by the same vendor: Electron desktop app com.amazon.kiro.crew (productName KiroCrew), a Gateway on 127.0.0.1:5476 registered with launchd on macOS, and it drives the model by spawning `kiro-cli acp --agent <a> [--model <m>]`. Its hooks live in ~/.kiro/crew/hooks/ or .kiro/hooks/. `kiro-cli crew` launches or installs it.",
+   "evidence": "https://kiro.dev/docs/crew/installation.md, https://kiro.dev/docs/crew/running-24-7.md, https://kiro.dev/docs/crew/capabilities/hooks.md, https://kiro.dev/docs/reference/cli-commands.md (kiro-cli crew); https://github.com/kirodotdev/KiroCrew website/electron/package.json (build.appId com.amazon.kiro.crew, productName KiroCrew) and src/kiro_crew/acp/harness/kiro.py (argv = [kiro_bin, 'acp', '--agent', agent])",
+   "kind": "official-docs",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "KIRO_SESSION_ID, KIRO_SKIP_BINARY_PINNING, the KIRO_TELEMETRY_* variables, the Bun TUI runtime and KAS agent engine launch messages and data.sqlite3 are present in the kiro-cli-chat binary. The IDE's darwinBundleIdentifier is dev.kiro.desktop, applicationName kiro, and the kiro.kiro-agent extension (1.1.158) contains the session server (sessionsPath, ~/.kiro/sessions) with no caffeinate or powerSaveBlocker string. The `kiro` shim runs the app binary as node on out/cli.js.",
+   "evidence": "2026-09-29 re-check on Linux builds, nothing run: curl -sL https://prod.download.cli.kiro.dev/stable/latest/kirocli-aarch64-linux.zip (BUILD_VERSION=2.25.0), `strings -a bin/kiro-cli-chat | grep -c` for each name (all >=1), zstd frames carved from it (tui.js 13.4 MB; @kiro/agent 0.66.11 with sessionsPath, sess_, messages.jsonl, _global). https://prod.download.desktop.kiro.dev/releases/stable/linux-arm64/signed/1.1.70/tar/kiro-ide-1.1.70-stable-linux-arm64.tar.gz: product.json, extensions/kiro.kiro-agent/dist/extension.js, bin/kiro. The macOS DMG was not re-mounted. Linux builds cannot show a macOS-only string such as caffeinate or IOPMAssertion, so the 'no sleep inhibitor' claim on macOS rests on the earlier DMG read plus the fact that tui.js and the agent bundle (shared code) hold none",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  },
+  {
+   "claim": "Whole-token deny-list behaviour of the row's process rules, re-tested after the repair.",
+   "evidence": "tools/agents_probe.py matches() on 36 made-up ps lines: `kiro-cli chat --list-sessions|--list-models|--delete-session x` now match nothing; `kiro-cli`, `kiro-cli chat --resume-id abc-123`, `kiro-cli-chat chat --agent leader`, `kiro-cli chat --no-interactive fix the bug`, `kiro-cli --v3` match the tui surface; `kiro-cli acp` and `kiro-cli-chat acp --agent leader` match the ide (ACP) surface; `kiro-cli chat explain how mcp works` is missed (bare word `mcp`); `/Applications/Kiro.app/Contents/MacOS/Kiro` matches, the same with the cli.js argument matches nothing; `kiro-cli-term`, `kiro_cli_desktop`, `Kiro Helper (Plugin)` match nothing",
+   "kind": "local-observation",
+   "date": "2026-09-29"
+  }
+ ],
+ "confidence": "documented",
+ "notes": "One harness, several surfaces. Kiro says the IDE, CLI 3.0, web and mobile share one agent harness (@kiro/agent); the default terminal engine today is still V2 (Rust engine kiro-cli-chat acp), V3 is opt-in with --v3. Terminal session: the launcher `kiro-cli` starts `kiro-cli-chat chat`, which starts a bun process running tui.js and a `kiro-cli-chat acp` engine child (Linux tree from a third-party issue; macOS not observed). The matched process is the outermost kiro-cli, so direct-child signals cannot reach the engine's shell tools or MCP servers (two or more levels down: kiro-cli, kiro-cli-chat chat, kiro-cli-chat acp, then the tools; the tools' parent is inferred to be the engine): do not use tool_children or child_process on this row. The most precise turn signal found is undocumented: a marker file per running turn in KIRO_TURN_MARKER_DIR (see sources; the TUI writes it only when that variable is set, and whether kiro-cli-chat always sets it is not shown); the schema has no signal kind for it, so it is not in working_signals. A detector that can read that directory (the bun process gets its path in the environment) should prefer it, and count a marker only while its pid is alive, since a crash leaves it behind. Binary pinning: kiro-cli-chat may run from a per-session hardlink or APFS clone rather than its install path (KIRO_SKIP_BINARY_PINNING=1 disables it), and the app path 'Kiro CLI.app' has a space, so argv[0] can be split by a ps parser; the row therefore matches on the base name and never on the install path. One-shot runs (`kiro-cli chat --no-interactive`) are working for their whole life. In the IDE the agent runs in the extension host, one process for every chat, so IDE CPU or children cannot name a thread; use a 10 percent floor there and never as the only reason. Kiro Crew's per-session `kiro-cli acp` children match the ACP surface and are children of a Crew process, so a detector should attribute them to Crew rather than count an idle interactive session. Not confirmed on a live instance: everything here comes from vendor docs, the vendor's own binaries read statically, and third-party reports. Process rules, checked 2026-09-29 against the sample tree in issue 7918: the engine child `kiro-cli-chat acp` matches the ACP surface but has a parent that matches the terminal surface, so the probe keeps only the outer process; `kiro-cli crew gateway` is excluded from the terminal surface and Crew's own `kiro-cli acp` children have a Gateway parent only if the Gateway rule matches. `kiro-cli --cloud` is a local client of a cloud session and matches the terminal surface. The daemon rule misses a pipx home under 'Library/Application Support' (space splits argv[0]) and the Gateway bundled inside the desktop app. Unknown or undocumented subcommands (for example legacy Amazon Q ones) are not excluded and would show as brief idle sessions."
+}

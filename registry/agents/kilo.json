@@ -1,0 +1,394 @@
+{
+  "id": "kilo",
+  "name": "Kilo CLI",
+  "vendor": "Kilo Code (Kilo-Org)",
+  "homepage": "https://kilo.ai",
+  "surfaces": [
+    {
+      "kind": "daemon",
+      "label": "kilo serve: headless HTTP server (Basic auth, user kilo). Three ways it appears: `kilo serve` by hand, the detached child of `kilo daemon start` (`<binary> serve --hostname 127.0.0.1 --port 4097..4116`, env KILOCODE_FEATURE=daemon, state in ~/.local/state/kilo/daemon.json), and the JetBrains plugin's editor-owned child `<IntelliJ system path>/kilo/bin/kilo serve --port 0` (path inferred from the plugin docs, not seen). One server hosts every session of that project set, so its tool children and CPU cannot be attributed to one session. The VS Code extension's `<ext>/bin/kilo serve --port 0` is deliberately NOT matched here: the `vscode-agents` row owns it, and matching it twice would list it twice. Loose: args_contain is a substring test, so an argument such as `reserve` also matches; `run` is vetoed because a run prompt often mentions serve. A bare TUI given a project path such as `~/observer` also lands here (substring), reading as a daemon.",
+      "process": {
+        "path_contains": [
+          "/@kilocode/cli/bin/.kilo",
+          "/@kilocode/cli-darwin-",
+          "/.kilo/bin/kilo",
+          "/kilo/bin/kilo"
+        ],
+        "args_contain": [
+          "serve"
+        ],
+        "exclude_args": [
+          "run",
+          "attach",
+          "acp",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "__background-process-runner"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "kilo acp: Agent Client Protocol server (documented only as `start ACP (Agent Client Protocol) server`), expected to run over stdio as a child of an ACP client. Which editors launch it, and one child per connection, are inferred, not documented. Substring test on `acp`.",
+      "process": {
+        "path_contains": [
+          "/@kilocode/cli/bin/.kilo",
+          "/@kilocode/cli-darwin-",
+          "/.kilo/bin/kilo"
+        ],
+        "args_contain": [
+          "acp"
+        ],
+        "exclude_args": [
+          "serve",
+          "run",
+          "attach",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "__background-process-runner"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "kilo run [message..]: non-interactive one-shot. The process lives for one prompt, so alive means working (inferred; no listed signal encodes it), except with `--attach <url>`, where the work happens in the remote server. Resume flags: -s/--session <id>, -c/--continue (no id), --fork. Loose: substring test on `run`, so a prompt or project path containing `run` also lands here (same working signals as the TUI, so the error is harmless).",
+      "process": {
+        "path_contains": [
+          "/@kilocode/cli/bin/.kilo",
+          "/@kilocode/cli-darwin-",
+          "/.kilo/bin/kilo"
+        ],
+        "args_contain": [
+          "run"
+        ],
+        "exclude_args": [
+          "serve",
+          "attach",
+          "acp",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "__background-process-runner"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "kilo attach <url>: a TUI that is only a client of a running kilo server or daemon. Its own tree_cpu and tool_children read idle while the server works. The url may be a local daemon (4097-4116) or 4096.",
+      "process": {
+        "path_contains": [
+          "/@kilocode/cli/bin/.kilo",
+          "/@kilocode/cli-darwin-",
+          "/.kilo/bin/kilo"
+        ],
+        "args_contain": [
+          "attach"
+        ],
+        "exclude_args": [
+          "serve",
+          "run",
+          "acp",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "__background-process-runner"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Kilo CLI in a terminal (`kilo [project]`, alias `kilocode`). One native Bun-compiled binary. npm installs run `node .../@kilocode/cli/bin/kilo` (a launcher, argv[0] is `node`, not matched) which spawns the native binary as its direct child: `<pkg>/bin/.kilo` (postinstall hard-link, a dotfile name) or, when install scripts were skipped, `node_modules/@kilocode/cli-darwin-arm64/bin/kilo`. The curl installer puts it at ~/.kilo/bin/kilo. Names are not matched, only paths: the bare name `kilo` is also antirez's text editor and the VS Code extension's `<ext>/bin/kilo serve`. A binary unzipped from a GitHub release to another path is missed. With no daemon running, the agent and its HTTP server run in a Worker thread of this same process (no listening port unless --port/--hostname/--mdns), so tree signals on this pid are meaningful. If `kilo daemon` is running, the TUI attaches to it and becomes a thin client (the daemon is the `serve` surface). Every non-TUI subcommand found in the 7.8.1 source is vetoed by exact argument (including the hidden `__background-process-runner` guardian: a detached `<same binary> __background-process-runner <token> <payload>` that Kilo starts for persistent background processes and that outlives the session); a prompt word equal to one of them (for example `--prompt run`) wrongly hides the session.",
+      "process": {
+        "path_contains": [
+          "/@kilocode/cli/bin/.kilo",
+          "/@kilocode/cli-darwin-",
+          "/.kilo/bin/kilo"
+        ],
+        "exclude_args": [
+          "serve",
+          "run",
+          "attach",
+          "acp",
+          "daemon",
+          "mcp",
+          "debug",
+          "auth",
+          "agent",
+          "upgrade",
+          "uninstall",
+          "models",
+          "roll-call",
+          "profile",
+          "stats",
+          "export",
+          "import",
+          "github",
+          "pr",
+          "session",
+          "remote",
+          "console",
+          "cloud",
+          "db",
+          "config",
+          "plugin",
+          "help",
+          "completion",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "__background-process-runner",
+          "worktree",
+          "generate",
+          "providers",
+          "plug"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Kilo Code VS Code extension (Agent Manager, chat) and JetBrains plugin. Both run `kilo serve --port 0` as a child. No process spec here: see the `vscode-agents` row for the VS Code extension. No macOS app bundle or bundle id exists for Kilo CLI."
+    },
+    {
+      "kind": "cloud",
+      "label": "Kilo Cloud Agent, `kilo cloud` tasks and `kilo remote` relay. Runs on Kilo infrastructure; nothing local to match."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/kilo/kilo.db",
+    "format": "sqlite",
+    "documented": true,
+    "note": "One SQLite (WAL) database shared by the TUI, run, serve, daemon, VS Code and JetBrains. No per_session path: a process cannot be mapped to a file, and no id is in argv unless -s/--session was given. Tables session (id, project_id, parent_id, directory, title, time_created, time_updated, agent, model, cost, tokens_*), message (session_id, data), part (session_id, message_id, data). Map a process to a session by its cwd against session.directory, newest time_updated; never read message or part data. The docs promise `~/.local/share/kilo/kilo.db` and `kilo db path`; XDG_DATA_HOME, KILO_DB, and non-prod channels (kilo-<channel>.db) move it. macOS uses ~/.local/share, not ~/Library/Application Support (xdg-basedir). Streaming text is probably not written per delta: in the 7.8.1 source session.updatePartDelta only publishes MessageV2.Event.PartDelta on the bus and no DB projector for it was found in packages/opencode or packages/core (grep, not run). Treat as inferred: a quiet database does not mean idle."
+  },
+  "working_signals": [
+    {
+      "signal": "socket_activity",
+      "name": "GET /session/status on a kilo serve or daemon port returns type busy or retry",
+      "meaning": "The precise signal, per session. Statuses are idle, busy, retry, offline, scheduled (asleep on a pending wakeup). It is held in memory only, never in kilo.db. Reachable for `kilo serve`, `kilo daemon` and a TUI started with --port. Needs the port (lsof -iTCP -sTCP:LISTEN -a -p <pid>, or url in ~/.local/state/kilo/daemon.json, or `kilo daemon status --json`) and Basic auth kilo:<password>; the daemon password is in daemon.json (mode 0600), a `serve` password only in that process's environment (KILO_SERVER_PASSWORD). A plain TUI has no port. SSE GET /event also carries session.turn.open and session.turn.close (reason completed, error, interrupted, superseded). Source-level, not exercised."
+    },
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "Only when the user has turned on Keep Awake (TUI slash command /caffeinate; default OFF, and the choice is not saved across launches as far as the source shows). Then the TUI process spawns `/usr/bin/caffeinate -i -w <its own pid>` while any session is busy or retrying or has a wakeup scheduled, and kills it when all are idle. A direct child of the kilo pid, with -w equal to that pid. Absence proves nothing."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "The shell tool runs each command as `<shell> -c <command>` (zsh on macOS unless $SHELL or config says otherwise), detached, as a direct child of the process that hosts the session: the TUI or run process, or the serve/daemon process. Long-lived MCP and language-server children are not shells and are not counted by this signal. A shell that a tool leaves running in the background would still count (inferred, not checked)."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "Inferred, not measured: the TUI re-renders while a session is busy and the model stream is parsed in-process. Applies to the embedded TUI and run; not to `attach` or a daemon-attached TUI. A turn waiting on the network burns no CPU."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "http",
+      "endpoint": "GET /permission and GET /question",
+      "meaning": "Lists pending permission and question requests on a server you can reach (serve, daemon, TUI with --port). Session status stays busy while they are pending, so busy does not mean working."
+    },
+    {
+      "signal": "plugin_event",
+      "event": "permission.asked / question.asked",
+      "meaning": "Plugin `event` hook (permission.asked is listed in the plugin docs; question.asked/replied appear in the source bus events, not in the docs list), cleared by permission.replied and question.replied or rejected. Also session.status with type offline (network down, waiting for the user). Needs a plugin installed, code not shell."
+    },
+    {
+      "signal": "osc",
+      "event": "ESC ] 777 ; kilo ; activity ; 1 ; <state> ; <epoch_ms> BEL",
+      "meaning": "The TUI writes this to the terminal on every state change and every 5 s, but only when KILO_TERMINAL_ACTIVITY=1 is in its environment. States: idle, busy, retry, waiting, error, done. waiting means a permission, question, suggestion, offline or plan-exit prompt is pending. Undocumented, source-only, read by the terminal host, not by ps. Nothing sets the variable by default."
+    },
+    {
+      "signal": "terminal_title",
+      "event": "OSC 0/2 title `Kilo CLI | <session title>`",
+      "meaning": "Carries a state glyph only when tui.jsonc sets title_icon to unicode (working, warning sign for attention, check mark for finished) or emojis. The default is none, so by default the title is static. KILO_DISABLE_TERMINAL_TITLE turns it off."
+    },
+    {
+      "signal": "tui_attention",
+      "event": "tui.jsonc attention.enabled",
+      "meaning": "Optional desktop notification and sound on question, permission, error and done. Off by default. Not readable from outside."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "No shell-command hook config. Lifecycle handlers are TS/JS plugins: ~/.config/kilo/plugin/*.{ts,js} (global), .kilo/plugin/ or legacy .kilocode/plugin/ (project), or the `plugin` array in ~/.config/kilo/kilo.json(c) or project kilo.json(c). Separate `tui` entrypoint plugins are registered in tui.json(c). KILO_PURE=1 skips external plugins. The `event` hook receives every bus event.",
+    "events": [
+      "session.created",
+      "session.updated",
+      "session.status",
+      "session.idle",
+      "session.error",
+      "session.deleted",
+      "session.compacted",
+      "message.updated",
+      "message.part.updated",
+      "permission.asked",
+      "permission.replied",
+      "tool.execute.before",
+      "tool.execute.after",
+      "permission.ask",
+      "chat.message",
+      "shell.env",
+      "todo.updated",
+      "server.connected"
+    ],
+    "docs": "https://kilo.ai/docs/automate/extending/plugins"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Set OTEL_EXPORTER_OTLP_ENDPOINT (optional OTEL_EXPORTER_OTLP_HEADERS as k=v,k=v and OTEL_RESOURCE_ATTRIBUTES): OTLP over HTTP, traces to <endpoint>/v1/traces and logs to <endpoint>/v1/logs, no metrics; resource service.name=opencode with opencode.client and opencode.run. Nothing is exported when the variable is unset. Documented in the CLI docs. Separate from this, Kilo sends product analytics to PostHog by default; the config key experimental.openTelemetry=false opts out of that, not of OTLP."
+  },
+  "sources": [
+    {
+      "claim": "npm package @kilocode/cli 7.8.1 exposes bins `kilo` and `kilocode`, both bin/kilo, with per-platform optional dependencies including @kilocode/cli-darwin-arm64 and -darwin-x64 (and -baseline)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl -s https://registry.npmjs.org/@kilocode/cli printed dist-tags {alpha 0.0.5, next 1.0.8, latest 7.8.1, rc 7.8.0}; bin {'kilo': 'bin/kilo', 'kilocode': 'bin/kilo'}; optionalDependencies listed @kilocode/cli-darwin-arm64, -darwin-x64, -darwin-x64-baseline (all 7.8.1). Source clone at commit 88681ca (2026-09-29)."
+    },
+    {
+      "claim": "the npm launcher is a node script that spawns the native binary as a direct child with inherited stdio; it prefers a cached binary at <pkg>/bin/.kilo, else finds node_modules/@kilocode/cli-<platform>-<arch>/bin/kilo",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Kilo-Org/kilocode packages/opencode/bin/kilo (shebang `#!/usr/bin/env node`; `cached = path.join(scriptDir, '.kilo')`; `childProcess.spawn(target, process.argv.slice(2), {stdio: 'inherit'})`; findBinary() walks node_modules for base = '@kilocode/cli-' + platform + '-' + arch)"
+    },
+    {
+      "claim": "postinstall hard-links (or copies) the platform binary to <pkg>/bin/.kilo, so the running executable's file name is `.kilo`, not `kilo`",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Kilo-Org/kilocode packages/opencode/script/postinstall.mjs: `targetBinary = path.join(__dirname, 'bin', '.kilo')`, copyBinary() does fs.linkSync(source, targetBinary) with copyFileSync fallback; the bun and npm --ignore-scripts cases fall back to the platform package path"
+    },
+    {
+      "claim": "the curl installer puts the binary at ~/.kilo/bin/kilo; official install docs list npm only; no Homebrew formula or cask exists",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Kilo-Org/kilocode install: `INSTALL_DIR=$HOME/.kilo/bin`, `mv \"$tmp_dir/kilo\" \"$INSTALL_DIR\"`, usage text `curl -fsSL https://kilo.ai/cli/install | bash`. packages/kilo-docs/markdoc/partials/install-cli.md shows `npm install -g @kilocode/cli` only. curl https://formulae.brew.sh/api/formula/{kilo,kilocode,kilo-code}.json and /api/cask/... all returned 404"
+    },
+    {
+      "claim": "no macOS app bundle: release assets are per-platform zip/tar.gz archives of the CLI, VSIX files, SBOM and checksum files (no JetBrains zip in v7.8.1)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "GET https://api.github.com/repos/Kilo-Org/kilocode/releases/tags/v7.8.1 assets: kilo-darwin-arm64.zip, kilo-darwin-x64.zip, kilo-darwin-x64-baseline.zip, kilo-linux-*.tar.gz, kilo-windows-*.zip, kilo-vscode-*.vsix, kilo-oci-*.cdx.json (container SBOMs), *.cdx.json SBOM and SHA256SUMS files. Re-checked 2026-09-29 with `gh api repos/Kilo-Org/kilocode/releases/tags/v7.8.1 --jq '[.assets[].name]'`: 57 assets, none is a JetBrains plugin zip. No .dmg, .app or .pkg. Absence of a bundle id is inferred from this and from a search of packages/opencode/script, kilo-docs/pages and kilo-console for bundle ids"
+    },
+    {
+      "claim": "the TUI runs the agent and its server in a Worker thread of the same process; nothing listens unless --port, --hostname or --mdns is given; with a running daemon it attaches instead",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/cli/cmd/tui.ts: `new Worker(file, {preload, env})`, `KiloTuiThreadDaemon.attach(...)` first; packages/opencode/src/cli/tui/worker.ts: Server.listen only inside `rpc.server(input)`; packages/opencode/src/kilocode/daemon/client.ts connect() only reads an existing daemon (Daemon.ensure is called only from `kilo daemon` and `kilo console`)"
+    },
+    {
+      "claim": "`kilo daemon start` spawns the same binary detached as `serve --hostname H --port P` (ports 4097-4116), writing state incl. pid and password to daemon.json in the state dir",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/kilocode/daemon/daemon.ts: PortRange {start: 4097, end: 4116}; launch() spawn(cmd[0], [...cmd.slice(1), ...args(input)], {detached: true, env: {KILO_SERVER_USERNAME, KILO_SERVER_PASSWORD, KILOCODE_FEATURE: 'daemon'}}); args() begins with 'serve'; file() = <Global.Path.state>/daemon.json written with mode 0o600. CLI reference documents `kilo daemon [start|status|stop|restart] --json` (packages/kilo-docs/pages/code-with-ai/platforms/cli-reference.md)"
+    },
+    {
+      "claim": "the JetBrains plugin runs an extracted `kilo serve --port 0` at <PathManager.getSystemPath()>/kilo/bin/kilo",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "packages/kilo-docs/pages/contributing/architecture/jetbrains-plugin.md, section 'Bundled CLI lifecycle'. The macOS expansion of getSystemPath (~/Library/Caches/JetBrains/<product><version>) is inferred, not seen"
+    },
+    {
+      "claim": "session status is in memory only (idle, busy, retry, offline, scheduled) and is exposed at GET /session/status; permission asks do not change it",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/session/status.ts (Map per project, no DB write); packages/opencode/src/server/routes/instance/httpapi/groups/session.ts (`status: ${root}/status`, root '/session'); packages/sdk/js/src/v2/gen/types.gen.ts SessionStatus union; grep of status.set( call sites (session/run-state.ts, session/processor.ts, session/prompt.ts, kilocode/session/processor.ts offline) shows none on permission ask"
+    },
+    {
+      "claim": "events session.turn.open and session.turn.close (reason completed, error, interrupted, superseded) exist on the SSE stream",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/sdk/js/src/v2/gen/types.gen.ts EventSessionTurnOpen / EventSessionTurnClose; consumed in packages/opencode/src/kilocode/cli/cmd/tui/terminal-activity.ts"
+    },
+    {
+      "claim": "the shell tool spawns `<shell> -c <command>` detached as a direct child; the default shell on macOS is /bin/zsh",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/tool/shell.ts cmd(): `ChildProcess.make(command, [], {shell, cwd, env, stdin: 'ignore', detached: process.platform !== 'win32'})`; packages/core/src/shell.ts line 134 `if (process.platform === 'darwin') return '/bin/zsh'`"
+    },
+    {
+      "claim": "Keep Awake is off by default, TUI-only for the CLI, and runs /usr/bin/caffeinate -i -w <process.pid> only while a session is busy, retrying or has a pending wakeup",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://kilo.ai/docs/getting-started/settings/keep-awake ('Keep Awake is off by default', CLI tab: /caffeinate). Source: packages/core/src/kilocode/caffeination.ts args(): darwin -> ['-i','-w',String(pid)], command /usr/bin/caffeinate; packages/opencode/src/kilocode/cli/cmd/tui/caffeination.tsx: `driver.start(process.pid, ...)`, working = any session_status busy or retry, or wakeups pending, `createSignal(false)` for enabled"
+    },
+    {
+      "claim": "terminal title is `Kilo CLI | <title>` with a state glyph only when tui title_icon is unicode or emojis (default none)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/kilocode/cli/cmd/tui/app.tsx APP_TITLE = 'Kilo CLI'; terminal-title.ts icons table (unicode: working, warning sign, check mark); title-icon.ts `Default = 'none'`; packages/tui/src/app.tsx calls renderer.setTerminalTitle(title.title); Flag KILO_DISABLE_TERMINAL_TITLE"
+    },
+    {
+      "claim": "the TUI emits OSC 777 `kilo;activity;1;<state>;<ms>` when KILO_TERMINAL_ACTIVITY=1, states idle/busy/retry/waiting/error/done, refreshed every 5 s",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/kilocode/cli/cmd/tui/terminal-activity.ts (format(), classify(), setInterval 5_000) and app.tsx line 91 `enabled: process.env.KILO_TERMINAL_ACTIVITY`; a git grep of the checked-out packages found no other reference to the variable and no documentation of it"
+    },
+    {
+      "claim": "sessions live in ~/.local/share/kilo/kilo.db (SQLite, WAL), path documented, `kilo db path` prints it",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://kilo.ai/docs/code-with-ai/agents/session-history ('macOS ~/.local/share/kilo/kilo.db', 'kilo db path', mentions kilo.db-wal). Source: packages/core/src/global.ts (xdg-basedir, app 'kilo'), packages/core/src/database/database.ts path(), packages/opencode/src/storage/db.ts (PRAGMA journal_mode = WAL); tables in packages/core/src/session/sql.ts"
+    },
+    {
+      "claim": "hooks are code plugins in ~/.config/kilo/plugin/, .kilo/plugin/ or the plugin array; no shell-command hooks; Claude Code compatibility flags cover prompts and skills only",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://kilo.ai/docs/automate/extending/plugins (Use a plugin, Hooks reference, Events); packages/core/src/flag/flag.ts KILO_DISABLE_CLAUDE_CODE_PROMPT / _SKILLS; a grep of docs and config schema for a `hooks` key found none"
+    },
+    {
+      "claim": "OTLP export via OTEL_EXPORTER_OTLP_ENDPOINT (traces and logs over HTTP); the config key experimental.openTelemetry is a PostHog opt-out, not OTLP",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/core/src/observability/otlp.ts (`${endpoint}/v1/logs`, `${endpoint}/v1/traces`, serviceName 'opencode'); docs cli.md section 'OpenTelemetry Export' line 503; packages/opencode/src/kilocode/cli/setup.ts `Telemetry.init({enabled: cfg.experimental?.openTelemetry !== false})` with packages/kilo-telemetry/src/client.ts importing posthog-node, POSTHOG_HOST https://us.i.posthog.com"
+    },
+    {
+      "claim": "Herdr treats Kilo Code CLI as a lifecycle-plugin agent, installing ~/.config/kilo/plugin/herdr-agent-state.js, and resumes with `kilo --session <id>`; without the plugin it reads the screen",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://herdr.dev/docs/integrations/ section 'Kilo Code CLI' and https://herdr.dev/docs/agents/ (table row 'Kilo Code CLI: lifecycle plugin when installed; otherwise screen manifest'). Independently confirms the plugin directory and the --session resume flag"
+    },
+    {
+      "claim": "Kilo CLI is not installed or running on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which kilo kilocode` printed 'kilo not found' and 'kilocode not found'; ls of ~/.kilo ~/.kilocode ~/.config/kilo ~/.local/share/kilo ~/.local/state/kilo ~/.cache/kilo all 'No such file or directory'; ls $(npm root -g)/@kilocode failed; ps -axo pid=,ppid=,args= | grep -i '[k]ilo' matched only the grep's own shell; ls ~/.vscode/extensions | grep -i kilo and ls /Applications | grep -i kilo empty"
+    },
+    {
+      "claim": "with the row's path rules, the native npm, platform-package and curl-installed binaries match the right surface; the node launcher, `kilo --version`, `kilo auth login`, the VS Code extension's kilo serve and a look-alike `kilo` editor do not",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "synthetic ps lines pushed through tools/agents_probe.py matches() for every surface; results recorded in registry/evidence/kilo.md"
+    },
+    {
+      "claim": "a hidden guardian process runs the same native binary as `<binary> __background-process-runner <token> <payload>` for persistent background processes, detached, so it matches path rules and, before this repair, matched the TUI and run surfaces as a false idle session",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "Kilo-Org/kilocode packages/opencode/src/index.ts (`if (await KiloCli.runner()) process.exit()`), packages/opencode/src/kilocode/cli/setup.ts runner() (`process.argv.includes('__background-process-runner')`), packages/opencode/src/kilocode/background-process/runner.ts (MARKER; command() returns [self.command, ...args, MARKER, token, payload]), packages/core/src/kilocode/pty-self-command.ts (command = full(process.execPath) for a bundled binary), background-process/index.ts launch() (spawn(cmd[0], ..., {detached: lifetime === 'persistent' ...})). tools/agents_probe.py matches() on the synthetic line `<npm>/@kilocode/cli/bin/.kilo __background-process-runner tok eyJ` matched the run surface before the veto and matches nothing after it. Not seen live."
+    },
+    {
+      "claim": "the full set of top-level subcommands in 7.8.1 is acp, mcp, [project] (TUI), attach, run, generate, debug, auth (alias providers), agent, upgrade, uninstall, serve, models, stats, export, import, github, pr, session, plugin (alias plug), db, plus console, cloud, roll-call, profile, remote, daemon, config, worktree, help, completion",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "packages/opencode/src/index.ts .command() chain, packages/opencode/src/kilocode/cli/lazy-commands.ts (command strings and aliases), packages/opencode/src/kilocode/cli/setup.ts register() (console, cloud, roll-call, profile, remote, daemon, config, worktree, help). The TUI exclude_args list was missing generate, providers, plug and worktree before this repair. `web` is deliberately omitted upstream (index.ts comment)."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Kilo CLI 7.x is a fork of opencode (Bun-compiled binary, per-project HTTP server, SQLite store, plugin `event` hook), so it looks like opencode in most respects but with different names (kilo.db, ~/.config/kilo, KILO_* variables, `Kilo CLI` title) and three Kilo additions: an optional shared background daemon (`kilo daemon`), an opt-in Keep Awake caffeinate, and an env-gated OSC 777 activity stream. Match by path, not name: the npm cached binary is a dotfile named `.kilo`, and the bare name `kilo` would also match the VS Code extension's server (owned by `vscode-agents`) and an unrelated text editor. Plain TUI: no port, no session id in argv, no turn flag from outside; use a direct shell child and CPU, plus caffeinate if the user enabled it. Precise state exists only through the server HTTP API or a plugin. Because `daemon` attach is opt-in and manual, most TUIs are self-contained; a daemon-attached TUI reads idle while the daemon works. Not verified live: nothing is installed here."
+}

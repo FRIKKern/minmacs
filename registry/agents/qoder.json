@@ -1,0 +1,475 @@
+{
+  "id": "qoder",
+  "name": "Qoder",
+  "vendor": "Alibaba (Qoder)",
+  "homepage": "https://qoder.com",
+  "surfaces": [
+    {
+      "kind": "daemon",
+      "label": "Qoder desktop app (com.qoder.app, Qoder.app, Electron, 0.4.x), agent runtime worker. The app spawns `<Qoder.app>/Contents/MacOS/Qoder <...>/qoder-worker-runtime.obf.mjs --sdk` with ELECTRON_RUN_AS_NODE=1 and QODER_AGENT_SDK_DAEMON=1 (Agent SDK 1.0.50 `zu()` and `hn.spawn`, read from the app's app.asar). This is the process that runs the agent loop and its tool shells, so it is the one matched; the Electron main process is not (its direct children are the worker and helpers, never the tool shells). Inferred: one worker serves many tasks (SDK worker idle timeout 30 min), so treat it as a host and never map it to one transcript.",
+      "host": true,
+      "process": {
+        "path_contains": [
+          "/Qoder.app/Contents/MacOS/Qoder"
+        ],
+        "args_contain": [
+          "qoder-worker-runtime",
+          "--sdk"
+        ]
+      }
+    },
+    {
+      "kind": "gui",
+      "label": "Qoder desktop app identity only (bundle id com.qoder.app). Deliberately no process spec: the Electron main and helper processes hold no turn of their own, and matching the main process would hide the worker child above under the parent-drop rule.",
+      "bundle_ids": [
+        "com.qoder.app"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Qoder IDE (bundle id com.qoder.ide, `Qoder IDE.app`, VS Code fork, 1.32.x): Editor window and the Quest window (Quest is retired 2026-10-15). Matched on the space-split ps argv[0] `/Applications/Qoder` plus the argument `IDE.app/Contents/MacOS/...`, because the app folder name has a space. Helper processes (`Qoder IDE Helper (Renderer).app`) do not match. How the IDE runs its agent (in-process, extension host, or a bundled binary) was not determined, so this is a host and only the app is reported. An install outside /Applications is not matched.",
+      "host": true,
+      "bundle_ids": [
+        "com.qoder.ide"
+      ],
+      "process": {
+        "path_contains": [
+          "/Applications/Qoder"
+        ],
+        "args_contain": [
+          "IDE.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "qoder remote-control: CLI daemon that takes tasks from the Qoder mobile app; it runs each task in a `qoder --remote-control <id>` worker child (same executable). Also matches that worker; the probe keeps the outermost.",
+      "host": true,
+      "process": {
+        "names": [
+          "qoder",
+          "qodercli"
+        ],
+        "args_contain": [
+          "remote-control"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "qoder --acp: Agent Client Protocol server started by an editor (Zed `agent_servers` config runs `qoder --acp`). File and terminal work is delegated to the editor.",
+      "process": {
+        "names": [
+          "qoder",
+          "qodercli"
+        ],
+        "args_contain": [
+          "--acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "qoder --sdk: the CLI as an Agent SDK daemon (stdin/stdout JSON), started by any program built on @qoder-ai/qoder-agent-sdk with a native binary path. The desktop app's own worker is the Electron-hosted form above.",
+      "process": {
+        "names": [
+          "qoder",
+          "qodercli"
+        ],
+        "args_contain": [
+          "--sdk"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "qoder --print / -p: one turn, then exit. Alive means working. A bare positional prompt (`qoder \"fix it\"`) is also non-interactive per the docs but cannot be told from a TUI by argv, and `-p` is not matched because the substring hits other flags.",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "qoder",
+          "qodercli"
+        ],
+        "args_contain": [
+          "--print"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Qoder CLI in a terminal, native install (curl -fsSL https://qoder.com/install | bash, or the qodercli Homebrew cask): a Bun-compiled executable named `qodercli` in the release archive; docs and the npm bin call the command `qoder`. The `qoder` command that install.sh sets up is a bash dispatcher script (read from the 1.1.64 binary's embedded template) that ends in `exec \"$cli\" \"$@\"` with $cli from `type -P qodercli`, `~/.local/bin/qodercli` or `~/.qoder/bin/qodercli/qodercli`, so the running process should show a `qodercli` path as argv[0] and no bash parent (not observed on a running instance; both names are matched anyway). Subcommands that are not sessions are vetoed by exact argument. Known blind spots: `-p` and a bare prompt are non-interactive per the docs but show as an idle session here; `-n \"<name>\"` or a prompt containing a vetoed word (agent, status, commit, ...) is split by ps and vetoed, so that session is missed.",
+      "process": {
+        "names": [
+          "qoder",
+          "qodercli"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--sdk",
+          "--print",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "--list-sessions",
+          "--list-models",
+          "--delete-session",
+          "remote-control",
+          "install",
+          "login",
+          "update",
+          "status",
+          "mcp",
+          "plugins",
+          "plugin",
+          "skills",
+          "skill",
+          "hooks",
+          "hook",
+          "agents",
+          "agent",
+          "commit",
+          "rollback",
+          "feedback",
+          "wiki"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Qoder CLI from npm when started as `qodercli` (`npm install -g @qoder-ai/qodercli`, legacy path, Node >= 20): node running the bin symlink `.../bin/qodercli`, which is bundle/qodercli.js. Assumes node keeps the symlink path in argv[1], which is what it does for a shebang launch. Deliberately NOT `bin/qoder`: the npm `qoder` bin is bundle/qoder-npm-dispatcher.cjs, which runs `spawnSync(process.execPath, [<pkg>/bundle/qodercli.js, ...args], {stdio: 'inherit'})`, so the session is the CHILD node process (matched by the next surface) and its shell tools are direct children of that child, not of the dispatcher. Matching the dispatcher would win the outermost-match rule and hide every tool shell one level down. The npm build has no matching surface for --acp, --sdk, --print or remote-control (argv[0] is node); those runs are vetoed, not reported.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/qodercli"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--sdk",
+          "--print",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "--list-sessions",
+          "--list-models",
+          "--delete-session",
+          "remote-control",
+          "install",
+          "login",
+          "update",
+          "status",
+          "mcp",
+          "plugins",
+          "plugin",
+          "skills",
+          "skill",
+          "hooks",
+          "hook",
+          "agents",
+          "agent",
+          "commit",
+          "rollback",
+          "feedback",
+          "wiki"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Qoder CLI from npm, node running the package file (`.../node_modules/@qoder-ai/qodercli/bundle/qodercli.js`). This is also the child that the npm `qoder` dispatcher spawns, and it carries the user's arguments unchanged, so it is where session ids and tool shells are read for the `qoder` command.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@qoder-ai/qodercli/"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--sdk",
+          "--print",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "--list-sessions",
+          "--list-models",
+          "--delete-session",
+          "remote-control",
+          "install",
+          "login",
+          "update",
+          "status",
+          "mcp",
+          "plugins",
+          "plugin",
+          "skills",
+          "skill",
+          "hooks",
+          "hook",
+          "agents",
+          "agent",
+          "commit",
+          "rollback",
+          "feedback",
+          "wiki"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Qoder plugin for JetBrains IDEs (Marketplace id 28926). Runs inside the JetBrains IDE process; its process shape was not determined, so no process spec. Hooks are the same 12 events as the Qoder IDE and use the same ~/.qoder/settings.json.",
+      "host": true
+    },
+    {
+      "kind": "gui",
+      "label": "QoderWork (macOS and Windows desktop app for documents, research, browser and desktop work). Separate product with its own store: ~/Library/Application Support/QoderWork/data/agents.db and transcripts under ~/.qoderwork; hooks in ~/.qoderwork/settings.json. Bundle id and executable name were not determined, so no process spec.",
+      "host": true
+    },
+    {
+      "kind": "cloud",
+      "label": "Qoder Cloud Agents (managed agents over an API) and `qoder --remote` cloud sessions. Nothing local to see.",
+      "host": true
+    }
+  ],
+  "session_store": {
+    "glob": "~/.qoder/projects/*/*.jsonl",
+    "per_session": "~/.qoder/projects/*/{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "A shell that is a direct child of the matched CLI process or of the desktop worker. Read from the code: the Bash tool spawns every command as its own `<shell> -c [-l] <command>` child with detached:true (getSpawnArgs returns [\"-c\", (\"-l\"), cmd] in qodercli 1.1.64, in npm bundle/qodercli.js, and in the desktop's qoder-worker-runtime.obf.mjs), not through a persistent shell; not yet seen on a running instance. Hook commands are also spawned as shell children. A background Bash task (run_in_background) is the same kind of child and stays alive after the turn, so it reads as working until it exits. MCP servers and the render-process child (ui.renderProcess, default true) are not shells and do not count. Blind while the model streams."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Raises working, never lowers it. The JSONL is Claude-Code-shaped (records with uuid, parentUuid, type user/assistant/system, isSidechain); when records are flushed during a long stream or tool call was not observed. The desktop worker is a host, so do not map it to a file; use the newest file in the project folder of its cwd only as a weak raise."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback, unmeasured. Qoder holds NO sleep inhibitor in the CLI (0 hits for caffeinate, IOPMAssertion, pmset assertions in the 1.1.64 binary), so there is no caffeinate child and no power assertion to read. For the desktop app and IDE trees a floor of 10 is safer; the probe cannot express a per-surface floor."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "permission_prompt",
+      "meaning": "A tool call needs approval. Hook input carries session_id, transcript_path and cwd."
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Fires when the permission dialog is about to show; matcher is the tool name. Present in the CLI, the desktop app and the IDE."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "idle_prompt",
+      "meaning": "Idle prompt. Also elicitation_dialog for an MCP question. The turn boundary pair is UserPromptSubmit (start) and Stop (end); whether Stop fires on an interrupt was not determined."
+    },
+    {
+      "signal": "session_registry",
+      "path": "~/.qoder/sessions/<pid>.json",
+      "meaning": "The most precise state, but opt-in and CLI only: set QODER_FEATURE_CROSS_SESSION=1 in the environment or in ~/.qoder/.env (beta, macOS and Linux) and every long-lived session writes this file (mode 0600, atomic rename, updated within 250 ms to 2 s, removed on exit). Keys: pid, procStart, startedAt, cwd, sessionId, name, kind (interactive|bg|daemon|daemon-worker), status (busy|shell|idle|waiting), messagingSocketPath, peerProtocol. status is derived from the TUI stream state: responding -> busy, waiting_for_confirmation -> waiting, else idle (or shell when the user is at a shell prompt). It is also the pid to sessionId map, which argv does not give on a fresh launch. The path and keys are in the binary only; the docs describe the feature as a per-user registry and a peers listing (busy/waiting/shell/idle) without naming the path."
+    },
+    {
+      "signal": "terminal_title",
+      "meaning": "The TUI writes an OSC 0 title `<glyph> <session title> | <state>` and rewrites it every 1 s while not idle: `◇ ... | Ready` idle, `✦ ... | Working` turn in progress, `▲ ... | Action Required` waiting on a permission prompt. Default on (ui.dynamicWindowTitle); off when ui.hideWindowTitle is true. Read from the terminal emulator, not ps. Same state source as the session registry."
+    },
+    {
+      "signal": "sdk_stream",
+      "meaning": "In stream-json / SDK mode the runtime emits system message subtype session_state_changed with state idle|running|requires_action. Visible only to the parent process that reads the pipe."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.qoder/settings.json, <project>/.qoder/settings.json, <project>/.qoder/settings.local.json (all merged, key `hooks`); plugin hooks/hooks.json; --settings. QODER_CONFIG_DIR or --config-dir moves ~/.qoder. QoderWork uses ~/.qoderwork/settings.json.",
+    "events": [
+      "SessionStart",
+      "SessionEnd",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PermissionRequest",
+      "PermissionDenied",
+      "Stop",
+      "StopFailure",
+      "SubagentStart",
+      "SubagentStop",
+      "PreCompact",
+      "PostCompact",
+      "Notification",
+      "InstructionsLoaded",
+      "ConfigChange",
+      "CwdChanged",
+      "FileChanged",
+      "WorktreeCreate",
+      "WorktreeRemove",
+      "Elicitation",
+      "ElicitationResult"
+    ],
+    "docs": "https://docs.qoder.com/cli/hooks"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No documented user-facing OpenTelemetry export. The CLI binary bundles the OpenTelemetry SDK for its own usage telemetry to Qoder (privacy.usageStatisticsEnabled, default true, is the only documented switch), and the desktop app posts tracking events to <base>/otel/v1/logs. No setting or env var for pointing an exporter at your own collector is documented. Undocumented: an internal telemetry config block (enabled, target, otlpEndpoint, otlpProtocol, outfile) exists in the runtime but is not in the settings schema."
+  },
+  "sources": [
+    {
+      "claim": "CLI sessions are JSONL at ~/.qoder/projects/<processed-project-path>/<session-id>.jsonl plus <session-id>/state.json; --session-id, --resume/-r, --continue/-c, --fork-session, --name; QODER_CONFIG_DIR moves the root",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.qoder.com/cli/sessions.md and https://docs.qoder.com/cli/cli-reference.md"
+    },
+    {
+      "claim": "the session JSONL and state.json paths are what the binary writes; state.json is AES-256-GCM encrypted, so it is not readable state",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings -a on qodercli 1.1.64 darwin-arm64 (sha256 68287d5a...15a9 from https://qoder-ide.oss-accelerate.aliyuncs.com/qodercli/channels/manifest.json, downloaded not run): join(config,'projects',projectId,`${sessionId}.jsonl`), join(...,'state.json'), SessionStateCryptoError, aes-256-gcm"
+    },
+    {
+      "claim": "transcript records are Claude-Code-shaped: type user/assistant/system/tool_result, uuid, parentUuid, isSidechain, agentId, system subtype compact_boundary",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings -a on qodercli 1.1.64: TRANSCRIPT_ACTIVE_LEAF_INVALID reader (messagesByUuid, parentUuid, type==='user'||'assistant', subtype 'compact_boundary'). No real session file was opened."
+    },
+    {
+      "claim": "the CLI is a Bun-compiled native binary named qodercli in the archive; the install script runs its `install` subcommand which places a versioned binary and the entry point; docs call the command `qoder`",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl -sL https://qoder.com/install (read, not run): bin_name=\"qodercli\", `$extract_dir/$bin_name install --force`; file ex/qodercli -> 'Mach-O 64-bit executable arm64', 161398432 bytes; release notes 'Upgraded the bundled runtime to Bun 1.4.2'; docs https://docs.qoder.com/cli/installation.md"
+    },
+    {
+      "claim": "npm package @qoder-ai/qodercli 1.1.64 exposes two bins: qoder (bundle/qoder-npm-dispatcher.cjs) and qodercli (bundle/qodercli.js), node >= 20",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "curl -s https://registry.npmjs.org/@qoder-ai%2fqodercli -> versions['1.1.64'].bin = {qoder: 'bundle/qoder-npm-dispatcher.cjs', qodercli: 'bundle/qodercli.js'}, engines node >=20.0.0"
+    },
+    {
+      "claim": "no sleep inhibitor in the CLI: no caffeinate child, no IOPMAssertion",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings -a qodercli 1.1.64 | grep -i -E 'caffein|IOPMAssertion|prevent.?sleep|keep.?awake' printed nothing; the only pmset hit is `pmset -g batt` in a hardware-fingerprint helper"
+    },
+    {
+      "claim": "TUI title encodes state: Ready / Working / Action Required, rewritten every second while not idle; ui.dynamicWindowTitle default true, ui.hideWindowTitle disables",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings -a qodercli 1.1.64: function em({streamingState,isConfirming,sessionTitle,useDynamicTitle}) returns `\\u25B2 ... | Action Required` when isConfirming or streamingState==='waiting_for_confirmation', `\\u25C7 ... | Ready` when 'idle', else `\\u2726 ... | Working`; cr.write(`\\x1B]0;${title}\\x07`) in a 1 s setInterval while streamingState!=='idle'"
+    },
+    {
+      "claim": "opt-in session registry ~/.qoder/sessions/<pid>.json with status busy|shell|idle|waiting, written only when the cross-session feature flag is on",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings -a qodercli 1.1.64: B4()=join(configDir,'sessions'), A3(pid)=join(B4(),`${pid}.json`), status list [\"busy\",\"shell\",\"idle\",\"waiting\"], kind list [\"interactive\",\"bg\",\"daemon\",\"daemon-worker\"], writer R4() called only after `if(!cn())return` where cn() reads the feature flag; G0(n,i){if(n==='responding')return'busy';if(n==='waiting_for_confirmation')return'waiting';return i?'shell':'idle'}. Docs for the flag: https://docs.qoder.com/cli/cross-session-messaging.md"
+    },
+    {
+      "claim": "hook events, config file locations, exit code 2 blocks, Notification types permission_prompt and idle_prompt",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.qoder.com/cli/hooks.md (Event Reference table lists 23 events incl. Stop, PermissionRequest, Notification; config from ~/.qoder/settings.json, ${project}/.qoder/settings.json, ${project}/.qoder/settings.local.json)"
+    },
+    {
+      "claim": "the IDE and the JetBrains plugin support 12 hook events (command and http handlers only) and share ~/.qoder/settings.json; the desktop app supports the same events and handler types as the CLI",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.qoder.com/extensions/hooks.md and https://docs.qoder.com/qoder/hooks.md"
+    },
+    {
+      "claim": "the new Qoder desktop app is bundle id com.qoder.app, Qoder.app, executable Qoder, Electron 43.1.1, version 0.4.3; the IDE is com.qoder.ide, Qoder IDE.app, version 1.32.0",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "downloaded https://download.qoder.com/qoder-app/releases/latest/Qoder-Installer-mac-arm64.zip (not run): Contents/Resources/installer-manifest.json ideArtifact.expectedApplicationId=com.qoder.ide, expectedBundleName='Qoder IDE.app', version 1.32.0; qoderArtifact.expectedApplicationId=com.qoder.app, expectedBundleName='Qoder.app'; unzipped payload: plutil -p Qoder.app/Contents/Info.plist -> CFBundleIdentifier com.qoder.app, CFBundleExecutable Qoder, ElectronAsarIntegrity present; Resources/build-manifest.json electronVersion 43.1.1"
+    },
+    {
+      "claim": "the desktop app runs the agent as a child of the Electron main: `<execPath> <qoder-worker-runtime.obf.mjs> --sdk` with ELECTRON_RUN_AS_NODE=1 and QODER_AGENT_SDK_DAEMON=1, over stdin/stdout, idle timeout 30 min",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Qoder.app/Contents/Resources/app.asar (header parsed with python, not run) -> node_modules/@qoder-ai/qoder-agent-sdk/dist/index.js (package @ali/qoder-agent-sdk-next 1.0.50, qoderCliVersion 1.1.64, defaultTransport 'worker'): zu() returns {command:process.execPath,args:[t,'--sdk'],env:{ELECTRON_RUN_AS_NODE:'1'}}; hn.spawn uses child_process with stdio pipe; Uu=30*6e4; ju='QODER_AGENT_SDK_DAEMON'; out/main/index.js: dAe() new mxe({pathToQoderWorkerRuntime:t}), Qzt 'Agent runtime is using worker transport'"
+    },
+    {
+      "claim": "the desktop app writes and reads its conversations in the same ~/.qoder/projects/<project>/<sessionId>.jsonl layout, and keeps its own task database in userData/main.sqlite",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "app.asar out/main/index.js: diagnostics bundle adds oe(projectsDir,`${sessionId}.jsonl`) and <sessionId>/subagents/*.jsonl; getStorageRoots(){projects: join(qoderConfigDirectory,'projects')}; SQLite files main.sqlite, chat-session-turn-payload-buffer.sqlite in userData. userData directory name not determined."
+    },
+    {
+      "claim": "the desktop app takes an Electron prevent-app-suspension power blocker only for Automations (scheduled task runs) or when the user sets Prevent sleep; ordinary chat turns do not take it",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "app.asar out/main/index.js: powerService.acquirePreventSleep() is called around a scheduled-run execution and setPreventSleep(store.getSettings().preventSleep); no other caller of startPreventSleep/a4.start('prevent-app-suspension'). The assertion belongs to the Electron main process, not the worker, so it is not a row signal."
+    },
+    {
+      "claim": "QoderWork data and transcript locations",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "app.asar out/main/index.js sessionMigrationSources: qoderWork darwin databaseRelativePaths [['QoderWork','data','agents.db']], transcriptRootDirectoryName '.qoderwork'; Quest (IDE) source: ['Qoder','SharedClientCache','cache','db','local.db'] and ['Qoder','User','globalStorage','aicoding.aicoding-agent','schedule','tasks.v2.json']; https://docs.qoder.com/qoder/data-import.md; https://docs.qoder.com/qoderwork/hooks.md (~/.qoderwork/settings.json)"
+    },
+    {
+      "claim": "Qoder is not open source: no public repository holds the CLI, desktop app or IDE source",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://api.github.com/orgs/qoderAI/repos (2026-09-29): github.com/qoderAI is the vendor's own org (homebrew-qoder with Casks/qodercli.rb, changelog-CLI, changelog-QoderWork, qoder-action, SDK/ACP demos, skills, plugins). Its `better-harness` repo is the separate harness-engineering platform; none of the repos is the CLI or app source. Absence of source is inferred from that listing."
+    },
+    {
+      "claim": "ACP server mode (`qoder --acp`), daemon mode (`qoder remote-control`, workers `--remote-control <id>`), one-shot (`-p/--print`), non-interactive positional prompt",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.qoder.com/cli/acp.md, https://docs.qoder.com/cli/remote-control.md, https://docs.qoder.com/cli/cli-reference.md; the `--remote-control <id>` worker child is confirmed in the binary: strings -a qodercli 1.1.64 shows buildRemoteWorkerInvocation returning {command: process.execPath, args: ['--remote-control', id] (with --config-dir prepended when set), env QODER_REMOTE_CHILD=1} spawned detached by the daemon; the docs only call the flag 'Run as a headless remote-control worker'"
+    },
+    {
+      "claim": "no user-facing OpenTelemetry export is documented; the runtime bundles the OpenTelemetry SDK for its own telemetry",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "grep -i -E 'otel|opentelemetry|OTLP' over all fetched docs/cli pages and cli settings-reference.md printed nothing; strings -a qodercli 1.1.64 has OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_TRACES_EXPORTER strings from the SDK, `privacy.usageStatisticsEnabled` in the settings schema, and no `telemetry` settings key"
+    },
+    {
+      "claim": "native install has a `qoder` bash dispatcher that execs qodercli; the npm `qoder` bin is a node dispatcher that spawns a child node on bundle/qodercli.js",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings -a qodercli 1.1.64 lines 408984-409100: '# Qoder Command Dispatcher ... Routes `qoder ...` to either CLI or IDE', _find_cli uses `type -P` then ~/.local/bin/ and ~/.qoder/bin/, `exec \"$cli\" \"$@\"`; ide, chat, serve-web, tunnel or an existing path go to the IDE launcher. npm tarball @qoder-ai/qodercli 1.1.64 bundle/qoder-npm-dispatcher.cjs: runCliBundle() spawnSync(process.execPath, [resolve(__dirname,'qodercli.js'), ...passArgs], {stdio:'inherit'})"
+    },
+    {
+      "claim": "the Bash tool runs each command as a direct detached `<shell> -c [-l] <cmd>` child",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings -a qodercli 1.1.64: bashProvider {type:'bash', shellPath, detached:!0, getSpawnArgs(c){return['-c', ...(snapshot?[]:['-l']), c]}}; same getSpawnArgs in npm bundle/qodercli.js and in the desktop's qoder-worker-runtime.obf.mjs (version 1.1.64, runtime-info.json). Never run."
+    },
+    {
+      "claim": "Homebrew cask qodercli installs the same 1.1.64 archive",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/qoderAI/homebrew-qoder/main/Casks/qodercli.rb: `binary \"qodercli\"`, sha256 68287d5a...15a9 for darwin-arm64, equal to the manifest's"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Read registry/evidence/qoder.md. Qoder is a family, not one program: the Qoder CLI (native `qoder`/`qodercli`, JSONL sessions in ~/.qoder/projects), the new Qoder desktop app (com.qoder.app, drives the same runtime through an Agent SDK worker child), the Qoder IDE (com.qoder.ide, a separate VS Code fork), a JetBrains plugin, QoderWork and QoderWake (separate products), and cloud agents. Nothing was installed or run; every process shape comes from the docs and from reading the downloaded 1.1.64 CLI binary and the 0.4.3 desktop bundle. The CLI has no sleep inhibitor, so unlike Claude Code there is no caffeinate child. Best exact working/waiting state: hooks (UserPromptSubmit to Stop, Notification permission_prompt), or with QODER_FEATURE_CROSS_SESSION=1 the ~/.qoder/sessions/<pid>.json status, or the terminal title. Without any of these the only outside signals are a shell child, a fresh transcript write, and CPU. The desktop app's matching unit is the worker child, not the Electron main. `.qoder` also appears as a project folder name, so do not treat any `.qoder` path as proof of the CLI. Verification pass 2026-09-29: the npm `qoder` bin is a node dispatcher whose child node process is the real session, so the row matches the child and not `bin/qoder`; the native `qoder` is a bash dispatcher that execs `qodercli`. Nothing here was seen on a running instance, so confidence stays `documented`."
+}

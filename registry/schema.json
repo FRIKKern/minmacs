@@ -55,7 +55,7 @@
           },
           "process": {
             "type": "object",
-            "description": "Matching reads the command line only. names is compared with the base name of argv[0]; path_contains with argv[0] itself; args_contain must each appear in some argument; exclude_args vetoes on an exact argument. The executable path is not used: a harness may run bundled tools from its own binary under another name.",
+            "description": "Matching reads the command line only. names is compared with the base name of argv[0]; path_contains with argv[0] itself; args_contain must each appear in some argument; exclude_args vetoes on an exact argument. The executable path is not used: a harness may run bundled tools from its own binary under another name. names and path_contains are alternatives (either is enough); a longer path match is more specific, and when a process matches two rows it belongs to the more specific one.",
             "properties": {
               "names": {
                 "type": "array",

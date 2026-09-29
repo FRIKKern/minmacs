@@ -26,6 +26,12 @@
       "process": {
         "path_contains": [
           "/ClaudeCode.app/Contents/MacOS/claude"
+        ],
+        "exclude_args": [
+          "--bg-pty-host",
+          "--bg-spare",
+          "bg-pty-host",
+          "bg-spare"
         ]
       }
     },
@@ -42,8 +48,17 @@
         "exclude_args": [
           "--bg-pty-host",
           "--bg-spare",
+          "--help",
+          "--version",
+          "-h",
+          "-v",
           "bg-pty-host",
-          "bg-spare"
+          "bg-spare",
+          "daemon",
+          "doctor",
+          "install",
+          "mcp",
+          "update"
         ]
       },
       "session_id_args": [
@@ -123,8 +138,14 @@
       "kind": "local-observation",
       "date": "2026-09-29",
       "evidence": "completeness critic of the research storm, run against tools/agents_probe.py matches() on this Mac; ls ~/.local/bin shows claude-swap"
+    },
+    {
+      "claim": "the desktop app's --bg-pty-host launcher is not a session (its child is); claude mcp, daemon, doctor, update and --version are not sessions",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ps on this Mac: pid 81300 .../ClaudeCode.app/Contents/MacOS/claude --bg-pty-host <socket>, child 81331 on ttys009 is the session; completeness critic of wave 2 ran tools/agents_probe.py matches() on each command line"
     }
   ],
   "confidence": "verified-locally",
-  "notes": "Sessions that share a working directory share a project folder, so map a process to its transcript by session id, never by folder. The desktop app runs sessions as child processes of a launcher at ClaudeCode.app/Contents/MacOS/claude. Matching reads the command line only: Claude Code runs bundled tools such as ugrep from its own binary under another name, so the executable path must not be used. The sleep inhibitor counts only as a direct child."
+  "notes": "Sessions that share a working directory share a project folder, so map a process to its transcript by session id, never by folder. The desktop app runs sessions as child processes of a launcher at ClaudeCode.app/Contents/MacOS/claude. Matching reads the command line only: Claude Code runs bundled tools such as ugrep from its own binary under another name, so the executable path must not be used. The sleep inhibitor counts only as a direct child. The desktop launcher runs with --bg-pty-host and is excluded, so the session reported is its child on a real tty."
 }

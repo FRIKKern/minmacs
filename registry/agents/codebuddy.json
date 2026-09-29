@@ -1,0 +1,573 @@
+{
+  "id": "codebuddy",
+  "name": "CodeBuddy",
+  "vendor": "Tencent",
+  "homepage": "https://www.codebuddy.ai",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "CodeBuddy IDE (international), a VS Code fork. App CodeBuddy.app, main executable is named Electron. The agent (Tencent-Cloud.coding-copilot extension) runs inside the editor's extension host, so there is no per-session process",
+      "bundle_ids": [
+        "com.tencent.codebuddy"
+      ],
+      "process": {
+        "path_contains": [
+          "/CodeBuddy.app/Contents/MacOS/Electron"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "ide",
+      "label": "CodeBuddy CN IDE (China build). App 'CodeBuddy CN.app' has a space, so the space-split argv[0] is '<dir>/CodeBuddy' and the next argument is 'CN.app/Contents/MacOS/Electron'. Same architecture as the international build",
+      "bundle_ids": [
+        "com.tencent.codebuddycn"
+      ],
+      "process": {
+        "path_contains": [
+          "/CodeBuddy"
+        ],
+        "args_contain": [
+          "CN.app/Contents/MacOS/Electron"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "gui",
+      "label": "WorkBuddy (China build), Tencent's desktop office agent that embeds the CodeBuddy engine. Path rule inferred from the Homebrew cask (app WorkBuddy.app); the main executable name was not inspected",
+      "bundle_ids": [
+        "com.tencent.workbuddy.mac"
+      ],
+      "process": {
+        "path_contains": [
+          "/WorkBuddy.app/Contents/MacOS/"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "gui",
+      "label": "WorkBuddy AI (international build). App 'WorkBuddy AI.app' has a space, hence the two-part match. Inferred from the Homebrew cask, not inspected",
+      "bundle_ids": [
+        "com.workbuddy.workbuddy-ai"
+      ],
+      "process": {
+        "path_contains": [
+          "/WorkBuddy"
+        ],
+        "args_contain": [
+          "AI.app/Contents/MacOS/"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "codebuddy --serve from the native binary (Homebrew, install.sh): daemon start, Web UI, HTTP API, WorkBuddy sidecar. One process hosts many sessions. Agent-team teammates run as `--serve --teammate-mode` (kind teammate, one session each, spawned detached by a lead session) and are deliberately not matched",
+      "process": {
+        "names": [
+          "codebuddy"
+        ],
+        "path_contains": [
+          "/codebuddy/versions/"
+        ],
+        "args_contain": [
+          "--serve"
+        ],
+        "exclude_args": [
+          "--teammate-mode"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "codebuddy --serve from the npm install: node running .../bin/codebuddy. Agent-team teammates run as `--serve --teammate-mode` (kind teammate, one session each, spawned detached by a lead session) and are deliberately not matched",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/codebuddy",
+          "--serve"
+        ],
+        "exclude_args": [
+          "--teammate-mode"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "codebuddy --acp, native binary: Agent Client Protocol server started by Zed or another editor",
+      "process": {
+        "names": [
+          "codebuddy"
+        ],
+        "path_contains": [
+          "/codebuddy/versions/"
+        ],
+        "args_contain": [
+          "--acp"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "codebuddy --acp, npm install (node running .../bin/codebuddy)",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/codebuddy",
+          "--acp"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "tui",
+      "label": "CodeBuddy Code in a terminal, native binary (Homebrew, install.sh). argv[0] is the name typed, e.g. 'codebuddy', or the full path ~/.local/share/codebuddy/versions/<version>/codebuddy when the binary re-spawns itself (process.execPath; its base name is also 'codebuddy'). The versions/ path rule is a narrow backup for a moved or renamed link. The 'cbc' alias is deliberately not matched: COIN-OR Cbc, a solver, is also called cbc. codebuddy -p and --bg runs also land here and are working for their whole life",
+      "process": {
+        "names": [
+          "codebuddy"
+        ],
+        "path_contains": [
+          "/codebuddy/versions/"
+        ],
+        "exclude_args": [
+          "ps",
+          "logs",
+          "attach",
+          "kill",
+          "stop",
+          "rm",
+          "respawn",
+          "daemon",
+          "project",
+          "update",
+          "install",
+          "mcp",
+          "agents",
+          "auto-mode",
+          "cleanup",
+          "marketplace",
+          "plugin",
+          "sandbox",
+          "config",
+          "doctor",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "help",
+          "--serve",
+          "--acp",
+          "--a2a",
+          "--prewarm"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "CodeBuddy Code in a terminal, npm/pnpm/yarn/bun install: node running the bin symlink .../bin/codebuddy (also matches codebuddy-code and codebuddy-lowmem)",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/codebuddy"
+        ],
+        "exclude_args": [
+          "ps",
+          "logs",
+          "attach",
+          "kill",
+          "stop",
+          "rm",
+          "respawn",
+          "daemon",
+          "project",
+          "update",
+          "install",
+          "mcp",
+          "agents",
+          "auto-mode",
+          "cleanup",
+          "marketplace",
+          "plugin",
+          "sandbox",
+          "config",
+          "doctor",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "help",
+          "--serve",
+          "--acp",
+          "--a2a",
+          "--prewarm"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "CodeBuddy Code in a terminal, npm install run through the cbc alias: node running .../bin/cbc (also matches bin/cbc-prewarm, the millisecond-lived prewarm manager CLI; its subcommands list, ping, status, activate and kill are excluded)",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/cbc"
+        ],
+        "exclude_args": [
+          "ps",
+          "logs",
+          "attach",
+          "kill",
+          "stop",
+          "rm",
+          "respawn",
+          "daemon",
+          "project",
+          "update",
+          "install",
+          "mcp",
+          "agents",
+          "auto-mode",
+          "cleanup",
+          "marketplace",
+          "plugin",
+          "sandbox",
+          "config",
+          "doctor",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "help",
+          "--serve",
+          "--acp",
+          "--a2a",
+          "--prewarm",
+          "list",
+          "ping",
+          "status",
+          "activate"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume",
+        "-r"
+      ]
+    }
+  ],
+  "session_store": {
+    "glob": "~/.codebuddy/projects/*/*.jsonl",
+    "per_session": "~/.codebuddy/projects/*/{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": true,
+    "project_dir": "<realpath of cwd with every '/', '\\' and ':' replaced by '-', leading and trailing '-' stripped, runs of '-' collapsed>, e.g. /Users/me/x -> Users-me-x (no leading dash, dots kept). Longer than 255 bytes: cut at 180 bytes plus '-' plus a djb2 base36 hash.",
+    "glob_note": "Only the CLI, --serve daemon, ACP and background jobs write here. Sub-agent transcripts live one level deeper (projects/<slug>/<session id>/subagents/<agent id>.jsonl) so the two-level glob does not match them. Retention is 30 days by default (cleanupPeriodDays). --no-session-persistence writes nothing. The --session-id help text allows ':' in an id, but the store's own id pattern (^[A-Za-z0-9][A-Za-z0-9_-]{0,255}$) does not; what happens to an id with a colon was not traced.",
+    "config_dir_override": "CODEBUDDY_CONFIG_DIR moves ~/.codebuddy (documented, installation guide). WorkBuddy and CodeBuddy CN use their own directories (~/.workbuddy, ~/.workbuddy-ai, ~/.codebuddycn per the Homebrew cask zap lists).",
+    "pid_index": {
+      "note": "Not in the schema. Every CLI process that is not a management subcommand writes ~/.codebuddy/sessions/<pid>.json at start and unlinks it on exit; stale files (pid not alive) are deleted by the next reader. Documented in the daemon guide (PID File Registry).",
+      "file": "~/.codebuddy/sessions/<pid>.json  keys from the doc example: pid, sessionId, cwd, startedAt, kind (interactive|bg|daemon|daemon-worker|prewarm|teammate), url, mode, version, hostname. Keys from source: lastHeartbeat, name, logPath, configuredPort, configuredHost, startupArgs, endpoint, updatedAt, meta{jobId,jobGeneration,currentTopic,prewarmId}, status, waitingFor.",
+      "session_id_note": "sessionId starts as 'interactive-<pid>' (or the --session-id / --resume value) and is overwritten with the real session UUID when the session object is created (log line 'Worker PID file synced with session UUID'). A plain `codebuddy` launch has no session id in argv, so this file is the reliable pid to session map.",
+      "status_note": "status (busy|idle|waiting|stopped) and waitingFor ('permission prompt' | 'input needed') are written only for Agent View job workers and handed-off background sessions. A plain interactive session leaves status unset (`codebuddy ps` prints 'unknown')."
+    },
+    "ide_store": {
+      "note": "CodeBuddy IDE and its extension keep chats elsewhere: a directory tree, JSON not JSONL, undocumented.",
+      "path": "~/Library/Application Support/CodeBuddyExtension/<uid>/history/<md5 of workspace path>/index.json plus one folder per conversation id",
+      "documented": false
+    },
+    "jobs_store": {
+      "note": "Undocumented. Agent View (`codebuddy agents`, v2.1xx) keeps one folder per background job.",
+      "path": "~/.codebuddy/jobs/<job id>/state.json",
+      "keys": "state (working|blocked|done|failed|stopped), detail, tempo (active|idle|blocked), sessionId, shortId, cwd, pid, logPath, createdAt, updatedAt, firstTerminalAt, idleSince, name, intent, respawnArgs"
+    }
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "The session file ~/.codebuddy/projects/<slug>/<session id>.jsonl is appended as history items are added (per the SessionStore source; not seen on a live file). Bursty: a long model call or a long tool run writes nothing. A write raises working, a quiet file proves nothing. Map pid to file through ~/.codebuddy/sessions/<pid>.json. Not measured on a live turn."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured. The terminal-title spinner timer fires every 200 ms whenever the run state is not idle, and it keeps firing while the agent waits for a permission or an answer, so CPU cannot separate working from waiting. Row-level, so it also applies to the Electron IDE and WorkBuddy surfaces, where README section 4 wants 10 percent and an idle tree can exceed 3; those surfaces are host: true and must not take a state from it."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "permission_prompt",
+      "meaning": "A tool call needs approval. Hook stdin carries session_id, transcript_path, cwd, permission_mode and generation_id."
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Fires when the permission dialog appears (listed in the plugin reference event table)."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "notification_type": "idle_prompt",
+      "meaning": "The agent has been waiting for user input for more than 60 seconds. Late: it says nothing during the first minute."
+    },
+    {
+      "signal": "hook",
+      "event": "Stop",
+      "meaning": "The main agent finished responding. Not fired when the user interrupts, so an open UserPromptSubmit to Stop pair can stay open after an interrupt; close it on SessionEnd or an idle_prompt. StopFailure covers API errors."
+    },
+    {
+      "signal": "terminal_title",
+      "meaning": "OSC 0 title is '<glyph> <topic>'. The glyph cycles the ten braille frames (U+280B, U+2819, U+2839, U+2838, U+283C, U+2834, U+2826, U+2827, U+2807, U+280F) every 200 ms while the run state is anything except idle, and is U+2733 (eight-spoked asterisk) when idle. Waiting for a permission or an answer is NOT idle, so a spinning title means working OR waiting. Needs a TTY; CODEBUDDY_CODE_DISABLE_TERMINAL_TITLE=1 turns it off. On Windows it sets process.title instead. Read from the terminal emulator or multiplexer, not from ps."
+    },
+    {
+      "signal": "terminal_progress",
+      "meaning": "OSC 9;4 indeterminate progress (iTerm2, Ghostty, Windows Terminal) or a kitty OSC 99 'Working...' notification. Corrected in verification: it is driven by session.interruptionSubject, which holds a pending tool-approval item, so the indicator is on while a permission decision is pending and cleared when it is resolved. It marks WAITING on the human, not a running turn, despite the word 'Working'. Not written for -p or --acp, off when enableTerminalProgressBar is false (on by default), only in terminals that support the protocol, wrapped for tmux when needed. Undocumented; read from source only, not seen live, and whether an AskUserQuestion prompt also sets it was not traced."
+    },
+    {
+      "signal": "job_state_file",
+      "meaning": "Agent View jobs only. ~/.codebuddy/jobs/<id>/state.json state 'blocked' with ~/.codebuddy/sessions/<pid>.json status 'waiting' and waitingFor 'permission prompt' or 'input needed'. Mapped from the run status WAITING_FOR_PERMISSION and WAITING_FOR_USER. Undocumented; plain interactive sessions do not write it."
+    },
+    {
+      "signal": "otel_span",
+      "meaning": "Only with OTEL_SEMCONV=agentlens: a span of span.type user_input_wait is open while the agent waits for the human."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks object in ~/.codebuddy/settings.json, <project>/.codebuddy/settings.json, <project>/.codebuddy/settings.local.json, or an enterprise policy bundle; plugin hooks/hooks.json (${CODEBUDDY_PLUGIN_ROOT}); agent and skill frontmatter (needs allowUntrustedFrontmatterHooks). Scopes merge and all matching hooks for an event run in parallel. Types: command (run with $SHELL -c; $CODEBUDDY_PROJECT_DIR is set) and prompt (Stop, UserPromptSubmit, PreToolUse only). disableAllHooks turns them off. 60 s default timeout per hook. Beta.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PermissionDenied",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "Notification",
+      "SubagentStart",
+      "SubagentStop",
+      "TaskCreated",
+      "TaskCompleted",
+      "Stop",
+      "StopFailure",
+      "TeammateIdle",
+      "InstructionsLoaded",
+      "ConfigChange",
+      "CwdChanged",
+      "FileChanged",
+      "WorktreeCreate",
+      "WorktreeRemove",
+      "PreCompact",
+      "PostCompact",
+      "Elicitation",
+      "ElicitationResult",
+      "SessionEnd",
+      "Setup"
+    ],
+    "docs": "https://www.codebuddy.ai/docs/cli/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Traces only (no metrics or logs), http/protobuf only (grpc and http/json are ignored with a warning). The docs say tracing is enabled when the built-in product configuration enables it OR CODEBUDDY_CODE_ENABLE_TELEMETRY=1 (CLAUDE_CODE_ENABLE_TELEMETRY is accepted too); the npm package's product.json ships telemetry.tracing.enabled, telemetry.report.standard.enabled and telemetry.report.model.enabled all true, so it is NOT off by default. Endpoint from OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, then OTEL_EXPORTER_OTLP_ENDPOINT, then product telemetry.tracing.url (absent in product.json; the destination of the shipped default was not traced). OTEL_TRACES_EXPORTER=console|otlp|none, DISABLE_TELEMETRY=1 wins over everything. One codebuddy_code.interaction root span per user prompt with codebuddy_code.tool children; prompt text needs OTEL_LOG_USER_PROMPTS=1. A local copy of traces is also kept under ~/.codebuddy/traces/ (a per-process folder of <trace id>.jsonl, source only)."
+  },
+  "sources": [
+    {
+      "claim": "npm package @tencent-ai/codebuddy-code, latest 2.159.0 published 2026-09-27; bins codebuddy, cbc, codebuddy-code, codebuddy-lowmem, cbc-prewarm all point at bin/codebuddy (cbc-prewarm at bin/cbc-prewarm); Node >= 18.20.8",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://registry.npmjs.org/@tencent-ai/codebuddy-code (dist-tags.latest 2.159.0, time 2026-09-27T17:37:39Z, bin {cbc, codebuddy, cbc-prewarm, codebuddy-code, codebuddy-lowmem}); tarball https://registry.npmjs.org/@tencent-ai/codebuddy-code/-/codebuddy-code-2.159.0.tgz downloaded with curl and unpacked in a scratch folder (not installed), bin/codebuddy line 1 '#!/usr/bin/env node' and the minNode = '18.20.8' check"
+    },
+    {
+      "claim": "npm and Homebrew are two different process shapes. npm: a node process whose argv[1] is the bin symlink. Homebrew (tap Tencent-CodeBuddy/tap, formula codebuddy-code 2.158.0): a native Bun-compiled binary named codebuddy, plus a cbc symlink, no Node. install.sh downloads the same native archive and runs `codebuddy install`; docs say the binary is ~/.local/bin/codebuddy; the docs list ~/.local/share/codebuddy only in the optional configuration cleanup, the versions layout is from source (see the next entry)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/Tencent-CodeBuddy/homebrew-tap/main/Formula/codebuddy-code.rb (bin.install 'codebuddy'; bin.install_symlink 'codebuddy' => 'cbc'; archives codebuddy-code_Darwin_arm64.tar.gz and _x86_64); https://www.codebuddy.cn/cli/install.sh (comment about a 'Bun 1.3.13 regression', archive codebuddy-code_${os}_${arch}.tar.gz, then `\"$tmpdir/$binary\" install`); https://www.codebuddy.ai/docs/cli/installation (Install via Native Binary, Uninstall Native Binary Version: rm -f ~/.local/bin/codebuddy, rm -rf ~/.local/share/codebuddy); dist/codebuddy.js PathUtils.isBunCompiled() checks for '$bunfs' or '~bun'"
+    },
+    {
+      "claim": "native install layout: the binary is extracted to <data>/versions/<version>/codebuddy where <data> is ~/.local/share/codebuddy (XDG_DATA_HOME honoured), then hard-linked or copied to ~/.local/bin/codebuddy. A self re-spawn (--serve daemon, --bg job) runs process.execPath, so its argv[0] ends in /codebuddy too; the name rule already covers it and the path rule /codebuddy/versions/ is a narrow backup. The earlier broad /.local/share/codebuddy/ needle was dropped because that directory is a general data dir and would match any other executable placed there",
+      "evidence": "dist/codebuddy.js install environment class: versiondir(name) = join(getLinuxPaths(name).data,'versions'), bindir(name) = join(data,'..','..','bin'); installer: downloadAndExtract() joins versiondir/<version> then binaryExe; installBins() makeExecutable + linkOrCopyFile to <bindir>/<binaryExe>; binaryExe = binaryName (name plus .exe only on win32); getLinuxPaths data = (XDG_DATA_HOME || ~/.local/share)/<name>. isBunCompiled() = Bun.main contains '$bunfs' or '~bun'; buildRespawnArgs() returns only the user args when compiled. Not observed on a running instance; the value of binaryName in product.json was not found (grep for binaryName in product*.json empty), 'codebuddy' is taken from the docs and the Homebrew formula",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "no process.title change on macOS or Linux, so ps shows the launch command line unchanged; only Windows sets process.title (terminal title writer)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js TerminalTitleUpdater.writeTitle(): `\"win32\"===process.platform?process.title=ec:process.stdout.write(`\\x1b]0;${ec}\\x07`)`; the only other process.title reads are shell detection"
+    },
+    {
+      "claim": "the one sleep inhibitor spawn is `caffeinate -i -w <own pid>`, spawned detached as a direct child by the daemon's WakeDetector for the daemon's whole life; the wake detector is started only from DaemonEnhancementsLifecycle, which runs when env CODEBUDDY_SESSION_KIND is 'daemon' (set by forkDaemon, i.e. `codebuddy daemon start`; a hand-run `codebuddy --serve` was not traced). It is NOT per turn. Interactive TUI, --print and --bg sessions spawn no caffeinate. CODEBUDDY_DAEMON_ALLOW_SLEEP=1 disables it",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js class wake_detector: startMacOSInhibitor(){spawn('caffeinate',['-i','-w',String(process.pid)],{detached:true,stdio:'ignore'})}; the only caffeinate spawn in dist/codebuddy.js and dist/codebuddy-headless.js (the other 'caffeinate' occurrence is a log label in logEnhancementsStatus); CHANGELOG.md 'Daemon 防休眠：daemon 模式运行时自动阻止系统 idle sleep (macOS caffeinate / Linux systemd-inhibit / Windows powercfg)'; no powerSaveBlocker or IOKit call in the CLI bundles"
+    },
+    {
+      "claim": "transcripts are JSONL under ~/.codebuddy/projects/<slug>/<sessionId>.jsonl; hook input carries transcript_path; sessions/ holds live-process PID files; logs/ holds bg logs",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.codebuddy.ai/docs/cli/codebuddy-dir ('projects/ Per-project runtime data, including session records (.jsonl)'); https://www.codebuddy.ai/docs/cli/daemon (Log System table row 'transcript ~/.codebuddy/projects/{id}/{sessionId}.jsonl', PID File Registry); https://www.codebuddy.ai/docs/cli/hooks (PreToolUse Input: transcript_path '/Users/.../.codebuddy/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl')"
+    },
+    {
+      "claim": "slug rule: realpath of cwd, '/', '\\\\' and ':' become '-', leading and trailing '-' stripped, repeats collapsed. Unlike Claude Code there is no leading dash and dots are kept. File name is the session id; session ids match ^[A-Za-z0-9][A-Za-z0-9_-]{0,255}$",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js normalizeWorkspacePathBase(): eA.replace(/[/\\\\:]/g,'-').replace(/^-+/,'').replace(/-+$/,'').replace(/-+/g,'-'); compressWorkspacePathName() (255-byte limit, 180-byte cut plus djb2 base36); getStorageDirFor() joins getProjectsDir() with compressPath(realpathSync(cwd)); orphan cleanup joins <slug>/<sessionId>.jsonl"
+    },
+    {
+      "claim": "session id in argv only for --session-id <uuid>, --resume/-r [sessionId] (id optional; without it a picker opens), --continue/-c (no id). The PID-file registry uses the same two flags as the initial sessionId",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.codebuddy.ai/docs/cli/cli-reference (--resume, --continue); dist/codebuddy.js option definitions '--session-id <uuid>' and '-r, --resume [sessionId]', registrySessionIdFromCliOpts()"
+    },
+    {
+      "claim": "PID file registry: ~/.codebuddy/sessions/<pid>.json written at start for every process that is not a management subcommand (ps, logs, attach, kill, stop, rm, respawn, daemon, project) or a job broker; kind comes from CODEBUDDY_SESSION_KIND (default interactive); sessionId is overwritten with the real session UUID once the session exists; unlinked on exit; dead pids swept on read",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js SessionRegistry (getSessionsDir() = join(getHomeDir(),'sessions'), getPidFilePath(pid) = <pid>.json, register/update/list/unregister, isProcessAlive sweep); startup code calling ec.register({sessionId:registrySessionIdFromCliOpts(...)||`${kind}-${pid}`,cwd,startedAt,kind,name,logPath,...}); worker_registry_lifecycle 'Worker PID file synced with session UUID'; https://www.codebuddy.ai/docs/cli/daemon (PID File Registry, example file with pid, sessionId, cwd, startedAt, kind, url, mode, version, hostname)"
+    },
+    {
+      "claim": "status/waitingFor in the PID file are written only by JobStateReporter, which returns at once when there is no job id; run status to file status: WAITING_FOR_PERMISSION -> waiting/'permission prompt', WAITING_FOR_USER -> waiting/'input needed', IDLE -> idle, everything else (PREPARING, MODEL_REQUESTING, MODEL_STREAMING, TOOL_EXECUTING, AGENT_RUNNING, RETRYING, COMPACTING, CANCELLING) -> busy",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js function mapRunStatus() and class JobStateReporterImpl (start(): `(0,eE.KJ)()||this.started||void 0===this.jobId||...`; this.registry?.update({status,waitingFor})); jobId = getJobId() from env CODEBUDDY_JOB_* set by the job broker. Agent View job files: JobFileStore.getJobsDir() = <home>/jobs, state.json, create() default {state:'working',tempo:'active',...}"
+    },
+    {
+      "claim": "terminal title spinner: ten braille frames every 200 ms while run status is anything but IDLE (isSessionRunStatusBusy = status !== IDLE), so permission and question waits also spin; idle glyph is U+2733. Disabled when stdout is not a TTY or CODEBUDDY_CODE_DISABLE_TERMINAL_TITLE is truthy",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js TerminalTitleUpdater (SPINNER_FRAMES, SPINNER_INTERVAL=200, IDLE_PREFIX='\\u2733', subscribeRunState -> isSessionRunStatusBusy); env var listed at https://www.codebuddy.ai/docs/cli/env-vars (CODEBUDDY_CODE_DISABLE_TERMINAL_TITLE, 'Set to 1 to disable automatic terminal title updates')"
+    },
+    {
+      "claim": "OSC 9;4 progress (iTerm2, Ghostty, Windows Terminal) and kitty OSC 99 are shown while a tool approval is pending (interruptionSubject holds an approval item) and cleared when it resolves; so they signal waiting, not working. Setting enableTerminalProgressBar; not written with --print or --acp",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js ProgressSyncService.start() (`!1===await settingsManager.get('enableTerminalProgressBar')||options.print||options.acp` returns; `session.interruptionSubject.subscribe(v=>v?updateProgress(INDETERMINATE):clearProgress())`), OscProtocolUtils.PROGRESS_PROTOCOLS (OSC 9;4 for Windows Terminal, iTerm2, Ghostty; OSC 99 kitty with label 'Working...' for INDETERMINATE); interruptionSubject is fed by PermissionBridge ('Pushing approvalItem to leaderSession.interruptionSubject'), surfaceApprovalUI/buildSandboxApprovalItem, and the ACP agent's handleToolApproval, and reset to undefined when the queue is cleared. Corrected in the 2026-09-29 verification: the earlier wording read it as 'while the run is interruptible'"
+    },
+    {
+      "claim": "hooks: config locations, scopes merge, 27+ events, Stop skipped on manual interrupt, Notification matchers permission_prompt / idle_prompt (idle over 60 s) / auth_success, common stdin fields, 60 s per-hook timeout, prompt hooks limited to Stop/UserPromptSubmit/PreToolUse",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.codebuddy.ai/docs/cli/hooks (Configuration table, Feature Overview '27+ events', Hook Events Matrix, Notification, Stop 'skipped if the user manually interrupts', Hook Input); event table https://www.codebuddy.ai/docs/cli/plugins-reference (Hooks); settings keys hooks and disableAllHooks https://www.codebuddy.ai/docs/cli/settings"
+    },
+    {
+      "claim": "OpenTelemetry: traces only, http/protobuf only, env vars and span names as listed; user_input_wait span type under OTEL_SEMCONV=agentlens. Tracing is NOT off by default: the docs say it is enabled by the built-in product configuration or by the env var, and the npm product.json ships telemetry.tracing.enabled, telemetry.report.standard.enabled and telemetry.report.model.enabled true",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.codebuddy.ai/docs/cli/monitoring ('Current Scope: Supports traces ... Custom export of metrics and logs is not yet supported', Configuration Variables, Span Structure, agentLens table with tool / user_input_wait); local trace files: dist/codebuddy.js PathUtils.getTracesDir() = <home>/traces/<pid> and TraceCollector.appendRecords() writing <traceId>.jsonl; https://www.codebuddy.ai/docs/cli/monitoring 'Priority and Fallback' ('Enable evaluation: enabled in the built-in product configuration or CODEBUDDY_CODE_ENABLE_TELEMETRY ... is set'); npm tarball 2.159.0 product.json lines 1876-1888 (telemetry.report.standard.enabled true, telemetry.report.model.enabled true, telemetry.tracing.enabled true, no url key); dist/codebuddy.js TraceServiceLifecycle.onStart skips tracing only when DISABLE_TELEMETRY is set. The export destination of the shipped default was not traced. Cleanup code reads <home>/traces/<dir>/<file>.jsonl"
+    },
+    {
+      "claim": "process shapes of the long-lived modes: `daemon start` forks a detached child running `--serve` (plus inherited flags) with CODEBUDDY_SESSION_KIND=daemon; `--bg` forks a detached `--print -y` child with kind bg and a log at ~/.codebuddy/logs/<name>.log; --acp is stdio NDJSON; daemon install registers launchd com.codebuddy.daemon; --prewarm is a suspended standby",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.codebuddy.ai/docs/cli/daemon (Concepts, Starting Background Tasks 'run in --print -y mode', System Service Registration '~/Library/LaunchAgents/com.codebuddy.daemon.plist'); https://www.codebuddy.ai/docs/cli/cli-reference (--serve, --acp, --bg, --prewarm); dist/codebuddy.js DaemonProcess.forkDaemon()/buildDaemonChildArgs() = ['--serve', ...inheritable args], forkBgSession()"
+    },
+    {
+      "claim": "IDE bundle ids and app names, from Homebrew casks: CodeBuddy.app com.tencent.codebuddy (~/.codebuddy), CodeBuddy CN.app com.tencent.codebuddycn (~/.codebuddycn), WorkBuddy AI.app com.workbuddy.workbuddy-ai (~/.workbuddy-ai), WorkBuddy.app com.tencent.workbuddy.mac (~/.workbuddy)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/cask.json entries codebuddy (4.12.0), codebuddy-cn (4.12.1), workbuddy-ai (5.6.2), workbuddy-cn (5.6.2): app artifacts, zap trash paths com.tencent.codebuddy.plist / com.tencent.codebuddycn / com.workbuddy.workbuddy-ai, uninstall quit com.workbuddy.workbuddy-ai and com.tencent.workbuddy.mac"
+    },
+    {
+      "claim": "the two CodeBuddy IDE bundle ids and the main executable name Electron are confirmed from the release archives themselves",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "read two zip archives by HTTP range requests (central directory plus single entries; nothing installed, nothing executed): CodeBuddy-darwin-arm64-4.12.0.37847260-b4c35ed0.zip Info.plist CFBundleIdentifier com.tencent.codebuddy, CFBundleExecutable Electron, product.json applicationName buddy, dataFolderName .codebuddy, urlProtocol codebuddy; CodeBuddy-darwin-arm64-4.12.1.39217423-757a5b2f-cn.zip CFBundleIdentifier com.tencent.codebuddycn, CFBundleExecutable Electron, dataFolderName .codebuddycn, urlProtocol codebuddycn; helpers 'CodeBuddy Helper (Renderer|GPU|Plugin).app'"
+    },
+    {
+      "claim": "the IDE agent is the coding-copilot extension (Tencent-Cloud.coding-copilot, main out/extension/index.js) running in the extension host; the VSIX ships no agent binary. Chats are a directory tree under ~/Library/Application Support/CodeBuddyExtension/<uid>/history/<md5 of workspace>/ with index.json",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extension/package.json in https://open-vsx.org/api/Tencent-Cloud/coding-copilot/4.12.38765564/file/Tencent-Cloud.coding-copilot-4.12.38765564.vsix (file list: no executable other than safe-bin shell shims and .node addons); extensions/genie/out/extension/index.js in the IDE archive: SessionSource.listSessions() reads <userDataPath>/<uid>/history/<workspace hash>/index.json, FilePathServiceImpl base path 'Library/Application Support' + EXTENSION_DATA_DIR_NAME 'CodeBuddyExtension', getBasePath() md5 of the workspace"
+    },
+    {
+      "claim": "the IDE main process holds an Electron powerSaveBlocker (prevent-app-suspension on macOS) while a renderer has asked for it through IPC 'codebuddy:power-save-blocker' {enabled}. Who sends that and when (per agent turn, or always) was not found in the workbench, the genie extension or its webviews, so it is not used as a working signal",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "out/main.js in the IDE archive: D.handle('codebuddy:power-save-blocker', ...) -> powerSaveBlocker.start('prevent-app-suspension'); grep of out/vs/workbench/workbench.desktop.main.js and extensions/genie/out/**/*.js for the channel name found no caller"
+    },
+    {
+      "claim": "the CLI discovers IDE plugin lock files in ~/.claude/ide (Claude Code's folder), not in ~/.codebuddy",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "dist/codebuddy.js getIDELockDirectories(): join(getUserHome(),'.claude','ide'); getIDELockFiles() keeps *.lock; https://www.codebuddy.ai/docs/cli/ide-integrations (--ide scans lock files created by IDE plugins)"
+    },
+    {
+      "claim": "WorkBuddy embeds the same engine: sidecar started with --serve and CODEBUDDY_FORCE_LITE_WB_BUNDLE=1 or CODEBUDDY_FORCE_HEADLESS_BUNDLE=1, config dir ~/.workbuddy (WORKBUDDY_CONFIG_DIR); the CodeBuddy docs name WorkBuddy as another user of the CodeBuddy engine",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "bin/codebuddy comments and forceLiteWb routing; dist/codebuddy.js getWorkbuddyConfigDir() = WORKBUDDY_CONFIG_DIR or ~/.workbuddy; https://www.codebuddy.ai/docs/cli/installation (CODEBUDDY_CONFIG_DIR 'coexisting with other applications using the CodeBuddy engine (such as WorkBuddy)')"
+    },
+    {
+      "claim": "the surfaces behave as designed under the probe's rules: 43 synthetic ps lines re-run in the verification pass classify as intended (native and npm sessions, --serve and --acp, teammates, IDE and CN IDE main processes and their helpers, WorkBuddy, subcommands, the COIN-OR cbc solver, cbc-prewarm, Cursor, unrelated scripts). Known residual false positive: any node process with 'bin/codebuddy' inside some argument, e.g. `node server.js --config bin/codebuddy.json` or `node bin/codebuddy-tool.js`, matches the npm tui surface; substring matching cannot be anchored, and requiring a leading slash would lose node_modules/.bin/codebuddy",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 script importing tools/agents_probe.py matches() and session_id() over registry/agents/codebuddy.json with synthetic argv lines split on spaces. Matched: `codebuddy`, `codebuddy --resume <id>`, `codebuddy -p hello`, <home>/.local/share/codebuddy/versions/2.158.0/codebuddy, /opt/homebrew/Cellar/codebuddy-code/2.158.0/bin/codebuddy, `node /opt/homebrew/bin/codebuddy`, `node .../bin/codebuddy --resume 123`, `node --optimize-for-size --max-semi-space-size=2 .../codebuddy-lowmem`, `node .../bin/cbc` (tui); `codebuddy --serve`, the versions path with --serve, `node .../codebuddy --serve` (daemon 4/5); the versions path with --acp, `node .../codebuddy --acp` (daemon 6/7); /Applications/CodeBuddy.app/Contents/MacOS/Electron (ide 0); /Applications/CodeBuddy CN.app/Contents/MacOS/Electron (ide 1); WorkBuddy.app and 'WorkBuddy AI.app' main executables (gui 2, 3). Not matched: `codebuddy ps|doctor|config list|plugin install x|marketplace list|sandbox info|mcp list|daemon start|--prewarm`, `codebuddy --serve --teammate-mode ...` and its node form, `cbc -solve model.mps`, bare `cbc`, `node .../cbc-prewarm list|ping abc`, node .../dist/codebuddy-broker.js, an executable under ~/.local/share/codebuddy that is not under versions/, Electron helpers of the IDE, CN IDE and WorkBuddy AI, Cursor, an unrelated node script, a python script with CodeBuddy in its path. session_id() returned x for `codebuddy --resume 5f1c --session-id x` (session_id_args are tried in row order, so --session-id wins over --resume)"
+    },
+    {
+      "claim": "CodeBuddy is not installed on this Mac and no instance is running; nothing here was observed on a live turn",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which codebuddy cbc workbuddy` printed 'codebuddy not found', 'cbc not found', 'workbuddy not found'; `ls /Applications | grep -i buddy` matched nothing; `ls -d ~/.codebuddy ~/.codebuddycn ~/.workbuddy ~/.workbuddy-ai ~/.local/share/codebuddy ~/.local/bin/codebuddy ~/Library/Application\\ Support/CodeBuddyExtension` printed 'No such file or directory' for each; `ps -axo pid=,args= | grep -i -E 'codebuddy|workbuddy'` matched nothing; `pmset -g assertions | grep -i buddy` matched nothing"
+    },
+    {
+      "claim": "the product home page loaded from this Mac on 2026-09-29 (HTTP 200, no redirect); an earlier firecrawl fetch was redirected to /banned and answered 404, so that behaviour is location dependent and the home page is not evidence for anything in this row. The docs under /docs/cli/ load from both",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl -sL https://www.codebuddy.ai -> 200, url_effective https://www.codebuddy.ai/, 9768 bytes; curl https://www.codebuddy.ai/docs/cli/hooks -> 200, 275823 bytes. Earlier: firecrawl_scrape https://www.codebuddy.ai -> metadata.url https://www.codebuddy.ai/banned, statusCode 404 (the same call failed with ERR_TUNNEL_CONNECTION_FAILED in the verification pass, not re-observed)"
+    },
+    {
+      "claim": "agent-team teammates are separate detached processes started as `--serve --teammate-mode --team-name ... ` (PID file kind teammate, env CODEBUDDY_SESSION_KIND=teammate), via forkBgSession, or in tmux as `env ... node <argv[1]> --serve --teammate-mode ...`. They are helpers of a lead session, so the two --serve daemon surfaces exclude the exact token --teammate-mode",
+      "evidence": "dist/codebuddy.js e1=['--serve','--teammate-mode'], buildTeammateArgv(), DetachedProcessBackend.spawn() calling processManager.forkBgSession(args,{name:'teammate-<team>-<name>',extraEnv:{CODEBUDDY_SESSION_KIND:'teammate'}}), TmuxBackend.buildShellCommand(); daemon isIdle() lists kinds interactive, bg, daemon-worker, teammate. Not seen running",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "top-level management subcommands that are not sessions: ps, logs, attach, kill, stop, rm, respawn, daemon, project, update, install, mcp, agents, auto-mode (already excluded) plus doctor, config, sandbox, plugin, marketplace, cleanup (added to exclude_args). PID-file skip list in the source is ps, logs, attach, kill, stop, rm, respawn, daemon, project",
+      "evidence": "dist/codebuddy.js commander registrations on the root program: .command('config'), .command('sandbox'), .command('plugin'), .command('marketplace'), .command('doctor'), .command('update'), .command('install [target]'), .command('cleanup'), .command('ps'), .command('agents'); constants eC=['ps','logs','attach','kill','stop','rm','respawn'], ew=[...eC,'daemon','project']; docs https://www.codebuddy.ai/docs/cli/cli-reference and https://www.codebuddy.ai/docs/cli/settings ('codebuddy cleanup')",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "bin/cbc-prewarm is a pure node management client (list, ping, status, activate, kill, -v) that exits in milliseconds; it matched the bin/cbc surface as a session. Its subcommands are now excluded on that surface",
+      "evidence": "npm tarball 2.159.0 bin/cbc-prewarm header comment and usage block: 'cbc-prewarm list [--all|-a]', 'ping <id>', 'status <id>', 'activate <id> [--cwd <dir>] [-- <cbc args...>]', 'kill <id>', '-v | --version'; package.json bin cbc-prewarm -> bin/cbc-prewarm. Before the fix `node /usr/local/bin/cbc-prewarm list` matched surface 10 in the probe",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "the Homebrew formula named cbc is the COIN-OR Cbc solver, the name collision the native rows avoid by not matching the cbc alias",
+      "evidence": "https://formulae.brew.sh/api/formula.json entry cbc: desc 'Mixed integer linear programming solver', homepage https://github.com/coin-or/Cbc",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "the IDE archive bundles no CLI agent binary or codebuddy-code package, and the only file naming the power-save-blocker IPC channel is out/main.js",
+      "evidence": "HTTP range read of CodeBuddy-darwin-arm64-4.12.0.37847260-b4c35ed0.zip (nothing installed): central directory has no entry matching codebuddy-code, /bin/codebuddy, /bin/cbc; two byte scans (209 and 158 .js/.mjs/.cjs/.html files: workbench.desktop.main.js, extensions/genie and the other extensions, out/*, everything else under Contents/Resources/app; node_modules excluded) found the string 'power-save-blocker' only in out/main.js (D.handle('codebuddy:power-save-blocker') -> powerSaveBlocker.start('prevent-app-suspension' on macOS, 'prevent-display-sleep' on Windows)). extensions/genie/package.json name coding-copilot, publisher Tencent-Cloud, version 3.10.0, main out/extension/index.js",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Never run against a live instance; nothing was installed. (1) There is NO per-turn sleep inhibitor. The only caffeinate belongs to the --serve daemon and lives as long as the daemon, so a caffeinate-child rule would mark every idle daemon working forever. (2) Best precise signals need setup or a terminal host: hooks UserPromptSubmit to Stop (Stop is skipped on interrupt), the terminal-title spinner (braille frames = not idle, includes waiting; U+2733 = idle). OSC 9;4 progress is a waiting signal, not a working one: it tracks a pending tool approval. Without setup only a transcript write (raise) and CPU (guess) remain. (3) Best pid to session map: ~/.codebuddy/sessions/<pid>.json, whose sessionId becomes the real session UUID after start; then ~/.codebuddy/projects/*/<sessionId>.jsonl. The slug drops the leading dash that Claude Code keeps. Plain `codebuddy` has no session id in argv. (4) status/waitingFor in the PID file and jobs/<id>/state.json exist only for Agent View jobs and handed-off background sessions; they are the only local files that say 'waiting on the human' but they are undocumented. (5) Matching: npm installs run as `node <prefix>/bin/codebuddy` (symlink path kept in argv[1], as for other shebang tools); Homebrew and install.sh run a native Bun binary named codebuddy. The `cbc` alias is unmatched on the native side because COIN-OR Cbc shares the name. The native install layout is ~/.local/share/codebuddy/versions/<version>/codebuddy (source), so a re-spawned binary still has the base name codebuddy. Agent View runs each job under a broker process; on the native build the broker has the same command line as its inner CLI (env only tells them apart), on npm the broker is `node .../dist/codebuddy-broker.js` and is not matched. Exclusion is exact-token, so `codebuddy ps` is skipped but a prompt that is literally 'ps' would be too. (6) The IDE and WorkBuddy are hosts: the agent runs inside an Electron app, no per-session process, no known working signal. The IDE's own chat store is JSON in Application Support, not JSONL. (7) The surfaces for CodeBuddy CN and WorkBuddy AI match through the space-split argv because their app folders contain a space. (8) Verification 2026-09-29 fixes: broad path needle /.local/share/codebuddy/ narrowed to /codebuddy/versions/; subcommands doctor, config, sandbox, plugin, marketplace, cleanup and the cbc-prewarm subcommands excluded; `--serve --teammate-mode` helpers excluded from the daemon surfaces; OTel is enabled by the shipped product config, not off by default. (9) Residual false positive: a node process with 'bin/codebuddy' in any argument (a non-CodeBuddy script) matches the npm tui surface. (10) Nothing here is verified-locally: the harness is not installed on this Mac."
+}

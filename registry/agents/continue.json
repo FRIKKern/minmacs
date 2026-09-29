@@ -1,0 +1,257 @@
+{
+  "id": "continue",
+  "name": "Continue CLI",
+  "vendor": "Continue Dev, Inc.",
+  "homepage": "https://docs.continue.dev/cli/quickstart",
+  "surfaces": [
+    {
+      "kind": "daemon",
+      "label": "cn serve: hidden subcommand that runs one agent behind an HTTP server (default port 8000; GET /state returns isProcessing and pendingPermission; POST /message, /permission, /pause, /exit). Used by Continue's cloud/devbox agents; not in the public docs. Node runs the npm bin symlink, so ps shows `node <prefix>/bin/cn serve ...` (inferred, not observed). Matched before the TUI surface so it is not misfiled as an idle terminal session. 'serve' is a SUBSTRING test on every space-split token: a TUI started with a prompt such as `cn observe the logs` (or any word containing 'serve': preserve, server, reserved) is misfiled as this daemon surface (checked with probe matches(): `node /opt/homebrew/bin/cn observe the logs` hits surface 0). Also inherits the '/bin/cn' prefix false positives listed on the TUI surface.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/bin/cn",
+          "serve"
+        ],
+        "exclude_args": [
+          "--print",
+          "-p",
+          "review",
+          "checks",
+          "--internal-review-worker"
+        ]
+      },
+      "session_id_args": [
+        "--id"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "cn serve started by direct path to the package entry script: `node <...>/node_modules/@continuedev/cli/dist/cn.js serve ...` (pnpm global shim, manual run). Tightened to the full entry path: bare '@continuedev/cli' also matched `npm install -g @continuedev/cli` and `npm view @continuedev/cli` (checked with probe matches()). NOT covered: npx and project-local installs, whose argv is `node <...>/node_modules/.bin/cn`; that path contains '.bin/cn', which does not contain the substring '/bin/cn' (checked), so neither surface sees them.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@continuedev/cli/dist/cn.js",
+          "serve"
+        ],
+        "exclude_args": [
+          "--print",
+          "-p",
+          "review",
+          "checks",
+          "--internal-review-worker"
+        ]
+      },
+      "session_id_args": [
+        "--id"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "cn --print: headless one-shot, alive means working (the process exits when the answer is printed). Only the long flag is matchable: args_contain is a substring test and '-p' also hits '--prompt', '--port' and any path containing '-p'. The documented short form `cn -p \"...\"` is therefore not detected at all (it is vetoed from the TUI surface below instead of being misfiled as an idle session).",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/bin/cn",
+          "--print"
+        ],
+        "exclude_args": [
+          "serve",
+          "review",
+          "checks",
+          "--internal-review-worker"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "cn interactive terminal UI (Ink/React). Installed by `npm i -g @continuedev/cli` or the shell installer (which runs the same npm install under an fnm-managed Node 20). ps shows `node <prefix>/bin/cn [flags]` (inferred from the bin symlink and the `#!/usr/bin/env node` wrapper, not observed on a running cn). One process per session, no relaunch child except the auto-updater. `cn ls` and `cn --resume` also end in this same process. FALSE POSITIVES: '/bin/cn' is a substring test on every token, so any node script whose path starts with it also matches: `node /usr/local/bin/cnpm install x`, `node /usr/local/bin/cnvm use 20`, `node <dir>/bin/cn-build.js` all hit this surface (checked with probe matches()). Nothing narrower can be expressed, because args_contain is substring-only and exclude_args is exact-only. FALSE NEGATIVES: a prompt in argv that contains the exact word review, checks, serve or -p (`cn please review this diff`) is vetoed and the session is not listed at all.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/bin/cn"
+        ],
+        "exclude_args": [
+          "serve",
+          "-p",
+          "--print",
+          "review",
+          "checks",
+          "--internal-review-worker"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "cn interactive terminal UI started by direct path to the package entry script: `node <...>/node_modules/@continuedev/cli/dist/cn.js` (pnpm global shim, manual run). Tightened from bare '@continuedev/cli', which also matched `npm install -g @continuedev/cli`, `npm view @continuedev/cli` and similar package-manager commands as idle sessions (checked with probe matches()). Volta, bun and yarn layouts are not verified; they are matched only if their argv contains '/bin/cn' (TUI surface above). npx and project-local installs (`.../node_modules/.bin/cn`) match neither surface.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@continuedev/cli/dist/cn.js"
+        ],
+        "exclude_args": [
+          "serve",
+          "-p",
+          "--print",
+          "review",
+          "checks",
+          "--internal-review-worker"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.continue/sessions/*.json",
+    "per_session": "~/.continue/sessions/{session_id}.json",
+    "format": "json",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "The Bash tool spawns `$SHELL -l -c <command>` (bash or zsh) as a direct child of the cn node process (extensions/cli/src/tools/runTerminalCommand.ts getShellCommand + spawn). A shell child is therefore expected while a compound command runs. CAVEAT, inferred and not tested here: bash and zsh normally exec a lone simple command in place (`zsh -l -c 'npm test'`), in which case the child is `npm`, not a shell, and tool_children (which counts shells only) stays blind. Also blind while the model streams or thinks. Sticks on if the agent moves a command to a background job (up to 5 jobs, BackgroundJobService spawns a shell that stays a direct child) and while a dev server runs. Other direct children that are not tool calls: `sh -c git-ai --version` once at startup (exec), `open <url>` (exec, config selector), and, on macOS while the input box is enabled (that is, while idle), `osascript -e \"clipboard info\"` every 2 s (src/ui/hooks/useClipboardMonitor.ts pollInterval 2000, src/util/clipboard.ts exec). exec() runs `/bin/sh -c`, so if /bin/sh does not exec in place for that command line an idle session shows a brief `sh` child, which this signal would read as a tool. Not measured. Continue does not use `caffeinate` or a power assertion (no match for either in the CLI source)."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Raises working, never lowers it. ChatHistoryService.setHistoryInternal calls updateSessionHistory, which rewrites ~/.continue/sessions/<id>.json (whole file, JSON.stringify) on every history change: each user message, each finished assistant message, each tool status change and tool result, each usage update (SessionManager saveSession), plus once after the final response. Streamed deltas are not written, so a long model stream or a long tool call shows no writes. In the TUI a fresh session has no id in argv, so this only works through cwd: newest file whose workspaceDirectory in ~/.continue/sessions/sessions.json equals the process cwd. Only `cn serve --id <id>` maps exactly (options.id goes to loadOrCreateSessionById). The glob also matches sessions.json (the index), which is rewritten on every save: exclude it."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Unmeasured guess, no cn process was available. Raised from 3 to 10 because of a source-level cause of idle CPU: while the input box is enabled (idle) on macOS the TUI runs `osascript -e \"clipboard info\"` every 2 s, and ps reports a short-lived child's CPU as cputime over its own lifetime, so the tree sum can spike well over 3% whenever a sample lands on that child (inferred, not measured). The working side: the TUI runs a 150 ms setInterval spinner (extensions/cli/src/ui/LoadingAnimation.tsx) only while a response is pending and the stream is parsed in-process, so CPU should sit above an idle Ink TUI. A turn waiting on the network burns almost none. Never the only reason to say working."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "http",
+      "endpoint": "GET http://localhost:<port>/state (serve only, default 8000)",
+      "meaning": "Returns {session, isProcessing, messageQueueLength, pendingPermission}. isProcessing is the exact turn flag (set true when a turn starts, false in the finally block, and by POST /pause). pendingPermission is non-null while a tool waits for POST /permission. This is the most precise signal in the harness, but only for cn serve, and it needs the port (read from --port in argv, else 8000). The server also shuts itself down after --timeout seconds (default 300) with no processing and no /state calls, and each /state call resets that timer. PRIVACY: the /state body includes `session`, the whole conversation history. A monitor must parse only isProcessing and pendingPermission and discard the rest. SIDE EFFECT: every /state call resets the inactivity timer, so polling keeps an otherwise idle server alive past --timeout, and it calls syncSessionHistory."
+    },
+    {
+      "signal": "none_builtin",
+      "meaning": "Interactive TUI: a tool that needs approval (Write, Edit and Bash by default, see docs tool-permissions) shows an Ink prompt (activePermissionRequest in extensions/cli/src/ui/hooks/useChat.ts), and the AskQuestion tool shows a quiz prompt. Neither writes anything outside the process: no hook fires, no terminal title or bell is set, no notification helper is spawned (no match in src for OSC title, BEL, afplay, osascript or terminal-notifier other than clipboard). Not observable from outside. Inferred hint: an open turn with no tool child, no session write and near-zero CPU."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "Code exists but does nothing: the loader reads hooks from ~/.claude/settings.json, ~/.continue/settings.json, <project>/.claude/settings.json, <project>/.continue/settings.json and the two settings.local.json files, and HookService is registered, but no call site fires any event (the fireStop, fireNotification, fireUserPromptSubmit helpers are defined and never called; the published @continuedev/cli 1.5.47 bundle has no Stop, UserPromptSubmit or Notification emitter). Not in the public docs. Treat as unsupported.",
+    "events": [],
+    "docs": "https://github.com/continuedev/continue/blob/main/extensions/cli/AGENTS.md"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "OTLP metrics only, no traces or logs. Turned on only when an OTel env var is set: OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_METRICS_ENDPOINT or OTEL_METRICS_EXPORTER (console or otlp; the exporter defaults to console when only the switch is set). CONTINUE_METRICS_ENABLED=0 or CONTINUE_CLI_ENABLE_TELEMETRY=0 turns it off. Export interval OTEL_METRIC_EXPORT_INTERVAL, default 20000 ms in code (the spec file says 60000). service.name continue-cli. Aggregate counters, so not a live turn signal. Source: extensions/cli/src/telemetry/telemetryService.ts. Undocumented on docs.continue.dev."
+  },
+  "sources": [
+    {
+      "claim": "cn is the terminal agent; two modes: TUI (`cn`) and headless (`cn -p`); install via npm, shell installer or PowerShell installer; --resume resumes the most recent session; Node 20+",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.continue.dev/cli/quickstart (source: docs/cli/quickstart.mdx in continuedev/continue @ 5522c6f). Re-checked 2026-09-29: page lists the two modes, `npm i -g @continuedev/cli`, `--resume` (\"Resume the most recent session\") and `Node.js 20+`. `curl https://docs.continue.dev/cli/overview` returned HTTP 200 with an empty app shell (no text body), not a 404 or a visible redirect; treat the old URL as dead. The homepage field points at /cli/quickstart, which is correct."
+    },
+    {
+      "claim": "-p runs once and prints; in headless mode tools that need approval are excluded, so --allow is needed; `cn -p --resume` works",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.continue.dev/cli/headless-mode"
+    },
+    {
+      "claim": "tool approval prompt in the TUI, and ~/.continue/permissions.yaml plus ~/.continue/config.yaml as config files",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.continue.dev/cli/tui-mode and https://docs.continue.dev/cli/tool-permissions and https://docs.continue.dev/cli/configuration"
+    },
+    {
+      "claim": "npm package @continuedev/cli, bin `cn` -> dist/cn.js, latest 1.5.47 published 2026-06-18; dist/cn.js is `#!/usr/bin/env node` and runs the CLI in the same process",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`npm view @continuedev/cli version dist-tags time.modified` printed version = '1.5.47', dist-tags = { beta: '1.5.43-beta.20260203', latest: '1.5.47' }; `npm view @continuedev/cli@1.5.47 bin` printed { cn: 'dist/cn.js' }; tarball fetched with curl into the scratchpad and dist/cn.js read. Source: extensions/cli/build.mjs writes \"#!/usr/bin/env node\\nimport { runCli } from './index.js';\\nawait runCli();\\n\""
+    },
+    {
+      "claim": "the shell installer does not bundle a runtime as the docs say: it installs fnm, Node 20.20.1, then `npm install -g @continuedev/cli`, so the process is still `node .../bin/cn`",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/scripts/install.sh (REQUIRED_NODE_VERSION=\"20.20.1\", fnm install, line 277 npm install -g \"$PACKAGE_NAME\"); docs/cli/quickstart.mdx says 'The shell installer bundles its own runtime'"
+    },
+    {
+      "claim": "Ink TUI is the default; -p/--print is headless; --resume is a boolean and --fork takes a session id (the source session, not the process's own); `serve` is hidden; ls, checks, review are the only other subcommands",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/src/index.ts lines 173-360 (.option(\"-p, --print\"), .option(\"--resume\"), .option(\"--fork <sessionId>\"), .command(\"serve [prompt]\", { hidden: true }), .command(\"ls\"), .command(\"checks\"), .command(\"review\")); `cn review` forks a worker with argv --internal-review-worker (src/commands/review.ts)"
+    },
+    {
+      "claim": "sessions are one pretty-printed JSON file per session, ~/.continue/sessions/<uuid>.json, with keys sessionId, title, workspaceDirectory, history, mode, chatModelTitle, usage; plus an index ~/.continue/sessions/sessions.json (array of {sessionId,title,dateCreated,workspaceDirectory,messageCount}); CONTINUE_GLOBAL_DIR moves the root; the IDE extensions share the same store code",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "core/util/history.ts HistoryManager.save (orderedSession, JSON.stringify(..., undefined, 2)); core/index.d.ts BaseSessionMetadata; extensions/cli/src/session.ts getSessionDir. Key names read from the code, no file existed on this Mac (`ls ~/.continue` printed 'No such file or directory'). Path is not in docs.continue.dev, so documented=false."
+    },
+    {
+      "claim": "the session file is rewritten on every chat-history change, tool status change and usage update (message boundaries), not per streamed delta; `cn serve --id X` uses X as the session id; a plain TUI session id is a random uuid that is never in argv",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/src/services/ChatHistoryService.ts setHistoryInternal -> updateSessionHistory -> SessionManager.updateHistory -> saveSession; extensions/cli/src/session.ts loadOrCreateSessionById and createSession(history, sessionId); src/ui/hooks/useChat.ts ~line 338 (save after executeStreaming); src/services/ChatHistoryService.ts updateToolStatus -> updateToolCallState -> setHistoryInternal; src/session.ts addUsage ends in saveSession(); src/commands/serve.ts line 150-154 (options.id.trim() -> loadOrCreateSessionById)"
+    },
+    {
+      "claim": "the Bash tool is a direct child: spawn($SHELL, ['-l','-c', command]); background jobs spawn a shell the same way; no sleep inhibitor in the CLI. Other direct children exist (see next source)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/src/tools/runTerminalCommand.ts getShellCommand + spawn(shell, args) at line 192; extensions/cli/src/services/BackgroundJobService.ts line 68. `grep -rnE 'caffeinate|powerSave|process.title' extensions/cli/src` found no caffeinate, power-assertion or process.title code. CORRECTION: the earlier claim that the only spawn sites are git, shells, the git-ai helper, the update relaunch and the review worker was incomplete: `grep -rn 'exec(' src` also finds exec of `git-ai --version` (GitAiIntegrationService.ts line 48), exec of `open \"<url>\"` (useConfigSelector.ts line 52) and exec of `osascript -e \"clipboard info\"` (util/clipboard.ts line 21). Whether a lone command execs in place of the shell was not tested (only read-only commands were allowed)."
+    },
+    {
+      "claim": "cn serve exposes /state with isProcessing and pendingPermission, /message, /permission, /pause, /diff, /exit; default port 8000; --id, --timeout",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/src/commands/serve.ts (app.get('/state'), state.isProcessing = true at line 457 and false at line 533, pendingPermission); extensions/cli/src/index.ts serve options. Nothing about serve in docs/ (grep -rn 'cn serve' docs returned nothing); GET /state returns getCompleteStateSnapshot(session, isProcessing, messageQueueLength, pendingPermission) (src/session.ts line 240-259), where `session` is the full history; the handler sets state.lastActivity (src/commands/serve.ts line 215-216); pendingPermission is set in src/commands/serve.helpers.ts onToolPermissionRequest (line 81). Server binds with app.listen(port) and no host argument."
+    },
+    {
+      "claim": "hooks are scaffolding only: 17 event names and Claude-Code-shaped inputs are declared, a loader and runner exist, but nothing calls them; the published 1.5.47 bundle has no Stop/UserPromptSubmit/Notification emitters",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/src/hooks/{types,hookConfig,hookRunner,fireHook,HookService}.ts at 5522c6f; `grep -rnE 'fireStop|fireNotification|fireUserPromptSubmit|fireSessionStart|firePreToolUse' extensions/cli/src` matches only the definitions in fireHook.ts. In the 1.5.47 dist/index.js: grep for stop_hook_active and last_assistant_message printed nothing; the only hook_event_name:\"PreToolUse\"/\"PostToolUse\" literals sit inside the git-ai checkpoint service, not the user hook system"
+    },
+    {
+      "claim": "OpenTelemetry metrics export exists, off unless an OTel env var is set",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/src/telemetry/telemetryService.ts loadConfig (enabled = telemetryEnabled && hasOtelConfig), OTLPMetricExporter, ConsoleMetricExporter, default interval 20000; extensions/cli/spec/otlp-metrics.md; grep -c CONTINUE_METRICS_ENABLED in the 1.5.47 dist matched, so it ships"
+    },
+    {
+      "claim": "cn is not installed on this Mac, so nothing was observed running",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which cn` printed 'cn not found'; `ls ~/.continue` printed 'No such file or directory'; `ls ~/.vscode/extensions | grep -i continue` and `ls /Applications | grep -i continue` printed nothing; `ps -axo pid=,args= | grep -iE 'continuedev|/bin/cn( |$)'` printed nothing"
+    },
+    {
+      "claim": "the ps shape `node <prefix>/bin/cn` is inferred from Node behaviour, not observed: for a shebang script node sets argv[1] to the path as invoked (the bin symlink), not its realpath",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "inferred from package.json bin { cn: dist/cn.js } and the `#!/usr/bin/env node` wrapper; the same shape was assumed and recorded for qwen (registry/evidence/qwen-code.md). Not checked on a running cn."
+    },
+    {
+      "claim": "idle TUI polls the clipboard on macOS every 2 s by spawning osascript, which adds direct children and CPU to an idle session",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "extensions/cli/src/ui/UserInput.tsx line 699 (useClipboardMonitor enabled: !disabled && inputMode, pollInterval: 2000); src/ui/hooks/useClipboardMonitor.ts (setInterval checkClipboard); src/util/clipboard.ts line 21 execAsync('osascript -e \"clipboard info\"'). Not observed running; whether the child is `sh` or `osascript` depends on /bin/sh exec behaviour, which was not tested."
+    },
+    {
+      "claim": "process patterns: which argv shapes each surface matches",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "ran tools/agents_probe.py matches() (imported in python3, no processes started) over synthetic ps lines. Matched surface index / none: `node /opt/homebrew/bin/cn` -> 3; `... cn --print hi` -> 2; `... cn -p hi` -> none; `... cn serve --port 8000 --id abc` -> 0; `... cn review` -> none; `... cn --internal-review-worker` -> none; `... cn ls` -> 3; `node /usr/local/bin/cnpm install x` -> 3 (false positive); `node /usr/local/bin/cnvm use 20` -> 3 (false positive); `node <dir>/bin/cn-build.js` -> 3 (false positive); `... cn observe the logs` -> 0 (misfiled); `... cn please review this diff` -> none (dropped); `node <...>/.npm/_npx/<h>/node_modules/.bin/cn` -> none; `node <proj>/node_modules/.bin/cn` -> none; `node .../npm-cli.js install -g @continuedev/cli` -> 4 BEFORE the fix, none after; `node <...>/node_modules/@continuedev/cli/dist/cn.js` -> 4; `claude` under nvm node -> none."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not installed on this Mac: everything is from docs.continue.dev, the public repo (continuedev/continue @ 5522c6f, 2026-07-20, still HEAD on 2026-09-29) and the published npm tarball 1.5.47. Adversarial re-check on 2026-09-29 confirmed the source claims but corrected the process patterns and two signals (see registry/evidence/continue.md, Verification). The interpreter is the process (`node`), so the row matches on `/bin/cn` or the package entry path in argv; both are substring tests and admit false positives (cnpm, cnvm, cn-*; prompt words such as 'observe' misfiled as serve; prompt words review/checks/serve dropped). npx and project-local `.bin/cn` launches are not matched at all. A TUI session is one node process; the auto-updater relaunches by spawning a detached `node <entry> <same args>` child while the parent stays alive (UpdateService.ts), which the probe collapses to the outer process. The interactive TUI has no precise outside signal: no caffeinate, no hook that fires, no terminal title, no waiting marker. Best outside signals are session-file writes at message boundaries and, weakly, a shell child; the shell child can be missed when the shell execs a lone command, and an idle macOS TUI spawns an osascript clipboard probe every 2 s. CPU floor raised to 10 for that reason (unmeasured). For cn serve the exact answer is GET /state, but it returns the whole conversation and polling keeps the server alive. The Continue IDE extensions (VS Code publisher Continue, JetBrains) are a different agent that shares only the ~/.continue/sessions store; VS Code runs core in the extension host, so no process rule is given for them. MCP servers are long-lived stdio children of the cn process; tool_children counts only shells, but an MCP server launched as `sh -c ...` would stick it on. Confidence stays documented: no harness is installed here, so it cannot be higher; the ps argv shape and every CPU or shell-child behaviour are inferred."
+}

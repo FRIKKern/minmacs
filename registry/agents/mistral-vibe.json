@@ -1,0 +1,327 @@
+{
+  "id": "mistral-vibe",
+  "name": "Mistral Vibe",
+  "vendor": "Mistral AI",
+  "homepage": "https://github.com/mistralai/mistral-vibe",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "Mistral Vibe VS Code extension (publisher mistralai, id mistralai.mistral-vibe-code): runs the bundled Vibe agent as an ACP subprocess. INFERRED path: the docs say the agent is built in, but the bundled binary's name and folder were not inspected (extension not installed, VSIX not fetched). Also matches the same extension inside VS Code forks that use ~/.<fork>/extensions/",
+      "process": {
+        "path_contains": [
+          "/extensions/mistralai.mistral-vibe-code-"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "vibe-acp or vibe-app-server as a standalone PyInstaller binary (Zed downloads vibe-acp-darwin-<arch>-<ver>.tar.gz and runs ./vibe-acp; vibe-app-server is the same packaging, used by desktop clients). Hosts many sessions, not one. Vetoes the pty helper: a frozen vibe-app-server re-runs itself as 'vibe-app-server --internal-posix-pty-helper <fds>' for each shell command (vibe/app_server/entrypoint.py handles that flag), which would otherwise show up as a second session",
+      "process": {
+        "names": [
+          "vibe-acp",
+          "vibe-app-server"
+        ],
+        "exclude_args": [
+          "--internal-posix-pty-helper"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "vibe-acp (Agent Client Protocol server) from uv tool, pipx or pip: a python interpreter running .../bin/vibe-acp. Started by Zed, JetBrains, Neovim (avante) or the VS Code extension. Never retitled",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14",
+          "Python"
+        ],
+        "args_contain": [
+          "bin/vibe-acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "vibe-app-server (JSON-RPC over stdio) from uv tool, pipx or pip: a python interpreter running .../bin/vibe-app-server. Child of the Rust TUI (VIBE_CLI=rust); also started by desktop clients. Never retitled",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14",
+          "Python"
+        ],
+        "args_contain": [
+          "bin/vibe-app-server"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Rust TUI, opt-in with the undocumented env var VIBE_CLI=rust: the python launcher execs .../site-packages/vibe/_bin/vibe-rs in place, so argv[0] is that path and the name is vibe-rs. Its agent runs in a direct child, vibe-app-server. The child is started as 'vibe-app-server --experimental-harness' (DEFAULT_APP_SERVER_ARGS), so a Rust TUI session always uses the unified store",
+      "process": {
+        "names": [
+          "vibe-rs"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Python TUI, the default. After startup the process retitles itself with setproctitle to 'Vibe CLI', so ps shows 'Vibe CLI' and argv[0] splits to 'Vibe'; the original python path and every flag (including --resume <id>) are gone from the command line. Applies to every subcommand (vibe -p, vibe mcp, vibe --setup, vibe update), which are short-lived. Retitle effect on macOS ps is INFERRED from source, not seen",
+      "process": {
+        "names": [
+          "Vibe"
+        ],
+        "args_contain": [
+          "CLI"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Python TUI before setproctitle has run, or if it failed: python interpreter with the console script .../bin/vibe as argument (uv tool: ~/.local/share/uv/tools/mistral-vibe/bin/python ~/.local/bin/vibe). Short window at startup. Excludes the pty helper child the unified harness spawns for shell commands",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14",
+          "Python"
+        ],
+        "args_contain": [
+          "/bin/vibe"
+        ],
+        "exclude_args": [
+          "--internal-posix-pty-helper"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "cloud",
+      "label": "Vibe Code Web (remote sandbox on a GitHub repo, reached from the CLI with /teleport). Nothing runs on the Mac"
+    }
+  ],
+  "session_store": {
+    "glob": "~/.vibe/logs/session/session_*/messages.jsonl",
+    "per_session": "~/.vibe/logs/session/session_*_{session_id}/messages.jsonl",
+    "format": "jsonl",
+    "documented": false,
+    "glob_note": "Legacy Python harness layout. Folder name is <session_prefix>_<UTC YYYYMMDD_HHMMSS>_<first 8 chars of session id>, with meta.json beside messages.jsonl. per_session matches only when {session_id} is the 8-character short id (what the resume picker shows), not a full uuid. The Unified Harness, which the vibe_cli_unified_harness_rollout experiment (and --experimental-harness) switches on and which the wheel bundles since 2.25.6, writes a different layout instead: ~/.vibe/logs/session/unified/<full session id>/{CURRENT, journal/<16 digits>.jsonl, chunks/}. Which layout a given Mac uses is decided per user by a server-side flag, so check both globs.",
+    "unified_glob": "~/.vibe/logs/session/unified/*/journal/*.jsonl",
+    "home_override": "VIBE_HOME moves ~/.vibe. session_logging.save_dir in config.toml moves logs/session. MISTRAL_VIBE_SESSION_ROOT is read by the unified host only.",
+    "pid_index": {
+      "note": "Not in the schema. Maps a live pid to its session without argv, which matters because the Python TUI erases its own argv and a fresh launch never carries an id.",
+      "lease_diagnostic": "~/.vibe/logs/session/active/<session id>.lock.json  keys: lease_version, session_id, process_id, acquired_at. Written next to an flock-held <id>.lock. Both files are unlinked on clean release; after a crash the diagnostic can remain, so check process_id is alive. The unified store uses the same files.",
+      "meta_json_keys": "session_id, parent_session_id, start_time, end_time, git_commit, git_branch, environment, origin_directory, username, child_sessions, loops, title, title_source, bumped_at, pinned_at, archived_at, unseen_at, seen_at, experiments, config, import_provenance, created_worktree, plus stats, total_messages, last_message_fingerprint, tools_available, agent_profile, system_prompt written on save. Names taken from the SessionMetadata type and the save code, not read from a file.",
+      "messages_jsonl_keys": "role, content, images, injected, reasoning_content, reasoning_payloads, reasoning_message_id, tool_calls, name, tool_call_id, tool_result, message_id, user_display_content, input_text, resources, manual_shell, context_boundary. Names from the LLMMessage type, not read from a file."
+    }
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "Legacy Python harness only. The bash tool, a hook command, a manual '!cmd' and the update check each run as a DIRECT child of the TUI: asyncio create_subprocess_shell with executable=$SHELL. CORRECTED: argv[0] is $SHELL, not sh, so ps shows '/bin/zsh -c <cmd>' (name zsh) on a default macOS account; only an unset $SHELL gives sh. Both are in the probe's SHELLS set, a non-POSIX $SHELL (nu, xonsh) is not. Idle MCP stdio servers are not shells, so they do not trip it. Blind in four cases: a single simple command (no ';', '&&' or pipe) is exec'd in place by zsh and bash -c, so the shell disappears and the direct child is the command itself (seen locally with zsh, see sources); the Unified Harness puts a python pty helper between the TUI and the shell (direct child is python, shell is a grandchild); the Rust TUI's tools run under vibe-app-server, a grandchild; and any turn that is only streaming a model reply or waiting on the network. Inferred from source, never observed."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Legacy layout only unless the unified glob is used. messages.jsonl is appended when the user prompt is accepted, after each completed model step (once its tool calls have run) and in a finally block when the turn ends. Nothing is written while a reply streams or a long tool runs, so a quiet file does not mean idle. Needs a session id, which a fresh launch does not have in argv; map through the lease diagnostic instead."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured. The Textual UI animates a spinner and re-renders streamed text during a turn. For the Rust TUI the tree includes the vibe-app-server child, so the sum still covers the agent. A turn waiting on the network burns no CPU."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "terminal_title",
+      "meaning": "OSC 0 title, default on (experimental_enable_tab_status = true), Python and Rust TUI alike. '>> <title>' while a turn is running, '? <title>' while an approval or a question is pending, plain '<title>' idle (title is the session title, else 'Vibe'). When the terminal is unfocused and a bell fired, the title becomes '<title> - Action Required' or '<title> - Task Complete' instead. The precise turn signal, and the only wait signal, but it lives in the terminal host (tmux 3.7+, cmux), not in ps. Off when the user sets experimental_enable_tab_status = false; not written under --headless."
+    },
+    {
+      "signal": "os_notification",
+      "meaning": "Terminal bell on 'action required' and on 'task complete', only while the terminal is unfocused, throttled to 1 per second. enable_notifications, default true. No file or process trace."
+    },
+    {
+      "signal": "acp_request",
+      "event": "session/request_permission",
+      "meaning": "For ACP hosts (Zed, JetBrains, VS Code extension) the agent sends this JSON-RPC request to the client when a tool needs approval. Visible to the client only, not to another process."
+    },
+    {
+      "signal": "hook_absent",
+      "meaning": "Hooks have no wait event. pre_tool fires BEFORE the permission prompt, so it cannot tell 'asking' from 'running'. post_tool does not fire when the user denies or the tool never ran. post_agent fires when a model reply ends with no pending tool calls, which marks the end of a turn but not a wait."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks.toml with [[hooks]] tables: ~/.vibe/hooks.toml (user, loaded second) and <project>/.vibe/hooks.toml (project, loaded first, trusted folders only; a project entry beats a user entry with the same name). No flag needed. Fields: name, type, command, match (pre_tool/post_tool only), timeout (default 60 s), strict, description. Payload arrives as JSON on stdin with session_id, parent_session_id, transcript_path, cwd, hook_event_name (+ tool fields). Exit 0 with empty stdout = pass. Subagents inherit the parent's hooks. Shell commands, not plugin code.",
+    "events": [
+      "pre_tool",
+      "post_tool",
+      "post_agent"
+    ],
+    "docs": "https://docs.mistral.ai/vibe/code/cli/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "config.toml: enable_otel = true (default false) AND enable_telemetry = true (default true). OTLP over HTTP to <otel_endpoint>/v1/traces, or by default to Mistral's own telemetry endpoint using the provider API key; standard OTEL_EXPORTER_OTLP_* variables add auth for a custom collector. Any config field can also be set as a VIBE_<FIELD> env var. Spans for agent (invoke_agent), model and tool (execute_tool) operations, gen_ai semantic conventions, conversation id as baggage; client-side redaction otel_redaction = default|strict|none. BatchSpanProcessor, so spans leave in batches after they end: not a live signal for a monitor. Only the legacy and app-server paths call setup_tracing (vibe/app_server/_runtime.py)."
+  },
+  "sources": [
+    {
+      "claim": "Repo, version and console scripts: mistral-vibe 2.25.8 (CHANGELOG 2026-09-23) with scripts vibe = vibe.cli.launcher:main, vibe-acp = vibe.acp.entrypoint:main, vibe-app-server = vibe.app_server.stdio:main. Python >= 3.12.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "github.com/mistralai/mistral-vibe @7c19608 (2026-09-23): pyproject.toml [project] version and [project.scripts]"
+    },
+    {
+      "claim": "Install: one-line installer runs uv tool install mistral-vibe and exposes vibe and vibe-acp; also pip. No macOS app bundle. CORRECTED: a Homebrew formula does exist (see the Homebrew source below); the earlier 'no Homebrew formula is documented' was wrong.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.mistral.ai/vibe/code/cli/install-setup ; README.md 'One-line install', 'Using uv', 'Using pip' ; re-run 2026-09-29: curl -sL https://mistral.ai/vibe/install.sh shows 'uv tool install mistral-vibe' and 'commands: vibe, vibe-acp'; README.md line 984 says 'brew upgrade mistral-vibe'"
+    },
+    {
+      "claim": "The Python TUI renames its own process to 'Vibe CLI' right at the top of main(), for every subcommand, so it can be found in ps/top/Activity Monitor on Linux and macOS. Uses setproctitle==1.3.7 (a hard dependency). A shorter title than the original argv fits the argv area, so on macOS ps should show exactly 'Vibe CLI'. That last step is still not observed for Vibe (nothing is installed here), but a third-party report supports it: see the setproctitle source below.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/cli/entrypoint.py::_set_process_title (line ~375, called first in main()); vibe/cli/_process_title.py::process_name() returns 'Vibe CLI'; pyproject.toml dependency setproctitle==1.3.7. Only vibe/cli/entrypoint.py retitles: grep -rn 'setproctitle\\|_process_title' vibe shows no other caller, so vibe-acp and vibe-app-server keep their real argv."
+    },
+    {
+      "claim": "Rust TUI is opt-in via the undocumented VIBE_CLI=rust; the launcher execs vibe/_bin/vibe-rs in place (os.execvpe) and sets VIBE_APP_SERVER_BIN to the vibe-app-server script beside the launcher, which the Rust process spawns as its child. Wheel bundles vibe/_bin/*.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/cli/launcher.py (comment 'undocumented VIBE_CLI environment variable'); vibe/cli/_rust.py::exec_rust_cli; vibe/cli-rust/src/startup/launch.rs; pyproject.toml wheel include 'vibe/_bin/*'; README.md line 706 mentions VIBE_CLI=rust for mcp add"
+    },
+    {
+      "claim": "The Python TUI runs the app-server in process (memory transport), so it is one process; the Rust TUI is two (vibe-rs plus a vibe-app-server child).",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/app_server/local.py imports memory_transport_pair, LocalHarness.start(); vibe/cli-rust/AGENTS.md: 'drives the unchanged Python engine over the app-server JSON-RPC protocol'; tui -> client -> spawn vibe-app-server"
+    },
+    {
+      "claim": "Title indicators: '>> <title>' running, '? <title>' waiting, '<title> - Action Required' / '<title> - Task Complete' when unfocused and belled; written as OSC 0. Gated by experimental_enable_tab_status (default True) and enable_notifications (default True). Rust TUI mirrors it.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/cli/textual_ui/notifications/adapters/textual_notification_adapter.py (_RUNNING_INDICATOR '>>', _WAITING_INDICATOR '?', _set_title writes '\\x1b]0;{title}\\x07'); vibe/core/config/vibe_schema.py lines 602-603; vibe/cli/textual_ui/app.py lines ~3045 and ~3088 (notify ACTION_REQUIRED before approval and question), ~3054/3134 (busy state restored after answer), ~3533 (COMPLETE); vibe/cli-rust/src/terminal_notifier.rs title()"
+    },
+    {
+      "claim": "Notifications on 'input needed' and 'task finished' are officially documented; the tab-status title is not (source and the /vibe skill text only).",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.mistral.ai/vibe/code/cli/configuration-reference: 'enable_notifications | boolean | true | OS-level notifications when a long task finishes or input is needed'; README.md 'Notification Settings'. experimental_enable_tab_status appears only in vibe/core/skills/builtins/vibe.py line 192"
+    },
+    {
+      "claim": "Hooks: three types pre_tool, post_tool, post_agent, declared in ~/.vibe/hooks.toml and <project>/.vibe/hooks.toml, shell commands with JSON on stdin. No turn-start and no permission-wait event.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.mistral.ai/vibe/code/cli/hooks ; README.md '### Hooks'; vibe/core/hooks/{config,manager,executor}.py"
+    },
+    {
+      "claim": "OpenTelemetry: traces over OTLP/HTTP, off by default, needs enable_telemetry too, custom collector via otel_endpoint (+ /v1/traces), redaction modes.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "README.md '### OpenTelemetry Tracing'; vibe/core/config/vibe_schema.py lines 535-555 (enable_otel default False, otel_endpoint '', otel_redaction DEFAULT); vibe/core/tracing.py::setup_tracing (BatchSpanProcessor, OTLPSpanExporter); agent_span/tool_span use gen_ai attributes"
+    },
+    {
+      "claim": "Session store path: ~/.vibe/logs/session/<session_prefix>_<UTC timestamp>_<first 8 of id>/ holding meta.json and messages.jsonl (one JSON message per line, appended, fsync'd). VIBE_HOME overrides ~/.vibe. Not promised by the docs beyond 'session logging must be enabled'.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/utils/paths.py (_DEFAULT_VIBE_HOME = Path.home()/'.vibe', get_vibe_home reads VIBE_HOME); vibe/core/paths/_vibe_home.py SESSION_LOG_DIR = VIBE_HOME/logs/session; vibe/core/config/models.py SessionLoggingConfig (save_dir, session_prefix 'session', enabled True); vibe/core/session/session_logger.py save_folder and _persist_messages_sync; vibe/core/session/session_index.py METADATA_FILENAME 'meta.json', MESSAGES_FILENAME 'messages.jsonl'; vibe/core/session/session_id.py (id shape xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). README '### Session Management': 'Session logging must be enabled in your configuration for these features to work.'"
+    },
+    {
+      "claim": "Write cadence of messages.jsonl: on prompt accepted, after each completed model step, and in a finally when the turn loop exits. Not during streaming.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/core/agent_loop/_loop.py: _save_messages() at line ~1590 (user message added), line ~2105 ('Per-turn save so the on-disk log stays fresh'), line ~2137 (finally); session_logger.save_interaction offloads to a worker thread"
+    },
+    {
+      "claim": "Pid to session map: every live session holds an flock on <save_dir>/active/<id>.lock and writes <id>.lock.json with process_id. Acquired when the session opens, unlinked on release.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/core/session/session_lease.py (SessionLease.acquire, diagnostic keys lease_version, session_id, process_id, acquired_at); vibe/app_server/_runtime.py::_acquire_session_lease; harness/runtimes/python/.../vibe/_storage.py has a twin with session_is_live()"
+    },
+    {
+      "claim": "Unified Harness store layout and how it is chosen: --legacy-harness wins, then --experimental-harness, then the GrowthBook flag vibe_cli_unified_harness_rollout == 'unified' (and the native module present), else legacy. Bundled in packages since 2.25.6 and no longer labelled experimental. Store: <root>/unified/<session id>/{CURRENT, journal/<16 digits>.jsonl, chunks}.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/_experimental_harness.py::resolve_harness_selection; CHANGELOG 2.25.6 'Vibe packages now bundle the Unified Harness Runtime' and 'The Unified Harness is no longer labeled experimental'; harness/runtimes/python/python/mistralai_vibe_local_harness/vibe/_storage.py UnifiedSessionStore.session_root = root/'unified'/session_id, _JOURNAL_PATH_PATTERN; _host.py::_default_storage_root = MISTRAL_VIBE_SESSION_ROOT or ~/.vibe/logs/session"
+    },
+    {
+      "claim": "Tool shells: legacy harness runs shell commands as create_subprocess_shell(executable=$SHELL, start_new_session=True), a direct child of the TUI. The unified harness starts a python pty helper per command (sys.executable -m mistralai_vibe_local_harness.vibe._processes._posix_helper <fds>, or '<frozen exe> --internal-posix-pty-helper <fds>') whose child is $SHELL -lc <command>.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/core/utils/shell.py::spawn_shell_command; harness/runtimes/python/python/mistralai_vibe_local_harness/vibe/_processes/_posix.py::start_terminal and _helper_argv; vibe/cli/entrypoint.py top (pty-helper branch runs before setproctitle)"
+    },
+    {
+      "claim": "No sleep inhibitor and no caffeinate anywhere in the code, so there is no power-assertion or caffeinate-child signal for this harness.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cd clone && grep -rIl -i 'caffeinate\\|IOPMAssertion\\|prevent.*sleep\\|sleep_inhibit\\|keep_awake\\|keep-awake\\|wakelock' vibe harness docs README.md CHANGELOG.md  -> no output (clone at the scratchpad, commit 7c19608)"
+    },
+    {
+      "claim": "ACP: vibe-acp is the editor-facing server (Zed, JetBrains, Neovim avante). Zed's extension downloads vibe-acp-darwin-{aarch64,x86_64}-<ver>.tar.gz from GitHub releases and runs ./vibe-acp. Tool approval is an ACP request_permission call.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "docs/acp-setup.md; distribution/zed/extension.toml [agent_servers.mistral-vibe.targets.darwin-aarch64] cmd = './vibe-acp'; vibe.spec / vibe-acp.spec / vibe-app-server.spec EXE names; vibe/acp/agent.py line ~866 client.request_permission"
+    },
+    {
+      "claim": "VS Code extension exists (mistralai.mistral-vibe-code 1.22.86, macOS Apple Silicon and Intel builds), ships the Vibe agent built in, runs it over ACP, and shares config and sessions with the CLI. Its process path was not inspected.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.mistral.ai/vibe/code/vs-code-extension/install-authenticate ('ships with the Vibe agent built in'; 'runs the bundled Vibe agent with --setup'); https://docs.mistral.ai/vibe/code/choose-cli-vscode-web-sessions ('Local VS Code (shared with CLI)', 'through ACP'); https://marketplace.visualstudio.com/items?itemName=mistralai.mistral-vibe-code (Works with: macOS Apple Silicon, macOS Intel); CHANGELOG 2.25.6 'VS Code narration now plays through the ACP subprocess'"
+    },
+    {
+      "claim": "Vibe Desktop is mentioned in the CHANGELOG (local Code sessions, per-session app-server processes released a second after each turn) but no public download, bundle id or process shape could be found. The App Store 'Vibe by Mistral (ex-Le Chat)' is an iPhone, iPad and visionOS chat app, not a Mac surface.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "CHANGELOG.md 2.25.8 'Vibe Desktop now shows unseen indicators for local Code sessions'; README.md line ~970 'the desktop app releases an idle session's process a second after each turn'; https://www.reddit.com/r/MistralAI/comments/1wpsdwe/vibe_desktop_what_is_it/ (users asking what it is); https://apps.apple.com/us/app/vibe-by-mistral-ex-le-chat/id6740410176 ('Requires iOS 16.4 or later'; iPhone, iPad, Apple Vision)"
+    },
+    {
+      "claim": "Not installed on this Mac; nothing running; no session data.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "which vibe vibe-acp mistral -> 'vibe not found' 'vibe-acp not found' 'mistral not found'; ls ~/.vibe -> 'No such file or directory'; ps -axo pid=,args= | grep -i -E 'vibe|mistral' -> empty; ls /Applications | grep -i -E 'vibe|mistral' -> empty; ls ~/.vscode/extensions ~/.cursor/extensions | grep -i -E 'mistral|vibe' -> empty; python3 -c 'import setproctitle' -> ModuleNotFoundError"
+    },
+    {
+      "claim": "Homebrew formula exists: homebrew-core mistral-vibe, stable 2.25.0 (bottled for arm64 macOS), depends_on python@3.14, built as a Python virtualenv. A brew install therefore runs a venv python (name python) with the script /opt/homebrew/bin/vibe, vibe-acp or vibe-app-server, which the interpreter surfaces already match. It lags the 2.25.8 in the repo.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "HOMEBREW_NO_AUTO_UPDATE=1 brew info mistral-vibe -> 'stable 2.25.0 (bottled), HEAD ... Not installed ... From: .../Formula/m/mistral-vibe.rb ... Required: certifi, cryptography, libyaml, pydantic, python@3.14, rpds-py'; curl https://raw.githubusercontent.com/Homebrew/homebrew-core/HEAD/Formula/m/mistral-vibe.rb shows 'include Language::Python::Virtualenv' and 'depends_on \"python@3.14\"'"
+    },
+    {
+      "claim": "setproctitle does change what macOS ps shows, provided the native module loads. When it does not load (a corrupt conda install), the call silently does nothing and ps keeps the original argv, which the pre-retitle python surface then matches.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/dvarrazzo/py-setproctitle/issues/128: with a working install setproctitle('Test') gave ps '14442 ttys002 0:00.03 Test' on macOS 13 (Apple Silicon, v1.2.3); a project contributor reports 'everything works fine' on macOS 13.2 Intel python.org 3.10; with a broken conda .so the same call left 'python testscript.py'. Issue closed as a conda problem. https://github.com/dvarrazzo/py-setproctitle README lists MacOS X as supported. Not tested with 1.3.7 or with Vibe itself."
+    },
+    {
+      "claim": "Shell tool children: argv[0] of the direct child is $SHELL (not sh), and a lone simple command is exec'd in place so the shell is absent from ps.",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 -c \"subprocess.Popen('sleep 2; true', shell=True, executable='/bin/zsh')\" then ps -o args= -p <pid> -> '/bin/zsh -c sleep 2; true'; the same with the single command 'sleep 2' -> 'sleep 2'. Vibe passes executable=os.environ.get('SHELL') to asyncio.create_subprocess_shell in vibe/core/utils/shell.py::spawn_shell_command, which uses subprocess.Popen(shell=True) semantics."
+    },
+    {
+      "claim": "Rust TUI forces the unified harness in its app-server child.",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "vibe/cli-rust/src/server/process.rs DEFAULT_APP_SERVER_ARGS = ['--experimental-harness'] (line 84), appended by resolve_launch in vibe/cli-rust/src/startup/launch.rs for VIBE_APP_SERVER_BIN and the default uv launch; vibe/_experimental_harness.py::resolve_harness_selection: the flag gives use_unified=True."
+    },
+    {
+      "claim": "Match check of the row against 16 made-up command lines with tools/agents_probe.py matches(): intended surfaces hit; the frozen pty helper hit surface 1 before the exclude_args fix and none after. Known residual false positive: a python process whose argument contains '/bin/vibe' (for example /Users/a/bin/vibe.py, .../bin/vibecoder, .../bin/vibe-kanban run under python) matches the pre-retitle surface, because args_contain is a substring test. An Electron app named Vibe does not match (no CLI argument).",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "scratchpad script mvtest.py calling agents_probe.matches(surface, {name: basename(argv[0]), exe: argv[0], argv: split(' ')}); made-up input, not a real process list"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Never run against a live instance. (1) The default Python TUI erases its own command line: ps shows 'Vibe CLI', so the flags, --resume <id> and even -p are invisible, and a one-shot 'vibe -p' run cannot be told from a TUI by argv (a -p run is working for its whole life). The row matches 'Vibe' + 'CLI' for that reason; the pre-retitle python shape is a second, short-lived surface. Map pid to session through ~/.vibe/logs/session/active/<id>.lock.json (process_id). Short-lived subcommands (vibe mcp, vibe update, vibe --setup) get the same title and briefly show up as idle sessions. (2) Strongest signal is the OSC 0 title (>> running, ? waiting) which needs the terminal host, not ps. From ps alone only three weak signals exist: a direct sh child (legacy harness), a fresh messages.jsonl, and CPU. There is no sleep inhibitor, no hook for permission waits, and no turn-start hook. (3) Two session layouts: legacy session_*/messages.jsonl and unified unified/<id>/journal/*.jsonl; a server-side flag decides. (4) Rust TUI (VIBE_CLI=rust; its app-server child is always started with --experimental-harness, so it uses the unified store and the lease pid is the CHILD's pid, not vibe-rs's): vibe-rs plus a vibe-app-server child; the probe skips a child whose parent matches, so the child is folded into vibe-rs and its tool shells are grandchildren, invisible to tool_children. (5) vibe-acp and vibe-app-server host several sessions per process (editors, desktop): one process is not one session. (6) The lease files exist only while session_logging.enabled is true (default). Vibe Desktop and the VS Code extension's bundled binary could not be inspected; their surfaces are inferred or absent. (7) The names python/python3/Python in the interpreter surfaces are generic; they are held safe only by the bin/vibe-acp, bin/vibe-app-server and /bin/vibe argument requirements, and '/bin/vibe' is a substring test, so it also matches any python script whose path contains /bin/vibe (bin/vibe.py, bin/vibecoder, bin/vibe-kanban); the window is short unless setproctitle failed. (8) A PyInstaller build of the TUI (release asset vibe-<os>-<arch>-<ver>.zip, contains an executable named vibe) has no surface: the name 'vibe' is too generic to match alone, and it retitles to 'Vibe CLI' after start anyway. (9) Homebrew installs (formula 2.25.0, python@3.14) run as a venv python and are covered by the interpreter surfaces. Shell tool children show as the user's $SHELL (zsh), and a single simple command has no shell at all, so tool_children under-reports."
+}

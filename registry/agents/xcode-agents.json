@@ -1,0 +1,265 @@
+{
+  "id": "xcode-agents",
+  "name": "Xcode coding agents (Claude Agent, Codex, Gemini, ACP agents)",
+  "vendor": "Apple (hosting Anthropic Claude Agent, OpenAI Codex, Google Gemini CLI and third-party ACP agents)",
+  "homepage": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
+  "surfaces": [
+    {
+      "kind": "ide",
+      "label": "Xcode itself, the host of every conversation. One process (Xcode.app/Contents/MacOS/Xcode) holds all conversations and all agents. Deliberately no process spec: matching the host would show Xcode as an idle agent all day, and nothing on its command line says whether an agent turn is running. Its activity indicator (the Assistant Activity toolbar button) is UI only. Bundle id: Apple's device-management docs name com.apple.dt.Xcode as the PayloadType (preference domain) for Xcode's coding-assistant restriction; that the bundle id equals that domain is the usual convention, not checked here because Xcode is not installed.",
+      "bundle_ids": [
+        "com.apple.dt.Xcode"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Claude Agent in Xcode: a bundled copy of the Claude Code native binary that Xcode downloads and runs itself. INFERRED command line, never seen in `ps`: <home>/Library/Developer/Xcode/CodingAssistant/Agents/claude/<version>/claude (layout shown by an Apple Developer Forums post, `file ~/Library/Developer/Xcode/CodingAssistant/Agents/claude/*/claude`; the post does not name the Xcode version). The Xcode 26.3 RC layout was described by two blog posts as the path `.../Agents/Versions/26.3` itself being the claude executable; whether that is the file or a folder holding `claude` is not stated, so that layout is NOT matched here and falls through to the last surface. Started by Xcode with CLAUDE_CONFIG_DIR=~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig in its environment (environment is not visible to a command-line matcher). Matched on argv[0] under Agents/claude/ only. An earlier draft also required an argument containing `/claude`, which would have labelled any Codex or Gemini process with a project path such as /Users/x/claude-tools as Claude Agent. The helper flags excluded here are copied from the claude-code row (same binary); the last surface excludes them too so they do not fall through. The Codex and Gemini binaries live in the same Agents folder, hence the separate surfaces below.",
+      "process": {
+        "path_contains": [
+          "/Xcode/CodingAssistant/Agents/claude/"
+        ],
+        "exclude_args": [
+          "--bg-pty-host",
+          "--bg-spare",
+          "bg-pty-host",
+          "bg-spare"
+        ]
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Codex in Xcode: the upstream OpenAI Codex Rust binary (Xcode 26.3 shipped 0.98.0) under .../Xcode/CodingAssistant/Agents/ (exact sub-path not seen). INFERRED to run as `codex app-server` (the JSON-RPC mode that rich clients use); never seen in a `ps` line. One app-server can host several Xcode conversations, so one process is not one session. CODEX_HOME is ~/Library/Developer/Xcode/CodingAssistant/codex per the giginet/xcodeproj-mcp-server README (config.toml; auth.json per an OpenAI community post). `daemon` and `proxy` are excluded as in the codex row. Also a `codex` started by the user in Terminal or by the ChatGPT app matches the separate `codex` row, not this one, because its path is not under Xcode's Agents folder.",
+      "process": {
+        "path_contains": [
+          "/Xcode/CodingAssistant/Agents/"
+        ],
+        "args_contain": [
+          "app-server"
+        ],
+        "exclude_args": [
+          "daemon",
+          "proxy"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "Any other binary Xcode downloads under its Agents folder: Gemini CLI (Xcode 26.6 and 27; an Apple forum post says it is Gemini CLI 0.42.0) and later additions. Gemini's exact executable name, whether it is a native binary or a node script (then argv[0] would be node and this path test would miss it), and its arguments are not known. Kept last so the two surfaces above win first. Known risk: any helper binary Xcode keeps under Agents/ (a bundled ripgrep, an MCP shim) would read as an idle agent; none was ever seen.",
+      "process": {
+        "path_contains": [
+          "/Xcode/CodingAssistant/Agents/"
+        ],
+        "exclude_args": [
+          "--bg-pty-host",
+          "--bg-spare",
+          "bg-pty-host",
+          "bg-spare",
+          "daemon",
+          "proxy"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "ACP agents added by the user or by a plug-in (Xcode 26.6 and 27: Agent Client Protocol, for example `copilot --acp`). Xcode runs whatever executable and flags the user typed in the Add an Agent sheet, so there is no path or name to match. Only the parent process (Xcode) marks it as Xcode's; the registry has no ancestor rule, so no process spec is given. Such a process will match its own harness row (copilot-cli and others) and should be re-labelled as Xcode-hosted by a parent check."
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/projects/*/*.jsonl",
+    "per_session": "~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/projects/*/{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": false,
+    "note": "Claude Agent only. Xcode uses the Claude Code config directory layout with ClaudeAgentConfig as the config dir, so transcripts follow Claude Code's projects/<slug>/<session>.jsonl layout. Evidence: a public usage scanner reads this folder recursively for **/*.jsonl (phuryn/claude-usage scanner.py XCODE_PROJECTS_DIR), which confirms .jsonl under projects/ but not the exact projects/<slug>/<session>.jsonl depth; that depth is inferred from Claude Code. Apple does not document it. Whether a running Xcode claude process carries a session id on its command line is unknown, so per_session may never resolve. Never read message content.",
+    "stores": [
+      {
+        "surface": "Codex in Xcode",
+        "path": "~/Library/Developer/Xcode/CodingAssistant/codex/sessions/YYYY/MM/DD/rollout-*.jsonl",
+        "format": "jsonl",
+        "documented": false,
+        "note": "Third-party config (stevencarpenter/hippo config.default.toml session_roots) lists this path. Not seen on disk: Xcode agents are not installed here. Same rollout layout as the codex row would apply if CODEX_HOME is the CodingAssistant/codex folder."
+      },
+      {
+        "surface": "Gemini in Xcode",
+        "path": "unknown",
+        "note": "Config folder is ~/Library/Developer/Xcode/CodingAssistant/gemini (Apple docs). Where its chats go was not found."
+      },
+      {
+        "surface": "Xcode's own conversation history (sidebar, History slider, rollback)",
+        "path": "unknown",
+        "note": "Apple docs describe conversation history and saved conversations but give no path or format. Not found in any source. Not seen under ~/Library/Developer/Xcode/UserData on this Mac (that install predates 26.3)."
+      }
+    ]
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Claude Agent only, and only if a process can be mapped to its session id (see session_id_args, unverified). Raises working; a quiet file never proves idle. Same cadence caveat as the claude-code row."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "Claude Agent: Claude Code runs each Bash tool call as a shell child of the claude process, so a direct shell child means a tool is running right now. INFERRED from Claude Code behaviour; not seen under Xcode. Counts direct children only; MCP servers are not shells and do not count."
+    },
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "UNVERIFIED for Xcode. The claude-code row uses a direct `caffeinate` child as the exact turn signal in the terminal UI. The Xcode-bundled build is older (2.1.14 in the 26.3 RC per fatbobman) and driven without a terminal, and whether it starts `caffeinate` is not known. Presence would mean working; absence is no information."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback on the agent binary's own tree (never Xcode's: Xcode as a whole runs builds, indexing and previews). Floor is a guess, not measured; no Xcode agent has run here. Codex app-server hosts several threads, so CPU cannot say which conversation is working."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "ui_indicator",
+      "meaning": "Documented and exact but UI only: Apple's docs say the Assistant Activity button in the project window toolbar spins while a response is running, stops when it finishes, and shows a warning icon when Xcode needs the person to act or answer (permission to use a command-line tool, or a question and answer panel in the transcript). Only readable through the accessibility API, never from ps, files or logs.",
+      "docs": "https://developer.apple.com/documentation/xcode/writing-code-with-intelligence-in-xcode"
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "meaning": "Claude Agent, INFERRED: ClaudeAgentConfig/settings.json is read by the bundled claude (its env block is used to set CLAUDE_CODE_OAUTH_TOKEN and ANTHROPIC_BASE_URL in third-party guides), so Claude Code hooks there probably run too (Notification, PermissionRequest). Not documented by Apple and not tested."
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Codex, INFERRED: hooks live in CodingAssistant/codex/config.toml or hooks.json. Current Codex skips every non-managed hook until it is reviewed and trusted through the terminal UI (/hooks), and Xcode has no such screen, so user hooks may be silently skipped. Only admin-managed hooks are sure to run."
+    },
+    {
+      "signal": "none",
+      "meaning": "No process, file or log signal for waiting was found. Approvals travel between Xcode and the agent over the agent's own stdio protocol (Codex app-server, Claude stream), which an outside process cannot read."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "None documented by Apple. Inherited from the hosted agent: Claude Agent reads ~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/settings.json (inferred); Codex reads ~/Library/Developer/Xcode/CodingAssistant/codex/config.toml (Apple docs name the folder) and may need hook trust; Gemini reads settings.json in ~/Library/Developer/Xcode/CodingAssistant/gemini (inferred). Xcode has no hook API of its own.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "PermissionRequest",
+      "Notification",
+      "Stop",
+      "SubagentStop",
+      "SessionEnd"
+    ],
+    "docs": "https://developer.apple.com/documentation/xcode/extending-and-customizing-agents"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Inherited, not from Xcode: Claude Agent honours CLAUDE_CODE_ENABLE_TELEMETRY=1 plus OTEL_* variables when set in ClaudeAgentConfig/settings.json env (inferred, untested); Codex has an [otel] table in config.toml. Xcode itself exports none that was found. Apple's 26.3 release notes mention a provider-specific telemetry toggle in Intelligence settings that agents may not respect until Xcode is relaunched."
+  },
+  "sources": [
+    {
+      "claim": "Xcode 26.3 added agentic coding with Claude Agent and Codex; agents install with one click from Intelligence settings and update automatically; permissions system added",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "Xcode 26.3 release notes ('Xcode 26.3 introduces a comprehensive permissions system...', 'In addition to Anthropic's Claude Agent and OpenAI's Codex integrations...'): https://developer.apple.com/documentation/xcode-release-notes/xcode-26_3-release-notes ; Tech Talk 111428: 'You can download those coding agents with just a click, and they update automatically.' https://developer.apple.com/videos/play/tech-talks/111428/ ; https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence ('click Get ... click Install'; 'Xcode automatically updates the downloads if possible')"
+    },
+    {
+      "claim": "Xcode 27 adds Gemini in the coding assistant, ACP support, plug-ins bundling skills, MCP servers and ACP agent configs, and (Beta 5 preview) an MCP server that runs without an open workspace (`sudo xcrun mcp-server enable`). Xcode 26.6 release notes also list Gemini and ACP support.",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://developer.apple.com/documentation/xcode-release-notes/xcode-27-release-notes ('Google Gemini is now available in the coding assistant.'; 'Xcode adds support for the Agent Client protocol.'; 'Agents in Xcode can now be extended with plugins that contain skills, MCP servers, and ACP agent configurations.'; 'Xcode 27 Beta 5 adds a preview of a new MCP server experience that runs without requiring an open Xcode workspace.'); https://developer.apple.com/documentation/xcode-release-notes/xcode-26_6-release-notes (same Gemini and ACP lines)"
+    },
+    {
+      "claim": "Agent config folders are ~/Library/Developer/Xcode/CodingAssistant/{ClaudeAgentConfig,codex,gemini}, used exclusively by Xcode; agents can be added over ACP via Add an Agent; agent downloads are managed as Xcode components; in Xcode 26.6 the built-in agents are downloaded under Settings > Components (forum thread 837540, third-party reply)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://developer.apple.com/documentation/xcode/extending-and-customizing-agents and https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence ; https://developer.apple.com/forums/thread/837540"
+    },
+    {
+      "claim": "Working and waiting indicators: the Assistant Activity toolbar button spins during a response and stops when done; a warning icon means Xcode needs an action or answer",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://developer.apple.com/documentation/xcode/writing-code-with-intelligence-in-xcode (section 'Review responses in the transcript')"
+    },
+    {
+      "claim": "External agents launched outside Xcode reach it through `xcrun mcpbridge` (an MCP server bridge); those are the user's own claude/codex, not Xcode's",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://developer.apple.com/documentation/xcode/giving-external-agents-access-to-xcode"
+    },
+    {
+      "claim": "Claude Agent in Xcode is Claude Code's own harness via the Claude Agent SDK",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.anthropic.com/news/apple-xcode-claude-agent-sdk"
+    },
+    {
+      "claim": "Xcode 26.3 RC bundles a separate claude executable at ~/Library/Developer/Xcode/CodingAssistant/Agents/Versions/26.3 (both posts give this path as the executable; whether 26.3 is the file or a folder is not stated) that accepts Claude Code's environment variables; bundled client 2.1.14, replaced by hand with 2.1.32",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://www.jackpearce.co.uk/posts/extracting-xcodes-claude-code-prompt/ (strings on the binary) and https://fatbobman.com/en/posts/xcode-263-claude/ (client 2.1.14, replaced with 2.1.32)"
+    },
+    {
+      "claim": "Later layout is Agents/claude/<version>/claude with an Info.plist beside the binary holding the download URL and SHA-512; Xcode downloads only the Apple Silicon (arm64) build. The post does not name the Xcode version, and it does not describe the Codex binary name.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "Apple Developer Forums thread 840995, 'Xcode 26 keeps telling you \"Not Signed In\"...' (excerpt in https://developer.apple.com/forums/tags/coding-intelligence): 'Xcode only downloads the Apple Silicon (arm64) build of its agent binaries ... file ~/Library/Developer/Xcode/CodingAssistant/Agents/claude/*/claude ... Open the Info.plist next to the binary.' The thread page itself sat behind a bot check when re-fetched; only the tag-page excerpt was read."
+    },
+    {
+      "claim": "ClaudeAgentConfig is Claude Code's config dir (CLAUDE_CONFIG_DIR is set to it inside Xcode); settings.json env, .claude.json and debug/ live there; Xcode runs agents in a restricted environment that does not inherit the shell profile. skills/ and commands/ there are not shown by any source read in verification.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://fatbobman.com/en/posts/xcode-263-claude/ (CLAUDE_CONFIG_DIR check; restricted environment); https://gist.github.com/zoltan-magyar/be846eb36cf5ee33c882ef5f932b754b (settings.json env with ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL; debug/ folder; 'basically your average .claude directory'); https://github.com/giginet/xcodeproj-mcp-server README ('acts as Claude Code's configuration directory', writes ClaudeAgentConfig/.claude.json); CLAUDE_CODE_OAUTH_TOKEN in settings.json env: excerpt of Apple forum thread 840995"
+    },
+    {
+      "claim": "Xcode's Claude Agent transcripts are read from ~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/projects/ by a public usage scanner (which does not prove the scanner author saw a live Xcode session)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "phuryn/claude-usage scanner.py line 21: XCODE_PROJECTS_DIR = Path.home()/'Library'/'Developer'/'Xcode'/'CodingAssistant'/'ClaudeAgentConfig'/'projects', and line 593 globs '**/*.jsonl' under it (re-fetched from raw.githubusercontent.com/phuryn/claude-usage/main/scanner.py on 2026-09-29)"
+    },
+    {
+      "claim": "Codex sessions in Xcode go under ~/Library/Developer/Xcode/CodingAssistant/codex/sessions; auth.json sits in the same folder",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "stevencarpenter/hippo config/config.default.toml line 240, a comment documenting the session_roots default: '~/Library/Developer/Xcode/CodingAssistant/codex/sessions'; giginet/xcodeproj-mcp-server README: '~/Library/Developer/Xcode/CodingAssistant/codex acts as Codex's CODEX_HOME'; OpenAI community thread 1382827 (JSON) mentions ~/Library/Developer/Xcode/CodingAssistant/codex/config.toml and .../codex/auth.json"
+    },
+    {
+      "claim": "Xcode 26.3 shipped Codex 0.98.0; upstream codex app-server is the JSON-RPC mode rich clients drive as a child process",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "Xcode 26.3 release notes, listed among fixes: 'Upgraded to Codex version 0.98.0 for improved stability and features.'; https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md. That Xcode uses app-server is INFERRED, not stated anywhere."
+    },
+    {
+      "claim": "Codex hooks (twelve events, PermissionRequest, trust review before a non-managed hook runs) and Gemini CLI hooks (settings.json, Notification with ToolPermission) exist upstream",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://learn.chatgpt.com/docs/hooks (12 events counted: PreToolUse, PermissionRequest, PostToolUse, PreCompact, PostCompact, UserPromptSubmit, SubagentStop, Stop, Interrupt, SessionStart, SubagentStart, SessionEnd; 'Non-managed hooks must be reviewed and trusted before they run'; 'Use /hooks in the CLI to ...'; flag --dangerously-bypass-hook-trust exists) and https://geminicli.com/docs/hooks/reference/ (hooks in settings.json; Notification event with notification_type ToolPermission). Whether Xcode has any trust UI is INFERRED, not documented."
+    },
+    {
+      "claim": "Xcode is not installed here, so no Xcode agent process, store or assertion could be observed",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ls /Applications | grep -i xcode` printed nothing; `xcode-select -p` printed /Library/Developer/CommandLineTools; `xcodebuild -version` printed \"xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance\"; `xcrun --find mcpbridge` printed 'xcrun: error: unable to find utility \"mcpbridge\", not a developer tool or in PATH'; `ls ~/Library/Developer/Xcode` shows DerivedData, SDKToSimulatorIndexMapping.plist (Dec 14 2025), UserData and no CodingAssistant; `ps -axo pid,args | grep -i xcode` matched no Xcode process"
+    },
+    {
+      "claim": "The reference probe would also match Xcode's bundled claude as a Claude Code terminal session, because the claude-code tui surface matches on the base name `claude`",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "reading tools/agents_probe.py matches(): hit = name in names OR path_contains; registry/agents/claude-code.json tui surface has names ['claude']; a synthetic argv '/Users/x/Library/Developer/Xcode/CodingAssistant/Agents/claude/2.1.14/claude' therefore matches claude-code as well as this row (checked in this session with matches()); re-run in verification: the same synthetic argv matches claude-code and, before the repair, this row's surface 2"
+    },
+    {
+      "claim": "Xcode 27 and 26.x Gemini runs Gemini CLI 0.42.0",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "Apple Developer Forums coding-intelligence tag page excerpt (Aug 2026 post): 'Xcode currently uses Gemini CLI v0.42.0 from last year'. Gemini's executable name and layout remain unknown."
+    },
+    {
+      "claim": "Xcode's preference domain and MDM PayloadType is com.apple.dt.Xcode (supports the bundle id, by convention)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://support.apple.com/guide/deployment/restrictions-for-mac-depba790e53/web (CodingAssistantAllowExternalIntegrations with a com.apple.dt.Xcode PayloadType)"
+    }
+  ],
+  "confidence": "inferred",
+  "notes": "Nothing here was seen on a running Mac; every process shape is inferred from Apple docs plus third-party reports. The stable facts are the folders (CodingAssistant/ClaudeAgentConfig, codex, gemini, Agents) and the fact that Claude Agent is the real Claude Code binary and Codex is the upstream Codex binary. Xcode is one host process for every conversation, so report state per agent child process (or per session file for Claude) and never map the Xcode pid to a transcript. Overlap: claude-code's tui surface (name `claude`) and the codex row's daemon surface (name `codex`, args app-server) will also match these child processes, so a detector should prefer the row whose path is under /Xcode/CodingAssistant/Agents/ and count each pid once. The Xcode-hosted agents may not hold the terminal-only signals (caffeinate). The most precise turn signal Apple documents is a UI indicator; the most precise machine-readable one is a fresh write to the Claude transcript or a shell child of the agent. Verification 2026-09-29 repaired the Claude surface (path under Agents/claude/ only, no `/claude` argument test, helper flags excluded) and left confidence at inferred: docs and third parties confirm the folders and the product facts, but no process line was ever seen. The Xcode 26.3 RC executable path (Agents/Versions/26.3) may lack a `/claude` component, so on that layout Claude Agent is caught only by the last surface."
+}

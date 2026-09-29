@@ -1,0 +1,362 @@
+{
+  "id": "trae",
+  "name": "Trae",
+  "vendor": "ByteDance",
+  "homepage": "https://www.trae.ai/",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "TRAE SOLO CN standalone app (SOLO mode split out of the IDE). Bundle id NOT known; path inferred from the app data folder name 'TRAE SOLO CN' (agentsview) and an optional CLI path in openai/codex#22629. The folder name has spaces, so the probe sees argv[0]='/Applications/TRAE' then 'SOLO' then 'CN.app/Contents/MacOS/...'. Listed before the IDE surfaces because the probe keeps the first surface that matches. Inferred, never seen. TraeWork Desktop (the newer standalone client) has no known bundle id or path and has no rule.",
+      "process": {
+        "path_contains": [
+          "/Applications/TRAE"
+        ],
+        "args_contain": [
+          "SOLO",
+          "CN.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "TRAE IDE, international edition (TraeCode, VS Code fork, Electron). /Applications/Trae.app, bundle id com.trae.app (Homebrew cask trae). Helper processes have spaces in their path ('Trae Helper (Plugin)'), so their argv[0] splits to '.../Frameworks/Trae' and does not match; only the main process does. One process hosts every chat and agent, so this is a host: report the app, never map it to one transcript.",
+      "bundle_ids": [
+        "com.trae.app"
+      ],
+      "process": {
+        "path_contains": [
+          "/Trae.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "TRAE CN IDE (China edition). /Applications/Trae CN.app, bundle id cn.trae.app (Homebrew cask trae-cn), main binary reported as Electron. Space in the folder name: argv[0] splits to '/Applications/Trae' and the next argument is 'CN.app/Contents/MacOS/Electron'. Same host caveat as the international edition.",
+      "bundle_ids": [
+        "cn.trae.app"
+      ],
+      "process": {
+        "path_contains": [
+          "/Applications/Trae"
+        ],
+        "args_contain": [
+          "CN.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "traecli acp: the CLI run as an Agent Client Protocol server for an editor or client (TraeCode CLI 2.0 docs: `acp` subcommand; TRAE CLI 1.0 uses `traecli acp serve`). Listed before the tui surface, which vetoes the same argument.",
+      "process": {
+        "names": [
+          "traex",
+          "traecli",
+          "trae-cli"
+        ],
+        "args_contain": [
+          "acp"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "traecli app-server: TraeCode CLI 2.0 app server for remote TUI connections (`--remote ws://host:port`). Codex-fork shape, so it likely hosts many threads in one process. Never seen.",
+      "process": {
+        "names": [
+          "traex",
+          "traecli",
+          "trae-cli"
+        ],
+        "args_contain": [
+          "app-server"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "TRAE CLI in a terminal: TraeCode CLI 2.0 (a closed-source codex-rs fork, also called TraeX) or TRAE CLI 1.0 (older, yaml config). Native binary; argv[0] basename is traecli, traex or trae-cli (the 1.0 installer puts traecli in ~/.local/bin). Vetoed on subcommands that are not sessions. `exec` and `review` are one-shot runs: alive means working. The old internal name coco is not matched (only third-party evidence).",
+      "process": {
+        "names": [
+          "traex",
+          "traecli",
+          "trae-cli"
+        ],
+        "exclude_args": [
+          "acp",
+          "app-server",
+          "mcp-server",
+          "mcp",
+          "plugin",
+          "login",
+          "logout",
+          "update",
+          "doctor",
+          "features",
+          "completion",
+          "apply",
+          "sandbox",
+          "--version",
+          "-V",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "trae-agent, the open-source Python CLI (github.com/bytedance/trae-agent): `trae-cli run \"task\"` or `trae-cli interactive`. It is a Python console script, so ps shows the interpreter with the script path as argument (observed locally with a shebang script: argv[0] is the interpreter, then <prefix>/bin/trae-cli); argv[0] is never 'trae-cli'. The rule matches the '/bin/trae-cli' script path, not the bare word, so `python serve.py` inside a folder called trae-cli-notes and `pip install trae-cli` do not match. Interpreter names cover venv, uv and macOS framework Python ('Python'). `run` is one-shot: alive means working. `interactive` idles at a prompt. The name trae-cli is also the TraeX alias above; the split is argv[0] (native binary) versus interpreter plus script argument (Python).",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14",
+          "Python"
+        ],
+        "args_contain": [
+          "/bin/trae-cli"
+        ],
+        "exclude_args": [
+          "show-config",
+          "tools",
+          "--version",
+          "--help",
+          "-h"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "trae-agent started as a module: `python -m trae_agent.cli run ...` (cli.py has a __main__ guard). Same one-shot and interactive behaviour as the console-script surface.",
+      "process": {
+        "names": [
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14",
+          "Python"
+        ],
+        "args_contain": [
+          "trae_agent.cli"
+        ],
+        "exclude_args": [
+          "show-config",
+          "tools",
+          "--version",
+          "--help",
+          "-h"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.trae/cli/sessions/*/*/*/rollout-*.jsonl",
+    "per_session": "~/.trae/cli/sessions/*/*/*/rollout-*-{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "trae-agent only: its bash tool starts a persistent /bin/bash child (create_subprocess_shell('/bin/bash'); on macOS the wrapping sh execs bash, so ps shows a direct child named bash, observed locally) on the first bash tool call and closes it when the task ends (_close_tools), so a shell child that is a DIRECT child of the python process means a task is running. Absent before the first bash call and while the model is thinking. TraeX and the IDE: no such rule. Not present when trae-agent runs its tools inside Docker (--docker-image and friends): then no local shell child exists."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "TraeX rollout JSONL (Codex-compatible, inferred; only when the process carries --resume <id>, since a fresh session has no id in argv). Raises working, absence proves nothing: the Codex row measured in-turn gaps up to 528 s. trae-agent rewrites its whole trajectory JSON at start, after every LLM reply and every step, but the file is under the LAUNCH cwd (or -t path), not under the process cwd, and has no session id, so the probe cannot reach it."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "fallback, an unmeasured guess. A turn waiting on the model burns no CPU. For the IDE (Electron plus editor and language servers) never use CPU as the only reason."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "surface": "TRAE IDE",
+      "event": "Notification",
+      "notification_types": [
+        "permission_prompt",
+        "ask_user_question",
+        "document_review",
+        "browser_interaction"
+      ],
+      "meaning": "official docs: the agent is waiting for the user. notification_type idle_prompt means the agent finished the task, not that it is blocked. Hooks need ~/.trae/hooks.json (or a Claude Code settings.json import) and, per a third-party changelog (CodeIsland, not the official page), global hooks turned on in the TRAE settings."
+    },
+    {
+      "signal": "hook",
+      "surface": "TraeCode CLI 2.0",
+      "event": "PermissionRequest",
+      "meaning": "Codex-compatible hook events (third-party: tmux-scout registers PermissionRequest and Notification for traex). Hooks are inert until trusted in the startup prompt or /hooks. Not in the official 2.0 docs."
+    },
+    {
+      "signal": "hook",
+      "surface": "TRAE CLI 1.0",
+      "event": "permission_request",
+      "meaning": "snake_case events in the yaml hooks: section (third-party: tmux-scout coco.js). Also notification and stop. Not in the official 1.0 docs."
+    },
+    {
+      "signal": "none_external",
+      "surface": "trae-agent",
+      "meaning": "trae-agent has no approval prompt at all. The only human wait is the `interactive` input prompt between tasks, which is idle, not blocked."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "IDE: ~/.trae/hooks.json (global) or <project>/.trae/hooks.json, format {version:1, hooks:{Event:[{matcher, hooks:[{type:command, command, timeout}]}]}}; also reads Claude Code hooks from ~/.claude/settings.json. TraeCode CLI 2.0: Codex-compatible hooks and plugins, trusted through a startup prompt or /hooks; config location not in the official docs (third-party says ~/.trae/traecli.toml with [features].hooks=true, another says ~/.trae/cli/hooks.json). TRAE CLI 1.0: hooks: section in the yaml config (third-party). trae-agent: none.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "Stop",
+      "Notification"
+    ],
+    "docs": "https://docs.trae.ai/ide/hook-configuration-reference?_lang=en"
+  },
+  "telemetry": {
+    "how": "Unknown for every surface except trae-agent, which has none (source grep). Not documented for the IDE or either CLI generation. trae-agent source has no OpenTelemetry (grep for otel, opentelemetry, telemetry finds nothing). The TraeCode CLI 2.0 config reference lists only model, approval_policy, default_permissions, trae_login_base_url, projects and mcp_servers. TraeX is a codex-rs fork and upstream Codex has an [otel] table, but nothing confirms Trae kept it. Not determined for the IDE."
+  },
+  "sources": [
+    {
+      "claim": "trae-agent is a Python package whose console script is trae-cli",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "github.com/bytedance/trae-agent pyproject.toml at commit e839e55 (Feb 5 2026): [project.scripts] trae-cli = \"trae_agent.cli:main\"; requires-python >=3.12"
+    },
+    {
+      "claim": "trae-agent subcommands: run (one-shot), interactive, show-config, tools; interactive uses input() (simple console) or a Textual app (rich console)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "trae_agent/cli.py (@cli.command run, interactive, show_config, tools), trae_agent/utils/cli/simple_console.py get_task_input uses input()"
+    },
+    {
+      "claim": "trajectory is a single JSON file rewritten in full at start_recording, after every LLM interaction, every agent step and finalize; end_time stays empty until finalize_recording. Default path trajectories/trajectory_YYYYMMDD_HHMMSS.json, resolved at construction",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "trae_agent/utils/trajectory_recorder.py: TrajectoryRecorder.__init__ (Path(...).resolve()), save_trajectory() opens the path with mode 'w' and json.dump; called from start_recording, record_llm_interaction, record_agent_step, finalize_recording. Documented in docs/TRAJECTORY_RECORDING.md"
+    },
+    {
+      "claim": "with --working-dir the trajectory lands under the launch cwd, not the working dir, so the process cwd (lsof) does not locate it",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "trae_agent/cli.py run(): `agent = Agent(...)` (builds TrajectoryRecorder, resolves the relative path) comes before `os.chdir(working_dir)`"
+    },
+    {
+      "claim": "trae-agent bash tool keeps one persistent /bin/bash session per task: started lazily on first use via create_subprocess_shell, released at task end",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "trae_agent/tools/bash_tool.py (_BashSession.command = '/bin/bash', asyncio.create_subprocess_shell(..., preexec_fn=os.setsid); BashTool.execute starts it when self._session is None); trae_agent/agent/base_agent.py execute_task() ends with await self._close_tools()"
+    },
+    {
+      "claim": "trae-agent has no hooks, no OpenTelemetry, no sleep inhibitor, no approval prompt; only ~/.trae-agent/ckg is a home-dir store (code knowledge graph cache)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rniE 'hook|otel|opentelemetry|telemetry|caffeinate|sqlite' over trae_agent/*.py finds nothing outside tools/ckg; trae_agent/utils/constants.py LOCAL_STORAGE_PATH = Path.home() / '.trae-agent', used only by trae_agent/tools/ckg/ckg_database.py"
+    },
+    {
+      "claim": "TRAE IDE international: /Applications/Trae.app, bundle id com.trae.app, data in ~/.trae and ~/Library/Application Support/Trae. TRAE CN: /Applications/Trae CN.app, cn.trae.app, ~/.trae-cn and ~/Library/Application Support/Trae CN",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://formulae.brew.sh/api/cask/trae.json and https://formulae.brew.sh/api/cask/trae-cn.json (artifacts: app, uninstall quit, zap trash); cn.trae.app also in github.com/openai/codex/issues/22629"
+    },
+    {
+      "claim": "Trae CN main binary is named Electron, helpers are 'Trae CN Helper (...)'; the international main binary name is not confirmed (a test assumes Electron)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "github.com/wxtsky/CodeIsland Tests/CodeIslandTests/TraeCNIDEBundleTests.swift header comment (TraeCode CN 3.3.104 Info.plist); the same repo's AppState.findTraePids still lists /trae.app/contents/macos/trae"
+    },
+    {
+      "claim": "IDE hooks: ~/.trae/hooks.json global and $PROJECT/.trae/hooks.json project; six events SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, Notification; Notification types idle_prompt, permission_prompt, document_review, ask_user_question, browser_interaction; stdin carries session_id; also imports Claude Code hooks",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.trae.ai/ide/hook-configuration-reference?_lang=en"
+    },
+    {
+      "claim": "modern TRAE IDE chat store is ~/Library/Application Support/Trae/ModularData/ai-agent/database.db and its first bytes are not the SQLite header (encrypted); legacy chats were in workspaceStorage/<hash>/state.vscdb",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "github.com/kenn-io/agentsview internal/parser/trae_layout.go traeEncryptedModularData(); internal/parser/types.go AgentTrae entry (RemoteSyncExcluded: 'modern layout stores sessions as encrypted state'). Not observed here, no install."
+    },
+    {
+      "claim": "TraeCode CLI 2.0: binary traecli; interactive TUI, `exec` non-interactive, `resume`/`fork`/`--resume[=ID]`, subcommands acp and app-server, --ephemeral writes no session file; installer sh -c \"$(curl -fsSL https://trae.cn/trae-cli/install_v2.sh)\"; only Enterprise flagship customers may use it",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.trae.cn/cli_command-line-parameters (subcommands exec, review, resume, fork, acp, app-server, mcp-server, --resume[=SESSION_ID], --ephemeral, --remote) ; https://docs.trae.cn/cli_get-started-with-trae-code-cli-2 (binary traecli, install_v2.sh) ; https://docs.trae.cn/cli_about-trae-code-cli-2 ('仅 TRAE 企业版的旗舰版套餐客户可使用 TraeCode CLI 2.0'). The name traex appears in none of these pages; it is third-party (see the agentsview source)."
+    },
+    {
+      "claim": "TraeCode CLI 2.0 config is ~/.trae/traecli.toml, TRAE_HOME overrides the config and runtime dir, TUI logs go to ~/.trae/log/, status line shows Working... / Thinking... / Waiting for response... / Queued for capacity / Waiting for background terminal",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.trae.cn/cli_config-file ; https://docs.trae.cn/cli_environment-variables ; https://docs.trae.cn/cli_status-indication-and-troubleshooting"
+    },
+    {
+      "claim": "TraeCode CLI 2.0 (TraeX) is a closed-source codex-rs fork with byte-compatible rollout JSONL under ~/.trae/cli/sessions (dated tree) and ~/.trae/cli/archived_sessions; aliases traex, traecli, trae-cli; resumes with `traex resume <id>`",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "github.com/kenn-io/agentsview internal/parser/types.go AgentTraeX (DefaultDirs .trae/cli/sessions, .trae/cli/archived_sessions), internal/parser/traex.go header comment, internal/server/resume.go ('TraeX ships the traex, traecli, and trae-cli aliases'). Dated YYYY/MM/DD subfolders and rollout-<ts>-<id>.jsonl names are copied from the Codex layout: inferred."
+    },
+    {
+      "claim": "TraeCode CLI 2.0 uses the Codex-compatible plugin and hook format; hooks only run after the user trusts them (startup prompt 'Hooks need review' or /hooks); the binary is also invoked as trae-cli",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://docs.openviking.ai/en/agent-integrations/13-trae"
+    },
+    {
+      "claim": "TraeX hook events (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PermissionRequest, Notification, SessionEnd, Stop, PreCompact, PostCompact, SubagentStart, SubagentStop) configured in ~/.trae/traecli.toml; TRAE CLI 1.0 hooks are snake_case entries under hooks: in ~/.trae/traecli.yaml. CodeIsland instead writes TraeX hooks to ~/.trae/cli/hooks.json, so the location is disputed",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "github.com/qeesung/tmux-scout scripts/setup/traex.js and scripts/setup/coco.js (commit 24c6353); github.com/wxtsky/CodeIsland CHANGELOG.md ('Trae CLI Next hooks at ~/.trae/cli/hooks.json')"
+    },
+    {
+      "claim": "TRAE CLI 1.0 official config is a yaml file at ~/Library/Application Support/trae_cli/trae_cli.yaml on macOS (traecli config edit); installer puts traecli in ~/.local/bin",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.trae.cn/cli_global-settings ; https://docs.trae.cn/cli_get-started-with-trae-cli ('export PATH=~/.local/bin:$PATH')"
+    },
+    {
+      "claim": "TRAE CLI 1.0 runs as an ACP server with `traecli acp serve`",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://docs.trae.cn/cli_agent-client-protocol (page in the TraeCode CLI 1.0 sidebar) prints `traecli acp serve`"
+    },
+    {
+      "claim": "TRAE IDE global hooks must be switched on in the TRAE settings (third-party; the official hook reference page read on 2026-09-29 does not state it)",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "github.com/wxtsky/CodeIsland CHANGELOG.md: 'Turn on global hooks in Trae's settings (#341 ...)'"
+    },
+    {
+      "claim": "TRAE SOLO CN app path is only a suggestion: the codex issue lists /Applications/TRAE SOLO CN.app/Contents/Resources/app/bin/trae-solo-cn as an 'optional additional target', not as something the reporter verified; agentsview lists an app-data folder 'TRAE SOLO CN'",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "github.com/openai/codex/issues/22629 (body, 'Optional additional target'); github.com/kenn-io/agentsview internal/parser/types.go AgentTrae DefaultDirs 'Library/Application Support/TRAE SOLO CN/User'"
+    },
+    {
+      "claim": "a third-party terminal host (Orca) treats titles of the form '<braille spinner> traecli' as a Trae CLI title; that the spinner means a turn is running is inferred, the vendor does not document the title",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "github.com/rodboev/orca commit fcc1da696dda (fix for stablyai/orca#11643): tests assert isClaudeAgent('⠋ traecli') is false. Read from the terminal host, not from ps; which CLI generation is not stated."
+    },
+    {
+      "claim": "nothing Trae is installed or running on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ls /Applications | grep -i -E 'trae|solo'` printed nothing (rc=1); `which traecli traex trae-cli coco trae` all 'not found'; ls of ~/.trae ~/.trae-cn ~/.trae-agent ~/.local/bin/traecli ~/Library/Application Support/trae_cli all missing; `ps -axo pid=,args= | grep -i -E 'trae|traecli|traex'` 0 lines; `pmset -g assertions | grep -i trae` 0 lines"
+    },
+    {
+      "claim": "the process rules were run through the probe's matches() on 27 synthetic argv lines; the python console-script shape was checked against a real shebang script",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "tools/agents_probe.py matches() on lines for Trae.app, Trae CN.app, TRAE SOLO CN.app main and helper processes, traecli/traex with and without subcommands, python scripts. `ps -axo pid=,args=` for a script `#!<python> ` named bin/trae-cli printed '<Python> <dir>/bin/trae-cli run fix it' (argv[0] is the interpreter). asyncio.create_subprocess_shell('/bin/bash') printed a direct child '/bin/bash' (no sh)."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Trae is not one program. (1) trae-agent: the open-source Python research CLI at the URL given as a hint; it is a script run by an interpreter. (2) TRAE IDE, and TRAE CN: Electron VS Code forks, one process hosting every agent. (3) TraeCode CLI, command traecli (1.0 yaml, 2.0 a closed codex-rs fork also called TraeX), the terminal agent people usually mean. (4) Standalone SOLO and TraeWork apps. The most precise turn signal differs per surface: trae-agent, a shell child that lives for the task (or process alive for `run`); IDE, the UserPromptSubmit to Stop hook pair; TraeX, a rollout with no task_complete (inferred); CLI 1.0, nothing outside hooks. Nothing was seen live, so every floor and window is a guess. The probe splits ps on spaces, so 'Trae CN.app' and 'TRAE SOLO CN.app' match on split fragments. Verified 2026-09-29 by an adversarial pass: known false positives that the schema cannot remove are the IDE launchers (`trae`/`trae-cn --goto`, which VS Code forks implement by running the app's Electron binary in node mode, so a brief process matches the IDE surface; inferred), and prompt words that equal a deny-listed subcommand (ps splits on spaces, so `traecli exec update the docs` is vetoed). `traecli --cd <dir with acp in its name>` is filed under the daemon surface. Inferred parts: the SOLO CN app path, the TraeX session store layout, the process name of the 2.0 binary, every CPU floor and window."
+}

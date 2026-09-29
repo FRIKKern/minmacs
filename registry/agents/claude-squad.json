@@ -1,0 +1,174 @@
+{
+  "id": "claude-squad",
+  "name": "Claude Squad",
+  "vendor": "smtg-ai (open source, AGPL-3.0)",
+  "homepage": "https://github.com/smtg-ai/claude-squad",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "the Claude Squad manager TUI: a single Go binary (Bubble Tea), installed as `cs` (README, install.sh default) or `claude-squad` (Homebrew formula, release archive). install.sh --name can pick any other name, which this row cannot see. It is a manager, not an agent: it does not run the agents itself. For every instance it runs `tmux new-session -d -s claudesquad_<title> -c <worktree> <program>`, so the agent (claude, codex, aider, gemini, amp ...) is a child of the tmux SERVER, not of `cs`, and a `cs` process has no agent among its children. Its own direct children are per instance: one long-lived `tmux attach-session -t claudesquad_<title>` on a pty, plus short-lived `tmux capture-pane` and `git diff` calls every 500 ms per active instance (`git diff --numstat` for unselected ones, full `git diff` for the selected one), and `capture-pane` every 100 ms for the selected instance's preview. Those children are always present, so a child signal cannot separate working from idle. The agent process is matched by its own row (claude-code, codex ...), and belongs to a squad when its cwd is under ~/.claude-squad/worktrees/ or its tmux session is named claudesquad_*. Subcommands `debug`, `version`, `reset`, `help`, `completion` and the help flags are short-lived and excluded by whole-token match. `cs` is also the name of the Coursier (Scala) launcher, so a bare `cs` match needs a second check: ~/.claude-squad/ exists. The registry schema cannot express that check, so the probe reports a Coursier `cs` as a Claude Squad TUI.",
+      "process": {
+        "names": [
+          "cs",
+          "claude-squad"
+        ],
+        "exclude_args": [
+          "--daemon",
+          "debug",
+          "version",
+          "reset",
+          "help",
+          "completion",
+          "--help",
+          "-h"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "auto-yes daemon: `cs --daemon`, a hidden flag. Launched with setsid by the TUI on exit when auto_yes is on (config or -y/--autoyes). argv[0] is os.Executable(), so usually a full path. Polls every daemon_poll_interval ms (default 1000), and presses Enter in any session whose pane shows a permission prompt. Killed by the next TUI start via ~/.claude-squad/daemon.pid. It is not a session and has no turn.",
+      "process": {
+        "names": [
+          "cs",
+          "claude-squad"
+        ],
+        "args_contain": [
+          "--daemon"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.claude-squad/state.json",
+    "format": "json",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "WEAK and unmeasured. The `cs` tree covers only the manager: its 500 ms poll (capture-pane, sha256 of the pane, git diff) and the redraw when a pane changes. The agents are under the tmux server, outside this tree. Use it only to say the manager is busy. For a squad session's turn, apply the agent's own row to the pane process: for Claude Code, a direct `caffeinate` child of the `claude` process. The manager also redraws a spinner and polls the selected pane every 100 ms, so an idle `cs` with several instances may sit above this floor and read as permanently working (inferred from app/app.go previewTickMsg and spinner.Tick, not measured)."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "agent_hook",
+      "event": "Notification",
+      "meaning": "Claude Squad has no hooks and no status file for waiting. Where the pane program is Claude Code, the user's own ~/.claude/settings.json Notification hook fires inside the squad session exactly as it does outside one."
+    },
+    {
+      "signal": "pane_text",
+      "meaning": "How Claude Squad itself decides: capture-pane text contains 'No, and tell Claude what to do differently' (claude), '(Y)es/(N)o/(D)on't ask again' (aider, program starts with aider) or 'Yes, allow once' (gemini, program starts with gemini). Only auto-yes acts on it, there is no status for it and no marker in state.json. For claude the test is program == 'claude' exactly, so it is off when default_program is an absolute path, which is what a default install writes (it is on for a bare `claude` from config or `cs -p claude`). Reads conversation text; not recommended for a monitor."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "none: no hook, plugin or event mechanism in the source. Agent hooks configured in the agent itself still run inside squad sessions.",
+    "events": [],
+    "docs": "https://github.com/smtg-ai/claude-squad"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "none: no OpenTelemetry dependency in go.mod and no telemetry code in the source. The only log is $TMPDIR/claudesquad.log (os.TempDir), which is a debug log. The agents inside sessions export their own telemetry, if configured."
+  },
+  "sources": [
+    {
+      "claim": "binary is built as `claude-squad`; install.sh renames it to `cs` by default (--name overrides); README says both Homebrew and manual install give `cs`, Homebrew via `ln -s`; Homebrew stable is 1.0.20",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/smtg-ai/claude-squad/blob/main/.goreleaser.yaml (builds.binary: claude-squad); install.sh (INSTALL_NAME=\"cs\"; mv claude-squad -> $bin_dir/$INSTALL_NAME; BIN_DIR default $HOME/.local/bin); README.md 'Installation'; curl https://formulae.brew.sh/api/formula/claude-squad.json printed stable 1.0.20"
+    },
+    {
+      "claim": "latest release v1.0.20, published 2026-08-20; darwin amd64 and arm64 tar.gz assets, no .app or dmg",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "Release page https://github.com/smtg-ai/claude-squad/releases/tag/v1.0.20 marked Latest, released by github-actions Aug 20 05:11 at commit ce1ffb4; expanded assets list claude-squad_1.0.20_{darwin,linux}_{amd64,arm64}.tar.gz, windows_{amd64,arm64}.zip, checksums.txt (no .app, no dmg). main.go: version = \"1.0.20\". The GitHub REST API (releases/latest) was rate limited on the 2026-09-29 re-check, so the exact timestamp 05:11:12Z from the first pass was not re-fetched"
+    },
+    {
+      "claim": "agent runs in a detached tmux session named claudesquad_<title> (whitespace removed, '.' to '_'), started as `tmux new-session -d -s <name> -c <worktree> <program>`; cs attaches with `tmux attach-session -t <name>` on a pty and polls with `tmux capture-pane -p -e -J -t <name>`",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "session/tmux/tmux.go at ce1ffb4 (2026-08-20): TmuxPrefix = \"claudesquad_\", toClaudeSquadTmuxName, Start(), Restore(), CapturePaneContent()"
+    },
+    {
+      "claim": "the agent is a child of the tmux server, not of cs (tmux -d daemonises the server; cs's own tmux new-session client exits)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "session/tmux/tmux.go Start(): exec.Command(\"tmux\",\"new-session\",\"-d\",...) then ptmx.Close() once has-session succeeds. Process ancestry is inferred from tmux behaviour: tmux was not running on this Mac (`tmux ls` printed 'no server running on /private/tmp/tmux-501/default') and no session was created; `man tmux` on this Mac (tmux 3.6a) line 53: '-D Do not start the tmux server as a daemon', so by default the server is a daemon, detached from the client that started it. tmux forks the pane process from the server; that is tmux's architecture, not shown on this Mac"
+    },
+    {
+      "claim": "status Running/Ready is only 'pane text changed since the last 500 ms tick'; there is no turn signal. Changed => Running; unchanged and no prompt detected => Ready; unchanged and a prompt detected (only when the program string matches: claude exactly, aider*, gemini*) => status is left as it was (no set to Ready) and Enter is tapped if auto-yes. For any other program an unchanged pane is Ready even while a permission prompt is showing",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "session/tmux/tmux.go HasUpdated() (sha256 of capture-pane vs prevOutputHash); app/app.go metadataUpdateDoneMsg branch (lines 238-250): `if r.updated {SetStatus(Running)} else if r.hasPrompt {TapEnter} else {SetStatus(Ready)}`; session/instance.go TapEnter returns unless i.AutoYes; tickUpdateMetadataCmd sleeps 500ms; session/instance.go comment 'Ready is if the claude instance is ready to be interacted with (waiting for user input)'. Verified again by reading the clone at ce1ffb4 on 2026-09-29"
+    },
+    {
+      "claim": "prompt detection strings, and the exact-equality test for claude",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "session/tmux/tmux.go HasUpdated(): `if t.program == ProgramClaude` contains 'No, and tell Claude what to do differently'; `strings.HasPrefix(t.program, ProgramAider)` contains '(Y)es/(N)o/(D)on't ask again'; HasPrefix gemini contains 'Yes, allow once'. Trust prompt handler CheckAndHandleTrustPrompt uses HasSuffix instead"
+    },
+    {
+      "claim": "a default install stores an absolute path as the program, so the exact-equality claude prompt test never matches by default (it does match if the user configures the bare word `claude` or starts `cs -p claude`)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "config/config.go DefaultConfig(): DefaultProgram = GetClaudeCommand() = output of `$SHELL -c 'source ~/.zshrc; which claude'`, else exec.LookPath(\"claude\") (both absolute paths); LoadConfig() saves it to ~/.claude-squad/config.json; main.go passes cfg.GetProgram() to app.Run; app.go sets Instance Program: m.program. Inference about the runtime effect, not observed"
+    },
+    {
+      "claim": "the Claude prompt string still exists in the installed Claude Code",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`strings -a ~/.local/share/claude/versions/2.1.284 | grep -c 'No, and tell Claude what to do differently'` printed 3"
+    },
+    {
+      "claim": "state is ~/.claude-squad/state.json (JSON: help_screens_seen and an `instances` array), config is ~/.claude-squad/config.json, PID file ~/.claude-squad/daemon.pid, worktrees at ~/.claude-squad/worktrees/<branch>_<hex ns timestamp>; state.json is rewritten only on instance start (two sites), kill, quit, list cursor moves (up, down), first view of a help screen, `cs reset`, and when the auto-yes daemon receives SIGINT/SIGTERM; never per status tick",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "config/config.go GetConfigDir() = ~/.claude-squad; config/state.go StateFileName = \"state.json\", State{HelpScreensSeen, InstancesData `json:\"instances\"`}, every State setter calls SaveState; session/git/worktree.go getWorktreeDirectory() and resolveWorktreePaths(); daemon/daemon.go pidFile; app/app.go SaveInstances call sites at lines 224 and 314 (after start), 347 (handleQuit), 756 (KeyMoveUp), 764 (KeyMoveDown); app.go:704 Storage.DeleteInstance (kill); app/help.go:146 SetHelpScreensSeen; main.go:92 DeleteAllInstances (reset); daemon/daemon.go:84 SaveInstances on SIGINT/SIGTERM (TUI start kills it with proc.Kill, i.e. SIGKILL, so that save does not run then). README says only that config is in ~/.claude-squad/config.json, so state.json is undocumented. InstancesFileName = \"instances.json\" is defined in config/state.go:13 and referenced nowhere else (grep -rn over *.go)"
+    },
+    {
+      "claim": "instance record keys",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "session/storage.go InstanceData json tags: title, path, branch, status, height, width, created_at, updated_at, auto_yes, program, worktree{repo_path, worktree_path, session_name, branch_name, base_commit_sha, is_existing_branch}, diff_stats{added, removed, content}. status is an int: 0 Running, 1 Ready, 2 Loading, 3 Paused, saved only at the moments above, so it is a stale snapshot. diff_stats.content holds a diff of the user's code"
+    },
+    {
+      "claim": "Claude Squad stores no conversation; the transcript is the agent's own, keyed by the worktree path as cwd",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "no transcript or message writer anywhere in the Go source (grep -rniE 'jsonl|transcript|conversation' over *.go, tests excluded, printed nothing); for claude the file is ~/.claude/projects/<cwd-encoded>/<session>.jsonl per the claude-code row. The encoded-cwd form for ~/.claude-squad/worktrees/<branch>_<hex> was not checked"
+    },
+    {
+      "claim": "auto-yes daemon: `cs --daemon` launched with Setsid, PID in daemon.pid, poll interval default 1000 ms, taps Enter on hasPrompt",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "daemon/daemon.go RunDaemon, LaunchDaemon (exec.Command(execPath, \"--daemon\")), StopDaemon; daemon/daemon_unix.go getSysProcAttr Setsid: true; main.go: defer LaunchDaemon when autoYes, StopDaemon at every TUI start; config.go DaemonPollInterval default 1000"
+    },
+    {
+      "claim": "no hooks and no OpenTelemetry",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rniE 'otel|opentelemetry|telemetry|hook' over *.go, go.mod and README.md in the clone at ce1ffb4 returned no match; go.mod requires only bubbletea, bubbles, lipgloss, cobra, creack/pty, termenv and small helpers"
+    },
+    {
+      "claim": "not installed and not running on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which -a cs claude-squad` printed 'cs not found' 'claude-squad not found'; ls ~/.claude-squad printed 'No such file or directory'; ls /tmp/claudesquad.log and \"$TMPDIR/claudesquad.log\" (the real macOS path, /var/folders/.../T/claudesquad.log, because the source uses os.TempDir) both printed 'No such file'; `ps -axo pid=,args=` filtered for cs or claude-squad printed nothing; `tools/agents_probe.py --row registry/agents/claude-squad.json` printed '0 agent sessions'"
+    },
+    {
+      "claim": "`cs` is the name of the Coursier launcher on macOS, so a bare `cs` name match can be an unrelated Scala tool",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://get-coursier.io/docs/cli-installation: 'install the coursier CLI `cs` itself'; macOS: download cs-aarch64-apple-darwin.gz to `cs`, or `brew install coursier/formulas/coursier` then `cs setup`"
+    },
+    {
+      "claim": "Homebrew installs only a `claude-squad` binary (no `cs`), and only `claude-squad` is what the formula test runs",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/Homebrew/homebrew-core/HEAD/Formula/c/claude-squad.rb: `system \"go\", \"build\", *std_go_args`, test runs bin/\"claude-squad\"; url .../archive/refs/tags/v1.0.20.tar.gz; license AGPL-3.0-only. Consistent with main.go binName = filepath.Base(os.Args[0])"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Claude Squad is a manager. It has no turn concept: its Running/Ready is a 500 ms pane-diff. To tell whether a squad session is working, find the agent process (a child of the tmux server) and use that agent's own row. The per-instance `tmux attach-session` children are never reported because no row in registry/agents/ matches a process named `tmux` (grep of the rows). If `cs` is not running the sessions still run: tmux keeps the agents alive, and state.json is a stale snapshot. Nothing here was run. Not verified: the pane process is `claude` itself or `$SHELL -c claude`, idle and busy CPU of `cs`, and how a Coursier `cs` looks in ps (that `cs` is Coursier's name is documented, its process shape was not observed). Matching caveats: (1) exclude_args are whole argv tokens after splitting ps output on spaces, so `cs -p \"aider --help\"` or `cs -p \"codex debug\"` would be dropped as if it were a short-lived subcommand; rare, accepted. (2) A Coursier `cs` is reported as Claude Squad until a second check exists; the schema has no way to require ~/.claude-squad/. (3) The daemon surface shares the row-level working_signals, which do not apply to it. Re-verified 2026-09-29 against the clone at ce1ffb4."
+}

@@ -1,0 +1,176 @@
+{
+  "id": "jules",
+  "name": "Jules",
+  "vendor": "Google (Google Labs)",
+  "homepage": "https://jules.google",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Jules Tools interactive dashboard: `jules` with no subcommand (npm @google/jules; the package is a launcher, the real program is a Go binary named `jules`). This is only a CLIENT of the cloud agent: it lists sessions, shows plans and diffs, creates tasks. The agent itself never runs on this Mac. Under a global npm install the postinstall extracts the Go binary `jules` and `run.cjs` into `<npm global prefix>/bin` (for example ~/.nvm/versions/node/<v>/bin/jules; under pnpm `<pnpm bin -g>/dist`). Whether the shell then runs that Go binary directly or `node .../run.cjs` first was not observed (inferred); a `node` launcher shows argv[0] `node` and never matches, so only the Go process does. Under `npx @google/jules` the Go binary is `$TMPDIR/jules_tmp/jules`, a direct child of `node .../run.cjs`.",
+      "process": {
+        "names": ["jules"],
+        "exclude_args": [
+          "new",
+          "remote",
+          "teleport",
+          "login",
+          "logout",
+          "version",
+          "--version",
+          "-v",
+          "completion",
+          "help",
+          "--help",
+          "-h"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "`jules remote ...` (list, new, pull): a short-lived scripted call. `remote list` and `remote pull` return quickly; `remote new --session \"<prompt>\"` creates cloud sessions (--parallel 1-5) and exits. Alive means the client is busy, not that a cloud task runs. NOTE: `--session` means the PROMPT in `remote new` but the session id in `remote pull`, so no session_id_args is set on any surface. args_contain is a substring test.",
+      "process": {
+        "names": ["jules"],
+        "args_contain": ["remote"]
+      },
+      "oneshot": true
+    },
+    {
+      "kind": "tui",
+      "label": "`jules teleport <session_id>`: clones the repo, checks out the session's starting branch and applies the cloud patch locally, then exits. The session id is a positional argument, not a flag.",
+      "process": {
+        "names": ["jules"],
+        "args_contain": ["teleport"]
+      },
+      "oneshot": true
+    },
+    {
+      "kind": "tui",
+      "label": "`jules new \"<prompt>\"`: short form that creates a cloud session (repo inferred from the working directory) and exits. Matches last so `jules remote new` is claimed by the remote surface.",
+      "process": {
+        "names": ["jules"],
+        "args_contain": ["new"]
+      },
+      "oneshot": true
+    },
+    {
+      "kind": "cloud",
+      "label": "Where the work really happens: each session runs in a fresh Google-hosted VM that clones the GitHub repo. Entry points that spawn nothing on this Mac: web app jules.google.com, REST API https://jules.googleapis.com/v1alpha (API key), GitHub label `jules` on an issue, scheduled and suggested tasks, CI-fixer loop on Jules PRs, GitHub Action google-labs-code/jules-action, Jules SDK @google/jules-sdk (Node script, no fixed process name), and the `/jules` command of the Gemini CLI extension (runs inside a gemini process, which the gemini-cli row owns). No first-party macOS app or bundle id was found."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.jules/cache/*/activities.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured, and weak. Jules has NO local turn: planning and coding run in a cloud VM, so no child process, sleep assertion or local transcript exists for a running task. The only thing visible from ps is the client. The dashboard is a Bubble Tea TUI (spinners, 'Thinking... (Esc to cancel)') and the `remote` and `teleport` one-shots burn CPU while they call the API or clone and patch. Read a hit as 'the Jules client is busy', never as 'a cloud session is working'. The precise state is server-side: session state QUEUED, PLANNING or IN_PROGRESS means working (REST API, needs an API key and a session id, not derivable from argv)."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "http",
+      "endpoint": "GET https://jules.googleapis.com/v1alpha/sessions/{id}, header x-goog-api-key",
+      "field": "state",
+      "values": ["AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"],
+      "meaning": "Plan ready for approval, or Jules needs input. Activities feed carries planGenerated and agentMessaged. Needs the user's own API key (jules.google.com/settings, max 3 keys), so a monitor cannot use it unasked. Session state PAUSED means the user paused it, not that it waits."
+    },
+    {
+      "signal": "notification",
+      "meaning": "Browser notification when a plan is ready, the task completes or it needs input (Settings, notifications). Web app only; nothing reaches a local process."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "docs": "https://jules.google/docs/",
+    "config": "none. No lifecycle hook, plugin or settings file exists in the docs or in the CLI binary. Inbound triggers exist instead (GitHub `jules` label, scheduled tasks, CI failures, integrations); they start sessions, they do not report turn state."
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "Not documented and not present: the Jules Tools binary (v0.1.42) and @google/jules-sdk (0.2.0) contain no opentelemetry, OTEL_ or otlp strings, and none of the docs pages re-checked mention telemetry. Cloud-side telemetry is out of reach."
+  },
+  "sources": [
+    {
+      "claim": "Jules is an asynchronous, autonomous agent: each task runs in a virtual machine that clones the repo; you can leave and are notified when a task completes or needs input",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://jules.google/docs/ and https://jules.google/docs/faq ('Each task runs in a fresh virtual machine where Jules clones your repo')"
+    },
+    {
+      "claim": "Jules Tools is a CLI installed with `npm install -g @google/jules`; commands: version, remote list|new|pull, completion, login, logout; running `jules` with no arguments opens the TUI dashboard",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://jules.google/docs/cli/reference"
+    },
+    {
+      "claim": "the npm package is a 4-file launcher (README.md, index.cjs, package.json, run.cjs): postinstall downloads a Go binary from storage.googleapis.com/jules-cli/<version>/jules_external_<version>_<os>_<arch>.tar.gz and extracts `jules` and `run.cjs` into the npm global bin dir (pnpm: <pnpm bin -g>/dist); when run.cjs finds no `jules` next to itself (npx) it downloads to os.tmpdir()/jules_tmp/jules and spawns it with stdio inherited, so under npx there is a parent node process plus a child named jules. Under a global install the process shape (Go binary alone, or node parent plus Go child) is inferred, not observed",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://registry.npmjs.org/@google/jules/-/jules-0.1.42.tgz, files package/index.cjs (install, getInstallationPath, BINARY_NAMES) and package/run.cjs (installPath = path.join(os.tmpdir(), 'jules_tmp'); spawn(binPath, process.argv.slice(2), {stdio:'inherit'})); package.json binURL"
+    },
+    {
+      "claim": "the downloaded darwin_arm64 payload is one Mach-O arm64 executable named jules (Go 1.24.8, module jules-cli, ad-hoc signed, Identifier a.out, no Info.plist, no app bundle) plus a run.cjs, README.md and a licenses/ tree; v0.1.42 is the latest release and dates from 2025-12-16",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl -O https://storage.googleapis.com/jules-cli/v0.1.42/jules_external_v0.1.42_darwin_arm64.tar.gz into scratch, tar tzf, never executed; `file bin/jules` printed 'Mach-O 64-bit executable arm64'; `codesign -dv` printed 'Identifier=a.out ... Signature=adhoc ... Info.plist=not bound'; strings show 'go1.24.8', 'path jules-cli', '-X main.version=v0.1.42'; https://storage.googleapis.com/jules-cli/latest/metadata.yaml prints 'latest: v0.1.42'; npm time for 0.1.42 is 2025-12-16"
+    },
+    {
+      "claim": "the CLI is a thin remote client: subcommands new, remote (list --repo/--session, new --repo --session --parallel 1-5, pull --session [--apply]), teleport <session_id>, login, logout; `--session` is the prompt in `remote new` and the id in `remote pull`",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 regex over the unexecuted binary printed the embedded help: 'jules remote new --repo jiahao42/jules-cli --session \"add the solarized dark theme\" --parallel 3'-style examples, 'jules new --repo torvalds/linux --parallel 3 \"write unit tests\"', 'jules remote list --session', 'jules remote list --repo', 'jules remote pull --session 123456 --apply', 'jules teleport 123456', 'The --parallel flag must be between 1 and 5.', 'The session description is missing, you can pass it via the --session flag.'; docs example https://jules.google/docs/cli/reference: jules remote new --repo torvalds/linux --session \"write unit tests\"; the docs also list a global flag `--theme <string>` (dark or light) that only the docs mention"
+    },
+    {
+      "claim": "the CLI stores no sessions and no transcripts locally: the Go binary talks to jules.google.com / the Jules backend, keeps its OAuth token in the OS keyring (go-keyring) with a file fallback, and has a `dotjules` config package; no .jsonl, sqlite or history-of-turns path exists in it",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "strings/python over the unexecuted binary: symbols 'jules-cli/auth.saveTokenToFile', 'jules-cli/dotjules.DotJulesConfig', 'jules-cli/dotjules.PrepareJulesDir', 'go-keyring-base64:', 'Successfully saved token to file fallback', 'https://jules.google.com', 'https://storage.googleapis.com/jules-cli/latest/metadata.yaml' (self-update); zero hits for '.jsonl'. The exact token and config file paths were not printed by any string"
+    },
+    {
+      "claim": "sessions live server-side; REST API exposes session state QUEUED, PLANNING, AWAITING_PLAN_APPROVAL, AWAITING_USER_FEEDBACK, IN_PROGRESS, PAUSED, FAILED, COMPLETED, and activities planGenerated, planApproved, userMessaged, agentMessaged, progressUpdated, sessionCompleted, sessionFailed",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://jules.google/docs/api/reference/sessions, https://jules.google/docs/api/reference/types, https://jules.google/docs/api/reference/activities (auth: x-goog-api-key, at most 3 keys, https://jules.google/docs/api/reference/authentication)"
+    },
+    {
+      "claim": "the only local session files are a cache written by the JS SDK (not by Jules Tools): <root>/.jules/cache/<sessionId>/activities.jsonl and metadata.json plus .jules/cache/sync-checkpoint.json, where root is $JULES_HOME, else the cwd if it has a package.json, else $HOME, else $TMPDIR",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://registry.npmjs.org/@google/jules-sdk/-/jules-sdk-0.2.0.tgz, dist/index.mjs: getRootDir(), path.resolve(rootDir, '.jules/cache', sessionId), 'activities.jsonl', 'metadata.json', getCheckpointPath(); SDK repo https://github.com/google-labs-code/jules-sdk"
+    },
+    {
+      "claim": "no lifecycle hooks: none of the docs pages (getting started, running tasks, review plan, code, repo, integrations, tasks-repos, environment, scheduled, suggested, usage limits, faq, errors, API quickstart/overview/auth/sources/sessions/activities/types, CLI reference and examples, six changelog entries) mention hooks; the only 'hook' hits are unrelated ('Document the useCache hook with JSDoc' on running-tasks, 'failed web hook' as an inbound trigger on integrations)",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "curl --compressed of 29 pages under https://jules.google/docs/ piped through an HTML-to-text script, then grep -i 'hook|opentelemetry|telemetry|webhook'; sitemap from firecrawl_map of https://jules.google/docs/ lists no hooks or telemetry page. Re-run by the verifier on 2026-09-29 over 23 pages (docs root, running-tasks, integrations, review-plan, code, environment, scheduled-tasks, suggested-tasks, tasks-repos, usage-limits, errors, cli/examples, api reference overview/authentication/sessions/activities/sources, plus faq, changelog, cli/reference, api/reference/types): the two hits above, no telemetry or macOS-app hit"
+    },
+    {
+      "claim": "no OpenTelemetry in the Go binary or the SDK",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 re.search over bin/jules for 'opentelemetry', 'OTEL_', 'otlp' returned 0 hits each; same three patterns over @google/jules-sdk dist/index.mjs returned no match"
+    },
+    {
+      "claim": "not installed and not running here: no jules binary, no app, no process",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which jules` printed 'jules not found'; `ls /Applications | grep -iE 'jules|pievra'` printed nothing; `ps -axo pid,args | grep -i '[j]ules'` printed only the shell running the grep; `ls ~/.jules ~/.config/jules` printed 'No such file or directory'"
+    },
+    {
+      "claim": "a Gemini CLI extension drives Jules through the Jules CLI (`/jules <prompt>`), and a GitHub Action runs Jules from workflows; both are clients of the same cloud agent",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/gemini-cli-extensions/jules/main/README.md ('Gemini CLI will automatically install the Jules CLI'); https://github.com/google-labs-code/jules-action ('Add a powerful cloud coding agent to your GitHub workflows')"
+    },
+    {
+      "claim": "another program can also be named jules: the npm package `jules` (1.0.0, 2017, 'json manipulation tool') declares bin jules -> cli.js, a node script, so ps shows argv[0] `node` and `names: [jules]` does not match it. No Homebrew formula and no crates.io crate named jules exist",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl https://registry.npmjs.org/jules printed bin {'jules': 'cli.js'}, description 'json manipulation tool', published 2017-11-03; `brew info jules` printed 'No available formula with the name jules'; https://crates.io/api/v1/crates/jules printed 'crate `jules` does not exist'. A compiled program named jules from another vendor was not found, but cannot be ruled out"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Jules is a cloud agent. Nothing that does the work runs on the Mac, so a local detector can recognise a Jules Tools client (a process named jules) but cannot tell whether any cloud task is working, and it must not report a running TUI as an agent that is 'working' on CPU alone without saying it is only the client. Precise state exists only server-side (session state) and needs the user's API key. Rules that matter: (1) match the Go binary `jules`; the npm launcher shows as `node` and must not match. (2) `--session` is a prompt for `remote new` and an id for `remote pull`, so no session id can be read from argv. (3) The interactive dashboard is the one surface that stays alive; the other three are one-shots. (4) `~/.jules/cache` belongs to the JS SDK, not to Jules Tools, and can also sit in a project directory. (5) `names: [\"jules\"]` is a base-name match on argv[0] and could match an unrelated compiled program with the same name; none was found (the 2017 npm `jules` JSON tool is a node script and shows as `node`). The schema cannot AND a path with a name, so no second discriminator is possible. (6) The three one-shot surfaces use substring args_contain, so `jules new \"fix remote sync\"` is filed under the `remote` surface; harmless, since all are oneshot. (7) A global npm install is unobserved: the process may be the Go binary alone or a node parent plus the Go child. Never seen running: every process shape comes from the npm launcher source and the unexecuted binary. Verified 2026-09-29 by an independent pass; confidence stays documented, not verified-locally, because nothing was installed or run."
+}

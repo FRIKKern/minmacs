@@ -1,0 +1,248 @@
+{
+  "id": "codebuff",
+  "name": "Codebuff",
+  "vendor": "Codebuff (CodebuffAI); free sibling product Freebuff",
+  "homepage": "https://codebuff.com",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Codebuff CLI (npm `codebuff`, bins `codebuff` and `cb`). The npm bin is only a Node launcher (`node .../codebuff/index.js`); it downloads a Bun-compiled binary to ~/.config/manicode/codebuff and spawns it with argv[0] = that full path. Match the binary, never the launcher (argv[0] is `node`). The same binary re-executes itself with --terminal-command-broker for every shell tool call; that helper is excluded here and is the working signal instead.",
+      "process": {
+        "names": [
+          "codebuff"
+        ],
+        "path_contains": [
+          "/.config/manicode/codebuff"
+        ],
+        "exclude_args": [
+          "--terminal-command-broker"
+        ]
+      },
+      "session_id_args": [
+        "--continue"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Freebuff CLI (npm `freebuff`, bin `freebuff`). Same source tree and same launcher as Codebuff, built with FREEBUFF_MODE=true; binary ~/.config/manicode/freebuff. Shares ~/.config/manicode with Codebuff.",
+      "process": {
+        "names": [
+          "freebuff"
+        ],
+        "path_contains": [
+          "/.config/manicode/freebuff"
+        ],
+        "exclude_args": [
+          "--terminal-command-broker"
+        ]
+      },
+      "session_id_args": [
+        "--continue"
+      ]
+    },
+    {
+      "kind": "gui",
+      "label": "Freebuff Desktop (Electron, com.freebuff.desktop). Matched on the local orchestrator that Freebuff.app starts as `Contents/Resources/bun/bun Contents/Resources/orchestrator/orchestrator.js`, one per app, hosting every thread of every open project. NOT matched on the Electron main process (Contents/MacOS/Freebuff), whose Chromium helpers would look like tool children. It also spawns claude and codex CLIs as children (harness choice per thread), which match the claude-code and codex rows: drop those by ancestry.",
+      "bundle_ids": [
+        "com.freebuff.desktop"
+      ],
+      "process": {
+        "path_contains": [
+          "/Freebuff.app/Contents/Resources/bun/bun"
+        ],
+        "args_contain": [
+          "orchestrator.js"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "label": "Freebuff Web, Cloud and Chat (hosted, no local process)"
+    }
+  ],
+  "session_store": {
+    "glob": "~/.config/manicode/projects/*/chats/*/chat-messages.json",
+    "per_session": "~/.config/manicode/projects/*/chats/{session_id}/chat-messages.json",
+    "format": "json",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "codebuff",
+      "meaning": "Codebuff CLI only, only while a shell tool call runs: the binary re-executes itself (`<same path> --terminal-command-broker`, detached) as a DIRECT child and that helper runs `bash -c <cmd>` under it. Absent while the model streams or files are edited. Counts only as a direct child of the matched process. Do not apply the generic rule 'ignore a child with the same executable as its parent' to this row. Not present during a sponsored (ads) run, which uses a sandbox broker instead."
+    },
+    {
+      "signal": "child_process",
+      "name": "freebuff",
+      "meaning": "Same as above for the Freebuff CLI: direct child `freebuff --terminal-command-broker` while a shell tool call runs."
+    },
+    {
+      "signal": "child_process",
+      "name": "bash",
+      "meaning": "Freebuff Desktop orchestrator: it runs shell tool calls itself with no broker, so `bash -c <cmd>` is a direct child of the bun process while the command runs. Also true for a CLI turn that runs as a sponsored (ads) run: the SDK then uses a sandbox broker and the shell is a direct child of the CLI [inferred: sandbox-exec execs its target]. Weak, three known false positives: (1) Desktop's embedded terminal panel spawns the user's interactive login shell (`$SHELL -l`, or `bash --rcfile ... -i`) as a direct child of the orchestrator for as long as the panel is open, so SHELL=/bin/bash reads as permanently working (zsh, the macOS default, does not match this name); (2) a project startup script runs as `bash -lc <script>` for up to 120 s when a thread is set up; (3) nothing distinguishes these by name, and the schema has no argument filter for child_process."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "CLI: a run checkpoints its chat at start (the prompt) and then the SDK calls onStateSnapshot on a 5 s timer, but a tick is skipped unless the run's messageHistory array was replaced since the last tick (a step boundary: model reply finished, tool result added). The CLI then rewrites run-state.json and chat-messages.json (plus chat-meta.json) in the chat directory, and a synchronous save happens at turn end; log.jsonl is appended too. So writes come at most every 5 s and NOT during one long model call or one long tool call. Raises working, never lowers it. A process maps to a chat directory only by cwd basename (or --continue <id>), and the directory changes on /new and /history."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback. Unmeasured guess (nothing was running). The CLI is a Bun OpenTUI renderer with ad polling; idle CPU is unknown."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "none_external",
+      "meaning": "CLI: no hook, notification command, bell, OSC progress or power assertion. Blocked-on-human states are TUI-only: the ask_user form (askUserState), the .agents trust prompt, login, and the Freebuff waiting-room queue. No tool-approval prompt for shell commands was found in cli/src. The terminal title is set to the typed input, not a state."
+    },
+    {
+      "signal": "sqlite",
+      "table": "threads",
+      "column": "attention_reason",
+      "meaning": "Freebuff Desktop only, weak: raised for `failed`, `merge-conflict` and `auto-stopped`; these mean look at me, not a permission or question. Pending questions and permission requests were not found in the schema (tables: projects, threads, messages, queue_items, auto_run_decision_receipts, sponsored_runs, thread_deliveries), so they are probably in memory only [inferred]."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "None. Neither the CLI nor Desktop reads a hooks config. `run_file_change_hooks` is a tool the agent calls (a no-op in the SDK), not a lifecycle hook. Nearest equivalents: custom agents in .agents/ (TypeScript) and, in Desktop, per-thread state in .freebuff/desktop-v2.db.",
+    "events": [],
+    "docs": "none found; https://www.codebuff.com/docs"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry exporter in cli/, sdk/, common/ or agents/ (grep for opentelemetry, OTEL_, otlp hits only bun.lock, where it is an optional peer of next). Product analytics go to PostHog and logs to an Axiom sink via /api/logs. Desktop app.asar has no otlp string; its orchestrator bundle contains @opentelemetry/api and OTEL_* names only because it bundles the Claude Agent SDK for the claude harness."
+  },
+  "sources": [
+    {
+      "claim": "The repo is now Freebuff-branded and github.com/CodebuffAI/codebuff redirects to CodebuffAI/freebuff; the README says Freebuff is built on Codebuff",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/CodebuffAI/codebuff (scraped page titled CodebuffAI/freebuff, 'Sync public snapshot from freebuff-private'); README.md section 'Built on Codebuff'"
+    },
+    {
+      "claim": "npm packages: codebuff 1.0.688 with bins codebuff and cb; freebuff 0.1.6 with bin freebuff; both are launchers, os darwin/linux/win32",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`npm view codebuff version bin` printed version = '1.0.688', bin = { codebuff: 'index.js', cb: 'index.js' }; `npm view freebuff version bin` printed 0.1.6 and { freebuff: 'index.js' }; CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff) cli/release/package.json, freebuff/cli/release/package.json"
+    },
+    {
+      "claim": "The launcher downloads the binary to ~/.config/manicode/<packageName> and spawns it with the binary path as argv[0] and the user's args; it sets CODEBUFF_LAUNCHER_PID in the child's environment",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cli/release-core/launcher.js createConfig (lines 355-368: configDir = ~/.config/manicode, binaryPath = configDir/binaryName) and spawnInstalledBinary (lines 1814-1849); CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff)"
+    },
+    {
+      "claim": "Docs confirm the downloaded binary location",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://www.codebuff.com/docs/help/quick-start: 'Try deleting the downloaded binary at ~/.config/manicode/codebuff and restarting codebuff.'"
+    },
+    {
+      "claim": "CLI flags: --continue [conversation-id], --cwd, --agent, --lite/--free/--max/--plan, --trust-agents; Freebuff drops prompt args and --agent; no session-id flag other than --continue",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cli/src/cli-args.ts parseArgs; CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff)"
+    },
+    {
+      "claim": "Chats are stored at ~/.config/manicode/projects/<basename of project root>/chats/<ISO timestamp with ':' replaced by '-'>/ with chat-messages.json (array of messages), run-state.json, chat-meta.json (messageCount, firstPrompt, messagesSize, messagesMtimeMs) and log.jsonl; the project folder is the cwd BASENAME, so two projects with the same folder name share a store; FREEBUFF_CONFIG_DIR (absolute path) relocates it",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cli/src/project-files.ts getProjectDataDir/getCurrentChatId/getCurrentChatDir; cli/src/utils/config-dir.ts getConfigDir; cli/src/utils/chat-meta.ts; cli/src/utils/logger.ts CHAT_LOG_FILENAME = 'log.jsonl'; CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff)"
+    },
+    {
+      "claim": "From run start the SDK calls onStateSnapshot on a 5 s timer, but skips a tick unless messageHistory was replaced since the last tick; the CLI then schedules an async, coalesced rewrite of run-state.json and chat-messages.json; a synchronous save happens at turn completion and on exit. Snapshots are therefore NOT emitted during a single long model call",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "sdk/src/run.ts STATE_SNAPSHOT_INTERVAL_MS = 5_000 (line 328); cli/src/utils/run-state-storage.ts scheduleCheckpointSave, saveChatState, comments at lines 401-465; CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff); re-verified 2026-09-29 at HEAD cf26785: sdk/src/run.ts lines 949-985 (lastSnapshotHistory identity check: 'Skipping unchanged ticks ... while the run is just waiting on a slow LLM call'); the first version of this row said 'about every 5 s' unconditionally"
+    },
+    {
+      "claim": "Every shell tool call on the CLI goes through a broker: the CLI spawns process.execPath with --terminal-command-broker (detached, env CODEBUFF_TERMINAL_COMMAND_BROKER=1); that helper spawns the command (`bash -c <command>` on POSIX) as its own child and reaps its process group when done. So the direct child is the same executable, and bash is a grandchild. Exception: a sponsored (ads) turn passes createSponsoredCodeSearchBroker instead, so the shell runs under /usr/bin/sandbox-exec (direct child, expected to exec into bash)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cli/src/utils/terminal-command-broker.ts defaultBrokerInvocation (line 340-353), createTerminalCommandBroker.start, serveTerminalCommandBroker; cli/src/entry.ts (dispatch on the flag); cli/src/utils/codebuff-client.ts line 97 passes terminalCommandBroker; sdk/src/tools/run-terminal-command.ts lines 395-396 shell = 'bash', shellArgs = ['-c']; CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff); sponsored exception: cli/src/utils/sponsored-run.ts line 1565 (processBroker = createSponsoredCodeSearchBroker) and line 1735 (terminalCommandBroker: processBroker); sdk/src/tools/sponsored-sandbox.ts darwin arm uses /usr/bin/sandbox-exec; Desktop orchestrator.js spawnMac at ~line 132968. That sandbox-exec execs its target is inferred, not observed. Re-verified against the shipped 1.0.688 binary (see the binary-strings source)"
+    },
+    {
+      "claim": "The CLI keeps a persistent /bin/sh child for its whole life on POSIX (terminal-reset watchdog: `/bin/sh -c 'cat >/dev/null 2>&1; printf ...' terminal-reset-watchdog`, detached, prints terminal reset on our death). It is a shell and a direct child, so the probe's tool_children signal would read every idle session as working; disable with CODEBUFF_NO_TERMINAL_WATCHDOG or when stdout is not a TTY",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cli/src/utils/terminal-watchdog.ts spawnPosixWatchdog (lines 161-170) and startTerminalWatchdog (line 507-); called from cli/src/index.tsx line 457; CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff)"
+    },
+    {
+      "claim": "No sleep inhibitor anywhere in the CLI or SDK, so no caffeinate child and no IOKit assertion to read",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rIn 'caffeinate\\|powerSave\\|IOPM' cli/src sdk/src returned nothing relevant (only sleep() helpers); Desktop app.asar: `strings -a app.asar | grep -n 'powerSaveBlocker\\|prevent-app-suspension\\|prevent-display-sleep'` printed nothing"
+    },
+    {
+      "claim": "CLI status indicator has states idle, waiting (request sent), streaming; ask_user is a TUI form that hides the working indicators",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cli/src/hooks/use-message-queue.ts line 7 StreamStatus = 'idle' | 'waiting' | 'streaming'; cli/src/utils/status-indicator-state.ts isAskUserActive; cli/src/chat.tsx askUserState"
+    },
+    {
+      "claim": "Freebuff CLI writes freebuff-instance-owner.json (one file, last writer, holds pid) and freebuff-live-<pid>.json (per pid, holds instanceId, model, expiresAt) in ~/.config/manicode; useful to prove a pid is a live Freebuff session, not for working/idle",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cli/src/utils/freebuff-instance-owner.ts OWNER_FILE; cli/src/utils/freebuff-session-relaunch.ts LIVE_PREFIX = 'freebuff-live-', livePath(pid), LiveRecord; CodebuffAI/codebuff at commit 97654d3e69e37bdca502ce2dcf131e69730fd3c4 (2026-09-29, shallow clone, the repo now redirects to CodebuffAI/freebuff)"
+    },
+    {
+      "claim": "No lifecycle hooks: grep of cli/src, sdk/src, common/src, docs finds no hooks config; run_file_change_hooks is an agent tool and a no-op in the SDK",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "sdk/src/tools/run-file-change-hooks.ts ('File change hooks are not supported in the SDK environment'); grep -rIli hook over cli/src returned only React hooks and unrelated comments"
+    },
+    {
+      "claim": "No OpenTelemetry in the public source",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rIln 'opentelemetry\\|OTEL_\\|otlp' --exclude-dir=node_modules . in a shallow clone listed only bun.lock (optional peer of next) and evals/buffbench/*.json (eval text)"
+    },
+    {
+      "claim": "Freebuff Desktop exists for macOS arm64 and x64, is Electron built with electron-builder, bundle id com.freebuff.desktop, executable Contents/MacOS/Freebuff, not code-signed, distributed from GitHub releases of CodebuffAI/codebuff-community",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl -sI https://freebuff.com/api/desktop/download/mac-arm64 gave 302 to https://github.com/CodebuffAI/codebuff-community/releases/download/freebuff-desktop-v0.0.152/Freebuff-0.0.152-mac-arm64.dmg; GitHub API asset list has *.yml and *.blockmap files; HTTP range read of the central directory of Freebuff-0.0.152-mac-arm64.zip (nothing downloaded in full, nothing mounted or run) then Contents/Info.plist decoded with plistlib: CFBundleIdentifier com.freebuff.desktop, CFBundleExecutable Freebuff, CFBundleShortVersionString 0.0.152, LSApplicationCategoryType public.app-category.developer-tools; https://freebuff.com/desktop says 'These builds aren't code-signed yet'"
+    },
+    {
+      "claim": "Desktop runs a local orchestrator as `<Freebuff.app>/Contents/Resources/bun/bun <Freebuff.app>/Contents/Resources/orchestrator/orchestrator.js` (cwd = orchestrator dir), listening on 127.0.0.1; it spawns harness CLIs (claude, codex) with FREEBUFF_ORCHESTRATOR_PID in their ENVIRONMENT (not argv) so an orphan reaper can find them",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "app.asar from the same zip (range read, extracted to scratchpad, read with strings -a and grep only): resolveOrchestrator() at asar line ~139541 returns bun: packagedBunRuntime().bun, args: [path.join(orchDir, 'orchestrator.js')]; zip listing shows Contents/Resources/bun/bun and Contents/Resources/orchestrator/orchestrator.js; orchestrator.js: ORCHESTRATOR_PID_ENV = 'FREEBUFF_ORCHESTRATOR_PID', Bun.serve({hostname: '127.0.0.1'})"
+    },
+    {
+      "claim": "Desktop stores threads per project in SQLite at <project root>/.freebuff/desktop-v2.db (tables projects, threads, messages, queue_items, auto_run_decision_receipts, sponsored_runs, thread_deliveries). threads.turn_state is 'idle' or 'running' and is the exact per-thread turn flag; last_turn_finished_at, last_turn_outcome, queue_paused, attention_reason are alongside",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "orchestrator.js from the release zip: DB_FILENAME = 'desktop-v2.db' (line 179581), join25(projectRoot, '.freebuff', DB_FILENAME) (line 180067), SCHEMA (lines 179581-179830), UPDATE threads SET turn_state = 'running' (line 195543) and 'idle' (line 195652); a relaunch resets a crashed 'running' to 'idle' (line 195078)"
+    },
+    {
+      "claim": "Desktop runs shell tool calls with no broker (spawnDirectTerminalCommand: `bash -c <cmd>`, detached), so bash is a direct child of the bun orchestrator",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "orchestrator.js: no occurrence of createTerminalCommandBroker or terminal-command-broker (grep -c printed 0); lines 129796 spawnDirectTerminalCommand and 129861-129873 shell = 'bash', shellArgs = ['-c']"
+    },
+    {
+      "claim": "Not installed on this Mac and nothing running",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which codebuff cb freebuff` printed 'not found' for all three; `ls -d ~/.config/manicode* ~/.codebuff* ~/.freebuff*` matched nothing; `ls /Applications | grep -i buff` printed nothing; `ps -axo pid=,args= | grep -i 'codebuff|freebuff|manicode'` printed nothing"
+    },
+    {
+      "claim": "The shipped npm-era CLI binary (codebuff 1.0.688, darwin-arm64) contains the broker, the terminal watchdog, chat-messages.json and CODEBUFF_LAUNCHER_PID, and contains no caffeinate, powerSave or opentelemetry string",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "curl -sL https://codebuff.com/api/releases/download/1.0.688/codebuff-darwin-arm64.tar.gz (302 to github.com/CodebuffAI/codebuff-community/releases/download/v1.0.688/..., 36176238 bytes), extracted, NOT run; `file` says Mach-O 64-bit executable arm64; `strings -a | grep -c`: terminal-command-broker 2 (JFT=\"--terminal-command-broker\", CODEBUFF_TERMINAL_COMMAND_BROKER), terminal-reset-watchdog 1, chat-messages.json 2, CODEBUFF_LAUNCHER_PID 2, caffeinate 0, powerSave 0, opentelemetry 0, run_file_change_hooks 9. Closes the doubt that HEAD was ahead of the published 1.0.688. freebuff 0.1.6 binary not fetched"
+    },
+    {
+      "claim": "Desktop orchestrator spawns the user's interactive shell for an embedded terminal panel, and a project startup script as `bash -lc`",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "orchestrator.js from Freebuff-0.0.152-mac-arm64.zip (range read, read with grep only): terminal session start() at ~line 209360 `Bun.spawn(shell.argv, {terminal: {cols:100, rows:28 ...}})`, default argv [env.SHELL || '/bin/sh', '-l'] (line 209145), bash variant [shell.argv[0], '--rcfile', <dir>/bashrc, '-i'] (line 209481); runStartupScript ~line 197020 `Bun.spawn([bash, '-lc', script])`, STARTUP_SCRIPT_TIMEOUT_MS = 120000 (line 196193). Never run"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "One codebase, three local products. CLI: the process to watch is the Bun binary in ~/.config/manicode, not the npm launcher. The Codebuff and Freebuff CLIs share the store, so the store cannot say which wrote a chat; the process can. A CLI process holds exactly one chat at a time but rotates it on /new and /history, and the store folder is the cwd basename, so map a process to a chat by cwd plus newest mtime and treat it as a guess unless --continue <id> was on the command line. Working signals for the CLI are weak by design: a broker child (same executable, --terminal-command-broker) during shell tool calls, and chat-file rewrites every ~5 s during a run; model streaming without files changing is invisible. Do not use tool_children here: a permanent /bin/sh watchdog child would mark every idle CLI working. Freebuff Desktop is different: one orchestrator process hosts every thread, and the exact answer is threads.turn_state = 'running' in <project>/.freebuff/desktop-v2.db (needs a new sqlite_row signal; read that column only, never messages.parts_json). Desktop threads can run claude and codex as children, so those match the claude-code and codex rows too and should be dropped by ancestry. Freebuff CLI has a waiting-room queue and session hours that are not a turn. Version researched: repo HEAD 97654d3 (2026-09-29), npm codebuff 1.0.688, freebuff 0.1.6, Desktop 0.0.152. Verification pass 2026-09-29 (second reader): the 5 s chat snapshot is skipped while the run waits on one slow model call (see the working_signals meaning), so the CLI's transcript signal can be quiet during a live turn; the `bash` child signal has known false positives on Desktop (embedded terminal with SHELL=bash, startup script) and is a weak signal there; a sponsored (ads) turn in the CLI or Desktop runs the shell through a sandbox broker, so the `codebuff --terminal-command-broker` child is absent then. The probe's session_id() returns whatever argv follows --continue, so `codebuff --continue --cwd X` or `codebuff --continue \"prompt\"` yields a junk id; harmless because no chat directory matches it, but do not treat it as a session id unless it looks like an ISO timestamp with ':' as '-'. Matching: names ['codebuff'] also catches a relocated binary (FREEBUFF_CONFIG_DIR) and any other executable named codebuff; the npm launcher, cb, the broker, the /bin/sh watchdog, the Bun probe (`bun --version`), the Electron main process and helpers, `tail codebuff.log` and the staged download `.codebuff-download-temp/codebuff` were run through matches(): only the staged download and a bare `/opt/homebrew/bin/codebuff` match (both tui; the launcher was not seen executing the staged copy). Never executed live: real ps output for every surface is still unseen."
+}

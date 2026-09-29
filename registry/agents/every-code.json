@@ -1,0 +1,309 @@
+{
+  "id": "every-code",
+  "name": "Every Code",
+  "vendor": "Every (just-every), community fork of openai/codex",
+  "homepage": "https://github.com/just-every/code",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Every Code interactive terminal UI (`code`, `coder`, `code resume [id]`). One process is one session: the TUI runs the agent loop in-process, there is no shared daemon. The native binary is what runs; the npm `coder` command is a node wrapper (`node .../bin/coder.js`, argv[0]=node, cannot be matched) that spawns it as a direct child, so only the native process matches. Native binary names: code-aarch64-apple-darwin / code-x86_64-apple-darwin (npm cache ~/Library/Caches/just-every/code/<ver>/, node_modules/@just-every/code/bin/, or the platform package @just-every/code-darwin-arm64/bin/), legacy coder-<triple>, or plain `code` (Homebrew tap formula installs the release binary as bin/code; also `cargo`/build-fast.sh output code-rs/target/dev-fast/code).",
+      "process": {
+        "names": [
+          "code-aarch64-apple-darwin",
+          "code-x86_64-apple-darwin",
+          "coder-aarch64-apple-darwin",
+          "coder-x86_64-apple-darwin",
+          "code"
+        ],
+        "path_contains": [
+          "/@just-every/code",
+          "/just-every/code/"
+        ],
+        "exclude_args": [
+          "exec",
+          "acp",
+          "mcp",
+          "mcp-server",
+          "app-server",
+          "login",
+          "logout",
+          "doctor",
+          "completion",
+          "cloud",
+          "cloud-tasks",
+          "preview",
+          "llm",
+          "bridge",
+          "responses-api-proxy",
+          "order-replay",
+          "generate-ts",
+          "--version",
+          "--help",
+          "tunnel",
+          "serve-web",
+          "--install-extension",
+          "--uninstall-extension",
+          "--list-extensions"
+        ]
+      },
+      "session_id_args": [
+        "resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "`code exec` / `code e` headless run (also what Every Code itself spawns for multi-agent /plan /solve /code: `code -s read-only|workspace-write ... exec --skip-git-repo-check ...` as a direct child of the TUI, same binary path, so the probe keeps the outer TUI and drops these). `code auto \"goal\"` is also headless (main.rs Subcommand::Auto sets auto_drive and runs code_exec::run_main, same as exec) but this surface cannot match it: args_contain is a substring test and a bare `auto` would also hit `--full-auto` and `--auto` on real TUI sessions. It falls to the TUI surface above and is labelled tui; it is alive-means-working in fact, but the TUI signals (rollout tail, direct shell child, CPU) usually catch it too.",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "code-aarch64-apple-darwin",
+          "code-x86_64-apple-darwin",
+          "coder-aarch64-apple-darwin",
+          "coder-x86_64-apple-darwin",
+          "code"
+        ],
+        "path_contains": [
+          "/@just-every/code",
+          "/just-every/code/"
+        ],
+        "args_contain": [
+          "exec"
+        ],
+        "exclude_args": [
+          "app-server",
+          "mcp-server",
+          "--version",
+          "--help",
+          "tunnel",
+          "serve-web"
+        ]
+      },
+      "session_id_args": [
+        "resume"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "`code app-server` and `code mcp-server` (experimental stdio servers for an editor or another agent; hosts threads for a client). `code acp` is NOT this: it is an alias of `code mcp`, the config manager (list/get/add/remove), see notes.",
+      "process": {
+        "names": [
+          "code-aarch64-apple-darwin",
+          "code-x86_64-apple-darwin",
+          "coder-aarch64-apple-darwin",
+          "coder-x86_64-apple-darwin",
+          "code"
+        ],
+        "path_contains": [
+          "/@just-every/code",
+          "/just-every/code/"
+        ],
+        "args_contain": [
+          "-server"
+        ],
+        "exclude_args": [
+          "tunnel",
+          "serve-web"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.code/sessions/*/*/*/rollout-*.jsonl",
+    "per_session": "~/.code/sessions/*/*/*/rollout-*-{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "name": "rollout tail has an open turn",
+      "meaning": "Precise form (from source, no live turn seen): the newest turn-lifecycle record in the rollout is event_msg task_started with no later task_complete or turn_aborted, AND the file was written recently, AND the pid is alive. Every Code persists every event except four (image_generation_begin and three delta kinds), so the file also grows on each exec_command_begin/end and token_count while a turn runs. The rollout file is held open by the process for the whole session (rollout_writer owns the fd), so `lsof -p <pid>` names the file: this maps a process to its transcript without any session id in argv. A quiet file with an open turn is a long model call, a long tool call, an approval wait, or a crashed process; the transcript alone cannot tell which."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "A direct shell child (`zsh -c ...` / `bash -lc ...`) exists only while a model-issued shell command runs. Inferred from core/src/shell.rs and seatbelt.rs (`/usr/bin/sandbox-exec ... -- <shell> -lc <cmd>`, sandbox-exec then execs the shell); not seen in a live ps. Blind while the model streams, and blind for apply_patch (in-process). Sub-agent children (`code ... exec`) and browser or MCP children are not shells, so they do not trigger it."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback. There is NO sleep inhibitor in Every Code: no caffeinate child and no IOKit power assertion (0 hits for IOPMAssertion, caffeinate, prevent_idle_sleep in the 0.6.195 binary and none in code-rs), unlike Codex which has an opt-in assertion. CPU is a guess floor; the browser integration and Auto Review worktree agents can add CPU while the main turn is idle."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "transcript_record",
+      "event": "exec_approval_request | apply_patch_approval_request | request_user_input",
+      "meaning": "Unlike upstream Codex, Every Code's rollout policy persists these: should_persist_event_msg excludes only ImageGenerationBegin and the AgentMessage/AgentReasoning/AgentReasoningRawContent deltas. So a tail of task_started ... exec_approval_request (or request_user_input) with no later exec_command_begin, task_complete or turn_aborted is a wait on the human. Inferred from source; the JSON wire names are snake_case of the enum variants; no live record was read."
+    },
+    {
+      "signal": "tui_notification",
+      "config": "tui.notifications = true or [\"agent-turn-complete\", \"approval-requested\"] in ~/.code/config.toml",
+      "meaning": "Terminal OSC 9 escape sent for approval-requested and agent-turn-complete. Nothing a process outside the terminal can read."
+    },
+    {
+      "signal": "notify",
+      "config": "top-level notify = [argv...] in ~/.code/config.toml",
+      "meaning": "Runs the program with one JSON argument, but only for agent-turn-complete (that is done, not waiting)."
+    },
+    {
+      "signal": "hook",
+      "meaning": "None. There is no approval or notification hook event. The eight hook events (see hooks) cover session, prompt, tool, file write and stop, not permission prompts."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.code/config.toml (legacy ~/.codex/config.toml is also read; CODE_HOME, then CODEX_HOME, override the directory): [[projects.\"/abs/path\".hooks]] tables with event, run or command (string or argv), name, cwd, env, timeout_ms, run_in_background. Hooks are per project path, not global. Env per call: CODE_HOOK_EVENT, CODE_HOOK_NAME, CODE_HOOK_INDEX, CODE_HOOK_CALL_ID, CODE_HOOK_PAYLOAD (JSON), CODE_SESSION_CWD. user.prompt_submit and stop payloads carry session_id, turn_id, transcript_path. Exit 2 with stderr blocks (prompt_submit) or forces a continuation (stop). Separate top-level `notify` fires only for agent-turn-complete.",
+    "events": [
+      "session.start",
+      "session.end",
+      "user.prompt_submit",
+      "tool.before",
+      "tool.after",
+      "file.before_write",
+      "file.after_write",
+      "stop"
+    ],
+    "docs": "https://github.com/just-every/code/blob/main/docs/config.md#project-hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Off by default. [otel] in ~/.code/config.toml: exporter = \"otlp-http\" (endpoint, headers, protocol json|binary) or \"otlp-grpc\", environment, log_user_prompt=false. Docs and source cover LOG EVENTS only (codex.conversation_starts, codex.api_request, codex.sse_event, codex.user_prompt, codex.tool_decision, codex.tool_result), service.name = originator (code_cli_rs); no traces or metrics exporter in code-rs/otel/src/config.rs. The 0.6.195 release binary contains the code_otel target and codex.conversation_starts string, so it is compiled in. Source-built copies need the `otel` cargo feature. Event names keep the codex.* prefix."
+  },
+  "sources": [
+    {
+      "claim": "Latest release is v0.6.195 (2026-09-28); assets are code-<triple>.tar.gz/.zst for aarch64 and x86_64 darwin, linux musl, and a windows zip",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://api.github.com/repos/just-every/code/releases/latest -> tag v0.6.195, published_at 2026-09-28T23:10:00Z, assets code-aarch64-apple-darwin.tar.gz (23178006 bytes), code-x86_64-apple-darwin.tar.gz, .zst variants"
+    },
+    {
+      "claim": "Not installed on this Mac; no Every Code process, no ~/.code, no ~/Library/Caches/just-every. /usr/local/bin/code is a dangling symlink to VS Code, so a bare `code` name collides with VS Code's CLI on this machine",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`ps -axo pid=,ppid=,args= | grep -i -E 'just-every|code-aarch64|coder|\\bcode\\b '` printed nothing; `ls ~/.code` -> No such file or directory; `ls ~/Library/Caches/just-every` -> No such file; `ls -l /usr/local/bin/code` -> /usr/local/bin/code -> /Applications/Visual Studio Code.app/Contents/Resources/app/bin/code (target missing)"
+    },
+    {
+      "claim": "The release binary is a native Mach-O arm64 that reports `code 0.6.195`; checksum equals the Homebrew tap formula's sha256; installed under the name `code` by the tap",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "downloaded code-aarch64-apple-darwin.tar.gz into the scratchpad (not installed): `shasum -a 256` printed 5cf4b48db3ce125d7f95c170b90f5ae018f574f99219312420da64877c0196c1, identical to Formula/Code.rb in https://github.com/just-every/homebrew-tap; `tar -tzvf` listed one entry code-aarch64-apple-darwin; `file` printed 'Mach-O 64-bit executable arm64'; with HOME and CODE_HOME pointed at an empty scratch dir, `--version` printed 'code 0.6.195' and nothing was written there. Formula install step: `bin.install Dir[\"code-*\"].first => \"code\"` plus a bash `coder` shim that execs bin/code"
+    },
+    {
+      "claim": "Subcommands: exec (alias e), auto, login, logout, mcp (alias acp), mcp-server, app-server, completion, debug, order-replay, apply (alias a), resume [SESSION_ID], cloud, doctor, preview, llm, bridge; there is no `review` subcommand and no daemon; interactive is the default",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`./code-aarch64-apple-darwin --help` (scratch copy) printed the Commands list above and 'Usage: code [OPTIONS] [PROMPT]'; `resume --help` printed 'Usage: code resume [OPTIONS] [SESSION_ID] [PROMPT]'; `exec --help` printed a `resume` subcommand. Same list in https://github.com/just-every/code/blob/main/code-rs/cli/src/main.rs (enum Subcommand)"
+    },
+    {
+      "claim": "CONTRADICTS THE DOCS: `code acp` is an alias of `code mcp`, which is the MCP config manager (list/get/add/remove), not an ACP server, so the documented Zed setting `npx -y @just-every/code acp` does not start a server by this help output",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`./code-aarch64-apple-darwin acp --help` printed 'Run Codex as an MCP server and manage MCP servers / Usage: code mcp [OPTIONS] <COMMAND> / Commands: list get add remove help'. Docs: https://github.com/just-every/code/blob/main/docs/integration-zed.md (args [\"-y\",\"@just-every/code\",\"acp\"]). main.rs line 116 `#[clap(visible_alias = \"acp\")]` on Mcp(McpCli); no other 'acp' string in code-rs/cli. Not run further (would start a server)."
+    },
+    {
+      "claim": "npm package @just-every/code exposes only `coder`; bin/coder.js is a node script that spawns the native binary as a child (stdio inherit), preferring ~/Library/Caches/just-every/code/<version>/code-<triple>; a `code` shim is added only when no other `code` is on PATH (VS Code)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/just-every/code/blob/main/codex-cli/package.json (bin: {coder: bin/coder.js}; optionalDependencies @just-every/code-darwin-arm64 etc.); https://registry.npmjs.org/@just-every/code/latest -> version 0.6.195, bin {coder: bin/coder.js}; codex-cli/bin/coder.js (getCacheDir -> Library/Caches/just-every/code/<version>, `spawn(binaryPath, process.argv.slice(2), {stdio:'inherit', env:{CODER_MANAGED_BY_NPM, CODEX_MANAGED_BY_NPM, CODE_BINARY_PATH}})`); codex-cli/postinstall.js lines 584-596 ('We no longer publish a `code` bin ... create a `code` wrapper only when there is no conflicting `code` earlier on PATH')"
+    },
+    {
+      "claim": "Sessions are JSONL rollouts written to ~/.code/sessions/YYYY/MM/DD/rollout-<local timestamp>-<uuid>.jsonl; the process holds the file open for the session; resume appends to the same file",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/core/src/rollout/recorder.rs create_log_file (code_home/sessions/YYYY/MM/DD, filename format!(\"rollout-{date_str}-{conversation_id}.jsonl\")), rollout_writer owns tokio::fs::File and write_line does write_all + flush per record; RolloutRecorderParams::Resume opens the existing path append. First record is SessionMeta (id, cwd, originator DEFAULT_ORIGINATOR, cli_version, source). The lsof mapping follows from the held fd and was NOT observed live."
+    },
+    {
+      "claim": "Docs example shows a flat transcript path, source writes a dated tree",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/just-every/code/blob/main/docs/config.md hook payload example transcript_path '/Users/me/.code/sessions/rollout-2026-05-06T12-00-00-0195f3f5-....jsonl' versus recorder.rs create_log_file which nests YYYY/MM/DD. The glob in this row follows the source. Old files may sit flat: rollout/catalog.rs reconciles both."
+    },
+    {
+      "claim": "Additional stores: ~/.code/sessions/index/catalog.jsonl (one line per session: session_id, rollout_path, cwd_real, git_branch, session_source, last_event_at), ~/.code/archived_sessions, ~/.code/history.jsonl (prompt history), ~/.code/auto-drive/pid-<pid>.json while an Auto Drive run is active",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/core/src/rollout/catalog.rs (INDEX_SUBDIR 'sessions/index', CATALOG_FILENAME 'catalog.jsonl'); rollout/mod.rs ARCHIVED_SESSIONS_SUBDIR; core/src/message_history.rs HISTORY_FILENAME; core/src/auto_drive_pid.rs (writes ~/.code/auto-drive/pid-{pid}.json with pid, started_at, mode exec|tui, goal, cwd, command; removed on Drop; called from tui/src/chatwidget.rs and exec/src/lib.rs). The pid file holds the goal text in `goal` and again inside `command` (the full argv joined, so `code auto \"goal\"` puts the goal there too): read only the pid and mode keys. It marks an Auto Drive RUN (many turns), not a single turn."
+    },
+    {
+      "claim": "Config home resolves CODE_HOME, then CODEX_HOME, then ~/.code; ~/.codex is read for compatibility but never written; the binary lists ~/.codex/sessions rollouts too",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/core/src/config/sources.rs find_code_home(); https://github.com/just-every/code/blob/main/README.md 'Every Code reads from both ~/.code/ and ~/.codex/ ... only writes updates to ~/.code/'; recorder.rs comment 'Code still reads legacy ~/.codex/sessions/ paths'. On this Mac ~/.codex holds real Codex rollouts, so a file there may be Codex's; tell them apart by session_meta.originator (Every Code writes code_cli_rs: code-rs/core/src/default_client.rs DEFAULT_ORIGINATOR, used by rollout/recorder.rs; upstream Codex default is codex_cli_rs per openai/codex codex-rs/login/src/auth/default_client.rs line 42; other Codex values such as codex-tui are not verified here) and cli_version. `resume` of a legacy session appends to the ~/.codex file."
+    },
+    {
+      "claim": "Turn boundary records exist in the rollout: wire names task_started / task_complete (v1 wire, turn_started/turn_complete accepted), plus turn_aborted",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/protocol/src/protocol.rs `#[serde(rename = \"task_started\", alias = \"turn_started\")] TurnStarted`, `rename = \"task_complete\", alias = \"turn_complete\"`, `TurnAborted`; core/src/codex/streaming.rs:2534 emits EventMsg::TaskStarted; codex/events.rs persist_event -> RolloutRecorder::record_events for every event that passes should_persist_event_msg. Core TaskStarted is a unit variant converted through serde into TurnStartedEvent (all-optional fields), so it should serialise; not verified against a real file."
+    },
+    {
+      "claim": "Approval and question events ARE persisted (opposite of upstream Codex, where they are not)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/core/src/rollout/policy.rs should_persist_event_msg: `!matches!(ev, EventMsg::ImageGenerationBegin(_) | EventMsg::AgentMessageDelta(_) | EventMsg::AgentReasoningDelta(_) | EventMsg::AgentReasoningRawContentDelta(_))`; ExecApprovalRequest, ApplyPatchApprovalRequest and RequestUserInput are variants of core/src/protocol.rs EventMsg and are not in the exclusion list. TaskLifecycle (which has an AwaitingExternalInput phase emitted around request_user_input in codex/streaming.rs:5391) is dropped by event_msg_to_protocol and never written."
+    },
+    {
+      "claim": "No macOS sleep inhibitor: no caffeinate child, no IOKit power assertion",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`strings -a` on the 0.6.195 arm64 binary, `grep -c` counts: IOPMAssertion 0, caffeinate 0, 'running an active turn' 0, prevent_idle_sleep 0 (Codex's assertion name and flag). A recursive grep of the just-every/code checkout (code-rs, sparse clone in scratchpad, commit fe8dac63d319) for IOPMAssertion|caffeinate|prevent_idle_sleep|sleep.inhibit|PreventUserIdle found no file; code-rs/utils has no sleep-inhibitor crate (upstream codex-rs/utils/sleep-inhibitor exists). Re-checked 2026-09-29: `otool -L` lists only AppKit, Foundation, CoreGraphics, CoreFoundation, libobjc, CoreServices, Security, SystemConfiguration, libiconv, libSystem (no IOKit); `strings -a | grep -c -i` printed 0 for IOPM, PreventUserIdle, NoIdleSleep, keepawake, sleep_inhibit, caffeinate."
+    },
+    {
+      "claim": "Hooks: eight events under [[projects.\"<path>\".hooks]], env vars, payloads, exit-code semantics",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/just-every/code/blob/main/docs/config.md section 'Project Hooks' (events session.start, session.end, user.prompt_submit, tool.before, tool.after, file.before_write, file.after_write, stop; 'UserPromptSubmit' and 'Stop' accepted as aliases); enum ProjectHookEvent in code-rs/core/src/config_types.rs; hooks run through code-rs/core/src/project_features.rs ProjectHooks. Binary contains CODE_HOOK_PAYLOAD (1 hit)."
+    },
+    {
+      "claim": "notify runs an external program with one JSON argument for agent-turn-complete only; tui.notifications does OSC 9 for agent-turn-complete and approval-requested",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/just-every/code/blob/main/docs/config.md sections 'notify' ('Currently, notify emits only agent-turn-complete, whereas tui.notifications supports agent-turn-complete and approval-requested') and tui table; code-rs/core/src/user_notification.rs (enum UserNotification has one variant AgentTurnComplete); tui/src/app/terminal.rs emit_osc9_notification"
+    },
+    {
+      "claim": "OpenTelemetry: opt-in log events over OTLP http or grpc, event catalog, codex.* names kept; logs only",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/just-every/code/blob/main/docs/config.md section 'otel' ('Code can emit OpenTelemetry log events ... Export is disabled by default'); code-rs/core/src/otel_init.rs build_provider (Kind::None | OtlpHttp | OtlpGrpc), code-rs/otel/src/config.rs OtelExporter {None, OtlpGrpc, OtlpHttp}; binary strings: 'codex.conversation_starts' 1 hit, 'code_otel' 1 hit. The OTEL_ strings in the binary are the opentelemetry-otlp crate's standard env var names (OTEL_EXPORTER_OTLP_ENDPOINT, _HEADERS, _PROTOCOL, _TIMEOUT, OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES, OTEL_BLRP_*): checked by `strings -a | grep -o 'OTEL_[A-Z_]*'` on the 0.6.195 arm64 binary."
+    },
+    {
+      "claim": "Shell tool commands run as a direct shell child of the process (zsh/bash with rc sourcing), via /usr/bin/sandbox-exec under the seatbelt sandbox",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/core/src/shell.rs (Shell::Zsh/Bash format_shell_invocation_with_rc, `bash -lc`), code-rs/core/src/seatbelt.rs (MACOS_PATH_TO_SEATBELT_EXECUTABLE '/usr/bin/sandbox-exec'), core/src/spawn.rs kill_on_drop. That sandbox-exec execs the command (so the child shows as the shell, not sandbox-exec) is upstream behaviour assumed here: inferred, no live ps."
+    },
+    {
+      "claim": "Multi-agent runs spawn the same binary as direct children: `code -s read-only|workspace-write [--dangerously-bypass-approvals-and-sandbox] exec --skip-git-repo-check ...`, and also external CLIs (claude, gemini, qwen, agy)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/core/src/agent_defaults.rs (CODE_GPT5_READ_ONLY = [\"-s\",\"read-only\",\"exec\",\"--skip-git-repo-check\"], cli: \"coder\"), core/src/agent_tool.rs current_code_binary_path() (CODE_BINARY_PATH env, else current_exe); README 'Every Code supports orchestrating other AI CLI tools'. An external `claude` child would also match the claude-code row: drop matches whose parent is an every-code process."
+    },
+    {
+      "claim": "Probe rule check on made-up argv lines (synthetic, not live ps)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "see registry/evidence/every-code.md for the exact lines fed to tools/agents_probe.matches()"
+    },
+    {
+      "claim": "A bare `code` name collides with the standalone VS Code CLI (a native binary named `code`, run as `code tunnel` or `code serve-web`); the row now vetoes tunnel, serve-web and the extension-management flags",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://code.visualstudio.com/updates/v1_74 ('Download the new VS Code CLI and run `./code tunnel`'); https://code.visualstudio.com/updates/v1_99 ('code, code-insiders, and code-tunnel CLI' subcommands). Before the repair `agents_probe.matches()` on the synthetic line `code tunnel --accept-server-license-terms` matched BOTH the tui and the daemon surface (the daemon one because `-server` is a substring of `--accept-server-license-terms`); after it matches neither. Neither `tunnel`, `serve-web` nor `install-extension` occurs in code-rs/cli/src/main.rs or code-rs/tui/src/cli.rs (grep -c printed 0). A plain `code -r .` from the same CLI cannot be told apart by argv and would still show as an idle Every Code session."
+    },
+    {
+      "claim": "`code auto` is headless, not the interactive TUI: it runs the exec path with Auto Drive on",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/cli/src/main.rs: doc comment 'Run Auto Drive in headless mode (alias for `exec --auto --full-auto`)' on Subcommand::Auto(ExecCli); the Subcommand::Auto arm sets exec_cli.auto_drive = true and calls code_exec::run_main(exec_cli, ...). `code --help` (0.6.195 arm64, scratch copy) prints the same line. The global `--auto` flag on `code exec` sets the same option."
+    },
+    {
+      "claim": "Exec-style children started through the PTY tool run as `<shell> -lc <cmd>` direct children and can outlive their tool call",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "code-rs/core/src/exec_command/session_manager.rs lines 457-460 (CommandBuilder::new(shell), arg '-lc' or '-c'). A model-started long-running command (a dev server) stays a direct shell child after the turn ends, so tool_children can read an idle session as working; README section 4 baseline-child rule applies. Not observed live."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not verified-locally: Every Code is not installed and no turn was watched, so every process shape and the lsof-to-rollout mapping is from source, docs and static inspection of the release binary. One process is one session (the TUI is in-process). There is no sleep inhibitor, so the best per-session working check is the rollout tail (open task_started, recent write, pid alive) plus a direct shell child; an approval or question wait shows as an exec_approval_request / request_user_input record at the tail. Name collision: a bare argv[0] basename `code` is kept in `names` because the Homebrew tap installs the binary as bin/code. The VS Code app's own `code` is a shell script (argv[0] bash) and does not match, but the standalone VS Code CLI is a native binary called `code` (`code tunnel`, `code serve-web`): those subcommands and the extension flags are vetoed in exclude_args, though `code -r .` from that binary would still be misread as an idle session. Confirm on first live run. Paths with spaces break argv[0] (probe splits on spaces). Prompts passed as argv are split into words and a word equal to an excluded token (for example `login`, `preview`, `cloud`) vetoes the TUI match. `code apply`, `code debug` and `code help` are not excluded and would show as brief idle sessions. `code e` (exec alias) is not matched by the exec surface (args_contain is a substring test on `exec`), so it falls to the TUI surface and is labelled tui; the signals are the same. Auto Drive runs many turns with a coordinator model call between them; between turns no task_started is open, so use the pid file ~/.code/auto-drive/pid-<pid>.json (present for the whole run; never read its goal or command fields: both carry the goal text) to keep such a session working. `code auto` is headless (exec path), labelled tui because the exec surface cannot match it. tool_children can over-report while a model-started long-running shell command (dev server) is still a direct child."
+}

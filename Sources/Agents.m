@@ -74,20 +74,25 @@ static NSArray *Strings(id v) { return [v isKindOfClass:NSArray.class] ? v : @[]
 /// names against the base name of argv[0], path_contains against argv[0] itself.
 /// The executable path is deliberately ignored: a harness may ship helper tools inside
 /// its own binary and run them under another name (Claude Code runs ugrep that way).
-static BOOL Matches(NSDictionary *surface, NSArray<NSString *> *argv) {
+/// 0 when the surface does not match. Otherwise a score: how specific the match was.
+/// A process that matches two rows belongs to the more specific one, so the claude binary
+/// that Xcode ships is an Xcode agent, not a terminal session.
+static NSInteger Matches(NSDictionary *surface, NSArray<NSString *> *argv) {
     NSDictionary *spec = [surface[@"process"] isKindOfClass:NSDictionary.class] ? surface[@"process"] : nil;
-    if (!spec.count || !argv.count) return NO;
+    if (!spec.count || !argv.count) return 0;
     NSString *arg0 = argv.firstObject;
-    BOOL hit = [Strings(spec[@"names"]) containsObject:arg0.lastPathComponent];
-    for (NSString *s in Strings(spec[@"path_contains"])) if ([arg0 containsString:s]) hit = YES;
-    if (!hit) return NO;
-    for (NSString *x in Strings(spec[@"exclude_args"])) if ([argv containsObject:x]) return NO;
-    for (NSString *need in Strings(spec[@"args_contain"])) {
+    BOOL named = [Strings(spec[@"names"]) containsObject:arg0.lastPathComponent];
+    NSUInteger longest = 0; BOOL pathHit = NO;
+    for (NSString *s in Strings(spec[@"path_contains"])) if ([arg0 containsString:s]) { pathHit = YES; longest = MAX(longest, s.length); }
+    if (!named && !pathHit) return 0;
+    for (NSString *x in Strings(spec[@"exclude_args"])) if ([argv containsObject:x]) return 0;
+    NSArray *need = Strings(spec[@"args_contain"]);
+    for (NSString *n in need) {
         BOOL found = NO;
-        for (NSString *a in argv) if ([a containsString:need]) { found = YES; break; }
-        if (!found) return NO;
+        for (NSString *a in argv) if ([a containsString:n]) { found = YES; break; }
+        if (!found) return 0;
     }
-    return YES;
+    return 1 + longest + need.count;
 }
 
 static NSString *SessionID(NSDictionary *surface, NSArray<NSString *> *argv) {
@@ -152,11 +157,15 @@ static NSDictionary<NSNumber *, NSArray<NSString *> *> *AssertionsByPid(void) {
     NSMutableArray<MMAgent *> *found = [NSMutableArray new];
     pid_t me = getpid();
 
-    for (NSDictionary *row in _rows) {
+    {
         for (MMProc *p in procs.allValues) {
             if (p.pid == me) continue;
-            NSDictionary *surface = nil;
-            for (NSDictionary *s in row[@"surfaces"]) if (Matches(s, argvOf(p.pid))) { surface = s; break; }
+            NSDictionary *row = nil, *surface = nil; NSInteger best = 0;
+            for (NSDictionary *r in _rows)
+                for (NSDictionary *s in r[@"surfaces"]) {
+                    NSInteger score = Matches(s, argvOf(p.pid));
+                    if (score > best) { best = score; row = r; surface = s; }
+                }
             if (!surface) continue;
             // A harness that re-executes itself appears twice; keep the outermost process.
             BOOL nested = NO;

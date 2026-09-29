@@ -8,18 +8,30 @@
       "kind": "tui",
       "label": "pi in a terminal (process.title rewritten to 'pi')",
       "process": {
-        "names": ["pi"]
+        "names": [
+          "pi"
+        ]
       },
-      "session_id_args": ["--session-id", "--session"]
+      "session_id_args": [
+        "--session-id",
+        "--session"
+      ]
     },
     {
       "kind": "tui",
       "label": "pi in a terminal, node launched with the real script path (fallback if the title is not rewritten in ps; a shim launch shows the symlink path instead and is NOT matched)",
       "process": {
-        "names": ["node"],
-        "args_contain": ["pi-coding-agent/dist/cli.js"]
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "@earendil-works/pi-coding-agent/dist/cli.js"
+        ]
       },
-      "session_id_args": ["--session-id", "--session"]
+      "session_id_args": [
+        "--session-id",
+        "--session"
+      ]
     }
   ],
   "session_store": {
@@ -170,10 +182,10 @@
       "evidence": "README.md Philosophy: '**No permission popups.** Run in a container, or build your own confirmation flow with extensions'; docs/extensions.md 'Extension Locations' table"
     },
     {
-      "claim": "Terminal title (escape sequence to the terminal, not the ps title) is set to 'π - <session name> - <cwd basename>', or 'π - <cwd basename>' without a session name, and does not change with working/idle. APP_TITLE is the Greek letter π unless package.json piConfig.name is set (it is not).",
+      "claim": "Terminal title (escape sequence to the terminal, not the ps title) is set to '\u03c0 - <session name> - <cwd basename>', or '\u03c0 - <cwd basename>' without a session name, and does not change with working/idle. APP_TITLE is the Greek letter \u03c0 unless package.json piConfig.name is set (it is not).",
       "kind": "source-code",
       "date": "2026-09-29",
-      "evidence": "dist/modes/interactive/interactive-mode.js lines 572 and 575: ui.terminal.setTitle(`${APP_TITLE} - ${sessionName} - ${cwdBasename}`) and line 575 the no-name variant; dist/config.js line 393 'export const APP_TITLE = piConfigName ? APP_NAME : \"π\";'; no other setTitle call except the extension passthrough at line 1685"
+      "evidence": "dist/modes/interactive/interactive-mode.js lines 572 and 575: ui.terminal.setTitle(`${APP_TITLE} - ${sessionName} - ${cwdBasename}`) and line 575 the no-name variant; dist/config.js line 393 'export const APP_TITLE = piConfigName ? APP_NAME : \"\u03c0\";'; no other setTitle call except the extension passthrough at line 1685"
     },
     {
       "claim": "Project moved: canonical repo is earendil-works/pi (was badlogic/pi-mono); npm scope is @earendil-works (was @mariozechner)",
@@ -204,6 +216,12 @@
       "kind": "source-code",
       "date": "2026-09-29",
       "evidence": "package.json: \"author\": \"Mario Zechner\", repository.url git+https://github.com/earendil-works/pi.git; README.md links https://pi.dev and https://pi.dev/install.sh. Whether 'Earendil Works' is the legal vendor name is inferred from the org name."
+    },
+    {
+      "claim": "the package path must carry the @earendil-works scope: the bare suffix also matched Oh My Pi (@oh-my-pi/pi-coding-agent/dist/cli.js)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "herdrdev/herdr src/detect/mod.rs identify_agent_in_job lists both package paths separately; registry/evidence/prior-art.md finding 5 reproduced the collision with tools/agents_probe.py matches()"
     }
   ],
   "confidence": "inferred",

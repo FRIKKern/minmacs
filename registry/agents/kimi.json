@@ -1,0 +1,314 @@
+{
+  "id": "kimi",
+  "name": "Kimi Code",
+  "vendor": "Moonshot AI",
+  "homepage": "https://github.com/MoonshotAI/kimi-code",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Kimi Code Desktop (Electron, executable 'Kimi Code', one main process; that it hosts every session in-process is INFERRED, the app source is private). Matched on the space-split ps argv: argv[0] '/Applications/Kimi' plus the argument 'Code.app/Contents/MacOS/Kimi', which only the main process has (its helpers carry 'Code.app/Contents/Frameworks/Kimi ...' instead). Both this surface and the legacy one split to argv[0] basename 'Kimi'; the legacy surface now also excludes this main process by exact argument, so the order is a second guard, not the only one. Fails for an install path that itself contains a space, use the bundle id and proc_pidpath there",
+      "host": true,
+      "bundle_ids": [
+        "com.kimi.code.desktop"
+      ],
+      "process": {
+        "path_contains": [
+          "/Kimi"
+        ],
+        "args_contain": [
+          "Code.app/Contents/MacOS/Kimi"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Kimi Code CLI 2.x (`kimi`), native single binary (Node SEA) from install.sh at ~/.kimi-code/bin/kimi, Homebrew, or the npm package @moonshot-ai/kimi-code (node running dist/main.mjs). main() sets process.title = 'kimi-code' as its first statement, so once running, ps shows 'kimi-code' for every launch method and the original arguments are gone (libuv overwrites the argv area). Observed on this Mac with plain node 22.22.2 (same libuv path, not the SEA binary): ps prints the title, then in some cases the first environment string as a stray extra argument, so never trust tokens after argv[0]. The same process name is used by `kimi -p`, `kimi acp`, `kimi web`, `kimi rc` and `kimi vis`; ps cannot tell them apart. names lists every prefix of the title down to 4 characters because libuv truncates the title to the length of the original argv span (`kimi -c` shows 'kimi-co'; bare `kimi` shows 'kimi'). exclude_args only helps in the short window before the retitle. A detached self-spawned `kimi __update_download <version>` worker (native installs, staged auto-update) is retitled the same and outlives the TUI, so it can show as one extra idle session for the length of a download when its parent has exited; the hidden `__plugin_run_node` runner is a same-executable child of a session",
+      "process": {
+        "names": [
+          "kimi-code",
+          "kimi-cod",
+          "kimi-co",
+          "kimi-c",
+          "kimi-",
+          "kimi"
+        ],
+        "path_contains": [
+          "/.kimi-code/bin/kimi"
+        ],
+        "exclude_args": [
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "doctor",
+          "export",
+          "login",
+          "upgrade",
+          "update",
+          "migrate",
+          "provider",
+          "install-desktop",
+          "install-app",
+          "__update_download",
+          "__plugin_run_node"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-S",
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Kimi Code for VS Code and forks (extension moonshot-ai.kimi-code). Runs the agent IN-PROCESS in the extension host through @moonshot-ai/kimi-code-sdk: no kimi process, no extension path in any argv, so nothing to match. Sessions land in the same ~/.kimi-code store. Shell tool calls are children of the extension host, not attributable to Kimi"
+    },
+    {
+      "kind": "daemon",
+      "label": "`kimi web`, `kimi rc` (remote control), `kimi acp` (Zed, JetBrains, Paseo), `kimi vis`: foreground server processes that host many sessions. Same process name as the TUI, so they show up under the tui surface. Registered by pid under ~/.kimi-code/server/instances/ (web) and ~/.kimi-code/server/rc.json (rc). No process spec here on purpose, to avoid counting one process twice"
+    },
+    {
+      "kind": "tui",
+      "label": "LEGACY Kimi CLI 1.x (Python, archived, README banner, last commit 2026-09-22, PyPI kimi-cli, uv tool, or PyInstaller). setproctitle sets the title 'Kimi Code' at start of the main callback, so ps shows 'Kimi Code', which the space split turns into argv[0] 'Kimi' plus the argument 'Code'. Inferred for macOS ps, never seen. Web and background workers retitle to 'kimi-code-worker' and 'kimi-code-bg-worker' and are not matched. Sessions live in ~/.kimi/sessions/<md5 of workdir>/<session id>/ (context.jsonl, wire.jsonl, state.json), not in the store below. exclude_args drop every executable in the Kimi Code Desktop bundle, which all split to argv[0] '/Applications/Kimi' and carry a 'Code.app/...' argument: main process, 'Kimi Code Helper' apps, Electron chrome_crashpad_handler, Squirrel ShipIt, screenshot-window-list and node-pty spawn-helper (list read from the 1.0.4 zip; a new bundle executable needs a new entry, exact-argument match only)",
+      "process": {
+        "names": [
+          "Kimi"
+        ],
+        "args_contain": [
+          "Code"
+        ],
+        "exclude_args": [
+          "Code.app/Contents/MacOS/Kimi",
+          "Code.app/Contents/Frameworks/Kimi",
+          "Code.app/Contents/Frameworks/Electron",
+          "Code.app/Contents/Frameworks/Squirrel.framework/Versions/A/Resources/ShipIt",
+          "Code.app/Contents/Resources/screenshot-window-list/screenshot-window-list",
+          "Code.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/build/Release/spawn-helper"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "--resume",
+        "-S"
+      ]
+    }
+  ],
+  "session_store": {
+    "glob": "~/.kimi-code/sessions/*/*/agents/main/wire.jsonl",
+    "per_session": "~/.kimi-code/sessions/*/{session_id}/agents/main/wire.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "name": "wire.jsonl tail has an open turn",
+      "meaning": "Precise form: in agents/main/wire.jsonl the newest turn record is `turn.prompt` (turnId is a number, written when the turn starts) with no later `turn.ended` for that turnId (turn.ended has reason completed, cancelled, failed or blocked). `turn.cancel` (target active) is only the cancel request: the close is the `turn.ended` with reason cancelled that follows, so treat a cancel as closing only as a shortcut. Every record is one JSON line {\"type\", ...payload, \"time\"}; the file opens with a {\"type\":\"metadata\",\"protocol_version\",\"created_at\"} line. Read only the `type` and turnId keys, never the message records. Record types are from the vendor's generated wire-manifest.d.ts (protocol 1.5); whether each record is flushed to disk at once was not checked, and a quiet file during a long model call or tool call is expected, so a stale mtime never proves idle. A crashed process leaves the turn open forever: only trust an open turn while the pid is alive. A new (non-resumed) session has no id in argv, so map by cwd: lsof cwd of the pid equals state.json cwd, then the newest wire.jsonl; two processes in one directory are ambiguous. Subagents write their own agents/<id>/wire.jsonl while the main turn stays open"
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "The Bash tool runs `spawn('/bin/bash', ['-c', command])` (bash from /bin/bash, /usr/bin/bash or /usr/local/bin/bash, else /bin/sh), a DIRECT child of the kimi process, detached into its own process group. A shell child therefore means a shell tool call is running. It is blind while the model streams or a non-shell tool runs. Stdio MCP servers are long-lived children while idle (take a baseline), and after an auto-update swap the process re-spawns its own binary as a child (same executable as the parent, ignore it). Not attributable for the VS Code extension and the Desktop app (children of a shared host). Background shell tasks (bash run_in_background, TaskStarted kind process) and hook commands are also direct shell children, so a shell child can outlive the turn: the server API counts background tasks in busy too"
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured (Kimi is not installed on this Mac). The TUI animates a moon spinner (MoonLoader) while a turn runs, so a redraw loop is expected; idle should be near zero. Weak fallback: network waits burn no CPU. For Desktop and the web server the tree serves every session"
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Fires just before the approval panel waits for the human (matcher is the tool name); `PermissionResult` fires when it is answered. Observation-only, fire and forget. There is no hook for agent questions (interaction kind `question`) that was found in source. NOTE the `Notification` event is NOT 'needs attention': it fires only when a background task changes status (matcher e.g. task.completed)"
+    },
+    {
+      "signal": "transcript_record",
+      "file": "~/.kimi-code/sessions/<workDirKey>/<sessionId>/agents/main/wire.jsonl",
+      "event": "interaction.request without a later interaction.resolved for the same id",
+      "meaning": "Covers approvals AND questions: `interaction.request` has kind approval, question or user_tool, an id and an optional toolCallId; `interaction.resolved` has the same id. Read only type, kind and id. Source-only (wire-manifest.d.ts). Also `permission.record_approval_result`"
+    },
+    {
+      "signal": "http",
+      "endpoint": "GET /api/v1/sessions/{session_id} on a running `kimi web` or `kimi rc` server (default http://127.0.0.1:58627, +1 when busy; instances listed in ~/.kimi-code/server/instances/)",
+      "meaning": "Exact and documented: the session object carries busy (any agent turn or background task), main_turn_active, pending_interaction (none, approval or question) and last_turn_reason. GET /api/v1/sessions?busy=true lists busy sessions; GET .../approvals?status=pending and .../questions?status=pending list the requests. Needs the bearer token (~/.kimi-code/server.token, printed in the banner) except GET /api/v1/healthz. A session not loaded in that server reports not-busy. The TUI has no server, so this covers web, rc and possibly Desktop only (Desktop use of it is unverified)"
+    },
+    {
+      "signal": "hook",
+      "event": "TurnStarted / Stop / StopFailure / Interrupt",
+      "meaning": "Near-exact, not exact, busy window when hooks are configured: TurnStarted opens a turn (payload turn_id, origin_kind user, task or system_trigger, more kinds exist). Stop fires when a step ends with no tool calls and no pending requests, so before turn.ended, and a Stop hook may block once to force a continuation; StopFailure fires only for a failed turn that carries an error payload; Interrupt fires when the turn ends with reason cancelled (source) although the docs say programmatic aborts do not fire it, so close on any of the three. A `blocked` turn end or a failed turn without an error payload fires none of them (not tested whether TurnStarted fires for a blocked turn). UserPromptQueued fires when a prompt arrives during a running turn"
+    },
+    {
+      "signal": "terminal_progress",
+      "meaning": "Terminal side, not visible to ps. The TUI sends OSC 9;4 progress while a turn is active, only when it detects Windows Terminal, ConEmu, Ghostty or WezTerm (env WT_SESSION, ConEmuANSI, TERM_PROGRAM, TERM). Deliberately off in iTerm2 (it would pop a notification). The terminal title is only the session title and never changes with state"
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "[[hooks]] array (fields event, matcher, command, timeout 1-600 s default 30) in ~/.kimi-code/config.toml, or $KIMI_CODE_HOME/config.toml; plugins can declare hooks in their manifest while enabled. No project-level hook file (.kimi-code/local.toml holds workspace settings only). JSON payload on stdin (hook_event_name, session_id, session_title, client_type, cwd, plus event fields); exit 0 allow, 2 block, anything else and timeouts fail open. Only PreToolUse, Stop and UserPromptSubmit can block",
+    "events": [
+      "UserPromptSubmit",
+      "UserPromptQueued",
+      "PreToolUse",
+      "Stop",
+      "TurnStarted",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PermissionRequest",
+      "PermissionResult",
+      "SessionStart",
+      "SessionEnd",
+      "SessionHeartbeat",
+      "SubagentStart",
+      "SubagentStop",
+      "TaskStarted",
+      "StopFailure",
+      "Interrupt",
+      "PreCompact",
+      "PostCompact",
+      "Notification"
+    ],
+    "docs": "https://moonshotai.github.io/kimi-code/en/customization/hooks"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry exporter in either generation (no OTEL_* variable, no OTLP code; @opentelemetry/api appears only as a transitive optional peer in the lockfiles). Kimi Code 2.x sends its own anonymous usage events (package @moonshot-ai/kimi-telemetry, event prefix kfc_, batched POST with disk retry) unless `telemetry = false` in config.toml or KIMI_DISABLE_TELEMETRY=1. The session wire.jsonl, the hooks, and the local server API are the supported observation points instead"
+  },
+  "sources": [
+    {
+      "claim": "Product split: Kimi Code CLI 2.x (TypeScript, Node SEA single binary) replaced the archived Python Kimi CLI 1.x; Desktop, VS Code extension and CLI share one home",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/MoonshotAI/kimi-cli README ('This project has been archived ... replaced by Kimi Code CLI'); https://github.com/MoonshotAI/kimi-code README; https://www.kimi.com/code/docs/en/ (Desktop, CLI, VS Code); https://www.kimi.com/code/docs/en/kimi-code-desktop/settings-and-extensions.html (shared ~/.kimi-code and [[hooks]] in config.toml)"
+    },
+    {
+      "claim": "Native install puts the binary at ~/.kimi-code/bin/kimi (KIMI_INSTALL_DIR overrides; an existing one is copied to kimi.bak); npm package is documented; Homebrew installs are recognised by the updater (formula name kimi-code) but no brew command or binary path is in the docs; the binary is a Node single-executable build",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "https://code.kimi.com/kimi-code/install.sh ('install -m 0755 \"$bin_path\" \"${KIMI_INSTALL_DIR}/bin/kimi\"'); kimi-code repo apps/kimi-code/scripts/native/build.mjs (steps 01-bundle, 02-sea-blob, 03-inject, 04-sign); apps/kimi-code/src/cli/update/source.ts line 47 (HOMEBREW_PATH_SEGMENT '/cellar/'), preflight.ts line 130 ('brew upgrade kimi-code'), docs/en/release-notes/changelog.md 'Support Homebrew installations', docs/en/guides/getting-started.md 'npm install -g @moonshot-ai/kimi-code'; apps/kimi-code/package.json bin {\"kimi\": \"dist/main.mjs\"}, version 2.1.1"
+    },
+    {
+      "claim": "The process retitles itself 'kimi-code' as the first statement of main()",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo apps/kimi-code/src/main.ts line 164 'process.title = PROCESS_NAME;' and apps/kimi-code/src/constant/app.ts line 7 \"export const PROCESS_NAME = 'kimi-code';\". Same entry for TUI, -p, acp, web, rc, vis"
+    },
+    {
+      "claim": "libuv keeps the title in the original argv area and truncates it to the argv span, so ps shows the title and drops the arguments. Confirmed for macOS ps with plain node 22.22.2; NOT run against the Kimi SEA binary",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "https://raw.githubusercontent.com/libuv/libuv/v1.x/src/unix/proctitle.c: uv_setup_args() sets pt.cap = argv[argc-1] + size - argv[0]; uv_set_process_title() 'if (len >= pt->cap) len = pt->cap - 1', memcpy into pt->str (argv[0]) and memset the rest to 0. Same unverified step as registry/agents/pi.json. Local check 2026-09-29 on this Mac (throwaway node processes in the scratchpad, symlink named kimi, no Kimi code run): `kimi t.js` with process.title='kimi-code' printed by `ps -axo pid=,args=` 'kimi-code NVM_INC=/Users/.../include/node' (title, then a stray environment string); `kimi -i` (span 'kimi\\0-i\\0' = 7 chars) printed 'kimi-co NVM_INC=...', the truncation the row predicts; a long argv printed 'kimi-code'. So names matching on argv[0] holds, and tokens after argv[0] are unreliable"
+    },
+    {
+      "claim": "Desktop app: Electron, bundle id com.kimi.code.desktop, executable 'Kimi Code', helpers 'Kimi Code Helper (GPU|Plugin|Renderer)', no separate kimi binary inside, updater feed https://code.kimi.com/kimi-code/desktop/ (version 1.0.4, 2026-09-24)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Read straight from the public zip without downloading it whole (HTTP range reads of the central directory and Info.plist only, nothing extracted or installed): https://cdn.kimi.com/kimi-code/desktop/binaries/1.0.4/KimiCode-1.0.4-mac-arm64.zip -> 'Kimi Code.app/Contents/Info.plist' CFBundleIdentifier=com.kimi.code.desktop CFBundleExecutable='Kimi Code' CFBundleShortVersionString=1.0.4; Contents/Frameworks lists Electron Framework, Squirrel, 'Kimi Code Helper (GPU).app', '(Plugin)', '(Renderer)', and a plain 'Kimi Code Helper.app'; Resources/app-update.yml 'provider: generic, url: https://code.kimi.com/kimi-code/desktop/'; download links from https://www.kimi.com/code/docs/en/"
+    },
+    {
+      "claim": "Desktop app source is private; the CLI repo says it consumes only kap-server's /api/v1 REST and /api/v1/ws",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo .agents/skills/review-pr/surfaces.md line 13 ('desktop 与 web 用户 | 源码在 code-app 仓库，只消费 kap-server 的 /api/v1 REST 与 /api/v1/ws')"
+    },
+    {
+      "claim": "Session layout: ~/.kimi-code/sessions/<workDirKey>/<sessionId>/{state.json, agents/main/wire.jsonl, agents/<subagent>/wire.jsonl}; workDirKey is wd_<slug>_<first 12 hex of sha256>; session_index.jsonl at the root; KIMI_CODE_HOME relocates everything",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://moonshotai.github.io/kimi-code/en/configuration/data-locations and .../en/guides/sessions (repo docs/en/configuration/data-locations.md, docs/en/guides/sessions.md)"
+    },
+    {
+      "claim": "state.json keys: id, version, title, titleKind, lastPrompt, createdAt, updatedAt, archived, archivedAt, cwd, forkedFrom, agents, custom, lastTurnReason (completed, cancelled, failed)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo packages/agent-core-v2/src/session/sessionMetadata/sessionMetadata.ts lines 17-32 (interface SessionMeta). lastTurnReason is written when a turn ends, so it is an outcome, not a live state"
+    },
+    {
+      "claim": "Durable wire record types include turn.prompt, turn.ended, turn.cancel, turn.steer, interaction.request, interaction.resolved, prompt.completed, prompt.aborted, permission.record_approval_result; protocol_version 1.5; file opens with a metadata line",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo packages/agent-core-v2/docs/wire-manifest.d.ts (Index of 64 record types; TurnEndedPayload {turnId, reason: completed|cancelled|failed|blocked}; TurnPromptPayload {turnId?, origin}; InteractionRequestPayload {id, kind: approval|question|user_tool, toolCallId?}; InteractionResolvedPayload {id}); packages/agent-core-v2/src/wire/record.ts (WireMetadataRecord); loop/loopService.ts line 1199 dispatches TurnPrompt with turnId at turn start, line 834 dispatches TurnCancel target 'active', line 2067 TurnEnded; loop/turnOps.ts declares turnId as a number and optional on turn.prompt"
+    },
+    {
+      "claim": "Bash tool spawns /bin/bash -c <command> as a direct detached child; environment probe prefers /bin/bash, /usr/bin/bash, /usr/local/bin/bash, else /bin/sh",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo packages/agent-core-v2/src/agent/tools/os/bash/bashTool.ts line 172 'processService.spawn(env.shellPath, [\\'-c\\', shellCommand], ...)'; packages/kaos/src/environment.ts lines 85-96; packages/kaos/src/local.ts buildLocalSpawnOptions (detached: !isWindows)"
+    },
+    {
+      "claim": "No sleep inhibitor: no caffeinate child, no power assertion, in either generation",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "grep -rniE 'caffeinate|pmset|prevent.?sleep|sleep.?inhibit|powerSave|IOPM|keep.?awake|wakelock' over kimi-code apps/ and packages/ and kimi-cli src/ and packages/ (CHANGELOGs excluded): no matches. Desktop (closed source, Electron) not checked: an Electron powerSaveBlocker cannot be ruled out"
+    },
+    {
+      "claim": "Hooks: 20 events, config in ~/.kimi-code/config.toml [[hooks]], exit-code protocol, blockable events, PermissionRequest fires before waiting for approval, Notification is background-task status only, Interrupt fires in place of Stop",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://moonshotai.github.io/kimi-code/en/customization/hooks (repo docs/en/customization/hooks.md 'Event Reference'); cross-checked against packages/agent-core-v2/src/features/externalHooks/internal/types.ts HOOK_EVENT_TYPES (same 20) and packages/agent-core-v2/src/features/externalHooks/agent/agentExternalHooksService.ts lines 178-187 (PermissionApprovalRequested -> PermissionRequest, PermissionApprovalResolved -> PermissionResult), 222-235 (TurnStarted)"
+    },
+    {
+      "claim": "Server API exposes busy, main_turn_active, pending_interaction (none|approval|question), last_turn_reason per session, plus busy filter and pending approvals and questions; instances register under ~/.kimi-code/server/instances/; rc lock at ~/.kimi-code/server/rc.json",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo docs/en/reference/server-api.md ('The session object' table; GET /api/v1/sessions filter busy; GET /api/v1/sessions/{id}/status; approvals and questions endpoints; Authentication section), docs/en/reference/kimi-command.md `kimi web`, docs/en/guides/remote-control.md"
+    },
+    {
+      "claim": "CLI flags for session ids: --session/-S [id], --resume/-r [id], --continue/-c; --session without an id opens a picker; a new session has no id in argv",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo apps/kimi-code/src/cli/commands.ts lines 44-53 ('-S, --session [id]', '-r, --resume [id]', '-c, --continue'); docs/en/reference/kimi-command.md"
+    },
+    {
+      "claim": "Terminal progress (OSC 9;4) is emitted while a turn is active, only for Windows Terminal, ConEmu, Ghostty, WezTerm",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo apps/kimi-code/src/tui/kimi-tui.ts lines 3870-3875 (syncTerminalProgress) and apps/kimi-code/src/tui/utils/terminal-notification.ts lines 114-125 (supportsTerminalProgress)"
+    },
+    {
+      "claim": "A staged auto-update makes the process spawn its own binary as a child (relaunch), so two kimi processes can appear for one session",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo apps/kimi-code/src/cli/update/native-swap.ts lines 430-450 (spawnImpl(exePath, argv.slice(2), {stdio: 'inherit'})) called from main.ts line 170 maybeRelaunchWithStagedNativeUpdate"
+    },
+    {
+      "claim": "VS Code extension runs the agent in-process (no child process, no kimi binary): imports createKimiHarness from @moonshot-ai/kimi-code-sdk; no child_process use in apps/vscode/src or packages/node-sdk/src",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo apps/vscode/src/runtime/kimi-runtime.ts lines 1-8 and 'Extension-host owner for one in-process Node SDK harness'; grep -rn child_process apps/vscode/src packages/node-sdk/src printed nothing; extension id moonshot-ai.kimi-code from apps/vscode/package.json (publisher, name), https://marketplace.visualstudio.com/items?itemName=moonshot-ai.kimi-code"
+    },
+    {
+      "claim": "Legacy Kimi CLI 1.52.0: title 'Kimi Code' via setproctitle, workers 'kimi-code-worker' and 'kimi-code-bg-worker', sessions ~/.kimi/sessions/<work-dir-hash>/<id>/{context.jsonl,wire.jsonl,state.json}, 13 hook events in ~/.kimi/config.toml, TurnBegin/TurnEnd wire events (TurnEnd may be omitted on interrupt), no OpenTelemetry exporter",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-cli repo (HEAD 9ab1286, 2026-09-22) src/kimi_cli/utils/proctitle.py init_process_name('Kimi Code'); src/kimi_cli/cli/__init__.py lines 371-373, 1038, 1061; docs/en/configuration/data-locations.md; docs/en/customization/hooks.md; src/kimi_cli/wire/types.py TurnBegin/TurnEnd; pyproject.toml line 39 setproctitle>=1.3.0"
+    },
+    {
+      "claim": "Not installed here, so nothing was run and no live process was classified",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "`which kimi kimi-cli kimi-code` printed 'kimi not found', 'kimi-cli not found', 'kimi-code not found'; `ls ~/.kimi ~/.kimi-code` printed 'No such file or directory' for both; `ls /Applications | grep -i kimi` printed nothing; `ps -axo pid=,args= | grep -iE kimi` printed nothing"
+    },
+    {
+      "claim": "Hook busy window is near-exact only: Stop is skipped when tool calls or pending requests remain and can be blocked once to continue; StopFailure needs an error payload; Interrupt fires on turn.ended reason cancelled",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo packages/agent-core-v2/src/features/externalHooks/agent/agentExternalHooksService.ts lines 236-256 (onDidFinishStep: return when finishReason is tool_calls or filtered or hasPendingRequests, else runStop; stop hook continuation used once) and 386-394 (notifyTurnEnded: StopFailure if reason failed and error defined, Interrupt if reason cancelled); docs/en/customization/hooks.md Event Reference ('Interrupt ... not fired for timeouts or programmatic aborts; fires in place of Stop')"
+    },
+    {
+      "claim": "Desktop 1.0.4 bundle executables (every process the app can start): Kimi Code, four Kimi Code Helper apps, Electron chrome_crashpad_handler, Squirrel ShipIt, screenshot-window-list, node-pty spawn-helper; the legacy surface matched all four non-helper ones as a legacy CLI before the exclude_args fix",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "Same HTTP range read of https://cdn.kimi.com/kimi-code/desktop/binaries/1.0.4/KimiCode-1.0.4-mac-arm64.zip: central directory entries with the unix execute bit and a regular-file mode (excluding .dylib and .node) printed the 13 files above. Synthetic ps lines run through tools/agents_probe.py matches(): before the fix crashpad, ShipIt, screenshot-window-list and spawn-helper lines each matched the legacy surface, after the fix none does; the main process matches gui only and the helpers match nothing. Synthetic, no live Desktop process seen"
+    },
+    {
+      "claim": "Hidden subcommands __update_download (detached, unref'd, stdio ignored, same executable) and __plugin_run_node (same executable, plugin Node runner) exist, so extra same-titled kimi processes can appear",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "kimi-code repo apps/kimi-code/src/cli/commands.ts lines 143-160; apps/kimi-code/src/cli/update/preflight.ts line 137 ({cmd: process.execPath, args: ['__update_download', version]}) and lines 724-735 (spawn detached: true, stdio 'ignore', child.unref()); packages/agent-core-v2/src/app/plugin/manager.ts line 693 KIMI_NODE_FALLBACK_SUBCOMMAND. `update` is an alias of `upgrade` and `install-app` a hidden alias of `install-desktop` (commands.ts line 135; docs/en/reference/kimi-command.md)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Read registry/evidence/kimi.md. Three things to know. (1) Once running, the CLI is named 'kimi-code' in ps and its arguments are gone (process.title, inferred for macOS), so a session id can only come from the process cwd and the newest wire.jsonl; acp, web, rc, vis and -p processes look identical to a TUI session. Use the tty column to tell a TUI from a server, and ~/.kimi-code/server/instances/ for web servers. (2) There is no sleep inhibitor and no OpenTelemetry. The best outside signal is an open turn in agents/main/wire.jsonl (turn.prompt with no turn.ended) while the pid is alive; a direct bash -c child is a good raise-only signal. The best exact signal is the local server API (busy, pending_interaction) for `kimi web` and `kimi rc`, and hooks (TurnStarted, PermissionRequest, Stop, Interrupt) for everything else. (3) The VS Code extension has no process of its own; Desktop is one Electron main process for all sessions (host: true), so report the host only. Two generations coexist: the archived Python Kimi CLI keeps its data in ~/.kimi and is only matched by an inferred 'Kimi Code' title. Verification pass 2026-09-29: fixed a legacy-surface false positive (Desktop crashpad, ShipIt, screenshot and node-pty helper matched as a legacy CLI); ps was observed with plain node to show title plus a stray environment token, so trust only argv[0] of a running kimi; a detached __update_download worker can look like an extra idle session; hook busy window is near-exact, not exact. Still unverified: the SEA binary under ps, and Desktop session hosting."
+}

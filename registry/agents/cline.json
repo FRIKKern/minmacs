@@ -1,0 +1,310 @@
+{
+  "id": "cline",
+  "name": "Cline (standalone: CLI 3.x, Desktop, SDK hub)",
+  "vendor": "Cline Bot Inc.",
+  "homepage": "https://github.com/cline/cline",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Cline Desktop (Tauri shell, stable channel). Main executable Cline.app/Contents/MacOS/cline-app (Cargo package cline-app). The agent loop does not run here: the shell spawns Contents/MacOS/code-sidecar, which is a client of the shared hub daemon. Beta, Nightly and Dev channels install as 'Cline Beta.app', 'Cline Nightly.app', 'Cline Dev.app'; the space in those paths splits argv[0] in the reference probe, so only the stable channel can match here (a proc_pidpath detector can match all four by bundle id). CPU and children of this process sum the whole tree, which contains the sidecar and, when the app started the hub, the hub daemon and its shell tools.",
+      "bundle_ids": [
+        "bot.cline.app",
+        "bot.cline.app.beta",
+        "bot.cline.app.nightly",
+        "bot.cline.app.dev"
+      ],
+      "process": {
+        "names": [
+          "cline-app"
+        ],
+        "path_contains": [
+          "/Cline.app/Contents/MacOS/cline-app"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Cline Hub daemon: the process that actually runs agent turns for hub-backed sessions. It is the same compiled binary as the CLI (npm platform package bin/cline or the hard link bin/.cline) or the Desktop sidecar (code-sidecar), started detached with argv `--cline-hub-daemon --cwd <workspace> [--host --port --pathname]` and env CLINE_RUN_AS_HUB_DAEMON=1. One per user (singleton, default 127.0.0.1:25463), no idle shutdown found in source. Hosts every hub session for CLI, Desktop and connectors, so one process, many sessions. Caveat: the reference probe keeps only the outermost matched process, and a detached daemon stays a child of the CLI or sidecar that started it while that parent lives, so it is reported only after the parent exits.",
+      "process": {
+        "names": [
+          "cline",
+          ".cline",
+          "code-sidecar"
+        ],
+        "args_contain": [
+          "--cline-hub-daemon"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Cline Desktop sidecar (Bun, `Cline.app/Contents/MacOS/code-sidecar`, dev name code-sidecar-<triple>): backend of the desktop window. Registers with the hub as client 'code-sidecar', relays approvals to the webview, serves the UI over loopback HTTP and WebSocket. Not where the agent loop runs. Normally a child of cline-app, so the reference probe drops it in favour of the parent.",
+      "process": {
+        "names": [
+          "code-sidecar"
+        ],
+        "exclude_args": [
+          "--cline-hub-daemon",
+          "--telemetry-selfcheck"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Cline CLI 3.x in a terminal (interactive TUI, one-shot `cline \"prompt\"`, --json, --yolo). npm package `cline` is a Node wrapper (argv[0] node, not matched) that spawns the compiled Bun binary: <prefix>/lib/node_modules/cline/node_modules/@cline/cli-darwin-arm64/bin/cline, or the cached hard link <prefix>/lib/node_modules/cline/bin/.cline. Whether the turn runs inside this process or in the hub daemon depends on the mode: interactive and one-shot use the hub when a compatible one is already up, otherwise run in-process while the hub is prewarmed; --yolo, --data-dir and sandbox always run in-process. Flag-style non-session invocations are excluded; word subcommands (auth, hub, history, config, mcp, plugin, update, connect, schedule) are NOT excluded because the reference probe splits argv on spaces and a prompt such as `cline update the docs` would be vetoed. They show up as short-lived idle sessions. CLI 2.x (`node .../cline/dist/cli.mjs`) is not matched. MATCHING IS BY PATH, NOT NAME: the reference probe ORs names with path_contains, so a bare `cline` name would also match any unrelated executable called cline (verified with a synthetic line `/opt/other/cline`, and the vendor's own 1.x Go binary is one such); both install layouts of the 3.x binary carry a distinctive path (`/@cline/cli-darwin-arm64|x64/bin/cline`, cached link `/node_modules/cline/bin/.cline`; Homebrew formula cline 3.0.3 installs the same npm layout under libexec). Not matched: a binary started through the CLINE_BIN_PATH override at some other path. `--kanban` is excluded (the flag makes the CLI launch the separate `kanban` app and wait). `cline connect <adapter> ... -i` (chat connectors, spawned detached by the hub or CLI, long lived, not short lived as first written) still shows as an idle session.",
+      "process": {
+        "path_contains": [
+          "/@cline/cli-darwin-",
+          "/node_modules/cline/bin/.cline"
+        ],
+        "exclude_args": [
+          "--cline-hub-daemon",
+          "--acp",
+          "--zen",
+          "-z",
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "--update",
+          "--kanban"
+        ]
+      },
+      "session_id_args": [
+        "--id"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "Cline in Agent Client Protocol mode (`cline --acp`), started by an editor as a stdio agent. One process, many ACP sessions; approvals go to the editor as ACP permission requests. Uses the same runtime selection as the TUI (hub if available, else in-process). Editors that spawn it (for example Zed external agents) may also match their own row. Matched by path only, same reason as the tui surface.",
+      "process": {
+        "path_contains": [
+          "/@cline/cli-darwin-",
+          "/node_modules/cline/bin/.cline"
+        ],
+        "args_contain": [
+          "--acp"
+        ],
+        "exclude_args": [
+          "--cline-hub-daemon"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.cline/data/sessions/*/*.messages.json",
+    "per_session": "~/.cline/data/sessions/{session_id}/{session_id}.messages.json",
+    "format": "json",
+    "documented": false,
+    "note": "State lives in two places, both under ~/.cline/data (CLINE_DIR, CLINE_DATA_DIR, CLINE_DB_DATA_DIR, CLINE_SESSION_DATA_DIR move them; --data-dir switches the CLI to a private sandbox store). (1) Index and live status: SQLite ~/.cline/data/db/sessions.db (WAL, table sessions: session_id, source cli|desktop|vscode|jetbrains|..., pid, status idle|running|pending|completed|failed|cancelled, cwd, workspace_root, updated_at, messages_path, plus prompt and metadata_json which hold private text). One shared file for CLI, Desktop, hub and the VS Code extension; pid is the pid of the process that ran the loop (hub daemon for hub sessions, the CLI process for in-process ones). (2) Transcript: JSON snapshot ~/.cline/data/sessions/<id>/<id>.messages.json (+ <id>.json manifest, <id>.compaction.json), rewritten at the end of each agent iteration, so it is quiet while the model streams or a tool runs. Cline's own docs say sessions.db is at ~/.cline/data/sessions/sessions.db and list per-session <id>.json files; the source says data/db/sessions.db. The row follows the source. Read only non-content columns; never prompt, metadata_json or the messages files. A fresh session has no id in argv: --id appears only when resuming, so map process to session by sessions.db pid + cwd, not by argv."
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "sessions.db: sessions.status = 'running' AND pid alive",
+      "within_seconds": 30,
+      "meaning": "The exact signal. LocalRuntimeHost writes status running when a turn starts and idle when it ends (markTurnRunning / markTurnIdle, sdk/packages/core/src/runtime/host/local-runtime-host.ts) and a reconciler flips non-terminal rows whose pid is dead to failed, so pair the row with a pid check. Query read-only (WAL): select session_id, status, pid, cwd, updated_at from sessions. Shared by CLI, Desktop and hub sessions. The reference probe cannot run SQL; it evaluates the per_session messages.json mtime instead, which is written only at iteration end, so it can raise working but its silence proves nothing. Not observed: Cline is not installed here."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "A direct `bash` child (`/bin/bash -c <command>`, the run_commands tool, spawned detached) of the process that hosts the loop. In hub mode that process is the hub daemon, not the CLI or the app; in --yolo, sandbox and the first seconds after a cold start it is the CLI itself. Only shell tool calls spawn a child; read, edit and search tools run in process (search may spawn `rg`), and a model call with no tool is invisible. A command that backgrounds a process can leave a detached shell after the turn, so this can over-report. Inferred from source, not observed."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback and an uncalibrated guess. Meaningful only on the process that hosts the loop (hub daemon, or the CLI for in-process runs). A CLI or cline-app tree that merely talks to the hub burns almost nothing while the daemon works, and a turn waiting on the network burns nothing anywhere. The whole daemon tree also holds long-lived MCP servers and plugin sandboxes."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "sqlite",
+      "table": "sessions",
+      "column": "status",
+      "value": "pending",
+      "meaning": "While a tool approval is awaited the runtime sets status pending and restores running when the answer arrives (requestToolApproval wrapper, local-runtime-host.ts lines 841-862; markTurnPending has no other caller). So pending means blocked on a human approval. Only tools that actually need approval do this: the CLI default is --auto-approve true, and --yolo skips approvals. Questions from the ask_question tool go through a separate executor and no status flip was found for them (inferred by absence), so a session waiting on a question still reads running. This contradicts the vscode-agents note that Cline stays running during approval. In ACP mode (`cline --acp`) the default is --auto-approve false (docs/cli/cli-reference.mdx, flag table), so approval waits are the normal case there."
+    },
+    {
+      "signal": "os_notification",
+      "setting": "Desktop Settings > Notifications: approvalNeeded, questionAsked, taskCompletion, sessionError",
+      "meaning": "Cline Desktop shows a native macOS notification (notify-rust, app id bot.cline.app) for approval needed and question asked, both default enabled. A banner; nothing another process can read. The hub also publishes approval.requested events over its authenticated loopback WebSocket, but the token is in ~/.cline/data/locks/hub/production.json, a credential a monitor should not read."
+    },
+    {
+      "signal": "none_builtin",
+      "meaning": "No Notification or PermissionRequest style hook exists among the ten file-hook events, and the TUI terminal title carries no state: it is `Cline` or `> <last user prompt>` (apps/cli/src/tui/utils/terminal-title.ts), never a busy or waiting marker. PreToolUse fires at tool_call; its ordering against the approval prompt was not determined."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "File hooks: executable files named after the event (TaskStart, TaskResume, TaskCancel, TaskComplete, TaskError, PreToolUse, PostToolUse, UserPromptSubmit, PreCompact, SessionShutdown; extensions none, .sh .bash .zsh .js .mjs .cjs .ts .mts .cts .py .ps1) in ~/Documents/Cline/Hooks, ~/.cline/hooks, <workspace>/.clinerules/hooks and <workspace>/.cline/hooks; the hook gets a JSON payload on stdin. `--hooks-dir` / CLINE_HOOKS_DIR is documented as an extra directory, but the source only sets the variable and no reader was found. Code hooks: plugins (~/.cline/plugins, <workspace>/.cline/plugins, `cline plugin install`) with beforeRun, afterRun, beforeModel, afterModel, beforeTool, afterTool, onEvent, or SDK extensions passed to ClineCore.",
+    "events": [
+      "TaskStart",
+      "TaskResume",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "TaskComplete",
+      "TaskCancel",
+      "TaskError",
+      "SessionShutdown"
+    ],
+    "docs": "https://docs.cline.bot/sdk/plugins (the Hooks page https://docs.cline.bot/customization/hooks is now only a pointer to it)"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Shipped CLI and Desktop binaries do not read OTEL_* at run time: sdk/packages/shared/src/services/telemetry-config.ts reads OTEL_TELEMETRY_ENABLED, OTEL_EXPORTER_OTLP_ENDPOINT, _PROTOCOL, _HEADERS, OTEL_METRICS_EXPORTER, OTEL_LOGS_EXPORTER, OTEL_TRACES_EXPORTER, but apps/cli/script/build.ts and the desktop sidecar build inline those names through Bun `define` at compile time (Cline's own collector), so a user's shell variable is a no-op in a released binary (inferred from the build scripts). User-controlled routes: org Remote Configuration (docs: metrics and logs, OTLP gRPC / HTTP protobuf / HTTP JSON, endpoint and headers), or embedding the SDK yourself so the env is read. The hub daemon exports as service cline-hub-daemon and the CLI as service cline. Off unless configured. Cline also sends its own product analytics with a baked-in key (TELEMETRY_SERVICE_API_KEY is inlined the same way); that is separate from a user-supplied OTLP collector."
+  },
+  "sources": [
+    {
+      "claim": "Product shape: CLI (npm i -g cline), Desktop app for macOS and Windows, VS Code extension, JetBrains plugin and SDK share one engine",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/cline/cline/blob/main/README.md"
+    },
+    {
+      "claim": "CLI is now 3.0.65 (2026-09-24), a compiled Bun binary shipped as per-platform npm packages; the `cline` package is a Node wrapper. Versions 2.0.0 to 2.18.0 (2026-02 to 2026-05) were a node script dist/cli.mjs, so the 'CLI 2.0' hint is out of date",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "curl https://registry.npmjs.org/cline: dist-tags latest 3.0.65, bin {cline: bin/cline}, optionalDependencies @cline/cli-darwin-arm64 ...; version 2.18.0 bin {cline: dist/cli.mjs}, engines node >=20; version 3.0.0 published 2026-05-12. apps/cli/DISTRIBUTION.md in cline/cline"
+    },
+    {
+      "claim": "Wrapper resolves CLINE_BIN_PATH, then cached bin/.cline, then node_modules/@cline/cli-<platform>-<arch>/bin/cline, and runs it with spawnSync (so the compiled binary is a child of a node process)",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/cli/bin/cline (run(), findBinary()); apps/cli/script/postinstall.mjs (hard link to bin/.cline)"
+    },
+    {
+      "claim": "Desktop: Tauri app, productName Cline, identifier bot.cline.app (.beta, .nightly, .dev variants), main binary cline-app, bundled sidecar code-sidecar launched with no arguments and piped stdio",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/examples/desktop-app/src-tauri/tauri.conf.json (productName, identifier, externalBin bin/code-sidecar), tauri.beta.conf.json, tauri.nightly.conf.json, tauri.dev.conf.json, Cargo.toml (name cline-app), src/main.rs (spawn_desktop_backend_process, desktop_backend_binary_names), src/macos_notification.rs (Contents/MacOS/cline-app); release desktop-v0.0.37 assets Cline_0.0.37_universal.dmg (GitHub API)"
+    },
+    {
+      "claim": "The Desktop sidecar and the CLI are hub clients; a hub daemon is started detached from whichever binary needs it first, as `<execPath> --cline-hub-daemon --cwd <ws> [endpoint args]` with CLINE_RUN_AS_HUB_DAEMON=1; the sentinel is scrubbed from env after claim",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/hub/daemon/index.ts (COMPILED_BUN_HUB_DAEMON_ARG = '--cline-hub-daemon', resolveLaunchCommand, spawnDetachedHubServer with detached: true and child.unref()); sdk/packages/shared/src/runtime/hub-daemon-env.ts (claimHubDaemonProcess); apps/cli/src/index.ts; apps/examples/desktop-app/sidecar/index.ts runEntrypoint; sidecar/ARCHITECTURE.md"
+    },
+    {
+      "claim": "Cline's own doctor command finds stale hub daemons with `pgrep -fal -- --cline-hub-daemon` and stale sidecars with patterns '/Resources/code-sidecar' and ' code-sidecar', which confirms the marker is visible in ps",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/cli/src/commands/doctor.ts (listMatchingProcesses, listStaleHubPids, listStaleSidecarPids)"
+    },
+    {
+      "claim": "The hub daemon hosts a LocalRuntimeHost that runs the agent loop for hub sessions; docs describe separate 'spoke' workers but no spoke process exists in source",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/hub/server/hub-server-transport.ts line 277 and sdk/packages/core/src/hub/daemon/runtime-handlers.ts line 78 (new LocalRuntimeHost); sdk/packages/core/src/hub/daemon/telemetry.ts header comment ('The daemon hosts the LocalRuntimeHost'); versus docs/sdk/architecture/hub-spoke.mdx ('Spoke ... Worker process running @cline/core')"
+    },
+    {
+      "claim": "Runtime selection: default backendMode auto uses a compatible running hub, else falls back to in-process while prewarming the hub; --yolo and --data-dir (sandbox) force local in-process; CLINE_SESSION_BACKEND_MODE overrides",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/runtime/host/host.ts (createRuntimeHost, resolveConfiguredBackendMode); apps/cli/src/runtime/interactive/session-runtime.ts lines 149-160 (backendMode 'auto', forceLocalBackend for yolo or sandbox, with comment); apps/cli/src/runtime/run-agent.ts lines 168-175; apps/cli/src/commands/program.ts (sandbox: !!opts.dataDir); docs/cli/cli-reference.mdx (CLINE_SESSION_BACKEND_MODE)"
+    },
+    {
+      "claim": "CLI flags: --id <session-id> resumes a session, --zen fires a session at the background hub and exits, --acp runs Agent Client Protocol mode, --auto-approve defaults to true",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/cli/src/commands/program.ts (addRootOptions) and docs/cli/cli-reference.mdx"
+    },
+    {
+      "claim": "sessions.db schema, WAL mode, path <clineDataDir>/db/sessions.db, status set idle|running|pending|completed|failed|cancelled with meanings, source values, pid = process.pid",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/shared/src/db/sqlite-db.ts (CREATE TABLE sessions, PRAGMA journal_mode = WAL); sdk/packages/core/src/services/storage/sqlite-session-store.ts; sdk/packages/shared/src/storage/paths.ts (resolveDbDataDir = CLINE_DB_DATA_DIR or <data>/db, clineDataDir = CLINE_DATA_DIR or ~/.cline/data); sdk/packages/shared/src/session/records.ts (SESSION_STATUS_VALUES comments); sdk/packages/core/src/types/common.ts (SessionSource core, cli, desktop, vscode, jetbrains, kanban ...); local-runtime-host.ts ensureSessionPersisted (pid: process.pid)"
+    },
+    {
+      "claim": "Transcript is <sessions>/<id>/<id>.messages.json, rewritten on the iteration_end agent event (fire-and-forget), not per token",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/services/session-artifacts.ts (sessionMessagesPath, sessionManifestPath); sdk/packages/core/src/services/agent-events.ts lines 312-318 (iteration_end -> persistMessages); local-runtime-host.ts lines 351-356"
+    },
+    {
+      "claim": "Docs and source disagree on paths, but not on all of them: docs/sdk/architecture/hub-spoke.mdx puts sessions.db in ~/.cline/data/sessions/, hub lock files in ~/.cline/locks/hub/owners/ and the hub log in ~/.cline/logs/; docs/cli/cli-reference.mdx also puts the session database under data/sessions/ but the hub log at data/logs/hub-daemon.log, which matches source. Source: ~/.cline/data/db/sessions.db, ~/.cline/data/locks/hub/production.json, ~/.cline/data/logs/hub-daemon.log",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "docs/sdk/architecture/hub-spoke.mdx and docs/cli/cli-reference.mdx versus sdk/packages/shared/src/storage/paths.ts, sdk/packages/core/src/hub/discovery/workspace.ts (resolveProductionHubOwnerContext), sdk/packages/core/src/hub/daemon/index.ts (openDetachedHubLogFile), apps/cli/script/postinstall.mjs. Not resolved by observation.; re-checked 2026-09-29 against cline/cline at 647d8cb (git clone --depth 1): sqlite-session-store.ts `options.sessionsDir ?? resolveDbDataDir()` and sessionDbPath() = join(dir, 'sessions.db'), no caller passes sessionsDir; paths.ts resolveDbDataDir = <clineDataDir>/db; hub/daemon/index.ts line 120 logs/hub-daemon.log; hub/discovery/workspace.ts line 43 locks/hub/production.json. `strings` on the shipped code-sidecar also contains 'sessions.db'."
+    },
+    {
+      "claim": "Turn lifecycle in sessions.db: running from first prompt dispatch, idle after the turn; pending only while a tool approval is awaited; dead-pid non-terminal rows are reconciled to failed",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/runtime/host/local-runtime-host.ts (markTurnRunning at line ~1850, markTurnIdle in completeInteractiveTurn line ~1882, requestToolApproval wrapper lines 841-862 calling markTurnPending, only caller of markTurnPending); sdk/packages/core/src/session/services/persistence-service.ts (isPidAlive, reconcileDeadRunningSession, reconcileDeadSessions over idle, running, pending)"
+    },
+    {
+      "claim": "Shell tool: run_commands spawns /bin/bash with -c semantics as a detached direct child of the loop's process; no caffeinate, power assertion or powerSaveBlocker exists in the SDK, CLI or Desktop source",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/extensions/tools/executors/bash.ts (spawnAndCollect: spawn(config.executable, config.args, {detached: !isWindows})), sdk/packages/shared/src/parse/shell.ts (getDefaultShell = /bin/bash). Negative: grep -rn -i -E 'caffeinate|powerSave|prevent.*sleep|IOPM|keep.?awake' over sdk/ and apps/ (non-test) returned nothing relevant"
+    },
+    {
+      "claim": "File hooks: event mapping, search directories, supported extensions, run in every host that does not exclude the 'hooks' config extension; PreCompact file maps to no event; hooks docs page now redirects to SDK plugins",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline sdk/packages/core/src/hooks/hook-file-config.ts (HookConfigFileName, HOOK_CONFIG_FILE_EVENT_MAP, SUPPORTED_HOOK_FILE_EXTENSIONS); sdk/packages/shared/src/storage/paths.ts resolveHooksConfigSearchPaths (~/Documents/Cline/Hooks, ~/.cline/hooks, <ws>/.clinerules/hooks, <ws>/.cline/hooks); sdk/packages/core/src/services/local-runtime-bootstrap.ts lines 422-437; sdk/packages/core/src/hooks/hook-file-hooks.ts (beforeRun -> agent_start, afterRun -> agent_end / agent_abort / agent_error); docs/customization/hooks.mdx and docs/sdk/plugins.mdx; apps/cli/CHANGELOG.md 3.0.63 (run-start hook control inert in the CLI)"
+    },
+    {
+      "claim": "Code hooks (plugin lifecycle): beforeRun, afterRun, beforeModel, afterModel, beforeTool, afterTool, onEvent, with stages run_start, tool_call_before, tool_call_after, run_end, error, session_shutdown and blocking or async policy",
+      "kind": "official-docs",
+      "date": "2026-09-29",
+      "evidence": "https://github.com/cline/cline/blob/main/docs/sdk/plugins.mdx (Hook Stages, Hook Policies)"
+    },
+    {
+      "claim": "Desktop native notifications exist for taskCompletion, approvalNeeded, questionAsked, sessionError, all default enabled",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/examples/desktop-app/webview/lib/desktop-notifications.ts (DESKTOP_NOTIFICATION_EVENT_TYPES, DEFAULT_DESKTOP_NOTIFICATION_SETTINGS); src-tauri/src/main.rs show_session_notification (app_id = identifier)"
+    },
+    {
+      "claim": "Released binaries inline OTEL_* at build time; runtime env reading exists only in the un-inlined SDK; hub daemon uses service name cline-hub-daemon; org remote config drives OTLP; docs list gRPC, HTTP/protobuf, HTTP/JSON for metrics and logs",
+      "kind": "source-code",
+      "date": "2026-09-29",
+      "evidence": "cline/cline apps/cli/script/build.ts (BUILD_TIME_INLINED_ENV_VARS, buildInlinedEnvDefines via Bun define), apps/examples/desktop-app/scripts/build-sidecar-bin.ts (telemetryDefineArgs comment: 'app launched from Finder/the Dock has no OTEL_* env'), sdk/packages/shared/src/services/telemetry-config.ts, sdk/packages/core/src/hub/daemon/telemetry.ts, sdk/packages/core/src/services/telemetry/OpenTelemetryProvider.ts; docs/enterprise-solutions/monitoring/opentelemetry.mdx"
+    },
+    {
+      "claim": "Nothing Cline is installed or running on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "which cline printed 'cline not found'; ls ~/.cline, ls ~/Documents/Cline, ls /Applications/Cline.app, ls '/Applications/Cline Beta.app' all printed 'No such file or directory'; ps -axo pid=,args= | grep -i -E 'cline|code-sidecar' printed nothing; mdfind \"kMDItemCFBundleIdentifier == 'bot.cline.app*'\" printed nothing. bun and node exist but the cline package is not installed."
+    },
+    {
+      "claim": "Synthetic probe check of the process specs (re-run after the path-only repair; table in registry/evidence/cline.md)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "python3 importing tools/agents_probe.py matches() against hand-written ps lines: see registry/evidence/cline.md for the table of lines and results"
+    },
+    {
+      "claim": "Shipped Desktop bundle layout: Cline.app/Contents/MacOS holds exactly cline-app and code-sidecar (both universal Mach-O); Info.plist CFBundleExecutable=cline-app, CFBundleIdentifier=bot.cline.app, version 0.0.37. The sidecar binary embeds the string --cline-hub-daemon. No IOPMAssertion, caffeinate, NoIdleSleep or PreventUserIdle string in either binary.",
+      "evidence": "gh release download desktop-v0.0.37 -R cline/cline -p Cline_0.0.37_universal.app.tar.gz (131 MB, into the scratchpad, never run or installed); tar tzvf listing; tar xzf of Info.plist and the two executables only; plutil -p Info.plist | egrep 'CFBundleExecutable|CFBundleIdentifier|CFBundleShortVersion' printed cline-app, bot.cline.app, 0.0.37; file printed 'Mach-O universal binary with 2 architectures' for both; strings -a code-sidecar | grep -- --cline-hub-daemon printed COMPILED_BUN_HUB_DAEMON_ARG = \"--cline-hub-daemon\"; strings -a on both | grep -i -E 'IOPMAssertion|caffeinate|NoIdleSleep|PreventUserIdle' printed nothing.",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Name-only matching is a false-positive hole: with the reference probe, a process named `cline` at any path matches the tui surface, because names and path_contains are ORed. Reproduced before the repair; after it the same line matches nothing.",
+      "evidence": "python3 driving tools/agents_probe.py matches() on `/opt/other/cline` and `/usr/bin/some/cline --foo`: both returned tui before the repair, none after. Also `/x/bin/cline --kanban` now matches nothing and `/x/bin/cline connect telegram -i` still matches tui.",
+      "kind": "local-observation",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "CLI child processes: `cline connect <adapter> ... -i` is how detached connector processes are launched (same binary, word subcommand), and `--kanban` launches the separate kanban app",
+      "evidence": "cline/cline apps/cli/src/connectors/common.ts buildDetachedConnectorCommand/buildDetachedConnectorArgs (appends '-i'), apps/cli/src/index.ts (connectArgsPrefix ... 'connect'), apps/cli/src/commands/kanban.ts and program.ts (`--kanban`: 'Run the kanban app')",
+      "kind": "source-code",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "ACP mode defaults --auto-approve to false; other modes default to true",
+      "evidence": "cline/cline docs/cli/cli-reference.mdx line 74: '--auto-approve <boolean> ... (default: true; in ACP mode the default is false)'",
+      "kind": "official-docs",
+      "date": "2026-09-29"
+    },
+    {
+      "claim": "Homebrew formula `cline` exists but is frozen at 3.0.3, deprecated 2026-05-18 and disabled 2027-05-18; it runs `npm install` so the layout matches the npm one",
+      "evidence": "https://raw.githubusercontent.com/Homebrew/homebrew-core/HEAD/Formula/c/cline.rb (url registry.npmjs.org/cline/-/cline-3.0.3.tgz; deprecate!/disable! lines; def install: system 'npm', 'install', *std_npm_args); brew info cline printed 'stable 3.0.3 (bottled)... Not installed'",
+      "kind": "third-party",
+      "date": "2026-09-29"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Standalone Cline is three programs sharing one engine and one store. (1) The CLI binary, (2) the Desktop shell with its sidecar, (3) the hub daemon that either of them starts and that runs the turns for hub-backed sessions. Because of that, the process a user sees (TUI window, Cline.app) is often NOT the process that is working: in hub mode the TUI is a thin client, the shell tool children hang off the daemon, and pid in sessions.db is the daemon's. In-process runs (--yolo, --data-dir, first seconds after a cold start, hub connect failure) put everything in the CLI process. The one signal that holds for every surface is sessions.db status (running / pending / idle) with a pid liveness check; the reference probe cannot evaluate it, so this row's probe-evaluable signals are weak. Session id is not in argv for a fresh session. The VS Code extension (saoudrizwan.claude-dev 4.x) and JetBrains plugin use the same SDK and the same sessions.db but are not matched here; the VS Code one lives in the vscode-agents row (its note that status stays running during an approval is contradicted by the source read for this row). Adversarial review 2026-09-29: the tui and ide surfaces were matching any executable named cline or .cline (names and path_contains are ORed by the probe), so they now match by path only; `--kanban` is excluded; the docs-versus-source path disagreement is narrower than first written (the CLI reference already agrees with source on the hub log). The Desktop process names were confirmed on the real 0.0.37 release bundle. Everything about a live turn is still unobserved, so confidence stays documented, not verified-locally."
+}
