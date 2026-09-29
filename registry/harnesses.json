@@ -1,0 +1,158 @@
+{
+  "exemplar": "claude-code",
+  "harnesses": [
+    {
+      "id": "codex",
+      "name": "OpenAI Codex",
+      "surfaces_hint": "CLI/TUI, Codex desktop app (bundle com.openai.codex, shown as ChatGPT), IDE extension, cloud tasks",
+      "start_at": "https://github.com/openai/codex",
+      "installed_here": true
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "surfaces_hint": "IDE agent, cursor-agent CLI, background/cloud agents, Agents window",
+      "start_at": "https://cursor.com/docs",
+      "installed_here": true
+    },
+    {
+      "id": "pi",
+      "name": "pi coding agent",
+      "surfaces_hint": "TUI",
+      "start_at": "https://github.com/badlogic/pi-mono",
+      "installed_here": true
+    },
+    {
+      "id": "openclaw",
+      "name": "OpenClaw",
+      "surfaces_hint": "gateway daemon, agents, channels",
+      "start_at": "https://github.com/openclaw/openclaw",
+      "installed_here": true
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "surfaces_hint": "Google's terminal agent",
+      "start_at": "https://github.com/google-gemini/gemini-cli",
+      "installed_here": false
+    },
+    {
+      "id": "antigravity",
+      "name": "Google Antigravity",
+      "surfaces_hint": "agentic IDE plus antigravity CLI, stores under ~/.gemini",
+      "start_at": "https://antigravity.google",
+      "installed_here": false
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "surfaces_hint": "TUI, server mode, desktop app",
+      "start_at": "https://github.com/anomalyco/opencode",
+      "installed_here": false
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes Agent",
+      "surfaces_hint": "Nous Research agent, CLI, ~/.hermes/state.db",
+      "start_at": "https://github.com/NousResearch/hermes-agent",
+      "installed_here": false
+    },
+    {
+      "id": "t3-code",
+      "name": "T3 Code",
+      "surfaces_hint": "GUI that drives Codex and Claude Code sessions",
+      "start_at": "https://github.com/pingdotgg/t3code",
+      "installed_here": false
+    },
+    {
+      "id": "copilot-cli",
+      "name": "GitHub Copilot CLI",
+      "surfaces_hint": "terminal agent, ~/.copilot/session-state",
+      "start_at": "https://github.com/github/copilot-cli",
+      "installed_here": false
+    },
+    {
+      "id": "amp",
+      "name": "Amp",
+      "surfaces_hint": "Sourcegraph's agent, CLI and editor extensions",
+      "start_at": "https://ampcode.com/manual",
+      "installed_here": false
+    },
+    {
+      "id": "aider",
+      "name": "aider",
+      "surfaces_hint": "terminal pair programmer",
+      "start_at": "https://github.com/Aider-AI/aider",
+      "installed_here": false
+    },
+    {
+      "id": "goose",
+      "name": "goose",
+      "surfaces_hint": "Block's agent, CLI and desktop app",
+      "start_at": "https://github.com/block/goose",
+      "installed_here": false
+    },
+    {
+      "id": "crush",
+      "name": "Crush",
+      "surfaces_hint": "Charm's terminal agent",
+      "start_at": "https://github.com/charmbracelet/crush",
+      "installed_here": false
+    },
+    {
+      "id": "droid",
+      "name": "Factory Droid",
+      "surfaces_hint": "Factory's CLI agent",
+      "start_at": "https://docs.factory.ai",
+      "installed_here": false
+    },
+    {
+      "id": "windsurf",
+      "name": "Windsurf",
+      "surfaces_hint": "IDE with the Cascade agent",
+      "start_at": "https://docs.windsurf.com",
+      "installed_here": false
+    },
+    {
+      "id": "zed",
+      "name": "Zed agent",
+      "surfaces_hint": "agent panel and external agents over the Agent Client Protocol",
+      "start_at": "https://zed.dev/docs/ai/agent-panel",
+      "installed_here": false
+    },
+    {
+      "id": "warp",
+      "name": "Warp",
+      "surfaces_hint": "terminal with built-in agents",
+      "start_at": "https://docs.warp.dev",
+      "installed_here": false
+    },
+    {
+      "id": "qwen-code",
+      "name": "Qwen Code",
+      "surfaces_hint": "Alibaba's terminal agent, a Gemini CLI fork",
+      "start_at": "https://github.com/QwenLM/qwen-code",
+      "installed_here": false
+    },
+    {
+      "id": "vscode-agents",
+      "name": "VS Code extension agents",
+      "surfaces_hint": "Cline, Roo Code, Kilo Code and Copilot agent mode, all inside the extension host",
+      "start_at": "https://github.com/cline/cline",
+      "installed_here": false
+    },
+    {
+      "id": "rovo-dev",
+      "name": "Rovo Dev CLI",
+      "surfaces_hint": "Atlassian's terminal agent",
+      "start_at": "https://support.atlassian.com/rovo/docs/use-rovo-dev-cli/",
+      "installed_here": false
+    }
+  ],
+  "hosts": {
+    "id": "hosts",
+    "name": "Terminal and multiplexer hosts",
+    "question": "What can the HOST tell us about agents running inside it, without per-harness work? Cover cmux (socket RPC, hooks, feed, notifications), Ghostty, iTerm2, Warp, WezTerm, kitty, tmux, and the terminal conventions OSC 9;4 (progress), OSC 133 (prompt and command marks), OSC 9 and 777 (notifications).",
+    "start_at": "https://raw.githubusercontent.com/manaflow-ai/cmux/main/docs/feed.md"
+  }
+}

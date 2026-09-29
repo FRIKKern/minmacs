@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent harness registry row",
+  "description": "How to recognise one agent harness on macOS and tell whether it is working. Rows are data: adding a harness never needs a code change. Every non-obvious field must be backed by an entry in sources.",
+  "type": "object",
+  "required": ["id", "name", "surfaces", "working_signals", "sources", "confidence"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "vendor": { "type": "string" },
+    "homepage": { "type": "string" },
+    "surfaces": {
+      "type": "array", "minItems": 1,
+      "description": "Each way the harness runs: a terminal UI, a desktop app, an IDE extension, a background daemon.",
+      "items": {
+        "type": "object", "required": ["kind"],
+        "properties": {
+          "kind": { "enum": ["tui", "gui", "ide", "daemon", "cloud"] },
+          "label": { "type": "string" },
+          "bundle_ids": { "type": "array", "items": { "type": "string" } },
+          "process": {
+            "type": "object",
+            "description": "A process matches when its executable name is in names OR its path contains one of path_contains, AND its arguments contain none of exclude_args.",
+            "properties": {
+              "names": { "type": "array", "items": { "type": "string" } },
+              "path_contains": { "type": "array", "items": { "type": "string" } },
+              "args_contain": { "type": "array", "items": { "type": "string" } },
+              "exclude_args": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "session_id_args": { "type": "array", "items": { "type": "string" }, "description": "Flags whose value is the session id, used to map a process to its own transcript." }
+        }
+      }
+    },
+    "session_store": {
+      "type": "object",
+      "properties": {
+        "glob": { "type": "string", "description": "Shell glob for transcript files, ~ allowed." },
+        "per_session": { "type": "string", "description": "Path template with {session_id} when a process can be mapped to one file." },
+        "format": { "enum": ["jsonl", "json", "sqlite", "other"] },
+        "documented": { "type": "boolean", "description": "False when the path is observed but never promised by the vendor." }
+      }
+    },
+    "working_signals": {
+      "type": "array", "minItems": 1,
+      "description": "Any one of these being true means a turn is in progress. Ordered most precise first.",
+      "items": {
+        "type": "object", "required": ["signal"],
+        "properties": {
+          "signal": { "enum": ["child_process", "power_assertion", "transcript_write", "tree_cpu", "tool_children", "socket_activity"] },
+          "name": { "type": "string" },
+          "within_seconds": { "type": "number" },
+          "floor_percent": { "type": "number" },
+          "meaning": { "type": "string" }
+        }
+      }
+    },
+    "waiting_signals": { "type": "array", "description": "How to tell the agent is blocked on the human (permission prompt, question). Often hooks only.", "items": { "type": "object" } },
+    "hooks": {
+      "type": "object",
+      "properties": {
+        "supported": { "type": "boolean" },
+        "config": { "type": "string" },
+        "events": { "type": "array", "items": { "type": "string" } },
+        "docs": { "type": "string" }
+      }
+    },
+    "telemetry": { "type": "object", "properties": { "otel": { "type": "boolean" }, "how": { "type": "string" } } },
+    "sources": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["claim", "evidence", "kind"],
+        "properties": {
+          "claim": { "type": "string" },
+          "evidence": { "type": "string", "description": "A URL, a file path in the vendor's source, or the exact local command and what it printed." },
+          "kind": { "enum": ["official-docs", "source-code", "local-observation", "third-party"] },
+          "date": { "type": "string" }
+        }
+      }
+    },
+    "confidence": { "enum": ["verified-locally", "documented", "inferred"], "description": "verified-locally: the probe classified a real running instance correctly. documented: vendor docs or source say so. inferred: third-party reports only." },
+    "notes": { "type": "string" }
+  }
+}

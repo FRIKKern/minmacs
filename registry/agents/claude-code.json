@@ -1,0 +1,111 @@
+{
+  "id": "claude-code",
+  "name": "Claude Code",
+  "vendor": "Anthropic",
+  "homepage": "https://claude.com/claude-code",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Claude desktop app, Code tab",
+      "bundle_ids": [
+        "com.anthropic.claudefordesktop"
+      ],
+      "process": {
+        "path_contains": [
+          "/ClaudeCode.app/Contents/MacOS/claude"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Claude Code in a terminal",
+      "process": {
+        "names": [
+          "claude"
+        ],
+        "path_contains": [
+          "/.local/bin/claude",
+          "/claude/versions/"
+        ],
+        "exclude_args": [
+          "bg-pty-host",
+          "bg-spare"
+        ],
+        "exclude_path_contains": []
+      },
+      "session_id_args": [
+        "--session-id",
+        "--resume"
+      ]
+    }
+  ],
+  "session_store": {
+    "glob": "~/.claude/projects/*/*.jsonl",
+    "per_session": "~/.claude/projects/*/{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "Claude Code holds an idle-sleep inhibitor for exactly the length of a turn"
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 20
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "meaning": "needs permission or has been idle waiting for input"
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.claude/settings.json, .claude/settings.json, or --settings",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "Notification",
+      "Stop",
+      "SubagentStop",
+      "SessionEnd"
+    ],
+    "docs": "https://docs.claude.com/en/docs/claude-code/hooks"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "CLAUDE_CODE_ENABLE_TELEMETRY=1 with an OTLP exporter"
+  },
+  "sources": [
+    {
+      "claim": "spawns `caffeinate -i -t 300` while a turn runs",
+      "kind": "local-observation",
+      "date": "2026-09-28",
+      "evidence": "strings in ~/.local/share/claude/versions/2.1.283: 'caffeinate' '-i' '-t' 'Started ... to prevent sleep' 'Stopped sleep inhibitor, allowing sleep'; ps shows caffeinate as a child of the busy sessions only"
+    },
+    {
+      "claim": "2 of 10 sessions working, 8 idle, separated by caffeinate child and CPU (9-11% vs under 1%)",
+      "kind": "local-observation",
+      "date": "2026-09-29",
+      "evidence": "per-session table from ps/pgrep on the maintainer's Mac"
+    },
+    {
+      "claim": "transcripts are JSONL under ~/.claude/projects/<project>/<session>.jsonl with 30-day cleanup",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "https://allaboutcoding.ghinda.com/where-ai-coding-clis-store-session-logs/"
+    }
+  ],
+  "confidence": "verified-locally",
+  "notes": "Sessions that share a working directory share a project folder, so map a process to its transcript by session id, never by folder. The desktop app runs sessions as child processes of a launcher at ClaudeCode.app/Contents/MacOS/claude."
+}
