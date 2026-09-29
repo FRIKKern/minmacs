@@ -5,13 +5,14 @@
   <key>CFBundleName</key><string>MinMacs</string>
   <key>CFBundleDisplayName</key><string>MinMacs</string>
   <key>CFBundleIdentifier</key><string>no.guerrilla.minmacs</string>
-  <key>CFBundleVersion</key><string>10000</string>
-  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>10100</string>
+  <key>CFBundleShortVersionString</key><string>1.1.0</string>
   <key>CFBundleExecutable</key><string>MinMacs</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>MinMacs reads your browser tabs to show which ones it would close, and closes the ones on your noise list when you ask it to.</string>
   <key>NSHumanReadableCopyright</key><string>Frikk Jarl</string>
   <key>CFBundleURLTypes</key>
   <array>

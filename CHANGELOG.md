@@ -2,6 +2,19 @@
 
 All notable changes to MinMacs. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-09-29
+
+### Added
+- **Force quit.** Apps get a normal Quit and eight seconds; *When an App Won't Quit* then decides: Ask Me (default), Force Quit It, or Leave It Running. Per-app *Force Quit Now*. CLI `--force`. Helper processes that outlive their parent are killed too.
+- **Browser trimming.** Browsers on the close list keep running; only tabs on the noise list are closed, never tabs on the work list. The menu lists the exact tabs, and picking one keeps its site. Restore reopens closed tabs. `minmacs trim`, `--only-host`, `--quit-browsers`, `minmacs classify`.
+- **Serving detection.** A close-list app started with remote debugging, or listening on a loopback port, is spared and the reason is shown. `ignoreServing` list and *Close Even When Serving* for apps that listen for their own reasons.
+- Rules file version 2: `tabs.noise`, `tabs.work`, `ignoreServing`. New defaults merge in additively on upgrade.
+- Test fixture `tools/stubborn.m`; the suite grew from 8 to 21 checks, plus an opt-in live browser test.
+
+### Changed
+- Keep list: superwhisper, the ChatGPT app, noo-noo by its real bundle id. Close list: Messenger, Parsec.
+- Tabs and apps are addressed by process id, so a second browser instance owned by an automation tool is never touched.
+
 ## [1.0.0] - 2026-09-29
 
 ### Added

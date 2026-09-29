@@ -17,6 +17,7 @@
 @property double cpuPercent;
 @property uint64_t memory;
 @property NSInteger processCount;
+@property (strong) NSMutableArray<NSNumber *> *pids;   // every process attributed to this app
 @end
 
 /// Samples every process, computes CPU% between samples, and attributes
@@ -29,3 +30,10 @@
 @end
 
 NSString *MMFormatBytes(uint64_t bytes);
+
+/// TCP ports these processes listen on, bound to loopback only (127.0.0.1 / ::1).
+/// A loopback listener is a local tool bridge; a wildcard listener is LAN discovery and is ignored.
+NSArray<NSNumber *> *MMLoopbackListeners(NSArray<NSNumber *> *pids);
+
+/// Command line arguments of a process, or nil.
+NSArray<NSString *> *MMProcessArgs(pid_t pid);

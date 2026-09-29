@@ -2,15 +2,17 @@
 
 # MinMacs
 
-Reclaim your Mac for developers and agents. A free menu bar app that shows exactly what is burning CPU and memory, and quits the apps that do nothing for your work, in one click, gracefully, with a Restore button. Made for MacBooks that run Claude Code, builds, and long agent sessions next to a browser with a hundred tabs.
+Reclaim your Mac for developers and agents. A free menu bar app that shows exactly what is burning CPU and memory, quits the apps that do nothing for your work, trims the noise tabs out of your browser while keeping the browser, and leaves alone anything an agent is using. One click, with a Restore button. Made for MacBooks that run Claude Code, builds, and long agent sessions next to a browser with a hundred tabs.
 
 Part of a family: [Insomnia](https://github.com/FRIKKern/insomnia) keeps the Mac awake, [noo-noo](https://github.com/FRIKKern/noo-noo) keeps the disk clean, MinMacs keeps the CPU and RAM for what matters.
 
-## The three rules
+## The rules
 
 1. **Nothing is closed that wasn't shown first.** The menu is the plan. "Will close (4)" lists each app with its CPU and memory before you press anything.
 2. **Only apps on an explicit close list get closed.** Developer and agent essentials, such as terminals, editors, Docker, databases, Claude, Insomnia and noo-noo, are on a keep list and never even offered. Anything unknown is listed as unsorted and never touched until you sort it, one click, remembered.
-3. **Graceful quit only.** Apps get a normal Quit, never a force kill, so unsaved work asks first instead of vanishing. Browsers reopen their tabs. **Restore** relaunches everything MinMacs closed.
+3. **Graceful first, force when you say so.** Every app gets a normal Quit and eight seconds to act on it. What happens to one that refuses is your setting: ask me, force quit it, or leave it running. **Restore** relaunches the apps and reopens the tabs MinMacs closed.
+4. **Browsers are trimmed, not quit.** Tabs on your noise list close; everything else, and the browser itself, stays. Agents that use the browser keep their session.
+5. **An app in use by an agent is spared**, and the menu says why.
 
 ## Install
 
@@ -50,18 +52,42 @@ Background load (system, informational) ▸ top processes not owned by any app
   Quit MinMacs
 ```
 
-- **MinMacs Now** shows a confirmation listing exactly what will quit, with a "Don't ask again" box. Then it quits them and waits up to eight seconds each. Anything that refuses, usually because it is asking you to save, is reported, never forced.
+- **MinMacs Now** shows a confirmation listing exactly what will quit, which tabs will close, and what is spared and why, with a "Don't ask again" box.
+- **When an App Won't Quit** decides the escalation. *Ask Me* (default) shows which apps refused and offers Force Quit. *Force Quit It* does so automatically after the eight seconds. *Leave It Running* never forces. Force quitting discards unsaved changes, and the dialogs say so.
 - **Every app row has a submenu** to move it between Close, Keep and Unsorted, or to quit just that one. Choices are saved to the rules file.
 - **Helpers roll up.** Chrome's forty helper processes count as Chrome. The numbers match what you feel, not what `ps` prints.
 - **Also Turn On Insomnia** switches Insomnia on when you MinMacs, if it is installed, so the freed machine also stays awake for the job.
 
+### Browsers: trim, don't quit
+
+A browser is a container. Quitting it to get rid of a few video tabs also takes out your dashboards, docs and consoles. So for Chrome, Brave, Edge, Vivaldi, Opera, Chromium and Safari, MinMacs closes only tabs whose host is on the **noise** list and never closes a tab on the **work** list. Any other tab is left alone. The browser's row in the menu lists the exact tabs that will close; picking one adds its site to the work list instead. Restore reopens closed tabs.
+
+- Private and incognito windows are never read or touched.
+- Tabs are addressed in one specific browser process, so a second instance started by Playwright or with remote debugging is never affected.
+- A tab that navigated somewhere else since the plan was shown is skipped.
+- The first use asks for macOS Automation permission for that browser. Without it the browser is simply left running.
+- Arc and Firefox do not expose tabs in a way MinMacs can read. They are left running.
+- *Browsers ▸ Quit Browsers* switches to quitting them like any other app.
+
+### Spared: apps that are serving an agent
+
+A close-list app is left alone when it is demonstrably in use by a tool:
+
+- it was started with a remote debugging port or pipe, which is how DevTools MCP, Puppeteer and Playwright drive a browser, or
+- one of its processes listens on a **loopback** TCP port, which is how Blender's and Godot's MCP bridges and similar tools work.
+
+The menu shows the reason, for example "serving on 127.0.0.1:9876". Listeners on all interfaces are ignored, since that is LAN discovery, not an agent. A few apps listen on loopback for their own reasons, such as Discord and Spotify, and ship on an `ignoreServing` list. *Close Even When Serving* in an app's submenu adds any other.
+
 ### Rules file
 
-`~/Library/Application Support/MinMacs/rules.json`, written with sensible defaults on first run and editable by hand (*Edit Rules…* opens it). Two arrays of bundle ids; a trailing `*` matches a prefix.
+`~/Library/Application Support/MinMacs/rules.json`, written with sensible defaults on first run and editable by hand (*Edit Rules…* opens it). Bundle ids take a trailing `*` to match a prefix. A host matches its subdomains. Work wins over noise. New defaults arrive with upgrades additively and never move or remove an entry of yours.
 
 ```json
 { "keep":  ["com.apple.Terminal", "com.microsoft.VSCode", "com.jetbrains.*", "no.guerrilla.insomnia", "…"],
-  "close": ["com.google.Chrome", "com.spotify.client", "us.zoom.xos", "com.adobe.*", "…"] }
+  "close": ["com.google.Chrome", "com.spotify.client", "us.zoom.xos", "com.adobe.*", "…"],
+  "tabs":  { "noise": ["youtube.com", "netflix.com", "reddit.com", "…"],
+             "work":  ["localhost", "github.com", "claude.ai", "vercel.app", "…"] },
+  "ignoreServing": ["com.hnc.Discord", "com.spotify.client", "…"] }
 ```
 
 Defaults keep terminals, editors and IDEs, AI apps, containers and databases, password managers and a few utilities. Defaults close browsers, media, communication, creative suites, office apps, games and stores. Everything else is unsorted.
@@ -71,16 +97,20 @@ Defaults keep terminals, editors and IDEs, AI apps, containers and databases, pa
 The same binary is a command line tool. Nothing here needs the menu bar app to be running.
 
 ```sh
-minmacs plan               # what MinMacs would close, kept essentials, unsorted apps, reclaimable totals
-minmacs plan --json        # the same as JSON, for agents
-minmacs run                # close the close-list apps, asks y/N first
-minmacs run --yes          # no prompt
-minmacs run --yes --only com.google.Chrome
-minmacs restore            # relaunch what the last run closed, in the background
-minmacs rules              # print the rules file path
+minmacs plan                     # what would be quit, trimmed, spared, kept; plus unsorted apps
+minmacs plan --json              # the same as JSON, for agents
+minmacs run                      # quit the close list and trim browsers, asks y/N first
+minmacs run --yes                # no prompt; apps that ignore Quit are left running
+minmacs run --yes --force        # …and force quit the ones that ignore it
+minmacs run --yes --only com.spotify.client
+minmacs trim --yes               # only trim browser tabs
+minmacs trim --yes --only-host youtube.com
+minmacs restore                  # relaunch apps and reopen tabs, in the background
+minmacs classify https://…       # noise, work or other
+minmacs rules                    # print the rules file path
 ```
 
-Exit codes: 0 done, 1 aborted, 2 usage, 3 some apps refused to quit (they are probably asking to save).
+Exit codes: 0 done, 1 aborted, 2 usage, 3 some apps are still running. Without `--force` that means they ignored Quit, usually because they are asking to save.
 
 The menu bar app also answers a URL scheme: `open minmacs://run` (with confirmation), `minmacs://run-now` (without), `minmacs://restore`, `minmacs://login-on`, `minmacs://login-off`, `minmacs://quit`.
 
@@ -88,13 +118,13 @@ The menu bar app also answers a URL scheme: `open minmacs://run` (with confirmat
 
 ```sh
 minmacs plan --json | jq '.close[] | .name'      # tell the user what will go
-minmacs run --yes                                # then do it
+minmacs run --yes --force                        # then do it, no stragglers
 open insomnia://on                               # keep the Mac awake for the run
 ```
 
 ## How it works
 
-Every four seconds MinMacs samples all processes through `libproc`, computes CPU as the change in CPU time over wall time, reads physical memory footprint, and attributes each process to the app macOS holds responsible for it, the same grouping Activity Monitor uses, with a parent-chain fallback. The app itself idles at 0% CPU and about 15 MB. Three Objective-C files, no dependencies, builds with clang alone.
+Every four seconds MinMacs samples all processes through `libproc`, computes CPU as the change in CPU time over wall time, reads physical memory footprint, and attributes each process to the app macOS holds responsible for it, the same grouping Activity Monitor uses, with a parent-chain fallback. The app itself idles at 0% CPU and about 15 MB. Four Objective-C files, no dependencies, builds with clang alone.
 
 ## Build from a checkout
 
@@ -108,7 +138,9 @@ See [CHANGELOG.md](CHANGELOG.md) and, for AI agents working on the code, [AGENTS
 
 ## Limits
 
-- Quitting a browser drops what its tabs were doing. Tabs come back on relaunch; a half-written form does not.
+- Force quitting discards unsaved changes. That is what the setting is for, and why the default asks first.
+- MinMacs cannot see whether a tab is playing media, only which site it is on. The noise list covers the usual sources.
+- Closing a tab drops what it was doing. Restore reopens the page; a half-written form does not come back.
 - macOS system processes are shown for information but never touched. If Spotlight or Photos analysis is eating CPU, MinMacs tells you, it cannot stop them.
 - Not notarised. Building locally sidesteps Gatekeeper; the release zip needs a right-click → Open once.
 

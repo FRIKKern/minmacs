@@ -6,8 +6,8 @@ cd "$(dirname "$0")"
 APP=build/MinMacs.app
 rm -rf build && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 clang -fobjc-arc -O2 -Wall -mmacosx-version-min=13.0 -arch arm64 -arch x86_64 \
-  -framework Cocoa -framework ServiceManagement \
-  Sources/main.m Sources/Scanner.m Sources/Rules.m -o "$APP/Contents/MacOS/MinMacs"
+  -framework Cocoa -framework ServiceManagement -framework ScriptingBridge \
+  Sources/main.m Sources/Scanner.m Sources/Rules.m Sources/Browser.m -o "$APP/Contents/MacOS/MinMacs"
 cp Info.plist "$APP/Contents/"
 [ -f AppIcon.icns ] && cp AppIcon.icns "$APP/Contents/Resources/"
 codesign --force --sign - "$APP"

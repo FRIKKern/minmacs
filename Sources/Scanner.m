@@ -2,6 +2,10 @@
 #import <libproc.h>
 #import <mach/mach_time.h>
 #import <dlfcn.h>
+#import <sys/sysctl.h>
+#import <sys/proc_info.h>
+#import <netinet/in.h>
+#import <netinet/tcp_fsm.h>
 
 /// The pid macOS holds responsible for another (what Activity Monitor groups by).
 /// Handles XPC services and helpers whose parent is launchd. Falls back to the pid itself.
@@ -18,7 +22,8 @@ static pid_t Responsible(pid_t pid) {
 static BOOL IsBucket(NSRunningApplication *ra) {
     NSString *bid = ra.bundleIdentifier;
     if (!bid) return NO;
-    if ([bid containsString:@".helper"] || [bid containsString:@".Helper"] || [bid hasPrefix:@"com.apple.WebKit"]) return NO;
+    if ([bid containsString:@".helper"] || [bid containsString:@".Helper"] || [bid containsString:@".framework."] ||
+        [bid hasPrefix:@"com.apple.WebKit"]) return NO;
     if (ra.activationPolicy == NSApplicationActivationPolicyRegular) return ![bid isEqualToString:@"com.apple.loginwindow"];
     if (ra.activationPolicy == NSApplicationActivationPolicyAccessory) return ![bid hasPrefix:@"com.apple."];
     return NO;
@@ -31,6 +36,52 @@ NSString *MMFormatBytes(uint64_t b) {
     if (b >= 1ull << 30) return [NSString stringWithFormat:@"%.1f GB", b / (double)(1ull << 30)];
     if (b >= 1ull << 20) return [NSString stringWithFormat:@"%.0f MB", b / (double)(1ull << 20)];
     return [NSString stringWithFormat:@"%.0f KB", b / 1024.0];
+}
+
+NSArray<NSNumber *> *MMLoopbackListeners(NSArray<NSNumber *> *pids) {
+    NSMutableOrderedSet *ports = [NSMutableOrderedSet new];
+    for (NSNumber *n in pids) {
+        pid_t pid = n.intValue;
+        int size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, NULL, 0);
+        if (size <= 0) continue;
+        struct proc_fdinfo *fds = malloc(size);
+        size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds, size);
+        for (int i = 0; i < size / (int)sizeof(struct proc_fdinfo); i++) {
+            if (fds[i].proc_fdtype != PROX_FDTYPE_SOCKET) continue;
+            struct socket_fdinfo si;
+            if (proc_pidfdinfo(pid, fds[i].proc_fd, PROC_PIDFDSOCKETINFO, &si, sizeof(si)) != sizeof(si)) continue;
+            if (si.psi.soi_kind != SOCKINFO_TCP) continue;
+            struct tcp_sockinfo *t = &si.psi.soi_proto.pri_tcp;
+            if (t->tcpsi_state != TCPS_LISTEN) continue;
+            struct in_sockinfo *in = &t->tcpsi_ini;
+            BOOL loopback = NO;
+            if (in->insi_vflag & INI_IPV4) loopback = (ntohl(in->insi_laddr.ina_46.i46a_addr4.s_addr) >> 24) == 127;
+            else if (in->insi_vflag & INI_IPV6) loopback = IN6_IS_ADDR_LOOPBACK(&in->insi_laddr.ina_6);
+            if (loopback) [ports addObject:@(ntohs(in->insi_lport))];
+        }
+        free(fds);
+    }
+    return ports.array;
+}
+
+NSArray<NSString *> *MMProcessArgs(pid_t pid) {
+    int mib[3] = { CTL_KERN, KERN_PROCARGS2, pid };
+    size_t size = 0;
+    if (sysctl(mib, 3, NULL, &size, NULL, 0) != 0 || size < sizeof(int)) return nil;
+    char *buf = malloc(size);
+    if (sysctl(mib, 3, buf, &size, NULL, 0) != 0) { free(buf); return nil; }
+    int argc = 0; memcpy(&argc, buf, sizeof(int));
+    char *p = buf + sizeof(int), *end = buf + size;
+    while (p < end && *p) p++;            // skip exec path
+    while (p < end && !*p) p++;           // skip padding
+    NSMutableArray *args = [NSMutableArray new];
+    for (int i = 0; i < argc && p < end; i++) {
+        NSString *a = [NSString stringWithUTF8String:p];
+        if (a) [args addObject:a];
+        p += strlen(p) + 1;
+    }
+    free(buf);
+    return args;
 }
 
 @implementation MMScanner {
@@ -87,6 +138,7 @@ NSString *MMFormatBytes(uint64_t b) {
         if (ra.processIdentifier == me || !IsBucket(ra)) continue;
         MMApp *a = [MMApp new];
         a.app = ra; a.bundleID = ra.bundleIdentifier; a.name = ra.localizedName ?: ra.bundleIdentifier;
+        a.pids = [NSMutableArray new];
         appsByPid[@(ra.processIdentifier)] = a;
     }
     NSMutableArray<MMProc *> *loose = [NSMutableArray new];
@@ -99,7 +151,7 @@ NSString *MMFormatBytes(uint64_t b) {
             if (!parent) break;
             cur = parent.ppid;
         }
-        if (owner) { owner.cpuPercent += p.cpuPercent; owner.memory += p.footprint; owner.processCount++; }
+        if (owner) { owner.cpuPercent += p.cpuPercent; owner.memory += p.footprint; owner.processCount++; [owner.pids addObject:@(p.pid)]; }
         else if (p.pid != me) [loose addObject:p];
     }
     _apps = [appsByPid.allValues sortedArrayUsingComparator:^NSComparisonResult(MMApp *a, MMApp *b) {
