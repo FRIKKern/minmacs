@@ -154,5 +154,172 @@
     "name": "Terminal and multiplexer hosts",
     "question": "What can the HOST tell us about agents running inside it, without per-harness work? Cover cmux (socket RPC, hooks, feed, notifications), Ghostty, iTerm2, Warp, WezTerm, kitty, tmux, and the terminal conventions OSC 9;4 (progress), OSC 133 (prompt and command marks), OSC 9 and 777 (notifications).",
     "start_at": "https://raw.githubusercontent.com/manaflow-ai/cmux/main/docs/feed.md"
+  },
+  "wave2": {
+    "harnesses": [
+      {
+        "id": "herdr",
+        "name": "Herdr",
+        "surfaces_hint": "terminal-native agent runtime and multiplexer in Rust; shows each agent as working, idle or blocked; agents run as its children",
+        "start_at": "https://github.com/herdrdev/herdr",
+        "installed_here": false
+      },
+      {
+        "id": "xcode-agents",
+        "name": "Xcode coding agents",
+        "surfaces_hint": "Xcode 26.3 and later hosting Claude Agent and Codex inside the IDE",
+        "start_at": "https://developer.apple.com/documentation/xcode",
+        "installed_here": false
+      },
+      {
+        "id": "cline",
+        "name": "Cline standalone",
+        "surfaces_hint": "Cline CLI 2.0, Cline Desktop and the SDK, sharing sessions.db with the VS Code extension",
+        "start_at": "https://github.com/cline/cline",
+        "installed_here": false
+      },
+      {
+        "id": "kilo",
+        "name": "Kilo CLI",
+        "surfaces_hint": "Kilo Code's terminal agent and its serve mode",
+        "start_at": "https://github.com/Kilo-Org/kilocode",
+        "installed_here": false
+      },
+      {
+        "id": "kiro",
+        "name": "Kiro",
+        "surfaces_hint": "Amazon's agentic IDE and Kiro CLI, the successor to Amazon Q Developer CLI",
+        "start_at": "https://kiro.dev/docs/",
+        "installed_here": false
+      },
+      {
+        "id": "junie",
+        "name": "JetBrains Junie",
+        "surfaces_hint": "Junie CLI, the IDE agent, and JetBrains Air",
+        "start_at": "https://www.jetbrains.com/junie/",
+        "installed_here": false
+      },
+      {
+        "id": "auggie",
+        "name": "Auggie",
+        "surfaces_hint": "Augment Code's terminal agent",
+        "start_at": "https://docs.augmentcode.com/cli/overview",
+        "installed_here": false
+      },
+      {
+        "id": "kimi",
+        "name": "Kimi Code",
+        "surfaces_hint": "Moonshot's Kimi Code and Kimi CLI",
+        "start_at": "https://github.com/MoonshotAI/kimi-cli",
+        "installed_here": false
+      },
+      {
+        "id": "mistral-vibe",
+        "name": "Mistral Vibe",
+        "surfaces_hint": "Mistral's terminal coding agent",
+        "start_at": "https://github.com/mistralai/mistral-vibe",
+        "installed_here": false
+      },
+      {
+        "id": "grok-build",
+        "name": "Grok Build",
+        "surfaces_hint": "xAI's coding CLI",
+        "start_at": "https://x.ai",
+        "installed_here": false
+      },
+      {
+        "id": "openhands",
+        "name": "OpenHands",
+        "surfaces_hint": "CLI, local GUI and headless runs of the OpenHands agent",
+        "start_at": "https://github.com/All-Hands-AI/OpenHands",
+        "installed_here": false
+      },
+      {
+        "id": "continue",
+        "name": "Continue CLI",
+        "surfaces_hint": "Continue's cn terminal agent and headless mode",
+        "start_at": "https://docs.continue.dev/cli/overview",
+        "installed_here": false
+      },
+      {
+        "id": "codebuff",
+        "name": "Codebuff",
+        "surfaces_hint": "terminal coding agent",
+        "start_at": "https://github.com/CodebuffAI/codebuff",
+        "installed_here": false
+      },
+      {
+        "id": "every-code",
+        "name": "Every Code",
+        "surfaces_hint": "the Codex fork published as just-every/code",
+        "start_at": "https://github.com/just-every/code",
+        "installed_here": false
+      },
+      {
+        "id": "conductor",
+        "name": "Conductor",
+        "surfaces_hint": "Mac app that runs many Claude Code and Codex agents in parallel worktrees",
+        "start_at": "https://conductor.build",
+        "installed_here": false
+      },
+      {
+        "id": "emdash",
+        "name": "Emdash",
+        "surfaces_hint": "orchestrator app that runs multiple coding agents in parallel",
+        "start_at": "https://github.com/generalaction/emdash",
+        "installed_here": false
+      },
+      {
+        "id": "claude-squad",
+        "name": "Claude Squad",
+        "surfaces_hint": "tmux-based manager for multiple agent sessions",
+        "start_at": "https://github.com/smtg-ai/claude-squad",
+        "installed_here": false
+      },
+      {
+        "id": "qoder",
+        "name": "Qoder",
+        "surfaces_hint": "Alibaba's agentic IDE and Qoder CLI",
+        "start_at": "https://qoder.com",
+        "installed_here": false
+      },
+      {
+        "id": "codebuddy",
+        "name": "CodeBuddy",
+        "surfaces_hint": "Tencent's coding agent, IDE and CLI",
+        "start_at": "https://www.codebuddy.ai",
+        "installed_here": false
+      },
+      {
+        "id": "trae",
+        "name": "Trae",
+        "surfaces_hint": "ByteDance's agentic IDE and the trae-agent CLI",
+        "start_at": "https://github.com/bytedance/trae-agent",
+        "installed_here": false
+      },
+      {
+        "id": "jules",
+        "name": "Jules",
+        "surfaces_hint": "Google's asynchronous coding agent and its Jules Tools CLI",
+        "start_at": "https://jules.google/docs/",
+        "installed_here": false
+      }
+    ],
+    "studies": [
+      {
+        "id": "prior-art",
+        "file": "registry/evidence/prior-art.md",
+        "start_at": "https://github.com/herdrdev/herdr",
+        "question": "Other tools already detect which coding agents are running and whether each is working, idle or blocked. Study how they do it, from their source code where it is public: Herdr (read its agent detection and state logic closely: what it matches on, how it decides working versus idle versus blocked, whether it reads the screen, hooks, process state or files), cmux, Agent Sessions (jazzyalex/agent-sessions), CASS (Dicklesworthstone/coding_agent_session_search), Claude Squad, Conductor, Emdash, vibe-kanban, and any other you find. For each: the mechanism, the list of harnesses it supports, and what it gets right that our registry does not. Then DIFF: list every harness any of them supports that has no file in registry/agents/ and is not in registry/harnesses.json, with the source that names it. That list is the main deliverable.",
+        "local_hint": "cmux is installed on this Mac; its shell integration and wrapper scripts are under /Applications/cmux.app/Contents/Resources. Herdr is not installed; read its repository."
+      },
+      {
+        "id": "hosts-2",
+        "file": "registry/evidence/hosts-2.md",
+        "start_at": "https://github.com/herdrdev/herdr",
+        "question": "registry/evidence/hosts.md studied cmux, Ghostty, iTerm2, Warp, WezTerm, kitty and tmux. Extend it to the hosts it left out: Herdr (does it expose a socket, CLI or file another program can read for agent state, and does that need setup), Terminal.app (AppleScript: busy, processes, tty, title), Zellij, Alacritty, and the integrated terminals of VS Code, Cursor and JetBrains IDEs. Answer for each: what it knows about a running agent, how another same-user process can ask it, whether that needs consent or configuration, and how reliable it is. Do not repeat what hosts.md already establishes; cite it.",
+        "local_hint": "Terminal.app is present on every Mac; you may read its scripting dictionary with `sdef /System/Applications/Utilities/Terminal.app` but do not send it Apple events that open windows or run commands."
+      }
+    ]
   }
 }

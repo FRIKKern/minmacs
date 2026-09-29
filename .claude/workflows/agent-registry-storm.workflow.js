@@ -5,20 +5,23 @@ export const meta = {
   phases: [
     { title: 'Research', detail: 'one agent per harness writes a registry row with evidence', model: 'sonnet' },
     { title: 'Verify', detail: 'a skeptic tries to refute each row, then repairs or downgrades it', model: 'sonnet' },
-    { title: 'Hosts', detail: 'what terminals and multiplexers can report on their own', model: 'sonnet' },
+    { title: 'Studies', detail: 'cross-cutting questions: hosts, prior art', model: 'sonnet' },
     { title: 'Synthesize', detail: 'registry README, cross-harness findings, and what is still missing', model: 'sonnet' },
   ],
 }
 
-// args: { repo, today, harnesses: [{id,name,surfaces_hint,start_at,installed_here}], hosts: {...} }
+// args: { repo, today, harnesses: [{id,name,surfaces_hint,start_at,installed_here}],
+//         studies: [{id, file, question, start_at, local_hint}] }   (hosts: {...} is the older single-study form)
 const { repo, today, harnesses, hosts } = args
+const studies = args.studies || (hosts ? [{ ...hosts, file: 'registry/evidence/hosts.md', local_hint: 'cmux is installed on this Mac: run `cmux --help`, `cmux docs agents`, `cmux docs api`, `cmux capabilities`, `cmux hooks --help` and `cmux list-workspaces`.' }] : [])
 const MODEL = 'sonnet', EFFORT = 'high'   // high, not max: at max this model tends to widen scope
 
 const RULES = `
 Ground rules, all binding:
-- Work in ${repo}. Read registry/schema.json, registry/agents/claude-code.json (the worked example) and tools/agents_probe.py first. They are the contract.
+- Work in ${repo}. Read registry/schema.json, registry/agents/claude-code.json (the worked example) and tools/agents_probe.py first. They are the contract. If registry/README.md exists, read its sections 3 and 4 too: they hold what earlier research learned about where generic detection goes wrong.
+- Matching reads the command line only, and child signals look at DIRECT children only. Write rows that are correct under those rules.
 - Write ONLY the files named in your task. Do not edit any other file. Do not commit, push, or create branches.
-- Do not install anything. Do not start, resume or message any agent session. Read-only commands only: --version, --help, ls, stat, file, strings, ps, lsof.
+- Do not install anything. Do not start, resume or message any agent session. Do not create, attach to or change any terminal multiplexer session (tmux, cmux, zellij, herdr). Read-only commands only: --version, --help, ls, stat, file, strings, ps, lsof.
 - Privacy: session stores hold private conversations. You may list file names, sizes and modification times, and print the KEY NAMES of one record. Never print, quote or summarise message content.
 - Evidence or it does not go in. Every non-obvious field needs a sources entry: an official docs URL, a path in the vendor's public source, or the exact local command with what it printed. Say "inferred" when that is what it is.
 - Undocumented paths are fine to record, with session_store.documented=false.
@@ -83,17 +86,18 @@ ${RULES}`, { label: `verify:${h.id}`, phase: 'Verify', model: MODEL, effort: EFF
     .then(v => ({ ...r, verification: v }))
 }
 
-// Hosts research runs alongside the harness pipeline; it is one independent question.
-const hostsJob = agent(`${hosts.question}
+// Studies run alongside the harness pipeline; each is one independent question with one output file.
+const studyJobs = studies.map(st => agent(`${st.question}
 
-Start at: ${hosts.start_at}
-cmux is installed on this Mac: run \`cmux --help\`, \`cmux docs agents\`, \`cmux docs api\`, \`cmux capabilities\`, \`cmux hooks --help\` and \`cmux list-workspaces\`. Do not run any command that changes cmux state, and do not install or uninstall hooks.
+Start at: ${st.start_at}
+${st.local_hint || ''}
+Do not run any command that changes the state of a terminal host, and do not install or uninstall hooks.
 
-Write exactly one file, registry/evidence/hosts.md, answering for each host: what it knows about a running agent, how another program can ask it (socket, CLI, API, escape sequences), whether that needs per-harness setup, and how reliable it is. End with a ranked recommendation of which host signals MinMacs should read first.
-${RULES}`, { label: 'research:hosts', phase: 'Hosts', model: MODEL, effort: EFFORT })
+Write exactly one file, ${st.file}. Separate what you observed or read in a primary source from what you inferred. End with a ranked recommendation of what MinMacs should adopt first, and a section "Not verified".
+${RULES}`, { label: `study:${st.id}`, phase: 'Studies', model: MODEL, effort: EFFORT }).then(text => ({ id: st.id, file: st.file, done: !!text })))
 
 const rows = (await pipeline(harnesses, research, verify)).filter(Boolean)
-const hostsNote = await hostsJob
+const studyResults = (await Promise.all(studyJobs)).filter(Boolean)
 
 const dropped = harnesses.length - rows.length
 if (dropped) log(`${dropped} of ${harnesses.length} harnesses produced no verified row; they are listed in the synthesis as gaps`)
@@ -102,7 +106,7 @@ phase('Synthesize')
 const [readme, gaps] = await parallel([
   () => agent(`Every file under registry/agents/ and registry/evidence/ in ${repo} has now been researched and verified. Read all of them.
 
-Write exactly one file, registry/README.md, containing:
+Write exactly one file, registry/README.md, replacing any earlier version so that it covers EVERY row now present, containing:
 1. One table: harness, surfaces, most precise working signal, hooks yes or no, session store, confidence.
 2. "What is universal": signals that hold across most harnesses, with the count of rows supporting each.
 3. "What needs specialisation": the cases a generic detector gets wrong, and the smallest rule that fixes each.
@@ -122,7 +126,7 @@ return {
                          doubts: r.verification ? r.verification.remaining_doubts : [] })),
   models_reported: [...new Set(rows.map(r => r.model_self_report).filter(Boolean))],
   missing: harnesses.filter(h => !rows.some(r => r.id === h.id)).map(h => h.id),
-  hosts_written: !!hostsNote,
+  studies: studyResults,
   readme_written: !!readme,
   gaps,
 }
