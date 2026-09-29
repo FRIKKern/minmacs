@@ -27,6 +27,7 @@
 @property (readonly) NSArray<MMApp *> *apps;            // sorted by cpu desc
 @property (readonly) NSArray<MMProc *> *unattributed;   // non-app processes, sorted by cpu desc
 @property (readonly) double totalCPU;                   // sum over all processes, percent of one core
+@property (readonly) NSDictionary<NSNumber *, MMProc *> *processes;   // every process in the last sample, by pid
 @end
 
 NSString *MMFormatBytes(uint64_t bytes);

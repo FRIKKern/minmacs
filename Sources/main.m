@@ -8,6 +8,7 @@
 #import "Scanner.h"
 #import "Rules.h"
 #import "Browser.h"
+#import "Agents.h"
 
 static NSString *const kAskKey        = @"minmacs.askBeforeClosing";   // default YES
 static NSString *const kInsomniaKey   = @"minmacs.turnOnInsomnia";     // default YES
@@ -76,7 +77,7 @@ static NSString *ServingReason(MMApp *a) {
 }
 
 /// `deep` also reads browser tabs, which costs Apple events; ticks stay shallow.
-static MMPlan *MakePlan(MMScanner *s, BOOL deep, BOOL quitBrowsers) {
+static MMPlan *MakePlan(MMScanner *s, BOOL deep, BOOL quitBrowsers, MMAgents *detector, NSArray<MMAgent *> *agents) {
     MMPlan *p = [MMPlan new];
     NSMutableArray *c = [NSMutableArray new], *k = [NSMutableArray new], *u = [NSMutableArray new],
                    *t = [NSMutableArray new], *sp = [NSMutableArray new];
@@ -85,6 +86,8 @@ static MMPlan *MakePlan(MMScanner *s, BOOL deep, BOOL quitBrowsers) {
         if (v == MMKeep) { [k addObject:a]; continue; }
         if (v == MMUnsorted) { [u addObject:a]; continue; }
         NSString *why = ServingReason(a);
+        MMAgent *owner = why ? nil : [detector workingAgentOwning:a.app.processIdentifier in:agents];
+        if (owner) why = [NSString stringWithFormat:@"started by a working agent (%@, pid %d)", owner.harness, owner.pid];
         if (why) { MMSpared *x = [MMSpared new]; x.app = a; x.reason = why; [sp addObject:x]; continue; }
         if (!quitBrowsers && [MMBrowser isBrowser:a.bundleID]) {
             MMTrim *x = [MMTrim new]; x.app = a;
@@ -225,6 +228,7 @@ static int Usage(void) {
         "  plan                  what MinMacs would do right now (default)\n"
         "  run                   quit the close list and trim browsers; asks unless --yes\n"
         "  trim                  only trim browser tabs; asks unless --yes\n"
+        "  agents                which agent sessions are running, and which are working\n"
         "  restore               relaunch apps and reopen tabs the last run closed\n"
         "  classify <url|host>   say whether a tab is noise, work or other\n"
         "  rules                 print the rules file path\n"
@@ -234,7 +238,8 @@ static int Usage(void) {
         "  --force               force quit apps that ignore a normal Quit (unsaved changes are lost)\n"
         "  --only <bundle-id>    act on this one app\n"
         "  --only-host <host>    trim only tabs on this host\n"
-        "  --quit-browsers       quit browsers instead of trimming them\n");
+        "  --quit-browsers       quit browsers instead of trimming them\n"
+        "  --rows <dir>          agents: read harness rows from this directory instead\n");
     return 2;
 }
 
@@ -259,11 +264,35 @@ static int RunCLI(int argc, const char **argv) {
         printf("%s\n", [MMRules.shared tabVerdictForHost:h].UTF8String);
         return 0;
     }
-    if (![@[@"plan", @"run", @"trim"] containsObject:cmd]) return Usage();
+    if (![@[@"plan", @"run", @"trim", @"agents"] containsObject:cmd]) return Usage();
 
     MMScanner *s = [MMScanner new];
     [s sample]; [NSThread sleepForTimeInterval:1.0]; [s sample];   // two samples for CPU%
-    MMPlan *p = MakePlan(s, YES, quitBrowsers);
+    MMAgents *detector = [[MMAgents alloc] initWithRowDirectories:opt(@"--rows") ? @[opt(@"--rows")] : MMAgents.defaultRowDirectories];
+    detector.holdSeconds = 0;   // one shot: report what is true now
+    NSArray<MMAgent *> *agents = [detector detect:s];
+
+    if ([cmd isEqualToString:@"agents"]) {
+        NSInteger working = [agents filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"working == YES"]].count;
+        if (json) {
+            NSMutableArray *o = [NSMutableArray new];
+            for (MMAgent *a in agents) [o addObject:a.json];
+            NSData *d = [NSJSONSerialization dataWithJSONObject:@{@"agents": o, @"working": @(working), @"idle": @(agents.count - working), @"rows": @(detector.rowCount)}
+                                                        options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
+            printf("%s\n", [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding].UTF8String);
+            return 0;
+        }
+        if (!detector.rowCount) { printf("no harness rows found\n"); return 0; }
+        printf("%-16s%-8s%-7s%-9s%5s  %-9s%-5s%-30s%s\n", "harness", "surface", "pid", "state", "cpu", "memory", "kids", "why", "project");
+        for (MMAgent *a in agents)
+            printf("%-16s%-8s%-7d%-9s%5.1f  %-9s%-5ld%-30s%s\n", [a.harness substringToIndex:MIN(15, a.harness.length)].UTF8String, a.surface.UTF8String,
+                   a.pid, a.state.UTF8String, a.cpu, MMFormatBytes(a.memory).UTF8String, (long)a.children,
+                   [a.why substringToIndex:MIN(29, a.why.length)].UTF8String, a.project.UTF8String);
+        printf("\n%lu agent sessions: %ld working, %ld idle (%ld harness rows loaded)\n", (unsigned long)agents.count, (long)working,
+               (long)(agents.count - working), (long)detector.rowCount);
+        return 0;
+    }
+    MMPlan *p = MakePlan(s, YES, quitBrowsers, detector, agents);
     NSPredicate *onlyApp = only ? [NSPredicate predicateWithFormat:@"bundleID == %@", only] : [NSPredicate predicateWithValue:YES];
     NSPredicate *onlyTrim = only ? [NSPredicate predicateWithFormat:@"app.bundleID == %@", only] : [NSPredicate predicateWithValue:YES];
     NSArray<MMApp *> *targets = [cmd isEqualToString:@"trim"] ? @[] : [p.close filteredArrayUsingPredicate:onlyApp];
@@ -340,6 +369,8 @@ static int RunCLI(int argc, const char **argv) {
 @property (strong) MMScanner *scanner;
 @property (strong) NSTimer *timer;
 @property (strong) MMPlan *plan;
+@property (strong) MMAgents *detector;
+@property (strong) NSArray<MMAgent *> *agents;
 @end
 
 @implementation MinMacs
@@ -350,6 +381,7 @@ static int RunCLI(int argc, const char **argv) {
 
 - (void)applicationDidFinishLaunching:(NSNotification *)n {
     self.scanner = [MMScanner new];
+    self.detector = [[MMAgents alloc] initWithRowDirectories:MMAgents.defaultRowDirectories];
     self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
     self.statusItem.button.target = self;
     self.statusItem.button.action = @selector(handleClick:);
@@ -364,7 +396,8 @@ static int RunCLI(int argc, const char **argv) {
 
 - (void)refresh:(BOOL)deep {
     [self.scanner sample];
-    self.plan = MakePlan(self.scanner, deep, self.quitBrowsers);
+    self.agents = [self.detector detect:self.scanner];
+    self.plan = MakePlan(self.scanner, deep, self.quitBrowsers, self.detector, self.agents);
     BOOL restorable = RestorableCount() > 0;
     NSImage *img = [NSImage imageWithSystemSymbolName:restorable ? @"gauge.with.dots.needle.0percent" : @"gauge.with.dots.needle.67percent"
                                 accessibilityDescription:@"MinMacs"]
@@ -441,6 +474,24 @@ static NSMenuItem *Header(NSMenu *m, NSString *t) { NSMenuItem *i = Item(m, t, N
     static NSString *const th[] = { @"nominal", @"fair", @"serious", @"critical" };
     Header(menu, [NSString stringWithFormat:@"%lu apps · system load %@ · thermal %@",
                   (unsigned long)self.scanner.apps.count, Pct(self.scanner.totalCPU), th[NSProcessInfo.processInfo.thermalState]]);
+    if (self.agents.count) {
+        NSInteger working = 0; uint64_t mem = 0;
+        for (MMAgent *a in self.agents) { working += a.working; mem += a.memory; }
+        NSMenuItem *ai = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"Agents: %ld working, %ld idle · %@",
+                          (long)working, (long)(self.agents.count - working), MMFormatBytes(mem)] action:nil keyEquivalent:@""];
+        ai.image = [NSImage imageWithSystemSymbolName:working ? @"circle.fill" : @"circle" accessibilityDescription:nil];
+        NSMenu *am = [NSMenu new];
+        for (MMAgent *a in self.agents) {
+            NSString *where = a.project.lastPathComponent.length ? a.project.lastPathComponent : a.project;
+            NSString *t = [NSString stringWithFormat:@"%@  %@  ·  %@%@   %@ · %@", a.working ? @"●" : @"○", a.harness, where,
+                           a.working ? [NSString stringWithFormat:@"  ·  %@", a.why] : @"", Pct(a.cpu), MMFormatBytes(a.memory)];
+            Header(am, t).toolTip = [NSString stringWithFormat:@"pid %d · %@ · %@", a.pid, a.surface, a.project];
+        }
+        [am addItem:NSMenuItem.separatorItem];
+        Header(am, @"MinMacs never touches anything a working agent started.");
+        ai.submenu = am;
+        [menu addItem:ai];
+    }
     [menu addItem:NSMenuItem.separatorItem];
 
     NSInteger noise = p.noiseTabCount;

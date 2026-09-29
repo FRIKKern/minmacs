@@ -130,6 +130,7 @@ NSArray<NSString *> *MMProcessArgs(pid_t pid) {
     }
     free(pids);
     _prevCpu = cpuNow; _prevWallNs = now;
+    _processes = procs;
 
     // GUI apps become buckets; everything else rolls up to the nearest app ancestor.
     NSMutableDictionary<NSNumber *, MMApp *> *appsByPid = [NSMutableDictionary new];

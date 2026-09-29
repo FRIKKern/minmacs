@@ -32,7 +32,7 @@ PL
 codesign --force --sign - build/Stubborn.app >/dev/null 2>&1
 
 cp "$R" "$R.bak"
-cleanup() { pkill -9 -x Stubborn 2>/dev/null; osascript -e 'tell application "TextEdit" to quit' >/dev/null 2>&1; mv "$R.bak" "$R"
+cleanup() { pkill -9 -x Stubborn 2>/dev/null; pkill -x fakeagent 2>/dev/null; osascript -e 'tell application "TextEdit" to quit' >/dev/null 2>&1; mv "$R.bak" "$R"
             defaults delete no.guerrilla.minmacs minmacs.closedBundleIDs >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.closedTabs >/dev/null 2>&1; }
 trap cleanup EXIT
 rule add close com.apple.TextEdit; rule add close $STUB
@@ -68,6 +68,33 @@ check "github.com is work"              work  "$("$BIN" classify https://github.
 check "localhost with a port is work"   work  "$("$BIN" classify http://localhost:4000/studio)"
 check "unknown host is left alone"      other "$("$BIN" classify https://example.org/)"
 check "work wins when both could match" work  "$("$BIN" classify https://aws.amazon.com/console)"
+
+echo "== agent detection (fixture: tools/fakeagent.c)"
+clang -O1 tools/fakeagent.c -o build/fakeagent || exit 1
+state() { "$BIN" agents --json --rows tools/fixtures | python3 -c "import json,sys; a=json.load(sys.stdin)['agents']; print(a[0]['state'] if a else 'absent')"; }
+ref()   { python3 tools/agents_probe.py --json --row tools/fixtures/fake-agent.json | python3 -c "import json,sys; a=json.load(sys.stdin)['agents']; print(a[0]['state'] if a else 'absent')"; }
+check "no fixture running, none found"    absent  "$(state)"
+build/fakeagent --work 8 & FA=$!; sleep 2
+check "fixture mid-turn is working"       working "$(state)"
+check "reference probe agrees"            working "$(ref)"
+sleep 8
+check "fixture after the turn is idle"    idle    "$(state)"
+check "reference probe agrees"            idle    "$(ref)"
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+check "fixture gone, none found"          absent  "$(state)"
+# Real sessions: wherever the precise signal decides, both implementations must agree.
+python3 - "$BIN" <<'PYEOF'
+import json, subprocess, sys
+a = {x["pid"]: x for x in json.loads(subprocess.run([sys.argv[1], "agents", "--json"], capture_output=True, text=True).stdout)["agents"]}
+b = {x["pid"]: x for x in json.loads(subprocess.run(["python3", "tools/agents_probe.py", "--json"], capture_output=True, text=True).stdout)["agents"]}
+both = sorted(set(a) & set(b))
+precise = [p for p in both if "child" in a[p]["why"] or "child" in b[p]["why"] or (a[p]["state"] == b[p]["state"] == "idle")]
+bad = [p for p in precise if a[p]["state"] != b[p]["state"]]
+cpu_only = [p for p in both if p not in precise and a[p]["state"] != b[p]["state"]]
+print(f"  {'ok  ' if not bad else 'FAIL'}  real sessions: {len(both)} seen by both, {len(precise)} decided precisely, {len(bad)} disagree" + (f"; {len(cpu_only)} differ on CPU alone, which the two sample differently" if cpu_only else ""))
+sys.exit(1 if bad else 0)
+PYEOF
+[ $? = 0 ] && pass=$((pass+1)) || fail=$((fail+1))
 
 if [ "${1:-}" = "--browser" ]; then
   echo "== live browser trim (opens two tabs of its own in Chrome)"
