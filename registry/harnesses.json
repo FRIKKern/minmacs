@@ -321,5 +321,150 @@
         "local_hint": "Terminal.app is present on every Mac; you may read its scripting dictionary with `sdef /System/Applications/Utilities/Terminal.app` but do not send it Apple events that open windows or run commands."
       }
     ]
+  },
+  "wave3": {
+    "harnesses": [
+      {
+        "id": "omp",
+        "name": "Oh My Pi",
+        "surfaces_hint": "node-hosted fork of pi (@oh-my-pi/pi-coding-agent), store ~/.omp/agent/sessions; named by 8 tools",
+        "start_at": "https://github.com/oh-my-pi/pi-coding-agent",
+        "installed_here": false
+      },
+      {
+        "id": "muse",
+        "name": "Muse Code",
+        "surfaces_hint": "Meta's terminal agent; launcher execs muse-bin-<version>; store ~/.local/share/muse/sessions",
+        "start_at": "https://dev.meta.ai",
+        "installed_here": false
+      },
+      {
+        "id": "devin",
+        "name": "Devin CLI",
+        "surfaces_hint": "the devin terminal agent as its own harness, separate from the Windsurf row; store ~/.local/share/devin/cli/sessions.db",
+        "start_at": "https://docs.devin.ai",
+        "installed_here": false
+      },
+      {
+        "id": "letta",
+        "name": "Letta Code",
+        "surfaces_hint": "@letta-ai/letta-code; Herdr treats headless flags as non-interactive",
+        "start_at": "https://github.com/letta-ai/letta-code",
+        "installed_here": false
+      },
+      {
+        "id": "mastracode",
+        "name": "Mastra Code",
+        "surfaces_hint": "npm mastracode; Herdr says it has no outside signal without hooks",
+        "start_at": "https://github.com/mastra-ai/mastra",
+        "installed_here": false
+      },
+      {
+        "id": "deepseek-harness",
+        "name": "DeepSeek Harness (dsh)",
+        "surfaces_hint": "@deepseek-ai/dsh; dsh web prints a local URL; store ~/.dsh/sessions",
+        "start_at": "https://github.com/deepseek-ai/deepseek-harness",
+        "installed_here": false
+      },
+      {
+        "id": "fx",
+        "name": "fx",
+        "surfaces_hint": "vercel-labs/fx, a Zig terminal agent; store ~/.fx/sessions; the name collides with a JSON viewer",
+        "start_at": "https://github.com/vercel-labs/fx",
+        "installed_here": false
+      },
+      {
+        "id": "command-code",
+        "name": "Command Code",
+        "surfaces_hint": "bins command-code, commandcode, cmdc; root ~/.commandcode",
+        "start_at": "https://github.com/CommandCodeAI/command-code",
+        "installed_here": false
+      },
+      {
+        "id": "autohand",
+        "name": "Autohand Code",
+        "surfaces_hint": "npm autohand-cli with bins ah, agent and autohand; agent collides with Cursor's binary",
+        "start_at": "https://github.com/autohandai/code-cli",
+        "installed_here": false
+      },
+      {
+        "id": "mimocode",
+        "name": "MiMo Code",
+        "surfaces_hint": "Xiaomi's terminal agent, bin mimo; store ~/.local/share/mimocode",
+        "start_at": "https://github.com/XiaomiMiMo/MiMo-Code",
+        "installed_here": false
+      },
+      {
+        "id": "freebuff",
+        "name": "Freebuff",
+        "surfaces_hint": "npm freebuff, a Codebuff variant sharing its store",
+        "start_at": "https://www.npmjs.com/package/freebuff",
+        "installed_here": false
+      },
+      {
+        "id": "prime-agent",
+        "name": "Prime Agent",
+        "surfaces_hint": "PrimeIntellect prime-agent, also --mode acp; store ~/.prime/agent/sessions",
+        "start_at": "https://github.com/PrimeIntellect-ai/prime-agent",
+        "installed_here": false
+      },
+      {
+        "id": "codewhale",
+        "name": "CodeWhale",
+        "surfaces_hint": "formerly deepseek-tui, Rust; stores ~/.codewhale/sessions and ~/.deepseek/sessions; binary name unverified",
+        "start_at": "https://github.com/Hmbown/Codewhale",
+        "installed_here": false
+      },
+      {
+        "id": "claw-code",
+        "name": "claw-code",
+        "surfaces_hint": "ultraworkers/claw-code; catalog only so far, identity unverified",
+        "start_at": "https://github.com/ultraworkers/claw-code",
+        "installed_here": false
+      },
+      {
+        "id": "deepagents",
+        "name": "deepagents",
+        "surfaces_hint": "langchain-ai/deepagents CLI; catalog only so far",
+        "start_at": "https://github.com/langchain-ai/deepagents",
+        "installed_here": false
+      },
+      {
+        "id": "superset",
+        "name": "Superset",
+        "surfaces_hint": "orchestrator that runs many agents; named third hand only",
+        "start_at": "https://superset.sh",
+        "installed_here": false
+      },
+      {
+        "id": "agent-deck",
+        "name": "Agent Deck",
+        "surfaces_hint": "tmux-based agent manager with per-agent presets and screen patterns",
+        "start_at": "https://github.com/asheshgoplani/agent-deck",
+        "installed_here": false
+      },
+      {
+        "id": "orca",
+        "name": "Orca",
+        "surfaces_hint": "agent orchestrator with per-agent title rules and remote servers",
+        "start_at": "https://github.com/orca-agents/orca",
+        "installed_here": false
+      },
+      {
+        "id": "vibe-kanban",
+        "name": "vibe-kanban",
+        "surfaces_hint": "BloopAI orchestrator; README says sunsetting; structured agent stream",
+        "start_at": "https://github.com/BloopAI/vibe-kanban",
+        "installed_here": false
+      },
+      {
+        "id": "grok-bot",
+        "name": "Grok Bot",
+        "surfaces_hint": "xAI's desktop app; CASS reads its rolling chat replica; separate from the Grok Build CLI row",
+        "start_at": "https://x.ai",
+        "installed_here": false
+      }
+    ],
+    "studies": []
   }
 }
