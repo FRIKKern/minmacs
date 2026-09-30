@@ -116,8 +116,7 @@
     },
     {
       "signal": "power_assertion",
-      "name": "PreventUserIdleSystemSleep",
-      "meaning": "GUI surface only. The Copilot app process (com.github.githubapp) creates an IOPMAssertion 'GitHub Copilot app ... N active session(s)' while a session is busy, with a grace period after idle. Only when its Keep Awake setting is on. Default of that setting not determined."
+      "meaning": "GUI surface only. The Copilot app process (com.github.githubapp) creates an IOPMAssertion 'GitHub Copilot app ... N active session(s)' while a session is busy, with a grace period after idle. Only when its Keep Awake setting is on. Default of that setting not determined. Matched by owner pid only; the assertion name is not known as pmset prints it."
     },
     {
       "signal": "transcript_write",
@@ -310,6 +309,12 @@
       "kind": "local-observation",
       "date": "2026-09-29",
       "evidence": "tools/agents_probe.py matches() run in-process on synthetic ps rows (no process started); results in registry/evidence/copilot-cli.md ## Verification."
+    },
+    {
+      "claim": "power_assertion.name is matched as a substring of the name pmset prints; prose there never matches",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "completeness critic of wave 3 checked tools/agents_probe.py against the six rows; name set from the row's own cited source or removed"
     }
   ],
   "confidence": "documented",

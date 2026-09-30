@@ -1,0 +1,220 @@
+{
+  "id": "command-code",
+  "name": "Command Code",
+  "vendor": "Command Code (CommandCodeAI)",
+  "homepage": "https://commandcode.ai",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Command Code Desktop (Electron beta, /Applications/Command Code.app, main executable 'Command Code'). The agent harness (@commandcode/harness) runs inside the Electron main process, so one process hosts every chat: report the host only, never map its pid to one transcript. Helpers are named 'Command Code Helper (Renderer|GPU|Plugin)' and live under Contents/Frameworks, so the path substring below does not match them. The integrated Terminal panel adds permanent shell children (node-pty), so a direct-shell-child signal is NOT valid for this surface. Path has a space: needs the real argv (probe uses KERN_PROCARGS2), a space-split ps line breaks it",
+      "host": true,
+      "bundle_ids": [
+        "ai.commandcode.desktop"
+      ],
+      "process": {
+        "path_contains": [
+          "/Command Code.app/Contents/MacOS/Command Code"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Command Code CLI (npm package command-code; bins cmd, cmdc, command-code, commandcode all point at dist/index.mjs, a Node >=22 script). cli.mjs sets process.title = 'command-code' at module load, and on macOS that replaces the whole ps args string, so every launch method and every subcommand shows as bare 'command-code' with no flags, no session id and no path. Not matched under its pre-retitle shape (node <symlink to cmd>) because the shim path is install specific and the window is well under a second. `cmd -p`, `cmd mcp ...`, `cmd status`, `cmd update`, `cmd taste ...` are titled the same and cannot be told apart from a session",
+      "process": {
+        "names": [
+          "command-code"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.commandcode/projects/*/????????-????-????-????-????????????.jsonl",
+    "per_session": "~/.commandcode/projects/*/{session_id}.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "A direct `sh -c <command>` (or the configured shell) child means a shell tool call is running: the tool runs as spawn(command, [], {shell: true|<shell>}). Blind while the model streams and while non-shell tools run. False positives: shells that outlive the turn (background shell_command tasks and monitors are detached shells that keep running, `/loop` and cron), hook commands (transient shells), and the auto-update script. Do not use on the Desktop surface (permanent node-pty shells)"
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Raises working only, never lowers it. Entries are appended when a model round commits (assistant message, tool results), so a long model call or a long tool leaves the file quiet. The transcript file appears only after the first assistant reply. Sidecars <id>.checkpoints.jsonl and <id>.prompts.jsonl match a naive *.jsonl glob but are not transcripts; use the UUID glob"
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback, an unmeasured guess (inferred): the TUI is Node plus Ink (ink-spinner is a dependency), so a busy turn should animate. No sleep inhibitor exists, so there is no caffeinate child and no power assertion to key on"
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "herdr_socket",
+      "state": "blocked",
+      "meaning": "Only when the session runs inside Herdr (HERDR_ENV=1, HERDR_SOCKET_PATH and HERDR_PANE_ID set, CMD_HERDR not 0/false): the CLI sends JSON lines pane.report_agent {state: working|idle|blocked, message: 'permission'|'question'} to that Unix socket. working = a run or a compaction is open, blocked = a permission prompt or a question is open, idle otherwise. The exact three-state machine; visible to Herdr, not to a passive observer",
+      "source": "cli.mjs createHerdrReporter, reportFor, nextLifecycle; CHANGELOG 1.50.1"
+    },
+    {
+      "signal": "mod_event",
+      "event": "interaction_requested",
+      "meaning": "A mod loaded with --mod or from ~/.commandcode/mods can subscribe to interaction_requested and interaction_resolved (kind permission or question), the events the Herdr reporter itself uses. Not in the published AgentEvent catalog, so undocumented. Needs a mod installed by the user"
+    },
+    {
+      "signal": "none",
+      "meaning": "The four shell-hook events (PreToolUse, PostToolUse, Stop, SessionStart) include no Notification or permission-request event, the terminal tab title has no busy or waiting glyph, and nothing on disk records a pending prompt. Desktop raises an OS toast and a badge for 'needs input' from inside the app only"
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.commandcode/settings.json (user), <project>/.commandcode/settings.json (shared), <project>/.commandcode/settings.local.json (personal override); key `hooks`; project wins over user; hooks load at startup",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "Stop",
+      "SessionStart"
+    ],
+    "docs": "https://commandcode.ai/docs/hooks"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No user-facing OpenTelemetry export. The CLI bundles the OTel SDK (@opentelemetry/sdk-trace-node, exporter-trace-otlp-http) but sends spans only to vendor endpoints hard-coded in cli.mjs (an Axiom exporter and https://ingestion.claicode.com/v1/inference-events); no OTEL_EXPORTER_OTLP_* variable is read, the only OTEL_* read is OTEL_SDK_DISABLED. Opt-out: telemetry:false in ~/.commandcode/config.json, DO_NOT_TRACK=1 or CMD_LOCAL_ONLY. COMMAND_CODE_TELEMETRY_CONSOLE=1 adds a console span exporter (writes into the TUI). /trace prints the current trace id"
+  },
+  "sources": [
+    {
+      "claim": "bins are cmd, cmdc, command-code and commandcode, all dist/index.mjs; Node >=22; license UNLICENSED; latest 1.72.4 modified 2026-09-30",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "`npm view command-code@1.72.4 bin engines license time.modified` printed bin = {cmd, cmdc, commandcode, 'command-code'} -> dist/index.mjs, engines node >=22, license UNLICENSED, time.modified 2026-09-30T02:50:37Z; tarball https://registry.npmjs.org/command-code/-/command-code-1.72.4.tgz, package.json in it"
+    },
+    {
+      "claim": "dist/index.mjs is a Node script (#!/usr/bin/env node) that checks the Node version then imports ./cli.mjs, so the OS process is `node`, not a native binary",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/index.mjs in command-code-1.72.4.tgz: first line '#!/usr/bin/env node', ends with `isSupportedNodeVersion()&&await import(new URL('./cli.mjs',import.meta.url).href)`"
+    },
+    {
+      "claim": "the CLI retitles itself 'command-code' at module load, for every command",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs: `function setStableProcessTitle(){process.title=\"command-code\"}` and a top-level `setStableProcessTitle()` call; also called from writeTitle. CHANGELOG.md 1.50.1: 'feat: set stable process title (command-code) at module load'"
+    },
+    {
+      "claim": "on macOS a Node process.title replaces the whole args string, and the probe then sees argv[0]='command-code' and nothing else",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`node -e \"process.title='command-code'; setInterval(()=>{},1000)\"` (a stand-in, not the harness; node v22.22.2): `ps -p <pid> -o pid=,args=` printed '19709 command-code' and tools/agents_probe.py real_argv(pid) returned ['command-code', '', '']"
+    },
+    {
+      "claim": "the row matches a retitled Node process, classifies it idle, and flips to working when a direct sh child appears; Desktop main matches and its Helper processes do not; no other row claims either shape",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "stand-in `node -e` with process.title='command-code' that spawned `sh -c 'sleep 6; sleep 1'` after 4 s: `tools/agents_probe.py --row registry/agents/command-code.json` printed 'Command Code tui <pid> idle' then 'Command Code tui <pid> working ... tool shell running'. agents_probe.matches() on synthetic argv: Desktop main path scored 46 on the gui surface, 'Command Code Helper (Renderer|GPU)' and 'Command Code Helper' scored 0, and no other registry row matched any of them. NOT a real Command Code process"
+    },
+    {
+      "claim": "sessions are JSONL, append-only, one file per session under ~/.commandcode/projects/<project-slug>/<session-id>.jsonl, with sidecars <id>.meta.json, .share.json, .checkpoints.jsonl, .prompts.jsonl; first line is a header; --no-session writes nothing; -p sessions are saved but hidden from the picker",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://commandcode.ai/docs/sessions (sections 'What is a session?', 'Where session files live', 'Starting fresh', 'Resuming')"
+    },
+    {
+      "claim": "transcript header is {type:'session', version:3, id, timestamp, cwd, parentSession?}; each later line is a V3 entry {type, id, parentId, timestamp, ...} where type is one of message, model_change, effort_change, compaction, branch_summary, custom, custom_message, label, session_info; a 'message' entry adds message:{role, content} and, for assistant messages, optional usage, model, effort; entry ids are 8-char prefixes of a UUID. The header is written only once the first assistant message exists (the whole buffered file is written at that point, then each entry is appended as a line). Session ids are UUIDs (crypto randomUUID)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs (npm command-code@1.72.4) createSessionStoreV3 (newSession header with version If=3; persistEntry gated by isAssistantMessageEntry then writeWholeFile, afterwards appendLineToDisk; appendMessage builds {type:'message',id,parentId,timestamp,message,usage?,model?,effort?}), Af=new Set([message, model_change, effort_change, compaction, branch_summary, custom, custom_message, label, session_info]), generateEntryId = randomUUID().slice(0,8), `import{randomUUID as b}`. Key names read from source: no session store exists on this Mac to read a record from. CORRECTED in verification: the earlier claim listed {id, timestamp, sessionId, parentId, role, content, gitBranch, metadata}, which is toStoredEntry, the legacy V2 shape used by the migration and share helpers, not the V3 transcript"
+    },
+    {
+      "claim": "the project folder name is @sindresorhus/slugify of the working directory (lowercased, dashes), root falls back to 'root'; two sessions in one directory share a folder",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs `import ve from \"@sindresorhus/slugify\"`, `function slugify(e){return ve(e)||\"root\"}`, `getProjectDirName(e){return slugify(e.cwd)}`, `getProjectsBasePath` = $HOME/.commandcode/projects. Exact slug for camelCase or dotted names not tested (inferred from slugify defaults)"
+    },
+    {
+      "claim": "the shell tool runs as a direct child: spawn(command, [], {shell: true or a resolved shell, detached}); background shell_command tasks and monitors are detached shells that keep running across turns",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs createNodeShell.run (`w(e,[],{cwd:t,shell:!a||resolveShellExecutable(a),...detached:'win32'!==process.platform})`) and spawnBackground (`shell:!0,detached:!0`); https://commandcode.ai/docs/background-tasks ('Background shell commands', 'kill_shell')"
+    },
+    {
+      "claim": "no sleep inhibitor: no caffeinate child, no IOKit or Electron power assertion, so power_assertion and child_process(caffeinate) cannot signal a turn",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -o over dist/cli.mjs (1.72.4) for caffeinate, pmset, IOPM, powerSaveBlocker, wakeLock, idleSleep printed 0 matches each; grep powerSaveBlocker and utilityProcess over the Desktop 0.1.44 out/main/index.js printed 0 matches"
+    },
+    {
+      "claim": "the terminal tab title is static ('<glyph> Command Code · <dir> [· model]' or the session title) and does not change with busy or idle; isCmdCodeBusy only re-asserts it",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs formatSessionTabTitle, useTerminalTitle({isCmdCodeBusy}) (only calls reassertTerminalTitle on change and every 5 s), setTerminalTitle; CHANGELOG 'Show active model in terminal title to tell sessions apart'"
+    },
+    {
+      "claim": "exact working/idle/blocked state exists in the CLI and is pushed to Herdr's Unix socket when run inside Herdr",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs nextLifecycle (run_start/run_end, compaction_start/done, interaction_requested/resolved with kind permission|question), reportFor -> {state:'blocked', message:'permission'|'question'} | working | idle, buildHerdrLine method 'pane.report_agent', resolveHerdrConfig (needs HERDR_ENV=1, HERDR_SOCKET_PATH, HERDR_PANE_ID; CMD_HERDR=0 disables). CHANGELOG.md 1.50.1: 'Report idle / working / blocked status over UNIX socket'"
+    },
+    {
+      "claim": "mods hook the run loop and can subscribe to AgentEvents; the published catalog omits interaction_requested and interaction_resolved, which the built-in Herdr mod subscribes to",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/bundled/mod-builder/reference/hooks-and-events.md (lifecycle, AgentEvent catalog: run_start, run_end, turn_*, tool_queued, tool_running, tool_denied, permission_mode_changed...); dist/cli.mjs `vN=[\"run_start\",\"run_end\",\"interaction_requested\",\"interaction_resolved\",\"compaction_start\",\"compaction_done\"]` in createHerdrMod. Mods load from ~/.commandcode/mods, <project>/.commandcode/mods or --mod <path>"
+    },
+    {
+      "claim": "shell hooks: four events only (PreToolUse, PostToolUse, Stop, SessionStart); configured under the `hooks` key in settings.json (docs list user and project scope, precedence project > user; source also reads <project>/.commandcode/settings.local.json); stdin JSON carries session_id, transcript_path, cwd, hook_event_name, permission_mode; env COMMANDCODE_SESSION_ID, COMMANDCODE_PROJECT_DIR, COMMANDCODE_HOOK_EVENT (docs list four variables; source also sets COMMANDCODE_CWD and COMMANDCODE_PERMISSION_MODE); hooks are spawned through a system shell and loaded once at session start",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://commandcode.ai/docs/hooks ('Supported events', 'Configuration', 'Hook input (stdin)', 'Execution'); dist/cli.mjs `[\"PreToolUse\",\"PostToolUse\",\"Stop\",\"SessionStart\"]`; grep for UserPromptSubmit in cli.mjs printed 0 matches; dist/cli.mjs loadSettingsHooks reads settings.local.json, settings.json and ~/.commandcode/settings.json once during session setup (`{hooks:Ke}=await loadSettingsHooks`), the docs' scope table shows only user and project, so settings.local.json is source-only"
+    },
+    {
+      "claim": "Desktop app: bundle id ai.commandcode.desktop, executable 'Command Code', /Applications/Command Code.app, Electron, arm64 and x64 builds",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "HTTP range read (curl -r) of the central directory and Info.plist inside https://github.com/CommandCodeAI/desktop/releases/download/v0.1.44/CommandCode-0.1.44-macOS-Apple-Silicon-arm64.zip, then `plutil -p Info.plist`: CFBundleIdentifier ai.commandcode.desktop, CFBundleExecutable 'Command Code', CFBundleShortVersionString 0.1.44, ElectronAsarIntegrity, URL scheme commandcode. Nothing was installed or mounted. /Applications path from https://raw.githubusercontent.com/CommandCodeAI/desktop/main/install.sh (destination=/Applications/Command Code.app)"
+    },
+    {
+      "claim": "Desktop helpers are Command Code Helper (Renderer|GPU|Plugin) under Contents/Frameworks; the main executable path is Contents/MacOS/Command Code",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "zip central directory listing of the same v0.1.44 arm64 asset: entries 'Command Code.app/Contents/MacOS/Command Code' and 'Command Code.app/Contents/Frameworks/Command Code Helper (Renderer).app/Contents/MacOS/Command Code Helper (Renderer)' (also GPU, Plugin, and plain Helper)"
+    },
+    {
+      "claim": "Desktop runs the harness in the Electron main process (no per-session child), has no power assertion, keeps a thread index in SQLite without a status column, uses the shared ~/.commandcode data root, and raises in-app 'needs input' and 'run finished' notifications",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "Desktop 0.1.44 Contents/Resources/app/out/main/index.js: `import ... from \"@commandcode/harness\"` and dynamic import at line ~7242, no utilityProcess or fork( (0 matches), notifyNeedsInput / notifyRunEnd (Electron Notification, in-app only), resolveSessionProjectPath uses join(homedir(), '.commandcode') and a slug; out/main/thread-index.store-*.js table threads(id,title,project_path,model,git_branch,unread,created_at,updated_at,last_activity_at,has_transcript). Read via the same HTTP range method; package.json also lists @lydell/node-pty"
+    },
+    {
+      "claim": "Desktop docs: beta, agent runtime built in (no CLI needed), chat shows tool rows 'running, complete, failed, or waiting for approval'",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://commandcode.ai/docs/desktop and https://github.com/CommandCodeAI/desktop (README: 'Command Code CLI does not need to be installed separately'; releases v0.1.44 published 2026-09-29)"
+    },
+    {
+      "claim": "the CLI can relaunch itself as a wrapper plus a child copy after a reload (exit code 75 handoff), so a reloaded session is two nested command-code processes",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs runRelaunchLoop, isWrappedChild, handlePendingReload, env CMD_RELOAD_FILE and CMD_RELOAD_WRAPPER_PID, ex=75. The probe keeps the outermost match, so the work (and its shell children) sits one level below the reported process after a reload"
+    },
+    {
+      "claim": "no OpenTelemetry export for users: hard-coded vendor endpoints only; OTEL_SDK_DISABLED is the only OTEL_ variable read",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs createCommandCodeSpanProcessor (fixed URL and bearer, not reproduced here), createTelemetrySDK, isOtelSdkDisabled; `grep -o 'OTEL_[A-Z_]*' cli.mjs | sort -u` printed only OTEL_SDK_DISABLED; https://commandcode.ai/docs/troubleshooting/telemetry documents only telemetry:false in ~/.commandcode/config.json (DO_NOT_TRACK=1, CMD_LOCAL_ONLY and COMMAND_CODE_TELEMETRY_CONSOLE are read from cli.mjs source, not in that page)"
+    },
+    {
+      "claim": "undocumented `--experimental --rpc` machine mode and `--sandbox` exist; /rc remote control (Telegram, Discord) is a slash command of the session (whether it runs inside the session process is inferred, not read)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "dist/cli.mjs `.option(\"--rpc\")`, `isMachineReadableExperimental` (--experimental with --rpc, or -p with --sandbox), `YN=new Map([[\"--rpc\",null],[\"--sandbox\",\"optional\"],...])`; https://commandcode.ai/docs/rc"
+    },
+    {
+      "claim": "the probe applies working_signals to every surface of a row, so the Desktop host is classified with tool_children and tree_cpu even though the row says they are not valid there",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "tools/agents_probe.py classify(row, surface, p, procs, held) loops row['working_signals'] with no per-surface filter; tree() sums CPU over every descendant, so Electron Renderer and GPU helpers count toward tree_cpu (registry/README.md section 4 recommends a 10% floor for Electron hosts, this row uses 3 for the TUI). Desktop main has permanent node-pty terminal shells as direct children once the Terminal panel is open (inferred from @lydell/node-pty in the 0.1.44 package.json, not observed). Net effect: Desktop can read working with no turn running. Left as is because the schema cannot scope a signal to one surface; treat the gui state as unreliable (host: true, report the host only)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Never seen running: Command Code is not installed on this Mac, so nothing here was checked against a live turn. The strongest facts are the process title (command-code, from source, with the macOS argv replacement reproduced on a stand-in Node process) and the Herdr state machine (from source). Because the title replaces the args, the row cannot read a session id or any flag: map a process to its transcript by its cwd (lsof) to ~/.commandcode/projects/<slug>/, newest UUID .jsonl, and treat two sessions in one directory as ambiguous. A SessionStart hook could write pid and session_id somewhere if exact mapping is needed. Subcommands (cmd mcp, cmd status, cmd update, cmd taste, cmd -p) share the title and read as brief idle sessions; -p is one-shot. The Desktop app is one host process for all chats; do not attach a transcript or a shell-child signal to it. No sleep inhibitor, no notification hook, no UserPromptSubmit: the only exact turn signals are the Herdr socket report and a user-installed mod. Verification 2026-09-30: the Desktop surface is matched but its state is unreliable, because the probe cannot scope tool_children and tree_cpu to the TUI surface (see the last source). Transcript record shape was corrected to the V3 entry format."
+}

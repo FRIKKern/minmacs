@@ -1,0 +1,625 @@
+{
+  "id": "deepagents",
+  "name": "Deep Agents Code (dcode)",
+  "vendor": "LangChain",
+  "homepage": "https://github.com/langchain-ai/deepagents",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Deep Agents Code TUI (`dcode` or `deepagents-code`), installed as a uv tool or pipx app (the installer at https://langch.in/dcode uses `uv tool install deepagents-code`). The console script is a Python script with a venv shebang, so ps shows `<venv>/bin/python <bin dir>/dcode [args]`: argv[0] is the venv interpreter under `.../uv/tools/deepagents-code/bin/` (or `.../pipx/venvs/deepagents-code/bin/`), argv[1] is the path the user typed. Nothing retitles the process (no setproctitle in the source). This process is the CLIENT: the model call and the tools run in the agent-server child (see the daemon surface). Vetoes are exact-argument: the subcommands (`threads`, `config`, `mcp`, ...), `--help`, `--version`, the install/update flags, `--acp` (own surface) and `-n`/`--non-interactive` (one-shot, own surface). The `langgraph_cli` veto keeps the server child, which runs the same venv python, from reading as a TUI.",
+      "process": {
+        "path_contains": [
+          "/deepagents-code/bin/python"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--help",
+          "--install",
+          "--non-interactive",
+          "--uninstall",
+          "--update",
+          "--version",
+          "-h",
+          "-n",
+          "-v",
+          "agents",
+          "auth",
+          "config",
+          "doctor",
+          "help",
+          "install",
+          "langgraph_cli",
+          "mcp",
+          "plugin",
+          "plugins",
+          "skills",
+          "threads",
+          "tools",
+          "uninstall",
+          "update"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Deep Agents Code TUI under any other Python install, including every Homebrew or python.org framework Python, where ps shows the interpreter as `.../Python.app/Contents/MacOS/Python` (name `Python`) even inside a venv or pipx venv, so the venv-path surface above never matches it (pip into a venv or Homebrew python, `uvx --from deepagents-code dcode`, a project venv): `<any python> <prefix>/bin/dcode`. Matched on the script name in argv[1], so a renamed per-checkout shim (the vendor's documented worktree pattern) is NOT matched. `-m deepagents_code` is not matched either. Same vetoes as the uv surface.",
+      "process": {
+        "names": [
+          "Python",
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "/bin/dcode"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--help",
+          "--install",
+          "--non-interactive",
+          "--uninstall",
+          "--update",
+          "--version",
+          "-h",
+          "-n",
+          "-v",
+          "agents",
+          "auth",
+          "config",
+          "doctor",
+          "help",
+          "install",
+          "langgraph_cli",
+          "mcp",
+          "plugin",
+          "plugins",
+          "skills",
+          "threads",
+          "tools",
+          "uninstall",
+          "update"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Same as the previous surface, launched through the long alias `deepagents-code` under any other Python install. Includes the framework `Python` interpreter name.",
+      "process": {
+        "names": [
+          "Python",
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "/bin/deepagents-code"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--help",
+          "--install",
+          "--non-interactive",
+          "--uninstall",
+          "--update",
+          "--version",
+          "-h",
+          "-n",
+          "-v",
+          "agents",
+          "auth",
+          "config",
+          "doctor",
+          "help",
+          "install",
+          "langgraph_cli",
+          "mcp",
+          "plugin",
+          "plugins",
+          "skills",
+          "threads",
+          "tools",
+          "uninstall",
+          "update"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Deep Agents Code headless one-shot: `dcode -n \"task\"` / `--non-interactive` (also `--stdin`, piped input). Same uv/pipx interpreter path. No TUI is drawn, but the run still starts its own agent-server child, so the daemon surface is also live for the whole run. Alive means working. Only the long form `--non-interactive` can be matched positively (args_contain is a substring test and `-n` is too short); a `dcode -n ...` run is vetoed on the TUI surfaces and is seen only through its server child.",
+      "process": {
+        "path_contains": [
+          "/deepagents-code/bin/python"
+        ],
+        "args_contain": [
+          "--non-interactive"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--help",
+          "--install",
+          "--uninstall",
+          "--update",
+          "--version",
+          "-h",
+          "-v",
+          "agents",
+          "auth",
+          "config",
+          "doctor",
+          "help",
+          "install",
+          "langgraph_cli",
+          "mcp",
+          "plugin",
+          "plugins",
+          "skills",
+          "threads",
+          "tools",
+          "uninstall",
+          "update"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ],
+      "oneshot": true
+    },
+    {
+      "kind": "tui",
+      "label": "Headless one-shot `dcode --non-interactive` under a framework Python (Homebrew, python.org), where argv[0] is `Python.app/Contents/MacOS/Python` and only the script path in argv[1] names dcode. Same vetoes as the venv-path one-shot surface. Verified shape locally with a Homebrew python (see sources), not with dcode.",
+      "process": {
+        "names": [
+          "Python",
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "/bin/dcode",
+          "--non-interactive"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--help",
+          "--install",
+          "--uninstall",
+          "--update",
+          "--version",
+          "-h",
+          "-v",
+          "agents",
+          "auth",
+          "config",
+          "doctor",
+          "help",
+          "install",
+          "langgraph_cli",
+          "mcp",
+          "plugin",
+          "plugins",
+          "skills",
+          "threads",
+          "tools",
+          "uninstall",
+          "update"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "Deep Agents Code agent server: `<same venv python> -m langgraph_cli dev --host 127.0.0.1 --port <ephemeral> --no-browser --no-reload --config <tmpdir>/deepagents_server_<rand>/langgraph.json`, spawned with Popen by every TUI and every headless run (one server per client, own process group, stdout to a temp log, torn down when the client exits). It runs the agent graph, so model calls, the shell tool (`subprocess.run(shell=True)`, so a direct `/bin/sh -c` child) and MCP stdio servers all live under THIS process, not under the TUI. It serves one client, on an unauthenticated loopback HTTP API. Matched on the interpreter name plus the `langgraph_cli` argument plus the temp-dir prefix in `--config`, so it works for every install method and does not match a user's own `langgraph dev`. The legacy `deepagents-cli` TUI (0.0.x) spawned the same command with the same prefix. The interpreter name list includes `Python` for framework (Homebrew, python.org) installs. NB: the reference probe drops this process while its parent TUI is alive (a process whose parent matches a surface of the same row is treated as a re-exec), so the server is reported on its own only when its parent is not matched, e.g. a `dcode -n` run.",
+      "process": {
+        "names": [
+          "Python",
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "langgraph_cli",
+          "deepagents_server_"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Deep Agents Code as an Agent Client Protocol server over stdio: `dcode --acp`, spawned by an ACP editor client. No TUI and no server child: the agent runs in this process, over the same `~/.deepagents/.state/sessions.db`. One process can hold many sessions, so state cannot be attributed to a thread from outside. The TUI surfaces veto `--acp` by exact argument, so this process is never also read as a TUI.",
+      "process": {
+        "path_contains": [
+          "/deepagents-code/bin/python"
+        ],
+        "args_contain": [
+          "--acp"
+        ],
+        "exclude_args": [
+          "--help",
+          "--install",
+          "--uninstall",
+          "--update",
+          "--version",
+          "-h",
+          "-v",
+          "agents",
+          "auth",
+          "config",
+          "doctor",
+          "help",
+          "install",
+          "langgraph_cli",
+          "mcp",
+          "plugin",
+          "plugins",
+          "skills",
+          "threads",
+          "tools",
+          "uninstall",
+          "update"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "`dcode --acp` under a framework Python (Homebrew, python.org): same as the ACP surface above, matched on the script path in argv[1] because argv[0] is `Python.app/Contents/MacOS/Python`. One process, many sessions.",
+      "process": {
+        "names": [
+          "Python",
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "/bin/dcode",
+          "--acp"
+        ],
+        "exclude_args": [
+          "--help",
+          "--install",
+          "--uninstall",
+          "--update",
+          "--version",
+          "-h",
+          "-v",
+          "agents",
+          "auth",
+          "config",
+          "doctor",
+          "help",
+          "install",
+          "langgraph_cli",
+          "mcp",
+          "plugin",
+          "plugins",
+          "skills",
+          "threads",
+          "tools",
+          "uninstall",
+          "update"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Deep Agents Talon (`deepagents-talon`, PyPI deepagents-talon 0.0.8, experimental): a long-running local host for channel adapters (WhatsApp, Telegram, Discord, Slack), a cron scheduler and the agent runtime in one event loop. A Python console script, so ps shows `<python> <bin dir>/deepagents-talon`. Not a coding TUI and not the same product as dcode; listed because it is the only other local process the deepagents repo ships. Not researched beyond its README and entry point: no turn signal is known, so it reads idle or working from CPU only. State lives under `~/.deepagents/<assistant_id>/` (checkpoints.sqlite), not the dcode sessions.db.",
+      "process": {
+        "names": [
+          "Python",
+          "python",
+          "python3",
+          "python3.12",
+          "python3.13",
+          "python3.14"
+        ],
+        "args_contain": [
+          "/bin/deepagents-talon"
+        ],
+        "exclude_args": [
+          "--help",
+          "-h",
+          "--version"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "tui",
+      "label": "LEGACY `deepagents` / `deepagents-cli` 0.0.x coding TUI (last coding release 0.0.59, 2026-05-12; from 0.1.0 on the package is deploy tooling only and never runs an agent). Same architecture as dcode (Textual client plus a `langgraph_cli` server child, same `~/.deepagents/.state/sessions.db`), so an old install can still show up. Inferred from the 0.0.59 wheel, not run. The `init`, `deploy`, `agents` and `mcp-servers` vetoes hide the deploy-only tool of 0.1.0 and later (0.3.0 has exactly init, deploy, agents, mcp-servers); `skills`, `mcp` and `--update` are 0.0.59 subcommands and flags. Under a framework Python the venv path is not visible and this surface does not match.",
+      "process": {
+        "path_contains": [
+          "/deepagents-cli/bin/python"
+        ],
+        "exclude_args": [
+          "--help",
+          "--update",
+          "--version",
+          "-h",
+          "-v",
+          "agents",
+          "deploy",
+          "help",
+          "init",
+          "langgraph_cli",
+          "mcp",
+          "mcp-servers",
+          "skills",
+          "threads",
+          "update"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    }
+  ],
+  "session_store": {
+    "glob": "~/.deepagents/.state/sessions.db",
+    "format": "sqlite",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "socket_activity",
+      "meaning": "Exact, source-level, not exercised: ask the agent server for its thread status. The server is `langgraph dev` on an ephemeral 127.0.0.1 port with `LANGGRAPH_AUTH_TYPE=noop`, so the API is unauthenticated (the vendor's THREAT_MODEL.md TB10 says any local process can reach it). Find the port with `lsof -nP -iTCP -sTCP:LISTEN -a -p <server pid>` (the server surface), then `POST /threads/search` with `{\"status\":\"busy\",\"select\":[\"thread_id\",\"status\"]}` (or `GET /threads/<id>`). Thread status is `idle | busy | interrupted | error` (langgraph_sdk.schema.ThreadStatus); `busy` is a turn in progress. dcode itself relies on it: offload_api refuses a thread that is not idle ('active or interrupted run'). Ask for the two fields only; never request thread values. Needs an HTTP read the probe cannot do today (README section 3, case 6)."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "Only on the agent-server process (daemon surface), never on the TUI: the shell tool runs `subprocess.run(command, shell=True)` inside the server, so a running command is a direct `/bin/sh -c` child of the `langgraph_cli` python. Blind while the model streams, blind when sh exec's a lone command in place, and the server also has permanent non-shell children (MCP stdio servers) and a short bash child for local-context detection, so count shells only. The TUI process has no tool children of its own; in `-n` runs the same server child is the only place to look. Probe caveat: agents_probe.py skips a process whose parent matches a surface of the same row, so while the TUI is alive the server is never classified on its own and this signal is never evaluated for it (the TUI's only direct child is the server python, not a shell). Under the current probe a TUI session is decided by tree_cpu alone."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Raise-only. `~/.deepagents/.state/sessions.db` is one SQLite file shared by every thread of every project, in WAL mode (langgraph-checkpoint-sqlite runs `PRAGMA journal_mode=WAL`), so a fresh `sessions.db-wal` mtime says some dcode process checkpointed, not which one. Checkpoints land per graph step (after the model call, after tools), so the file is quiet during a long model stream. Use it only for a project with one live process."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred, not measured (dcode is not installed here). Take the TUI's process tree: the agent-server is its direct child and shell tools sit under that, so the tree covers the whole run. The Textual TUI animates a spinner while a turn runs. Waiting on the network burns almost none, so this never proves idle. No `caffeinate` child and no IOKit power assertion exist in the source, so neither is a signal."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Client-owned event, fires when the client is about to resolve a tool approval (matcher is the tool name; payload has tool_name and tool_input). Needs the user to have installed `~/.deepagents/hooks.json`. CORRECTED: it is not proof that a human is being asked. In textual_adapter.py the YOLO shortcut is skipped when a PermissionRequest handler exists, so the event fires under auto-approve too, and a handler can approve or deny on its own (`plan.fully_resolved`) with no dialog. Use the `Notification` `permission_prompt` hook instead: it is emitted only after the YOLO and hook-resolved paths, immediately before the dialog."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "meaning": "Client-owned. Matcher `notification_type`: `permission_prompt` (approval needed), `agent_needs_input` (the agent called ask_user and waits for an answer), `agent_completed` (turn finished, the idle edge). Also `cold_cache_warning` and `cache_expiring`, which are not waits. `idle_prompt` is declared in the wire enum but no emitter was found. Emitted from tui/textual_adapter.py (permission_prompt, agent_needs_input, agent_completed) and client/non_interactive.py (permission_prompt, agent_completed). `permission_prompt` is the reliable wait edge."
+    },
+    {
+      "signal": "socket_activity",
+      "meaning": "Thread status `interrupted` from the agent server (same call as the working signal). Approvals and ask_user questions are LangGraph interrupts, so the run is parked as `interrupted` until the client resumes it. Source-level, not exercised. `interrupted` also covers a run the user cancelled, so read it together with the client state."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.deepagents/hooks.json (or $DEEPAGENTS_HOME/hooks.json); {project_root}/.deepagents/hooks.json after workspace trust (--trust-project-hooks for headless); hooks/hooks.json inside an enabled plugin",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "SessionEnd",
+      "PermissionRequest",
+      "Notification",
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PreCompact",
+      "Stop",
+      "SubagentStart",
+      "SubagentStop"
+    ],
+    "docs": "https://docs.langchain.com/oss/deepagents/code/hooks"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "dcode has no OpenTelemetry code of its own (grep -rniI 'OTEL_|opentelemetry' libs/code/deepagents_code prints nothing) and documents LangSmith tracing only (LANGSMITH_TRACING, DEEPAGENTS_CODE_LANGSMITH_PROJECT, /auth). Set false because nothing vendor-documented exports OTel. Unverified: the agent-server child inherits the shell environment and its dependency langgraph-api 0.15.1 sets OTEL_ENABLED when OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is present (langgraph_api/config/__init__.py lines 587-592), but no export was observed. Not a live signal for a monitor."
+  },
+  "sources": [
+    {
+      "claim": "the coding agent is now `deepagents-code` with console scripts `dcode` and `deepagents-code`; the old `deepagents-cli` package (scripts `deepagents`, `deepagents-cli`) was forked away on 2026-05-12 and is deploy tooling from 0.1.0",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/pyproject.toml [project.scripts] dcode = deepagents_code:cli_main, deepagents-code = deepagents_code:cli_main; libs/code/CHANGELOG.md line 1324 'deepagents-code was forked from deepagents-cli at v0.1.0 (2026-05-12)'; PyPI deepagents-cli 0.3.0 summary 'DEPRECATED: Deployment tooling for Deep Agents' and its wheel entry_points.txt (deepagents, deepagents-cli); wheel deepagents_cli-0.0.59 (2026-05-12) still contains app.py and textual_adapter"
+    },
+    {
+      "claim": "install is a uv tool; the tool venv lives at ~/.local/share/uv/tools/deepagents-code",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.langchain.com/oss/deepagents/code/configuration (`dcode doctor` sample prints 'Install method: uv' and 'Path: /Users/naomi/.local/share/uv/tools/deepagents-code'); libs/code/scripts/install.sh header 'installs deepagents-code as a uv tool ... uv tool uninstall deepagents-code'"
+    },
+    {
+      "claim": "a uv tool console script shows in ps as `<venv>/bin/python <path as typed>`, argv[0] is the venv interpreter and argv[1] the script path",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "made a stand-in: script with shebang #!$HOME/.local/share/uv/tools/claude-swap/bin/python, symlinked as shim/link/dcode, ran `shim/link/dcode -r 0193abcd-...` in the scratchpad; `ps -axo pid,ppid,args` printed `/Users/frikkjarl/.local/share/uv/tools/claude-swap/bin/python shim/link/dcode -r 0193abcd-1111-2222-3333-444455556666`. Stand-in only: no dcode is installed here (`which dcode deepagents-code deepagents` prints nothing; no ~/.deepagents; ps shows no match)"
+    },
+    {
+      "claim": "nothing retitles the process",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rniE 'setproctitle|process_title|prctl' libs/code/deepagents_code prints nothing"
+    },
+    {
+      "claim": "client and server are separate processes; each TUI or headless run Popens `sys.executable -m langgraph_cli dev --host 127.0.0.1 --port <ephemeral> --no-browser --no-reload --config <tmp>/deepagents_server_*/langgraph.json`",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/client/launch/server.py _build_server_cmd (line ~370) and ServerProcess._spawn (Popen, start_new_session=True); client/launch/server_manager.py line 434 tempfile.mkdtemp(prefix='deepagents_server_'); libs/code/ARCHITECTURE.md 'The client and server run in separate processes'"
+    },
+    {
+      "claim": "the server binds 127.0.0.1 on an ephemeral port with no authentication",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/THREAT_MODEL.md TB10 'No authentication (LANGGRAPH_AUTH_TYPE=noop); any localhost process can reach the API'; server.py _build_server_env sets env['LANGGRAPH_AUTH_TYPE'] = 'noop'; _EPHEMERAL_PORT = 0"
+    },
+    {
+      "claim": "the shell tool runs inside the server process as a direct `sh -c` child; MCP sessions live in the server too",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/deepagents/deepagents/backends/local_shell.py line ~304 subprocess.run(command, shell=True, stdin=DEVNULL, start_new_session=True); libs/code/deepagents_code/agent.py line ~3124 LocalShellBackend; server_graph.py line ~176 MCPSessionManager()"
+    },
+    {
+      "claim": "thread status values, and dcode's own use of them",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "langgraph_sdk/schema.py (wheel langgraph-sdk latest): ThreadStatus = Literal['idle','busy','interrupted','error']; libs/code/deepagents_code/offload_api.py line ~790 'Cannot offload while the thread has an active or interrupted run.' (checks thread.get('status') against _OFFLOADABLE_THREAD_STATUSES = frozenset({'idle','error'}))"
+    },
+    {
+      "claim": "HITL approvals and ask_user are graph interrupts that the client answers",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/tui/textual_adapter.py lines ~3375-3395 (pending_ask_user, hooks.notify AGENT_NEEDS_INPUT, _set_spinner(None)) and ~3695-3715 (hooks.notify PERMISSION_REQUIRED before the batch approval dialog)"
+    },
+    {
+      "claim": "sessions are one SQLite database at ~/.deepagents/.state/sessions.db (LangGraph checkpoints), path documented",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.langchain.com/oss/deepagents/code/configuration ('Sessions | ~/.deepagents/.state/sessions.db | SQLite checkpoint database'; 'rm ~/.deepagents/.state/sessions.db*'); source libs/code/deepagents_code/_paths.py _profile_paths sessions_file=state_dir / 'sessions.db'; DEEPAGENTS_HOME moves it"
+    },
+    {
+      "claim": "the database runs in WAL mode",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "langgraph_checkpoint_sqlite-3.1.1 wheel, langgraph/checkpoint/sqlite/aio.py line 318 'PRAGMA journal_mode=WAL;' (libs/code/uv.lock requires >=3.1.1); dcode's sessions.py adds no PRAGMA"
+    },
+    {
+      "claim": "resume flag and thread id",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/main.py line ~2471 parser.add_argument('-r','--resume', nargs='?', const='__MOST_RECENT__'); sessions.py generate_thread_id() = UUID7 assigned in-process, so a fresh session has no id in argv"
+    },
+    {
+      "claim": "top-level subcommands that are not sessions",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/main.py add_parser calls and dispatch at lines ~5325-6220: help, agents, skills, plugin(s), mcp, threads, update, doctor, tools, install, uninstall, config, auth; flags --update --install --uninstall --acp -n/--non-interactive"
+    },
+    {
+      "claim": "no sleep inhibitor: no caffeinate, no IOKit assertion",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rniIE 'caffeinate|IOPMAssertion|pmset|prevent.*sleep' libs/code/deepagents_code libs/deepagents/deepagents libs/acp/deepagents_acp libs/talon/deepagents_talon prints nothing (clone at c9b2ce1, 2026-09-30)"
+    },
+    {
+      "claim": "the TUI emits OSC 9;4 progress while a turn runs, on by default; it is not visible to ps",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/app.py _set_spinner (~line 10870) set_terminal_progress(INDETERMINATE) / clear_terminal_progress; _env_vars.py TERMINAL_PROGRESS = DEEPAGENTS_CODE_TERMINAL_PROGRESS"
+    },
+    {
+      "claim": "hooks: locations, trust, 12 events (the public docs page tables 11, without PostToolUseFailure; libs/code/HOOKS.md and the HookEvent enum list 12), owner (client or server), payload fields",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.langchain.com/oss/deepagents/code/hooks ; libs/code/HOOKS.md; hooks/models/domain.py HookEvent"
+    },
+    {
+      "claim": "Notification types that dcode emits",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/hooks/projection.py to_wire_notification_type (permission_required->permission_prompt, agent_needs_input, agent_completed, cache_expiring, cold_cache_warning); hooks/models/wire.py WireNotificationType also lists idle_prompt, auth_success, elicitation_* with no emitter found"
+    },
+    {
+      "claim": "a legacy dot-event hook system (session.start, tool.use, ...) is still in the tree, marked deprecated until 2026-09-01",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/hooks/legacy.py module docstring"
+    },
+    {
+      "claim": "--acp runs the agent in-process over the same checkpoint store, no server child",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/main.py _run_acp_cli_async (~line 3431-3644) uses sessions.get_checkpointer(); acp.py has no langgraph_cli or server_session"
+    },
+    {
+      "claim": "OpenTelemetry: langgraph-api enables OTel export from standard OTLP env vars; the server child inherits os.environ",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "langgraph_api-0.15.1 wheel langgraph_api/config: 'If OTEL_ENABLED is unset, auto-enable when a standard OTLP endpoint var is present' (OTEL_EXPORTER_OTLP_ENDPOINT / _TRACES_ENDPOINT); libs/code/uv.lock lists langgraph-api 0.15.1 with opentelemetry-exporter-otlp-proto-http; server.py _build_server_env starts from os.environ.copy(); grep -rniI 'opentelemetry|OTEL_' libs/code/deepagents_code prints nothing"
+    },
+    {
+      "claim": "documented tracing is LangSmith",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.langchain.com/oss/deepagents/code/quickstart#trace-with-langsmith (LANGSMITH_TRACING, DEEPAGENTS_CODE_LANGSMITH_PROJECT, /auth)"
+    },
+    {
+      "claim": "per-thread hook transcripts are a separate JSONL projection written only when hook handlers run",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/hooks/runtime.py line ~129 DEFAULT_CONFIG_DIR / 'transcripts'; hooks/transcript.py line 189 f'{thread_id}.jsonl'; materialize() runs inside invoke() before handlers; docs hooks page 'transcript_path ... JSONL projection ... under ~/.deepagents/transcripts'"
+    },
+    {
+      "claim": "Talon is a separate experimental host with its own console script",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/talon/pyproject.toml [project.scripts] deepagents-talon = deepagents_talon.__main__:main; libs/talon/README.md; PyPI deepagents-talon 0.0.8 (2026-09-11)"
+    },
+    {
+      "claim": "argv[0] of a Python running under a Homebrew (framework) interpreter is `.../Python.app/Contents/MacOS/Python`, even when launched through a venv's bin/python, so path and name rules built on `bin/python` miss it",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "ran `/opt/homebrew/bin/python3.14 -c 'import time;time.sleep(3)' bin/dcode` and a venv made with `python3.14 -m venv .../deepagents-code` (`.../deepagents-code/bin/python -c ... bin/dcode`); ps -axo pid,args printed `/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -c import time;time.sleep(3) bin/dcode` for both. Stand-in only, dcode not installed"
+    },
+    {
+      "claim": "a uv-managed standalone Python keeps the venv path in argv[0]",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "stand-in script with shebang #!$HOME/.local/share/uv/tools/claude-swap/bin/python run as `./shim2/dcode -r 0193abcd`; ps printed `/Users/frikkjarl/.local/share/uv/tools/claude-swap/bin/python ./shim2/dcode -r 0193abcd`"
+    },
+    {
+      "claim": "a process can change thread inside one dcode process, so a `-r` id in argv is only the launch thread",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/app.py lines 6210, 6224, 6246, 6286 `self._lc_thread_id = generate_thread_id()`; command_registry.py registers /clear and /threads"
+    },
+    {
+      "claim": "after a self-update dcode re-execs as `<venv python> -m deepagents_code <argv>`; legacy hooks run `<venv python> -m deepagents_code.hooks.migration <event> <b64>` as short children",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/code/deepagents_code/main.py _restart_current_process lines 242-259 (os.execv); hooks/migration.py _adapter_argv line 113. Both start with the venv python so the venv-path surface matches them; the re-exec is the same session, the adapter child is dropped by the probe because its parent matches"
+    },
+    {
+      "claim": "legacy deepagents-cli 0.0.59 has `skills` and `mcp` subcommands and an `--update` flag; 0.3.0 has only init, deploy, agents, mcp-servers",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "wheel deepagents_cli-0.0.59: main.py `_HELP_SPECS` keys help/agents/skills/threads/mcp, `\"--update\"` at line 919, setup_skills_parser and setup_mcp_parsers; wheel deepagents_cli-0.3.0 deploy/commands.py add_parser init, deploy, agents, mcp-servers"
+    },
+    {
+      "claim": "Talon keeps its state in ~/.deepagents/<assistant_id>/ with checkpoints.sqlite, not sessions.db",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "libs/talon/README.md: 'Assistant state lives under ~/.deepagents/<assistant_id>/ by default ... checkpoints.sqlite'"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "The harness the catalog calls `deepagents` is now Deep Agents Code, command `dcode`, package `deepagents-code` (0.1.79 on 2026-09-29); the SDK `deepagents` (0.7.20) is a library with no process, and `deepagents-cli` is a deprecated deploy tool. dcode is two processes per session: the Textual TUI client and a `python -m langgraph_cli dev` server child that does the model calls and runs every tool, so the client sees no tool children and the server has them. There is no app bundle, no daemon shared between sessions, no caffeinate child and no power assertion. The precise state (busy, interrupted) is one loopback HTTP read away, but only source-level. Sessions are one shared SQLite file, so map a process to a thread by `-r <id>` when present and otherwise by hook `session_id`; a fresh session has no id in argv. Matching reads argv only: for uv and pipx installs argv[0] is the venv interpreter, so the row keys on `/deepagents-code/bin/python`, with a script-name fallback for other Python installs. CORRECTIONS after refutation review: (1) argv[0] under a Homebrew or python.org framework Python is `Python.app/Contents/MacOS/Python`, so the `/deepagents-code/bin/python` path rule fails for pipx or uv tool installs that use such an interpreter; the rows that key on the script path in argv[1] now also accept the name `Python`, and headless and ACP have framework variants. (2) The argv `-r` id is only the launch thread: /clear and /threads mint a new thread id inside the same process. (3) The PermissionRequest hook fires under auto-approve and when a handler decides alone, so only Notification permission_prompt marks a human wait. (4) The probe never classifies the server child while the TUI is alive, so under the current probe a TUI session is decided by tree_cpu alone. (5) telemetry.otel is false: nothing documented, one dependency behaviour unobserved."
+}

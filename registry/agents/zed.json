@@ -67,7 +67,7 @@
   "working_signals": [
     {
       "signal": "power_assertion",
-      "name": "PreventUserIdleSystemSleep, reason string \"Agent thread in progress\", owned by the Zed main process",
+      "name": "Agent thread in progress",
       "meaning": "Zed takes it (NSProcessInfo beginActivityWithOptions UserInitiated) while an agent thread has a turn running (Zed Agent AND external ACP agents share this code) and drops it when the turn ends OR the thread blocks on a tool confirmation or question. One assertion per running, unblocked thread, all owned by the same pid, so it counts threads but cannot name them. Default on (agent.prevent_idle_sleep = true); if the user turns it off there is no assertion and this signal is silent. Read from source and docs, not observed: Zed is not installed here."
     },
     {
@@ -198,6 +198,12 @@
       "kind": "local-observation",
       "date": "2026-09-29",
       "evidence": "python3 tools/agents_probe.py --row registry/agents/zed.json printed '0 agent sessions' (Zed not running). Offline matches() calls with synthetic ps lines: /Applications/Zed.app/Contents/MacOS/zed -> ide; '/Applications/Zed Preview.app/Contents/MacOS/zed' -> no match before the added Preview/Nightly/Dev surface, match after; Contents/MacOS/cli -> no match; node/opencode/claude-sdk lines containing Zed/external_agents/registry/ -> daemon; unrelated node and ~/Library/Application Support/Claude processes -> no match. classify() in tools/agents_probe.py has no branch for signal power_assertion, and transcript_write needs per_session, so the probe reports every Zed process idle."
+    },
+    {
+      "claim": "power_assertion.name is matched as a substring of the name pmset prints; prose there never matches",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "completeness critic of wave 3 checked tools/agents_probe.py against the six rows; name set from the row's own cited source or removed"
     }
   ],
   "confidence": "documented",

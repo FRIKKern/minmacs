@@ -1,0 +1,632 @@
+{
+  "id": "letta",
+  "name": "Letta Code",
+  "vendor": "Letta",
+  "homepage": "https://github.com/letta-ai/letta-code",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "`letta` in a terminal, installed with npm, pnpm, bun, nvm, Homebrew node or Nix: the published package is one bundled JS file with a `#!/usr/bin/env node` shebang (package.json bin letta -> letta.js), so ps shows `node <prefix>/bin/letta [flags]` with the SYMLINK path, not the real script (inferred, not seen). Docs require Node 22.19+, package.json engines also allows Bun >=1.3.2; the Nix flake wraps `bun $out/lib/letta-code/letta.js`, so `bun` is real for Nix (that form has no `bin/letta` argument and is the next surface). The same process runs the Ink TUI and the headless one-shot. Headless is vetoed by EXACT argument: `-p`/`--prompt` and every headless-only flag in src/cli/args.ts (`--output-format`, `--input-format`, `--run`, `--tags`, `--max-turns`, `--pre-load-skills`, ...; Herdr's is_interactive_letta_process rejects the same set). This matters because subagents are spawned with the prompt on STDIN, so their argv has NO `-p`: it is `letta.js --new-agent --system <type> --tags type:<t> --output-format stream-json --permission-mode unrestricted ...` (or `--conv <id>`), a direct child of the parent. `--output-format` is what vetoes them. Not vetoable by argv: a bare `letta` with stdin not a TTY and no prompt flag is also headless (isHeadlessStartup), and `--flag=value` spellings slip past exact matching. Management subcommands and their aliases (`upgrade`, `trajectory`, `--update`, `--upgrade`) are vetoed by exact argument, so a value equal to one (`letta -n memory`) hides a real session. Resume is `--conversation <id>` / `--conv <id>` / `-C <id>`; `--conv default --agent <id>` and `--conv <agent-id>` name an agent's default conversation, so the id is not always a conversation id; `--resume`/`-r` is a boolean that opens a selector and carries NO id. Plain `letta` carries no id in argv at all.",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "bin/letta"
+        ],
+        "exclude_args": [
+          "server",
+          "remote",
+          "app-server",
+          "channel-gateway",
+          "update",
+          "agents",
+          "backend",
+          "channels",
+          "computers",
+          "connect",
+          "cron",
+          "environments",
+          "envs",
+          "feedback",
+          "install",
+          "local-backend",
+          "mcp",
+          "memfs",
+          "memory",
+          "messages",
+          "model",
+          "models",
+          "mods",
+          "permissions",
+          "sandbox",
+          "secret",
+          "setup",
+          "shared-memory",
+          "skills",
+          "steps",
+          "teleport",
+          "trajectories",
+          "usage",
+          "version",
+          "--help",
+          "-h",
+          "--version",
+          "-v",
+          "--info",
+          "-p",
+          "--prompt",
+          "upgrade",
+          "trajectory",
+          "--update",
+          "--upgrade",
+          "--run",
+          "--output-format",
+          "--input-format",
+          "--include-partial-messages",
+          "--from-agent",
+          "--tags",
+          "--ephemeral",
+          "--stateless",
+          "--max-turns",
+          "--pre-load-skills",
+          "--memfs-startup",
+          "--disable-memory-guard",
+          "--no-wait",
+          "--client-message-id",
+          "--computer",
+          "--environment",
+          "--env"
+        ]
+      },
+      "session_id_args": [
+        "--conversation",
+        "--conv",
+        "-C"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "node or bun run directly on the real script path: npx cache, pnpm global (its shim execs `node <store>/@letta-ai/letta-code/letta.js`), the Nix wrapper (`bun $out/lib/letta-code/letta.js`, flake.nix line 80-87), a source-built copy. Same process shape and same vetoes as the symlink form. Subagents also resolve to this shape (the launcher runs argv[1] resolved to a real path), which is why the headless-flag vetoes must be here too.",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "letta-code/letta.js"
+        ],
+        "exclude_args": [
+          "server",
+          "remote",
+          "app-server",
+          "channel-gateway",
+          "update",
+          "agents",
+          "backend",
+          "channels",
+          "computers",
+          "connect",
+          "cron",
+          "environments",
+          "envs",
+          "feedback",
+          "install",
+          "local-backend",
+          "mcp",
+          "memfs",
+          "memory",
+          "messages",
+          "model",
+          "models",
+          "mods",
+          "permissions",
+          "sandbox",
+          "secret",
+          "setup",
+          "shared-memory",
+          "skills",
+          "steps",
+          "teleport",
+          "trajectories",
+          "usage",
+          "version",
+          "--help",
+          "-h",
+          "--version",
+          "-v",
+          "--info",
+          "-p",
+          "--prompt",
+          "upgrade",
+          "trajectory",
+          "--update",
+          "--upgrade",
+          "--run",
+          "--output-format",
+          "--input-format",
+          "--include-partial-messages",
+          "--from-agent",
+          "--tags",
+          "--ephemeral",
+          "--stateless",
+          "--max-turns",
+          "--pre-load-skills",
+          "--memfs-startup",
+          "--disable-memory-guard",
+          "--no-wait",
+          "--client-message-id",
+          "--computer",
+          "--environment",
+          "--env"
+        ]
+      },
+      "session_id_args": [
+        "--conversation",
+        "--conv",
+        "-C"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "`letta` installed from the PyPI wheel (`uv tool install letta`, `pipx install letta`): the Python launcher execve()s a bundled Node, so the pid is Node itself and argv[0] is the full path <site-packages>/letta_code/_payload/bin/node with argv[1] .../_payload/app/letta.js. Env LETTA_CODE_DISTRIBUTION=pypi. Note the old PyPI `letta` was the MemGPT server; that one runs under python, never under this path.",
+      "process": {
+        "path_contains": [
+          "/letta_code/_payload/bin/node"
+        ],
+        "args_contain": [
+          "/_payload/app/letta.js"
+        ],
+        "exclude_args": [
+          "server",
+          "remote",
+          "app-server",
+          "channel-gateway",
+          "update",
+          "agents",
+          "backend",
+          "channels",
+          "computers",
+          "connect",
+          "cron",
+          "environments",
+          "envs",
+          "feedback",
+          "install",
+          "local-backend",
+          "mcp",
+          "memfs",
+          "memory",
+          "messages",
+          "model",
+          "models",
+          "mods",
+          "permissions",
+          "sandbox",
+          "secret",
+          "setup",
+          "shared-memory",
+          "skills",
+          "steps",
+          "teleport",
+          "trajectories",
+          "usage",
+          "version",
+          "--help",
+          "-h",
+          "--version",
+          "-v",
+          "--info",
+          "-p",
+          "--prompt",
+          "upgrade",
+          "trajectory",
+          "--update",
+          "--upgrade",
+          "--run",
+          "--output-format",
+          "--input-format",
+          "--include-partial-messages",
+          "--from-agent",
+          "--tags",
+          "--ephemeral",
+          "--stateless",
+          "--max-turns",
+          "--pre-load-skills",
+          "--memfs-startup",
+          "--disable-memory-guard",
+          "--no-wait",
+          "--client-message-id",
+          "--computer",
+          "--environment",
+          "--env"
+        ]
+      },
+      "session_id_args": [
+        "--conversation",
+        "--conv",
+        "-C"
+      ]
+    },
+    {
+      "kind": "gui",
+      "label": "Letta desktop app (Letta.app, Electron built with ToDesktop, `Letta 0.32.19` at download.letta.com/mac/{dmg,zip}/arm64; macOS Apple Silicon only per docs). The main process is the GUI and holds the sleep assertion. It launches the agent harness as a child (next surface), so per-conversation state is not visible from this process. Electron helper processes live under Contents/Frameworks/ and do not match this path. `remote` is vetoed because the same executable runs the listener with ELECTRON_RUN_AS_NODE=1.",
+      "bundle_ids": [
+        "com.todesktop.260305dtu2nh5"
+      ],
+      "process": {
+        "path_contains": [
+          "/Letta.app/Contents/MacOS/Letta"
+        ],
+        "exclude_args": [
+          "remote",
+          "server"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "Desktop listener WITH the title rewrite: the app spawns `<Letta.app>/Contents/MacOS/Letta --require <dist>/setProcessTitle.js <app.asar.unpacked>/node_modules/@letta-ai/letta-code/letta.js remote --env-name <name> --backend api|local` with ELECTRON_RUN_AS_NODE=1, and setProcessTitle.js would rename it so ps reports `letta-code-listener` INSTEAD of those arguments. CORRECTED: the shipped Letta 0.32.19 app.asar contains NO setProcessTitle.js (dist/ holds only main.js, preload.js, fileOpsWorker.js, index.html, assets), and main.js only passes --require when existsSync(<__dirname>/setProcessTitle.js) is true, so this app version most likely runs the un-retitled form on the next surface. Kept for builds that ship the file; unverified either way without a running app. Up to three slots (desktop-primary, desktop-local-backend, desktop-direct-cloud). It is the App Server that runs the agent loop and the tool shells (direct children) for every conversation the app opens: many sessions per process. Its parent is the Letta main process, so the probe folds it into the GUI surface; it only reports on its own if the app died and left it orphaned.",
+      "process": {
+        "names": [
+          "letta-code-listener"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "Desktop listener WITHOUT the title rewrite, the expected shape for Letta 0.32.19 (setProcessTitle.js is absent from the shipped bundle, so the rename is skipped): argv is `<Letta.app>/Contents/MacOS/Letta <app.asar.unpacked>/node_modules/@letta-ai/letta-code/letta.js remote --env-name <name> --backend api|local` with ELECTRON_RUN_AS_NODE=1. Read from dist/main.js of the downloaded app; never seen running. Its tool shells are direct children of this process.",
+      "process": {
+        "path_contains": [
+          "/Letta.app/Contents/MacOS/Letta"
+        ],
+        "args_contain": [
+          "letta-code/letta.js",
+          "remote"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "`letta server` (cloud computer listener, `--computer-name`, `--channels`) and `letta server --listen [ws://host:port]` (App Server, WebSocket at /ws, many agents and conversations in one process; also `--openai-api`). npm/bin-symlink form. Runs the agent loop and tool shells itself.",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "bin/letta",
+          "server"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "`letta remote` (alias of `letta server`, older spelling; the desktop app itself uses `remote`). npm/bin-symlink form.",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "bin/letta",
+          "remote"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "`letta server` run on the real script path (Nix wrapper `bun .../letta-code/letta.js server`, pnpm, npx, source build). Same meaning as the bin-symlink row above.",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "letta-code/letta.js",
+          "server"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "`letta remote` (alias of `letta server`) run on the real script path.",
+      "process": {
+        "names": [
+          "node",
+          "bun"
+        ],
+        "args_contain": [
+          "letta-code/letta.js",
+          "remote"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "`letta server` from the PyPI wheel (bundled Node path).",
+      "process": {
+        "path_contains": [
+          "/letta_code/_payload/bin/node"
+        ],
+        "args_contain": [
+          "/_payload/app/letta.js",
+          "server"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "`letta remote` from the PyPI wheel (bundled Node path).",
+      "process": {
+        "path_contains": [
+          "/letta_code/_payload/bin/node"
+        ],
+        "args_contain": [
+          "/_payload/app/letta.js",
+          "remote"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "cloud",
+      "label": "Letta Cloud agents: chat.letta.com (web and mobile), cloud sandboxes, the native Slack integration, GitHub Action (letta-code-action). State and inference are server-side; the local process, if any, is one of the surfaces above acting as a 'computer'. Nothing to observe on this Mac."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.letta/lc-local-backend/conversations/*/messages.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "meaning": "Desktop app only. Owner: the main Letta desktop process (not by letta-code-listener). No `name` filter on purpose: the probe tests `name in <pmset assertion name>`, and the real pmset name of an Electron `prevent-app-suspension` blocker is unverified, so any prose here could never match. The signal therefore counts any non-caffeinate assertion held by the Letta process tree, which can include Chromium's own (media). ProcessingSleepInhibitor starts the blocker on IPC set-processing-state(true) from a renderer, refreshes it as a 10 s heartbeat, and stops it on set-processing-state(false) or heartbeat timeout, so it tracks 'a renderer reports an active run', per window. Source is the shipped app.asar (dist/main.js), not public. The pmset assertion name is unverified and the renderer call site was not found in the bundle, so whether a pending approval keeps it held is unknown. The terminal CLI takes NO assertion and spawns no caffeinate."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "CLI, `letta server` and any surface whose process runs the loop: the Bash tool spawns `/bin/zsh -c <cmd>` (`-lc` when login) as a DIRECT detached child on macOS (zsh is always tried first, then $SHELL), and it stays for the whole command. Only shell tools show up; Read, Edit, Write, Grep and every model call run in-process. Zsh may exec a lone command in place, so the child can then be `npm` or `git`, not a shell. Long-lived direct children exist: MCP servers, LSP servers (opt-in LETTA_ENABLE_LSP), and a same-executable `letta.js -p ... stream-json` child per running subagent. The updater's `npm install -g` is an execFile child, not a shell. In the desktop app the shells are children of letta-code-listener, two levels below the Letta main process, so this signal is blind there."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Local backend only (`--backend local`, or the desktop 'local' mode): every message is appended to conversations/<base64url(key)>/messages.jsonl, key `default:<agentId>` or `conversation:<conversation-id>`. The directory name is base64url, so the probe's {session_id} template cannot address one file and this signal cannot fire under the probe. The DEFAULT backend is Letta Cloud, which writes NO local transcript. Raises working, never proves idle. A second, weaker mtime for the TUI on either backend: ~/.letta/logs/chunk-logs/<agentId>/<Date.now()-rand>.jsonl is rewritten once per drained stream, and ~/.letta/logs/debug/<agentId>/<same>.log is appended by debugLog (the debug log is skipped when LETTA_CODE_TELEM=0; the chunk log is NOT, it has no such check); the session id is random per process and appears nowhere in argv."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback. Guess: nothing was measured (no live instance). A network wait burns none. The desktop Electron tree also burns CPU when idle, so use 10 for the GUI surface."
+    },
+    {
+      "signal": "socket_activity",
+      "meaning": "Exact but not readable from ps: connect to a `letta server --listen` WebSocket (/ws), send runtime_start, and read update_loop_status. LoopStatus: SENDING_API_REQUEST, WAITING_FOR_API_RESPONSE, RETRYING_API_REQUEST, PROCESSING_API_RESPONSE, EXECUTING_CLIENT_SIDE_TOOL, EXECUTING_COMMAND = a turn is running; WAITING_ON_APPROVAL, WAITING_ON_INPUT = blocked on the human. Also a stream_delta with message_type stop_reason (other than requires_approval) ends a turn. Loopback listeners need no auth; a subscriber is a new client of a private app, so do not attach without the owner's consent. The probe cannot evaluate socket_activity."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "terminal_title",
+      "surface": "tui",
+      "meaning": "The TUI writes the terminal title (OSC 0) itself, on by default (default items: activity, agent-name). Working: the title starts with a one Braille spinner frame of ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏ (10 frames, 100 ms). Blocked on the human: the title alternates every 1 s between `[ ! ] Action Required` and `[ . ] Action Required` (pending tool approval or arena vote), replacing the spinner. Ready: no spinner. The spinner also runs for 'Starting', `!` bash mode and slash commands, so it is a broader 'busy' than a model turn. Read it from the host terminal or multiplexer (tmux pane_title, cmux, kitty, iTerm2), not from ps. Users can change the fields with /title; an explicitly empty list disables it."
+    },
+    {
+      "signal": "osc_9_4",
+      "surface": "tui",
+      "meaning": "While an approval or question dialog is mounted (Bash, file-edit, task, generic, question), the TUI writes OSC 9;4;3;0 (indeterminate progress) and OSC 9;4;0;0 (clear) when it unmounts. Herdr reads this as blocked. It is NOT emitted during a normal turn, so absence means nothing."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "message": "Approval needed",
+      "meaning": "Legacy hooks (deprecated) only. The TUI calls sendDesktopNotification, which writes BEL and runs Notification hooks with message `Approval needed` (blocked) or `Turn completed, awaiting your input` (idle), plus `Stream error`, `Execution error`, `Processing error` at level error. Tell them apart by the message text."
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Legacy hooks only: runs when a permission dialog appears; can allow or deny."
+    },
+    {
+      "signal": "app_server_event",
+      "event": "update_loop_status",
+      "status": "WAITING_ON_APPROVAL | WAITING_ON_INPUT",
+      "meaning": "Listener and desktop App Server. Authoritative, but needs a WebSocket subscriber. Also `stop_reason: requires_approval` in a stream_delta."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "DEPRECATED, may be removed: `hooks` key in ~/.letta/settings.json, .letta/settings.json (committable) and .letta/settings.local.json (merged, local first); `hooks.disabled: true` turns them all off. Command and prompt hook types. Replacement: Mods, trusted JS/TS files in ~/.letta/mods/ or $MEMORY_DIR/mods/ (in-process, /reload, `letta --no-mods` to skip; diagnostics at ~/.letta/mods/diagnostics/latest.json) with events conversation_open, conversation_close, tool_start, tool_end, turn_start, turn_end, llm_start, llm_end, compact_start, compact_end (llm and compact events need the local backend). Desktop listeners support mod tool/turn events but not conversation lifecycle events.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "Notification",
+      "Stop",
+      "SubagentStop",
+      "PreCompact",
+      "SessionEnd"
+    ],
+    "docs": "https://docs.letta.com/reference/deprecated/hooks"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry: no @opentelemetry dependency and no OTEL_ or OTLP string in the source or the docs. The only telemetry is Letta's own product analytics (session_start, session_end, tool_usage, error, user_input events) posted to the Letta API /v1/metadata/telemetry; opt out with LETTA_CODE_TELEM=0 or DO_NOT_TRACK=1. Nothing a local monitor can read."
+  },
+  "sources": [
+    {
+      "claim": "npm package @letta-ai/letta-code, bin letta -> letta.js, engines node >=22.19.0 and bun >=1.3.2, v0.34.0",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "package.json in https://github.com/letta-ai/letta-code (v0.34.0, commit 96eb977); docs.letta.com/llms.txt says `npm install -g @letta-ai/letta-code` (Node.js 22.19+)"
+    },
+    {
+      "claim": "letta.js is a single ESM file built by Bun with `#!/usr/bin/env node` prepended; ws, node-pty, @vscode/ripgrep, grammy stay external; the CLI sets no process.title",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "build.js lines 75-162 (Bun.build target node, shebang write); `grep -rn process.title src` printed nothing (non-test)"
+    },
+    {
+      "claim": "an argv[1] symlink path is what ps shows for an npm/Homebrew install; node is argv[0]",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "inferred from how the kernel runs a shebang script by the path it was given; the gemini-cli row in this registry relies on the same shape (registry/agents/gemini-cli.json). Not observed for letta (not installed)"
+    },
+    {
+      "claim": "PyPI wheel: launcher execve()s bundled node with argv [<pkg>/letta_code/_payload/bin/node, <pkg>/letta_code/_payload/app/letta.js, ...], sets LETTA_CODE_DISTRIBUTION=pypi, preserves the pid",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "python/letta_code/__init__.py main() and python/README.md in https://github.com/letta-ai/letta-code (v0.34.0, commit 96eb977)"
+    },
+    {
+      "claim": "conversation flags: --conversation / -C takes an id, `--conv` is rewritten to it, `--resume`/-r is a boolean that opens a selector, `-p`/--prompt is the headless flag",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/cli/args.ts (v0.34.0, commit 96eb977): `resume` boolean short r at line 41, `conversation` string short C at line 46, `prompt` boolean short p at line 116 (mode headless), `run` boolean line 123, headless-mode flags listed at lines 116-190 (prompt, run, output-format, input-format, include-partial-messages, from-agent, computer, environment, env, pre-load-skills, tags, ephemeral, stateless, memfs-startup, max-turns, no-wait, client-message-id, disable-memory-guard); preprocessCliArgs rewrites `--conv` -> `--conversation` at line 400; https://docs.letta.com/platform/cli/reference/index.md ('letta --conv default --agent <id>', 'letta --conv <agent-id>')"
+    },
+    {
+      "claim": "subcommand names that are not sessions",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/cli/subcommands/router.ts (subcommandNeedsEarlyBackendMode case list and imports) in https://github.com/letta-ai/letta-code (v0.34.0, commit 96eb977); https://docs.letta.com/platform/cli/reference/index.md (update, server, remote, connect, install, skills, mods, cron, memory, agents, messages, teleport, sandbox)"
+    },
+    {
+      "claim": "Bash tool = direct child `/bin/zsh -c|-lc <cmd>` on macOS, spawned detached with pipes; zsh is tried before $SHELL",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/tools/impl/shell-launchers.ts unixLaunchers() lines 259-285; src/tools/impl/shell-runner.ts spawnPipeProcess() line 217 (spawn shell:false, detached) and startShellProcess line ~489 (pipe unless options.tty)"
+    },
+    {
+      "claim": "subagents run as a direct child of the parent: the script resolved from argv[1] executed directly (shebang), prompt sent on STDIN, so argv has --output-format stream-json but NO -p",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/agent/subagents/manager.ts: executeSubagent calls buildSubagentArgs with promptTransport: \"stdin\" (line 338); buildSubagentArgs pushes `-p` only when promptTransport !== \"stdin\" (line 218) and always pushes `--output-format stream-json`, `--permission-mode unrestricted`, `--tags`, `--new-agent --system` or `--conv` (lines 160-232); src/agent/subagents/subagent-launcher.ts resolveSubagentLauncher (line 85): a .js argv[1] becomes `command: resolvedCurrentScript, args: cliArgs`; src/cli/startup-mode.ts isHeadlessStartup: headless when no TTY on stdin and no positional. Cross-check: Herdr src/detect/mod.rs is_interactive_letta_process (herdrdev/herdr d4e335e) rejects --output-format, --input-format, --run, --tags, --max-turns, --pre-load-skills, --update, --upgrade. The earlier claim that subagents carry `-p` was REFUTED."
+    },
+    {
+      "claim": "no sleep inhibitor in the CLI: no caffeinate, powerSaveBlocker, IOPM or systemd-inhibit",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rniE 'caffeinate|powerSave|prevent.?sleep|sleep inhibit|IOPMAssertion|systemd-inhibit' src scripts docs printed nothing (non-test) at commit 96eb977"
+    },
+    {
+      "claim": "terminal title: default items activity+agent-name, Braille spinner every 100 ms while working, `[ ! ] Action Required` blinking every 1 s while an approval or arena vote is pending; busy = loading, streaming, executing tool, slash command, bash mode or pending approval",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/cli/helpers/window-title-config.ts lines 39-66; src/cli/components/TerminalTitleWriter.tsx; src/cli/app/AppCoordinator.tsx lines 4738-4747 (terminalTitleTaskRunning) and 4944-4946 (requiresAction)"
+    },
+    {
+      "claim": "OSC 9;4;3;0 written only while an approval or question dialog is mounted, cleared with 9;4;0;0",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/cli/hooks/use-progress-indicator.ts; callers: InlineBashApproval, InlineFileEditApproval, InlineGenericApproval, InlineQuestionApproval, InlineTaskApproval (grep useProgressIndicator src/cli). Herdr reading: registry/evidence/hosts-2.md section 3, Letta Code row"
+    },
+    {
+      "claim": "Notification hook fires with `Approval needed`, `Turn completed, awaiting your input` and error messages; BEL written each time",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/cli/app/notifications.ts; callers src/cli/app/use-approval-flow.ts:282,300 and src/cli/app/use-conversation-loop.ts:1183,1671,2179,2283,2612,2731,2766,2812"
+    },
+    {
+      "claim": "hooks are deprecated in favour of mods; config in three settings.json files; event list",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.letta.com/reference/deprecated/hooks/index.md (status: legacy; 'Harness Hooks are deprecated and may be removed'); https://docs.letta.com/configuration/mods/index.md; src/hooks/types.ts lines 5-25 and src/hooks/loader.ts lines 48-103"
+    },
+    {
+      "claim": "local backend store: ~/.letta/lc-local-backend (LETTA_LOCAL_BACKEND_DIR overrides), conversations/<base64url(key)>/{conversation.json,manifest.json,messages.jsonl}, agents/<base64url(agentId)>.json, memfs/<agentId>/memory; messages.jsonl is pi-session-entry-jsonl, appended one entry per message; header keys type,version,id,timestamp,cwd; entry keys type,id,parentId,timestamp,message",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/utils/local-backend-paths.ts; src/backend/local/local-store.ts lines 283-285 (encodePathSegment base64url), 2841-2851, 3042 (appendFileSync), 3262-3266 (conversationKey); src/backend/local/local-transcript.ts lines 21-30, 108-125; storage dir is documented at https://docs.letta.com/reference/settings/index.md, the layout is not"
+    },
+    {
+      "claim": "the default backend is Letta Cloud, which stores conversations server-side; local backend is opt-in at first run (`letta backend local`, `--backend local`)",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/letta-ai/letta-code README ('Letta Cloud is the default'); https://docs.letta.com/reference/settings/index.md; https://docs.letta.com/self-hosting/app-server/index.md"
+    },
+    {
+      "claim": "per-process rolling logs: ~/.letta/logs/chunk-logs/<agent>/<session>.jsonl (last 100 chunks, rewritten per stream drain, TUI only), ~/.letta/logs/debug/<agent>/<session>.log (appended, 5 files kept; skipped when LETTA_CODE_TELEM=0 or false, src/utils/debug.ts line 98). The chunk log has no such check (src/cli/helpers/chunk-log.ts init()), ~/.letta/logs/remote/<time>.log for `letta server`; session id = `${Date.now()}-${random}`",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/cli/helpers/chunk-log.ts lines 30, 118-150; src/cli/helpers/stream.ts lines 258, 394; src/utils/debug.ts lines 68, 84-95; src/websocket/listen-log.ts line 24; src/telemetry/index.ts generateSessionId() line 384; src/cli/app/AppCoordinator.tsx lines 1066-1067"
+    },
+    {
+      "claim": "loop states of the App Server: 8 LoopStatus values including WAITING_ON_APPROVAL and WAITING_ON_INPUT, pushed as update_loop_status",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/types/loop-status-protocol.ts line 36; https://docs.letta.com/self-hosting/app-server/protocol-lifecycle/index.md ('update_loop_status ... waiting/running state'; turn complete on stop_reason other than requires_approval)"
+    },
+    {
+      "claim": "`letta server --listen` is the App Server (WebSocket /ws, many agents in one process); `letta server` without --listen is a cloud computer listener; the desktop app 'uses the App Server under the hood'; `letta remote` is an alias",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.letta.com/self-hosting/app-server/index.md; src/cli/subcommands/server.ts lines 5-41; https://docs.letta.com/platform/cli/reference/index.md"
+    },
+    {
+      "claim": "desktop app bundle: /Letta.app, CFBundleIdentifier com.todesktop.260305dtu2nh5, CFBundleExecutable Letta, version 0.32.19, Electron with ElectronAsarIntegrity, ToDesktop updater; bundles @letta-ai/letta-code/letta.js under Resources/app.asar.unpacked",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "HTTP range reads of the zip central directory of https://download.letta.com/mac/zip/arm64 (filename `Letta 0.32.19 - arm64-mac.zip`, 217891192 bytes) with python zipfile over `curl -r`; printed Letta.app/Contents/Info.plist (CFBundleIdentifier com.todesktop.260305dtu2nh5), Resources/app-update.yml (`url: https://download.todesktop.com/260305dtu2nh5`), Contents/Frameworks/Letta Helper (GPU|Plugin|Renderer).app, Resources/app.asar.unpacked/node_modules/@letta-ai/letta-code/letta.js. Nothing installed or run"
+    },
+    {
+      "claim": "the desktop app spawns the listener as <execPath> [--require setProcessTitle.js] <bundled letta.js> remote --env-name <n> --backend api|local with ELECTRON_RUN_AS_NODE=1; the --require is passed only when setProcessTitle.js exists next to main.js, and it is ABSENT from the shipped 0.32.19 bundle",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "read dist/main.js (7.4 MB, webpack) from Letta.app/Contents/Resources/app.asar (asar header parsed with python struct/json after a ranged unzip of that one entry): comments 'Rename the child process from \"node\" -> \"letta-code-listener\" in ps/htop', `args.push('remote', '--env-name', envName)`, `ELECTRON_RUN_AS_NODE: '1'`, `exports.f = 'letta-code-listener'` and the note that ps reports the TITLE, three slots desktop-primary/desktop-local-backend/desktop-direct-cloud. Vendor's closed source, read from the shipped binary, not run | Re-checked 2026-09-30: parsed the asar header of the same app.asar (25110 files): dist/ holds 3rdpartylicenses.txt, favicon.ico, fileOpsWorker.js, index.html, main.js, package.json, preload.js, welcome-image.webp and assets/; no path anywhere contains `ProcessTitle`; app.asar.unpacked holds only node_modules/@letta-ai/letta-code/{letta.js,package.json,image-resize-worker.js,skills,assets}. main.js line ~184462: `const setTitlePath = path.join(__dirname, 'setProcessTitle.js'); const hasSetTitle = existsSync(setTitlePath); if (!localLettaCodeDevDir && hasSetTitle) args.unshift('--require', setTitlePath);`. So the retitle to `letta-code-listener` is unproven for this version and probably does not happen."
+    },
+    {
+      "claim": "desktop app holds an Electron powerSaveBlocker('prevent-app-suspension') while a renderer reports a run, 10 s heartbeat",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "same dist/main.js: class ProcessingSleepInhibitor (start('prevent-app-suspension') in reconcile), PROCESSING_HEARTBEAT_TIMEOUT_MS = 10000, ipcMain.handle('set-processing-state', ...); doc comment 'Prevents idle system sleep while any renderer reports an active agent run, without keeping the display awake'. The pmset assertion itself was not observed | Re-checked: dist/main.js (char offset ~6438386) ProcessingSleepInhibitor.reconcile() calls powerSaveBlocker.start('prevent-app-suspension'); set-processing-state IPC handler calls processingSleepInhibitor.setProcessing(sourceId, isProcessing); PROCESSING_HEARTBEAT_TIMEOUT_MS = 10000."
+    },
+    {
+      "claim": "nothing of Letta is installed or running on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`command -v letta` printed nothing; `ls -d ~/.letta` -> No such file or directory; `ls /Applications | grep -i letta` printed nothing; `ps -axo pid=,args= | grep -i [l]etta` matched only the checking shell; `pmset -g assertions | grep -ci letta` -> 0; mdfind for CFBundleIdentifier com.todesktop.260305dtu2nh5 printed nothing"
+    },
+    {
+      "claim": "no OpenTelemetry; product analytics only, opt out with LETTA_CODE_TELEM=0 / DO_NOT_TRACK=1",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "`grep -c opentelemetry package.json bun.lock` -> 0 and 0; `grep -rli 'opentelemetry|OTEL_EXPORTER' src docs README.md` printed nothing; src/telemetry/index.ts isTelemetryEnabled() and submitTelemetryMetadata -> POST /v1/metadata/telemetry (src/backend/api/metadata.ts line 93); https://docs.letta.com/platform/cli/reference/index.md (LETTA_CODE_TELEM)"
+    },
+    {
+      "claim": "the product is now called the Letta Harness / Letta app / Letta CLI; docs say `letta server` registers a computer",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.letta.com/llms.txt ('The Letta Harness (formerly Letta Code)')"
+    },
+    {
+      "claim": "Nix install runs `bun $out/lib/letta-code/letta.js`, so `bun` in process names is documented for Nix and the argv has no `bin/letta`",
+      "evidence": "flake.nix lines 80-87 in https://github.com/letta-ai/letta-code (v0.34.0, commit 96eb977): makeWrapperArgs --add-flags \"$out/lib/letta-code/letta.js\"; makeWrapper ${pkgs.bun}/bin/bun \"$out/bin/letta\"",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "subcommand aliases not in the first version of the veto list: `upgrade` and `--update`/`--upgrade` (normalizeUpdateCommandAliases), `trajectory` (alias of `trajectories`)",
+      "evidence": "src/index.ts lines 101-113 (normalizeUpdateCommandAliases); src/cli/subcommands/router.ts lines 87 (case \"upgrade\") and 152-153 (case \"trajectories\"/\"trajectory\")",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Herdr independently reads the same Letta title and progress signals",
+      "evidence": "https://raw.githubusercontent.com/herdrdev/herdr/master/src/detect/manifests/letta.toml: osc_progress_blocked regex '^4;3(?:;|$)', osc_title_blocked '^\\[ [!.] \\] Action Required', osc_title_working Braille spinner set",
+      "kind": "third-party",
+      "date": "2026-09-30"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not installed here; nothing seen running, so no live claim. Per-process turn state is exposed by only three things: the terminal title (spinner vs `[ ! ] Action Required`), a direct `/bin/zsh -c` child while a shell tool runs, and, for the desktop app, a power assertion on the main process. The CLI has no sleep inhibitor, no caffeinate, no lock file and no pid registry; its session id is random per process and not in argv, so map a TUI process to a conversation by --conversation/--conv when given, otherwise by cwd + newest file, or by the environment of a tool shell it is running (children get LETTA_CONVERSATION_ID, LETTA_AGENT_ID, AGENT_ID, CONVERSATION_ID, MEMORY_DIR, USER_CWD). The default backend is Letta Cloud, so a signed-in install has no local transcript at all. Headless runs and subagents are one-shots: alive means working, but they are vetoed from the TUI surface by exact arguments (`-p`, `--prompt`, `--output-format`, `--input-format`, `--run`, `--tags`, ...) because a substring rule for `-p` would also match `--permission-mode` and any path with `-p`. Subagents carry NO `-p` (prompt goes on stdin), so `--output-format` is the veto that catches them. A piped `echo x | letta` with no flag is headless too and is NOT vetoed. Matching reads argv only: `letta server` is matched by the substring `server`, so a TUI run as `letta -n api-server` is misfiled as a daemon. The desktop listener's tool shells are grandchildren of the app, so read it through the app's power assertion, not tool_children. The listener is probably NOT retitled `letta-code-listener` in 0.32.19 (setProcessTitle.js is missing from the bundle); the un-retitled `Letta <...>/letta.js remote` surface is the expected one. The bare `bin/letta` substring also matches any node script whose path contains `bin/letta...`; nothing else was found to collide, and the old MemGPT `letta` runs under python."
+}

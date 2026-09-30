@@ -51,8 +51,7 @@
   "working_signals": [
     {
       "signal": "power_assertion",
-      "name": "Electron powerSaveBlocker prevent-app-suspension, owned by the main Cursor process",
-      "meaning": "IDE and Agents Window: Cursor takes a wakelock when a local chat turn starts (reason agent-loop) and drops it at generation-ended. It is also dropped while the chat waits for approval (user-approval-requested) and retaken on resume (agent-loop-resumed). App-wide, not per chat. Verified from bundled source and Cursor's own log lines; the pmset assertion itself was not observed because no turn was running. Not taken for cloud agents. The CLI does not take one."
+      "meaning": "IDE and Agents Window: Cursor takes a wakelock when a local chat turn starts (reason agent-loop) and drops it at generation-ended. It is also dropped while the chat waits for approval (user-approval-requested) and retaken on resume (agent-loop-resumed). App-wide, not per chat. Verified from bundled source and Cursor's own log lines; the pmset assertion itself was not observed because no turn was running. Not taken for cloud agents. The CLI does not take one. Matched by owner pid only; the assertion name is not known as pmset prints it."
     },
     {
       "signal": "transcript_write",
@@ -241,6 +240,12 @@
       "kind": "local-observation",
       "date": "2026-09-29",
       "evidence": "cursor-agent --help lists them. Not added to exclude_args because the probe matches exact argv tokens anywhere, so an unquoted prompt containing 'login' or 'status' would hide a real session. Trade-off left open."
+    },
+    {
+      "claim": "power_assertion.name is matched as a substring of the name pmset prints; prose there never matches",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "completeness critic of wave 3 checked tools/agents_probe.py against the six rows; name set from the row's own cited source or removed"
     }
   ],
   "confidence": "documented",

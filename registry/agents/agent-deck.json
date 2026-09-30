@@ -1,0 +1,304 @@
+{
+  "id": "agent-deck",
+  "name": "Agent Deck",
+  "vendor": "asheshgoplani (open source, MIT)",
+  "homepage": "https://github.com/asheshgoplani/agent-deck",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "the Agent Deck manager TUI: one Go binary, `agent-deck` (Homebrew /opt/homebrew/bin/agent-deck, install.sh ~/.local/bin/agent-deck; install.sh --name can pick another name, which this row cannot see). It is a manager, not an agent: it never runs an agent itself. Each session is `tmux new-session -d -s agentdeck_<title>_<suffix> -c <dir> ...` on the user's default tmux server (or `tmux -L <socket_name>` when [tmux].socket_name is set), so the agent (claude, codex, gemini, opencode, copilot, crush, muse, cursor, hermes, pi, dsh, omp, custom [tools.*]) is a child of the tmux SERVER, never of `agent-deck`. For every tool except `shell` the pane command is `bash -c \"cd -- <dir> && bash -c 'stty susp undef; export AGENTDECK_INSTANCE_ID=<id>; export AGENTDECK_PROFILE=<p>; ...; exec claude --session-id <uuid>'\"` (source: cwdAssertCommand then wrapIgnoreSuspend); a `shell` session is the user's login shell with the command typed in by send-keys. For Claude the inner `exec` replaces the inner bash, so `claude` keeps argv[0] `claude` and the claude-code row matches it by name; whether an outer `bash -c 'cd ... &&'` stays as its parent depends on the bash build and was not observed. Other tools may keep a bash wrapper as parent (its argv contains `AGENTDECK_INSTANCE_ID=<id>`, but a bash wrapper is not reported as a session). The TUI's own direct children are always present and say nothing about a turn: one long-lived `tmux -u -C attach-session -t agentdeck_...` control-mode client per connected session, plus short-lived tmux (list-sessions, capture-pane, display-message) and `bash -lc` for [interval_hooks.*]. `agent-deck web` (without --no-tui) is the same TUI process plus an HTTP server on 127.0.0.1:8420. Every CLI subcommand, help and version flag is short-lived or non-TUI and is excluded by whole-token match; this is a denylist of the subcommands in cmd/agent-deck/main.go at v1.16.22 (plus the hidden `creds-refresh` stub), so a subcommand added later would read as a TUI until the row is updated. Go's flag package also accepts the single-dash form, so `-no-tui` is excluded here as well.",
+      "process": {
+        "names": [
+          "agent-deck"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-h",
+          "-v",
+          "help",
+          "version",
+          "completion",
+          "__complete",
+          "add",
+          "list",
+          "ls",
+          "remove",
+          "rm",
+          "rename",
+          "mv",
+          "status",
+          "profile",
+          "update",
+          "session",
+          "fleet",
+          "mcp",
+          "plugin",
+          "skill",
+          "mcp-proxy",
+          "group",
+          "try",
+          "launch",
+          "health",
+          "doctor",
+          "accounts",
+          "harness",
+          "limits",
+          "conductor",
+          "agents",
+          "agent",
+          "telegram-doctor",
+          "watcher",
+          "openclaw",
+          "oc",
+          "remote",
+          "remote-agent",
+          "system",
+          "worktree",
+          "wt",
+          "costs",
+          "events",
+          "daemon",
+          "recall",
+          "usage",
+          "config",
+          "uninstall",
+          "migrate-paths",
+          "hook-handler",
+          "codex-notify",
+          "hooks",
+          "codex-hooks",
+          "gemini-hooks",
+          "hermes-hooks",
+          "cursor-hooks",
+          "tmux-hooks",
+          "pi-hooks",
+          "deepseek",
+          "notify-daemon",
+          "run-task",
+          "inbox",
+          "feedback",
+          "debug-dump",
+          "telemetry",
+          "--no-tui",
+          "-no-tui",
+          "creds-refresh"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`agent-deck notify-daemon`: the transition notifier, launchd label com.agentdeck.transition-notifier (~/Library/LaunchAgents/com.agentdeck.transition-notifier.plist, RunAtLoad and KeepAlive, ProgramArguments [<abs path to agent-deck>, notify-daemon]). Runs with no TUI: reloads the profile's sessions every 1-3 s, probes tmux, writes the `status` column of state.db, fires desktop and parent nudges, runs the recall backfill. Not a session and has no turn. When a TUI is alive the daemon reads the TUI's status column instead of probing.",
+      "process": {
+        "names": [
+          "agent-deck"
+        ],
+        "args_contain": [
+          "notify-daemon"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`agent-deck web --no-tui`: headless web server, launchd label com.agentdeck.web (~/Library/LaunchAgents/com.agentdeck.web.plist). Default listen 127.0.0.1:8420. Serves the session list and status over HTTP and SSE. Not a session and has no turn. Without --no-tui the same `web` subcommand runs inside the TUI surface above. The match key is `-no-tui` (a substring of `--no-tui`) because the Go flag parser accepts both spellings; `--no-tui=false` would be misread as headless (unlikely, not handled).",
+      "process": {
+        "names": [
+          "agent-deck"
+        ],
+        "args_contain": [
+          "web",
+          "-no-tui"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`agent-deck daemon serve`: optional command daemon on <data dir>/runtime/profiles/<profile>/daemon.sock (mode 0600, only with [core] daemon = true does the CLI dial it). It serves the CLI command registry and the event bus (subscribe frames carry session.status and session.turn). Not a session and has no turn.",
+      "process": {
+        "names": [
+          "agent-deck"
+        ],
+        "args_contain": [
+          "daemon",
+          "serve"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/agent-deck/profiles/*/state.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "socket_activity",
+      "meaning": "MOST PRECISE, but not passive and not evaluated by tools/agents_probe.py. Agent Deck's own status for a session is `running` while a turn is in progress, `waiting` at a prompt or menu, `idle` after the user has looked, `error`, `stopped`. Read it through the supported surfaces, per session: `agent-deck list --json` or `agent-deck session show <id> --json` (a fresh detection pass, cold-loads hooks and reads the pane, writes nothing); `agent-deck events follow --json --kind session.status,session.turn` (needs [macapp] status_events = true; session.turn phase started/ended); or a `subscribe` frame on daemon.sock (needs [core] daemon = true). The underlying store is instances.status in <data dir>/profiles/<profile>/state.db (SQLite, WAL), written by the TUI or the notify daemon. How the value is derived, in order: (1) a fresh hook verdict from <data dir>/hooks/<instance id>.json for Claude (UserPromptSubmit sets running, Stop sets waiting, fresh for 2 min, no tool-use hooks so a long turn falls back to the pane after 2 min), Gemini, pi and Hermes, and Codex's notify hook (running fresh 20 s, waiting fresh 5 s; only after `agent-deck codex-hooks install`); (2) the tmux pane title carrying a Braille spinner; (3) screen patterns on the last 25 lines of the visible pane (`esc to interrupt`, the Claude spinner line, `esc to cancel`, `thinking...`, per-tool). The value is Agent Deck's guess, and the pane part reads conversation text."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 5,
+      "meaning": "WEAK, unmeasured guess (5 is a placeholder). The `agent-deck` tree covers only the manager: its status pass every 2 s backing off to 10 s, the tmux control clients it drives, and TUI redraws. The agents are under the tmux server, outside this tree. Use it only to say the manager is busy, and an idle TUI with many sessions may sit above the floor and read as permanently working (inferred from docs/status-detection.md cadence, not measured). Do not use child_process or tool_children: the tmux control-mode clients are permanent direct children. For a hosted session's turn, apply the agent's own row to the pane process (for Claude Code, a direct `caffeinate` child of the `claude` process)."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest, Notification (matcher permission_prompt|elicitation_dialog), Stop",
+      "meaning": "Claude Code hook events that Agent Deck installs into the Claude config dir's settings.json (~/.claude/settings.json or each account's CLAUDE_CONFIG_DIR) as `<abs path>/agent-deck hook-handler`. The handler writes <data dir>/hooks/<instance id>.json with keys status (running|waiting|dead), session_id, event, ts. PermissionRequest and Notification(permission) set waiting; Stop also sets waiting, so the file alone cannot tell a permission prompt from a finished turn. Read `event` in that file to separate them."
+    },
+    {
+      "signal": "state_column",
+      "meaning": "instances.status = 'waiting' in state.db, or `waiting` in `agent-deck list --json`. Agent Deck's waiting is yellow, `Needs your input`, and it also covers a finished turn sitting at an empty prompt. The substate `interactive-menu` (also `idle-at-empty-prompt`, `auth-401`, `usage-limit`, `model-unavailable`, `background-work`) says which. Pane cues for a menu: `Enter to select`, `Enter to confirm`, `Allow once`, `Press enter to confirm or esc to go back`."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "Agent Deck has no lifecycle-hook mechanism of its own that reports turns. It installs and consumes other tools' hooks (Claude Code settings.json, Codex notify via `agent-deck codex-hooks install`, Cursor ~/.cursor/hooks.json, Gemini, Hermes, pi extension via `agent-deck pi-hooks install`, tmux-hooks) and exposes: [interval_hooks.*] in ~/.config/agent-deck/config.toml (a `bash -lc` command run on a timer while the TUI runs, not on events), repository worktree hooks .agent-deck/worktree-setup.sh and worktree-destruction.sh, an event bus at <data dir>/bus/<profile>/active.ndjson (`agent-deck events follow`), and [notifications] transition_events and desktop for status edges.",
+    "events": [],
+    "docs": "https://github.com/asheshgoplani/agent-deck/blob/main/docs/events.md"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry export. The go.mod lists go.opentelemetry.io/otel* only as `// indirect` and no Go file imports it. Agent Deck's own usage telemetry is opt-in, anonymous, sent to PostHog (EU), off until the user says yes (`agent-deck telemetry on|off|preview|status`, DO_NOT_TRACK=1, AGENTDECK_TELEMETRY=0), and never asked inside an agent-deck session. The hosted agents export their own OTel if configured; Agent Deck does not set OTEL_* for them."
+  },
+  "sources": [
+    {
+      "claim": "not installed on this Mac: no binary, no data, no config, no cache, no process",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`which agent-deck` printed nothing; `ls -d ~/.agent-deck ~/.local/share/agent-deck ~/.cache/agent-deck ~/.config/agent-deck` printed 'No such file or directory' for all four; `ls ~/.local/bin | grep -i deck` empty; `ps -axo pid,args | grep -i agent-deck` empty; `tmux -V` printed 'tmux 3.6a'. Nothing was run, started or installed."
+    },
+    {
+      "claim": "v1.16.22 (2026-09-28) is the latest release; macOS assets are darwin_amd64 and darwin_arm64 tarballs holding one binary `agent-deck`; Homebrew formula installs `bin.install \"agent-deck\"` and depends on tmux; no .app, so no bundle id",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`curl -s https://api.github.com/repos/asheshgoplani/agent-deck/releases/latest` printed tag v1.16.22, published 2026-09-28T08:24:11Z, assets agent-deck_1.16.22_darwin_{amd64,arm64}.tar.gz, linux_*, checksums.txt; `curl -s https://raw.githubusercontent.com/asheshgoplani/homebrew-tap/main/Formula/agent-deck.rb` printed `depends_on \"tmux\"` and `bin.install \"agent-deck\"`; .goreleaser.yml `binary: agent-deck`, CGO_ENABLED=0"
+    },
+    {
+      "claim": "read at tag v1.16.22, commit 035fd60 (shallow clone, HEAD of the tag)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "git clone --depth 1 https://github.com/asheshgoplani/agent-deck; git describe --tags printed v1.16.22; git log -1 printed 035fd602eda5e3ed7e95edb63b6418fbe285f74d Mon Sep 28 09:18:33 2026"
+    },
+    {
+      "claim": "install locations: install.sh default ~/.local/bin/agent-deck, BINARY_NAME overridable with --name; Homebrew formula in tap asheshgoplani/tap",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/install.sh (INSTALL_DIR=\"${HOME}/.local/bin\", BINARY_NAME=\"agent-deck\"); https://github.com/asheshgoplani/agent-deck#installation"
+    },
+    {
+      "claim": "Agent Deck is a tmux-based manager: session names start with `agentdeck_`, created with `tmux new-session -d -s <name> -c <dir>`; an optional dedicated server via [tmux].socket_name (`tmux -L <name>`), default is the user's default server",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/tmux/tmux.go (const SessionPrefix = \"agentdeck_\"; Name: SessionPrefix + sanitized + \"_\" + uniqueSuffix; buildInnerTmuxArgs(s.SocketName, \"new-session\", \"-d\", \"-s\", s.Name, \"-c\", workDir, ...)); internal/tmux/socket.go; skills/agent-deck/references/config-reference.md ([tmux] socket_name = \"\" # \"\" = share the user's default tmux server)"
+    },
+    {
+      "claim": "the pane command is bash -c \"cd -- <dir> && bash -c 'stty susp undef; ...; exec claude --session-id <uuid>'\" with AGENTDECK_INSTANCE_ID and AGENTDECK_PROFILE exports, for every tool except `shell` (RunCommandAsInitialProcess = IsSandboxed() || Tool != \"shell\"; a shell session gets its command by send-keys); Claude is started with `exec claude --session-id <uuid>` or `--resume <uuid>`, so its argv carries the Claude session id. Whether claude is the pane process or a grandchild of the pane depends on bash exec-optimising `cd && bash -c`: not verified",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/session/instance.go (buildBashExportPrefix: `export AGENTDECK_INSTANCE_ID=%s; export AGENTDECK_PROFILE=%s; `; buildClaudeResumeCommand and the start builders: `%sexec %s%s --session-id \"%s\"%s` and `--resume %s`; wrapIgnoreSuspend: \"bash -c 'stty susp undef; \" + cmd + \"'\"); internal/tmux/tmux.go lines 1553-1575 (argv tokens bash, -c, command so tmux execvp()s bash directly); internal/tmux/tmux.go cwdAssertCommand (line 1458: prefix + \" && \" + cmd) and startCommandSpec (line 1554 onward); internal/session/instance.go lines 5280, 5656, 10280 (RunCommandAsInitialProcess) and lines 1451-1570 (exec claude ... --session-id / --resume)"
+    },
+    {
+      "claim": "the TUI holds a long-lived tmux control-mode client per connected session as a direct child, so a child signal cannot separate working from idle",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/tmux/controlpipe.go line 143: tmuxExec(socketName, \"-u\", \"-C\", \"attach-session\", \"-t\", sessionName); internal/tmux/pipemanager.go (PipeManager: ControlPipes for all active tmux sessions)"
+    },
+    {
+      "claim": "status model, inputs per harness, precedence, cadence and blind spots",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/docs/status-detection.md (two layers: tmux.Session.GetStatus and Instance.updateStatus; claude hooks UserPromptSubmit to running, Stop / PermissionRequest / Notification(permission) to waiting, SessionEnd to dead, fresh 2 min; codex-notify hook running fresh 20 s, waiting fresh 5 s; pane title Braille spinner; TUI 2 s backing off to 10 s; substates)"
+    },
+    {
+      "claim": "status meanings shown to the user: Running green, Waiting yellow 'Needs your input', Idle grey 'Ready for commands', Error red",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck#status-detection (README.md 'Status Detection' table)"
+    },
+    {
+      "claim": "hook status file: <data dir>/hooks/<instance id>.json with keys status, session_id, event, ts (plus Codex generation fields); hook-handler maps events to running / waiting / dead (no `starting` value; HookStatus comment lists running, idle, waiting, dead); UserPromptSubmit running, Stop / PermissionRequest waiting, SessionEnd dead",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/cmd/agent-deck/hook_handler.go (struct with json tags status, session_id, event, ts; mapEventToStatus: sessionstart waiting, userpromptsubmit running, pretooluse running, posttooluse waiting, sessionend dead); internal/session/hook_watcher.go GetHooksDir() = dataPath(\"hooks\")"
+    },
+    {
+      "claim": "Agent Deck injects these Claude Code hooks into settings.json: SessionStart, UserPromptSubmit, Stop (sync), PermissionRequest (sync), Notification (matcher permission_prompt|elicitation_dialog), SessionEnd, PreCompact; command is `<abs path>/agent-deck hook-handler`; opt-out [claude] hooks_enabled = false",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/session/claude_hooks.go (hookEventConfigs, InjectClaudeHooks(configDir) writes filepath.Join(configDir, \"settings.json\"), hookHandlerSubcommand = \"hook-handler\"); skills/agent-deck/references/config-reference.md ([claude] hooks_enabled)"
+    },
+    {
+      "claim": "state store: SQLite in WAL mode at <data root>/profiles/<profile>/state.db, tables instances (id, title, project_path, tool, status, tmux_session, tmux_socket_name, created_at, ...), groups, instance_heartbeats, session_claims, cost_events, watchers, metadata; data root is ~/.local/share/agent-deck (XDG, fresh installs) or ~/.agent-deck (legacy) chosen by which one already holds profiles/; default profile name is `default`",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/statedb/statedb.go (CREATE TABLE IF NOT EXISTS instances ...; PRAGMA journal_mode=WAL); internal/session/config.go (GetProfilesDir = <data root>/profiles, DefaultProfile = \"default\"); internal/session/storage.go line 267 filepath.Join(profileDir, \"state.db\"); internal/session/store_root.go (\"neither holds profiles/ -> XDG (fresh install)\"); internal/agentpaths/paths.go (LegacyDir = ~/.agent-deck, DataDir = XDG_DATA_HOME or ~/.local/share)"
+    },
+    {
+      "claim": "the state.db path and schema are not a promised interface; the supported read surface is the CLI with --json",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/docs/macapp-core.md (Mac-app core surface: `list --json`, `session show --json`, `events follow --json --kind session.status,session.turn`, `recall timeline`, `harness list --json`); README only mentions the path in the [tmux] socket migration note, and gives it without the profiles/ level"
+    },
+    {
+      "claim": "event bus frames session.status {from,to,tool,tmux_session,substate,changed_at} and session.turn {phase started|ended, duration_ms}; NDJSON under <data dir>/bus/<profile>/active.ndjson; status frames need [macapp] status_events = true",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/docs/events.md; docs/macapp-core.md"
+    },
+    {
+      "claim": "daemon protocol: `agent-deck daemon serve|status|stop`, socket <data dir>/runtime/profiles/<profile>/daemon.sock, mode 0600, same-uid peer, subscribe frames; CLI dials it only with [core] daemon = true (default false)",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/docs/daemon-protocol.md"
+    },
+    {
+      "claim": "launchd: only com.agentdeck.transition-notifier (`<agent-deck> notify-daemon`, RunAtLoad, KeepAlive) and com.agentdeck.autoupdate (/bin/sh -c 'exec \"$0\" update --unattended --trigger timer') are generated by the source; com.agentdeck.web is a label the updater and CHANGELOG expect for a user-written headless `web --no-tui` agent, and no plist template for it exists in the tree; web default listen 127.0.0.1:8420",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/session/conductor.go (transitionNotifierPlistTemplate: ProgramArguments __AGENT_DECK__, notify-daemon; TransitionNotifierLaunchdPlistName = \"com.agentdeck.transition-notifier\"); skills/agent-deck/references/config-reference.md ([updates] and launchd hygiene: `notify-daemon`, `web --no-tui`); README.md ('agent-deck web  # Start web UI on http://127.0.0.1:8420'); internal/update/timer.go LaunchdPlist (ProgramArguments /bin/sh -c exec \"$0\" update --unattended --trigger timer); CHANGELOG.md line 196 and cmd/agent-deck/update_cli.go line 323 (com.agentdeck.web named as a headless web daemon); skills/agent-deck/references/config-reference.md 'macOS launchd hygiene' (`notify-daemon` or `web --no-tui`); README.md lines 1142 and 1239"
+    },
+    {
+      "claim": "subcommand list used for the TUI exclude_args",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/cmd/agent-deck/main.go lines 418-618 (the `case \"...\":` dispatch: telemetry, version, help, completion, add, list, ls, remove, rm, rename, mv, status, profile, update, session, fleet, mcp, plugin, skill, mcp-proxy, group, try, launch, health, doctor, accounts, harness, limits, conductor, agents, agent, telegram-doctor, watcher, openclaw, oc, remote, remote-agent, system, worktree, wt, costs, events, daemon, recall, usage, config, web, uninstall, migrate-paths, hook-handler, codex-notify, hooks, codex-hooks, gemini-hooks, hermes-hooks, cursor-hooks, tmux-hooks, pi-hooks, deepseek, notify-daemon, run-task, inbox, feedback, debug-dump); `web` falls through to the TUI launch unless --no-tui; cmd/agent-deck/main.go line 343 also handles a hidden `creds-refresh` stub (not in commandRegistry, exits at once), added to the denylist; commandRegistry at main.go line 1464 matches the denylist"
+    },
+    {
+      "claim": "supported tools with status detection: claude, gemini, opencode, codex, copilot (organization and launch only), crush, muse, cursor (terminal), hermes (organization and launch per README), pi, dsh (DeepSeek Harness), omp, and custom [tools.*] with busy_patterns; there is no Grok preset",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck#multi-tool-support (README 'Multi-Tool Support' table); internal/harness/table.go; skills/agent-deck/references/config-reference.md '[tools.*] Section' (command, icon, busy_patterns, env, resume_flag, session_id_env); grep -ril grok over *.go and *.md in the clone matched only an unrelated skill file and one test; re-run 2026-09-30 in the v1.16.22 clone: `grep -rli grok .` printed only cmd/agent-deck/assets/skills/watcher-creator/SKILL.md and internal/session/issue1112_remote_waiting_status_test.go"
+    },
+    {
+      "claim": "no OpenTelemetry: go.opentelemetry.io/otel* appear only as indirect requirements; no Go source imports them; OTEL_ strings appear only in a redaction test and a telemetry test",
+      "kind": "source-code",
+      "evidence": "go.mod lines 85-91 (`go.opentelemetry.io/otel v1.45.0 // indirect`, otel/sdk, otel/metric, otel/trace, otelgrpc, otelhttp); `grep -rIn 'OTEL_\\|otlp\\|go.opentelemetry' --include='*.go'` printed only internal/session/spawn_failure_redaction_test.go and internal/telemetry/upload_test.go"
+    },
+    {
+      "claim": "opt-in anonymous usage telemetry to PostHog EU, off by default, never asked inside an agent-deck session or under a coding agent",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/TELEMETRY.md; internal/telemetry/env.go (sessionMarkers AGENTDECK_INSTANCE_ID, agentMarkers CLAUDECODE, GEMINI_CLI, CURSOR_AGENT, CODEX_*)"
+    },
+    {
+      "claim": "desktop notification on waiting or error uses cmux, else notify-send on Linux or a Notification Center banner via osascript on macOS; default off",
+      "kind": "source-code",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/desknotify/desknotify.go (osascriptBackend); skills/agent-deck/references/config-reference.md ([notifications] desktop = false)"
+    },
+    {
+      "claim": "[interval_hooks.*] run `bash -lc <command>` on a wall-clock interval while the TUI runs, so they are transient direct children of the TUI",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/skills/agent-deck/references/config-reference.md '[interval_hooks.*] Section'"
+    },
+    {
+      "claim": "the TUI writes a heartbeat file per running TUI to <cache dir>/tui/<pid>.json (pid, version, restart state), listed by `agent-deck update --check --json` as running_tuis",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/update/tuiheartbeat.go (TUIHeartbeatDirName = \"tui\"); skills/agent-deck/references/config-reference.md [updates] section ('running_tuis ... from the heartbeat each TUI writes to <cache dir>/tui/<pid>.json')"
+    },
+    {
+      "claim": "a Mac app is announced but is not in this repo or release: docs call it 'the upcoming Mac app' and describe a core CLI surface for it; no bundle id exists",
+      "kind": "official-docs",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/CHANGELOG.md line 137 '### Core (for the upcoming Mac app)'; docs/macapp-core.md; no .app, Info.plist or bundle id in the tree (grep -i bundle over *.go, *.md printed only changelog prose and a Deepseek struct field)"
+    },
+    {
+      "claim": "Go's flag package accepts `-no-tui` as well as `--no-tui`, and web flags are parsed with flag.NewFlagSet, so the headless web process can carry either spelling",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/cmd/agent-deck/web_cmd.go lines 56-68 (fs := flag.NewFlagSet(\"web\", flag.ContinueOnError); fs.BoolVar(&options.noTUI, \"no-tui\", ...)); Go flag docs: one or two dashes are permitted. Row matching re-run with tools/agents_probe.matches() on `agent-deck web -no-tui`: before the fix it matched the tui surface, after it matches the web daemon surface"
+    },
+    {
+      "claim": "state.db carries text derived from conversations, not only counters: instances.title, project_path, command and auto_name_description (the last cleaned tmux pane title, i.e. the Claude task description); read the status column only",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/asheshgoplani/agent-deck/blob/v1.16.22/internal/statedb/statedb.go lines 435-465 (instances columns title, project_path, command, auto_name_description, tool_data); internal/session/instance.go lines 188-200 (autoNameDescription doc comment). Key names only, no store opened"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Agent Deck is a manager, not an agent, and has no turn of its own. To tell whether a hosted session is working, find the agent process (a child of the tmux server, argv[0] `claude`, `codex` ...) and apply that agent's own row; attribute it to Agent Deck by its tmux session name (`agentdeck_*`, from `tmux list-panes -a -F` on the default or the [tmux].socket_name server) or by AGENTDECK_INSTANCE_ID in the pane environment. Neither is in the command line, so the probe cannot label the attribution; it reports the agent under its own row, which is right. For Claude the pane argv carries `--session-id <uuid>`, so the claude-code row maps it to ~/.claude/projects/*/<uuid>.jsonl exactly as outside Agent Deck. The `agent-deck` TUI itself is reported by the tui surface only as 'manager alive'; its tree_cpu is a weak guess. Matching: the TUI surface is a denylist by exact argument (subcommands from main.go at v1.16.22). Known gaps: `agent-deck -p <profile>` and other global flags are fine (no subcommand token), but a project or profile literally named like a subcommand would be excluded; the binary can be renamed with install.sh --name; the daemon surfaces match on substring so `web` matches any argument containing it, and -no-tui (either dash form) keeps that safe. A `web` flag value equal to a denylisted word (for example `--token daemon`) is excluded, the same class of gap as a profile named `list`. Nothing was run: not installed, no live instance, so every field is from the public source at v1.16.22 and vendor docs. Not verified: real ps shape of the TUI, notify-daemon and web daemon on macOS; idle and busy CPU; whether the Homebrew symlink or the Cellar path shows in argv[0] (the match uses the basename, so either works). Store location: the session_store glob lists only the XDG root; a legacy install keeps the same file at ~/.agent-deck/profiles/*/state.db (the root that already holds profiles/ wins). state.db holds session titles, paths, commands and a pane-title task description, so read the status column only. Grok: Agent Deck ships no Grok preset (verified by grep at v1.16.22). Grok Bot (grok-bot row) is a desktop client of cloud bots and never appears in a tmux pane, so Agent Deck cannot host it; a Grok terminal agent (grok-build row) would only be an Agent Deck custom [tools.*] or shell session, and its pane process would match its own row (inferred, not run). Name clash: a web search 2026-09-30 found a second product also called 'Agent Deck' (a Stream Deck key plugin for Claude Code sessions, Facebook post) and a fork 'agent-desk'; the match needs argv[0] basename exactly `agent-deck`, and no binary of that name from another vendor was found, but that is not proven."
+}

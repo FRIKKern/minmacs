@@ -1,0 +1,416 @@
+{
+  "id": "codewhale",
+  "name": "CodeWhale",
+  "vendor": "Hmbown (open source, Hunter Bown)",
+  "homepage": "https://codewhale.net",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Interactive TUI: `codewhale` or its byte-identical alias `codew` (macOS Mach-O arm64/x64, ~64 MiB, installed to ~/.local/bin by https://codewhale.net/install.sh; also Homebrew (`brew install Hmbown/deepseek-tui/codewhale`, macOS formula exists), `cargo install codewhale-cli`, or npm `codewhale`). One binary, TUI runs in-process, one process is one session. The npm bins `codewhale`/`codew` are node shims (argv[0]=node, cannot match) that spawn the native binary `<pkg>/bin/downloads/codewhale` as a direct child with stdio inherit, so only the native process matches. `codewhale-tui` is a compatibility name (a standalone `cargo install codewhale-tui` binary, and the sibling child of the 0.8.41-0.9.4 dispatcher). Non-session subcommands and `exec`, `serve`, `app-server`, `web` are vetoed by exact argument. No .app bundle, so no bundle id. Known limits of the matcher: exclude_args is an exact match against ANY argument, so a prompt that is exactly one listed word (`codewhale review`) is hidden; sessions started with `resume <id>`/`fork <id>` match but the positional id is not read.",
+      "process": {
+        "names": [
+          "codewhale",
+          "codew",
+          "codewhale-tui"
+        ],
+        "exclude_args": [
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "help",
+          "doctor",
+          "models",
+          "speech",
+          "tts",
+          "sessions",
+          "receipts",
+          "receipt",
+          "init",
+          "setup",
+          "remote-setup",
+          "fleet",
+          "workflow-tool",
+          "lane-log-proxy",
+          "workflow",
+          "lane",
+          "review",
+          "apply",
+          "eval",
+          "mcp",
+          "pet",
+          "features",
+          "integrations",
+          "serve",
+          "web",
+          "login",
+          "logout",
+          "auth",
+          "account",
+          "cloud",
+          "dispatch",
+          "cloud-agent",
+          "mcp-server",
+          "config",
+          "model",
+          "thread",
+          "sandbox",
+          "app-server",
+          "completion",
+          "completions",
+          "metrics",
+          "update",
+          "providers",
+          "export",
+          "exec"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session-id"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "`codewhale exec \"prompt\"` (also `codew exec`): headless one-shot, no caffeinate, no TUI chrome, alive means working. Global flags may come before `exec`. `--resume/--session-id` resume a saved session. Known limit: args_contain is a SUBSTRING test on every argument, so an interactive `codewhale` whose prompt, path or flag value merely contains `exec` (for example `-C ~/executive` or `--model x-exec`) is filed here as one-shot, and one-shot means alive equals working. Tested with agents_probe.matches(); the registry offers no positional match to avoid it (registry/README.md section 3 case 16).",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "codewhale",
+          "codew",
+          "codewhale-tui"
+        ],
+        "args_contain": [
+          "exec"
+        ],
+        "exclude_args": [
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "help"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session-id"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "Runtime API host: `codewhale serve --http|--mobile` and `codewhale app-server --http|--mobile` (HTTP/SSE /v1/* on 127.0.0.1:7878, bearer token). One process holds many threads, so no session id in argv and no per-process state. `codewhale web` (local browser client, same runtime, default port 7878), `serve --web|--acp|--mcp`, `app-server --stdio` and legacy `app-server` (8787) are NOT matched: their argv has no distinctive flag and matching bare words would misfile prompts. Matched here by the --http flag only. Same substring limit: a prompt containing the text `--http` is filed as a daemon host.",
+      "host": true,
+      "process": {
+        "names": [
+          "codewhale",
+          "codew",
+          "codewhale-tui"
+        ],
+        "args_contain": [
+          "--http"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Legacy DeepSeek TUI (before the 0.8.41 rebrand, 2026-05-23): binary `deepseek-tui`, spawned by the `deepseek` dispatcher as a direct child (confirmed in the v0.8.40 source, crates/cli/src/lib.rs delegate_simple_tui `Command::new(&tui)`; not observed running). The dispatcher itself is not matched because `deepseek` is a name other tools use. Stores in ~/.deepseek/. This binary and every release up to v0.9.13 hold NO caffeinate child (the sleep guard first ships in v0.10.0), so only tree_cpu applies. The subcommand veto list is copied from the current CLI, not from the legacy one.",
+      "process": {
+        "names": [
+          "deepseek-tui"
+        ],
+        "exclude_args": [
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "help",
+          "doctor",
+          "models",
+          "speech",
+          "tts",
+          "sessions",
+          "receipts",
+          "receipt",
+          "init",
+          "setup",
+          "remote-setup",
+          "fleet",
+          "workflow-tool",
+          "lane-log-proxy",
+          "workflow",
+          "lane",
+          "review",
+          "apply",
+          "eval",
+          "mcp",
+          "pet",
+          "features",
+          "integrations",
+          "serve",
+          "web",
+          "login",
+          "logout",
+          "auth",
+          "account",
+          "cloud",
+          "dispatch",
+          "cloud-agent",
+          "mcp-server",
+          "config",
+          "model",
+          "thread",
+          "sandbox",
+          "app-server",
+          "completion",
+          "completions",
+          "metrics",
+          "update",
+          "providers",
+          "export",
+          "exec"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session-id"
+      ]
+    },
+    {
+      "kind": "gui",
+      "label": "Codewhale desktop app (native GPUI macOS app, separate repository, development build, no public download as of 2026-09-30). Bundle id and process name unknown, so nothing is matched. It drives the same Runtime API as `serve --http`.",
+      "host": true
+    },
+    {
+      "kind": "ide",
+      "label": "VS Code extension HengQuWorld.brotherwhale-vscode (community maintained, https://github.com/HengQuWorld/CodeWhale-VSCode): a sidebar client of the local Runtime. It ships no agent process of its own that this row can match."
+    },
+    {
+      "kind": "cloud",
+      "label": "Hosted web app app.codewhale.net (development preview; `/rc` in a terminal session hands it to the web) and `codewhale dispatch` cloud agents. Nothing local to see."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.codewhale/sessions/*.json",
+    "per_session": "~/.codewhale/sessions/{session_id}*.json",
+    "format": "json",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "Only from v0.10.0 (2026-09-22) on: every earlier release, including all of 0.8.41-0.9.13 and the legacy deepseek-tui, holds no sleep inhibitor and has no such child. The interactive TUI spawns `caffeinate -i` (v0.10.0) or `caffeinate -i -w <own pid>` (main, v0.10.1 candidate) as a direct child for the whole of a turn (guard bound to Engine::run_turn) and kills it when the turn returns. Not held by exec, serve, app-server or web. Inferred from source: it stays held while the turn waits on an approval or a question, so pair it with the waiting signals."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback only. Also the only signal for `exec` and the Runtime API host, where CPU is not proof. Never proves idle: model calls burn none. The 3% floor is the registry default, not measured for this harness; it is the only signal on releases before v0.10.0."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "waiting_for_user",
+      "reason": [
+        "approval",
+        "user_input",
+        "goal_continuation"
+      ],
+      "meaning": "Fires when an approval prompt opens, a request_user_input question is shown, or a goal continuation is parked. Needs a [[hooks.hooks]] entry in config.toml. `session_busy` fires when work resumes."
+    },
+    {
+      "signal": "hook",
+      "event": "session_idle",
+      "meaning": "Session settled back to idle after a turn or wait, nothing outstanding."
+    },
+    {
+      "signal": "socket",
+      "path": "~/.codewhale/sessions/<session-id>/control.sock",
+      "method": "status",
+      "field": "turn_state",
+      "values": [
+        "idle",
+        "in_progress",
+        "waiting"
+      ],
+      "meaning": "Exact state per process, opt-in with `[control_socket] enabled = true` (default off). Newline JSON-RPC, one request per connection. The path is per running session and removed with it."
+    },
+    {
+      "signal": "file",
+      "path": "[lifecycle_outbox] path (opt-in JSONL)",
+      "events": [
+        "turn.started",
+        "turn.completed",
+        "turn.failed",
+        "turn.interrupted",
+        "turn.stalled"
+      ],
+      "meaning": "Open-turn record: turn.started without a closing turn.* event. Opt-in, off by default, one file may be shared by many processes."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.codewhale/config.toml `[hooks]` + `[[hooks.hooks]]` (legacy ~/.deepseek/config.toml, or CODEWHALE_CONFIG_PATH); project `<workspace>/.codewhale/hooks.toml` loads only after workspace trust plus `/hooks approve <digest>`. List with `/hooks` in the TUI.",
+    "events": [
+      "session_start",
+      "session_end",
+      "turn_end",
+      "message_submit",
+      "tool_call_before",
+      "tool_call_after",
+      "mode_change",
+      "on_error",
+      "subagent_spawn",
+      "subagent_complete",
+      "shell_env",
+      "session_idle",
+      "session_error",
+      "waiting_for_user",
+      "session_busy"
+    ],
+    "docs": "https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry exporter: Cargo.lock has no opentelemetry crate and grep for OTEL/OTLP finds nothing in crates/ or docs/ (only pet/ and telemetry-ingest/package-lock.json). Product analytics are aggregate batches (no per-turn or per-tool timeline) sent to the first-party ingest at https://telemetry.codewhale.net/v1/telemetry, on by default, off with `codewhale config set telemetry false` or CODEWHALE_TELEMETRY=0. PostHog is an optional downstream sink of that ingest, inert until its operator configures it (docs/TELEMETRY.md), so it is not part of what the client does. An opt-in `[lifecycle_outbox]` writes JSONL and can POST a webhook."
+  },
+  "sources": [
+    {
+      "claim": "Only one program: the `codewhale` binary; `codew` is a byte-identical copy, the TUI runs in-process, no sibling codewhale-tui is needed since v0.9.5",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/Hmbown/Codewhale/blob/main/docs/ENVIRONMENTS.md (section 'Consolidated runtime commands'); crates/cli/Cargo.toml has [[bin]] name = \"codewhale\"; crates/cli/src/lib.rs COMPLETION_ALIAS_NAME comment: release-artifacts.yml copies the binary and cmps it; docs/INSTALL.md macOS notes: 'installed codewhale and codew (64 MiB each, Mach-O arm64)'"
+    },
+    {
+      "claim": "Rebrand: deepseek / deepseek-tui became codewhale / codew in v0.8.41; new state in ~/.codewhale, ~/.deepseek stays a read fallback; DEEPSEEK_* env vars still work",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/Hmbown/Codewhale/blob/main/docs/REBRAND.md; crates/paths/src/lib.rs CODEWHALE_APP_DIR = \".codewhale\", LEGACY_APP_DIR = \".deepseek\""
+    },
+    {
+      "claim": "Not installed on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "Re-run 2026-09-30: `which codewhale codew deepseek deepseek-tui` printed 'not found' four times; `ps -axo pid,args | grep -i -E 'codew|deepseek-tui'` printed nothing; `ls ~/.codewhale ~/.deepseek`: No such file or directory; `ls /opt/homebrew/bin ~/.cargo/bin /usr/local/bin ~/.local/bin | grep -i -E 'codew|deepseek'` printed nothing; `npm ls -g --depth=0 | grep -i -E 'codewhale|deepseek'` printed nothing. (~/.local/bin holds 23 unrelated entries, not 'codex only'.)"
+    },
+    {
+      "claim": "Interactive TUI turn holds a sleep inhibitor as a direct child, from v0.10.0 on only: `caffeinate -i` in v0.10.0, `caffeinate -i -w <pid>` on main; released when the turn returns; never for exec/app-server/CI",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "v0.10.0 crates/tui/src/sleep_guard.rs line 99 `spawn(\"caffeinate\", &[\"-i\"])`, crates/tui/src/core/engine/turn_loop.rs line 697 `let _sleep_guard = self.config.terminal_chrome_enabled.then(crate::sleep_guard::SleepGuard::hold)`; main crates/runtime/src/sleep_guard.rs caffeinate_args = [\"-i\",\"-w\",pid]; docs/ENVIRONMENTS.md 'Keeping the host awake during a turn'; exec_agent.rs sets terminal_chrome_enabled: false; CHANGELOG.md under [0.10.0] - 2026-09-22: 'Codewhale holds the host's idle-sleep assertion while a turn is in flight (`caffeinate -i` on macOS ...). You will see one child process per turn.'; `git ls-tree -r --name-only <tag> | grep -c sleep_guard.rs` gives 0 for v0.8.40, v0.8.41, v0.9.0, v0.9.4, v0.9.5, v0.9.10, v0.9.13 and 1 for v0.10.0; `git grep -n -i -E 'IOPMAssertion|pmset|systemd-inhibit' v0.9.13 -- crates` finds nothing"
+    },
+    {
+      "claim": "The guard lives in run_turn and approvals are awaited inside the turn, so caffeinate very likely stays on while waiting for approval",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "inferred: crates/tui/src/core/engine/approval.rs await_tool_approval is called from tool execution under turn_loop.rs; guard is a local `_sleep_guard` dropped on every return path. Not observed running."
+    },
+    {
+      "claim": "Terminal title becomes a whale plus activity verb during a turn (frames 🐳🐋🐳🐋) and OSC 9;4;1 indeterminate progress is written; same gate as caffeinate",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/tui/src/tui/notifications.rs TITLE_WHALE_FRAMES, set_taskbar_progress_busy -> \\x1b]9;4;1\\x07, called at turn_loop.rs right after the sleep guard"
+    },
+    {
+      "claim": "Saved sessions are one pretty-printed JSON document per session, <uuid>.json, in ~/.codewhale/sessions; legacy ~/.deepseek/sessions entries are copied in; top-level keys schema_version, metadata, messages, journal, leaf_id, system_prompt, context_references, artifacts, work_state, window_title",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/tui/src/session_manager.rs: SavedSession struct, serialize_saved_session uses serde_json::to_string_pretty, save_session_owned write_atomic(<id>.json), Uuid::new_v4() for id, default_sessions_dir + merge_missing_legacy_session_entries; docs/CONFIGURATION.md 'Stored sessions' names ~/.codewhale/sessions/*.json. Record keys are from the struct, no record read (not installed)."
+    },
+    {
+      "claim": "Per-session sidecars: sessions/<id>/ dir (runtime store, control.sock, approval_receipts.jsonl), sessions/checkpoints/<id>.json crash-recovery checkpoint, and an exclusive flock on sessions/.late-usage/<id>.live held for as long as a process owns the session",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/tui/src/session_manager.rs LIVE_SESSION_LEASE comment (#6144), save_checkpoint_owned, sessions_dir.join(id).join(\"approval_receipts.jsonl\"); docs/CONFIGURATION.md CODEWHALE_RUNTIME_DIR: interactive sessions default to $CODEWHALE_HOME/sessions/<session-id>/runtime. The .live lock is present in v0.10.0 (7 matches)."
+    },
+    {
+      "claim": "Process to session: `--resume/-r <id-or-prefix>`, `--session-id <id>` (alias) and `-c/--continue` exist; a fresh session has no id in argv; `lsof -p <pid>` on the .late-usage/<id>.live lock is the only other mapping (inferred)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/cli/src/lib.rs Cli struct fields resume (short 'r'), session_id (long 'session-id'), continue_session; `codewhale resume <id>` subcommand is positional and not read by the probe"
+    },
+    {
+      "claim": "Hooks: 15 events, TOML config, three steering (message_submit, tool_call_before, shell_env), waiting_for_user carries reason approval|user_input|goal_continuation; fire in the TUI, Runtime API threads (4 events) and `exec --hooks` (2 events); waiting_for_user/session_busy/session_idle/session_error also exist in the v0.10.0 tag",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md ('The 15 events', Scope); `git show v0.10.0:docs/HOOKS.md` line 244 lists waiting_for_user"
+    },
+    {
+      "claim": "Control socket: newline JSON-RPC, status returns turn_state idle|in_progress|waiting; off by default; also in v0.10.0",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "docs/CONFIGURATION.md '## Control Socket (`[control_socket]`)' (line 3007 on main, 2777 in v0.10.0)"
+    },
+    {
+      "claim": "Lifecycle outbox: opt-in JSONL/webhook with turn.started, turn.completed, turn.failed, turn.interrupted, turn.stalled, subagent.*, session.*",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "docs/CONFIGURATION.md '## Lifecycle Outbox (`[lifecycle_outbox]`)'"
+    },
+    {
+      "claim": "No OpenTelemetry; product telemetry is aggregate batches to the first-party ingest telemetry.codewhale.net (PostHog is an optional, inert-until-configured downstream sink)",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/Hmbown/Codewhale/blob/main/docs/TELEMETRY.md ('There is now a real endpoint ... first-party ingest service at https://telemetry.codewhale.net/v1/telemetry'; 'The PostHog sink is optional and inert until the ingest operator explicitly configures a project token'; 'sends no per-turn or per-tool timeline'); `grep -c opentelemetry Cargo.lock` printed 0; `grep -rIl -i -E 'opentelemetry|otlp|OTEL_' crates docs` printed nothing; matches exist only in pet/ and telemetry-ingest/package-lock.json"
+    },
+    {
+      "claim": "Runtime API host surfaces and the status endpoint GET /v1/threads/running (bearer token); `codewhale web` binds 127.0.0.1:7878",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "docs/RUNTIME_API.md (thread routes list), docs/WEB.md, `codewhale serve --help` text in crates/cli/src/lib.rs (--http, --mobile, --web, --acp, --mcp; app-server --http|--mobile|--stdio)"
+    },
+    {
+      "claim": "Subcommand list used for exclude_args (kebab-case of the clap Commands enum)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/cli/src/lib.rs `enum Commands`: Run, Doctor, Models, Speech(tts), Sessions, Receipts(receipt), Resume, Rc, Fork, Init, Setup, RemoteSetup, Exec, Fleet, WorkflowTool, LaneLogProxy, Workflow, Lane, Review, Apply, Eval, Mcp, Pet, Features, Integrations, Serve, Web, Login, Logout, Auth, Account(cloud), Dispatch(cloud-agent), McpServer, Config, Model, Thread, Sandbox, AppServer, Completion(completions), Metrics, Update, Providers, Export"
+    },
+    {
+      "claim": "Shell tool children on macOS are `/usr/bin/sandbox-exec -p <policy> /bin/sh -c ...` (exec's into sh) in a new process group; MCP servers, LSP and background shells are also long-lived direct children, so tool_children is left out",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/tui/src/sandbox/seatbelt.rs SANDBOX_EXEC_PATH, crates/tui/src/tools/shell.rs Command::new(program) with process_group(0); docs/INSTALL.md macOS notes 'sandbox available: macos-seatbelt'. Inferred for the process shape; not observed."
+    },
+    {
+      "claim": "Desktop app and hosted web are not shipped; VS Code extension is community-made; Computer Use helper is codesigned net.codewhale.computer-use.helper",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://codewhale.net/en/product ('Desktop: Development build ... A public download is coming later'; 'Hosted web app: Development preview'); README.md VS Code Marketplace item HengQuWorld.brotherwhale-vscode; crates/tui/build.rs codesign --identifier net.codewhale.computer-use.helper; README.<lang>.md line 58 (e.g. README.fr.md): 'Application de bureau Codewhale (GPUI) ... développée dans un dépôt séparé' supports 'native GPUI app, separate repository'; the product page was re-fetched 2026-09-30 and says 'Desktop: Development build ... A public download is coming later' and 'Hosted web app: Development preview'"
+    },
+    {
+      "claim": "Latest published release is v0.10.0 (2026-09-22); main is at 0.10.1 candidate (568abae, 2026-09-30); macOS assets codewhale-macos-arm64|x64, codew-macos-*, plus compatibility codewhale-tui-macos-*",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "`gh api repos/Hmbown/Codewhale/releases/latest` -> v0.10.0 2026-09-22T17:28:34Z and its asset list; `git ls-remote --tags origin 'v0.10*'` -> only v0.10.0"
+    },
+    {
+      "claim": "Legacy dispatcher spawned deepseek-tui as a direct child; the current binary runs the TUI in-process from v0.9.5 (v0.8.41-0.9.4 still delegate)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "git show v0.8.40:crates/cli/src/lib.rs: fn delegate_simple_tui `Command::new(&tui)` and 'deepseek-tui terminated by signal'; `git show <tag>:crates/cli/src/lib.rs | grep -c run_tui_in_process` gives 0 for v0.9.3 and v0.9.4 (fn delegate_to_tui present) and 27 for v0.9.5 (no delegate_to_tui); main crates/cli/src/lib.rs run_tui_in_process calls codewhale_tui::run(argv) directly; npm/codewhale/scripts/run.js line 68 `spawn(binaryPath, args, { stdio: \"inherit\" })`"
+    },
+    {
+      "claim": "Process patterns: interactive vs exec vs daemon filing, tested with agents_probe.matches() on synthetic argv",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 harness importing tools/agents_probe.py, 34 argv. Correct: `codewhale`, `codew`, full path with --resume, -p prompt, resume/fork/rc/run and -c match the TUI surface; doctor, update, review, help, web, deepseek and the node shim match nothing; `codewhale exec`, `--model x exec` match the exec surface; `serve --http`, `app-server --http` match the daemon. Wrong by construction: `codew -C /Users/x/executive` and `codewhale --model exec-model` match the exec (one-shot) surface; `codewhale --workspace model` and `--profile config` (values equal to a vetoed word) match nothing"
+    },
+    {
+      "claim": "The sessions glob ~/.codewhale/sessions/*.json also matches session_boot_owners.json, which is not a session",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/tui/src/session_manager.rs SESSION_BOOT_OWNERS_STEM = \"session_boot_owners\", session_boot_owners_path() = sessions_dir/session_boot_owners.json; per-session sidecars are under sessions/<id>/, sessions/checkpoints/ and sessions/.late-usage/, none of which the glob reaches"
+    },
+    {
+      "claim": "Homebrew formula exists for macOS; install.sh default dir is ~/.local/bin; author is Hunter Bown",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "`gh api repos/Hmbown/homebrew-deepseek-tui/contents/Formula/codewhale.rb` has an on_macos block with codewhale-macos-arm64|x64 v0.10.0 (docs/INSTALL.md section 6 only documents Linux); `curl -sSL https://codewhale.net/install.sh` line 17 'CODEWHALE_INSTALL_DIR Install directory. Default: $HOME/.local/bin'; `gh api users/Hmbown --jq .name` printed 'Hunter Bown'"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Nothing was run: CodeWhale is not installed here, so every claim comes from the public repo (main 568abae, tag v0.10.0) and docs. Key facts. (1) One Rust binary, `codewhale`, with `codew` as a byte-identical alias; the old `deepseek`/`deepseek-tui` names are pre-0.8.41. (2) From v0.10.0 the interactive TUI holds a direct-child `caffeinate` for the whole turn, so the standard child_process signal is the most precise working signal; it is TUI-only, so `exec` (oneshot) and the Runtime API host need CPU or an API read. (3) Caffeinate probably stays on during approval waits, so let `waiting_for_user` (hook) or control-socket `turn_state` = waiting override it. (4) The hook session id `sess_xxxxxxxx` (DEEPSEEK_SESSION_ID / CODEWHALE_SESSION_ID) is not the saved-session UUID in the file name. (5) A fresh session has no id in argv, so mapping a process to its <uuid>.json needs lsof on the .late-usage/<id>.live lock, or the control-socket directory name. (6) transcript_write is not listed as a working signal: autosave timing was not established and would extend `working` after a turn ends. (7) With the 0.8.41-0.9.4 dispatcher, `codewhale` is the parent of a `codewhale-tui` child; the outermost-match rule reports the dispatcher, and tree_cpu still sees the child because it sums the whole tree. No release before v0.10.0 holds caffeinate (verified by source diff across tags), so on those installs, and on the legacy deepseek-tui, the only working signal is tree_cpu, which never proves idle. (8) Matcher limits, tested: args_contain is a substring test, so an interactive session with `exec` anywhere in an argument is filed as one-shot (alive equals working), and a prompt containing `--http` is filed as a daemon host; exclude_args is exact, so a prompt that is exactly a vetoed word hides a session. (9) ~/.codewhale/sessions/*.json also matches session_boot_owners.json, which is not a session. (10) Telemetry: PostHog is an optional downstream sink of the first-party ingest, not the client endpoint."
+}

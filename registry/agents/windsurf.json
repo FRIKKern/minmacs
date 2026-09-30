@@ -21,26 +21,6 @@
       }
     },
     {
-      "kind": "tui",
-      "label": "Devin CLI, and Devin Local (the Devin CLI harness, same agent code). Documented launch as `devin acp` (Agent Client Protocol over stdio) only for the local-registry sample in the ACP docs; the bundled Devin Local agent that Desktop 'fetches from the server' has no documented launch command or install path, so its process name and path are inferred to be `devin`. Also matches one-shot subcommands (devin mcp list, devin auth status, devin list) and long-lived `devin forward` / `devin ssh` / `devin --cloud` clients, which are not local agent turns.",
-      "process": {
-        "names": [
-          "devin"
-        ],
-        "path_contains": [
-          "/Caskroom/devin-cli/"
-        ],
-        "exclude_args": [
-          "--version",
-          "--help"
-        ]
-      },
-      "session_id_args": [
-        "-r",
-        "--resume"
-      ]
-    },
-    {
       "kind": "cloud",
       "label": "Devin Cloud sessions shown in the Devin Desktop Agent Command Center (run on Devin VMs; nothing local to match)"
     },
@@ -72,8 +52,7 @@
     },
     {
       "signal": "power_assertion",
-      "name": "UNVERIFIED: any IOKit/pmset assertion owned by Devin or devin",
-      "meaning": "Nothing in the vendor docs or changelogs mentions a sleep inhibitor (searched the full docs.devin.ai corpus for caffeinate, prevent sleep, wake lock, powerSaveBlocker: no hits). Not checked against a running app because none is installed here. Check `pmset -g assertions` on a machine with a live turn before trusting or dropping this."
+      "meaning": "Nothing in the vendor docs or changelogs mentions a sleep inhibitor (searched the full docs.devin.ai corpus for caffeinate, prevent sleep, wake lock, powerSaveBlocker: no hits). Not checked against a running app because none is installed here. Check `pmset -g assertions` on a machine with a live turn before trusting or dropping this. Matched by owner pid only; the assertion name is not known as pmset prints it."
     }
   ],
   "waiting_signals": [
@@ -200,8 +179,14 @@
       "kind": "local-observation",
       "date": "2026-09-29",
       "evidence": "ls /Applications | grep -i -E 'devin|windsurf' printed nothing; which devin devin-desktop surf windsurf: all 'not found'; ls of ~/.devin ~/.windsurf ~/.local/share/devin ~/.config/devin ~/Library/Application Support/{Devin,devin}: all 'No such file'; ps and pmset -g assertions filtered for devin|windsurf|language_server: no lines; re-run 2026-09-29 by the verifier with the same result, plus tools/agents_probe.py --row registry/agents/windsurf.json printed '0 agent sessions'"
+    },
+    {
+      "claim": "power_assertion.name is matched as a substring of the name pmset prints; prose there never matches",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "completeness critic of wave 3 checked tools/agents_probe.py against the six rows; name set from the row's own cited source or removed"
     }
   ],
   "confidence": "documented",
-  "notes": "READ FIRST: 'Windsurf' no longer exists as a product name. Since 2026-06-02 it ships as Devin Desktop (Devin.app) with bundle id com.exafunction.windsurf unchanged. Cascade, the agent everyone associates with Windsurf, was removed on 2026-09-08 (v3.9.19); the agent now is Devin Local, the Devin CLI harness. Identification (names, bundle ids, hooks, config paths, CLI flags) is documented; every working_signals entry is INFERRED because nothing was installed to observe a live turn. How the bundled Devin Local runs under Devin.app is NOT documented: the docs only show `devin acp` for a local-registry sample, and call the bundled agent 'fetched from the server'. Do not assume a child process named `devin` exists under Devin.app until seen with ps. The `devin` CLI is a distinct product surface and may deserve its own row; it is folded in because it is the same harness. Known matcher limits (checked with synthetic argv through tools/agents_probe.py matches()): Devin Helper processes and `devin --version` do not match; `devin mcp list` and other subcommands do; `probe.processes()` splits ps args on spaces so the 'Devin - Next.app' and 'Windsurf - Next.app' path entries can never fire; a bare `-r` followed by a flag yields a wrong session id. Untried candidates worth checking on a live machine: the per-process log ~/.local/share/devin/cli/logs/devin_<timestamp>_<pid>.log (vendor-documented, contains the pid, so it maps a process to a file), the AI_AGENT=devin_<version>_agent env var that agent shell commands carry since CLI v3000.11.1, and `pmset -g assertions`. Old Windsurf.app matchers are kept for machines that have not updated."
+  "notes": "READ FIRST: 'Windsurf' no longer exists as a product name. Since 2026-06-02 it ships as Devin Desktop (Devin.app) with bundle id com.exafunction.windsurf unchanged. Cascade, the agent everyone associates with Windsurf, was removed on 2026-09-08 (v3.9.19); the agent now is Devin Local, the Devin CLI harness. Identification (names, bundle ids, hooks, config paths, CLI flags) is documented; every working_signals entry is INFERRED because nothing was installed to observe a live turn. How the bundled Devin Local runs under Devin.app is NOT documented: the docs only show `devin acp` for a local-registry sample, and call the bundled agent 'fetched from the server'. Do not assume a child process named `devin` exists under Devin.app until seen with ps. The `devin` CLI is a distinct product surface and may deserve its own row; it is folded in because it is the same harness. Known matcher limits (checked with synthetic argv through tools/agents_probe.py matches()): Devin Helper processes and `devin --version` do not match; `devin mcp list` and other subcommands do; `probe.processes()` splits ps args on spaces so the 'Devin - Next.app' and 'Windsurf - Next.app' path entries can never fire; a bare `-r` followed by a flag yields a wrong session id. Untried candidates worth checking on a live machine: the per-process log ~/.local/share/devin/cli/logs/devin_<timestamp>_<pid>.log (vendor-documented, contains the pid, so it maps a process to a file), the AI_AGENT=devin_<version>_agent env var that agent shell commands carry since CLI v3000.11.1, and `pmset -g assertions`. Old Windsurf.app matchers are kept for machines that have not updated. The Devin CLI has its own row (devin); its terminal surface was removed here."
 }

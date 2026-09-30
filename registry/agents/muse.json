@@ -1,0 +1,257 @@
+{
+  "id": "muse",
+  "name": "Muse Code",
+  "vendor": "Meta",
+  "homepage": "https://dev.meta.ai/docs/muse-code",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Muse Code in a terminal (muse, muse exec, muse resume); launcher install execs muse-bin-<version>, Homebrew cask runs muse-aarch64-macos or muse-x86-macos as `muse`",
+      "process": {
+        "names": [
+          "muse"
+        ],
+        "path_contains": [
+          "/muse-bin-",
+          "/muse-aarch64-macos",
+          "/muse-x86-macos"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-V",
+          "-h",
+          "auth",
+          "config",
+          "export",
+          "init",
+          "login",
+          "logout",
+          "mcp",
+          "plugins",
+          "schema",
+          "skills",
+          "trace",
+          "workflows"
+        ]
+      },
+      "session_id_args": [
+        "--session-id"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "muse serve: Muse Session Protocol host over stdio, spawned by @muse-code/sdk, ACP adapters and third-party GUIs; one process can hold several sessions",
+      "process": {
+        "names": [
+          "muse"
+        ],
+        "path_contains": [
+          "/muse-bin-",
+          "/muse-aarch64-macos",
+          "/muse-x86-macos"
+        ],
+        "args_contain": [
+          "serve"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-V",
+          "-h",
+          "auth",
+          "config",
+          "exec",
+          "export",
+          "init",
+          "login",
+          "logout",
+          "mcp",
+          "plugins",
+          "resume",
+          "schema",
+          "skills",
+          "trace",
+          "workflows"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/muse/sessions/*/*/*/*/session.jsonl",
+    "per_session": "~/.local/share/muse/sessions/*/*/*/{session_id}/session.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "raise only. session.jsonl is append-only and gets a line per run, model and tool event, but a long model call or tool call can leave it quiet. Maps only when the process was started with --session-id; a fresh or resumed TUI session has no id in argv. --no-session-log writes nothing."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "inferred: agent shell commands run in a Seatbelt sandbox on macOS, so a shell (or a sandbox-exec wrapper, which this signal would miss) sits as a direct child only while a tool runs. Blind while the model streams. Not seen on a live process."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "fallback guess, never measured; a turn waiting on the network burns almost none"
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "meaning": "documented: fires when the agent needs your approval"
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "documented event name; fires on an approval request. Exact timing relative to Notification is not documented"
+    },
+    {
+      "signal": "protocol",
+      "event": "muse serve status",
+      "meaning": "documented in the changelog: muse serve clients receive live session status changes and an attention flag when a session has a pending approval or input. Needs a client attached to the serve process"
+    },
+    {
+      "signal": "tty",
+      "event": "screen text",
+      "meaning": "third-party (ccmux rules, captured from Muse Code 1.0.3): trust prompt text 'Do you trust this workspace?'; input frame '⟩' with no '◇ Thinking' line means idle at the composer. The composer frame stays visible while working. Not readable by a command-line matcher"
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks block in ~/.config/muse/settings.json (schema_version must be 1); project <project-root>/.muse/hooks.json after workspace trust; managed file named by managed_hooks_path. Shape: {\"hooks\": {\"<Event>\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"...\"}]}]}}. Payload arrives as JSON on stdin with hook_event_name, session_id, turn_id, model (stdin and field names are from the SigNoz script only; dev.meta.ai does not describe the payload). SigNoz says a project .muse/hooks.json is silently ignored while dev.meta.ai says it loads after trust: unresolved, so prefer the settings.json block. Hooks run through your shell outside the sandbox with a cleared environment plus a small allowlist (official).",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PreLLMCall",
+      "PostLLMCall",
+      "PreCompact",
+      "PostCompact",
+      "SubagentStart",
+      "SubagentStop",
+      "Notification",
+      "Stop",
+      "SessionEnd",
+      "Interrupt"
+    ],
+    "docs": "https://dev.meta.ai/docs/muse-code/extending"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No documented native OpenTelemetry switch found on dev.meta.ai. SigNoz says Muse Code 'ships its own OpenTelemetry exporter' but gives no setting and uses a hook script instead: UserPromptSubmit to Stop with turn_id brackets a turn, and PostLLMCall carries the W3C meta.traceparent that Muse attaches to every model call. Product telemetry is disabled with TBH_DISABLE_TELEMETRY=1 (seen in SDK QA source). MUSE_TRANSPORT_TRACE=1 prints provider lines to stderr."
+  },
+  "sources": [
+    {
+      "claim": "Muse Code is Meta's coding agent for the terminal and CI; interactive TUI (muse), headless (muse exec), and muse serve / muse schema for the session protocol; install puts a native muse binary on the path; no desktop app or bundle id is documented",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://dev.meta.ai/docs/muse-code (fetched with curl, HTML stripped)"
+    },
+    {
+      "claim": "the launcher installed by install.sh lives at ~/.local/bin/muse and ends with `exec \"$binary\" \"$@\"` where binary is <dir>/muse-bin-<version> read from <dir>/.muse-version; version pattern ^[0-9]+\\.[0-9]+\\.[0-9]+-R[0-9]+(\\.[0-9]+)?$; stable channel is 1.4.1-R4503.1",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "curl https://dev.meta.ai/install.sh (install_dir=${MUSE_INSTALL_DIR:-$HOME/.local/bin}) and curl https://api.meta.ai/muse-launcher.sh (lines: target=\"$dir/muse-bin-$version\"; exec \"$binary\" \"$@\"); curl https://api.meta.ai/muse-code/channels/muse-stable printed version 1.4.1-R4503.1"
+    },
+    {
+      "claim": "Homebrew cask muse-code links muse-aarch64-macos (Apple silicon) or muse-x86-macos (Intel) as $HOMEBREW_PREFIX/bin/muse and zaps ~/.config/muse and ~/.local/share/muse",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://formulae.brew.sh/api/cask/muse-code.json artifacts and variations"
+    },
+    {
+      "claim": "user settings live at ~/.config/muse/settings.json with a first-class hooks block, managed_hooks_path, telemetry options; credentials in ~/.config/muse/auth.json (MUSE_AUTH_PATH overrides)",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://dev.meta.ai/docs/muse-code/configuration ; api.meta.ai/muse-launcher.sh credential_default"
+    },
+    {
+      "claim": "session store is $XDG_DATA_HOME/muse/sessions, falling back to ~/.local/share/muse/sessions; layout YYYY/MM/DD/<uuid>/session.jsonl with a .session.lock flock file beside it, subagent logs nested as session.jsonl, derived view cache in .msp-view-v1/<id>",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/skzv/ccmux (third-party, commit 4224543) internal/muse/log.go SessionsRoot()/SessionDir() and internal/muse/delete.go; https://ccmux.ai/docs/muse-code/ says the same. Muse changelog 1.1.1 entry names subagent/<id>/session.jsonl. Path is never stated on dev.meta.ai, so documented=false"
+    },
+    {
+      "claim": "session.jsonl holds one JSON record per line with keys schema_version, id, stream{kind,id}, sequence, recorded_at (microseconds), record_type, durability, causation_id, payload_type, payload_schema_version, payload; run events use payload_type runtime.session, payload.kind run, event.kind started / model_completed / assistant_message_committed. The event that closes a run is not in any source I could read; the first line of the fixture is instead a retained-frame wrapper with keys retained_frame, frame_schema_version, children (child_index, record_json), which the parser also handles, so a reader must not assume every line has the record keys",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "keys of every line of the synthetic fixture https://github.com/skzv/ccmux internal/muse/testdata/native-session.jsonl (8 lines, checked locally: line 1 is the frame wrapper, lines 2-8 the record shape); parser internal/muse/log.go (fixture is synthetic, so real files are unverified)"
+    },
+    {
+      "claim": "a fresh process has no session id in argv; resume takes a positional id or name (muse resume <id>), headless takes muse exec --session-id <uuid>; muse resume picker names the pid, host and lock age of a process already holding a session",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://dev.meta.ai/docs/muse-code/extending (Headless and CI: `muse exec --session-id <uuid>`; `muse resume` is interactive and not headless); Muse changelog 1.2.1 or later: 'Resume a session by its exact Session Name with muse resume <name>' and 'resume <id> --no-session-log'; changelog 1.4.0: startup resume picker 'session already open' notice names pid, host and lock age. Positional id and name come from the changelog, not the /interactive page"
+    },
+    {
+      "claim": "sessions are an append-only event log; --no-session-log disables retention, resume and peer messaging",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://dev.meta.ai/docs/muse-code/interactive (How sessions work) and /configuration (Launch flags)"
+    },
+    {
+      "claim": "hook events (15 listed), the three hook sources, Notification fires when the agent needs approval, hooks run outside the sandbox with a cleared environment plus small allowlist, no muse hooks command family",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://dev.meta.ai/docs/muse-code/extending (Hooks, Lifecycle events)"
+    },
+    {
+      "claim": "an observation-only Interrupt hook runs when a turn is cancelled with Esc",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://dev.meta.ai/docs/muse-code/changelog (1.4.0 improvements: 'Added an observation-only Interrupt hook that runs when you cancel a turn with Escape')"
+    },
+    {
+      "claim": "hook payload fields hook_event_name, session_id, turn_id, model, request_id, tool_use_id, usage, reason; a StopFailure event is handled by the script but is not in the official event list; hooks read settings.json; .muse/hooks.json reported ignored; the stdin transport is stated only here",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://signoz.io/docs/muse-code-monitoring (page says Last updated September 14, 2026): muse_otel_hook.py main() reads json.loads(sys.stdin.read()); Step 3 says project .muse/hooks.json is silently ignored"
+    },
+    {
+      "claim": "No power assertion or caffeinate child is documented for the Muse Code CLI; the docs never mention sleep. The CLI is closed source, so this is absence of documentation, not a check of the binary",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "grep -i -E 'sleep|caffein|inhibit|assertion' over the stripped text of /docs/muse-code, /auth, /interactive, /extending, /permissions, /configuration, /workflows, /session-messaging, /rewind, /changelog: no hits. The public SDK clone (commit a7c10c5) only has asyncio.sleep in tests and the Python spawn helper, nothing about system sleep, and it is not the CLI"
+    },
+    {
+      "claim": "agent shell commands run inside an OS sandbox: Seatbelt on macOS, verified once at session startup; the shell shown in the denial example is /bin/bash",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://dev.meta.ai/docs/muse-code/permissions (Run inside the sandbox)"
+    },
+    {
+      "claim": "the CLI itself is closed source; the public repo holds only the SDK and generated protocol types, and its source names the real binary tbh (TBH_* env vars)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/meta-models/muse-code-sdk clients/sdk-ts/qa/binary.ts and clients/sdk-ts/qa/recorder.ts hermeticEnv(): TBH_CREDENTIAL_BACKEND, TBH_DISABLE_TELEMETRY, TBH_DISABLE_FEATURE_CONFIG, XDG_DATA_HOME (qa/binary.ts searches target/debug/tbh and target/release/tbh)"
+    },
+    {
+      "claim": "muse serve speaks the Muse Session Protocol; turn/started and turn/completed frames bracket a turn and approval/requested marks a pending approval; only a connected client sees them",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/meta-models/muse-code-sdk clients/sdk-ts/src/facade/session.ts (case \"turn/started\", \"turn/completed\", \"approval/requested\") and clients/sdk-ts/src/fold/session-fold.ts"
+    },
+    {
+      "claim": "TUI text markers for working and idle in Muse Code 1.0.3",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/skzv/ccmux internal/agentdetect/rules/muse.toml ('◇ Thinking' working; '⟩' input frame idle)"
+    },
+    {
+      "claim": "not installed on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "which muse muse-bin: 'muse not found' 'muse-bin not found'; ls ~/.local/share/muse ~/.config/muse ~/.muse: No such file or directory; ls /Applications | grep -i muse: empty; ps -axo pid=,args= | grep -i muse: empty"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Never seen running. The process name depends on the install: the launcher (install.sh) execs ~/.local/bin/muse-bin-<version> with that full path as argv[0], so the name changes with every release and only the path fragment /muse-bin- is stable; the Homebrew cask runs as plain `muse`. The bare name `muse` is short and could collide with another program, and matching cannot tell: prefer an open .session.lock under the sessions tree (lsof) as a second check. The launcher itself is a bash script (argv[0] bash) that execs, plus a detached bash subshell for background updates: neither matches. exclude_args is an exact match on any word, so a session literally named like a listed subcommand is hidden. The daemon surface also vetoes exec and resume, so `muse exec \"explain serve\"` stays the TUI surface; a bare `muse serve` still reaches the daemon. A prompt that is a separate argv word equal to serve would still be labelled daemon. exclude_args entries -h, -V, --help, --version and plugins are not documented on dev.meta.ai (plugins is only a slash command there); they are inert guesses. /muse-bin- is a substring of argv[0], so an unrelated directory named muse-bin-something would match; the versioned launcher form is the only one seen. muse exec is a one-shot: alive means working. The most precise turn signal is a hook pair UserPromptSubmit (turn_id) to Stop, or Interrupt on Esc; it needs settings.json edited. Without hooks there is no exact open-turn signal in the store that I could confirm, so transcript writes may only raise working. A goal set with /goal makes Muse queue follow-up turns after Stop, and four background observer agents make their own model calls, so activity can continue between visible turns. A trusted-workspace prompt and approval prompts block the turn while the process stays alive and quiet."
+}

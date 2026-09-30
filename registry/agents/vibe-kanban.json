@@ -1,0 +1,158 @@
+{
+  "id": "vibe-kanban",
+  "name": "Vibe Kanban",
+  "vendor": "BloopAI (bloop, shut down 2026-04-10; project continues community maintained)",
+  "homepage": "https://vibekanban.com",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "host": true,
+      "label": "Vibe Kanban desktop app (Tauri v2). The axum server runs INSIDE this process (server::startup::start in crates/tauri-app/src/main.rs), so this one pid holds every workspace and every agent child. Bundle id is tauri.conf.json `identifier`. Installed by `npx vibe-kanban --desktop` into /Applications, then ~/Applications, then the cache dir (npx-cli/src/desktop.ts), or from the GitHub release dmg `Vibe.Kanban_<ver>_aarch64.dmg`. Bundle folder is `Vibe Kanban.app` (bundleName). Main executable name is INFERRED: Tauri defaults to the cargo binary, `vibe-kanban-tauri`; matched on the .app folder as well as the name so either is caught. WebKit helpers are separate system processes and do not match. A host: report the app pid only; a session state needs the SQLite or HTTP read in working_signals.",
+      "bundle_ids": [
+        "ai.bloop.vibe-kanban"
+      ],
+      "process": {
+        "names": [
+          "vibe-kanban-tauri"
+        ],
+        "path_contains": [
+          "/Vibe Kanban.app/Contents/MacOS/"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "host": true,
+      "label": "Browser-mode server: the Rust binary `vibe-kanban` that `npx vibe-kanban` downloads (zip from the vendor R2 bucket) and unpacks to ~/.vibe-kanban/bin/<tag>/macos-arm64/vibe-kanban, then runs with execSync(`\"<bin>\"`) (npx-cli/src/cli.ts extractAndRun). It serves the web UI on 127.0.0.1:<auto port> (HOST and PORT/BACKEND_PORT override) and opens a browser. Matched by exact executable name, NOT by path: the same folder also holds `vibe-kanban-mcp` (a stdio MCP server that agents launch, not a session) and `vibe-kanban-review`, and path_contains is a substring test that would catch both. The node launcher (`node .../bin/cli.js`, argv[0] is `node`) is deliberately not matched: it is only a parent, and the probe keeps the outermost match, which would hide the server. One server holds every workspace, so this is a host.",
+      "process": {
+        "names": [
+          "vibe-kanban"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/ai.bloop.vibe-kanban/sessions/*/*/processes/*.jsonl",
+    "format": "jsonl",
+    "documented": false,
+    "note": "No per_session path: a host process cannot be mapped to one file by an argument, and the session id is a VK uuid that never appears on any command line. Two stores under the data dir ~/Library/Application Support/ai.bloop.vibe-kanban (directories::ProjectDirs(\"ai\",\"bloop\",\"vibe-kanban\"), utils/src/assets.rs): (1) sessions/<first 2 chars of session uuid>/<session uuid>/processes/<execution process uuid>.jsonl, one file per execution process (one agent turn, or one setup/cleanup/dev script), one serialised LogMsg per line (Stdout, Stderr, JsonPatch, SessionId, MessageId, Ready, Finished); older runs kept the same lines in the execution_process_logs table (logs TEXT, JSONL). (2) db.v2.sqlite, journal_mode DELETE (no WAL): tables workspaces (container_ref, branch, archived), sessions (id, workspace_id, executor, name), execution_processes (session_id, run_reason, status, exit_code, started_at, completed_at), coding_agent_turns (execution_process_id, agent_session_id, prompt, summary, seen). Read status columns only: prompt, summary and the log lines are private conversation. config.json, profiles.json, credentials.json sit beside them. The agent's OWN transcript (for example ~/.claude/projects) is written by the npx-launched agent as usual and is what `--resume <agent_session_id>` in the follow-up command line points at. Worktrees are separate: $TMPDIR/vibe-kanban/worktrees/<workspace dir>/<repo name> (or <custom root>/.vibe-kanban-workspaces/), and that is each agent child's cwd. Release builds only: debug builds use <repo>/dev_assets and $TMPDIR/vibe-kanban-dev."
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "~/Library/Application Support/ai.bloop.vibe-kanban/db.v2.sqlite",
+      "within_seconds": 30,
+      "meaning": "Exact truth is SQL, and the probe cannot run it (no sqlite signal, no per_session path): SELECT s.workspace_id, ep.session_id FROM execution_processes ep JOIN sessions s ON s.id = ep.session_id WHERE ep.status = 'running' AND ep.run_reason = 'codingagent' AND ep.dropped = 0. One coding-agent execution process is one turn (an initial prompt or one follow-up; each follow-up spawns a NEW process), it is inserted 'running' when the agent child is spawned and set completed, failed or killed when it exits (crates/db/src/models/execution_process.rs, crates/executors/src/executors/claude.rs spawn_follow_up). Do NOT use the app's own `is_running` flag or run_reason IN ('setupscript','cleanupscript'): those also count setup and cleanup scripts. Guards: a row stays 'running' after a crash until the next server start rewrites it to failed (cleanup_orphan_executions), so require the server pid alive; the row stays 'running' while a turn waits on a tool approval. As a bare mtime the file only says something committed: it is one shared file, rolled by any workspace, archive or pin change, so it can raise working for a project with one live server but never lower it. Same answer over HTTP without opening the file: POST /api/workspaces/summaries {\"archived\":false} on the local port returns latest_process_status ('running'), has_pending_approval and latest_session_id per workspace (crates/server/src/routes/workspaces/workspace_summary.rs); note its latest process may also be a setup or cleanup script. Not observed: VK is not installed here."
+    },
+    {
+      "signal": "transcript_write",
+      "name": "~/Library/Application Support/ai.bloop.vibe-kanban/sessions/*/*/processes/*.jsonl",
+      "within_seconds": 30,
+      "meaning": "The per-execution-process raw log, appended line by line as the agent streams (spawn_stream_raw_logs_to_storage in crates/services/src/services/execution_process.rs). A write in the last 30 s raises working; quiet does not prove idle (a long tool call or model call is silent), and a script or dev-server process writes here too, so it cannot tell an agent turn from `npm run dev`. Unobserved."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Weak, inferred and uncalibrated. Floor 10 follows registry/README.md section 4 (desktop hosts and hosts holding dev servers use 10, not the 5 guessed earlier). The tree holds every agent (npx -> sh -> node or native agent, all doing model I/O with little CPU) but also dev-server scripts and terminal panes that the user starts from Vibe Kanban, which burn CPU for hours with no agent turn. Never the only reason. child_process and tool_children are deliberately absent: (a) agent children are usually `node` (npx is a node script, so argv[0] is `node`), (b) a dev-server script `zsh -c 'npm run dev'` exec's in place and shows up as a direct child `node` for its whole life, (c) PTY terminals are permanent direct shell children, (d) executor option discovery spawns short agent children at server start and on each use (executors/utils.rs spawn_global_cache_refresh_for_agent; OpenCode spawns a server)."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "http",
+      "endpoint": "ws://127.0.0.1:<main_port>/api/approvals/stream/ws (server pushes a snapshot then patches of pending ApprovalInfo); POST /api/workspaces/summaries -> has_pending_approval",
+      "meaning": "A tool approval or an agent question is pending. Approvals live only in an in-memory DashMap (crates/services/src/services/approvals.rs), never on disk, and time out after 36000 s (utils/src/approvals.rs). The turn's execution_processes row stays 'running' the whole time, so waiting must override working. Rare in practice: every default profile in crates/executors/default_profiles.json skips permissions (Claude dangerously_skip_permissions, Codex danger-full-access, Amp dangerously_allow_all, Gemini and Qwen yolo, OpenCode auto_approve, Cursor force, Copilot allow_all_tools, Droid skip-permissions-unsafe), so a wait only happens for a profile variant with approvals or plan mode on. Port: $TMPDIR/vibe-kanban/vibe-kanban.port ({\"main_port\":N,\"preview_proxy_port\":M}) written by the browser-mode server only; the desktop app does not write it, so read its listening port with lsof. Origin header is checked only when present, no token. Unobserved."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "None for the user. Only per-repository scripts, stored in db.v2.sqlite `repos` and edited in Settings -> Repositories: setup_script (once when the workspace starts), cleanup_script (after each coding-agent turn, run as an execution process with run_reason 'cleanupscript'), archive_script, dev_server_script. Each runs as `$SHELL -c <script>` (crates/executors/src/actions/script.rs). Notifications (sound, push) are toggles in config.json. VK itself injects a Claude Code Stop and PreToolUse hook callback over the SDK control channel to implement commit reminders and approvals (executors/src/executors/claude/client.rs); that is internal and not configurable.",
+    "events": [],
+    "docs": "https://vibekanban.com/docs/settings/projects-repositories"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "The local app sends Sentry errors and PostHog analytics only (crates/utils/src/sentry.rs; POSTHOG_API_KEY and POSTHOG_API_ENDPOINT are build-time and empty in source builds). OpenTelemetry exists only in the cloud `remote` server crate, exported to Azure Application Insights when APPLICATIONINSIGHTS_CONNECTION_STRING is set (crates/remote/src/lib.rs init_otel_layer); that service is being wound down. The agents VK launches may emit their own OTel if their env is set through a profile's `env` override (CmdOverrides.env), untested."
+  },
+  "sources": [
+    {
+      "claim": "README says 'Vibe Kanban is sunsetting'; the shutdown post (2026-04-10) says bloop closed, the project continues open source and community maintained, remote services removed 30 days later, local workspaces keep working",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/BloopAI/vibe-kanban README; https://www.vibekanban.com/blog/shutdown (scraped 2026-09-30). Source snapshot: shallow clone at d5cbb53 (2026-09-19), tag v0.1.45-20260919085201; npm `vibe-kanban` latest 0.1.44 (npm view vibe-kanban version, modified 2026-09-19); GitHub latest release v0.1.44-20260424091429"
+    },
+    {
+      "claim": "Bundle id ai.bloop.vibe-kanban, productName and bundleName 'Vibe Kanban', cargo binary vibe-kanban-tauri",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/tauri-app/tauri.conf.json (identifier, productName, bundle.macOS.bundleName); crates/tauri-app/Cargo.toml ([[bin]] name = \"vibe-kanban-tauri\"). Tauri docs: mainBinaryName 'By default, Tauri uses the output binary from cargo' (https://github.com/tauri-apps/tauri config.schema.json), so Contents/MacOS/vibe-kanban-tauri is inferred, not seen"
+    },
+    {
+      "claim": "Release assets include a macOS dmg for the desktop app",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "gh release view v0.1.44-20260424091429 -R BloopAI/vibe-kanban --json assets printed Vibe.Kanban_0.1.44_aarch64.dmg and Vibe.Kanban_0.1.44_x64.dmg among the assets; not downloaded, not opened"
+    },
+    {
+      "claim": "npx wrapper: browser mode downloads the `vibe-kanban` binary to ~/.vibe-kanban/bin/<tag>/<platform>/ and runs it with execSync; --desktop installs the .app and starts it with `open --wait-apps`; `mcp` and `review` run vibe-kanban-mcp and vibe-kanban-review",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "npx-cli/src/cli.ts (extractAndRun, runMain, runMcp, runReview), npx-cli/src/download.ts (CACHE_DIR = ~/.vibe-kanban/bin), npx-cli/src/desktop.ts (launchMacOSApp, /Applications then ~/Applications); .github/workflows/pre-release.yml lines 409-494 (server built as `server`, shipped as `vibe-kanban` in vibe-kanban.zip)"
+    },
+    {
+      "claim": "Data dir is ~/Library/Application Support/ai.bloop.vibe-kanban; SQLite file db.v2.sqlite with journal_mode DELETE; per-process JSONL logs under sessions/<xx>/<session uuid>/processes/<process uuid>.jsonl",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/utils/src/assets.rs (ProjectDirs::from(\"ai\",\"bloop\",\"vibe-kanban\"), asset_dir), crates/db/src/lib.rs (db.v2.sqlite, SqliteJournalMode::Delete), crates/utils/src/execution_logs.rs (EXECUTION_LOGS_DIRNAME = \"sessions\", uuid_prefix2, process_log_file_path_in_root)"
+    },
+    {
+      "claim": "A turn is one execution_processes row with run_reason 'codingagent' and status 'running'; statuses are running, completed, failed, killed; orphaned running rows are marked failed at next server start",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/db/src/models/execution_process.rs (ExecutionProcessStatus, ExecutionProcessRunReason); crates/db/migrations/20251216142123_refactor_task_attempts_to_workspaces_sessions.sql (CHECK constraints); crates/services/src/services/container.rs cleanup_orphan_executions; the app's own workspace is_running counts setupscript, cleanupscript and codingagent (crates/db/src/models/workspace.rs lines 518-526); the workspace summary's latest process is chosen among codingagent, setupscript and cleanupscript (ExecutionProcess::find_latest_for_workspaces, execution_process.rs ~line 641)"
+    },
+    {
+      "claim": "Agents are spawned as DIRECT children of the server (or of the desktop app), per turn, in the worktree, with env VK_WORKSPACE_ID and VK_WORKSPACE_BRANCH, as npx commands or native CLIs; Claude follow-ups add `--resume <agent session id>`",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/executors/src/executors/claude.rs (base_command `npx -y @anthropic-ai/claude-code@2.1.119`, -p, --output-format=stream-json --input-format=stream-json, spawn_follow_up --resume, Command::new(program_path).current_dir(...).group_spawn_no_window()); codex.rs `npx -y @openai/codex@0.124.0` (app-server); amp.rs, gemini.rs, copilot.rs, qwen.rs, opencode.rs `npx -y ...`; cursor.rs cursor-agent -p --output-format=stream-json; droid.rs `droid exec --output-format stream-json`; crates/local-deployment/src/container.rs:1366 env.insert(\"VK_WORKSPACE_ID\", ...)"
+    },
+    {
+      "claim": "Setup, cleanup, archive and dev-server scripts run as `$SHELL -c <script>`; terminals are PTY sessions of the user's interactive shell",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/executors/src/actions/script.rs (get_shell_command, group_spawn_no_window); crates/utils/src/shell.rs (get_shell_command returns (shell path, \"-c\"); get_interactive_shell); crates/local-deployment/Cargo.toml portable-pty"
+    },
+    {
+      "claim": "Pending approvals are in memory only and exposed over a WebSocket and the workspace summary; 10 hour timeout; macOS sound notifications spawn afplay (both browser mode and desktop app) and, when the desktop app has no native notifier, push notifications spawn osascript; the same NotificationService also fires 'Workspace Complete: <name>' when a turn finishes (container.rs finalize_task line ~238-268), so a notification helper does not mean waiting",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/services/src/services/approvals.rs (DashMap pending, get_pending_execution_process_ids); crates/server/src/routes/approvals.rs (/approvals/stream/ws); crates/server/src/routes/workspaces/workspace_summary.rs (has_pending_approval, latest_process_status); crates/utils/src/approvals.rs (APPROVAL_TIMEOUT_SECONDS = 36000); crates/services/src/services/notification.rs (afplay line 107, osascript line 164); approvals/executor_approvals.rs ('Approval Needed', 'Question Asked'); crates/services/src/services/container.rs finalize_task (Workspace Complete) lines 238-268"
+    },
+    {
+      "claim": "Every default executor profile skips permission prompts",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "python3 over crates/executors/default_profiles.json printed DEFAULT: CLAUDE_CODE dangerously_skip_permissions True, AMP dangerously_allow_all True, GEMINI yolo True, CODEX sandbox danger-full-access, OPENCODE auto_approve True, QWEN_CODE yolo True, CURSOR_AGENT force True, COPILOT allow_all_tools True, DROID autonomy skip-permissions-unsafe"
+    },
+    {
+      "claim": "Local server binds 127.0.0.1 on an auto port and writes $TMPDIR/vibe-kanban/vibe-kanban.port; the Tauri app starts the server in-process and does not write the port file; origin is validated only when an Origin header is present",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/server/src/main.rs (HOST default 127.0.0.1, PORT, write_port_file_with_proxy), crates/utils/src/port_file.rs (env::temp_dir()/vibe-kanban/vibe-kanban.port), crates/tauri-app/src/main.rs lines 195-240 (server::startup::start), crates/server/src/middleware/origin.rs (validate_origin returns Ok when no Origin header)"
+    },
+    {
+      "claim": "No OpenTelemetry in the local app; OTel only in the cloud remote crate via Application Insights; local telemetry is Sentry and PostHog",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rli 'opentelemetry|otlp|OTEL_' over crates, package.json files, docs listed only crates/remote/{Cargo.toml,Cargo.lock,src/lib.rs}; crates/utils/Cargo.toml sentry 0.46.2; README env table (POSTHOG_API_KEY)"
+    },
+    {
+      "claim": "Not installed on this Mac, nothing running",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "ls /Applications ~/Applications | grep -i 'vibe|kanban' printed nothing; ls ~/.vibe-kanban and ~/Library/Application Support/ai.bloop.vibe-kanban: No such file or directory; ps -axo pid,args | grep -i 'vibe.?kanban' printed nothing; mdfind for bundle id ai.bloop.vibe-kanban printed nothing"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Never seen running: every process shape below is read from source. VK is an orchestrator, not an agent: it spawns a fresh agent per turn (claude, codex, amp, gemini, copilot, qwen, opencode via npx; cursor-agent; droid) as a direct child of ITS server, and reads each agent's structured stdout. Consequences for a detector: (1) The registry should report the server or app as ONE host and never map its pid to a transcript. (2) The children it spawns can also match other rows (a native `claude` leaf under the npx cache, `cursor-agent`, `droid`), so drop a match whose ancestor is a Vibe Kanban host (README section 3 case 15), or the same work is counted twice as an idle Claude Code. (3) Exact per-workspace turn state is the SQLite or HTTP read described in working_signals, which the probe cannot do; until then only a weak file-mtime raise and tree CPU are left, and dev servers started from VK make both noisy. (4) To map a child to its workspace: the child's cwd is <worktree base>/<workspace dir>/<repo>, equal to workspaces.container_ref plus the repo name, and its environment has VK_WORKSPACE_ID (environment is not readable from the command line, so cwd is the practical key). (4b) A short-lived `osascript` or `afplay` child appears both when approval is needed and when a turn finishes (container.rs finalize_task sends 'Workspace Complete'), and only when notifications are on, so it is NOT a waiting signal and has been removed from waiting_signals. Exact waiting is the approvals WebSocket or has_pending_approval. (4c) A match on `vibe-kanban` by executable name is exact on argv[0] basename; a dev build (`cargo run`, binary `server`) is not matched. (5) The `npx vibe-kanban` node launcher, `vibe-kanban-mcp` (agents launch it over stdio, default `--mode global`) and `vibe-kanban-review` are not sessions and are not matched. The project is sunsetting (2026-04-10); the last npm release is 0.1.44 and main moved on to 0.1.45, so expect few new versions."
+}

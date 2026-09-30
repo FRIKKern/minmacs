@@ -1,0 +1,379 @@
+{
+  "id": "prime-agent",
+  "name": "Prime Agent",
+  "vendor": "Prime Intellect",
+  "homepage": "https://github.com/PrimeIntellect-ai/prime-agent",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "`prime-agent` in a terminal: the interactive TUI, also `prime-agent agents`, `attach <agent>`, `--resume`, `--continue`, `--fork`, `-p` and `--no-session`. One Rust binary, no bundle id. The installer (`curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh`) writes a /bin/sh launcher at ~/.local/bin/prime-agent that ends in `exec \"$(dirname \"$0\")/../share/prime-agent/prime-agent\" \"$@\"`, so the running process is the payload binary under ~/.local/share/prime-agent/ (argv[0] basename `prime-agent`, path shape `.../.local/bin/../share/prime-agent/prime-agent`, or a releases/<version>-<platform>-<sha256>/ dir after an update). The TUI is a THIN CLIENT: it attaches over a Unix socket to a detached supervisor and the turn runs in a separate worker process that is not its child, so this process's own children, CPU and file writes do not show the turn. The TypeScript predecessor (same command name, same ~/.prime/agent store) is not confirmed to match: its process may be a Bun-compiled binary named prime-agent or `node <script>`, and no evidence here shows which. The Rust build is what the installer ships now. Matching is by base name only, because the path depends on the installer. `exclude_args` vetoes by exact argument: the public subcommands (list, sessions, stop, rename, send, schedule, status, doctor, incident, shutdown, mcp, package, update, model, session, config, prompt, help), the removed names that print guidance (app, daemon, install, manage, remove, uninstall), `--mode` (its values have their own surfaces below; `--mode json` is a one-shot, but `--mode text` on a real terminal without `-p` resolves to the interactive TUI in crates/pa-cli/src/mode.rs, so that rare form is hidden by this veto), `--export`, `--list-models`, `--help`, `--version`, and the bare word `worker` (the session worker process, own surface). A prompt word equal to one of these hides a real TUI session. The equals forms `--export=<file>` and `--list-models=<x>` are not vetoed (exact match), so those short runs read as TUI sessions.",
+      "process": {
+        "names": [
+          "prime-agent"
+        ],
+        "exclude_args": [
+          "worker",
+          "--mode",
+          "help",
+          "list",
+          "sessions",
+          "stop",
+          "rename",
+          "send",
+          "schedule",
+          "status",
+          "doctor",
+          "incident",
+          "shutdown",
+          "mcp",
+          "package",
+          "update",
+          "model",
+          "session",
+          "config",
+          "prompt",
+          "app",
+          "daemon",
+          "install",
+          "manage",
+          "remove",
+          "uninstall",
+          "--export",
+          "--list-models",
+          "--prime-agent-bootstrap",
+          "--help",
+          "-h",
+          "--version",
+          "-v"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "`prime-agent --mode daemon --daemon-socket <path>`: the detached supervisor. Spawned by any client that finds no live daemon (own process group, stdin/stdout/stderr null, cwd of the client), so its parent is launchd (pid 1) once the client exits. It owns the socket, client attach/detach, routing and worker health, and runs no model calls, tools or kernels itself. One per socket, holds every session. The launcher pins the socket to ${TMPDIR:-/tmp}/prime-agent-rust-$(id -u)/daemon.sock (TMPDIR on macOS is under /var/folders). Needs all three arguments so that a client run as `--mode acp --daemon-socket <path>` does not match, and vetoes the other --mode values by exact argument. No state of its own: read the workers.",
+      "process": {
+        "names": [
+          "prime-agent"
+        ],
+        "args_contain": [
+          "--mode",
+          "daemon",
+          "--daemon-socket"
+        ],
+        "exclude_args": [
+          "acp",
+          "rpc",
+          "json",
+          "text"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`prime-agent worker`: one detached session worker per active session (argv is exactly `worker`, launched by the supervisor as its own executable with a launch environment; stdin/stdout null, stderr to a per-worker log under ~/.prime/agent/logs/). It runs the model loop, compaction, schedules and the Python kernel for its one session, so it is the process that is actually working. In the Rust build every RLM subagent gets its own worker and its own kernel, created through the supervisor (crates/pa-daemon/src/rlm_children.rs), so a busy session tree shows several `worker` processes; the vendor blog's phrase 'each root session tree runs in a recoverable worker process' describes the TypeScript design. A child's JSONL is under <agent-dir>/session-artifacts/<parent-id>/sub-<id>/, not in the sessions glob, so map a child worker by its descriptor sessionFile. Its direct children are the kernel (`<agent-dir>/kernel-venv/bin/python -m rlm.repl`, one per session, alive for the session's life) and a shell for `!` user commands; the model's own shell commands are children of the kernel (grandchildren of the worker) and are invisible to a direct-child rule. Survives TUI detach and terminal close. A prompt word equal to `worker` in a TUI is vetoed on the TUI surface, and a single TUI argument that merely contains the substring `worker` (a prompt such as \"fix the worker pool\") also matches here, because args_contain is a substring test. The exclude_args list rejects the flags a TUI or one-shot would carry and, since verification, every public subcommand and removed name too: without them `prime-agent send worker-1 hi`, `schedule add worker ...` (the vendor's own help example) and `attach worker-1` were filed as workers. Map a worker pid to its session with ~/.prime/agent/daemon-workers/*/<workerId>.json fields pid and sessionFile (the file also holds an authentication token: never read or print that field).",
+      "process": {
+        "names": [
+          "prime-agent"
+        ],
+        "args_contain": [
+          "worker"
+        ],
+        "exclude_args": [
+          "--mode",
+          "--cwd",
+          "--resume",
+          "-r",
+          "--continue",
+          "-c",
+          "--fork",
+          "--model",
+          "--provider",
+          "--goal",
+          "--session-dir",
+          "--daemon-socket",
+          "--no-session",
+          "--thinking",
+          "--print",
+          "-p",
+          "--verbose",
+          "--offline",
+          "--autonomous",
+          "agents",
+          "attach",
+          "help",
+          "list",
+          "sessions",
+          "stop",
+          "rename",
+          "send",
+          "schedule",
+          "status",
+          "doctor",
+          "incident",
+          "shutdown",
+          "mcp",
+          "package",
+          "update",
+          "model",
+          "session",
+          "config",
+          "prompt",
+          "app",
+          "daemon",
+          "install",
+          "manage",
+          "remove",
+          "uninstall",
+          "--export",
+          "--list-models",
+          "--prime-agent-bootstrap",
+          "--help",
+          "-h",
+          "--version",
+          "-v"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "`prime-agent --mode acp`: Agent Client Protocol over stdin/stdout, spawned by an ACP client and kept alive until stdin closes; one session per process. It ensures a supervisor is running, creates a client-owned daemon session with no_session=true (in-memory, so NO transcript file is written) and bridges ACP frames to it; only when the daemon cannot be reached does it fall back to an in-process engine. So the turn normally runs in a worker, not in this process, and this process has no shell children. The parent is the ACP client, not a terminal. Vetoes `--mode daemon` and the other --mode values by exact argument.",
+      "process": {
+        "names": [
+          "prime-agent"
+        ],
+        "args_contain": [
+          "--mode",
+          "acp"
+        ],
+        "exclude_args": [
+          "daemon",
+          "rpc",
+          "json",
+          "text"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "`prime-agent --mode rpc`: the JSONL command protocol over stdin/stdout for embedders (the SDK), until stdin closes. In the Rust source this runs an in-process session engine (the daemon-attached transport is marked a follow-up), so its own kernel child and CPU show the turn. Vetoes the other --mode values by exact argument.",
+      "process": {
+        "names": [
+          "prime-agent"
+        ],
+        "args_contain": [
+          "--mode",
+          "rpc"
+        ],
+        "exclude_args": [
+          "daemon",
+          "acp",
+          "json",
+          "text"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.prime/agent/sessions/*.jsonl",
+    "per_session": "~/.prime/agent/sessions/{session_id}*.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "socket_activity",
+      "name": "roster activity == working",
+      "meaning": "The exact turn state lives in the supervisor's roster over its local JSONL Unix socket, not in any file or process. Each worker pushes a summary on every turn_start, turn_end, tool_execution_start/end, message_end, bash_start/end, compaction and queue change, and activity is `working` exactly while the worker's busy flag or a compaction is set (worker/summary.rs: activity = streaming || compacting). Read it with `prime-agent list --json` (or `sessions --json`): per row `activity` (working or idle), `isStreaming`, `isCompacting`, `attachedClients`, `sessionFile`, `cwd`; `lifecycle: archived` rows are not loaded. It is per session, works for a session no TUI is attached to, and survives a TUI detach. It needs a call the probe cannot make, so the probe ignores this signal. A parked provider-quota wait is a separate flag (isQuotaParked) and reads as idle here. A queued steer or follow-up alone (isSessionActive true, activity idle) is not a turn."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Raises working, never lowers it. The session file is append-only JSONL, one line per entry, written when a message finishes (user, assistant, tool result), never per streamed token, so a long model call or a long tool call shows no writes. Only usable for a TUI started with `--resume <id>` (the id is in argv); a fresh session's id is minted by the worker and is not in any argv, and ACP sessions (no_session) and `--no-session` sessions have no file at all. The per_session template ends in a `*` so a partial id from `--resume` still finds the UUIDv7-named file. Open-turn reading of the tail, for a reader that may open the file: the last `message` entry has role user or toolResult, or role assistant with stopReason toolUse, while the worker pid is alive; a final assistant message with stopReason stop, length, error or aborted is a closed turn. Never read message content."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Inferred and never measured (Prime Agent is not installed here). Sum the whole tree of a worker (worker, kernel python, model shell commands and their children) or of an in-process `--mode rpc` process; the TUI's own tree is only its render loop. Model streaming and network waits burn almost no CPU, so this misses a turn that is only waiting on the model and must not be used as proof of idle."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "none_builtin",
+      "meaning": "Prime Agent has no permission prompts and no approval state. The README says it executes model-generated Python and project commands with the user's permissions and is not a sandbox, and the Rust source has no approval, permission-prompt or ask-the-user state (searched crates, skills and the kernel runtime). A session that is stuck on the human can only be a TUI dialog (/login, an MCP OAuth login, the agents-view picker), which is not exported anywhere. An idle session (activity idle) is simply waiting for the next prompt; there is no separate 'needs you' event."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "None in the Rust build (v0.9.8, the current installer channel): no hook config file, no shell-command hooks, no extension loader (searched crates for hooks, PreToolUse, SessionStart, before_agent_start, extension loading: only internal Rust callbacks). Capability packages (`prime-agent package install|list|remove|update`) provide skills, prompt templates and themes only. The user-defined `--autonomous-gate <command>` runs a completion gate before a headless autonomous run may finish, which is a quality gate and not a lifecycle event. The earlier TypeScript build (same command name, same ~/.prime/agent store, replaced by the installer) had pi-style TypeScript extensions: ~/.prime/agent/extensions/*.ts and */index.ts, .prime/agent/extensions/, and `extensions`/`packages` in settings.json, with events session_start, agent_start, turn_start, tool_execution_start, tool_call, tool_result, turn_end, agent_end, session_shutdown and others.",
+    "events": [],
+    "docs": "https://github.com/PrimeIntellect-ai/prime-agent/blob/36307ca40d62a9af339702082be9b644a652b6cc/packages/coding-agent/docs/extensions.md"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry exporter in the Rust crates (no opentelemetry crate in Cargo.lock, no OTEL_ or OTLP string in any source file). Product analytics go to a PostHog-compatible endpoint through the pa-telemetry crate: pseudonymous events with primitive-only properties, no prompts, tool content or paths, only when an endpoint and key are configured (env PRIME_AGENT_TELEMETRY_ENDPOINT / _API_KEY or settings telemetry.posthog). Opt out with telemetry.enabled=false, PRIME_AGENT_TELEMETRY=0, DO_NOT_TRACK=1 or --offline. A local JSONL mirror can be written to ~/.prime/agent/telemetry.jsonl (FileSink). The observation points that exist instead are the supervisor roster socket (`prime-agent list --json`), the session JSONL, and the daemon log ~/.prime/agent/logs/agent.jsonl (`prime-agent incident`). The Python kernel venv contains opentelemetry-api only as a transitive dependency of the `mcp` package, with no SDK or exporter."
+  },
+  "sources": [
+    {
+      "claim": "Not installed on this Mac: no ~/.prime, no prime-agent on PATH, no prime process running. Every claim below is from public docs and source.",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`ls ~/.prime ~/.prime/agent` printed 'No such file or directory' twice; `which prime-agent prime pa` printed 'prime-agent not found', 'prime not found', 'pa not found'; `ps -axo pid,args | grep -i prime` printed nothing"
+    },
+    {
+      "claim": "Source read at PrimeIntellect-ai/prime-agent main 883b5a1 (2026-09-30), Cargo workspace version 0.9.8, tags up to v0.9.8; Rust workspace of pa-* crates, binary target `prime-agent`; MIT licence",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/PrimeIntellect-ai/prime-agent : Cargo.toml (workspace.package version = \"0.9.8\"), crates/pa-cli/Cargo.toml ([[bin]] name = \"prime-agent\"), `git ls-remote --tags` highest v0.9.8"
+    },
+    {
+      "claim": "Install: one command `curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh`; launcher is a /bin/sh script at ~/.local/bin/prime-agent that exports PRIME_AGENT_CODING_AGENT_DIR (default $HOME/.prime/agent) and PRIME_AGENT_DAEMON_SOCKET (default ${TMPDIR:-/tmp}/prime-agent-rust-$(id -u)/daemon.sock) and then `exec`s ../share/prime-agent/prime-agent; payload at ~/.local/share/prime-agent/ with releases/<version>-<platform>-<sha256>/; platforms include darwin-arm64 and darwin-x64",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "install-rust.sh lines 1-30 (header), 1440-1471 (launcher heredoc, `exec \"$(dirname \"$0\")/../share/prime-agent/prime-agent\" \"$@\"` at line 1471); crates/pa-core/src/update/install.rs (KNOWN_PLATFORMS, `releases/<version>-<platform>-<sha256>/prime-agent`); https://www.primeintellect.ai/blog/prime-agent (install line)"
+    },
+    {
+      "claim": "No app bundle and no bundle id: the Homebrew cask in the repo is only a draft sketch (`binary \"prime-agent\"`, version 0.1.0, points at a different repo, placeholder sha256), and the docs and release payload list only a CLI binary, prime-agent-runtime/ and skills/",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packaging/homebrew/Casks/prime-agent.rb (comment 'Living draft: a cask is only installable once this repo is public or a token-authenticated tap exists'); crates/pa-core/src/update/install.rs module doc (payload ships `prime-agent`, `prime-agent-runtime/`, `skills/`, LICENSE, README.md)"
+    },
+    {
+      "claim": "Modes: `--mode <text|json|rpc|acp|daemon>`; mode resolution: daemon, rpc, acp, json explicit, otherwise print when `-p` or stdin is not a TTY, else interactive",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-cli/src/args.rs line 274-283 (`\"--mode\"`, error text 'Valid values: text, json, rpc, acp, daemon'); crates/pa-cli/src/mode.rs `AppMode::resolve`; crates/pa-cli/src/command_registry.rs TOP_LEVEL_OPTION_GROUPS ('--mode <text|json|rpc|acp|daemon>')"
+    },
+    {
+      "claim": "The Prime Agent ACP launch command is `prime-agent --mode acp` (third-party ACP client config)",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://medium.com/@shashikant.jagtap/prime-agent-in-superqode-second-rlm-based-coding-harness-after-rlm-code-b903f8839014 (TOML: protocol = \"acp\", run_command.\"*\" = \"prime-agent --mode acp\")"
+    },
+    {
+      "claim": "Supervisor is spawned detached as `<current exe> --mode daemon --daemon-socket <path>` (own process group, stdio null, cwd = client cwd), with worker-role env vars stripped",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-cli/src/interactive_mode/daemon.rs `spawn_supervisor_detached` (line 175-197, `.args([\"--mode\", \"daemon\", \"--daemon-socket\"])` at line 177)"
+    },
+    {
+      "claim": "Worker is spawned by the supervisor as its own executable with the single argument `worker` plus a launch env (PRIME_AGENT worker-role variable = 1, session id, lease owner id, sockets, journal), stdin/stdout null and stderr to a per-worker log, in a new process group; the CLI routes `worker` argv with the role env into the worker runtime; one worker per active session; in the Rust build each RLM child has its own worker (the vendor blog's 'root session tree' wording describes the TS design)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-daemon/src/supervisor/supervision.rs line 419-441 (`Command::new(&executable).arg(\"worker\")`); crates/pa-daemon/src/descriptor.rs `worker_launch_env`; crates/pa-cli/src/lib.rs line 173-183 (`is_worker_process` ... `args.first() == Some(\"worker\")` -> run_worker_mode); packages doc https://raw.githubusercontent.com/PrimeIntellect-ai/prime-agent/36307ca40d62a9af339702082be9b644a652b6cc/packages/coding-agent/docs/daemon-implementation-summary.md ('Resident Workers'); crates/pa-daemon/src/rlm_children.rs module doc ('this redesign gives every child its own supervised worker process') and crates/pa-daemon/src/context_tree_children.rs ('daemon children live in separate worker processes'); blog 'Spawning a subagent launches a full session with its own model, IPython kernel' and 'sub-agents ... each implemented as another prime-agent instance'"
+    },
+    {
+      "claim": "The worker's Python kernel is `<agent-dir>/kernel-venv/bin/python -m rlm.repl` (stdio pipes), a direct child of the worker; the model's shell commands run from the kernel's bash.py with subprocess.Popen(start_new_session=True), so they are grandchildren of the worker; the local Rust bash tool backend is defined but referenced nowhere else",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-core/src/kernel/manager/startup.rs line 182-184 (`Command::new(&python)... .args([\"-m\", \"rlm.repl\"])`); prime-agent-runtime/src/rlm/bash.py line 315-323 (`subprocess.Popen(... start_new_session=True)`); test paths `/home/ubuntu/.prime/agent/kernel-venv/bin/python` in crates/pa-daemon/tests/steer_boundary_batch_e2e.rs; `grep -rn bash_local crates` shows only its own module and one `pub use`"
+    },
+    {
+      "claim": "The interactive TUI is a client of the daemon; closing it detaches, does not stop the worker; sessions keep running and can be reattached; TS docs describe the same topology",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://www.primeintellect.ai/blog/prime-agent ('Prime Agent runs a background daemon that owns all live agent sessions over a local socket. You can attach and detach from the session without affecting the underlying agent loop. Each root session tree runs in a recoverable worker process'); README.md ('Daemon-backed continuity'); crates/pa-cli/src/print_runtime.rs line 47-51 ('The interactive TUI attaches through the daemon (spawning a supervisor when none is running)')"
+    },
+    {
+      "claim": "`--mode acp` first tries the daemon: ensures a supervisor, then creates a client-owned session with no_session = true and bridges ACP to it (one session per connection, exits when stdin closes); the in-process engine is only the fallback",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-cli/src/print_runtime.rs `acp_mode_main` and `try_daemon_attached_acp` (line 101-186); crates/pa-daemon/src/acp/daemon.rs line 519-556 (`no_session: Some(true)`, 'The client-owned daemon session: `--no-session` semantics'); crates/pa-daemon/src/acp/mod.rs module doc ('One connection hosts at most one session ... The process exits when stdin closes')"
+    },
+    {
+      "claim": "`--mode rpc` runs an in-process session engine (the daemon-attached transport is listed as a follow-up)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-cli/src/print_runtime.rs line 67-76 (comment on AppMode::Rpc: 'over the same in-process session engine the print mode uses (daemon-attached transport: the follow-up lane)') and `run_rpc_mode`"
+    },
+    {
+      "claim": "Sessions: append-only JSONL, flat directory ~/.prime/agent/sessions/<session-id>.jsonl (session id is a UUIDv7); agent dir overridable with PRIME_AGENT_CODING_AGENT_DIR, sessions dir with PRIME_AGENT_SESSION_DIR or --session-dir; archived after 30 days or 200 sessions into <agent-dir>/sessions-archive; the header records cwd; older per-project directories are migrated",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/PrimeIntellect-ai/prime-agent/36307ca40d62a9af339702082be9b644a652b6cc/packages/coding-agent/docs/session-format.md ('File Location ~/.prime/agent/sessions/<session-id>.jsonl ... Current releases keep sessions in a flat directory'); crates/pa-daemon/src/paths.rs (CONFIG_DIR_NAME = \".prime/agent\", `sessions_dir` = agent dir + \"sessions\"); crates/pa-core/src/session/manager/ids.rs (`create_uuid_v7`, `{session_id}.jsonl`); crates/pa-daemon/README.md ('sessionArchiveMaxAgeDays default 30 ... sessionArchiveMaxSessions default 200 ... sessions-archive')"
+    },
+    {
+      "claim": "Session record shape: line 1 is a header {type:'session', version:3, id, timestamp, cwd, optional parentSession, rlmDepth, git}; then entries with id, parentId, timestamp and type in message, thinking_level_change, service_tier_change, model_change, compaction, branch_summary, custom, custom_message, label, session_info, session_state (status active/archived/crash), git_state, child_usage_attributed; message entries carry a role user, assistant, toolResult, bashExecution, custom, branchSummary or compactionSummary; assistant messages carry stopReason stop, length, toolUse, error or aborted. Key names only, taken from the type definitions; no live record was opened",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-types/src/session.rs (SessionHeader, FileEntry, AgentMessage, SessionStateStatus); crates/pa-types/src/ai/mod.rs line 478-491 (StopReason)"
+    },
+    {
+      "claim": "A file is written per finished message, not per token, and a pathless `--no-session` store lives only in memory",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-types/src/session.rs module doc ('append-only JSONL'); crates/pa-daemon/src/worker/summary.rs line 392 (comment: a pathless `--no-session` store runs the same fold over its in-memory entries); inferred for the per-message granularity from the entry model, not observed"
+    },
+    {
+      "claim": "Worker descriptors: <agent-dir>/daemon-workers/<socket-key>/<workerId>.json hold pid, processStartId, rootActiveSessionId, sessionFile, sockets and an authenticationToken; optional session leases <agent-dir>/session-leases/<sha256(path)>.lock/owner.json (pid, activeSessionId, sessionPath) exist only when PRIME_AGENT_INTERNAL_SESSION_LEASES is 1/true/yes",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-daemon/src/descriptor.rs (module doc); crates/pa-types/src/daemon/worker.rs `DaemonWorkerDescriptor` line 227-267; crates/pa-daemon/src/lease.rs line 1-8 and `leases_enabled`"
+    },
+    {
+      "claim": "Turn state exposed by the supervisor roster: summary.activity = working when the worker is streaming (busy) or compacting; `prime-agent list --json` / `sessions --json` print it (list status working/idle/archived); summary fields activity, isSessionActive, isStreaming, isCompacting, attachedClients, sessionFile; workers push the summary on turn_start/turn_end/tool_execution_start/tool_execution_end/message_end/bash/compaction events",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-daemon/src/worker/summary.rs line 365-410 (`let streaming = core.busy; ... activity: if streaming || compacting { \"working\" } else { \"idle\" }`); crates/pa-daemon/src/roster_activity.rs (ROSTER_SESSION_EVENT_TRIGGERS); crates/pa-cli/src/daemon_session_list.rs (`list_status`, `is_session_summary`); crates/pa-cli/src/command_registry.rs (`list [--all] [--json]`, `sessions [--all] [--json]`)"
+    },
+    {
+      "claim": "Public commands: agents, list, sessions, attach, stop, rename, send, schedule, status, doctor, incident, shutdown, mcp, package, update, model, session, config, prompt; removed names app, daemon, install, manage, remove, uninstall print guidance; hidden `--prime-agent-bootstrap` is the installer handoff",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-cli/src/command_registry.rs COMMAND_SPECS and REMOVED_COMMAND_NAMES; crates/pa-cli/src/public_command.rs line 148-182; crates/pa-cli/src/lib.rs line 105-107; README.md 'Useful commands'"
+    },
+    {
+      "claim": "Default socket directory in the daemon crate is $TMPDIR/prime-agent-<uid> with daemon.sock and worker-<hash>-<id>.sock, but the uid is read only from /proc/self/status, which does not exist on macOS, so the code falls back to the literal `user`; the installer launcher avoids this for the supervisor socket by pinning prime-agent-rust-$(id -u). Worker sockets on macOS therefore probably sit in $TMPDIR/prime-agent-user/. Inferred from source, not observed",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-daemon/src/platform/paths.rs line 12-45 (`socket_dir`, `current_uid` returns None off Linux), line 51-70 (`default_daemon_socket_path`, `worker_socket_path`); install-rust.sh line 1470"
+    },
+    {
+      "claim": "No sleep inhibitor anywhere: no caffeinate, IOPMAssertion, NoIdleSleep or pmset string in any Rust, Python, shell or Markdown file of the repo (vendored crossterm excluded)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "`grep -rIl -i -E 'caffeinate|IOPMAssertion|NoIdleSleep|pmset|sleep inhibit|prevent.{0,10}sleep' --exclude-dir=vendor .` in a shallow clone at 883b5a1 printed nothing"
+    },
+    {
+      "claim": "No permission prompts: README states model-generated Python and project commands run with the user's permissions and are not sandboxed; no approval / permission-prompt / ask-user state exists in crates, skills or the kernel runtime",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "README.md 'Getting Started' warning block; `grep -rIln -i -E 'permission prompt|approval|ask_user|askuser|needs_input|awaiting_input|waiting_for_user|elicit'` over crates, skills, prime-agent-runtime/src returned only unrelated files (Anthropic provider, refine review approval, MCP catalog OAuth text)"
+    },
+    {
+      "claim": "No lifecycle hooks or extension runtime in the Rust build; the TypeScript predecessor had TypeScript extensions with an event lifecycle",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "case-insensitive grep of crates, skills, prime-agent-runtime/src for hook / PreToolUse / SessionStart / before_agent_start / resources_discover found only internal Rust callbacks (e.g. rlm_children.rs settle_hook) and one Node test harness (crates/pa-core/tests/golden/harness.mjs); TS docs https://raw.githubusercontent.com/PrimeIntellect-ai/prime-agent/36307ca40d62a9af339702082be9b644a652b6cc/packages/coding-agent/docs/extensions.md ('Extension Locations', 'Lifecycle Overview')"
+    },
+    {
+      "claim": "Telemetry is PostHog-style product analytics, not OpenTelemetry; the only OpenTelemetry artefact is opentelemetry-api as a transitive dependency of the Python `mcp` package in the kernel lockfile",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-telemetry/README.md (PostHogSink, FileSink at <agentDir>/telemetry.jsonl, env PRIME_AGENT_TELEMETRY, DO_NOT_TRACK); crates/pa-core/src/session_engine/telemetry.rs line 1067-1086; crates/pa-cli/src/interactive_mode.rs line 80-86 (opt-out text); prime-agent-runtime/uv.lock line 327 and 357 (`opentelemetry-api` listed under the mcp package's dependencies); `grep -rIn -i 'opentelemetry|otlp|otel'` excluding lockfiles and vendor printed only a comment in input_pause_lease.rs"
+    },
+    {
+      "claim": "Row classifies synthetic command lines as intended under the probe's matching rules (base name of argv[0], exact-argument vetoes, args_contain substring test, score = 1 + longest path + number of args_contain entries); re-run after verification with 43 argv lists plus two non-Prime lines",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 import of tools/agents_probe.py `matches()` against this row with fake process dicts (no process was started). After the repair: subcommands (`send worker-1 hi`, `schedule add worker ...`, `attach worker-1`, `stop`, `rename`, `session export`, `help worker`, `package install worker-skill`) match nothing or only the TUI; `worker` alone, `--mode daemon --daemon-socket <s>`, `--mode acp`, `--mode rpc` each land on their own surface; `node ... --mode acp` and a binary named `prime` match nothing. Known remaining misfile: one prompt argument containing the substring `worker`. See registry/evidence/prime-agent.md 'Verification'"
+    },
+    {
+      "claim": "Refutation pass: the TypeScript predecessor matching this row is unsupported",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "git show 36307ca:packages/coding-agent/package.json has `bin`, `main: ./dist/index.js` and a `bun build --compile ... --outfile dist/pi` script; install-rust.sh lines 60-90 describe the TS install as a managed root plus an optional npm package plus an optional standalone node; the SuperQode article (2026-08-07) calls it 'a separate TypeScript process'. None of these gives the process argv[0]"
+    },
+    {
+      "claim": "Refutation pass: `--mode text` in a terminal is an interactive session, not a one-shot",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "crates/pa-cli/src/mode.rs AppMode::resolve: only Daemon, Rpc, Acp, Json are explicit; every other value including Text falls to `if parsed.print || !stdin_is_tty { Print } else { Interactive }`"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Prime Agent (Prime Intellect, Rust, one binary named prime-agent) is a daemon-backed harness, and that decides everything: the terminal process is a thin client, the supervisor (`--mode daemon`) is detached and idle, and the turn runs in a `prime-agent worker` process that is neither the TUI's child nor carries a session id in argv. Each RLM subagent gets its own worker, so one busy session can show several. So the process rules find every surface but cannot say which session is working from the TUI. The exact answer is `prime-agent list --json` (`activity`), which the probe cannot call; report at the worker (README case 11) and map it with ~/.prime/agent/daemon-workers/*/<workerId>.json (pid, sessionFile), never reading the token in that file. Sleep assertion: none. Waiting on the human: no such state exists. Hooks: none in the Rust build. OpenTelemetry: none. Not installed here, so nothing was seen running: confidence is documented, and the CPU floor, the worker's idle-versus-turn CPU, the real ps command lines and the macOS socket paths are all unchecked. Row is stated for v0.9.8; the project ships several releases a week, so re-check after updates. Verified 2026-09-30 by a refutation pass against the repo at 883b5a1 and the vendor blog: one defect repaired (the worker surface matched short subcommands such as `send worker-1 hi`), one claim corrected (a worker serves one session, not a whole session tree), one claim withdrawn (the TypeScript build matching this row is unverified). Remaining false positives by design: a single prompt argument containing the substring `worker` is filed as a worker (cannot be fixed without an argc test), `--export=` and `--list-models=` equals forms read as TUI, and `--mode text` on a terminal is hidden."
+}

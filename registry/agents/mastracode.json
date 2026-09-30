@@ -1,0 +1,285 @@
+{
+  "id": "mastracode",
+  "name": "Mastra Code",
+  "vendor": "Mastra",
+  "homepage": "https://code.mastra.ai/",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Mastra Code TUI, launched through the npm bin shim (`mastracode`, `npx mastracode`, `bun add -g`, nvm or Homebrew node, or a project's node_modules/.bin). The bin is a `#!/usr/bin/env node` script, so ps shows `node <path>/bin/mastracode` with the SYMLINK path as argv[1] (inferred from shebang behaviour, never observed); npx and local installs give `.../node_modules/.bin/mastracode`, so the pattern is `bin/mastracode` without a leading slash. Nothing retitles the process (no process.title in the source or the 0.43.0 dist). `--prompt`, `-p`, `--acp`, `plugin`, `prune`, `--help` and `-h` are vetoed by exact argument. A bare positional prompt (`mastracode \"fix it\"`) also runs headless (hasHeadlessFlag) and is NOT vetoed here, so it reads as a TUI session; it is one-shot, alive means working.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/mastracode"
+        ],
+        "exclude_args": [
+          "--prompt",
+          "-p",
+          "--acp",
+          "plugin",
+          "prune",
+          "--help",
+          "-h"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Mastra Code TUI, node run on the real script (pnpm dlx, yarn dlx, a direct `node .../mastracode/dist/cli.js`, or a global install whose shim was resolved). Same vetoes as the shim surface.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/mastracode/dist/cli.js"
+        ],
+        "exclude_args": [
+          "--prompt",
+          "-p",
+          "--acp",
+          "plugin",
+          "prune",
+          "--help",
+          "-h"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Mastra Code headless one-shot: `mastracode --prompt \"...\"` (also `-o json|jsonl`, `--thread <id>`, `--continue`), through the bin shim. No TUI is built, so there is no caffeinate child. Alive means working. `-p` and a positional prompt cannot be matched separately (args_contain is a substring test and `-p` is too short); the `-p` form is vetoed on the TUI surfaces and is therefore invisible, the positional form shows as a TUI surface (see above). The launcher path is required as well as `--prompt`, so an unrelated node program whose prompt text mentions mastracode is not matched.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/mastracode",
+          "--prompt"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--thread",
+        "-t"
+      ],
+      "oneshot": true
+    },
+    {
+      "kind": "tui",
+      "label": "Mastra Code headless one-shot: `mastracode --prompt \"...\"` (also `-o json|jsonl`, `--thread <id>`, `--continue`), on the real script. No TUI is built, so there is no caffeinate child. Alive means working. `-p` and a positional prompt cannot be matched separately (args_contain is a substring test and `-p` is too short); the `-p` form is vetoed on the TUI surfaces and is therefore invisible, the positional form shows as a TUI surface (see above). The launcher path is required as well as `--prompt`, so an unrelated node program whose prompt text mentions mastracode is not matched.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/mastracode/dist/cli.js",
+          "--prompt"
+        ],
+        "exclude_args": [
+          "--acp",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--thread",
+        "-t"
+      ],
+      "oneshot": true
+    },
+    {
+      "kind": "daemon",
+      "label": "Mastra Code as an Agent Client Protocol server over stdio: `mastracode --acp [--dangerous-auto-approve]`, through the bin shim, spawned by an ACP client such as an editor. Runs many sessions in one process and has no TUI, so no caffeinate child. No per-session signal from outside. The launcher path is required as well as `--acp`.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "bin/mastracode",
+          "--acp"
+        ]
+      },
+      "host": true
+    },
+    {
+      "kind": "daemon",
+      "label": "Mastra Code as an Agent Client Protocol server over stdio: `mastracode --acp [--dangerous-auto-approve]`, on the real script, spawned by an ACP client such as an editor. Runs many sessions in one process and has no TUI, so no caffeinate child. No per-session signal from outside. The launcher path is required as well as `--acp`.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/mastracode/dist/cli.js",
+          "--acp"
+        ]
+      },
+      "host": true
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/mastracode/mastra.db",
+    "format": "sqlite",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "The TUI spawns `caffeinate -i -m` (stdio ignored, direct child of the node process) on the controller's `agent_start` event and kills it on `agent_end` of any reason (complete, aborted, error, suspended). It is not there while idle. macOS only, and off when MASTRACODE_DISABLE_CAFFEINATE=1. TUI only: headless and ACP never start it. It stays through a tool-approval prompt (the approval is awaited inside the run) and drops for an ask_user, submit_plan or sandbox-access suspension (those end the run as `suspended`)."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "Shell commands from the built-in execute_command tool run through the default LocalSandbox with isolation 'none', which spawns with `shell: true` and `detached: true`, so each is a direct `/bin/sh -c <command>` child. Caveat: a lone simple command may be exec'd in place by sh, so the direct child is then the command, not a shell. MCP servers and LSP servers also live as direct children but are not shells. Caveat 2: user hook commands are ALSO direct `/bin/sh -c` children of the TUI (hooks/executor.ts), short-lived (10 s default timeout). Stop, AgentEnd and Notification hooks (agent_done) run after the run has ended, so with hooks configured an idle TUI can show a shell child for a moment right after a turn. Apply the 5 s debounce and let the caffeinate child decide."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Guess, not measured. Fallback only: the TUI redraws a status timer while a run is active."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Fires as soon as the TUI receives a prompt event, before the TUI's own queue. Payload carries permission_kind: tool_approval, sandbox_access or plan_approval, plus run_id, tool_name and tool_input. Closed by PermissionResult (approve, decline or dismiss) with the same run_id. Needs ~/.mastracode/hooks.json."
+    },
+    {
+      "signal": "hook",
+      "event": "Notification",
+      "meaning": "The TUI's notify() also fires Notification hooks with reason tool_approval, ask_question, plan_approval, sandbox_access (waiting on the human) or agent_done (run finished, waiting for input). Fires even when the built-in bell/system notification mode is off."
+    },
+    {
+      "signal": "hook",
+      "event": "AgentEnd",
+      "meaning": "stop_reason `suspended` means the run parked on an ask_user, submit_plan or sandbox-access question. `complete`, `aborted` and `error` mean idle."
+    },
+    {
+      "signal": "absence",
+      "meaning": "Process side, inferred from source: a live TUI with no caffeinate child is idle OR parked on an ask_user, plan or sandbox-access question; the two cannot be told apart without a hook. A tool-approval wait still shows caffeinate, so it reads as working."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.mastracode/hooks.json (global, runs first) and .mastracode/hooks.json (project, appended after); `/hooks reload` re-reads. Disabled by MASTRACODE_DISABLE_HOOKS=1. Command hooks get a JSON payload on stdin with session_id (the thread id), cwd, hook_event_name and, during a run, run_id.",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "Stop",
+      "UserPromptSubmit",
+      "SessionStart",
+      "SessionEnd",
+      "Notification",
+      "AgentStart",
+      "AgentEnd",
+      "PermissionRequest",
+      "PermissionResult",
+      "Interrupt",
+      "SubagentStart",
+      "SubagentEnd"
+    ],
+    "docs": "https://code.mastra.ai/configuration#hooks"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OTLP exporter in mastracode. Its Mastra Observability config (serviceName mastracode) has two exporters: MastraStorageExporter into a local DuckDB file (opt-in with `/observability local on`, ~/Library/Application Support/mastracode/observability.duckdb) and MastraPlatformExporter to Mastra's cloud. Separate PostHog product analytics, opt out with MASTRA_TELEMETRY_DISABLED=1. Nothing to point a local collector at."
+  },
+  "sources": [
+    {
+      "claim": "macOS: `caffeinate -i -m` is spawned on agent_start and killed on agent_end of any reason; a direct child of the TUI process with stdio ignored",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "github.com/mastra-ai/mastra mastracode/tui/src/tui/mastra-tui.ts: CAFFEINATE_ARGS = ['-i', '-m'] (line 119), shouldUseCaffeinate (darwin and MASTRACODE_DISABLE_CAFFEINATE !== '1', line 187), handleEvent calls startCaffeinate() on 'agent_start' (line 917) and stopCaffeinate() in the finally block of any 'agent_end' (line 972), startCaffeinate spawn('caffeinate', CAFFEINATE_ARGS, { stdio: 'ignore' }) (line 1059). Same strings present in the published 0.43.0 dist: grep -n CAFFEINATE_ARGS dist/tui-BJfQ76dO.js -> 26869"
+    },
+    {
+      "claim": "the vendor documents caffeinate only while the agent is active, and the opt-out variable",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://code.mastra.ai/configuration#macos-sleep-prevention: 'runs the built-in caffeinate utility only while the agent is active, then stops it when the run completes, aborts, errors, or the TUI exits. Idle sessions do not keep the machine awake.' Added in mastracode/tui/CHANGELOG.md 0.9.2 (PR 14586)"
+    },
+    {
+      "claim": "a tool-approval prompt does NOT end the run, so caffeinate stays; ask_user, submit_plan and sandbox-access use tool_suspended and end the run as 'suspended', so caffeinate drops",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastra-ai/mastra packages/core/src/agent-controller/session-run-engine.ts: emits tool_approval_required then `await approvalPromise` inside stream processing (lines ~915-935), comment 'approval-gated calls ... never emit a tool-call-suspended chunk'; finishAgentRun(result.suspended ? 'suspended' : ...) (lines 566-573). mastracode/tui/src/tui/display.ts notifyForInputRequest comment (line ~166): 'core emits tool_suspended ... followed by agent_end suspended'. Inferred combination, never run"
+    },
+    {
+      "claim": "the agent's shell tool runs as a direct `/bin/sh -c` child (shell:true, detached:true) with the default sandbox",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastracode/sdk/src/agents/workspace.ts line 257 `new LocalSandbox({ workingDirectory, env })` (no isolation option); packages/core/src/workspace/sandbox/local-process-manager.ts lines 294-304 `detached: true, shell: this.sandbox.isolation === 'none'`"
+    },
+    {
+      "claim": "npm package mastracode 0.43.0 (modified 2026-09-30) ships a `#!/usr/bin/env node` bin at dist/cli.js; no process.title anywhere; no macOS .app",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "npm view mastracode version bin -> 0.43.0, { mastracode: './dist/cli.js' }; curl tarball into scratchpad and extract: head -c 60 dist/cli.js -> '#!/usr/bin/env node'; grep -c 'process.title' dist/cli.js -> 0; grep -rn 'process.title' mastracode/**/*.ts -> no hits; ls /Applications | grep -i mastra -> nothing; which mastracode -> not found"
+    },
+    {
+      "claim": "CLI modes: --prompt/-p headless (or a bare positional prompt), --acp ACP server, `plugin`, `prune` subcommands, --tui-prompt / --tui-initial-prompt still start the TUI",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastracode/tui/src/main.ts: process.argv[2] === 'plugin' (line 371), 'prune' (line 378), hasHeadlessFlag(process.argv) (line 398), process.argv.includes('--acp') (line 404; the headless test runs first). https://code.mastra.ai/ install list: npm -g, pnpm add -g, yarn global add, bun add --global, npx, pnpm dlx, yarn dlx, bun x; mastracode/sdk/src/headless/cli.ts hasHeadlessFlag: '--prompt' or '-p', or any positional when not --help. https://code.mastra.ai/headless flag table; https://code.mastra.ai/ 'Start with a prompt'"
+    },
+    {
+      "claim": "sessions are threads in a LibSQL (SQLite) file mastra.db under Application Support; hook session_id equals mastra_threads.id",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://code.mastra.ai/configuration#storage (macOS ~/Library/Application Support/mastracode/, LibSQL default); https://code.mastra.ai/terminal-notifications: vendor script runs sqlite3 on \"$HOME/Library/Application Support/mastracode/mastra.db\" with `select title from mastra_threads where id = '$session_id'`. File name: mastracode/sdk/src/utils/project.ts getDatabasePath -> path.join(getAppDataDir(), 'mastra.db'); tables mastra_threads (id, resourceId, title, metadata, createdAt, updatedAt) and mastra_messages in packages/core/src/storage/constants.ts. MASTRA_DB_PATH / MASTRA_APP_DATA_DIR / Postgres or Turso settings move it"
+    },
+    {
+      "claim": "hook events, config locations, stdin payload, blocking rules",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://code.mastra.ai/configuration#hooks (14 events, ~/.mastracode/hooks.json and .mastracode/hooks.json, run_id on every in-run payload, PermissionRequest permission_kind). Events AgentStart, AgentEnd, PermissionRequest, PermissionResult, Interrupt, SubagentStart, SubagentEnd added in 0.28.0 (mastracode/tui/CHANGELOG.md line ~3943); receipt-time PermissionRequest and agent_done in PR 20923"
+    },
+    {
+      "claim": "Notification hook reasons and the osascript helper for system notifications",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastracode/tui/src/tui/notify.ts: NotificationReason = agent_done | ask_question | tool_approval | plan_approval | sandbox_access; hookManager?.runNotification called in every mode including 'off'; macOS system mode runs execFile('osascript', ['-e', 'display notification ...']) as a short-lived child"
+    },
+    {
+      "claim": "no OTLP: Mastra Observability with a local DuckDB exporter (opt-in) and a Mastra platform exporter; PostHog analytics with an opt-out",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastracode/sdk/src/index.ts lines ~650-745: `if (globalSettings.observability.localTracing)` DuckDBStore, `exporters: [...MastraStorageExporter, new MastraPlatformExporter(...)]`, serviceName 'mastracode'; grep -rIn -i 'otlp|opentelemetry' mastracode/sdk/src mastracode/tui/src -> no hits; package.json dependencies list @mastra/observability, @mastra/duckdb, posthog-node, no @opentelemetry/*. https://code.mastra.ai/configuration#telemetry"
+    },
+    {
+      "claim": "thread ownership: lock files with the owner pid exist only when cross-process pubsub is off; the TUI turns pubsub on by default, so by default there are no lock files and cross-process coordination uses unix sockets /tmp/mc/<resourceId>/<threadId>.sock",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastracode/sdk/src/utils/thread-lock.ts (<appDataDir>/locks/<threadId>.lock holds the pid); mastracode/sdk/src/index.ts line 605 `crossProcessPubSub = config?.crossProcessPubSub ?? (!configuredPubSub && useUnixSocketPubSub)` and line 1522 `threadLock: crossProcessPubSub ? undefined : {...}`; mastracode/tui/src/main.ts `unixSocketPubSub: !isTruthyEnv('MASTRACODE_DISABLE_UNIX_SOCKET_PUBSUB')`; mastracode/sdk/src/utils/signals-pubsub.ts (socket dir /tmp/mc/<resourceId>, key = threadId, sha256 prefix when the path passes 104 bytes). Inferred from reading; never observed"
+    },
+    {
+      "claim": "Herdr treats MastraCode state as hook-only, but on macOS there is an outside process signal (caffeinate child) that needs no hook",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "registry/evidence/herdr.md line 67: hooks are the status authority for Pi, OMP, Kimi, OpenCode, Kilo, MastraCode (Herdr 0.9.1/0.9.2 docs). Contradicted for the process side by mastra-tui.ts and https://code.mastra.ai/configuration#macos-sleep-prevention above. Not tested against Herdr itself"
+    },
+    {
+      "claim": "the Factory backend and web host (mastracode/factory, mastracode/web, `mastra factory dev`) are a separate server product with sandboxes; left out of surfaces",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastracode/README.md package table; mastracode/web/package.json scripts `api`: node ../../packages/cli/dist/index.js factory dev (port 4111 / 5873); mastracode/factory/README.md 'Mastra Software Factory'. Nothing read about its process names or session files"
+    },
+    {
+      "claim": "hook commands run as direct `/bin/sh -c` children of the TUI process",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "mastra-ai/mastra mastracode/sdk/src/hooks/executor.ts lines 19-23: shell = '/bin/sh', shellArgs = ['-c', hook.command], spawn(shell, shellArgs, ...), default timeout 10_000 ms. Stop/AgentEnd hooks are awaited after agent_end (mastra-tui.ts lines 959-963, before the finally block stops caffeinate); Notification agent_done runs from notify.ts. Never observed"
+    },
+    {
+      "claim": "launcher path patterns: the shim pattern must not carry a leading slash, and the headless and ACP surfaces must carry a launcher path",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 with tools/agents_probe.matches() over synthetic argv: `node /x/node_modules/.bin/mastracode` did NOT match the old `/bin/mastracode` pattern ('/.bin/' has a dot before bin); `node /home/me/mastracode-notes/run.js --prompt x` DID match the old headless surface (args_contain ['mastracode','--prompt']). After the repair the first matches `bin/mastracode` and the second matches nothing. That npx passes the .bin symlink path as argv[1] is inferred from shebang semantics, not observed"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Matching reads the command line only, and Mastra Code is a plain node script, so the row has to match on the script path and cannot use a process name. Never key on `node` alone. The working signal is the direct `caffeinate -i -m` child, which exists only while a run is active (macOS, TUI only). It is the most precise signal and is not paired with a wait record: a tool-approval wait keeps caffeinate (reads as working), an ask_user, plan or sandbox-access wait drops it (reads as idle); hooks (PermissionRequest, Notification, AgentEnd suspended) are the only exact wait signal. Sessions are threads in one shared SQLite file, so there is no per-session transcript file and no per_session path; map a process to a thread through a hook session_id, `--thread` on a headless run, or (inferred, unverified) the /tmp/mc/<resourceId>/<threadId>.sock listeners shown by lsof -U. Never read message columns. Do not count the osascript notification helper as a tool child. User hook commands are direct `/bin/sh -c` children too (short-lived, also right after a turn ends), so debounce the shell signal. If stdin is piped and no TTY can be reopened, the TUI command falls back to headless (main.ts ~424) and shows as a TUI surface here. Nothing here has been run: no Mastra Code was installed or running on this Mac."
+}

@@ -1,0 +1,259 @@
+{
+  "id": "superset",
+  "name": "Superset",
+  "vendor": "Superset (superset-sh), source-available under ELv2. Unrelated to Apache Superset.",
+  "homepage": "https://superset.sh",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Superset desktop app (Electron, macOS). An orchestrator and host, not an agent: it has no model loop of its own for terminal agents. Bundle /Applications/Superset.app, Mach-O Contents/MacOS/Superset (electron-builder default executable name = productName, inferred; not installed here). Canary channel is a separate app, /Applications/Superset Canary.app, Mach-O 'Superset Canary' (space in the name). Electron helpers live under Contents/Frameworks/Superset Helper*.app and do not match these paths. The same Mach-O is also re-run in Node mode for four helper processes (next surface); those match here by path too and are folded into the app by the outermost-process rule while the app is their ancestor.",
+      "host": true,
+      "bundle_ids": [
+        "com.superset.desktop",
+        "com.superset.desktop.canary"
+      ],
+      "process": {
+        "path_contains": [
+          "/Superset.app/Contents/MacOS/Superset",
+          "/Superset Canary.app/Contents/MacOS/Superset Canary"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Superset Node-mode helpers: the app's own Mach-O re-executed with ELECTRON_RUN_AS_NODE=1 and a script under .../Contents/Resources/app.asar/dist/main/. Four scripts: host-service.js (per-organisation local HTTP/tRPC server that owns workspaces, git, terminal-agent state and host.db; started through node-pty's spawn-helper, whose exec replaces itself with the app binary), pty-daemon.js (detached, started as `/bin/sh -c 'ulimit ...; exec \"$@\"' sh <app> pty-daemon.js --socket=$TMPDIR/superset-ptyd-<hash>.sock --buffer-bytes=N`, owns every terminal PTY and survives host-service restarts, so it can be orphaned to launchd), terminal-host.js and pty-subprocess.js (the older v1 terminal stack, still built). A HOST with many sessions, no session of its own. The shells that agents run in are direct children of pty-daemon.js (or of pty-subprocess.js in v1), so the agent CLI is a descendant of the app, not a direct child. Exact ps lines never seen (not installed): the argv shape is read from source and is inferred. Scores higher than the gui surface for these processes because of args_contain.",
+      "host": true,
+      "process": {
+        "path_contains": [
+          "/Superset.app/Contents/MacOS/Superset",
+          "/Superset Canary.app/Contents/MacOS/Superset Canary"
+        ],
+        "args_contain": [
+          "/dist/main/"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Standalone headless host from the CLI bundle (`superset start`, `superset-host`): a Node 22 binary shipped inside the bundle running lib/host-service.js. Layout superset-<platform>/{bin/superset,bin/superset-host,lib/node,lib/host-service.js}. Installed by `brew install superset-sh/tap/superset` (formula installs into libexec and symlinks bin/superset and bin/superset-host) or by the standalone installer (default root ~/superset). The `superset-host` shell wrapper execs `<root>/lib/node <root>/lib/host-service.js`, so argv[0] ends in /lib/node. Whether the Homebrew symlink layout resolves that path is not verified: the wrapper builds it from dirname of $0 without following symlinks. The `superset` CLI binary itself (Bun-compiled, argv[0] `superset`) is deliberately NOT a surface: it is a client that exits after each command, `superset` is also the name of Apache Superset's CLI, and `superset start` only supervises the host child.",
+      "host": true,
+      "process": {
+        "path_contains": [
+          "/lib/node"
+        ],
+        "args_contain": [
+          "/lib/host-service.js"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.superset/host/*/host.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "~/.superset/host/<organizationId>/host.db-wal",
+      "within_seconds": 20,
+      "meaning": "Weak raise signal for the whole app, not per session. Exact truth is a read-only SELECT terminal_id, agent_id, agent_session_id, last_event_type, last_event_at, ended_at FROM terminal_agent_bindings WHERE ended_at IS NULL AND last_event_type = 'Start' on ~/.superset/host/<organizationId>/host.db (SQLite, WAL, one file per organisation; SUPERSET_HOME_DIR moves ~/.superset, and dev builds use ~/.superset-<workspace>). Never select message or transcript text; this table holds none. last_event_type is the normalised hook event: Start (also written on every PostToolUse, PostToolUseFailure, UserPromptSubmit), PermissionRequest, Stop (also Interrupt), Failed, and Attached (which only keeps the prior value once a session is already bound). Detached (SessionEnd) is never stored in last_event_type: it sets ended_at and end_reason, which is why the query filters ended_at IS NULL. Because Start is re-asserted after each tool call and each write bumps last_event_at, the WAL moves during a busy turn, but not during a long model call with no tool. The agent must have been launched from a Superset terminal: hooks only report when SUPERSET_TERMINAL_ID is set. Stale rows: a user interrupt (Esc or Ctrl+C) does not fire Claude Code's Stop hook, so the row stays Start until the desktop renderer clears it (useTerminalInterruptClear) - a headless reader with the app closed can see Start forever; a force-quit likewise. agents_probe cannot evaluate this (no per_session path, no SQLite signal). The WAL also moves for reasons that are not an agent turn: the host-service pull-request sync runs on a 5 minute timer and inserts workspace_pull_requests rows, and creating a workspace or terminal writes too, so a fresh WAL can be a false raise while every agent is idle. Window is a guess, unmeasured."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Fallback, unmeasured guess. The sum over the app tree includes the Electron renderer, host-service, pty-daemon, every shell and every hosted agent below them, so it says something in the tree is busy, not which agent. Do not use tool_children or child_process on the app or the helpers: pty-daemon's direct children are pane shells that live as long as the pane, so a shell-child rule would read every running Superset as working forever. Superset takes no sleep assertion (no powerSaveBlocker, caffeinate or IOPMAssertion anywhere in the source), so power_assertion never fires for Superset itself. A hosted Claude Code brings its own caffeinate child, which the claude-code row already reads."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "sqlite",
+      "table": "terminal_agent_bindings",
+      "column": "last_event_type",
+      "value": "PermissionRequest",
+      "meaning": "Read-only, same host.db. The agent is blocked on a tool or plan decision or a question: hook PermissionRequest (Claude Code, matcher *), Codex PreToolUse of request_user_input (hooks.json matcher ^request_user_input$) plus exec_approval_request and apply_patch_approval_request (read from Codex's TUI session log by a watcher inside the ~/.superset/bin/codex wrapper, only when the agent is started through that wrapper), Grok Notification of type permission_prompt or elicitation_dialog (the only Grok notifications forwarded). Superset shows it as status 'permission' and flags the workspace. Not every agent emits it: the docs say some report only completion, so for those a permission wait reads as 'Start' (working). Superset launches Claude Code with --dangerously-skip-permissions and Grok with --always-approve by default, so permission waits are rare there and question dialogs are the common case. A finished turn is 'Stop', shown as 'review' (ready for the human to look), which is idle, not waiting."
+    },
+    {
+      "signal": "sqlite",
+      "table": "chat_sessions_local",
+      "column": "status",
+      "value": "awaiting_input",
+      "meaning": "Superset's own built-in chat panel (chat-v3), a separate model surface: ~/.superset/host/<organizationId>/chat.db, table chat_sessions_local, status one of starting, running, awaiting_input, idle, not_loaded, offline, dead. running is a turn in progress, awaiting_input is a pending approval or question. Never select title or read chat_journal.event_json (message content). The panel is behind the chat-v3 PostHog flag, and its Claude adapter starts the Agent SDK's bundled claude binary as a child of host-service (packaged-build location unresolved in source). Never seen running."
+    },
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Push form of the same fact: the hook script POSTs {eventType} to $SUPERSET_HOST_AGENT_HOOK_URL (http://127.0.0.1:<host port>/trpc/notifications.hook, unauthenticated) and host-service fans it out on its WebSocket event bus as AgentLifecycleEvent PermissionRequest. Reading the bus needs the host's auth token from ~/.superset/host/<orgId>/manifest.json (mode 0600); prefer the read-only SQLite query."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "Superset has no lifecycle hooks of its own for users. Its project scripts (.superset/config.json keys setup, teardown, run) fire on workspace events, not agent turns. Superset is a hook CONSUMER: at every desktop start (and at every standalone `superset-host` start) it writes marker-tagged hook entries into each hosted agent's USER-GLOBAL config and a shared script at ~/.superset/hooks/notify.sh, plus PATH shims in ~/.superset/bin/<agent> that export SUPERSET_AGENT_ID and exec the real binary. Claude Code: ~/.claude/settings.json (SessionStart, SessionEnd, UserPromptSubmit, Stop, StopFailure, SubagentStart, SubagentStop, PostToolUse and PostToolUseFailure with matcher *, PermissionRequest with matcher *, plus a separate PreToolUse entry with matcher Artifact that runs Superset's artifact-guard hook, not the notify script). Codex: ~/.codex/hooks.json (SessionStart, SessionEnd, UserPromptSubmit, PreToolUse for request_user_input only, PostToolUse, Stop, Interrupt, SubagentStart, SubagentStop). Grok: ~/.grok/hooks/superset-notify.json (SessionStart, SessionEnd, UserPromptSubmit, PostToolUse, PostToolUseFailure, Stop, StopFailure, Notification) plus a marked [compat.claude]/[compat.cursor] hooks=false block in ~/.grok/config.toml. Also Droid ~/.factory/settings.json, Cursor ~/.cursor/hooks.json, Kimi ~/.kimi-code/config.toml, Gemini, Copilot, Mastra, Vibe; OpenCode gets an env-scoped plugin via OPENCODE_CONFIG_DIR. The script no-ops unless SUPERSET_TERMINAL_ID or SUPERSET_TAB_ID is in the environment (only Superset terminals set them), so every Claude, Codex and Grok session on the Mac carries Superset entries after the app has run once, and nothing removes them on uninstall. Per-agent off switch: Settings > Agents > Superset hooks.",
+    "events": [],
+    "docs": "https://docs.superset.sh/agent-status"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry: no opentelemetry, OTEL_ or otlp reference anywhere in the repository source (only two stray hits inside HTML plan files and SVG icons). The desktop uses Sentry (@sentry/electron) and PostHog (posthog-js, posthog-node). The hosted agents keep their own telemetry settings; Superset does not set CLAUDE_CODE_ENABLE_TELEMETRY or any OTEL_ variable for them."
+  },
+  "sources": [
+    {
+      "claim": "Superset is an Electron desktop app; appId com.superset.desktop, productName Superset; canary is appId com.superset.desktop.canary, productName 'Superset Canary'",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): apps/desktop/electron-builder.ts (appId), apps/desktop/electron-builder.canary.ts lines 16 and 23, apps/desktop/package.json productName",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Homebrew cask installs Superset.app and quits it by bundle id com.superset.desktop; cask version 1.32.0, source tree at 1.33.0 (desktop-v1.33.0 release, CLI formula 1.33.0)",
+      "evidence": "https://raw.githubusercontent.com/Homebrew/homebrew-cask/HEAD/Casks/s/superset.rb printed: `app \"Superset.app\"`, `uninstall quit: \"com.superset.desktop\"`, version \"1.32.0\"; https://raw.githubusercontent.com/superset-sh/homebrew-tap/main/Formula/superset.rb printed version \"1.33.0\" and bin.install_symlink of libexec/bin/superset and superset-host",
+      "kind": "third-party",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Not installed on this Mac, so nothing below was seen running",
+      "evidence": "ls /Applications | grep -i superset printed nothing; ls ~/.superset printed 'No such file or directory'; ls ~/Library/Application\\ Support | grep -i superset printed nothing; which superset printed 'superset not found'; ps -axo pid,args | grep -i superset printed nothing",
+      "kind": "local-observation",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Host-service is spawned as process.execPath (the app binary) with ELECTRON_RUN_AS_NODE=1 and script dist/main/host-service.js, on macOS through node-pty's spawn-helper (args '', execPath, script); HOST_DB_PATH is <SUPERSET_HOME_DIR>/host/<orgId>/host.db; manifest.json sits next to it",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): apps/desktop/src/main/lib/host-service-coordinator.ts lines 249-268 (crashPortClearingLauncher), 288 (scriptPath = path.join(__dirname, 'host-service.js')), 899-925 (spawn via the launcher, args '', process.execPath, scriptPath), 1019 (ELECTRON_RUN_AS_NODE), 1033 (HOST_DB_PATH); apps/desktop/src/main/lib/host-service-manifest.ts (manifest.json fields pid, endpoint, authToken, startedAt, organizationId)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "pty-daemon is spawned detached as `/bin/sh -c '... exec \"$@\"' sh <execPath> <pty-daemon.js> --socket=<sock> --buffer-bytes=N`, owns every v2 terminal PTY, survives host-service restarts; socket path os.tmpdir()/superset-ptyd-<sha256(orgId)[:12]>.sock; manifest pty-daemon-manifest.json under host/<orgId>/",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/host-service/src/daemon/DaemonSupervisor.ts lines 1260-1285; packages/host-service/DAEMON_SUPERVISION.md; packages/pty-daemon/README.md; packages/host-service/src/daemon/manifest.ts",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "The v1 terminal stack runs terminal-host.js (spawn(process.execPath,[daemonScript]) with ELECTRON_RUN_AS_NODE) and one pty-subprocess.js per terminal, all in dist/main",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): apps/desktop/src/main/lib/terminal-host/client.ts lines 1305-1310 and 1376-1381; apps/desktop/electron.vite.config.ts lines 128-145 (rollup inputs index, terminal-host, pty-subprocess, git-task-worker, host-service, pty-daemon, host-worker)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "No argv marker maps an agent process to a Superset terminal; the link is environment only. PTY env carries SUPERSET_TERMINAL_ID (= terminal_sessions.id = terminal_agent_bindings.terminal_id), SUPERSET_WORKSPACE_ID, SUPERSET_HOME_DIR, SUPERSET_HOST_AGENT_HOOK_URL; a PATH wrapper adds SUPERSET_AGENT_ID and SUPERSET_AGENT_LAUNCH_ID; the host strips SUPERSET_* from PTY env before adding its own",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/host-service/src/terminal/env.ts lines 257-290; packages/agent-setup/src/agent-wrappers-common.ts lines 176-265 (buildWrapperScript, first-wins SUPERSET_AGENT_ID, delayed launch report); packages/host-service/src/db/schema.ts lines 53-88",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Agent state is hook-driven and normalised to Start, Stop, PermissionRequest, Failed, Attached, Detached; the UI maps Start->working, PermissionRequest->permission, Failed->failed, Stop->review",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/host-service/src/events/map-event-type.ts; packages/shared/src/agent-status.ts (agentStatusFromEvent); packages/host-service/src/page-watch/trigger.ts line 5 (BUSY_EVENT_TYPES = Start, PermissionRequest)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "The host persists the state in SQLite table terminal_agent_bindings (columns terminal_id, workspace_id, agent_id, agent_session_id, definition_id, started_at, last_event_at, last_event_type, ended_at, end_reason, transcript_path); every hook event upserts the row; host.db uses WAL",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/host-service/src/db/schema.ts lines 53-82; packages/host-service/src/terminal-agents/store.ts lines 151-240 (recordEvent, lastEventType: preservedLifecycleState ?? eventType, persistence.upsert); packages/host-service/src/db/db.ts line 36 (journal_mode = WAL)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Claude Code's Stop hook does not fire on a user interrupt, so the binding stays Start until the renderer clears it to Stop; the code comment calls the host binding 'the status source of truth'",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): apps/desktop/src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/TerminalPane/hooks/useTerminalInterruptClear/useTerminalInterruptClear.ts (header comment); packages/host-service/src/terminal-agents/store.ts lines 395-412 (clearWorkspaceStatuses)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Hook script only dispatches inside Superset terminals, drops foreign harness events, maps Codex and Grok event names, posts to SUPERSET_HOST_AGENT_HOOK_URL or every host manifest endpoint",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/agent-setup/templates/notify-hook.template.sh (guard line 'SUPERSET_TERMINAL_ID or SUPERSET_TAB_ID', dispatch_to_host, Grok notification filter)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Hooks are registered globally in each agent's own config at app start; table of files and which commands are guarded",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): HOOKS_INVESTIGATION.md (root, section 'How hook installation works'); packages/agent-setup/src/agent-wrappers-claude-codex-opencode.ts lines 74-90 (CLAUDE_MANAGED_EVENTS) and 181-196 (CODEX_MANAGED_EVENTS); packages/agent-setup/src/agent-wrappers-grok.ts lines 24-57 and 60-66 (~/.grok/hooks/superset-notify.json)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Official docs: status comes from installed lifecycle hooks and wrappers, only for agents launched through Superset; hooks no-op outside Superset terminals; per-agent Superset hooks toggle; Claude Code reports finished and waiting, some agents only finished",
+      "evidence": "https://docs.superset.sh/agent-status",
+      "kind": "official-docs",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Supported agents list includes Grok (xAI's CLI coding agent, Grok Build), launched as `grok --always-approve`; Claude launched as `claude --dangerously-skip-permissions`; built-in chat panel",
+      "evidence": "https://docs.superset.sh/agent-integration; superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/shared/src/builtin-terminal-agents.ts lines 61-65 and 182-189",
+      "kind": "official-docs",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Built-in chat (chat-v3) keeps sessions in chat.db beside host.db; chat_sessions_local.status is one of starting, running, awaiting_input, idle, not_loaded, offline, dead; harness adapters are claude-code and codex",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/chat-runtime/src/db/schema/schema.ts (CHAT_DB_FILENAME, chat_sessions_local); packages/chat/src/protocol/envelope.ts lines 5-13; packages/host-service/src/chat-v3/mount.ts (harnessRegistry, dataDir = dirname(dbPath)); packages/chat-runtime/README.md",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Superset holds no sleep assertion of its own",
+      "evidence": "grep -rniE 'powerSaveBlocker|caffeinate|IOPMAssertion|prevent-app-suspension|prevent-display-sleep' apps packages (ts, tsx, mdx) in the clone at 6130042 printed no file",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "No OpenTelemetry export; Sentry and PostHog only",
+      "evidence": "grep -rliE 'opentelemetry|OTEL_EXPORTER|otlp' over the clone at 6130042 (excluding node_modules, .git, bun.lock) matched only plans/branch-autonaming-prefix-proposal.html, plans/20260910-browser-pane-click-regression.html and two cursor.svg icons; apps/desktop/package.json lists @sentry/electron 7.16.0, posthog-js, posthog-node",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "CLI standalone bundle layout and the superset-host wrapper (exec lib/node lib/host-service.js); the desktop app installs a ~/.superset/bin/superset shim that execs the bundled CLI in Contents/Resources/resources/bin",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/cli/DISTRIBUTION.md; packages/cli/scripts/build-dist.ts lines 395-405 (writeHostWrapper); apps/desktop/src/main/lib/bundled-cli.ts lines 60-95; https://docs.superset.sh/cli/host-server",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Marketing site positioning: 'one workspace for Claude Code, Codex, and any coding agent', each task in its own git worktree at ~/.superset/worktrees/..., 'Local First: repos, worktrees, terminal output, and agent sessions stay on your machine'",
+      "evidence": "https://superset.sh (scraped 2026-09-30)",
+      "kind": "official-docs",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Detached (SessionEnd) ends the binding (ended_at, end_reason) and is not stored as last_event_type; Attached keeps the prior state on a bound session; Interrupt maps to Stop; Notification and PreToolUse map to PermissionRequest",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/host-service/src/terminal-agents/store.ts lines 56-62 (END_EVENT_REASONS) and 151-240 (recordEvent, preservedLifecycleState); packages/host-service/src/events/map-event-type.ts",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Claude Code gets one more managed entry beyond the notify hooks: PreToolUse with matcher Artifact running an artifact-guard script",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/agent-setup/src/agent-wrappers-claude-codex-opencode.ts lines 64-65 (CLAUDE_ARTIFACT_GUARD_EVENT = PreToolUse, CLAUDE_ARTIFACT_GUARD_MATCHER = Artifact) and 96-104",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Codex permission waits: request_user_input through the PreToolUse hook; exec and patch approval requests through a session-log watcher in the codex wrapper, which is a bash process that stays the parent of codex and adds --enable hooks and --dangerously-bypass-hook-trust",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/agent-setup/templates/codex-wrapper-exec.template.sh lines 83-114 (CODEX_TUI_SESSION_LOG_PATH, tail -F, case *_approval_request\" -> PermissionRequest) and 135-145 (\"$REAL_BIN\" ... --enable hooks ...); packages/agent-setup/src/agent-wrappers-claude-codex-opencode.ts lines 181-196 (CODEX_MANAGED_EVENTS, PreToolUse matcher ^request_user_input$); Claude's wrapper is `exec \"$REAL_BIN\" \"$@\"` (line 296)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "host.db is also written by non-agent activity, so a fresh -wal is only a weak raise signal",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/host-service/src/runtime/pull-requests/pull-requests.ts lines 65-70 (SAFETY_NET_INTERVAL_MS and PROJECT_REFRESH_INTERVAL_MS = 5 * 60_000), 333-338 (timers), 633-635 (insert into workspacePullRequests)",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Standalone host also provisions the agent hooks at start; superset start spawns the sibling superset-host wrapper; the desktop-bundled CLI refuses `superset start`",
+      "evidence": "superset-sh/superset @ 61300428781bd2ef9986e9fad279ee600f2f0647 (2026-09-30): packages/host-service/src/serve.ts lines 60-64 (provisionAgentIntegrations, standalone entry); packages/cli/src/lib/host/spawn.ts (resolveHostBinary = dirname(process.execPath)/superset-host; desktop-bundled error text); https://docs.superset.sh/cli/host-server printed 'The desktop app starts it automatically; on a CLI-only or headless machine you start it yourself.'",
+      "kind": "source-code",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Grok Bot is xAI's beta product announced 2026-08-11; Bots share a persistent cloud computer that runs in Cursor's cloud (Firecracker microVM per user); desktop apps on macOS, Windows, Linux plus iOS and Android; a Bot runs commands on the user's own computer only when a local-computer capability is enabled and approved; Grok Bot is a different product from Grok Build",
+      "evidence": "https://x.ai/news/introducing-grok-bot (page dated Aug 11, 2026: 'Grok Bot is in beta and available today ... on desktop and iOS'); https://docs.x.ai/grok-bot/overview ('The computers Bots work on run in Cursor's cloud', desktop app on macOS (Apple silicon and Intel), Windows, Linux); https://docs.x.ai/grok-bot/teams-and-enterprises ('One persistent Firecracker microVM per user'); https://docs.x.ai/grok-bot/computer-and-apps (local-computer capability). Not confirmed by any primary source: US-only, and that Cursor picks the model (only in Superset's own compare pages, superset-sh/superset apps/marketing/content/compare/superset-vs-grok-bot.mdx)",
+      "kind": "official-docs",
+      "date": "2026-09-30"
+    },
+    {
+      "claim": "Re-check of the not-installed observation and of the row's match patterns",
+      "evidence": "2026-09-30 re-run: `ls /Applications | grep -i superset` printed nothing; `ls ~/.superset` printed 'No such file or directory'; `ls ~/Library/Application\\ Support | grep -i superset` printed nothing; `ps -axo pid,args | grep -i superset` printed nothing; `python3 tools/agents_probe.py --row registry/agents/superset.json` printed '0 agent sessions'. `matches()` over synthetic argv: app path, canary path, host-service run from the app binary and headless `<root>/lib/node <root>/lib/host-service.js` match; Electron Helper (Renderer), the bundled CLI under Contents/Resources/resources/bin, plain node, Apache Superset's `superset run`, `/opt/x/lib/node other.js`, a `claude` prompt mentioning /lib/host-service.js and a Grok Bot app path do not",
+      "kind": "local-observation",
+      "date": "2026-09-30"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Superset is a host, not an agent. It runs ordinary interactive agent CLIs (Claude Code, Codex, Grok, Gemini, Cursor Agent, OpenCode, Amp, Copilot, Kimi, Vibe, Droid, Kiro and more) in PTY terminals inside per-task git worktrees, and adds a built-in chat panel. Never installed here; every field is from the public source at superset-sh/superset commit 6130042 (2026-09-30, desktop 1.33.0), the docs and the Homebrew casks. Recognising it: the app process (com.superset.desktop), its Node-mode helper processes (same Mach-O, script under app.asar/dist/main/) and, on headless hosts, a bundled lib/node running lib/host-service.js. Recognising WORK: the hosted agent is a plain process (argv `claude ...`, `grok ...`) that carries no Superset marker in argv, only SUPERSET_TERMINAL_ID in its environment and a chain agent -> login shell -> pty-daemon (Superset Mach-O) -> host-service -> Superset app. Claude Code is exec'd in place by its wrapper. Codex is not: ~/.superset/bin/codex is a bash wrapper that stays alive as the parent of codex (with a tail -F watcher child) and adds `--enable hooks` and `--dangerously-bypass-hook-trust` to codex's argv, a weak hint that is also typed by users and used by the built-in presets, so it is not a marker. So the existing per-harness rows (claude-code, codex, grok-build) already classify each session correctly; this row adds the host and the exact hook-driven state. Unlike Conductor, which runs headless agent children, and unlike the case-15 advice to drop a match whose ancestor is a registered host, do NOT drop these: they are ordinary interactive TUIs and their own caffeinate child or assertion is a true per-session signal. Do not count the app's direct children as tools. Agents on remote hosts, cloud workspaces (sandbox) and the mobile app are invisible from this Mac. Grok's own sessions are server-side, so Superset cannot read Grok transcripts; agent transcripts otherwise stay in each agent's store (Claude ~/.claude/projects). Grok Bot (xAI's always-on cloud teammates: beta announced 2026-08-11 at x.ai/news/introducing-grok-bot, computers run in Cursor's cloud per docs.x.ai, desktop app on macOS, Windows, Linux plus iOS and Android) is a different product from Grok Build and is not a Superset surface: the Superset repo holds only two marketing compare pages about it, no integration. It needs its own row; its docs say a Bot runs commands on the user's own computer only when a local-computer capability is enabled and approved, and no bundle id or process name was verified."
+}

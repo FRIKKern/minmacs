@@ -1,0 +1,352 @@
+{
+  "id": "fx",
+  "name": "fx",
+  "vendor": "Vercel Labs",
+  "homepage": "https://fx.sh",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "`fx` in a terminal: the interactive Zig TUI (also `fx resume [last|<id>]`, `fx -c`, `fx -r`, `--resume-<id>`). One native binary, installed by https://fx.sh/setup.sh to ~/.local/bin/fx (or $FX_INSTALL_DIR); no app bundle, no bundle id, no interpreter. argv[0] is `fx` when run by name, so only `names` can match: path_contains cannot work for the by-name case, and the name is shared with antonmedv/fx, the Go JSON viewer (brew formula `fx`), which this row will also match. The only discriminator the probe cannot use is the store: a real agent pid appears in ~/.fx/sessions/<id>/owner.live. On macOS fx re-executes its own binary by absolute path as short-lived helpers, so they match this row too and are vetoed by exact argument: `fx __fx_foreground_session__ <deadline> <cmd...>` (every foreground shell tool call; the command's shell is its child, so a shell is NOT a direct child of the session), and `fx --fx-internal-terminal-host|-launcher|-control|-tmux-launcher|-tmux-capture` (background command host, shared, stays 30 s after its last session). exclude_args also vetoes management subcommands by exact argument; a directory or prompt word equal to one (`fx --add-dir workspace`) would be vetoed. `ask` and `acp` have their own surfaces below. `pr` and `issue` run one model turn and exit; they are excluded and not tracked. A new session's id is generated (12-char base64url) and is NOT in argv; only resume forms carry one, so map pid to session through owner.live (pid) or lsof on session.lock, never through argv. session_id_args reads `resume <id>` and `--resume <id>`; the probe cannot read the fused `--resume-<id>` form (it tests `flag value` and `flag=value` only), and `resume last` yields the word `last`, which has no store file. Not matched by design: `fx session resume <id>` is an interactive resume too but `session` is in exclude_args (it also covers the read-only `fx session <id> --json`), so that one form is a false negative. On upgrade (ctrl+g) fx replaces its own process in place (std.process.replace, same pid) with `<installed fx> resume <id> --upgrade-relaunch [<rev>]`, so the row still matches and the id is in argv; inferred from src/core/app/app_entry_runtime.zig, not seen live.",
+      "process": {
+        "names": [
+          "fx"
+        ],
+        "exclude_args": [
+          "ask",
+          "acp",
+          "__fx_foreground_session__",
+          "--fx-internal-terminal-host",
+          "--fx-internal-terminal-launcher",
+          "--fx-internal-terminal-control",
+          "--fx-internal-terminal-tmux-launcher",
+          "--fx-internal-terminal-tmux-capture",
+          "help",
+          "login",
+          "logout",
+          "setup",
+          "status",
+          "permissions",
+          "mcp",
+          "slack",
+          "models",
+          "provider",
+          "doctor",
+          "teams",
+          "session",
+          "sessions",
+          "credits",
+          "balance",
+          "usage",
+          "upgrade",
+          "replay",
+          "workspace",
+          "pr",
+          "issue",
+          "--version",
+          "-v",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "resume",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "oneshot": true,
+      "label": "`fx ask \"<prompt>\"` (noninteractive one-shot; also `printf ... | fx ask`, `fx ask --resume <id|last>`, `--json`, `--no-save`). Alive means working; it exits at the end of the request (exit 130 on interrupt). args_contain is a SUBSTRING test, so an interactive `fx --add-dir ~/tasks` would also match here and score higher than the TUI surface (misfiled as always working); accepted because interactive launches rarely carry path arguments. Sessions are saved unless --no-save.",
+      "process": {
+        "names": [
+          "fx"
+        ],
+        "args_contain": [
+          "ask"
+        ],
+        "exclude_args": [
+          "__fx_foreground_session__",
+          "--fx-internal-terminal-host",
+          "--fx-internal-terminal-launcher",
+          "--fx-internal-terminal-control",
+          "--fx-internal-terminal-tmux-launcher",
+          "--fx-internal-terminal-tmux-capture",
+          "help",
+          "login",
+          "logout",
+          "setup",
+          "status",
+          "permissions",
+          "mcp",
+          "slack",
+          "models",
+          "provider",
+          "doctor",
+          "teams",
+          "session",
+          "sessions",
+          "credits",
+          "balance",
+          "usage",
+          "upgrade",
+          "replay",
+          "workspace",
+          "pr",
+          "issue",
+          "--version",
+          "-v",
+          "--help",
+          "-h"
+        ]
+      },
+      "session_id_args": [
+        "--resume"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "`fx acp`: Agent Client Protocol server on stdin/stdout, spawned by an editor with the configured absolute path to fx (`{\"command\":\"/absolute/path/to/fx\",\"args\":[\"acp\"]}`), one process per project, one session and one prompt at a time, newline-delimited JSON-RPC. The parent is the editor, not a terminal. Sessions are created over JSON-RPC (session/new, session/load), so no session id is in argv. Hooks and Herdr reporting fire only for interactive scope, not ACP. Substring args_contain, same hazard as the ask surface.",
+      "process": {
+        "names": [
+          "fx"
+        ],
+        "args_contain": [
+          "acp"
+        ],
+        "exclude_args": [
+          "__fx_foreground_session__",
+          "--fx-internal-terminal-host",
+          "--fx-internal-terminal-launcher",
+          "--fx-internal-terminal-control",
+          "--fx-internal-terminal-tmux-launcher",
+          "--fx-internal-terminal-tmux-capture",
+          "help",
+          "login",
+          "logout",
+          "setup",
+          "status",
+          "permissions",
+          "mcp",
+          "slack",
+          "models",
+          "provider",
+          "doctor",
+          "teams",
+          "session",
+          "sessions",
+          "credits",
+          "balance",
+          "usage",
+          "upgrade",
+          "replay",
+          "workspace",
+          "pr",
+          "issue",
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "ask"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.fx/sessions/*/events.jsonl",
+    "per_session": "~/.fx/sessions/{session_id}/events.jsonl",
+    "format": "jsonl",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "events.jsonl in the session directory is an append-only log of frames {schema_version, seq, timestamp_ms, event:{<variant>:{...}}} with variants user, assistant, tool_call, tool_result, steering, turn_completed, interrupted, context_checkpoint. The exact turn signal is an OPEN TURN: the last frame is not turn_completed or interrupted (source state machine nextConversationTurnOpen: user opens, turn_completed or interrupted closes). Keep it working only while the pid in owner.live is alive. The probe cannot read frame types, so it only raises on a fresh write. Write granularity during a long model call or tool call is not known."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "fallback; a guess, never measured. fx holds no sleep assertion and spawns no caffeinate, so there is no level signal."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "AttentionRequired",
+      "kinds": [
+        "permission",
+        "question",
+        "route_recovery"
+      ],
+      "meaning": "internal lifecycle hook fired after a user decision prompt becomes active (approval prompt in ask mode, ask_user_question, route recovery). NOT user-configurable: only built-in providers register handlers (Herdr and notification sounds). Nothing outside the process can subscribe."
+    },
+    {
+      "signal": "herdr_report",
+      "socket_env": "HERDR_SOCKET_PATH",
+      "pane_env": "HERDR_PANE_ID",
+      "meaning": "when launched inside Herdr, fx reports idle, working or blocked to Herdr over a short-lived Unix socket, with custom status permission, question or recovery for blocked; source `custom:fx`. Interactive scope only; disable with FX_HERDR=0. Read state from Herdr, not from fx."
+    },
+    {
+      "signal": "child_process",
+      "name": "afplay",
+      "meaning": "short-lived direct child `/usr/bin/afplay $TMPDIR/fx-<cue>.m4a` (cue files fx-success.m4a, fx-error.m4a, fx-bloom.m4a, fx-press.m4a, fx-release.m4a, fx-toggle.m4a, fx-click.caf). Turn end (success or error cue) and attention required (success cue) are the only cues that mean done or waiting; both default on for macOS (notifications.turn_end, notifications.attention_required). The other cues are not turn signals: bloom at startup, press on cancel (escape), click after /model or /fast changes, all gated by the sound switch; release and toggle only at sound level max (notifications.max, default false). So an afplay child can appear at startup, on cancel or during typing-adjacent UI actions without any turn ending. It is absent when sound is off. Attention also writes a BEL to the terminal. Never count afplay as a tool child and never as working."
+    }
+  ],
+  "hooks": {
+    "supported": false,
+    "config": "none. Lifecycle hooks exist only as an in-process Zig runtime (src/core/hooks); no settings key, no docs page, no external command hook. Handlers are registered by built-in providers only.",
+    "events": [
+      "PreToolUse",
+      "Stop",
+      "PostTurnEnd",
+      "AttentionRequired"
+    ],
+    "docs": "https://github.com/vercel-labs/fx/blob/main/src/core/hooks/definitions.zig"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "none. https://fx.sh/docs/using-fx/data-and-privacy says fx sends no product telemetry or usage analytics; no OTEL or OTLP string in src. Local diagnostics only: FX_TRACE=1 / FX_TRACE_LOG (trace), FX_DEBUG_RECORD=1 / FX_RECORD (terminal recordings under ~/.fx/recordings/), ~/.fx/usage.jsonl (fx usage)."
+  },
+  "sources": [
+    {
+      "claim": "fx is a Zig coding agent CLI, Apache-2.0, experimental, by vercel-labs; interactive shell, one-shot `fx ask`, embed via libfx and ACP; latest release v0.0.12",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/vercel-labs/fx (README); curl -sL https://releases.fx.sh/latest.txt printed v0.0.12; main at commit 1b1f9af, Sep 30 2026"
+    },
+    {
+      "claim": "install puts a single binary at ~/.local/bin/fx (FX_INSTALL_DIR overrides); macOS and Linux, x86_64 and aarch64; no app bundle",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://fx.sh/docs/getting-started/installation.md and https://fx.sh/setup.sh lines 4-5, 117-127 (mv \"$TMP_DIR/fx\" \"$BIN_DIR/fx\"; archive fx-<os>-<arch>.tar.gz from https://releases.fx.sh)"
+    },
+    {
+      "claim": "sessions are saved in ~/.fx/sessions/; resume by `fx -c`, `fx -r`, `fx resume last|<id>`, `--resume`, `--resume-<id>`; `fx session <id> --json` is the supported way to read one",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://fx.sh/docs/using-fx/sessions.md; https://fx.sh/docs/using-fx/cli.md (Session and help aliases); src/core/cli/cli_surface.zig (resume_id_alias_prefix = \"--resume-\")"
+    },
+    {
+      "claim": "per-session directory ~/.fx/sessions/<id>/ holds session.json (manifest), events.jsonl (append-only log), authority.json, permissions.json, recovery.json, checkpoint.json, session.lock, owner.live; the file layout is not in the docs",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/session/session_log.zig lines 31-47 (events_file, authority_file, manifest_file, permission_state_file, recovery_checkpoint_file, checkpoint_file, owner_live_file = \"owner.live\", session_lock_file = \"session.lock\"); src/core/session/session_layout.zig (sessionDirPath = sessions_dir/<id>); src/core/shared/profile_paths.zig (~/.fx, sessions)"
+    },
+    {
+      "claim": "pid to session: the writer holds an exclusive advisory lock on session.lock and writes owner.live containing {\"pid\":N,\"opened_at_ms\":T}, removed on clean close; a leftover file means the owner died",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/session/session_log.zig WritableSessionDir.trackOwnerLiveness (std.fmt.allocPrint \"{{\\\"pid\\\":{d},\\\"opened_at_ms\\\":{d}}}\\n\") and deinit/clearOwnerLiveness; called at session create and writable open (session_log.zig 4113, 4252; session_store.zig 2904, 3039). Inferred, not seen live: the lock is held for the life of an interactive session (park() is only called from subagent code and tests)"
+    },
+    {
+      "claim": "session ids: new ids are 12-char base64url from 9 random bytes; ids may be letters, digits, . _ - up to 255; a new session's id is not in argv",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/session/session_layout.zig (session_id_random_bytes = 9, validateSessionId)"
+    },
+    {
+      "claim": "events.jsonl frame shape and open-turn state machine: user opens a turn, turn_completed or interrupted closes it, assistant/tool_call/tool_result/steering are valid only inside an open turn",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/session/session_log.zig nextConversationTurnOpen (lines 619-626); src/core/session/session_event.zig ConversationEvent union (line 174) and test fixture line 3357 {\"schema_version\":3,\"seq\":1,\"timestamp_ms\":1,\"event\":{\"interrupted\":{...}}}. Inferred: the user frame is appended at turn start, and how often assistant text is flushed is unknown"
+    },
+    {
+      "claim": "no sleep inhibitor: no caffeinate, IOPMAssertion or pmset anywhere in the source",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rIn -i 'caffeinate\\|IOPMAssertion\\|pmset\\|PreventUserIdleSystemSleep' src build.zig over the main tarball (codeload.github.com/vercel-labs/fx/tar.gz/refs/heads/main) printed nothing"
+    },
+    {
+      "claim": "on macOS every foreground shell tool call runs through fx re-executing itself: `<abs path to fx> __fx_foreground_session__ <deadline|none> <argv...>`, a direct child that calls setsid and spawns the command as its own child",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/execution/command_runner.zig foreground_session_token = \"__fx_foreground_session__\" (line 77), executeProcessWithDetachedSession (1187-1230, helper_argv = executable, token, deadline, argv...), runForegroundSessionBootstrap (137-), foregroundSessionExecutable -> self_exe.pathForReexec (executablePathAlloc on macOS)"
+    },
+    {
+      "claim": "interactive shell terminals use `fx --fx-internal-terminal-host` (shared host, host.sock and host.lock under a terminal-host-v7 profile dir, 30 s idle grace, launched as a direct child with its own pgid), `--fx-internal-terminal-launcher`, `--fx-internal-terminal-control`, and tmux variants; the shell is `<zsh|bash> -l -i` (bash: --login -i)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/terminal/host.zig (internal_mode, default_idle_grace_ms = 30_000, host_dir_name); src/core/terminal/client.zig launchHost (949-963); src/core/terminal/native_session.zig (launcher_mode, control_mode); src/core/terminal/tmux_session.zig (launcher_mode, capture_mode); src/core/terminal/shell_resolver.zig resolve()"
+    },
+    {
+      "claim": "internal hooks: PreToolUse, Stop, PostTurnEnd, AttentionRequired; scope kinds interactive, ask, acp, subagent; AttentionRequired kinds permission, question, route_recovery; no user-facing hook config",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/hooks/definitions.zig; src/builtins/hooks.zig (only Herdr and notifications register handlers); grep -rn 'hook' docs sdk/README* README.md printed nothing relevant; llms-full.txt (https://fx.sh/llms-full.txt, 5000+ lines) has no hooks page"
+    },
+    {
+      "claim": "Herdr reporting: idle at start, working when a turn starts, idle on PostTurnEnd, blocked with status permission|question|recovery on AttentionRequired; interactive scope only; env HERDR_SOCKET_PATH and HERDR_PANE_ID; FX_HERDR=0 disables",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://fx.sh/docs/configure-fx/configuration.md#herdr-integration; src/builtins/hooks.zig (test 'built-in Herdr hooks report only interactive lifecycle state'); src/builtins/hooks/herdr.zig (State = idle|working|blocked, source \"custom:fx\", custom_status_max = 32)"
+    },
+    {
+      "claim": "sound cues run /usr/bin/afplay on a materialised file in $TMPDIR (fx-success.m4a etc.) when a turn ends or attention is required; defaults on for macOS; attention also emits a BEL",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/notifications/sound.zig (macos_player_path = \"/usr/bin/afplay\", materializedName, playAttention emits BEL first); docs https://fx.sh/docs/configure-fx/configuration.md (notifications.turn_end, notifications.attention_required default true on macOS)"
+    },
+    {
+      "claim": "no product telemetry and no OpenTelemetry",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://fx.sh/docs/using-fx/data-and-privacy.md 'Product telemetry': fx does not send product telemetry or usage analytics to a separate fx service; grep -rIn -i 'otel\\|opentelemetry\\|OTLP' src docs sdk README.md build.zig printed only an @opentelemetry/api line in sdk/tests/next/pnpm-lock.yaml"
+    },
+    {
+      "claim": "`fx acp` is a stdio JSON-RPC server, one session and one prompt at a time per process, launched by an editor with an absolute path",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://fx.sh/docs/using-fx/acp.md"
+    },
+    {
+      "claim": "top-level commands (the exclude list): ask, acp, pr, issue, login, logout, setup, status, permissions, mcp, slack, models, provider, doctor, teams, session, sessions, resume, credits, usage, upgrade, replay, workspace, help; `balance` is an alias of `credits`",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/slash_commands/command_specs.zig TopLevelKind (lines 10-35); https://fx.sh/docs/using-fx/cli.md"
+    },
+    {
+      "claim": "the name `fx` is also antonmedv/fx, a terminal JSON viewer and processor installed as brew formula and binary `fx`",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/antonmedv/fx (scraped 2026-09-30: 'Terminal JSON viewer & processor', brew formula fx, binary fx)"
+    },
+    {
+      "claim": "fx is not installed on this Mac: no live process, no ~/.fx",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`which fx` printed 'fx not found'; `ls -la ~/.fx` printed 'No such file or directory'; `ls ~/.local/bin` lists claude, codex, cursor-agent, minmacs and others but no fx; `ps -axo pid,args | grep -i '[/ ]fx'` matched only the shell running the command"
+    },
+    {
+      "claim": "the v0.0.12 macOS arm64 release binary is a plain Mach-O that links only libSystem (no IOKit) and contains the helper tokens, /usr/bin/afplay, owner.live, session.lock and events.jsonl, and no caffeinate, IOPMAssertion, pmset, otlp or opentelemetry string",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "downloaded https://releases.fx.sh/v0.0.12/fx-macos-aarch64.tar.gz into the scratchpad (never installed, never executed); `file fx` printed 'Mach-O 64-bit executable arm64'; `otool -L fx` listed only /usr/lib/libSystem.B.dylib; `strings -a fx | grep -iE 'caffeinate|IOPMAssertion|pmset|otlp|opentelemetry'` printed nothing; the second grep printed __fx_foreground_session__, the five --fx-internal-terminal-* tokens, /usr/bin/afplay, events.jsonl, owner.live, session.lock"
+    },
+    {
+      "claim": "afplay cue triggers: startup bloom, cancel press and /model or /fast click are gated by the sound switch; release and toggle by level max; success and error at turn end and success at attention",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/main.zig 787-809 (playStartupSound .bloom, playCancelSound .press, playInteractionSound .click, playInputClearedSound .release, playSlashMenuSound .toggle); src/builtins/hooks/notifications.zig playCue (soundEnabled) and playMaxCue (maxEnabled), flush deliver(...); src/core/session/session_commands.zig 751 and 1150 (playInteractionSound after fast and model changes); https://fx.sh/llms-full.txt notifications.max default false"
+    },
+    {
+      "claim": "a bare `fx <word>` that is not a known command is an error, not a session, so the interactive surface is `fx` plus flags, `resume` or the resume aliases; the row's exclude list covers every top-level command and alias",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/cli/cli_surface.zig parse() (unknown -> .unknown, 'fx: unknown subcommand: wat' test at ~5385) and argsAfterGlobalLaunchArgs; src/builtins/commands.zig top_level_registry (help aliases --help -h; resume aliases --resume --resume-last --continue -c -r; credits alias balance); src/core/slash_commands/command_specs.zig TopLevelKind"
+    },
+    {
+      "claim": "agents_probe.matches() on 34 synthetic command lines: fx, -c, -r, resume, --resume, --model x are the TUI surface; ask forms the ask surface; acp the ACP surface; pr, issue, doctor, upgrade, --version, session, sessions, the foreground helper and the terminal host match nothing; `fx --add-dir /Users/x/tasks` and `fx --model ask-x` are misfiled as the ask surface (score 2 over 1); `fx --add-dir workspace` matches nothing; `fx .foo`, `fx data.json`, `fx wat` and `fx version` match the TUI surface",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 importing tools/agents_probe.py and calling matches(surface, {'argv': cmd.split(' ')}) and session_id() for each line against registry/agents/fx.json; output read line by line"
+    },
+    {
+      "claim": "antonmedv/fx README describes a different tool (f(x), docs at fx.wtf, MIT); the vercel-labs repo is Apache-2.0 with latest commit 1b1f9af on 2026-09-30",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "curl -sL https://raw.githubusercontent.com/antonmedv/fx/master/README.md; curl -sL https://api.github.com/repos/vercel-labs/fx (license Apache-2.0, pushed 2026-09-30) and .../commits/main (1b1f9af)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Read from official docs (fx.sh/llms-full.txt) and the public source at main (Sep 30 2026, v0.0.12); nothing was seen running, so every CPU floor and window is a guess. Best exact signal is the open-turn record in events.jsonl gated by a live pid from owner.live, which the probe cannot read; until it can, a fresh events.jsonl write raises working and CPU is the fallback. Do not expect a shell tool child: on macOS the direct child of a working session is `fx __fx_foreground_session__ ...` (same executable name as its parent), the shell is a grandchild, so tool_children is left out. Waiting comes from Herdr's socket report or the internal AttentionRequired hook (not subscribable), and afplay is a done-or-waiting chime, not a working signal. Match by name only (argv[0] is `fx` by name) and expect antonmedv/fx to match; confirm with a pid hit in ~/.fx/sessions/*/owner.live. `fx pr` and `fx issue` are not tracked. The libfx Node and WebAssembly embeds run inside a host app and create no fx process. Adversarial pass 2026-09-30: sound cues corrected (afplay also fires at startup, on cancel and after /model or /fast, so it is a weak done-or-waiting hint, not a clean one). Known false positives: antonmedv/fx and any `fx <file|expr>` invocation, plus `fx wat` (exits at once). Known false negatives: `fx --add-dir workspace` and other flag values equal to an excluded word, and `fx session resume <id>`. Known misfile: a path or model containing the substring `ask` or `acp` is scored as the ask or ACP surface. Upgrade relaunch keeps the pid (execve-style replace), so no duplicate row."
+}

@@ -1,0 +1,698 @@
+{
+  "id": "omp",
+  "name": "Oh My Pi (omp)",
+  "vendor": "Stencil Labs, Inc. (repo can1357/oh-my-pi; fork of pi by Mario Zechner)",
+  "homepage": "https://omp.sh",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "omp in a terminal, prebuilt Bun single-file executable (curl https://omp.sh/install | sh puts it at ~/.local/bin/omp only when no Bun >= 1.3.14 of the host architecture is on PATH, otherwise it runs bun install -g and the Bun shim surfaces below apply; brew install can1357/tap/omp puts it at $(brew --prefix)/bin/omp; the release asset name omp-darwin-arm64 is also matched for a hand-downloaded file). The kernel names the process after the exec'd file, so argv[0] base name is omp. Also matches the worker and daemon re-execs of the same binary (`omp __omp_worker_*`), which are vetoed by exact argument; the probe also keeps only the outermost match. Not observed on a running instance.",
+      "process": {
+        "names": [
+          "omp",
+          "omp-darwin-arm64",
+          "omp-darwin-x64"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-h",
+          "-v",
+          "__omp_worker_blob_broker",
+          "__omp_worker_computer",
+          "__omp_worker_daemon_broker",
+          "__omp_worker_ida_host",
+          "__omp_worker_js_eval",
+          "__omp_worker_js_eval_process",
+          "__omp_worker_lsp_mux",
+          "__omp_worker_mnemopi_embed",
+          "__omp_worker_stats_activity",
+          "__omp_worker_stats_sync",
+          "__omp_worker_stt",
+          "__omp_worker_tab",
+          "__omp_worker_terminal_output",
+          "__omp_worker_text_predict",
+          "__omp_worker_tiny_inference",
+          "__omp_worker_tts",
+          "__complete",
+          "agents",
+          "auth-broker",
+          "auth-gateway",
+          "bench",
+          "browser-relay",
+          "clip",
+          "collab",
+          "completions",
+          "config",
+          "dry-balance",
+          "gallery",
+          "gc",
+          "git",
+          "grep",
+          "grievances",
+          "if-bench",
+          "images",
+          "img",
+          "install",
+          "login",
+          "models",
+          "play",
+          "plugin",
+          "plugins",
+          "predict",
+          "ps",
+          "q",
+          "read",
+          "render",
+          "say",
+          "search",
+          "setup",
+          "share",
+          "shell",
+          "skill",
+          "skills",
+          "ssh",
+          "stats",
+          "stream",
+          "tiny-models",
+          "token",
+          "toks",
+          "ttsr",
+          "update",
+          "usage",
+          "web-search",
+          "worktree",
+          "wt",
+          "--print",
+          "-p"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "omp --print (headless, one prompt then exit), compiled binary. Alive means working. `-p` is not matchable (args_contain is a substring test), only the long flag.",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "omp",
+          "omp-darwin-arm64",
+          "omp-darwin-x64"
+        ],
+        "args_contain": [
+          "--print"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-h",
+          "-v",
+          "__omp_worker_blob_broker",
+          "__omp_worker_computer",
+          "__omp_worker_daemon_broker",
+          "__omp_worker_ida_host",
+          "__omp_worker_js_eval",
+          "__omp_worker_js_eval_process",
+          "__omp_worker_lsp_mux",
+          "__omp_worker_mnemopi_embed",
+          "__omp_worker_stats_activity",
+          "__omp_worker_stats_sync",
+          "__omp_worker_stt",
+          "__omp_worker_tab",
+          "__omp_worker_terminal_output",
+          "__omp_worker_text_predict",
+          "__omp_worker_tiny_inference",
+          "__omp_worker_tts",
+          "__complete",
+          "agents",
+          "auth-broker",
+          "auth-gateway",
+          "bench",
+          "browser-relay",
+          "clip",
+          "collab",
+          "completions",
+          "config",
+          "dry-balance",
+          "gallery",
+          "gc",
+          "git",
+          "grep",
+          "grievances",
+          "if-bench",
+          "images",
+          "img",
+          "install",
+          "login",
+          "models",
+          "play",
+          "plugin",
+          "plugins",
+          "predict",
+          "ps",
+          "q",
+          "read",
+          "render",
+          "say",
+          "search",
+          "setup",
+          "share",
+          "shell",
+          "skill",
+          "skills",
+          "ssh",
+          "stats",
+          "stream",
+          "tiny-models",
+          "token",
+          "toks",
+          "ttsr",
+          "update",
+          "usage",
+          "web-search",
+          "worktree",
+          "wt"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "omp installed with `bun install -g @oh-my-pi/pi-coding-agent` (also what the installer does when a Bun >= 1.3.14 is present): ~/.bun/bin/omp is a symlink to dist/cli.js, whose shebang is `#!/usr/bin/env bun`, so ps shows `bun /Users/<u>/.bun/bin/omp <args>` with argv[0] `bun`. omp does NOT retitle itself on macOS (its own source says so), so the name `omp` never appears. A custom BUN_INSTALL location is not matched.",
+      "process": {
+        "names": [
+          "bun"
+        ],
+        "args_contain": [
+          "/.bun/bin/omp"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-h",
+          "-v",
+          "__omp_worker_blob_broker",
+          "__omp_worker_computer",
+          "__omp_worker_daemon_broker",
+          "__omp_worker_ida_host",
+          "__omp_worker_js_eval",
+          "__omp_worker_js_eval_process",
+          "__omp_worker_lsp_mux",
+          "__omp_worker_mnemopi_embed",
+          "__omp_worker_stats_activity",
+          "__omp_worker_stats_sync",
+          "__omp_worker_stt",
+          "__omp_worker_tab",
+          "__omp_worker_terminal_output",
+          "__omp_worker_text_predict",
+          "__omp_worker_tiny_inference",
+          "__omp_worker_tts",
+          "__complete",
+          "agents",
+          "auth-broker",
+          "auth-gateway",
+          "bench",
+          "browser-relay",
+          "clip",
+          "collab",
+          "completions",
+          "config",
+          "dry-balance",
+          "gallery",
+          "gc",
+          "git",
+          "grep",
+          "grievances",
+          "if-bench",
+          "images",
+          "img",
+          "install",
+          "login",
+          "models",
+          "play",
+          "plugin",
+          "plugins",
+          "predict",
+          "ps",
+          "q",
+          "read",
+          "render",
+          "say",
+          "search",
+          "setup",
+          "share",
+          "shell",
+          "skill",
+          "skills",
+          "ssh",
+          "stats",
+          "stream",
+          "tiny-models",
+          "token",
+          "toks",
+          "ttsr",
+          "update",
+          "usage",
+          "web-search",
+          "worktree",
+          "wt",
+          "--print",
+          "-p"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Same Bun global install, headless --print.",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "bun"
+        ],
+        "args_contain": [
+          "/.bun/bin/omp",
+          "--print"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-h",
+          "-v",
+          "__omp_worker_blob_broker",
+          "__omp_worker_computer",
+          "__omp_worker_daemon_broker",
+          "__omp_worker_ida_host",
+          "__omp_worker_js_eval",
+          "__omp_worker_js_eval_process",
+          "__omp_worker_lsp_mux",
+          "__omp_worker_mnemopi_embed",
+          "__omp_worker_stats_activity",
+          "__omp_worker_stats_sync",
+          "__omp_worker_stt",
+          "__omp_worker_tab",
+          "__omp_worker_terminal_output",
+          "__omp_worker_text_predict",
+          "__omp_worker_tiny_inference",
+          "__omp_worker_tts",
+          "__complete",
+          "agents",
+          "auth-broker",
+          "auth-gateway",
+          "bench",
+          "browser-relay",
+          "clip",
+          "collab",
+          "completions",
+          "config",
+          "dry-balance",
+          "gallery",
+          "gc",
+          "git",
+          "grep",
+          "grievances",
+          "if-bench",
+          "images",
+          "img",
+          "install",
+          "login",
+          "models",
+          "play",
+          "plugin",
+          "plugins",
+          "predict",
+          "ps",
+          "q",
+          "read",
+          "render",
+          "say",
+          "search",
+          "setup",
+          "share",
+          "shell",
+          "skill",
+          "skills",
+          "ssh",
+          "stats",
+          "stream",
+          "tiny-models",
+          "token",
+          "toks",
+          "ttsr",
+          "update",
+          "usage",
+          "web-search",
+          "worktree",
+          "wt"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "Bun running the package file directly: bunx, a source checkout, or a global install whose shim path is not under ~/.bun/bin (`bun .../node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js` or `.../src/cli.ts`). Not node: the package needs Bun >= 1.3.14 and its entry calls Bun.semver.",
+      "process": {
+        "names": [
+          "bun"
+        ],
+        "args_contain": [
+          "@oh-my-pi/pi-coding-agent"
+        ],
+        "exclude_args": [
+          "--help",
+          "--version",
+          "-h",
+          "-v",
+          "__omp_worker_blob_broker",
+          "__omp_worker_computer",
+          "__omp_worker_daemon_broker",
+          "__omp_worker_ida_host",
+          "__omp_worker_js_eval",
+          "__omp_worker_js_eval_process",
+          "__omp_worker_lsp_mux",
+          "__omp_worker_mnemopi_embed",
+          "__omp_worker_stats_activity",
+          "__omp_worker_stats_sync",
+          "__omp_worker_stt",
+          "__omp_worker_tab",
+          "__omp_worker_terminal_output",
+          "__omp_worker_text_predict",
+          "__omp_worker_tiny_inference",
+          "__omp_worker_tts",
+          "--filter",
+          "__complete",
+          "add",
+          "agents",
+          "auth-broker",
+          "auth-gateway",
+          "bench",
+          "browser-relay",
+          "clip",
+          "collab",
+          "completions",
+          "config",
+          "dry-balance",
+          "gallery",
+          "gc",
+          "git",
+          "grep",
+          "grievances",
+          "i",
+          "if-bench",
+          "images",
+          "img",
+          "install",
+          "link",
+          "login",
+          "models",
+          "play",
+          "plugin",
+          "plugins",
+          "pm",
+          "predict",
+          "ps",
+          "q",
+          "read",
+          "remove",
+          "render",
+          "rm",
+          "say",
+          "search",
+          "setup",
+          "share",
+          "shell",
+          "skill",
+          "skills",
+          "ssh",
+          "stats",
+          "stream",
+          "tiny-models",
+          "token",
+          "toks",
+          "ttsr",
+          "unlink",
+          "update",
+          "upgrade",
+          "usage",
+          "web-search",
+          "worktree",
+          "wt",
+          "--print",
+          "-p"
+        ]
+      },
+      "session_id_args": [
+        "--resume",
+        "-r",
+        "--session"
+      ]
+    }
+  ],
+  "session_store": {
+    "glob": "~/.omp/agent/sessions/*/*.jsonl",
+    "per_session": "~/.omp/agent/sessions/*/*_{session_id}*.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "power_assertion",
+      "name": "omp agent session",
+      "meaning": "omp takes an in-process IOKit assertion (type PreventUserIdleSystemSleep, name 'omp agent session') when its in-flight prompt count goes 0 to 1 and releases it at 0, so it is held for exactly one turn. Default on (power.sleepPrevention = idle). Off when the user sets power.sleepPrevention: off. Not a caffeinate child. Inferred, not seen live: it should also stay held while the turn is blocked on an approval or an ask question, because nothing in agent-session.ts lowers the in-flight count during a tool wait, so a wait would read as working."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Raises working only. Entries are appended per finished message plus a tool_execution_start marker before each tool; streamed text is not written. A new session has no file until its first assistant message. The session id is in argv only after --resume/--session, so the per-process path usually cannot be resolved; use the terminal breadcrumb ~/.omp/agent/terminal-sessions/<tty> (e.g. ttys009) for tty to session file."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Fallback, uncalibrated: no omp process was available to measure. The TUI redraws while streaming."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "tool_approval_requested",
+      "meaning": "An approval prompt is showing (approval mode always-ask or write, or a bash.patterns prompt rule); tool_approval_resolved ends it. Default mode is yolo, so this is rare unless the user changed tools.approvalMode. Emitted only when an approval handler is registered."
+    },
+    {
+      "signal": "hook",
+      "event": "tool_execution_start",
+      "meaning": "With toolName 'ask' the agent is asking the human a question and blocks until answered. The same event is written to the session file as a custom entry (customType tool_execution_start, data.toolName ask); no later toolResult for that call means still waiting (inferred from the writer, not seen live)."
+    },
+    {
+      "signal": "collab_registry",
+      "meaning": "Opt-in only (collab.autoStart set to view or control, default off, and it connects to a relay): `omp collab list --json` reports per live session busy (a turn is in flight) and inputRequired (per docs/collab.md: a host-side question is waiting for a writable guest; whether a local approval prompt sets it is not documented). Needs a run of the omp binary, which the probe does not do."
+    },
+    {
+      "signal": "osc",
+      "meaning": "Only inside Warp (WARP_CLI_AGENT_PROTOCOL_VERSION set): omp emits warp://cli-agent events permission_request, question_asked, stop. Not observable from a process list."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "No JSON hook table. Handlers are TypeScript or JavaScript modules exporting a default factory that calls pi.on(event, fn): ~/.omp/agent/extensions/*.ts, <cwd>/.omp/extensions/, ~/.omp/agent/hooks/pre|post/*.ts and <cwd>/.omp/hooks/pre|post/*.ts (the Claude provider in src/discovery/claude.ts also loads .claude/hooks/pre|post), an `extensions:` list in ~/.omp/agent/config.yml or <cwd>/.omp/config.yml, installed plugins, or --extension/-e/--hook <path>. Named profiles use ~/.omp/profiles/<name>/agent/.",
+    "events": [
+      "session_start",
+      "input",
+      "before_agent_start",
+      "agent_start",
+      "turn_start",
+      "context",
+      "before_provider_request",
+      "after_provider_response",
+      "message_start",
+      "message_update",
+      "message_end",
+      "assistant_message",
+      "tool_call",
+      "tool_execution_start",
+      "tool_execution_update",
+      "tool_execution_end",
+      "tool_result",
+      "tool_approval_requested",
+      "tool_approval_resolved",
+      "turn_end",
+      "agent_end",
+      "session_stop",
+      "auto_retry_start",
+      "auto_retry_end",
+      "auto_compaction_start",
+      "auto_compaction_end",
+      "session_before_compact",
+      "session_compact",
+      "session_shutdown"
+    ],
+    "docs": "https://github.com/can1357/oh-my-pi/blob/main/docs/extensions.md"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Built in and inert until an endpoint is set: OTEL_EXPORTER_OTLP_ENDPOINT (or per-signal OTEL_EXPORTER_OTLP_{TRACES,LOGS,METRICS}_ENDPOINT) starts OTLP export of GenAI spans, metrics (gen_ai.client.token.usage) and logs over http/protobuf only. Opt out with telemetry.otlpExportEnabled: false or OTEL_SDK_DISABLED=true. Documented in docs/environment-variables.md section 11."
+  },
+  "sources": [
+    {
+      "claim": "The hint URL github.com/oh-my-pi/pi-coding-agent is a 404. The project is can1357/oh-my-pi (monorepo, package @oh-my-pi/pi-coding-agent, MIT, by Stencil Labs), a fork of badlogic/pi-mono.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "firecrawl_scrape https://github.com/oh-my-pi/pi-coding-agent returned statusCode 404; https://github.com/can1357/oh-my-pi README.md, 'omp is a fork of Pi by Mario Zechner'"
+    },
+    {
+      "claim": "omp runs on Bun, not Node: package engines is {bun: >=1.3.14}, the published bin dist/cli.js starts with `#!/usr/bin/env bun`, and src/cli.ts exits unless Bun.semver says the runtime is new enough. The hint 'node-hosted' is wrong.",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "npm tarball https://registry.npmjs.org/@oh-my-pi/pi-coding-agent/-/pi-coding-agent-18.4.4.tgz: package/package.json bin {omp: dist/cli.js} engines {bun: >=1.3.14}; head -c 40 package/dist/cli.js printed '#!/usr/bin/env bun'; package/src/cli.ts lines 1 and 46 (`if (Bun.semver.order(Bun.version, MIN_BUN_VERSION) < 0) ... process.exit(1)`)"
+    },
+    {
+      "claim": "Install shapes on macOS: curl installer downloads the prebuilt omp-darwin-<arch> binary to ~/.local/bin/omp (PI_INSTALL_DIR) unless a matching Bun >= 1.3.14 exists, in which case it runs bun install -g; Homebrew formula installs the same release binary as bin/omp; README also lists bun install -g, Nix, mise.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://omp.sh/install (install_binary: BINARY=omp-${PLATFORM}-${ARCH}, curl ... -o ${INSTALL_DIR}/omp with INSTALL_DIR=${PI_INSTALL_DIR:-$HOME/.local/bin}; main: has_bun && bun_arch_matches_host -> install_via_bun); https://raw.githubusercontent.com/can1357/homebrew-tap/main/Formula/omp.rb (url .../releases/download/v#{version}/omp-darwin-arm64, bin.install ... => \"omp\"); README.md '## Install'"
+    },
+    {
+      "claim": "The release binary is a Bun single-file executable; a Bun global install runs under the `bun` process.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/macos-signing-notarization.md: 'The binary is a Bun single-file executable'; GitHub release v18.4.4 (2026-09-29) assets omp-darwin-arm64, omp-darwin-x64"
+    },
+    {
+      "claim": "omp does not rename its process on macOS. Bun's process.title setter only stores the value; the source says the kernel name stays `bun` for the shebang-run path and is correct for compiled binaries. So a Bun-global install shows `bun <path>` in ps, never `omp`.",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/utils/src/process-name.ts header comment: 'macOS has no clean userspace equivalent for the shebang-run path, and on Windows / compiled binaries the kernel derives the name from the exec'd file'; packages/coding-agent/src/cli.ts line 54 `process.title = APP_NAME`"
+    },
+    {
+      "claim": "Local check of the launch shape: a `#!/usr/bin/env bun` script reached through a symlink named omp shows as `bun <symlink path> <args>` in ps, and assigning process.title = 'omp' changed neither ps nor process.title (Bun 1.0.0 here, older than the 1.3.14 omp needs, so this is corroboration not proof for new Bun).",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "In a scratch dir: printf '#!/usr/bin/env bun ... ps -o comm=,args= -p $$' script, `ln -s fake.js omp`, `./omp foo --session abc` printed comm/args 'bun bun /private/tmp/.../omp/t/./omp foo --session abc' before and after the title assignment; PATH lookup run printed 'bun bun .../t/omp bar'"
+    },
+    {
+      "claim": "omp is not installed on this Mac.",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`which omp` printed 'omp not found'; `ls ~/.omp` printed 'No such file or directory'; `ls ~/.local/bin/omp /opt/homebrew/bin/omp` printed 'No such file or directory'; `bun --version` printed 1.0.0"
+    },
+    {
+      "claim": "omp re-executes its own binary as workers and broker daemons with a hidden first argument __omp_worker_<name>; there are 16 selectors. Daemons may outlive the session, so they must be vetoed by exact argument, not only by the parent rule.",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/coding-agent/src/cli/worker-selectors.ts (8 constants) and src/cli.ts lines 182-189 (8 more); src/subprocess/worker-client.ts resolveWorkerSpawnCmd: compiled binary -> {cmd: [executable, workerArg]}, else [executable, hostEntry, workerArg]"
+    },
+    {
+      "claim": "The per-turn sleep inhibitor is an in-process IOKit assertion, not a caffeinate child: type PreventUserIdleSystemSleep, name 'omp agent session', taken when the in-flight prompt count goes 0 to 1 and released at 0, default level idle.",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/coding-agent/src/session/agent-session.ts powerAssertionOptions() (reason: 'omp agent session', idle: true) lines ~658-667, #beginInFlight/#endInFlight ~1053-1068 and comment at ~1469 'Power assertions are taken per turn'; src/session/settings.ts power.sleepPrevention default 'idle'; crates/pi-natives/src/power.rs PREVENT_USER_IDLE_SYSTEM_SLEEP = \"PreventUserIdleSystemSleep\" via IOPMAssertionCreateWithName, reason string used as assertion name"
+    },
+    {
+      "claim": "The bash tool runs in an embedded in-process shell (brush) with in-process coreutils, so tool commands are not shell children. That external programs it starts are direct children of omp under their own names is inferred (the docs do not say so); only PTY mode uses a shell. The shell-only tool_children signal is therefore left out.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/natives-shell-pty-process.md: 'Runtime core (crates/pi-shell): brush shell execution'; 'Each builtin runs inside the shell process (no fork/exec)'; PtyStartOptions 'default shell is sh'"
+    },
+    {
+      "claim": "Sessions are JSONL at ~/.omp/agent/sessions/<encoded-cwd>/<ISO timestamp with : and . replaced by ->_<uuidv7>.jsonl. Header type 'session' has id, cwd, timestamp, version 3; entries carry id/parentId/timestamp/type (message, custom, model_change, ...). Subagent children live at <parent>/<agentId>.jsonl. Profiles use ~/.omp/profiles/<name>/agent/sessions; PI_CODING_AGENT_DIR and PI_CONFIG_DIR relocate it.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/session.md 'On-Disk Layout', 'File Format', 'Header'; docs/environment-variables.md lines 522-529 (PI_CODING_AGENT_DIR, PI_CONFIG_DIR, PI_CODING_AGENT_SESSION_DIR); subagent child files: src/task/executor.ts line 3521 (path.join(options.artifactsDir, `${id}.jsonl`)) and src/session/session-manager.ts artifactsDirectoryFor() (session file minus .jsonl), not docs/session.md; src/session/session-manager.ts mintSessionId() = Bun.randomUUIDv7() and fileSafeTimestamp()"
+    },
+    {
+      "claim": "Write pipeline: append-only, per completed entry with no fsync; a new session is memory-only until it holds an assistant message; a tool_execution_start custom entry is written just before each tool runs; a session_exit custom entry is written on shutdown.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "docs/session.md 'Write pipeline' and the core customType table (tool_execution_start, session_exit); src/session/agent-session.ts #recordToolExecutionStart line ~2881"
+    },
+    {
+      "claim": "A terminal breadcrumb maps a tty to the session file: ~/.omp/agent/terminal-sessions/<terminal-id> holds the cwd and session path; on macOS the id is the tty name minus /dev/ (ttys009).",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "docs/session.md 'Terminal breadcrumb files'; packages/tui/src/ttyid.ts getTerminalId(): ttyPath.slice(5).replace(/\\//g,'-') from ttyname(0); src/session/session-paths.ts lines 209-335"
+    },
+    {
+      "claim": "Session flags: --resume [id] / -r / --session [id] take an id prefix or a path (value optional); --continue/-c takes none; --fork <session>; --session-dir; --no-session; -p/--print is headless; --mode text|json|rpc|acp|rpc-ui; profile via --profile or OMP_PROFILE.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/cli-reference.md 'Session history' and 'Output mode' tables"
+    },
+    {
+      "claim": "Approval mode defaults to yolo (no prompts); always-ask and write modes prompt; prompt text starts 'Allow tool: <name>'. Unlike pi, omp has permission prompts.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/approval-mode.md 'Modes' table (yolo (default)) and 'Per-tool prompt details'"
+    },
+    {
+      "claim": "Lifecycle hooks are extension modules; tool_approval_requested/resolved and agent_start/agent_end, turn_start/turn_end, session_stop exist; hook file locations and settings key as recorded in hooks.config.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/extensions.md 'Event surface'; docs/extension-loading.md 'Inputs to extension loading'; docs/hooks.md 'Native discovery location'; .claude/hooks read by the Claude provider: src/discovery/claude.ts lines 383-389 and 621 (description 'Load hooks from .claude/hooks/pre/ and .claude/hooks/post/'); docs/hooks.md says the native layout only 'mirrors' it"
+    },
+    {
+      "claim": "omp already maps its own state to Warp's OSC protocol: permission_request on tool_approval_requested, question_asked on tool_execution_start for tool ask, stop on agent_end unless willContinue. This is the in-tree proof of which events mean waiting.",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/coding-agent/src/modes/warp-events.ts lines ~197-235"
+    },
+    {
+      "claim": "OpenTelemetry export is built in and off until an OTLP endpoint env var is set; http/protobuf only.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "docs/environment-variables.md '11) OpenTelemetry export'; src/telemetry-export.ts header; src/telemetry-export-otlp.ts (gen_ai.client.token.usage, omp.gen_ai.agent.id); src/telemetry-settings.ts telemetry.otlpExportEnabled default true"
+    },
+    {
+      "claim": "Opt-in exact turn state: `omp collab list --json` returns per live host pid, session id, busy (turn in flight, false during scheduling pauses) and inputRequired (a host-side question waiting for a writable guest); registry metadata in ~/.omp/run/collab-hosts; requires collab.autoStart (default off) or /collab.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/collab.md 'Sharing every session automatically' and the omp collab list paragraph; src/collab/settings.ts cfgCollabAutoStart default 'off'"
+    },
+    {
+      "claim": "Herdr, cmux, Emdash, Agent Deck, CASS and others already recognise omp; Herdr treats it as hook-only, Agent Deck captured busy as a literal ⟨esc⟩ with a braille spinner and approval as an 'Allow tool:' line on v17.3.8.",
+      "kind": "third-party",
+      "date": "2026-09-29",
+      "evidence": "registry/evidence/prior-art.md section on omp (rows citing Herdr Agent::Omp, cmux scanner, Agent Deck patterns.go)"
+    },
+    {
+      "claim": "No macOS app bundle exists for omp; CLI only, so no bundle id.",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "GitHub release v18.4.4 assets are bare Mach-O binaries omp-darwin-arm64/omp-darwin-x64 (no .app or .dmg); docs/macos-signing-notarization.md says a bare Mach-O 'cannot be stapled' and suggests a .pkg/.dmg as future work"
+    },
+    {
+      "claim": "Top-level subcommands are a fixed table; the first argument is routed to a subcommand, so each of these is a short-lived or utility process that is not an agent session. The row vetoes every utility subcommand and alias by exact argument. Left unvetoed on purpose because they run model turns or are session clients: launch, acp, commit, cleanse, compress, find, join.",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "npm tarball pi-coding-agent-18.4.4.tgz package/src/cli-commands.ts `commands` array (launch, acp, auth-broker, auth-gateway, agents, bench, browser-relay, cleanse, collab, commit, completions, __complete, compress, config, dry-balance, find, gc, grep, gallery, git, grievances, images, if-bench, install, join, login, models, plugin, predict, ps, say, clip, play, share, setup, shell, read, render, skill, ssh, stats, stream, update, usage, tiny-models, token, toks, ttsr, worktree, search) and aliases img, plugins, skills, wt, q, web-search; descriptions in src/cli/command-help.ts. `omp worktree add` is also spawned by the bash tool itself (src/tools/bash.ts line 996 rewriteGitWorktreeAdd)."
+    },
+    {
+      "claim": "Package-manager runs that name the package are not sessions: `bun install -g @oh-my-pi/pi-coding-agent` and `bun add -g ...` matched the bun+package surface before the verifier added exact-argument vetoes (install, add, i, upgrade, remove, rm, pm, link, unlink, update, --filter). `bun run --filter @oh-my-pi/pi-coding-agent test` is the same shape.",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "tools/agents_probe.py matches() on synthetic argv ['bun','install','-g','@oh-my-pi/pi-coding-agent'] returned score 2 on the fifth omp surface (bun + @oh-my-pi/pi-coding-agent) before the change and nothing after; scratch harness omptest.py over all registry/agents/*.json"
+    },
+    {
+      "claim": "`omp -p <prompt>` is not matched by any surface: -p is vetoed on the interactive surfaces and the print surface needs the substring --print, which -p does not contain. So -p one-shot runs are invisible, not misread as interactive sessions.",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "agents_probe.matches() on synthetic argv ['omp','-p','hi'] returned no match on any row; ['omp','--print','hi'] matched omp surface 2 only"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Version read: 18.4.4 (released 2026-09-29). Not installed here and never seen running, so every process shape below is from source and install scripts, not from ps. Three things differ from what the pi row says and from what the hint says: (1) omp is a Bun program, so `node` never appears; (2) a Bun global install is a `bun` process whose ps args carry the shim path ~/.bun/bin/omp, and omp does not retitle it on macOS, while the curl and brew installs are a native `omp` binary; (3) the turn signal is an in-process IOKit assertion named 'omp agent session' (pmset -g assertions), default on, turn-scoped, while the bash tool does not create shell children. Waiting on the human is not visible from outside: the assertion stays held during an approval prompt or an ask question, so use the tool_approval_requested hook or the ask marker where a hook or store read is possible. The pi row no longer collides (it now requires @earendil-works/pi-coding-agent/dist/cli.js under node); `bun` plus `@oh-my-pi/pi-coding-agent` belongs to this row only. ACP (`omp acp`) and `--mode rpc/json` processes are deliberately not vetoed: they run real turns. Subcommand vetoes are exact-argument and cover every utility subcommand and alias in src/cli-commands.ts; a real session whose argv holds one of those words as a separate argument would be hidden. Model-running subcommands (commit, cleanse, compress, find) and collab join are not vetoed and read as sessions while alive. `omp -p` runs are not matched at all. Two things are inferred and unobserved: the assertion staying held during an approval or ask wait, and that programs started by the embedded bash tool are direct children. The Bun shim shape is corroborated only by a Bun 1.0.0 test; if a newer Bun did retitle the process, the names surface would match `omp` but flags and worker vetoes would be lost. Dev-only false positive left open: `bun run <script> ... @oh-my-pi/pi-coding-agent` inside the oh-my-pi monorepo; and the substring /.bun/bin/omp also matches /.bun/bin/omp-<anything>."
+}

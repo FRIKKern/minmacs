@@ -1,0 +1,196 @@
+{
+  "id": "grok-bot",
+  "name": "Grok Bot",
+  "vendor": "SpaceXAI (xAI), built on Cursor (Anysphere) infrastructure",
+  "homepage": "https://x.ai/bot",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "Grok Bot desktop app (Electron 42.1.0, internal name \"sand\"). A CLIENT of Bots that run on a Cursor-hosted cloud computer, not the agent itself: closing the app does not stop a turn. The main process argv[0] is the full path of Contents/MacOS/Grok Bot (CFBundleExecutable `Grok Bot`, bundle id com.anysphere.sand, both read from the 0.63.0 Info.plist). Electron helpers (Grok Bot Helper, Grok Bot Helper (Renderer), (GPU), (Plugin)) live under Contents/Frameworks and do not match; neither does the macOS computer-use helper Contents/Helpers/Grok Bot Computer Use.app (executable CUGrokBotService, bundle co.anysphere.grok-bot-computer-use). Not the Grok Build CLI (`grok-build` row).",
+      "bundle_ids": [
+        "com.anysphere.sand"
+      ],
+      "process": {
+        "path_contains": [
+          "/Grok Bot.app/Contents/MacOS/Grok Bot"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "local-exec daemon: the process that runs commands the cloud Bot sends to THIS Mac, only when Execution on Local Computer is Ask every time (the default) or Always allow. CORRECTED from the 0.18.0 teardown. In 0.63.0 the main process forks it as an Electron utility process (utilityProcess.fork of dist/local-exec-daemon/main.cjs with serviceName `sand-local-exec-daemon`); it is not a detached ELECTRON_RUN_AS_NODE process, and a normal quit kills it (killLocalExecDaemon in the before-quit handler; only a restart-for-update leaves it running). Its parent is the main app process, so the probe folds it into the app row, and its bash -c command shells are its children, not the app's. A utility process has argv `Grok Bot Helper --type=utility --utility-sub-type=node.mojom.NodeService ...`; the module path travels over IPC, so this rule is expected NOT to match anything in 0.63.0. It is kept only as a harmless catch-all (it can only match a Grok Bot binary that carries `local-exec-daemon` in an argument, e.g. a 0.18-style detached daemon); the actual argv is unverified because the app is not installed here.",
+      "bundle_ids": [
+        "com.anysphere.sand"
+      ],
+      "process": {
+        "path_contains": [
+          "/Grok Bot.app/Contents/MacOS/Grok Bot",
+          "/Grok Bot Helper.app/Contents/MacOS/Grok Bot Helper"
+        ],
+        "args_contain": [
+          "local-exec-daemon"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "label": "Bots on the Cursor-hosted persistent cloud computer (one Linux computer per user, shared by all their Bots), plus the iOS and Android apps. Every turn runs here. Nothing to see from this Mac; report the desktop app as a client with no turn state."
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/Grok Bot/sand-client-persistence/onqw4zbomnwgszlooqxhg3djmnss4yldmnxxk3tufzqxk5di????????????????????????????????????????????????????????fz2heyloonrxe2lqoqxhezlqnruwgylt*.blob",
+    "format": "json",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "The desktop app rewrites a per-account, per-Bot rolling chat replica (.blob, JSON, capped at about 200 entries) as chat entries arrive while the app is open. Raises working, never lowers it. Not mappable to a process (the file belongs to an account and Bot, not a session), so the probe, which needs a per_session path, cannot evaluate it; a host detector may watch the newest mtime among files matching the glob. Nothing is written locally when the app is closed even though Bots keep working."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Last resort, Electron floor. The app tree also runs the React UI, a noVNC webview of the cloud desktop and a coordinator utility process, so CPU is never the only reason and cannot prove idle. In 0.63.0 the local-exec daemon and its bash -c command shells are descendants of the main process, so a local command in flight does raise tree CPU. tool_children was REMOVED: the shells are children of the daemon utility process, never direct children of the matched app process, so the signal could not fire."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "ui",
+      "meaning": "Sidebar shows Needs attention for a question, approval or handoff, versus Working or typing status. In-app only; no local file or process carries it (undocumented if one does)."
+    },
+    {
+      "signal": "os_notification",
+      "meaning": "Per-Bot Notifications setting sends an OS notification when the Bot finishes or needs input; suppressed while the app is focused. Not machine readable by a detector."
+    },
+    {
+      "signal": "otel",
+      "event": "cursor.grok_bot.tool_decision",
+      "meaning": "Enterprise OpenTelemetry Export only, server side. Records the outcome of an approval (allowed, denied, held, timed_out) after the fact, with approval_mode ask_human or local_tool_permission; it is not a live pending state."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "not documented for Grok Bot. The Grok Bot docs never describe user hooks, but docs.x.ai/grok-bot/teams-and-enterprises names \"a hook\" among the deciders Action Recording logs, Cursor's OpenTelemetry wire reference records a `pre-tool hook` (decision.source=hook, approval_mode=hook) on Grok Bot, and the app bundle carries team.hooks.read and team.hooks.manage permission ids (so hooks look team-managed). Hooks would run in the cloud computer, not on this Mac. Where they are configured is unknown.",
+    "events": [
+      "pre_tool_use"
+    ],
+    "docs": "https://cursor.com/docs/enterprise/opentelemetry-export/wire"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Enterprise plan only, team setting Team Settings > OpenTelemetry Export, sent by Cursor's backend (not the desktop app) to the customer's collector as OTLP/HTTP binary protobuf to <base>/v1/logs and /v1/metrics, tagged cursor.surface=grok_bot. Bot events (cursor.grok_bot.shell_command, tool_decision, routine_run, message_delivery and others) need Action Recording turned on. Prompt and response text is a further opt-in. Not available to individual or Teams plans, and no local OTel endpoint exists."
+  },
+  "sources": [
+    {
+      "claim": "Grok Bot is xAI/SpaceXAI's desktop and iOS app, launched 2026-08-11, sold through SuperGrok and Cursor plans; Bots have their own cloud computer and keep working with the laptop closed",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://x.ai/news/introducing-grok-bot (dated Aug 11, 2026: 'Grok Bot is in beta and available today for SuperGrok, SuperGrok Plus, and SuperGrok Heavy; Cursor Pro, Pro+, and Ultra; and Cursor Teams Standard and Premium subscribers on desktop and iOS'; 'Bots share a computer of their own in the cloud'); https://docs.x.ai/grok-bot/overview ('Closing the app, your laptop, or your phone doesn't stop a background turn or a routine'; desktop app also on Windows and Linux, mobile on iPhone, iPad and Android). Re-fetched 2026-09-30, all quotes present."
+    },
+    {
+      "claim": "Every Bot turn runs on one persistent cloud computer per user, so the Mac process does not do the work; Bot cloud work continues when the app is closed",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.x.ai/grok-bot/computer-and-apps ('Closing the Grok Bot app or your laptop does not stop cloud work'); https://docs.x.ai/grok-bot/troubleshooting ('A Bot's cloud work can continue even when the desktop or mobile app is disconnected')"
+    },
+    {
+      "claim": "the macOS app is Grok Bot.app installed to /Applications, cask `grok-bot` 0.63.0 (2026-09-30), dmg from downloads.cursor.com/sand/stable/darwin-<arch>/, with user data under com.anysphere.sand and Grok Bot folders",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/Homebrew/homebrew-cask/blob/master/Casks/g/grok-bot.rb : app \"Grok Bot.app\"; zap trash ~/Library/Application Support/com.anysphere.sand, ~/Library/Application Support/Grok Bot, ~/Library/Caches/com.anysphere.sand, ~/Library/HTTPStorages/com.anysphere.sand, ~/Library/Logs/Grok Bot, ~/Library/Preferences/com.anysphere.sand.plist; auto_updates true . Re-fetched 2026-09-30: cask 0.63.0 in commit b75dd61 dated Sep 30, 2026; url downloads.cursor.com/sand/stable/darwin-#{arch}/#{version}/Grok_Bot_#{version}#{arch_suffix}.dmg; also zaps ~/Library/Saved Application State/com.anysphere.sand.savedState. `curl -sI` on the arm64 dmg returned 200, 144463592 bytes. The update feed `curl -sL https://api2.cursor.sh/updates/api/update/darwin-arm64/sand/0.0.0/stable` returned {\"url\":\"https://downloads.cursor.com/grokbot/stable/darwin-arm64/0.63.0/Grok_Bot_0.63.0.zip\",\"name\":\"0.63.0\"}."
+    },
+    {
+      "claim": "bundle id com.anysphere.sand and Electron 42.1.0 confirmed for 0.63.0; internal name sand; daemon logs to ~/.grokbot/logs and writes ~/.grokbot/local-exec-daemon.json with pid, startedAt and inflightCount (confirmed in 0.63.0 code); data root ~/.grokbot. The 0.18.0 teardown's daemon process model (detached, ELECTRON_RUN_AS_NODE, spawned by the coordinator) is CORRECTED for 0.63.0, see the daemon source below",
+      "kind": "third-party",
+      "date": "2026-09-03",
+      "evidence": "https://shadown.github.io/blog/posts/2026-09-03_grok_bot_how-it-works/ (teardown of v0.18.0 app.asar; the bundle id is corroborated by the Homebrew zap paths above; process layout NOT re-checked against the current 0.63.0) . Local re-check 2026-09-30 against the shipped 0.63.0 bundle: Info.plist CFBundleIdentifier com.anysphere.sand, CFBundleExecutable Grok Bot, CFBundleShortVersionString 0.63.0; Electron Framework Info.plist CFBundleVersion 42.1.0; app.asar package.json name sand, productName Grok Bot, author SpaceXAI; dist/electron-main/main-core.cjs holds q5=\".grokbot\" and DL=\"local-exec-daemon.json\"; dist/local-exec-daemon/main.cjs holds the record shape {pid, startedAt, servingAt, inflightCount, ...}. (Method under the next entry.)"
+    },
+    {
+      "claim": "the daemon pulls SSE from /local-exec/requests and posts /local-exec/responses, runs a bash -c per command, gated by settings.json localToolPermission (also localToolPermissionCeiling and localToolPermissionByMachineId), default ask; approvals live in ~/.grokbot/local-tool-approvals.json. The 10 minute TTL is unverified for 0.63.0",
+      "kind": "third-party",
+      "date": "2026-09-03",
+      "evidence": "https://shadown.github.io/blog/posts/2026-09-03_grok_bot_how-it-works/ sections 2.4 and 11 (v0.18.0) . 0.63.0 bundle: dist/local-exec-daemon/main.cjs contains the paths \"/local-exec/requests\" and \"/local-exec/responses\", the zod keys localToolPermission, localToolPermissionCeiling and localToolPermissionByMachineId, the file name local-tool-approvals.json and `[\"-c\", ...]` shell spawns. The default ask is confirmed by https://docs.x.ai/grok-bot/approvals-security-and-privacy ('The default is Ask every time')."
+    },
+    {
+      "claim": "local execution is opt-in per computer: Ask every time (default), Always allow or Never allow, under Settings > General > Bot > Execution on Local Computer; Bots can run commands, read files and move files on the Mac only through the desktop app",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.x.ai/grok-bot/approvals-security-and-privacy ; https://docs.x.ai/grok-bot/security#local-execution"
+    },
+    {
+      "claim": "CASS reads the desktop's chat-only, lossy rolling replicas from ~/Library/Application Support/Grok Bot/sand-client-persistence (override CASS_GROK_BOT_DATA_ROOT). File name is lowercase unpadded base32 plus .blob; the decoded key is sand.client.slice.account.auth0%7Cuser_<26-char ULID>.transcript.replicas.<agent uuid>. Content is JSON {schemaVersion:1, value:{entries:[...]}}, entry kinds message (role, content) and send-message, observed cap 200 entries, IDs and timestampMs per entry. A replica belongs to an account and agent, not a session or workspace",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/Dicklesworthstone/franken_agent_detection/blob/main/src/connectors/grok_bot.rs (constants REPLICA_PREFIX, REPLICA_SEPARATOR; fn source_roots, replica_key, parse_replica); its test fixture is a sanitized 13-entry excerpt from CASS issue 447, so 'proves the reported structure, not native-app interoperability'"
+    },
+    {
+      "claim": "the same sand-client-persistence directory also holds per-account encrypted secrets blobs (Electron safeStorage, 0600), so not every file there is a replica and the directory is sensitive",
+      "kind": "third-party",
+      "date": "2026-09-03",
+      "evidence": "https://shadown.github.io/blog/posts/2026-09-03_grok_bot_how-it-works/ section 8 'Secrets' and section 10 (v0.18.0)"
+    },
+    {
+      "claim": "the glob's 48-character prefix is the base32 of the FIRST 30 BYTES of the key, which is `sand.client.slice.account.auth` (NOT `...auth0`, as an earlier draft said); because the key is 65 bytes up to the replica separator (26 + 13 + a 26-character ULID) and 65 is a multiple of 5, the base32 of `.transcript.replicas` is a fixed 32-character block at characters 104-135, so the glob pins the replica suffix with 56 `?` between and excludes non-replica blobs such as the safeStorage secrets",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3: base64.b32decode('onqw4zbomnwgszlooqxhg3djmnss4yldmnxxk3tufzqxk5di'.upper()) printed b'sand.client.slice.account.auth'; base64.b32encode(b'.transcript.replicas').decode().lower() printed fz2heyloonrxe2lqoqxhezlqnruwgylt (32 chars). fnmatch of the row glob against base32(KEY)+'.blob' for CASS's own test KEY `sand.client.slice.account.auth0%7Cuser_00000000000000000000000000.transcript.replicas.81da155f-cc4c-58b3-aadf-770858d5e55c` (201 chars) printed True, True for a second ULID-shaped key, and False for keys ending `.secrets` and `.transcript.send-journal.x`. Assumes the 26-character ULID subject that CASS grok_bot.rs (line 135) also requires; an account with another subject shape is not matched. Never open a match without decoding its name."
+    },
+    {
+      "claim": "OpenTelemetry Export covers Grok Bot: Enterprise only, sent from Cursor's backend, OTLP/HTTP protobuf to <base>/v1/logs and /v1/metrics, cursor.surface=grok_bot, Bot action events need Action Recording; tool_decision.source includes `hook` (pre-tool hook); outcome held or timed_out for unanswered approvals",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://cursor.com/docs/enterprise/opentelemetry-export/wire (Transport and scope; cursor.grok_bot.tool_decision; family grok_bot_agent_actions); https://docs.x.ai/grok-bot/teams-and-enterprises#logging-and-audit ; https://docs.x.ai/grok-bot/security ('Grok Bot does not ship a built-in customer-facing telemetry or EDR feed')"
+    },
+    {
+      "claim": "waiting on the human is shown in the app only: sidebar Needs attention for a question, approval or handoff; optional per-Bot OS notification when it finishes or needs input",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.x.ai/grok-bot/settings-and-notifications (Understand attention states; Control notifications)"
+    },
+    {
+      "claim": "Grok Build (the CLI, `grok`) is a separate product with its own row and its own store under ~/.grok; Grok Bot is not it",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.x.ai/build/overview ; registry/agents/grok-build.json"
+    },
+    {
+      "claim": "not installed on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "ls /Applications | grep -i -E 'grok|x\\.ai|xai' printed nothing; ls ~/.grok printed 'No such file or directory'; nothing was downloaded or installed"
+    },
+    {
+      "claim": "the 0.63.0 macOS bundle layout: executable, helper names and bundle ids that the process rules depend on",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "Read the central directory of https://downloads.cursor.com/grokbot/stable/darwin-arm64/0.63.0/Grok_Bot_0.63.0.zip with curl -r range requests (nothing installed, only ranges of the zip fetched). Entries: Grok Bot.app/Contents/MacOS/Grok Bot; Grok Bot.app/Contents/Frameworks/Grok Bot Helper.app/Contents/MacOS/Grok Bot Helper (plus (Renderer), (GPU), (Plugin) variants); Grok Bot.app/Contents/Helpers/Grok Bot Computer Use.app/Contents/MacOS/CUGrokBotService; Contents/Resources/app.asar and app.asar.unpacked/dist/native/{sand-webauthn-signer,sand-op-launcher}. Info.plists: main CFBundleIdentifier com.anysphere.sand; Helper com.anysphere.sand.electron-helper (LSUIElement true); Computer Use co.anysphere.grok-bot-computer-use."
+    },
+    {
+      "claim": "0.63.0 forks the local-exec daemon as an Electron utility process from the main process and kills it on quit; the coordinator only asks main to spawn it",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "Inflated Contents/Resources/app.asar from the same zip into the scratchpad and read its header (asar JSON at offset 16) to extract dist/electron-main/main-core.cjs, main-app.cjs and dist/node-agent-coordinator/main.cjs. main-core.cjs function gne: `e.fork(e.entryPath,{env:e.env,stdio:\"pipe\",serviceName:HT})` with HT=\"sand-local-exec-daemon\"; f0 calls gne when a utilityFork is supplied and daemonEntryArgv is unset; main-app.cjs supplies `utilityFork:(Yt,bu)=>Ce.utilityProcess.fork(Yt,[],bu)` and the coordinator reaches it through `t.control.spawnLocalExecDaemon`; function ine deletes ELECTRON_RUN_AS_NODE from the daemon env; the detached spawn Sne is used only when daemonEntryArgv is passed (not set in app code). main-app.cjs before-quit handler calls `killLocalExecDaemon()` unless restartingForUpdate. Contradicts the v0.18.0 teardown (detached, ELECTRON_RUN_AS_NODE, survives quit). Whether the utility process argv exposes serviceName is NOT verified locally; Electron docs describe serviceName as a metrics label."
+    },
+    {
+      "claim": "the 0.63.0 main bundle does not hold a power assertion and the client store lives under userData/sand-client-persistence",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -c powerSaveBlocker and grep -c caffeinate over dist/electron-main/main-app.cjs and main-core.cjs each printed 0. main-app.cjs: `Rc.default.join(Ce.app.getPath(\"userData\"),\"sand-client-persistence\")` and a slice-kind list containing \"transcript.replicas\". userData resolves to ~/Library/Application Support/Grok Bot by Electron's productName default (inferred; the Homebrew zap lists that folder and --user-data-dir / SAND_USER_DATA_DIR can override it)."
+    },
+    {
+      "claim": "synthetic argv through tools/agents_probe.py matches() against every registry row",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 loaded matches() and evaluated 8 argv lists. `/Applications/Grok Bot.app/Contents/MacOS/Grok Bot` -> grok-bot gui 38 only; a copy at /Users/x/Downloads/Grok Bot.app/... -> grok-bot gui only; Helper (Renderer), the Helper utility process `--type=utility --utility-sub-type=node.mojom.NodeService` and CUGrokBotService -> no row; `bash -c 'echo local-exec-daemon Grok Bot'` and `vim local-exec-daemon.md` -> no row; a 0.18-style `Grok Bot` binary with .../local-exec-daemon/main.cjs -> grok-bot daemon 39 (beats gui 38). No other row matches any of them. Synthetic argv, so it proves the rule logic only."
+    },
+    {
+      "claim": "docs.x.ai names hooks among Bot decision makers; OTel wire values for tool_decision confirmed",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.x.ai/grok-bot/teams-and-enterprises.md (Action Recording: 'the decision that allowed or refused it (Auto-review, a hook, or the member)'); https://cursor.com/docs/enterprise/opentelemetry-export/wire.md: transport OTLP/HTTP binary protobuf POST <base>/v1/metrics and <base>/v1/logs; cursor.surface includes grok_bot; family grok_bot_agent_actions 'On (needs Action Recording)'; tool_decision decision.source `human|policy|hook|automatic`, approval_mode `auto_allow|ask_human|auto_review|local_tool_permission|hook`, outcome `allowed|denied|held|timed_out`. https://docs.x.ai/grok-bot/security.md: 'OpenTelemetry Export ... also Enterprise only'."
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Grok Bot is not a process-visible agent in the way a CLI is. The Bots run on a Cursor-hosted cloud computer and keep working with the app closed, so no local signal (process, child, CPU, file write) can say a turn is in progress: a turn with the app quit is invisible, and an open app with a working Bot is only sometimes visible through a chat-replica write. What a Mac can see is (1) the desktop client, (2) local command execution when the user has enabled Execution on Local Computer (only as tree CPU), and (3) a lossy chat replica. Report the desktop app as a client and treat working as best effort; the precise turn state exists only in Cursor's backend, the in-app sidebar, and Enterprise OTel. Confidence is documented, not verified-locally: the app is not installed here. The app surface (path, executable name, bundle id, helper names) was re-read from the vendor's own 0.63.0 zip and Info.plist, so it no longer rests on the 0.18.0 teardown. Still inferred: the argv of a running process (never seen live), the daemon's argv (expected to carry no `local-exec-daemon`, so that surface is inert), the replica file format (CASS source and a user-reported sample), and userData resolving to Application Support/Grok Bot. Matching reads argv only: the main app matches on argv[0] containing /Grok Bot.app/Contents/MacOS/Grok Bot, which no helper, no computer-use helper and no other row reaches. tool_children was dropped because the daemon (a utility process under main) owns the command shells, so they are never direct children of the matched app process. The replica files are keyed by account and Bot, never map a process to one; the glob is pinned to replica-shaped names but a detector must still decode the filename and require .transcript.replicas. before opening any file, because sand-client-persistence also holds encrypted secrets."
+}

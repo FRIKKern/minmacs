@@ -1,0 +1,341 @@
+{
+  "id": "deepseek-harness",
+  "name": "DeepSeek Harness (dsh)",
+  "vendor": "DeepSeek AI",
+  "homepage": "https://github.com/deepseek-ai/deepseek-harness",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "label": "DeepSeek Harness Desktop (official Electron app, macOS arm64 DMG from download.deepseek.com). Turns run in the Host, a child of the Electron main process: the same Electron executable re-run with ELECTRON_RUN_AS_NODE=1 as `<app>/Contents/MacOS/DeepSeek Harness --expose-internals <app>/Contents/Resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js <runtimeDir> <projectDir> <primary-runtime> [pnpm.mjs nodeBin]`. It serves the web app on 127.0.0.1:19387 and talks to the main process over Node IPC. The Electron main process and its renderer and GPU helpers carry none of those arguments, so they do not match: the Host is the unit that works. The Host is one process for every session in the window, so no session id exists in argv. The Host's own children are the agent's tool shells, but also any user terminal opened in the sidebar (node-pty), background jobs, MCP servers and language servers.",
+      "bundle_ids": [
+        "com.deepseek.harness"
+      ],
+      "process": {
+        "path_contains": [
+          "/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness"
+        ],
+        "args_contain": [
+          "@deepseek-ai/dsh-desktop-host/lib/index.js"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`dsh` installed by Desktop's Manage dsh Command (creates /usr/local/bin/dsh, a link to Desktop's /bin/sh launcher script (apps/desktop/cli/dsh) that execs the Desktop Electron binary in Node mode): `<app>/Contents/MacOS/DeepSeek Harness --expose-internals <app>/Contents/Resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js <dsh args>`. Same grammar as the npm CLI: `web`, `--profile headless|sdk|acp ...`. Management commands are vetoed by exact argument.",
+      "process": {
+        "path_contains": [
+          "/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness"
+        ],
+        "args_contain": [
+          "@deepseek-ai/dsh-desktop-host/lib/cli.js"
+        ],
+        "exclude_args": [
+          "plugin",
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "--dump-config",
+          "--dump-default-config",
+          "--dump-config-schema"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`npx @deepseek-ai/dsh web` and a project-local install: `node <cache-or-project>/node_modules/.bin/dsh web`. Node runs the npm bin symlink (`#!/usr/bin/env node`), so argv[0] is `node` and the dsh entry is argv[1]. `dsh web` is a local HTTP and WebSocket server (127.0.0.1:3080 by default, `--port`, `--host`, `--no-open`) that hosts every browser session; it prints `dsh web: http://127.0.0.1:3080/?<token>` to stdout. The same binary also serves `dsh --profile headless \"task\"` (one shot: alive means working), `--profile sdk` (JSON-RPC over stdio, driven by a client) and `--profile acp` (ACP over stdio, driven by an editor). The launcher does not retitle the process. The npx wrapper `node .../npm-cli.js exec @deepseek-ai/dsh web` and its `sh -c dsh web` do not match. Management commands (`plugin`, `--version`, `--help`, the three `--dump-*` flags) are vetoed by exact argument; a prompt equal to one of those words would be hidden.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/.bin/dsh"
+        ],
+        "exclude_args": [
+          "plugin",
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "--dump-config",
+          "--dump-default-config",
+          "--dump-config-schema"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "`npm i -g @deepseek-ai/dsh` global install: `node /opt/homebrew/bin/dsh web` (or ~/.nvm/versions/node/<v>/bin/dsh, /usr/local/bin/dsh), or a direct `node .../@deepseek-ai/dsh/lib/bin.js web`. Same modes and same vetoes as the .bin/dsh surface. The substring /bin/dsh also matches a `dsh` that a different tool installed under a bin directory; the `dsh` in the same directory as Desktop's command link is the Desktop surface above, not this one. Known false positive, shown with synthetic argv through matches(): args_contain is a substring test, so `node <dir>/bin/dshell.js` or `node <dir>/.bin/dsh-lint` also match this surface (score 2). It needs a Node script whose path has `/bin/dsh` followed by more characters; the schema has no end-anchored match, so it is accepted.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/bin/dsh"
+        ],
+        "exclude_args": [
+          "plugin",
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "--dump-config",
+          "--dump-default-config",
+          "--dump-config-schema"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Direct `node <...>/@deepseek-ai/dsh/lib/bin.js <args>`: the repo-only Node carrier of the Python runtime (`runtime/node/node_modules/@deepseek-ai/dsh/lib/bin.js`, chosen with DSH_RUNTIME_MODE=node, never automatic) and anyone who runs the installed package file by hand. Same modes and vetoes as the other Node surfaces.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/@deepseek-ai/dsh/lib/bin.js"
+        ],
+        "exclude_args": [
+          "plugin",
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "--dump-config",
+          "--dump-default-config",
+          "--dump-config-schema"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "label": "Python SDK runtime wheel (`deepseek-harness-runtime-bin`): the same dsh CLI packaged by `pkg` into one Mach-O, `<site-packages>/deepseek_harness_runtime/runtime/deepseek-harness-sdk-runtime-macos-arm64 --profile sdk` (macos-x64 on Intel), started by the Python SDK and kept for the life of the client. The wheel's `dsh` console command replaces the Python process with it (execv on POSIX), so there is no python parent in that case. It needs DSH_HOME and never falls back to ~/.dsh, so its sessions are not under ~/.dsh unless the caller points DSH_HOME there. Not observed; the path shape comes from python/sdk-runtime/platforms.json and its README.",
+      "process": {
+        "path_contains": [
+          "/deepseek-harness-sdk-runtime-"
+        ],
+        "exclude_args": [
+          "plugin",
+          "--version",
+          "-V",
+          "--help",
+          "-h",
+          "--dump-config",
+          "--dump-default-config",
+          "--dump-config-schema"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": "~/.dsh/sessions/*/*/session*.jsonl*",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "open turn record: the newest log line whose type is turn/start with no later turn/end",
+      "within_seconds": 30,
+      "meaning": "The precise signal, and the only exact one that is readable from outside. The agent loop appends `turn/start` when it claims queued input and `turn/end` when the turn closes (docs/agent-lifecycle.md), and every append is fsynced before it resolves. The log is JSONL, but zstd-compressed by default: each batch is one standard Zstandard frame with a checksum, so tail reading needs `zstd -dc` or Node's zlib.zstdDecompressSync, frame by frame; only `type` and `seq` are needed, never `data`. A store with `compression: none` is plain lines. The store is shared by every dsh process and every session, and one Web or Desktop host has many sessions, so there is no per-process file and no session id in argv: pair a host to a log by the write lock (see notes) and treat an open turn as working only while that pid is alive, because a crash leaves the last turn open on disk and the next open appends synthetic closers. A bare write within 30 s raises working but its absence proves nothing: streamed model deltas are transient and are not written until the message settles (`assistant/message`, `assistant/attempt`), so a long model call leaves the file quiet. The probe has no per_session path for a shared store, so it cannot evaluate this signal."
+    },
+    {
+      "signal": "socket_activity",
+      "name": "established TCP connection from the host process to the model API (api.deepseek.com:443 by default) with bytes moving",
+      "meaning": "The model call is made in-process (no child process), streamed over HTTPS. Inferred from source (PUBLIC_BASE_URL https://api.deepseek.com/anthropic in packages/llm/llm-deepseek/src/config.ts), not observed. Other providers and custom OpenAI-compatible endpoints are supported, so the host name is not fixed. A kept-alive idle connection can stay ESTABLISHED, so require traffic, not the socket alone. Web search and fetch use other hosts."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Fallback, a guess. Floor 10 (was 3): registry/README.md section 4 sets 10% for desktop hosts, and this tree always holds a Node server plus long-lived children (terminals, LSP, MCP, background jobs) that burn CPU with no turn running. dsh mounts no sleep inhibitor (no caffeinate, no powerSaveBlocker, no IOPMAssertion anywhere in the source), and a turn has no dedicated child process. Do not count direct shell children: the Desktop and Web hosts keep user terminals, background jobs, MCP servers and language servers as permanent children, so tool_children is left out of this row on purpose."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "session_log",
+      "event": "approval/asked with no later approval/decided in an open turn",
+      "meaning": "The approval service appends `approval/asked` (log-only, not model-visible) inside an open turn, waits for the answerer (Web or Desktop UI), then appends `approval/decided` (docs/subsystems/approval.md). The turn stays open the whole time, so it also reads as working. Same compressed-log caveat as the working signal."
+    },
+    {
+      "signal": "session_log",
+      "event": "tool/call for ask_user_question with no later tool/result",
+      "meaning": "The model-facing question tool waits for an answer by default; `mode: timed` releases the model after a deadline while the question stays answerable, and `timeout: -1` waits forever. The web presets mount it (packages/bundle/web-app/presets/cordis.patch.yml). Inferred from the tool README, not observed."
+    },
+    {
+      "signal": "ui_state",
+      "meaning": "Live `agent/status` (running or idle) and pending approvals exist in process memory and reach only authenticated clients over the Host WebSocket. The token is in the URL that `dsh web` prints to its own stdout and in the Desktop main process, so a passive monitor cannot read it."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Opt-in plugin rows, not mounted by any shipped profile: `@deepseek-ai/dsh-hooks-claude-code` (configPath to a Claude Code hooks.json or a settings file with a `hooks` key) and `@deepseek-ai/dsh-hooks-codex` (configPath to a Codex hooks.json), added to $DSH_HOME/profiles/<name>/cordis.patch.yml, the machine-wide $DSH_HOME/cordis.patch.yml, or a `--patch` file. $DSH_HOME defaults to ~/.dsh. Command hooks only; read once at startup.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "Stop",
+      "SubagentStart",
+      "SubagentStop"
+    ],
+    "docs": "https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/hooks/hooks-claude-code/README.md"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Not a monitoring feed. Desktop only: OTLP/HTTP logs of product analytics events to https://dsh-otel-collector.deepseeksvc.com/v1/logs (override DSH_PRODUCT_ANALYTICS_OTLP_URL; setting `product-analytics.enabled`, default true, no user-facing switch); the Web profile mounts neither. Every profile mounts `dsh-session-telemetry-otel`, which uploads a session log only when the user submits feedback. Nothing exports traces or metrics, nothing reads the standard OTEL_* environment except OTLP compression, and there is no local endpoint to point a collector at."
+  },
+  "sources": [
+    {
+      "claim": "Repository, licence, version: MIT, developer preview, `@deepseek-ai/dsh` 0.2.0-rc.2; npm `latest` and `next` tags are 0.2.0-rc.2 and the `dsh` bin is lib/bin.js; the tag dsh-v0.2.0-rc.2 (released 2026-09-29) is commit 639ed01, the commit read here",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/deepseek-ai/deepseek-harness ; https://registry.npmjs.org/@deepseek-ai/dsh (dist-tags {alpha 0.1.7-alpha.2, latest 0.2.0-rc.2, next 0.2.0-rc.2}, bin {dsh: lib/bin.js}) ; https://github.com/deepseek-ai/deepseek-harness/releases ; shallow clone, git log -1 printed 639ed015397290b3745d163aafe02ffee4aa3f84 Tue Sep 29 17:21:31 2026 +0800"
+    },
+    {
+      "claim": "Entry modes: `dsh web`, `dsh <profile>`, `--profile headless|sdk|sdk-minimal|acp`, `plugin`, dump flags; web flags --host --port --trusted-host --no-open; default 127.0.0.1:3080; the app flags after the first unrecognised token go to the profile. There is no shipped terminal UI: `tui` appears only as an example of an installable profile",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "README.md (Run) and apps/cli/README.md (Entry modes, App arguments) and apps/cli/reference/README.md (The shipped apps own these command lines) in the public repo"
+    },
+    {
+      "claim": "`dsh web` prints its authenticated URL line to stdout and opens the default browser unless --no-open or SSH",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/bundle/web-app/src/index.ts lines 265-275: console.log(`dsh web: ${authenticatedUrl}...`) and 'dsh web: opening the default browser; pass --no-open to disable'"
+    },
+    {
+      "claim": "The process is `node` running the npm bin; the launcher never sets process.title or re-executes itself",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "apps/cli/package.json bin {dsh: lib/bin.js}; apps/cli/src/bin.ts starts `#!/usr/bin/env node` and calls runCli() in-process; grep -rIln 'process\\.title' over the whole tree at 639ed01 matched only packages/experimental/webworker-runtime/src/node/globals/process.ts and its archived design notes. The argv shape under npx and global installs is inferred from Node and npm behaviour, not observed"
+    },
+    {
+      "claim": "Desktop is an Electron app; the Host is a child spawned with the same Electron binary in Node mode and these exact arguments; dev bundle id is com.deepseek.harness.dev.<hash>; product name DeepSeek Harness; Desktop serves on port 19387",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "apps/desktop/src/host-process.ts lines 188-195: spawn(this.node, ['--expose-internals', ..., entry, runtimeDir, projectDir, primaryRuntime, ...pnpm]) with entry = <runtimeDir>/node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js; apps/desktop/src/node-environment.ts sets ELECTRON_RUN_AS_NODE=1; apps/desktop/src/main.ts line 158 runtimeDir = join(app.getAppPath(), 'dsh'); apps/desktop-host/src/index.ts passes args ['--no-open','--port','19387']; apps/desktop/scripts/electron-builder-config.mjs productName 'DeepSeek Harness'"
+    },
+    {
+      "claim": "Desktop's macOS executable is `Contents/MacOS/DeepSeek Harness`, and the bundled dsh command runs it in Node mode on cli.js",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "apps/desktop/cli/dsh line 14: ELECTRON_RUN_AS_NODE=1 exec \"$resources/../MacOS/DeepSeek Harness\" --expose-internals \"$resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js\" \"$@\"; apps/desktop/README.md 'Terminal command': installs /usr/local/bin/dsh on macOS"
+    },
+    {
+      "claim": "Bundle id: the repo's macOS example env sets DSH_DESKTOP_APP_ID=com.deepseek.harness; the release value is injected at build time and is not published. INFERRED from an example, unconfirmed against a signed release",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "apps/desktop/.env.macos.example line 3: DSH_DESKTOP_APP_ID=com.deepseek.harness; apps/desktop/scripts/desktop-release-environment.mjs requires DSH_DESKTOP_APP_ID from the environment (requireEnvironmentValue); no committed release value; the built app's Info.plist was not seen; corroboration, still not a release value: apps/desktop/.env.windows.example line 3 sets the same id, and apps/desktop/scripts/macos-notarization-proxy.ts line 27 keeps a lock under ~/Library/Caches/com.deepseek.harness"
+    },
+    {
+      "claim": "An official macOS Desktop build exists and is downloadable",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://www.deepseek.com/harness/en/ : 'Download for macOS' -> https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg (link read, file not downloaded); the rc.2 release notes list 'macOS and Windows desktop can manage and install the dsh command from the menu'; re-checked 2026-09-30 with a live scrape of https://www.deepseek.com/harness/en/ (link present) and `curl -sI` on the DMG: HTTP/2 200, content-type application/x-apple-diskimage, last-modified Tue, 29 Sep 2026 10:46:35 GMT (headers only, nothing downloaded)"
+    },
+    {
+      "claim": "Sessions: JSONL logs under $DSH_HOME/sessions (default ~/.dsh/sessions), one directory per project (`--<normalized-cwd>--` or `_no-cwd`) and per session, generation-numbered files, zstd by default, current writer format v4",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/bundle/base/cordis.patch.yml line 133: root: !!js dshHomePath('sessions'); packages/util/home-paths/README.md (explicit path, then $DSH_HOME, then ~/.dsh); packages/session/session-persistence-jsonl/README.md 'On-disk layout' and 'Durability and crash semantics'; packages/session/session-persistence-jsonl/src/format.ts projectKey and sessionDir; packages/core/session/src/types.ts line 89 SESSION_FORMAT_VERSION = 4"
+    },
+    {
+      "claim": "The store path and layout are documented as package behaviour, and the format has a versioning and migration policy; logs older than V4 are migrated on write-open",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "docs/session-format-status.md, docs/persistence-catalog.md, docs/subsystems/persistence.md in the public repo"
+    },
+    {
+      "claim": "Record shape: one header line, then one envelope per line with keys type, seq, time, data, plus optional ignorable, surfaceOp, sourceEventSeqs. Turn boundaries are the event types turn/start and turn/end; approvals are approval/asked and approval/decided; tool calls tool/call and tool/result",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "docs/persistence-catalog.md 'Event envelope' (SessionEvent type) and its table of event roots; no real record was read because no session exists on this Mac"
+    },
+    {
+      "claim": "Compression is on by default and each batch is a checksummed standard Zstandard frame, decodable with Node's zlib",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/session/session-persistence-jsonl/README.md config table (`compression` default 'zstd'); src/zstd-public-decoder.ts uses zstdDecompressSync from node:zlib per frame"
+    },
+    {
+      "claim": "Turn lifecycle: agent/status running then idle live, turn/start and turn/end durable; approval/asked and approval/decided are log-only and require an open turn",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "docs/agent-lifecycle.md (sequence: Driver->Session turn/start ... Driver->Session turn/end, Driver-->SDK agent/status idle); docs/subsystems/approval.md 'Dispatch and audit'"
+    },
+    {
+      "claim": "One live writer per session is enforced by a non-blocking flock(2) on <session dir>/session.lock, taken at write-open and held for the life of the write handle; the kernel drops it on process death. A monitor can therefore learn which host pid owns which session directory with lsof, but the lock says the session is loaded, not that a turn runs",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/session/session-persistence-jsonl/src/lease.ts header comment and LEASE_FILENAME = 'session.lock'; README 'One live writer per session'. How long the agent keeps its write handle open (loaded versus running) was not traced. That lsof shows the lock descriptor is inferred, not observed"
+    },
+    {
+      "claim": "No sleep inhibitor: nothing in the source calls caffeinate, powerSaveBlocker, IOPMAssertion or a NoIdleSleep assertion",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rIln 'caffeinate\\|powerSaveBlocker\\|IOPMAssertion\\|preventSleep\\|sleep inhibit\\|NoIdleSleep' --exclude-dir=node_modules --exclude-dir=.git --exclude=pnpm-lock.yaml over the whole checkout at 639ed01 printed nothing"
+    },
+    {
+      "claim": "Tool commands run as a direct child of the host: a fresh non-login `bash -c <command>` (through `sandbox-exec` with a Seatbelt profile when a confined sandbox mode is selected; sandbox-exec execs the command, so the child then reads as bash), spawned detached with node's child_process.spawn. On macOS there is no runner between the host and the shell",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/shell/bash-local/README.md Summary and src/index.ts line 188 executeArgv(spec, ['bash', '-c', spec.command]); packages/subprocess/subprocess-local/src/spawn.ts lines 458-475 spawn(program, args, {detached: platform !== 'win32'}); packages/subprocess/subprocess-local/src/index.ts selectContainmentMode returns 'linux-scope' only on linux, 'windows-job' only on win32, else 'fallback' with the warning 'macOS has no supported persistent process-range owner'; packages/sandbox/sandbox-local/README.md (darwin chain: Seatbelt; `sandbox-exec -p`). The sandbox-exec exec-in-place behaviour is inferred from its man page, not observed"
+    },
+    {
+      "claim": "Long-lived direct children exist: interactive terminals from the sidebar (node-pty), background jobs, MCP servers, language servers; opt-in subagent bundles start Claude Code, Codex, ACP agents or another dsh",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/subprocess/subprocess-local/src/index.ts line 289 requireNodePty().spawn; packages/terminal/terminal-bash; packages/jobs; packages/subagent/subagent-claude-code, subagent-codex, subagent-acp, subagent-dsh-sdk READMEs (Profile Bundles, opt-in; base bundle mounts only subagent-spawn-in-process and subagent-fork-in-process)"
+    },
+    {
+      "claim": "Hooks: the only hook mechanism is two opt-in bridges that run existing Claude Code or Codex command hooks; supported events; no Notification or permission event; configured by a plugin row with configPath",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "packages/hooks/README.md, packages/hooks/hooks-claude-code/README.md ('What your hooks can do': SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop), packages/hooks/hooks-codex/README.md (five events: session start, prompt submission, before and after tool execution, stop); grep 'hooks' in packages/bundle/*/cordis.patch.yml and apps/cli/config printed nothing, so no shipped profile mounts them"
+    },
+    {
+      "claim": "Config layers: $DSH_HOME/profiles/<name>/cordis.patch.yml, then $DSH_HOME/cordis.patch.yml, then --patch overlays; profiles web, headless, sdk, sdk-minimal, acp auto-initialise; `desktop` is a reserved profile owned by Electron",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "apps/cli/reference/README.md 'Profile boot'"
+    },
+    {
+      "claim": "OpenTelemetry: the base bundle mounts the OTel service (no exporter by itself); Desktop mounts a product-analytics OTLP/HTTP logs exporter to DeepSeek's collector, default on, no user control; Web mounts neither; session-telemetry-otel uploads only on user feedback",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "packages/telemetry/otel/README.md; packages/host/product-telemetry-otel/README.md (default endpoint https://dsh-otel-collector.deepseeksvc.com/v1/logs); packages/client/product-analytics/README.md ('Desktop reports selected interactions ... by default, without a user-facing control. Ordinary Web clients never submit these events'); packages/bundle/web-app/cordis.patch.yml lines 45-58 (desktop-product-telemetry, client-product-analytics rows)"
+    },
+    {
+      "claim": "Python SDK runtime: the CLI packaged as one executable named deepseek-harness-sdk-runtime-<platform>-<arch>, started with `--profile sdk`, needing an explicit DSH_HOME",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "python/sdk-runtime/platforms.json (macos-arm64 -> deepseek-harness-sdk-runtime-macos-arm64); python/sdk-runtime/README.md 'Installed commands and artifacts'; python/sdk/README.md line 13 ('launches the bundled dsh CLI with --profile sdk')"
+    },
+    {
+      "claim": "Not installed here: no dsh, no ~/.dsh, no app, nothing running, no assertion",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`command -v dsh` printed nothing (node and npx exist under ~/.nvm/versions/node/v22.22.2/bin); `ls -d ~/.dsh` printed 'No such file or directory'; `mdfind \"kMDItemCFBundleIdentifier == 'com.deepseek.harness*'\"` printed nothing; `ps -axo pid=,args= | grep -i [d]eepseek` matched only the checking shell; `pmset -g assertions | grep -ci 'dsh\\|deepseek'` printed 0"
+    },
+    {
+      "claim": "Process rules give the intended verdicts on synthetic argv lines",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "tools/agents_probe.py matches() run on hand-written argv lists (no process started); results in registry/evidence/deepseek-harness.md; re-run by the verifier: false positives found for `node <dir>/bin/dshell.js` and `node <dir>/.bin/dsh-lint` (daemon, score 2); no match for the Electron main process, a renderer helper, `--expose-internals pnpm.mjs`, `cli.js plugin`, `perl /usr/bin/dsh`, `sh -c dsh web`, `npm-cli.js exec`"
+    },
+    {
+      "claim": "The repo-only Node carrier of the Python runtime runs node runtime/node/node_modules/@deepseek-ai/dsh/lib/bin.js on system Node 22.19 or newer; it is never selected automatically",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "python/sdk-runtime/README.md, paragraph beginning 'Repository builds also materialize a dev-only runtime/node/ carrier'"
+    },
+    {
+      "claim": "Community desktop wrappers exist, wrap the same runtime under their own app names, and are not covered by this row (at least 19 repos under the GitHub topic deepseek-desktop; the salathleizhang one ships an app also called DeepSeek Harness)",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/dataelement/dsh-desktop (Electron host, own DSH_HOME under Electron userData/harness); https://github.com/salathleizhang/deepseek-harness-desktop (DeepSeek.Harness-arm64.dmg); https://github.com/topics/deepseek-desktop. Their argv was not inspected, so whether the path_contains + dsh-desktop-host args_contain pair would match them is unknown"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Nothing was run: no live turn, session file, assertion or process was seen, so the 10% CPU floor and the 30 s window are guesses and the row is `documented`. Read the host process, never a session: `dsh web`, the Desktop Host and the SDK runtime each hold many sessions and take no session id on the command line, so leave session_id_args empty and do not map a pid to a transcript by folder. dsh has NO cheap external turn signal: no sleep assertion, no turn child, no hook that fires on a permission prompt, and its status API needs a token that only the printed URL carries. The exact signal is the session log (open turn record; approval/asked without approval/decided). It is zstd-compressed by default and shared by all hosts, so a detector that wants it must decode Zstandard frames and read only `type`. Attach a log to a host pid by the session.lock flock (lsof -p <pid> shows the open lock file under ~/.dsh/sessions/--<cwd>--/<id>/), but that says loaded, not busy. Turns can start with nobody present: scheduled tasks (an opt-in experimental plugin: the shipped Web composition carries no schedule row, and its Desktop default was not checked), goal continuation rounds, and the GitHub review webhook overlay. Opt-in subagent bundles run Claude Code, Codex, ACP agents or another dsh as children: those children match their own rows and the outermost-process rule should fold them into the host. `dsh --profile headless \"task\"` is a one shot and alive means working. Community desktop wrappers (dataelement/dsh-desktop, salathleizhang/deepseek-harness-desktop) exist and have their own bundle ids and paths; they are not covered. Verification 2026-09-30: every source re-read against commit 639ed01, npm, the vendor page and the DMG headers; corrections are listed in registry/evidence/deepseek-harness.md. Process patterns are exact for the Desktop Host and cli.js; the /bin/dsh surface is a substring match and can false-match a Node script named dsh-something. bundle_ids is inferred and the probe never reads it."
+}

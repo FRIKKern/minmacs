@@ -1,0 +1,221 @@
+{
+  "id": "orca",
+  "name": "Orca",
+  "vendor": "Stably AI",
+  "homepage": "https://onorca.dev",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "host": true,
+      "label": "Orca desktop app (Electron), /Applications/Orca.app/Contents/MacOS/Orca. A HOST, not an agent: it runs other vendors' CLIs (claude, codex, grok, gemini, opencode and about 35 more) in PTYs, one worktree per task, and has no model loop. The same executable also runs as plain Node for the terminal daemon, the provider supervisor, plugin hosts and the `orca` CLI shim, so only the outermost match counts (the probe keeps it). The hosted agents match their own rows. Stable, rc and hourly channels share the app name and bundle id. Limits of the match: the probe reads argv only, so any other product installed as Orca.app would match too (check bundle id com.stablyai.orca in the detector); and the `orca` CLI (and the `orca serve` supervisor) is vetoed only when it runs from /Applications/Orca.app, because exclude_args is an exact match: from ~/Applications or another folder it shows as an extra short-lived host.",
+      "bundle_ids": [
+        "com.stablyai.orca"
+      ],
+      "process": {
+        "path_contains": [
+          "/Orca.app/Contents/MacOS/Orca"
+        ],
+        "exclude_args": [
+          "--socket",
+          "-e",
+          "/Applications/Orca.app/Contents/Resources/app.asar.unpacked/out/cli/index.js"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "host": true,
+      "label": "Orca terminal daemon: the Orca executable running as node (ELECTRON_RUN_AS_NODE=1) on app.asar.unpacked/out/main/daemon-entry.js with --socket, --token, --pid-record, --launch-nonce, --entry-path, --app-version, --spawner-exec-path and --log-file. Owns every local PTY. It is forked detached (own session) but stays a child of the app until the app quits; after an app restart or update it is adopted, its parent should be launchd (pid 1, inferred from detached+unref, not observed) and it is NOT under the app any more. Login shells (`zsh -l`; whether argv[0] is `zsh` or `-zsh` was not observed) are its children and the agents are their children, so the agents are grandchildren of the daemon. Its direct children are permanent shells: never use tool_children here.",
+      "process": {
+        "path_contains": [
+          "/Orca.app/Contents/MacOS/Orca"
+        ],
+        "args_contain": [
+          "daemon-entry.js"
+        ]
+      }
+    },
+    {
+      "kind": "daemon",
+      "host": true,
+      "label": "Headless Orca server on a Mac: `orca serve` (the CLI shim supervises it) runs the app binary itself with --serve, optionally --serve-json, --serve-port, --serve-pairing-address, --serve-no-pairing, --serve-mobile-pairing. Same tree as the desktop app (daemon, PTYs, agents) with no window. Not observed; read from src/cli/runtime/launch.ts.",
+      "process": {
+        "path_contains": [
+          "/Orca.app/Contents/MacOS/Orca"
+        ],
+        "args_contain": [
+          "--serve"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "host": true,
+      "label": "Work that is not on this Mac: SSH targets (agents run on the remote box, Orca holds an ssh child), paired Remote Orca Servers (another Orca desktop or `orca serve` or `orcad` owns the terminals; this Mac is only the client), per-workspace cloud VMs, and the phone app through Orca's relay. Nothing to see in this Mac's process table except ssh and the client app itself. Do not invent a state for the client."
+    }
+  ],
+  "session_store": {
+    "glob": "~/Library/Application Support/orca/agent-hooks/last-status.json",
+    "format": "json",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "OPT-IN and AGGREGATE. When Settings > Keep computer awake is 'Agent' (also the status-bar Caffeinate button), the Orca main process spawns `/usr/bin/caffeinate -i -s` as its DIRECT child while at least one hook-reported agent pane is `working` (state seen by this runtime in the last 2 hours, `waiting`/`blocked`/`done` do not count) and kills it when none is. Means 'some hosted agent is mid-turn', not which one. Default is Off, so the absence proves nothing. In mode 'On' the same child is held for the whole life of the app and reads working forever: argv is identical, so the two modes cannot be told apart from the process table. If caffeinate fails to start Orca falls back to Electron powerSaveBlocker('prevent-display-sleep'), an IOKit assertion held by the main process (name unconfirmed, likely 'Electron'), so power_assertion is left out on purpose: Chromium also takes assertions for media."
+    },
+    {
+      "signal": "transcript_write",
+      "name": "~/Library/Application Support/orca/agent-hooks/last-status.json",
+      "within_seconds": 10,
+      "meaning": "Weak raise signal, one file for the whole app (probe cannot use it: no per_session path). The hook server rewrites it atomically (tmp file, rename) 250 ms after any change to a pane's status row, and skips the write when the JSON is identical, so tool-use hooks (PreToolUse, PostToolUse) move it during a turn; Stop moves it too, so a fresh mtime may be a turn ENDING. Exact truth is a read of the JSON: entries[<paneKey>].payload.state is 'working' | 'waiting' | 'blocked' | 'done', with entries[<paneKey>].receivedAt and .providerSession, an object {key, id, transcriptPath?} holding the agent's own session id (and, for Claude and Codex, its transcript path), which maps the pane to the agent's transcript. Rows for native-chat (structured) sessions are never written to this file (kept in memory only, `structuredHost`), so a working native-chat session leaves last-status.json unchanged. Never read .payload.prompt or message fields. Persisted rows hydrate for 7 days as restoredUnconfirmed, so a file left by a dead Orca can say 'working'. paneKey is `${tabId}:${leafId}`. Live equivalent, which also covers native-chat rows: `orca worktree ps --json` (needs the running app)."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Last resort, unmeasured guess (Electron floor from registry README section 4). The tree holds Electron renderer and GPU helpers, the daemon and every hosted agent; typing, terminal scrollback, git polling or a build in any pane also raise it. Do NOT use tool_children or a bare child rule on the Orca pid: the daemon, provider supervisors and helpers are permanent children, and the daemon's shells are permanent. Judge each hosted agent by its own row (claude, codex, grok-build...) and drop matches whose ancestor is a registered Orca pid, or the turn is counted twice. Agents adopted by a daemon that outlived the app have no Orca ancestor."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Claude Code: Orca's managed hook posts PermissionRequest (and, for AskUserQuestion, PreToolUse) to its loopback server, and the pane row goes to state 'waiting' (amber question mark, dashboard column 'Needs You'). Other agents map their own notification or question events to the same state. Only readable as entries[<paneKey>].payload.state == 'waiting' in last-status.json (terminal panes only) or in `orca worktree ps --json`; there is no process-table signal. Caution: 'blocked' is a different state (red dot: failed or interrupted), and the caffeinate child drops while a pane is 'waiting', so an Orca that shows no caffeinate may be waiting on you rather than idle."
+    },
+    {
+      "signal": "ui",
+      "meaning": "Orca raises an agent-finished notification when a pane goes working to idle (docs: agents-sessions, notifications) and shows Needs You counts in the sidebar. Not readable from another process."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Orca is a hook CONSUMER for agent turns and a hook PROVIDER only for worktrees. (1) Agent status hooks, on by default (agentStatusHooksEnabled: true; Settings > Agents > Agent status hooks; `orca agent hooks status|on|off --json`): Orca installs marker-tagged entries into each agent's USER-GLOBAL config, not the worktree: Claude ~/.claude/settings.json (also ~/.openclaude, ~/.qoder, ~/.codebuddy), Grok $GROK_HOME/hooks/orca-status.json (default ~/.grok/hooks/orca-status.json), and the equivalents for codex, gemini, cursor, droid, copilot, amp, antigravity, kimi, hermes, devin, muse, zcode, command-code and dsh (19 installers). Each entry, except Amp and Hermes (those install provider-native plugin code into their own config dirs), runs a shared script ~/.orca/agent-hooks/<agent>-hook.sh that sources ORCA_AGENT_HOOK_ENDPOINT (~/Library/Application Support/orca/agent-hooks/endpoint.env) and curl-POSTs the event to http://127.0.0.1:$ORCA_AGENT_HOOK_PORT with ORCA_AGENT_HOOK_TOKEN. The hosted agent gets ORCA_AGENT_HOOK_PORT/TOKEN/ENV/VERSION/TRANSPORT/ENDPOINT, ORCA_PANE_KEY, ORCA_TAB_ID, ORCA_WORKTREE_ID, ORCA_TERMINAL_HANDLE and ORCA_AGENT_LAUNCH_TOKEN in its environment (env only: not visible to command-line matching). The entries stay in the agent's config after the app is gone and are no-ops outside an Orca pane (the script spools or posts only when ORCA_AGENT_HOOK_ENDPOINT and ORCA_PANE_KEY are set; it prints `{}` on stdout either way). (2) Worktree lifecycle hooks, in orca.yaml `scripts:` (setup, archive, issueCommand) or Settings > Repository > Hooks: shell commands run when a worktree is created or archived. They are not turn events.",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PermissionRequest",
+      "Notification",
+      "Stop",
+      "StopFailure",
+      "StopCancelled",
+      "SubagentStart",
+      "SubagentStop",
+      "TeammateIdle",
+      "PostCompact",
+      "SessionEnd"
+    ],
+    "docs": "https://www.onorca.dev/docs/agents/hooks-memory"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry exporter. Product analytics go to PostHog Cloud (US), anonymous, off with Settings > Privacy, DO_NOT_TRACK=1 or ORCA_TELEMETRY_DISABLED=1 (docs: telemetry). Diagnostics are a local NDJSON span file, ~/Library/Application Support/Orca/logs/main.trace.ndjson (10 MB x 10, rotated), plus logs/daemon.log; the settings status has an `otlpEnabled` flag that only ever appears as false in a test, and no source file imports an OTLP or @opentelemetry package. Nothing to point a collector at. The hosted agents keep their own OTel switches (e.g. Claude Code's CLAUDE_CODE_ENABLE_TELEMETRY), which Orca does not set."
+  },
+  "sources": [
+    {
+      "claim": "the repo named in the hint (github.com/orca-agents/orca) does not exist; the project is stablyai/orca (MIT, Electron, homepage onorca.dev)",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "firecrawl_scrape https://github.com/orca-agents/orca returned HTTP 404; firecrawl_search found https://github.com/stablyai/orca; `git clone --depth 1 https://github.com/stablyai/orca.git` gave commit d74388f8 (2026-09-30), package.json name orca version 1.4.214; GitHub API releases/latest: v1.4.217 published 2026-09-29 with Orca-1.4.217-arm64-mac.zip"
+    },
+    {
+      "claim": "not installed on this Mac, so nothing here was observed running",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`ls /Applications | grep -i orca`, `ls ~/Library/Application Support | grep -i '^orca'`, `which orca` (orca not found), `ps -axo pid,args | grep -i '[o]rca'`, `mdfind \"kMDItemCFBundleIdentifier == 'com.stablyai.orca'\"`: all empty; `ls -d ~/.orca`: No such file or directory"
+    },
+    {
+      "claim": "app identity: product name Orca, appId com.stablyai.orca, macOS executable Orca in Orca.app (executableName is set only for Windows and Linux); all channels use the release identity",
+      "kind": "source-code",
+      "evidence": "stablyai/orca config/electron-builder.config.cjs (appId = 'com.stablyai.orca', productName 'Orca', win executableName 'Orca', linux executableName 'orca-ide', comment that dev channels carry the release bundle id); Casks/orca.rb (app \"Orca.app\", zap ~/Library/Caches/com.stablyai.orca, ~/Library/Preferences/com.stablyai.orca.plist)"
+    },
+    {
+      "claim": "the terminal daemon is the app binary run as node on daemon-entry.js with --socket etc., forked detached, cwd userData; the CLI shim runs the same binary on out/cli/index.js; provider supervisors run it with -e",
+      "kind": "source-code",
+      "evidence": "src/main/daemon/daemon-launched-child-spawn.ts (buildDaemonScriptArgs, ELECTRON_RUN_AS_NODE '1', detached true); src/main/daemon/daemon-launch-paths.ts (getDaemonEntryPath: app.asar.unpacked/out/main/daemon-entry.js); resources/darwin/bin/orca (ELECTRON_RUN_AS_NODE=1 exec \"$ELECTRON\" \"$CLI\" with CLI=$CONTENTS/Resources/app.asar.unpacked/out/cli/index.js, ELECTRON=$CONTENTS/MacOS/Orca); src/main/codex/codex-app-server-posix-supervisor.ts (args ['-e', POSIX_PROVIDER_SUPERVISOR_SCRIPT])"
+    },
+    {
+      "claim": "`orca serve` starts the app binary with --serve and related flags",
+      "kind": "source-code",
+      "evidence": "src/cli/runtime/launch.ts serveOrcaApp(): childArgs.push('--serve'), '--serve-json', '--serve-port', '--serve-pairing-address', '--serve-no-pairing', '--serve-mobile-pairing'; docs/reference/orcad-operations.md for the Linux Node-only orcad and its daemon"
+    },
+    {
+      "claim": "agents are launched by typing into a login shell that is a child of the daemon (shell args ['-l'], startup command delivered after shell-ready), so agents are grandchildren of the daemon",
+      "kind": "source-code",
+      "evidence": "src/main/daemon/pty-subprocess/shell-launch-plan.ts (POSIX branch: getShellLaunchConfig, shellArgs = shellLaunch.args ?? ['-l'], waitsForShellReady); inferred for the exact process chain, never observed"
+    },
+    {
+      "claim": "the only sleep inhibitor is a direct `/usr/bin/caffeinate -i -s` child of the main process, held while status rows are working, and only when Keep computer awake is Agent or On; default Off",
+      "kind": "source-code",
+      "evidence": "src/main/macos-system-sleep-assertion.ts (this.spawn('/usr/bin/caffeinate', ['-i', '-s'], { stdio: 'ignore' })); src/main/agent-awake-service.ts (shouldBlock = mode === 'on' || (mode === 'auto' && runningStatusCount > 0); powerSaveBlocker 'prevent-display-sleep' only when the caffeinate start fails); src/main/agent-awake-status-lease.ts (eligible = observedInCurrentRuntime && state === 'working' && age <= 2 h); src/shared/default-global-settings.ts (keepComputerAwakeWhileAgentsRun: false); src/shared/computer-awake-mode.ts (modes 'on' | 'off' | 'auto'); https://www.onorca.dev/docs/settings ('Keep computer awake: On, Agent or Off; status bar Caffeinate')"
+    },
+    {
+      "claim": "status states are working, blocked, waiting, done; produced from agent hooks, with terminal title and OSC 9999 as a fallback lane; the hook server is the one store",
+      "kind": "source-code",
+      "evidence": "src/shared/agent-status-types.ts (AGENT_STATUS_STATES = ['working', 'blocked', 'waiting', 'done']); docs/reference/agent-status-store.md; src/shared/agent-status-osc.ts (prefix ESC ] 9999 ;); src/shared/agent-title-status.ts (braille and quarter-circle spinner rules per agent); https://www.onorca.dev/docs/model/agents-sessions ('State is detected from the terminal's OSC title sequence and agent hooks'; spinner working, amber question mark waiting, red dot blocked/interrupted/failed)"
+    },
+    {
+      "claim": "Claude Code hook events Orca installs, and PermissionRequest / AskUserQuestion PreToolUse map to waiting",
+      "kind": "source-code",
+      "evidence": "src/main/claude/claude-managed-hook-events.ts (CLAUDE_EVENTS: SessionStart, UserPromptSubmit, Stop, StopFailure, SubagentStart, SubagentStop, TeammateIdle, PreToolUse, PostToolUse, PostToolUseFailure, PermissionRequest, PostCompact; SessionEnd from CLI 2.1.261); src/shared/agent-hook-listener/providers/claude-events.ts lines ~103-125 (AskUserQuestion PreToolUse treated as waiting)"
+    },
+    {
+      "claim": "Grok hook events and file location",
+      "kind": "source-code",
+      "evidence": "src/main/grok/grok-hook-config.ts (GROK_EVENTS: SessionStart, UserPromptSubmit, Stop, StopCancelled, StopFailure, SessionEnd, PreToolUse, PostToolUse, PostToolUseFailure, Notification); src/main/grok/hook-service.ts ('$GROK_HOME/hooks/*.json (or ~/.grok when unset)', file hooks/orca-status.json)"
+    },
+    {
+      "claim": "19 managed hook installers, on by default; scripts live in ~/.orca/agent-hooks; endpoint file and PTY env names",
+      "kind": "source-code",
+      "evidence": "src/main/agent-hooks/managed-agent-hook-registry.ts (MANAGED_AGENT_HOOK_INSTALLERS: claude, openclaude, codex, gemini, qoder, codebuddy, antigravity, amp, cursor, droid, command-code, grok, copilot, hermes, devin, kimi, muse, zcode, dsh); src/main/agent-hooks/installer-utils.ts (getSharedManagedScriptPath = ~/.orca/agent-hooks/<file>); src/main/claude/hook-settings.ts (getConfigPath = ~/.claude/settings.json); src/main/agent-hooks/server/server-runtime-env.ts (buildPtyEnv: ORCA_AGENT_HOOK_PORT, _TOKEN, _ENV, _VERSION, _TRANSPORT, _ENDPOINT); src/shared/default-global-settings.ts (agentStatusHooksEnabled: true); https://www.onorca.dev/docs/agents/hooks-memory ({userData}/agent-hooks/endpoint.env, `orca agent hooks status|on|off --json`)"
+    },
+    {
+      "claim": "status store file: userData/agent-hooks/last-status.json, JSON version 2, atomic write debounced 250 ms, skipped when unchanged, 7-day hydrate window, rows keyed by paneKey holding payload.state",
+      "kind": "source-code",
+      "evidence": "src/main/agent-hooks/server/server-constants.ts (LAST_STATUS_FILE_VERSION 2, STATUS_PERSIST_DEBOUNCE_MS 250, HYDRATE_MAX_AGE_MS 7 days); src/main/agent-hooks/server/server-persistence.ts (runStatusPersist: writeFileSync tmp then renameSync, returns early when json === lastWrittenJson; LastStatusFile = { version, entries, authorityCommitments }); src/shared/agent-hook-listener/listener-event.ts (AgentHookEventPayload has paneKey, tabId, worktreeId, providerSession, and payload: ParsedAgentStatusPayload); src/main/agent-hooks/server/server-types.ts (EnrichedAgentHookEventPayload adds receivedAt, stateStartedAt, turnStartedAt)"
+    },
+    {
+      "claim": "userData on macOS is ~/Library/Application Support/orca (lowercase in the CLI's resolver, `Orca` in the cask zap list and logs path; the same directory on the default case-insensitive volume); dev builds use orca-dev; ORCA_USER_DATA_PATH overrides",
+      "kind": "source-code",
+      "evidence": "src/cli/runtime/metadata.ts getDefaultUserDataPath (darwin: join(homeDir, 'Library', 'Application Support', 'orca'), ORCA_USER_DATA_PATH first); src/main/observability/logs-directory.ts ('~/Library/Application Support/Orca/logs/'); Casks/orca.rb zap trash '~/Library/Application Support/Orca'; src/main/startup/configure-process.ts (app.setPath('userData', join(appData, 'orca-dev')) for dev)"
+    },
+    {
+      "claim": "Orca keeps no agent transcripts; it reads each agent's own store (AI Vault, Agent Session History) and resumes with the agent's own command",
+      "kind": "official-docs",
+      "evidence": "https://www.onorca.dev/docs/agents/session-history ('Orca reads each agent's own on-disk session store'); src/main/ai-vault/session-scanner-*.ts"
+    },
+    {
+      "claim": "Remote Orca Servers, SSH targets and cloud VMs run terminals and agents off this Mac; the client shows a host badge",
+      "kind": "official-docs",
+      "evidence": "https://www.onorca.dev/docs/remote-servers ('Terminals, agent processes, files, worktrees, and session state live on the server computer'); https://www.onorca.dev/docs/model/agents-sessions (host badge 'SSH host' / 'Remote Orca host'); docs/site/content/docs/ways-to-run.mdx"
+    },
+    {
+      "claim": "no OpenTelemetry; PostHog only, plus a local NDJSON trace",
+      "kind": "source-code",
+      "evidence": "package.json (posthog-node ^5.52.5, no @opentelemetry or @sentry dependency); `grep -rniI 'otlp' src docs config` matches only src/main/ipc/crash-reporting.test.ts (otlpEnabled: false, otlpStatus: 'Disabled'); src/main/observability/tracer.ts and local-file-sink.ts (main.trace.ndjson, 10 MB x 10); https://www.onorca.dev/docs/telemetry"
+    },
+    {
+      "claim": "last-status.json holds no native-chat (structured) rows; providerSession is an object {key,id,transcriptPath?}",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/main/agent-hooks/server/server-persistence.ts serializeStatusFile (`if (enrichedPayload.structuredHost) continue`, comment 'the session journal is the durable truth for a structured row'); src/shared/agent-session-resume.ts AgentProviderSessionMetadata { key, id, transcriptPath? }; src/shared/agent-hook-listener/listener-event.ts (structuredHost 'Never persisted')"
+    },
+    {
+      "claim": "Amp and Hermes install plugin code, not the shared <agent>-hook.sh launcher; the hook script only spools or posts when the Orca env is present",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/main/agent-hooks/managed-agent-hook-registry.ts comment above MANAGED_AGENT_HOOK_SCRIPT_REFRESHERS ('Amp and Hermes write provider-native plugin code into their own config dirs ... deliberately absent'); src/main/agent-hooks/hook-stdin-contract.ts spool_hook_event (returns unless ORCA_AGENT_HOOK_ENDPOINT, ORCA_PANE_KEY and a readable endpoint file exist); src/main/claude/hook-script.ts (printf \"{}\\n\" first line)"
+    },
+    {
+      "claim": "the CLI shim and `orca serve` re-run the app binary, so the outer process matches the gui surface unless its argv[1] is the /Applications path",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "tools/agents_probe.py matches() run over synthetic argv (nothing was running): [Orca, /Applications/Orca.app/.../out/cli/index.js, status] matches no surface; the same with /Users/x/Applications/Orca.app paths matches gui (score 30); [Orca, -e, script], `Orca Helper (Renderer)`, /usr/bin/orca and OrcaSlicer.app match nothing; [Orca, --serve] matches daemon (31) over gui (30); daemon-entry.js argv matches daemon (31) not gui (--socket veto). Source: resources/darwin/bin/orca, src/cli/runtime/launch.ts serveOrcaApp"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Orca is a host. It has no model loop; 'is Orca working' means 'is at least one hosted agent working'. Its process tree on a Mac (read from source, not observed): Orca (main, no arguments) with Electron helpers under Contents/Frameworks (`Orca Helper (Renderer)` etc., different names, so they do not match) and, as same-executable children, the terminal daemon (daemon-entry.js), plugin hosts, provider supervisors (`Orca -e ...`, parent of a structured-chat claude or codex app-server) and `/usr/bin/caffeinate -i -s` while Keep computer awake is Agent and something works. Exact executable name for the main process is `Orca`; the CLI shim `orca` is a bash script that re-execs `Orca .../out/cli/index.js`. There is no command-line marker that ties an agent to Orca: use the ancestor chain, or ORCA_PANE_KEY / ORCA_AGENT_HOOK_PORT in the process environment. The detached daemon survives an app restart and keeps the agents alive (then they have no Orca ancestor); an update also adopts it. The `orca` CLI and `orca serve` supervisor show as extra Orca-binary processes: the row excludes the CLI script only at its /Applications path, because exclude_args is an exact match. Report the host once, and attach a state to a pane only from last-status.json or `orca worktree ps --json`. Never count the daemon's shells, helpers or supervisors as tool children. Verification 2026-09-30 (independent pass): the row's process patterns hold for an /Applications install; the CLI/serve supervisor leaks as an extra host from any other install folder, and argv alone cannot tell Stably's Orca.app from another product of that name, so confirm bundle id com.stablyai.orca. last-status.json omits native-chat sessions; use `orca worktree ps --json` for those."
+}

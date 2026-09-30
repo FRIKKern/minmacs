@@ -21,43 +21,6 @@
       "session_id_args": [
         "--continue"
       ]
-    },
-    {
-      "kind": "tui",
-      "label": "Freebuff CLI (npm `freebuff`, bin `freebuff`). Same source tree and same launcher as Codebuff, built with FREEBUFF_MODE=true; binary ~/.config/manicode/freebuff. Shares ~/.config/manicode with Codebuff.",
-      "process": {
-        "names": [
-          "freebuff"
-        ],
-        "path_contains": [
-          "/.config/manicode/freebuff"
-        ],
-        "exclude_args": [
-          "--terminal-command-broker"
-        ]
-      },
-      "session_id_args": [
-        "--continue"
-      ]
-    },
-    {
-      "kind": "gui",
-      "label": "Freebuff Desktop (Electron, com.freebuff.desktop). Matched on the local orchestrator that Freebuff.app starts as `Contents/Resources/bun/bun Contents/Resources/orchestrator/orchestrator.js`, one per app, hosting every thread of every open project. NOT matched on the Electron main process (Contents/MacOS/Freebuff), whose Chromium helpers would look like tool children. It also spawns claude and codex CLIs as children (harness choice per thread), which match the claude-code and codex rows: drop those by ancestry.",
-      "bundle_ids": [
-        "com.freebuff.desktop"
-      ],
-      "process": {
-        "path_contains": [
-          "/Freebuff.app/Contents/Resources/bun/bun"
-        ],
-        "args_contain": [
-          "orchestrator.js"
-        ]
-      }
-    },
-    {
-      "kind": "cloud",
-      "label": "Freebuff Web, Cloud and Chat (hosted, no local process)"
     }
   ],
   "session_store": {
@@ -244,5 +207,5 @@
     }
   ],
   "confidence": "documented",
-  "notes": "One codebase, three local products. CLI: the process to watch is the Bun binary in ~/.config/manicode, not the npm launcher. The Codebuff and Freebuff CLIs share the store, so the store cannot say which wrote a chat; the process can. A CLI process holds exactly one chat at a time but rotates it on /new and /history, and the store folder is the cwd basename, so map a process to a chat by cwd plus newest mtime and treat it as a guess unless --continue <id> was on the command line. Working signals for the CLI are weak by design: a broker child (same executable, --terminal-command-broker) during shell tool calls, and chat-file rewrites every ~5 s during a run; model streaming without files changing is invisible. Do not use tool_children here: a permanent /bin/sh watchdog child would mark every idle CLI working. Freebuff Desktop is different: one orchestrator process hosts every thread, and the exact answer is threads.turn_state = 'running' in <project>/.freebuff/desktop-v2.db (needs a new sqlite_row signal; read that column only, never messages.parts_json). Desktop threads can run claude and codex as children, so those match the claude-code and codex rows too and should be dropped by ancestry. Freebuff CLI has a waiting-room queue and session hours that are not a turn. Version researched: repo HEAD 97654d3 (2026-09-29), npm codebuff 1.0.688, freebuff 0.1.6, Desktop 0.0.152. Verification pass 2026-09-29 (second reader): the 5 s chat snapshot is skipped while the run waits on one slow model call (see the working_signals meaning), so the CLI's transcript signal can be quiet during a live turn; the `bash` child signal has known false positives on Desktop (embedded terminal with SHELL=bash, startup script) and is a weak signal there; a sponsored (ads) turn in the CLI or Desktop runs the shell through a sandbox broker, so the `codebuff --terminal-command-broker` child is absent then. The probe's session_id() returns whatever argv follows --continue, so `codebuff --continue --cwd X` or `codebuff --continue \"prompt\"` yields a junk id; harmless because no chat directory matches it, but do not treat it as a session id unless it looks like an ISO timestamp with ':' as '-'. Matching: names ['codebuff'] also catches a relocated binary (FREEBUFF_CONFIG_DIR) and any other executable named codebuff; the npm launcher, cb, the broker, the /bin/sh watchdog, the Bun probe (`bun --version`), the Electron main process and helpers, `tail codebuff.log` and the staged download `.codebuff-download-temp/codebuff` were run through matches(): only the staged download and a bare `/opt/homebrew/bin/codebuff` match (both tui; the launcher was not seen executing the staged copy). Never executed live: real ps output for every surface is still unseen."
+  "notes": "One codebase, three local products. CLI: the process to watch is the Bun binary in ~/.config/manicode, not the npm launcher. The Codebuff and Freebuff CLIs share the store, so the store cannot say which wrote a chat; the process can. A CLI process holds exactly one chat at a time but rotates it on /new and /history, and the store folder is the cwd basename, so map a process to a chat by cwd plus newest mtime and treat it as a guess unless --continue <id> was on the command line. Working signals for the CLI are weak by design: a broker child (same executable, --terminal-command-broker) during shell tool calls, and chat-file rewrites every ~5 s during a run; model streaming without files changing is invisible. Do not use tool_children here: a permanent /bin/sh watchdog child would mark every idle CLI working. Freebuff Desktop is different: one orchestrator process hosts every thread, and the exact answer is threads.turn_state = 'running' in <project>/.freebuff/desktop-v2.db (needs a new sqlite_row signal; read that column only, never messages.parts_json). Desktop threads can run claude and codex as children, so those match the claude-code and codex rows too and should be dropped by ancestry. Freebuff CLI has a waiting-room queue and session hours that are not a turn. Version researched: repo HEAD 97654d3 (2026-09-29), npm codebuff 1.0.688, freebuff 0.1.6, Desktop 0.0.152. Verification pass 2026-09-29 (second reader): the 5 s chat snapshot is skipped while the run waits on one slow model call (see the working_signals meaning), so the CLI's transcript signal can be quiet during a live turn; the `bash` child signal has known false positives on Desktop (embedded terminal with SHELL=bash, startup script) and is a weak signal there; a sponsored (ads) turn in the CLI or Desktop runs the shell through a sandbox broker, so the `codebuff --terminal-command-broker` child is absent then. The probe's session_id() returns whatever argv follows --continue, so `codebuff --continue --cwd X` or `codebuff --continue \"prompt\"` yields a junk id; harmless because no chat directory matches it, but do not treat it as a session id unless it looks like an ISO timestamp with ':' as '-'. Matching: names ['codebuff'] also catches a relocated binary (FREEBUFF_CONFIG_DIR) and any other executable named codebuff; the npm launcher, cb, the broker, the /bin/sh watchdog, the Bun probe (`bun --version`), the Electron main process and helpers, `tail codebuff.log` and the staged download `.codebuff-download-temp/codebuff` were run through matches(): only the staged download and a bare `/opt/homebrew/bin/codebuff` match (both tui; the launcher was not seen executing the staged copy). Never executed live: real ps output for every surface is still unseen. Freebuff has its own row (freebuff); its surfaces were removed here so a Freebuff process is not reported as Codebuff."
 }

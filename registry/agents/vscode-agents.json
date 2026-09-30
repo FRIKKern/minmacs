@@ -144,8 +144,7 @@
     },
     {
       "signal": "power_assertion",
-      "name": "Electron powerSaveBlocker prevent-app-suspension owned by the VS Code main process, taken by Copilot Chat around each model request",
-      "meaning": "Copilot Local harness only. Taken around each model request (not for ChatLocation.Other) through the proposed API environmentPower, gated by the experiment-based team-internal setting chat.advanced.chatRequestPowerSaveBlocker whose source default is true, so an experiment can still switch it off and absence means nothing. Held per model request and released 2 minutes after the last one ends (RELEASE_DELAY_MS), so presence means 'a turn ran in the last two minutes', not 'a turn is running'. The pmset assertion name is unverified. Any other extension or feature in the same VS Code that takes a power save blocker looks identical."
+      "meaning": "Copilot Local harness only. Taken around each model request (not for ChatLocation.Other) through the proposed API environmentPower, gated by the experiment-based team-internal setting chat.advanced.chatRequestPowerSaveBlocker whose source default is true, so an experiment can still switch it off and absence means nothing. Held per model request and released 2 minutes after the last one ends (RELEASE_DELAY_MS), so presence means 'a turn ran in the last two minutes', not 'a turn is running'. The pmset assertion name is unverified. Any other extension or feature in the same VS Code that takes a power save blocker looks identical. Matched by owner pid only; the assertion name is not known as pmset prints it."
     },
     {
       "signal": "tree_cpu",
@@ -388,6 +387,12 @@
       "kind": "local-observation",
       "date": "2026-09-29",
       "evidence": "python3 loading tools/agents_probe.py matches() against synthetic ps lines: '/Applications/Visual Studio Code.app/Contents/MacOS/Electron' and the '... Code Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService' line match nothing (space in path); '<ext>/kilocode.kilo-code-7.8.1-darwin-arm64/bin/kilo serve --port 0' matches surface 2; '... kilo --version' and '... kilo run reserve' do not (the latter matched before --port was added to args_contain)."
+    },
+    {
+      "claim": "power_assertion.name is matched as a substring of the name pmset prints; prose there never matches",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "completeness critic of wave 3 checked tools/agents_probe.py against the six rows; name set from the row's own cited source or removed"
     }
   ],
   "confidence": "documented",

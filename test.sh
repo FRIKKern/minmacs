@@ -58,7 +58,7 @@ open -g -n build/Stubborn.app --args --listen 47999; sleep 2
 "$BIN" plan | grep -q "Spared Stubborn: serving on 127.0.0.1:47999"; check "plan spares it and names the port" 0 "$?"
 "$BIN" run --yes --force --only $STUB >/dev/null;               check "run --force does not touch a spared app" yes "$(running Stubborn)"
 rule add ignoreServing $STUB
-"$BIN" plan | grep -A3 "Will quit" | grep -q Stubborn;          check "ignoreServing puts it back on the quit list" 0 "$?"
+"$BIN" plan | sed -n "/^Will quit/,/^[A-Z][a-z]* /p" | grep -q Stubborn;          check "ignoreServing puts it back on the quit list" 0 "$?"
 "$BIN" run --yes --force --only $STUB >/dev/null; sleep 1;      check "then --force kills it" no "$(running Stubborn)"
 
 echo "== tab classification"

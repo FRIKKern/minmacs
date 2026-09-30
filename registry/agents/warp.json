@@ -119,7 +119,7 @@
   "working_signals": [
     {
       "signal": "power_assertion",
-      "name": "NSProcessInfo activity (UserInitiated) with reason \"Agent Mode request in-progress\", owned by the Warp app process or the warp-tui process",
+      "name": "Agent Mode request in-progress",
       "meaning": "Held for the lifetime of each streaming request to the agent backend, in both the app and the Warp Agent CLI, and dropped when the stream ends or is dropped. It is per request, not per turn, and app-wide (not per tab), so it can flicker off while a long local tool call runs between two requests. The same request path also fires for passive suggestion requests. Warp logs 'Preventing sleep with reason: Agent Mode request in-progress' and 'No longer preventing sleep with reason: ...' at info level to ~/Library/Logs/warp.log (app) as a second view of the same edge. Read from source only, never seen in pmset because Warp is not installed here."
     },
     {
@@ -287,6 +287,12 @@
       "kind": "third-party",
       "date": "2026-09-29",
       "evidence": "https://formulae.brew.sh/api/formula/minio-warp.json (desc 'S3 benchmarking tool', executables ['warp']); https://raw.githubusercontent.com/minio/warp/master/README.md (subcommand list)"
+    },
+    {
+      "claim": "power_assertion.name is matched as a substring of the name pmset prints; prose there never matches",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "completeness critic of wave 3 checked tools/agents_probe.py against the six rows; name set from the row's own cited source or removed"
     }
   ],
   "confidence": "documented",

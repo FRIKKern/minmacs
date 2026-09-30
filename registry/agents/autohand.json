@@ -1,0 +1,334 @@
+{
+  "id": "autohand",
+  "name": "Autohand Code",
+  "vendor": "Autohand AI",
+  "homepage": "https://autohand.ai/cli/",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "Autohand Code CLI under Node (npm i -g autohand-cli, bins autohand, autohand-code, agent, ah), once running. The first statement of src/index.ts is process.title = 'Autohand Code', so on macOS (libuv overwrites the argv area, as the kimi row observed on this Mac with node 22) ps and KERN_PROCARGS2 show argv[0] = 'Autohand Code' and the original arguments are gone. Inferred from that analogy, never seen: Autohand is not installed here. Because the flags are gone, one title covers the interactive TUI, `-p` one-shots, `--mode rpc` and `--acp` (IDE and ADE clients), `--mode teammate` children and short subcommands; ps cannot tell them apart. Truncation risk: libuv cuts the title to the length of the original argv span, so a very short `node <path>` launch could show a prefix of 'Autohand Code'. The title has a space, so the probe's space-split ps fallback would miss it; the real KERN_PROCARGS2 argv is fine.",
+      "process": {
+        "names": [
+          "Autohand Code"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Autohand Code CLI under Node during the first moments, before the title is set (the ESM imports run first, so the original argv survives for the start-up window; inferred). Node's argv[1] is the path the shebang was run with, i.e. the bin symlink such as ~/.nvm/versions/node/<v>/bin/autohand or /opt/homebrew/bin/autohand, NOT .../autohand-cli/dist/index.js. `/bin/autohand` also matches `/bin/autohand-code`. The `ah` and `agent` bins are not matched: `agent` collides with Cursor's and Grok's, and `/bin/ah` would also be a prefix of `/bin/ahtraces`.",
+      "process": {
+        "names": [
+          "node"
+        ],
+        "args_contain": [
+          "/bin/autohand"
+        ],
+        "exclude_args": [
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "login",
+          "logout",
+          "config",
+          "mcp",
+          "completion",
+          "update",
+          "upgrade",
+          "sessions",
+          "init",
+          "import",
+          "traces",
+          "computer",
+          "agents",
+          "experiments",
+          "auto-research"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "Autohand Code CLI as a compiled Bun binary (install.sh, Homebrew tap autohandai/code formula autohand-code, or the GitHub release tarball autohand-macos-arm64.tar.gz): one Mach-O `autohand` in ~/.local/bin (or /usr/local/bin as root, or the Homebrew bin) plus symlinks autohand-code, agent and ah. The kernel argv[0] is whatever name the shell was given: autohand, autohand-code, ah, or a full path. Whether Bun's process.title assignment retitles the process on macOS is NOT known; if it does, this process matches the first surface instead. Bare `agent` is deliberately not listed: the Autohand installers replace any existing `agent` on PATH (Cursor's, Grok's), and a bare `agent` argv[0] cannot be told from Grok Build's native `agent` by command line (same rule as the grok-build row). `ah` is a two-letter name, kept because it is a documented bin and an exact-basename match.",
+      "process": {
+        "names": [
+          "autohand",
+          "autohand-code",
+          "ah",
+          "autohand-macos-arm64",
+          "autohand-macos-x64"
+        ],
+        "exclude_args": [
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "login",
+          "logout",
+          "config",
+          "mcp",
+          "completion",
+          "update",
+          "upgrade",
+          "sessions",
+          "init",
+          "import",
+          "traces",
+          "computer",
+          "agents",
+          "experiments",
+          "auto-research"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "VS Code extension AutohandAI.vscode-autohand, Zed / JetBrains / JetBrains Air as custom ACP agents (`autohand --acp`), and any client that launches `autohand --mode rpc`. These start the same CLI as a child of the editor (Extension Host, Zed, the JetBrains IDE); the CLI child matches one of the tui surfaces above, so no separate process rule is given. The VS Code extension README on the Marketplace says release VSIX builds BUNDLE the CLI for macOS arm64 and x64 ('no separate CLI installation is required', falling back to `autohand` on PATH), so the editor's CLI child may run from the extension folder under a name and path not seen here (vsix not fetched); the tui surfaces match it only if its argv[0] basename is autohand, autohand-code, ah or autohand-macos-*, which is unverified."
+    },
+    {
+      "kind": "cloud",
+      "label": "Autohand Code Web (Continue in CLI / `autohand transfer <id>`) and the Autohand Code iOS app paired with `/go`. Nothing local to match; the iOS pairing runs a relay inside the CLI and turns on a `caffeinate` child (see working_signals)."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.autohand/sessions/*/conversation.jsonl",
+    "per_session": "~/.autohand/sessions/{session_id}/conversation.jsonl",
+    "format": "jsonl",
+    "documented": false,
+    "note": "The README promises only the directory (`Sessions are auto-saved to ~/.autohand/sessions/`). File names and shapes are from source (src/session/SessionManager.ts): sessions/<sessionId>/ holds conversation.jsonl (one SessionMessage per line: role, content, timestamp, toolCalls, name, tool_call_id, _meta; appended with fs.appendFile per message, so it is written when a message is committed, not per token), metadata.json (sessionId, createdAt, lastActiveAt, closedAt, projectPath, projectName, model, messageCount, summary, title, status active|completed|crashed, exitCode, type, usage, client, importedFrom, branch), state.json (workspace snapshot). sessions/index.json (+ index.json.lock) lists all sessions. sessionId is `<uuid-v4>-<Date.now() ms>`. AUTOHAND_HOME replaces ~/.autohand for everything here. `--ephemeral` runs write no session files. A quiet conversation.jsonl during a long model call or tool call is expected, so a stale mtime never proves idle.",
+    "pid_index": {
+      "note": "Not in the schema. THE way to map a live process to its session: a plain launch carries no session id in argv (`autohand resume <ref>` and `--fork <ref>` are positional or take a reference, not a --session-id flag), and the process retitles itself anyway. Source only (src/session/ActiveAgentRegistry.ts, src/core/agent.ts startActiveAgentHeartbeat), never seen live.",
+      "glob": "~/.autohand/active-agents/*.json",
+      "file": "<sessionId>.json, or <sessionId>.<instanceId>.json when peer communication is enabled. Directory mode 0700, file mode 0600, written atomically. Location moves to <sessions.communication.coordinationDirectory>/active-agents when that setting is set, and with AUTOHAND_HOME.",
+      "keys": "version, pid, sessionId, workspaceRoot, projectName, provider, model, mode (interactive|command|rpc in practice: the type also lists acp and teammate but resolveActiveAgentMode() only returns the first three), status (idle|working), startedAt, updatedAt, messageCount, contextPercent, tokensUsed, activity{phase (idle|thinking|editing|running_command|waiting_input), instruction, command, pathsWritten, claims, headRef}, communication. activity.instruction and activity.command hold prompt and command text: never read them, read only pid, sessionId, status, activity.phase, updatedAt.",
+      "liveness": "Rewritten every 5 s (ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS) and on every status emit, deleted on clean exit. The vendor treats a record as stale when its pid is dead or updatedAt is older than 15 s (ACTIVE_AGENT_STALE_MS); a crash leaves the file until the next reader prunes it. Apply the same test.",
+      "cli": "`autohand agents` (interactive watcher) and `autohand agents --once` (one snapshot) print these records; `/agents` inside a session does the same. Official name for the feature: global Autohand session heartbeats."
+    }
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "~/.autohand/active-agents/<sessionId>.json: activity.phase != \"idle\" AND pid alive AND updatedAt within 15 s (status == \"working\" is a weaker second reading)",
+      "within_seconds": 15,
+      "meaning": "Exact per-process turn state, and the pid field is the CLI's own process.pid, so no argv or cwd guessing. READ activity.phase, NOT status. Verification found that activity is rebuilt on every write from live isInstructionActive (getActivity -> buildActivity -> derivePhase in src/core/agent.ts and src/session/peers/PeerActivityPublisher.ts), while the top-level status is the value passed to the LAST update(): the 5 s timer calls update() with no argument, so it re-sends the cached status (ActiveAgentHeartbeat.update(status = this.status) in src/session/ActiveAgentRegistry.ts). status is only refreshed by emitStatus(), which runs on context-usage and provider events, and InstructionRunner.ts does not call it after clearing isInstructionActive, so status can lag the end of a turn by up to the next emitStatus. Source read only, never seen live. phase: idle (no turn), thinking (turn active, no tool), editing (write_file, apply_patch, replace_in_file, search_replace and the other editing tools), running_command (run_command or shell), waiting_input. Caveat: a permission prompt or question keeps the turn active, so phase becomes waiting_input, not idle: treat waiting_input as waiting, see waiting_signals. Source only: the probe cannot read a JSON field and has no per_session path for this file, so it cannot fire this signal; a reader needs a JSON-field signal. The mtime of this file alone proves nothing (rewritten every 5 s while idle)."
+    },
+    {
+      "signal": "tool_children",
+      "meaning": "The run_command tool runs `spawn(command, [], {shell: true})` (src/core/actionExecutor.ts, src/actions/command.ts), so a shell tool call is a DIRECT child `/bin/sh -c <command>` of the CLI process. Shell child means a shell tool call is running. Caveats, all inferred from source: (1) macOS /bin/sh may exec a single simple command in place, then the direct child carries the command's own name (case 9 in the README); (2) a shell child of an idle session appears when a `background` command outlives its turn; (3) hook commands also run through `spawn(..., {shell: true, detached})` (HookManager.ts), so a configured hook shows a short-lived shell child at pre-tool, stop and other events; (4) blind while the model streams or a non-shell tool (read_file, search, MCP) runs. Never count `caffeinate`, `osascript` (focus check before a desktop notification, src/utils/notification.ts), `afplay` (the sound-alert hook), `terminal-notifier` or `ahtraces`. `autohand --mode teammate` children are the same executable as their parent: ignore them, they are their own sessions."
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "Raise-only. conversation.jsonl gets one appended line per committed message (user prompt, assistant reply, tool result), and metadata.json is rewritten with a fresh lastActiveAt on each. A long model call or a long tool call writes nothing, so a stale mtime never proves idle. Needs the session id from the active-agents record (pid_index), because argv has none, so the probe's per_session lookup finds nothing for a plain launch. Window is a guess, unmeasured."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "Weak fallback, unmeasured guess. The Ink TUI redraws a braille spinner while a turn runs, so some CPU is expected, but a turn waiting on the network burns almost none, and MCP servers started by the session sit in the same tree. Not verified: nothing was run."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "active_agents_record",
+      "file": "~/.autohand/active-agents/<sessionId>.json",
+      "field": "activity.phase == \"waiting_input\"",
+      "meaning": "Exact and needs no setup. derivePhase() returns waiting_input while a turn is active AND peerAwaitingInputCount > 0, which beginAwaitingInput() raises around confirmDangerousAction (a tool permission or dangerous-action prompt) and executeAskFollowupQuestion (the ask_followup_question tool). status remains 'working' during the wait. Refreshed at most every 5 s after the state changes, so expect a lag of up to 5 s. Source only (src/session/peers/PeerActivityPublisher.ts, src/core/agent.ts)."
+    },
+    {
+      "signal": "hook",
+      "event": "permission-request",
+      "meaning": "Fires before the permission dialog is shown (context: tool, path, permission type). A hook can also answer it (exit 2 blocks; stdout JSON decision allow|deny|ask|block). Needs a hook installed. `permission-denied` fires when the user refuses."
+    },
+    {
+      "signal": "hook",
+      "event": "notification",
+      "notification_type": "confirmation | question | task_complete",
+      "meaning": "HOOK_NOTIFICATION_TYPE is the NotificationOptions.reason from src/utils/notification.ts: confirmation (permission wait), question (ask_followup_question wait), task_complete (turn finished). Needs a hook installed. The desktop notification itself is skipped while the terminal is focused, but the hook still runs (listener is on the notification service; inferred, the focus gate was not traced)."
+    },
+    {
+      "signal": "terminal_title",
+      "meaning": "OSC 0 window or tab title, written by src/ui/terminalTitle.ts to any real TTY (not with --json, --acp, --mode rpc): a braille spinner (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏) while a turn runs, ◐ while it waits on the human, ✓ idle or done, ✗ failed; format `<marker> <session name> · Autohand`, or `<marker> Autohand Code` when the session has no name. In iTerm2 the tab is also coloured green, orange or red. A terminal host (cmux, kitty, iTerm2, Ghostty) can read it. It is the only signal that needs neither a file read nor a hook, and the only one that separates working from waiting for the person watching the tab. Source only."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "hooks key in ~/.autohand/config.json (also config.toml, config.yaml, config.yml), <project>/.autohand/config.json (shareable; project hooks and MCP only apply after the workspace is trusted, stored in ~/.autohand/trusted-workspaces.json), <project>/.autohand/settings.local.json (personal), or a file named by --config. Two shapes: {\"hooks\":{\"enabled\":true,\"hooks\":[{\"event\":\"stop\",\"command\":\"...\",\"description\":\"...\",\"timeout\":5000,\"async\":false,\"matcher\":\"regex\",\"filter\":{\"tool\":[],\"path\":[]}}]}} and an event-keyed form. Commands run with `shell: true`; the event arrives as JSON on stdin and as HOOK_EVENT, HOOK_SESSION_ID, HOOK_WORKSPACE, HOOK_TOOL, HOOK_TURN_DURATION and about 70 more HOOK_* variables. Exit 2 blocks pre-tool and permission-request; stdout JSON {decision, reason, additionalContext} controls the flow. Manage with /hooks, /hooks list, /hooks manage; generated scripts land in ~/.autohand/hooks/generated/. Also: runtime extension hooks (api.hooks.on), JSON-RPC autohand.hook.* notifications in rpc and ACP mode, and an importer for other agents' hooks. `--bare` skips hooks entirely.",
+    "events": [
+      "session-start",
+      "session-end",
+      "pre-prompt",
+      "pre-tool",
+      "post-tool",
+      "file-modified",
+      "stop",
+      "post-response",
+      "permission-request",
+      "permission-denied",
+      "notification",
+      "session-error",
+      "rate-limit",
+      "subagent-start",
+      "subagent-progress",
+      "subagent-message",
+      "subagent-cancel-requested",
+      "subagent-stop",
+      "pre-clear",
+      "mode-change",
+      "context:compact",
+      "context:overflow",
+      "context:warning",
+      "context:critical",
+      "automode:start",
+      "automode:iteration",
+      "automode:checkpoint",
+      "automode:pause",
+      "automode:resume",
+      "automode:cancel",
+      "automode:complete",
+      "automode:error",
+      "teammate-spawned",
+      "teammate-idle",
+      "task-assigned",
+      "task-completed",
+      "team-created",
+      "team-shutdown",
+      "review:start",
+      "review:end",
+      "review:paused",
+      "review:failed",
+      "review:completed",
+      "pre-learn",
+      "post-learn",
+      "goal-written:completed",
+      "autoresearch:init",
+      "autoresearch:start",
+      "autoresearch:before",
+      "autoresearch:run",
+      "autoresearch:log",
+      "autoresearch:decision",
+      "autoresearch:after",
+      "autoresearch:rescore",
+      "autoresearch:replay",
+      "autoresearch:prune",
+      "autoresearch:pause",
+      "autoresearch:complete",
+      "autoresearch:error"
+    ],
+    "docs": "https://github.com/autohandai/code-cli/blob/main/docs/hooks.md"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry: a case-insensitive search of src, docs, package.json, config.example.json, schema, scripts and README for opentelemetry, otlp and OTEL_ found nothing (the only hit is an optional vitest peer dependency in bun.lock). Autohand has its own, separate paths (docs/telemetry.md): product telemetry is OFF by default (telemetry.enabled, POST /v1/telemetry, queue ~/.autohand/telemetry/queue.json), cloud session sync is a second opt-in (telemetry.enableSessionSync), a version check runs on ordinary start-up (AUTOHAND_SKIP_PING=1 stops it), automatic error reports are ON unless autoReport.enabled is false, and the `ahtraces` companion (off until consent) syncs agent traces to console.autohand.ai. None of these is a local status feed."
+  },
+  "sources": [
+    {
+      "claim": "Package: npm autohand-cli 0.9.8 is latest (0.9.9-alpha.ae34d3f on the alpha tag); bins are ah, agent, autohand AND autohand-code (the hint listed three); node >=22 required; ink 7 TUI, node-pty, @agentclientprotocol/sdk",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "local command: `npm view autohand-cli@0.9.8 bin engines dependencies --json` printed bin {ah, agent, autohand, autohand-code -> dist/index.js}, engines.node >=22.0.0; `npm view autohand-cli --json` printed dist-tags latest 0.9.8, alpha 0.9.9-alpha.ae34d3f, modified 2026-09-23"
+    },
+    {
+      "claim": "Source read at main a248656 (2026-09-29); the files this row relies on (ActiveAgentRegistry.ts with waiting_input and the 5 s / 15 s constants, index.ts with process.title, terminalTitle.ts, KeepAwakeController.ts, hooks.md) also exist at tag v0.9.8",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/autohandai/code-cli (shallow clone read, not built or run); `gh api repos/autohandai/code-cli/contents/src/session/ActiveAgentRegistry.ts?ref=v0.9.8` returned size 13415 and a grep of the decoded file matched waiting_input, ACTIVE_AGENT_STALE_MS = 15_000 and the 5_000 heartbeat; `gh api .../src/index.ts?ref=v0.9.8` line 2 is process.title = 'Autohand Code'"
+    },
+    {
+      "claim": "The CLI sets process.title = 'Autohand Code' as the first statement of its entry file",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/index.ts lines 1-2 in autohandai/code-cli: `#!/usr/bin/env node` then `process.title = 'Autohand Code';`. That ps then shows only the title on macOS is INFERRED from the kimi row's local observation (node 22.22.2 on this Mac, libuv overwrites the argv area); not tested for Autohand, and whether the compiled Bun binary does the same is unknown"
+    },
+    {
+      "claim": "Each live session publishes a heartbeat file ~/.autohand/active-agents/<sessionId>.json with pid, status idle|working and activity.phase idle|thinking|editing|running_command|waiting_input, refreshed every 5 s and stale after 15 s",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/session/ActiveAgentRegistry.ts (ActiveAgentRecord, ActiveAgentHeartbeat, ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS = 5_000, ACTIVE_AGENT_STALE_MS = 15_000, isProcessAlive); src/constants.ts AUTOHAND_PATHS.activeAgents = <AUTOHAND_HOME>/active-agents; src/core/agent.ts emitStatus() calls activeAgentHeartbeat.update(isInstructionActive ? 'working' : 'idle'); src/core/agent/InstructionRunner.ts sets host.isInstructionActive = true at the start of a turn and false in its finally blocks. Documented feature name: `autohand agents [--once]` 'Show active Autohand CLI agents' (src/index.ts line 1346, src/commands/agents.ts help text: 'Watch global Autohand session heartbeats')"
+    },
+    {
+      "claim": "waiting_input is set while a permission prompt or an ask_followup_question is open, and status stays working during it",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/session/peers/PeerActivityPublisher.ts derivePhase(): idle when !isInstructionActive, then waiting_input when awaitingInput; src/core/agent.ts beginAwaitingInput()/endAwaitingInput() wrap confirmDangerousAction and executeAskFollowupQuestion and also call terminalTitle.setState('waiting'/'working'); status comes from isInstructionActive alone (agent.ts emitStatus)"
+    },
+    {
+      "claim": "Terminal title marker: spinner while working, ◐ waiting, ✓ idle, ✗ failed; iTerm2 tab colour; written only to a real TTY and not in json, acp or rpc modes",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/ui/terminalTitle.ts (TerminalTitleState, STATE_MARKERS, WORKING_SPINNER_FRAMES, shouldWriteTerminalTitle, TerminalTitleController)"
+    },
+    {
+      "claim": "Sessions live in ~/.autohand/sessions/<uuid>-<ms>/ with conversation.jsonl (append per message), metadata.json, state.json and a root index.json; AUTOHAND_HOME relocates ~/.autohand",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/session/SessionManager.ts (generateSessionId returns `${crypto.randomUUID()}-${Date.now()}`; Session.append does fs.appendFile(conversation.jsonl); SESSION_INDEX_FILE = 'index.json'); src/session/types.ts SessionMetadata and SessionMessage; src/constants.ts resolveAutohandHome reads AUTOHAND_HOME. Directory promised by https://github.com/autohandai/code-cli/blob/main/README.md ('Sessions are auto-saved to ~/.autohand/sessions/'); file layout is not promised"
+    },
+    {
+      "claim": "run_command is executed through a shell, so a working session has a direct /bin/sh -c child",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/core/actionExecutor.ts ~line 1935 comment 'Always execute through the user's shell ... Node's spawn with shell: true uses /bin/sh on Unix' and runCommand(shellCmd, [], workspaceRoot, {shell: true, ...}); src/actions/command.ts spawn(cmd, args, {shell: options.shell ?? false}). Not observed running"
+    },
+    {
+      "claim": "A caffeinate child exists only after the iOS pairing (/go) and is held for the whole pairing, not per turn: `/usr/bin/caffeinate -dims -w <autohand pid>`",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/mobile/KeepAwakeController.ts defaultProcessFactory spawn('/usr/bin/caffeinate', ['-dims', '-w', String(process.pid)]); src/commands/go.ts startMobileRelay({... keepAwakeByDefault: true ...}); src/mobile/MobileRelay.ts enable() at start and dispose() on close. No other caffeinate, IOPMAssertion or powerSaveBlocker in src or package.json (grep for caffeinate|pmset|prevent.?sleep|IOPM)"
+    },
+    {
+      "claim": "Lifecycle hooks: event list, config locations, HOOK_* variables, exit-code and JSON control flow, workspace trust, JSON-RPC autohand.hook.* notifications",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/autohandai/code-cli/blob/main/docs/hooks.md (Hook Events table, Configuration, Environment Variables, JSON-RPC 2.0 Hook Notifications); docs site page https://docs.autohand.ai/working-with-autohand-code/hooks listed in https://docs.autohand.ai/working-with-autohand-code/cli (fetched 2026-09-30); notification reasons confirmation|question|task_complete from src/utils/notification.ts line 25 ; verification 2026-09-30: `type HookEvent` in src/types.ts (lines 778-866) has 59 lifecycle names, the 46 first listed plus 13 autoresearch:* (init, start, before, run, log, decision, after, rescore, replay, prune, pause, complete, error), all now in events"
+    },
+    {
+      "claim": "No OpenTelemetry in Autohand",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "local command in the shallow clone: `grep -rniE 'opentelemetry|otlp|OTEL_|open-telemetry' src docs package.json config.example.json schema scripts README.md` printed no line. Its own telemetry, off by default: https://github.com/autohandai/code-cli/blob/main/docs/telemetry.md"
+    },
+    {
+      "claim": "Install layout: install.sh puts `autohand` (Bun-compiled) plus `ahtraces` in ~/.local/bin (or /usr/local/bin for root), symlinks autohand-code, agent and ah, and REPLACES an existing `agent` in every writable PATH directory; the Homebrew formula and Windows installer do the same",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "install.sh in autohandai/code-cli (read, not run): install_symlink autohand -> autohand-code, agent, ah; claim_agent_alias_path_wide() comment 'agent is a generic name other AI CLIs also claim (e.g. Grok installs its own agent earlier on PATH). Reclaim it in every writable PATH directory' and `rm -f \"$_candidate\"; ln -sfn`; README 'Installation' says the same and 'if another tool's agent command stops working after installing Autohand, this is why'; homebrew formula generator .github/render-homebrew-formula.mjs (class AutohandCode, bin.install_symlink autohand => agent) with post_install scanning PATH. Release assets of v0.9.8 seen with `gh release view -R autohandai/code-cli`: autohand-macos-arm64 (85 MB Mach-O), autohand-macos-arm64.tar.gz, ahtraces-macos-arm64, install.sh"
+    },
+    {
+      "claim": "Not installed here: no autohand, ah or agent on PATH, no ~/.autohand, no app in /Applications",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`which ah autohand agent` printed 'ah not found', 'autohand not found', 'agent not found'; `ls ~/.autohand` printed 'No such file or directory'; `ls /Applications | grep -i autohand` printed nothing; `ls ~/.local/bin` lists background-doctor, bp, claude, claude-swap, codex, codex-code-mode-host, cswap, cursor-agent (no agent, no ah)"
+    },
+    {
+      "claim": "Helper app and native-messaging identifiers: `Autohand Computer Use.app` with bundle id ai.autohand.computer-use (an MCP computer-control helper installed by the installers, not an agent session), Chrome native host name ai.autohand.rpc, VS Code extension id AutohandAI.vscode-autohand",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/computer/autohandComputerUse.ts AUTOHAND_COMPUTER_USE_BUNDLE_ID = 'ai.autohand.computer-use'; src/browser/chrome.ts CHROME_NATIVE_HOST_NAME = 'ai.autohand.rpc'; https://marketplace.visualstudio.com/items?itemName=AutohandAI.vscode-autohand (fetched 2026-09-30: version 0.1.5, 210 installs, 'powered by Autohand CLI', README section 'CLI (Bundled by Default)': release VSIX builds bundle the CLI for macOS arm64/x64, Linux, Windows; fallback to `autohand` on PATH); no Autohand desktop app with its own bundle id was found in the repo or the search"
+    },
+    {
+      "claim": "Modes that start other processes: ACP (`autohand --acp` / `--mode acp`) for Zed, JetBrains and JetBrains Air; `--mode rpc`; teammates are spawned as `autohand --mode teammate --team ... --name ... --agent ... --lead-session ...` children",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/autohandai/code-cli/blob/main/docs/guides/ACP.md ('command: /absolute/path/to/autohand, args: --acp'); docs/rpc-protocol.md; src/core/teams/TeammateProcess.ts buildSpawnArgs and buildSpawnEnv (AUTOHAND_TEAMMATE=1)"
+    },
+    {
+      "claim": "Matching rules hold on synthetic command lines",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "tools/agents_probe.py matches() and session_id() evaluated on synthetic argv lists only, no process started: see registry/evidence/autohand.md for the table"
+    },
+    {
+      "claim": "Heartbeat status is a cached value; activity.phase is live",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "src/session/ActiveAgentRegistry.ts: `update(status = this.status)` and the setInterval callback `this.update()`; src/core/agent.ts getActivity -> buildActivity({isInstructionActive: this.isInstructionActive, awaitingInput: this.peerAwaitingInputCount > 0, ...}) evaluated at every write; emitStatus() is the only caller passing a fresh status (grep of src for `emitStatus()` and `updateActiveAgentHeartbeat(` shows no call in src/core/agent/InstructionRunner.ts or SimpleChatHandler.ts after isInstructionActive is cleared). Not run, so whether another emitStatus fires soon after a turn is unobserved"
+    },
+    {
+      "claim": "Matching rules on synthetic argv, re-run by the verifier, including false-positive probes",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 loaded tools/agents_probe.py matches() over every registry row on synthetic argv lists: ['Autohand Code'] -> autohand; ['node','/opt/homebrew/bin/autohand'] -> autohand; ['node','/Users/me/bin/autohand/server.js'] -> autohand (FALSE POSITIVE, substring match on a directory); ['node','/x/bin/autohand','-p','init'] -> none (false negative, exact-arg veto); ['autohand','-p','update'] -> none (same); ['agent'], ['ahtraces','status'] and the Autohand Computer Use path -> none; ['autohand'], ['ah'], ['autohand-macos-arm64'] -> autohand. No other registry row matched any of the autohand names, including grok-bot (path_contains Grok Bot.app)"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Not installed on this Mac: nothing was run and no session file was seen, so this is source and docs only. Best signal is the per-process heartbeat ~/.autohand/active-agents/<sessionId>.json (pid, status, activity.phase, 5 s cadence, 15 s stale): it gives an exact turn state, an exact waiting state (phase waiting_input while status stays working) and the pid-to-session map that argv cannot give. The current probe cannot read a JSON field, so until it can, the shell child of a tool call, the terminal title marker and CPU are what it has. There is no sleep assertion and no per-turn caffeinate; a caffeinate -dims -w <pid> child only appears after /go pairing and is held for the whole pairing, so do not count it. Two traps in matching: the CLI retitles itself to 'Autohand Code' (with a space) so flags vanish from ps, and bare `agent` is claimed by Autohand's installers, Grok Build and Cursor at once, so it is not matched. The ahtraces sidecar and Autohand Computer Use.app are helpers, not sessions. Verifier additions 2026-09-30: (1) read activity.phase, not the top-level status, for turn state; status is a cached value re-sent by the 5 s timer. (2) The VS Code extension bundles the CLI, so its child may not match any surface here. (3) Known matching limits, kept because no better discriminator exists: the node surface's args_contain '/bin/autohand' is a substring, so `node /any/bin/autohand/x.js` from a user's own project would read as a session; exclude_args is an exact match on any argument, so a prompt that is exactly `init`, `update`, `config` and so on hides a real session (README section 3 case 16). (4) The compiled-binary retitle is unknown, so a title-less `autohand` argv[0] still matches surface 3. The row is source-and-docs only and stays 'documented'."
+}

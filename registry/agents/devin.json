@@ -1,0 +1,312 @@
+{
+  "id": "devin",
+  "name": "Devin CLI",
+  "vendor": "Cognition",
+  "homepage": "https://docs.devin.ai/cli",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "`devin` in a terminal: the full-screen REPL (also `devin -- <prompt>`, `-c`, `-r <id>`). One Rust Mach-O, installed by cli.devin.ai/install.sh at ~/.local/share/devin/cli/_versions/<version>/bin/devin with a symlink ~/.local/bin/devin, or by `brew install --cask devin-cli` (Caskroom/devin-cli/<version>/bin/devin, symlink $HOMEBREW_PREFIX/bin/devin). argv[0] is `devin` when run by name. THE REPL IS A THIN ACP CLIENT: it spawns its own binary as a `devin acp` child that owns the agent, the sessions.db writes and the tool shells, so the agent's bash tools are GRANDCHILDREN of this process and tool_children is left out of the row. Under the outermost rule the `devin acp` child is folded into this process. exclude_args vetoes management subcommands, hidden subcommands and cloud mode by exact argument: a prompt word equal to one of them (`devin update`, `devin -- list`) hides a real session. `devin --cloud` and `devin acp --cloud` are excluded because the agent runs in Devin Cloud, not here. `devin worker` (Outposts worker) is a long-lived non-session process and is excluded.",
+      "process": {
+        "names": [
+          "devin"
+        ],
+        "path_contains": [
+          "/devin/cli/_versions/",
+          "/Caskroom/devin-cli/"
+        ],
+        "exclude_args": [
+          "acp",
+          "--cloud",
+          "auth",
+          "mcp",
+          "models",
+          "doctor",
+          "rules",
+          "skills",
+          "plugins",
+          "cloud",
+          "desktop",
+          "list",
+          "ls",
+          "rm",
+          "ssh",
+          "forward",
+          "update",
+          "version",
+          "migrate",
+          "sandbox",
+          "setup",
+          "uninstall",
+          "airgap",
+          "worker",
+          "shell",
+          "self-manage",
+          "generate-man",
+          "post-install-setup",
+          "help",
+          "--help",
+          "-h",
+          "--version",
+          "-V"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "`devin --print [prompt]` (short form -p is NOT matched here, see notes): non-interactive single turn that prints and exits, alive means working. Flagged one-shot. args_contain is a substring test, so the long form only. `-p` runs fall through to the tui surface above.",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "devin"
+        ],
+        "path_contains": [
+          "/devin/cli/_versions/",
+          "/Caskroom/devin-cli/"
+        ],
+        "args_contain": [
+          "--print"
+        ],
+        "exclude_args": [
+          "acp",
+          "--cloud",
+          "auth",
+          "mcp",
+          "models",
+          "doctor",
+          "rules",
+          "skills",
+          "plugins",
+          "cloud",
+          "desktop",
+          "list",
+          "ls",
+          "rm",
+          "ssh",
+          "forward",
+          "update",
+          "version",
+          "migrate",
+          "sandbox",
+          "setup",
+          "uninstall",
+          "airgap",
+          "worker",
+          "shell",
+          "help",
+          "--help",
+          "-h",
+          "--version",
+          "-V"
+        ]
+      },
+      "session_id_args": [
+        "-r",
+        "--resume"
+      ]
+    },
+    {
+      "kind": "ide",
+      "label": "`devin acp`: the Agent Client Protocol server over stdio. Launched by an editor (Zed and JetBrains from their ACP registry, which downloads the release tarball and runs `./bin/devin acp` from an editor-managed directory, so only the name match applies there; Xcode 26.6 with an absolute path; Devin Desktop's Devin Local) as a subprocess, or by the terminal REPL as its own agent child (then folded into the REPL by the outermost rule). No session id in argv: ids arrive over ACP session/new and session/load. Direct children here are the tool shells, but a persistent `shell_id` bash can stay alive while idle, so tool_children is not listed. args_contain is a substring test: a REPL prompt containing the letters `acp` is labelled with this surface instead of the tui one (score 2 against 1). `devin acp --cloud` is excluded.",
+      "process": {
+        "names": [
+          "devin"
+        ],
+        "path_contains": [
+          "/devin/cli/_versions/",
+          "/Caskroom/devin-cli/"
+        ],
+        "args_contain": [
+          "acp"
+        ],
+        "exclude_args": [
+          "--cloud",
+          "--help",
+          "-h",
+          "--version",
+          "-V"
+        ]
+      }
+    },
+    {
+      "kind": "cloud",
+      "label": "Devin Cloud sessions driven from the terminal with `devin --cloud` or `/cloud` (REPL plus a `devin acp --cloud` relay to the cloud ACP WebSocket), and sessions in app.devin.ai. The agent runs on a Devin VM; nothing local to read. This surface has no process matcher on purpose: the local `devin --cloud` REPL and its `devin acp --cloud` relay are vetoed by exclude_args on the surfaces above, so this row reports nothing for them (idle would be a lie)."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/devin/cli/sessions.db",
+    "format": "sqlite",
+    "documented": false
+  },
+  "working_signals": [
+    {
+      "signal": "transcript_write",
+      "name": "sessions.db-wal mtime",
+      "within_seconds": 20,
+      "meaning": "INFERRED, raise-only, inert in tools/agents_probe.py today (no per_session path: one SQLite database, journal_mode=WAL, holds every session). The `devin acp` child persists on a dedicated database thread; a fresh -wal mtime under ~/.local/share/devin/cli/ (or $XDG_DATA_HOME/devin/cli/) says only that SOME Devin session wrote. Streaming deltas are not persisted (message_nodes rows are committed per step), so a quiet WAL never proves idle. Write cadence not measured because no instance was run. A per-session read needs sessions.last_activity_at WHERE id = <session id>; tool_call_state rows with a NULL tool_call_update_json are probably in-flight tool calls (inferred from the DDL comment)."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "INFERRED, unmeasured guess. Sums the REPL, its `devin acp` child, tool shells and stdio MCP servers. The REPL animates a spinner while a turn runs (changelog: 'Reduced rendering CPU usage ... including when only the spinner changes'), so a working turn should show CPU; a turn blocked on the network or on a permission prompt may show none. Weak fallback."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "hook",
+      "event": "PermissionRequest",
+      "meaning": "Fires when the agent needs a permission decision; the built-in approval card is the human prompt. A hook may approve, block (the documented decisions are `approve` and `block`) or pass through by printing nothing."
+    },
+    {
+      "signal": "hook",
+      "event": "Stop",
+      "meaning": "Fires when the agent wants to stop, so the turn is over and the agent waits for the next prompt. A blocking Stop hook makes it continue. Payload carries session_id and prompt_id (rotated on every user prompt; shared by every hook in one turn). UserPromptSubmit to Stop is the exact turn bracket, but only if the user configures hooks. Whether Stop fires on interrupt is not documented."
+    },
+    {
+      "signal": "terminal_notification",
+      "setting": "notify",
+      "meaning": "The REPL writes BEL, OSC 9 and OSC 777 to the terminal when the agent finishes, needs input or requests tool approval. Default `smart` sends them only while the terminal is unfocused; `always` and `never` are the other values. A terminal host that reads those sequences can see it; a process monitor cannot."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "Project: .devin/hooks.v1.json (the whole file is the hooks object), or a \"hooks\" key in .devin/config.json or .devin/config.local.json. User: a \"hooks\" key in ~/.config/devin/config.json. Claude Code format files are read too while read_config_from.claude is on (the default): .claude/settings.json, .claude/settings.local.json, ~/.claude/settings.json, ~/.claude.json. Plugins can ship hooks.json. `devin migrate hooks` converts .windsurf/hooks.json. /hooks lists what loaded. Exit code 2 blocks; DEVIN_PROJECT_DIR is set for hook commands.",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "PermissionRequest",
+      "UserPromptSubmit",
+      "Stop",
+      "PostCompaction",
+      "SessionStart",
+      "SessionEnd"
+    ],
+    "docs": "https://docs.devin.ai/cli/extensibility/hooks/overview"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Since v3000.11.1 (2026-09-21): an `otel` block in ~/.config/devin/config.json or the standard OTEL_EXPORTER_OTLP_* variables (also OTEL_LOG_USER_PROMPTS, OTEL_LOG_TOOL_DETAILS, OTEL_METRIC_EXPORT_INTERVAL, OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES). Logs and metrics over OTLP http/protobuf. The config page has no otel section; key names come from the binary: enabled, logs_endpoint, headers, logs_headers, metrics_headers, resource_attributes, log_export_interval_ms, metric_export_interval_ms, disable_user_prompt_logging, disable_tool_logging. Metrics seen in the binary: devin.session.count, devin.token.usage, devin.code_edit_tool.decision, devin.lines_of_code.count, devin.commit.count, devin.pull_request.count, devin.active_time.total. Event attributes: session.id, prompt.id, event.name, event.sequence, terminal.type, user.id. Default on or off is not documented."
+  },
+  "sources": [
+    {
+      "claim": "Installer layout: bundle in ~/.local/share/devin/cli/_versions/<version>/bin/devin, `current` symlink, ~/.local/bin/devin symlink to it; data dir is $XDG_DATA_HOME/devin (default ~/.local/share/devin), legacy cognition/ and chisel/ dirs migrated",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "curl -sL https://cli.devin.ai/install.sh (286 lines; VERSIONS_DIR=$XDG_DATA_HOME/$XDG_DIR_NAMESPACE/cli/_versions, TARGET_BIN=$HOME/.local/bin/devin, ln -s $CURRENT_LINK/bin/devin) and https://docs.devin.ai/cli/index (curl install, brew install --cask devin-cli)"
+    },
+    {
+      "claim": "Homebrew cask devin-cli installs bin/devin to $HOMEBREW_PREFIX/bin/devin, current version 3000.11.3",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "curl -s https://formulae.brew.sh/api/cask/devin-cli.json printed token devin-cli, version 3000.11.3, artifacts [{binary: [bin/devin], target: $HOMEBREW_PREFIX/bin/devin}, {zap: trash ~/.devin}], homepage https://cli.devin.ai/docs"
+    },
+    {
+      "claim": "The release tarball is one arm64 Mach-O plus man pages and docs; checksum matches the vendor manifest",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "downloaded https://static.devin.ai/cli/3000.11.3/devin-3000.11.3-aarch64-apple-darwin.tar.gz to the scratchpad, NOT installed and NOT run: shasum -a 256 = c08cc3f3507d103246b8c601a584fcc719fd77f6cc10f26cc90e9f4186640df2, equal to https://static.devin.ai/cli/current/manifest.json; tar tzf lists bin/devin, share/man, share/devin/docs; file bin/devin: Mach-O 64-bit executable arm64 (171232496 bytes); man page header 'devin 3000.11.3 (9c803229faa4)'"
+    },
+    {
+      "claim": "The REPL spawns its own binary as a `devin acp` child that owns the agent; so the visible process is a thin ACP client and tool shells sit two levels down",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "strings -a bin/devin (3000.11.3) printed 'the in-process ACP server the REPL spawns (a `devin acp` child that inherits the env)', 'resolving current executable for `devin acp`', 'agent child stdin unavailable', 'spawned ACP agent child', and source paths chisel-acp-client/src/bootstrap.rs and child.rs; man page devin.1 for --cloud: 'The REPL talks to `devin acp --cloud`'. Not seen in a live ps: nothing was run."
+    },
+    {
+      "claim": "Subcommand list (matcher exclusions) and global flags: -c/--continue, -r/--resume [<SESSION_ID>], -p/--print, --cloud, --model, --sandbox, --export",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.devin.ai/cli/reference/commands and the bundled man page x/share/man/man1/devin.1 (SUBCOMMANDS: auth mcp models doctor rules skills plugins cloud desktop list rm ssh forward update version migrate sandbox setup uninstall acp; `devin worker` documented as hidden Outposts worker; self-manage, generate-man, post-install-setup, shell seen as strings in the binary)"
+    },
+    {
+      "claim": "No sleep inhibitor: no caffeinate child and no IOPMAssertion",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "strings -a bin/devin | grep -c -E 'caffeinate|IOPMAssertion|PreventUserIdleSystemSleep' printed 0; nm -u bin/devin | grep -i IOPM printed nothing (IOKit is linked but only IORegistryEntryCreateCFProperty, IORegistryEntryGetName, IOServiceGetMatchingService(s) are imported); the vendor docs and changelog never mention a sleep inhibitor"
+    },
+    {
+      "claim": "Session store: one SQLite database, WAL mode; tables sessions, message_nodes, tool_call_state, subagent_heads, prompt_history, rendered_commits, app_state; the file is not documented by the vendor",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "strings -a bin/devin printed the migration DDL: CREATE TABLE sessions (id, working_directory, backend_type, model, permission_mode renamed agent_mode, created_at, last_activity_at ... plus title, main_chain_id, workspace_dirs, metadata, shell_last_seen_index, cogs_json, hidden); message_nodes (session_id, node_id, parent_node_id, chat_message, created_at, metadata); tool_call_state (session_id, tool_call_id, tool_call_json, tool_call_update_json); PRAGMA journal_mode WAL, synchronous NORMAL, busy_timeout; file names sessions.db, sessions.db-wal, sessions.db-shm, legacy cli_sessions.db. Path ~/.local/share/devin/cli/sessions.db: third-party https://github.com/DatekWireless/ai-usage-monitor docs/providers/devin.md and https://github.com/kenn-io/agentsview internal/parser/devin.go. Vendor CLI changelog (https://docs.devin.ai/cli/changelog/stable): v3000.3.22 'persistence runs on a dedicated database thread with a reused connection' (ACP server) and v3000.10.21 'Reduced the risk of local session database corruption with upstream SQLite fixes'. The line 'Session history is now cached in SQLite' is from the Devin Desktop changelog (https://docs.devin.ai/desktop/changelog-next v3.7.1003), i.e. Devin Local, not the CLI changelog. Re-checked 2026-09-30: strings -a shows 'journal_modeWALsynchronousNORMALbusy_timeout' and the seven CREATE TABLE statements"
+    },
+    {
+      "claim": "A second per-session artifact exists: ATIF JSON transcripts at ~/.local/share/devin/cli/transcripts/<session_id>.json (Windows %APPDATA%\\devin\\cli\\transcripts), schema ATIF-v1.7; write cadence unknown",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/stablyai/orca/issues/21330 (real files from CLI 3000.10.27: {schema_version ATIF-v1.7, session_id, agent, steps}); https://github.com/DatekWireless/ai-usage-monitor docs/providers/devin.md (transcripts/*.json, filename equals sessions.id). The binary carries 'ATIF-v1.7' and a `session_exports` dir used by `--export`."
+    },
+    {
+      "claim": "Process to session: only -r/--resume <id> puts the id in argv; -c and a fresh start carry none; `devin acp` carries none. A per-session flock file is a candidate mapping (lsof), unverified",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "https://docs.devin.ai/cli/reference/commands (flag table). strings -a bin/devin printed 'Session ' is already open in another process', 'Failed to lock session', a `session_locks` name and a `.lock` suffix; changelog v3000.11.1 'Session-lock errors identify the process holding the lock'. Lock file location and whether the holder keeps it open were not observed. probe session_id() on `devin -r --model opus` returns '--model' (bare -r followed by a flag)."
+    },
+    {
+      "claim": "Hooks: 8 events, config locations, matcher regex on tool_name, session_id and per-turn prompt_id in every payload, no Notification event, Claude-format files read by default",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.devin.ai/cli/extensibility/hooks/overview and https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks (fetched via https://docs.devin.ai/llms-full.txt, 3.1 MB); https://docs.devin.ai/cli/reference/configuration/read-config-from"
+    },
+    {
+      "claim": "OpenTelemetry export exists from v3000.11.1 (2026-09-21); key names, metrics and attributes read from the binary",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.devin.ai/cli/changelog/stable v3000.11.1: 'Export agent events and metrics to an OpenTelemetry collector using the `otel` block in the user config or standard `OTEL_EXPORTER_OTLP_*` variables.' Binary strings: chisel-otel/src/runtime.rs, OTel-OTLP-Exporter-Rust/0.31.0, OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, _METRICS_ENDPOINT, OTEL_LOG_USER_PROMPTS, OTEL_LOG_TOOL_DETAILS, 'no unsupported OTEL_EXPORTER_OTLP_* variables set', metric names devin.session.count ... devin.active_time.total, config keys logs_endpoint ... disable_tool_logging"
+    },
+    {
+      "claim": "Terminal notifications: config `notify` (never, smart default, always) writes BEL, OSC 9 and OSC 777 when the agent finishes, needs input or asks for tool approval",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.devin.ai/cli/reference/configuration/config-file#notify and changelog 'Terminal notifications'"
+    },
+    {
+      "claim": "Per-run log file whose name carries the pid; agent shell commands carry AI_AGENT=devin_<version>_agent",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://docs.devin.ai/cli/troubleshooting ('~/.local/share/devin/cli/logs/devin_<timestamp>_<pid>.log', %APPDATA%\\devin\\cli\\logs on Windows); changelog v3000.11.1 ('Agent shell commands expose AI_AGENT=devin_<version>_agent unless another agent already set that variable')"
+    },
+    {
+      "claim": "Shell tool: default shell is bash on every platform; commands with no shell_id are one-shot; a shell_id names a persistent shell kept between calls; slow commands are moved to the background",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "strings -a bin/devin printed the exec tool description: 'Commands run under bash by default on every platform ... unless you set `shell_flavor`', 'Commands run in a persistent shell session for each shell_id', 'One-shot commands (no `shell_id`) do NOT share state'; https://docs.devin.ai/cli/essential-commands ('moves it to the background and shows ... the background shell ID')"
+    },
+    {
+      "claim": "Devin Local in Devin Desktop is this same harness; the windsurf row already covers the Desktop app, bundle id com.exafunction.windsurf; its `devin` tui surface overlaps this row",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "registry/agents/windsurf.json and registry/evidence/windsurf.md (read, not edited); https://docs.devin.ai/cli/index ('Devin CLI is bundled with Devin Desktop'); https://docs.devin.ai/cli/changelog/stable ('Devin Local (the CLI hosted in Windsurf)')"
+    },
+    {
+      "claim": "Nothing from this harness is installed or running here, so no matcher saw a live process",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "ls /Applications | grep -i -E 'devin|windsurf' printed nothing; which devin printed 'devin not found'; ls ~/.local/share/devin ~/.config/devin ~/.devin printed 'No such file or directory' for each; ps -axo pid,args | grep -i devin printed nothing"
+    },
+    {
+      "claim": "A different, unrelated program also installs a `devin` command and reads ~/.config/devin/config.json: the community PyPI package devin-cli (Devin REST API client)",
+      "kind": "third-party",
+      "date": "2026-09-30",
+      "evidence": "https://pypi.org/project/devin-cli/ (1.5.1, 'Unofficial CLI for Devin AI', commands `devin create-session`, `devin configure`, 'Config: ~/.config/devin/config.json', Homebrew tap revanthpobala/tap formula devin-cli)"
+    },
+    {
+      "claim": "Editors that install Devin from the ACP registry run the release tarball's `./bin/devin acp`; the process name is still `devin` but the path is editor-managed, so path_contains cannot match it",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "curl -sL https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json: agent id devin, version 3000.11.3, distribution.binary.darwin-aarch64 archive https://static.devin.ai/cli/3000.11.3/devin-3000.11.3-aarch64-apple-darwin.tar.gz, cmd ./bin/devin, args [acp]; https://docs.devin.ai/cli/acp/jetbrains ('Install From ACP Registry... no CLI installation') and https://docs.devin.ai/cli/acp/zed ('zed: acp registry'). Synthetic argv ['./bin/devin','acp'] and ['/Users/u/Library/Application Support/Zed/external_agents/devin/3000.11.3/bin/devin','acp'] run through tools/agents_probe.py matches() score 2 on the ide surface of this row"
+    },
+    {
+      "claim": "Matcher behaviour under probe rules, checked on synthetic argv (nothing was run): REPL by name, -c, -r <id>, --print, -p, acp, absolute installer and Caskroom paths, the PyPI devin-cli wrapper",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 driver importing tools/agents_probe.matches over every registry/agents/*.json: ['devin'], ['devin','-c'], ['devin','-r','abc'], ['devin','--','fix','the','bug'] -> devin tui score 1; ['devin','--print','x'] and ['devin','--continue','--print'] -> devin tui oneshot score 2; ['devin','-p','x'] -> devin tui, NOT oneshot; ['devin','acp'] -> devin ide score 2; installer path [.../devin/cli/_versions/3000.11.3/bin/devin] 22, plus 'acp' 23; Caskroom path 21, 22 with acp; ['devin','acp','--cloud'], ['devin','--cloud'], ['devin','mcp','list'], ['devin','worker','start'], ['devin','-V'] -> NOT claimed by this row, claimed by windsurf tui (score 1); ['devin','--help'] -> nobody; ['/opt/homebrew/Cellar/devin-cli/1.5.1/libexec/bin/python','/opt/homebrew/bin/devin','configure'] (PyPI devin-cli) -> nobody; session_id(['devin','-r','--model','opus']) = '--model'"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "READ FIRST: the terminal REPL is a thin client. `devin` spawns its own binary as `devin acp` (inferred from binary strings, not seen in ps) and that child holds the agent, the database and the tool shells. So for a REPL session shells are grandchildren, the outermost rule reports the REPL, and tool_children cannot work; tree_cpu is the only live process signal. Nothing exact was found for 'a turn is in progress': no caffeinate, no power assertion, no per-session store file the probe can stat, no doc'd status. The exact bracket is a user-installed hook (UserPromptSubmit to Stop, keyed by prompt_id) or OpenTelemetry; both are opt-in. Everything under working_signals is inferred and unmeasured. Overlap: the windsurf row also matches `devin` by name (score 1); this row wins ties by file order and wins outright on the acp surface (score 2), so the windsurf tui surface should be dropped or made to exclude what this row matches, or a session is claimed twice. A Claude Code hook in ~/.claude/settings.json also fires for Devin sessions (read_config_from.claude defaults on): a hook that writes state for Claude Code will mislabel Devin sessions unless it checks DEVIN_PROJECT_DIR or the parent process. Verified by an independent pass 2026-09-30 (see registry/evidence/devin.md Verification): the exclude_args vetoes only take effect once the windsurf tui surface stops matching `devin` (synthetic argv for `devin mcp list`, `--cloud`, `worker start` and `-V` all fall through to windsurf today). Inferred, not seen live: a `devin acp` launched by Devin Desktop has a Devin.app parent that matches the windsurf row, not this one, so the outermost rule does not fold it and the same work can be listed twice. Matching limits under probe rules: the `-p` short flag cannot be separated from a normal session; a prompt word equal to a subcommand name hides a session; the substring `acp` test can relabel a prompt that contains it; bare `-r` followed by a flag yields a wrong id; probe.processes() splits ps on spaces, so an install under a path with spaces loses the path match but not the name match."
+}

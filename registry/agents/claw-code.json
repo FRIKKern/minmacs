@@ -1,0 +1,243 @@
+{
+  "id": "claw-code",
+  "name": "Claw Code",
+  "vendor": "UltraWorkers (community, agent-maintained)",
+  "homepage": "https://github.com/ultraworkers/claw-code",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "`claw` (Rust crate rusty-claude-cli, workspace 0.1.3): bare `claw` is a line-editor REPL (rustyline-style prompt `> `, not a full-screen TUI); `claw \"text\"`, `claw prompt ...`, `claw -p ...` and a piped prompt are one-shots where alive means working. Build-from-source only: no release tag or asset exists, so the binary is rust/target/{debug,release}/claw (or a copy on PATH). The release workflow would name the macOS asset claw-macos-arm64, hence the second name. argv[0] is the only thing matched and only its base name is compared: path_contains is deliberately not used, because it is a substring test and `/rust/target/release/claw` is also a prefix of `.../claw-rag-service` (a Qdrant/SQLite RAG server) and of `claw-analog`, so a dev-build path would file the RAG daemon as a Claw Code session. The bare name `claw` is generic and is the only discriminator left (a renamed or PATH copy is matched the same way). Management subcommands and help/version flags are vetoed by exact argument, so a prompt word equal to one of them (`claw status`, `claw config`) would be vetoed too. `--resume` and `resume` are vetoed because they restore a session, run any slash commands and exit; they never start a REPL.",
+      "process": {
+        "names": [
+          "claw",
+          "claw-macos-arm64"
+        ],
+        "exclude_args": [
+          "help",
+          "version",
+          "status",
+          "sandbox",
+          "doctor",
+          "state",
+          "dump-manifests",
+          "bootstrap-plan",
+          "agents",
+          "agent",
+          "mcp",
+          "skills",
+          "skill",
+          "plugins",
+          "plugin",
+          "marketplace",
+          "system-prompt",
+          "acp",
+          "--acp",
+          "-acp",
+          "init",
+          "setup",
+          "export",
+          "resume",
+          "--resume",
+          "session",
+          "compact",
+          "config",
+          "model",
+          "models",
+          "settings",
+          "diff",
+          "--help",
+          "-h",
+          "--version",
+          "-V"
+        ]
+      }
+    },
+    {
+      "kind": "tui",
+      "label": "`claw-analog`, a second, minimal binary in the same workspace (crate claw-analog): one task per invocation (`claw-analog -w <dir> \"task\"` or stdin), a tool loop with an explicit permission mode. One-shot, so alive means working. Sessions are optional, opt-in JSON snapshots written to a path given with --session; not JSONL and not under .claw. Excluded subcommands are its own (doctor, config, complete). The `-h` and `--help` flags are clap's.",
+      "process": {
+        "names": [
+          "claw-analog"
+        ],
+        "path_contains": [
+          "/rust/target/release/claw-analog",
+          "/rust/target/debug/claw-analog"
+        ],
+        "exclude_args": [
+          "doctor",
+          "config",
+          "complete",
+          "--help",
+          "-h",
+          "--version",
+          "-V"
+        ]
+      }
+    }
+  ],
+  "session_store": {
+    "glob": ".claw/sessions/*/*.jsonl",
+    "format": "jsonl",
+    "documented": true
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "the bash tool runs `sh -lc <command>` as a direct child of the claw process (stdin closed), and hook commands also run as `sh -lc` (stdin piped, not closed); both exist only while a turn is executing a tool or a hook. Tools that are not shells (file read/write, web, grep) run in-process and show no child. macOS /bin/sh may exec a lone simple command in place, in which case the direct child is the command, not sh (inferred, README case 9)"
+    },
+    {
+      "signal": "transcript_write",
+      "within_seconds": 30,
+      "meaning": "the user prompt is appended when the turn starts, the assistant message only after its stream has ended, and each tool_result right after its tool; a long model stream or a long tool call leaves the file quiet, so this raises working and its absence proves nothing. The file is found by process cwd (newest *.jsonl in the fingerprint directory), not by session id, because a REPL has no id in argv"
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 3,
+      "meaning": "fallback, unmeasured guess. The agent runs in-process (reqwest/tokio streaming plus terminal rendering), so a model call waiting on the network burns almost nothing"
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "none",
+      "meaning": "no hook, file, socket or event marks a permission wait. The REPL prints 'Permission approval required' ... 'Approve this tool call? [y/N]:' to stdout and blocks on stdin; the transcript then ends on an assistant tool_use record with no tool_result, which looks the same as a slow tool. The .claw/worker-state.json file has a tool_permission_required status but is written only for workers created through the model-facing Worker* tools, not by the REPL itself"
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "~/.claw/settings.json (or $CLAW_CONFIG_HOME/settings.json), ~/.claw.json, <project>/.claw.json, <project>/.claw/settings.json, <project>/.claw/settings.local.json; later files win",
+    "events": [
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure"
+    ],
+    "docs": "https://github.com/ultraworkers/claw-code/blob/main/USAGE.md#hook-configuration"
+  },
+  "telemetry": {
+    "otel": false,
+    "how": "No OpenTelemetry dependency or OTEL_* variable anywhere in the source. A crates/telemetry crate has a JSONL sink and a SessionTracer (turn_started, tool_execution_started, turn_completed and so on), but nothing in the CLI constructs a tracer or sink outside tests, so no telemetry is written at all"
+  },
+  "sources": [
+    {
+      "claim": "the repo is the public Rust implementation of the `claw` CLI; canonical code is rust/; binary name claw from crate rusty-claude-cli; workspace version 0.1.3; build-from-source only, `cargo install claw-code` installs a deprecated stub",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/ultraworkers/claw-code/blob/08106b0c3771ef5b4a5aa176acccd460e88b7325/README.md ('Claw Code is the public Rust implementation of the `claw` CLI agent harness'; Quick start); rust/crates/rusty-claude-cli/Cargo.toml [[bin]] name = \"claw\"; rust/Cargo.toml version = \"0.1.3\"; GET api.github.com/repos/ultraworkers/claw-code/releases returned [] and the page shows 0 Tags. main HEAD 08106b0 dated 2026-08-16"
+    },
+    {
+      "claim": "not installed on this Mac",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`which claw claw-analog` printed 'claw not found' and 'claw-analog not found'; `ls -d ~/.claw ~/.claw.json` both 'No such file or directory'; `ps -axo pid,args | grep -E '[/ ]claw( |$)|claw-analog|claw-code'` printed nothing; ls /Applications | grep -i claw printed nothing"
+    },
+    {
+      "claim": "release workflow builds `claw` on macos-14 and would publish it as claw-macos-arm64, but only on a tag push; there are no tags",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": ".github/workflows/release.yml matrix: name macos-arm64, bin claw, artifact_name claw-macos-arm64; upload step `if: startsWith(github.ref, 'refs/tags/')`; README.md lists 191 branches, 0 tags"
+    },
+    {
+      "claim": "bare `claw` starts the REPL only when stdin is a TTY; a prompt argument, `prompt`, `-p`, or piped stdin make it a one-shot; the REPL uses a line editor with prompt `> `",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/rusty-claude-cli/src/main.rs parse_args (~lines 1800-1885: CliAction::Prompt for -p and piped stdin, CliAction::Repl when rest is empty and stdin is a terminal) and run_repl (~7061: input::LineEditor::new(\"> \", ...))"
+    },
+    {
+      "claim": "`--resume` never starts a live session: it loads the session, runs the slash commands given, prints and exits",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "main.rs parse_resume_args (~3338) returns CliAction::ResumeSession; resume_session (~5020) with no commands prints 'Restored session from <path> (<n> messages).' and returns. So argv never carries the session id of a running REPL, and session_id_args is left out on purpose"
+    },
+    {
+      "claim": "non-session subcommands: help, version, status, sandbox, doctor, state, dump-manifests, bootstrap-plan, agents, mcp (`mcp serve` is a stdio MCP server), skills, plugins, marketplace, system-prompt, acp, init, setup, export, resume, session, compact, config, model(s), settings, diff",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "main.rs is_known_top_level_subcommand (~2804) and parse_subcommand match arms (~1949-2300); run_mcp_serve (~3802)"
+    },
+    {
+      "claim": "sessions are JSONL at <cwd>/.claw/sessions/<workspace_fingerprint>/<session_id>.jsonl, where the fingerprint is a 16-hex FNV-1a 64 digest of the canonicalised cwd and the id is `session-<millis>-<counter>`",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/runtime/src/session_control.rs SessionStore::from_cwd, workspace_fingerprint, PRIMARY_SESSION_EXTENSION = \"jsonl\"; rust/crates/runtime/src/session.rs generate_session_id -> format!(\"session-{millis}-{counter}\"); rusty-claude-cli main.rs current_session_store() uses env::current_dir(). Vendor docs: USAGE.md line 552 'REPL turns are persisted under `.claw/sessions/` in the current workspace'; docs/g010-clone-disambiguation-metadata.md for the fingerprint partition"
+    },
+    {
+      "claim": "the global ~/.claw/sessions directory is only a read fallback for `--resume latest`; nothing writes there",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "global_sessions_root() is referenced only at session_control.rs:328 (scan) and its definition; grep -rn global_sessions_root over rust/crates finds no other caller. Home is $CLAW_CONFIG_HOME or $HOME/.claw (runtime/src/config.rs default_config_home)"
+    },
+    {
+      "claim": "record shape: line 1 {type:session_meta, version, session_id, created_at_ms, updated_at_ms, workspace_root, model, fork?}; then {type:message, message:{role user|assistant|tool|system, blocks:[{type text|thinking|tool_use|tool_result,...}], usage?}}, {type:prompt_history, timestamp_ms, text}, and a compaction record. Appended one line per message, not rewritten",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/runtime/src/session.rs meta_record, message_record, persisted_block_json, append_persisted_message (OpenOptions append), ROTATE_AFTER_BYTES = 256*1024 (rotated copies are named <stem>.rot-<ms>.jsonl and also match *.jsonl). Key names taken from source; no real record was read because none exists on this Mac"
+    },
+    {
+      "claim": "turn loop write order: user text appended first, then per iteration the assistant message after the whole stream, then one tool_result per tool call; the turn ends on an assistant message with no tool_use",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/runtime/src/conversation.rs run_turn (~lines 325-540): push_user_text, api_client.stream, push_message(assistant_message), `if pending_tool_uses.is_empty() { break; }`, push_message(result_message)"
+    },
+    {
+      "claim": "the bash tool runs `sh -lc <command>` with stdin null as a direct child; hooks also run through `sh -lc` (stdin piped)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/runtime/src/bash.rs prepare_command / prepare_tokio_command (Command::new(\"sh\").arg(\"-lc\").arg(command); on non-Linux there is no sandbox launcher); rust/crates/runtime/src/hooks.rs shell_command (~745-753): non-Windows Command::new(\"sh\").arg(\"-lc\").arg(command)"
+    },
+    {
+      "claim": "no sleep inhibitor: no caffeinate child and no IOKit power assertion",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rn 'caffeinate\\|IOPMAssertion\\|sleep inhib' rust/crates found nothing; unsafe_code = \"forbid\" in rust/Cargo.toml [workspace.lints.rust]"
+    },
+    {
+      "claim": "hooks: only PreToolUse, PostToolUse, PostToolUseFailure exist, each running shell commands; Stop, Notification, UserPromptSubmit and SessionStart are recorded as invalid (unknown_hook_event) and never run",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/ultraworkers/claw-code/blob/main/USAGE.md 'Hook configuration' ('Unknown hook event names (e.g. `Stop`, `Notification`) are recorded as invalid'); rust/crates/runtime/src/hooks.rs enum HookEvent { PreToolUse, PostToolUse, PostToolUseFailure }; ROADMAP.md ~line 4312 'claw-code supports 3 event types'"
+    },
+    {
+      "claim": "config file search order",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/runtime/src/config.rs ConfigLoader::discover: ~/.claw.json (parent of config home), <config home>/settings.json, <cwd>/.claw.json, <cwd>/.claw/settings.json, <cwd>/.claw/settings.local.json"
+    },
+    {
+      "claim": "permission prompt is plain stdout text plus a blocking stdin read; no machine-readable record",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/rusty-claude-cli/src/main.rs CliPermissionPrompter::decide (~12489): prints 'Permission approval required', Tool/Current mode/Required mode/Input, then 'Approve this tool call? [y/N]: ' and io::stdin().read_line. ROADMAP.md ~line 6161 files 'blocked waiting for permission' as an unfixed gap"
+    },
+    {
+      "claim": ".claw/worker-state.json is written only by the WorkerRegistry, which only the Worker* model tools use; the `claw state` help text saying the REPL writes it does not match the source",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/runtime/src/worker_boot.rs emit_state_file (status enum: spawning, trust_required, tool_permission_required, ready_for_prompt, running, finished, failed); WorkerRegistry is constructed only in rust/crates/tools/src/lib.rs global_worker_registry (line 69) and called from the Worker tool handlers (lines 1700-1758); rusty-claude-cli/src/main.rs has no WorkerRegistry use; help text at ~10155 says 'written by the interactive REPL or a one-shot prompt'"
+    },
+    {
+      "claim": "no OpenTelemetry: no opentelemetry or OTEL_ string in any crate or doc; the telemetry crate's tracer is never constructed by the CLI",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "grep -rli 'opentelemetry\\|otlp\\|OTEL_' over the extracted tarball (rust/, docs/, USAGE.md, README.md, ROADMAP.md) found no match; grep -rn 'SessionTracer::new\\|JsonlTelemetrySink::new' rust/crates finds only test code (conversation.rs:997, api/tests, telemetry/src/lib.rs:514)"
+    },
+    {
+      "claim": "the API client identifies itself as `claude-code` by default (user agent app name), and providers include Anthropic, OpenAI-compatible, and xAI (`grok` model aliases with XAI_API_KEY)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "rust/crates/telemetry/src/lib.rs DEFAULT_APP_NAME = \"claude-code\"; rust/crates/api/src/providers/mod.rs model table entries \"grok\", \"grok-3\", \"grok-mini\" with ProviderKind::Xai, auth_env XAI_API_KEY"
+    },
+    {
+      "claim": "matching does not collide with the openclaw row: that row's names are openclaw-tui, openclaw-agent, openclaw-acp, openclaw-node, compared exactly with the base name of argv[0]",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 scan of registry/agents/*.json for 'claw' inside process.names and process.path_contains printed only the four openclaw-* names"
+    },
+    {
+      "claim": "path_contains was removed from the claw surface: the dev-build path substring also matched claw-rag-service and `claw-analog complete`",
+      "evidence": "rust/crates/claw-rag-service/src/main.rs is a binary crate named claw-rag-service (Cargo.toml package name; no [[bin]] override), so its dev build is .../rust/target/release/claw-rag-service. Before the fix, tools/agents_probe.py matches() on argv `/x/rust/target/release/claw-rag-service --port 1` returned score 26 for the claw surface, and `/x/rust/target/release/claw-analog complete zsh` returned 26 for claw and 0 for claw-analog (its own veto). After the fix both return 0 for claw",
+      "kind": "local-observation",
+      "date": "2026-09-30"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "Identity confirmed: ultraworkers/claw-code is a Rust CLI agent harness whose binary is `claw`; it is not a fork or wrapper of Claude Code, although it reads CLAUDE.md files and sends `claude-code` as its user-agent app name. Not installed here, no live process was seen, so nothing is verified-locally. A REPL has no session id in argv (`--resume` exits), so map a process to its transcript by the process cwd: the newest *.jsonl in <cwd>/.claw/sessions/<fnv1a64(canonical cwd) as 16 hex>/, and confirm with session_meta.workspace_root. The store is per project directory, not under ~. The strongest working evidence is a shell child (`sh -lc`) of the claw process; between tool calls, during a model stream, and during a permission wait no signal is exact, so idle must tolerate a short hold window. There is no sleep inhibitor, no waiting record and no OTel. Other harnesses named in the README (LazyCodex, Gajae-Code, oh-my-codex/OmX, clawhip) are separate projects, not surfaces of this row."
+}

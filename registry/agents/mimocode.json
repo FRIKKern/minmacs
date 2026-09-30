@@ -1,0 +1,393 @@
+{
+  "id": "mimocode",
+  "name": "MiMo Code",
+  "vendor": "Xiaomi (MiMo)",
+  "homepage": "https://github.com/XiaomiMiMo/MiMo-Code",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "label": "mimo in a terminal (default command, `mimo [project]`). Bun-compiled native binary named `mimo`, installed by `curl -fsSL https://mimo.xiaomi.com/install | bash` to ~/.mimocode/bin/mimo (the updater also treats ~/.local/bin as a curl install), or shipped inside the npm platform package @mimo-ai/mimocode-<os>-<arch>/bin/mimo. The npm package @mimo-ai/cli installs bin/mimo, a Node shim (`#!/usr/bin/env node`, argv[0] is node, so it never matches) that spawnSyncs the native binary; postinstall hard-links that binary to <pkg>/bin/.mimocode and the shim runs it from there, so under npm the process that works has argv[0] `.../@mimo-ai/cli/bin/.mimocode`, matched by path. The TUI renderer and the agent run in one process (the TUI starts a Worker thread, not a child), so tree signals on this process are meaningful. The compiled binary never sets process.title, so `ps` shows the launch argv unchanged (source-checked, never seen live). Every TUI also binds a loopback listener on a random port with a generated per-process password, and advertises it in ~/.local/state/mimocode/llm-server/<hash of cwd>/server-<pid>-<port>.json (fields pid, hostname, port, url, started; no credential); the password is not in the environment or on disk, so the status API is NOT reachable from outside for a plain TUI. `mimo attach <url>` is a thin client of a server elsewhere and is excluded. Subcommands are excluded by exact argument (the run, serve and acp surfaces carry the same list minus their own word, so `mimo llm-server list` or `mimo mcp add ... serve` is not mistaken for a daemon), so a prompt or project word equal to one of them hides a real session; `--version`, `upgrade`, `auth`, `mcp`, `session list` and the rest are not sessions.",
+      "process": {
+        "names": [
+          "mimo"
+        ],
+        "path_contains": [
+          "/.mimocode/bin/mimo",
+          "/@mimo-ai/cli/bin/.mimocode",
+          "/@mimo-ai/mimocode-"
+        ],
+        "exclude_args": [
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "acp",
+          "agent",
+          "attach",
+          "auth",
+          "completion",
+          "console",
+          "db",
+          "debug",
+          "export",
+          "generate",
+          "github",
+          "import",
+          "llm-server",
+          "mcp",
+          "models",
+          "plug",
+          "plugin",
+          "pr",
+          "providers",
+          "run",
+          "serve",
+          "session",
+          "stats",
+          "uninstall",
+          "upgrade"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "tui",
+      "label": "`mimo run [message..]`: headless one-shot, alive means working. Same binary and install paths as the TUI. Matched by the substring `run` in any argument, so a TUI whose project path contains `run` is filed here (same signals, only the one-shot flag differs). `--attach <url>` makes it a client of a server elsewhere. `mimo github run` (the CI GitHub agent) also lands here on purpose: it is a headless agent run.",
+      "oneshot": true,
+      "process": {
+        "names": [
+          "mimo"
+        ],
+        "path_contains": [
+          "/.mimocode/bin/mimo",
+          "/@mimo-ai/cli/bin/.mimocode",
+          "/@mimo-ai/mimocode-"
+        ],
+        "args_contain": [
+          "run"
+        ],
+        "exclude_args": [
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "acp",
+          "agent",
+          "attach",
+          "auth",
+          "completion",
+          "console",
+          "db",
+          "debug",
+          "export",
+          "generate",
+          "import",
+          "llm-server",
+          "mcp",
+          "models",
+          "plug",
+          "plugin",
+          "pr",
+          "providers",
+          "serve",
+          "session",
+          "stats",
+          "uninstall",
+          "upgrade"
+        ]
+      },
+      "session_id_args": [
+        "--session",
+        "-s"
+      ]
+    },
+    {
+      "kind": "daemon",
+      "label": "`mimo serve [--port N --hostname H]`: headless HTTP server for `mimo attach`, editors and the SDK. Hosts many sessions in one process, so report the host only. Unsecured (no auth at all) unless MIMOCODE_SERVER_PASSWORD is set; a non-loopback bind without the password is refused. Its status API answers `GET /session/status?directory=<cwd>` and `GET /permission`, `GET /question` (see waiting_signals). `mimo web` is commented out of the CLI in this release. The Xiaomi MiMo Desktop app embeds the same engine (flag.ts comment: 'the desktop app runs the server in-process') but its process shape is not public. Matched by the substring `serve` in any argument, so a TUI whose project path contains `serve` is filed here.",
+      "host": true,
+      "process": {
+        "names": [
+          "mimo"
+        ],
+        "path_contains": [
+          "/.mimocode/bin/mimo",
+          "/@mimo-ai/cli/bin/.mimocode",
+          "/@mimo-ai/mimocode-"
+        ],
+        "args_contain": [
+          "serve"
+        ],
+        "exclude_args": [
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "acp",
+          "agent",
+          "attach",
+          "auth",
+          "completion",
+          "console",
+          "db",
+          "debug",
+          "export",
+          "generate",
+          "github",
+          "import",
+          "llm-server",
+          "mcp",
+          "models",
+          "plug",
+          "plugin",
+          "pr",
+          "providers",
+          "run",
+          "session",
+          "stats",
+          "uninstall",
+          "upgrade"
+        ]
+      }
+    },
+    {
+      "kind": "ide",
+      "label": "`mimo acp`: Agent Client Protocol agent over stdio, spawned by an editor (Zed, JetBrains and similar). One process per editor connection, sets MIMOCODE_CLIENT=acp. The editor is the parent; no separate turn signal, so treat as one working-or-idle unit by CPU and shell children. Matched by the substring `acp` in any argument.",
+      "process": {
+        "names": [
+          "mimo"
+        ],
+        "path_contains": [
+          "/.mimocode/bin/mimo",
+          "/@mimo-ai/cli/bin/.mimocode",
+          "/@mimo-ai/mimocode-"
+        ],
+        "args_contain": [
+          "acp"
+        ],
+        "exclude_args": [
+          "--version",
+          "-v",
+          "--help",
+          "-h",
+          "agent",
+          "attach",
+          "auth",
+          "completion",
+          "console",
+          "db",
+          "debug",
+          "export",
+          "generate",
+          "github",
+          "import",
+          "llm-server",
+          "mcp",
+          "models",
+          "plug",
+          "plugin",
+          "pr",
+          "providers",
+          "run",
+          "serve",
+          "session",
+          "stats",
+          "uninstall",
+          "upgrade"
+        ]
+      }
+    },
+    {
+      "kind": "gui",
+      "label": "Xiaomi MiMo Desktop (beta, invite-gated, macOS DMG, v0.1.0 of 2026-09-01, 'powered by MiMo Code as its core engine'). Closed source: bundle id, executable name, helper names and whether the engine runs as a `mimo` child or in-process were NOT determined, so this surface has no process spec and matches nothing. A `mimo` child inside the app bundle would be matched by the name rule of the surfaces above."
+    }
+  ],
+  "session_store": {
+    "glob": "~/.local/share/mimocode/mimocode*.db",
+    "format": "sqlite",
+    "documented": false,
+    "pid_index": {
+      "path": "~/.local/state/mimocode/llm-server/<hash of cwd>/server-<pid>-<port>.json",
+      "note": "pid and loopback port of each process's own listener, keyed by a hash of its cwd. The credential is not stored here, so it does not open the API. A dead pid is treated as stale. Source-only."
+    }
+  },
+  "working_signals": [
+    {
+      "signal": "tool_children",
+      "meaning": "The bash tool spawns one detached child per command: ChildProcess.make(command, [], {shell: $SHELL, detached: true}), i.e. `/bin/zsh -c <cmd>` on macOS, a direct child of the mimo process (the tool runs in the same process as the TUI). It raises working while a shell tool runs. It is blind while the model streams, while read/edit/grep tools run in-process, and during subagent work with no shell. Caveats: the interactive bash tool (pty) leaves a long-lived shell child, stdio MCP servers and language servers are permanent direct children (not shells, so not counted), and `zsh -c 'one command'` may exec in place so the direct child is the command itself. Source-only, never seen live."
+    },
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 10,
+      "meaning": "Fallback and weak. Inferred, never measured. The TUI defaults to `vivid` visuals: an animated StarryBackground on the home route and behind the session view (timers, see the README /vivid note about lag), so an idle vivid TUI may sit above the generic 3 percent floor. 10 is a guess; the animation can be turned off with /vivid (`visual_mode` minimal) or the `animations_enabled` kv setting, which would allow a lower floor. No sleep inhibitor: source has no caffeinate, power assertion or IOPM call, so unlike claude-code there is no cheap OS-level busy signal."
+    }
+  ],
+  "waiting_signals": [
+    {
+      "signal": "plugin_event",
+      "event": "permission.asked",
+      "meaning": "A tool needs approval. Cleared by permission.replied. Session status is NOT changed by a permission request (permission/index.ts never touches SessionStatus), so `busy` stays set: busy does not mean working. Also the `permission.ask` plugin hook. Needs a plugin installed, or an SSE client on a server you can reach (`GET /event`)."
+    },
+    {
+      "signal": "plugin_event",
+      "event": "question.asked",
+      "meaning": "The model called the question tool and waits for an answer; the tool is registered by default for the cli, app and desktop clients (tool/registry.ts). Cleared by question.replied or question.rejected."
+    },
+    {
+      "signal": "http",
+      "endpoint": "GET /permission and GET /question on `mimo serve` or on a TUI started with --port/--hostname",
+      "meaning": "Pending requests. Reachable only when MIMOCODE_SERVER_PASSWORD is unset (open server) or you hold it. A plain TUI does have a loopback listener, but with a generated password kept in process memory only, so it cannot be queried from outside. Add ?directory=<cwd>. Source-only."
+    },
+    {
+      "signal": "flag",
+      "flag": "--dangerously-skip-permissions / --yolo, MIMOCODE_DANGEROUSLY_SKIP_PERMISSIONS=1, or /skip-permissions",
+      "meaning": "With any of these there is no permission wait for allowed tools; in /skip-permissions mode a forced-ask operation is auto-rejected after 60 seconds. `--never-ask` (or /never-ask) makes the agent decide without asking questions. A session started this way never shows a human wait."
+    }
+  ],
+  "hooks": {
+    "supported": true,
+    "config": "No shell-command hook config (no settings.json hooks block; the Claude Code hook JSON is only in a bundled skill's reference text). Lifecycle handlers are JS/TS plugins: `{plugin,plugins}/*.{ts,js}` in ~/.config/mimocode/ (global), in any .mimocode/ directory from the project up to the git worktree root and in ~/.mimocode/, or in $MIMOCODE_CONFIG_DIR; or the `plugin` array (npm names or local paths) of mimocode.jsonc / mimocode.json. `--pure` or MIMOCODE_PURE=1 skips external plugins. The `event` hook receives every bus event, including session.status, session.idle (deprecated), permission.asked and question.asked.",
+    "events": [
+      "event",
+      "session.pre",
+      "session.post",
+      "session.userQuery.pre",
+      "session.userQuery.post",
+      "session.llm.request",
+      "tool.execute.before",
+      "tool.execute.after",
+      "permission.ask",
+      "chat.message",
+      "command.execute.before",
+      "shell.env",
+      "actor.preStop",
+      "actor.postStop",
+      "experimental.session.compacting"
+    ],
+    "docs": "https://mimo.xiaomi.com/mimocode/config-files (the `plugin` field only; hook names are in packages/plugin/src/index.ts of https://github.com/XiaomiMiMo/MiMo-Code)"
+  },
+  "telemetry": {
+    "otel": true,
+    "how": "Undocumented, source-only, inherited from OpenCode. Set OTEL_EXPORTER_OTLP_ENDPOINT (optional OTEL_EXPORTER_OTLP_HEADERS as k=v,k=v and OTEL_RESOURCE_ATTRIBUTES): OTLP over HTTP, traces to <endpoint>/v1/traces and logs to <endpoint>/v1/logs, no metrics. The resource still says service.name=opencode, with attributes opencode.client (cli, acp, app or desktop), opencode.process_role, opencode.run_id and service.instance.id. Nothing is exported when the variable is unset. Config `experimental.openTelemetry: true` adds AI SDK spans. The env var must be in the process environment: a GUI app does not see shell env."
+  },
+  "sources": [
+    {
+      "claim": "MiMo Code is a fork of OpenCode; terminal binary `mimo`; installs by curl, npm and PowerShell",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://github.com/XiaomiMiMo/MiMo-Code README.md sections Quick Start and 'Relationship to OpenCode'; https://mimo.xiaomi.com/mimocode/install"
+    },
+    {
+      "claim": "curl install puts the binary at ~/.mimocode/bin/mimo; the updater treats ~/.mimocode/bin and ~/.local/bin as curl installs",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "install (repo root) lines `INSTALL_DIR=$HOME/.mimocode/bin` and `cp/mv ... \"${INSTALL_DIR}/mimo\"`; packages/cli/src/installation/index.ts methodImpl (execPath includes .mimocode/bin or .local/bin => curl)"
+    },
+    {
+      "claim": "npm package @mimo-ai/cli exposes bin `mimo` -> bin/mimo, a Node shim that spawnSyncs the native binary, preferring the hard-linked bin/.mimocode; platform packages are @mimo-ai/mimocode-<os>-<arch> with bin/mimo",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/bin/mimo (cached = path.join(scriptDir, '.mimocode'); base '@mimo-ai/mimocode-' + platform + '-' + arch; run() uses childProcess.spawnSync) and packages/cli/script/postinstall.mjs (fs.linkSync(binaryPath, bin/.mimocode)); `curl -s https://registry.npmjs.org/@mimo-ai/cli/latest` printed version 0.1.15 and bin {'mimo': 'bin/mimo'}"
+    },
+    {
+      "claim": "GitHub release v0.1.14 ships mimocode-darwin-arm64.zip, mimocode-darwin-x64.zip and mimocode-darwin-x64-baseline.zip",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "curl -s https://api.github.com/repos/XiaomiMiMo/MiMo-Code/releases/latest -> tag_name v0.1.14, published 2026-09-23, asset list"
+    },
+    {
+      "claim": "compiled binary is built with bun build --compile to dist/<target>/bin/mimo; nothing in the CLI sets process.title",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/script/build.ts (compile: {outfile: `dist/${name}/bin/mimo`}); `grep -rn 'process.title' packages/cli/src` printed nothing on clone 698f0f2"
+    },
+    {
+      "claim": "the TUI runs its agent in a Worker thread of the same process, and binds a loopback listener with a generated password, advertised (pid, hostname, port, url, started; no credential) under the state dir",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/src/cli/cmd/tui/thread.ts (new Worker(file...), `Bind a loopback listener even when this TUI talks to the worker in-process`); tui/worker.ts rpc.server (`if (!input) generateServerPassword()`); packages/cli/src/flag/flag.ts (generated password deliberately not written to process.env); packages/cli/src/llm-server/tokens.ts (dir = Global.Path.state/llm-server/<hash>, server-<pid>-<port>.json, kill(pid,0) liveness); packages/cli/src/llm-server/tokens.ts type Address = {pid, hostname, port, url, started} written by publish() with mode 0600; packages/cli/src/server/server.ts listen() publishes unless advertise:false"
+    },
+    {
+      "claim": "data root is ~/.local/share/mimocode on macOS (not Application Support); state ~/.local/state/mimocode; config ~/.config/mimocode; MIMOCODE_HOME puts all four under one absolute root",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/shared/src/global.ts resolveMimocodeHome() with xdg-basedir 5.1.0; `curl -sL https://unpkg.com/xdg-basedir@5.1.0/index.js` shows xdgData = XDG_DATA_HOME || homedir/.local/share on every OS; docs agree at https://mimo.xiaomi.com/mimocode/troubleshooting ('macOS/Linux: ~/.local/share/mimocode/') and contradict README.md ('On macOS, XDG data defaults to ~/Library/Application Support/mimocode/')"
+    },
+    {
+      "claim": "sessions live in one shared SQLite database mimocode.db (WAL), tables session, message, part; MIMOCODE_DB overrides; per-channel mimocode-<channel>.db only when MIMOCODE_DISABLE_CHANNEL_DB=false (default true, so a plain install always uses mimocode.db)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/src/storage/db.ts (getChannelPath, PRAGMA journal_mode = WAL); packages/cli/src/session/session.sql.ts (SessionTable columns include id, directory, parent_id, time_created, time_updated, time_archived; message.data and part.data are JSON). The docs' Storage text (JSON under project/<slug>/storage/) is stale: https://mimo.xiaomi.com/mimocode/troubleshooting; packages/cli/src/flag/flag.ts line 419 `MIMOCODE_DISABLE_CHANNEL_DB: !falsy(...)` (default true); https://mimo.xiaomi.com/mimocode/env-vars 'MIMOCODE_DISABLE_CHANNEL_DB boolean true All channels share one mimocode.db'"
+    },
+    {
+      "claim": "MiMo imports Claude Code sessions (~/.claude/projects) into its own database at every process start; Codex and OpenCode sessions are imported only on demand through POST /global/import/run",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/src/index.ts middleware (ClaudeImport.run(), guarded by MIMOCODE_DISABLE_CLAUDE_IMPORT and an inherited MIMOCODE_CLAUDE_IMPORTED guard); packages/cli/src/session/claude-import.ts (root ~/.claude/projects, source 'cc'); Codex and OpenCode run only via ExternalImport.runAll called from packages/cli/src/server/routes/global.ts POST /import/run (`grep -rnE 'runAll' packages/cli/src` shows no startup caller); external-import.sql.ts (table external_import, source cc|codex|opencode)"
+    },
+    {
+      "claim": "resume flags: --session/-s <id>, --continue/-c, --fork; `mimo session list`, `mimo export`",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://mimo.xiaomi.com/mimocode/sessions; packages/cli/src/cli/cmd/tui/thread.ts option definitions (session alias s, continue alias c)"
+    },
+    {
+      "claim": "session status is idle | busy | retry | notice, held in memory per instance and served by GET /session/status; a permission request does not change it",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/src/session/status.ts (Info union, Event.Status 'session.status', deprecated 'session.idle'); packages/cli/src/server/routes/instance/session.ts (.get('/status')); `grep -n 'SessionStatus\\|status.set' packages/cli/src/permission/index.ts packages/cli/src/question/index.ts` printed nothing"
+    },
+    {
+      "claim": "bash tool spawns a detached child through $SHELL (`/bin/zsh` fallback on macOS)",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/src/tool/bash.ts cmd(): ChildProcess.make(finalCommand, [], {shell, cwd, env, stdin: 'ignore', detached: process.platform !== 'win32'}); packages/cli/src/shell/shell.ts fallback() returns /bin/zsh on darwin"
+    },
+    {
+      "claim": "no sleep inhibitor: no caffeinate, powerSaveBlocker or IOPMAssertion anywhere in the CLI, SDK or plugin packages",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "`grep -rniE 'caffeinate|powerSaveBlocker|IOPMAssertion|prevent.?sleep|sleep.?inhibit' packages` printed nothing on clone 698f0f2"
+    },
+    {
+      "claim": "the TUI defaults to vivid visuals with an animated starry background; terminal title is static ('MiMoCode' or 'MC | <session title>')",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/src/cli/cmd/tui/context/visual.ts (kv visual_mode default 'vivid', animations_enabled default true); component/starry-background.tsx (setInterval timers); app.tsx renderer.setTerminalTitle"
+    },
+    {
+      "claim": "plugin hooks: event, session.pre/post, session.userQuery.pre/post, tool.execute.before/after, permission.ask, actor.preStop/postStop and more; plugin files are read from {plugin,plugins}/*.{ts,js} in the config directories",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/plugin/src/index.ts (Hooks interface, session.post fires 'even on thrown failures / interruptions'); packages/cli/src/config/plugin.ts load(); packages/cli/src/config/paths.ts directories() (Global.Path.config, .mimocode up to worktree, ~/.mimocode, MIMOCODE_CONFIG_DIR)"
+    },
+    {
+      "claim": "OTLP export exists, driven by OTEL_EXPORTER_OTLP_ENDPOINT, traces and logs only, service.name still 'opencode'",
+      "kind": "source-code",
+      "date": "2026-09-30",
+      "evidence": "packages/cli/src/effect/observability.ts (OtlpLogger url `${base}/v1/logs`, OTLPTraceExporter url `${base}/v1/traces`, serviceName: 'opencode'); packages/cli/src/flag/flag.ts lines 89-90; config.ts experimental.openTelemetry; https://mimo.xiaomi.com/mimocode/env-vars lists no OTEL variable; the env-vars page does list MIMOCODE_ENABLE_ANALYSIS (default true, 'Telemetry switch (model_call / tool_call / agent_request)'), a separate first-party analytics switch in packages/cli/src/metrics/subscriber.ts, not OTLP"
+    },
+    {
+      "claim": "Xiaomi MiMo Desktop is a separate, closed-source, invite-only macOS app, v0.1.0 (2026-09-01), powered by MiMo Code as its engine",
+      "kind": "official-docs",
+      "date": "2026-09-30",
+      "evidence": "https://mimo.mi.com/docs/en-US/updates/feature/desktop; README.md section 'Xiaomi MiMo Desktop Beta'; `curl -sI https://mimocode-cdn.xiaomimimo.com/mimocode/mimodesktopai/XiaomiMiMo-AI-latest-arm64.dmg` printed HTTP 200, Content-Length 368442523, Last-Modified 29 Sep 2026; the DMG was not downloaded or opened"
+    },
+    {
+      "claim": "MiMo Code is not installed on this Mac and nothing was running",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "`which -a mimo` printed 'mimo not found'; `pgrep -x mimo` exit 1; `ls ~/.mimocode ~/.local/share/mimocode ~/.local/state/mimocode ~/.config/mimocode ~/.cache/mimocode` all 'No such file or directory'; `ls /Applications | grep -i -E 'mimo|xiaomi'` empty"
+    },
+    {
+      "claim": "subcommand and substring matching behaves as the surfaces intend (verification pass): `mimo llm-server list` used to match the serve daemon surface and `mimo acp --cwd <path containing serve>` tied between acp and serve",
+      "kind": "local-observation",
+      "date": "2026-09-30",
+      "evidence": "python3 harness calling tools/agents_probe.py matches() over 32 made-up argv vectors against all registry rows; before the repair ['mimo','llm-server','list'] scored 2 on the daemon surface and ['mimo','acp','--cwd','/Users/x/observer'] scored 2 on both ide and daemon (daemon is earlier in the surfaces list, so it won); after the repair both resolve to no match and to ide only. Vectors were fabricated, no live process"
+    }
+  ],
+  "confidence": "documented",
+  "notes": "OpenCode v1 fork with Xiaomi additions; the process and store shape follow OpenCode (see the opencode row) with these differences. (1) Binary is `mimo`, never `opencode`. (2) Every TUI binds a loopback listener, unlike OpenCode v1, but it is password-protected with a random secret held in memory, so the status API cannot be read from outside; only `mimo serve` or `--port` without MIMOCODE_SERVER_PASSWORD is queryable. (3) From outside a plain TUI there is no exact turn signal: use a direct shell child (raises working, blind while the model streams) and CPU (weak, the vivid animation may keep an idle TUI busy). A precise reading needs a plugin: `session.pre` and `session.post` bracket each runLoop and `session.post` fires on error and interruption; or the in-process `session.status` event (idle | busy | retry | notice). `busy` also covers a pending permission or question. (4) Map a process to a session by --session/-s when present, otherwise by cwd against session.directory in ~/.local/share/mimocode/mimocode.db (parent_id IS NULL, newest time_updated). The DB is shared by every process (all channels, MIMOCODE_DISABLE_CHANNEL_DB defaults true) and holds Claude Code sessions imported at each startup, plus Codex and OpenCode sessions when an import is triggered over HTTP, so file mtime cannot attribute activity and the store holds conversations from other tools. Open it read-only; it is WAL. (5) Known false positives and misses: name `mimo` alone matches any program with that basename (none known); exclude_args are exact and args_contain is a substring test, so a prompt or project path containing run, serve or acp changes the surface (a TUI in a directory such as ~/observer is filed as the serve daemon, one in ~/runner as a one-shot); the run, serve and acp surfaces now exclude every other subcommand word so subcommands such as `llm-server` or `mcp` are not filed as sessions; the Desktop app has no matcher. Not verified live: nothing was installed, every pattern was reasoned from source, so confidence stays documented."
+}
