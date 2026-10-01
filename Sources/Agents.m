@@ -6,7 +6,7 @@
 #import <IOKit/pwr_mgt/IOPMLib.h>
 
 @implementation MMAgent
-- (BOOL)working { return [self.state isEqualToString:@"working"]; }
+- (BOOL)working { return [self.state isEqualToString:@"working"] || [self.state isEqualToString:@"blocked"]; }   // blocked is still a live turn
 - (NSDictionary *)json {
     return @{ @"harness": self.harness, @"id": self.harnessID, @"surface": self.surface, @"pid": @(self.pid),
               @"state": self.state, @"why": self.why ?: @"", @"cpu": @(round(self.cpu * 10) / 10),
@@ -218,6 +218,11 @@ static NSDictionary<NSNumber *, NSArray<NSString *> *> *AssertionsByPid(void) {
             a.state = (reasons.count || held) ? @"working" : @"idle";
             a.why = reasons.count ? [reasons componentsJoinedByString:@", "]
                   : held ? [NSString stringWithFormat:@"working %.0fs ago", [now timeIntervalSinceDate:last]] : @"";
+            NSString *ov = self.overrides[@(p.pid)];
+            if (ov && ([ov isEqualToString:@"blocked"] || [ov isEqualToString:@"unknown"] || [a.state isEqualToString:@"idle"])) {
+                a.state = ov;
+                a.why = self.overrideReasons[@(p.pid)] ?: ov;
+            }
             [found addObject:a];
         }
     }
