@@ -2,6 +2,13 @@
 
 All notable changes to MinMacs. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-10-01
+
+### Added
+- **Blocked agents from cmux.** With *Agents ▸ Read cmux for Waiting State* on (default off; `minmacs agents --cmux` for one run), an agent waiting on a permission, a question or a plan approval shows as blocked with its reason. It reads `pid, sessionId, surfaceId, workspaceId, updatedAt` from `~/.cmuxterm/claude-hook-sessions.json` and `kind, createdAt, workstreamId` from the last 2 MB of `~/.cmuxterm/workstream.jsonl`, and nothing else: payloads are never read. New `Sources/Hosts.m`.
+- Debug hook `minmacs.debug.cmuxDir` reads the two files from another directory. `minmacs agents` prints `blocked` and counts it.
+- 16 tests for the cmux reader, all against fixture files.
+
 ## [1.1.0] - 2026-09-29
 
 ### Added
