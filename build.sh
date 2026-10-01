@@ -7,7 +7,7 @@ APP=build/MinMacs.app
 rm -rf build && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 clang -fobjc-arc -O2 -Wall -mmacosx-version-min=13.0 -arch arm64 -arch x86_64 \
   -framework Cocoa -framework ServiceManagement -framework ScriptingBridge -framework IOKit \
-  Sources/main.m Sources/Scanner.m Sources/Rules.m Sources/Browser.m Sources/Agents.m -o "$APP/Contents/MacOS/MinMacs"
+  Sources/main.m Sources/Scanner.m Sources/Rules.m Sources/Browser.m Sources/Agents.m Sources/Hosts.m -o "$APP/Contents/MacOS/MinMacs"
 cp Info.plist "$APP/Contents/"
 [ -f AppIcon.icns ] && cp AppIcon.icns "$APP/Contents/Resources/"
 # Harness rows are data: every row that passes the validator ships with the app.
