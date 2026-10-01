@@ -3,6 +3,7 @@
   "name": "Gemini CLI",
   "vendor": "Google",
   "homepage": "https://github.com/google-gemini/gemini-cli",
+  "presence": ["~/.gemini"],
   "surfaces": [
     {
       "kind": "tui",

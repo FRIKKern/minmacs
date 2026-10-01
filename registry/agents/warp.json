@@ -3,6 +3,12 @@
   "name": "Warp",
   "vendor": "Warp (Denver Technologies, Inc)",
   "homepage": "https://www.warp.dev",
+  "presence": [
+    "~/.warp",
+    "~/.warp_cli",
+    "~/.warp-preview",
+    "~/Library/Group Containers/2BBY89MBSN.dev.warp"
+  ],
   "surfaces": [
     {
       "kind": "gui",

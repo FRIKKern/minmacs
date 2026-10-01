@@ -3,6 +3,9 @@
   "name": "Rovo Dev CLI",
   "vendor": "Atlassian",
   "homepage": "https://support.atlassian.com/rovo/docs/use-rovo-dev-cli/",
+  "presence": [
+    "~/.rovodev"
+  ],
   "surfaces": [
     {
       "kind": "ide",

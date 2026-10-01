@@ -3,6 +3,9 @@
   "name": "Autohand Code",
   "vendor": "Autohand AI",
   "homepage": "https://autohand.ai/cli/",
+  "presence": [
+    "~/.autohand"
+  ],
   "surfaces": [
     {
       "kind": "tui",

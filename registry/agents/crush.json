@@ -3,6 +3,10 @@
   "name": "Crush",
   "vendor": "Charm",
   "homepage": "https://github.com/charmbracelet/crush",
+  "presence": [
+    "~/.config/crush",
+    "~/.local/share/crush"
+  ],
   "surfaces": [
     {
       "kind": "tui",

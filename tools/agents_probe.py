@@ -5,6 +5,7 @@ classifies what is running on this Mac. The Objective-C detector must agree with
   tools/agents_probe.py            table
   tools/agents_probe.py --json     machine readable
   tools/agents_probe.py --row registry/agents/codex.json   evaluate one row only
+  tools/agents_probe.py --rows tools/fixtures/host         evaluate every row in a directory
 """
 import ctypes, ctypes.util, glob, json, os, re, struct, subprocess, sys, time
 
@@ -49,20 +50,43 @@ def tree(procs, pid):
         if p: out.append(p); stack.extend(p["kids"])
     return out
 
-def matches(surface, p):
+def matches(surface, p, absent=False):
     """0 when the surface does not match. Otherwise a score: how specific the match was.
     A process that matches two rows belongs to the more specific one, so the claude binary
-    that Xcode ships is an Xcode agent, not a terminal session."""
+    that Xcode ships is an Xcode agent, not a terminal session.
+    absent: the row has a presence list and none of its paths exists. A match that rests on
+    a bare name (no path_contains entry hit) then does not count: another program has that name."""
     spec = surface.get("process") or {}
     if not spec: return 0
     arg0 = p["argv"][0] if p["argv"] else ""
     paths = [s for s in spec.get("path_contains", []) if s in arg0]
     named = os.path.basename(arg0) in spec.get("names", [])
     if not (paths or named): return 0
+    if named and not paths and absent: return 0
     if any(a in p["argv"] for a in spec.get("exclude_args", [])): return 0
     need = spec.get("args_contain", [])
     if not all(any(n in a for a in p["argv"]) for n in need): return 0
     return 1 + max([len(s) for s in paths] or [0]) + len(need)
+
+def row_matches(row, absent, p):
+    return any(matches(s, p, absent) for s in row["surfaces"])
+
+def row_absent(row):
+    """True when the row has a presence list and none of its paths exists (~ and globs allowed)."""
+    paths = row.get("presence") or []
+    return bool(paths) and not any(glob.glob(os.path.expanduser(x)) for x in paths)
+
+def child_args_ok(need, child, owner):
+    """A child_process signal's args_contain: every entry must be an argument of the child. For -w
+    the argument after it must be the pid of the matched process (caffeinate -w <pid> ends when
+    that process does, so it is that process's own inhibitor and nobody else's)."""
+    argv = child["argv"]
+    for n in need:
+        if n not in argv[1:]: return False
+        if n == "-w":
+            at = argv.index("-w", 1)
+            if at + 1 >= len(argv) or argv[at + 1] != str(owner): return False
+    return True
 
 def session_id(surface, p):
     for flag in surface.get("session_id_args", []):
@@ -90,59 +114,114 @@ def transcript_age(row, sid):
     newest = max(files, key=os.path.getmtime)
     return time.time() - os.path.getmtime(newest), newest
 
-def classify(row, surface, p, procs, held):
+def signals(row, surface, p, procs, held):
+    """What a process shows right now: (reasons, tree cpu, session id, transcript age)."""
     t = tree(procs, p["pid"])
     cpu = sum(x["cpu"] for x in t)
     # Direct children only. Descendants include MCP servers, language servers and
     # relaunch children that live as long as the session does.
-    kids = [procs[k]["name"] for k in p["kids"] if k in procs]
+    kids = [procs[k] for k in p["kids"] if k in procs]
+    names = [k["name"] for k in kids]
     sid = session_id(surface, p)
     age, path = transcript_age(row, sid)
     reasons = []
     for s in row["working_signals"]:
         kind = s["signal"]
-        if kind == "child_process" and s.get("name") in kids: reasons.append(f"child {s['name']}")
+        if kind == "child_process":
+            if any(k["name"] == s.get("name") and child_args_ok(s.get("args_contain", []), k, p["pid"]) for k in kids):
+                reasons.append(f"child {s['name']}")
         elif kind == "tree_cpu" and cpu >= s.get("floor_percent", 3): reasons.append(f"cpu {cpu:.0f}%")
         elif kind == "transcript_write" and age is not None and age <= s.get("within_seconds", 30): reasons.append(f"transcript {age:.0f}s ago")
-        elif kind == "tool_children" and [k for k in kids if k in SHELLS]: reasons.append("tool shell running")
+        elif kind == "tool_children" and [k for k in names if k in SHELLS]: reasons.append("tool shell running")
         elif kind == "power_assertion":
             want = s.get("name")
-            names = [n for x in t for n in held.get(x["pid"], []) if x["name"] != "caffeinate"]
-            if [n for n in names if not want or want.lower() in n.lower()]: reasons.append("holds a sleep assertion")
+            held_names = [n for x in t for n in held.get(x["pid"], []) if x["name"] != "caffeinate"]
+            if [n for n in held_names if not want or want.lower() in n.lower()]: reasons.append("holds a sleep assertion")
+    return reasons, cpu, sid, age
+
+def classify(row, surface, p, procs, reasons, cpu, sid, age, hosted):
     cwd = sh("lsof", "-a", "-p", str(p["pid"]), "-d", "cwd", "-Fn")
     cwd = next((l[1:] for l in cwd.splitlines() if l.startswith("n")), "")
-    return dict(harness=row["name"], id=row["id"], surface=surface["kind"], pid=p["pid"], tty=p["tty"],
-                state="working" if reasons else "idle", why=", ".join(reasons), cpu=round(cpu, 1),
-                children=len(p["kids"]), session=sid, transcript_age=None if age is None else round(age),
-                project=cwd.replace(os.path.expanduser("~"), "~"))
+    # No signal fired: idle, unless the row says nothing outside the process can tell (unknown).
+    state = "working" if reasons else ("unknown" if row.get("no_outside_signal") else "idle")
+    out = dict(harness=row["name"], id=row["id"], surface=surface["kind"], pid=p["pid"], tty=p["tty"],
+               state=state, why=", ".join(reasons), cpu=round(cpu, 1),
+               children=len(p["kids"]), session=sid, transcript_age=None if age is None else round(age),
+               project=cwd.replace(os.path.expanduser("~"), "~"))
+    if hosted: out["hosted"] = hosted
+    return out
 
 def main():
     args = sys.argv[1:]
-    rows = [args[args.index("--row") + 1]] if "--row" in args else sorted(glob.glob(os.path.join(ROOT, "registry/agents/*.json")))
-    procs, found, held = processes(), [], assertions()
+    if "--row" in args: rows = [args[args.index("--row") + 1]]
+    elif "--rows" in args: rows = sorted(glob.glob(os.path.join(args[args.index("--rows") + 1], "*.json")))
+    else: rows = sorted(glob.glob(os.path.join(ROOT, "registry/agents/*.json")))
+    procs, held = processes(), assertions()
     loaded = [json.load(open(path)) for path in rows]
+    absent = [row_absent(r) for r in loaded]
     me = os.getpid()
+    # 1. the most specific row and surface for every process
+    best = {}                                          # pid -> (score, row index, surface)
     for p in procs.values():
         if p["pid"] == me: continue
-        best = None                                    # (score, row, surface)
-        for row in loaded:
+        for i, row in enumerate(loaded):
             for surface in row["surfaces"]:
-                score = matches(surface, p)
-                if score and (best is None or score > best[0]): best = (score, row, surface)
-        if not best: continue
-        _, row, surface = best
-        parent = procs.get(p["ppid"])
-        # a harness that re-executes itself shows up twice; keep the outermost process
-        if parent and any(matches(s, parent) for s in row["surfaces"]): continue
-        found.append(classify(row, surface, p, procs, held))
+                score = matches(surface, p, absent[i])
+                if score and (p["pid"] not in best or score > best[p["pid"]][0]): best[p["pid"]] = (score, i, surface)
+    # 2. a harness that re-executes itself shows up twice; keep the outermost process
+    cands = {}
+    for pid, (_, i, surface) in best.items():
+        parent = procs.get(procs[pid]["ppid"])
+        if parent and row_matches(loaded[i], absent[i], parent): continue
+        cands[pid] = (i, surface)
+    # 3. what each one shows right now
+    seen = {pid: signals(loaded[i], surface, procs[pid], procs, held) for pid, (i, surface) in cands.items()}
+    # 4. a process with a host or orchestrator of another row above it belongs to that host: report
+    # the host once. Its tree already holds the child's CPU and memory, so nothing is added twice.
+    # The owner's own sessions under a multiplexer that is not a row (cmux) have no such ancestor.
+    root = {}
+    for pid in cands:
+        cur = pid
+        for _ in range(64):
+            host, a = None, procs[cur]["ppid"]
+            while a > 1 and a in procs:
+                m = best.get(a)
+                if m and loaded[m[1]]["id"] != loaded[cands[cur][0]]["id"] and m[2].get("hosts_agents"): host = a; break
+                a = procs[a]["ppid"]
+            if host is None: break
+            hi = best[host][1]
+            top = host
+            while procs[top]["ppid"] in procs and row_matches(loaded[hi], absent[hi], procs[procs[top]["ppid"]]): top = procs[top]["ppid"]
+            r = top if top in cands and cands[top][0] == hi else (host if host in cands else None)
+            if r is None: break
+            cur = r
+        if cur != pid: root[pid] = cur
+    hosted_by = {}
+    for pid, r in root.items(): hosted_by.setdefault(r, []).append(pid)
+    # 5. one agent per remaining process
+    found = []
+    for pid, (i, surface) in cands.items():
+        if pid in root: continue
+        row = loaded[i]
+        reasons, cpu, sid, age = seen[pid]
+        hosted, busy = [], []
+        for h in sorted(hosted_by.get(pid, [])):
+            hrow = loaded[cands[h][0]]
+            if seen[h][0] and hrow["name"] not in busy: busy.append(hrow["name"])
+            hosted.append(dict(harness=hrow["name"], id=hrow["id"], pid=h,
+                               state="working" if seen[h][0] else ("unknown" if hrow.get("no_outside_signal") else "idle")))
+        # a hosted agent that is working keeps its host working: what it started stays protected
+        if busy: reasons = reasons + [f"hosted {', '.join(busy)} working"]
+        found.append(classify(row, surface, procs[pid], procs, reasons, cpu, sid, age, hosted))
     found.sort(key=lambda a: (a["state"] != "working", a["harness"], a["pid"]))
+    count = lambda st: sum(a["state"] == st for a in found)
     if "--json" in args:
-        print(json.dumps(dict(agents=found, working=sum(a["state"] == "working" for a in found), idle=sum(a["state"] == "idle" for a in found)), indent=1)); return
-    print(f"{'harness':<14}{'surface':<8}{'pid':<7}{'state':<9}{'cpu':>5}  {'kids':<5}{'why':<34}project")
+        print(json.dumps(dict(agents=found, working=count("working"), idle=count("idle"), unknown=count("unknown")), indent=1)); return
+    print(f"{'harness':<14}{'surface':<8}{'pid':<7}{'state':<10}{'cpu':>5}  {'kids':<5}{'why':<34}project")
     for a in found:
-        print(f"{a['harness']:<14}{a['surface']:<8}{a['pid']:<7}{a['state']:<9}{a['cpu']:>5}  {a['children']:<5}{a['why'][:33]:<34}{a['project'][-46:]}")
-    w = sum(a["state"] == "working" for a in found)
-    print(f"\n{len(found)} agent sessions: {w} working, {len(found) - w} idle")
+        state = ("\u25cc " + a["state"]).ljust(10) if a["state"] == "unknown" else a["state"].ljust(10)   # hollow marker: nothing outside the process says either way
+        print(f"{a['harness']:<14}{a['surface']:<8}{a['pid']:<7}{state}{a['cpu']:>5}  {a['children']:<5}{a['why'][:33]:<34}{a['project'][-46:]}")
+    print(f"\n{len(found)} agent sessions: {count('working')} working, {count('idle')} idle, {count('unknown')} unknown")
 
 if __name__ == "__main__":
     main()

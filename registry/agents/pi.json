@@ -3,6 +3,9 @@
   "name": "pi coding agent",
   "vendor": "Earendil Works (created by Mario Zechner)",
   "homepage": "https://pi.dev",
+  "presence": [
+    "~/.pi/agent"
+  ],
   "surfaces": [
     {
       "kind": "tui",

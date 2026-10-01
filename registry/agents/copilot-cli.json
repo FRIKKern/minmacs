@@ -3,6 +3,10 @@
   "name": "GitHub Copilot CLI",
   "vendor": "GitHub",
   "homepage": "https://github.com/github/copilot-cli",
+  "presence": [
+    "~/.copilot/session-state",
+    "~/.copilot/logs"
+  ],
   "surfaces": [
     {
       "kind": "tui",
@@ -112,6 +116,9 @@
     {
       "signal": "child_process",
       "name": "caffeinate",
+      "args_contain": [
+        "-w"
+      ],
       "meaning": "Exact only when the user runs /keep-alive busy (setting keepAlive=busy): the CLI then spawns `caffeinate -dis -w <its own pid>` for the length of the turn. Default is keepAlive=off, so it is normally absent. In mode `on` or a timed keep-alive the child is held for the whole session including idle, so it is a false positive there."
     },
     {

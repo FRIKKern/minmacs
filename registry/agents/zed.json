@@ -20,7 +20,8 @@
           "/Zed Nightly.app/Contents/MacOS/zed",
           "/Zed Dev.app/Contents/MacOS/zed"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "ide",
@@ -37,7 +38,8 @@
         "args_contain": [
           "Contents/MacOS/zed"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",

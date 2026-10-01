@@ -10,12 +10,17 @@
 @property NSInteger children;
 @property NSInteger transcriptAge;        // seconds since the session's transcript was written, -1 unknown
 @property (strong) NSArray<NSNumber *> *treePids;
+@property (strong) NSArray<NSDictionary *> *hosted;   // agents of other rows folded into this host: harness, id, pid, state
 @property (readonly) BOOL working;
 - (NSDictionary *)json;
 @end
 
 /// Finds agent sessions from registry rows (data, not code) and OS signals.
 /// tools/agents_probe.py is the reference; this must agree with it.
+/// Optional row fields it reads beyond the schema's basics: presence (a name-only match needs one of
+/// these paths to exist), no_outside_signal (no signal fired reads unknown, not idle), a surface's
+/// hosts_agents (agents of other rows below it are folded into it), and a child_process signal's
+/// args_contain (see registry/schema.json).
 @interface MMAgents : NSObject
 + (NSArray<NSString *> *)defaultRowDirectories;       // bundled rows, then the user's own
 - (instancetype)initWithRowDirectories:(NSArray<NSString *> *)dirs;

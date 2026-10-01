@@ -32,7 +32,7 @@ PL
 codesign --force --sign - build/Stubborn.app >/dev/null 2>&1
 
 cp "$R" "$R.bak"
-cleanup() { pkill -9 -x Stubborn 2>/dev/null; pkill -x fakeagent 2>/dev/null; osascript -e 'tell application "TextEdit" to quit' >/dev/null 2>&1; mv "$R.bak" "$R"
+cleanup() { pkill -9 -x Stubborn 2>/dev/null; pkill -x fakeagent 2>/dev/null; pkill -x fakehost 2>/dev/null; osascript -e 'tell application "TextEdit" to quit' >/dev/null 2>&1; mv "$R.bak" "$R"
             defaults delete no.guerrilla.minmacs minmacs.closedBundleIDs >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.closedTabs >/dev/null 2>&1; }
 trap cleanup EXIT
 rule add close com.apple.TextEdit; rule add close $STUB
@@ -82,6 +82,48 @@ check "fixture after the turn is idle"    idle    "$(state)"
 check "reference probe agrees"            idle    "$(ref)"
 kill $FA 2>/dev/null; wait $FA 2>/dev/null
 check "fixture gone, none found"          absent  "$(state)"
+echo "== agent detection: presence, unknown, hosts, caffeinate -w (fixture rows in tools/fixtures/*/)"
+clang -O1 tools/fakehost.c -o build/fakehost || exit 1
+python3 tools/validate_row.py tools/fixtures/*/*.json >/dev/null;  check "fixture rows pass the validator" 0 "$?"
+# "id:state ... wN iN uN" for a rows directory, from the CLI and from the reference probe
+SUMMARY='import json,sys; j=json.load(sys.stdin); print(" ".join("%s:%s" % (a["id"], a["state"]) for a in j["agents"]) or "none", "w%d i%d u%d" % (j["working"], j["idle"], j["unknown"]))'
+clirows() { "$BIN" agents --json --rows "tools/fixtures/$1" | python3 -c "$SUMMARY"; }
+refrows() { python3 tools/agents_probe.py --json --rows "tools/fixtures/$1" | python3 -c "$SUMMARY"; }
+both() { check "$1" "$2" "$(clirows "$3")"; check "  reference agrees" "$2" "$(refrows "$3")"; }
+
+build/fakeagent & FA=$!; sleep 2
+both "presence: a missing path keeps a bare-name match out"   "none w0 i0 u0"                 presence-missing
+both "presence: an existing path lets it through"             "fake-guarded:idle w0 i1 u0"    presence-here
+both "no_outside_signal: no signal reads unknown"             "fake-blind:unknown w0 i0 u1"   unknown
+"$BIN" agents --rows tools/fixtures/unknown | grep -q "◌ unknown";               check "table shows the hollow marker" 0 "$?"
+"$BIN" agents --rows tools/fixtures/unknown | grep -q "0 working, 0 idle, 1 unknown"; check "totals line counts unknown on its own" 0 "$?"
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+build/fakeagent --work 8 & FA=$!; sleep 2
+both "no_outside_signal: a fired signal still reads working"  "fake-blind:working w1 i0 u0"   unknown
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+
+build/fakeagent --work 8 --w self & FA=$!; sleep 2
+both "caffeinate -w <own pid> counts"                         "fake-watch:working w1 i0 u0"   watch
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+build/fakeagent --work 8 --w other & FA=$!; sleep 2
+both "caffeinate -w <another pid> does not"                   "fake-watch:idle w0 i1 u0"      watch
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+build/fakeagent --work 8 & FA=$!; sleep 2
+both "caffeinate without -w does not"                         "fake-watch:idle w0 i1 u0"      watch
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+
+build/fakeagent & FA=$!; sleep 2
+both "host rows, agent on its own: reported as itself"        "fake-agent:idle w0 i1 u0"      host
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+build/fakehost build/fakeagent --work 8 & FH=$!; sleep 2
+both "agent under a host: reported once, as the host"         "fake-host:working w1 i0 u0"    host
+"$BIN" agents --json --rows tools/fixtures/host | python3 -c "import json,sys; h=json.load(sys.stdin)['agents'][0].get('hosted',[]); print(','.join('%s:%s' % (x['id'], x['state']) for x in h))" | grep -q "^fake-agent:working$"
+                                                                 check "the host lists what it hosts" 0 "$?"
+sleep 8
+both "host after the hosted turn ended"                       "fake-host:idle w0 i1 u0"       host
+kill $FH 2>/dev/null; wait $FH 2>/dev/null
+pkill -x fakeagent 2>/dev/null
+
 # Real sessions: wherever the precise signal decides, both implementations must agree.
 python3 - "$BIN" <<'PYEOF'
 import json, subprocess, sys

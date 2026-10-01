@@ -89,9 +89,20 @@
               "type": "string"
             },
             "description": "Flags whose value is the session id, used to map a process to its own transcript."
+          },
+          "hosts_agents": {
+            "type": "boolean",
+            "description": "This surface runs agents of other rows as its children (an orchestrator or host app: Emdash, Conductor, T3 Code). A process of another row that has a matched process of this surface above it is folded into that ancestor: only the ancestor is reported, and it reads working while the hosted agent does. Set it only where the row's evidence says the host launches claude, codex or the like itself. Leave it off for a multiplexer or terminal host where the user starts agents by hand (herdr, agent-deck, claude-squad, superset): those sessions keep their own row. Not to be confused with host, which says one process holds many sessions."
           }
         }
       }
+    },
+    "presence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Paths, ~ and globs allowed. A surface match that rests on a bare name (the process name matched and no path_contains entry did) counts only when at least one of these exists. Use it where the name is shared with another program (a JSON viewer called fx, AWS Copilot called copilot) and take the path from the row's own session_store or install layout. A match through a path_contains entry is never held back. Absent: no guard."
     },
     "session_store": {
       "type": "object",
@@ -140,6 +151,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "args_contain": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "child_process only. Every entry must be an argument of the child (exact match). For -w, the argument after it must be the pid of the matched process, which is how `caffeinate -i -w <pid>` shows that the inhibitor belongs to that process and no other."
           },
           "within_seconds": {
             "type": "number"
@@ -230,6 +248,10 @@
         "inferred"
       ],
       "description": "verified-locally: the probe classified a real running instance correctly. documented: vendor docs or source say so. inferred: third-party reports only."
+    },
+    "no_outside_signal": {
+      "type": "boolean",
+      "description": "True when nothing outside the process can say whether it is working (no per-thread signal, a client of cloud work). With no signal fired the state is unknown, not idle. Unknown is counted on its own, never as working or idle. Absent: idle."
     },
     "notes": {
       "type": "string"

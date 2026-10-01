@@ -3,6 +3,10 @@
   "name": "goose",
   "vendor": "Block, now Linux Foundation Agentic AI Foundation (repo aaif-goose/goose)",
   "homepage": "https://goose-docs.ai",
+  "presence": [
+    "~/.config/goose",
+    "~/.local/share/goose"
+  ],
   "surfaces": [
     {
       "kind": "gui",

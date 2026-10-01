@@ -1,0 +1,32 @@
+{
+  "id": "fake-agent",
+  "name": "Fake Agent",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "process": {
+        "names": [
+          "fakeagent"
+        ]
+      },
+      "session_id_args": [
+        "--session"
+      ]
+    }
+  ],
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "the fixture holds a sleep inhibitor while it pretends to work"
+    }
+  ],
+  "sources": [
+    {
+      "claim": "test fixture",
+      "evidence": "tools/fakeagent.c",
+      "kind": "source-code"
+    }
+  ],
+  "confidence": "documented"
+}

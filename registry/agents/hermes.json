@@ -3,6 +3,7 @@
   "name": "Hermes Agent",
   "vendor": "Nous Research",
   "homepage": "https://hermes-agent.nousresearch.com",
+  "presence": ["~/.hermes"],
   "surfaces": [
     {
       "kind": "gui",

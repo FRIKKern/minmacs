@@ -18,7 +18,8 @@
         "path_contains": [
           "/Vibe Kanban.app/Contents/MacOS/"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -28,7 +29,8 @@
         "names": [
           "vibe-kanban"
         ]
-      }
+      },
+      "hosts_agents": true
     }
   ],
   "session_store": {

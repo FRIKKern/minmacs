@@ -3,6 +3,9 @@
   "name": "fx",
   "vendor": "Vercel Labs",
   "homepage": "https://fx.sh",
+  "presence": [
+    "~/.fx"
+  ],
   "surfaces": [
     {
       "kind": "tui",

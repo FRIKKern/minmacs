@@ -16,7 +16,8 @@
           "/T3 Code (Nightly).app/Contents/MacOS/",
           "/Applications/T3"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -43,7 +44,8 @@
           "--version",
           "--help"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",

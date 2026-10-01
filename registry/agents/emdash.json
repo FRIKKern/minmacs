@@ -14,7 +14,8 @@
         "path_contains": [
           "/Emdash.app/Contents/MacOS/Emdash"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "gui",
@@ -29,7 +30,8 @@
         "args_contain": [
           "Canary.app/Contents/MacOS/Emdash"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -41,7 +43,8 @@
         "args_contain": [
           "tui-agents-runtime.js"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -53,7 +56,8 @@
         "args_contain": [
           "acp-runtime.js"
         ]
-      }
+      },
+      "hosts_agents": true
     }
   ],
   "session_store": {

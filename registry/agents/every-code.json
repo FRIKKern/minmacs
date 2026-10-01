@@ -3,6 +3,9 @@
   "name": "Every Code",
   "vendor": "Every (just-every), community fork of openai/codex",
   "homepage": "https://github.com/just-every/code",
+  "presence": [
+    "~/.code/sessions"
+  ],
   "surfaces": [
     {
       "kind": "tui",

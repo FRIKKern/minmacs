@@ -3,6 +3,9 @@
   "name": "Factory Droid",
   "vendor": "Factory",
   "homepage": "https://docs.factory.ai",
+  "presence": [
+    "~/.factory"
+  ],
   "surfaces": [
     {
       "kind": "gui",

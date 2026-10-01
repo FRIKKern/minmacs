@@ -3,6 +3,7 @@
   "name": "Amp",
   "vendor": "Amp (ampcode.com, formerly Sourcegraph)",
   "homepage": "https://ampcode.com",
+  "presence": ["~/.local/share/amp", "~/.amp"],
   "surfaces": [
     {
       "kind": "tui",

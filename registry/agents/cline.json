@@ -3,6 +3,9 @@
   "name": "Cline (standalone: CLI 3.x, Desktop, SDK hub)",
   "vendor": "Cline Bot Inc.",
   "homepage": "https://github.com/cline/cline",
+  "presence": [
+    "~/.cline"
+  ],
   "surfaces": [
     {
       "kind": "gui",

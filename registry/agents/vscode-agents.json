@@ -122,6 +122,9 @@
     {
       "signal": "child_process",
       "name": "caffeinate",
+      "args_contain": [
+        "-w"
+      ],
       "meaning": "Kilo Keep Awake only, and OFF by default: the extension host spawns /usr/bin/caffeinate -i -w <extension host pid> while any Kilo session is busy or retrying or has a scheduled wakeup, and kills it when all are idle. Only this exact shape counts: the caffeinate must be a direct child of the extension host (Code Helper (Plugin)) and its -w value must be that host's pid. A caffeinate elsewhere in the VS Code tree is NOT this signal: the tree also holds terminals (pty host, shell), where Claude Code or a user command spawns its own caffeinate, so bare presence anywhere under the main process is a false positive for Kilo working. Absence says nothing. The reference probe matches child_process by name over the whole tree and cannot enforce the parent and -w checks."
     },
     {

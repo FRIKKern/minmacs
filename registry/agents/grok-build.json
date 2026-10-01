@@ -3,6 +3,9 @@
   "name": "Grok Build",
   "vendor": "SpaceXAI (xAI)",
   "homepage": "https://x.ai/build",
+  "presence": [
+    "~/.grok"
+  ],
   "surfaces": [
     {
       "kind": "tui",

@@ -273,23 +273,28 @@ static int RunCLI(int argc, const char **argv) {
     NSArray<MMAgent *> *agents = [detector detect:s];
 
     if ([cmd isEqualToString:@"agents"]) {
+        // working includes blocked (a live turn); unknown is its own count and is neither working nor idle.
         NSInteger working = [agents filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"working == YES"]].count;
+        NSInteger unknown = [agents filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"state == 'unknown'"]].count;
+        NSInteger idle = agents.count - working - unknown;
         if (json) {
             NSMutableArray *o = [NSMutableArray new];
             for (MMAgent *a in agents) [o addObject:a.json];
-            NSData *d = [NSJSONSerialization dataWithJSONObject:@{@"agents": o, @"working": @(working), @"idle": @(agents.count - working), @"rows": @(detector.rowCount)}
+            NSData *d = [NSJSONSerialization dataWithJSONObject:@{@"agents": o, @"working": @(working), @"idle": @(idle), @"unknown": @(unknown), @"rows": @(detector.rowCount)}
                                                         options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
             printf("%s\n", [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding].UTF8String);
             return 0;
         }
         if (!detector.rowCount) { printf("no harness rows found\n"); return 0; }
-        printf("%-16s%-8s%-7s%-9s%5s  %-9s%-5s%-30s%s\n", "harness", "surface", "pid", "state", "cpu", "memory", "kids", "why", "project");
-        for (MMAgent *a in agents)
-            printf("%-16s%-8s%-7d%-9s%5.1f  %-9s%-5ld%-30s%s\n", [a.harness substringToIndex:MIN(15, a.harness.length)].UTF8String, a.surface.UTF8String,
-                   a.pid, a.state.UTF8String, a.cpu, MMFormatBytes(a.memory).UTF8String, (long)a.children,
+        printf("%-16s%-8s%-7s%-10s%5s  %-9s%-5s%-30s%s\n", "harness", "surface", "pid", "state", "cpu", "memory", "kids", "why", "project");
+        for (MMAgent *a in agents) {
+            BOOL hollow = [a.state isEqualToString:@"unknown"];   // a hollow marker: nothing outside the process says either way
+            printf("%-16s%-8s%-7d%s%-*s%5.1f  %-9s%-5ld%-30s%s\n", [a.harness substringToIndex:MIN(15, a.harness.length)].UTF8String, a.surface.UTF8String,
+                   a.pid, hollow ? "\xe2\x97\x8c " : "", hollow ? 8 : 10, a.state.UTF8String, a.cpu, MMFormatBytes(a.memory).UTF8String, (long)a.children,
                    [a.why substringToIndex:MIN(29, a.why.length)].UTF8String, a.project.UTF8String);
-        printf("\n%lu agent sessions: %ld working, %ld idle (%ld harness rows loaded)\n", (unsigned long)agents.count, (long)working,
-               (long)(agents.count - working), (long)detector.rowCount);
+        }
+        printf("\n%lu agent sessions: %ld working, %ld idle, %ld unknown (%ld harness rows loaded)\n", (unsigned long)agents.count, (long)working,
+               (long)idle, (long)unknown, (long)detector.rowCount);
         return 0;
     }
     MMPlan *p = MakePlan(s, YES, quitBrowsers, detector, agents);
@@ -475,15 +480,16 @@ static NSMenuItem *Header(NSMenu *m, NSString *t) { NSMenuItem *i = Item(m, t, N
     Header(menu, [NSString stringWithFormat:@"%lu apps · system load %@ · thermal %@",
                   (unsigned long)self.scanner.apps.count, Pct(self.scanner.totalCPU), th[NSProcessInfo.processInfo.thermalState]]);
     if (self.agents.count) {
-        NSInteger working = 0; uint64_t mem = 0;
-        for (MMAgent *a in self.agents) { working += a.working; mem += a.memory; }
-        NSMenuItem *ai = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"Agents: %ld working, %ld idle · %@",
-                          (long)working, (long)(self.agents.count - working), MMFormatBytes(mem)] action:nil keyEquivalent:@""];
+        NSInteger working = 0, unknown = 0; uint64_t mem = 0;
+        for (MMAgent *a in self.agents) { working += a.working; unknown += [a.state isEqualToString:@"unknown"]; mem += a.memory; }
+        NSMenuItem *ai = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"Agents: %ld working, %ld idle%@ · %@",
+                          (long)working, (long)(self.agents.count - working - unknown),
+                          unknown ? [NSString stringWithFormat:@", %ld unknown", (long)unknown] : @"", MMFormatBytes(mem)] action:nil keyEquivalent:@""];
         ai.image = [NSImage imageWithSystemSymbolName:working ? @"circle.fill" : @"circle" accessibilityDescription:nil];
         NSMenu *am = [NSMenu new];
         for (MMAgent *a in self.agents) {
             NSString *where = a.project.lastPathComponent.length ? a.project.lastPathComponent : a.project;
-            NSString *t = [NSString stringWithFormat:@"%@  %@  ·  %@%@   %@ · %@", a.working ? @"●" : @"○", a.harness, where,
+            NSString *t = [NSString stringWithFormat:@"%@  %@  ·  %@%@   %@ · %@", a.working ? @"●" : [a.state isEqualToString:@"unknown"] ? @"◌" : @"○", a.harness, where,
                            a.working ? [NSString stringWithFormat:@"  ·  %@", a.why] : @"", Pct(a.cpu), MMFormatBytes(a.memory)];
             Header(am, t).toolTip = [NSString stringWithFormat:@"pid %d · %@ · %@", a.pid, a.surface, a.project];
         }

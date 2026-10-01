@@ -1,0 +1,30 @@
+{
+  "id": "fake-host",
+  "name": "Fake Host",
+  "surfaces": [
+    {
+      "kind": "gui",
+      "process": {
+        "names": [
+          "fakehost"
+        ]
+      },
+      "hosts_agents": true
+    }
+  ],
+  "working_signals": [
+    {
+      "signal": "tree_cpu",
+      "floor_percent": 900,
+      "meaning": "never fires; the host has no signal of its own"
+    }
+  ],
+  "sources": [
+    {
+      "claim": "test fixture",
+      "evidence": "tools/fakehost.c",
+      "kind": "source-code"
+    }
+  ],
+  "confidence": "documented"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "fake-guarded",
+  "name": "Fake Guarded",
+  "surfaces": [
+    {
+      "kind": "tui",
+      "process": {
+        "names": [
+          "fakeagent"
+        ]
+      },
+      "session_id_args": [
+        "--session"
+      ]
+    }
+  ],
+  "working_signals": [
+    {
+      "signal": "child_process",
+      "name": "caffeinate",
+      "meaning": "the fixture holds a sleep inhibitor while it pretends to work"
+    }
+  ],
+  "sources": [
+    {
+      "claim": "test fixture",
+      "evidence": "tools/fakeagent.c",
+      "kind": "source-code"
+    }
+  ],
+  "confidence": "documented",
+  "presence": [
+    "/nonexistent/minmacs-fixture/never",
+    "~/nonexistent-minmacs-fixture/*"
+  ]
+}

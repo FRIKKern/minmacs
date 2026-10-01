@@ -3,6 +3,9 @@
   "name": "OpenCode",
   "vendor": "Anomaly (anomalyco, formerly SST)",
   "homepage": "https://opencode.ai",
+  "presence": [
+    "~/.local/share/opencode"
+  ],
   "surfaces": [
     {
       "kind": "gui",

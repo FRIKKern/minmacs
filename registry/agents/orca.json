@@ -20,7 +20,8 @@
           "-e",
           "/Applications/Orca.app/Contents/Resources/app.asar.unpacked/out/cli/index.js"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -33,7 +34,8 @@
         "args_contain": [
           "daemon-entry.js"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -46,7 +48,8 @@
         "args_contain": [
           "--serve"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "cloud",

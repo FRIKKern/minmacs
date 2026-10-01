@@ -16,7 +16,8 @@
           "gateway",
           "--port"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "tui",

@@ -14,7 +14,8 @@
         "path_contains": [
           "/Conductor.app/Contents/MacOS/conductor"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -29,7 +30,8 @@
         "args_contain": [
           "sidecar"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",
@@ -42,7 +44,8 @@
           "com.conductor.app/bin/.internal/conductor-runtime",
           "sidecar"
         ]
-      }
+      },
+      "hosts_agents": true
     },
     {
       "kind": "daemon",

@@ -3,6 +3,9 @@
   "name": "Devin CLI",
   "vendor": "Cognition",
   "homepage": "https://docs.devin.ai/cli",
+  "presence": [
+    "~/.local/share/devin"
+  ],
   "surfaces": [
     {
       "kind": "tui",
@@ -140,7 +143,8 @@
   "session_store": {
     "glob": "~/.local/share/devin/cli/sessions.db",
     "format": "sqlite",
-    "documented": false
+    "documented": false,
+    "per_session": "~/.local/share/devin/cli/transcripts/{session_id}.json"
   },
   "working_signals": [
     {
@@ -308,5 +312,5 @@
     }
   ],
   "confidence": "documented",
-  "notes": "READ FIRST: the terminal REPL is a thin client. `devin` spawns its own binary as `devin acp` (inferred from binary strings, not seen in ps) and that child holds the agent, the database and the tool shells. So for a REPL session shells are grandchildren, the outermost rule reports the REPL, and tool_children cannot work; tree_cpu is the only live process signal. Nothing exact was found for 'a turn is in progress': no caffeinate, no power assertion, no per-session store file the probe can stat, no doc'd status. The exact bracket is a user-installed hook (UserPromptSubmit to Stop, keyed by prompt_id) or OpenTelemetry; both are opt-in. Everything under working_signals is inferred and unmeasured. Overlap: the windsurf row also matches `devin` by name (score 1); this row wins ties by file order and wins outright on the acp surface (score 2), so the windsurf tui surface should be dropped or made to exclude what this row matches, or a session is claimed twice. A Claude Code hook in ~/.claude/settings.json also fires for Devin sessions (read_config_from.claude defaults on): a hook that writes state for Claude Code will mislabel Devin sessions unless it checks DEVIN_PROJECT_DIR or the parent process. Verified by an independent pass 2026-09-30 (see registry/evidence/devin.md Verification): the exclude_args vetoes only take effect once the windsurf tui surface stops matching `devin` (synthetic argv for `devin mcp list`, `--cloud`, `worker start` and `-V` all fall through to windsurf today). Inferred, not seen live: a `devin acp` launched by Devin Desktop has a Devin.app parent that matches the windsurf row, not this one, so the outermost rule does not fold it and the same work can be listed twice. Matching limits under probe rules: the `-p` short flag cannot be separated from a normal session; a prompt word equal to a subcommand name hides a session; the substring `acp` test can relabel a prompt that contains it; bare `-r` followed by a flag yields a wrong id; probe.processes() splits ps on spaces, so an install under a path with spaces loses the path match but not the name match."
+  "notes": "READ FIRST: the terminal REPL is a thin client. `devin` spawns its own binary as `devin acp` (inferred from binary strings, not seen in ps) and that child holds the agent, the database and the tool shells. So for a REPL session shells are grandchildren, the outermost rule reports the REPL, and tool_children cannot work; tree_cpu is the only live process signal. Nothing exact was found for 'a turn is in progress': no caffeinate, no power assertion, no per-session store file the probe can stat, no doc'd status. The exact bracket is a user-installed hook (UserPromptSubmit to Stop, keyed by prompt_id) or OpenTelemetry; both are opt-in. Everything under working_signals is inferred and unmeasured. Overlap: the windsurf row also matches `devin` by name (score 1); this row wins ties by file order and wins outright on the acp surface (score 2), so the windsurf tui surface should be dropped or made to exclude what this row matches, or a session is claimed twice. A Claude Code hook in ~/.claude/settings.json also fires for Devin sessions (read_config_from.claude defaults on): a hook that writes state for Claude Code will mislabel Devin sessions unless it checks DEVIN_PROJECT_DIR or the parent process. Verified by an independent pass 2026-09-30 (see registry/evidence/devin.md Verification): the exclude_args vetoes only take effect once the windsurf tui surface stops matching `devin` (synthetic argv for `devin mcp list`, `--cloud`, `worker start` and `-V` all fall through to windsurf today). Inferred, not seen live: a `devin acp` launched by Devin Desktop has a Devin.app parent that matches the windsurf row, not this one, so the outermost rule does not fold it and the same work can be listed twice. Matching limits under probe rules: the `-p` short flag cannot be separated from a normal session; a prompt word equal to a subcommand name hides a session; the substring `acp` test can relabel a prompt that contains it; bare `-r` followed by a flag yields a wrong id; probe.processes() splits ps on spaces, so an install under a path with spaces loses the path match but not the name match. per_session points at the ATIF transcript (transcripts/<session_id>.json; the file name equals sessions.id), which transcript_write reads when argv carries -r <id>. The signal's meaning above still describes the sessions.db-wal read, which the probe cannot do."
 }

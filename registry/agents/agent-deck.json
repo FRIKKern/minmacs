@@ -3,6 +3,10 @@
   "name": "Agent Deck",
   "vendor": "asheshgoplani (open source, MIT)",
   "homepage": "https://github.com/asheshgoplani/agent-deck",
+  "presence": [
+    "~/.local/share/agent-deck",
+    "~/.agent-deck"
+  ],
   "surfaces": [
     {
       "kind": "tui",

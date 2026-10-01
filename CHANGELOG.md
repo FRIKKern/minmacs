@@ -2,6 +2,14 @@
 
 All notable changes to MinMacs. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Agent detector, shared names.** Registry rows can list `presence` paths; a match on a bare process name counts only when one exists, so `fx`, `copilot`, `warp`, `goose` and the like no longer report unrelated programs.
+- **Agent detector, hosts.** An agent started by an orchestrator (Emdash, Conductor, T3 Code, Orca, Zed, OpenClaw, Vibe Kanban) is reported once, as the host, which reads working while the agent does. Rows mark this with `hosts_agents`.
+- **Agent detector, unknown state.** Rows with `no_outside_signal` read `unknown` instead of idle. The CLI table and the menu show a hollow marker, and the totals line counts it on its own.
+- `caffeinate -w <pid>` signals (`args_contain`) must name the matched process. Per-session transcript paths for `devin` and `deepagents`.
+
 ## [1.1.0] - 2026-09-29
 
 ### Added

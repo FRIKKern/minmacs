@@ -3,6 +3,9 @@
   "name": "Claude Squad",
   "vendor": "smtg-ai (open source, AGPL-3.0)",
   "homepage": "https://github.com/smtg-ai/claude-squad",
+  "presence": [
+    "~/.claude-squad"
+  ],
   "surfaces": [
     {
       "kind": "tui",

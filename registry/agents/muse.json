@@ -3,6 +3,10 @@
   "name": "Muse Code",
   "vendor": "Meta",
   "homepage": "https://dev.meta.ai/docs/muse-code",
+  "presence": [
+    "~/.local/share/muse",
+    "~/.config/muse"
+  ],
   "surfaces": [
     {
       "kind": "tui",

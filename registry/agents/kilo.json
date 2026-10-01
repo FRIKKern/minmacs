@@ -187,6 +187,9 @@
     {
       "signal": "child_process",
       "name": "caffeinate",
+      "args_contain": [
+        "-w"
+      ],
       "meaning": "Only when the user has turned on Keep Awake (TUI slash command /caffeinate; default OFF, and the choice is not saved across launches as far as the source shows). Then the TUI process spawns `/usr/bin/caffeinate -i -w <its own pid>` while any session is busy or retrying or has a wakeup scheduled, and kills it when all are idle. A direct child of the kilo pid, with -w equal to that pid. Absence proves nothing."
     },
     {
