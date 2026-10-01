@@ -33,7 +33,8 @@ codesign --force --sign - build/Stubborn.app >/dev/null 2>&1
 
 cp "$R" "$R.bak"
 cleanup() { pkill -9 -x Stubborn 2>/dev/null; pkill -x fakeagent 2>/dev/null; pkill -x fakehost 2>/dev/null; osascript -e 'tell application "TextEdit" to quit' >/dev/null 2>&1; mv "$R.bak" "$R"
-            defaults delete no.guerrilla.minmacs minmacs.closedBundleIDs >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.closedTabs >/dev/null 2>&1; }
+            defaults delete no.guerrilla.minmacs minmacs.closedBundleIDs >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.closedTabs >/dev/null 2>&1
+            defaults delete no.guerrilla.minmacs minmacs.debug.cmuxDir >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.readCmux >/dev/null 2>&1; rm -rf "${CMUX:-/nonexistent-dir}"; }
 trap cleanup EXIT
 rule add close com.apple.TextEdit; rule add close $STUB
 
@@ -137,6 +138,50 @@ print(f"  {'ok  ' if not bad else 'FAIL'}  real sessions: {len(both)} seen by bo
 sys.exit(1 if bad else 0)
 PYEOF
 [ $? = 0 ] && pass=$((pass+1)) || fail=$((fail+1))
+
+echo "== cmux reader (fixture directory; the real ~/.cmuxterm is never read)"
+CMUX=$(mktemp -d); defaults write no.guerrilla.minmacs minmacs.debug.cmuxDir "$CMUX"
+build/fakeagent & FA=$!; sleep 1
+ts() { date -u -v-"$1"S +%Y-%m-%dT%H:%M:%SZ; }
+ev() { printf '{"kind":"%s","createdAt":"%s","workstreamId":"claude-sess-1","payload":{"text":"SECRETPAYLOAD }{ \\" ]"},"cwd":"/x","title":"SECRETTITLE"}\n' "$1" "$(ts "$2")" >> "$CMUX/workstream.jsonl"; }
+cat > "$CMUX/claude-hook-sessions.json" <<EOF
+{"version":1,"sessions":{"u1":{"pid":$FA,"sessionId":"sess-1","surfaceId":"s1","workspaceId":"w1","updatedAt":1790848276.5,
+ "lastBody":"SECRETBODY","launchCommand":{"argv":["}","]"]},"cwd":"/x"}}}
+EOF
+cmuxstate() { "$BIN" agents --json --rows tools/fixtures "$@" | python3 -c "import json,sys; a=json.load(sys.stdin)['agents']; print(a[0]['state'] if a else 'absent')"; }
+: > "$CMUX/workstream.jsonl"; ev userPrompt 5; ev toolUse 4; ev permissionRequest 2
+check "permission request reads blocked"       blocked "$(cmuxstate --cmux)"
+"$BIN" agents --json --rows tools/fixtures --cmux | grep -q '"why" : "waiting for permission (cmux)"'; check "reason names the permission wait" 0 "$?"
+"$BIN" agents --rows tools/fixtures --cmux | grep -q "blocked on you";                                  check "CLI summary counts it" 0 "$?"
+check "setting off falls back to idle"         idle "$(cmuxstate)"
+defaults write no.guerrilla.minmacs minmacs.readCmux -bool true
+check "setting on (minmacs.readCmux) reads it" blocked "$(cmuxstate)"
+defaults write no.guerrilla.minmacs minmacs.readCmux -bool false
+check "setting back off falls back"            idle "$(cmuxstate)"
+ev toolUse 1
+check "then a tool event reads working"        working "$(cmuxstate --cmux)"
+check "same log, setting off: idle" idle "$(cmuxstate)"
+: > "$CMUX/workstream.jsonl"; ev toolUse 120
+check "events from before the process started are ignored" idle "$(cmuxstate --cmux)"
+: > "$CMUX/workstream.jsonl"; ev permissionRequest 300
+check "a blocked event from a reused pid is ignored" idle "$(cmuxstate --cmux)"
+: > "$CMUX/workstream.jsonl"; ev toolUse 30; ev stop 20; ev toolResult 10
+check "idle notification after a stop is not blocked" idle "$(cmuxstate --cmux)"
+: > "$CMUX/workstream.jsonl"; ev userPrompt 30; ev toolUse 20; ev toolResult 10
+check "notification in mid-turn is blocked"    blocked "$(cmuxstate --cmux)"
+ev toolUse 1
+check "next tool event clears it to working"   working "$(cmuxstate --cmux)"
+# the log is tens of MB: only the last 2 MB may be read, so a block older than that is never seen
+: > "$CMUX/workstream.jsonl"; ev permissionRequest 100
+python3 -c "
+import sys
+l='{\"kind\":\"toolUse\",\"createdAt\":\"2026-01-01T00:00:00Z\",\"workstreamId\":\"claude-other\",\"payload\":{\"t\":\"'+'x'*900+'\"}}\n'
+sys.stdout.write(l*3500)" >> "$CMUX/workstream.jsonl"
+check "log is over 3 MB" yes "$([ "$(stat -f %z "$CMUX/workstream.jsonl")" -gt 3000000 ] && echo yes || echo no)"
+check "a block outside the last 2 MB is not read" idle "$(cmuxstate --cmux)"
+check "no payload, title or body text in any output" 0 "$( { "$BIN" agents --json --rows tools/fixtures --cmux; "$BIN" agents --rows tools/fixtures --cmux; } 2>&1 | grep -c SECRET)"
+kill $FA 2>/dev/null; wait $FA 2>/dev/null
+defaults delete no.guerrilla.minmacs minmacs.debug.cmuxDir >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.readCmux >/dev/null 2>&1
 
 if [ "${1:-}" = "--browser" ]; then
   echo "== live browser trim (opens two tabs of its own in Chrome)"

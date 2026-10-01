@@ -2,9 +2,12 @@
 
 All notable changes to MinMacs. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.2.0] - 2026-10-01
 
 ### Added
+- **Blocked agents from cmux.** With *Agents ▸ Read cmux for Waiting State* on (default off; `minmacs agents --cmux` for one run), an agent waiting on a permission, a question or a plan approval shows as blocked with its reason. It reads `pid, sessionId, surfaceId, workspaceId, updatedAt` from `~/.cmuxterm/claude-hook-sessions.json` and `kind, createdAt, workstreamId` from the last 2 MB of `~/.cmuxterm/workstream.jsonl`, and nothing else: payloads are never read. New `Sources/Hosts.m`.
+- Debug hook `minmacs.debug.cmuxDir` reads the two files from another directory. `minmacs agents` prints `blocked` and counts it.
+- 16 tests for the cmux reader, all against fixture files.
 - **Agent detector, shared names.** Registry rows can list `presence` paths; a match on a bare process name counts only when one exists, so `fx`, `copilot`, `warp`, `goose` and the like no longer report unrelated programs.
 - **Agent detector, hosts.** An agent started by an orchestrator (Emdash, Conductor, T3 Code, Orca, Zed, OpenClaw, Vibe Kanban) is reported once, as the host, which reads working while the agent does. Rows mark this with `hosts_agents`.
 - **Agent detector, unknown state.** Rows with `no_outside_signal` read `unknown` instead of idle. The CLI table and the menu show a hollow marker, and the totals line counts it on its own.

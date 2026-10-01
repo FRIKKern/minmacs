@@ -20,3 +20,16 @@ The worked example. Written by hand before the research storm, then corrected fr
 - The `ide` surface has not been seen running on this Mac.
 - The desktop app surface is decided by CPU alone, since its launcher has no session id in its arguments.
 - Headless runs (`claude -p`) and SDK use are not modelled.
+
+## Live verification round, 2026-10-01
+
+Run by the orchestrator, not the storm, since the storm was forbidden from starting sessions.
+
+| Harness | What ran | Identity | State |
+|---|---|---|---|
+| pi 0.82.0 | one 8 s turn in a pty | matched | missed: no child, CPU peaked 2.1%, no session id in argv |
+| Codex 0.154.0 | one `codex exec` turn | matched; writer lock appeared and vanished with the turn | flickered on CPU alone; the lock is the precise signal and needs a signal kind |
+| OpenClaw 2026.4.29 | gateway from a terminal plus one `agent --agent main` turn | gateway invisible: empty argv; its `claude` child matched claude-code | gateway reached 130% CPU unseen; the orphaned child outlived it |
+| Cursor agent | not run | | not logged in on this Mac; needs the owner |
+
+The interactive Codex TUI could not be driven from a bare pseudo-terminal.

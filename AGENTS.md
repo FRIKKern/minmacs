@@ -9,7 +9,7 @@ minmacs plan                     # non-destructive: shows the current plan
 ./test.sh --browser              # adds a live Chrome test that opens its own two tabs
 ```
 
-**Layout**: `Sources/Scanner.m` samples processes and attributes them to apps. `Sources/Rules.m` holds the keep/close lists and the JSON rules file. `Sources/Browser.m` reads and closes tabs through ScriptingBridge aimed at one pid. `Sources/main.m` is the menu bar UI, the CLI (`RunCLI`), the plan, quitting, force quitting and restoring. `tools/stubborn.m` is the test app that refuses to quit. `tools/mkicon.m` renders the icon.
+**Layout**: `Sources/Scanner.m` samples processes and attributes them to apps. `Sources/Rules.m` holds the keep/close lists and the JSON rules file. `Sources/Browser.m` reads and closes tabs through ScriptingBridge aimed at one pid. `Sources/main.m` is the menu bar UI, the CLI (`RunCLI`), the plan, quitting, force quitting and restoring. `Sources/Hosts.m` holds host readers that feed `MMAgents.overrides`; today only `MMCmuxReader`. `tools/stubborn.m` is the test app that refuses to quit. `tools/mkicon.m` renders the icon.
 
 **Invariants that must hold after any change**
 
@@ -22,4 +22,6 @@ minmacs plan                     # non-destructive: shows the current plan
 5. macOS system processes are informational only. Nothing in the background list is ever acted on.
 6. Builds with clang alone. No Swift, no packages, no Xcode project.
 
-**Using MinMacs from an agent**: `minmacs plan --json` to explain what will go, `minmacs run --yes --force` to do it, `minmacs restore` afterwards. Tell the user first when the plan force quits anything or closes tabs: unsaved changes and form contents do not come back.
+7. The cmux reader reads only the key names it is named for: `pid, sessionId, surfaceId, workspaceId, updatedAt` from `~/.cmuxterm/claude-hook-sessions.json` and `kind, createdAt, workstreamId` from the last 2 MB of `~/.cmuxterm/workstream.jsonl`. It never reads, stores, logs or prints a payload, prompt, title or context, and never opens either file for writing. It is off unless `minmacs.readCmux` is on or `--cmux` is passed. Only `blocked` (any age) and `working` (under 60 s) are ever written to overrides. Tests point it at fixtures with `minmacs.debug.cmuxDir`; never at a real `~/.cmuxterm`.
+
+**Using MinMacs from an agent**: `minmacs agents [--cmux]` lists agent sessions as working, idle or blocked (blocked = waiting on the human, cmux only). `minmacs plan --json` to explain what will go, `minmacs run --yes --force` to do it, `minmacs restore` afterwards. Tell the user first when the plan force quits anything or closes tabs: unsaved changes and form contents do not come back.

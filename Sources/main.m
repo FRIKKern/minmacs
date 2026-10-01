@@ -9,6 +9,7 @@
 #import "Rules.h"
 #import "Browser.h"
 #import "Agents.h"
+#import "Hosts.h"
 
 static NSString *const kAskKey        = @"minmacs.askBeforeClosing";   // default YES
 static NSString *const kInsomniaKey   = @"minmacs.turnOnInsomnia";     // default YES
@@ -16,6 +17,8 @@ static NSString *const kClosedKey     = @"minmacs.closedBundleIDs";    // for Re
 static NSString *const kClosedTabsKey = @"minmacs.closedTabs";         // [{bundleID, url}] for Restore
 static NSString *const kForceKey      = @"minmacs.forceMode";          // 0 leave, 1 ask (default), 2 force
 static NSString *const kQuitBrowsers  = @"minmacs.quitBrowsers";       // default NO: browsers are trimmed
+static NSString *const kCmuxKey       = @"minmacs.readCmux";           // default NO: read cmux for the waiting state
+static NSString *const kCmuxDirKey    = @"minmacs.debug.cmuxDir";      // debug: read the two cmux files from here
 
 typedef NS_ENUM(NSInteger, MMForceMode) { MMForceNever = 0, MMForceAsk = 1, MMForceAlways = 2 };
 static const NSTimeInterval kGrace = 8;   // seconds an app gets to quit on its own
@@ -34,6 +37,17 @@ static void PrefSet(NSString *key, id value) {
 }
 static BOOL PrefBool(NSString *key, BOOL dflt) { id v = PrefGet(key); return v ? [v boolValue] : dflt; }
 static MMForceMode ForceMode(void) { id v = PrefGet(kForceKey); return v ? (MMForceMode)[v integerValue] : MMForceAsk; }
+
+/// Everything outside the process table that knows an agent's state better: sets MMAgents.overrides
+/// before detect: runs. Today that is cmux, when the user turned it on (or --cmux for one run).
+static void ApplyHostOverrides(MMAgents *detector, MMCmuxReader *cmux, BOOL cmuxOn) {
+    NSMutableDictionary<NSNumber *, NSString *> *ov = [NSMutableDictionary new], *why = [NSMutableDictionary new];
+    if (cmuxOn) {
+        id dir = PrefGet(kCmuxDirKey);
+        [cmux addOverridesTo:ov reasons:why directory:[dir isKindOfClass:NSString.class] ? dir : nil];
+    }
+    detector.overrides = ov; detector.overrideReasons = why;
+}
 
 #pragma mark - Plan
 
@@ -228,7 +242,7 @@ static int Usage(void) {
         "  plan                  what MinMacs would do right now (default)\n"
         "  run                   quit the close list and trim browsers; asks unless --yes\n"
         "  trim                  only trim browser tabs; asks unless --yes\n"
-        "  agents                which agent sessions are running, and which are working\n"
+        "  agents                which agent sessions are running, and which are working or blocked\n"
         "  restore               relaunch apps and reopen tabs the last run closed\n"
         "  classify <url|host>   say whether a tab is noise, work or other\n"
         "  rules                 print the rules file path\n"
@@ -239,7 +253,8 @@ static int Usage(void) {
         "  --only <bundle-id>    act on this one app\n"
         "  --only-host <host>    trim only tabs on this host\n"
         "  --quit-browsers       quit browsers instead of trimming them\n"
-        "  --rows <dir>          agents: read harness rows from this directory instead\n");
+        "  --rows <dir>          agents: read harness rows from this directory instead\n"
+        "  --cmux                agents: read cmux for the waiting state this run (setting: Read cmux for Waiting State)\n");
     return 2;
 }
 
@@ -270,17 +285,19 @@ static int RunCLI(int argc, const char **argv) {
     [s sample]; [NSThread sleepForTimeInterval:1.0]; [s sample];   // two samples for CPU%
     MMAgents *detector = [[MMAgents alloc] initWithRowDirectories:opt(@"--rows") ? @[opt(@"--rows")] : MMAgents.defaultRowDirectories];
     detector.holdSeconds = 0;   // one shot: report what is true now
+    ApplyHostOverrides(detector, [MMCmuxReader new], [args containsObject:@"--cmux"] || PrefBool(kCmuxKey, NO));
     NSArray<MMAgent *> *agents = [detector detect:s];
 
     if ([cmd isEqualToString:@"agents"]) {
         // working includes blocked (a live turn); unknown is its own count and is neither working nor idle.
         NSInteger working = [agents filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"working == YES"]].count;
         NSInteger unknown = [agents filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"state == 'unknown'"]].count;
+        NSInteger blocked = [agents filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"state == 'blocked'"]].count;
         NSInteger idle = agents.count - working - unknown;
         if (json) {
             NSMutableArray *o = [NSMutableArray new];
             for (MMAgent *a in agents) [o addObject:a.json];
-            NSData *d = [NSJSONSerialization dataWithJSONObject:@{@"agents": o, @"working": @(working), @"idle": @(idle), @"unknown": @(unknown), @"rows": @(detector.rowCount)}
+            NSData *d = [NSJSONSerialization dataWithJSONObject:@{@"agents": o, @"working": @(working), @"blocked": @(blocked), @"idle": @(idle), @"unknown": @(unknown), @"rows": @(detector.rowCount)}
                                                         options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
             printf("%s\n", [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding].UTF8String);
             return 0;
@@ -293,7 +310,8 @@ static int RunCLI(int argc, const char **argv) {
                    a.pid, hollow ? "\xe2\x97\x8c " : "", hollow ? 8 : 10, a.state.UTF8String, a.cpu, MMFormatBytes(a.memory).UTF8String, (long)a.children,
                    [a.why substringToIndex:MIN(29, a.why.length)].UTF8String, a.project.UTF8String);
         }
-        printf("\n%lu agent sessions: %ld working, %ld idle, %ld unknown (%ld harness rows loaded)\n", (unsigned long)agents.count, (long)working,
+        printf("\n%lu agent sessions: %ld working%s, %ld idle, %ld unknown (%ld harness rows loaded)\n", (unsigned long)agents.count, (long)working,
+               blocked ? [NSString stringWithFormat:@" (%ld blocked on you)", (long)blocked].UTF8String : "",
                (long)idle, (long)unknown, (long)detector.rowCount);
         return 0;
     }
@@ -376,6 +394,7 @@ static int RunCLI(int argc, const char **argv) {
 @property (strong) MMPlan *plan;
 @property (strong) MMAgents *detector;
 @property (strong) NSArray<MMAgent *> *agents;
+@property (strong) MMCmuxReader *cmux;
 @end
 
 @implementation MinMacs
@@ -383,10 +402,12 @@ static int RunCLI(int argc, const char **argv) {
 - (BOOL)ask { return PrefBool(kAskKey, YES); }
 - (BOOL)insomnia { return PrefBool(kInsomniaKey, YES); }
 - (BOOL)quitBrowsers { return PrefBool(kQuitBrowsers, NO); }
+- (BOOL)readCmux { return PrefBool(kCmuxKey, NO); }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)n {
     self.scanner = [MMScanner new];
     self.detector = [[MMAgents alloc] initWithRowDirectories:MMAgents.defaultRowDirectories];
+    self.cmux = [MMCmuxReader new];
     self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
     self.statusItem.button.target = self;
     self.statusItem.button.action = @selector(handleClick:);
@@ -401,6 +422,7 @@ static int RunCLI(int argc, const char **argv) {
 
 - (void)refresh:(BOOL)deep {
     [self.scanner sample];
+    ApplyHostOverrides(self.detector, self.cmux, self.readCmux);
     self.agents = [self.detector detect:self.scanner];
     self.plan = MakePlan(self.scanner, deep, self.quitBrowsers, self.detector, self.agents);
     BOOL restorable = RestorableCount() > 0;
@@ -479,22 +501,38 @@ static NSMenuItem *Header(NSMenu *m, NSString *t) { NSMenuItem *i = Item(m, t, N
     static NSString *const th[] = { @"nominal", @"fair", @"serious", @"critical" };
     Header(menu, [NSString stringWithFormat:@"%lu apps · system load %@ · thermal %@",
                   (unsigned long)self.scanner.apps.count, Pct(self.scanner.totalCPU), th[NSProcessInfo.processInfo.thermalState]]);
-    if (self.agents.count) {
-        NSInteger working = 0, unknown = 0; uint64_t mem = 0;
-        for (MMAgent *a in self.agents) { working += a.working; unknown += [a.state isEqualToString:@"unknown"]; mem += a.memory; }
-        NSMenuItem *ai = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"Agents: %ld working, %ld idle%@ · %@",
-                          (long)working, (long)(self.agents.count - working - unknown),
-                          unknown ? [NSString stringWithFormat:@", %ld unknown", (long)unknown] : @"", MMFormatBytes(mem)] action:nil keyEquivalent:@""];
-        ai.image = [NSImage imageWithSystemSymbolName:working ? @"circle.fill" : @"circle" accessibilityDescription:nil];
+    BOOL cmuxUp = MMCmuxReader.cmuxRunning;
+    if (self.agents.count || cmuxUp || self.readCmux) {
+        NSInteger working = 0, blocked = 0, unknown = 0; uint64_t mem = 0;
+        for (MMAgent *a in self.agents) {
+            if ([a.state isEqualToString:@"blocked"]) blocked++; else working += a.working;
+            unknown += [a.state isEqualToString:@"unknown"]; mem += a.memory;
+        }
+        NSInteger idle = self.agents.count - working - blocked - unknown;
+        NSString *title = !self.agents.count ? @"Agents: none running"
+            : [NSString stringWithFormat:@"Agents: %ld working, %@%ld idle%@ · %@", (long)working,
+               blocked ? [NSString stringWithFormat:@"%ld blocked on you, ", (long)blocked] : @"", (long)idle,
+               unknown ? [NSString stringWithFormat:@", %ld unknown", (long)unknown] : @"", MMFormatBytes(mem)];
+        NSMenuItem *ai = [[NSMenuItem alloc] initWithTitle:title action:nil keyEquivalent:@""];
+        ai.image = [NSImage imageWithSystemSymbolName:blocked ? @"exclamationmark.circle.fill" : working ? @"circle.fill" : @"circle" accessibilityDescription:nil];
         NSMenu *am = [NSMenu new];
         for (MMAgent *a in self.agents) {
             NSString *where = a.project.lastPathComponent.length ? a.project.lastPathComponent : a.project;
-            NSString *t = [NSString stringWithFormat:@"%@  %@  ·  %@%@   %@ · %@", a.working ? @"●" : [a.state isEqualToString:@"unknown"] ? @"◌" : @"○", a.harness, where,
+            BOOL isBlocked = [a.state isEqualToString:@"blocked"];
+            NSString *t = [NSString stringWithFormat:@"%@  %@  ·  %@%@   %@ · %@", isBlocked ? @"\u25c6" : a.working ? @"\u25cf" : [a.state isEqualToString:@"unknown"] ? @"\u25cc" : @"\u25cb", a.harness, where,
                            a.working ? [NSString stringWithFormat:@"  ·  %@", a.why] : @"", Pct(a.cpu), MMFormatBytes(a.memory)];
             Header(am, t).toolTip = [NSString stringWithFormat:@"pid %d · %@ · %@", a.pid, a.surface, a.project];
         }
+        if (self.agents.count) {
+            [am addItem:NSMenuItem.separatorItem];
+            Header(am, @"MinMacs never touches anything a working or blocked agent started.");
+        }
         [am addItem:NSMenuItem.separatorItem];
-        Header(am, @"MinMacs never touches anything a working agent started.");
+        NSMenuItem *ci = Item(am, @"Read cmux for Waiting State", @selector(toggleCmux), self, self.readCmux);
+        ci.toolTip = @"When cmux is running, MinMacs reads two files in ~/.cmuxterm:\n"
+                     @"claude-hook-sessions.json: the keys pid, sessionId, surfaceId, workspaceId, updatedAt.\n"
+                     @"workstream.jsonl: the last 2 MB only, the keys kind, createdAt, workstreamId.\n"
+                     @"Prompts, tool inputs and payloads are never read. It marks an agent blocked when it waits on you.";
         ai.submenu = am;
         [menu addItem:ai];
     }
@@ -669,6 +707,7 @@ static NSMenuItem *Header(NSMenu *m, NSString *t) { NSMenuItem *i = Item(m, t, N
 - (void)setForce:(NSMenuItem *)i { PrefSet(kForceKey, @(i.tag)); }
 - (void)setBrowserMode:(NSMenuItem *)i { PrefSet(kQuitBrowsers, @(i.tag == 1)); [self tick]; }
 - (void)toggleAsk { PrefSet(kAskKey, @(!self.ask)); }
+- (void)toggleCmux { PrefSet(kCmuxKey, @(!self.readCmux)); [self tick]; }
 - (void)toggleInsomnia { PrefSet(kInsomniaKey, @(!self.insomnia)); }
 - (void)editRules { [MMRules.shared reload]; [NSWorkspace.sharedWorkspace openURL:MMRules.shared.fileURL]; }
 - (void)toggleLogin {

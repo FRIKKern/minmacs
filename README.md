@@ -78,6 +78,23 @@ A close-list app is left alone when it is demonstrably in use by a tool:
 
 The menu shows the reason, for example "serving on 127.0.0.1:9876". Listeners on all interfaces are ignored, since that is LAN discovery, not an agent. A few apps listen on loopback for their own reasons, such as Discord and Spotify, and ship on an `ignoreServing` list. *Close Even When Serving* in an app's submenu adds any other.
 
+### Blocked: an agent that is waiting on you
+
+Process signals can tell that an agent is working, not that it is stuck on a question only you can answer. cmux (the terminal, bundle id `com.cmuxterm.app`) records exactly that, and MinMacs can read it. It is **off by default**: turn on *Agents ▸ Read cmux for Waiting State*, or pass `--cmux` to `minmacs agents` for one run. It reads nothing unless cmux is running.
+
+An agent that waits for a permission, an answer or a plan approval shows as **blocked** (a ◆ in the menu, `blocked` in the CLI) with its reason. A blocked agent counts as live, so MinMacs never quits anything it started.
+
+Exactly what is read, from exactly two files, with a scanner that steps over every other value without copying it:
+
+| File | Fields read |
+|---|---|
+| `~/.cmuxterm/claude-hook-sessions.json` | `pid`, `sessionId`, `surfaceId`, `workspaceId`, `updatedAt` |
+| `~/.cmuxterm/workstream.jsonl` (only the last 2 MB, never the whole file) | `kind`, `createdAt`, `workstreamId` |
+
+**Payloads are never read.** The workstream log also holds your prompts, tool inputs, titles and context; those keys, and every other key in both files, are skipped, never stored, never logged, never printed. The tail buffer is wiped after parsing. Nothing is written to either file. The two files are matched by session id and process id, and an event older than the process it names is ignored, so a reused pid cannot inherit a stale block.
+
+How the last event decides: a permission request, question, plan approval or notification in the middle of a turn means blocked; a prompt or tool event means working, but only if it is under 60 seconds old; a stop says nothing (cmux repeats it while an agent works), so process signals decide. A notification right after a stop is the idle prompt, not a block.
+
 ### Rules file
 
 `~/Library/Application Support/MinMacs/rules.json`, written with sensible defaults on first run and editable by hand (*Edit Rules…* opens it). Bundle ids take a trailing `*` to match a prefix. A host matches its subdomains. Work wins over noise. New defaults arrive with upgrades additively and never move or remove an entry of yours.
@@ -108,6 +125,8 @@ minmacs trim --yes --only-host youtube.com
 minmacs restore                  # relaunch apps and reopen tabs, in the background
 minmacs classify https://…       # noise, work or other
 minmacs rules                    # print the rules file path
+minmacs agents                   # agent sessions and whether each is working, idle or blocked
+minmacs agents --cmux            # …and read cmux for agents waiting on you (see Blocked)
 ```
 
 Exit codes: 0 done, 1 aborted, 2 usage, 3 some apps are still running. Without `--force` that means they ignored Quit, usually because they are asking to save.
@@ -124,7 +143,7 @@ open insomnia://on                               # keep the Mac awake for the ru
 
 ## How it works
 
-Every four seconds MinMacs samples all processes through `libproc`, computes CPU as the change in CPU time over wall time, reads physical memory footprint, and attributes each process to the app macOS holds responsible for it, the same grouping Activity Monitor uses, with a parent-chain fallback. The app itself idles at 0% CPU and about 15 MB. Four Objective-C files, no dependencies, builds with clang alone.
+Every four seconds MinMacs samples all processes through `libproc`, computes CPU as the change in CPU time over wall time, reads physical memory footprint, and attributes each process to the app macOS holds responsible for it, the same grouping Activity Monitor uses, with a parent-chain fallback. The app itself idles at 0% CPU and about 15 MB. Objective-C files only, no dependencies, builds with clang alone.
 
 ## Build from a checkout
 

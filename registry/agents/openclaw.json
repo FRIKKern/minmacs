@@ -232,8 +232,26 @@
       "kind": "local-observation",
       "date": "2026-09-29",
       "evidence": "grep -n -E '\\[gateway\\] (starting|ready)|SIGTERM' ~/.openclaw/logs/gateway.log; launchctl print gui/501/ai.openclaw.gateway printed 'runs = 0'; plutil -p ~/Library/LaunchAgents/ai.openclaw.gateway.plist printed KeepAlive 0, RunAtLoad 0. How it was started is inferred"
+    },
+    {
+      "claim": "a gateway started from a terminal shows as a bare `openclaw` with an empty argument vector (KERN_PROCARGS2 gives ['openclaw','','','','']), so no process rule can match it; the probe never listed it while it served a turn at 20 to 130% CPU",
+      "kind": "local-observation",
+      "date": "2026-10-01",
+      "evidence": "openclaw gateway --allow-unconfigured --force (2026.4.29) listened on 18789 after 30 to 57 s; ps args = openclaw; lsof on 18789 is the only way to find it"
+    },
+    {
+      "claim": "with the claude-cli runtime the gateway runs `claude --session-id <id> --settings ...` as a direct child, which matches the claude-code row; when the gateway was killed that child was orphaned to launchd and kept running",
+      "kind": "local-observation",
+      "date": "2026-10-01",
+      "evidence": "openclaw agent --agent main -m ... --json through the gateway: child pid appeared under the gateway after about two minutes; after SIGTERM to the gateway's process group the claude child had ppid 1 and had to be killed by hand"
+    },
+    {
+      "claim": "`openclaw agent` without --agent or --session-id fails and falls back to an embedded run",
+      "kind": "local-observation",
+      "date": "2026-10-01",
+      "evidence": "output: 'EMBEDDED FALLBACK: Gateway agent failed; running embedded agent: Error: Pass --to <E.164>, --session-id, or --agent to choose a session'"
     }
   ],
   "confidence": "documented",
-  "notes": "One gateway process serves every session, so a process cannot be mapped to one transcript: report working/idle for the gateway as a whole and list session rows from sessions.json (status running/done/failed/timeout, updatedAt). Scope: process patterns, session store and lock claims are for the installed 2026.4.29; upstream (2026.7.x and later) moved sessions to SQLite and changed the lock, and has not been checked for process titles. No real OpenClaw process was observed running, so nothing here is verified-locally. Recognising the gateway: on 2026.4.29 the launchd daemon is `node .../openclaw/dist/index.js gateway --port 18789` with full args (never retitled). A gateway typed in a terminal as `openclaw gateway` shows the bare title `openclaw` and is not matched (a bare `openclaw` is also the wrapper parent of every respawned client, so matching it would be wrong); confirm a gateway by the listener on 18789 (lsof). `openclaw-gateway` is NOT matched on purpose: on 2026.4.29 it appears only on short-lived `openclaw gateway status|health|call|install...` runs, never on the daemon. Client processes (tui, acp, node host, macOS app) do not run turns except `tui --local` and `agent --local`. openclaw-node also covers short-lived `openclaw node status|install|...`. Warning: with the default claude-cli runtime the gateway's child is a real `claude` process (args carry --resume <id> when resuming, not --session-id), so the claude-code row will also match it; a detector should drop any claude whose parent is the gateway or it will double count. The waiting state is not observable from disk or ps."
+  "notes": "One gateway process serves every session, so a process cannot be mapped to one transcript: report working/idle for the gateway as a whole and list session rows from sessions.json (status running/done/failed/timeout, updatedAt). Scope: process patterns, session store and lock claims are for the installed 2026.4.29; upstream (2026.7.x and later) moved sessions to SQLite and changed the lock, and has not been checked for process titles. No real OpenClaw process was observed running, so nothing here is verified-locally. Recognising the gateway: on 2026.4.29 the launchd daemon is `node .../openclaw/dist/index.js gateway --port 18789` with full args (never retitled). A gateway typed in a terminal as `openclaw gateway` shows the bare title `openclaw` and is not matched (a bare `openclaw` is also the wrapper parent of every respawned client, so matching it would be wrong); confirm a gateway by the listener on 18789 (lsof). `openclaw-gateway` is NOT matched on purpose: on 2026.4.29 it appears only on short-lived `openclaw gateway status|health|call|install...` runs, never on the daemon. Client processes (tui, acp, node host, macOS app) do not run turns except `tui --local` and `agent --local`. openclaw-node also covers short-lived `openclaw node status|install|...`. Warning: with the default claude-cli runtime the gateway's child is a real `claude` process (args carry --resume <id> when resuming, not --session-id), so the claude-code row will also match it; a detector should drop any claude whose parent is the gateway or it will double count. The waiting state is not observable from disk or ps. Live run 2026-10-01: the terminal-started gateway is invisible to argv matching; find it by the listener on 18789. Its claude child is the thing to count, under the claude-code row, and it can outlive the gateway."
 }
