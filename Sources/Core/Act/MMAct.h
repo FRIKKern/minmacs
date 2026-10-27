@@ -26,6 +26,10 @@ NSTimeInterval MMWatchingLeft(NSString *expert);        // seconds until modes m
 - (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts;
 /// Why the review keeps f: no recent review, the review failed, work after the review, not in the review. nil when free.
 - (NSString *)reviewKeeps:(MMFinding *)f review:(MMReview *)r;
+@optional
+/// The expert's own rule for mode m, such as WorkForest's "Proactive waits 7 quiet days". nil when the mode may act.
+/// MMPlan asks this only for a finding that MustKeep and the review let go.
+- (NSString *)modeKeeps:(MMFinding *)f mode:(MMMode)m review:(MMReview *)r;
 @end
 
 /// P49. MustKeep: the work keeps, then the review keeps when r is given, then a timed keep and the protect list of P50.
@@ -102,3 +106,10 @@ NSArray<NSValue *> *MMQuitApps(NSArray<NSValue *> *keys, MMStopStep step, NSTime
 /// final period. The body is full sentences. undoRid adds one Undo action that restores that record.
 /// The interruption level is passive unless the disk is nearly full.
 void MMNotify(NSString *expert, NSString *title, NSString *body, NSString *undoRid);
+
+/// P55. Where MMNotify sends. The app uses UNUserNotificationCenter. Tests pass a fake, so they never ask for permission.
+@protocol MMNotifier <NSObject>
+/// passive is NO only when the disk is nearly full. undoRid is nil when there is nothing to undo.
+- (void)post:(NSString *)title body:(NSString *)body undoRid:(NSString *)undoRid passive:(BOOL)passive expert:(NSString *)expert;
+@end
+void MMUseNotifier(id<MMNotifier> notifier);           // nil goes back to the system notifier
