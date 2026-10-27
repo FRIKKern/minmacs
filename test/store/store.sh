@@ -85,11 +85,18 @@ st_db="$st_new/minmacs.sqlite"
 check "each LocoHost stop becomes an undo row, oldest first" ":3001 acme-web|:4251 orbit-api" \
   "$(sqlite3 "$st_db" "SELECT group_concat(subject, '|') FROM (SELECT subject FROM rows WHERE tbl='undo' AND expert='locohost' ORDER BY row);")"
 check "an undo row keeps its restart command" "cd /tmp/orbit-api && mix phx.server" \
-  "$(sqlite3 "$st_db" "SELECT json_extract(body, '\$.restart') FROM rows WHERE subject=':4251 orbit-api';")"
+  "$(sqlite3 "$st_db" "SELECT json_extract(body, '\$.payload.restart.command') FROM rows WHERE subject=':4251 orbit-api';")"
+# The body is what MMUndoRecord in Act reads: its own rid, a done state, a stop by the mode that did it.
+check "an undo row's body has the shape Act's undo record reads" "legacy.locohost.1793115056.4251 done stop eager 1793115056" \
+  "$(sqlite3 -separator ' ' "$st_db" "SELECT json_extract(body, '\$.rid'), json_extract(body, '\$.state'), json_extract(body, '\$.kind'), json_extract(body, '\$.by'), CAST(json_extract(body, '\$.at') AS INTEGER) FROM rows WHERE subject=':4251 orbit-api';")"
+check "a stop the person asked for is by manual" manual \
+  "$(sqlite3 "$st_db" "SELECT json_extract(body, '\$.by') FROM rows WHERE subject=':3001 acme-web';")"
 check "each app MinMacs 1.2 quit becomes a relaunch row" "com.apple.Music|com.google.Chrome" \
   "$(sqlite3 "$st_db" "SELECT group_concat(subject, '|') FROM (SELECT subject FROM rows WHERE tbl='undo' AND expert='minmacs' ORDER BY row);")"
 check "a relaunch row keeps its tabs" 2 \
-  "$(sqlite3 "$st_db" "SELECT json_array_length(body, '\$.tabs') FROM rows WHERE subject='com.google.Chrome';")"
+  "$(sqlite3 "$st_db" "SELECT json_array_length(body, '\$.payload.relaunch.tabs') FROM rows WHERE subject='com.google.Chrome';")"
+check "a relaunch row names its app for Act's restore" "com.google.Chrome quit done" \
+  "$(sqlite3 -separator ' ' "$st_db" "SELECT json_extract(body, '\$.payload.relaunch.bundleID'), json_extract(body, '\$.kind'), json_extract(body, '\$.state') FROM rows WHERE subject='com.google.Chrome';")"
 check "the last LocoHost review joins the review history" 1 "$(sqlite3 "$st_db" "SELECT COUNT(*) FROM rows WHERE tbl='review';")"
 MINMACS_HOME="$st_new" "$st_bin" import "$st_old" >"$st_dir/import2.json"
 check "a second import does nothing" "0 0 0" "$(json '"%d %d %d" % (len(j["prefs"]), len(j["files"]), len(j["rows"]))' <"$st_dir/import2.json")"

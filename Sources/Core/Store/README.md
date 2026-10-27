@@ -32,4 +32,6 @@ The support folder, the prefs domain, rules files, state files, the SQLite log a
 | MinMacs 1.2 `rules.json` | `minmacs/rules.json`, wildcards kept |
 | `minmacs.closedBundleIDs` and `minmacs.closedTabs` | one `undo` row per app to relaunch, with its tabs |
 
+An imported `undo` row's body has the shape `MMUndoRecord` in Act reads: `rid`, `state`, `kind`, `by`, `at` and `payload`. A stop keeps its command in `payload.restart.command`, and an app keeps its bundle id and tabs in `payload.relaunch`. The old record stays in `payload.legacy`.
+
 Each source is imported once, and the `core.migrated` pref records when. A 2.0 file that already exists is left as it is. `test/store.sh` runs it on copies of the fixtures in `test/store/legacy`.

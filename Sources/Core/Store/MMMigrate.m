@@ -80,6 +80,7 @@ static NSDictionary *LocoHostPlan(NSString *home) {
 
     // closed.json, newest first: what LocoHost stopped, with the command that starts it again.
     // Each record becomes an undo row in state done, so Recently Stopped and its restart keep working.
+    // The body has the shape MMUndoRecord reads in Act: rid, state, kind, by, at and payload.restart.command.
     NSString *closedPath = [dir stringByAppendingPathComponent:@"closed.json"];
     id closed = ReadJSON(closedPath);
     if ([closed isKindOfClass:NSArray.class]) {
@@ -87,13 +88,20 @@ static NSDictionary *LocoHostPlan(NSString *home) {
         // Oldest first, so the log's write order matches the order they were stopped.
         for (NSDictionary *c in [closed reverseObjectEnumerator]) {
             if (![c isKindOfClass:NSDictionary.class]) continue;
-            NSMutableDictionary *body = [c mutableCopy];
-            body[@"kind"] = @"restart"; body[@"from"] = @"LocoHost closed.json";
-            NSString *subject = [NSString stringWithFormat:@":%@ %@", c[@"port"] ?: @"", c[@"project"] ?: @""];
+            NSString *subject = [[NSString stringWithFormat:@":%@ %@", c[@"port"] ?: @"", c[@"project"] ?: @""]
+                                 stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
             NSString *rid = [NSString stringWithFormat:@"legacy.locohost.%.0f.%@", [c[@"at"] doubleValue], c[@"port"] ?: @""];
+            NSMutableDictionary *payload = [NSMutableDictionary dictionaryWithObject:c forKey:@"legacy"];
+            if ([c[@"restart"] isKindOfClass:NSString.class] && [c[@"restart"] length]) payload[@"restart"] = @{@"command": c[@"restart"]};
+            // LocoHost wrote "you" for a stop the person asked for, and the mode's name for the rest.
+            NSString *by = [c[@"by"] isKindOfClass:NSString.class] ? [c[@"by"] lowercaseString] : @"";
+            if (![@[@"proactive", @"eager", @"cli"] containsObject:by]) by = @"manual";
+            NSDictionary *body = @{@"rid": rid, @"state": @"done", @"kind": @"stop", @"expert": @"locohost", @"subject": subject,
+                                   @"findingID": [@"locohost:host:" stringByAppendingString:[c[@"port"] description] ?: @""],
+                                   @"why": [c[@"why"] isKindOfClass:NSString.class] ? c[@"why"] : @"", @"by": by,
+                                   @"at": @([c[@"at"] doubleValue]), @"payload": payload, @"from": @"LocoHost closed.json"};
             [plan[@"rows"] addObject:@{@"table": @"undo", @"rid": rid, @"expert": @"locohost",
-                                       @"subject": [subject stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet],
-                                       @"state": @"done", @"body": body}];
+                                       @"subject": subject, @"state": @"done", @"body": body}];
         }
     }
     // review.json is the last review. It goes into the review history as one row.
@@ -132,10 +140,15 @@ static NSDictionary *MinMacs12Plan(NSString *home) {
         if (!urls[t[@"bundleID"]]) urls[t[@"bundleID"]] = [NSMutableArray new];
         [urls[t[@"bundleID"]] addObject:t[@"url"]];
     }
-    for (NSString *b in apps)
-        [plan[@"rows"] addObject:@{@"table": @"undo", @"rid": [@"legacy.minmacs." stringByAppendingString:b], @"expert": @"minmacs",
-                                   @"subject": b, @"state": @"done",
-                                   @"body": @{@"kind": @"relaunch", @"bundleID": b, @"tabs": urls[b] ?: @[], @"from": @"MinMacs 1.2 prefs"}}];
+    // The body has the shape MMUndoRecord reads in Act. Act's restore opens payload.relaunch by its bundleID.
+    for (NSString *b in apps) {
+        NSString *rid = [@"legacy.minmacs." stringByAppendingString:b];
+        [plan[@"rows"] addObject:@{@"table": @"undo", @"rid": rid, @"expert": @"minmacs", @"subject": b, @"state": @"done",
+                                   @"body": @{@"rid": rid, @"state": @"done", @"kind": @"quit", @"expert": @"minmacs", @"subject": b,
+                                              @"by": @"manual", @"why": @"", @"from": @"MinMacs 1.2 prefs",
+                                              @"at": @(NSDate.date.timeIntervalSince1970),   // 1.2 kept no time
+                                              @"payload": @{@"relaunch": @{@"bundleID": b, @"tabs": urls[b] ?: @[]}}}}];
+    }
     return plan;
 }
 
