@@ -48,7 +48,7 @@ static NSArray<NSString *> *Expand(NSArray<NSString *> *pattern, NSArray<NSStrin
 
 NSArray<NSString *> *MMLegacyWords(NSString *program, NSArray<NSString *> *words) {
     // LocoHost 1.x, from locohost/Sources/main.m Usage. Its other commands are LocoHost's own verbs.
-    static NSDictionary *locohost, *minmacs;
+    static NSDictionary *locohost, *minmacs, *workforest;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         locohost = @{
@@ -65,6 +65,23 @@ NSArray<NSString *> *MMLegacyWords(NSString *program, NSArray<NSString *> *words
             @"stopped":    @[@"restore", @"--list", @"--expert", @"locohost"],
             @"mode":       @[@"mode", @"locohost", @"$1"],
         };
+        // WorkForest 0.1, from workforest/Sources/main.m Usage. Each command is a part of WorkForest's trees verb.
+        workforest = @{
+            @"list":     @[@"trees", @"list"],
+            @"explain":  @[@"trees", @"explain", @"$1"],
+            @"review":   @[@"trees", @"review"],
+            @"summary":  @[@"trees", @"plan"],
+            @"auto":     @[@"trees", @"auto"],
+            @"clean-up": @[@"trees", @"clean-up"],
+            @"remove":   @[@"trees", @"remove", @"$1"],
+            @"restore":  @[@"trees", @"restore", @"$1"],
+            @"removed":  @[@"trees", @"removed"],
+            @"keep":     @[@"trees", @"keep", @"$1"],
+            @"prune":    @[@"trees", @"prune", @"$1"],
+            @"fetch":    @[@"trees", @"fetch"],
+            @"rules":    @[@"trees", @"rules"],
+            @"mode":     @[@"mode", @"workforest", @"$1"],
+        };
         // MinMacs 1.2, from git show legacy:Sources/main.m Usage. trim, classify and rules are the MinMacs expert's.
         minmacs = @{
             @"plan":   @[@"tidy", @"minmacs", @"--dry-run"],
@@ -72,7 +89,8 @@ NSArray<NSString *> *MMLegacyWords(NSString *program, NSArray<NSString *> *words
             @"agents": @[@"work"],
         };
     });
-    NSDictionary *table = [program isEqualToString:@"locohost"] ? locohost : [program isEqualToString:@"minmacs"] ? minmacs : nil;
+    NSDictionary *table = [program isEqualToString:@"locohost"] ? locohost : [program isEqualToString:@"minmacs"] ? minmacs
+                        : [program isEqualToString:@"workforest"] ? workforest : nil;
     NSString *cmd = words.firstObject ?: @"";
     NSArray *pattern = table[cmd];
     return pattern ? Expand(pattern, words.count ? words : @[@""]) : nil;

@@ -125,6 +125,9 @@ NSString *MMClip(NSString *s, NSUInteger max);
 @property BOOL judge;                                   // Eager: a second look at findings the review keeps
 @property NSInteger mode;                               // the MMMode the review runs under, saved with it
 @property (copy) NSString *judgeSystem;                 // the expert's judge prompt; nil uses Core's, in the expert's words
+/// YES sends every finding to the model, past the fingerprint cache. Rules still decide first.
+/// For a review the person asks for with --fresh, and for tests that review the same facts twice.
+@property BOOL ignoreCache;
 @end
 
 /// P43 to P47. The one broker. Starts from WF Review.m. Every review runs on MMQueue(@"core", @"review").
