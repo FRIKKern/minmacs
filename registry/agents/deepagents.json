@@ -412,10 +412,6 @@
       "signal": "hook",
       "event": "Notification",
       "meaning": "Client-owned. Matcher `notification_type`: `permission_prompt` (approval needed), `agent_needs_input` (the agent called ask_user and waits for an answer), `agent_completed` (turn finished, the idle edge). Also `cold_cache_warning` and `cache_expiring`, which are not waits. `idle_prompt` is declared in the wire enum but no emitter was found. Emitted from tui/textual_adapter.py (permission_prompt, agent_needs_input, agent_completed) and client/non_interactive.py (permission_prompt, agent_completed). `permission_prompt` is the reliable wait edge."
-    },
-    {
-      "signal": "socket_activity",
-      "meaning": "Thread status `interrupted` from the agent server (same call as the working signal). Approvals and ask_user questions are LangGraph interrupts, so the run is parked as `interrupted` until the client resumes it. Source-level, not exercised. `interrupted` also covers a run the user cancelled, so read it together with the client state."
     }
   ],
   "hooks": {
