@@ -42,7 +42,12 @@ id MMPref(NSString *key) {
     if (!key.length) return nil;
     CFStringRef t = (__bridge CFStringRef)MMPrefsTarget();
     // A plist target has no cfprefsd to share changes between processes, so it is read fresh.
-    if (IsFileTarget((__bridge NSString *)t)) CFPreferencesAppSynchronize(t);
+    if (IsFileTarget((__bridge NSString *)t)) {
+        CFPreferencesAppSynchronize(t);
+        // Only the current user's copy. For a plist path, CFPreferencesCopyAppValue also looks at an any-user copy
+        // of the same file that cfprefsd keeps from its first read, and that stale copy wins over a newer write.
+        return CFBridgingRelease(CFPreferencesCopyValue((__bridge CFStringRef)key, t, kCFPreferencesCurrentUser, kCFPreferencesAnyHost));
+    }
     return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, t));
 }
 
