@@ -141,6 +141,23 @@ GO=$("$GT" restart-b "$GR" "$W/cp")
 check "git: the replay from the saved event id marks the changed worktree" 1 "$(printf '%s' "$GO" | json "j['facts']['dirty']")"
 check "  and git status runs for it alone" "1|0" "$(gs statusRuns)|$(gs historyRuns)"
 
+echo "-- a branch switch and a lock show with no walk"
+GO=$("$GT" moves "$GR" "$W/det" "named")
+gm() { printf '%s' "$GO" | json "j['$1']"; }
+check "git: a branch switch in a worktree reaches the index's worktree" "named|named" "$(gm branch)|$(gm factsBranch)"
+check "  within a second, with no walk" "yes|0" "$(printf '%s' "$GO" | json "'yes' if 0 <= j['branchSeconds'] < 1 else j['branchSeconds']")|$(gm walks)"
+check "git: git worktree lock reaches the index within a second" yes "$(printf '%s' "$GO" | json "'yes' if 0 <= j['lockSeconds'] < 1 else j['lockSeconds']")"
+
+echo "-- a worktree outside every root"
+GX="$G/out"; mkdir -p "$GX/roots"
+gq init -q "$GX/roots/r"; gc "$GX/roots/r" a.txt one "one"
+gq -C "$GX/roots/r" worktree add -q -b away "$GX/away"
+GO=$("$GT" facts "$GX/roots")
+check "git: the walk finds a linked worktree outside the root" 0 "$(gf "$GX/away" dirty)"
+printf 'changed\n' >>"$GX/away/a.txt"
+GO=$("$GT" facts "$GX/roots")
+check "  and the next walk reads its status again, since no stream sees it" "1|1" "$(gf "$GX/away" dirty)|$(gs statusRuns)"
+
 echo "-- bench: about 100 worktrees"
 GB="$G/bench/roots"; mkdir -p "$GB"
 gb_t0=$(python3 -c 'import time; print(time.time())')

@@ -313,7 +313,8 @@ static NSArray<NSString *> *DefaultRoots(void) {
     @synchronized (self) {
         early = [_early copy]; [_early removeAllObjects];
         changed = ![[_trees valueForKey:@"path"] isEqual:[sorted valueForKey:@"path"]] ||
-                  ![[_trees valueForKey:@"branch"] isEqual:[sorted valueForKey:@"branch"]];
+                  ![[_trees valueForKey:@"branch"] isEqual:[sorted valueForKey:@"branch"]] ||
+                  ![[_trees valueForKey:@"locked"] isEqual:[sorted valueForKey:@"locked"]];
         _trees = sorted;
         _lastWalk = NSDate.date;
         _walking = NO;
@@ -323,6 +324,14 @@ static NSArray<NSString *> *DefaultRoots(void) {
         for (NSString *p in _facts.allKeys) if (![live containsObject:p]) [_facts removeObjectForKey:p];
         // Every fingerprint is read again after a walk. git runs only where one moved.
         for (MMWorktree *w in sorted) _marked[w.path] = w;
+    }
+    // A linked worktree outside every root has no stream, so a change to its files is never seen.
+    // Its status is read again on every walk instead.
+    NSArray *roots = self.roots;
+    for (MMWorktree *w in sorted) {
+        BOOL watched = NO;
+        for (NSString *r in roots) if (PathIn(w.path, r.stringByStandardizingPath)) { watched = YES; break; }
+        if (!watched) [self dropStatus:w];
     }
     if ([self loadCaches] && self.roots.count) {
         [_git forget:live];
@@ -400,6 +409,28 @@ static NSArray<NSString *> *DefaultRoots(void) {
 
 #pragma mark Git facts
 
+/// A change in a known git dir starts no walk, so a branch switch or `git worktree lock` lands here instead.
+/// The checkout is read again from its .git files, with no spawn, and replaces the walked one when its branch
+/// or its lock moved.
+- (void)recheckTree:(NSString *)path {
+    MMWorktree *now = CheckoutAt(path);
+    if (!now) return;
+    BOOL moved = NO;
+    @synchronized (self) {
+        NSMutableArray *trees = [_trees mutableCopy];
+        for (NSUInteger i = 0; i < trees.count; i++) {
+            MMWorktree *x = trees[i];
+            if (![x.path isEqualToString:path]) continue;
+            BOOL sameBranch = x.branch == now.branch || [x.branch isEqualToString:now.branch];
+            if (sameBranch && x.locked == now.locked) break;
+            trees[i] = now; moved = YES;
+            break;
+        }
+        if (moved) _trees = trees;
+    }
+    if (moved) [NSNotificationCenter.defaultCenter postNotificationName:MMRepoIndexDidChangeNotification object:self];
+}
+
 /// Reads one worktree's fingerprints and runs git where one moved. Returns the facts, or nil when the path holds
 /// no checkout. ran is YES when git ran, changed when the facts differ from the cached ones.
 - (MMGitFacts *)updateOne:(MMWorktree *)w force:(BOOL)force ran:(BOOL *)ran changed:(BOOL *)changed {
@@ -417,6 +448,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
         return nil;
     }
     [self count:@"fingerprintReads" by:1];
+    [self recheckTree:path];
     NSDictionary *files = MMGitReadFiles(dirs[@"gitDir"], dirs[@"common"]);
     NSDictionary *old = [_git peek:path];
     if (![old isKindOfClass:NSDictionary.class]) old = nil;

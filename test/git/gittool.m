@@ -7,6 +7,7 @@
 //   bench <root> <file> <repo>            cold scan, warm full scan, one file change, one default-branch commit, timed
 //   restart-a <root>                      cold scan with FSEvents on, then stop, which saves each root's event id
 //   restart-b <root> <path>               a new process: FSEvents from the saved ids, a walk, and what git ran for
+//   moves <root> <path> <branch>          FSEvents on, a branch switch and a lock in path: when the index shows each
 #import <Foundation/Foundation.h>
 #import "Core/Know/MMGit.h"
 #import "Core/Runtime/MMWorker.h"
@@ -258,6 +259,41 @@ static int RestartB(NSString *root, NSString *path) {
     return 0;
 }
 
+/// Off main, as every git run must be.
+static void GitOff(NSString *dir, NSArray *args) {
+    dispatch_semaphore_t s = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ MMGit(dir, args, 10, NULL); dispatch_semaphore_signal(s); });
+    dispatch_semaphore_wait(s, DISPATCH_TIME_FOREVER);
+}
+
+/// A branch switch and a lock in one worktree, with FSEvents on: how long until the index's worktree shows each,
+/// and how many walks ran meanwhile. A known repo's git dir starts no walk, so the update pass must carry both.
+static int Moves(NSString *root, NSString *path, NSString *branch) {
+    MMRepoIndex *ix = MMRepoIndex.shared;
+    ix.roots = @[root.stringByStandardizingPath];
+    Scan();
+    [ix startWatching];
+    usleep(1500000);
+    NSInteger walks = Stat(@"walks");
+    double t0 = Now(), branchAt = -1, lockAt = -1;
+    GitOff(path, @[@"checkout", @"-q", @"-b", branch]);
+    while (Now() - t0 < 10) {
+        if ([TreeAt(path).branch isEqualToString:branch]) { branchAt = Now() - t0; break; }
+        usleep(5000);
+    }
+    double t1 = Now();
+    GitOff(path, @[@"worktree", @"lock", @"--reason", @"fixture", path]);
+    while (Now() - t1 < 10) {
+        if (TreeAt(path).locked) { lockAt = Now() - t1; break; }
+        usleep(5000);
+    }
+    [ix stopWatching];
+    Drain();
+    Print(@{@"branchSeconds": @(branchAt), @"lockSeconds": @(lockAt), @"walks": @(Stat(@"walks") - walks),
+            @"branch": TreeAt(path).branch ?: NSNull.null, @"factsBranch": [ix factsFor:TreeAt(path) wait:NO].branch ?: NSNull.null});
+    return 0;
+}
+
 int main(int argc, const char **argv) {
     @autoreleasepool {
         if (argc < 2) { fprintf(stderr, "usage: gittool <command> [args]\n"); return 2; }
@@ -271,6 +307,7 @@ int main(int argc, const char **argv) {
         if ([cmd isEqualToString:@"bench"] && a.count == 3) return Bench(a[0], a[1], a[2]);
         if ([cmd isEqualToString:@"restart-a"] && a.count == 1) return RestartA(a[0]);
         if ([cmd isEqualToString:@"restart-b"] && a.count == 2) return RestartB(a[0], a[1]);
+        if ([cmd isEqualToString:@"moves"] && a.count == 3) return Moves(a[0], a[1], a[2]);
         fprintf(stderr, "unknown command\n");
         return 2;
     }

@@ -107,7 +107,8 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// lastUpdateChecked for the last pass.
 - (NSDictionary<NSString *, NSNumber *> *)stats;
 @end
-/// Posted on the index's queue when a walk finds other worktrees or branches than the last one.
+/// Posted when a walk finds other worktrees, branches or locks than the last one, or when an update pass on the
+/// git queue reads a moved branch or lock from a worktree's .git files.
 extern NSNotificationName const MMRepoIndexDidChangeNotification;
 /// Posted on the git queue when an update changed the facts of at least one worktree.
 extern NSNotificationName const MMRepoIndexFactsDidChangeNotification;
