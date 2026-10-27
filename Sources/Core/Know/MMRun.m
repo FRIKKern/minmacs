@@ -1,7 +1,9 @@
 // MMRun, pattern P23. Ported from WFGitInput in WorkForest's Common.m.
 // The rest of MMGit.h comes in phase 2. Where uses MMRun to ask cmux and tmux.
 #import "Core/Know/MMGit.h"
+#import <fcntl.h>
 #import <signal.h>
+#import <unistd.h>
 
 /// The environment a child starts from. env adds to this, never to the app's own environment.
 static NSDictionary<NSString *, NSString *> *CleanEnvironment(void) {
@@ -38,10 +40,16 @@ MMRunResult MMRun(NSString *path, NSArray<NSString *> *args, NSData *input, NSDi
     dispatch_queue_t gq = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
     dispatch_group_async(g, gq, ^{ o = [out.fileHandleForReading readDataToEndOfFile]; });
     dispatch_group_async(g, gq, ^{ x = [err.fileHandleForReading readDataToEndOfFile]; });
-    if (in) dispatch_async(gq, ^{
-        @try { [in.fileHandleForWriting writeData:input]; } @catch (NSException *ex) {}
-        [in.fileHandleForWriting closeFile];
-    });
+    // F_SETNOSIGPIPE turns a child that exits without reading its input into EPIPE. Without it the signal ends the app.
+    if (in) {
+        int wfd = in.fileHandleForWriting.fileDescriptor;
+        fcntl(wfd, F_SETNOSIGPIPE, 1);
+        dispatch_async(gq, ^{
+            const uint8_t *p = input.bytes; size_t left = input.length;
+            while (left > 0) { ssize_t n = write(wfd, p, left); if (n <= 0) break; p += n; left -= (size_t)n; }
+            [in.fileHandleForWriting closeFile];
+        });
+    }
     if (dispatch_group_wait(g, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC))) != 0) {
         r.timedOut = YES;
         pid_t pid = t.processIdentifier;

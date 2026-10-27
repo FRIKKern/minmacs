@@ -220,6 +220,7 @@ check "MMRun returns stderr and the exit status" "err:3" "$(rv stderr):$(rv exit
 check "MMRun runs in cwd" /usr "$(rv cwd)"
 check "MMRun stops a child past its time limit" "1:-1:1" "$(rv timed_out):$(rv timed_out_status):$(rv stopped_within_2s)"
 check "MMRun kills a child that ignores SIGTERM" 1 "$(rv term_ignored_killed_within_3s)"
+check "MMRun survives a child that never reads its input" 0 "$(rv unread_input_status)"
 check "MMRun reports a tool that did not run" "0:-1" "$(rv missing_didRun):$(rv missing_status)"
 C=$("$KT" cache)
 cv() { printf '%s\n' "$C" | sed -n "s/^$1=//p"; }

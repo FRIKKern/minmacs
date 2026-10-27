@@ -182,6 +182,10 @@ static int Run(void) {
     t0 = NSDate.date;
     r = MMRun(@"/bin/sh", @[@"-c", @"trap '' TERM; sleep 5"], nil, nil, nil, 0.5, &o, NULL);
     Line(@"term_ignored_killed_within_3s", @(r.timedOut && -t0.timeIntervalSinceNow < 3));
+    // A child that exits without reading 4 MB of input. Without F_SETNOSIGPIPE, SIGPIPE ends this tool here.
+    r = MMRun(@"/usr/bin/true", @[], [NSMutableData dataWithLength:4 * 1024 * 1024], nil, nil, 5, &o, NULL);
+    usleep(200000);
+    Line(@"unread_input_status", @(r.status));
     r = MMRun(@"/no/such/tool", @[], nil, nil, nil, 1, &o, NULL);
     Line(@"missing_didRun", @(r.didRun)); Line(@"missing_status", @(r.status));
     return 0;
