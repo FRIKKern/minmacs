@@ -139,6 +139,14 @@ export LOCOHOST_IDLE_MINUTES=0 LOCOHOST_MIN_UPTIME_MINUTES=0
 # A mode acts only when it is the mode set, as MMRunAction checks again right before it stops anything.
 lh_plan() { lh_m=$1; shift; "$LH" mode "$lh_m" >/dev/null; "$LH" auto --mode "$lh_m" --port "$P" --json "$@" | json "j['plan'][0]['stop'] if j['plan'] else 'none'"; }
 lh_why() { "$LH" auto --mode "$1" --port "$P" --dry-run --json | json "j['plan'][0]['why']"; }
+# A session counts for a server only when it was active up to 60 s before the server started. Mark it active now,
+# so a slow runner that reaches this point minutes after the section began still links the two.
+python3 - "$LH_SESS/fixture-$$.jsonl" "$APPDIR" <<'PY'
+import json, sys, datetime
+t = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+with open(sys.argv[1], "a") as f:
+    f.write(json.dumps({"type": "user", "timestamp": t, "cwd": sys.argv[2], "message": {"role": "user", "content": "Keep the fixture server up"}}) + "\n")
+PY
 lh_fresh
 r=$(RV_TEST_GO=":$P" "$LH" review --mode eager --port "$P" --json | json "'Fixture summary: 1 items.' in j['summary']")
                                                                      check "the review writes a summary" True "$r"
