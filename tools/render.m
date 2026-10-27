@@ -680,7 +680,8 @@ int main(int argc, char **argv) { @autoreleasepool {
                                      InsomniaLike(@"working"), InsomniaLike(@"quiet"), InsomniaLike(@"low"), InsomniaLike(@"sleeps")];
     NSArray *experts = @[@[@"LocoHost", @"server.rack", @"2 idle servers", @"2"], @[@"WorkForest", @"tree", @"2 worktrees to remove", @""],
                          @[@"MinMacs", @"gauge.with.dots.needle.33percent", @"3 apps to quit", @""],
-                         @[@"Noo-Noo", @"trash.square", @"2 finished projects, 17.7 GB to free", @""]];
+                         @[@"Noo-Noo", @"trash.square", @"2 finished projects, 17.7 GB to free", @""],
+                         @[@"Insomnia", @"cup.and.saucer", @"awake for 2 agents", @""]];
     for (NSArray *e in experts) {
         NSString *label = MMStatusLabel(e[0], e[2]);
         NSString *word = [NSString stringWithFormat:@"\\b%@\\b", [NSRegularExpression escapedPatternForString:e[1]]];
