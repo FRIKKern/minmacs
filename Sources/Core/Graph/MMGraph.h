@@ -29,6 +29,10 @@ typedef NS_ENUM(NSInteger, MMOwnerKind) {
 @property (readonly, copy) NSString *path;              // nil for an app
 @property (readonly) MMOwner *parent;                   // a worktree's workstream, nil at the top
 + (instancetype)kind:(MMOwnerKind)kind key:(NSString *)key name:(NSString *)name path:(NSString *)path parent:(MMOwner *)parent;
+/// "workstream:/path/to/tree", the kind and key in one string. Stable across restarts of the session.
+- (NSString *)ownerID;
+/// YES when other is this owner or one of its parents.
+- (BOOL)isWithin:(MMOwner *)other;
 @end
 
 /// What a finding costs right now. A field that does not apply is 0, or -1 for cpuPercent.
@@ -67,13 +71,29 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 @property (readonly) MMReversibility reversibility;
 @property (readonly) BOOL needsForce;                   // a second request, such as SIGKILL after SIGTERM
 + (instancetype)verb:(NSString *)verb title:(NSString *)title reversibility:(MMReversibility)r;
++ (instancetype)verb:(NSString *)verb title:(NSString *)title reversibility:(MMReversibility)r needsForce:(BOOL)force;
+@end
+
+/// What an expert fills in to make one finding. The finding copies every field, so a later change here
+/// never reaches it. An owner set here is only a hint: the graph picks the owner, see MMGraph.
+@interface MMFindingBuilder : NSObject
+@property (copy) NSString *instanceKey, *title, *path, *fingerprint;
+/// A back-link path, such as a clutter item's ownerPath. The graph checks it before path.
+@property (copy) NSString *ownerPath;
+@property (strong) MMOwner *owner;
+@property MMCost cost;
+@property (copy) NSArray<MMEvidence *> *evidence;
+@property (copy) NSArray<NSString *> *keepReasons;
+@property (strong) MMProposal *proposal;
+@property (copy) NSArray<NSValue *> *procs;
+@property (copy) NSDictionary *facts;
 @end
 
 /// One thing an expert found: a server, a worktree, an app, a cache, a keep-awake need.
 /// New code. It replaces each app's own subject type: LHHost, WFTree, MMAgent rows in 1.2 and NN's findings.
 /// Immutable. A new snapshot makes new findings, and the id stays the same across snapshots.
 @interface MMFinding : NSObject
-/// expert:kind:stableKey, such as "locohost:server:/Users/me/app#dev". Stable across restarts of the subject,
+/// expert:kind:stableKey, such as "locohost:server:~/code/app#dev". Stable across restarts of the subject,
 /// so keeps and verdicts survive. Decision 8 sets the server key to project folder and script.
 @property (readonly, copy) NSString *findingID;
 @property (readonly, copy) NSString *expert, *kind, *stableKey;
@@ -93,6 +113,12 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 @property (readonly, copy) NSString *fingerprint;
 @property (readonly) NSDictionary *facts;               // expert-specific facts for --json and the review
 @property (readonly) BOOL kept;                         // YES when keepReasons is not empty
+@property (readonly, copy) NSString *ownerPath;         // the back-link the expert gave, or nil
+/// The one way to make a finding. stableKey must not hold a pid or a start time.
++ (instancetype)expert:(NSString *)expert kind:(NSString *)kind stableKey:(NSString *)stableKey
+                 build:(void (^)(MMFindingBuilder *b))build;
+/// A copy with the owner the graph picked. The rest stays the same.
+- (instancetype)withOwner:(MMOwner *)owner;
 @end
 
 /// The builder's input for one snapshot: every fact Core gathered for this generation. Immutable.
@@ -106,6 +132,21 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 @property (readonly) NSArray<MMWorktree *> *worktrees;
 @property (readonly) NSArray<MMClutterItem *> *clutter;
 - (MMGitFacts *)gitFor:(MMWorktree *)w;                 // cached facts, nil until the first scan ends
+/// The one way to make facts. Every array is copied. git maps a worktree path to its facts.
+/// Tests build facts by hand with this, so the graph needs no Senses or Know code to run.
++ (instancetype)generation:(uint64_t)generation sample:(MMSample *)sample power:(MMPower *)power
+                    agents:(NSArray<MMAgent *> *)agents sessions:(NSArray<MMSession *> *)sessions
+                 worktrees:(NSArray<MMWorktree *> *)worktrees clutter:(NSArray<MMClutterItem *> *)clutter
+                       git:(NSDictionary<NSString *, MMGitFacts *> *)git;
+@end
+
+/// Where the builder gets its facts. The app sets one source that reads Senses and Know.
+/// Tests set a source that returns facts built by hand.
+@protocol MMFactSource <NSObject>
+/// Facts for one rebuild. Runs on the graph queue.
+- (MMFacts *)factsFor:(uint64_t)generation;
+/// Facts read now for one finding, for -freshFactsFor:. Blocks. Never on main.
+- (MMFacts *)freshFactsFor:(MMFinding *)finding;
 @end
 
 /// P32. A workstream: one session with its worktree, servers, processes, caches and keep-awake need.
@@ -139,11 +180,19 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 - (NSArray<MMFinding *> *)findingsOwnedBy:(MMOwner *)owner expert:(NSString *)expert;   // expert nil means all
 - (NSInteger)workingAgents;
 - (MMReview *)reviewFor:(NSString *)expert;             // the last saved review, nil before the first
+/// P33. The pids Insomnia holds the Mac awake for, as "pid:start" to the reason. A pid that exited is gone.
+@property (readonly) NSDictionary<NSString *, NSString *> *awakeHolds;
+/// Builds one snapshot from facts, on the calling thread. The graph queue calls it on every rebuild.
+/// Pure: the same facts and experts give the same snapshot, owners included. previous may be nil.
++ (MMSnapshot *)snapshotFrom:(MMFacts *)facts experts:(NSArray<id<MMExpert>> *)experts
+                     reviews:(NSDictionary<NSString *, MMReview *> *)reviews holds:(NSDictionary<NSString *, NSString *> *)holds;
 @end
 
 /// P31 and P33. The one builder and the one place snapshots are published.
 @interface MMGraph : NSObject
 + (instancetype)shared;
+/// Where the builder reads facts. Set once at launch, before -start. Rebuilds wait until it is set.
+@property (strong) id<MMFactSource> source;
 /// Experts register once at launch, before -start. The builder asks each for findings on every rebuild.
 - (void)addExpert:(id<MMExpert>)expert;
 - (void)start;
@@ -160,4 +209,6 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 - (MMFacts *)freshFactsFor:(MMFinding *)finding;
 /// P33. Replaces insomnia://on. Insomnia holds the Mac awake for this pid until it exits. Reason shows on its card.
 - (void)holdAwake:(NSString *)reason pid:(MMProcKey)key;
+/// The broker saves each expert's newest review here. The next snapshot carries it.
+- (void)saveReview:(MMReview *)review forExpert:(NSString *)expert;
 @end
