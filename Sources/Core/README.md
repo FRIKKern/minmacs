@@ -49,9 +49,9 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 
 ## Know in phase 1
 
-Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. Core wiring adds `MMSizer.m` and `MMRepoIndex.m`. `MMClutter` stays a header until phase 3.
+Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. Core wiring adds `MMSizer.m` and `MMRepoIndex.m`. Issue #25 adds `MMGit.m` and `MMGitFacts.m`. `MMClutter` stays a header until phase 3.
 
-- `MMRun` and `MMRunTask` do all pipe work on the calling thread with poll. Past the limit the child gets SIGTERM, then SIGKILL a second later, and the pipes are closed half a second after that, even when a grandchild holds them. The review broker and Act's tool commands run through `MMRunTask`.
+- `MMRun` and `MMRunTask` do all pipe work on the calling thread with poll. The child's exit and its status come from a kqueue `NOTE_EXIT` with `NOTE_EXITSTATUS` in the same poll, which does not reap it, so NSTask still does. A child that exited normally is not waited for through `waitUntilExit`, which noticed the exit 70 to 95 ms late. MEASUREMENTS.md, section Git, has the cost per run. Past the limit the child gets SIGTERM, then SIGKILL a second later, and the pipes are closed half a second after that, even when a grandchild holds them. The review broker and Act's tool commands run through `MMRunTask`.
 - `MMWhereIs` drops a cached place once its pid and start time are gone, on every call, and empties the cache past 256 answers.
 - The cmux events reader is behind the pref `core.cmuxEvents` or `MINMACS_CMUX_EVENTS=1`. `MINMACS_CMUX` and `MINMACS_TMUX` name the CLIs, which the checks use for fakes.
 
@@ -61,11 +61,19 @@ Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and 
 - `exact:` maps every inode that may share blocks with `F_LOG2PHYS_EXT` and sweeps the device in order. A stretch is freed when it is private, or when two or more inodes of the set hold it and none of them shares outside. An inode shares outside when it has a hard link outside the roots, or when its clone family's refcount names a holder outside. Past 30 seconds or 200,000 files it gives the estimate, since question 14 found the union too slow for large trees.
 - Neither tier can see two full clones in the set that also share blocks with a partial clone outside it. The statfs delta in the undo record, `freedOnVolume:by:`, stays the measured number.
 
-### The repo index
+### The repo index and git facts, issue #25
 
 - `MMRepoIndex` walks its roots in the worker. The roots are `$MINMACS_ROOTS` when set. With `MINMACS_HOME` set and no `MINMACS_ROOTS` there are none, so a test never walks the person's folders. Otherwise they are the `roots` list in `core/rules.json`, which starts with WorkForest's roots and the Cursor and Conductor folders.
-- `MMCoreStart` watches the roots with FSEvents. Only a change to a `.git` folder, or to a folder near a root outside every known checkout, starts a walk, and walks are at least 10 seconds apart. A full walk also runs every 10 minutes.
-- `worktreeAt:` reads `.git` files above the path, with no spawn. `factsFor:wait:` returns nil until WorkForest brings git facts in phase 2.
+- `worktreeAt:` reads `.git` files above the path, with no spawn.
+- `startWatching` opens one FSEvents stream per root, with the 0.5 second latency and `NoDefer` that research track B recommends. Each stream saves its own event id as `repos.<hash>.eventid` in the support folder, so a restart replays only what changed while MinMacs was not running. A replay that lands before the first walk is held until the walk ends.
+- A change among a worktree's files drops that worktree's status layer and marks its size stale. A change in a git dir marks the worktrees that use it, and their fingerprints are read again. No other worktree is touched. A `.git/worktrees` change, or a folder near a root outside every known checkout, also starts a walk, at least 10 seconds apart. A full walk runs every 10 minutes and reads every fingerprint again.
+- A change in a known repo's git dir starts no walk. The update pass reads the checkout's `.git` files again, with no spawn, and replaces the walked worktree when its branch or its lock moved. A linked worktree outside every root has no stream, so its status is read again on every walk.
+- `factsFor:wait:` returns `MMGitFacts`: branch, head, the default branch, the upstream with ahead and behind, dirty and untracked counts, the stash count on the branch, commits not in the default branch, commits on no remote, the last commit time and the merge kind. Branch, head, the default branch, the upstream and the stash count come from git's own files: `HEAD`, loose refs, `packed-refs`, `config`, `refs/remotes/origin/HEAD` and `logs/refs/stash`. The rest come from `MMGit` on the `core.git` queue, or `core.git.fresh` for wait YES, never on main. `MMGit` sets `GIT_OPTIONAL_LOCKS=0`, `LC_ALL=C`, no prompts and a time limit, and passes `GIT_CONFIG_GLOBAL` through.
+- The facts live in two layers in the persisted cache `git.json`. The status layer, from `git status`, is keyed by HEAD and the index file's stamp. The history layer is keyed by HEAD, the default branch's tip, the upstream's tip, `FETCH_HEAD` and `packed-refs`. wait NO reads memory only and queues an update when a change marked the worktree. wait YES runs `git status` now. A graph rebuild never reads git's files or runs git, and `MMRepoIndexFactsDidChangeNotification` asks for a rebuild when an update moved any facts.
+- Merge kinds, for every worktree but the main checkout: ancestor when no commit is outside the default branch, tree when the trees are equal, patch when every branch commit's patch id is among the default branch's, squash when the branch's whole change since the merge base has the patch id of a default-branch commit. Patch and squash are checked only for branches not merged by ancestry or tree.
+- The squash check fixes WorkForest 0.1's CPU spike in `Trees.m:104-129`, which read `git log -p -n 400` of the default branch on every scan. A patch id is kept per commit in `git.patchids.json` forever, and the whole-branch id per pair of merge base and head. Only commits the cache has not seen are computed, and only the default branch's commits since the merge base, at most 1,000, are candidates. git's diff streams through `/bin/sh` into `git patch-id --stable`, so it is never held in memory. A new default-branch commit computes one new patch id. The `merge-tree` and pull request kinds are not checked yet.
+- `sizeFor:wait:` keeps the quick Sizer tier per worktree in `sizes.json`. A stale size is shown until its new walk ends, and walked again at most once a minute.
+- `test/git.sh` checks all of this on fixtures and runs the bench of docs/2.0/MEASUREMENTS.md, section Git.
 
 ## Store
 

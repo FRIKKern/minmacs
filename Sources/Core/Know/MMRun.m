@@ -6,10 +6,16 @@
 // fills one pipe never blocks on it, and nothing reads on another thread after the call returns.
 // Past the time limit the child gets SIGTERM, then SIGKILL one second later. Half a second after that the
 // pipes are closed even when a grandchild still holds them open.
+// The child's exit and its status come from a kqueue NOTE_EXIT with NOTE_EXITSTATUS in the same poll. That does
+// not reap the child, so NSTask still does, on its own queue. NSTask notices the exit tens of milliseconds late,
+// so a child that exited normally is not waited for through waitUntilExit. A signal, a time-out, or an exit
+// the kqueue missed still go through NSTask.
 #import "Core/Know/MMGit.h"
 #import <errno.h>
 #import <fcntl.h>
 #import <poll.h>
+#import <sys/event.h>
+#import <sys/wait.h>
 #import <signal.h>
 #import <unistd.h>
 
@@ -62,6 +68,15 @@ MMRunResult MMRunTask(NSTask *t, NSData *input, NSTimeInterval timeout, NSData *
         NonBlocking(wfd);
         fcntl(wfd, F_SETNOSIGPIPE, 1);   // a child that exits without reading its input gives EPIPE, not a signal
     }
+    // A kqueue fd can be polled. It turns readable when the child exits.
+    int kq = kqueue();
+    BOOL exited = NO;
+    int exitWait = -1;                    // the wait status NOTE_EXITSTATUS gave, -1 when none
+    if (kq >= 0) {
+        struct kevent ke;
+        EV_SET(&ke, pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT | NOTE_EXITSTATUS, 0, NULL);
+        if (kevent(kq, &ke, 1, NULL, 0, NULL) < 0) { exited = errno == ESRCH; close(kq); kq = -1; }
+    }
     BOOL outOpen = YES, errOpen = YES, inOpen = wfd >= 0;
     if (inOpen && !input.length) { [in.fileHandleForWriting closeFile]; inOpen = NO; }
     NSUInteger written = 0;
@@ -69,7 +84,7 @@ MMRunResult MMRunTask(NSTask *t, NSData *input, NSTimeInterval timeout, NSData *
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:MAX(timeout, 0)], *killAt = nil, *stopAt = nil;
 
     for (;;) {
-        BOOL running = t.running;
+        BOOL running = !exited && t.running;
         if (!outOpen && !errOpen && !inOpen && !running) break;
         NSDate *now = NSDate.date;
         if (!r.timedOut && [now compare:deadline] != NSOrderedAscending) {
@@ -86,7 +101,8 @@ MMRunResult MMRunTask(NSTask *t, NSData *input, NSTimeInterval timeout, NSData *
         if (stopAt && [now compare:stopAt] != NSOrderedAscending) break;   // a grandchild may hold the pipes
         if (r.timedOut && !killAt && !stopAt && !running) stopAt = [now dateByAddingTimeInterval:kDrainAfter];
 
-        struct pollfd p[3]; nfds_t n = 0;
+        struct pollfd p[4]; nfds_t n = 0;
+        if (kq >= 0 && !exited) p[n++] = (struct pollfd){ .fd = kq, .events = POLLIN };
         if (outOpen) p[n++] = (struct pollfd){ .fd = ofd, .events = POLLIN };
         if (errOpen) p[n++] = (struct pollfd){ .fd = efd, .events = POLLIN };
         if (inOpen) p[n++] = (struct pollfd){ .fd = wfd, .events = POLLOUT };
@@ -97,7 +113,10 @@ MMRunResult MMRunTask(NSTask *t, NSData *input, NSTimeInterval timeout, NSData *
         if (got <= 0) continue;
         for (nfds_t i = 0; i < n; i++) {
             if (!p[i].revents) continue;
-            if (p[i].fd == ofd) outOpen = Drain(ofd, o);
+            if (p[i].fd == kq) {
+                struct kevent got1; struct timespec zero = {0, 0};
+                if (kevent(kq, NULL, 0, &got1, 1, &zero) > 0) { exited = YES; exitWait = (int)got1.data; }
+            } else if (p[i].fd == ofd) outOpen = Drain(ofd, o);
             else if (p[i].fd == efd) errOpen = Drain(efd, x);
             else if (p[i].fd == wfd) {
                 ssize_t w = write(wfd, (const uint8_t *)input.bytes + written, input.length - written);
@@ -109,6 +128,7 @@ MMRunResult MMRunTask(NSTask *t, NSData *input, NSTimeInterval timeout, NSData *
             }
         }
     }
+    if (kq >= 0) close(kq);
     [out.fileHandleForReading closeFile];
     [err.fileHandleForReading closeFile];
     if (inOpen) [in.fileHandleForWriting closeFile];
@@ -117,8 +137,8 @@ MMRunResult MMRunTask(NSTask *t, NSData *input, NSTimeInterval timeout, NSData *
         [t waitUntilExit];
         return r;   // the output of a child that ran past its limit is not used
     }
-    [t waitUntilExit];
-    r.status = t.terminationStatus;
+    if (exitWait >= 0 && WIFEXITED(exitWait)) r.status = WEXITSTATUS(exitWait);
+    else { [t waitUntilExit]; r.status = t.terminationStatus; }
     if (outData) *outData = o;
     if (errData) *errData = x;
     return r;
