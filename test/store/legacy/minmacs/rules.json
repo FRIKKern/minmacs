@@ -1,0 +1,11 @@
+{
+  "_comment" : "MinMacs rules.",
+  "close" : ["com.google.Chrome", "com.adobe.*"],
+  "ignoreServing" : ["com.spotify.client"],
+  "keep" : ["com.apple.Terminal", "com.jetbrains.*", "*noo-noo*"],
+  "tabs" : {
+    "noise" : ["youtube.com"],
+    "work" : ["github.com", "localhost"]
+  },
+  "version" : 2
+}

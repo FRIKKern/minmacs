@@ -19,6 +19,16 @@ BOOL MMPrefBool(NSString *key, BOOL dflt);
 NSInteger MMPrefInt(NSString *key, NSInteger dflt);
 double MMPrefDouble(NSString *key, double dflt);
 NSString *MMPrefString(NSString *key, NSString *dflt);
+/// P35. Where prefs live: MMPrefsDomain, or the plist <support folder>/Preferences/no.guerrilla.minmacs.plist
+/// when MINMACS_HOME is set, so tests never write the person's prefs.
+NSString *MMPrefsTarget(void);
+/// P35. The key AppKit keeps a status item's visible state under, for autosaveName minmacs.<expert>.
+/// Settings reads and writes the same key, so it shows what the menu bar shows.
+NSString *MMIconVisibleKey(NSString *expert);
+BOOL MMIconVisible(NSString *expert);                   // YES when the key is missing
+/// P35. The keys the Settings window writes. Each expert's mode is "<expert>.mode", read by MMModeFor in MMAct.h.
+extern NSString *const MMReviewModelKey;                // @"review.model": auto, haiku, sonnet, opus or luna. auto by default
+extern NSString *const MMOneIconKey;                    // @"core.oneIcon": one menu with a section per expert. NO by default
 
 /// P36. One expert's rules file, <expert>/rules.json: named lists of entries the person or an expert set.
 /// Starts from WFRules, with MinMacs 1.2's wildcards and without its setVerdict: removal bug.
@@ -43,3 +53,17 @@ NSString *MMPrefString(NSString *key, NSString *dflt);
 /// change gets what is on disk now, under the lock, and returns what to write. nil leaves the file as it is.
 - (void)update:(id (^)(id disk))change;
 @end
+
+/// PLAN.md section 8. What MinMacs 1.2 and LocoHost leave today, read and never changed, so 2.0 can import it.
+/// home is the home folder to read from, nil for the person's own. Tests pass a copy inside MINMACS_HOME.
+/// It reads <home>/Library/Application Support/{MinMacs,LocoHost} and the prefs domains no.guerrilla.minmacs
+/// and no.guerrilla.locohost, from <home>/Library/Preferences/<domain>.plist, or through CFPreferences for the
+/// person's own home. The plan is a dictionary:
+///   prefs   key to value, in 2.0 keys, only keys 2.0 does not hold yet
+///   files   published path under the support folder to the JSON it gets
+///   rows    log rows as dictionaries with table, expert, subject, state and body
+///   sources the files and domains it read
+NSDictionary *MMLegacyPlan(NSString *home);
+/// Applies MMLegacyPlan once per source and records that in the core.migrated pref. A file that already exists
+/// in 2.0 is left as it is. Returns the plan it applied, with nothing in it on a second run.
+NSDictionary *MMImportLegacy(NSString *home);

@@ -1,0 +1,12 @@
+{
+  "ignore" : {
+    "devApps" : ["Docker", "OrbStack"],
+    "names" : ["rapportd", "Spotify"]
+  },
+  "protect" : {
+    "names" : ["postgres", "redis-server"],
+    "paths" : ["~/code/keep-me"],
+    "ports" : [5432, 8080]
+  },
+  "version" : 1
+}
