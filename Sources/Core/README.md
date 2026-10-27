@@ -40,6 +40,14 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P56 to P62 | `MMExpert.h` | The `MMExpert` protocol, `MMRowMark`, and the menu, card and verb specs it returns. The kit, render tool, formatters, verb registry and URL router themselves live in `Sources/UI` and `Sources/CLI` |
 | P65 | none | build.sh, test.sh and the CI workflow. `MMCore.h` notes it |
 
+## Know in phase 1
+
+Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. `MMGit`, `MMSizer` and `MMClutter` stay headers until phases 2 and 3.
+
+- Know links before Runtime and Store land. `MMFactCache.m` holds Know's own `MMKnowSupportDir` and `MMKnowQueue`, which follow `MMSupportDir` and `MMQueue`. Swap them for the real ones once those land.
+- Know reads `MMSample`, `MMProc` and `MMPower` by message only, so it links without Senses. `test/know/fakesample.m` stands in for Senses in `./test.sh know`.
+- The cmux events reader is behind the pref `core.cmuxEvents` or `MINMACS_CMUX_EVENTS=1`. `MINMACS_CMUX` and `MINMACS_TMUX` name the CLIs, which the checks use for fakes.
+
 ## How the parts meet
 
 1. Senses takes one sample every 5 seconds and pushes exits, app events and power changes.

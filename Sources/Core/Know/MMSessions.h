@@ -8,19 +8,23 @@
 @property (readonly, copy) NSString *sessionID, *title, *cwd, *branch, *transcript;
 @property (readonly) NSDate *started, *lastActive;
 @property (readonly) pid_t pid;                         // 0 when no process runs it now
-/// P20. Claude Code's live status from ~/.claude/sessions/<pid>.json: "busy", "idle" or "shell", nil when there is
-/// no file. The file is undocumented, and what "shell" means is a guess. A settling test checks both.
+/// P20. Claude Code's live status from ~/.claude/sessions/<pid>.json: "busy", "waiting", "idle" or "shell", nil when
+/// there is no file or its pid no longer runs with the start time the file names. TESTS.md question 9: "shell" is no
+/// turn while a background shell runs, so it counts as idle. The file is undocumented.
+/// P21. For Codex, the status of the thread's newest turn, such as "inProgress" or "completed".
 @property (readonly, copy) NSString *liveStatus;
-/// Claude Code's Stop with background tasks or session crons counts as still working. StopFailure counts as idle.
+/// YES while liveStatus says a turn runs: busy, waiting or inProgress. "shell" is not working.
 @property (readonly) BOOL stillWorking;
 @end
 
 /// P19, P20 and P21. One index of every session for every folder, built in one pass and refreshed by FSEvents.
 /// Starts from Sessions in WF Trees.m:545.
 /// P20 reads ~/.claude/sessions and ~/.claude/projects, both under $CLAUDE_CONFIG_DIR when it is set.
-/// P21 reads Codex's state_5.sqlite and thread_history_1.sqlite under $CODEX_HOME, opened with mode=ro.
-/// Never immutable=1, which research used for one look: Codex writes these files while MinMacs reads them.
+/// P21 reads Codex's state_5.sqlite and thread_history_1.sqlite under $CODEX_HOME, read-only. TESTS.md question 10:
+/// mode=ro when the -shm file exists, which means Codex has the file open, and immutable=1 when it does not,
+/// because a read-only connection cannot create the -shm file and nothing writes then.
 /// It never walks the rollout folders and never writes Codex's notify setting.
+/// pi sessions come from $PI_CODING_AGENT_SESSION_DIR, $PI_CODING_AGENT_DIR/sessions or ~/.pi/agent/sessions.
 @interface MMSessions : NSObject
 + (instancetype)shared;
 - (void)refresh;                                        // the graph queue calls this; reads never block
@@ -43,7 +47,11 @@
 /// New code. It replaces the 2 MB tail of workstream.jsonl that MM Hosts.m:142-238 reads.
 @interface MMAgentEvents : NSObject
 + (instancetype)shared;
-- (void)start;                                          // no-op when cmux is not installed
+/// A no-op when cmux is not installed, when cmux is not in automation mode, or when the flag is off.
+/// Phase 1 keeps the reader behind the pref core.cmuxEvents or MINMACS_CMUX_EVENTS=1. MINMACS_CMUX names the CLI.
+- (void)start;
+- (void)stop;                                           // ends the cmux child this object started
+@property (readonly, copy) NSString *unavailableReason; // why start did nothing, for a dimmed reason; nil while it reads
 /// block runs on MMQueue(@"core", @"events"). Returns a token for -stopObserving:.
 - (id)observe:(void (^)(MMAgentEvent *event))block;
 - (void)stopObserving:(id)token;
