@@ -7,7 +7,7 @@ import sys
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(5)
 s.connect(sys.argv[1])
-s.sendall(json.dumps({"cli": sys.argv[2:]}).encode())
+s.sendall((json.dumps({"verb": "cli", "cli": sys.argv[2:]}) + "\n").encode())
 s.shutdown(socket.SHUT_WR)
 d = b""
 while True:
