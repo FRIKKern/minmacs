@@ -183,7 +183,7 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 /// P33. The pids Insomnia holds the Mac awake for, as "pid:start" to the reason. A pid that exited is gone.
 @property (readonly) NSDictionary<NSString *, NSString *> *awakeHolds;
 /// Builds one snapshot from facts, on the calling thread. The graph queue calls it on every rebuild.
-/// Pure: the same facts and experts give the same snapshot, owners included. previous may be nil.
+/// Pure: the same facts and experts give the same snapshot, owners included. reviews and holds may be nil.
 + (MMSnapshot *)snapshotFrom:(MMFacts *)facts experts:(NSArray<id<MMExpert>> *)experts
                      reviews:(NSDictionary<NSString *, MMReview *> *)reviews holds:(NSDictionary<NSString *, NSString *> *)holds;
 @end

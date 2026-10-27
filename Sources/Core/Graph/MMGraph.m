@@ -127,7 +127,12 @@ static NSComparisonResult LinkOrder(MMLink *a, MMLink *b) {
     if (sa && sb && ![sa isEqualToDate:sb]) return [sa compare:sb];
     if (sa && !sb) return NSOrderedAscending;
     if (sb && !sa) return NSOrderedDescending;
-    return [a.linkKey compare:b.linkKey];
+    NSComparisonResult byKey = [a.linkKey compare:b.linkKey];
+    if (byKey != NSOrderedSame) return byKey;
+    // Two agents with no session record in one folder share a key. Their processes decide.
+    MMProcKey ka = a.agent.key, kb = b.agent.key;
+    if (ka.startSec != kb.startSec) return ka.startSec < kb.startSec ? NSOrderedAscending : NSOrderedDescending;
+    return ka.pid < kb.pid ? NSOrderedAscending : ka.pid > kb.pid ? NSOrderedDescending : NSOrderedSame;
 }
 
 static NSString *AgeBucket(NSDate *when, NSDate *now) {
@@ -374,6 +379,7 @@ static NSString *SizeBucket(uint64_t bytes) {
     NSArray<id<MMExpert>> *_experts;                    // set on main before -start, read on the graph queue
     uint64_t _generation;                               // graph queue only
     NSMutableDictionary<NSString *, NSString *> *_holds;        // graph queue only
+    NSMutableDictionary<NSString *, NSDate *> *_holdSince;      // graph queue only, when each hold came in
     NSMutableDictionary<NSString *, MMReview *> *_reviews;      // graph queue only
     MMSnapshot *_current;                               // main only
     NSMutableDictionary<NSNumber *, void (^)(MMSnapshot *)> *_observers;   // main only
@@ -396,6 +402,7 @@ static NSString *SizeBucket(uint64_t bytes) {
         _queue = dispatch_queue_create("no.guerrilla.minmacs.core.graph", attr);
         _experts = @[];
         _holds = [NSMutableDictionary new];
+        _holdSince = [NSMutableDictionary new];
         _reviews = [NSMutableDictionary new];
         _observers = [NSMutableDictionary new];
         atomic_init(&_pending, false);
@@ -431,7 +438,15 @@ static NSString *SizeBucket(uint64_t bytes) {
         facts = [MMFacts generation:gen sample:facts.sample power:facts.power agents:facts.agents sessions:facts.sessions
                           worktrees:facts.worktrees clutter:facts.clutter git:[self gitOf:facts]];
     MMSnapshot *snap = [MMSnapshot snapshotFrom:facts experts:self.experts reviews:_reviews holds:_holds];
-    [_holds setDictionary:snap.awakeHolds];             // holds whose process exited are dropped
+    // A hold whose process the sample lacks is dropped only when the sample was taken after the hold.
+    // An older sample cannot know a process that started a moment ago.
+    NSDate *sampledAt = facts.sample.at;
+    NSMutableDictionary *kept = [snap.awakeHolds mutableCopy];
+    for (NSString *k in _holds)
+        if (!kept[k] && (!sampledAt || [sampledAt compare:_holdSince[k]] == NSOrderedAscending)) kept[k] = _holds[k];
+    snap.awakeHolds = [kept copy];
+    [_holds setDictionary:kept];
+    for (NSString *k in _holdSince.allKeys) if (!kept[k]) [_holdSince removeObjectForKey:k];
     self.latest = snap;
     dispatch_async(dispatch_get_main_queue(), ^{ [self publish:snap]; });
 }
@@ -471,7 +486,8 @@ static NSString *SizeBucket(uint64_t bytes) {
 - (void)holdAwake:(NSString *)reason pid:(MMProcKey)key {
     NSString *k = ProcKeyString(key), *r = [reason copy] ?: @"";
     // The rebuild is asked from the graph queue, after the hold is in, so the build it starts sees the hold.
-    dispatch_async(_queue, ^{ self->_holds[k] = r; [self rebuild:@"hold awake"]; });
+    NSDate *at = [NSDate date];
+    dispatch_async(_queue, ^{ self->_holds[k] = r; self->_holdSince[k] = at; [self rebuild:@"hold awake"]; });
 }
 
 - (void)saveReview:(MMReview *)review forExpert:(NSString *)expert {

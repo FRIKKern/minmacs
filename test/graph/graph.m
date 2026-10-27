@@ -95,6 +95,7 @@ static TClutter *C(NSString *path, NSString *ownerPath, uint64_t freed) {
 @property NSMutableDictionary<NSNumber *, TProc *> *procs;
 @property NSMutableArray *agents, *sessions, *trees, *clutter;
 @property NSMutableDictionary *git;
+@property NSDate *sampledAt;                            // when the sample was taken, T0 unless a check moves it
 @end
 @implementation TWorld
 + (instancetype)standard {
@@ -129,7 +130,7 @@ static TClutter *C(NSString *path, NSString *ownerPath, uint64_t freed) {
     return w;
 }
 - (MMFacts *)facts:(uint64_t)gen {
-    TSample *s = [TSample new]; s.at = T0; s.generation = gen; s.procs = [self.procs copy];
+    TSample *s = [TSample new]; s.at = self.sampledAt ?: T0; s.generation = gen; s.procs = [self.procs copy];
     return [MMFacts generation:gen sample:(MMSample *)s power:nil agents:self.agents sessions:self.sessions
                      worktrees:self.trees clutter:self.clutter git:self.git];
 }
@@ -336,6 +337,26 @@ int main(int argc, char **argv) {
             Check(@"two working sessions: the earliest started leads", @"s1", lead ?: @"nil");
             Check(@"the lead never moves when activity changes", @0, @(leadChanges));
 
+            // Two agents with no session record in one worktree share a link key. The earlier process leads.
+            TWorld *twin = [TWorld standard];
+            twin.procs[@600] = P(600, 50, 600, @"codex", kOther);
+            twin.procs[@610] = P(610, 600, 610, @"node", @"/tmp/z");
+            twin.procs[@700] = P(700, 50, 700, @"codex", kOther);
+            twin.procs[@710] = P(710, 700, 710, @"node", @"/tmp/w");
+            [twin.agents addObject:A(@"codex", nil, kOther, 600, 600, MMAgentIdle)];
+            [twin.agents addObject:A(@"codex", nil, kOther, 700, 700, MMAgentIdle)];
+            NSString *twinWant = nil; NSInteger twinDiffer = 0;
+            for (int i = 0; i < 30; i++) {
+                Shuffle(twin.agents);
+                MMSnapshot *ts = [MMSnapshot snapshotFrom:[twin facts:3] experts:experts reviews:nil holds:nil];
+                NSString *o = [NSString stringWithFormat:@"%@ / %@", OwnerOf(ts, @"locohost:server:/tmp/z#dev"), OwnerOf(ts, @"locohost:server:/tmp/w#dev")];
+                if (twinWant && ![o isEqualToString:twinWant]) twinDiffer++;
+                if (!twinWant) twinWant = o;
+            }
+            Check(@"two agents without sessions in one worktree: the earlier leads",
+                  [NSString stringWithFormat:@"workstream:%@ / session:codex@%@ in workstream:%@", kOther, kOther, kOther], twinWant ?: @"nil");
+            Check(@"their owners never move when the input order does", @0, @(twinDiffer));
+
             // A restart: a new session id and pid in the same worktree, and the server restarted under it.
             TWorld *r = [TWorld standard];
             [r.procs removeObjectForKey:@100]; [r.procs removeObjectForKey:@110];
@@ -436,6 +457,25 @@ int main(int argc, char **argv) {
             [g holdAwake:@"agent works" pid:(MMProcKey){ 110, 110 }];
             Spin(3, ^BOOL { return published > before; });
             Check(@"holdAwake lands in the next snapshot", @"agent works", g.current.awakeHolds[@"110:110"] ?: @"nil");
+
+            // A hold on a process the sample is too old to know, such as one started a moment ago, stays.
+            // It goes only when a sample taken after the hold no longer has the process.
+            src.world.sampledAt = [NSDate dateWithTimeIntervalSinceNow:-5];
+            before = published;
+            [g holdAwake:@"just started" pid:(MMProcKey){ 777, 7 }];
+            Spin(3, ^BOOL { return published > before; });
+            Check(@"a hold newer than the sample stays", @"just started", g.current.awakeHolds[@"777:7"] ?: @"nil");
+            before = published;
+            [g rebuild:@"same old sample"];
+            Spin(3, ^BOOL { return published > before; });
+            Check(@"it stays through rebuilds on that old sample", @"just started", g.current.awakeHolds[@"777:7"] ?: @"nil");
+            src.world.sampledAt = [NSDate dateWithTimeIntervalSinceNow:1];
+            before = published;
+            [g rebuild:@"new sample"];
+            Spin(3, ^BOOL { return published > before; });
+            Check(@"a sample after the hold without the process drops it", @"nil", g.current.awakeHolds[@"777:7"] ?: @"nil");
+            Check(@"the live hold stays beside it", @"agent works", g.current.awakeHolds[@"110:110"] ?: @"nil");
+            src.world.sampledAt = nil;
         }
 
         // Readers on other queues read latest while main publishes, with no lock.
