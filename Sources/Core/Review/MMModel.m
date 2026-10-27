@@ -2,21 +2,16 @@
 // Ported from WorkForest's Review.m, which LocoHost's Review.m shares line for line, with three changes:
 // every call gets its own temp folder, the usage is split as the CLI reports it, and the input is compacted.
 #import "Core/Review/MMReview.h"
+#import "Core/Know/MMGit.h"
+#import "Core/Store/MMStore.h"
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 static const NSTimeInterval kTimeout = 240;
 
-/// <support folder>/review, made on first use. The support folder is $MINMACS_HOME when it is set,
-/// as MMSupportDir in Store says. Store lands on its own branch, so the broker finds the folder itself.
-NSString *MMReviewDir(void) {
-    NSString *env = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
-    NSString *base = env.length ? env : [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/MinMacs"];
-    NSString *dir = [base stringByAppendingPathComponent:@"review"];
-    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-    return dir;
-}
+/// <support folder>/review, made on first use.
+static NSString *MMReviewDir(void) { return MMExpertDir(@"review"); }
 
 #pragma mark - Usage
 
@@ -178,17 +173,17 @@ static NSString *FindTool(NSString *name, NSString *envKey, NSString *prefKey, N
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *env = NSProcessInfo.processInfo.environment[envKey];
     if (env.length) return env;
-    id pref = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)prefKey, CFSTR("no.guerrilla.minmacs")));
+    id pref = MMPref(prefKey);
     if ([pref isKindOfClass:NSString.class] && [fm isExecutableFileAtPath:pref]) return pref;
     for (NSString *p in paths)
         if ([fm isExecutableFileAtPath:p.stringByExpandingTildeInPath]) return p.stringByExpandingTildeInPath;
     // Last resort: ask a login shell, which knows the person's PATH. whence -p skips aliases.
-    NSTask *t = [NSTask new]; NSPipe *out = [NSPipe pipe];
+    NSTask *t = [NSTask new];
     t.executableURL = [NSURL fileURLWithPath:@"/bin/zsh"]; t.arguments = @[@"-lc", [@"whence -p " stringByAppendingString:name]];
-    t.standardOutput = out; t.standardError = [NSFileHandle fileHandleWithNullDevice];
-    if (![t launchAndReturnError:nil]) return nil;
-    [t waitUntilExit];
-    NSString *p = [[[NSString alloc] initWithData:[out.fileHandleForReading readDataToEndOfFile] encoding:NSUTF8StringEncoding]
+    NSData *out = nil;
+    MMRunResult r = MMRunTask(t, nil, 5, &out, NULL);   // a slow login shell gets 5 seconds
+    if (r.status != 0 || !out) return nil;
+    NSString *p = [[[NSString alloc] initWithData:out encoding:NSUTF8StringEncoding]
                    stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     return [fm isExecutableFileAtPath:p] ? p : nil;
 }
@@ -215,32 +210,16 @@ static BOOL Run(NSString *path, NSArray *args, NSData *input, NSString *cwd, NSD
     [env addEntriesFromDictionary:add ?: @{}];
     t.environment = env;
     t.currentDirectoryURL = [NSURL fileURLWithPath:cwd];   // a fresh folder, so no project CLAUDE.md or AGENTS.md is picked up
-    NSPipe *in = [NSPipe pipe], *out = [NSPipe pipe], *err = [NSPipe pipe];
-    t.standardInput = in; t.standardOutput = out; t.standardError = err;
-    NSError *e = nil;
-    if (![t launchAndReturnError:&e]) { *error = [NSString stringWithFormat:@"could not start %@: %@", path.lastPathComponent, e.localizedDescription]; return NO; }
-
-    // The input goes in on its own queue, so a CLI that answers before it reads cannot block us.
-    // F_SETNOSIGPIPE turns a CLI that exits without reading into EPIPE instead of a signal.
-    __block NSData *o = nil, *x = nil;
-    dispatch_group_t g = dispatch_group_create();
-    dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
-    int wfd = in.fileHandleForWriting.fileDescriptor;
-    fcntl(wfd, F_SETNOSIGPIPE, 1);
-    dispatch_group_async(g, q, ^{
-        const uint8_t *p = input.bytes; size_t left = input.length;
-        while (left > 0) { ssize_t n = write(wfd, p, left); if (n <= 0) break; p += n; left -= (size_t)n; }
-        [in.fileHandleForWriting closeFile];
-    });
-    dispatch_group_async(g, q, ^{ o = [out.fileHandleForReading readDataToEndOfFile]; });
-    dispatch_group_async(g, q, ^{ x = [err.fileHandleForReading readDataToEndOfFile]; });
-    if (dispatch_group_wait(g, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kTimeout * NSEC_PER_SEC))) != 0) {
-        [t terminate];
+    // MMRunTask feeds stdin and drains both pipes on one thread. Past the limit it sends SIGTERM, then SIGKILL
+    // one second later, and closes the pipes, so no reader outlives the call.
+    NSData *o = nil, *x = nil;
+    MMRunResult r = MMRunTask(t, input ?: NSData.data, kTimeout, &o, &x);
+    if (!r.didRun) { *error = [NSString stringWithFormat:@"could not start %@", path.lastPathComponent]; return NO; }
+    if (r.timedOut) {
         *error = [NSString stringWithFormat:@"%@ did not answer within %.0f seconds", path.lastPathComponent, kTimeout];
         return NO;
     }
-    [t waitUntilExit];
-    *outData = o; *errData = x; *status = t.terminationStatus;
+    *outData = o; *errData = x; *status = r.status;
     return YES;
 }
 

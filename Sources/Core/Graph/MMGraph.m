@@ -1,6 +1,6 @@
 // The graph builder: workstreams, owners and the one published snapshot. Issue #16, patterns P31 to P33.
 //
-// Threads. Every build runs on the serial queue no.guerrilla.minmacs.core.graph. A finished snapshot goes to
+// Threads. Every build runs on the serial queue MMQueue(@"core", @"graph"), no.guerrilla.minmacs.core.graph. A finished snapshot goes to
 // -latest at once, an atomic pointer that any queue may read, and to -current on main through dispatch_async.
 // Main never waits on the graph queue, and the graph queue never waits on main. A snapshot is immutable,
 // so a reader needs no lock.
@@ -17,9 +17,11 @@
 // A workstream's key is its worktree path, never a session id or pid. A restarted session in the same
 // worktree keeps the same workstream, so keeps and verdicts that name the owner survive.
 //
-// Like MMFinding.m, this file sends messages to Senses and Know objects and never names their classes.
+// Like MMFinding.m, this file sends messages to Senses and Know objects and never names their classes,
+// so tests can hand it facts built from objects of their own.
 #import "Core/Graph/MMGraph.h"
 #import "Core/MMExpert.h"
+#import "Core/Runtime/MMRuntime.h"
 #import <stdatomic.h>
 
 static const NSUInteger kAncestorHops = 20;
@@ -382,8 +384,8 @@ static NSString *SizeBucket(uint64_t bytes) {
     NSMutableDictionary<NSString *, NSDate *> *_holdSince;      // graph queue only, when each hold came in
     NSMutableDictionary<NSString *, MMReview *> *_reviews;      // graph queue only
     MMSnapshot *_current;                               // main only
-    NSMutableDictionary<NSNumber *, void (^)(MMSnapshot *)> *_observers;   // main only
-    NSUInteger _nextToken;
+    NSMutableDictionary<NSNumber *, void (^)(MMSnapshot *)> *_observers;   // under @synchronized (_observers)
+    NSUInteger _nextToken;                              // under @synchronized (_observers)
 }
 
 + (instancetype)shared {
@@ -395,11 +397,7 @@ static NSString *SizeBucket(uint64_t bytes) {
 
 - (instancetype)init {
     if ((self = [super init])) {
-        // The label MMQueue(@"core", @"graph", ...) gives. This file makes its own queue so it links before Runtime lands.
-        dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_autorelease_frequency(DISPATCH_QUEUE_SERIAL,
-                                                                                         DISPATCH_AUTORELEASE_FREQUENCY_WORK_ITEM);
-        attr = dispatch_queue_attr_make_with_qos_class(attr, QOS_CLASS_UTILITY, 0);
-        _queue = dispatch_queue_create("no.guerrilla.minmacs.core.graph", attr);
+        _queue = MMQueue(@"core", @"graph", QOS_CLASS_UTILITY);
         _experts = @[];
         _holds = [NSMutableDictionary new];
         _holdSince = [NSMutableDictionary new];
@@ -462,8 +460,12 @@ static NSString *SizeBucket(uint64_t bytes) {
 - (void)publish:(MMSnapshot *)snap {
     if (_current && snap.generation <= _current.generation) return;
     _current = snap;
-    for (NSNumber *t in [_observers.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
-        void (^block)(MMSnapshot *) = _observers[t];
+    NSArray<NSNumber *> *tokens;
+    @synchronized (_observers) { tokens = [_observers.allKeys sortedArrayUsingSelector:@selector(compare:)]; }
+    for (NSNumber *t in tokens) {
+        void (^block)(MMSnapshot *);
+        // Looked up again, so an observer that stopped while an earlier one ran is not called.
+        @synchronized (_observers) { block = _observers[t]; }
         if (block) block(snap);
     }
 }
@@ -471,12 +473,18 @@ static NSString *SizeBucket(uint64_t bytes) {
 - (MMSnapshot *)current { return _current; }
 
 - (id)observe:(void (^)(MMSnapshot *snapshot))block {
-    NSNumber *token = @(++_nextToken);
-    _observers[token] = [block copy];
-    return token;
+    if (!block) return nil;
+    @synchronized (_observers) {
+        NSNumber *token = @(++_nextToken);
+        _observers[token] = [block copy];
+        return token;
+    }
 }
 
-- (void)stopObserving:(id)token { if (token) [_observers removeObjectForKey:token]; }
+- (void)stopObserving:(id)token {
+    if (!token) return;
+    @synchronized (_observers) { [_observers removeObjectForKey:token]; }
+}
 
 - (MMFacts *)freshFactsFor:(MMFinding *)finding {
     if (NSThread.isMainThread) return nil;              // it blocks, so main never calls it

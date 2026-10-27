@@ -201,6 +201,7 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 @property (readonly) MMSnapshot *current;               // main thread only, never nil after the first build
 @property (readonly, atomic) MMSnapshot *latest;        // any queue
 /// Calls block on main with each new current snapshot. Returns a token for -stopObserving:.
+/// Both take a lock, so any queue may call them. A block is never called after -stopObserving: returns on main.
 - (id)observe:(void (^)(MMSnapshot *snapshot))block;
 - (void)stopObserving:(id)token;
 /// Principle 5. Facts gathered now for one finding: a new sample, its worktree's git facts with wait YES,

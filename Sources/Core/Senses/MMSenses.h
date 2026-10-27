@@ -9,7 +9,7 @@
 /// P7. A process identity that survives pid reuse: the pid and its start time in seconds.
 /// Starts from LH Ports.m:71-102 and KInfo in LH Where.m:28. Every action checks this key fresh before it signals.
 typedef struct { pid_t pid; uint64_t startSec; } MMProcKey;
-/// YES when a process with this pid and this start time still runs.
+/// YES when a process with this pid and this start time still runs. A zombie counts as gone.
 BOOL MMProcAlive(MMProcKey key);
 /// "4123:1761578400", the form stored in undo records and keeps.
 NSString *MMProcKeyString(MMProcKey key);
@@ -40,7 +40,8 @@ typedef struct {
     uint8_t localAddr[16], remoteAddr[16];
 } MMSocket;
 
-/// P6 and P8. One immutable pass over every process. A new sample replaces the old one every 5 seconds.
+/// P6 and P8. One immutable pass over every process. A zombie, a process that exited and waits to be reaped,
+/// is left out. Every array a sample hands out is immutable. A new sample replaces the old one every 5 seconds.
 /// Starts from -[LHScanner sample] at LH Ports.m:439. The tree and roll-ups start from LH Ports.m:536,
 /// which caps a tree at 500 pids and an ancestor walk at 20 hops.
 /// Args and cwd are read lazily, once per sample, and memoized. Safe to read from any queue.
@@ -103,6 +104,9 @@ typedef NS_OPTIONS(NSUInteger, MMSignal) {
 @interface MMSenses : NSObject
 + (instancetype)shared;
 - (void)start;
+/// Ends the timer, the pushed sources and the notification observers that start added. Main thread.
+/// The last sample stays readable. start may be called again.
+- (void)stop;
 - (MMSample *)latest;                                   // never blocks; nil before the first pass ends
 - (MMPower *)power;                                     // never blocks
 /// Takes a sample now and waits for it. For the CLI when it runs Core cold, never on main in the app.

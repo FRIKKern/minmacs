@@ -193,24 +193,17 @@ id<MMWorker> MMSharedWorker(void) {
 
 #pragma mark - The child: sizes
 
-// The Sizer lives in Know. The child calls it through the runtime, so Runtime builds and links without Know,
-// and the child stays a thin host for walks. +[MMSizer quick:] and +exact: must walk in this process.
-static Class Sizer(SEL sel, NSString **error) {
-    Class c = NSClassFromString(@"MMSizer");
-    if (![c respondsToSelector:sel]) { *error = @"MMSizer is not built into this binary"; return Nil; }
-    return c;
-}
-
+// The Sizer lives in Know. +[MMSizer quick:] and +exact: walk in this process, so the child is a thin host for them.
 static id SizeTrees(NSDictionary *args, NSString **error) {
-    SEL sel = NSSelectorFromString(@"quick:");
-    Class c = Sizer(sel, error);
-    if (!c) return nil;
-    MMSize (*quick)(id, SEL, NSString *) = (MMSize (*)(id, SEL, NSString *))[c methodForSelector:sel];
     NSMutableDictionary *out = [NSMutableDictionary new];
-    for (NSString *root in args[@"roots"]) {
+    for (NSString *root in [args[@"roots"] isKindOfClass:NSArray.class] ? args[@"roots"] : @[]) {
         if (![root isKindOfClass:NSString.class]) continue;
+#ifdef MM_TESTS
+        // A test names this folder to keep a request in flight while it ends the child.
+        if ([root.lastPathComponent isEqualToString:@"mm-test-slow"]) sleep(3);
+#endif
         @autoreleasepool {
-            MMSize s = quick(c, sel, root);
+            MMSize s = [MMSizer quick:root];
             out[root] = @{@"allocated": @(s.allocated), @"freedIfDeleted": @(s.freedIfDeleted),
                           @"files": @(s.files), @"errors": @(s.errors)};
         }
@@ -219,12 +212,9 @@ static id SizeTrees(NSDictionary *args, NSString **error) {
 }
 
 static id ExactSize(NSDictionary *args, NSString **error) {
-    SEL sel = NSSelectorFromString(@"exact:");
-    Class c = Sizer(sel, error);
-    if (!c) return nil;
-    uint64_t (*exact)(id, SEL, NSArray *) = (uint64_t (*)(id, SEL, NSArray *))[c methodForSelector:sel];
-    NSArray *roots = [args[@"roots"] isKindOfClass:NSArray.class] ? args[@"roots"] : @[];
-    return @{@"freed": @(exact(c, sel, roots))};
+    NSMutableArray *roots = [NSMutableArray new];
+    for (id r in [args[@"roots"] isKindOfClass:NSArray.class] ? args[@"roots"] : @[]) if ([r isKindOfClass:NSString.class]) [roots addObject:r];
+    return @{@"freed": @([MMSizer exact:roots])};
 }
 
 #pragma mark - The child: worktrees

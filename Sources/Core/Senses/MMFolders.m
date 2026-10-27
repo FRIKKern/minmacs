@@ -3,9 +3,8 @@
 // the current id at once, so the next watch replays from there. It never passes 0.
 #import "Core/Senses/MMFolders.h"
 #import "Core/Runtime/MMRuntime.h"
+#import "Core/Store/MMStore.h"
 #import <CoreServices/CoreServices.h>
-
-NSString *MMRuntimeSupportDir(void);
 
 static const CFTimeInterval kLatency = 0.5;
 static const NSTimeInterval kSaveEvery = 2;   // seconds between event id writes while events flow
@@ -33,7 +32,7 @@ static void Changed(ConstFSEventStreamRef s, void *info, size_t n, void *paths,
 }
 
 - (NSString *)idPath {
-    return [MMRuntimeSupportDir() stringByAppendingPathComponent:[self.name stringByAppendingPathExtension:@"eventid"]];
+    return [MMSupportDir() stringByAppendingPathComponent:[self.name stringByAppendingPathExtension:@"eventid"]];
 }
 
 - (FSEventStreamEventId)savedId {

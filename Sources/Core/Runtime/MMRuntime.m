@@ -1,22 +1,12 @@
 // Labeled queues, dispatch timers, jobs with budgets and crash breadcrumbs. Patterns P1, P2, P3 and P5.
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Senses/MMSenses.h"
+#import "Core/Store/MMStore.h"
 #import <os/lock.h>
 #import <os/log.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/sysctl.h>
-
-/// The support folder: $MINMACS_HOME when set, otherwise ~/Library/Application Support/MinMacs.
-/// Store's MMSupportDir says the same. This copy keeps Runtime and Senses free of a link to Store,
-/// and can call MMSupportDir once both are merged.
-NSString *MMRuntimeSupportDir(void) {
-    NSString *env = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
-    NSString *dir = env.length ? env
-        : [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/MinMacs"];
-    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-    return dir;
-}
 
 os_log_t MMRuntimeLog(void) {
     static os_log_t log; static dispatch_once_t once;
@@ -127,7 +117,7 @@ static NSString *gLeftOver;
 static void CrumbRemove(void) { if (gCrumbPath[0]) unlink(gCrumbPath); }
 
 static NSString *CrumbDir(void) {
-    NSString *d = [MMRuntimeSupportDir() stringByAppendingPathComponent:@"running"];
+    NSString *d = [MMSupportDir() stringByAppendingPathComponent:@"running"];
     [NSFileManager.defaultManager createDirectoryAtPath:d withIntermediateDirectories:YES attributes:nil error:nil];
     return d;
 }

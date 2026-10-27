@@ -1,6 +1,6 @@
 # Core
 
-The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc comment names its pattern from [SYNTHESIS.md](../../docs/2.0/research/SYNTHESIS.md) section 1 and the code it starts from. The `.m` files come in phase 1. Issue #14 added Runtime and Senses. `test/senses.sh` checks them, and Runtime's README note below says what is still a stub.
+The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc comment names its pattern from [SYNTHESIS.md](../../docs/2.0/research/SYNTHESIS.md) section 1 and the code it starts from. The `.m` files came in phase 1, each module on its own branch with stand-ins so it linked alone. The Core wiring work removed the stand-ins and made Core one running whole, below.
 
 `#import "Core/MMCore.h"` brings in every header. build.sh passes `-ISources`, so imports start at `Core/`.
 
@@ -42,18 +42,45 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 
 ## Runtime and Senses, issue #14
 
-- The worker of P4 is a `minmacs _walk` child of the same binary. The XPC kind waits for the settling check on macOS 14. The child calls `+[MMSizer quick:]` and `+exact:` through the Objective-C runtime, so those two must walk in process. It finds worktrees itself by reading `.git` files, with no git spawn.
-- `MMCoreSocket` is a stub. `+serve:` refuses with a note and `+ask:` returns nil, so the CLI runs Core cold. `MMCoreSocketPath` is real.
-- Runtime and Senses read the support folder through `MMRuntimeSupportDir`, which follows the same rule as `MMSupportDir`. It can call `MMSupportDir` once Store lands.
+- The worker of P4 is a `minmacs _walk` child of the same binary. The XPC kind waits for the settling check on macOS 14. The child calls `+[MMSizer quick:]` and `+exact:` directly, and both walk in process. It finds worktrees itself by reading `.git` files, with no git spawn. A test tool that uses the worker answers `_walk` itself, as `test/wire/wire.m` does.
 - One pass measured 6.1 to 7.5 ms CPU median and 6.6 to 9.4 ms p95 on the research Mac, over 60 to 100 passes with 836 to 929 pids. The spread follows the load from other builds. `test/senses.sh` fails above 12 ms median or 25 ms p95.
+- A zombie, a process that exited and waits for its parent to reap it, is left out of the sample, and `MMProcAlive` says it is gone. Every array a sample hands out is immutable.
+- `-[MMSenses stop]` ends the timer, the pushed sources and the notification observers. `MMCoreStop` calls it.
 
 ## Know in phase 1
 
-Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. `MMGit`, `MMSizer` and `MMClutter` stay headers until phases 2 and 3.
+Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. Core wiring adds `MMSizer.m` and `MMRepoIndex.m`. `MMClutter` stays a header until phase 3.
 
-- Know links before Runtime and Store land. `MMFactCache.m` holds Know's own `MMKnowSupportDir` and `MMKnowQueue`, which follow `MMSupportDir` and `MMQueue`. Swap them for the real ones once those land.
-- Know reads `MMSample`, `MMProc` and `MMPower` by message only, so it links without Senses. `test/know/fakesample.m` stands in for Senses in `./test.sh know`.
+- `MMRun` and `MMRunTask` do all pipe work on the calling thread with poll. Past the limit the child gets SIGTERM, then SIGKILL a second later, and the pipes are closed half a second after that, even when a grandchild holds them. The review broker and Act's tool commands run through `MMRunTask`.
+- `MMWhereIs` drops a cached place once its pid and start time are gone, on every call, and empties the cache past 256 answers.
 - The cmux events reader is behind the pref `core.cmuxEvents` or `MINMACS_CMUX_EVENTS=1`. `MINMACS_CMUX` and `MINMACS_TMUX` name the CLIs, which the checks use for fakes.
+
+### The Sizer, TESTS.md question 11
+
+- `quick:` walks with `getattrlistbulk`. Private bytes are freed. A full clone family's shared bytes count once, only when every holder its refcount names is in the walk. A hard-linked inode counts only when every link is in the walk. This is an estimate: a partial clone shares blocks with a family it left, and no flag shows that, so the pair of a base and its partial clone counts low.
+- `exact:` maps every inode that may share blocks with `F_LOG2PHYS_EXT` and sweeps the device in order. A stretch is freed when it is private, or when two or more inodes of the set hold it and none of them shares outside. An inode shares outside when it has a hard link outside the roots, or when its clone family's refcount names a holder outside. Past 30 seconds or 200,000 files it gives the estimate, since question 14 found the union too slow for large trees.
+- Neither tier can see two full clones in the set that also share blocks with a partial clone outside it. The statfs delta in the undo record, `freedOnVolume:by:`, stays the measured number.
+
+### The repo index
+
+- `MMRepoIndex` walks its roots in the worker. The roots are `$MINMACS_ROOTS` when set. With `MINMACS_HOME` set and no `MINMACS_ROOTS` there are none, so a test never walks the person's folders. Otherwise they are the `roots` list in `core/rules.json`, which starts with WorkForest's roots and the Cursor and Conductor folders.
+- `MMCoreStart` watches the roots with FSEvents. Only a change to a `.git` folder, or to a folder near a root outside every known checkout, starts a walk, and walks are at least 10 seconds apart. A full walk also runs every 10 minutes.
+- `worktreeAt:` reads `.git` files above the path, with no spawn. `factsFor:wait:` returns nil until WorkForest brings git facts in phase 2.
+
+## Store
+
+- With `MINMACS_HOME` set, `MMPref` and `MMSetPref` read and write `$MINMACS_HOME/Preferences/no.guerrilla.minmacs.plist` as a file under an flock, never through CFPreferences, so no test writes the real `no.guerrilla.minmacs` domain.
+- `MMLog` runs on `MMQueue(@"core", @"log")`. The review broker and the undo engine write to it directly. There is no JSON lines fallback.
+
+## Core as one whole
+
+- One support folder function, `MMSupportDir` in Store, and one queue maker, `MMQueue` in Runtime. No Core class is looked up by name. `test/wire.sh` checks all three with grep.
+- `MMRegisterExpert` adds an expert to the graph and to the broker, with its rules and its request maker. `MMExperts` and `MMExpertNamed` read the list.
+- The fact source of the graph lives in `MMCore.m`. A rebuild reads the latest sample and power facts, the agents the registry finds in that sample, the session index, which it refreshes, and the repo index. It samples on its own only after a watched process exited, because the last sample still lists it. Each new snapshot hands the keys of its agents and of every process a finding names to `watchExits:`, once per key. An exit rebuilds in about 30 ms on the test Mac.
+- `-[MMGraph freshFactsFor:]` takes a new sample and reads the sessions again. It returns nil on main.
+- `MMGraph observe:` and `stopObserving:` take a lock, so any queue may call them. The blocks still run on main.
+- `MMCoreStart` starts Store, Senses, Know, the graph with its fact source, a scheduled review wake per expert every hour, the first a minute after launch, and core.sock. With `MINMACS_HOME` unset it also runs the one migration from MinMacs 1.2 and LocoHost. `MMCoreStop` stops the timers, the FSEvents watch, Senses, the cmux reader and the socket.
+- core.sock follows NN `server.go:82-160`: an flock on `core.lock`, the socket made with a 0177 umask and set to 0600, and `getpeereid` on every connection. A peer with another uid is closed without a reply. A request is one JSON line with a `verb`. Core answers `ping` and `status`, and `MMCoreServe` adds more, which `Sources/CLI` is to do for the verbs that run in the app. A socket file left by a crash is replaced by the next process that takes the lock.
 
 ## How the parts meet
 

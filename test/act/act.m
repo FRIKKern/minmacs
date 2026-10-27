@@ -1,4 +1,6 @@
-// The Act checks, issue #18. test/act.sh builds this with Sources/Core/Act and the doubles, then runs it.
+// The Act checks, issue #18. test/act.sh builds this with all of Sources/Core, then runs it.
+// Findings, reviews and the graph are the real ones. The graph's fact source is the test's own, which reads
+// each fixture again, as the app's source reads Senses and Know.
 // Usage: acttest <fixture binary> <fixture dir>
 // Every process, file and repo it acts on is a fixture it or act.sh made inside $MINMACS_HOME.
 // It prints one line per check, CHECK<tab>name<tab>want<tab>got, and act.sh hands each to check.
@@ -7,8 +9,7 @@
 #import <sys/sysctl.h>
 #import <sys/stat.h>
 #import <sys/wait.h>
-#import "doubles.h"
-#import "Core/Store/MMStore.h"
+#import "Core/MMCore.h"
 
 extern char **environ;
 NSString *MMStopWhyNot(MMProcKey key);
@@ -80,31 +81,40 @@ static int Git(NSString *dir, NSArray *args, NSString **out) {
 
 #pragma mark - Findings, reviews and the test policy
 
+typedef void (^Change)(MMFindingBuilder *b);
+
+/// A copy of f with change applied, through the one way to make a finding.
+static MMFinding *Remake(MMFinding *f, Change change) {
+    return [MMFinding expert:f.expert kind:f.kind stableKey:f.stableKey build:^(MMFindingBuilder *b) {
+        b.instanceKey = f.instanceKey; b.title = f.title; b.path = f.path; b.fingerprint = f.fingerprint;
+        b.ownerPath = f.ownerPath; b.owner = f.owner; b.cost = f.cost; b.evidence = f.evidence;
+        b.keepReasons = f.keepReasons; b.proposal = f.proposal; b.procs = f.procs; b.facts = f.facts;
+        if (change) change(b);
+    }];
+}
 static MMFinding *Finding(NSString *kind, NSString *key) {
-    MMFinding *f = [MMFinding new];
-    f.expert = gExpert; f.kind = kind; f.stableKey = key;
-    f.findingID = [NSString stringWithFormat:@"%@:%@:%@", gExpert, kind, key];
-    f.title = key; f.fingerprint = @"fp1"; f.keepReasons = @[]; f.facts = @{};
-    f.proposal = [MMProposal verb:@"remove" title:@"Remove" reversibility:MMReversibleTrash];
-    return f;
+    return [MMFinding expert:gExpert kind:kind stableKey:key build:^(MMFindingBuilder *b) {
+        b.title = key; b.fingerprint = @"fp1"; b.keepReasons = @[]; b.facts = @{};
+        b.proposal = [MMProposal verb:@"remove" title:@"Remove" reversibility:MMReversibleTrash];
+    }];
 }
 static MMFinding *ProcFinding(MMProcKey k) {
-    MMFinding *f = Finding(@"proc", [NSString stringWithFormat:@"fixture-%d", k.pid]);
-    f.procs = @[V(k)];
-    f.proposal = [MMProposal verb:@"stop" title:@"Stop" reversibility:MMReversibleRestart];
-    return f;
+    return Remake(Finding(@"proc", [NSString stringWithFormat:@"fixture-%d", k.pid]), ^(MMFindingBuilder *b) {
+        b.procs = @[V(k)];
+        b.proposal = [MMProposal verb:@"stop" title:@"Stop" reversibility:MMReversibleRestart];
+    });
 }
 static MMFinding *FileFinding(NSString *path) {
-    MMFinding *f = Finding(@"file", path.lastPathComponent);
-    f.path = path;
-    f.facts = @{@"mtime": @(MTime(path))};
-    return f;
+    return Remake(Finding(@"file", path.lastPathComponent), ^(MMFindingBuilder *b) {
+        b.path = path;
+        b.facts = @{@"mtime": @(MTime(path))};
+    });
 }
 static MMFinding *TreeFinding(NSString *path) {
-    MMFinding *f = Finding(@"worktree", path.lastPathComponent);
-    f.path = path;
-    f.proposal = [MMProposal verb:@"remove" title:@"Remove" reversibility:MMReversibleBundle];
-    return f;
+    return Remake(Finding(@"worktree", path.lastPathComponent), ^(MMFindingBuilder *b) {
+        b.path = path;
+        b.proposal = [MMProposal verb:@"remove" title:@"Remove" reversibility:MMReversibleBundle];
+    });
 }
 static MMVerdict *Verdict(MMFinding *f, MMVerdictKind kind, double confidence) {
     MMVerdict *v = [MMVerdict new];
@@ -120,7 +130,24 @@ static MMReview *Review(NSArray<MMVerdict *> *verdicts) {
     return r;
 }
 
-/// The graph double reads each fixture again, as -[MMGraph freshFactsFor:] does.
+/// Facts with what the test's source read fresh from the fixture, by name.
+@interface ACTFacts : MMFacts
+@property NSDictionary *values;
+@end
+@implementation ACTFacts
+@end
+static NSDictionary *ValuesOf(MMFacts *f) { return [f isKindOfClass:ACTFacts.class] ? ((ACTFacts *)f).values : nil; }
+
+/// The test's fact source for the real MMGraph. freshFactsFor: reads the fixture again through gGather.
+static MMFacts *(^gGather)(MMFinding *f);
+@interface ACTSource : NSObject <MMFactSource>
+@end
+@implementation ACTSource
+- (MMFacts *)factsFor:(uint64_t)generation { return nil; }
+- (MMFacts *)freshFactsFor:(MMFinding *)finding { MMFacts *(^g)(MMFinding *) = gGather; return g ? g(finding) : nil; }
+@end
+
+/// Reads each fixture again, as the app's fact source does for -[MMGraph freshFactsFor:].
 static MMFacts *Gather(MMFinding *f) {
     if ([f.facts[@"unverifiable"] boolValue]) return nil;
     NSMutableDictionary *v = [NSMutableDictionary new];
@@ -136,7 +163,7 @@ static MMFacts *Gather(MMFinding *f) {
         int st = Git(f.path, @[@"status", @"--porcelain"], &out);
         v[@"dirty"] = @(st != 0 ? -1 : (NSInteger)(out.length ? [out componentsSeparatedByString:@"\n"].count : 0));
     }
-    MMFacts *facts = [MMFacts new];
+    ACTFacts *facts = [ACTFacts generation:0 sample:nil power:nil agents:nil sessions:nil worktrees:nil clutter:nil git:nil];
     facts.values = v;
     return facts;
 }
@@ -145,7 +172,7 @@ static MMFacts *Gather(MMFinding *f) {
 @end
 @implementation MMTestPolicy
 - (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts {
-    NSDictionary *v = facts.values;
+    NSDictionary *v = ValuesOf(facts);
     if ([f.kind isEqualToString:@"proc"]) {
         if (![v[@"alive"] boolValue]) return @"cannot verify: the process is gone";
         if ([v[@"busy"] boolValue]) return @"an agent works here";
@@ -231,7 +258,7 @@ static void MustKeep(void) {
     MMFinding *pf = ProcFinding(k);
     T(@"MustKeep: no finding cannot be verified", @"cannot verify: there is no finding", Or(MMMustKeep(nil, Gather(pf), nil, p)));
     T(@"MustKeep: no policy cannot be verified", @"cannot verify: the expert has no rules", Or(MMMustKeep(pf, Gather(pf), nil, nil)));
-    MMFinding *uf = ProcFinding(k); uf.facts = @{@"unverifiable": @YES};
+    MMFinding *uf = Remake(ProcFinding(k), ^(MMFindingBuilder *b) { b.facts = @{@"unverifiable": @YES}; });
     T(@"MustKeep: no fresh facts cannot be verified", @"cannot verify: fresh facts could not be gathered", Or(MMMustKeep(uf, Gather(uf), nil, p)));
     T(@"MustKeep: a live fixture process is free", @"nil", Or(MMMustKeep(pf, Gather(pf), nil, p)));
     Write(Path([NSString stringWithFormat:@"busy-%d", k.pid]), @"x");
@@ -245,8 +272,7 @@ static void MustKeep(void) {
     T(@"MustKeep: an unchanged fixture file is free", @"nil", Or(MMMustKeep(ff, Gather(ff), nil, p)));
     [NSFileManager.defaultManager setAttributes:@{NSFileModificationDate: [NSDate dateWithTimeIntervalSinceNow:5]} ofItemAtPath:file error:nil];
     T(@"MustKeep: a file changed after the snapshot is kept", @"changed since it was found", Or(MMMustKeep(ff, Gather(ff), nil, p)));
-    ff = FileFinding(file);
-    ff.keepReasons = @[@"3 uncommitted files"];
+    ff = Remake(FileFinding(file), ^(MMFindingBuilder *b) { b.keepReasons = @[@"3 uncommitted files"]; });
     T(@"MustKeep: a snapshot keep reason holds", @"3 uncommitted files", Or(MMMustKeep(ff, Gather(ff), nil, p)));
 
     NSString *wt = NSProcessInfo.processInfo.environment[@"ACT_WORKTREE"];
@@ -270,16 +296,19 @@ static void MustKeep(void) {
     r.at = NSDate.date; r.verdicts = @{};
     T(@"MustKeep: a finding not in the review is kept", @"not in the last review", Or(MMMustKeep(ff, Gather(ff), r, p)));
     r = Review(@[Verdict(ff, MMVerdictGo, 0.9)]);
-    ff.fingerprint = @"fp2";
+    ff = Remake(ff, ^(MMFindingBuilder *b) { b.fingerprint = @"fp2"; });
     T(@"MustKeep: a finding that moved since the review is kept", @"changed since the last review", Or(MMMustKeep(ff, Gather(ff), r, p)));
-    ff.fingerprint = @"fp1";
-    ff.facts = @{@"mtime": ff.facts[@"mtime"], @"lastWork": @(NSDate.date.timeIntervalSince1970 + 60)};
+    NSNumber *mtime = ff.facts[@"mtime"];
+    ff = Remake(ff, ^(MMFindingBuilder *b) {
+        b.fingerprint = @"fp1";
+        b.facts = @{@"mtime": mtime, @"lastWork": @(NSDate.date.timeIntervalSince1970 + 60)};
+    });
     T(@"MustKeep: the expert's review keep holds", @"worked on after the last review", Or(MMMustKeep(ff, Gather(ff), r, p)));
 
     ff = FileFinding(file);
     [MMKeep keep:ff.stableKey expert:gExpert until:[NSDate dateWithTimeIntervalSinceNow:7 * 86400 + 60]];
     T(@"MustKeep: a timed keep holds by stable key", @"kept by you for 7 days more", Or(MMMustKeep(ff, Gather(ff), nil, p)));
-    MMFinding *again = FileFinding(file); again.instanceKey = @"another-instance";
+    MMFinding *again = Remake(FileFinding(file), ^(MMFindingBuilder *b) { b.instanceKey = @"another-instance"; });
     T(@"MustKeep: the timed keep survives a new instance", @"yes", YN([Or(MMMustKeep(again, Gather(again), nil, p)) hasPrefix:@"kept by you"]));
     [MMKeep keep:ff.stableKey expert:gExpert until:nil];
     T(@"MustKeep: an ended keep no longer holds", @"nil", Or(MMMustKeep(ff, Gather(ff), nil, p)));
@@ -334,16 +363,17 @@ static void Plans(void) {
     MMPlanEntry *te = MMPlan(@[tf], Gather(tf), tr, MMModeProactive, p).firstObject;
     T(@"plan: decision 7, Proactive keeps commits on no remote", @"no", YN(te.act));
     T(@"plan: decision 7, Eager may act on them", @"yes", YN(MMPlan(@[tf], Gather(tf), tr, MMModeEager, p).firstObject.act));
-    MMFinding *force = FileFinding(file);
-    force.proposal = [MMProposal verb:@"stop" title:@"Force Stop" reversibility:MMReversibleRestart];
-    force.proposal.needsForce = YES;
+    MMFinding *force = Remake(FileFinding(file), ^(MMFindingBuilder *b) {
+        b.proposal = [MMProposal verb:@"stop" title:@"Force Stop" reversibility:MMReversibleRestart needsForce:YES];
+    });
     T(@"plan: a mode never makes a second request", @"no", YN(one(force, Review(@[Verdict(force, MMVerdictGo, 1)]), MMModeEager).act));
-    MMFinding *young = FileFinding(file); young.facts = @{@"mtime": f.facts[@"mtime"], @"young": @YES};
+    NSNumber *fmtime = f.facts[@"mtime"];
+    MMFinding *young = Remake(FileFinding(file), ^(MMFindingBuilder *b) { b.facts = @{@"mtime": fmtime, @"young": @YES}; });
     T(@"plan: the expert's mode rule holds", @"Proactive waits 7 quiet days", one(young, sure, MMModeProactive).why);
     T(@"plan: the expert's mode rule is only for its mode", @"yes", YN(one(young, sure, MMModeEager).act));
-    MMFinding *none = FileFinding(file); none.proposal = nil;
+    MMFinding *none = Remake(FileFinding(file), ^(MMFindingBuilder *b) { b.proposal = nil; });
     T(@"plan: a finding with no proposal is left alone", @"nothing to do", one(none, sure, MMModeEager).why);
-    MMFinding *kept = FileFinding(file); kept.keepReasons = @[@"an agent works here"];
+    MMFinding *kept = Remake(FileFinding(file), ^(MMFindingBuilder *b) { b.keepReasons = @[@"an agent works here"]; });
     T(@"plan: MustKeep comes before the mode", @"an agent works here", one(kept, sure, MMModeEager).why);
     SetSince(3600);
     e = one(f, sure, MMModeEager);
@@ -354,7 +384,7 @@ static void Plans(void) {
 
 static void Runs(void) {
     MMTestPolicy *p = [MMTestPolicy new];
-    MMGraph.shared.gather = ^MMFacts *(MMFinding *f) { return Gather(f); };
+    gGather = ^MMFacts *(MMFinding *f) { return Gather(f); };
     NSString *file = Path(@"run-file.txt");
     Write(file, @"run");
     MMFinding *f = FileFinding(file);
@@ -391,10 +421,10 @@ static void Runs(void) {
     T(@"run: a kept action writes no undo record", @(before).stringValue, @(RecordCount()).stringValue);
     f = FileFinding(file); a.finding = f;
 
-    MMGraph.shared.gather = nil;
+    gGather = nil;
     T(@"run: without fresh facts nothing runs", @"kept: cannot verify: fresh facts could not be gathered",
       (run(a, nil, @"manual", &err), Or(err)));
-    MMGraph.shared.gather = ^MMFacts *(MMFinding *x) { return Gather(x); };
+    gGather = ^MMFacts *(MMFinding *x) { return Gather(x); };
 
     MMSetMode(gExpert, MMModeProactive);
     MMReview *r = Review(@[Verdict(f, MMVerdictGo, 0.9)]);
@@ -469,7 +499,7 @@ static void Stops(void) {
 
     // A stop action with its restart command, then Undo starts it again.
     MMTestPolicy *p = [MMTestPolicy new];
-    MMGraph.shared.gather = ^MMFacts *(MMFinding *x) { return Gather(x); };
+    gGather = ^MMFacts *(MMFinding *x) { return Gather(x); };
     MMFinding *f = ProcFinding(plain);
     MMTestAction *a = Action(f, @"stop", ^BOOL(MMUndoRecord *r, NSString **error) {
         [MMUndo.shared note:r payload:@{@"restart": @{@"command": [NSString stringWithFormat:@"exec '%@' plain 20", gFixture],
@@ -521,7 +551,7 @@ static void Bundles(void) {
 
     NSString *head = nil; Git(wt, @[@"rev-parse", @"HEAD"], &head);
     MMTestPolicy *p = [MMTestPolicy new];
-    MMGraph.shared.gather = ^MMFacts *(MMFinding *x) { return Gather(x); };
+    gGather = ^MMFacts *(MMFinding *x) { return Gather(x); };
     MMFinding *f = TreeFinding(wt);
     MMTestAction *a = Action(f, @"remove", ^BOOL(MMUndoRecord *r, NSString **error) {
         NSString *e = nil;
@@ -680,6 +710,7 @@ int main(int argc, char **argv) {
         gFixture = @(argv[1]); gDir = @(argv[2]);
         gStarted = [NSMutableArray new];
         if (!NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) { fprintf(stderr, "MINMACS_HOME is not set\n"); return 2; }
+        MMGraph.shared.source = [ACTSource new];
         Modes();
         MustKeep();
         Plans();

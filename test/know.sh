@@ -1,29 +1,32 @@
 # Issue #15: Core Know. The registry, sessions, Where, MMRun and the fact cache. Sourced by test.sh.
 # Fixtures only: fake agents from tools/fakeagent.c, fake session files and a fake Codex home under the agent homes
 # test.sh sets, a fake pi home, and fake cmux and tmux CLIs. Every pid this section starts goes in procs.
-# Know links before Senses lands, so test/know/knowtool.m runs it with the stand-in sample in test/know/fakesample.m.
+# test/know/knowtool.m links all of Sources/Core, so every sample comes from the real Senses pass.
 
 K="$MINMACS_HOME/know"
 mkdir -p "$K/bin" "$K/proj/sub" "$CLAUDE_CONFIG_DIR/sessions" "$CLAUDE_CONFIG_DIR/projects/fixture" "$CODEX_HOME"
 K=$(cd "$K" && pwd -P)
 KT="$K/knowtool"
 clang -fobjc-arc -O1 -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=14.0 -DMM_TESTS -ISources \
-  Sources/Core/Know/*.m test/know/*.m -framework Cocoa -framework IOKit -lsqlite3 -o "$KT" >"$K/clang.log" 2>&1
+  $(find Sources/Core -name '*.m' | LC_ALL=C sort) test/know/*.m -framework Cocoa -framework IOKit -framework UserNotifications \
+  -lsqlite3 -o "$KT" >"$K/clang.log" 2>&1
 check "the Know tool builds" 0 "$?"
 check "the Know sources have no warnings under -Wextra" 0 "$(grep -c 'warning:' "$K/clang.log")"
 # The fixtures run under names of their own, so nothing else that looks for a fakeagent can reach them.
-clang -O1 tools/fakeagent.c -o "$K/bin/mmknowagent" && clang -O1 tools/fakehost.c -o "$K/bin/mmknowhost"
+# Other runs on this Mac start fake agents too, so the names carry this run's pid and stay under 16 characters.
+KA="mmka$$"; KH="mmkh$$"
+clang -O1 tools/fakeagent.c -o "$K/bin/$KA" && clang -O1 tools/fakehost.c -o "$K/bin/$KH"
 check "the fake agent and host build" 0 "$?"
-cp "$K/bin/mmknowagent" "$K/bin/codex"
-FAKE="$K/bin/mmknowagent"; FHOST="$K/bin/mmknowhost"
+cp "$K/bin/$KA" "$K/bin/codex"
+FAKE="$K/bin/$KA"; FHOST="$K/bin/$KH"
 # The fixture rows of tools/fixtures and test/know/rows, with the process names changed to match.
-python3 - "$K/rows" <<'PYEOF'
+python3 - "$K/rows" "$KA" "$KH" <<'PYEOF'
 import glob, os, sys
 for src in glob.glob("tools/fixtures/*.json") + glob.glob("tools/fixtures/*/*.json") + glob.glob("test/know/rows/*/*.json"):
     rel = os.path.relpath(src, "tools/fixtures") if src.startswith("tools/") else os.path.relpath(src, "test/know/rows")
     dst = os.path.join(sys.argv[1], rel)
     os.makedirs(os.path.dirname(dst), exist_ok=True)
-    open(dst, "w").write(open(src).read().replace('"fakeagent"', '"mmknowagent"').replace('"fakehost"', '"mmknowhost"'))
+    open(dst, "w").write(open(src).read().replace('"fakeagent"', '"%s"' % sys.argv[2]).replace('"fakehost"', '"%s"' % sys.argv[3]))
 PYEOF
 R="$K/rows"
 check "the renamed fixture rows pass the validator" 0 "$(python3 tools/validate_row.py "$R"/*.json "$R"/*/*.json >/dev/null; echo $?)"
@@ -80,7 +83,7 @@ start "$FAKE" --work 8 --w other; FA=$LAST; sleep 1
 both "caffeinate -w with another pid does not" idle "$R/watch" "$FA"
 stop "$FA"
 start "$FHOST" "$FAKE" --work 8; FH=$LAST; sleep 1
-FHA=$(pgrep -P "$FH" mmknowagent); procs="$procs $FHA"
+FHA=$(pgrep -P "$FH" "$KA"); procs="$procs $FHA"
 both "an agent under a host is reported once, as the host" working "$R/host" "$FH"
 check "  the host lists the agent it hosts" "fake-agent:working" \
   "$("$KT" agents --rows "$R/host" | python3 -c "import json,sys; a=[x for x in json.load(sys.stdin)['agents'] if x['pid']==$FH][0]; print(','.join('%s:%s' % (h['id'], h['state']) for h in a.get('hosted', [])))")"
@@ -185,13 +188,21 @@ echo "-- Where, ported from LocoHost's Where.m"
 cp test/know/fake-tmux.sh "$K/tmux"; chmod +x "$K/tmux"
 export MINMACS_TMUX="$K/tmux"
 start "$FHOST" "$FAKE"; FH=$LAST; sleep 1
-FA=$(pgrep -P "$FH" mmknowagent); procs="$procs $FA"
+FA=$(pgrep -P "$FH" "$KA"); procs="$procs $FA"
 printf '%s\t%%7\tfixture-session\t1\tfixture-window\t0\n' "$FH" >"$K/tmux.panes"
 # cmux top --format tsv: three columns MinMacs does not read, then type, id, parent and title.
 printf 'x\tx\tx\twindow\twindow:1 WIN-UUID\t\tMain\nx\tx\tx\tworkspace\tworkspace:1 WS-UUID\twindow:1 WIN-UUID\tProject\nx\tx\tx\tsurface\tsurface:2 SURF-UUID\tworkspace:1 WS-UUID\t\342\227\220 repo check\nx\tx\tx\tprocess\t%s\tsurface:2 SURF-UUID\tfakehost\n' "$FH" >"$K/cmux.top"
 W=$("$KT" where "$FA")
 check "a pane whose shell is above the pid is the tmux place" "tmux|%7|fixture-window" "$(printf '%s' "$W" | json "'|'.join(j['place'][k] for k in ('kind','target','tab'))")"
 check "  tmux is asked before cmux" tmux "$(printf '%s' "$W" | json "j['place']['kind']")"
+start "$FHOST" "$FAKE"; FH2=$LAST; sleep 1
+FA2=$(pgrep -P "$FH2" "$KA"); procs="$procs $FA2"
+printf '%s\t%%8\tfixture-session\t1\tfixture-window-2\t0\n' "$FH2" >>"$K/tmux.panes"
+WP=$("$KT" where-prune "$FA2")
+check "Where caches the place of a live pid" "tmux|True" "$(printf '%s' "$WP" | json "j['kind']+'|'+str(j['cachedBefore'])")"
+check "  and drops it once that pid is gone" False "$(printf '%s' "$WP" | json "j['cachedAfter']")"
+stop "$FH2"; stop "$FA2"
+printf '%s\t%%7\tfixture-session\t1\tfixture-window\t0\n' "$FH" >"$K/tmux.panes"
 : >"$K/tmux.panes"
 W=$("$KT" where "$FA")
 check "with no tmux pane the cmux tab is the place" "cmux|cmux, repo check|WS-UUID|SURF-UUID|WIN-UUID" \
@@ -219,7 +230,33 @@ check "MMRun runs in cwd" /usr "$(rv cwd)"
 check "MMRun stops a child past its time limit" "1:-1:1" "$(rv timed_out):$(rv timed_out_status):$(rv stopped_within_2s)"
 check "MMRun kills a child that ignores SIGTERM" 1 "$(rv term_ignored_killed_within_3s)"
 check "MMRun survives a child that never reads its input" 0 "$(rv unread_input_status)"
+check "MMRun returns when a grandchild holds the pipes past the limit" 1 "$(rv held_pipes_return_within_3s)"
 check "MMRun reports a tool that did not run" "0:-1" "$(rv missing_didRun):$(rv missing_status)"
+echo "-- MMSizer, TESTS.md question 11"
+SZ="$K/sizes"; mkdir -p "$SZ/f" "$SZ/h" "$SZ/hout" "$SZ/p" "$SZ/q" "$SZ/q2"
+head -c 65536 /dev/urandom >"$SZ/f/one"; cp -c "$SZ/f/one" "$SZ/f/clone"
+head -c 65536 /dev/urandom >"$SZ/h/x"; ln "$SZ/h/x" "$SZ/hout/xlink"
+head -c 65536 /dev/urandom >"$SZ/p/base"; cp -c "$SZ/p/base" "$SZ/p/part"
+head -c 4096 /dev/urandom | dd of="$SZ/p/part" bs=4096 seek=3 conv=notrunc 2>/dev/null
+head -c 65536 /dev/urandom >"$SZ/q/a"; cp -c "$SZ/q/a" "$SZ/q2/b"
+sleep 0.2   # TESTS.md question 11: refcounts may lag a moment after a change
+szq() { "$KT" sizer quick "$1" | json "'%d %d' % (j['allocated'], j['freed'])"; }
+sze() { "$KT" sizer exact "$@" | json "j['freed']"; }
+check "quick: a file and its full clone free one copy" "131072 65536" "$(szq "$SZ/f")"
+check "exact: a file and its full clone free one copy" 65536 "$(sze "$SZ/f")"
+check "quick: a hard link outside the walk keeps the inode" "65536 0" "$(szq "$SZ/h")"
+check "exact: a hard link outside the roots keeps the inode" 0 "$(sze "$SZ/h")"
+check "exact: with both links in the roots the inode is freed" 65536 "$(sze "$SZ/h" "$SZ/hout")"
+check "quick: a clone whose twin is outside frees nothing" "65536 0" "$(szq "$SZ/q")"
+check "exact: a clone whose twin is outside frees nothing" 0 "$(sze "$SZ/q")"
+check "exact: a clone and its twin together free one copy" 65536 "$(sze "$SZ/q" "$SZ/q2")"
+# APFS copies a changed stretch whole, 16 KB on this Mac, so d is read from the part and the rest is checked against it.
+SZD=$(sze "$SZ/p/part")
+check "exact: a partial clone alone frees only its changed stretch" yes "$([ "$SZD" -gt 0 ] && [ "$SZD" -lt 65536 ] && echo yes || echo "$SZD")"
+check "exact: a partial clone and its base free the whole union" $((65536 + SZD)) "$(sze "$SZ/p")"
+check "quick: the estimate counts the pair low, as question 11 found" $((2 * SZD)) "$(szq "$SZ/p" | cut -d' ' -f2)"
+check "a missing root is one error" 1 "$("$KT" sizer quick "$SZ/none" | json "j['errors']")"
+
 C=$("$KT" cache)
 cv() { printf '%s\n' "$C" | sed -n "s/^$1=//p"; }
 check "the fact cache computes with wait YES" v1 "$(cv wait_yes_computes)"

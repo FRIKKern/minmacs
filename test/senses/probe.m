@@ -1,5 +1,5 @@
 // The test tool for Core Senses and Runtime, issue #14. test/senses.sh builds it with -DMM_TESTS
-// against Sources/Core/Runtime and Sources/Core/Senses, and runs one mode per check.
+// against all of Sources/Core, so the worker child calls the real Sizer, and runs one mode per check.
 // It acts only on the fixture pids, ports and folders it is given, and on the worker child it starts.
 #import <Cocoa/Cocoa.h>
 #import "Core/Runtime/MMRuntime.h"
@@ -13,17 +13,6 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <unistd.h>
-
-#pragma mark - A fake Sizer, so the worker child has something to call
-
-@implementation MMSizer
-+ (MMSize)quick:(NSString *)root {
-    if ([root.lastPathComponent isEqualToString:@"slow"]) sleep(3);
-    return (MMSize){ .allocated = 1000 + root.length, .freedIfDeleted = 7, .files = 3, .errors = 0 };
-}
-+ (uint64_t)exact:(NSArray<NSString *> *)roots { return 42 * roots.count; }
-+ (int64_t)freedOnVolume:(NSString *)path by:(BOOL (^)(void))action { return 0; }
-@end
 
 #pragma mark - A fake power source
 
@@ -347,7 +336,22 @@ static int Folders(NSString *dir) {
     return 0;
 }
 
-static int Worker(NSString *root) {
+/// A zombie is the fixture's child that exited unreaped. It must be gone from the sample and not alive.
+static int Zombie(pid_t pid) {
+    struct kinfo_proc k; size_t len = sizeof k;
+    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, pid};
+    BOOL isZombie = sysctl(mib, 4, &k, &len, NULL, 0) == 0 && len == sizeof k && k.kp_proc.p_stat == SZOMB;
+    MMProcKey key = { pid, isZombie ? (uint64_t)k.kp_proc.p_starttime.tv_sec : 0 };
+    MMSample *s = [MMSenses.shared sampleNow];
+    NSArray *kids = [s childrenOf:(pid_t)k.kp_eproc.e_ppid];
+    Out(@{@"isZombie": @(isZombie), @"inSample": @([s proc:pid] != nil), @"alive": @(MMProcAlive(key)),
+          @"amongKids": @([kids containsObject:@(pid)]),
+          @"immutable": @(![kids isKindOfClass:NSMutableArray.class] && ![[s treeOf:1 limit:5] isKindOfClass:NSMutableArray.class]
+                          && ![[s ancestorsOf:getpid() limit:5] isKindOfClass:NSMutableArray.class])});
+    return 0;
+}
+
+static int Worker(NSString *root, NSString *sizeDir) {
     id<MMWorker> w = MMSharedWorker();
     __block NSArray *trees = nil; __block NSError *err1 = nil; __block BOOL replyOnMain = YES;
     [w findWorktrees:@[root] skip:@[@"node_modules"] reply:^(NSArray *t, NSError *e) {
@@ -361,8 +365,8 @@ static int Worker(NSString *root) {
     [rows sortUsingSelector:@selector(compare:)];
 
     __block NSDictionary *sizes = nil; __block uint64_t freed = 0; __block BOOL exactDone = NO;
-    [w sizeTrees:@[@"/a", @"/bb"] reply:^(NSDictionary *s, NSError *e) { sizes = s ?: @{}; }];
-    [w exactSize:@[@"/a", @"/bb"] reply:^(uint64_t f, NSError *e) { freed = f; exactDone = YES; }];
+    [w sizeTrees:@[sizeDir] reply:^(NSDictionary *s, NSError *e) { sizes = s ?: @{}; }];
+    [w exactSize:@[sizeDir] reply:^(uint64_t f, NSError *e) { freed = f; exactDone = YES; }];
     Spin(10, ^BOOL { return sizes != nil && exactDone; });
 
     // The child is ours: find it in a sample and end it while a slow request is in flight.
@@ -370,7 +374,7 @@ static int Worker(NSString *root) {
     pid_t kid = 0;
     for (NSNumber *c in [x childrenOf:getpid()]) if ([[x argsOf:c.intValue] containsObject:@"_walk"]) kid = c.intValue;
     __block NSError *inflight = nil; __block BOOL inflightDone = NO;
-    [w sizeTrees:@[@"/x/slow"] reply:^(NSDictionary *s, NSError *e) { inflight = e; inflightDone = YES; }];
+    [w sizeTrees:@[@"/nonexistent/mm-test-slow"] reply:^(NSDictionary *s, NSError *e) { inflight = e; inflightDone = YES; }];
     usleep(300000);
     if (kid > 0) kill(kid, SIGTERM);
     Spin(5, ^BOOL { return inflightDone; });
@@ -381,7 +385,7 @@ static int Worker(NSString *root) {
     x = [MMSenses.shared sampleNow];
     for (NSNumber *c in [x childrenOf:getpid()]) if ([[x argsOf:c.intValue] containsObject:@"_walk"]) kid2 = c.intValue;
     Out(@{@"rows": rows, @"error": err1.localizedDescription ?: @"", @"replyOnMain": @(replyOnMain),
-          @"sizeA": sizes[@"/a"][@"allocated"] ?: @0, @"freedA": sizes[@"/a"][@"freedIfDeleted"] ?: @0, @"exact": @(freed),
+          @"sizeA": sizes[sizeDir][@"allocated"] ?: @0, @"freedA": sizes[sizeDir][@"freedIfDeleted"] ?: @0, @"exact": @(freed),
           @"childFound": @(kid > 0), @"inflightFailed": @(inflight != nil), @"restarted": @(again.count == trees.count && kid2 > 0 && kid2 != kid)});
     return 0;
 }
@@ -430,6 +434,7 @@ int main(int argc, const char *argv[]) {
         if ([mode isEqualToString:@"labels"]) return Labels();
         if ([mode isEqualToString:@"sample"] && argc > 4) return Sample(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
         if ([mode isEqualToString:@"bench"]) return Bench(argc > 2 ? atoi(argv[2]) : 60);
+        if ([mode isEqualToString:@"zombie"] && argc > 2) return Zombie(atoi(argv[2]));
         if ([mode isEqualToString:@"exits"] && argc > 2) return Exits(atoi(argv[2]));
         if ([mode isEqualToString:@"apps"]) return Apps();
         if ([mode isEqualToString:@"power"]) return Power();
@@ -437,7 +442,7 @@ int main(int argc, const char *argv[]) {
         if ([mode isEqualToString:@"job"]) return Job();
         if ([mode isEqualToString:@"crumbs"] && argc > 2) return Crumbs(@(argv[2]));
         if ([mode isEqualToString:@"folders"] && argc > 2) return Folders(@(argv[2]));
-        if ([mode isEqualToString:@"worker"] && argc > 2) return Worker(@(argv[2]));
+        if ([mode isEqualToString:@"worker"] && argc > 3) return Worker(@(argv[2]), @(argv[3]));
         if ([mode isEqualToString:@"workerrace"]) return WorkerRace(argc > 2 ? atoi(argv[2]) : 20);
         fprintf(stderr, "probe: unknown mode %s\n", argv[1]);
         return 2;

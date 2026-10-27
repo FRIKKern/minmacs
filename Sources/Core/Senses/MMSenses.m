@@ -33,6 +33,7 @@ static BOOL KInfo(pid_t pid, struct kinfo_proc *k) {
     return sysctl(mib, 4, k, &len, NULL, 0) == 0 && len == sizeof *k;
 }
 
+/// A zombie counts as gone: it has exited and only waits for its parent to read its status.
 BOOL MMProcAlive(MMProcKey key) {
     struct kinfo_proc k;
     if (key.pid <= 0 || !KInfo(key.pid, &k)) return NO;
@@ -143,7 +144,7 @@ static NSString *ProcessCwd(pid_t pid) {
     return v == NSNull.null ? nil : v;
 }
 
-- (NSArray<NSNumber *> *)childrenOf:(pid_t)pid { return _kids[@(pid)] ?: @[]; }
+- (NSArray<NSNumber *> *)childrenOf:(pid_t)pid { return _kids[@(pid)] ?: @[]; }   // frozen in the pass
 
 - (NSArray<NSNumber *> *)treeOf:(pid_t)pid limit:(NSUInteger)max {
     if (!_procs[@(pid)] || max == 0) return @[];
@@ -154,7 +155,7 @@ static NSString *ProcessCwd(pid_t pid) {
             if (tree.count >= max) break;
             if (![seen containsObject:k]) { [seen addObject:k]; [tree addObject:k]; }
         }
-    return tree;
+    return [tree copy];
 }
 
 - (NSArray<NSNumber *> *)ancestorsOf:(pid_t)pid limit:(NSUInteger)hops {
@@ -165,7 +166,7 @@ static NSString *ProcessCwd(pid_t pid) {
         if (p->_ppid == 1) break;
         p = _procs[@(p->_ppid)];
     }
-    return up;
+    return [up copy];
 }
 
 - (double)treeCPU:(pid_t)pid {
@@ -198,6 +199,7 @@ static NSString *ProcessCwd(pid_t pid) {
             NSMutableArray *a = m[@(s[i].pid)] ?: (m[@(s[i].pid)] = [NSMutableArray new]);
             [a addObject:[NSValue valueWithBytes:&s[i] objCType:@encode(MMSocket)]];
         }
+        for (NSNumber *k in m.allKeys) m[k] = [m[k] copy];   // callers get immutable arrays
         _socketsByPid = m;
     }
     NSArray *a = _socketsByPid[@(pid)] ?: @[];
@@ -418,6 +420,7 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     double _tbScale;
     BOOL _started;                        // on _q
     BOOL _observing;                      // under _lock
+    NSArray<NSDictionary *> *_noteTokens;  // under _lock: the notification observers start added
     dispatch_source_t _timer, _kqSource, _memSource;
     int _kq, _notifyToken;
     NSMutableDictionary<NSNumber *, NSNumber *> *_watched;   // pid -> start time
@@ -471,20 +474,44 @@ static void *kSensesQueueKey = &kSensesQueueKey;
     // and only hand over to the Senses queue or to the observers.
     __weak MMSenses *weak = self;
     NSNotificationCenter *ws = NSWorkspace.sharedWorkspace.notificationCenter;
+    NSMutableArray *tokens = [NSMutableArray new];
+    void (^add)(NSNotificationCenter *, NSNotificationName, void (^)(NSNotification *)) =
+        ^(NSNotificationCenter *c, NSNotificationName n, void (^block)(NSNotification *)) {
+            [tokens addObject:@{@"center": c, @"token": [c addObserverForName:n object:nil queue:nil usingBlock:block]}];
+        };
     for (NSNotificationName n in @[NSWorkspaceDidLaunchApplicationNotification, NSWorkspaceDidTerminateApplicationNotification])
-        [ws addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) {
-            [weak emit:MMSignalApp detail:note.userInfo[NSWorkspaceApplicationKey]];
-        }];
+        add(ws, n, ^(NSNotification *note) { [weak emit:MMSignalApp detail:note.userInfo[NSWorkspaceApplicationKey]]; });
     for (NSNotificationName n in @[NSWorkspaceWillSleepNotification, NSWorkspaceDidWakeNotification])
-        [ws addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) {
-            [weak emit:MMSignalSleep detail:nil];
-        }];
+        add(ws, n, ^(NSNotification *note) { [weak emit:MMSignalSleep detail:nil]; });
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
     for (NSNotificationName n in @[NSProcessInfoThermalStateDidChangeNotification, NSProcessInfoPowerStateDidChangeNotification])
-        [nc addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) { [weak refreshPowerAsync]; }];
+        add(nc, n, ^(NSNotification *note) { [weak refreshPowerAsync]; });
+    os_unfair_lock_lock(&_lock);
+    _noteTokens = tokens;
+    os_unfair_lock_unlock(&_lock);
 }
 
 /// Memory pressure, power source and lid. Each source runs on the Senses queue and re-reads the power facts.
+- (void)stop {
+    os_unfair_lock_lock(&_lock);
+    BOOL was = _observing;
+    _observing = NO;
+    NSArray *tokens = _noteTokens;
+    _noteTokens = nil;
+    os_unfair_lock_unlock(&_lock);
+    if (!was) return;
+    for (NSDictionary *t in tokens) [t[@"center"] removeObserver:t[@"token"]];
+    dispatch_sync(_q, ^{
+        if (!self->_started) return;
+        self->_started = NO;
+        if (self->_timer) { dispatch_source_cancel(self->_timer); self->_timer = nil; }
+        if (self->_memSource) { dispatch_source_cancel(self->_memSource); self->_memSource = nil; }
+        if (self->_notifyToken) { notify_cancel(self->_notifyToken); self->_notifyToken = 0; }
+        if (self->_ioNotifier) { IOObjectRelease(self->_ioNotifier); self->_ioNotifier = 0; }
+        if (self->_ioPort) { IONotificationPortDestroy(self->_ioPort); self->_ioPort = NULL; }
+    });
+}
+
 - (void)startPushedSources {
     __weak MMSenses *weak = self;
     _memSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_MEMORYPRESSURE, 0,
@@ -551,14 +578,15 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     for (size_t i = 0; i < n; i++) {
         struct kinfo_proc *k = &kp[i];
         pid_t pid = k->kp_proc.p_pid;
-        if (pid < 0) continue;
+        // A zombie has exited and only waits for its parent to reap it, so it is left out, as MMProcAlive says.
+        if (pid < 0 || k->kp_proc.p_stat == SZOMB) continue;
         MMProc *p = [MMProc new];
         p->_pid = pid; p->_ppid = k->kp_eproc.e_ppid; p->_uid = k->kp_eproc.e_ucred.cr_uid;
         p->_startSec = (uint64_t)k->kp_proc.p_starttime.tv_sec;
         p->_name = [[NSString alloc] initWithBytes:k->kp_proc.p_comm length:strnlen(k->kp_proc.p_comm, MAXCOMLEN)
                                           encoding:NSUTF8StringEncoding] ?: @"?";
         p->_cpuPercent = -1;
-        if (p->_uid == me && pid > 0 && k->kp_proc.p_stat != SZOMB) {
+        if (p->_uid == me && pid > 0) {
             struct rusage_info_v6 ru;
             if (proc_pid_rusage(pid, RUSAGE_INFO_V6, (rusage_info_t *)&ru) == 0) {
                 double cpuNs = (double)(ru.ri_user_time + ru.ri_system_time) * _tbScale;
@@ -587,7 +615,9 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     ScanSockets(mine, mineCount, socks);
     free(mine);
 
-    MMSample *s = [[MMSample alloc] initWithProcs:procs kids:kids sockets:socks at:NSDate.date generation:++_generation];
+    NSMutableDictionary<NSNumber *, NSArray *> *frozen = [NSMutableDictionary dictionaryWithCapacity:kids.count];
+    [kids enumerateKeysAndObjectsUsingBlock:^(NSNumber *k, NSMutableArray *v, BOOL *stop) { frozen[k] = [v copy]; }];
+    MMSample *s = [[MMSample alloc] initWithProcs:[procs copy] kids:frozen sockets:socks at:NSDate.date generation:++_generation];
     MMPower *p = ReadPower();
     MMPower *old = self.power;
     os_unfair_lock_lock(&_lock);

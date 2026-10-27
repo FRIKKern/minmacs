@@ -1,37 +1,8 @@
 // MMFactCache, pattern P27. It starts from WorkForest's facts.json, keyed by HEAD, and LocoHost's LHIntel read,
 // which returns the old answer now and computes a fresh one in the background.
 #import "Core/Know/MMFactCache.h"
-
-/// The support folder: $MINMACS_HOME, or ~/Library/Application Support/MinMacs. Made on first use.
-/// Know's own copy of MMSupportDir from Store, so Know links before Store lands. MMRegistry and MMSessions use it too.
-NSString *MMKnowSupportDir(void) {
-    NSString *home = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
-    NSString *dir = home.length ? home
-        : [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject
-           stringByAppendingPathComponent:@"MinMacs"];
-    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-    return dir;
-}
-
-/// A labeled serial queue with an autorelease pool per block, as MMQueue in Runtime makes.
-/// Know's own copy, so Know links before Runtime lands. Each label is made once.
-dispatch_queue_t MMKnowQueue(NSString *job) {
-    static NSMutableDictionary<NSString *, dispatch_queue_t> *queues;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ queues = [NSMutableDictionary new]; });
-    NSString *label = [@"no.guerrilla.minmacs.core." stringByAppendingString:job];
-    @synchronized (queues) {
-        dispatch_queue_t q = queues[label];
-        if (!q) {
-            dispatch_queue_attr_t a = dispatch_queue_attr_make_with_autorelease_frequency(DISPATCH_QUEUE_SERIAL,
-                                                                                         DISPATCH_AUTORELEASE_FREQUENCY_WORK_ITEM);
-            a = dispatch_queue_attr_make_with_qos_class(a, QOS_CLASS_UTILITY, 0);
-            q = dispatch_queue_create(label.UTF8String, a);
-            queues[label] = q;
-        }
-        return q;
-    }
-}
+#import "Core/Runtime/MMRuntime.h"
+#import "Core/Store/MMStore.h"
 
 @implementation MMFactCache {
     NSTimeInterval _maxAge;
@@ -49,13 +20,13 @@ dispatch_queue_t MMKnowQueue(NSString *job) {
         _persist = persist;
         _entries = [NSMutableDictionary new];
         _pending = [NSMutableSet new];
-        _queue = MMKnowQueue([@"cache." stringByAppendingString:name]);
+        _queue = MMQueue(@"core", [@"cache." stringByAppendingString:name], QOS_CLASS_UTILITY);
         if (persist) [self load];
     }
     return self;
 }
 
-- (NSString *)path { return [MMKnowSupportDir() stringByAppendingPathComponent:[_name stringByAppendingPathExtension:@"json"]]; }
+- (NSString *)path { return [MMSupportDir() stringByAppendingPathComponent:[_name stringByAppendingPathExtension:@"json"]]; }
 
 - (void)load {
     NSData *d = [NSData dataWithContentsOfFile:self.path];

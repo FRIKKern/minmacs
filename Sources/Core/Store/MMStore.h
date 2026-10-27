@@ -20,7 +20,8 @@ NSInteger MMPrefInt(NSString *key, NSInteger dflt);
 double MMPrefDouble(NSString *key, double dflt);
 NSString *MMPrefString(NSString *key, NSString *dflt);
 /// P35. Where prefs live: MMPrefsDomain, or the plist <support folder>/Preferences/no.guerrilla.minmacs.plist
-/// when MINMACS_HOME is set, so tests never write the person's prefs.
+/// when MINMACS_HOME is set. That plist is read and written as a file under an flock, never through CFPreferences,
+/// so tests never write the person's prefs.
 NSString *MMPrefsTarget(void);
 /// P35. The key AppKit keeps a status item's visible state under, for autosaveName minmacs.<expert>.
 /// Settings reads and writes the same key, so it shows what the menu bar shows.

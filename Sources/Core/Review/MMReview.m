@@ -3,15 +3,12 @@
 // with totals from code. New here: rules first, the fingerprint cache, one block per workstream and the budget.
 #import "Core/Review/MMReview.h"
 #import "Core/Store/MMLog.h"
-#include <fcntl.h>
-#include <sys/file.h>
-#include <unistd.h>
+#import "Core/Runtime/MMRuntime.h"
 
 const double MMMinConfidence = 0.6;
 const double MMSureConfidence = 0.8;
 
 // From MMModel.m.
-NSString *MMReviewDir(void);
 id MMCompactFacts(id v, NSString *key);
 NSData *MMReviewJSON(id obj);
 
@@ -41,52 +38,17 @@ static NSString *IDFor(MMFinding *f) {
 
 #pragma mark - Storage
 
-// Rows go to the SQLite log of P38 when Store is linked in, and to <support>/review/<table>.jsonl until then.
-// Store is built on its own branch, so the broker looks the class up at run time and builds without it.
-
-static MMLog *StoreLog(void) {
-    Class c = NSClassFromString(@"MMLog");
-    return c ? [c shared] : nil;
-}
-
-static NSString *JSONLPath(NSString *table) {
-    return [MMReviewDir() stringByAppendingPathComponent:[table stringByAppendingPathExtension:@"jsonl"]];
-}
+// Rows go to the SQLite log of P38, one row per review, verdict or usage record.
 
 static void StoreAppend(NSString *table, NSString *expert, NSDictionary *body) {
-    MMLog *log = StoreLog();
-    if (log) { [log append:table rid:nil expert:expert subject:nil state:nil body:body]; return; }
-    NSMutableData *line = [MMReviewJSON(@{@"expert": expert ?: @"", @"body": body}) mutableCopy];
-    [line appendBytes:"\n" length:1];
-    int fd = open(JSONLPath(table).fileSystemRepresentation, O_WRONLY | O_APPEND | O_CREAT, 0600);
-    if (fd < 0) return;
-    flock(fd, LOCK_EX);   // the app and the CLI may write at once
-    const uint8_t *p = line.bytes; size_t left = line.length;
-    while (left > 0) { ssize_t n = write(fd, p, left); if (n <= 0) break; p += n; left -= (size_t)n; }
-    flock(fd, LOCK_UN);
-    close(fd);
+    [MMLog.shared append:table rid:nil expert:expert subject:nil state:nil body:body];
 }
 
 /// Bodies of one table, newest first. expert nil means all, since nil means no limit, limit 0 means all.
 static NSArray<NSDictionary *> *StoreRows(NSString *table, NSString *expert, NSDate *since, NSUInteger limit) {
-    MMLog *log = StoreLog();
     NSMutableArray *rows = [NSMutableArray new];
-    if (log) {
-        for (MMLogEntry *e in [log latest:table expert:expert subject:nil since:since limit:limit])
-            if (Dict(e.body)) [rows addObject:e.body];
-        return rows;
-    }
-    NSString *text = [NSString stringWithContentsOfFile:JSONLPath(table) encoding:NSUTF8StringEncoding error:nil];
-    NSArray *lines = [text componentsSeparatedByString:@"\n"];
-    for (NSString *line in lines.reverseObjectEnumerator) {
-        if (!line.length) continue;
-        NSDictionary *j = Dict([NSJSONSerialization JSONObjectWithData:[line dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil]);
-        NSDictionary *body = Dict(j[@"body"]);
-        if (!body || (expert && ![j[@"expert"] isEqual:expert])) continue;
-        if (since && [body[@"at"] doubleValue] < since.timeIntervalSince1970) break;   // rows are in write order
-        [rows addObject:body];
-        if (limit && rows.count >= limit) break;
-    }
+    for (MMLogEntry *e in [MMLog.shared latest:table expert:expert subject:nil since:since limit:limit])
+        if (Dict(e.body)) [rows addObject:e.body];
     return rows;
 }
 
@@ -356,10 +318,7 @@ static void *kOnReviewQueue = &kOnReviewQueue;
     _rules = [NSMutableDictionary new]; _ageMarks = [NSMutableDictionary new]; _makers = [NSMutableDictionary new];
     _counts = [NSMutableDictionary new]; _lastWake = [NSMutableDictionary new]; _pending = [NSMutableSet new];
     _minGap = 600;
-    // MMQueue(@"core", @"review") from Runtime gives this same label. Runtime lands on its own branch.
-    dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_autorelease_frequency(
-        dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0), DISPATCH_AUTORELEASE_FREQUENCY_WORK_ITEM);
-    _queue = dispatch_queue_create("no.guerrilla.minmacs.core.review", attr);
+    _queue = MMQueue(@"core", @"review", QOS_CLASS_UTILITY);
     dispatch_queue_set_specific(_queue, kOnReviewQueue, kOnReviewQueue, NULL);
     return self;
 }
@@ -415,10 +374,7 @@ static void *kOnReviewQueue = &kOnReviewQueue;
     MMReviewRequest *(^maker)(NSString *, MMSnapshot *);
     @synchronized (self) { maker = self.makers[expert]; }
     if (!maker) return;
-    // The graph is built on its own branch. It is looked up at run time, so the broker builds without it.
-    Class graph = NSClassFromString(@"MMGraph");
-    MMGraph *g = graph ? [graph shared] : nil;
-    MMSnapshot *s = g.latest;
+    MMSnapshot *s = MMGraph.shared.latest;
     MMReviewRequest *q = maker(reason, s);
     if (!q) return;
     if (!q.expert) q.expert = expert;

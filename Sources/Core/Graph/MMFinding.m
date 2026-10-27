@@ -2,7 +2,7 @@
 // Every type here is immutable once made. A collection handed in is copied, so a caller that keeps
 // a mutable array and changes it later never changes a finding, a fact sheet or a snapshot.
 // This file sends messages to Senses and Know objects and never names their classes,
-// so it links before those modules land, and tests can pass objects built by hand.
+// so tests can pass objects built by hand.
 #import "Core/Graph/MMGraph.h"
 
 #pragma mark - Owner
