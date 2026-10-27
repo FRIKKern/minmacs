@@ -142,8 +142,8 @@ lh_why() { "$LH" auto --mode "$1" --port "$P" --dry-run --json | json "j['plan']
 lh_fresh
 r=$(RV_TEST_GO=":$P" "$LH" review --mode eager --port "$P" --json | json "'Fixture summary: 1 items.' in j['summary']")
                                                                      check "the review writes a summary" True "$r"
-r=$(lh_why eager | python3 -c "import sys; print(sys.stdin.read().startswith('its agent session was active'))")
-                                                                     check "eager keeps a server whose agent session is active" True "$r"
+# The reason itself is the value, so a failure shows which rule spoke first.
+r=$(lh_why eager | cut -c1-28);                                       check "eager keeps a server whose agent session is active" "its agent session was active" "$r"
 export CLAUDE_CONFIG_DIR="$MINMACS_HOME/no-sessions"   # from here on no session, so the mode decides
 RV_TEST_GO=":$P" "$LH" review --mode proactive --port "$P" >/dev/null 2>&1
 r=$(lh_plan idle);                                                   check "idle mode stops nothing" False "$r"
