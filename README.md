@@ -8,8 +8,8 @@ Part of a family: [Insomnia](https://github.com/FRIKKern/insomnia) keeps the Mac
 
 ## The rules
 
-1. **Nothing is closed that wasn't shown first.** The menu is the plan. "Will close (4)" lists each app with its CPU and memory before you press anything.
-2. **Only apps on an explicit close list get closed.** Developer and agent essentials, such as terminals, editors, Docker, databases, Claude, Insomnia and noo-noo, are on a keep list and never even offered. Anything unknown is listed as unsorted and never touched until you sort it, one click, remembered.
+1. **Nothing is closed that wasn't shown first.** The menu is the plan. "Will quit (4)" lists each app with its CPU and memory before you press anything.
+2. **Only apps on an explicit close list get closed.** Developer and agent essentials, such as terminals, editors, Docker, databases, Claude, Insomnia and noo-noo, are on a keep list. MinMacs Now never quits them. Only their own *Quit Now* item does. Anything unknown is listed as unsorted and never touched until you sort it, one click, remembered.
 3. **Graceful first, force when you say so.** Every app gets a normal Quit and eight seconds to act on it. What happens to one that refuses is your setting: ask me, force quit it, or leave it running. **Restore** relaunches the apps and reopens the tabs MinMacs closed.
 4. **Browsers are trimmed, not quit.** Tabs on your noise list close; everything else, and the browser itself, stays. Agents that use the browser keep their session.
 5. **An app in use by an agent is spared**, and the menu says why.
@@ -32,29 +32,39 @@ Click the gauge in the menu bar:
 
 ```
 41 apps · system load 63% · thermal nominal
+Agents: 1 working, 0 idle · 1.2 GB    ▸ each session, Read cmux for Waiting State
 ──
-⚡ MinMacs Now: close 2 apps (21% CPU · 9.4 GB)
-   Restore 2 closed apps
+⚡ MinMacs Now: quit 1 app, close 3 tabs (1% CPU · 578 MB)
+   Restore 2 closed items
 ──
-Will close (2)
-   Google Chrome      21% · 8.7 GB    ▸ Close on MinMacs / Keep / Unsorted / Quit Now
-   Spotify             1% · 578 MB
+Will quit (1)
+   Spotify             1% · 578 MB    ▸ Close on MinMacs / Keep (never close) / Unsorted (list only) / Quit Now / Force Quit Now
+Browsers, trimmed not quit (1)
+   Google Chrome      21% · 8.7 GB   · trim 3 of 40 tabs   ▸ the tabs that will close, then the same items
+Spared, in use by an agent or tool (1)
+   Blender             4% · 1.1 GB   · serving on 127.0.0.1:9876
 Unsorted, not touched (3)
    FigmaAgent          0% · 13 MB     ▸ …
 Kept, essentials (4)                  ▸ cmux 44% · 6.8 GB, Finder, Insomnia …
 Background load (system, informational) ▸ top processes not owned by any app
 ──
 ✓ Ask Before Closing
+  When an App Won't Quit              ▸ Ask Me / Force Quit It / Leave It Running
+  Browsers                            ▸ Trim Noise Tabs, Keep the Browser / Quit Browsers
 ✓ Also Turn On Insomnia
   Edit Rules…
   Launch at Login
 ──
+  MinMacs 1.2.1
   Quit MinMacs
 ```
 
-- **MinMacs Now** shows a confirmation listing exactly what will quit, which tabs will close, and what is spared and why, with a "Don't ask again" box.
+The Agents line shows only when an agent session is running, cmux is running, or *Read cmux for Waiting State* is on. The browser, spared and unsorted sections show only when they have apps in them.
+
+- **MinMacs Now** shows a confirmation listing exactly what will quit, which tabs will close, and what is spared and why, with a "Don't ask again" box. *Ask Before Closing* turns that confirmation on or off.
 - **When an App Won't Quit** decides the escalation. *Ask Me* (default) shows which apps refused and offers Force Quit. *Force Quit It* does so automatically after the eight seconds. *Leave It Running* never forces. Force quitting discards unsaved changes, and the dialogs say so.
-- **Every app row has a submenu** to move it between Close, Keep and Unsorted, or to quit just that one. Choices are saved to the rules file.
+- **Every app row has a submenu** to move it between Close, Keep and Unsorted, or to quit or force quit just that one. Choices are saved to the rules file.
+- **Agents** lists each agent session MinMacs found, with its state, project, CPU and memory: working (●), blocked on you (◆), idle (○) or unknown (◌).
 - **Helpers roll up.** Chrome's forty helper processes count as Chrome. The numbers match what you feel, not what `ps` prints.
 - **Also Turn On Insomnia** switches Insomnia on when you MinMacs, if it is installed, so the freed machine also stays awake for the job.
 
@@ -62,21 +72,22 @@ Background load (system, informational) ▸ top processes not owned by any app
 
 A browser is a container. Quitting it to get rid of a few video tabs also takes out your dashboards, docs and consoles. So for Chrome, Brave, Edge, Vivaldi, Opera, Chromium and Safari, MinMacs closes only tabs whose host is on the **noise** list and never closes a tab on the **work** list. Any other tab is left alone. The browser's row in the menu lists the exact tabs that will close; picking one adds its site to the work list instead. Restore reopens closed tabs.
 
-- Private and incognito windows are never read or touched.
+- Incognito windows in Chrome, Brave, Edge, Vivaldi, Opera and Chromium are skipped. Safari has no such check.
 - Tabs are addressed in one specific browser process, so a second instance started by Playwright or with remote debugging is never affected.
 - A tab that navigated somewhere else since the plan was shown is skipped.
 - The first use asks for macOS Automation permission for that browser. Without it the browser is simply left running.
 - Arc and Firefox do not expose tabs in a way MinMacs can read. They are left running.
-- *Browsers ▸ Quit Browsers* switches to quitting them like any other app.
+- *Browsers ▸ Quit Browsers* switches to quitting them like any other app. `--quit-browsers` does the same for one CLI run.
 
 ### Spared: apps that are serving an agent
 
 A close-list app is left alone when it is demonstrably in use by a tool:
 
 - it was started with a remote debugging port or pipe, which is how DevTools MCP, Puppeteer and Playwright drive a browser, or
-- one of its processes listens on a **loopback** TCP port, which is how Blender's and Godot's MCP bridges and similar tools work.
+- one of its processes listens on a **loopback** TCP port, which is how Blender's and Godot's MCP bridges and similar tools work, or
+- a working or blocked agent session has it in its process tree.
 
-The menu shows the reason, for example "serving on 127.0.0.1:9876". Listeners on all interfaces are ignored, since that is LAN discovery, not an agent. A few apps listen on loopback for their own reasons, such as Discord and Spotify, and ship on an `ignoreServing` list. Its entries match like the keep and close lists, so `com.adobe.*` covers every Adobe app. *Close Even When Serving* in an app's submenu adds any other. Turning it off for one app that a pattern covers adds `!` and the bundle id as an exception.
+The menu shows the reason, for example "serving on 127.0.0.1:9876" or "started by a working agent (Claude Code, pid 4242)". Listeners on all interfaces are ignored, since that is LAN discovery, not an agent. A few apps listen on loopback for their own reasons, such as Discord and Spotify, and ship on an `ignoreServing` list. Its entries match like the keep and close lists, so `com.adobe.*` covers every Adobe app. *Close Even When Serving* in an app's submenu adds any other. Turning it off for an app that a pattern or a default covers adds `!` and the bundle id as an exception, so the next load does not add it back.
 
 ### Blocked: an agent that is waiting on you
 
@@ -102,6 +113,7 @@ How the last event decides: a permission request, question, plan approval or not
 ```json
 { "keep":  ["com.apple.Terminal", "com.microsoft.VSCode", "com.jetbrains.*", "no.guerrilla.insomnia", "…"],
   "close": ["com.google.Chrome", "com.spotify.client", "us.zoom.xos", "com.adobe.*", "…"],
+  "unsorted": [],
   "tabs":  { "noise": ["youtube.com", "netflix.com", "reddit.com", "…"],
              "work":  ["localhost", "github.com", "claude.ai", "vercel.app", "…"] },
   "ignoreServing": ["com.hnc.Discord", "com.spotify.client", "…"] }
@@ -125,9 +137,14 @@ minmacs trim --yes --only-host youtube.com
 minmacs restore                  # relaunch apps and reopen tabs, in the background
 minmacs classify https://…       # noise, work or other
 minmacs rules                    # print the rules file path
-minmacs agents                   # agent sessions and whether each is working, idle or blocked
+minmacs agents                   # agent sessions and whether each is working, idle, blocked or unknown
+minmacs agents --json            # the same as JSON
 minmacs agents --cmux            # …and read cmux for agents waiting on you (see Blocked)
+minmacs agents --rows <dir>      # read harness rows from this directory instead
+minmacs run --yes --quit-browsers  # quit browsers instead of trimming them, this run only
 ```
+
+With no command, the binary starts the menu bar app. `minmacs --help` prints the usage.
 
 Exit codes: 0 done, 1 aborted, 2 usage, 3 some apps are still running. Without `--force` that means they ignored Quit, usually because they are asking to save.
 
@@ -143,15 +160,18 @@ open insomnia://on                               # keep the Mac awake for the ru
 
 ## How it works
 
-Every four seconds MinMacs samples all processes through `libproc`, computes CPU as the change in CPU time over wall time, reads physical memory footprint, and attributes each process to the app macOS holds responsible for it, the same grouping Activity Monitor uses, with a parent-chain fallback. The app itself idles at 0% CPU and about 15 MB. Objective-C files only, no dependencies, builds with clang alone.
+Every four seconds MinMacs samples all processes through `libproc`, computes CPU as the change in CPU time over wall time, reads physical memory footprint, and attributes each process to the app macOS holds responsible for it, the same grouping Activity Monitor uses, with a parent-chain fallback. Objective-C files only, no packages, built with clang. `build.sh` also runs `python3 tools/validate_row.py` and ships only the registry rows that pass.
 
 ## Build from a checkout
 
 ```sh
 git clone https://github.com/FRIKKern/minmacs.git && cd minmacs
 ./build.sh                 # universal build, installs app and CLI link
-./build.sh --no-install
+./build.sh --no-install    # build/MinMacs.app only
+./test.sh                  # fixtures only; needs ./build.sh --no-install first
 ```
+
+`test.sh` runs against fixture apps, fake agent processes and a temporary rules file. It never reads or writes your rules file or settings. CI runs it on every push to main or legacy and on every pull request.
 
 See [CHANGELOG.md](CHANGELOG.md) and, for AI agents working on the code, [AGENTS.md](AGENTS.md).
 
