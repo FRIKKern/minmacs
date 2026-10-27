@@ -65,6 +65,9 @@ def main():
     if p:
         rows += [("Alone, own sample: registry agentsIn", p["registryAgentsCPUms"]), ("Alone, own sample: sessions refresh", p["sessionsRefreshCPUms"])]
         rows += [("Alone, own sample: %s findings" % k, v) for k, v in sorted(p["findingsCPUms"].items())]
+        if "registryAgentsWarmCPUms" in p:
+            rows += [("Again, same sample: registry agentsIn", p["registryAgentsWarmCPUms"])]
+            rows += [("Again, same sample: %s findings" % k, v) for k, v in sorted(p["findingsWarmCPUms"].items())]
     for name, s in rows:
         out.append("| %s | %s | %s | %s | %s |" % (name, s.get("median", ""), s.get("p95", ""), s.get("max", ""), s.get("n", 0)))
     out.append("")

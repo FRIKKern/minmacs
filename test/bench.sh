@@ -18,8 +18,18 @@ bn_env() {
 }
 
 # The bench never runs where it could reach a real model, cmux, tmux or support folder.
-env -u MINMACS_CLAUDE "$bn_bin" idle --seconds 1 >/dev/null 2>&1
-check "bench: it refuses to run without a fake model CLI" 2 "$?"
+# Each refusal runs with every other variable set to its fake, so only the one under test can cause it.
+for bn_var in MINMACS_HOME MINMACS_CLAUDE MINMACS_CODEX MINMACS_CMUX MINMACS_TMUX; do
+  bn_env env -u "$bn_var" "$bn_bin" idle --seconds 1 >/dev/null 2>"$bn/refuse.err"
+  check "bench: it refuses to run without $bn_var" "2 1" "$? $(grep -c "$bn_var" "$bn/refuse.err")"
+done
+# A CLI path outside MINMACS_HOME could be the real one. /bin/echo stands in for it and is never run.
+bn_env env MINMACS_CLAUDE=/bin/echo "$bn_bin" idle --seconds 1 >/dev/null 2>"$bn/refuse.err"
+check "bench: it refuses a model CLI that is not a fake" "2 1" "$? $(grep -c 'MINMACS_CLAUDE must be' "$bn/refuse.err")"
+bn_env env MINMACS_ROOTS=/ "$bn_bin" menus --iterations 1 >/dev/null 2>"$bn/refuse.err"
+check "bench: it refuses repo roots outside MINMACS_HOME" "2 1" "$? $(grep -c 'MINMACS_ROOTS' "$bn/refuse.err")"
+bn_env env MINMACS_HOME="$HOME/Library/Application Support/MinMacs" "$bn_bin" menus --iterations 1 >/dev/null 2>"$bn/refuse.err"
+check "bench: it refuses the real support folder" "2 1" "$? $(grep -c 'real support folder' "$bn/refuse.err")"
 check "bench: it signals, quits and stops nothing" 0 "$(grep -cE 'kill\(|MMStop\(|MMQuitApps\(|MMRunAction\(|[Tt]erminate' tools/bench/bench.m)"
 
 bn_start=$(date +%s)
@@ -42,6 +52,7 @@ check "bench: each sample gives a rebuild" yes "$(bi '"yes" if j["inWindow"]["re
 check "bench: the pass reads the real process table" yes "$(bi '"yes" if j["pids"] > 50 else j["pids"]')"
 check "bench: the tick is timed alone too" 8 "$(bi 'j["tickCost"]["passes"]')"
 check "bench: each expert's findings are timed alone" "$bn_linked" "$(bi 'len(j["tickCost"]["parts"]["findingsCPUms"])')"
+check "bench: the registry and each expert's findings are timed again on the same sample" "$bn_linked 8" "$(bi '"%d %d" % (len(j["tickCost"]["parts"]["findingsWarmCPUms"]), j["tickCost"]["parts"]["registryAgentsWarmCPUms"]["n"])')"
 check "bench: the old apps are read over the same window" yes "$(bi '"yes" if all("error" in a or a["cpuSeconds"] >= 0 for a in j["oldApps"]) else j["oldApps"]')"
 check "bench: every expert's menu is built 40 times" "$bn_linked" "$(bm 'sum(1 for e in j["experts"].values() if e["menuOpenMs"]["n"] == 40 and e["rows"] > 0)')"
 check "bench: every expert's cards are timed" "$bn_linked" "$(bm 'sum(1 for e in j["experts"].values() if e["cards"] > 0 and e["cardHoverMs"]["n"] >= 40)')"

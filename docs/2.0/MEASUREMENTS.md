@@ -58,7 +58,7 @@ The same run, in CPU ms. 174 samples and 192 snapshots in the window, 852 pids, 
 | Alone, own sample: LocoHost `findingsFrom:` | 9.00 | 10.14 | 10.46 |
 | Alone, own sample: MinMacs `findingsFrom:` | 3.78 | 4.02 | 4.05 |
 
-**Slow spot, reported and not fixed here.** A tick costs about 46 ms of CPU: 6 ms for the pass and 39 ms for the rebuild. At one tick every 5 seconds that alone is 0.9 % of a core. The rebuild costs six times the pass. Most of it is reading process arguments: the registry's `agentsIn:` takes 9.2 ms on a new sample and LocoHost's findings 9.0 ms, and each falls to under 1 ms when the sample already holds the args. Every rebuild runs both on every sample, even when no process started or ended. A budget of 0.3 % leaves 15 ms a tick, so with the pass at 6 ms the rebuild must come under about 9 ms.
+**Slow spot, reported and not fixed here.** A tick costs about 46 ms of CPU: 6 ms for the pass and 39 ms for the rebuild. At one tick every 5 seconds that alone is 0.9 % of a core. The rebuild costs six times the pass. About half of it is reading process arguments: the registry's `agentsIn:` takes 9.2 ms on a new sample and LocoHost's findings 9.0 ms, together 18 of the 39 ms. Each falls to under 1 ms when the sample already holds the args. A 10-second run of `bench idle --tick-runs 10` timed each part twice on one sample: the registry took 9.64 ms and then 0.24 ms at the median, LocoHost's findings 10.81 ms and then 0.70 ms. MinMacs's findings took 3.65 ms and then 3.42 ms, so its cost is not the args. Every rebuild runs both on every sample, even when no process started or ended. A budget of 0.3 % leaves 15 ms a tick, so with the pass at 6 ms the rebuild must come under about 9 ms.
 
 ## Menus
 
@@ -70,7 +70,7 @@ The same run, in CPU ms. 174 samples and 192 snapshots in the window, 852 pids, 
 | MinMacs | 20 apps, 2 agents | 14 | 0.44 | 22.02 | 23.78 | 4.82 | 5.73 |
 | One Icon, both | | | | 12.66 | 14.04 | | |
 
-**Slow spot, reported and not fixed here.** Menu open is within 30 ms at p95, by less than 2 ms for LocoHost. A 40-build run in `./test.sh bench` under load gave 31.5 ms at p95 for LocoHost, over the budget. The spec takes 2 ms or less. The rest is the card under every row, which `MMMenuFromSpec` builds before the menu opens, at about 2 ms each. Menu open grows with the number of rows that have a card. Card hover is well under 16 ms.
+**Slow spot, reported and not fixed here.** Menu open is within 30 ms at p95, by less than 2 ms for LocoHost. A 40-build run in `./test.sh bench` under load gave 31.8 ms at p95 for LocoHost, over the budget. The spec takes 2 ms or less. The rest is the card under every row, which `MMMenuFromSpec` builds before the menu opens, at about 2 ms each. Menu open grows with the number of rows that have a card. Card hover is well under 16 ms.
 
 ## The regression gate, issue #51
 

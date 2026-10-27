@@ -182,11 +182,30 @@ static void PrintJSON(id obj) {
     fputc('\n', stdout);
 }
 
-/// The bench never reaches a real model, cmux, tmux or support folder. Each must name a fake or a test folder.
+/// YES when path is dir itself or inside it, after both are standardized.
+static BOOL Inside(NSString *path, NSString *dir) {
+    NSString *p = path.stringByStandardizingPath, *d = dir.stringByStandardizingPath;
+    return [p isEqualToString:d] || [p hasPrefix:[d stringByAppendingString:@"/"]];
+}
+
+/// The bench never reaches a real model, cmux, tmux or support folder. MINMACS_HOME must be set and not the
+/// real support folder. Each CLI must be /usr/bin/false or a fake inside MINMACS_HOME. MINMACS_ROOTS, when set,
+/// must lie inside MINMACS_HOME, so the repo index never walks the person's folders.
 static BOOL SafeEnvironment(void) {
     NSDictionary *env = NSProcessInfo.processInfo.environment;
-    for (NSString *k in @[@"MINMACS_HOME", @"MINMACS_CLAUDE", @"MINMACS_CODEX", @"MINMACS_CMUX", @"MINMACS_TMUX"])
-        if (![env[k] length]) { fprintf(stderr, "bench: %s must be set; tools/bench/run.sh sets it\n", k.UTF8String); return NO; }
+    NSString *home = env[@"MINMACS_HOME"];
+    if (!home.length) { fprintf(stderr, "bench: MINMACS_HOME must be set; tools/bench/run.sh sets it\n"); return NO; }
+    NSString *real = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/MinMacs"];
+    if (Inside(home, real) || Inside(real, home)) { fprintf(stderr, "bench: MINMACS_HOME must not hold the real support folder\n"); return NO; }
+    for (NSString *k in @[@"MINMACS_CLAUDE", @"MINMACS_CODEX", @"MINMACS_CMUX", @"MINMACS_TMUX"]) {
+        NSString *v = env[k];
+        if (!v.length) { fprintf(stderr, "bench: %s must be set; tools/bench/run.sh sets it\n", k.UTF8String); return NO; }
+        if (![v isEqualToString:@"/usr/bin/false"] && !Inside(v, home)) {
+            fprintf(stderr, "bench: %s must be /usr/bin/false or a fake inside MINMACS_HOME\n", k.UTF8String); return NO;
+        }
+    }
+    for (NSString *r in [env[@"MINMACS_ROOTS"] ?: @"" componentsSeparatedByString:@":"])
+        if (r.length && !Inside(r, home)) { fprintf(stderr, "bench: MINMACS_ROOTS must lie inside MINMACS_HOME\n"); return NO; }
     return YES;
 }
 
@@ -213,9 +232,9 @@ static void RunMain(double seconds) {
 /// the registry, the session index and each expert's findings. Those runs start with a new pass too.
 static NSDictionary *TickCost(int n) {
     NSMutableArray *pass = [NSMutableArray new], *passWall = [NSMutableArray new], *facts = [NSMutableArray new], *snap = [NSMutableArray new];
-    NSMutableArray *sessions = [NSMutableArray new], *agents = [NSMutableArray new];
-    NSMutableDictionary<NSString *, NSMutableArray *> *experts = [NSMutableDictionary new];
-    for (id<MMExpert> e in MMExperts()) experts[e.expertID] = [NSMutableArray new];
+    NSMutableArray *sessions = [NSMutableArray new], *agents = [NSMutableArray new], *agentsWarm = [NSMutableArray new];
+    NSMutableDictionary<NSString *, NSMutableArray *> *experts = [NSMutableDictionary new], *expertsWarm = [NSMutableDictionary new];
+    for (id<MMExpert> e in MMExperts()) { experts[e.expertID] = [NSMutableArray new]; expertsWarm[e.expertID] = [NSMutableArray new]; }
     dispatch_queue_t graphQ = MMQueue(@"core", @"graph", QOS_CLASS_UTILITY);
     for (int i = 0; i < n; i++) @autoreleasepool {
         uint64_t c = ThreadCPUNs(), w = NowNs();
@@ -236,6 +255,10 @@ static NSDictionary *TickCost(int n) {
             uint64_t c0 = ThreadCPUNs();
             [MMRegistry.shared agentsIn:s power:MMSenses.shared.power];
             [agents addObject:@((ThreadCPUNs() - c0) / 1e6)];
+            // Again on the same sample, which now holds the args and cwd the first run read.
+            c0 = ThreadCPUNs();
+            [MMRegistry.shared agentsIn:s power:MMSenses.shared.power];
+            [agentsWarm addObject:@((ThreadCPUNs() - c0) / 1e6)];
             c0 = ThreadCPUNs();
             [MMSessions.shared refresh];
             [sessions addObject:@((ThreadCPUNs() - c0) / 1e6)];
@@ -246,13 +269,17 @@ static NSDictionary *TickCost(int n) {
             uint64_t c0 = ThreadCPUNs();
             [e findingsFrom:f];
             [experts[e.expertID] addObject:@((ThreadCPUNs() - c0) / 1e6)];
+            c0 = ThreadCPUNs();
+            [e findingsFrom:f];
+            [expertsWarm[e.expertID] addObject:@((ThreadCPUNs() - c0) / 1e6)];
         });
     }
-    NSMutableDictionary *findings = [NSMutableDictionary new];
-    for (NSString *k in experts) findings[k] = Stats(experts[k]);
+    NSMutableDictionary *findings = [NSMutableDictionary new], *findingsWarm = [NSMutableDictionary new];
+    for (NSString *k in experts) { findings[k] = Stats(experts[k]); findingsWarm[k] = Stats(expertsWarm[k]); }
     return @{@"passes": @(n), @"passCPUms": Stats(pass), @"passWallms": Stats(passWall),
              @"factsCPUms": Stats(facts), @"snapshotCPUms": Stats(snap),
-             @"parts": @{@"sessionsRefreshCPUms": Stats(sessions), @"registryAgentsCPUms": Stats(agents), @"findingsCPUms": findings}};
+             @"parts": @{@"sessionsRefreshCPUms": Stats(sessions), @"registryAgentsCPUms": Stats(agents), @"findingsCPUms": findings,
+                         @"registryAgentsWarmCPUms": Stats(agentsWarm), @"findingsWarmCPUms": findingsWarm}};
 }
 
 static int Idle(NSArray<NSString *> *args) {
