@@ -47,6 +47,14 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 - Runtime and Senses read the support folder through `MMRuntimeSupportDir`, which follows the same rule as `MMSupportDir`. It can call `MMSupportDir` once Store lands.
 - One pass measured 6.1 to 7.5 ms CPU median and 6.6 to 9.4 ms p95 on the research Mac, over 60 to 100 passes with 836 to 929 pids. The spread follows the load from other builds. `test/senses.sh` fails above 12 ms median or 25 ms p95.
 
+## Know in phase 1
+
+Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. `MMGit`, `MMSizer` and `MMClutter` stay headers until phases 2 and 3.
+
+- Know links before Runtime and Store land. `MMFactCache.m` holds Know's own `MMKnowSupportDir` and `MMKnowQueue`, which follow `MMSupportDir` and `MMQueue`. Swap them for the real ones once those land.
+- Know reads `MMSample`, `MMProc` and `MMPower` by message only, so it links without Senses. `test/know/fakesample.m` stands in for Senses in `./test.sh know`.
+- The cmux events reader is behind the pref `core.cmuxEvents` or `MINMACS_CMUX_EVENTS=1`. `MINMACS_CMUX` and `MINMACS_TMUX` name the CLIs, which the checks use for fakes.
+
 ## How the parts meet
 
 1. Senses takes one sample every 5 seconds and pushes exits, app events and power changes.

@@ -1,0 +1,9 @@
+{
+  "id": "fake-cpu",
+  "name": "Fake CPU",
+  "surfaces": [ { "kind": "tui", "process": { "names": ["fakeagent"] }, "session_id_args": ["--session"] } ],
+  "working_signals": [ { "signal": "tree_cpu", "floor_percent": 0, "meaning": "always fires, so a check can show a higher signal overruling it" } ],
+  "waiting_signals": [ { "signal": "hook", "event": "Notification", "meaning": "the fixture's waiting event" } ],
+  "sources": [ { "claim": "test fixture", "evidence": "tools/fakeagent.c", "kind": "source-code" } ],
+  "confidence": "documented"
+}
