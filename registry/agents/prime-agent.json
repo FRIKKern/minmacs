@@ -185,11 +185,6 @@
   },
   "working_signals": [
     {
-      "signal": "socket_activity",
-      "name": "roster activity == working",
-      "meaning": "The exact turn state lives in the supervisor's roster over its local JSONL Unix socket, not in any file or process. Each worker pushes a summary on every turn_start, turn_end, tool_execution_start/end, message_end, bash_start/end, compaction and queue change, and activity is `working` exactly while the worker's busy flag or a compaction is set (worker/summary.rs: activity = streaming || compacting). Read it with `prime-agent list --json` (or `sessions --json`): per row `activity` (working or idle), `isStreaming`, `isCompacting`, `attachedClients`, `sessionFile`, `cwd`; `lifecycle: archived` rows are not loaded. It is per session, works for a session no TUI is attached to, and survives a TUI detach. It needs a call the probe cannot make, so the probe ignores this signal. A parked provider-quota wait is a separate flag (isQuotaParked) and reads as idle here. A queued steer or follow-up alone (isSessionActive true, activity idle) is not a turn."
-    },
-    {
       "signal": "transcript_write",
       "within_seconds": 30,
       "meaning": "Raises working, never lowers it. The session file is append-only JSONL, one line per entry, written when a message finishes (user, assistant, tool result), never per streamed token, so a long model call or a long tool call shows no writes. Only usable for a TUI started with `--resume <id>` (the id is in argv); a fresh session's id is minted by the worker and is not in any argv, and ACP sessions (no_session) and `--no-session` sessions have no file at all. The per_session template ends in a `*` so a partial id from `--resume` still finds the UUIDv7-named file. Open-turn reading of the tail, for a reader that may open the file: the last `message` entry has role user or toolResult, or role assistant with stopReason toolUse, while the worker pid is alive; a final assistant message with stopReason stop, length, error or aborted is a closed turn. Never read message content."
