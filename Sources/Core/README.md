@@ -1,6 +1,6 @@
 # Core
 
-The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc comment names its pattern from [SYNTHESIS.md](../../docs/2.0/research/SYNTHESIS.md) section 1 and the code it starts from. The `.m` files come in phase 1.
+The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc comment names its pattern from [SYNTHESIS.md](../../docs/2.0/research/SYNTHESIS.md) section 1 and the code it starts from. The `.m` files come in phase 1. Issue #14 added Runtime and Senses. `test/senses.sh` checks them, and Runtime's README note below says what is still a stub.
 
 `#import "Core/MMCore.h"` brings in every header. build.sh passes `-ISources`, so imports start at `Core/`.
 
@@ -40,6 +40,13 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P56 to P62 | `MMExpert.h` | The `MMExpert` protocol, `MMRowMark`, and the menu, card and verb specs it returns. The kit, render tool, formatters, verb registry and URL router themselves live in `Sources/UI` and `Sources/CLI` |
 | P65 | none | build.sh, test.sh and the CI workflow. `MMCore.h` notes it |
 
+## Runtime and Senses, issue #14
+
+- The worker of P4 is a `minmacs _walk` child of the same binary. The XPC kind waits for the settling check on macOS 14. The child calls `+[MMSizer quick:]` and `+exact:` through the Objective-C runtime, so those two must walk in process. It finds worktrees itself by reading `.git` files, with no git spawn.
+- `MMCoreSocket` is a stub. `+serve:` refuses with a note and `+ask:` returns nil, so the CLI runs Core cold. `MMCoreSocketPath` is real.
+- Runtime and Senses read the support folder through `MMRuntimeSupportDir`, which follows the same rule as `MMSupportDir`. It can call `MMSupportDir` once Store lands.
+- One pass measured 6.1 to 7.5 ms CPU median and 6.6 to 9.4 ms p95 on the research Mac, over 60 to 100 passes with 836 to 929 pids. The spread follows the load from other builds. `test/senses.sh` fails above 12 ms median or 25 ms p95.
+
 ## How the parts meet
 
 1. Senses takes one sample every 5 seconds and pushes exits, app events and power changes.
@@ -60,4 +67,4 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 - every pattern P1 to P66 is named
 - every symbol starts with `MM`
 
-`check.m` calls through the `MMExpert` protocol and never links, so it shows the methods can be called. It does not show they can be implemented. No `.m` file exists here yet, so `build.sh` does not compile these headers. Only the headers section does.
+`check.m` calls through the `MMExpert` protocol and never links, so it shows the methods can be called. It does not show they can be implemented. `build.sh` compiles the `.m` files that exist.
