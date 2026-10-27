@@ -1,0 +1,17 @@
+{
+  "id": "trash",
+  "title": "Trash",
+  "group": "system",
+  "class": "report",
+  "paths": [
+    "~/.Trash"
+  ],
+  "ownerSetting": "You empty the Trash in Finder. MinMacs never does",
+  "advice": "Finder > Empty Trash",
+  "every": 86400,
+  "rebuild": "none",
+  "measured_gib": 0.0,
+  "sources": [
+    "noo-noo internal/cli/caches_cmd.go:68-73"
+  ]
+}

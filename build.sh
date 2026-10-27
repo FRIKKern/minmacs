@@ -42,6 +42,9 @@ mkdir -p "$APP/Contents/Resources/registry/agents"
 for r in registry/agents/*.json; do
   python3 tools/validate_row.py "$r" >/dev/null 2>&1 && cp "$r" "$APP/Contents/Resources/registry/agents/"
 done
+# Clutter rows are data too. test/noonoo checks each one against registry/clutter-schema.json.
+mkdir -p "$APP/Contents/Resources/registry/clutter"
+cp registry/clutter/*.json "$APP/Contents/Resources/registry/clutter/"
 codesign --force --sign - "$APP" 2>/dev/null
 echo "Built $APP $VERSION ($(lipo -archs "$APP/Contents/MacOS/MinMacs"))"
 [ "$INSTALL" = 1 ] || exit 0

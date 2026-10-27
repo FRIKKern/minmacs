@@ -1,0 +1,19 @@
+{
+  "id": "simulator-dyld-cache",
+  "title": "Simulator dyld cache",
+  "group": "apple",
+  "class": "cache",
+  "paths": [
+    "~/Library/Developer/CoreSimulator/Caches/dyld",
+    "/Library/Developer/CoreSimulator/Caches/dyld"
+  ],
+  "reportOnlyWhen": "root-owned",
+  "ownerNote": "runtime build (guess)",
+  "every": 86400,
+  "rebuild": "One slow simulator boot",
+  "measured_gib": 3.84,
+  "sources": [
+    "noo-noo internal/cli/caches_cmd.go:36-39",
+    "ls -la"
+  ]
+}

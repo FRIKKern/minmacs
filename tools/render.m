@@ -12,6 +12,7 @@
 #import "Core/MMExpert.h"
 #import "Experts/LocoHost/MMLHHost.h"
 #import "Experts/WorkForest/MMWFTree.h"
+#import "Experts/NooNoo/MMNNMenu.h"
 
 #pragma mark Checks
 
@@ -400,6 +401,72 @@ static NSView *StatusStrip(NSArray<NSArray *> *experts) {
     return c;
 }
 
+/// One fixture clutter row for the Noo-Noo subject.
+static MMNNRow *Clutter(NSString *fid, NSString *name, NSString *owner, NSString *state, MMNNSection section, uint64_t freedMB, uint64_t onDiskMB, NSTimeInterval idle) {
+    MMNNRow *r = [MMNNRow new];
+    r.findingID = [@"noonoo:clutter:" stringByAppendingString:fid]; r.kindID = fid; r.name = name; r.owner = owner; r.ownerState = state;
+    r.section = section; r.freed = freedMB << 20; r.allocated = onDiskMB << 20; r.members = 1;
+    r.lastUsed = [NSDate dateWithTimeIntervalSinceNow:-idle];
+    r.actionTitle = @"Move to Trash"; r.undoWords = @"It goes to the Trash, and Undo moves it back.";
+    return r;
+}
+
+/// Noo-Noo's own menu and cards, built by Sources/Experts/NooNoo/MMNNMenu from fixture rows, and drawn by the kit.
+/// The Mac is the one the LocoHost subject shows: the search worktree of acme-web is squash-merged.
+static Subject *NooNooLike(void) {
+    Subject *s = [Subject new]; s.name = @"noonoo"; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
+    MMNNRow *next = Clutter(@"search-next", @".next", @"search", @"squash-merged", MMNNFinished, 3170, 3170, 6 * 86400);
+    next.folder = YES;
+    next.ownerLinkExpert = @"workforest"; next.ownerLinkID = @"workforest:worktree:search"; next.rebuild = @"next build, minutes"; next.goesOnItsOwn = YES;
+    MMNNRow *nm = Clutter(@"search-nm", @"node_modules", @"search", @"squash-merged", MMNNFinished, 3, 1536, 6 * 86400);
+    nm.folder = YES;
+    nm.ownerLinkExpert = @"workforest"; nm.ownerLinkID = @"workforest:worktree:search"; nm.rebuild = @"pnpm install from the store, seconds with a warm store"; nm.goesOnItsOwn = YES;
+    MMNNRow *onb = Clutter(@"onboarding-nm", @"node_modules", @"old-onboarding", @"remote branch deleted", MMNNFinished, 420, 900, 21 * 86400);
+    onb.goesOnItsOwn = YES; onb.folder = YES;
+    MMNNRow *scratch = Clutter(@"scratch", @"Claude Code scratch", @"session c55990c5", nil, MMNNLeftovers, 3410, 3410, 2 * 86400);
+    scratch.why = @"nothing has used it for 2 days"; scratch.rebuild = @"nothing is lost; a session makes its scratch again"; scratch.goesOnItsOwn = YES;
+    MMNNRow *fam = Clutter(@"family", @"server-budget-* folders", nil, nil, MMNNLeftovers, 12, 12, 3 * 86400);
+    fam.members = 745; fam.why = @"nothing has used it for 3 days"; fam.goesOnItsOwn = YES;
+    MMNNRow *gob = Clutter(@"go-build", @"Go build cache", nil, nil, MMNNCaches, 2980, 2980, 3600);
+    gob.rebuild = @"slower next builds";
+    MMNNRow *pnpm = Clutter(@"pnpm-store", @"pnpm store", nil, nil, MMNNCaches, 5610, 5610, 2 * 3600);
+    pnpm.actionTitle = @"Clean with pnpm"; pnpm.undoWords = @"A recovery copy is made first, and Undo copies back what the tool removed.";
+    pnpm.rebuild = @"downloads on the next install";
+    MMNNRow *pw = Clutter(@"playwright", @"Playwright browsers", @"chromium-1187", nil, MMNNCaches, 2540, 2540, 9 * 86400);
+    MMNNRow *live = Clutter(@"checkout-nm", @"node_modules", @"checkout-flow", nil, MMNNKept, 4, 1610, 60);
+    live.live = YES; live.folder = YES; live.why = @"an agent works in checkout-flow";
+    MMNNRow *tx = Clutter(@"transcripts", @"Claude Code transcripts", @"acme-web", nil, MMNNKept, 2040, 2040, 600);
+    tx.kept = YES; tx.ownerSetting = @"Claude Code keeps transcripts for 30 days, set by cleanupPeriodDays"; tx.actionTitle = nil;
+
+    MMNNView *v = [MMNNView new];
+    v.rows = @[next, nm, onb, scratch, fam, gob, pnpm, pw, live, tx];
+    v.growthLine = MMNNGrowthLine(@"pnpm store", YES, 9.0 * 1073741824 / 14, 14, 0.6 * 1073741824, 9.6 * 1073741824, 1.9, 1073741824);
+    v.trashBytes = 2150ull << 20; v.modeName = @"Proactive";
+    v.restorable = 1; v.lastClean = [NSDate dateWithTimeIntervalSinceNow:-26 * 60]; v.lastScan = [NSDate dateWithTimeIntervalSinceNow:-12 * 60];
+    MMNNHandlers *h = [MMNNHandlers new];
+    NSDictionary *cardKeys = @{next.findingID: @"next", scratch.findingID: @"scratch", pnpm.findingID: @"pnpm", live.findingID: @"live", tx.findingID: @"transcripts"};
+    // The kit asks for cards in row order, so the rows that got one are matched to the menu's card items in that order.
+    NSMutableArray<MMNNRow *> *asked = [NSMutableArray new];
+    NSMenu *m = MMMenuForSpec(MMNNMenuFor(v, h), ^MMCardSpec *(NSString *findingID) {
+        if (!cardKeys[findingID]) return nil;
+        for (MMNNRow *r in v.rows) if ([r.findingID isEqualToString:findingID]) { [asked addObject:r]; return MMNNCardFor(r, v, h); }
+        return nil;
+    }, nil);
+    NSUInteger n = 0;
+    for (NSMenuItem *i in m.itemArray) {
+        if (!i.submenu || i.view || !i.submenu.itemArray.firstObject.view || n >= asked.count) continue;
+        MMNNRow *r = asked[n++];
+        NSString *k = cardKeys[r.findingID];
+        s.cards[k] = MMCardForSpec(MMNNCardFor(r, v, h));
+        s.cardMenus[k] = i.submenu;
+        [s.order addObject:k];
+    }
+    s.menu = m;
+    Check(s.order.count == cardKeys.count, @"noonoo: every fixture card hangs under its row", [NSString stringWithFormat:@"%lu of %lu", (unsigned long)s.order.count, (unsigned long)cardKeys.count]);
+    Check([v.growthLine isEqualToString:@"The pnpm store grew 9.0 GB in 14 days."], @"noonoo: the growth line reads as measured", v.growthLine);
+    return s;
+}
+
 #pragma mark Shell
 
 // The app shell draws every expert's menu from the specs of Core/MMExpert.h through Sources/UI/MMSpecMenu.
@@ -543,16 +610,18 @@ int main(int argc, char **argv) { @autoreleasepool {
     [NSFileManager.defaultManager createDirectoryAtPath:out withIntermediateDirectories:YES attributes:nil error:nil];
     gChecks = [NSMutableArray new];
 
-    NSArray<Subject *> *subjects = @[LocoHostLike(), WorkForestLike(), MinMacsLike()];
+    NSArray<Subject *> *subjects = @[LocoHostLike(), WorkForestLike(), MinMacsLike(), NooNooLike()];
     NSArray *experts = @[@[@"LocoHost", @"server.rack", @"2 idle servers", @"2"], @[@"WorkForest", @"tree", @"2 worktrees to remove", @""],
-                         @[@"MinMacs", @"gauge.with.dots.needle.33percent", @"3 apps to quit", @""]];
+                         @[@"MinMacs", @"gauge.with.dots.needle.33percent", @"3 apps to quit", @""],
+                         @[@"Noo-Noo", @"trash.square", @"2 finished projects, 17.7 GB to free", @""]];
     for (NSArray *e in experts) {
         NSString *label = MMStatusLabel(e[0], e[2]);
         NSString *word = [NSString stringWithFormat:@"\\b%@\\b", [NSRegularExpression escapedPatternForString:e[1]]];
         Check([label rangeOfString:word options:NSRegularExpressionSearch].location == NSNotFound && [label hasPrefix:e[0]] &&
               [MMStatusImage(e[1], label).accessibilityDescription isEqualToString:label], [NSString stringWithFormat:@"%@: the status label names the expert, not the symbol", e[0]], label);
         Check(MMStatusImage(e[1], label) != nil, [NSString stringWithFormat:@"%@: the symbol %@ exists", e[0], e[1]], @"no such symbol");
-        Check([MMStatusAutosaveName(e[0]) isEqualToString:[@"minmacs." stringByAppendingString:[e[0] lowercaseString]]],
+        // Noo-Noo's hyphen is not part of its autosave name, which is its expert id, noonoo.
+        Check([MMStatusAutosaveName(e[0]) isEqualToString:[@"minmacs." stringByAppendingString:[[e[0] lowercaseString] stringByReplacingOccurrencesOfString:@"-" withString:@""]]],
               [NSString stringWithFormat:@"%@: autosaveName is minmacs.<expert>", e[0]], MMStatusAutosaveName(e[0]));
     }
 

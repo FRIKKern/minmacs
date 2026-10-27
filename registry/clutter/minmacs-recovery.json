@@ -1,0 +1,16 @@
+{
+  "id": "minmacs-recovery",
+  "title": "MinMacs recovery copies",
+  "group": "system",
+  "class": "leak",
+  "paths": [
+    "${support}/noonoo/recovery/*"
+  ],
+  "signature": "aged",
+  "minAge": 604800,
+  "every": 21600,
+  "rebuild": "none; undo of a tool cleanup ends with it",
+  "sources": [
+    "Sources/Core/Act/MMClutterAct.m"
+  ]
+}

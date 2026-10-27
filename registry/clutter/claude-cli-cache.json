@@ -1,0 +1,16 @@
+{
+  "id": "claude-cli-cache",
+  "title": "Claude Code MCP logs",
+  "group": "agents",
+  "class": "cache",
+  "paths": [
+    "~/Library/Caches/claude-cli-nodejs/*/mcp-logs-*"
+  ],
+  "ownerNote": "folder name = cwd with dashes",
+  "every": 21600,
+  "rebuild": "none, they are logs",
+  "measured_gib": 0.28,
+  "sources": [
+    "ls, du -sk"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "yarn-cache",
+  "title": "Yarn cache",
+  "group": "js",
+  "class": "cache",
+  "paths": [
+    "${cache:yarn}",
+    "~/.yarn/berry/cache"
+  ],
+  "never": [
+    "<project>/.yarn/cache when tracked by git"
+  ],
+  "advice": "yarn cache clean --mirror",
+  "ownerNote": ".yarnrc.yml",
+  "every": 21600,
+  "rebuild": "Yarn downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://yarnpkg.com/cli/cache/clean"
+  ]
+}

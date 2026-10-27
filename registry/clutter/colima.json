@@ -1,0 +1,18 @@
+{
+  "id": "colima",
+  "title": "Colima disk",
+  "group": "containers",
+  "class": "report",
+  "paths": [
+    "${cache:colima}"
+  ],
+  "ownerSetting": "docker system prune inside Colima frees space",
+  "advice": "colima ssh -- sudo fstrim -a",
+  "ownerNote": "profile",
+  "every": 86400,
+  "rebuild": "Images pull again",
+  "measured_gib": 0,
+  "sources": [
+    "https://github.com/abiosoft/colima/blob/main/docs/FAQ.md"
+  ]
+}

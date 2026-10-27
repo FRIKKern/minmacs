@@ -22,6 +22,7 @@
 #import "Core/Act/MMUndo.h"
 #import "Core/Act/MMAct.h"
 #import "Core/Act/MMWorktreeAct.h"
+#import "Core/Act/MMClutterAct.h"
 #import "Core/MMExpert.h"
 #import "Core/MMCore.h"
 

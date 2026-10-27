@@ -1,0 +1,25 @@
+{
+  "id": "claude-code-transcripts",
+  "title": "Claude Code transcripts",
+  "group": "agents",
+  "class": "data",
+  "paths": [
+    "${claude}/projects/*"
+  ],
+  "never": [
+    "${claude}/.credentials.json",
+    "${claude}/agent-memory",
+    "${claude}/jobs",
+    "${claude}/daemon",
+    "${claude}/projects/*/memory"
+  ],
+  "ownerSetting": "Claude Code keeps transcripts for 30 days, set by cleanupPeriodDays",
+  "advice": "claude purge <path> --dry-run; cleanupPeriodDays",
+  "ownerNote": "project dir = cwd with non-alphanumerics as -",
+  "every": 86400,
+  "rebuild": "Lost: resume and rewind for past sessions",
+  "measured_gib": 2.05,
+  "sources": [
+    "https://code.claude.com/docs/en/claude-directory"
+  ]
+}

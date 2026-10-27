@@ -1,0 +1,19 @@
+{
+  "id": "docker-desktop",
+  "title": "Docker disk image",
+  "group": "containers",
+  "class": "report",
+  "paths": [
+    "~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw"
+  ],
+  "ownerSetting": "docker system prune frees space inside the image",
+  "advice": "docker system prune",
+  "ownerNote": "com.docker.compose.project label (guess)",
+  "every": 86400,
+  "rebuild": "Images pull again, and volumes are data",
+  "measured_gib": 0,
+  "sources": [
+    "https://docs.docker.com/reference/cli/docker/system/prune/",
+    "https://docs.docker.com/desktop/troubleshoot-and-support/faqs/macfaqs/"
+  ]
+}

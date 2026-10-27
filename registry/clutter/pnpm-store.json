@@ -1,0 +1,24 @@
+{
+  "id": "pnpm-store",
+  "title": "pnpm store",
+  "group": "js",
+  "class": "tool",
+  "paths": [
+    "${cache:pnpm}/v*"
+  ],
+  "cleanup": [
+    "pnpm",
+    "store",
+    "prune"
+  ],
+  "dryRun": null,
+  "owner": "pnpm-store",
+  "ownerNote": "node_modules/.modules.yaml storeDir",
+  "every": 43200,
+  "rebuild": "Downloads on the next install",
+  "measured_gib": 19.14,
+  "sources": [
+    "https://pnpm.io/cli/store",
+    "a project node_modules/.modules.yaml names store/v11"
+  ]
+}

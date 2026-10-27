@@ -1,0 +1,22 @@
+{
+  "id": "turbo-cache",
+  "title": "Turborepo cache",
+  "group": "js",
+  "class": "build",
+  "paths": [],
+  "names": [
+    ".turbo"
+  ],
+  "beside": [
+    "turbo.json",
+    "package.json"
+  ],
+  "owner": "project",
+  "ownerNote": "turbo.json",
+  "every": 21600,
+  "rebuild": "Turbo runs the tasks again",
+  "measured_gib": 0.04,
+  "sources": [
+    "du -sk"
+  ]
+}

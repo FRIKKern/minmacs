@@ -1,0 +1,18 @@
+{
+  "id": "cargo-home",
+  "title": "Cargo registry",
+  "group": "rust",
+  "class": "cache",
+  "paths": [
+    "${cache:cargo}/registry",
+    "${cache:cargo}/git"
+  ],
+  "advice": "automatic gc",
+  "ownerNote": "global",
+  "every": 86400,
+  "rebuild": "Cargo downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://doc.rust-lang.org/cargo/reference/config.html"
+  ]
+}

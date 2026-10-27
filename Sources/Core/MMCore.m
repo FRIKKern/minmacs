@@ -74,9 +74,9 @@ static MMFacts *FactsFrom(uint64_t generation, MMSample *sample, MMPower *power)
         MMGitFacts *g = w.path ? [MMRepoIndex.shared factsFor:w wait:NO] : nil;
         if (g) git[w.path] = g;
     }
-    // The clutter catalog of P28 comes with Noo-Noo in phase 3, so no item is listed yet.
+    // The clutter items of the last scans. Scans run on their own queue, never in a rebuild.
     return [MMFacts generation:generation sample:sample power:power agents:agents sessions:MMSessions.shared.all
-                     worktrees:trees clutter:@[] git:git];
+                     worktrees:trees clutter:MMClutterCatalog.shared.items git:git];
 }
 
 - (MMFacts *)factsFor:(uint64_t)generation {
@@ -152,7 +152,7 @@ static void ServeCoreVerbs(void) {
 #pragma mark - Start and stop
 
 static BOOL gStarted;
-static id gSensesToken, gGraphToken, gReposToken, gGitToken;
+static id gSensesToken, gGraphToken, gReposToken, gGitToken, gClutterToken;
 static dispatch_source_t gReposTimer, gReviewTimer;
 static MMCoreSocket *gSocket;
 static NSMutableSet<NSString *> *gWatchedExits;   // main only: the pid:start keys handed to watchExits
@@ -193,6 +193,20 @@ static void StartRepos(void) {
                                                               usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"worktrees"]; }];
     gGitToken = [NSNotificationCenter.defaultCenter addObserverForName:MMRepoIndexFactsDidChangeNotification object:index queue:nil
                                                             usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"git"]; }];
+}
+
+/// The clutter catalog scans each row at most as often as the row says, on its own queue, sizing through the worker.
+static void StartClutter(void) {
+    MMClutterCatalog *c = MMClutterCatalog.shared;
+    c.sizeWithWorker = YES;
+    c.projectsProvider = ^NSArray<NSString *> *{
+        NSMutableArray *out = [NSMutableArray new];
+        for (MMWorktree *w in MMRepoIndex.shared.worktrees) if (w.path.length && !w.missing) [out addObject:w.path];
+        return out;
+    };
+    gClutterToken = [NSNotificationCenter.defaultCenter addObserverForName:MMClutterDidChangeNotification object:c queue:nil
+                                                                usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"clutter"]; }];
+    [c start];
 }
 
 static void StartReviews(void) {
@@ -241,9 +255,10 @@ void MMCoreStart(void) {
     }];
     [senses start];
 
-    // 3. Know: agent events behind their flag, and the repo index with its FSEvents watch.
+    // 3. Know: agent events behind their flag, the repo index with its FSEvents watch, and the clutter scans.
     [MMAgentEvents.shared start];
     StartRepos();
+    StartClutter();
 
     // 4. The graph with its fact source. Each new snapshot names the processes whose exits to watch.
     MMGraph *graph = MMGraph.shared;
@@ -271,6 +286,8 @@ void MMCoreStop(void) {
     [MMRepoIndex.shared stopWatching];
     if (gReposToken) { [NSNotificationCenter.defaultCenter removeObserver:gReposToken]; gReposToken = nil; }
     if (gGitToken) { [NSNotificationCenter.defaultCenter removeObserver:gGitToken]; gGitToken = nil; }
+    [MMClutterCatalog.shared stop];
+    if (gClutterToken) { [NSNotificationCenter.defaultCenter removeObserver:gClutterToken]; gClutterToken = nil; }
     [MMGraph.shared stopObserving:gGraphToken]; gGraphToken = nil;
     [MMSenses.shared stopObserving:gSensesToken]; gSensesToken = nil;
     [MMSenses.shared stop];

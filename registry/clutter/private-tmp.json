@@ -1,0 +1,25 @@
+{
+  "id": "private-tmp",
+  "title": "Temp folder families",
+  "group": "system",
+  "class": "leak",
+  "paths": [
+    "/private/tmp"
+  ],
+  "signature": "family",
+  "minAge": 43200,
+  "family": {
+    "minMembers": 5,
+    "exclude": [
+      "com.apple."
+    ]
+  },
+  "ownerNote": "family prefix",
+  "every": 3600,
+  "rebuild": "none",
+  "measured_gib": 3.61,
+  "sources": [
+    "noo-noo internal/leaks/leaks.go:253-276",
+    "/System/Library/LaunchDaemons/com.apple.tmp_cleaner.plist"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "playwright-browsers",
+  "title": "Playwright browsers",
+  "group": "js",
+  "class": "cache",
+  "paths": [
+    "${cache:playwright}/*-*"
+  ],
+  "owner": "playwright-links",
+  "advice": "npx playwright uninstall --all",
+  "ownerNote": "ms-playwright/.links/<hash> holds install path",
+  "every": 21600,
+  "rebuild": "A download of up to 370 MB",
+  "measured_gib": 2.48,
+  "sources": [
+    "https://playwright.dev/docs/browsers",
+    "cat ms-playwright/.links/*"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "vscode",
+  "title": "VS Code caches",
+  "group": "editors",
+  "class": "cache",
+  "paths": [
+    "~/Library/Application Support/Code/{Cache,CachedData,logs}"
+  ],
+  "ownerNote": "workspaceStorage/*/workspace.json (guess)",
+  "every": 21600,
+  "rebuild": "VS Code fills them again",
+  "measured_gib": 0.0,
+  "sources": [
+    "du -sk"
+  ]
+}

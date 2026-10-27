@@ -1,0 +1,17 @@
+{
+  "id": "user-logs",
+  "title": "Old logs",
+  "group": "system",
+  "class": "cache",
+  "paths": [
+    "~/Library/Logs/*.log.old.*",
+    "~/Library/Logs/*/*.log.old.*"
+  ],
+  "ownerNote": "folder name",
+  "every": 86400,
+  "rebuild": "none, they are rotated logs",
+  "measured_gib": 0.3,
+  "sources": [
+    "du -sk"
+  ]
+}

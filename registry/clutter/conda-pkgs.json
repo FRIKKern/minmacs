@@ -1,0 +1,30 @@
+{
+  "id": "conda-pkgs",
+  "title": "conda packages",
+  "group": "python",
+  "class": "tool",
+  "paths": [
+    "~/miniconda3/pkgs",
+    "~/anaconda3/pkgs",
+    "~/.conda"
+  ],
+  "cleanup": [
+    "conda",
+    "clean",
+    "--all",
+    "--yes"
+  ],
+  "dryRun": [
+    "conda",
+    "clean",
+    "--all",
+    "--dry-run"
+  ],
+  "ownerNote": "conda info --envs",
+  "every": 43200,
+  "rebuild": "conda downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://docs.conda.io/projects/conda/en/latest/commands/clean.html"
+  ]
+}

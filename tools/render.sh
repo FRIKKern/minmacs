@@ -13,7 +13,7 @@ mkdir -p "$BIN" "$OUT"
 LOG="$BIN/clang.log"
 # shellcheck disable=SC2046
 if ! clang -fobjc-arc -O0 -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa \
-    $(find Sources/UI -name '*.m' | LC_ALL=C sort) Sources/Core/MMSpecs.m Sources/Experts/LocoHost/MMLHHost.m Sources/Experts/WorkForest/MMWFTree.m tools/render.m -o "$BIN/render" >"$LOG" 2>&1; then
+    $(find Sources/UI -name '*.m' | LC_ALL=C sort) Sources/Core/MMSpecs.m Sources/Experts/LocoHost/MMLHHost.m Sources/Experts/WorkForest/MMWFTree.m Sources/Experts/NooNoo/MMNNMenu.m tools/render.m -o "$BIN/render" >"$LOG" 2>&1; then
   cat "$LOG" >&2; echo "render build failed" >&2; exit 1
 fi
 if grep -q "warning:" "$LOG"; then cat "$LOG" >&2; echo "render build has warnings; fix them" >&2; exit 1; fi

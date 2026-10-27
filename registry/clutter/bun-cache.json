@@ -1,0 +1,17 @@
+{
+  "id": "bun-cache",
+  "title": "Bun cache",
+  "group": "js",
+  "class": "cache",
+  "paths": [
+    "${cache:bun}"
+  ],
+  "advice": "bun pm cache rm (guess)",
+  "ownerNote": "global",
+  "every": 21600,
+  "rebuild": "Bun downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://bun.com/docs/pm/global-cache"
+  ]
+}

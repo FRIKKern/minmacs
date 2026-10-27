@@ -1,0 +1,16 @@
+{
+  "id": "python-pycache",
+  "title": "Python bytecode",
+  "group": "python",
+  "class": "build",
+  "paths": [],
+  "names": [
+    "__pycache__"
+  ],
+  "ownerNote": "project",
+  "every": 21600,
+  "rebuild": "Python writes it again",
+  "sources": [
+    "du -sk"
+  ]
+}

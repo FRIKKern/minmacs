@@ -1,0 +1,22 @@
+{
+  "id": "cursor",
+  "title": "Cursor caches",
+  "group": "editors",
+  "class": "cache",
+  "paths": [
+    "~/Library/Application Support/Cursor/{Cache,CachedData,logs}",
+    "~/Library/Caches/cursor-compile-cache"
+  ],
+  "never": [
+    "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+    "~/Library/Application Support/Cursor/User"
+  ],
+  "ownerNote": "Cursor.app",
+  "every": 21600,
+  "rebuild": "Cursor fills them again",
+  "measured_gib": 10.96,
+  "sources": [
+    "du -sk",
+    "ls -laS globalStorage"
+  ]
+}

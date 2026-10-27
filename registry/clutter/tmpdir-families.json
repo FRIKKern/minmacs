@@ -1,0 +1,26 @@
+{
+  "id": "tmpdir-families",
+  "title": "Temp folder families",
+  "group": "system",
+  "class": "leak",
+  "paths": [
+    "/private/var/folders/*/*/T"
+  ],
+  "signature": "family",
+  "minAge": 43200,
+  "family": {
+    "minMembers": 5,
+    "exclude": [
+      "com.apple."
+    ]
+  },
+  "advice": "dirhelper sweeps files older than 3 days",
+  "ownerNote": "family prefix, then code search",
+  "every": 3600,
+  "rebuild": "none",
+  "measured_gib": 0.49,
+  "sources": [
+    "/System/Library/LaunchDaemons/com.apple.bsd.dirhelper.plist",
+    "ls | uniq -c"
+  ]
+}

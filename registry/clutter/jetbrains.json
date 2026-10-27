@@ -1,0 +1,18 @@
+{
+  "id": "jetbrains",
+  "title": "JetBrains caches",
+  "group": "editors",
+  "class": "cache",
+  "paths": [
+    "~/Library/Caches/JetBrains/*",
+    "~/Library/Logs/JetBrains/*"
+  ],
+  "advice": "Help | Delete Leftover IDE Directories",
+  "ownerNote": "product+version in name",
+  "every": 21600,
+  "rebuild": "The IDE indexes again",
+  "measured_gib": 0,
+  "sources": [
+    "https://www.jetbrains.com/help/idea/directories-used-by-the-ide-to-store-settings-caches-plugins-and-logs.html"
+  ]
+}

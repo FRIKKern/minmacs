@@ -1,0 +1,16 @@
+{
+  "id": "xcode-device-support",
+  "title": "Device support files",
+  "group": "apple",
+  "class": "cache",
+  "paths": [
+    "~/Library/Developer/Xcode/* DeviceSupport/*"
+  ],
+  "ownerNote": "folder name = OS version",
+  "every": 86400,
+  "rebuild": "Xcode copies it when a device connects",
+  "measured_gib": 0,
+  "sources": [
+    "https://www.kodeco.com/19998365-understanding-and-managing-xcode-space"
+  ]
+}

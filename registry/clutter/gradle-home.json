@@ -1,0 +1,18 @@
+{
+  "id": "gradle-home",
+  "title": "Gradle caches",
+  "group": "jvm",
+  "class": "cache",
+  "paths": [
+    "${cache:gradle}/caches",
+    "${cache:gradle}/wrapper/dists"
+  ],
+  "advice": "automatic (30d downloaded, 7d created)",
+  "ownerNote": "global",
+  "every": 86400,
+  "rebuild": "Gradle downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://docs.gradle.org/current/userguide/directory_layout.html"
+  ]
+}

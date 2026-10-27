@@ -1,0 +1,22 @@
+{
+  "id": "cargo-target",
+  "title": "Cargo build output",
+  "group": "rust",
+  "class": "build",
+  "paths": [],
+  "names": [
+    "target"
+  ],
+  "beside": [
+    "Cargo.toml"
+  ],
+  "owner": "project",
+  "advice": "cargo clean",
+  "ownerNote": "Cargo.toml",
+  "every": 21600,
+  "rebuild": "cargo build, minutes",
+  "measured_gib": 0,
+  "sources": [
+    "https://doc.rust-lang.org/cargo/commands/cargo-clean.html"
+  ]
+}

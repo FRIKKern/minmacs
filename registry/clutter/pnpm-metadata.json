@@ -1,0 +1,17 @@
+{
+  "id": "pnpm-metadata",
+  "title": "pnpm metadata cache",
+  "group": "js",
+  "class": "cache",
+  "paths": [
+    "~/Library/Caches/pnpm"
+  ],
+  "advice": "pnpm store prune",
+  "ownerNote": "global",
+  "every": 21600,
+  "rebuild": "pnpm fetches it again",
+  "measured_gib": 1.0,
+  "sources": [
+    "https://pnpm.io/cli/store"
+  ]
+}
