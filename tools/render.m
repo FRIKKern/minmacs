@@ -246,9 +246,9 @@ static Subject *WorkForestLike(void) {
         for (MMWFTree *t in trees) if ([t.findingID isEqualToString:fid]) return t;
         return nil;
     };
-    NSMenu *m = MMMenuForSpec(spec, ^MMCardSpec *(NSString *findingID) {
+    NSMenu *m = MMMenuFromSpec(spec, ^MMCardSpec *(NSString *findingID) {
         return cardKeys[findingID] ? MMWFCard(treeFor(findingID), v) : nil;
-    }, nil);
+    }, nil, nil);
     // The rows the menu drew, so each card is checked and drawn from the same menu item the person opens.
     NSMutableDictionary<NSString *, NSString *> *byName = [NSMutableDictionary new];
     for (MMSectionSpec *sec in spec.sections) for (MMRowSpec *r in sec.rows) if (cardKeys[r.findingID]) byName[r.name] = r.findingID;
@@ -258,7 +258,7 @@ static Subject *WorkForestLike(void) {
         for (NSString *name in byName) if ([i.title hasSuffix:name] || [i.title containsString:[name stringByAppendingString:@"\n"]]) fid = byName[name];
         if (!fid || s.cards[cardKeys[fid]]) continue;
         NSString *k = cardKeys[fid];
-        s.cards[k] = MMCardForSpec(MMWFCard(treeFor(fid), v));
+        s.cards[k] = MMCardFromSpec(MMWFCard(treeFor(fid), v));
         s.cardMenus[k] = i.submenu;
         [s.order addObject:k];
     }
@@ -513,17 +513,17 @@ static Subject *NooNooLike(void) {
     NSDictionary *cardKeys = @{next.findingID: @"next", scratch.findingID: @"scratch", pnpm.findingID: @"pnpm", live.findingID: @"live", tx.findingID: @"transcripts"};
     // The kit asks for cards in row order, so the rows that got one are matched to the menu's card items in that order.
     NSMutableArray<MMNNRow *> *asked = [NSMutableArray new];
-    NSMenu *m = MMMenuForSpec(MMNNMenuFor(v, h), ^MMCardSpec *(NSString *findingID) {
+    NSMenu *m = MMMenuFromSpec(MMNNMenuFor(v, h), ^MMCardSpec *(NSString *findingID) {
         if (!cardKeys[findingID]) return nil;
         for (MMNNRow *r in v.rows) if ([r.findingID isEqualToString:findingID]) { [asked addObject:r]; return MMNNCardFor(r, v, h); }
         return nil;
-    }, nil);
+    }, nil, nil);
     NSUInteger n = 0;
     for (NSMenuItem *i in m.itemArray) {
         if (!i.submenu || i.view || !i.submenu.itemArray.firstObject.view || n >= asked.count) continue;
         MMNNRow *r = asked[n++];
         NSString *k = cardKeys[r.findingID];
-        s.cards[k] = MMCardForSpec(MMNNCardFor(r, v, h));
+        s.cards[k] = MMCardFromSpec(MMNNCardFor(r, v, h));
         s.cardMenus[k] = i.submenu;
         [s.order addObject:k];
     }
