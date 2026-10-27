@@ -1,4 +1,4 @@
-// The Know checks' tool. It links Sources/Core/Know with the stand-in Senses in fakesample.m and prints JSON.
+// The Know checks' tool. It links all of Sources/Core, so samples come from the real Senses, and prints JSON.
 // Usage: knowtool <command> [args]
 //   rows <dir>...                         rows loaded, in order, later folders winning
 //   agents [--rows <dir>]... [--hold s] [--events s]   detected agents. --events starts the cmux reader first
@@ -8,20 +8,28 @@
 //   events <seconds>                      the events MMAgentEvents read in that time
 //   cache                                 MMFactCache checks, one line each
 //   run                                   MMRun checks, one line each
+//   where-prune <pid>                     MMWhereIs caches pid's place, ends pid, and the cache drops it
+//   sizer quick <path> | exact <path>...  MMSizer in process
 #import <Cocoa/Cocoa.h>
 #import "Core/Know/MMRegistry.h"
 #import "Core/Know/MMSessions.h"
 #import "Core/Know/MMWhere.h"
 #import "Core/Know/MMGit.h"
 #import "Core/Know/MMFactCache.h"
+#import "Core/Know/MMSizer.h"
+#import <sys/wait.h>
 
-@interface MMSample (Fake)
-+ (instancetype)live;
-@end
 @interface MMFactCache (Drain)
 - (void)drain;
 @end
-MMPower *MMFakeLivePower(void);
+BOOL MMWhereCached(MMProcKey key);   // MMWhere.m
+
+/// Two passes half a second apart, so the second has CPU over that time, as the app's 5-second pass does.
+static MMSample *LiveSample(void) {
+    [MMSenses.shared sampleNow];
+    usleep(500000);
+    return [MMSenses.shared sampleNow];
+}
 
 static NSString *State(MMAgentState s) {
     switch (s) { case MMAgentWorking: return @"working"; case MMAgentWaiting: return @"waiting"; case MMAgentIdle: return @"idle"; default: return @"unknown"; }
@@ -83,7 +91,8 @@ static int Agents(NSArray<NSString *> *args) {
     NSString *ev = Opt(args, @"--events");
     if (ev) { [MMAgentEvents.shared start]; Wait(ev.doubleValue); }
     [MMSessions.shared refresh];
-    NSArray<MMAgent *> *agents = [r agentsIn:[MMSample live] power:MMFakeLivePower()];
+    MMSample *sample = LiveSample();
+    NSArray<MMAgent *> *agents = [r agentsIn:sample power:MMSenses.shared.power];
     if (ev) [MMAgentEvents.shared stop];
     NSMutableArray *list = [NSMutableArray new];
     NSInteger w = 0, i = 0, wt = 0, u = 0;
@@ -114,7 +123,7 @@ static int Sessions(NSArray<NSString *> *args) {
 }
 
 static MMProcKey KeyFor(pid_t pid) {
-    MMProc *p = [[MMSample live] proc:pid];
+    MMProc *p = [[MMSenses.shared sampleNow] proc:pid];
     return (MMProcKey){ pid, p.startSec };
 }
 
@@ -186,6 +195,13 @@ static int Run(void) {
     r = MMRun(@"/usr/bin/true", @[], [NSMutableData dataWithLength:4 * 1024 * 1024], nil, nil, 5, &o, NULL);
     usleep(200000);
     Line(@"unread_input_status", @(r.status));
+    // A grandchild that keeps the pipes open past the limit. The call still returns, and stops reading.
+    NSString *gpid = [NSProcessInfo.processInfo.environment[@"MINMACS_HOME"] stringByAppendingPathComponent:@"know-grandchild.pid"];
+    t0 = NSDate.date;
+    r = MMRun(@"/bin/sh", @[@"-c", [NSString stringWithFormat:@"sleep 30 & echo $! > '%@'; exec sleep 30", gpid]], nil, nil, nil, 0.5, &o, NULL);
+    Line(@"held_pipes_return_within_3s", @(r.timedOut && -t0.timeIntervalSinceNow < 3));
+    pid_t g = [[NSString stringWithContentsOfFile:gpid encoding:NSUTF8StringEncoding error:nil] intValue];
+    if (g > 1) kill(g, SIGTERM);   // the grandchild this check started
     r = MMRun(@"/no/such/tool", @[], nil, nil, nil, 1, &o, NULL);
     Line(@"missing_didRun", @(r.didRun)); Line(@"missing_status", @(r.status));
     return 0;
@@ -225,6 +241,25 @@ int main(int argc, const char *argv[]) {
         if ([cmd isEqualToString:@"events"]) return Events(rest.count ? [rest[0] doubleValue] : 2);
         if ([cmd isEqualToString:@"cache"]) return Cache();
         if ([cmd isEqualToString:@"run"]) return Run();
+        if ([cmd isEqualToString:@"where-prune"] && rest.count) {
+            pid_t pid = [rest[0] intValue];
+            MMProcKey k = KeyFor(pid);
+            MMPlace *w = MMWhereIs(k, nil, YES);
+            BOOL before = MMWhereCached(k);
+            kill(pid, SIGTERM);   // the fixture know.sh started for this check
+            for (int i = 0; i < 40 && MMProcAlive(k); i++) usleep(50000);
+            MMWhereIs(KeyFor(getpid()), nil, YES);   // any later call prunes
+            Print(@{ @"kind": w ? PlaceJSON(w)[@"kind"] : @"none", @"cachedBefore": @(before), @"cachedAfter": @(MMWhereCached(k)) });
+            return 0;
+        }
+        if ([cmd isEqualToString:@"sizer"] && rest.count > 1) {
+            NSArray *paths = [rest subarrayWithRange:NSMakeRange(1, rest.count - 1)];
+            if ([rest[0] isEqualToString:@"quick"]) {
+                MMSize z = [MMSizer quick:paths[0]];
+                Print(@{ @"allocated": @(z.allocated), @"freed": @(z.freedIfDeleted), @"files": @(z.files), @"errors": @(z.errors) });
+            } else Print(@{ @"freed": @([MMSizer exact:paths]) });
+            return 0;
+        }
         fprintf(stderr, "usage: knowtool rows|agents|sessions|where|where-later|goto|events|cache|run\n");
         return 2;
     }

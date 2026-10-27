@@ -1,14 +1,14 @@
 # ===== Act: modes, MustKeep, plans, MMRunAction, undo, stop, keep-awake and the notifier, issue #18 =====
-# Sourced by test.sh. It builds test/act/act.m with Sources/Core/Act and the doubles in test/act,
+# Sourced by test.sh. It builds test/act/act.m with all of Sources/Core, the real Graph, Review and Store included,
 # makes a fixture repo with a worktree inside $MINMACS_HOME, and runs the checks.
 # The test binary starts its own fixture processes, which exit on their own when it ends, and stops only those.
 # It passes the real Trash only fixture files, and restores each one, so the Trash ends as it began.
 
 act_dir="$MINMACS_HOME/act"
 mkdir -p "$act_dir/fixtures"
-act_cc="clang -fobjc-arc -mmacosx-version-min=14.0 -ISources -Itest/act -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$act_cc $(find Sources/Core/Act -name '*.m' | LC_ALL=C sort) test/act/doubles.m test/act/act.m \
-  -framework Cocoa -framework IOKit -framework UserNotifications -o "$act_dir/acttest" >"$act_dir/build.log" 2>&1
+act_cc="clang -fobjc-arc -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
+$act_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) test/act/act.m \
+  -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$act_dir/acttest" >"$act_dir/build.log" 2>&1
 act_r=$?
 check "act: the test binary builds with no warnings" 0 "$act_r"
 [ "$act_r" = 0 ] || tail -20 "$act_dir/build.log"

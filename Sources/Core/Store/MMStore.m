@@ -32,25 +32,56 @@ NSString *MMExpertDir(NSString *expert) {
 NSString *MMPrefsTarget(void) {
     NSString *env = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
     if (!env.length) return MMPrefsDomain;
-    // CFPreferences takes an absolute plist path in place of a domain. The test prefs stay inside MINMACS_HOME.
+    // The test prefs stay inside MINMACS_HOME, in a plist that MMPref and MMSetPref read and write themselves.
     return [MakeDir([env stringByAppendingPathComponent:@"Preferences"]) stringByAppendingPathComponent:@"no.guerrilla.minmacs.plist"];
 }
 
-static BOOL IsFileTarget(NSString *t) { return [t hasPrefix:@"/"]; }
+/// The test plist, or nil for the person's own domain. With MINMACS_HOME set every read and write goes to this
+/// file alone, under an flock, and never through CFPreferences or cfprefsd, so no test can reach the real domain.
+static NSString *FilePrefsPath(void) {
+    NSString *t = MMPrefsTarget();
+    return [t hasPrefix:@"/"] ? t : nil;
+}
+
+/// Runs body with the test plist locked, shared to read and exclusive to write.
+static void WithPrefsFile(NSString *path, BOOL write, void (^body)(void)) {
+    int fd = open([path stringByAppendingString:@".lock"].fileSystemRepresentation, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if (fd >= 0) flock(fd, write ? LOCK_EX : LOCK_SH);
+    @try { body(); }
+    @finally { if (fd >= 0) { flock(fd, LOCK_UN); close(fd); } }
+}
+
+static NSDictionary *ReadPrefsFile(NSString *path) {
+    NSData *d = [NSData dataWithContentsOfFile:path];
+    id j = d ? [NSPropertyListSerialization propertyListWithData:d options:NSPropertyListImmutable format:NULL error:nil] : nil;
+    return [j isKindOfClass:NSDictionary.class] ? j : @{};
+}
 
 id MMPref(NSString *key) {
     if (!key.length) return nil;
-    CFStringRef t = (__bridge CFStringRef)MMPrefsTarget();
-    // A plist target has no cfprefsd to share changes between processes, so it is read fresh.
-    if (IsFileTarget((__bridge NSString *)t)) CFPreferencesAppSynchronize(t);
-    return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, t));
+    NSString *path = FilePrefsPath();
+    if (path) {
+        __block id v = nil;
+        WithPrefsFile(path, NO, ^{ v = ReadPrefsFile(path)[key]; });
+        return v;
+    }
+    return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, (__bridge CFStringRef)MMPrefsDomain));
 }
 
 void MMSetPref(NSString *key, id value) {
     if (!key.length) return;
-    CFStringRef t = (__bridge CFStringRef)MMPrefsTarget();
-    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, t);
-    CFPreferencesAppSynchronize(t);
+    NSString *path = FilePrefsPath();
+    if (path) {
+        WithPrefsFile(path, YES, ^{
+            NSMutableDictionary *all = [ReadPrefsFile(path) mutableCopy];
+            if (value) all[key] = value; else [all removeObjectForKey:key];
+            NSData *d = [NSPropertyListSerialization dataWithPropertyList:all format:NSPropertyListXMLFormat_v1_0 options:0 error:nil];
+            [d writeToFile:path atomically:YES];
+        });
+        return;
+    }
+    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, (__bridge CFStringRef)MMPrefsDomain);
+    CFPreferencesAppSynchronize((__bridge CFStringRef)MMPrefsDomain);
 }
 
 BOOL MMPrefBool(NSString *key, BOOL dflt) {

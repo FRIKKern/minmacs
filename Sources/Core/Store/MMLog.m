@@ -3,6 +3,7 @@
 // Triggers refuse UPDATE and DELETE on the rows table, so no code path can rewrite history.
 #import "Core/Store/MMLog.h"
 #import "Core/Store/MMStore.h"
+#import "Core/Runtime/MMRuntime.h"
 #import <sqlite3.h>
 
 @interface MMLogEntry ()
@@ -45,7 +46,7 @@ static const char *kSchema =
 
 - (instancetype)initWithPath:(NSString *)path {
     if (!(self = [super init])) return nil;
-    _q = dispatch_queue_create("no.guerrilla.minmacs.core.log", DISPATCH_QUEUE_SERIAL);
+    _q = MMQueue(@"core", @"log", QOS_CLASS_UTILITY);   // one queue for every log in this process
     [NSFileManager.defaultManager createDirectoryAtPath:path.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
     if (sqlite3_open_v2(path.fileSystemRepresentation, &_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, NULL) != SQLITE_OK) {
         NSLog(@"MinMacs: cannot open the log at %@: %s", path, _db ? sqlite3_errmsg(_db) : "no memory");

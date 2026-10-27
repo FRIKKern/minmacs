@@ -2,11 +2,10 @@
 // Ported from WorkForest's WFRemove and WFRestore, LocoHost's restart command and Noo-Noo's Grave.
 // Records go to the log of P38 as append-only rows. Nothing here deletes a file, and nothing empties the Trash.
 #import <AppKit/AppKit.h>
-#import <fcntl.h>
-#import <sys/file.h>
 #import "Core/Act/MMUndo.h"
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
+#import "Core/Know/MMGit.h"
 
 static const uint64_t kRecoverFileMax = 20ull << 20, kRecoverTotalMax = 100ull << 20;   // as WorkForest's SaveIgnored
 static NSString *const kTable = @"undo";
@@ -29,72 +28,17 @@ static MMUndoState StateFrom(NSString *s) {
 
 #pragma mark - The log
 
-// MMLog belongs to Store, which lands in parallel. Until it does, the same rows go to a JSON lines file.
-// The class is found at run time, so Act links with or without Store.
-static MMLog *SharedLog(void) {
-    Class c = NSClassFromString(@"MMLog");
-    return c ? (MMLog *)[c shared] : nil;
-}
-static NSString *FallbackPath(void) { return [MMSupportDir() stringByAppendingPathComponent:@"undo-log.jsonl"]; }
-
-static void FallbackAppend(NSDictionary *row) {
-    NSData *line = [NSJSONSerialization dataWithJSONObject:row options:0 error:nil];
-    if (!line) return;
-    int fd = open(FallbackPath().fileSystemRepresentation, O_WRONLY | O_CREAT | O_APPEND, 0600);
-    if (fd < 0) return;
-    flock(fd, LOCK_EX);
-    NSMutableData *d = [line mutableCopy];
-    [d appendBytes:"\n" length:1];
-    write(fd, d.bytes, d.length);
-    flock(fd, LOCK_UN);
-    close(fd);
-}
-static NSArray<NSDictionary *> *FallbackRows(void) {
-    NSString *all = [NSString stringWithContentsOfFile:FallbackPath() encoding:NSUTF8StringEncoding error:nil];
-    NSMutableArray *rows = [NSMutableArray new];
-    for (NSString *l in [all componentsSeparatedByString:@"\n"]) {
-        if (!l.length) continue;
-        id j = [NSJSONSerialization JSONObjectWithData:[l dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
-        if ([j isKindOfClass:NSDictionary.class]) [rows addObject:j];
-    }
-    return rows;
-}
-
 static void LogAppend(NSDictionary *body) {
-    MMLog *log = SharedLog();
-    if (log) {
-        [log append:kTable rid:body[@"rid"] expert:body[@"expert"] subject:body[@"subject"] state:body[@"state"] body:body];
-        return;
-    }
-    FallbackAppend(body);
+    [MMLog.shared append:kTable rid:body[@"rid"] expert:body[@"expert"] subject:body[@"subject"] state:body[@"state"] body:body];
 }
 /// The newest body of each record, newest first.
 static NSArray<NSDictionary *> *LogLatest(NSString *expert) {
-    MMLog *log = SharedLog();
-    if (log) {
-        NSMutableArray *out = [NSMutableArray new];
-        for (MMLogEntry *e in [log latest:kTable expert:expert subject:nil since:nil limit:100000]) if (e.body) [out addObject:e.body];
-        return out;
-    }
-    NSMutableDictionary *byRid = [NSMutableDictionary new];
-    NSMutableArray *order = [NSMutableArray new];
-    for (NSDictionary *r in FallbackRows()) {
-        if (expert && ![r[@"expert"] isEqual:expert]) continue;
-        if (!byRid[r[@"rid"]]) [order addObject:r[@"rid"]];
-        else { [order removeObject:r[@"rid"]]; [order addObject:r[@"rid"]]; }
-        byRid[r[@"rid"]] = r;
-    }
     NSMutableArray *out = [NSMutableArray new];
-    for (NSString *rid in order.reverseObjectEnumerator) [out addObject:byRid[rid]];
+    for (MMLogEntry *e in [MMLog.shared latest:kTable expert:expert subject:nil since:nil limit:100000]) if (e.body) [out addObject:e.body];
     return out;
 }
 static NSDictionary *LogLatestOf(NSString *rid) {
-    if (!rid) return nil;
-    MMLog *log = SharedLog();
-    if (log) return [log history:rid].lastObject.body;
-    NSDictionary *last = nil;
-    for (NSDictionary *r in FallbackRows()) if ([r[@"rid"] isEqual:rid]) last = r;
-    return last;
+    return rid ? [MMLog.shared history:rid].lastObject.body : nil;
 }
 
 #pragma mark - Records
@@ -152,27 +96,16 @@ static int RunTool(NSString *path, NSArray<NSString *> *args, NSString *cwd, NSD
         [e addEntriesFromDictionary:env];
         t.environment = e;
     }
-    NSPipe *pipe = [NSPipe pipe];
-    t.standardOutput = pipe; t.standardError = pipe;
-    t.standardInput = NSFileHandle.fileHandleWithNullDevice;
-    NSMutableData *buf = [NSMutableData new];
-    dispatch_semaphore_t read = dispatch_semaphore_create(0);
-    NSError *err = nil;
-    if (![t launchAndReturnError:&err]) { if (output) *output = err.localizedDescription; return -1; }
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        @autoreleasepool { [buf appendData:[pipe.fileHandleForReading readDataToEndOfFile]]; }
-        dispatch_semaphore_signal(read);
-    });
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout > 0 ? timeout : 600];
-    BOOL late = NO;
-    while (t.running) {
-        if (deadline.timeIntervalSinceNow < 0) { [t terminate]; late = YES; break; }
-        usleep(20000);
+    // MMRunTask drains both pipes on one thread, and past the limit sends SIGTERM, then SIGKILL, and stops reading.
+    NSData *o = nil, *x = nil;
+    MMRunResult r = MMRunTask(t, nil, timeout > 0 ? timeout : 600, &o, &x);
+    if (!r.didRun) { if (output) *output = @"the command would not start"; return -1; }
+    if (output) {
+        NSMutableData *all = [o ?: NSData.data mutableCopy];
+        [all appendData:x ?: NSData.data];
+        *output = [[NSString alloc] initWithData:all encoding:NSUTF8StringEncoding] ?: @"";
     }
-    [t waitUntilExit];
-    dispatch_semaphore_wait(read, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
-    if (output) *output = [[NSString alloc] initWithData:buf encoding:NSUTF8StringEncoding] ?: @"";
-    return late ? -1 : t.terminationStatus;
+    return r.timedOut ? -1 : r.status;
 }
 
 static int Git(NSString *dir, NSArray<NSString *> *args, NSString **output) {

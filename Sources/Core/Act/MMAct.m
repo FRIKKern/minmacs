@@ -7,6 +7,7 @@
 #import <sys/mount.h>
 #import <sys/sysctl.h>
 #import "Core/Act/MMAct.h"
+#import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
 
 static const double kSureConfidence = 0.8;               // Proactive acts only on a go this sure
@@ -76,30 +77,13 @@ static NSMutableDictionary *KeepsAll(NSString *expert) {
     return [j isKindOfClass:NSMutableDictionary.class] ? j : [NSMutableDictionary new];
 }
 
-/// The protect list, matched as MMRules does: exact, a prefix with a trailing *, or a substring with * on both sides.
-static BOOL Matches(NSString *entry, NSString *value) {
-    if (![entry isKindOfClass:NSString.class] || !entry.length || !value.length) return NO;
-    entry = entry.stringByExpandingTildeInPath;
-    BOOL lead = [entry hasPrefix:@"*"], trail = [entry hasSuffix:@"*"] && entry.length > 1;
-    if (lead && trail) return [value containsString:[entry substringWithRange:NSMakeRange(1, entry.length - 2)]];
-    if (trail) return [value hasPrefix:[entry substringToIndex:entry.length - 1]];
-    return [value isEqualToString:entry];
-}
+/// The protect list in the expert's rules file, through MMRules. MMRules does not expand ~ in an entry,
+/// so a path is also matched in its ~ form.
 static BOOL ProtectedIn(NSString *expert, NSString *value) {
-    Class rules = NSClassFromString(@"MMRules");   // Store lands in parallel; until then the file is read here
-    if (rules) {
-        // MMRules does not expand ~ in an entry, so a path is also matched in its ~ form, as the fallback below does.
-        MMRules *r = [rules rulesFor:expert defaults:@{}];
-        NSString *short_ = [value hasPrefix:@"/"] ? value.stringByAbbreviatingWithTildeInPath : nil;
-        return [r list:@"protect" key:nil matches:value] ||
-               (short_.length && ![short_ isEqualToString:value] && [r list:@"protect" key:nil matches:short_]);
-    }
-    NSData *d = [NSData dataWithContentsOfFile:[MMExpertDir(expert) stringByAppendingPathComponent:@"rules.json"]];
-    id j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
-    id list = [j isKindOfClass:NSDictionary.class] ? j[@"protect"] : nil;
-    if (![list isKindOfClass:NSArray.class]) return NO;
-    for (id e in list) if (Matches(e, value)) return YES;
-    return NO;
+    MMRules *r = [MMRules rulesFor:expert defaults:@{}];
+    NSString *short_ = [value hasPrefix:@"/"] ? value.stringByAbbreviatingWithTildeInPath : nil;
+    return [r list:@"protect" key:nil matches:value] ||
+           (short_.length && ![short_ isEqualToString:value] && [r list:@"protect" key:nil matches:short_]);
 }
 
 @implementation MMKeep
@@ -240,8 +224,7 @@ MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMRevi
         if (r.length) problem = [@"cannot run now: " stringByAppendingString:r];
     }
     if (!problem) {
-        Class graph = NSClassFromString(@"MMGraph");   // Graph lands in parallel; without it nothing can be verified
-        MMFacts *fresh = graph ? [(MMGraph *)[graph shared] freshFactsFor:f] : nil;
+        MMFacts *fresh = [MMGraph.shared freshFactsFor:f];
         NSString *keep = MMMustKeep(f, fresh, review, policy);
         if (keep) problem = [@"kept: " stringByAppendingString:keep];
     }
@@ -361,7 +344,7 @@ static NSMutableDictionary<NSString *, MMAwakeHold *> *Holds(void) {
 }
 static dispatch_queue_t AwakeQueue(void) {
     static dispatch_queue_t q; static dispatch_once_t once;
-    dispatch_once(&once, ^{ q = dispatch_queue_create("no.guerrilla.minmacs.core.awake", DISPATCH_QUEUE_SERIAL); });
+    dispatch_once(&once, ^{ q = MMQueue(@"core", @"awake", QOS_CLASS_UTILITY); });
     return q;
 }
 static void Drop(MMAwakeHold *h) {
@@ -444,7 +427,7 @@ static void Drop(MMAwakeHold *h) {
          withCompletionHandler:(void (^)(void))done {
     NSString *rid = response.notification.request.content.userInfo[@"rid"];
     if ([response.actionIdentifier isEqualToString:@"undo"] && [rid isKindOfClass:NSString.class])
-        dispatch_async(dispatch_queue_create("no.guerrilla.minmacs.core.undo", DISPATCH_QUEUE_SERIAL), ^{ (void)[MMUndo.shared restore:rid]; });
+        dispatch_async(MMQueue(@"core", @"undo", QOS_CLASS_UTILITY), ^{ (void)[MMUndo.shared restore:rid]; });
     done();
 }
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification

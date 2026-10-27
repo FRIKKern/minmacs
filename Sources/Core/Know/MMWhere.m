@@ -4,6 +4,8 @@
 // exact than the cmux tab that started tmux. Then Terminal and iTerm2 by tty, then the responsible app.
 // AppKit is used for NSRunningApplication and NSWorkspace only, as Sources/Core/README.md allows. Nothing is drawn.
 #import "Core/Know/MMWhere.h"
+#import "Core/Runtime/MMRuntime.h"
+#import "Core/Store/MMStore.h"
 #import "Core/Know/MMGit.h"
 #import <AppKit/AppKit.h>
 #import <libproc.h>
@@ -11,7 +13,6 @@
 #import <sys/stat.h>
 #import <sys/sysctl.h>
 
-dispatch_queue_t MMKnowQueue(NSString *job);   // MMFactCache.m
 
 static const NSTimeInterval kSnapshotAge = 15;  // cmux and tmux are asked at most this often
 static const NSTimeInterval kCLILimit = 3;      // and each call gets at most this long
@@ -250,28 +251,51 @@ static BOOL StillThere(MMProcKey k) {
     return KInfo(k.pid, &p) && (!k.startSec || (uint64_t)p.kp_proc.p_starttime.tv_sec == k.startSec);
 }
 
+static const NSUInteger kMaxAnswers = 256;   // more answers than this means the pruning missed some; drop them all
+
+/// Drops answers whose process is gone: from the sample when there is one, else read fresh from sysctl.
+/// A key names the pid and its start time, so a reused pid never keeps the old process's place.
+/// Call with answers locked.
+static void Prune(NSMutableDictionary<NSString *, MMPlace *> *answers, MMSample *s) {
+    for (NSString *x in answers.allKeys) {
+        NSArray *parts = [x componentsSeparatedByString:@":"];
+        MMProcKey k = { (pid_t)[parts.firstObject intValue], (uint64_t)[parts.lastObject longLongValue] };
+        MMProc *p = s ? [s proc:k.pid] : nil;
+        BOOL alive = s ? (p && (!k.startSec || p.startSec == k.startSec)) : StillThere(k);
+        if (!alive) [answers removeObjectForKey:x];
+    }
+    if (answers.count > kMaxAnswers) [answers removeAllObjects];
+}
+
 MMPlace *MMWhereIs(MMProcKey key, MMSample *s, BOOL wait) {
     if (key.pid <= 1) return nil;
     NSString *k = KeyString(key);
     NSMutableDictionary *answers = Answers();
     if (wait) {
         MMPlace *w = StillThere(key) ? Compute(key.pid) : nil;
-        @synchronized (answers) { if (w) answers[k] = w; else [answers removeObjectForKey:k]; }
+        @synchronized (answers) {
+            if (w) answers[k] = w; else [answers removeObjectForKey:k];
+            Prune(answers, s);
+        }
         return w;
     }
     MMPlace *old;
     @synchronized (answers) { old = answers[k]; }
-    dispatch_async(MMKnowQueue(@"where"), ^{
+    dispatch_async(MMQueue(@"core", @"where", QOS_CLASS_UTILITY), ^{
         MMPlace *w = StillThere(key) ? Compute(key.pid) : nil;
         @synchronized (answers) {
             if (w) answers[k] = w; else [answers removeObjectForKey:k];
-            if (s) for (NSString *x in answers.allKeys) {   // forget pids that are gone from the sample
-                pid_t p = [x intValue];
-                if (![s proc:p]) [answers removeObjectForKey:x];
-            }
+            Prune(answers, s);
         }
     });
     return old;
+}
+
+/// YES while an answer for key is cached. For the Know checks, which declare it themselves.
+BOOL MMWhereCached(MMProcKey key);
+BOOL MMWhereCached(MMProcKey key) {
+    NSMutableDictionary *answers = Answers();
+    @synchronized (answers) { return answers[KeyString(key)] != nil; }
 }
 
 #pragma mark Going there

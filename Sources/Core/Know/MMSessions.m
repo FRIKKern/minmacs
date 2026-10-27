@@ -3,13 +3,13 @@
 // New in 2.0: Claude Code's status files, TESTS.md question 9, and Codex's SQLite, question 10, in place of
 // walking 30 days of rollout folders. cmux events follow research track E and TESTS.md question 8.
 #import "Core/Know/MMSessions.h"
+#import "Core/Runtime/MMRuntime.h"
+#import "Core/Store/MMStore.h"
 #import "Core/Know/MMFactCache.h"
 #import <sqlite3.h>
 #import <sys/sysctl.h>
 #import <time.h>
 
-NSString *MMKnowSupportDir(void);                 // MMFactCache.m
-dispatch_queue_t MMKnowQueue(NSString *job);      // MMFactCache.m
 
 static const NSTimeInterval kSessionWindow = 30 * 86400;   // older transcripts are left out, as WorkForest does
 
@@ -441,10 +441,7 @@ static NSString *CmuxPath(void) {
 /// The reader is behind a flag in phase 1: the pref core.cmuxEvents, or MINMACS_CMUX_EVENTS=1.
 static BOOL EventsWanted(void) {
     if ([Env()[@"MINMACS_CMUX_EVENTS"] isEqualToString:@"1"]) return YES;
-    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("core.cmuxEvents"), CFSTR("no.guerrilla.minmacs"));
-    BOOL on = v && CFGetTypeID(v) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)v);
-    if (v) CFRelease(v);
-    return on;
+    return MMPrefBool(@"core.cmuxEvents", NO);
 }
 
 /// TESTS.md question 8: no password is needed in cmux's automation mode, its default. Read from cmux's prefs
@@ -497,7 +494,7 @@ static BOOL CmuxModeOK(void) {
         if (!CmuxModeOK()) { _why = @"cmux asks for a password outside automation mode"; return; }
         _started = YES; _why = nil;
     }
-    dispatch_async(MMKnowQueue(@"events"), ^{ [self launch]; });
+    dispatch_async(MMQueue(@"core", @"events", QOS_CLASS_UTILITY), ^{ [self launch]; });
 }
 
 - (void)stop {
@@ -510,7 +507,7 @@ static BOOL CmuxModeOK(void) {
 /// in the support folder resumes where the last launch stopped. When the child ends anyway, it starts again later.
 - (void)launch {
     @synchronized (self) { if (!_started || _task) return; }
-    NSString *cursor = [MMKnowSupportDir() stringByAppendingPathComponent:@"cmux.cursor"];
+    NSString *cursor = [MMSupportDir() stringByAppendingPathComponent:@"cmux.cursor"];
     NSTask *t = [NSTask new];
     t.executableURL = [NSURL fileURLWithPath:CmuxPath()];
     t.arguments = @[@"events", @"--category", @"agent", @"--cursor-file", cursor, @"--reconnect", @"--no-heartbeat", @"--no-ack"];
@@ -522,10 +519,10 @@ static BOOL CmuxModeOK(void) {
     out.fileHandleForReading.readabilityHandler = ^(NSFileHandle *h) {
         NSData *d = h.availableData;
         if (!d.length) { h.readabilityHandler = nil; return; }
-        dispatch_async(MMKnowQueue(@"events"), ^{ [weak take:d]; });
+        dispatch_async(MMQueue(@"core", @"events", QOS_CLASS_UTILITY), ^{ [weak take:d]; });
     };
     t.terminationHandler = ^(NSTask *ended) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), MMKnowQueue(@"events"), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), MMQueue(@"core", @"events", QOS_CLASS_UTILITY), ^{
             MMAgentEvents *me = weak;
             if (!me) return;
             @synchronized (me) { if (me->_task == ended) me->_task = nil; }

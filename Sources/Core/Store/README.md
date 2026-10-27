@@ -11,7 +11,7 @@ The support folder, the prefs domain, rules files, state files, the SQLite log a
 ## Where things live
 
 - The support folder is `~/Library/Application Support/MinMacs`, or `$MINMACS_HOME`. Each expert has a folder in it, such as `locohost/`.
-- Prefs go to `no.guerrilla.minmacs` through CFPreferences. With `MINMACS_HOME` set they go to `$MINMACS_HOME/Preferences/no.guerrilla.minmacs.plist`, so a test never writes the person's prefs.
+- Prefs go to `no.guerrilla.minmacs` through CFPreferences. With `MINMACS_HOME` set they go to `$MINMACS_HOME/Preferences/no.guerrilla.minmacs.plist`, read and written as a file under an flock and never through CFPreferences, so a test never writes the person's prefs.
 - Keys carry the expert, such as `locohost.mode`. `review.model` and `core.oneIcon` belong to the Settings window. An icon's shown state is AppKit's own key, `NSStatusItem Visible minmacs.<expert>`.
 - `rules.json` keeps each named list at the top level. `_defaults` lists every default it ever added, so a default the person removed is not added again.
 - The log is one table of rows. Triggers refuse `UPDATE` and `DELETE`. A new state of a record is a new row with the same `rid`. Trend points sit in their own table, one per bucket.

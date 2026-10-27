@@ -1,5 +1,5 @@
 # Core Senses and Runtime, issue #14. Sourced by test.sh after core, which built $APP.
-# test/senses/probe.m links Sources/Core/Runtime and Sources/Core/Senses with -DMM_TESTS.
+# test/senses/probe.m links all of Sources/Core with -DMM_TESTS, so the worker child runs the real Sizer.
 # Every fixture lives in $MINMACS_HOME: a Python listener with one connection and one child, a sleep,
 # git repos and a watched folder. Each pid this section starts goes into procs, so cleanup stops it.
 # MM_PASS_BUDGET_MS and MM_PASS_P95_BUDGET_MS change the cost budget for slower machines.
@@ -9,8 +9,8 @@ mkdir -p "$sn_dir"
 sn_probe="$sn_dir/probe"
 clang -fobjc-arc -O2 -mmacosx-version-min=14.0 -arch arm64 -arch x86_64 -ISources -DMM_TESTS \
   -Wall -Wextra -Wno-unused-parameter -Werror \
-  Sources/Core/Runtime/*.m Sources/Core/Senses/*.m test/senses/probe.m \
-  -framework Cocoa -framework IOKit -o "$sn_probe" >"$sn_dir/clang.log" 2>&1
+  $(find Sources/Core -name '*.m' | LC_ALL=C sort) test/senses/probe.m \
+  -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$sn_probe" >"$sn_dir/clang.log" 2>&1
 sn_r=$?
 check "the senses probe builds with MM_TESTS and no warnings" 0 "$sn_r"
 [ "$sn_r" = 0 ] || tail -20 "$sn_dir/clang.log"
@@ -58,6 +58,23 @@ check "one pass covers root's processes too" yes "$(sj '"yes" if j["procs"] > 50
 check "cpu and energy rank are in range" True "$(sj 'j["cpuSane"] == 1 and j["rankSane"] == 1')"
 check "latest is the sample just taken" 1 "$(sj 'j["latestIsSample"]')"
 kill "$sn_srv" "$sn_kid" 2>/dev/null; wait "$sn_srv" 2>/dev/null
+
+# A zombie, a child that exited and that its parent never reaped, is left out of the sample and is not alive.
+python3 -c 'import os, sys, time
+pid = os.fork()
+if pid == 0: os._exit(0)
+print(pid, flush=True); time.sleep(15)' >"$sn_dir/zombie.pid" &
+sn_zp=$!
+procs="$procs $sn_zp"
+for i in $(seq 1 30); do [ -s "$sn_dir/zombie.pid" ] && break; sleep 0.1; done
+sleep 0.3
+sn_out=$(sn zombie "$(cat "$sn_dir/zombie.pid")")
+check "the zombie fixture is a zombie" True "$(sj 'j["isZombie"]')"
+check "a zombie is left out of the sample" 0 "$(sj 'int(j["inSample"])')"
+check "  and out of its parent's children" 0 "$(sj 'int(j["amongKids"])')"
+check "MMProcAlive treats a zombie as gone" False "$(sj 'j["alive"]')"
+check "a sample hands out immutable arrays" 1 "$(sj 'int(j["immutable"])')"
+kill "$sn_zp" 2>/dev/null; wait "$sn_zp" 2>/dev/null
 
 # The cost of one pass on this machine, median and p95 over 60 passes.
 # This Mac measured 6.1 ms median idle and 7.4 ms while other builds ran. The budget leaves room for load.
@@ -144,13 +161,15 @@ sn_git -C "$sn_repos/alpha" worktree add -b feature "$sn_repos/alpha-wt" && sn_g
 sn_git init "$sn_repos/beta" && sn_git -C "$sn_repos/beta" commit --allow-empty -m one && sn_git -C "$sn_repos/beta" checkout --detach
 sn_git -C "$sn_repos/beta" worktree add -b far "$sn_dir/outside/beta-far"
 mkdir -p "$sn_repos/proj/node_modules" && sn_git init "$sn_repos/proj/node_modules/hidden"
-sn_out=$(sn worker "$sn_repos")
+sn_sizes="$sn_dir/sizes"; mkdir -p "$sn_sizes"
+head -c 8192 /dev/urandom >"$sn_sizes/one"
+sn_out=$(sn worker "$sn_repos" "$sn_sizes")
 check "the worker finds mains, linked and outside worktrees" \
   'alpha-wt|alpha|feature|locked alpha|alpha|main|open beta-far|beta|far|open beta|beta|-|open' "$(sj '" ".join(j["rows"])')"
 check "the worker reports no error" "" "$(sj 'j["error"]')"
 check "worker replies never arrive on main" False "$(sj 'j["replyOnMain"]')"
-check "sizeTrees goes through MMSizer quick" '1002 7' "$(sj '"%d %d" % (j["sizeA"], j["freedA"])')"
-check "exactSize goes through MMSizer exact" 84 "$(sj 'j["exact"]')"
+check "sizeTrees goes through MMSizer quick" '8192 8192' "$(sj '"%d %d" % (j["sizeA"], j["freedA"])')"
+check "exactSize goes through MMSizer exact" 8192 "$(sj 'j["exact"]')"
 check "the worker runs as a child of the caller" 1 "$(sj 'j["childFound"]')"
 check "a request in flight fails when the child dies" 1 "$(sj 'j["inflightFailed"]')"
 check "the next request starts a new child" 1 "$(sj 'j["restarted"]')"

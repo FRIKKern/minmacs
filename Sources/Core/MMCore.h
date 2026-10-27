@@ -27,4 +27,13 @@ NS_ASSUME_NONNULL_BEGIN
 void MMCoreStart(void);
 /// Stops the timers, streams and socket that MMCoreStart started.
 void MMCoreStop(void);
+
+/// P63. What the running app answers on core.sock. A request is a JSON object with a "verb" key, such as
+/// {"verb": "ping"}, and the reply is a JSON object. A reply with an "error" key failed.
+typedef NSDictionary *_Nullable (^MMCoreRequestHandler)(NSDictionary *request);
+/// Adds the handler for one verb, or removes it when handler is nil. Core serves "ping" and "status" itself.
+/// Handlers run on MMQueue(@"core", @"socket"), one request at a time. Sources/CLI adds the verbs that run in the app.
+void MMCoreServe(NSString *verb, MMCoreRequestHandler _Nullable handler);
+/// Routes one request to its verb's handler. The socket calls this; a test may call it directly.
+NSDictionary *MMCoreHandleRequest(NSDictionary *request);
 NS_ASSUME_NONNULL_END

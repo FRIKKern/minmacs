@@ -1,12 +1,13 @@
 # ===== Graph: owners, workstreams and the snapshot, issue #16 =====
-# Sourced by test.sh after core. Builds test/graph/graph.m against Sources/Core/Graph alone, with facts built by hand.
-# It needs no Senses or Know code, starts no process but its own test binary, and reads no file outside $MINMACS_HOME.
+# Sourced by test.sh after core. Builds test/graph/graph.m against all of Sources/Core, and feeds the graph facts
+# built by hand through its own fact source. It starts no process but its own test binary, and reads no file
+# outside $MINMACS_HOME.
 # ThreadSanitizer is left out: on macOS 27 with this clang, an empty C program built with it crashes at launch.
 
 gr_dir="$MINMACS_HOME/graph"
 mkdir -p "$gr_dir"
-gr_src="$(find Sources/Core/Graph -name '*.m' | LC_ALL=C sort) test/graph/graph.m"
-gr_cc="clang -fobjc-arc -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=14.0 -ISources -framework Foundation"
+gr_src="$(find Sources/Core -name '*.m' | LC_ALL=C sort) test/graph/graph.m"
+gr_cc="clang -fobjc-arc -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=14.0 -ISources -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3"
 gr_tab=$(printf '\t')
 
 # shellcheck disable=SC2086

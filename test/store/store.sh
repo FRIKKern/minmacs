@@ -8,8 +8,8 @@ st_bin="$st_dir/check"
 st_real_prefs="$HOME/Library/Preferences/no.guerrilla.minmacs.plist"
 st_real_before=$(stat -f '%m %z' "$st_real_prefs" 2>/dev/null || echo none)
 
-if clang -fobjc-arc -Wall -mmacosx-version-min=14.0 -ISources -framework Foundation -lsqlite3 \
-     $(find Sources/Core/Store -name '*.m' | LC_ALL=C sort) test/store/check.m -o "$st_bin" >"$st_dir/build.log" 2>&1; then
+if clang -fobjc-arc -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 \
+     $(find Sources/Core -name '*.m' | LC_ALL=C sort) test/store/check.m -o "$st_bin" >"$st_dir/build.log" 2>&1; then
   check "test/store/check.m builds with no warnings" 0 "$(grep -c "warning:" "$st_dir/build.log")"
 else
   check "test/store/check.m builds" 0 1

@@ -3,12 +3,13 @@
 // New in 2.0: the ranked signals of P18. The status file decides first, then agent events and Codex's SQLite,
 // then the row's own signals in the order Agents.m reads them.
 #import "Core/Know/MMRegistry.h"
+#import "Core/Runtime/MMRuntime.h"
+#import "Core/Store/MMStore.h"
 #import "Core/Know/MMSessions.h"
 #import <glob.h>
 #import <sys/stat.h>
 #import <mach-o/dyld.h>
 
-NSString *MMKnowSupportDir(void);   // MMFactCache.m
 
 @interface MMAgentRow ()
 @property (readwrite, copy) NSString *harnessID, *name;
@@ -183,7 +184,7 @@ static NSString *StateWord(MMAgentState s) {
         NSString *contents = [@(real).stringByDeletingLastPathComponent stringByDeletingLastPathComponent];
         [dirs addObject:[contents stringByAppendingPathComponent:@"Resources/registry/agents"]];
     }
-    [dirs addObject:[MMKnowSupportDir() stringByAppendingPathComponent:@"registry/agents"]];   // the user's rows win
+    [dirs addObject:[MMSupportDir() stringByAppendingPathComponent:@"registry/agents"]];   // the user's rows win
     return dirs;
 }
 
