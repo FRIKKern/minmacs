@@ -2,7 +2,7 @@
 
 # MinMacs
 
-> **MinMacs 2.0 is being planned on `main`.** It joins MinMacs, LocoHost, WorkForest, Noo-Noo and Insomnia into one app with five experts in the menu bar and one shared core. See [docs/2.0/PLAN.md](docs/2.0/PLAN.md) and the [milestones](https://github.com/FRIKKern/minmacs/milestones). MinMacs 1.2 lives on the [`legacy`](https://github.com/FRIKKern/minmacs/tree/legacy) branch and stays installable.
+> **MinMacs 2.0 is under construction on `main`.** It joins MinMacs, LocoHost, WorkForest, Noo-Noo and Insomnia into one app with five experts in the menu bar and one shared core. See [docs/2.0/PLAN.md](docs/2.0/PLAN.md) and the [milestones](https://github.com/FRIKKern/minmacs/milestones). The code on `main` is not usable yet. MinMacs 1.2 lives on the [`legacy`](https://github.com/FRIKKern/minmacs/tree/legacy) branch, and the install command below installs 1.2 from there. The rest of this README describes 1.2.
 
 Reclaim your Mac for developers and agents. A free menu bar app that shows exactly what is burning CPU and memory, quits the apps that do nothing for your work, trims the noise tabs out of your browser while keeping the browser, and leaves alone anything an agent is using. One click, with a Restore button. Made for MacBooks that run Claude Code, builds, and long agent sessions next to a browser with a hundred tabs.
 
@@ -150,10 +150,12 @@ Every four seconds MinMacs samples all processes through `libproc`, computes CPU
 ## Build from a checkout
 
 ```sh
-git clone https://github.com/FRIKKern/minmacs.git && cd minmacs
+git clone -b legacy https://github.com/FRIKKern/minmacs.git && cd minmacs
 ./build.sh                 # universal build, installs app and CLI link
 ./build.sh --no-install
 ```
+
+This builds 1.2 from `legacy`. On `main`, `./build.sh` builds the 2.0 work in progress and installs only with `--install`.
 
 See [CHANGELOG.md](CHANGELOG.md) and, for AI agents working on the code, [AGENTS.md](AGENTS.md).
 

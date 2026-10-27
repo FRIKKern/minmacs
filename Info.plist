@@ -15,7 +15,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2.0</string>
+	<string>2.0.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -28,13 +28,11 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>10200</string>
+	<string>20000</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>13.0</string>
+	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>MinMacs reads your browser tabs to show which ones it would close, and closes the ones on your noise list when you ask it to.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Frikk Jarl</string>
 </dict>

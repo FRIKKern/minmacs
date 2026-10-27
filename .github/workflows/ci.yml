@@ -3,10 +3,25 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 jobs:
   build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
-      - run: sh build.sh --no-install
-      - run: sh -n install.sh && sh -n uninstall.sh
+      - name: Build
+        run: ./build.sh
+      - name: Test
+        run: ./test.sh
+      - name: Check the install scripts parse
+        run: sh -n install.sh && sh -n uninstall.sh
+      - name: Find rendered menus
+        id: render
+        run: |
+          if ls build/render/*.png >/dev/null 2>&1; then echo "found=yes" >> "$GITHUB_OUTPUT"; fi
+      - name: Keep rendered menus
+        if: steps.render.outputs.found == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: render
+          path: build/render/*.png
