@@ -20,3 +20,11 @@
 #import "Core/Act/MMUndo.h"
 #import "Core/Act/MMAct.h"
 #import "Core/MMExpert.h"
+
+NS_ASSUME_NONNULL_BEGIN
+/// Starts Core in order: Store, Senses, Know, the graph with its fact source, the review broker and the core socket.
+/// Call once on the main thread, after the experts are registered. Safe to call twice.
+void MMCoreStart(void);
+/// Stops the timers, streams and socket that MMCoreStart started.
+void MMCoreStop(void);
+NS_ASSUME_NONNULL_END
