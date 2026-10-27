@@ -7,6 +7,8 @@
 #import <Cocoa/Cocoa.h>
 #import "UI/MMUI.h"
 #import "UI/MMSettings.h"
+#import "UI/MMSpecMenu.h"
+#import "Core/MMExpert.h"
 
 #pragma mark Checks
 
@@ -313,6 +315,123 @@ static NSView *StatusStrip(NSArray<NSArray *> *experts) {
     return c;
 }
 
+#pragma mark Shell
+
+// The app shell draws every expert's menu from the specs of Core/MMExpert.h through Sources/UI/MMSpecMenu.
+// These subjects are specs, as an expert hands them over, so the render checks what the menu bar shows.
+
+static MMRowSpec *SRow(NSString *name, NSArray *facts, MMRowMark mark, NSString *fid) {
+    MMRowSpec *r = [MMRowSpec new]; r.name = name; r.facts = facts; r.mark = mark; r.findingID = fid; return r;
+}
+static MMSectionSpec *SSection(NSString *title, NSArray *rows) { MMSectionSpec *s = [MMSectionSpec new]; s.title = title; s.rows = rows; return s; }
+static MMActionSpec *SAct(NSString *title, NSString *tail) { return [MMActionSpec title:title tail:tail run:^(BOOL option) {}]; }
+
+static MMMenuSpec *LocoHostSpec(void) {
+    MMMenuSpec *m = [MMMenuSpec new];
+    m.headerBig = MMBytes(2117ull << 20); m.headerUnit = @"in servers";
+    m.headerLine = [NSString stringWithFormat:@"%@ · 2 in use · 1 quiet · Proactive", MMPlural(3, @"localhost")];
+    m.summary = @"The docs server has been quiet since lunch and goes at the next review. The checkout server is in use from Safari.";
+    MMActionSpec *close = SAct(@"Close Idle", [NSString stringWithFormat:@"%@, %@", MMPlural(1, @"server"), MMBytes(512ull << 20)]);
+    close.optionTitle = @"Force Close Idle";
+    m.actions = @[close, SAct(@"Review Now", MMAgo([NSDate dateWithTimeIntervalSinceNow:-9 * 60]))];
+    m.sections = @[SSection(@"In use", @[SRow(@"checkout-flow", @[@"Vite", MMBytes(905ull << 20), @"in Safari"], MMRowMarkWorking, @"checkout"),
+                                         SRow(@"orbit-api", @[@"Next.js", MMBytes(700ull << 20), @"used 4m ago"], MMRowMarkRecent, nil)]),
+                   SSection(@"Quiet", @[SRow(@"docs", @[@"Vite", MMBytes(512ull << 20), @"goes at the next review"], MMRowMarkGoes, @"docs")])];
+    m.more = @[SAct(@"Recently Stopped", nil)];
+    return m;
+}
+
+static MMMenuSpec *MinMacsSpec(void) {
+    MMMenuSpec *m = [MMMenuSpec new];
+    m.headerBig = MMBytes(9800ull << 20); m.headerUnit = @"of memory in use";
+    m.headerLine = @"3 agents working · 2 apps to quit · Proactive";
+    m.summary = @"Two apps have been in the background all day. Claude Code works in two sessions.";
+    MMActionSpec *quit = SAct(@"Quit Idle Apps", [NSString stringWithFormat:@"%@, %@", MMPlural(2, @"app"), MMBytes(1400ull << 20)]);
+    MMActionSpec *trim = SAct(@"Trim Browser Tabs", nil); trim.disabledReason = @"no noise tabs";
+    m.actions = @[quit, trim];
+    m.sections = @[SSection(@"Agents", @[SRow(@"Claude Code", @[@"checkout-flow", MMBytes(610ull << 20), @"working"], MMRowMarkWorking, nil),
+                                         SRow(@"Codex", @[@"orbit-api", MMBytes(220ull << 20), @"waits on you"], MMRowMarkBlocked, nil)]),
+                   SSection(@"Apps to quit", @[SRow(@"Keynote", @[@"Apple", MMBytes(900ull << 20), @"idle 6h"], MMRowMarkGoes, @"keynote"),
+                                               SRow(@"Photoshop", @[@"Adobe", MMBytes(500ull << 20), @"idle 3h"], MMRowMarkGoes, nil)])];
+    return m;
+}
+
+static MMCardSpec *SCard(NSString *fid) {
+    MMCardSpec *c = [MMCardSpec new];
+    if ([fid isEqualToString:@"checkout"]) {
+        c.title = @"Vite dev server for the acme-web checkout flow"; c.statusWord = @"Stays."; c.mark = MMRowMarkWorking;
+        c.statusText = @"Safari has it open. Proactive looks again after 30 minutes of quiet.";
+        MMCardFact *wt = [MMCardFact label:@"Worktree" value:@"checkout-flow, in use"]; wt.linkExpert = @"WorkForest"; wt.linkFindingID = @"workforest:worktree:checkout-flow";
+        c.facts = @[[MMCardFact label:@"Where" value:@"cmux, tab “checkout”"], [MMCardFact label:@"Up" value:@"3h 12m, started by pnpm dev"],
+                    [MMCardFact label:@"Uses" value:[NSString stringWithFormat:@"%@ · 4%% CPU", MMBytes(905ull << 20)]], wt];
+        MMActionSpec *stop = SAct(@"Stop", nil); stop.optionTitle = @"Force Stop";
+        c.actions = @[SAct(@"Go to “checkout”", nil), SAct(@"Open localhost:3000", nil), SAct(@"Keep for 4 Hours", nil), stop, SAct(@"Copy URL", nil)];
+    } else if ([fid isEqualToString:@"docs"]) {
+        c.title = @"Vite dev server for the acme-web docs"; c.statusWord = @"Goes at the next review."; c.mark = MMRowMarkGoes;
+        c.statusText = @"Quiet for 3 hours, and no agent uses it. Restore starts it again.";
+        c.facts = @[[MMCardFact label:@"Where" value:@"Terminal, tab “docs”"], [MMCardFact label:@"Up" value:@"1d 2h, started by pnpm docs"],
+                    [MMCardFact label:@"Git" value:@""]];
+        c.noteBy = @"Haiku says idle"; c.note = @"Nobody has opened the docs site since it started yesterday.";
+        MMActionSpec *go = SAct(@"Go to Tab", nil); go.disabledReason = @"the tab has closed";
+        c.actions = @[go, SAct(@"Keep for 4 Hours", nil), SAct(@"Stop", nil)];
+    } else {
+        c.title = @"Keynote"; c.statusWord = @"Goes at 18:00."; c.mark = MMRowMarkGoes;
+        c.statusText = @"In the background for 6 hours with no window in use.";
+        c.facts = @[[MMCardFact label:@"Uses" value:[NSString stringWithFormat:@"%@ · 0%% CPU", MMBytes(900ull << 20)]],
+                    [MMCardFact label:@"Energy" value:@"uses little energy"]];
+        c.actions = @[SAct(@"Quit", nil), SAct(@"Keep Today", nil)];
+    }
+    return c;
+}
+
+/// The shell's PNGs go in their own folder: each expert's menu and card as the shell builds them, One Icon, the icons.
+static void RenderShell(NSString *out, NSDictionary<NSString *, NSAppearance *> *appearances, NSMutableArray *unwritten) {
+    NSString *dir = [out stringByAppendingPathComponent:@"shell"];
+    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    MMCardProvider cards = ^MMCardSpec *(NSString *fid) { return SCard(fid); };
+    MMOneIconPart *mm = [MMOneIconPart new]; mm.name = @"MinMacs"; mm.spec = MinMacsSpec(); mm.cards = cards;
+    MMOneIconPart *lh = [MMOneIconPart new]; lh.name = @"LocoHost"; lh.spec = LocoHostSpec(); lh.cards = cards;
+    NSDictionary<NSString *, NSMenu *> *menus = @{
+        @"shell-locohost-menu": MMMenuFromSpec(LocoHostSpec(), cards, nil, nil),
+        @"shell-minmacs-menu": MMMenuFromSpec(MinMacsSpec(), cards, @"MinMacs opens at login. Settings can turn that off.", nil),
+        @"shell-one-icon": MMOneIconMenu(@[mm, lh], nil, nil),
+    };
+    NSDictionary<NSString *, NSMenu *> *cardMenus = @{
+        @"shell-card-checkout": [MMCardFromSpec(SCard(@"checkout")) menu],
+        @"shell-card-docs": [MMCardFromSpec(SCard(@"docs")) menu],
+        @"shell-card-keynote": [MMCardFromSpec(SCard(@"keynote")) menu],
+    };
+    for (NSString *k in menus) CheckMenu(menus[k], k);
+    for (NSString *k in @[@"checkout", @"docs", @"keynote"]) {
+        NSArray *p = [MMCardFromSpec(SCard(k)) layoutProblems];
+        Check(p.count == 0, [NSString stringWithFormat:@"shell card %@: follows the card rules", k], [p componentsJoinedByString:@"; "]);
+    }
+    // A card is one level deep in One Icon too: no row's submenu holds another row with a submenu.
+    NSInteger deep = 0;
+    for (NSMenuItem *i in menus[@"shell-one-icon"].itemArray) for (NSMenuItem *j in i.submenu.itemArray) if (j.submenu && ![j.title isEqualToString:@"More"]) deep++;
+    Check(deep == 0, @"shell one icon: experts never nest, a card is one level deep", [NSString stringWithFormat:@"%ld nested", (long)deep]);
+    NSInteger sections = 0;
+    for (NSMenuItem *i in menus[@"shell-one-icon"].itemArray) sections += i.isSectionHeader;
+    Check(sections == 2, @"shell one icon: one section per visible expert", [NSString stringWithFormat:@"%ld sections", (long)sections]);
+    NSArray *experts = @[@[@"MinMacs", @"gauge.with.dots.needle.33percent", @"2 apps to quit", @""], @[@"LocoHost", @"server.rack", @"1 idle server", @"1"]];
+    for (NSArray *e in experts) Check(MMStatusImage(e[1], MMStatusLabel(e[0], e[2])) != nil, [NSString stringWithFormat:@"shell: the %@ symbol exists", e[0]], e[1]);
+    BOOL first = YES;
+    for (NSString *mode in @[@"light", @"dark", @"contrast-light", @"contrast-dark"]) {
+        NSAppearance *ap = appearances[mode];
+        if (!ap) continue;
+        NSMutableDictionary *all = [menus mutableCopy]; [all addEntriesFromDictionary:cardMenus];
+        for (NSString *k in all) {
+            NSString *path = [dir stringByAppendingFormat:@"/%@-%@.png", k, mode];
+            NSArray *cut = MMRenderMenu(all[k], path, ap);
+            if (!cut) [unwritten addObject:path.lastPathComponent];
+            if (first) Check(cut.count == 0, [k stringByAppendingString:@": no item is cut off"], [cut componentsJoinedByString:@", "]);
+        }
+        NSString *path = [dir stringByAppendingFormat:@"/shell-status-%@.png", mode];
+        if (!MMRenderView(StatusStrip(experts), path, ap)) [unwritten addObject:path.lastPathComponent];
+        first = NO;
+    }
+}
+
 int main(int argc, char **argv) { @autoreleasepool {
     if (argc < 2) { fprintf(stderr, "usage: render <output folder>\n"); return 2; }
     [NSApplication sharedApplication];
@@ -418,6 +537,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     for (MMSettingsExpert *e in settings.experts) if (![named containsObject:e.name]) [missing addObject:e.name];
     Check(missing.count == 0 && settings.experts.count == 5, @"settings overview: names all five experts", [missing componentsJoinedByString:@", "]);
     Check([named containsObject:@"21.0 GB of caches and build output · icon hidden"], @"settings overview: says when an icon is hidden", @"no line says icon hidden");
+    RenderShell(out, appearances, unwritten);
     Check(unwritten.count == 0, @"every PNG is written", [unwritten componentsJoinedByString:@", "]);
     // The menus still work after drawing: every card view went back to its item alone.
     NSInteger loose = 0;

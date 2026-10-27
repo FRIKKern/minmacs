@@ -20,8 +20,8 @@ check "the registry ships with the app" yes "$([ "$rows" -gt 0 ] && echo yes || 
 
 "$BIN" version >/dev/null 2>&1
 check "minmacs version exits 0" 0 "$?"
-check "minmacs version prints the bundle version" "MinMacs $want (phase 0)" "$("$BIN" version 2>/dev/null)"
+check "minmacs version prints the bundle version" "MinMacs $want (phase 1)" "$("$BIN" version 2>/dev/null)"
 mkdir -p "$MINMACS_HOME/bin" && ln -sf "$BIN" "$MINMACS_HOME/bin/minmacs"
-check "it works through a symlink, as installed" "MinMacs $want (phase 0)" "$("$MINMACS_HOME/bin/minmacs" version 2>/dev/null)"
+check "it works through a symlink, as installed" "MinMacs $want (phase 1)" "$("$MINMACS_HOME/bin/minmacs" version 2>/dev/null)"
 "$BIN" no-such-verb >/dev/null 2>&1
 check "an unknown verb exits 2" 2 "$?"

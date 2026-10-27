@@ -38,19 +38,35 @@ NSString *MMPrefsTarget(void) {
 
 static BOOL IsFileTarget(NSString *t) { return [t hasPrefix:@"/"]; }
 
+// The plist target under MINMACS_HOME is read and written as a plain file under an flock. Through CFPreferences
+// a path target is cached by cfprefsd, so a second process could read a value an earlier process had replaced.
+static id PlistChange(NSString *path, NSString *key, id value, BOOL write) {
+    NSString *lock = [path stringByAppendingString:@".lock"];
+    int fd = open(lock.fileSystemRepresentation, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if (fd >= 0) flock(fd, write ? LOCK_EX : LOCK_SH);
+    NSMutableDictionary *d = [NSMutableDictionary dictionaryWithContentsOfFile:path] ?: [NSMutableDictionary new];
+    id old = d[key];
+    if (write) {
+        d[key] = value;
+        [d writeToFile:path atomically:YES];
+    }
+    if (fd >= 0) { flock(fd, LOCK_UN); close(fd); }
+    return old;
+}
+
 id MMPref(NSString *key) {
     if (!key.length) return nil;
-    CFStringRef t = (__bridge CFStringRef)MMPrefsTarget();
-    // A plist target has no cfprefsd to share changes between processes, so it is read fresh.
-    if (IsFileTarget((__bridge NSString *)t)) CFPreferencesAppSynchronize(t);
-    return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, t));
+    NSString *t = MMPrefsTarget();
+    if (IsFileTarget(t)) return PlistChange(t, key, nil, NO);
+    return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, (__bridge CFStringRef)t));
 }
 
 void MMSetPref(NSString *key, id value) {
     if (!key.length) return;
-    CFStringRef t = (__bridge CFStringRef)MMPrefsTarget();
-    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, t);
-    CFPreferencesAppSynchronize(t);
+    NSString *t = MMPrefsTarget();
+    if (IsFileTarget(t)) { PlistChange(t, key, value, YES); return; }
+    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, (__bridge CFStringRef)t);
+    CFPreferencesAppSynchronize((__bridge CFStringRef)t);
 }
 
 BOOL MMPrefBool(NSString *key, BOOL dflt) {

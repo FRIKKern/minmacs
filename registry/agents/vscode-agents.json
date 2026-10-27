@@ -110,16 +110,6 @@
       "meaning": "Exact for Cline 4.x. The SDK writes status running when a turn starts and idle when it ends (markTurnRunning / markTurnIdle in local-runtime-host.ts) and a reconciler flips rows whose pid is dead to failed. pid is process.pid of the extension host. Read the status column, not the file mtime. Caveat: it stays running while a tool approval is pending (approval is awaited inside the turn, inferred from source), and the persisted update can trail the real end of the turn. Read-only SQLite on a WAL database; never touch the messages columns. Not observed, Cline is not installed."
     },
     {
-      "signal": "socket_activity",
-      "name": "Kilo: GET /session/status on the kilo serve loopback port returns type busy or retry",
-      "meaning": "Exact for Kilo 7.x, per session (idle, busy, retry, offline, scheduled; scheduled means asleep on a pending wakeup). Needs the listening port (lsof -iTCP -sTCP:LISTEN -a -p <kilo pid>) and the Basic auth password, which exists only in the server's environment (KILO_SERVER_PASSWORD) and in the extension. Using it means reading another process's environment or sniffing, so treat as documented-but-intrusive. The extension itself watches the same state over SSE (session.status)."
-    },
-    {
-      "signal": "socket_activity",
-      "name": "VS Code Agent Host: AHP session status has the InProgress bit",
-      "meaning": "Exact for Copilot, Claude and Codex sessions that run on the Agent Host: session status is one of Idle, InProgress, InputNeeded, Error. Reachable by an external same-user client through the endpoint entry file (WebSocket over unix socket, connectionToken query parameter). Requires speaking AHP, and the entry file holds a bearer token. Not observed."
-    },
-    {
       "signal": "child_process",
       "name": "caffeinate",
       "args_contain": [

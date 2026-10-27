@@ -43,7 +43,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 ## Runtime and Senses, issue #14
 
 - The worker of P4 is a `minmacs _walk` child of the same binary. The XPC kind waits for the settling check on macOS 14. The child calls `+[MMSizer quick:]` and `+exact:` through the Objective-C runtime, so those two must walk in process. It finds worktrees itself by reading `.git` files, with no git spawn.
-- `MMCoreSocket` is a stub. `+serve:` refuses with a note and `+ask:` returns nil, so the CLI runs Core cold. `MMCoreSocketPath` is real.
+- `MMCoreSocket` is real since issue #20. `+serve:` takes the flock lock in `core.lock`, binds `core.sock` with mode 0600 and checks every peer's uid with `getpeereid`. A second `+serve:` in the same process adds its handler to the one server, and the newest handler that replies answers. One request and one reply per connection, as JSON.
 - Runtime and Senses read the support folder through `MMRuntimeSupportDir`, which follows the same rule as `MMSupportDir`. It can call `MMSupportDir` once Store lands.
 - One pass measured 6.1 to 7.5 ms CPU median and 6.6 to 9.4 ms p95 on the research Mac, over 60 to 100 passes with 836 to 929 pids. The spread follows the load from other builds. `test/senses.sh` fails above 12 ms median or 25 ms p95.
 
@@ -54,6 +54,13 @@ Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and 
 - Know links before Runtime and Store land. `MMFactCache.m` holds Know's own `MMKnowSupportDir` and `MMKnowQueue`, which follow `MMSupportDir` and `MMQueue`. Swap them for the real ones once those land.
 - Know reads `MMSample`, `MMProc` and `MMPower` by message only, so it links without Senses. `test/know/fakesample.m` stands in for Senses in `./test.sh know`.
 - The cmux events reader is behind the pref `core.cmuxEvents` or `MINMACS_CMUX_EVENTS=1`. `MINMACS_CMUX` and `MINMACS_TMUX` name the CLIs, which the checks use for fakes.
+
+## The shell and the CLI, issue #20
+
+- `MMExpert.m` holds the one expert list. `MMRegisterExpert` adds an expert once, hands it to `MMGraph` and its rules to the broker. `MMSpecs.m` holds the menu, card and verb specs as plain data.
+- `Sources/Shell/MMShell.m` is the app: it calls `MMCoreStart`, serves core.sock with `MMCLIReply`, makes one status item per expert and opens Settings. `Sources/main.m` registers each class named in `MMBuiltInExpertClasses` that is linked in: `MMMinMacsExpert`, `MMLocoHostExpert`, `MMWorkForestExpert`, `MMNooNooExpert` and `MMInsomniaExpert`. An expert lands by adding its class, with no change to the shell.
+- `Sources/CLI` holds the verb registry, Core's verbs, `MMArgs` and the URL router. A verb prints through `MMArgs`, never with printf, so its output reaches the terminal from the app too.
+- Under `MINMACS_HOME` the prefs plist is read and written as a file under an flock. Through CFPreferences a path target is cached by cfprefsd, and a second process read a value an earlier one had replaced.
 
 ## How the parts meet
 

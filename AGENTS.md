@@ -18,7 +18,7 @@ build/MinMacs.app/Contents/MacOS/MinMacs version
 Never pass `--install` in phase 0. The person's installed MinMacs 1.2 must keep running until phase 1 replaces it. Never launch the app from a test.
 
 **Layout**
-- `Sources/main.m`: the entry point. The menu bar app, or the CLI when a verb is given.
+- `Sources/main.m`: the entry point. It registers the experts, then `Sources/Shell` runs the menu bar app, or the CLI when a verb is given.
 - `Sources/Core/{Runtime,Senses,Know,Graph,Store,Review,Act}`: the shared core. [Sources/README.md](Sources/README.md) says what each holds.
 - `Sources/Experts/{MinMacs,LocoHost,WorkForest,NooNoo,Insomnia}`: the five experts, each a lens on the graph with its menu and CLI verbs.
 - `Sources/UI`: the menu kit and the render tool. `Sources/CLI`: the verb registry and the URL router.
