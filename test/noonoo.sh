@@ -194,7 +194,7 @@ if [ "$nn_r" = 0 ]; then
   check "noonoo: the walls let through exactly the listed leaves" "" "$(LC_ALL=C sort "$nn/allowed.txt" | diff - "$nn/expected.txt" | tr '\n' ' ')"
   nn_before=$(find "$nnr" "$nn/code" | LC_ALL=C sort | md5 -q)
   for p in "$nnh" "$nnh/Documents" "$nnr/System/Library/Caches/x" "$nnh/Library/Caches/random-app" "$nnh/Library/Caches/pip/docs-link" \
-           "$nn_main/dist" "$nn_scr/$nn_live" "$nnh/Library/Application Support/Cursor/User/globalStorage/state.vscdb" /System/Library "$HOME"; do
+           "$nn_main/dist" "$nn_scr/$nn_live" "$nnh/Library/Application Support/Cursor/User/globalStorage/state.vscdb" "$nnr/System/Library" "$nnr"; do
     nnt verb clean "$p" >/dev/null 2>&1
   done
   check "noonoo: clean on protected, kept or unlisted paths changes nothing" "$nn_before" "$(find "$nnr" "$nn/code" | LC_ALL=C sort | md5 -q)"
@@ -253,6 +253,12 @@ if [ "$nn_r" = 0 ]; then
   nn_plan=$(nnt verb clutter list --json 2>/dev/null)
   check "noonoo: the rule lets finished build output go" yes \
     "$(printf '%s' "$nn_plan" | json '"yes" if [i for i in j["items"] if i["path"].endswith("feat/node_modules")][0]["section"]=="finished" else "no"')"
+  nnt modes >"$nn/modes.txt" 2>/dev/null
+  nn_mode() { awk -v k="$1" -v s="$2" '$1==k && $2==s {print $3" "$4; exit}' "$nn/modes.txt"; }
+  check "noonoo: Proactive and Eager take finished build output" "go go" "$(nn_mode node-modules finished)"
+  check "noonoo: Proactive and Eager take a leftover" "go go" "$(nn_mode claude-code-scratch leftovers)"
+  check "noonoo: only Eager takes a cache" "keep go" "$(nn_mode pip-cache caches)"
+  check "noonoo: no mode runs a tool's own cleanup" "keep keep" "$(nn_mode simulator-devices caches)"
 
   echo "-- disk trends"
   check "noonoo: one point per row per day, so the log stays small" 1 "$(nnt points pip-cache)"

@@ -7,6 +7,7 @@
 //   tool walls <dir>                              every path under dir that the walls let through, one per line
 //   tool record <kind> <days> <from> <to>         a recorded trend: one point a day for days back, today left out
 //   tool points <kind>                            how many points the log holds for the row
+//   tool modes                                    each actionable finding: row, section, and whether Proactive and Eager take it
 //   tool undo                                     Noo-Noo's undo records as JSON
 //   tool render <folder>                          the menu and cards to PNG in four appearances, plus checks.txt
 // NN_PROJECTS names the checkouts, colon separated. NN_MERGED names the worktree whose git facts say squash-merged.
@@ -164,6 +165,16 @@ int main(int argc, const char *argv[]) {
         }
         if ([cmd isEqualToString:@"points"] && args.count > 1) {
             printf("%lu\n", (unsigned long)([MMLog.shared points:MMClutterSeries(args[1]) since:nil].length / sizeof(MMTrendPoint)));
+            return 0;
+        }
+        if ([cmd isEqualToString:@"modes"]) {
+            // For each finding with an action: its row, its section, and whether Proactive and Eager may take it.
+            id<MMExpertPolicy> pol = MMNNPolicy();
+            for (MMFinding *f in [[e snapshotNow] findingsFor:@"noonoo"]) {
+                if (!f.proposal) continue;
+                printf("%s %s %s %s\n", [f.facts[@"kindID"] UTF8String], [f.facts[@"section"] UTF8String],
+                       [pol modeKeeps:f mode:MMModeProactive review:nil] ? "keep" : "go", [pol modeKeeps:f mode:MMModeEager review:nil] ? "keep" : "go");
+            }
             return 0;
         }
         if ([cmd isEqualToString:@"undo"]) {

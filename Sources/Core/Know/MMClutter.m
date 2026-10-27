@@ -600,8 +600,8 @@ static NSString *FamilyKey(NSString *name) {
     @synchronized (self) { return _items; }
 }
 
+/// Never reads the state file, since menus ask on main. The fact source's read of items loads it first.
 - (NSDate *)lastScan {
-    [self loadIfNeeded];
     double t = 0;
     @synchronized (self) { for (NSNumber *n in _scanned.allValues) t = MAX(t, n.doubleValue); }
     return t > 0 ? [NSDate dateWithTimeIntervalSince1970:t] : nil;
