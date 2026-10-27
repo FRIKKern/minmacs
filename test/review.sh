@@ -125,6 +125,10 @@ check "the judge gets the first review" True "$(python3 -c "import json,sys; pri
 check "the judge keeps a finding with evidence" "in_use True fixture: a test client still uses it" "$(rv_get "' '.join(str(v[k]) for k, v in [x for x in j['verdicts'].items() if x[0].endswith('#api')] for k in ('word', 'judged', 'keep_evidence'))")"
 check "without evidence the judge says go" "idle judge" "$(rv_get "' '.join(v['word'] + ' ' + v['decided_by'] for k, v in j['verdicts'].items() if k.endswith('#docs'))")"
 check "the broker counts what the judge decided" 3 "$(rv_get "j['decided'].get('judge')")"
+rv_fx judgepar "$rv_app" --keep "#web" >/dev/null; rv_fresh
+RV_TEST_GO="#dev" RV_TEST_UNSURE="#api,#docs" RV_TEST_KEEP="#api" "$RV" review "$rv_dir/judgepar.json" --model haiku --judge --batch 1 --parallel 3 >"$rv_dir/out.json"
+check "the judge in parallel batches of one gives the same verdicts" "in_use idle 3" \
+  "$(rv_get "' '.join([v['word'] for k, v in j['verdicts'].items() if k.endswith(e)][0] for e in ('#api', '#docs')) + ' ' + str(j['decided'].get('judge'))")"
 rv_fx judgefail "$rv_app" >/dev/null; rv_fresh
 RV_TEST_GO="#dev" RV_TEST_JUDGE_FAIL=1 "$RV" review "$rv_dir/judgefail.json" --model haiku --judge >"$rv_dir/out.json"
 check "a failed judge is reported" True "$(rv_get "'the judge fails' in (j['judge_error'] or '')")"

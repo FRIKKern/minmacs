@@ -660,6 +660,8 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
     if (!findings.count) return;
     MMVerdictWords *words = WordsFor(q);
     NSMutableDictionary<NSString *, MMVerdict *> *v = [r.verdicts mutableCopy] ?: [NSMutableDictionary new];
+    // Batches run in parallel. Each input reads this copy, because parse writes v under a lock while other inputs are built.
+    NSDictionary<NSString *, MMVerdict *> *first = [v copy];
     NSMutableDictionary *byID = [NSMutableDictionary new];
     for (MMFinding *f in findings) byID[IDFor(f)] = f;
     NSMutableArray *errors = [NSMutableArray new];
@@ -668,7 +670,7 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
     NSIndexSet *failed = [self batches:findings request:q review:r system:JudgeSystem(q) schema:JudgeSchema(words) ttl:@"1h"
         input:^NSDictionary *(NSArray<MMFinding *> *batch) {
             return BatchInput(batch, q, ^NSDictionary *(MMFinding *f) {
-                MMVerdict *w = v[f.findingID];
+                MMVerdict *w = first[f.findingID];
                 return w ? @{@"first": @{@"verdict": w.word ?: words.unsure, @"confidence": @(w.confidence), @"reason": w.reason ?: @"",
                                          @"keep_evidence": w.keepEvidence ?: @""}} : nil;
             });
