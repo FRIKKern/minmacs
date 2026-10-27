@@ -2,6 +2,16 @@
 
 All notable changes to MinMacs. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.1] - 2026-10-27
+
+### Fixed
+- **Keep or Close for one app keeps shared patterns.** Marking `com.adobe.Photoshop` Keep removed `com.adobe.*` from the close list, so every other Adobe app became unsorted. An exact bundle id now wins over any pattern, and a choice for one app changes only that app's entries. Unsorted for an app a pattern covers goes on a new `unsorted` list. Rules file version 3. (#43)
+- **ignoreServing matches like keep and close.** A trailing `*` and `*text*` now work there too. `!<bundle id>` is an exception to a pattern. (#44)
+- **New defaults arrive on every load.** They were merged only into files below version 2, and 1.2.0 wrote version 2. Your entries are never moved or removed. A default set to Unsorted, or with Close Even When Serving turned off, stays that way. (#45)
+- **CI runs the tests.** `test.sh` runs on the macOS runner after `build.sh --no-install`, and a failed check fails the job. It tests `build/MinMacs.app`, uses fixture apps instead of TextEdit, and points `MINMACS_RULES_FILE` and `MINMACS_DEFAULTS_DOMAIN` at test copies, so it never touches your rules file or settings. Checks the machine cannot run are skipped with a reason. The comparison with real agent sessions needs `--live`. (#46)
+- **README matches the code.** "Will quit", the Agents, browser and spared sections, the full CLI list. The unmeasured idle cost claim is gone. (#47)
+- **Registry rows no longer declare `socket_activity`.** Neither detector evaluates it. It is gone from ten working signals and from the schema. `test.sh` fails when a row declares a signal either detector ignores. (#48)
+
 ## [1.2.0] - 2026-10-01
 
 ### Added
