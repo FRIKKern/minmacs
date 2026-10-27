@@ -71,10 +71,21 @@ static NSString *WatchingWords(NSString *expert) {
 #pragma mark - Keeps
 
 static NSString *KeepsPath(NSString *expert) { return [MMExpertDir(expert) stringByAppendingPathComponent:@"keeps.json"]; }
+static _Atomic NSUInteger gKeepMainReads;
+NSUInteger MMKeepMainThreadReads(void) { return gKeepMainReads; }
+/// The last keeps read off main, per expert. keptUntil: on main answers from here and never reads the file.
+static NSMutableDictionary<NSString *, NSDictionary *> *KeepCache(void) {
+    static NSMutableDictionary *c; static dispatch_once_t once;
+    dispatch_once(&once, ^{ c = [NSMutableDictionary new]; });
+    return c;
+}
 static NSMutableDictionary *KeepsAll(NSString *expert) {
+    if (NSThread.isMainThread) gKeepMainReads++;
     NSData *d = [NSData dataWithContentsOfFile:KeepsPath(expert)];
     id j = d ? [NSJSONSerialization JSONObjectWithData:d options:NSJSONReadingMutableContainers error:nil] : nil;
-    return [j isKindOfClass:NSMutableDictionary.class] ? j : [NSMutableDictionary new];
+    NSMutableDictionary *all = [j isKindOfClass:NSMutableDictionary.class] ? j : [NSMutableDictionary new];
+    @synchronized (KeepCache()) { KeepCache()[expert] = [all copy]; }
+    return all;
 }
 
 /// The protect list in the expert's rules file, through MMRules. MMRules does not expand ~ in an entry,
@@ -90,7 +101,12 @@ static BOOL ProtectedIn(NSString *expert, NSString *value) {
 + (NSDate *)keptUntil:(NSString *)stableKey expert:(NSString *)expert {
     if (!stableKey.length || !expert.length) return nil;
     NSNumber *n;
-    @synchronized (self) { n = KeepsAll(expert)[stableKey]; }
+    // A menu asks on main, and main never waits on disk. The graph queue reads the file on every rebuild, so in the
+    // app main answers from that read. A CLI asks on its main thread with nothing read yet, and reads the file.
+    NSDictionary *cached = nil;
+    if (NSThread.isMainThread) { @synchronized (KeepCache()) { cached = KeepCache()[expert]; } }
+    if (cached) n = cached[stableKey];
+    else { @synchronized (self) { n = KeepsAll(expert)[stableKey]; } }
     return [n isKindOfClass:NSNumber.class] && n.doubleValue > NSDate.date.timeIntervalSince1970 ? [NSDate dateWithTimeIntervalSince1970:n.doubleValue] : nil;
 }
 + (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until {
@@ -101,6 +117,7 @@ static BOOL ProtectedIn(NSString *expert, NSString *value) {
         for (NSString *k in all.allKeys) if ([all[k] doubleValue] <= now) [all removeObjectForKey:k];
         if (until) all[stableKey] = @(until.timeIntervalSince1970); else [all removeObjectForKey:stableKey];
         [[NSJSONSerialization dataWithJSONObject:all options:0 error:nil] writeToFile:KeepsPath(expert) atomically:YES];
+        @synchronized (KeepCache()) { KeepCache()[expert] = [all copy]; }
     }
 }
 /// The expert's list, then the shared list in core/rules.json, which every expert honors.

@@ -21,7 +21,7 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 @property (readonly) NSDictionary *payload;
 @property (readonly) int64_t freedBytes;                // from MMSizer freedOnVolume, the statfs delta
 @property (readonly, copy) NSString *error;
-@property (readonly) BOOL canRestore;
+@property (readonly) BOOL canRestore;                    // NO for a failed stop or quit, which changed nothing
 @end
 
 /// P52. The one undo engine for every expert.

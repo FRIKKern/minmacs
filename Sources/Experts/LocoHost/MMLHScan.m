@@ -244,6 +244,23 @@ static MMFactCache *GitCache(void) {
     dispatch_once(&once, ^{ c = [[MMFactCache alloc] initWithName:@"locohost.git" maxAge:30 persist:NO]; });
     return c;
 }
+NSDictionary *MMLHGitOf(NSString *folder, MMFacts *facts, MMLHRead read) {
+    if (!folder.length) return @{};
+    MMWorktree *wt = nil;
+    for (MMWorktree *w in facts.worktrees)
+        if (w.path.length && ([folder isEqualToString:w.path] || [folder hasPrefix:[w.path stringByAppendingString:@"/"]]) && w.path.length > wt.path.length) wt = w;
+    if (wt) {
+        NSMutableDictionary *g = [NSMutableDictionary new];
+        g[@"repo"] = wt.repo.lastPathComponent ?: wt.path.lastPathComponent; g[@"root"] = wt.path;
+        g[@"subdir"] = folder.length > wt.path.length ? [folder substringFromIndex:wt.path.length + 1] : @"";
+        g[@"branch"] = wt.branch; g[@"worktree"] = wt.isMain ? nil : wt.path.lastPathComponent;
+        return g;
+    }
+    // Until Know brings git facts, git's own files, through the fact cache. The git agent replaces this part.
+    NSDictionary *g = [GitCache() valueFor:folder fingerprint:@"" orCompute:^id{ return ReadGit(folder); } wait:read == MMLHReadNow];
+    return Dict(g) ?: @{};
+}
+
 static MMFactCache *ProjectCache(void) {
     static MMFactCache *c; static dispatch_once_t once;
     dispatch_once(&once, ^{ c = [[MMFactCache alloc] initWithName:@"locohost.project" maxAge:300 persist:NO]; });
@@ -512,23 +529,13 @@ static NSString *LocalAddr(const MMSocket *s) {
         else if (!owned) [via addObject:@"launchd"];
         h.launcher = [via componentsJoinedByString:@" · "];
 
-        // Git, from facts when Know has the worktree, else from git's own files through the fact cache.
+        // Git, through the one function that knows where git facts come from.
         NSString *gitDir = h.wrapperCwd.length ? h.wrapperCwd : h.cwd;
-        MMWorktree *wt = nil;
-        for (MMWorktree *w in facts.worktrees)
-            if (gitDir.length && w.path.length && ([gitDir isEqualToString:w.path] || [gitDir hasPrefix:[w.path stringByAppendingString:@"/"]]) && w.path.length > wt.path.length) wt = w;
-        if (![kind isEqualToString:@"service"]) {   // a brew service's data folder sits inside Homebrew's own repo
-            if (wt) {
-                h.repo = wt.repo.lastPathComponent ?: wt.path.lastPathComponent; h.repoRoot = wt.path;
-                h.subdir = gitDir.length > wt.path.length ? [gitDir substringFromIndex:wt.path.length + 1] : @"";
-                h.branch = wt.branch; h.worktree = wt.isMain ? nil : wt.path.lastPathComponent;
-            } else if (gitDir.length) {
-                NSString *d = gitDir;
-                NSDictionary *g = [GitCache() valueFor:d fingerprint:@"" orCompute:^id{ return ReadGit(d); } wait:read == MMLHReadNow];
-                h.repo = Str(g[@"repo"]); h.repoRoot = Str(g[@"root"]); h.subdir = Str(g[@"subdir"]);
-                h.branch = Str(g[@"branch"]); h.worktree = Str(g[@"worktree"]);
-                h.repoTouched = g[@"touched"] ? [NSDate dateWithTimeIntervalSince1970:[g[@"touched"] doubleValue]] : nil;
-            }
+        if (![kind isEqualToString:@"service"] && gitDir.length) {   // a brew service's data folder sits inside Homebrew's own repo
+            NSDictionary *g = MMLHGitOf(gitDir, facts, read);
+            h.repo = Str(g[@"repo"]); h.repoRoot = Str(g[@"root"]); h.subdir = Str(g[@"subdir"]);
+            h.branch = Str(g[@"branch"]); h.worktree = Str(g[@"worktree"]);
+            h.repoTouched = g[@"touched"] ? [NSDate dateWithTimeIntervalSince1970:[g[@"touched"] doubleValue]] : nil;
         }
 
         // The project's own files, for dev servers only.

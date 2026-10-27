@@ -49,11 +49,17 @@ NSArray<MMPlanEntry *> *MMPlan(NSArray<MMFinding *> *findings, MMFacts *facts, M
 /// P50. A timed keep, the person's word that a finding stays for a while, keyed by its stableKey.
 /// Starts from WFKeptUntil, WF Forest.m:95, which keys by path. A stable key keeps a server's keep across restarts.
 @interface MMKeep : NSObject
-+ (NSDate *)keptUntil:(NSString *)stableKey expert:(NSString *)expert;   // nil when not kept or the keep has passed
+/// nil when not kept or the keep has passed. Off main it reads the file. On main it answers from the last read, so a
+/// menu never waits on disk, and reads the file only when nothing was read yet, as in a CLI.
+/// An expert reads it in -findingsFrom:, on the graph queue in the app.
++ (NSDate *)keptUntil:(NSString *)stableKey expert:(NSString *)expert;
 + (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until;   // nil ends the keep
 /// P50. The protect list in the expert's rules file of P36, matched with its wildcards.
 + (BOOL)isProtected:(NSString *)value expert:(NSString *)expert;
 @end
+
+/// How many times this process read a keeps file on the main thread, for the checks that menus never do.
+NSUInteger MMKeepMainThreadReads(void);
 
 /// P51 to P53. One action, checked fresh right before it runs.
 @protocol MMAction <NSObject>

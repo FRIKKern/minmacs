@@ -10,7 +10,6 @@
 #import "UI/MMSettings.h"
 #import "UI/MMSpecMenu.h"
 #import "Core/MMExpert.h"
-#import "UI/MMSpecKit.h"
 #import "Experts/LocoHost/MMLHHost.h"
 
 #pragma mark Checks
@@ -82,7 +81,7 @@ static MMLHHost *Server(NSString *key, NSString *folder, NSInteger port, NSStrin
 }
 
 /// LocoHost's own menu and cards, built by Sources/Experts/LocoHost from fixture servers, and drawn by the kit
-/// through Sources/UI/MMSpecKit. The same code draws the app's menu from the graph.
+/// through Sources/UI/MMSpecMenu. The same code draws the app's menu from the graph.
 static Subject *LocoHostLike(void) {
     Subject *s = [Subject new]; s.name = @"locohost"; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
     MMLHHost *checkout = Server(@"~/code/acme-web.worktrees/checkout-flow#dev", @"acme-web.worktrees/checkout-flow", 3000, @"Vite", 905, MMLHActive, 3 * 3600 + 12 * 60);
@@ -129,11 +128,11 @@ static Subject *LocoHostLike(void) {
     v.act = ^(NSString *what, NSString *key, BOOL option) {};
 
     NSDictionary *cardKeys = @{checkout.findingID: @"checkout", orbit.findingID: @"orbit", docs.findingID: @"docs", pg.findingID: @"postgres"};
-    NSMenu *m = MMMenuForSpec(MMLHMenu(v), ^MMCardSpec *(NSString *findingID) {
+    NSMenu *m = MMMenuFromSpec(MMLHMenu(v), ^MMCardSpec *(NSString *findingID) {
         if (!cardKeys[findingID]) return nil;
         for (MMLHHost *h in v.hosts) if ([h.findingID isEqualToString:findingID]) return MMLHCard(h, v);
         return nil;
-    }, nil);
+    }, nil, nil);
     // The rows the menu drew, so each card is checked and drawn from the same menu item the person opens.
     for (NSMenuItem *i in m.itemArray) {
         if (!i.submenu || i.view) continue;
@@ -142,7 +141,7 @@ static Subject *LocoHostLike(void) {
             for (MMLHHost *x in v.hosts) if ([x.findingID isEqualToString:fid]) h = x;
             if (![i.title containsString:[NSString stringWithFormat:@":%ld", (long)h.port]]) continue;
             NSString *k = cardKeys[fid];
-            s.cards[k] = MMCardForSpec(MMLHCard(h, v));
+            s.cards[k] = MMCardFromSpec(MMLHCard(h, v));
             s.cardMenus[k] = i.submenu;
             [s.order addObject:k];
         }
@@ -454,15 +453,27 @@ static void RenderShell(NSString *out, NSDictionary<NSString *, NSAppearance *> 
     MMCardProvider cards = ^MMCardSpec *(NSString *fid) { return SCard(fid); };
     MMOneIconPart *mm = [MMOneIconPart new]; mm.name = @"MinMacs"; mm.spec = MinMacsSpec(); mm.cards = cards;
     MMOneIconPart *lh = [MMOneIconPart new]; lh.name = @"LocoHost"; lh.spec = LocoHostSpec(); lh.cards = cards;
+    // Five visible experts in One Icon: four sections, and the fifth under More.
+    NSMutableArray *five = [NSMutableArray arrayWithObjects:mm, lh, nil];
+    for (NSArray *x in @[@[@"WorkForest", @"10.2 GB", @"in worktrees", @"13 worktrees in 2 repos · Proactive", @"promo", @"Squash-merged"],
+                         @[@"Noo-Noo", @"4.1 GB", @"of clutter", @"6 caches · 2 build folders · Proactive", @"derived", @"Xcode"],
+                         @[@"Insomnia", @"Awake", @"for 1 agent", @"Claude Code works · Proactive", @"claude", @"working"]]) {
+        MMMenuSpec *sp = [MMMenuSpec new]; sp.headerBig = x[1]; sp.headerUnit = x[2]; sp.headerLine = x[3];
+        sp.sections = @[SSection(@"Rows", @[SRow(x[4], @[x[5]], MMRowMarkQuiet, nil)])];
+        MMOneIconPart *p = [MMOneIconPart new]; p.name = x[0]; p.spec = sp; p.cards = cards;
+        [five addObject:p];
+    }
     NSDictionary<NSString *, NSMenu *> *menus = @{
         @"shell-locohost-menu": MMMenuFromSpec(LocoHostSpec(), cards, nil, nil),
         @"shell-minmacs-menu": MMMenuFromSpec(MinMacsSpec(), cards, @"MinMacs opens at login. Settings can turn that off.", nil),
         @"shell-one-icon": MMOneIconMenu(@[mm, lh], nil, nil),
+        @"shell-one-icon-five": MMOneIconMenu(five, nil, nil),
     };
     NSDictionary<NSString *, NSMenu *> *cardMenus = @{
         @"shell-card-checkout": [MMCardFromSpec(SCard(@"checkout")) menu],
         @"shell-card-docs": [MMCardFromSpec(SCard(@"docs")) menu],
         @"shell-card-keynote": [MMCardFromSpec(SCard(@"keynote")) menu],
+        @"shell-one-icon-five-more": [menus[@"shell-one-icon-five"] itemWithTitle:@"More"].submenu ?: [NSMenu new],
     };
     for (NSString *k in menus) CheckMenu(menus[k], k);
     for (NSString *k in @[@"checkout", @"docs", @"keynote"]) {
@@ -476,6 +487,13 @@ static void RenderShell(NSString *out, NSDictionary<NSString *, NSAppearance *> 
     NSInteger sections = 0;
     for (NSMenuItem *i in menus[@"shell-one-icon"].itemArray) sections += i.isSectionHeader;
     Check(sections == 2, @"shell one icon: one section per visible expert", [NSString stringWithFormat:@"%ld sections", (long)sections]);
+    // Five experts: four sections, and the fifth's title, header line and rows under More, with no card there.
+    NSInteger fiveSections = 0, moreCards = 0; NSMenuItem *moreItem = nil;
+    for (NSMenuItem *i in menus[@"shell-one-icon-five"].itemArray) { fiveSections += i.isSectionHeader; if ([i.title isEqualToString:@"More"]) moreItem = i; }
+    for (NSMenuItem *j in moreItem.submenu.itemArray) moreCards += j.submenu != nil;
+    Check(fiveSections == 4 && [moreItem.submenu.itemArray.firstObject.title isEqualToString:@"Insomnia"] && moreCards == 0,
+          @"shell one icon: past four experts the rest go under More, with no card there",
+          [NSString stringWithFormat:@"%ld sections, More starts with %@, %ld cards under More", (long)fiveSections, moreItem.submenu.itemArray.firstObject.title, (long)moreCards]);
     NSArray *experts = @[@[@"MinMacs", @"gauge.with.dots.needle.33percent", @"2 apps to quit", @""], @[@"LocoHost", @"server.rack", @"1 idle server", @"1"]];
     for (NSArray *e in experts) Check(MMStatusImage(e[1], MMStatusLabel(e[0], e[2])) != nil, [NSString stringWithFormat:@"shell: the %@ symbol exists", e[0]], e[1]);
     BOOL first = YES;

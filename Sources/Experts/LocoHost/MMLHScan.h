@@ -31,5 +31,11 @@ BOOL MMLHProtects(MMLHHost *h);
 @property (readonly) NSDate *watchingSince;
 @end
 
+/// The git facts of a folder: repo, root, subdir, branch, worktree, and touched, the index time in seconds since 1970.
+/// From facts.worktrees when Know has the checkout. Until Know brings git facts, from git's own files through the fact
+/// cache, with no git spawn. This is the one place LocoHost reads git, so the git work replaces this function's body
+/// with MMGitFacts and nothing else in LocoHost changes. read says whether a file read may wait, as for hosts.
+NSDictionary *MMLHGitOf(NSString *folder, MMFacts *facts, MMLHRead read);
+
 /// Where the host runs, from Know's Where. wait YES asks cmux and tmux now, for the CLI.
 void MMLHFillWhere(MMLHHost *h, MMSample *s, BOOL wait);

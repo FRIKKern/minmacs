@@ -26,6 +26,10 @@ NSNumber *MMIconVisibleFor(BOOL fieldEmpty, BOOL seen, BOOL firstLaunch);
 /// field, or one the person hid in Settings, stays out. MinMacs's own section follows the one icon itself.
 BOOL MMOneIconShows(NSString *expertID, BOOL fieldEmpty, BOOL iconVisible);
 
+/// The One Icon item's saved position and Visible state, DESIGN.md menu bar rule 2. It is its own, so hiding the
+/// one icon never hides MinMacs's own item, minmacs.minmacs, when the person goes back to five icons.
+extern NSString *const MMOneIconAutosaveName;
+
 /// The line the menu shows for a day after first launch, decision 18.
 extern NSString *const MMLoginNotice;
 

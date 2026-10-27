@@ -31,8 +31,12 @@ NSString *MMStatusBadge(NSString *badge) {
 }
 
 NSStatusItem *MMMakeStatusItem(NSString *expert, NSString *symbol) {
+    return MMMakeStatusItemSaved(expert, symbol, MMStatusAutosaveName(expert));
+}
+
+NSStatusItem *MMMakeStatusItemSaved(NSString *expert, NSString *symbol, NSString *autosaveName) {
     NSStatusItem *i = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
-    i.autosaveName = MMStatusAutosaveName(expert);
+    i.autosaveName = autosaveName;
     i.behavior = NSStatusItemBehaviorRemovalAllowed;
     MMUpdateStatusItem(i, expert, symbol, nil, nil);
     return i;

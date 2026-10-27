@@ -316,6 +316,8 @@ if [ "$mx_r" = 0 ]; then
   check "minmacs: no line holds parentheses"          0 "$(grep '^TEXT' "$mx_out/checks.txt" | grep -c '[()]')"
   check "minmacs: a stuck app's card offers Force Quit" yes "$(grep -q '^TEXT cardaction slack | Force Quit' "$mx_out/checks.txt" && echo yes || echo no)"
   check "minmacs: a spared app's Quit is dimmed"      yes "$(grep -q '^TEXT cardaction figma | Quit | in use' "$mx_out/checks.txt" && echo yes || echo no)"
+  check "minmacs: the menu and cards query no log on main" 0 "$(sed -n 's/^TEXT mainqueries //p' "$mx_out/checks.txt")"
+  check "minmacs: Restore still shows, from the rebuild" yes "$(grep -q '^TEXT more Restore 1 Closed Item' "$mx_out/checks.txt" && echo yes || echo no)"
 fi
 
 # Stops what this section started, by pid, and drops the fixture bundles from LaunchServices.

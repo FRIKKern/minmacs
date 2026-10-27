@@ -343,12 +343,16 @@ BOOL MMGoTo(MMPlace *w, NSString **error) {
         return ok;
     }
     if ((w.kind == MMPlaceTerminal || w.kind == MMPlaceITerm) && w.tty.length) {
-        NSDictionary *err = nil;
-        NSAppleEventDescriptor *r = [[[NSAppleScript alloc] initWithSource:TabScript(w.kind, w.tty)] executeAndReturnError:&err];
-        if (r && [r.stringValue isEqualToString:@"ok"]) return YES;
+        // osascript, not NSAppleScript, so this runs on any queue. The first time, macOS asks the person for permission
+        // and the script waits on the answer, so it gets far longer than a cmux or tmux call.
+        NSData *out = nil, *errOut = nil;
+        MMRunResult r = MMRun(@"/usr/bin/osascript", @[@"-e", TabScript(w.kind, w.tty)], nil, nil, nil, 60, &out, &errOut);
+        NSString *said = [[[NSString alloc] initWithData:out ?: NSData.data encoding:NSUTF8StringEncoding] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (r.didRun && r.status == 0 && [said isEqualToString:@"ok"]) return YES;
         Activate(w, nil);
-        if (error) *error = err ? [NSString stringWithFormat:@"%@ did not allow MinMacs to select the tab: %@", w.app, err[NSAppleScriptErrorMessage] ?: @"no permission"]
-                                : @"the tab has closed";
+        NSString *why = [[[NSString alloc] initWithData:errOut ?: NSData.data encoding:NSUTF8StringEncoding] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (error) *error = r.status != 0 || !r.didRun ? [NSString stringWithFormat:@"%@ did not allow MinMacs to select the tab: %@", w.app, why.length ? why : @"no permission"]
+                                                       : @"the tab has closed";
         return NO;
     }
     return Activate(w, error);

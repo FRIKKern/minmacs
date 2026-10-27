@@ -234,6 +234,32 @@ NSMenuItem *MMActionItem(NSString *title, NSString *tail, SEL action, id target)
     return i;
 }
 
+/// base, except under Increase Contrast, where it keeps at most share of labelColor's ink.
+/// Increase Contrast shows as labelColor at full alpha, with tertiary past half of it and secondary at three quarters.
+static NSColor *Capped(NSString *name, NSColor *base, double share) {
+    return [NSColor colorWithName:name dynamicProvider:^NSColor *(NSAppearance *a) {
+        __block NSColor *label = nil, *b = nil;
+        [a performAsCurrentDrawingAppearance:^{
+            label = [NSColor.labelColor colorUsingColorSpace:NSColorSpace.genericGrayColorSpace];
+            b = [base colorUsingColorSpace:NSColorSpace.genericGrayColorSpace];
+        }];
+        if (!label || !b || label.alphaComponent < 0.95) return base;
+        return [NSColor colorWithGenericGamma22White:label.whiteComponent alpha:MIN(b.alphaComponent, label.alphaComponent * share)];
+    }];
+}
+
+NSColor *MMDimmedColor(void) {
+    static NSColor *c; static dispatch_once_t once;
+    dispatch_once(&once, ^{ c = Capped(@"MMDimmed", NSColor.tertiaryLabelColor, 0.31); });
+    return c;
+}
+
+NSColor *MMDimmedReasonColor(void) {
+    static NSColor *c; static dispatch_once_t once;
+    dispatch_once(&once, ^{ c = Capped(@"MMDimmedReason", NSColor.secondaryLabelColor, 0.59); });
+    return c;
+}
+
 NSMenuItem *MMDimmedItem(NSString *title, NSString *reason) {
     NSMenuItem *i = Plain([[NSMenuItem alloc] initWithTitle:title action:nil keyEquivalent:@""]);
     i.enabled = NO;
@@ -241,9 +267,9 @@ NSMenuItem *MMDimmedItem(NSString *title, NSString *reason) {
     // while the action itself looks dimmed.
     NSFont *f = [NSFont menuFontOfSize:0];
     NSMutableAttributedString *t = [[NSMutableAttributedString alloc] initWithString:title attributes:@{
-        NSFontAttributeName: f, NSForegroundColorAttributeName: NSColor.tertiaryLabelColor}];
+        NSFontAttributeName: f, NSForegroundColorAttributeName: MMDimmedColor()}];
     if (reason.length) [t appendAttributedString:[[NSAttributedString alloc] initWithString:[@"   " stringByAppendingString:reason] attributes:@{
-        NSFontAttributeName: f, NSForegroundColorAttributeName: NSColor.secondaryLabelColor}]];
+        NSFontAttributeName: f, NSForegroundColorAttributeName: MMDimmedReasonColor()}]];
     i.attributedTitle = t;
     i.toolTip = reason;
     return i;

@@ -11,6 +11,7 @@
 #import "Core/MMCore.h"
 #import "Experts/MinMacs/MMMinMacs.h"
 #import "UI/MMUI.h"
+#import "UI/MMSpecMenu.h"
 
 static NSString *Env(NSString *k) { return NSProcessInfo.processInfo.environment[k]; }
 
@@ -90,49 +91,17 @@ static NSString *Host(NSString *url) {
 
 #pragma mark Drawing specs with the kit
 
-static MMCard *CardFrom(MMCardSpec *c) {
-    MMCard *card = [MMCard new];
-    card.title = c.title; card.statusWord = c.statusWord; card.statusText = c.statusText; card.mark = (MMMark)c.mark;
-    card.noteBy = c.noteBy; card.note = c.note;
-    for (MMCardFact *f in c.facts) {
-        if (f.linkExpert) [card link:f.label value:f.value expert:f.linkExpert key:f.linkFindingID];
-        else [card fact:f.label value:f.value];
-    }
-    for (MMActionSpec *a in c.actions)
-        [card action:a.disabledReason ? MMDimmedItem(a.title, a.disabledReason) : MMActionItem(a.title, a.tail, @selector(copy:), nil)];
-    return card;
-}
-
+/// The menu as the app draws it, through Sources/UI/MMSpecMenu, and each row's card, for the layout checks and the PNGs.
 static NSMenu *MenuFrom(MMMenuSpec *m, MMSnapshot *s, id<MMExpert> e, NSMutableDictionary<NSString *, MMCard *> *cards,
                         NSMutableDictionary<NSString *, NSMenu *> *cardMenus) {
-    NSMenu *menu = [NSMenu new];
-    [menu addItem:MMHeaderItem(m.headerBig, m.headerUnit, nil, m.headerLine)];
-    [menu addItem:NSMenuItem.separatorItem];
-    if (m.summary.length) { [menu addItem:MMTextItem(m.summary, MMMaxSummaryLines)]; [menu addItem:NSMenuItem.separatorItem]; }
-    for (MMActionSpec *a in m.actions)
-        [menu addItem:a.disabledReason ? MMDimmedItem(a.title, a.disabledReason) : MMActionItem(a.title, a.tail, @selector(copy:), nil)];
-    for (MMSectionSpec *sec in m.sections) {
-        NSMutableArray *rows = [NSMutableArray new];
-        for (MMRowSpec *r in sec.rows) {
-            NSMenuItem *item = MMRowItem(r.name, nil, r.facts, (MMMark)r.mark);
-            MMFinding *f = [s finding:r.findingID];
-            if (f) {
-                MMCard *card = CardFrom([e cardFor:f snapshot:s]);
-                item.submenu = [card menu];
-                cards[r.findingID] = card; cardMenus[r.findingID] = item.submenu;
-            }
-            [rows addObject:item];
-        }
-        MMAddSection(menu, sec.title, rows);
+    MMCardProvider provider = ^MMCardSpec *(NSString *fid) { MMFinding *f = [s finding:fid]; return f ? [e cardFor:f snapshot:s] : nil; };
+    for (MMSectionSpec *sec in m.sections) for (MMRowSpec *r in sec.rows) {
+        MMCardSpec *c = r.findingID ? provider(r.findingID) : nil;
+        if (!c) continue;
+        cards[r.findingID] = MMCardFromSpec(c);
+        cardMenus[r.findingID] = [cards[r.findingID] menu];
     }
-    if (m.more.count) {
-        [menu addItem:NSMenuItem.separatorItem];
-        NSMutableArray *more = [NSMutableArray new];
-        for (MMActionSpec *a in m.more) [more addObject:MMActionItem(a.title, a.tail, @selector(copy:), nil)];
-        [menu addItem:MMMoreItem(more)];
-    }
-    MMAddFooter(menu, nil);
-    return menu;
+    return MMMenuFromSpec(m, provider, nil, nil);
 }
 
 #pragma mark The render fixture
@@ -183,8 +152,13 @@ static int Render(NSString *out) {
     MMFacts *facts = [MMFacts generation:1 sample:nil power:MMPowerFrom(@{@"memoryPressure": @2}) agents:@[] sessions:@[] worktrees:@[] clutter:@[] git:@{}];
     MMSnapshot *s = [MMSnapshot snapshotFrom:facts experts:@[e] reviews:nil holds:nil];
     NSMutableDictionary *cards = [NSMutableDictionary new], *cardMenus = [NSMutableDictionary new];
+    // The snapshot was built above, on this thread, as the graph queue builds it. The menu and the cards then read
+    // only what it holds: no query of the undo log runs on main while they are drawn.
+    NSUInteger queries = MMLogMainThreadQueries();
     MMMenuSpec *spec = [e menuFor:s];
     NSMenu *menu = MenuFrom(spec, s, e, cards, cardMenus);
+    (void)[e badgeFor:s]; (void)[e accessibilityStateFor:s];
+    queries = MMLogMainThreadQueries() - queries;
     NSMutableArray<NSString *> *lines = [NSMutableArray new];
     for (NSString *p in MMMenuProblems(menu)) [lines addObject:[@"FAIL menu: " stringByAppendingString:p]];
     for (NSString *k in cards) for (NSString *p in [cards[k] layoutProblems]) [lines addObject:[NSString stringWithFormat:@"FAIL card %@: %@", k, p]];
@@ -223,6 +197,7 @@ static int Render(NSString *out) {
         for (MMActionSpec *a in c.actions) [lines addObject:[NSString stringWithFormat:@"TEXT cardaction %@ | %@ | %@", names[k], a.title, a.disabledReason ?: @""]];
     }
     [lines addObject:[@"TEXT a11y " stringByAppendingString:[e accessibilityStateFor:s]]];
+    [lines addObject:[NSString stringWithFormat:@"TEXT mainqueries %lu", (unsigned long)queries]];
     [[[lines componentsJoinedByString:@"\n"] stringByAppendingString:@"\n"] writeToFile:[out stringByAppendingPathComponent:@"checks.txt"]
                                                                                 atomically:YES encoding:NSUTF8StringEncoding error:nil];
     return 0;

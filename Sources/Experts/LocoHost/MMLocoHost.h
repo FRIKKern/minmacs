@@ -23,6 +23,10 @@ id<MMExpertPolicy> MMLHModePolicy(void);
 id<MMExpertPolicy> MMLHManualPolicy(void);
 /// Stops a server: its tree and the package manager runner above it. MMStopKill is the second request.
 id<MMAction> MMLHStopAction(MMFinding *f, MMStopStep step);
+/// The review's verdict on f, or nil when there is none or it was made for an earlier instance of f.
+/// The finding id outlives a restart, and the verdict's fingerprint starts with the instance it judged.
+/// Close Idle, the menu and every verb read verdicts through this, so none shows an earlier server's verdict.
+MMVerdict *MMLHVerdictFor(MMFinding *f, MMReview *r);
 /// What Close Idle stops: dev servers, not protected, quiet, called idle by a review without an error,
 /// and not used since that review. Ported from Candidates in LocoHost's main.m.
 NSArray<MMFinding *> *MMLHCandidates(NSArray<MMFinding *> *findings, MMReview *r);

@@ -1,5 +1,6 @@
 // Draws an expert's menu and card specs from Core/MMExpert.h with the kit, to DESIGN.md (P56 to P58).
-// The app shell and the render tool both use these, so what the render checks is what the menu bar shows.
+// The one spec converter: the app shell, the render tool and every expert's tests use these, so what the render
+// checks is what the menu bar shows. A row's name may carry its tag after a tab, such as "checkout-flow\t:3000".
 // It sends messages to the specs and never names their classes, so it links with Sources/UI alone.
 // Main thread only, like the rest of the kit.
 #import <Cocoa/Cocoa.h>
@@ -34,6 +35,7 @@ NSMenu *MMMenuFromSpec(MMMenuSpec *spec, MMCardProvider cards, NSString *notice,
 extern const NSUInteger MMOneIconRows;
 /// The One Icon menu: one flat section per visible expert, with its header line and top rows, then the footer.
 /// Experts never nest as submenus, so a card is one level deep, as in each expert's own menu.
+/// Past four experts, DESIGN.md rule 3, the rest go under More with their header lines and rows but no cards.
 NSMenu *MMOneIconMenu(NSArray<MMOneIconPart *> *parts, NSString *notice, id footerTarget);
 /// An expert's header as one line, "3.5 GB in servers · 7 localhosts · 2 quiet".
 NSString *MMHeaderLine(MMMenuSpec *spec);

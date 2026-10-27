@@ -50,6 +50,25 @@ check "appends reach the database file, not only the WAL" yes \
 check "each writer kept its own order" 299,299 \
   "$(sqlite3 "$st_home/minmacs.sqlite" "SELECT (SELECT subject FROM rows WHERE expert='app' ORDER BY row DESC LIMIT 1) || ',' || (SELECT subject FROM rows WHERE expert='cli' ORDER BY row DESC LIMIT 1);" 2>/dev/null)"
 
+# Two writers open a new log while another reader holds it in rollback mode, as a first launch can meet.
+# Setting WAL mode then needs an exclusive lock, and SQLite refuses one of the two at once, without the busy timeout.
+# Each round must still keep every row and log no schema error.
+st_lost=0; st_errs=0
+for st_k in 1 2 3; do
+  st_home="$st_dir/held$st_k"; mkdir -p "$st_home"
+  python3 test/store/hold.py "$st_home/minmacs.sqlite" 1.5 & st_hp=$!; procs="$procs $st_hp"
+  st_i=0; while [ ! -e "$st_home/minmacs.sqlite.held" ] && [ $st_i -lt 100 ]; do sleep 0.05; st_i=$((st_i+1)); done
+  MINMACS_HOME="$st_home" "$st_bin" logwrite 50 app 2>"$st_home/a.err" & st_p1=$!
+  MINMACS_HOME="$st_home" "$st_bin" logwrite 50 cli 2>"$st_home/b.err" & st_p2=$!
+  procs="$procs $st_p1 $st_p2"
+  wait "$st_p1"; wait "$st_p2"; wait "$st_hp"
+  st_n=$(sqlite3 "$st_home/minmacs.sqlite" 'SELECT COUNT(*) FROM rows;' 2>/dev/null || echo 0)
+  st_lost=$((st_lost + 100 - ${st_n:-0}))
+  st_errs=$((st_errs + $(cat "$st_home/a.err" "$st_home/b.err" | grep -c 'log schema\|log append')))
+done
+check "two writers that meet a held lock on a new log lose no row" 0 "$st_lost"
+check "and neither logs a schema or append error" 0 "$st_errs"
+
 # The migration, on copies of the old apps' files and prefs.
 st_home="$st_dir/migrate"; st_old="$st_home/old"
 mkdir -p "$st_old/Library/Application Support/LocoHost" "$st_old/Library/Application Support/MinMacs" "$st_old/Library/Preferences"

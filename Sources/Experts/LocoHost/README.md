@@ -35,9 +35,11 @@ Two rules decide before the model: `locohost.not-a-dev-server` keeps services an
 
 Registered through `MMExpert` as `MMVerbSpec`. The 2.0 verbs are `hosts [port]`, `where <port>`, `review` and `restore [record id|port]`. The 1.x verbs keep their names and options, so `locohost list` and the rest work when the binary runs as `locohost`: `list`, `who`, `explain`, `ready`, `free`, `waste`, `summary`, `auto`, `mode`, `idle`, `close-idle`, `close`, `open`, `stopped`, `restart`, `keep` and `rules`. A verb whose usage starts with `locohost ` is one of those. Every verb takes `--json` and `--dry-run`.
 
-The verb block reads its words from `MMArgs` through the runtime: an `argv`, `arguments`, `words` or `args` array when MMArgs has one, else the fields SYNTHESIS.md section 1.9 names. `test/locohost/lhcli.m` gives MMArgs an `argv`. `legacyName` is `locohost`, and `openURL:` handles `locohost://review` and `locohost://close-idle`.
+The verb block reads its words from `-[MMArgs all]` and prints through `MMArgs`, so a verb handed to the app over core.sock prints in the person's terminal. `test/locohost/lhcli.m` runs the verbs through the real registry, as the app does. `legacyName` is `locohost`, and `openURL:` handles `locohost://review` and `locohost://close-idle`.
 
-The CLI builds a snapshot of LocoHost alone. When no fact source is set, it sets a cold one that reads Senses, the registry and Know. It takes two samples a second apart, as 0.1 did, so CPU and new connections count. Actions run on `no.guerrilla.minmacs.locohost.act`, never on main.
+A verb reads `MMArgs.snapshot`, or `MMArgs.settledSnapshot` when it reports CPU or new connections. In the app that is the current snapshot. In the CLI, Sources/CLI builds it from its cold fact source, `MMColdFacts`, which takes a sample a second after a first one that every expert saw, as 0.1 did. LocoHost has no fact source and never samples. Actions run on `no.guerrilla.minmacs.locohost.act`, never on main.
+
+`minmacs help` lists only the 2.0 verbs that `minmacs` runs. `locohost help` lists the 1.x verbs too.
 
 ## In the app
 
@@ -46,11 +48,11 @@ The CLI builds a snapshot of LocoHost alone. When no fact source is set, it sets
 ## Left open
 
 - `docs/REVIEW.md` does not exist. The list above is LocoHost's part.
-- Git facts come from `MMFacts.worktrees` when Know has them. Until `MMRepoIndex` lands, git's own files are read through Core's fact cache, with no git spawn. Commit, dirty and upstream facts wait for `MMGitFacts`.
+- Git facts come from `MMFacts.worktrees` when Know has them, else from git's own files through Core's fact cache, with no git spawn. Both sit in one function, `MMLHGitOf` in `MMLHScan.m`, declared in `MMLHScan.h`. The git work replaces its body with `MMGitFacts`. Commit, dirty and upstream facts wait for that.
 - The project files are read by LocoHost through Core's fact cache, from an allowlist. They belong in Know.
 - The HTTP title probe of 0.1 is gone, so page titles are not shown or sent. A probe would belong in Senses.
 - Energy is a rank, as DESIGN.md asks. `idleEnergyWh` is gone from `--json`, and `energyRank` is there in its place.
-- `viewFor:` reads the undo log and the keeps on main when the snapshot changes. Move it to the graph queue if the menu bench says so.
+- `viewFor:` on main reads no file and no log. Each finding carries its timed keep in its facts, and Recently Stopped is read from the undo log in `findingsFrom:` on the graph queue. Go To runs `MMGoTo` on `no.guerrilla.minmacs.locohost.go`. A verdict shows only for the server instance it judged, through `MMLHVerdictFor`.
 - The shell builds the shim for the `locohost` name. LocoHost only registers verbs, so `minmacs list` and other generic 1.x names are the registry's to scope.
 
 ## Legacy fixes 43 to 48

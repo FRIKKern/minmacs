@@ -12,12 +12,13 @@ lh_top="$MINMACS_HOME"
 export MINMACS_HOME="$lh/home"
 
 # The CLI: the minmacs binary when its verb registry runs LocoHost's verbs under the locohost name, else
-# test/locohost/lhcli.m, which runs the same MMVerbSpec blocks. LH_REAL=1 picks the binary; its mutating verbs need the app. Both are named so MinMacs counts their connections as its own.
+# test/locohost/lhcli.m, which runs the same verbs through the same registry, as the app runs a verb handed over core.sock.
+# LH_REAL=1 picks the binary; its mutating verbs need the app. Both are named so MinMacs counts their connections as its own.
 ln -sf "$BIN" "$lh/real/locohost"
 if [ "${LH_REAL:-}" = 1 ] && "$lh/real/locohost" free 47100 2>/dev/null | grep -qE '^[0-9]+$'; then
   LH="$lh/real/locohost"; echo "  the minmacs binary runs the locohost verbs"
 else
-  lh_src=$(find Sources -name '*.m' ! -path 'Sources/main.m' ! -path 'Sources/CLI/*' ! -path 'Sources/Shell/*' | LC_ALL=C sort)
+  lh_src=$(find Sources -name '*.m' ! -path 'Sources/main.m' ! -path 'Sources/Shell/*' | LC_ALL=C sort)
   # shellcheck disable=SC2086
   clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources \
     -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3 \
@@ -126,6 +127,10 @@ lh_stop_all; lh_serve "$P"; "$LH" ready "$P" --timeout 10 >/dev/null
 # The idle verdict above was for the stopped instance. The new one on the same port and folder has the same finding id.
 r=$(LOCOHOST_IDLE_MINUTES=0 "$LH" idle --json --port "$P" | json "len(j['candidates'])")
                                                                      check "a verdict for an earlier instance makes no candidate" 0 "$r"
+r=$("$LH" list --json | json "'review' in [h for h in j['hosts'] if $P in h['ports']][0]")
+                                                                     check "and list --json shows no verdict for it" False "$r"
+r=$("$LH" explain "$P" | grep -c "fixture says so")
+                                                                     check "and explain shows no earlier reason" 0 "$r"
 RV_TEST_CLAUDE_LIMIT=1 OPENAI_API_KEY=sk-test "$LH" review --model auto --port "$P" --json >"$lh/luna.json" 2>/dev/null
 r=$(json "j['model']" <"$lh/luna.json");                             check "auto falls back to Luna, without the API key" gpt-6-luna "$r"
 r=$(json "'usage limit' in (j['note'] or '')" <"$lh/luna.json");     check "and notes why Haiku was skipped" True "$r"
@@ -201,6 +206,14 @@ W=$("$LH" free $((P + 1)))
 printf '%s\t%%7\tlocohost-test-%s\t0\tfixture\t0\n' "$(cat "$lh/pane.pid")" "$$" > "$lh/tmux.panes"
 r=$("$LH" where "$W" --json | json "j.get('kind','none')")
 check "where names the tmux pane a server runs in" tmux "$r"
+# Go To from the menu runs tmux, which can take seconds. It must run off main, so the menu's main thread never waits.
+if [ "$LH" = "$lh/bin/locohost" ]; then
+  : >"$lh/tmux.goto"; echo 2 >"$lh/tmux.slow"
+  r=$("$lh/bin/MinMacs" _gotime "$W" 2>/dev/null)
+  rm -f "$lh/tmux.slow"
+  check "Go To from the menu returns to main at once" yes "$([ -n "$r" ] && [ "$r" -lt 10 ] && echo yes || echo no)"
+  check "  and still selects the pane, off main" 1 "$(grep -c '^select-pane' "$lh/tmux.goto")"
+fi
 kill "$(cat "$lh/pane.pid")" 2>/dev/null
 lh_stop_all
 
@@ -234,6 +247,26 @@ r=$("$LH" hosts "$P" --json | json "j['framework']");                check "host
 r=$("$LH" hosts "$P" --json | json "'SUPERSECRET123' in json.dumps(j['reviewFacts'])")
                                                                      check "and what the review would get is redacted" False "$r"
 r=$("$LH" hosts --json | json "any($P in h['ports'] for h in j['hosts'])"); check "hosts lists every localhost" True "$r"
+# A second fixture in a folder whose name is too long for the project column, so the row cuts it.
+LH_LONG="$lh/a-project-folder-with-a-name-far-too-long-for-its-column"
+mkdir -p "$LH_LONG"; LP=$("$LH" free $((P + 7)))
+( ( cd "$LH_LONG" && exec python3 -c "$LH_PY" "$LP" plain "$lh/pids" ) >/dev/null 2>&1 & )
+"$LH" ready "$LP" --timeout 10 >/dev/null
+# Each column of the text table starts where its header does, counted in characters, for every row.
+r=$("$LH" hosts | python3 -c "
+import sys
+lines = sys.stdin.read().split('\n')
+head = lines[0]
+cols = [head.index(w) for w in ('what', 'project', 'up ', 'state', 'started by')]
+rows = [l for l in lines[1:] if l[3:4].isdigit()]
+bad = [l for l in rows if any(len(l) > c and (l[c - 1] != ' ' or l[c] == ' ') for c in cols)]
+long = [l for l in rows if l[3:].startswith('$LP ')]
+print('%d %d %s' % (len(rows) > 1, len(bad), 'cut' if long and '\u2026' in long[0][cols[1]:cols[2]] else 'whole'))")
+check "hosts: every column starts under its header, a cut name too" "1 0 cut" "$r"
+if [ "$LH" = "$lh/bin/locohost" ]; then
+  # The menu, cards, badge and label on the main thread read what the snapshot holds: no undo log, no keeps file.
+  check "the menu on main reads no undo log and no keeps file" "0 0" "$("$lh/bin/MinMacs" _menureads 2>/dev/null | cut -d' ' -f1,2)"
+fi
 "$LH" close "$P" --yes --dry-run >/dev/null;                         check "close --dry-run exits 0" 0 "$?"
 check "and stops nothing" yes "$(lh_listening "$P")"
 "$LH" close "$P" --yes >/dev/null
@@ -249,6 +282,11 @@ check "stops are undo records in Core's log" True "$r"
 check "no registry row declares socket_activity" 0 "$(grep -l socket_activity registry/agents/*.json registry/schema.json | grep -c .)"
 check "the expert never runs lsof, nettop, ps or pmset" 0 "$(grep -nE '"[^"]*(lsof|nettop|pmset|/bin/ps)[^"]*"' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert lists no processes or sockets itself" 0 "$(grep -nE 'proc_listpids|PROC_PIDLISTFDS|KERN_PROC_ALL|proc_pidfdinfo' Sources/Experts/LocoHost/*.m | grep -c .)"
+# Invariant 2: the CLI's cold facts come from Sources/CLI. LocoHost has no fact source of its own and takes no sample.
+check "the expert has no fact source and takes no sample" 0 "$(grep -nE 'MMFactSource|sampleNow|factsFor:' Sources/Experts/LocoHost/*.m | grep -c .)"
+check "the expert prints only through MMArgs" 0 "$(grep -nE '(^|[^a-zA-Z_])printf\(' Sources/Experts/LocoHost/*.m | grep -vE '\[y/N\]|initWithData:d' | grep -c .)"
+check "git's own files are read behind MMLHGitOf alone" "1 1" \
+  "$(grep -c '^NSDictionary \*MMLHGitOf(' Sources/Experts/LocoHost/MMLHScan.h) $(grep -n 'ReadGit(' Sources/Experts/LocoHost/*.m | grep -v 'static NSDictionary \*ReadGit' | grep -c .)"
 check "the expert never asks the model itself" 0 "$(grep -nE 'MMModel|claudePath|codexPath|NSTask' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert never signals a process itself" 0 "$(grep -nE '[^a-zA-Z_]kill\(' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert names no .env file in its code" 0 "$(grep -nE '@"[^"]*\.env("|[^a-zA-Z])' Sources/Experts/LocoHost/*.m | grep -c .)"

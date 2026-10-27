@@ -51,8 +51,13 @@ MMCard *MMCardFromSpec(MMCardSpec *spec) {
     return c;
 }
 
+/// A row spec as a kit row. A name may carry its tag after a tab, such as "checkout-flow\t:3000". The kit cuts the
+/// name at the tail and never the tag. cards nil draws the row without its card.
 static NSMenuItem *RowFrom(MMRowSpec *r, MMCardProvider cards) {
-    NSMenuItem *i = MMRowItem(r.name ?: @"", nil, r.facts, (MMMark)r.mark);
+    NSString *name = r.name ?: @"", *tag = nil;
+    NSRange tab = [name rangeOfString:@"\t" options:NSBackwardsSearch];
+    if (tab.location != NSNotFound) { tag = [name substringFromIndex:tab.location + 1]; name = [name substringToIndex:tab.location]; }
+    NSMenuItem *i = MMRowItem(name, tag, r.facts ?: @[], (MMMark)r.mark);
     MMCardSpec *card = r.findingID.length && cards ? cards(r.findingID) : nil;
     if (card) i.submenu = [MMCardFromSpec(card) menu];
     return i;
@@ -103,19 +108,37 @@ NSString *MMHeaderLine(MMMenuSpec *spec) {
     return [parts componentsJoinedByString:@" · "];
 }
 
+/// One expert's part of the One Icon menu: its name as a section title, its header line, then its top rows.
+/// cards nil leaves the rows without cards, for a part under More, where a card would sit two levels deep.
+static void AddPart(NSMenu *m, MMOneIconPart *p, MMCardProvider cards) {
+    [m addItem:MMSectionItem(p.name)];
+    NSString *line = MMHeaderLine(p.spec);
+    [m addItem:MMTextItem(line.length ? line : @"Nothing found yet.", 2)];   // two lines, so the header line is never cut
+    NSUInteger shown = 0;
+    for (MMSectionSpec *s in p.spec.sections) for (MMRowSpec *r in s.rows) {
+        if (shown++ >= MMOneIconRows) break;
+        [m addItem:RowFrom(r, cards)];
+    }
+}
+
 NSMenu *MMOneIconMenu(NSArray<MMOneIconPart *> *parts, NSString *notice, id footerTarget) {
     NSMenu *m = [NSMenu new];
     m.autoenablesItems = NO;
     if (notice.length) { [m addItem:MMTextItem(notice, 1)]; [m addItem:NSMenuItem.separatorItem]; }
+    // DESIGN.md rule 3 allows four sections. The experts past the fourth go under More, each as its title, its header
+    // line and its top rows, with no cards there, so no card is ever two levels deep.
+    NSUInteger n = 0;
+    NSMenu *more = nil;
     for (MMOneIconPart *p in parts) {
-        [m addItem:MMSectionItem(p.name)];
-        NSString *line = MMHeaderLine(p.spec);
-        [m addItem:MMTextItem(line.length ? line : @"Nothing found yet.", 2)];   // two lines, so the header line is never cut
-        NSUInteger shown = 0;
-        for (MMSectionSpec *s in p.spec.sections) for (MMRowSpec *r in s.rows) {
-            if (shown++ >= MMOneIconRows) break;
-            [m addItem:RowFrom(r, p.cards)];
-        }
+        if (n++ < MMMaxSections) { AddPart(m, p, p.cards); continue; }
+        if (!more) { more = [NSMenu new]; more.autoenablesItems = NO; }
+        AddPart(more, p, nil);
+    }
+    if (more) {
+        NSMenuItem *i = MMMoreItem(@[]);
+        i.submenu = more;
+        [m addItem:NSMenuItem.separatorItem];
+        [m addItem:i];
     }
     MMAddFooter(m, footerTarget);
     MMRemoveSymbols(m);

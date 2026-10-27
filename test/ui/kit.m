@@ -58,6 +58,21 @@ int main(void) { @autoreleasepool {
     NSMenuItem *dim = MMDimmedItem(@"Remove…", @"3 uncommitted files");
     Out(@"a dimmed action is disabled", @"0", N(dim.enabled));
     Out(@"a dimmed action keeps its reason", @"Remove…   3 uncommitted files", dim.attributedTitle.string);
+    // The title's ink, its alpha over the menu, against an enabled title's and the reason's, in each appearance the
+    // render draws. A dimmed title keeps at most half the ink of an enabled one, and less than the reason beside it.
+    NSColor *dimInk = [dim.attributedTitle attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL];
+    NSColor *reasonInk = [dim.attributedTitle attribute:NSForegroundColorAttributeName atIndex:dim.attributedTitle.length - 1 effectiveRange:NULL];
+    NSDictionary<NSString *, NSAppearance *> *looks = MMRenderAppearances();
+    for (NSString *k in @[@"light", @"dark", @"contrast-light", @"contrast-dark"]) {
+        __block double d = -1, label = -1, reason = -1;
+        [looks[k] performAsCurrentDrawingAppearance:^{
+            d = [dimInk colorUsingColorSpace:NSColorSpace.sRGBColorSpace].alphaComponent;
+            label = [NSColor.labelColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace].alphaComponent;
+            reason = [reasonInk colorUsingColorSpace:NSColorSpace.sRGBColorSpace].alphaComponent;
+        }];
+        Out([NSString stringWithFormat:@"a dimmed title looks dimmed in %@", k], @"yes",
+            looks[k] && d >= 0 && d <= label / 2 && d < reason ? @"yes" : [NSString stringWithFormat:@"%.2f of %.2f", d, label]);
+    }
     NSMenuItem *alt = MMAlternateItem(@"Force Stop", nil, @selector(copy:), nil);
     Out(@"an alternate needs Option", @"1", N(alt.isAlternate && alt.keyEquivalentModifierMask == NSEventModifierFlagOption));
 

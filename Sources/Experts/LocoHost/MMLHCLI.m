@@ -2,7 +2,9 @@
 // The 2.0 verbs are hosts, where, review and restore. The 1.x verbs keep their names, so `locohost list` and the rest
 // work when the binary runs as locohost. A verb whose usage starts with "locohost " is one of those.
 // Every verb takes --json and --dry-run. A verb that stops or starts something runs its action off the main thread,
-// through MMRunAction or MMUndo, as Core requires.
+// through MMRunAction or MMUndo, as Core requires. Every verb prints through its MMArgs, so its output reaches the
+// terminal from the app too, and reads the snapshot MMArgs gives it: the app's, or the CLI's cold one from Sources/CLI.
+// No verb samples on its own.
 #import <AppKit/AppKit.h>
 #import <netinet/in.h>
 #import <sys/socket.h>
@@ -10,50 +12,17 @@
 #import "Experts/LocoHost/MMLocoHost.h"
 #import "Experts/LocoHost/MMLHScan.h"
 #import "UI/MMFormat.h"
+#import "CLI/MMArgs.h"
 
 extern BOOL MMLHInCLI;
 static NSString *const kExpert = @"locohost";
 
 #pragma mark - Arguments
 
-/// The words after the verb. The verb registry's MMArgs is read through the runtime, so this file depends only on
-/// the MMVerbSpec block it gets: it takes the raw words when MMArgs offers them, and otherwise rebuilds them from
-/// the fields SYNTHESIS.md section 1.9 names, verb, arg1, json, yes, dryRun, force and -option:.
-static NSArray<NSString *> *Words(id a, NSString *verb) {
-    NSArray *w = nil;
-    if ([a isKindOfClass:NSArray.class]) w = a;
-    for (NSString *name in @[@"argv", @"arguments", @"words", @"args", @"all"]) {
-        if (w || ![a respondsToSelector:NSSelectorFromString(name)]) continue;
-        id v = [a valueForKey:name];
-        if ([v isKindOfClass:NSArray.class]) w = v;
-    }
-    if (w) {
-        NSMutableArray *out = [NSMutableArray new];
-        for (id x in w) if ([x isKindOfClass:NSString.class]) [out addObject:x];
-        // The words may start with the program name, the expert or the verb itself.
-        while (out.count && ([out[0] isEqualToString:verb] || [out[0] isEqualToString:kExpert] || [[out[0] lastPathComponent] isEqualToString:@"MinMacs"] ||
-                             [[out[0] lastPathComponent] isEqualToString:@"minmacs"] || [[out[0] lastPathComponent] isEqualToString:@"locohost"]))
-            [out removeObjectAtIndex:0];
-        return out;
-    }
+/// The words after the verb, flags and their values included, as the person typed them.
+static NSArray<NSString *> *Words(MMArgs *a) {
     NSMutableArray *out = [NSMutableArray new];
-    for (NSString *name in @[@"arg1", @"argument", @"target"])
-        if ([a respondsToSelector:NSSelectorFromString(name)]) { id v = [a valueForKey:name]; if ([v isKindOfClass:NSString.class] && [v length]) { [out addObject:v]; break; } }
-    NSDictionary *flags = @{@"json": @"--json", @"yes": @"--yes", @"dryRun": @"--dry-run", @"force": @"--force"};
-    for (NSString *k in flags)
-        if ([a respondsToSelector:NSSelectorFromString(k)] && [[a valueForKey:k] boolValue]) [out addObject:flags[k]];
-    SEL opt = NSSelectorFromString(@"option:");
-    if ([a respondsToSelector:opt]) {
-        id (*fn)(id, SEL, id) = (id (*)(id, SEL, id))[a methodForSelector:opt];
-        for (NSString *o in @[@"port", @"mode", @"model", @"timeout", @"hours"]) {
-            id v = fn(a, opt, o) ?: fn(a, opt, [@"--" stringByAppendingString:o]);
-            if ([v isKindOfClass:NSString.class]) [out addObjectsFromArray:@[[@"--" stringByAppendingString:o], v]];
-        }
-        for (NSString *b in @[@"http", @"all", @"go", @"review"]) {
-            id v = fn(a, opt, b) ?: fn(a, opt, [@"--" stringByAppendingString:b]);
-            if (v) [out addObject:[@"--" stringByAppendingString:b]];
-        }
-    }
+    for (id x in a.all) if ([x isKindOfClass:NSString.class]) [out addObject:x];
     return out;
 }
 
@@ -73,9 +42,9 @@ static NSArray<NSString *> *Words(id a, NSString *verb) {
 }
 @end
 
-static MMLHArgs *Parse(id raw, NSString *verb) {
+static MMLHArgs *Parse(MMArgs *raw) {
     MMLHArgs *a = [MMLHArgs new];
-    a.words = Words(raw, verb);
+    a.words = Words(raw);
     NSMutableArray *pos = [NSMutableArray new];
     NSSet *valued = [NSSet setWithArray:@[@"--port", @"--mode", @"--model", @"--timeout", @"--hours"]];
     for (NSUInteger i = 0; i < a.words.count; i++) {
@@ -90,10 +59,35 @@ static MMLHArgs *Parse(id raw, NSString *verb) {
 
 #pragma mark - Output
 
-static void Print(NSString *s) { printf("%s\n", (s ?: @"").UTF8String); }
-static void Err(NSString *s) { fprintf(stderr, "%s\n", (s ?: @"").UTF8String); }
+/// The MMArgs of the verb that runs on this thread. A verb in the app runs on core.sock's queue, so the thread says which.
+static NSString *const kArgsKey = @"no.guerrilla.minmacs.locohost.args";
+static MMArgs *CurrentArgs(void) { return NSThread.currentThread.threadDictionary[kArgsKey]; }
+
+/// One or more lines, through MMArgs when a verb runs. A final newline is dropped, since MMArgs adds one.
+static void Emit(NSString *s, BOOL err) {
+    if ([s hasSuffix:@"\n"]) s = [s substringToIndex:s.length - 1];
+    MMArgs *a = CurrentArgs();
+    if (a && err) [a error:@"%@", s];
+    else if (a) [a print:@"%@", s];
+    else fputs([s stringByAppendingString:@"\n"].UTF8String, err ? stderr : stdout);
+}
+static void Print(NSString *s) { Emit(s ?: @"", NO); }
+static void Err(NSString *s) { Emit(s ?: @"", YES); }
+
+/// printf's format, through MMArgs. %s takes UTF-8, as the table code passes it.
+static void Outf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void Outf(const char *fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    char *buf = NULL;
+    int n = vasprintf(&buf, fmt, ap);
+    va_end(ap);
+    if (n >= 0 && buf) Emit([NSString stringWithUTF8String:buf] ?: @"", NO);
+    free(buf);
+}
 
 static void PrintJSON(id obj) {
+    MMArgs *a = CurrentArgs();
+    if (a) { [a printJSON:obj ?: @{}]; return; }
     NSData *d = [NSJSONSerialization dataWithJSONObject:obj ?: @{} options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys | NSJSONWritingWithoutEscapingSlashes error:nil];
     printf("%s\n", [[NSString alloc] initWithData:d ?: NSData.data encoding:NSUTF8StringEncoding].UTF8String);
 }
@@ -101,6 +95,8 @@ static void PrintJSON(id obj) {
 static int Usage(NSString *usage) { Err([@"usage: " stringByAppendingString:usage]); return 2; }
 
 static BOOL Confirm(NSString *q) {
+    // A verb handed to the app has no terminal to ask on.
+    if (CurrentArgs().inApp) { Err(@"add --yes, since MinMacs cannot ask from here"); return NO; }
     printf("%s [y/N] ", q.UTF8String); fflush(stdout);
     char buf[8] = {0};
     return fgets(buf, sizeof buf, stdin) && (buf[0] == 'y' || buf[0] == 'Y');
@@ -152,39 +148,14 @@ static NSInteger HTTPStatus(NSInteger port) {
     return status;
 }
 
-#pragma mark - Core, cold
+#pragma mark - The snapshot
 
-/// The facts the CLI reads when no app answers on the core socket. It asks Core for them as the app's source would:
-/// a sample from Senses, agents from the registry and sessions from Know. Used only when no source is set.
-@interface MMLHColdSource : NSObject <MMFactSource>
-@end
-@implementation MMLHColdSource {
-    uint64_t _gen;
-}
-- (MMFacts *)factsFor:(uint64_t)generation {
-    MMSample *s = [MMSenses.shared sampleNow];
-    MMPower *p = MMSenses.shared.power;
-    NSArray *agents = [MMRegistry.shared agentsIn:s power:p];
-    [MMSessions.shared refresh];
-    return [MMFacts generation:generation sample:s power:p agents:agents sessions:MMSessions.shared.all worktrees:@[] clutter:@[] git:@{}];
-}
-- (MMFacts *)freshFactsFor:(MMFinding *)finding { return [self factsFor:++_gen + 1000000]; }
-@end
-
-/// A snapshot of LocoHost alone, built here. twice takes two samples a second apart, so CPU and new connections count.
-static MMSnapshot *Snap(BOOL twice) {
-    MMLHInCLI = YES;
-    MMGraph *g = MMGraph.shared;
-    if (!g.source) g.source = [MMLHColdSource new];
-    static uint64_t gen;
-    if (twice) {
-        MMFacts *first = [g.source factsFor:++gen];
-        [MMLocoHost.shared findingsFrom:first];
-        [NSThread sleepForTimeInterval:1.0];
-    }
-    MMFacts *f = [g.source factsFor:++gen];
-    MMReview *r = MMLHLastReview();
-    return [MMSnapshot snapshotFrom:f experts:@[MMLocoHost.shared] reviews:r ? @{kExpert: r} : @{} holds:nil];
+/// The snapshot this verb reads, from MMArgs: the app's current one, or in the CLI one Sources/CLI builds cold.
+/// settled waits for a second sample a second after the first, so CPU and new connections count, as 0.1 did.
+/// LocoHost never samples here: the CLI's cold fact source in Sources/CLI does, through Senses.
+static MMSnapshot *Snap(BOOL settled) {
+    MMArgs *a = CurrentArgs();
+    return settled ? a.settledSnapshot : a.snapshot;
 }
 
 static NSArray<MMFinding *> *Findings(MMSnapshot *s) { return [s findingsFor:kExpert]; }
@@ -242,14 +213,15 @@ static NSDictionary *VerdictJSON(MMVerdict *v, MMReview *r) {
 static NSDictionary *HostJSON(MMFinding *f, MMReview *r) {
     NSMutableDictionary *j = [f.facts mutableCopy];
     j[@"findingID"] = f.findingID;
-    NSDictionary *v = VerdictJSON(r.verdicts[f.findingID], r);
+    NSDictionary *v = VerdictJSON(MMLHVerdictFor(f, r), r);
     if (v) j[@"review"] = v;
     return j;
 }
 
-static NSString *Mark(MMLHHost *h, MMReview *r) {
+static NSString *Mark(MMFinding *f, MMReview *r) {
+    MMLHHost *h = Host(f);
     if (h.state == MMLHActive) return @"●";
-    if (r.verdicts[h.findingID].kind == MMVerdictGo && h.state == MMLHIdle) return @"◇";
+    if (MMLHVerdictFor(f, r).kind == MMVerdictGo && h.state == MMLHIdle) return @"◇";
     return h.state == MMLHRecent ? @"◐" : @"○";
 }
 
@@ -263,7 +235,7 @@ static NSString *ModelOf(MMReview *r) {
 
 static int Free(MMLHArgs *a) {
     for (NSInteger p = a.arg1 ? a.arg1.integerValue : 3000; p > 0 && p < 65536; p++)
-        if (PortFree(p)) { if (a.json) PrintJSON(@{@"port": @(p)}); else printf("%ld\n", (long)p); return 0; }
+        if (PortFree(p)) { if (a.json) PrintJSON(@{@"port": @(p)}); else Outf("%ld\n", (long)p); return 0; }
     return 1;
 }
 
@@ -278,7 +250,7 @@ static int Ready(MMLHArgs *a) {
             NSInteger st = http ? HTTPStatus(port) : 0;
             if (!http || (st > 0 && st < 500)) {
                 if (a.json) PrintJSON(@{@"port": @(port), @"ready": @YES, @"seconds": @(-start.timeIntervalSinceNow), @"http": @(st)});
-                else printf("ready :%ld after %.1fs%s\n", (long)port, -start.timeIntervalSinceNow, http ? [NSString stringWithFormat:@", HTTP %ld", (long)st].UTF8String : "");
+                else Outf("ready :%ld after %.1fs%s\n", (long)port, -start.timeIntervalSinceNow, http ? [NSString stringWithFormat:@", HTTP %ld", (long)st].UTF8String : "");
                 return 0;
             }
         }
@@ -288,16 +260,32 @@ static int Ready(MMLHArgs *a) {
     return 1;
 }
 
+/// One table row from its columns, each [text, width] or [text, width, @YES] for right aligned. The last runs on.
+/// An empty column of width n is a gap of n spaces.
+/// Widths count characters, so a cut name or a state mark never pushes the next column over.
+static NSString *Row(NSArray<NSArray *> *cols) {
+    NSMutableString *line = [NSMutableString new];
+    for (NSUInteger i = 0; i < cols.count; i++) {
+        NSArray *c = cols[i];
+        NSString *t = [c[0] isKindOfClass:NSString.class] ? c[0] : [c[0] description];
+        NSUInteger w = [c[1] unsignedIntegerValue];
+        if (i + 1 == cols.count && !w) [line appendString:t];
+        else [line appendString:c.count > 2 ? MMColumnRight(t, w) : MMColumn(t, w)];
+    }
+    return [line stringByReplacingOccurrencesOfString:@"\\s+$" withString:@"" options:NSRegularExpressionSearch range:NSMakeRange(0, line.length)];
+}
+
 static void PrintHosts(NSArray<MMFinding *> *fs, MMReview *r) {
-    printf("%-3s%-7s%-18s%-36s%-8s%6s %9s  %-26s%s\n", "", "port", "what", "project", "up", "cpu", "memory", "state", "started by");
+    Print(Row(@[@[@"", @3], @[@"port", @7], @[@"what", @18], @[@"project", @36], @[@"up", @8], @[@"cpu", @7, @YES], @[@"memory", @10, @YES],
+                @[@"", @2], @[@"state", @26], @[@"started by", @0]]));
     for (MMFinding *f in fs) {
         MMLHHost *h = Host(f);
         NSString *proj = h.branch ? [NSString stringWithFormat:@"%@ · %@", h.project, h.branch] : h.project;
-        printf("%-3s%-7ld%-18s%-36s%-8s%5.1f%% %9s  %-26s%s\n", Mark(h, r).UTF8String, (long)h.port, MMCut(h.framework, 17).UTF8String,
-               MMCut(proj, 35).UTF8String, MMShortDuration(-h.started.timeIntervalSinceNow).UTF8String, h.cpuPercent,
-               MMBytes(h.memory).UTF8String, MMCut(MMLHStateWords(h), 25).UTF8String, h.launcher.UTF8String);
-        MMVerdict *v = r.verdicts[f.findingID];
-        if (v) printf("       %s %s, %.0f%%: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, (v.reason ?: @"").UTF8String);
+        Print(Row(@[@[Mark(f, r), @3], @[@(h.port), @7], @[h.framework ?: @"", @18], @[proj ?: @"", @36],
+                    @[MMShortDuration(-h.started.timeIntervalSinceNow), @8], @[[NSString stringWithFormat:@"%.1f%%", h.cpuPercent], @7, @YES],
+                    @[MMBytes(h.memory), @10, @YES], @[@"", @2], @[MMLHStateWords(h), @26], @[h.launcher ?: @"", @0]]));
+        MMVerdict *v = MMLHVerdictFor(f, r);
+        if (v) Outf("       %s %s, %.0f%%: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, (v.reason ?: @"").UTF8String);
     }
 }
 
@@ -323,14 +311,14 @@ static int List(MMLHArgs *a) {
     PrintHosts(fs, r);
     uint64_t mem = 0; double cpu = 0; NSInteger active = 0, idle = 0;
     for (MMFinding *f in fs) { MMLHHost *h = Host(f); mem += h.memory; cpu += h.cpuPercent; active += h.state == MMLHActive; idle += h.state == MMLHIdle; }
-    printf("\n%s: %ld in use now, %ld quiet over %ldm · %.0f%% CPU · %s · watching for %s\n", MMPlural(fs.count, @"localhost").UTF8String,
+    Outf("\n%s: %ld in use now, %ld quiet over %ldm · %.0f%% CPU · %s · watching for %s\n", MMPlural(fs.count, @"localhost").UTF8String,
            (long)active, (long)idle, (long)(MMLHIdleSeconds() / 60), cpu, MMBytes(mem).UTF8String,
            MMDuration(-MMLHScanner.shared.watchingSince.timeIntervalSinceNow).UTF8String);
-    if (r) printf("last review: %s by %s%s\n", MMAgo(r.at).UTF8String, ModelOf(r).UTF8String, r.error ? [@", failed: " stringByAppendingString:r.error].UTF8String : "");
+    if (r) Outf("last review: %s by %s%s\n", MMAgo(r.at).UTF8String, ModelOf(r).UTF8String, r.error ? [@", failed: " stringByAppendingString:r.error].UTF8String : "");
     if ([a has:@"--all"] && ignored.count) {
         Print(@"\nignored, macOS and apps, never touched:");
         for (NSDictionary *i in ignored)
-            printf("  %-24s pid %-7d %s\n", [i[@"name"] UTF8String], [i[@"pid"] intValue], [[i[@"ports"] valueForKey:@"stringValue"] componentsJoinedByString:@", "].UTF8String);
+            Outf("  %-24s pid %-7d %s\n", [i[@"name"] UTF8String], [i[@"pid"] intValue], [[i[@"ports"] valueForKey:@"stringValue"] componentsJoinedByString:@", "].UTF8String);
     }
     return 0;
 }
@@ -342,32 +330,32 @@ static int Who(MMLHArgs *a) {
     MMReview *r = [s reviewFor:kExpert];
     if (!f) {
         for (NSDictionary *i in MMLocoHost.shared.ignored)
-            if ([i[@"ports"] containsObject:@(a.arg1.integerValue)]) { printf(":%s is held by %s, pid %d, which LocoHost ignores\n", a.arg1.UTF8String, [i[@"name"] UTF8String], [i[@"pid"] intValue]); return 0; }
-        printf(":%s is %s\n", a.arg1.UTF8String, Listening(a.arg1.integerValue) ? "taken by a process LocoHost cannot read, of another user or root" : "free");
+            if ([i[@"ports"] containsObject:@(a.arg1.integerValue)]) { Outf(":%s is held by %s, pid %d, which LocoHost ignores\n", a.arg1.UTF8String, [i[@"name"] UTF8String], [i[@"pid"] intValue]); return 0; }
+        Outf(":%s is %s\n", a.arg1.UTF8String, Listening(a.arg1.integerValue) ? "taken by a process LocoHost cannot read, of another user or root" : "free");
         return 1;
     }
     MMLHHost *h = Host(f);
     MMLHFillWhere(h, s.facts.sample, YES);
     if (a.json) { NSMutableDictionary *j = [HostJSON(f, r) mutableCopy]; j[@"where"] = h.placeLabel ?: NSNull.null; PrintJSON(j); return 0; }
-    printf(":%ld  %s  pid %d, %s\n", (long)h.port, h.framework.UTF8String, h.pid, h.kind.UTF8String);
-    printf("  ports      %s on %s\n", [[h.ports valueForKey:@"stringValue"] componentsJoinedByString:@", "].UTF8String, (h.bind ?: @"").UTF8String);
-    printf("  folder     %s\n", (h.cwd.stringByAbbreviatingWithTildeInPath ?: @"unknown").UTF8String);
-    if (h.repo) printf("  repo       %s%s%s\n", h.repo.UTF8String, h.branch ? [@" on " stringByAppendingString:h.branch].UTF8String : "",
+    Outf(":%ld  %s  pid %d, %s\n", (long)h.port, h.framework.UTF8String, h.pid, h.kind.UTF8String);
+    Outf("  ports      %s on %s\n", [[h.ports valueForKey:@"stringValue"] componentsJoinedByString:@", "].UTF8String, (h.bind ?: @"").UTF8String);
+    Outf("  folder     %s\n", (h.cwd.stringByAbbreviatingWithTildeInPath ?: @"unknown").UTF8String);
+    if (h.repo) Outf("  repo       %s%s%s\n", h.repo.UTF8String, h.branch ? [@" on " stringByAppendingString:h.branch].UTF8String : "",
                        h.worktree ? [@", worktree " stringByAppendingString:h.worktree].UTF8String : "");
-    printf("  command    %s\n", h.command.UTF8String);
-    printf("  started by %s\n", (h.launcher ?: @"").UTF8String);
-    printf("  up         %s · CPU %.1f%% now · %s in %s\n", MMDuration(-h.started.timeIntervalSinceNow).UTF8String, h.cpuPercent,
+    Outf("  command    %s\n", h.command.UTF8String);
+    Outf("  started by %s\n", (h.launcher ?: @"").UTF8String);
+    Outf("  up         %s · CPU %.1f%% now · %s in %s\n", MMDuration(-h.started.timeIntervalSinceNow).UTF8String, h.cpuPercent,
            MMBytes(h.memory).UTF8String, MMPlural(h.processCount, @"process").UTF8String);
-    printf("  clients    %s%s\n", h.clients.count ? [h.clients componentsJoinedByString:@", "].UTF8String : h.connections ? MMPlural(h.connections, @"connection").UTF8String : "none now",
+    Outf("  clients    %s%s\n", h.clients.count ? [h.clients componentsJoinedByString:@", "].UTF8String : h.connections ? MMPlural(h.connections, @"connection").UTF8String : "none now",
            h.newConnections ? [NSString stringWithFormat:@", %ld new", (long)h.newConnections].UTF8String : "");
-    printf("  state      %s\n", MMLHStateWords(h).UTF8String);
-    MMVerdict *v = r.verdicts[f.findingID];
-    if (v) printf("  review     %s %s, %.0f%%, %s: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, MMAgo(r.at).UTF8String, (v.reason ?: @"").UTF8String);
-    if (h.isDev) printf("  agent      %s\n", MMLHSessionWords(h.session).UTF8String);
-    printf("  waste      %s\n", MMLHWasteWords(h).UTF8String);
-    if (h.duplicates.count) printf("  duplicate  same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
-    if (h.placeLabel) printf("  where      %s\n", h.placeLabel.UTF8String);
-    if (h.isProtected) printf("  protected  Close Idle never stops it\n");
+    Outf("  state      %s\n", MMLHStateWords(h).UTF8String);
+    MMVerdict *v = MMLHVerdictFor(f, r);
+    if (v) Outf("  review     %s %s, %.0f%%, %s: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, MMAgo(r.at).UTF8String, (v.reason ?: @"").UTF8String);
+    if (h.isDev) Outf("  agent      %s\n", MMLHSessionWords(h.session).UTF8String);
+    Outf("  waste      %s\n", MMLHWasteWords(h).UTF8String);
+    if (h.duplicates.count) Outf("  duplicate  same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
+    if (h.placeLabel) Outf("  where      %s\n", h.placeLabel.UTF8String);
+    if (h.isProtected) Outf("  protected  Close Idle never stops it\n");
     return 0;
 }
 
@@ -401,8 +389,8 @@ static int Where(MMLHArgs *a) {
     MMProcKey k = { h.pid, h.startSec };
     MMPlace *p = MMWhereIs(k, s.facts.sample, YES);
     if (a.json) { PrintJSON(PlaceJSON(p) ?: @{}); return p ? 0 : 1; }
-    if (!p) { printf(":%ld: no terminal or app found\n", (long)h.port); return 1; }
-    printf(":%ld  %s\n", (long)h.port, p.label.UTF8String);
+    if (!p) { Outf(":%ld: no terminal or app found\n", (long)h.port); return 1; }
+    Outf(":%ld  %s\n", (long)h.port, p.label.UTF8String);
     if ([a has:@"--go"] && !a.dry) {
         NSString *e = nil;
         if (!MMGoTo(p, &e) && e) { Err(e); return 1; }
@@ -418,36 +406,36 @@ static int Explain(MMLHArgs *a) {
     MMLHHost *h = Host(f);
     MMLHFillWhere(h, s.facts.sample, YES);
     MMReview *r = [s reviewFor:kExpert];
-    MMVerdict *v = r.verdicts[f.findingID];
+    MMVerdict *v = MMLHVerdictFor(f, r);
     if (a.json) {
         NSMutableDictionary *j = [HostJSON(f, r) mutableCopy];
         j[@"reviewFacts"] = [MMLocoHost.shared reviewFactsFor:f];
         j[@"where"] = h.placeLabel ?: NSNull.null;
         PrintJSON(j); return 0;
     }
-    printf(":%ld  %s  %s  pid %d, %s\n\n", (long)h.port, h.framework.UTF8String, h.project.UTF8String, h.pid, h.kind.UTF8String);
+    Outf(":%ld  %s  %s  pid %d, %s\n\n", (long)h.port, h.framework.UTF8String, h.project.UTF8String, h.pid, h.kind.UTF8String);
     NSDictionary *p = h.projectFacts;
     NSString *what = v.about.length ? v.about : p[@"description"] ?: p[@"readme"];
-    printf("  What      %s\n", (what ?: @"no project description found").UTF8String);
-    printf("  How       %s%s, started by %s\n", h.command.UTF8String, p[@"script"] ? [NSString stringWithFormat:@", script %@", p[@"script"]].UTF8String : "",
+    Outf("  What      %s\n", (what ?: @"no project description found").UTF8String);
+    Outf("  How       %s%s, started by %s\n", h.command.UTF8String, p[@"script"] ? [NSString stringWithFormat:@", script %@", p[@"script"]].UTF8String : "",
            (h.launcher.length ? h.launcher : @"unknown").UTF8String);
-    if (h.isDev) printf("  Why       %s\n", MMLHSessionWords(h.session).UTF8String);
-    printf("  Waste     %s\n", MMLHWasteWords(h).UTF8String);
-    if (v) printf("  Verdict   %s says %s, %.0f%%, %s: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, MMAgo(r.at).UTF8String, (v.reason ?: @"").UTF8String);
-    else printf("            no review yet: run `locohost review`\n");
-    printf("\nWhat LocoHost found\n");
-    if (p[@"name"] || p[@"description"]) printf("  project   %s%s\n", [p[@"name"] ?: h.project UTF8String], p[@"description"] ? [@": " stringByAppendingString:p[@"description"]].UTF8String : "");
-    if (p[@"script"]) printf("  script    %s\n", [p[@"script"] UTF8String]);
-    if (p[@"app"]) printf("  mix app   %s\n", [p[@"app"] UTF8String]);
-    if (p[@"readme"]) printf("  readme    %s\n", [p[@"readme"] UTF8String]);
-    if ([p[@"configs"] count]) printf("  configs   %s\n", [p[@"configs"] componentsJoinedByString:@", "].UTF8String);
-    if (!p.count) printf("  project   no package.json, README, mix.exs or pyproject.toml in its folders\n");
-    printf("  command   %s\n  started   %s, %s ago\n", h.command.UTF8String, (h.launcher ?: @"").UTF8String, MMDuration(-h.started.timeIntervalSinceNow).UTF8String);
-    if (h.branch) printf("  git       branch %s%s\n", h.branch.UTF8String, h.worktree ? [@", worktree " stringByAppendingString:h.worktree].UTF8String : "");
-    printf("  session   %s\n", MMLHSessionWords(h.session).UTF8String);
-    if (h.placeLabel) printf("  where     %s\n", h.placeLabel.UTF8String);
-    if (h.duplicates.count) printf("  duplicate same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
-    printf("  clients   %s\n  state     %s\n", h.clients.count ? [h.clients componentsJoinedByString:@", "].UTF8String : "none now", MMLHStateWords(h).UTF8String);
+    if (h.isDev) Outf("  Why       %s\n", MMLHSessionWords(h.session).UTF8String);
+    Outf("  Waste     %s\n", MMLHWasteWords(h).UTF8String);
+    if (v) Outf("  Verdict   %s says %s, %.0f%%, %s: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, MMAgo(r.at).UTF8String, (v.reason ?: @"").UTF8String);
+    else Outf("            no review yet: run `locohost review`\n");
+    Outf("\nWhat LocoHost found\n");
+    if (p[@"name"] || p[@"description"]) Outf("  project   %s%s\n", [p[@"name"] ?: h.project UTF8String], p[@"description"] ? [@": " stringByAppendingString:p[@"description"]].UTF8String : "");
+    if (p[@"script"]) Outf("  script    %s\n", [p[@"script"] UTF8String]);
+    if (p[@"app"]) Outf("  mix app   %s\n", [p[@"app"] UTF8String]);
+    if (p[@"readme"]) Outf("  readme    %s\n", [p[@"readme"] UTF8String]);
+    if ([p[@"configs"] count]) Outf("  configs   %s\n", [p[@"configs"] componentsJoinedByString:@", "].UTF8String);
+    if (!p.count) Outf("  project   no package.json, README, mix.exs or pyproject.toml in its folders\n");
+    Outf("  command   %s\n  started   %s, %s ago\n", h.command.UTF8String, (h.launcher ?: @"").UTF8String, MMDuration(-h.started.timeIntervalSinceNow).UTF8String);
+    if (h.branch) Outf("  git       branch %s%s\n", h.branch.UTF8String, h.worktree ? [@", worktree " stringByAppendingString:h.worktree].UTF8String : "");
+    Outf("  session   %s\n", MMLHSessionWords(h.session).UTF8String);
+    if (h.placeLabel) Outf("  where     %s\n", h.placeLabel.UTF8String);
+    if (h.duplicates.count) Outf("  duplicate same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
+    Outf("  clients   %s\n  state     %s\n", h.clients.count ? [h.clients componentsJoinedByString:@", "].UTF8String : "none now", MMLHStateWords(h).UTF8String);
     return 0;
 }
 
@@ -477,15 +465,15 @@ static int Waste(MMLHArgs *a) {
         return 0;
     }
     if (!dev.count) { Print(@"no dev servers running"); return 0; }
-    printf("%-3s%-7s%-16s%-36s%-10s%9s%10s\n", "", "port", "what", "project", "unused", "cpu", "memory");
+    Print(Row(@[@[@"", @3], @[@"port", @7], @[@"what", @16], @[@"project", @36], @[@"unused", @10], @[@"cpu", @9, @YES], @[@"memory", @10, @YES]]));
     for (MMFinding *f in dev) {
         MMLHHost *h = Host(f);
-        printf("%-3s%-7ld%-16s%-36s%-10s%9s%10s%s\n", Mark(h, r).UTF8String, (long)h.port, MMCut(h.framework, 15).UTF8String, MMCut(h.project, 35).UTF8String,
-               h.state == MMLHActive ? "now" : MMShortDuration(-(h.lastActive ?: h.firstSeen).timeIntervalSinceNow).UTF8String,
-               MMDuration(h.idleCPUSeconds).UTF8String, MMBytes(h.memory).UTF8String,
-               h.duplicates.count ? [NSString stringWithFormat:@"  duplicate of :%@", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"]].UTF8String : "");
+        Print(Row(@[@[Mark(f, r), @3], @[@(h.port), @7], @[h.framework ?: @"", @16], @[h.project ?: @"", @36],
+                    @[h.state == MMLHActive ? @"now" : MMShortDuration(-(h.lastActive ?: h.firstSeen).timeIntervalSinceNow), @10],
+                    @[MMDuration(h.idleCPUSeconds), @9, @YES], @[MMBytes(h.memory), @10, @YES],
+                    @[@"", @1], @[h.duplicates.count ? [NSString stringWithFormat:@"duplicate of :%@", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"]] : @"", @0]]));
     }
-    printf("\n%s quiet over %ldm hold %s and burned %s CPU since they were last used\n", MMPlural(idle, @"server").UTF8String,
+    Outf("\n%s quiet over %ldm hold %s and burned %s CPU since they were last used\n", MMPlural(idle, @"server").UTF8String,
            (long)(MMLHIdleSeconds() / 60), MMBytes(mem).UTF8String, MMDuration(cpu).UTF8String);
     return 0;
 }
@@ -516,7 +504,7 @@ static int Review(MMLHArgs *a) {
         NSMutableArray *sent = [NSMutableArray new];
         for (MMFinding *f in scope) [sent addObject:@{@"id": f.findingID, @"facts": q.factsFor(f)}];
         if (a.json) PrintJSON(@{@"model": q.model ?: @"", @"judge": @(q.judge), @"findings": sent});
-        else printf("would review %s with %s%s\n", MMPlural(scope.count, @"localhost").UTF8String, (q.model ?: @"auto").UTF8String, q.judge ? ", then the judge" : "");
+        else Outf("would review %s with %s%s\n", MMPlural(scope.count, @"localhost").UTF8String, (q.model ?: @"auto").UTF8String, q.judge ? ", then the judge" : "");
         return 0;
     }
     MMReview *r = RunReview(s, a, scope);
@@ -536,14 +524,15 @@ static int Review(MMLHArgs *a) {
     }
     for (MMFinding *f in scope) {
         MMLHHost *h = Host(f);
-        MMVerdict *v = r.verdicts[f.findingID];
-        printf("%-3s:%-6ld %-8s %3.0f%%  %s\n         %s\n", Mark(h, r).UTF8String, (long)h.port, (v.word ?: @"-").UTF8String,
-               v.confidence * 100, (v.about.length ? v.about : h.framework).UTF8String, (v.reason ?: @"no verdict").UTF8String);
+        MMVerdict *v = MMLHVerdictFor(f, r);
+        Print(Row(@[@[Mark(f, r), @3], @[[NSString stringWithFormat:@":%ld", (long)h.port], @7], @[v.word ?: @"-", @9],
+                    @[[NSString stringWithFormat:@"%.0f%%", v.confidence * 100], @6, @YES], @[(v.about.length ? v.about : h.framework) ?: @"", @0]]));
+        Outf("         %s\n", (v.reason ?: @"no verdict").UTF8String);
     }
     NSInteger uncached = 0;
     for (MMUsage *u in r.calls) uncached += u.uncached;
-    printf("\n%s · %s · %ld confirmed idle now\n", ModelOf(r).length ? ModelOf(r).UTF8String : "no model call", MMPlural(uncached, @"uncached token").UTF8String, (long)cands.count);
-    if (r.summary.length) printf("\n%s\n", r.summary.UTF8String);
+    Outf("\n%s · %s · %ld confirmed idle now\n", ModelOf(r).length ? ModelOf(r).UTF8String : "no model call", MMPlural(uncached, @"uncached token").UTF8String, (long)cands.count);
+    if (r.summary.length) Outf("\n%s\n", r.summary.UTF8String);
     return 0;
 }
 
@@ -580,17 +569,18 @@ static int Auto(MMLHArgs *a, BOOL summaryOnly) {
         return 0;
     }
     if (summaryOnly) {
-        if (r.summary.length) printf("%s\n\n", r.summary.UTF8String); else Print(@"no summary yet: run `locohost review`\n");
-        if (r) printf("review %s by %s%s\n", MMAgo(r.at).UTF8String, ModelOf(r).UTF8String, r.trigger ? [@", woken by " stringByAppendingString:r.trigger].UTF8String : "");
+        if (r.summary.length) Outf("%s\n\n", r.summary.UTF8String); else Print(@"no summary yet: run `locohost review`\n");
+        if (r) Outf("review %s by %s%s\n", MMAgo(r.at).UTF8String, ModelOf(r).UTF8String, r.trigger ? [@", woken by " stringByAppendingString:r.trigger].UTF8String : "");
     }
-    printf("%s mode%s:\n", MMLHModeLabel(MMModeName(mode)).UTF8String, dry && !summaryOnly ? ", dry run" : "");
+    Outf("%s mode%s:\n", MMLHModeLabel(MMModeName(mode)).UTF8String, dry && !summaryOnly ? ", dry run" : "");
     for (MMPlanEntry *e in plan) {
         MMLHHost *h = Host(e.finding);
-        printf("  %-5s :%-6ld %-16s %-32s %s\n", e.act ? "stop" : "keep", (long)h.port, MMCut(h.framework, 15).UTF8String, MMCut(h.project, 31).UTF8String, e.why.UTF8String);
+        Print(Row(@[@[@"", @2], @[e.act ? @"stop" : @"keep", @6], @[[NSString stringWithFormat:@":%ld", (long)h.port], @7], @[h.framework ?: @"", @17],
+                    @[h.project ?: @"", @33], @[e.why ?: @"", @0]]));
     }
     if (!plan.count) Print(@"  no dev servers running");
     for (NSDictionary *x in actions)
-        printf("%s :%s %s\n", [x[@"stopped"] boolValue] ? "stopped" : "still running", [x[@"port"] description].UTF8String, [x[@"project"] UTF8String]);
+        Outf("%s :%s %s\n", [x[@"stopped"] boolValue] ? "stopped" : "still running", [x[@"port"] description].UTF8String, [x[@"project"] UTF8String]);
     return 0;
 }
 
@@ -617,13 +607,13 @@ static int Stop(NSArray<MMFinding *> *targets, MMLHArgs *a, NSString *why) {
         if (!ok) left++;
         [out addObject:@{@"port": @(h.port), @"stopped": @(ok), @"rid": rec.rid ?: NSNull.null, @"error": ok ? NSNull.null : err ?: @"it did not start"}];
         if (!a.json) {
-            if (ok) printf("stopped :%ld %s\n", (long)h.port, h.framework.UTF8String);
-            else printf("still running: :%ld %s, pid %d. %s\n", (long)h.port, h.framework.UTF8String, h.pid, MMSentence(err ?: @"it did not stop").UTF8String);
+            if (ok) Outf("stopped :%ld %s\n", (long)h.port, h.framework.UTF8String);
+            else Outf("still running: :%ld %s, pid %d. %s\n", (long)h.port, h.framework.UTF8String, h.pid, MMSentence(err ?: @"it did not stop").UTF8String);
         }
     }
     if (a.json) PrintJSON(@{@"results": out});
     else if (a.dry) for (NSDictionary *x in out) Print(x[@"dryRun"]);
-    else printf("stopped %lu of %lu\n", (unsigned long)(targets.count - left), (unsigned long)targets.count);
+    else Outf("stopped %lu of %lu\n", (unsigned long)(targets.count - left), (unsigned long)targets.count);
     return left ? 3 : 0;
 }
 
@@ -646,11 +636,12 @@ static int Idle(MMLHArgs *a, BOOL close) {
     for (MMFinding *f in c) {
         MMLHHost *h = Host(f);
         mem += h.memory;
-        if (!a.json) printf("  :%-6ld %-16s %-32s up %-8s %9s  %s\n", (long)h.port, MMCut(h.framework, 15).UTF8String, MMCut(h.project, 31).UTF8String,
-                            MMShortDuration(-h.started.timeIntervalSinceNow).UTF8String, MMBytes(h.memory).UTF8String, (r.verdicts[f.findingID].reason ?: @"").UTF8String);
+        if (!a.json) Print(Row(@[@[@"", @2], @[[NSString stringWithFormat:@":%ld", (long)h.port], @8], @[h.framework ?: @"", @17], @[h.project ?: @"", @33],
+                                 @[[@"up " stringByAppendingString:MMShortDuration(-h.started.timeIntervalSinceNow)], @12], @[MMBytes(h.memory), @10, @YES],
+                                 @[@"", @1], @[MMLHVerdictFor(f, r).reason ?: @"", @0]]));
     }
     if (!c.count) { if (a.json) PrintJSON(@{@"results": @[]}); else Print(@"nothing confirmed idle"); return 0; }
-    if (!close) { printf("%s confirmed idle · %s\n", MMPlural(c.count, @"server").UTF8String, MMBytes(mem).UTF8String); return 0; }
+    if (!close) { Outf("%s confirmed idle · %s\n", MMPlural(c.count, @"server").UTF8String, MMBytes(mem).UTF8String); return 0; }
     if (!a.yes && !a.dry && !Confirm([NSString stringWithFormat:@"Stop %@, %@?%@", MMPlural(c.count, @"server"), MMBytes(mem),
                                       a.force ? @" Servers that ignored SIGTERM before get SIGKILL." : @""])) { Print(@"aborted"); return 1; }
     return Stop(c, a, @"Close Idle");
@@ -699,7 +690,7 @@ static int Stopped(MMLHArgs *a) {
     if (a.json) { NSMutableArray *o = [NSMutableArray new]; for (MMUndoRecord *r in all) [o addObject:StopJSON(r)]; PrintJSON(o); return 0; }
     for (MMUndoRecord *r in all) {
         NSDictionary *j = StopJSON(r);
-        printf(":%-6s %-16s %s by %s%s\n        %s\n", [j[@"port"] description].UTF8String, [j[@"framework"] UTF8String], MMAgo(r.at).UTF8String,
+        Outf(":%-6s %-16s %s by %s%s\n        %s\n", [j[@"port"] description].UTF8String, [j[@"framework"] UTF8String], MMAgo(r.at).UTF8String,
                [j[@"by"] UTF8String], r.why.length ? [@": " stringByAppendingString:r.why].UTF8String : "", [j[@"restart"] UTF8String]);
     }
     if (!all.count) Print(@"LocoHost has stopped nothing yet");
@@ -716,7 +707,7 @@ static int RestartPort(NSInteger port, MMLHArgs *a) {
         OffMain(^{ problem = [MMUndo.shared restore:r.rid]; });
         if (problem) { Err([@"could not restart: " stringByAppendingString:problem]); return 1; }
         if (a.json) PrintJSON(@{@"rid": r.rid, @"port": @(port), @"restart": StopJSON(r)[@"restart"]});
-        else printf("restarting :%ld: %s\n", (long)port, [StopJSON(r)[@"restart"] UTF8String]);
+        else Outf("restarting :%ld: %s\n", (long)port, [StopJSON(r)[@"restart"] UTF8String]);
         return 0;
     }
     Err([NSString stringWithFormat:@"LocoHost has not stopped anything on :%ld", (long)port]);
@@ -734,7 +725,7 @@ static int Restore(MMLHArgs *a) {
         NSMutableArray *o = [NSMutableArray new];
         for (MMUndoRecord *r in Stops()) if (r.state == MMUndoDone) [o addObject:StopJSON(r)];
         if (a.json) PrintJSON(o);
-        else { for (NSDictionary *j in o) printf("%s  :%s %s, %s\n", [j[@"rid"] UTF8String], [j[@"port"] description].UTF8String, [j[@"framework"] UTF8String], MMAgo([NSDate dateWithTimeIntervalSince1970:[j[@"at"] doubleValue]]).UTF8String);
+        else { for (NSDictionary *j in o) Outf("%s  :%s %s, %s\n", [j[@"rid"] UTF8String], [j[@"port"] description].UTF8String, [j[@"framework"] UTF8String], MMAgo([NSDate dateWithTimeIntervalSince1970:[j[@"at"] doubleValue]]).UTF8String);
                if (!o.count) Print(@"nothing to restore"); }
         return 0;
     }
@@ -748,7 +739,7 @@ static int Restore(MMLHArgs *a) {
     __block NSString *problem = nil;
     OffMain(^{ problem = [MMUndo.shared restore:r.rid]; });
     if (problem) { Err([@"could not restore: " stringByAppendingString:problem]); return 1; }
-    if (a.json) PrintJSON(@{@"rid": r.rid, @"restored": @YES}); else printf("restored %s\n", r.rid.UTF8String);
+    if (a.json) PrintJSON(@{@"rid": r.rid, @"restored": @YES}); else Outf("restored %s\n", r.rid.UTF8String);
     return 0;
 }
 
@@ -761,8 +752,8 @@ static int Keep(MMLHArgs *a) {
     double hours = a.arg2 ? a.arg2.doubleValue : [a opt:@"--hours"] ? [a opt:@"--hours"].doubleValue : 4;
     if (!a.dry) [MMKeep keep:f.stableKey expert:kExpert until:hours > 0 ? [NSDate dateWithTimeIntervalSinceNow:hours * 3600] : nil];
     if (a.json) { PrintJSON(@{@"findingID": f.findingID, @"hours": @(hours)}); return 0; }
-    if (hours > 0) printf("no mode stops :%ld %s for %s\n", (long)h.port, h.framework.UTF8String, MMDuration(hours * 3600).UTF8String);
-    else printf(":%ld %s is up to the mode again\n", (long)h.port, h.framework.UTF8String);
+    if (hours > 0) Outf("no mode stops :%ld %s for %s\n", (long)h.port, h.framework.UTF8String, MMDuration(hours * 3600).UTF8String);
+    else Outf(":%ld %s is up to the mode again\n", (long)h.port, h.framework.UTF8String);
     return 0;
 }
 
@@ -781,7 +772,16 @@ NSArray<MMVerbSpec *> *MMLHVerbs(void) {
         typedef int (^Body)(MMLHArgs *a);
         NSMutableArray *v = [NSMutableArray new];
         void (^add)(NSString *, NSString *, BOOL, Body) = ^(NSString *verb, NSString *usage, BOOL mutates, Body body) {
-            [v addObject:[MMVerbSpec verb:verb usage:usage mutates:mutates run:^int(MMArgs *args) { @autoreleasepool { return body(Parse(args, verb)); } }]];
+            [v addObject:[MMVerbSpec verb:verb usage:usage mutates:mutates run:^int(MMArgs *args) { @autoreleasepool {
+                // Outside a running app LocoHost reads project files and asks Where now, as a CLI waits for its answer.
+                MMLHInCLI = !args.inApp || !MMGraph.shared.latest;
+                NSMutableDictionary *td = NSThread.currentThread.threadDictionary;
+                id before = td[kArgsKey];
+                td[kArgsKey] = args;
+                int status = body(Parse(args));
+                if (before) td[kArgsKey] = before; else [td removeObjectForKey:kArgsKey];
+                return status;
+            } }]];
         };
         // 2.0 verbs.
         add(@"hosts", @"hosts [port] [--json]: every localhost, or what one port is, how it runs and why", NO, ^int(MMLHArgs *a) { return Hosts(a); });

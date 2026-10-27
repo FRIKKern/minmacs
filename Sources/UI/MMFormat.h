@@ -15,6 +15,11 @@ NSString *MMAgo(NSDate *date);
 NSString *MMPlural(NSInteger n, NSString *word);
 /// The text cut at the tail with an ellipsis, at most n characters. Never cuts in the middle.
 NSString *MMCut(NSString *s, NSUInteger n);
+/// One column of a CLI table: the text cut at the tail so a space is left, then padded to width characters.
+/// It counts characters, not bytes, so "…" and a state mark such as "◐" never push the next column over.
+NSString *MMColumn(NSString *s, NSUInteger width);
+/// The same, right aligned, for numbers.
+NSString *MMColumnRight(NSString *s, NSUInteger width);
 /// The text with a capital first letter and nothing else changed. For titles.
 NSString *MMCapitalized(NSString *s);
 /// The text with a capital first letter and a final period, unless it already ends in . ? or !.

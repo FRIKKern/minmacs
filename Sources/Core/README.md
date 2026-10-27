@@ -71,6 +71,9 @@ Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and 
 
 - With `MINMACS_HOME` set, `MMPref` and `MMSetPref` read and write `$MINMACS_HOME/Preferences/no.guerrilla.minmacs.plist` as a file under an flock, never through CFPreferences, so no test writes the real `no.guerrilla.minmacs` domain.
 - `MMLog` runs on `MMQueue(@"core", @"log")`. The review broker and the undo engine write to it directly. There is no JSON lines fallback.
+- Opening a new log sets WAL mode and makes the tables in an IMMEDIATE transaction, retrying a lock SQLite refused without waiting, for up to 10 seconds. Two processes that open a new file at once both keep every row. An append retries the same way.
+- `MMLogMainThreadQueries` and `MMKeepMainThreadReads` count reads on the main thread, so the checks hold menus to zero. On main, `+[MMKeep keptUntil:expert:]` answers from the last read and reads the file only when nothing was read yet, as in a CLI.
+- A failed undo record restores only what it moved aside, such as trashed files. A failed stop or quit restores nothing, since its server or app still runs.
 
 ## Core as one whole
 
@@ -84,7 +87,7 @@ Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and 
 
 ## The shell and the CLI, issue #20
 
-- `MMSpecs.m` holds the menu, card and verb specs as plain data. `Sources/UI/MMSpecMenu` and `Sources/UI/MMSpecKit` both draw specs with the kit, from the shell and from LocoHost. One of them is to go.
+- `MMSpecs.m` holds the menu, card and verb specs as plain data. `Sources/UI/MMSpecMenu` is the one converter that draws them with the kit, for the shell, the render tool and each expert's tests. One Icon shows four experts' sections and folds the rest under More, with no cards there.
 - `Sources/Shell/MMShell.m` is the app: it calls `MMCoreStart`, adds the `cli` and `reopen` verbs to core.sock with `MMCoreServe`, makes one status item per expert and opens Settings. `Sources/main.m` registers each class named in `MMBuiltInExpertClasses` that is linked in: `MMMinMacsExpert`, `MMLocoHost`, `MMWorkForestExpert`, `MMNooNooExpert` and `MMInsomniaExpert`. An expert lands by adding its class, with no change to the shell.
 - `Sources/CLI` holds the verb registry, Core's verbs, `MMArgs` and the URL router. A verb prints through `MMArgs`, never with printf, so its output reaches the terminal from the app too.
 

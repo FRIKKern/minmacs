@@ -21,5 +21,6 @@ typedef NS_ENUM(NSInteger, MMPlaceKind) { MMPlaceUnknown, MMPlaceCmux, MMPlaceTm
 /// Terminal and iTerm2 are matched by the tty of the shell above pid. Anything else is the responsible app of P9.
 /// wait NO returns the last answer, or nil, and refreshes on MMQueue(@"core", @"where"). wait YES looks now, for the CLI.
 MMPlace *MMWhereIs(MMProcKey key, MMSample *s, BOOL wait);
-/// Brings the place forward. Terminal and iTerm2 need the person's permission the first time. Main thread only.
+/// Brings the place forward. Terminal and iTerm2 need the person's permission the first time. It runs cmux, tmux or
+/// osascript and can block for seconds, so call it off the main thread.
 BOOL MMGoTo(MMPlace *place, NSString **error);
