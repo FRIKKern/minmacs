@@ -39,6 +39,9 @@ enum {
 
 /// The snapshot the verb reads. In the app, the current one. In the CLI, one built cold, once per run.
 @property (readonly) MMSnapshot *snapshot;
+/// The same, for a verb that reports CPU or new connections. In the CLI it is built from a second sample taken
+/// a second after the first, which every expert saw, so those count. In the app it is the current one.
+@property (readonly) MMSnapshot *settledSnapshot;
 
 /// One line to standard output.
 - (void)print:(NSString *)format, ... NS_FORMAT_FUNCTION(1, 2);

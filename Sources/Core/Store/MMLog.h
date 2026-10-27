@@ -35,3 +35,7 @@ typedef struct { NSTimeInterval at; double value; } MMTrendPoint;
 - (void)addPoint:(NSString *)series value:(double)value at:(NSDate *)at bucket:(NSTimeInterval)bucket;
 - (NSData *)points:(NSString *)series since:(NSDate *)since;   // packed MMTrendPoint values, oldest first
 @end
+
+/// How many queries this process ran on the main thread. A menu reads what the graph already holds, so the checks
+/// hold menus and cards to zero.
+NSUInteger MMLogMainThreadQueries(void);

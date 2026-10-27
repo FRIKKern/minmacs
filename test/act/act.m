@@ -537,6 +537,18 @@ static void Stops(void) {
     pid_t once = [[MMUndo.shared record:twice.rid].payload[@"restored"][@"restartedPid"] intValue];
     if (once > 0) [gStarted addObject:V(KeyOf(once))];
     T(@"undo: two restores at once run the restart once", @"1", @(ran).stringValue);
+
+    // A stop that failed left its server running. Restoring its record must not start a second copy.
+    NSString *marker = [gDir stringByAppendingPathComponent:@"failed-stop-restarted"];
+    MMUndoRecord *failed = [MMUndo.shared begin:gExpert kind:@"stop" finding:@"failed" subject:@"failed" why:@"test" by:@"manual"
+                                         parent:nil payload:@{@"restart": @{@"command": [NSString stringWithFormat:@"touch '%@'", marker],
+                                                                            @"cwd": gDir, @"env": @{@"PATH": @"/usr/bin:/bin"}}}];
+    [MMUndo.shared finish:failed ok:NO freed:0 error:@"it ignored SIGTERM"];
+    T(@"undo: a failed stop cannot be restored", @"no", YN([MMUndo.shared record:failed.rid].canRestore));
+    T(@"undo: restoring a failed stop says why", @"the action failed and changed nothing, so there is nothing to restore",
+      Or([MMUndo.shared restore:failed.rid]));
+    usleep(300000);
+    T(@"undo: restoring a failed stop runs no restart command", @"no", YN([NSFileManager.defaultManager fileExistsAtPath:marker]));
     usleep(200000);
     if (once > 0 && Running(KeyOf(once))) { MMStop(@[V(KeyOf(once))], MMStopTerm, 3); Reap(); }
 }

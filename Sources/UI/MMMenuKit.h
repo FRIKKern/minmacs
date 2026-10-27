@@ -83,6 +83,12 @@ NSMenuItem *MMActionItem(NSString *title, NSString *tail, SEL action, id target)
 /// An action that cannot run right now. It stays in place, dimmed, with the reason in a readable gray tail:
 /// "Remove…   3 uncommitted files". An action that never applies is left out instead.
 NSMenuItem *MMDimmedItem(NSString *title, NSString *reason);
+/// The colors of a dimmed action's title and of its reason. They are tertiaryLabelColor and secondaryLabelColor,
+/// except under Increase Contrast, which darkens those to more than half and three quarters of labelColor, so a
+/// dimmed line there would read as an enabled one with a gray tail. There the title keeps at most 0.31 of
+/// labelColor's ink and the reason at most 0.59, the shares they have in the plain light appearance.
+NSColor *MMDimmedColor(void);
+NSColor *MMDimmedReasonColor(void);
 /// The Option alternate of the item just before it. It does not count against the action limit,
 /// and nothing may be reachable only through it.
 NSMenuItem *MMAlternateItem(NSString *title, NSString *tail, SEL action, id target);

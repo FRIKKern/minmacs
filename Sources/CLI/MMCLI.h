@@ -50,7 +50,12 @@ NSDictionary *MMCLIReply(NSDictionary *request);
 /// The snapshot a verb reads. In the app, the graph's latest. In the CLI, one built cold from the graph's
 /// fact source when one is set, else from a one-time sample of Senses and Know.
 MMSnapshot *MMCLISnapshot(BOOL inApp);
+/// The same, after a second sample. Cold, it hands the first sample to every expert's findings, waits a second and
+/// builds from a second one, so CPU and new connections count. In the app, the graph's latest.
+MMSnapshot *MMCLISettledSnapshot(BOOL inApp);
 /// The fact source the CLI reads when it runs cold and the graph has none. Tests set fixture facts here.
+/// A cold CLI with no source of its own uses MMColdFacts, one sample of Senses and Know, and gives it to the graph
+/// as well, so an action's fresh check reads the same source. No expert samples for the CLI.
 void MMSetCLIFactSource(id<MMFactSource> source);
 
 /// Runs block on the main thread and waits. Runs it at once when already on main.

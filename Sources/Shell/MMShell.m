@@ -12,7 +12,8 @@
 NSString *const MMLoginNotice = @"MinMacs opens at login. Settings can turn that off.";
 static NSString *const kLaunchedKey = @"core.launched";          // set on the first launch
 static NSString *const kLoginNoticeKey = @"core.loginNoticeUntil";   // seconds since 1970
-static NSString *const kOneIconExpert = @"minmacs";               // One Icon uses MinMacs's item and position
+static NSString *const kOneIconExpert = @"minmacs";               // One Icon stands in for MinMacs's item in Settings
+NSString *const MMOneIconAutosaveName = @"minmacs.oneicon";
 static NSString *const kOneIconSymbol = @"gauge.with.dots.needle.33percent";
 
 NSArray<NSString *> *MMBuiltInExpertClasses(void) {
@@ -196,10 +197,10 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
         MMExpertItem *x = [MMExpertItem new];
         x.shell = self;
         x.expert = e == NSNull.null ? nil : e;
-        NSString *eid = x.expert ? x.expert.expertID : kOneIconExpert;
-        x.item = MMMakeStatusItem(x.expert ? x.expert.name : @"MinMacs", x.expert ? x.expert.symbol : kOneIconSymbol);
         // The saved position and the Visible state live under minmacs.<expert id>, which Settings reads too.
-        x.item.autosaveName = MMStatusAutosaveName(eid);
+        // The one icon has a name of its own, so its Hide Icon never hides MinMacs's own item.
+        x.item = MMMakeStatusItemSaved(x.expert ? x.expert.name : @"MinMacs", x.expert ? x.expert.symbol : kOneIconSymbol,
+                                       x.expert ? MMStatusAutosaveName(x.expert.expertID) : MMOneIconAutosaveName);
         x.menu = [NSMenu new];
         x.menu.delegate = x;
         x.menu.autoenablesItems = NO;
@@ -212,7 +213,7 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
 
 - (MMExpertItem *)itemFor:(NSString *)expert {
     for (MMExpertItem *i in self.items) if ([i.expert.expertID isEqualToString:expert]) return i;
-    // In One Icon mode MinMacs's own item is the one icon, under the same autosave name.
+    // In One Icon mode the one icon stands in for MinMacs's own item, under its own autosave name.
     if ([expert isEqualToString:kOneIconExpert]) for (MMExpertItem *i in self.items) if (!i.expert) return i;
     return nil;
 }

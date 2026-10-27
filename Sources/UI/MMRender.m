@@ -75,7 +75,7 @@ static NSView *Stack(NSArray<NSMenuItem *> *items, NSMutableArray *cut) {
         }
         NSFont *mf = [NSFont menuFontOfSize:0];
         NSMutableAttributedString *title = [(i.attributedTitle ?: [[NSAttributedString alloc] initWithString:i.title attributes:@{NSFontAttributeName: mf}]) mutableCopy];
-        if (!i.attributedTitle && !i.enabled) [title addAttribute:NSForegroundColorAttributeName value:NSColor.tertiaryLabelColor range:NSMakeRange(0, title.length)];
+        if (!i.attributedTitle && !i.enabled) [title addAttribute:NSForegroundColorAttributeName value:MMDimmedColor() range:NSMakeRange(0, title.length)];
         NSString *key = i.keyEquivalent.length ? [@"⌘" stringByAppendingString:i.keyEquivalent.uppercaseString] : nil;
         CGFloat avail = W - x0 - right - (key ? 30 : 0);
         NSTextField *t = Label(title);

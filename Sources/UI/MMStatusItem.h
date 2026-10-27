@@ -18,5 +18,8 @@ NSString *MMStatusBadge(NSString *badge);
 /// A new status item for an expert: square, removal allowed, its position saved under MMStatusAutosaveName.
 /// Call on the main thread.
 NSStatusItem *MMMakeStatusItem(NSString *expert, NSString *symbol);
+/// The same under another saved name, such as the One Icon item's. The name is set before anything else, so the item
+/// never loads the visible state saved under the expert's own name.
+NSStatusItem *MMMakeStatusItemSaved(NSString *expert, NSString *symbol, NSString *autosaveName);
 /// Sets the icon, the badge beside it and the accessibility label. The item stays square without a badge.
 void MMUpdateStatusItem(NSStatusItem *item, NSString *expert, NSString *symbol, NSString *state, NSString *badge);

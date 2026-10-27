@@ -93,7 +93,11 @@ static NSString *DebuggingIn(NSArray<NSString *> *args) {
 
 @interface MMMinMacsExpert ()
 @property (strong) id<MMExpertPolicy> policyObject;
+/// The records Restore can bring back, read on the graph queue on every rebuild, so the menu never reads the log on main.
+@property (atomic, copy) NSArray<MMUndoRecord *> *restorableRecords;
 @end
+
+static NSArray<MMUndoRecord *> *Restorable(void);
 
 /// The keep checks Act asks before every plan and every action.
 @interface MMMinMacsPolicy : NSObject <MMExpertPolicy>
@@ -291,6 +295,7 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
     BOOL quitBrowsers = QuitBrowsers();
     // One read of the undo log per rebuild, here on the graph queue, so the menu and cards never read it on main.
     NSSet *asked = QuitAsked();
+    self.restorableRecords = Restorable();
     NSArray *apps = [in.apps sortedArrayUsingComparator:^NSComparisonResult(MMMinMacsApp *x, MMMinMacsApp *y) {
         if (x.memory != y.memory) return x.memory > y.memory ? NSOrderedAscending : NSOrderedDescending;
         return [x.bundleID compare:y.bundleID];
@@ -581,7 +586,7 @@ static NSArray<MMUndoRecord *> *Restorable(void) {
     m.sections = [sections subarrayWithRange:NSMakeRange(0, MIN(4, sections.count))];
 
     NSMutableArray *more = [NSMutableArray new];
-    NSArray<MMUndoRecord *> *back = Restorable();
+    NSArray<MMUndoRecord *> *back = NSThread.isMainThread ? self.restorableRecords ?: @[] : Restorable();
     if (back.count) {
         [more addObject:MMMinMacsAction([NSString stringWithFormat:@"Restore %@", MMPlural((NSInteger)back.count, @"Closed Item")],
                                         MMAgo(back.firstObject.at), nil, ^(BOOL option) {

@@ -7,7 +7,7 @@
 @property (readwrite, copy) NSArray<NSString *> *all, *words;
 @property (strong) NSMutableDictionary<NSString *, NSString *> *values;
 @property (strong) NSMutableSet<NSString *> *flags;
-@property (strong) MMSnapshot *cachedSnapshot;
+@property (strong) MMSnapshot *cachedSnapshot, *cachedSettled;
 @end
 
 /// The flags in a usage line that take a value: "--port <n>" names --port.
@@ -62,6 +62,13 @@ static NSSet<NSString *> *ValueFlags(NSString *usage) {
     @synchronized (self) {
         if (!self.cachedSnapshot) self.cachedSnapshot = MMCLISnapshot(self.inApp);
         return self.cachedSnapshot;
+    }
+}
+
+- (MMSnapshot *)settledSnapshot {
+    @synchronized (self) {
+        if (!self.cachedSettled) self.cachedSettled = MMCLISettledSnapshot(self.inApp);
+        return self.cachedSettled;
     }
 }
 

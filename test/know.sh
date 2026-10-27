@@ -82,12 +82,17 @@ stop "$FA"
 start "$FAKE" --work 8 --w other; FA=$LAST; sleep 1
 both "caffeinate -w with another pid does not" idle "$R/watch" "$FA"
 stop "$FA"
-start "$FHOST" "$FAKE" --work 8; FH=$LAST; sleep 1
-FHA=$(pgrep -P "$FH" "$KA"); procs="$procs $FHA"
+start "$FHOST" "$FAKE" --work 8; FH=$LAST
+# The host starts its agent itself. Wait until it has, so the agent's pid is known and stopped below.
+# The host binary runs here for the first time, and a busy Mac can take more than a second to start it.
+hosted() { FHA=""; kh_i=0; while [ -z "$FHA" ] && [ $kh_i -lt 100 ]; do FHA=$(pgrep -P "$1" "$KA"); [ -n "$FHA" ] || sleep 0.1; kh_i=$((kh_i+1)); done; }
+hosted "$FH"; procs="$procs $FHA"; sleep 1
 both "an agent under a host is reported once, as the host" working "$R/host" "$FH"
 check "  the host lists the agent it hosts" "fake-agent:working" \
   "$("$KT" agents --rows "$R/host" | python3 -c "import json,sys; a=[x for x in json.load(sys.stdin)['agents'] if x['pid']==$FH][0]; print(','.join('%s:%s' % (h['id'], h['state']) for h in a.get('hosted', [])))")"
-check "  and the hosted agent is not listed apart" 1 "$("$KT" agents --rows "$R/host" | json "len([a for a in j['agents'] if a['id'].startswith('fake')])")"
+# Only this check's two pids count. Any other process on the Mac that matches the fixture rows says nothing about folding.
+check "  and the hosted agent is not listed apart" "fake-host:$FH" \
+  "$("$KT" agents --rows "$R/host" | json "','.join('%s:%d' % (a['id'], a['pid']) for a in j['agents'] if a['pid'] in ($FH, ${FHA:-0}))")"
 sleep 9
 both "the host after the hosted turn ended is idle" idle "$R/host" "$FH"
 stop "$FH"; stop "$FHA"

@@ -43,6 +43,10 @@ ui_fails=missing
 check "the render's DESIGN.md checks all pass" 0 "$ui_fails"
 grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 
+# One spec converter: Sources/UI/MMSpecMenu. The second one, MMSpecKit, is gone, and nothing calls its functions.
+check "one spec converter, MMSpecMenu" "no 0" \
+  "$([ -e "$ROOT/Sources/UI/MMSpecKit.m" ] && echo yes || echo no) $(grep -rnE 'MMSpecKit|MMMenuForSpec|MMCardForSpec|MMItemForAction' "$ROOT/Sources" "$ROOT/tools" "$ROOT/test" | grep -v '^.*ui\.sh:' | grep -c .)"
+
 # The kit's own checks, without drawing.
 if clang -fobjc-arc -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa \
      $(find Sources/UI -name '*.m' | LC_ALL=C sort) test/ui/kit.m -o "$MINMACS_HOME/ui/kit" >"$MINMACS_HOME/ui/kit.log" 2>&1; then

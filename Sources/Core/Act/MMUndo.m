@@ -77,6 +77,9 @@ static NSDictionary *LogLatestOf(NSString *rid) {
     if (self.state != MMUndoDone && self.state != MMUndoFailed) return NO;
     if ([self.kind isEqualToString:@"tool"]) return NO;
     NSDictionary *p = self.payload;
+    // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit
+    // left its server or app running, so its restart or relaunch would start a second copy: it restores nothing.
+    if (self.state == MMUndoFailed) return self.hasParts || [p[@"trashed"] count] || p[@"bundle"] || p[@"recovery"];
     return self.hasParts || [p[@"trashed"] count] || p[@"restart"] || p[@"bundle"] || p[@"recovery"] || p[@"relaunch"];
 }
 @end
@@ -379,7 +382,8 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if (r.state == MMUndoRestored) return @"it was already restored";
     if (r.state == MMUndoPending) return @"the action has not finished";
     if ([r.kind isEqualToString:@"tool"]) return @"a tool's own cleanup cannot be undone; its dry-run output is in the record";
-    if (!r.canRestore) return @"the record holds nothing to restore";
+    if (!r.canRestore) return r.state == MMUndoFailed ? @"the action failed and changed nothing, so there is nothing to restore"
+                                                      : @"the record holds nothing to restore";
     NSMutableArray *problems = [NSMutableArray new];
     for (MMUndoRecord *part in [self partsOf:rid]) {
         if (part.state == MMUndoRestored || !part.canRestore) continue;
@@ -389,7 +393,8 @@ static NSMutableSet<NSString *> *Restoring(void) {
     NSDictionary *p = r.payload;
     NSMutableDictionary *done = [NSMutableDictionary new];
     NSString *problem = nil;
-    if (!problem && p[@"restart"]) {
+    BOOL failed = r.state == MMUndoFailed;   // only what it moved aside comes back, never a restart or a relaunch
+    if (!problem && p[@"restart"] && !failed) {
         pid_t pid = 0;
         problem = [self restart:p[@"restart"] pid:&pid];
         if (pid) done[@"restartedPid"] = @(pid);
@@ -397,7 +402,7 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if (!problem && [p[@"trashed"] count]) problem = [self untrash:p[@"trashed"]];
     if (!problem && p[@"bundle"]) problem = [self unbundle:p[@"bundle"]];
     if (!problem && p[@"recovery"]) problem = [self unrecover:p[@"recovery"]];
-    if (!problem && p[@"relaunch"]) problem = [self relaunch:p[@"relaunch"]];
+    if (!problem && p[@"relaunch"] && !failed) problem = [self relaunch:p[@"relaunch"]];
     if (problem) [problems addObject:problem];
     if (problems.count) return [problems componentsJoinedByString:@"; "];
     done[@"restoredAt"] = @(NSDate.date.timeIntervalSince1970);

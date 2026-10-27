@@ -3,6 +3,7 @@
 #import "Core/MMCore.h"
 #include <stdio.h>
 #include <string.h>
+#include <os/lock.h>
 
 NSString *const MMPhase = @"phase 1";
 
@@ -130,19 +131,51 @@ void MMSetCLIFactSource(id<MMFactSource> source) { gCLISource = source; }
 - (MMFacts *)freshFactsFor:(MMFinding *)finding { return [self factsFor:0]; }
 @end
 
-MMSnapshot *MMCLISnapshot(BOOL inApp) {
-    if (inApp) {
-        MMSnapshot *s = MMGraph.shared.latest;
-        if (s) return s;
+/// The source a cold run reads: the one a test set, else the graph's, else one MMColdFacts the graph gets too.
+static id<MMFactSource> ColdSource(void) {
+    if (gCLISource) return gCLISource;
+    @synchronized (MMGraph.shared) {
+        if (!MMGraph.shared.source) MMGraph.shared.source = [MMColdFacts new];
+        return MMGraph.shared.source;
     }
-    id<MMFactSource> src = gCLISource ?: MMGraph.shared.source ?: [MMColdFacts new];
-    MMFacts *facts = [src factsFor:1];
+}
+
+static uint64_t NextGeneration(void) {
+    static uint64_t gen; static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    os_unfair_lock_lock(&lock);
+    uint64_t g = ++gen;
+    os_unfair_lock_unlock(&lock);
+    return g;
+}
+
+static MMSnapshot *ColdSnapshot(id<MMFactSource> src) {
+    MMFacts *facts = [src factsFor:NextGeneration()];
     NSMutableDictionary *reviews = [NSMutableDictionary new];
     for (id<MMExpert> e in MMExperts()) {
         MMReview *r = [MMReview lastFor:e.expertID];
         if (r) reviews[e.expertID] = r;
     }
     return [MMSnapshot snapshotFrom:facts experts:MMExperts() reviews:reviews holds:nil];
+}
+
+MMSnapshot *MMCLISnapshot(BOOL inApp) {
+    if (inApp) {
+        MMSnapshot *s = MMGraph.shared.latest;
+        if (s) return s;
+    }
+    return ColdSnapshot(ColdSource());
+}
+
+MMSnapshot *MMCLISettledSnapshot(BOOL inApp) {
+    if (inApp) {
+        MMSnapshot *s = MMGraph.shared.latest;
+        if (s) return s;
+    }
+    id<MMFactSource> src = ColdSource();
+    // Every expert sees the first sample, so it can count what changed by the second, such as LocoHost's connections.
+    [MMSnapshot snapshotFrom:[src factsFor:NextGeneration()] experts:MMExperts() reviews:nil holds:nil];
+    [NSThread sleepForTimeInterval:1.0];
+    return ColdSnapshot(src);
 }
 
 void MMOnMain(dispatch_block_t block) {

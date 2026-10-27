@@ -59,7 +59,8 @@ static NSString *Fingerprint(MMLHHost *h) {
             (unsigned long)h.duplicates.count, h.isProtected, sessionLast ? Bucket(sessionLast) : @"-", Bucket(h.lastActive ?: h.firstSeen)];
 }
 
-static MMFinding *FindingFor(MMLHHost *h) {
+/// keptUntil is the person's timed keep, read on the graph queue, so the menu never reads the keeps file on main.
+static MMFinding *FindingFor(MMLHHost *h, NSDate *keptUntil) {
     return [MMFinding expert:kExpert kind:@"server" stableKey:h.stableKey build:^(MMFindingBuilder *b) {
         b.instanceKey = h.key;
         b.title = [NSString stringWithFormat:@":%ld %@ %@", (long)h.port, h.framework ?: @"", h.project];
@@ -72,7 +73,9 @@ static MMFinding *FindingFor(MMLHHost *h) {
         b.evidence = ev;
         b.proposal = [MMProposal verb:@"stop" title:@"Stop Server" reversibility:MMReversibleRestart];
         b.procs = StopKeys(h);
-        b.facts = h.json;
+        NSMutableDictionary *facts = [h.json mutableCopy];
+        if (keptUntil) facts[@"keptUntil"] = @(keptUntil.timeIntervalSince1970);
+        b.facts = facts;
         b.fingerprint = Fingerprint(h);
     }];
 }
@@ -202,17 +205,22 @@ id<MMAction> MMLHStopAction(MMFinding *f, MMStopStep step) {
 
 MMReview *MMLHLastReview(void) { return [MMReview lastFor:kExpert]; }
 
+MMVerdict *MMLHVerdictFor(MMFinding *f, MMReview *r) {
+    MMVerdict *v = f.findingID ? r.verdicts[f.findingID] : nil;
+    // The finding id outlives a restart. A verdict made for an earlier instance says nothing about this one.
+    // The fingerprint starts with the instance key, as LocoHost 0.1 keyed its verdicts by pid and start time.
+    if (!v || !f.instanceKey.length || ![v.fingerprint hasPrefix:[f.instanceKey stringByAppendingString:@"|"]]) return nil;
+    return v;
+}
+
 NSArray<MMFinding *> *MMLHCandidates(NSArray<MMFinding *> *findings, MMReview *r) {
     NSMutableArray *c = [NSMutableArray new];
     if (!r || r.error.length) return c;
     for (MMFinding *f in findings) {
         MMLHHost *h = HostOf(f);
         if (!h.isDev || h.isProtected || h.state != MMLHIdle) continue;
-        MMVerdict *v = r.verdicts[f.findingID];
+        MMVerdict *v = MMLHVerdictFor(f, r);
         if (v.kind != MMVerdictGo || v.confidence < MMMinConfidence) continue;
-        // The finding id outlives a restart. A verdict made for an earlier instance says nothing about this one.
-        // The fingerprint starts with the instance key, as LocoHost 0.1 keyed its verdicts by pid and start time.
-        if (![v.fingerprint hasPrefix:[f.instanceKey stringByAppendingString:@"|"]]) continue;
         if (h.lastActive && [h.lastActive compare:r.at] == NSOrderedDescending) continue;
         [c addObject:f];
     }
@@ -341,11 +349,24 @@ static NSDictionary *VerdictJSON(MMVerdict *v) {
              @"reason": v.reason ?: @"", @"judged": @(v.judged), @"decidedBy": v.decidedBy ?: @"", @"keepEvidence": v.keepEvidence ?: @""};
 }
 
+/// Recently Stopped: LocoHost's done stops, newest first, as {rid, port, framework, project, at, by}. Reads the undo log.
+static NSArray<NSDictionary *> *StoppedRecords(void) {
+    NSMutableArray *stopped = [NSMutableArray new];
+    for (MMUndoRecord *rec in [MMUndo.shared recent:kExpert limit:20]) {
+        NSDictionary *rs = Dict(rec.payload[@"restart"]);
+        if (![rec.kind isEqualToString:@"stop"] || rec.state != MMUndoDone || !rs) continue;
+        [stopped addObject:@{@"rid": rec.rid ?: @"", @"port": rs[@"port"] ?: @0, @"framework": rs[@"framework"] ?: @"", @"project": rs[@"project"] ?: @"",
+                             @"at": @(rec.at.timeIntervalSince1970), @"by": rec.by ?: @"manual"}];
+    }
+    return stopped;
+}
+
 @implementation MMLocoHost {
     NSArray<NSDictionary *> *_ignored;
     MMLHView *_view;                         // main only, for the snapshot in _viewGen
     uint64_t _viewGen;
     MMReview *_review;                       // graph queue: the newest review seen in the log
+    NSArray<NSDictionary *> *_stopped;       // graph queue writes, main reads: Recently Stopped, from the undo log
     NSDate *_reviewRead;
     BOOL _hooked;
     NSMutableDictionary<NSString *, NSNumber *> *_known;   // main: findingID to the age marks it has passed
@@ -374,8 +395,11 @@ static NSDictionary *VerdictJSON(MMVerdict *v) {
     NSMutableArray *out = [NSMutableArray new];
     for (MMLHHost *h in hosts) {
         if (!MMLHInCLI && h.isDev) MMLHFillWhere(h, facts.sample, NO);   // Know's last answer; it refreshes in the background
-        [out addObject:FindingFor(h)];
+        [out addObject:FindingFor(h, [MMKeep keptUntil:h.stableKey expert:kExpert])];
     }
+    // One read of the undo log per rebuild, here on the graph queue, so the menu never reads it on main.
+    NSArray *stopped = StoppedRecords();
+    @synchronized (self) { _stopped = stopped; }
     if (!MMLHInCLI) [self syncReview];
     if (!_hooked && !MMLHInCLI) {
         _hooked = YES;
@@ -428,6 +452,8 @@ static NSDictionary *VerdictJSON(MMVerdict *v) {
     return hosts;
 }
 
+/// Main thread, or any queue for the CLI and the render tool. On main it reads only what the snapshot and the last
+/// rebuild hold: the keeps are in each finding's facts and Recently Stopped was read on the graph queue.
 - (MMLHView *)viewFor:(MMSnapshot *)s {
     if (NSThread.isMainThread && _view && _viewGen == s.generation && s.generation) return _view;
     MMLHView *v = [MMLHView new];
@@ -439,14 +465,18 @@ static NSDictionary *VerdictJSON(MMVerdict *v) {
     v.reviewAt = r.at; v.reviewError = r.error; v.summaryWords = r.summaryWords; v.model = ModelWords(r);
     v.reviewing = _reviewing;
     NSMutableDictionary *verdicts = [NSMutableDictionary new];
-    for (NSString *k in r.verdicts) verdicts[k] = VerdictJSON(r.verdicts[k]);
+    for (MMFinding *f in findings) { MMVerdict *x = MMLHVerdictFor(f, r); if (x) verdicts[f.findingID] = VerdictJSON(x); }
     v.verdicts = verdicts;
     v.plan = MMLHPlanMap(findings, s.facts, r, mode);
     NSMutableArray *cands = [NSMutableArray new];
     for (MMFinding *f in MMLHCandidates(findings, r)) [cands addObject:f.findingID];
     v.candidates = cands;
     NSMutableDictionary *kept = [NSMutableDictionary new];
-    for (MMFinding *f in findings) { NSDate *d = [MMKeep keptUntil:f.stableKey expert:kExpert]; if (d) kept[f.findingID] = d; }
+    double now = NSDate.date.timeIntervalSince1970;
+    for (MMFinding *f in findings) {
+        NSNumber *until = f.facts[@"keptUntil"];
+        if ([until isKindOfClass:NSNumber.class] && until.doubleValue > now) kept[f.findingID] = [NSDate dateWithTimeIntervalSince1970:until.doubleValue];
+    }
     v.keptUntil = kept;
     // A server inside a worktree links to WorkForest's card of that worktree.
     NSMutableDictionary *links = [NSMutableDictionary new];
@@ -461,12 +491,14 @@ static NSDictionary *VerdictJSON(MMVerdict *v) {
     v.links = links;
     NSMutableSet *listening = [NSMutableSet new];
     for (MMLHHost *h in v.hosts) [listening addObjectsFromArray:h.ports];
+    NSArray *records;
+    if (NSThread.isMainThread) { @synchronized (self) { records = _stopped ?: @[]; } }
+    else records = StoppedRecords();
     NSMutableArray *stopped = [NSMutableArray new];
-    for (MMUndoRecord *rec in [MMUndo.shared recent:kExpert limit:20]) {
-        NSDictionary *rs = Dict(rec.payload[@"restart"]);
-        if (![rec.kind isEqualToString:@"stop"] || rec.state != MMUndoDone || !rs) continue;
-        [stopped addObject:@{@"rid": rec.rid ?: @"", @"port": rs[@"port"] ?: @0, @"framework": rs[@"framework"] ?: @"", @"project": rs[@"project"] ?: @"",
-                             @"at": @(rec.at.timeIntervalSince1970), @"by": rec.by ?: @"manual", @"taken": @([listening containsObject:rs[@"port"] ?: @0])}];
+    for (NSDictionary *x in records) {
+        NSMutableDictionary *y = [x mutableCopy];
+        y[@"taken"] = @([listening containsObject:x[@"port"] ?: @0]);
+        [stopped addObject:y];
     }
     v.stopped = stopped;
     v.idleSeconds = MMLHIdleSeconds();
@@ -554,8 +586,12 @@ static void Copy(NSString *s) {
         return;
     } else if ([what isEqualToString:@"go"]) {
         MMPlace *p = MMWhereIs(Key(h.pid, h.startSec), s.facts.sample, NO);
-        NSString *err = nil;
-        if (p && !MMGoTo(p, &err) && err) Alert([NSString stringWithFormat:@"Could Not Go to %@", p.app ?: @"It"], err);
+        if (!p) return;
+        // MMGoTo runs cmux, tmux or AppleScript and can take seconds, so it runs off main. Alert goes back to main.
+        dispatch_async(MMQueue(kExpert, @"go", QOS_CLASS_USER_INITIATED), ^{
+            NSString *err = nil;
+            if (!MMGoTo(p, &err) && err) Alert([NSString stringWithFormat:@"Could Not Go to %@", p.app ?: @"It"], err);
+        });
     } else if ([what isEqualToString:@"open"]) {
         [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:h.url]];
     } else if ([what isEqualToString:@"reveal"]) {
@@ -565,8 +601,13 @@ static void Copy(NSString *s) {
     } else if ([what isEqualToString:@"copy-restart"]) {
         Copy(h.restartCommand);
     } else if ([what isEqualToString:@"keep"]) {
-        BOOL kept = [MMKeep keptUntil:f.stableKey expert:kExpert] != nil;
-        [MMKeep keep:f.stableKey expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600]];
+        // The keeps file is read and written on the act queue. The rebuild after it carries the new keep to the menu.
+        BOOL kept = [f.facts[@"keptUntil"] doubleValue] > NSDate.date.timeIntervalSince1970;
+        NSString *key = f.stableKey;
+        dispatch_async(ActQueue(), ^{
+            [MMKeep keep:key expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600]];
+            [MMGraph.shared rebuild:@"locohost keep"];
+        });
         _view = nil;
     } else if ([what isEqualToString:@"protect"]) {
         // Only this port's own entry changes. A pattern that covers it stays for the others, as legacy #43 fixed for apps.

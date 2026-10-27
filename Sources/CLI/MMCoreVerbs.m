@@ -103,21 +103,57 @@ static int Version(MMArgs *a) {
     return 0;
 }
 
+/// A verb an expert keeps from its standalone 1.x app, such as LocoHost's list. Its usage starts with the old name.
+static BOOL IsLegacyVerb(id<MMExpert> e, MMVerbSpec *v) {
+    NSString *old = [e respondsToSelector:@selector(legacyName)] ? e.legacyName : nil;
+    return old.length && [v.usage hasPrefix:[old stringByAppendingString:@" "]];
+}
+
+/// The verbs help lists for program, by section. minmacs lists the verbs `minmacs <verb>` runs: Core's, then each
+/// expert's 2.0 verbs that no Core verb of the same name hides. A legacy name such as locohost lists its expert's
+/// verbs first, the 1.x ones too, then the rest it runs.
+static NSArray<NSArray *> *HelpSections(NSString *program) {
+    NSMutableArray *sections = [NSMutableArray new];
+    NSMutableSet *shown = [NSMutableSet new];
+    void (^add)(NSString *, NSArray<MMVerbSpec *> *, BOOL (^)(MMVerbSpec *)) = ^(NSString *title, NSArray *verbs, BOOL (^keep)(MMVerbSpec *)) {
+        NSMutableArray *out = [NSMutableArray new];
+        for (MMVerbSpec *v in verbs) {
+            if ([v.verb hasPrefix:@"_"] || [shown containsObject:v.verb] || !keep(v)) continue;
+            // Only the spec this program runs for the word, so a verb is never listed under a name that runs another.
+            // An expert may make its specs again on each call, so the usage says which one runs.
+            MMVerbSpec *runs = MMFindVerb(program, v.verb);
+            if (runs != v && ![runs.usage isEqualToString:v.usage]) continue;
+            [shown addObject:v.verb];
+            [out addObject:v];
+        }
+        if (out.count) [sections addObject:@[title ?: @"", out]];
+    };
+    id<MMExpert> own = nil;
+    for (id<MMExpert> e in MMExperts())
+        if ([e respondsToSelector:@selector(legacyName)] && [e.legacyName.lowercaseString isEqualToString:program]) own = e;
+    if (own) add(own.name, [own verbs], ^BOOL(MMVerbSpec *v) { return YES; });
+    add(nil, MMCoreVerbs(), ^BOOL(MMVerbSpec *v) { return YES; });
+    for (id<MMExpert> e in MMExperts()) {
+        if (e == own) continue;
+        add(e.name, [e verbs], ^BOOL(MMVerbSpec *v) { return !IsLegacyVerb(e, v); });
+    }
+    return sections;
+}
+
 static int Help(MMArgs *a) {
     NSString *program = a.program ?: @"minmacs";
+    NSArray *sections = HelpSections(program);
     if (a.json) {
         NSMutableArray *v = [NSMutableArray new];
-        for (MMVerbSpec *s in MMAllVerbs()) if (![s.verb hasPrefix:@"_"]) [v addObject:@{@"verb": s.verb, @"usage": s.usage ?: s.verb, @"mutates": @(s.mutates)}];
+        for (NSArray *sec in sections) for (MMVerbSpec *s in sec[1])
+            [v addObject:@{@"verb": s.verb, @"usage": s.usage ?: s.verb, @"mutates": @(s.mutates), @"section": [sec[0] length] ? sec[0] : @"MinMacs"}];
         [a printJSON:@{@"program": program, @"verbs": v}];
         return 0;
     }
     [a print:@"usage: %@ <verb> [--json] [--dry-run]", program];
-    for (MMVerbSpec *s in MMCoreVerbs()) if (![s.verb hasPrefix:@"_"]) [a print:@"  %@", s.usage];
-    for (id<MMExpert> e in MMExperts()) {
-        NSArray *verbs = [e verbs];
-        if (!verbs.count) continue;
-        [a print:@"%@", e.name];
-        for (MMVerbSpec *s in verbs) if (![s.verb hasPrefix:@"_"]) [a print:@"  %@", s.usage];
+    for (NSArray *sec in sections) {
+        if ([sec[0] length]) [a print:@"%@", sec[0]];
+        for (MMVerbSpec *s in sec[1]) [a print:@"  %@", s.usage];
     }
     return 0;
 }
@@ -307,8 +343,9 @@ static int Where(MMArgs *a) {
                                 @"target": Or(place.target)} mutableCopy];
     if (portArg) j[@"port"] = @(port);
     if ([a has:@"--go"] && !a.dryRun && place) {
-        __block BOOL went = NO; __block NSString *err = nil;
-        MMOnMain(^{ NSString *e = nil; went = MMGoTo(place, &e); err = e; });
+        BOOL went = NO; NSString *err = nil;
+        // MMGoTo can block for seconds. A verb runs off main in the app, on core.sock's queue, so it runs right here.
+        NSString *e = nil; went = MMGoTo(place, &e); err = e;
         j[@"went"] = @(went);
         if (err) j[@"error"] = err;
     }

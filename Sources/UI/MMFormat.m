@@ -46,6 +46,41 @@ NSString *MMCut(NSString *s, NSUInteger n) {
     return [[head stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] stringByAppendingString:@"…"];
 }
 
+/// Characters as a person counts them: an accent or an emoji is one.
+static NSUInteger Chars(NSString *s) {
+    __block NSUInteger n = 0;
+    [s enumerateSubstringsInRange:NSMakeRange(0, s.length) options:NSStringEnumerationByComposedCharacterSequences | NSStringEnumerationSubstringNotRequired
+                       usingBlock:^(NSString *x, NSRange r, NSRange er, BOOL *stop) { n++; }];
+    return n;
+}
+
+static NSString *Fit(NSString *s, NSUInteger width) {
+    s = s ?: @"";
+    if (width < 2 || !s.length) return @"";
+    if (Chars(s) <= width - 1) return s;
+    // MMCut counts UTF-16 units. Cut on whole characters until it fits, leaving the column's last place as a space.
+    NSUInteger n = width - 1;
+    NSString *c = MMCut(s, n);
+    while (Chars(c) > width - 1 && n > 1) c = MMCut(s, --n);
+    return c;
+}
+
+NSString *MMColumn(NSString *s, NSUInteger width) {
+    NSString *c = Fit(s, width);
+    NSMutableString *out = [c mutableCopy];
+    for (NSUInteger k = Chars(c); k < width; k++) [out appendString:@" "];
+    return out;
+}
+
+NSString *MMColumnRight(NSString *s, NSUInteger width) {
+    NSString *c = Fit(s, width);
+    NSMutableString *out = [NSMutableString new];
+    for (NSUInteger k = Chars(c); k + 1 < width; k++) [out appendString:@" "];
+    [out appendString:c];
+    [out appendString:@" "];
+    return out;
+}
+
 NSString *MMCapitalized(NSString *s) {
     s = [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     return s.length ? [[s substringToIndex:1].uppercaseString stringByAppendingString:[s substringFromIndex:1]] : @"";

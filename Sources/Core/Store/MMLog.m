@@ -18,10 +18,15 @@
 }
 @end
 
+// WAL mode is set on its own, outside a transaction, since SQLite allows no other way.
+static const char *kWAL = "PRAGMA journal_mode=WAL;";
+// A WAL past 4 MB is cut back after a checkpoint.
+static const char *kSizeLimit = "PRAGMA journal_size_limit=4194304;";
+// The tables, in one IMMEDIATE transaction. IMMEDIATE takes the write lock first, so two processes that make the
+// schema at once wait for each other through the busy timeout. A deferred transaction would read first and then
+// ask for the write lock, and SQLite refuses that at once, without waiting, when another process is mid-write.
 static const char *kSchema =
-    "PRAGMA journal_mode=WAL;"
-    // A WAL past 4 MB is cut back after a checkpoint.
-    "PRAGMA journal_size_limit=4194304;"
+    "BEGIN IMMEDIATE;"
     "CREATE TABLE IF NOT EXISTS rows ("
     "  row INTEGER PRIMARY KEY AUTOINCREMENT, rid TEXT NOT NULL, tbl TEXT NOT NULL,"
     "  expert TEXT, subject TEXT, state TEXT, at REAL NOT NULL, body TEXT);"
@@ -31,7 +36,27 @@ static const char *kSchema =
     "CREATE TRIGGER IF NOT EXISTS rows_no_delete BEFORE DELETE ON rows BEGIN SELECT RAISE(ABORT, 'the log is append-only'); END;"
     "CREATE TABLE IF NOT EXISTS points ("
     "  series TEXT NOT NULL, bucket INTEGER NOT NULL, at REAL NOT NULL, value REAL NOT NULL,"
-    "  PRIMARY KEY (series, bucket));";
+    "  PRIMARY KEY (series, bucket));"
+    "COMMIT;";
+
+/// How long a schema step or an append retries a lock that SQLite refused without waiting.
+static const NSTimeInterval kLockPatience = 10;
+
+static BOOL Busy(int rc) { rc &= 0xff; return rc == SQLITE_BUSY || rc == SQLITE_LOCKED; }
+
+/// Runs sql, and again while the file is locked, until kLockPatience has passed.
+/// On a new file, setting WAL mode needs an exclusive lock. When two processes ask at once, SQLite answers one of
+/// them "database is locked" at once instead of calling the busy handler, so a plain exec loses that race.
+static int ExecPatiently(sqlite3 *db, const char *sql, char **err) {
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:kLockPatience];
+    for (;;) {
+        if (err && *err) { sqlite3_free(*err); *err = NULL; }
+        int rc = sqlite3_exec(db, sql, NULL, NULL, err);
+        if (!Busy(rc) || until.timeIntervalSinceNow < 0) return rc;
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);   // a schema transaction that stopped part way
+        usleep(20000 + arc4random_uniform(30000));
+    }
+}
 
 @implementation MMLog {
     sqlite3 *_db;
@@ -55,8 +80,12 @@ static const char *kSchema =
     }
     // The app and the CLI write at the same time. WAL lets readers run beside a writer, and the timeout waits out a lock.
     sqlite3_busy_timeout(_db, 5000);
-    char *err = NULL;
-    if (sqlite3_exec(_db, kSchema, NULL, NULL, &err) != SQLITE_OK) { NSLog(@"MinMacs: log schema: %s", err); sqlite3_free(err); }
+    const char *steps[] = {kWAL, kSizeLimit, kSchema};
+    for (size_t i = 0; i < sizeof steps / sizeof *steps; i++) {
+        char *err = NULL;
+        if (ExecPatiently(_db, steps[i], &err) != SQLITE_OK) NSLog(@"MinMacs: log schema: %s", err ?: sqlite3_errmsg(_db));
+        sqlite3_free(err);
+    }
     return self;
 }
 
@@ -98,7 +127,11 @@ static const char *kColumns = "row, rid, tbl, expert, subject, state, at, body";
         if (sqlite3_prepare_v2(self->_db, sql.UTF8String, -1, &st, NULL) != SQLITE_OK) { NSLog(@"MinMacs: log append: %s", sqlite3_errmsg(self->_db)); return; }
         BindText(st, 1, r); BindText(st, 2, table); BindText(st, 3, expert); BindText(st, 4, subject); BindText(st, 5, state);
         sqlite3_bind_double(st, 6, at); BindText(st, 7, bodyText);
-        if (sqlite3_step(st) == SQLITE_ROW) e = EntryFrom(st);
+        // A lock SQLite refused without waiting wrote nothing, so the insert runs again.
+        NSDate *until = [NSDate dateWithTimeIntervalSinceNow:kLockPatience];
+        int rc;
+        while (Busy(rc = sqlite3_step(st)) && until.timeIntervalSinceNow > 0) { sqlite3_reset(st); usleep(20000 + arc4random_uniform(30000)); }
+        if (rc == SQLITE_ROW) e = EntryFrom(st);
         else NSLog(@"MinMacs: log append: %s", sqlite3_errmsg(self->_db));
         // Stepped to the end, so the insert commits here and the WAL checkpoint can run.
         while (sqlite3_step(st) == SQLITE_ROW) {}
@@ -107,8 +140,12 @@ static const char *kColumns = "row, rid, tbl, expert, subject, state, at, body";
     return e;
 }
 
+static _Atomic NSUInteger gMainQueries;
+NSUInteger MMLogMainThreadQueries(void) { return gMainQueries; }
+
 /// Runs a query with text and double arguments and collects the rows.
 - (NSArray<MMLogEntry *> *)select:(NSString *)sql args:(NSArray *)args {
+    if (NSThread.isMainThread) gMainQueries++;
     if (!_db) return @[];
     NSMutableArray *out = [NSMutableArray new];
     dispatch_sync(_q, ^{
