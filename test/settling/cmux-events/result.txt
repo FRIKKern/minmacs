@@ -1,0 +1,6 @@
+inside                 exit 0  first bytes: {"boot_id":"F45068D3-A9E2-472A-96B2-A249B07F8F50","filters":{"categories":[],"names":[]},"heartbeat_interval_seconds":15  err: 
+bare-env               exit 0  first bytes: {"boot_id":"F45068D3-A9E2-472A-96B2-A249B07F8F50","filters":{"categories":[],"names":[]},"heartbeat_interval_seconds":15  err: 
+bare-env-default-path  exit 0  first bytes: {"boot_id":"F45068D3-A9E2-472A-96B2-A249B07F8F50","filters":{"categories":[],"names":[]},"heartbeat_interval_seconds":15  err: 
+orphan                 exit 0  first bytes: {"boot_id":"F45068D3-A9E2-472A-96B2-A249B07F8F50","filters":{"categories":[],"names":[]},"heartbeat_interval_seconds":15  err: 
+orphan parent: ppid 1
+  "access_mode" : "automation",

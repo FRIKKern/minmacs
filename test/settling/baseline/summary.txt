@@ -1,0 +1,8 @@
+app         samples minutes   cpu s  cpu %  rss MB min-max  footprint start/mid/end    peak
+LocoHost         66    11.1    6.38   0.96    70.3-83.9       32.8M/36.7M/33.2M     56.1M
+WorkForest       66    11.1   10.20   1.53    68.7-3006.1     51.2M/51.3M/114.4M     4.1G
+Insomnia         66    11.1    0.60   0.09    31.8-33.9       47.0M/47.0M/47.0M     52.1M
+
+LocoHost    quietest 5 min 15:59:45-16:04:46 UTC: 0.93 % CPU
+WorkForest  quietest 5 min 15:55:22-16:00:33 UTC: 0.08 % CPU
+Insomnia    quietest 5 min 16:00:33-16:05:37 UTC: 0.06 % CPU

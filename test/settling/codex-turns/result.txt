@@ -1,0 +1,46 @@
+== files
+-rw-r--r--@ 1 USER  staff  190345216 26 Oct 10:33 ~/.codex/thread_history_1.sqlite
+header write/read version:             2   2                                                        
+
+mode=ro open: Parse error in 2nd command line argument: unable to open database file (14)
+using immutable=1
+== status counts
+completed|591|0
+failed|1|0
+interrupted|8|4
+== newest turns
+completed|2026-10-21 11:06:18|2026-10-21 11:06:37
+completed|2026-10-21 09:07:57|2026-10-21 09:10:06
+completed|2026-10-21 08:56:59|2026-10-21 08:58:53
+== projection is current when its offset equals the rollout size
+01a0a542-3849-76e3-aa5f-795bf5e1f4c5 offset 488413 size 488413
+019ff5fd-1987-7bc1-80c7-2bffe88e69aa offset 66525 size 66525
+01a143ea-b84d-78b0-92a8-ca8ee299826b offset 327415021 size 327415021
+01a143f0-b899-7e90-9619-714b6f62e8a6 offset 61705259 size 61705259
+01a143f0-d808-71b2-a587-31635cf37eb6 offset 55974038 size 55974038
+01a1448c-c9d2-7751-90a7-db1809f5ab9a offset 50038446 size 50038446
+01a1534c-740c-71b0-ac64-db8176b63239 offset 432897 size 432897
+01a15394-c93e-7050-9022-8dbe7bb689a7 offset 2606683 size 2606683
+01a153c9-320c-72b2-9c13-5cca111dcf48 offset 3391450 size 3391450
+01a153c9-4ebd-7442-a37f-ae5ddf5e6443 offset 3480039 size 3480039
+01a153c9-b279-75d1-a0b4-11b78657227b offset 4275644 size 4275644
+01a153d4-79de-7f60-8273-2554459855f4 offset 3320379 size 3320379
+01a153d4-ac0e-7c03-bfdf-c90bcd3217c4 offset 35301124 size 35301124
+01a153d4-c528-7fa3-8719-a1fe3e891bb0 offset 3907084 size 3907084
+01a153e6-f77a-7213-ac84-c1d0c15a0127 offset 25783963 size 25783963
+01a153e7-2c34-7402-9fde-892296e852b1 offset 4787146 size 4787146
+01a15400-d069-76a3-8ee2-a7ed31315e9f offset 324463 size 324463
+01a1540d-d2d1-70e3-9b05-e7bc927e9ad9 offset 26148691 size 26148691
+01a1543d-5738-7382-8a28-6c423c828c02 offset 72275389 size 72275389
+01a1544f-d579-7231-bcab-c79f4be3e47f offset 2796367 size 2796367
+01a15455-fc5a-71d3-bb44-7eb015644c4c offset 3171561 size 3171561
+01a15458-d946-7b60-806e-b80e8f73cc1a offset 3403536 size 3403536
+01a1545c-88cc-7580-8e05-e77bf45d5ac5 offset 90589512 size 90589512
+01a15478-7f31-7922-a32f-f0cbeacb50c7 offset 3285553 size 3285553
+01a1547d-5abc-7ab3-b79c-248d53a72011 offset 115372261 size 115372261
+01a15d9e-687a-7e22-978c-d07369c1b481 offset 4405606 size 4405606
+== SQL in the Codex CLI that names inProgress
+binary ~/.codex/packages/standalone/releases/0.154.0-aarch64-apple-darwin/bin/codex
+codex-cli 0.154.0
+5
+10

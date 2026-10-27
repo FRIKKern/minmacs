@@ -1,0 +1,6 @@
+report mm-ips-probe-2026-10-27-172513.ips bug_type 309 os macOS 27.0.1 (26A434)
+exception EXC_BREAKPOINT SIGTRAP
+faultingThread 0
+  thread 0: triggered=True queue=no.guerrilla.minmacs.settle.crash name=None
+  thread 1: triggered=False queue=no.guerrilla.minmacs.settle.idle name=None
+asi null

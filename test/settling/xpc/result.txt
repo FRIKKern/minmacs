@@ -1,0 +1,19 @@
+main bundle /private/tmp/claude-501/minmacs-phase0-tests/xpc/MMXPCProbe.app
+cold start and first reply: 18.2 ms, service pid 16377
+100 warm calls: 0.040 ms per call
+walk of /private/tmp/claude-501/minmacs-phase0-tests/xpc-fixture in the service: 2 files, 8192 bytes, pid 16377
+PASS
+    minos 14.0
+Signature=adhoc
+TeamIdentifier=not set
+via symlink: main bundle /private/tmp/claude-501/minmacs-phase0-tests/xpc-bin
+via symlink: cold start and first reply: 13.5 ms, service pid 17374
+via symlink: 100 warm calls: 0.041 ms per call
+via symlink: walk of /private/tmp/claude-501/minmacs-phase0-tests/xpc-fixture in the service: 2 files, 8192 bytes, pid 17374
+via symlink: PASS
+ran on macOS 27.0.1
+fresh bundle, first run via symlink: main bundle /private/tmp/claude-501/minmacs-phase0-tests/xpc2-bin
+fresh bundle, first run via symlink: cold start and first reply: 21.0 ms, service pid 18528
+fresh bundle, first run via symlink: 100 warm calls: 0.058 ms per call
+fresh bundle, first run via symlink: walk of /private/tmp/claude-501/minmacs-phase0-tests/xpc-fixture in the service: 2 files, 8192 bytes, pid 18528
+fresh bundle, first run via symlink: PASS

@@ -1,0 +1,30 @@
+== status files in ~/.claude/sessions
+2.1.300: 12 files, status {'idle': 11, 'busy': 1}
+   keys: bridgeSessionId,cwd,entrypoint,kind,messagingSocketPath,name,nameSince,nameSource,peerFeatures,peerProtocol,pid,pidDomain,procStart,sessionId,startedAt,status,statusUpdatedAt,updatedAt,version
+2.1.301: 2 files, status {'idle': 2}
+   keys: cwd,entrypoint,kind,messagingSocketPath,name,nameSince,nameSource,peerFeatures,peerProtocol,pid,pidDomain,procStart,sessionId,startedAt,status,statusUpdatedAt,updatedAt,version
+2.1.302: 1 files, status {'busy': 1}
+   keys: cwd,entrypoint,kind,messagingSocketPath,name,nameSince,nameSource,peerFeatures,peerProtocol,pid,pidDomain,procStart,sessionId,startedAt,status,statusUpdatedAt,updatedAt,version
+2.1.306: 2 files, status {'idle': 2}
+   keys: cwd,entrypoint,kind,messagingSocketPath,name,nameSince,nameSource,peerFeatures,peerProtocol,pid,pidDomain,procStart,sessionId,startedAt,status,statusUpdatedAt,updatedAt,version
+2.1.310: 2 files, status {'busy': 1, 'idle': 1}
+   keys: cwd,entrypoint,kind,messagingSocketPath,name,nameSince,nameSource,peerFeatures,peerProtocol,pid,pidDomain,procStart,sessionId,startedAt,status,statusUpdatedAt,updatedAt,version
+2.1.311: 1 files, status {'shell': 1}
+   keys: cwd,entrypoint,kind,messagingSocketPath,name,nameSince,nameSource,peerFeatures,peerProtocol,pid,pidDomain,procStart,sessionId,startedAt,status,statusUpdatedAt,updatedAt,version
+keys in every file: cwd,entrypoint,kind,messagingSocketPath,name,nameSince,nameSource,peerFeatures,peerProtocol,pid,pidDomain,procStart,sessionId,startedAt,status,statusUpdatedAt,updatedAt,version
+
+== binaries in ~/.local/share/claude/versions
+2.1.300 status list=1 idle to shell=1 running bash task=1 status map from SDK=1 waiting reasons=1 busy or shell is working=3 | keys in binary: statusUpdatedAt,messagingSocketPath,procStart,peerProtocol,waitingFor
+2.1.301 status list=1 idle to shell=1 running bash task=1 status map from SDK=1 waiting reasons=1 busy or shell is working=3 | keys in binary: statusUpdatedAt,messagingSocketPath,procStart,peerProtocol,waitingFor
+2.1.302 status list=1 idle to shell=1 running bash task=1 status map from SDK=1 waiting reasons=1 busy or shell is working=3 | keys in binary: statusUpdatedAt,messagingSocketPath,procStart,peerProtocol,waitingFor
+2.1.306 status list=1 idle to shell=1 running bash task=1 status map from SDK=1 waiting reasons=1 busy or shell is working=3 | keys in binary: statusUpdatedAt,messagingSocketPath,procStart,peerProtocol,waitingFor
+2.1.307 status list=1 idle to shell=1 running bash task=1 status map from SDK=1 waiting reasons=1 busy or shell is working=3 | keys in binary: statusUpdatedAt,messagingSocketPath,procStart,peerProtocol,waitingFor
+2.1.310 status list=1 idle to shell=1 running bash task=1 status map from SDK=1 waiting reasons=1 busy or shell is working=3 | keys in binary: statusUpdatedAt,messagingSocketPath,procStart,peerProtocol,waitingFor
+2.1.311 status list=1 idle to shell=1 running bash task=1 status map from SDK=1 waiting reasons=1 busy or shell is working=3 | keys in binary: statusUpdatedAt,messagingSocketPath,procStart,peerProtocol,waitingFor
+
+== live check 2026-10-27T16:00:13Z
+session pid 46980, version 2.1.311, status shell
+89713 46980    01:53:32 /bin/zsh
+46980 46592    01:57:04 ~/.local/bin/claude
+49300 46980    01:56:55 npm exec chrome-devtools-mcp@latest
+89718 89713    01:53:32 npm run desktop   

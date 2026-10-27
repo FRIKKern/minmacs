@@ -1,0 +1,61 @@
+volume /System/Volumes/Data (apfs): clone valid 1 set 1, clone mapping valid 1 set 0
+-- base only
+   base  ino 149778944  nlink 1 alloc  16.00 MB  private  16.00 MB  cloneid 149778944    refcnt 1 flags 0x0
+-- base, c1 and c2 are clones of base
+   base  ino 149778944  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   c1    ino 149778945  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   c2    ino 149778946  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+-- c3 is a clone of c1
+   base  ino 149778944  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+   c1    ino 149778945  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+   c2    ino 149778946  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+   c3    ino 149778947  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+-- hl is a hard link to base
+   base  ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+   c1    ino 149778945  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+   c2    ino 149778946  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+   c3    ino 149778947  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+   hl    ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 4 flags 0x41
+-- one block of c2 changed
+   base  ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   c1    ino 149778945  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   c2    ino 149778946  nlink 1 alloc  16.00 MB  private   0.02 MB  cloneid 149778950    refcnt 1 flags 0x1
+   c3    ino 149778947  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   hl    ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+-- c4 is a clone of c2
+   base  ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   c1    ino 149778945  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   c2    ino 149778946  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778950    refcnt 2 flags 0x41
+   c3    ino 149778947  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   hl    ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 3 flags 0x41
+   c4    ino 149778951  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778950    refcnt 2 flags 0x41
+-- what deleting each set frees
+   {c3}                         priv    0.00  rule    0.00  truth    0.00  union   16.00 MB
+   {c2}                         priv    0.00  rule    0.00  truth    0.00  union   16.00 MB
+   {c2,c4}                      priv    0.00  rule   16.00  truth    0.02  union   16.00 MB
+   {base}                       priv    0.00  rule    0.00  truth    0.00  union   16.00 MB
+   {base,hl}                    priv    0.00  rule    0.00  truth    0.00  union   16.00 MB
+   {base,hl,c1,c3}              priv    0.00  rule   16.00  truth    0.02  union   16.00 MB
+   {all}                        priv    0.00  rule   32.00  truth   16.02  union   16.02 MB
+-- c1 deleted
+   base  ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 2 flags 0x41
+   c2    ino 149778946  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778950    refcnt 2 flags 0x41
+   c3    ino 149778947  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 2 flags 0x41
+   hl    ino 149778944  nlink 2 alloc  16.00 MB  private   0.00 MB  cloneid 149778944    refcnt 2 flags 0x41
+   c4    ino 149778951  nlink 1 alloc  16.00 MB  private   0.00 MB  cloneid 149778950    refcnt 2 flags 0x41
+-- after c1 is gone
+   {base,hl,c3}                 priv    0.00  rule   16.00  truth    0.02  union   16.00 MB
+   {all}                        priv    0.00  rule   32.00  truth   16.02  union   16.02 MB
+-- statfs delta on delete (the volume is shared, so a few KB of noise is normal)
+   delete c3:            freed    0.00 MB
+   delete c4:            freed   -0.01 MB
+-- c3 and c4 deleted: base and hl are one inode, c2 is a partial clone of it
+   base  ino 149778944  nlink 2 alloc  16.00 MB  private   0.02 MB  cloneid 149778944    refcnt 1 flags 0x1
+   c2    ino 149778946  nlink 1 alloc  16.00 MB  private   0.02 MB  cloneid 149778950    refcnt 1 flags 0x1
+   hl    ino 149778944  nlink 2 alloc  16.00 MB  private   0.02 MB  cloneid 149778944    refcnt 1 flags 0x1
+-- the case where the rule counts too little
+   {c2}                         priv    0.02  rule    0.02  truth    0.02  union   16.00 MB
+   {base,hl}                    priv    0.02  rule    0.02  truth    0.02  union   16.00 MB
+   {base,hl,c2}                 priv    0.03  rule    0.03  truth   16.02  union   16.02 MB
+   delete c2:            freed    0.00 MB
+   delete base and hl:   freed   16.00 MB

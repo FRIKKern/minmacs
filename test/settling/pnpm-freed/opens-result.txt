@@ -1,0 +1,4 @@
+run 2026-10-27 on ~/Library/pnpm/store/v10/files, the same 3000 files twice, then 1000 new files of 2 bytes
+files 3000  lstat 0.450 s  open 14.73 s, 4.91 ms per open
+files 3000  lstat 0.013 s  open 1.03 s, 0.34 ms per open
+files 1000  lstat 0.003 s  open 0.40 s, 0.40 ms per open

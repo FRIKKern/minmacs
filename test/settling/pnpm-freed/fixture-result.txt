@@ -1,0 +1,17 @@
+set:    190 files, 0 with links, 149 share all blocks, 150 may share, 0 not mapped
+other:  200 files, 0 with links, 0 not mapped
+du            77.5 MB
+private       40.0 MB
+union         77.5 MB
+freed         40.0 MB
+time    walk and map 0.5 s, 1371.5 us per file; sweep 0.00 s over 392 extents
+set:   190 files in 3 folders, 149 share all blocks, 1 share some, 0 hard-linked, 0 unreadable folders
+other: 200 files in 1 folders
+du                                       77.5 MB
+private, freed for sure                  40.0 MB
+clone ids held only by the set            0.0 MB  (0 ids)
+clone ids shared with other roots        37.2 MB  (149 ids)
+clone ids also held elsewhere             0.0 MB  (0 ids)
+estimate freed = private + ids held only by the set: 40.0 MB
+time 0.0 s, 8.6 us per file
+statfs delta on delete: 39 MB (40812 KB)

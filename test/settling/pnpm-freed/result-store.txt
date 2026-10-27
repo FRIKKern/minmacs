@@ -1,0 +1,9 @@
+set:   124019 files in 18484 folders, 123262 share all blocks, 2 share some, 0 hard-linked, 0 unreadable folders
+other: 311096 files in 516 folders
+du                                     1669.6 MB
+private, freed for sure                   3.2 MB
+clone ids held only by the set            0.0 MB  (0 ids)
+clone ids shared with other roots         0.0 MB  (0 ids)
+clone ids also held elsewhere          1476.7 MB  (96491 ids)
+estimate freed = private + ids held only by the set: 3.2 MB
+time 22.3 s, 51.3 us per file
