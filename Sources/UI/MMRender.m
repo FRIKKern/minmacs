@@ -28,7 +28,11 @@ BOOL MMRenderView(NSView *v, NSString *path, NSAppearance *ap) {
     w.appearance = ap; w.contentView = bg;
     [bg.contentView addSubview:v];
     [w layoutIfNeeded]; [bg layoutSubtreeIfNeeded];
-    NSBitmapImageRep *rep = [bg bitmapImageRepForCachingDisplayInRect:bg.bounds];
+    // Always 2x, so a PNG has the same pixels on a 1x display as on a Retina one.
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:(NSInteger)ceil(size.width * 2)
+        pixelsHigh:(NSInteger)ceil(size.height * 2) bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+        colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+    rep.size = size;
     [ap performAsCurrentDrawingAppearance:^{ [bg cacheDisplayInRect:bg.bounds toBitmapImageRep:rep]; }];
     BOOL ok = [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:path atomically:YES];
     [v removeFromSuperview];
