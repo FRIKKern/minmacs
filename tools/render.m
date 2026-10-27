@@ -246,6 +246,73 @@ static Subject *WorkForestLike(void) {
     return s;
 }
 
+/// The MinMacs expert's menu for the fixture in test/minmacs/tool.m. test/minmacs.sh renders the expert's own output
+/// from the same fixture to build/render/minmacs, so the two can be compared line by line.
+static Subject *MinMacsLike(void) {
+    Subject *s = [Subject new]; s.name = @"minmacs"; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
+    NSMenu *m = [NSMenu new];
+    [m addItem:MMHeaderItem(MMBytes(9216ull << 20), @"in apps", nil, [NSString stringWithFormat:@"%@ · 40%% CPU · 1 agent working · Proactive", MMPlural(9, @"app")])];
+    [m addItem:NSMenuItem.separatorItem];
+    [m addItem:MMTextItem(@"Watching 9 apps. Quits nothing on its own. Memory pressure is high, so quitting apps helps now. "
+                          @"Spotify and Slack lead the close list, and nothing uses them. Figma stays, because Claude Code started it and is working.", MMMaxSummaryLines)];
+    [m addItem:NSMenuItem.separatorItem];
+    [m addItem:MMActionItem(@"Quit Apps", [NSString stringWithFormat:@"%@, %@", MMPlural(3, @"app"), MMBytes(2540ull << 20)], @selector(copy:), nil)];
+    [m addItem:MMActionItem(@"Trim Tabs", MMPlural(1, @"browser"), @selector(copy:), nil)];
+
+    MMCard *spotify = Card(@"Spotify", MMMarkGoes, @"Goes on Quit Apps.", @"It is on the close list, and nothing uses it. Restore opens it again.");
+    [spotify fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 6%% CPU", MMBytes(1310ull << 20)]];
+    [spotify fact:@"Energy" value:@"in the top three"];
+    [spotify fact:@"Processes" value:@"9"];
+    [spotify fact:@"List" value:@"close list"];
+    [spotify action:Act(@"Quit")];
+    [spotify action:Act(@"Always Keep")];
+    [spotify action:Act(@"Leave Unsorted")];
+
+    MMCard *slack = Card(@"Slack", MMMarkBlocked, @"Did not quit.", @"It may be asking to save. Force Quit closes it now, and unsaved changes are lost.");
+    [slack fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 2%% CPU", MMBytes(820ull << 20)]];
+    [slack fact:@"Processes" value:@"7"];
+    [slack fact:@"List" value:@"close list"];
+    [slack action:Act(@"Force Quit")];
+    [slack action:Act(@"Always Keep")];
+    [slack action:Act(@"Leave Unsorted")];
+
+    MMCard *chrome = Card(@"Google Chrome", MMMarkQuiet, @"Stays.", @"Browsers are trimmed, not quit. Trim Tabs closes noise tabs such as youtube.com.");
+    [chrome fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 18%% CPU", MMBytes(2450ull << 20)]];
+    [chrome fact:@"Energy" value:@"uses the most energy"];
+    [chrome fact:@"Processes" value:@"31"];
+    [chrome fact:@"List" value:@"close list"];
+    [chrome action:Act(@"Quit")];
+    [chrome action:Act(@"Trim Tabs")];
+    [chrome action:Act(@"Always Keep")];
+    [chrome action:Act(@"Leave Unsorted")];
+
+    MMCard *figma = Card(@"Figma", MMMarkWorking, @"Stays.", @"Claude Code started it and is working. MinMacs looks again once the agent is idle.");
+    [figma fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 9%% CPU", MMBytes(1130ull << 20)]];
+    [figma fact:@"Energy" value:@"in the top three"];
+    [figma fact:@"Processes" value:@"6"];
+    [figma fact:@"List" value:@"close list"];
+    [figma action:MMDimmedItem(@"Quit", @"in use")];
+    [figma action:Act(@"Always Keep")];
+    [figma action:Act(@"Leave Unsorted")];
+
+    MMAddSection(m, @"Will quit", @[
+        Row(s, @"spotify", @"Spotify", nil, @[MMBytes(1310ull << 20), @"6% CPU"], MMMarkGoes, spotify),
+        Row(s, @"slack", @"Slack", nil, @[MMBytes(820ull << 20), @"2% CPU", @"did not quit"], MMMarkBlocked, slack),
+        Row(s, @"photos", @"Photos", nil, @[MMBytes(410ull << 20), @"0% CPU"], MMMarkGoes, nil)]);
+    MMAddSection(m, @"Browsers", @[Row(s, @"chrome", @"Google Chrome", nil, @[MMBytes(2450ull << 20), @"18% CPU", @"trims noise tabs"], MMMarkQuiet, chrome)]);
+    MMAddSection(m, @"Spared", @[
+        Row(s, @"figma", @"Figma", nil, @[MMBytes(1130ull << 20), @"9% CPU", @"Claude Code works"], MMMarkWorking, figma),
+        Row(s, @"notion", @"Notion", nil, @[MMBytes(640ull << 20), @"1% CPU", @"serving :51789"], MMMarkWorking, nil)]);
+    MMAddSection(m, @"Agents", @[
+        Row(s, @"claude", @"Claude Code", nil, @[@"acme-web", MMBytes(720ull << 20), @"working"], MMMarkWorking, nil),
+        Row(s, @"codex", @"Codex", nil, @[@"orbit-api", MMBytes(180ull << 20), @"idle"], MMMarkQuiet, nil)]);
+    [m addItem:NSMenuItem.separatorItem];
+    [m addItem:MMMoreItem(@[MMActionItem(@"Restore 1 Closed Item", @"now", @selector(copy:), nil), Act(@"Edit Rules…")])];
+    MMAddFooter(m, nil);
+    s.menu = m;
+    return s;
+}
+
 #pragma mark Settings
 
 /// The Settings window's fixture: the five experts of one Mac, saying what the two menus above say.
@@ -439,8 +506,9 @@ int main(int argc, char **argv) { @autoreleasepool {
     [NSFileManager.defaultManager createDirectoryAtPath:out withIntermediateDirectories:YES attributes:nil error:nil];
     gChecks = [NSMutableArray new];
 
-    NSArray<Subject *> *subjects = @[LocoHostLike(), WorkForestLike()];
-    NSArray *experts = @[@[@"LocoHost", @"server.rack", @"2 idle servers", @"2"], @[@"WorkForest", @"tree", @"2 worktrees to remove", @""]];
+    NSArray<Subject *> *subjects = @[LocoHostLike(), WorkForestLike(), MinMacsLike()];
+    NSArray *experts = @[@[@"LocoHost", @"server.rack", @"2 idle servers", @"2"], @[@"WorkForest", @"tree", @"2 worktrees to remove", @""],
+                         @[@"MinMacs", @"gauge.with.dots.needle.33percent", @"3 apps to quit", @""]];
     for (NSArray *e in experts) {
         NSString *label = MMStatusLabel(e[0], e[2]);
         NSString *word = [NSString stringWithFormat:@"\\b%@\\b", [NSRegularExpression escapedPatternForString:e[1]]];
@@ -468,7 +536,8 @@ int main(int argc, char **argv) { @autoreleasepool {
         Check(off.count == 0, [s.name stringByAppendingString:@": the fact columns line up from card to card"], [off componentsJoinedByString:@", "]);
         [gChecks addObject:[NSString stringWithFormat:@"info  %@: value column at x = %.1f", s.name, column]];
     }
-    for (Subject *s in subjects) {
+    // The two subjects with a model note. The MinMacs subject has none, since its rules decide every app.
+    for (Subject *s in [subjects subarrayWithRange:NSMakeRange(0, 2)]) {
         MMCard *dropped = s.cards[[s.name isEqualToString:@"locohost"] ? @"checkout" : @"promo"];
         Check(![dropped noteAddsSomething], [s.name stringByAppendingString:@": a note that repeats the status is left out"], dropped.note);
     }

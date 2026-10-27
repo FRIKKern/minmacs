@@ -23,11 +23,12 @@ check "tools/render.sh builds and renders" 0 "$ui_r"
 [ "$ui_r" = 0 ] || tail -20 "$ui_log"
 check "the render build has no warnings" 0 "$(grep -c "warning:" "$MINMACS_HOME/ui/render-bin/clang.log" 2>/dev/null)"
 
-# Two subjects with one menu and four cards each, plus the status icons, in four appearances.
-ui_want=44
+# Three subjects with one menu and four cards each, plus the status icons, in four appearances.
+ui_want=64
 check "every PNG is there" "$ui_want" "$(ls "$ui_out"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 for ui_name in locohost-menu locohost-card-checkout locohost-card-orbit locohost-card-docs locohost-card-postgres \
-               workforest-menu workforest-card-promo workforest-card-search workforest-card-hooks workforest-card-limits status; do
+               workforest-menu workforest-card-promo workforest-card-search workforest-card-hooks workforest-card-limits \
+               minmacs-menu minmacs-card-spotify minmacs-card-slack minmacs-card-chrome minmacs-card-figma status; do
   ui_ok=yes
   for ui_mode in light dark contrast-light contrast-dark; do [ -s "$ui_out/$ui_name-$ui_mode.png" ] || ui_ok=no; done
   check "$ui_name in light, dark and Increase Contrast" yes "$ui_ok"
