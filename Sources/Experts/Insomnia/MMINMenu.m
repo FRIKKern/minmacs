@@ -72,8 +72,7 @@ static NSString *PowerWords(MMINState *st) {
     return s;
 }
 
-/// The lid override in a few words, for the header and the lid row.
-/// The lid override in a few words, for the lid row. short leaves out the reason, for the header line.
+/// The lid override in a few words, for the lid row. brief leaves out the reason, for the header line.
 static NSString *LidWords(MMINState *st, BOOL brief) {
     if (st.otherApp) return brief ? @"lid override left to Insomnia.app" : @"set by Insomnia.app";
     if (st.lidLive) return brief ? @"lid override live" : @"live";
@@ -276,7 +275,7 @@ static MMCardSpec *HolderCard(MMINView *v, MMINHolder *h) {
         NSTimeInterval left = MAX(60, st.prefs.quietMinutes * 60 - h.idleFor);
         c.statusWord = [NSString stringWithFormat:@"Awake %@.", MoreMinutes(left)];
         c.mark = MMRowMarkRecent;
-        c.statusText = [NSString stringWithFormat:@"%@ stopped %@ ago. The hold ends at %@, or when it exits.", h.name,
+        c.statusText = [NSString stringWithFormat:@"It stopped %@ ago. The hold ends %@ after it stops, or when it exits.",
                         MMShortDuration(h.idleFor), MMShortDuration(st.prefs.quietMinutes * 60)];
     }
     NSMutableArray *facts = [NSMutableArray new];

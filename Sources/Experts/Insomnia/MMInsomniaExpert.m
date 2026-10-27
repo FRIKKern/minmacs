@@ -87,15 +87,19 @@ static MMFinding *Subject(NSString *kind, NSString *key, NSString *title, NSDict
 @interface MMInsomniaExpert ()
 @property (readwrite, strong) MMINState *state;      // atomic; written on the power queue
 - (MMINClocks *)clocksNow;                           // power queue
+- (MMINInput *)inputFor:(MMFacts *)facts;
 @end
 
 @implementation MMINPolicy
 - (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts {
-    if (![f.kind isEqualToString:@"lid"] || ![f.facts[@"want"] boolValue]) return nil;
+    if (![f.kind isEqualToString:@"lid"]) return nil;
+    MMInsomniaExpert *e = self.expert;
+    // The standalone app may have started since the pass. It owns the override then, both ways.
+    if (facts.sample && [e inputFor:facts].otherApp) return @"Insomnia.app runs and sets it";
+    if (![f.facts[@"want"] boolValue]) return nil;
     MMPower *p = facts.power;
     if (!p) return @"cannot verify the power facts";
     MMINPrefs *prefs = [MMINPrefs current];
-    MMInsomniaExpert *e = self.expert;
     NSDate *now = e.clock ? e.clock() : NSDate.date;
     NSString *pause = MMINPauseReason(p, prefs, MMINAdvance([e clocksNow], p, prefs, now), now);
     if (pause) return [@"a guard pauses it: " stringByAppendingString:pause];

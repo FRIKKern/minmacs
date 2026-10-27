@@ -18,6 +18,7 @@
 //   waitgraph                  waits up to 3 seconds for the graph to carry a hold
 //   A word $<id> in a cli line becomes that process's pid.
 //   fake lid 0|1 | fake rule on|off | fake fail on|off | fake other on|off
+//   keep on|off                the fresh check a lid write meets right before it runs, for expect keep
 //   step                       one pass
 //   wait held <n>              waits up to 3 seconds for MMAwake to hold n
 //   expect <field> <want> <name...>
@@ -197,7 +198,7 @@ static int RunScript(NSString *path) {
         return in;
     };
     MMINState *st = nil;
-    NSString *lastSet = @"none", *cliOut = @"", *cliStatus = @"none";
+    NSString *lastSet = @"none", *cliOut = @"", *cliStatus = @"none", *keepSays = @"none";
     uint64_t gen = 0;
     for (NSString *raw in [text componentsSeparatedByString:@"\n"]) {
         NSString *line = [raw stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
@@ -267,6 +268,13 @@ static int RunScript(NSString *path) {
             else if ([w[1] isEqualToString:@"other"]) gOther = on;
             else if (on) Write(w[1], @"");
             else Remove(w[1]);
+        } else if ([cmd isEqualToString:@"keep"] && w.count == 2) {
+            // The fresh check MMRunAction runs right before a lid write, on the power facts of this moment.
+            BOOL on = [w[1] isEqualToString:@"on"];
+            MMFinding *f = [MMFinding expert:@"insomnia" kind:@"lid" stableKey:@"override" build:^(MMFindingBuilder *b) {
+                b.title = @"Lid override"; b.facts = @{@"want": @(on)};
+            }];
+            keepSays = [e.policy workKeeps:f facts:[src freshFactsFor:f]] ?: @"none";
         } else if ([cmd isEqualToString:@"step"]) {
             MMFacts *facts = [src factsFor:++gen];
             NSMutableDictionary *holds = [gHolds mutableCopy];
@@ -298,9 +306,11 @@ static int RunScript(NSString *path) {
             else if ([field isEqualToString:@"cli-status"]) got = cliStatus;
             else if ([field isEqualToString:@"cli-says"]) got = [cliOut containsString:[want stringByReplacingOccurrencesOfString:@"_" withString:@" "]] ? want : cliOut;
             else if ([field isEqualToString:@"lowbattery"]) got = st.lowBattery ? @"yes" : @"no";
+            else if ([field isEqualToString:@"keep"]) got = [keepSays stringByReplacingOccurrencesOfString:@" " withString:@"_"];
             else if ([field isEqualToString:@"undo"] || [field isEqualToString:@"undo-matches"]) {
                 NSUInteger n = 0;
-                for (MMUndoRecord *r in [MMUndo.shared recent:@"insomnia" limit:500]) n += [r.kind isEqualToString:@"lid"] && r.state == MMUndoDone;
+                for (MMUndoRecord *r in [MMUndo.shared recent:@"insomnia" limit:500])
+                    n += [r.kind isEqualToString:@"lid"] && r.state == MMUndoDone && [r.payload[@"command"] hasPrefix:@"sudo -n /usr/bin/pmset -a disablesleep "];
                 NSUInteger done = 0;
                 for (NSString *l in [Read(@"done") componentsSeparatedByString:@"\n"]) done += l.length > 0;
                 got = [field isEqualToString:@"undo"] ? @(n).stringValue : n == done && n > 0 ? @"yes" : [NSString stringWithFormat:@"%lu records, %lu writes", (unsigned long)n, (unsigned long)done];

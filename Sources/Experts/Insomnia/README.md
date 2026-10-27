@@ -31,7 +31,7 @@ With `MINMACS_HOME` set, the commands run only through `MINMACS_INSOMNIA_CMD`, a
 
 ## Every change has a record
 
-Each lid write and each change of a setting runs through `MMRunAction`, so it is checked fresh and leaves an undo record of kind `lid` or `setting`. A lid write is checked on fresh power facts: one that would turn the override on while a guard pauses it is kept. Automatic writes have `by` set to `guard`. Neither kind is restored by Undo, since a lid write follows the state and a setting is changed back by setting it again.
+Each lid write and each change of a setting runs through `MMRunAction`, so it is checked fresh and leaves an undo record of kind `lid` or `setting`. A lid write is checked on fresh power facts: one that would turn the override on while a guard pauses it is kept, and no write runs, either way, once a fresh sample shows Insomnia.app. Automatic writes have `by` set to `guard`. Neither kind is restored by Undo, since a lid write follows the state and a setting is changed back by setting it again.
 
 ## Prefs
 
