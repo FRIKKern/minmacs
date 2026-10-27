@@ -12,12 +12,12 @@ lh_top="$MINMACS_HOME"
 export MINMACS_HOME="$lh/home"
 
 # The CLI: the minmacs binary when its verb registry runs LocoHost's verbs under the locohost name, else
-# test/locohost/lhcli.m, which runs the same MMVerbSpec blocks. Both are named so MinMacs counts their connections as its own.
+# test/locohost/lhcli.m, which runs the same MMVerbSpec blocks. LH_REAL=1 picks the binary; its mutating verbs need the app. Both are named so MinMacs counts their connections as its own.
 ln -sf "$BIN" "$lh/real/locohost"
-if "$lh/real/locohost" free 47100 2>/dev/null | grep -qE '^[0-9]+$'; then
+if [ "${LH_REAL:-}" = 1 ] && "$lh/real/locohost" free 47100 2>/dev/null | grep -qE '^[0-9]+$'; then
   LH="$lh/real/locohost"; echo "  the minmacs binary runs the locohost verbs"
 else
-  lh_src=$(find Sources -name '*.m' ! -path 'Sources/main.m' ! -path 'Sources/CLI/*' | LC_ALL=C sort)
+  lh_src=$(find Sources -name '*.m' ! -path 'Sources/main.m' ! -path 'Sources/CLI/*' ! -path 'Sources/Shell/*' | LC_ALL=C sort)
   # shellcheck disable=SC2086
   clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources \
     -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3 \

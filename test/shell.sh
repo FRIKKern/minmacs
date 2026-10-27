@@ -4,15 +4,18 @@
 # Every verb runs against those experts, cold and through core.sock. The fixture binary and the listener carry
 # this run's pid in their names, so no other run can match them. Nothing here opens the app or a status item.
 
+# A support folder of its own, so undo rows other sections wrote never reach these counts.
+sh_top="$MINMACS_HOME"
 sh_dir="$MINMACS_HOME/shell"
-mkdir -p "$sh_dir/bin"
+mkdir -p "$sh_dir/bin" "$sh_dir/home"
+export MINMACS_HOME="$sh_dir/home"
 sh_tag="mmshell$$"
 sh_fx="$sh_dir/bin/$sh_tag"
 sh_tab=$(printf '\t')
 sh_cc="clang -fobjc-arc -O0 -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=14.0 -ISources -DMM_VERSION=\"2.0.0\""
 sh_fw="-framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3"
 # shellcheck disable=SC2086
-$sh_cc $sh_fw $(find Sources -name '*.m' ! -path Sources/main.m | LC_ALL=C sort) test/shell/fixture.m -o "$sh_fx" >"$sh_dir/build.log" 2>&1
+$sh_cc $sh_fw $(find Sources -name '*.m' ! -path Sources/main.m ! -path 'Sources/Experts/*' | LC_ALL=C sort) test/shell/fixture.m -o "$sh_fx" >"$sh_dir/build.log" 2>&1
 check "shell: the fixture binary builds" 0 "$?"
 check "shell: Sources and the fixture have no warnings under -Wextra" 0 "$(grep -c 'warning:' "$sh_dir/build.log")"
 clang -O1 -Wall -Werror test/shell/listener.c -o "$sh_dir/bin/${sh_tag}-listen" >>"$sh_dir/build.log" 2>&1
@@ -145,13 +148,13 @@ echo "  -- the real binary, cold"
 # Where asks cmux and tmux through their CLIs. Fakes that answer nothing keep this Mac's own sessions out.
 export MINMACS_CMUX=/usr/bin/false MINMACS_TMUX=/usr/bin/false
 check "minmacs version through the bundle" "MinMacs 2.0.0 (phase 1)" "$("$BIN" version)"
-check "minmacs status with no experts linked" "No experts are registered." "$("$BIN" status | tail -1)"
+check "minmacs status lists the linked experts" 2 "$("$BIN" status --json | jq_ 'len(j["experts"])')"
 check "minmacs status --json is JSON" False "$("$BIN" status --json | jq_ 'j["app"]')"
 check "minmacs work --json is JSON" yes "$("$BIN" work --json | jq_ '"yes" if "workstreams" in j else "no"')"
 check "minmacs restore --list reads the undo log the fixture wrote" "restored" "$("$BIN" restore --list --json | jq_ 'j["records"][0]["state"]')"
-check "minmacs tidy --dry-run with no experts" "Dry run. Nothing was changed." "$("$BIN" tidy --dry-run)"
+check "minmacs tidy --dry-run changes nothing" "Dry run. Nothing was changed." "$("$BIN" tidy --dry-run | tail -1)"
 "$BIN" hosts >/dev/null 2>&1
-check "hosts waits for the LocoHost expert" 2 "$?"
+check "hosts runs with the LocoHost expert linked" 0 "$?"
 ln -sf "$BIN" "$sh_dir/bin/locohost-real"; ln -sf "$BIN" "$sh_dir/bin/locohost"
 check "a locohost symlink to the bundle runs as locohost" 1 "$("$sh_dir/bin/locohost" help | grep -c '^usage: locohost')"
 rm -f "$sh_dir/bin/locohost" "$sh_dir/bin/locohost-real"
@@ -201,4 +204,5 @@ check "the render tool draws the shell's subjects" 0 "$?"
 check "every shell PNG is there, in four appearances" 28 "$(ls "$sh_dir/render/shell/"*.png 2>/dev/null | wc -l | tr -d ' ')"
 check "the shell's DESIGN.md checks all pass" 0 "$(grep '^FAIL' "$sh_dir/render/checks.txt" 2>/dev/null | grep -c 'shell')"
 check "the shell's checks ran" yes "$([ "$(grep -c 'shell' "$sh_dir/render/checks.txt" 2>/dev/null)" -ge 15 ] && echo yes || echo no)"
+export MINMACS_HOME="$sh_top"
 # ===== end of Shell =====
