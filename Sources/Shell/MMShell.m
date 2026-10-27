@@ -16,7 +16,7 @@ static NSString *const kOneIconExpert = @"minmacs";               // One Icon us
 static NSString *const kOneIconSymbol = @"gauge.with.dots.needle.33percent";
 
 NSArray<NSString *> *MMBuiltInExpertClasses(void) {
-    return @[@"MMMinMacsExpert", @"MMLocoHostExpert", @"MMWorkForestExpert", @"MMNooNooExpert", @"MMInsomniaExpert"];
+    return @[@"MMMinMacsExpert", @"MMLocoHost", @"MMWorkForestExpert", @"MMNooNooExpert", @"MMInsomniaExpert"];
 }
 
 NSUInteger MMRegisterBuiltInExperts(void) {
@@ -24,7 +24,9 @@ NSUInteger MMRegisterBuiltInExperts(void) {
     for (NSString *name in MMBuiltInExpertClasses()) {
         Class c = NSClassFromString(name);
         if (![c conformsToProtocol:@protocol(MMExpert)]) continue;
-        MMRegisterExpert([c new]);
+        // An expert with a shared instance registers that one, so its verbs and menus see the same object.
+        id<MMExpert> e = [c respondsToSelector:@selector(shared)] ? [c performSelector:@selector(shared)] : [c new];
+        MMRegisterExpert(e);
         n++;
     }
     return n;

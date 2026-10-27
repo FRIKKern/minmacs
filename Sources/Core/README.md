@@ -80,11 +80,12 @@ Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and 
 - `-[MMGraph freshFactsFor:]` takes a new sample and reads the sessions again. It returns nil on main.
 - `MMGraph observe:` and `stopObserving:` take a lock, so any queue may call them. The blocks still run on main.
 - `MMCoreStart` starts Store, Senses, Know, the graph with its fact source, a scheduled review wake per expert every hour, the first a minute after launch, and core.sock. With `MINMACS_HOME` unset it also runs the one migration from MinMacs 1.2 and LocoHost. `MMCoreStop` stops the timers, the FSEvents watch, Senses, the cmux reader and the socket.
-- core.sock follows NN `server.go:82-160`: an flock on `core.lock`, the socket made with a 0177 umask and set to 0600, and `getpeereid` on every connection. A peer with another uid is closed without a reply. A request is one JSON line with a `verb`. Core answers `ping` and `status`, and `MMCoreServe` adds more, which `Sources/CLI` is to do for the verbs that run in the app. A socket file left by a crash is replaced by the next process that takes the lock.
+- core.sock follows NN `server.go:82-160`: an flock on `core.lock`, the socket made with a 0177 umask and set to 0600, and `getpeereid` on every connection. A peer with another uid is closed without a reply. A request is one JSON line with a `verb`. Core answers `ping` and `status`, and `MMCoreServe` adds more, which the shell does for `cli` and `reopen`. A socket file left by a crash is replaced by the next process that takes the lock. `ping` is answered at once, outside the one-at-a-time line, so a long verb never makes the CLI think no app runs.
+
 ## The shell and the CLI, issue #20
 
-- `MMSpecs.m` holds the menu, card and verb specs as plain data.
-- `Sources/Shell/MMShell.m` is the app: it calls `MMCoreStart`, adds the `cli` and `reopen` verbs to core.sock with `MMCoreServe`, makes one status item per expert and opens Settings. `Sources/main.m` registers each class named in `MMBuiltInExpertClasses` that is linked in: `MMMinMacsExpert`, `MMLocoHostExpert`, `MMWorkForestExpert`, `MMNooNooExpert` and `MMInsomniaExpert`. An expert lands by adding its class, with no change to the shell.
+- `MMSpecs.m` holds the menu, card and verb specs as plain data. `Sources/UI/MMSpecMenu` and `Sources/UI/MMSpecKit` both draw specs with the kit, from the shell and from LocoHost. One of them is to go.
+- `Sources/Shell/MMShell.m` is the app: it calls `MMCoreStart`, adds the `cli` and `reopen` verbs to core.sock with `MMCoreServe`, makes one status item per expert and opens Settings. `Sources/main.m` registers each class named in `MMBuiltInExpertClasses` that is linked in: `MMMinMacsExpert`, `MMLocoHost`, `MMWorkForestExpert`, `MMNooNooExpert` and `MMInsomniaExpert`. An expert lands by adding its class, with no change to the shell.
 - `Sources/CLI` holds the verb registry, Core's verbs, `MMArgs` and the URL router. A verb prints through `MMArgs`, never with printf, so its output reaches the terminal from the app too.
 
 ## How the parts meet

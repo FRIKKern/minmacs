@@ -25,7 +25,7 @@ Performance: apps, agents, RAM, CPU, energy and heat. Issue #21. Ported from Min
 
 ## Open for the wiring
 
-- Nothing calls `MMRegisterExpert(MMMinMacsExpert.shared)` yet. The app and CLI wiring does that.
+- `main.m` registers `MMMinMacsExpert.shared` through `MMRegisterBuiltInExperts`.
 - The spec classes of `Core/MMExpert.h` have no implementation on this branch. `MMMinMacsSpecs.m` uses them when they link and value objects with the same properties when they do not.
 - `MMArgs` has no interface yet. `MMMinMacsWords` reads its words through `words`, `arguments` or `argv`, and else from the process arguments after the verb.
 - `status` and `restore` are shared verbs. This expert registers its own `MMVerbSpec` for each, and `statusJSON:`, `statusLine:` and `restore:dryRun:` are there for a registry that merges the parts.

@@ -305,7 +305,7 @@ static int SelfTest(MMArgs *a) {
     C(a, @"one icon: an empty field has no section", @"NO", MMOneIconShows(@"locohost", YES, YES) ? @"YES" : @"NO");
     C(a, @"one icon: a visible expert has a section", @"YES", MMOneIconShows(@"locohost", NO, YES) ? @"YES" : @"NO");
     C(a, @"one icon: MinMacs keeps its section", @"YES", MMOneIconShows(@"minmacs", NO, NO) ? @"YES" : @"NO");
-    C(a, @"experts: built-in classes in menu bar order", @"MMMinMacsExpert MMLocoHostExpert MMWorkForestExpert MMNooNooExpert MMInsomniaExpert",
+    C(a, @"experts: built-in classes in menu bar order", @"MMMinMacsExpert MMLocoHost MMWorkForestExpert MMNooNooExpert MMInsomniaExpert",
       [MMBuiltInExpertClasses() componentsJoinedByString:@" "]);
     C(a, @"experts: registered once, in order", @"minmacs locohost", [[MMExperts() valueForKey:@"expertID"] componentsJoinedByString:@" "]);
     MMRegisterExpert(MMExperts().lastObject);
