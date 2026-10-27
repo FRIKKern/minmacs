@@ -180,11 +180,6 @@
   },
   "working_signals": [
     {
-      "signal": "socket_activity",
-      "name": "GET /session/status on a kilo serve or daemon port returns type busy or retry",
-      "meaning": "The precise signal, per session. Statuses are idle, busy, retry, offline, scheduled (asleep on a pending wakeup). It is held in memory only, never in kilo.db. Reachable for `kilo serve`, `kilo daemon` and a TUI started with --port. Needs the port (lsof -iTCP -sTCP:LISTEN -a -p <pid>, or url in ~/.local/state/kilo/daemon.json, or `kilo daemon status --json`) and Basic auth kilo:<password>; the daemon password is in daemon.json (mode 0600), a `serve` password only in that process's environment (KILO_SERVER_PASSWORD). A plain TUI has no port. SSE GET /event also carries session.turn.open and session.turn.close (reason completed, error, interrupted, superseded). Source-level, not exercised."
-    },
-    {
       "signal": "child_process",
       "name": "caffeinate",
       "args_contain": [

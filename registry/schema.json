@@ -145,8 +145,7 @@
               "power_assertion",
               "transcript_write",
               "tree_cpu",
-              "tool_children",
-              "socket_activity"
+              "tool_children"
             ]
           },
           "name": {

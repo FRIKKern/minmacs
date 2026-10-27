@@ -188,6 +188,18 @@ check "fixture gone, none found"          absent  "$(state)"
 echo "== agent detection: presence, unknown, hosts, caffeinate -w (fixture rows in tools/fixtures/*/)"
 clang -O1 tools/fakehost.c -o build/fakehost || exit 1
 python3 tools/validate_row.py tools/fixtures/*/*.json >/dev/null;  check "fixture rows pass the validator" 0 "$?"
+python3 tools/validate_row.py registry/agents/*.json >/dev/null;   check "registry rows pass the validator" 0 "$?"
+# Every working signal a row declares must be one that both detectors evaluate.
+unread=$(python3 - <<'PY'
+import glob, json, re
+cli = set(re.findall(r'kind isEqualToString:@"(\w+)"', open("Sources/Agents.m").read()))
+ref = set(re.findall(r'kind == "(\w+)"', open("tools/agents_probe.py").read()))
+used = {s["signal"] for f in glob.glob("registry/agents/*.json") + glob.glob("tools/fixtures/**/*.json", recursive=True)
+        for s in json.load(open(f))["working_signals"]}
+print(" ".join(sorted(used - (cli & ref))) or "none")
+PY
+)
+check "no row declares a signal the detectors ignore" none "$unread"
 # "id:state ... wN iN uN" for a rows directory, from the CLI and from the reference probe
 SUMMARY='import json,sys; j=json.load(sys.stdin); print(" ".join("%s:%s" % (a["id"], a["state"]) for a in j["agents"]) or "none", "w%d i%d u%d" % (j["working"], j["idle"], j["unknown"]))'
 clirows() { "$BIN" agents --json --rows "tools/fixtures/$1" | python3 -c "$SUMMARY"; }

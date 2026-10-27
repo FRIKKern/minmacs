@@ -388,10 +388,6 @@
   },
   "working_signals": [
     {
-      "signal": "socket_activity",
-      "meaning": "Exact, source-level, not exercised: ask the agent server for its thread status. The server is `langgraph dev` on an ephemeral 127.0.0.1 port with `LANGGRAPH_AUTH_TYPE=noop`, so the API is unauthenticated (the vendor's THREAT_MODEL.md TB10 says any local process can reach it). Find the port with `lsof -nP -iTCP -sTCP:LISTEN -a -p <server pid>` (the server surface), then `POST /threads/search` with `{\"status\":\"busy\",\"select\":[\"thread_id\",\"status\"]}` (or `GET /threads/<id>`). Thread status is `idle | busy | interrupted | error` (langgraph_sdk.schema.ThreadStatus); `busy` is a turn in progress. dcode itself relies on it: offload_api refuses a thread that is not idle ('active or interrupted run'). Ask for the two fields only; never request thread values. Needs an HTTP read the probe cannot do today (README section 3, case 6)."
-    },
-    {
       "signal": "tool_children",
       "meaning": "Only on the agent-server process (daemon surface), never on the TUI: the shell tool runs `subprocess.run(command, shell=True)` inside the server, so a running command is a direct `/bin/sh -c` child of the `langgraph_cli` python. Blind while the model streams, blind when sh exec's a lone command in place, and the server also has permanent non-shell children (MCP stdio servers) and a short bash child for local-context detection, so count shells only. The TUI process has no tool children of its own; in `-n` runs the same server child is the only place to look. Probe caveat: agents_probe.py skips a process whose parent matches a surface of the same row, so while the TUI is alive the server is never classified on its own and this signal is never evaluated for it (the TUI's only direct child is the server python, not a shell). Under the current probe a TUI session is decided by tree_cpu alone."
     },

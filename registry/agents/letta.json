@@ -406,10 +406,6 @@
       "signal": "tree_cpu",
       "floor_percent": 3,
       "meaning": "Fallback. Guess: nothing was measured (no live instance). A network wait burns none. The desktop Electron tree also burns CPU when idle, so use 10 for the GUI surface."
-    },
-    {
-      "signal": "socket_activity",
-      "meaning": "Exact but not readable from ps: connect to a `letta server --listen` WebSocket (/ws), send runtime_start, and read update_loop_status. LoopStatus: SENDING_API_REQUEST, WAITING_FOR_API_RESPONSE, RETRYING_API_REQUEST, PROCESSING_API_RESPONSE, EXECUTING_CLIENT_SIDE_TOOL, EXECUTING_COMMAND = a turn is running; WAITING_ON_APPROVAL, WAITING_ON_INPUT = blocked on the human. Also a stream_delta with message_type stop_reason (other than requires_approval) ends a turn. Loopback listeners need no auth; a subscriber is a new client of a private app, so do not attach without the owner's consent. The probe cannot evaluate socket_activity."
     }
   ],
   "waiting_signals": [
