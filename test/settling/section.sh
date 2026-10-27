@@ -11,7 +11,8 @@ clang $CF -fblocks test/settling/clone-refcounts/clones.c -o "$S/clones" 2>"$S/c
 check "clones.c builds without warnings" 0 "$(grep -c warning: "$S/clones.log")"
 mkdir -p "$S/clone-fixture" && out=$("$S/clones" "$S/clone-fixture")
 check "three full clones report refcount 3" 3 "$(printf '%s\n' "$out" | sed -n '/base, c1 and c2/,/^--/p' | grep -c 'refcnt 3 ')"
-check "a changed block takes the file out of the family" "refcnt 1 flags 0x1" "$(printf '%s\n' "$out" | sed -n '/one block of c2/,/^--/p' | grep ' c2 ' | grep -o 'refcnt 1 flags 0x1')"
+check "a changed block takes the file out of the family" 1 "$(printf '%s\n' "$out" | sed -n '/one block of c2/,/^--/p' | grep ' c2 ' | sed -nE 's/.*refcnt ([0-9]+).*/\1/p')"
+printf '%s\n' "$out" | sed -n '/one block of c2/,/^--/p' | sed 's/^/        /'   # the raw lines, so a different volume shows its numbers
 check "a hard link is not counted as a clone" 3 "$(printf '%s\n' "$out" | sed -n '/one block of c2/,/^--/p' | grep ' base ' | sed -E 's/.*refcnt ([0-9]+).*/\1/')"
 # Right after unlink the refcount can still show the deleted clone for a few ms, so this checks
 # that it settles, not that the first read is right.

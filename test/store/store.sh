@@ -26,10 +26,11 @@ while IFS="$st_tab" read -r st_n st_w st_g; do check "$st_n" "$st_w" "$st_g"; do
 
 db="$st_home/minmacs.sqlite"
 check "the log runs in WAL mode" wal "$(sqlite3 "$db" 'PRAGMA journal_mode;' 2>/dev/null)"
+# The trigger's error code depends on the SQLite build: 1 here, 19 on the CI runner. Any refusal counts.
 sqlite3 "$db" "UPDATE rows SET state = 'x';" >/dev/null 2>&1
-check "the log refuses UPDATE" 1 "$?"
+check "the log refuses UPDATE" yes "$([ $? -ne 0 ] && echo yes || echo no)"
 sqlite3 "$db" "DELETE FROM rows;" >/dev/null 2>&1
-check "the log refuses DELETE" 1 "$?"
+check "the log refuses DELETE" yes "$([ $? -ne 0 ] && echo yes || echo no)"
 check "the rows are still there" 5 "$(sqlite3 "$db" 'SELECT COUNT(*) FROM rows;' 2>/dev/null)"
 
 # Two processes at once: the lock and the busy timeout lose nothing.

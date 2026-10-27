@@ -126,10 +126,8 @@ check "a status file whose pid is gone is not live" "0|None" "$(sj "'|'.join(str
 check "the Codex thread is read with immutable=1 when there is no -shm file" "codex|Fixture thread|fixture-branch|completed" \
   "$(sj "'|'.join(str(x[k]) for x in j['all'] if x['id']=='thread-live' for k in ('agent','title','branch','live'))")"
 check "  and the fixture left no -shm file" no "$([ -e "$CODEX_HOME/state_5.sqlite-shm" ] && echo yes || echo no)"
-check "  and a plain mode=ro open fails on it, as TESTS.md question 10 found" fail \
-  "$(python3 -c "import sqlite3,sys
-try: sqlite3.connect('file:'+sys.argv[1]+'?mode=ro', uri=True).execute('select count(*) from threads').fetchall(); print('ok')
-except Exception: print('fail')" "$CODEX_HOME/state_5.sqlite")"
+# A plain mode=ro open fails on such a file with the SQLite on this Mac (TESTS.md question 10), but works with the
+# SQLite on the CI runner. The reader must work either way, so the check above is the one that counts.
 check "an archived Codex thread is left out" 0 "$(sj "len([x for x in j['all'] if x['id']=='thread-old'])")"
 check "only the fixture's Codex threads are read, from CODEX_HOME" 1 "$(sj "len([x for x in j['all'] if x['agent']=='codex'])")"
 check "a pi session comes from PI_CODING_AGENT_DIR" "pi|$K/proj/sub" "$(sj "'|'.join(str(x[k]) for x in j['all'] if x['id']=='pi-uuid-1' for k in ('agent','cwd'))")"
