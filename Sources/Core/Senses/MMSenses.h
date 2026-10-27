@@ -77,6 +77,9 @@ NSRunningApplication *MMOwningApp(MMSample *s, pid_t pid);
 @property (readonly) NSDate *at;
 @property (readonly) BOOL onAC, lidClosed, lowPowerMode;
 @property (readonly) BOOL lidOverride;                  // IOPMrootDomain SleepDisabled, which Insomnia's lid mode sets
+/// A default route exists, over Wi-Fi, Ethernet or tethering. From the routing table by sysctl, in microseconds.
+/// It stands in for IN main.m:137, which asks SCNetworkReachability for 0.0.0.0. A change fires MMSignalPower.
+@property (readonly) BOOL online;
 @property (readonly) int batteryPercent;                // -1 without a battery
 @property (readonly) NSProcessInfoThermalState thermal;
 @property (readonly) NSInteger memoryPressure;          // 1 normal, 2 warn, 4 critical, as DISPATCH_MEMORYPRESSURE_*
@@ -91,7 +94,7 @@ typedef NS_OPTIONS(NSUInteger, MMSignal) {
     MMSignalMemory = 1 << 0,    // memory pressure changed
     MMSignalDisk = 1 << 1,      // free disk crossed a mark
     MMSignalThermal = 1 << 2,
-    MMSignalPower = 1 << 3,     // power source or battery
+    MMSignalPower = 1 << 3,     // power source, battery or the default route
     MMSignalLid = 1 << 4,       // lid closed, opened, or the override changed
     MMSignalExit = 1 << 5,      // a watched process exited, from kqueue NOTE_EXIT
     MMSignalApp = 1 << 6,       // an app launched or quit, from NSWorkspace

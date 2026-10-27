@@ -148,7 +148,9 @@ echo "  -- the real binary, cold"
 # Where asks cmux and tmux through their CLIs. Fakes that answer nothing keep this Mac's own sessions out.
 export MINMACS_CMUX=/usr/bin/false MINMACS_TMUX=/usr/bin/false
 check "minmacs version through the bundle" "MinMacs 2.0.0 (phase 1)" "$("$BIN" version)"
-check "minmacs status lists the linked experts" 2 "$("$BIN" status --json | jq_ 'len(j["experts"])')"
+# One expert per folder under Sources/Experts that holds code.
+sh_linked=$(ls Sources/Experts/*/*.m 2>/dev/null | xargs -n1 dirname | sort -u | wc -l | tr -d ' ')
+check "minmacs status lists the linked experts" "$sh_linked" "$("$BIN" status --json | jq_ 'len(j["experts"])')"
 check "minmacs status --json is JSON" False "$("$BIN" status --json | jq_ 'j["app"]')"
 check "minmacs work --json is JSON" yes "$("$BIN" work --json | jq_ '"yes" if "workstreams" in j else "no"')"
 check "minmacs restore --list reads the undo log the fixture wrote" "restored" "$("$BIN" restore --list --json | jq_ 'j["records"][0]["state"]')"

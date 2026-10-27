@@ -175,7 +175,8 @@ NSArray<NSString *> *MMMenuProblems(NSMenu *menu) {
     // Main actions: the plain items between the summary and the first section.
     NSInteger actions = 0; BOOL started = NO;
     for (NSMenuItem *i in items) {
-        if (i.isSectionHeader) break;
+        // A menu with no sections ends its actions at More or the footer, which are not actions.
+        if (i.isSectionHeader || [i.title isEqualToString:@"More"] || [i.title isEqualToString:@"Hide Icon"]) break;
         if (i.view) { started = YES; continue; }
         if (started && !i.isSeparatorItem && !i.isAlternate) actions++;
     }

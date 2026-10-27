@@ -1,0 +1,301 @@
+# Insomnia's guard matrix, ported from Insomnia's test.sh line by line, plus the 2.0 checks:
+# one pair of assertions per working agent's pid, the end on that pid's exit, the end on low battery,
+# holds a script asks for, the standalone app, failed writes and the sudoers rule.
+# test/insomnia/tool.m runs it. Insomnia's debug prefs become the fake power source, the clock and fixture workers.
+
+section self-heal
+# MinMacs set the override and then crashed: the next launch clears it, as Insomnia's launch did.
+pref insomnia.lid.ours true
+fake lid 1
+fake rule on
+step
+expect lid paused a stale override MinMacs set is cleared at launch
+expect undo 1 the write has an undo record
+
+section toggle
+pref insomnia.agents false
+step
+expect asserts 0 off releases assertions
+set manual on
+expect asserts 2 on holds two assertions
+expect held 1 on holds one pair, for MinMacs itself
+expect types PreventSystemSleep,PreventUserIdleSystemSleep the pair is both of Insomnia's assertion types
+expect state awake,_Keep_Mac_Awake_is_on the status item says so
+set manual off
+expect asserts 0 off releases them again
+
+section awake while agents work
+set agents on
+worker a start
+step
+expect asserts 2 mode on, 1 working, manual off: holds
+expect holdfor:a yes the pair is tied to the working agent's pid
+expect types PreventSystemSleep,PreventUserIdleSystemSleep an agent's pair is both types too
+worker a idle
+clock +5
+step
+expect asserts 2 0 working, idle 5 min, quiet 10: still holds
+clock +6
+step
+expect asserts 0 0 working, idle 11 min, quiet 10: releases
+set quiet 20
+expect asserts 2 quiet period 20: idle 11 min holds again
+set quiet 10
+expect asserts 0 back to the default 10 min: releases
+worker a working
+step
+expect asserts 2 agents start working again: holds
+worker a idle
+clock +11
+step
+set manual on
+expect asserts 2 manual on wins over agents idle
+expect holdfor:a no manual on holds for MinMacs, not for the agent
+set manual off
+expect asserts 0 manual off, agents idle: releases
+worker a working
+set manual on
+set manual off
+expect asserts 2 manual off while agents work: agent mode holds
+set agents off
+expect asserts 0 mode off, agent still working: releases
+worker a idle
+set agents on
+expect asserts 0 mode off clears the working clock
+set agents off
+set manual on
+expect asserts 2 mode off leaves manual on alone
+set manual off
+expect asserts 0 mode off, manual off: as before
+
+section one pair per agent's pid
+set agents on
+worker a working
+worker b start
+step
+expect held 2 two working agents hold two pairs
+expect asserts 4 four assertions in IOKit
+worker b exit
+wait held 1
+expect held 1 a pair ends when its agent's pid exits, before the next pass
+expect asserts 2 and IOKit drops its two assertions
+step
+expect holdfor:a yes the other agent keeps its pair
+
+section low battery
+power onAC=0 battery=50
+step
+expect asserts 2 on battery at 50%: the agent holds
+power battery=20
+step
+expect asserts 0 battery 20%, the threshold: agent holds end
+expect lowbattery yes the state says why
+set manual on
+expect asserts 2 manual on still holds at low battery
+set manual off
+power onAC=1 battery=21
+step
+expect asserts 2 charger back: the agent holds again
+
+section holds a script asks for
+worker a idle
+clock +11
+step
+expect asserts 0 nothing works
+proc h start
+hold h a build runs
+step
+expect holdfor:h yes a hold a script asks for keeps the Mac awake
+proc h exit
+wait held 0
+expect held 0 it ends when that process exits
+unhold h
+proc g start
+cli insomnia hold $g render runs
+expect cli-status 0 the hold verb runs in the app
+waitgraph
+step
+expect holdfor:g yes the graph carries it to Insomnia
+proc g exit
+wait held 0
+expect held 0 and it ends on that exit too
+step
+
+section lid coupling
+pref insomnia.agents false
+set manual on
+fake rule off
+set lid on
+expect rule yes lid mode installs the sudoers rule once
+expect set ok and turns on
+power onAC=1 battery=100 lidClosed=0 thermal=nominal online=1
+step
+expect lid live AC: override live
+set manual off
+expect lid paused off clears override
+set manual on
+expect lid live on restores override
+
+section battery guard
+power onAC=0 battery=60
+step
+expect lid live battery 60%, just unplugged
+power battery=20
+step
+expect lid paused battery 20%, the threshold
+expect reason low the reason names the battery
+power battery=21
+step
+expect lid live battery 21%
+clock +119
+step
+expect lid live unplugged 1h59, grace 2h
+clock +2
+step
+expect lid paused unplugged 2h01
+expect reason unplugged the reason names the time unplugged
+set unplugged never
+expect lid live grace never
+power onAC=1
+step
+expect unplugged none charger back: clock reset
+set unplugged 120
+
+section network guard
+power onAC=0 battery=70 online=0
+step
+expect lid live just offline
+clock +16
+step
+expect lid paused offline 16 min, grace 15
+expect reason offline the reason names the network
+set offline never
+expect lid live offline never
+set offline 15
+expect lid paused offline 15 again: paused again
+power online=1
+step
+expect lid live back online
+expect offline none back online: clock reset
+
+section bag guard
+power lidClosed=0 thermal=serious
+step
+expect lid live hot, lid open
+power lidClosed=1
+step
+expect lid paused hot, lid closed
+expect reason hot the reason names the heat
+power thermal=nominal
+step
+expect lid paused cooled, still closed: hold
+power lidClosed=0
+step
+expect lid live lid opened clears hold
+power lidClosed=1 thermal=critical
+step
+expect lid paused critical, closed
+power onAC=1
+step
+expect lid live AC clears hold
+power onAC=0 battery=70 lidClosed=1 thermal=serious
+set heat off
+expect lid live thermal guard disabled
+set heat on
+power onAC=1 lidClosed=0 thermal=nominal
+step
+
+section agent hold and the lid override
+set manual off
+set agents on
+worker a working
+step
+expect lid live agents working: lid override live
+worker a idle
+clock +11
+step
+expect lid paused agents idle past quiet: override cleared
+worker a working
+power onAC=0 battery=10
+step
+expect lid paused guards still apply to agent hold, battery 10%
+power onAC=1 battery=80
+step
+expect lid live charger back, agents still working: override live
+
+section screen off while the lid is closed
+mark
+power lidClosed=1
+step
+expect display-new 1 lid closed with the override live sleeps the display
+step
+expect display-new 1 once per closing
+power lidClosed=0
+step
+set screen off
+mark
+power lidClosed=1
+step
+expect display-new 0 option off leaves the display alone
+set screen on
+power lidClosed=0
+step
+
+section ownership
+set lid off
+expect lid paused lid mode off clears the override it set
+mark
+fake lid 1
+step
+expect lid live an override another tool set is left alone
+expect writes-new 0 no write was tried
+fake lid 0
+step
+
+section the standalone app
+fake other on
+set lid on
+step
+expect lid paused while Insomnia.app runs, MinMacs never writes the override
+expect problem yes the lid row says why
+fake other off
+step
+expect lid live once it quits, MinMacs takes over
+
+section a failed write
+fake fail on
+worker a idle
+clock +11
+step
+expect lid live a refused write leaves the override as IOKit says
+expect problem yes the failure shows in the menu
+mark
+step
+expect writes-new 0 the same write waits before it is tried again
+fake fail off
+clock +6
+step
+expect lid paused it is tried again after five minutes
+
+section the sudoers rule
+set lid off
+fake rule off
+fake deny on
+set lid on
+expect set refused a cancelled password prompt leaves lid mode off
+expect pref:insomnia.lid 0 and the pref stays off
+fake deny off
+
+section verbs in the app
+cli insomnia set battery 30
+expect cli-status 0 set battery runs
+expect pref:insomnia.lid.minBattery 30 and changes the guard
+cli insomnia set battery 3
+expect cli-status 2 a battery guard under 5% is refused
+cli insomnia set offline never
+expect pref:insomnia.lid.offlineMinutes 0 never turns the offline guard off
+cli insomnia lid maybe
+expect cli-status 2 a word it does not know is a usage error
+cli awake --json
+expect cli-says "holding" awake --json reports the state
+expect undo-matches yes every lid write that ran has a done undo record

@@ -99,6 +99,28 @@ NSArray<NSValue *> *MMQuitApps(NSArray<NSValue *> *keys, MMStopStep step, NSTime
 + (NSDictionary<NSString *, NSString *> *)held;         // MMProcKeyString to reason
 @end
 
+/// P54. The lid override, `pmset -a disablesleep`, which only root may set. It runs the commands Insomnia runs,
+/// IN main.m:675-711, through the sudoers rule /etc/sudoers.d/insomnia that allows exactly
+/// `/usr/bin/pmset -a disablesleep 1` and `... 0`. The state is read from IOKit in MMPower.lidOverride, never here.
+/// Every call runs a child with a time limit, so each returns NO at once on the main thread.
+/// With MINMACS_HOME set the commands run only through MINMACS_INSOMNIA_CMD, a fake that gets the full command line
+/// as its arguments. Without that fake they refuse, so a test never runs sudo or pmset.
+@interface MMLidOverride : NSObject
+/// `sudo -n /usr/bin/pmset -a disablesleep 1` or `0`.
++ (BOOL)set:(BOOL)on error:(NSString **)error;
+/// YES when the rule lets the write run with no password: `sudo -n -l /usr/bin/pmset -a disablesleep 1`.
++ (BOOL)ruleInstalled;
+/// Writes the rule after one administrator prompt, through osascript, and checks it with visudo. Blocks while the
+/// prompt is up, at most two minutes.
++ (BOOL)installRule:(NSString **)error;
+/// `pmset displaysleepnow`: the display sleeps, and opening the lid wakes it. Through powerd, as any user.
++ (BOOL)sleepDisplay;
+/// `disablesleep 0` for an app that quits: started, never waited for. Safe on main.
++ (void)clearWithoutWaiting;
+/// Why the commands cannot run in this process, or nil when they can.
++ (NSString *)unavailableReason;
+@end
+
 /// P55. The one notifier. It sends at most one notification per review across all experts,
 /// and only after an action nobody asked for. An error goes in an alert, never here.
 /// Starts from -notify:mode: in LocoHost and WorkForest, plus a UNNotificationAction for Undo.

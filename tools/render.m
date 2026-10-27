@@ -12,6 +12,7 @@
 #import "Core/MMExpert.h"
 #import "UI/MMSpecKit.h"
 #import "Experts/LocoHost/MMLHHost.h"
+#import "Experts/Insomnia/MMInsomnia.h"
 
 #pragma mark Checks
 
@@ -309,6 +310,71 @@ static Subject *MinMacsLike(void) {
     return s;
 }
 
+/// One holder for the Insomnia subjects.
+static MMINHolder *Holder(NSString *name, NSString *project, pid_t pid, BOOL working, NSTimeInterval idle, NSString *why) {
+    MMINHolder *h = [MMINHolder new];
+    h.kind = @"agent"; h.name = name; h.project = project; h.pid = pid; h.working = working; h.idleFor = idle; h.why = why; h.held = YES;
+    h.findingID = [NSString stringWithFormat:@"insomnia:agent:%@:%@", name, project];
+    h.keyString = [NSString stringWithFormat:@"%d:1761000000", pid];
+    return h;
+}
+
+/// Insomnia's own menu and cards, built by Sources/Experts/Insomnia/MMINMenu.m from a fixture state and drawn by the
+/// shell's Sources/UI/MMSpecMenu, as the app draws them. kind: working, quiet, low or sleeps.
+static Subject *InsomniaLike(NSString *kind) {
+    Subject *s = [Subject new]; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
+    s.name = [kind isEqualToString:@"working"] ? @"insomnia" : [@"insomnia-" stringByAppendingString:kind];
+    MMINState *st = [MMINState new];
+    st.prefs = [MMINPrefs defaults]; st.clocks = [MMINClocks new]; st.at = NSDate.date;
+    st.onAC = YES; st.online = YES; st.batteryPercent = 80; st.laptop = YES; st.thermal = NSProcessInfoThermalStateNominal;
+    st.prefs.lid = YES; st.watched = 3;
+    if ([kind isEqualToString:@"working"]) {
+        MMINHolder *claude = Holder(@"Claude Code", @"acme-web", 5100, YES, 0, @"status file busy");
+        claude.linkExpert = @"minmacs"; claude.linkFindingID = @"minmacs:agent:claude-code:fixture-1"; claude.linkValue = @"Claude Code, working";
+        st.holders = @[claude, Holder(@"Codex", @"orbit-api", 5200, NO, 4 * 60, @"newest turn completed")];
+        st.holding = YES; st.lidLive = YES; st.lidWanted = YES; st.asserted = 2;
+    } else if ([kind isEqualToString:@"quiet"]) {
+        st.onAC = NO; st.batteryPercent = 63; st.online = NO; st.lidClosed = YES;
+        st.clocks.unpluggedAt = [NSDate dateWithTimeIntervalSinceNow:-42 * 60 - 30]; st.clocks.offlineAt = [NSDate dateWithTimeIntervalSinceNow:-18 * 60 - 30];
+        st.holders = @[Holder(@"Claude Code", @"acme-web", 5100, NO, 4 * 60, @"status file idle")];
+        st.holding = YES; st.releaseIn = 6 * 60; st.asserted = 1;
+        st.pauseReason = @"offline too long";
+    } else if ([kind isEqualToString:@"low"]) {
+        st.onAC = NO; st.batteryPercent = 15; st.lowBattery = YES;
+        st.clocks.unpluggedAt = [NSDate dateWithTimeIntervalSinceNow:-3 * 3600];
+        MMINHolder *claude = Holder(@"Claude Code", @"acme-web", 5100, YES, 0, @"status file busy");
+        claude.held = NO;
+        st.holders = @[claude];
+        st.pauseReason = @"low battery";
+    } else {
+        st.prefs.lid = NO; st.watched = 1;
+    }
+    st.at = NSDate.date;   // after the clocks, so the fixture's minutes read as written
+    MMINView *v = [MMINView new];
+    v.state = st;
+    v.act = ^(NSString *what, NSString *key) {};
+    MMMenuSpec *spec = MMINMenu(v);
+    NSMenu *m = MMMenuFromSpec(spec, ^MMCardSpec *(NSString *fid) { return MMINCard(v, fid); }, nil, nil);
+    NSMutableArray *fids = [NSMutableArray new];
+    for (MMINHolder *h in st.holders) [fids addObject:h.findingID];
+    if (st.prefs.lid) [fids addObject:MMINLidFindingID];
+    for (NSMenuItem *i in m.itemArray) {
+        if (!i.submenu || i.view) continue;
+        for (NSString *fid in fids) {
+            MMCardSpec *c = MMINCard(v, fid);
+            NSString *rowName = [fid isEqualToString:MMINLidFindingID] ? @"Lid override" : [c.title componentsSeparatedByString:@" in "].firstObject;
+            if (![i.title containsString:rowName] || s.cardMenus[fid]) continue;
+            NSString *k = [fid isEqualToString:MMINLidFindingID] ? @"lid" : [[rowName stringByReplacingOccurrencesOfString:@" " withString:@"-"] lowercaseString];
+            s.cards[k] = MMCardFromSpec(c);
+            s.cardMenus[k] = i.submenu;
+            [s.order addObject:k];
+            break;
+        }
+    }
+    s.menu = m;
+    return s;
+}
+
 #pragma mark Settings
 
 /// The Settings window's fixture: the five experts of one Mac, saying what the two menus above say.
@@ -502,9 +568,11 @@ int main(int argc, char **argv) { @autoreleasepool {
     [NSFileManager.defaultManager createDirectoryAtPath:out withIntermediateDirectories:YES attributes:nil error:nil];
     gChecks = [NSMutableArray new];
 
-    NSArray<Subject *> *subjects = @[LocoHostLike(), WorkForestLike(), MinMacsLike()];
+    NSArray<Subject *> *subjects = @[LocoHostLike(), WorkForestLike(), MinMacsLike(),
+                                     InsomniaLike(@"working"), InsomniaLike(@"quiet"), InsomniaLike(@"low"), InsomniaLike(@"sleeps")];
     NSArray *experts = @[@[@"LocoHost", @"server.rack", @"2 idle servers", @"2"], @[@"WorkForest", @"tree", @"2 worktrees to remove", @""],
-                         @[@"MinMacs", @"gauge.with.dots.needle.33percent", @"3 apps to quit", @""]];
+                         @[@"MinMacs", @"gauge.with.dots.needle.33percent", @"3 apps to quit", @""],
+                         @[@"Insomnia", @"cup.and.saucer", @"awake for 2 agents", @""]];
     for (NSArray *e in experts) {
         NSString *label = MMStatusLabel(e[0], e[2]);
         NSString *word = [NSString stringWithFormat:@"\\b%@\\b", [NSRegularExpression escapedPatternForString:e[1]]];
