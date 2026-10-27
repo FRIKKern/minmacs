@@ -106,6 +106,19 @@
     }
 }
 
+- (void)setValue:(id)value for:(NSString *)key fingerprint:(NSString *)fingerprint {
+    if (key) [self store:value key:key fingerprint:fingerprint];
+}
+
+- (void)drop:(NSString *)key {
+    if (!key) return;
+    @synchronized (self) {
+        if (!_entries[key]) return;
+        [_entries removeObjectForKey:key];
+        [self saveSoon];
+    }
+}
+
 - (void)forget:(NSSet<NSString *> *)liveKeys {
     @synchronized (self) {
         NSUInteger before = _entries.count;

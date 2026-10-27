@@ -18,8 +18,11 @@ MMRunResult MMRunTask(NSTask *task, NSData *input, NSTimeInterval timeout, NSDat
 /// P24. git, read-only by default, with LC_ALL=C, GIT_OPTIONAL_LOCKS=0, no prompts and no pager.
 /// Starts from WF Common.m:71-105. Returns stdout without the trailing newline, or nil when git could not run
 /// or timed out. status is git's exit status, -1 when it did not run. status may be NULL.
+/// It runs through MMRun and never on main: called on main it returns nil with status -1.
+/// GIT_CONFIG_GLOBAL and GIT_CONFIG_NOSYSTEM pass through from our environment, so a test keeps the person's config out.
 NSString *MMGit(NSString *dir, NSArray<NSString *> *args, NSTimeInterval timeout, int *status);
-NSString *MMGitPath(void);                              // nil when no real git is installed, so the Xcode stub never prompts
+/// nil when no real git is installed, so the Xcode stub never prompts. $MINMACS_GIT names another git.
+NSString *MMGitPath(void);
 
 /// P25. Who made a worktree. Decision 6: MinMacs acts on Claude Code's agent worktrees once their session ended,
 /// and only shows Cursor's and Conductor's.
@@ -43,15 +46,22 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 };
 
 /// P26. The git facts of one worktree, keyed by HEAD in the fact cache of P27.
+/// branch, head, the default branch, the upstream and the stash count are read from git's own files.
+/// The rest come from git through MMGit, on a Know queue. A count of -1 means git could not tell, which counts as dirty.
 @interface MMGitFacts : NSObject
-@property (readonly, copy) NSString *head, *defaultBranch, *upstream;
+@property (readonly, copy) NSString *branch;            // nil when HEAD is detached
+@property (readonly, copy) NSString *head, *defaultBranch, *upstream;   // upstream: "origin/x", nil when none is set
 @property (readonly) MMMergeKind merged;
-@property (readonly) NSInteger dirty, untracked, stashes, unpushed, notInDefault;
+@property (readonly) NSInteger dirty, untracked, stashes, notInDefault;
+@property (readonly) NSInteger unpushed;                // commits on HEAD that no remote ref holds
+@property (readonly) NSInteger ahead, behind;           // against the upstream, 0 when there is none
 /// P26. Remote containment, its own fact: HEAD is reachable from some remote ref.
 /// Decision 7: a squash-merged HEAD on no remote goes in Eager only, after a git bundle.
 @property (readonly) BOOL onRemote;
 @property (readonly) BOOL upstreamGone;                 // the remote branch was deleted
 @property (readonly) NSDate *lastCommit;
+/// The facts as JSON, with merged as a word: none, ancestor, tree, patch, squash, pr or merge-tree.
+- (NSDictionary *)json;
 @end
 
 /// P25. Every repo and worktree under the scan roots, plus a path lookup with no spawn.
@@ -70,9 +80,34 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 - (NSArray<MMWorktree *> *)worktrees;                   // the last walk, deepest path first
 /// The worktree that holds path, read from .git files with no spawn. nil outside any repo.
 - (MMWorktree *)worktreeAt:(NSString *)path;
-/// Through MMFactCache, keyed by HEAD. wait NO returns the cached facts, possibly stale, or nil.
-/// Phase 1 returns nil: git facts come with WorkForest in phase 2.
+/// Through MMFactCache, in two layers that persist across launches. The status layer, dirty and untracked counts,
+/// is keyed by HEAD and the index file and dropped by a change inside the worktree. The history layer, upstream,
+/// counts and merge kind, is keyed by HEAD, the default branch's tip, the upstream's tip and the fetch time.
+/// wait NO returns what is cached, possibly stale, or nil, reads nothing from disk, and queues an update on the
+/// git queue when a change marked the worktree. wait YES runs git now for the status and for a moved history,
+/// on its own Know queue, and returns nil on main.
 - (MMGitFacts *)factsFor:(MMWorktree *)w wait:(BOOL)wait;
+/// The quick Sizer tier for the worktree, through the worker, cached across launches. The keys are allocated,
+/// freedIfDeleted, files and errors. A change inside the worktree marks its size stale. wait NO returns the last
+/// size, or nil, and queues a walk at most once a minute per worktree. wait YES walks now and returns nil on main.
+- (NSDictionary *)sizeFor:(MMWorktree *)w wait:(BOOL)wait;
+/// Marks the worktrees a change touched. A folder inside a worktree drops its status and marks its size stale.
+/// A folder inside a git dir marks the worktrees that use it, whose fingerprints are read again.
+/// subtrees YES also marks every worktree under each folder, for an FSEvents rescan. nil marks every worktree.
+- (void)invalidate:(NSSet<NSString *> *)dirs subtrees:(BOOL)subtrees;
+/// Brings the facts of every marked worktree up to date on the git queue. git runs only where a fingerprint moved
+/// or the status was dropped. done, which may be nil, runs on that queue with the number of worktrees git ran for.
+- (void)updateFacts:(void (^)(NSUInteger ran))done;
+/// One FSEvents stream per root, each with its own saved event id, so a restart replays only what changed.
+/// Each change marks worktrees through invalidate and may start a walk through refresh.
+- (void)startWatching;
+- (void)stopWatching;
+/// Counters since launch, for the checks and the bench: walks, walksDone, updates, fingerprintReads, statusRuns,
+/// historyRuns, gitRuns, patchIdsComputed, squashChecks, sizeWalks, and lastUpdateMs, lastUpdateRan and
+/// lastUpdateChecked for the last pass.
+- (NSDictionary<NSString *, NSNumber *> *)stats;
 @end
 /// Posted on the index's queue when a walk finds other worktrees or branches than the last one.
 extern NSNotificationName const MMRepoIndexDidChangeNotification;
+/// Posted on the git queue when an update changed the facts of at least one worktree.
+extern NSNotificationName const MMRepoIndexFactsDidChangeNotification;

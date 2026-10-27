@@ -15,6 +15,10 @@
 - (V)peek:(NSString *)key;
 /// YES when key has no value, or its value was made for another fingerprint.
 - (BOOL)changed:(NSString *)key fingerprint:(NSString *)fingerprint;
+/// Stores value for key now, made for fingerprint. nil removes the key.
+- (void)setValue:(V)value for:(NSString *)key fingerprint:(NSString *)fingerprint;
+/// Removes key, so the next read computes it again. A persisted cache forgets it across launches too.
+- (void)drop:(NSString *)key;
 /// Drops every key not in liveKeys, so the cache does not grow with subjects that are gone.
 - (void)forget:(NSSet<NSString *> *)liveKeys;
 @end

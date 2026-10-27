@@ -61,7 +61,9 @@ id<MMExpert> MMExpertNamed(NSString *expertID) {
 
 @implementation MMCoreFactSource
 
-/// Everything but the sample and power, which the caller picks.
+/// Everything but the sample and power, which the caller picks. Git facts come from the index's memory with
+/// wait NO, so a rebuild never reads git's files or runs git. A worktree a change marked is brought up to date
+/// on the git queue, which asks for another rebuild when its facts moved.
 static MMFacts *FactsFrom(uint64_t generation, MMSample *sample, MMPower *power) {
     if (!sample) return nil;
     [MMSessions.shared refresh];
@@ -150,8 +152,7 @@ static void ServeCoreVerbs(void) {
 #pragma mark - Start and stop
 
 static BOOL gStarted;
-static id gSensesToken, gGraphToken, gReposToken;
-static MMFolderWatch *gReposWatch;
+static id gSensesToken, gGraphToken, gReposToken, gGitToken;
 static dispatch_source_t gReposTimer, gReviewTimer;
 static MMCoreSocket *gSocket;
 static NSMutableSet<NSString *> *gWatchedExits;   // main only: the pid:start keys handed to watchExits
@@ -180,16 +181,18 @@ static void WatchExitsIn(MMSnapshot *snap) {
     if (add.count) [MMSenses.shared watchExits:add];
 }
 
+/// The repo index: a walk now, one FSEvents stream per root, and a full walk every 10 minutes.
+/// A change marks the worktrees it touched, and the index runs git for those alone, then asks for a rebuild.
+/// A rebuild reads git facts from memory, so a 5-second pass never reads git's files or runs git.
 static void StartRepos(void) {
     MMRepoIndex *index = MMRepoIndex.shared;
     [index refresh:nil];
-    NSArray *roots = index.roots;
-    if (roots.count)
-        gReposWatch = [MMFolderWatch watch:roots name:@"repos" skip:@[@"node_modules", @".git/objects", @"DerivedData", @".next", @"target"]
-                                   changed:^(NSSet<NSString *> *dirs, BOOL rescan) { [index refresh:rescan ? nil : dirs]; }];
+    [index startWatching];   // on the repos queue, since each stream reads its saved event id
     gReposTimer = MMTimer(MMQueue(@"core", @"repos", QOS_CLASS_UTILITY), kReposEvery, 30, ^{ [index refresh:nil]; });
     gReposToken = [NSNotificationCenter.defaultCenter addObserverForName:MMRepoIndexDidChangeNotification object:index queue:nil
                                                               usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"worktrees"]; }];
+    gGitToken = [NSNotificationCenter.defaultCenter addObserverForName:MMRepoIndexFactsDidChangeNotification object:index queue:nil
+                                                            usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"git"]; }];
 }
 
 static void StartReviews(void) {
@@ -265,8 +268,9 @@ void MMCoreStop(void) {
     [gSocket stop]; gSocket = nil;
     if (gReviewTimer) { dispatch_source_cancel(gReviewTimer); gReviewTimer = nil; }
     if (gReposTimer) { dispatch_source_cancel(gReposTimer); gReposTimer = nil; }
-    [gReposWatch stop]; gReposWatch = nil;
+    [MMRepoIndex.shared stopWatching];
     if (gReposToken) { [NSNotificationCenter.defaultCenter removeObserver:gReposToken]; gReposToken = nil; }
+    if (gGitToken) { [NSNotificationCenter.defaultCenter removeObserver:gGitToken]; gGitToken = nil; }
     [MMGraph.shared stopObserving:gGraphToken]; gGraphToken = nil;
     [MMSenses.shared stopObserving:gSensesToken]; gSensesToken = nil;
     [MMSenses.shared stop];
