@@ -88,6 +88,8 @@ static NSData *Line(NSDictionary *obj) {
     return d;
 }
 
+static void Answer(int c, NSDictionary *(^handler)(NSDictionary *), dispatch_queue_t socketQueue);
+
 /// The instance lock this process holds while it serves, or -1. Touched under @synchronized (MMCoreSocket.class).
 static int gLockFd = -1;
 
@@ -143,21 +145,27 @@ static int gLockFd = -1;
     }
 }
 
-/// Runs on the socket queue: takes each waiting connection in turn.
+/// Runs on the socket queue: takes each waiting connection and hands it on at once.
+/// Reading and writing happen off the socket queue, so a peer that connects and sends nothing never holds up
+/// the next one. Only the handler runs on the socket queue, one request at a time.
 - (void)acceptAll {
+    dispatch_queue_t socketQueue = MMQueue(@"core", @"socket", QOS_CLASS_UTILITY);
+    NSDictionary *(^handler)(NSDictionary *) = _handler;
     for (;;) {
         int c = accept(_listen, NULL, NULL);
         if (c < 0) return;   // EAGAIN: nothing more waits
         fcntl(c, F_SETFD, FD_CLOEXEC);
         fcntl(c, F_SETNOSIGPIPE, 1);
         fcntl(c, F_SETFL, fcntl(c, F_GETFL) & ~O_NONBLOCK);
-        @autoreleasepool { [self answer:c]; }
-        close(c);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            @autoreleasepool { Answer(c, handler, socketQueue); }
+            close(c);
+        });
     }
 }
 
-/// 3. The same-uid check, then one request and one reply.
-- (void)answer:(int)c {
+/// 3. The same-uid check, then one request and one reply. The handler runs on socketQueue.
+static void Answer(int c, NSDictionary *(^handler)(NSDictionary *), dispatch_queue_t socketQueue) {
     uid_t uid = (uid_t)-1; gid_t gid;
     if (getpeereid(c, &uid, &gid) != 0 || uid != getuid()) {
         os_log(SocketLog(), "closed a core.sock peer with uid %d", (int)uid);
@@ -165,11 +173,13 @@ static int gLockFd = -1;
     }
     NSData *line = ReadLine(c, [NSDate dateWithTimeIntervalSinceNow:kReadLimit]);
     id req = line ? [NSJSONSerialization JSONObjectWithData:line options:0 error:nil] : nil;
-    NSDictionary *reply;
+    __block NSDictionary *reply;
     if (![req isKindOfClass:NSDictionary.class]) reply = @{@"error": @"the request is not a JSON object"};
     else {
-        @try { reply = _handler ? _handler(req) : nil; }
-        @catch (NSException *e) { reply = @{@"error": e.reason ?: e.name}; }
+        dispatch_sync(socketQueue, ^{
+            @try { reply = handler ? handler(req) : nil; }
+            @catch (NSException *e) { reply = @{@"error": e.reason ?: e.name}; }
+        });
         if (![reply isKindOfClass:NSDictionary.class]) reply = @{@"error": @"no reply"};
     }
     WriteAll(c, Line(reply), [NSDate dateWithTimeIntervalSinceNow:kReadLimit]);

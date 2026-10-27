@@ -12,7 +12,8 @@ NSString *MMCoreSocketPath(void);
 /// The socket file is mode 0600, so only the person's own uid can connect at all.
 @interface MMCoreSocket : NSObject
 /// Takes the instance lock and serves. nil with *error when another MinMacs holds the lock.
-/// handler runs on MMQueue(@"core", @"socket") and returns the reply.
+/// handler runs on MMQueue(@"core", @"socket"), one request at a time, and returns the reply.
+/// Each connection is read and answered off that queue, so a peer that sends nothing holds up no other.
 + (instancetype)serve:(NSDictionary *(^)(NSDictionary *request))handler error:(NSString **)error;
 /// The client side: sends one request and waits for the reply. nil when no app answers within timeout.
 /// The CLI passes 0.2 seconds.

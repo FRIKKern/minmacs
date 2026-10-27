@@ -4,7 +4,7 @@
 //   serve <seconds>          serves core.sock with an echo verb until stdin closes or the time is up
 //   ask <json> [timeout]     one request to core.sock
 //   another                  MMAnotherInstanceRuns
-//   start <sleep copy> <repo>  MMCoreStart with a test expert, an exit, the repo index, then MMCoreStop
+//   start <sleep copy> <repo> [outside worktree]  MMCoreStart with a test expert, an exit, the repo index, then MMCoreStop
 #import <Foundation/Foundation.h>
 #import "Core/MMCore.h"
 #import <spawn.h>
@@ -110,7 +110,7 @@ static pid_t Spawn(NSString *path) {
     return posix_spawn(&pid, path.fileSystemRepresentation, NULL, NULL, argv, environ) == 0 ? pid : 0;
 }
 
-static int Start(NSString *sleepCopy, NSString *repoArg) {
+static int Start(NSString *sleepCopy, NSString *repoArg, NSString *outsideArg) {
     NSString *repo = repoArg.stringByStandardizingPath;   // as the worker reports paths
     WireExpert *e = [WireExpert new];
     pid_t kid = Spawn(sleepCopy);
@@ -140,6 +140,11 @@ static int Start(NSString *sleepCopy, NSString *repoArg) {
     out[@"repoInFacts"] = @(repoSeen);
     out[@"repo"] = repo;
     out[@"worktreeAt"] = [MMRepoIndex.shared worktreeAt:[repo stringByAppendingPathComponent:@"sub/dir"]].path ?: @"nil";
+    // A linked worktree outside every root is not in the walk, so worktreeAt reads its .git file and commondir.
+    if (outsideArg.length) {
+        MMWorktree *w = [MMRepoIndex.shared worktreeAt:[outsideArg.stringByStandardizingPath stringByAppendingPathComponent:@"deep"]];
+        out[@"outside"] = w ? [NSString stringWithFormat:@"%@|%@|%@", w.path, w.repo, w.branch ?: @"-"] : @"nil";
+    }
     // core.sock answers ping and status while Core runs.
     NSDictionary *ping = [MMCoreSocket ask:@{@"verb": @"ping"} timeout:1];
     out[@"ping"] = ping[@"ok"] ?: @"none";
@@ -190,7 +195,7 @@ int main(int argc, const char *argv[]) {
         if ([mode isEqualToString:@"serve"]) return Serve(argc > 2 ? atof(argv[2]) : 10);
         if ([mode isEqualToString:@"ask"] && argc > 2) return Ask(@(argv[2]), argc > 3 ? atof(argv[3]) : 0.2);
         if ([mode isEqualToString:@"another"]) { Print(@{@"another": @(MMAnotherInstanceRuns())}); return 0; }
-        if ([mode isEqualToString:@"start"] && argc > 3) return Start(@(argv[2]), @(argv[3]));
+        if ([mode isEqualToString:@"start"] && argc > 3) return Start(@(argv[2]), @(argv[3]), argc > 4 ? @(argv[4]) : nil);
         fprintf(stderr, "usage: wire prefs|serve|ask|another|start\n");
         return 2;
     }

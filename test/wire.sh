@@ -62,6 +62,12 @@ check "  a second server is refused by the lock" "another MinMacs holds the inst
 check "  and the first one still answers" 7 "$(wi ask '{"verb":"echo","n":7}' | json 'j["reply"]["echo"]')"
 printf 'not json\n' | nc -U -w 2 "$MINMACS_HOME/core.sock" >"$wi_dir/bad.out" 2>/dev/null
 check "  a request that is not JSON gets an error" "the request is not a JSON object" "$(json 'j["error"]' <"$wi_dir/bad.out")"
+# A peer that connects and sends nothing must not hold up the next request past the CLI's 0.2 seconds.
+(sleep 3 | nc -U "$MINMACS_HOME/core.sock" >/dev/null 2>&1) & wi_quiet=$!
+procs="$procs $wi_quiet"
+sleep 0.3
+check "  a silent peer does not hold up the next request" 5 "$(wi ask '{"verb":"echo","n":5}' | json 'j["reply"]["echo"] if j["reply"] != "none" else "none"')"
+kill "$wi_quiet" 2>/dev/null; wait "$wi_quiet" 2>/dev/null
 exec 7>&-
 wait "$wi_srv" 2>/dev/null
 check "  stop removes core.sock" no "$([ -e "$MINMACS_HOME/core.sock" ] && echo yes || echo no)"
@@ -88,12 +94,22 @@ cp /bin/sleep "$wi_sleep"
 wi_repo="$wi_dir/roots/fixture-repo"
 mkdir -p "$wi_repo/sub/dir"
 git -c init.defaultBranch=main init -q "$wi_repo" >/dev/null 2>&1
-wi_out=$(MINMACS_ROOTS="$(dirname "$wi_repo")" "$wi_bin" start "$wi_sleep" "$wi_repo" 2>"$wi_dir/start.err")
+# A repo outside the roots with a linked worktree. The walk never sees either, so only worktreeAt's
+# reading of the .git file and commondir can find them.
+wi_other="$wi_dir/other/fixture-other"
+git -c init.defaultBranch=main init -q "$wi_other" >/dev/null 2>&1
+git -C "$wi_other" -c user.name=t -c user.email=t@t commit -q --allow-empty -m one >/dev/null 2>&1
+wi_far="$wi_dir/far/fixture-far"
+git -C "$wi_other" worktree add -q -b far-branch "$wi_far" >/dev/null 2>&1
+mkdir -p "$wi_far/deep"
+wi_out=$(MINMACS_ROOTS="$(dirname "$wi_repo")" "$wi_bin" start "$wi_sleep" "$wi_repo" "$wi_far" 2>"$wi_dir/start.err")
 check "wire: MMRegisterExpert keeps one of each expert" "1 yes" "$(wj '"%d %s" % (j["experts"], j["named"])')"
 check "  the first snapshot holds the expert's finding" 1 "$(wj 'int(j["firstSnapshot"])')"
 check "  it reads the Senses sample and power facts" "1 1" "$(wj '"%d %d" % (j["procsInSample"], j["powerRead"])')"
 check "  the repo index finds the fixture repo through the worker" 1 "$(wj 'int(j["repoInFacts"])')"
-check "  worktreeAt reads .git files for a path inside it" "$(wj 'j["repo"]')" "$(wj 'j["worktreeAt"]')"
+check "  worktreeAt finds the walked worktree for a path inside it" "$(wj 'j["repo"]')" "$(wj 'j["worktreeAt"]')"
+check "  worktreeAt reads .git files for a worktree outside the roots" \
+  "$(norm "$wi_far")|$(norm "$wi_other")|far-branch" "$(wj 'j["outside"]')"
 check "  core.sock answers ping from the running Core" "1 1" "$(wj '"%d %d" % (j["ping"], j["pingPid"])')"
 check "  status lists the registered experts" wiretest "$(wj '",".join(j["statusExperts"])')"
 check "  an unknown verb gets an error" "no verb no-such in the running app" "$(wj 'j["unknownVerb"]')"
