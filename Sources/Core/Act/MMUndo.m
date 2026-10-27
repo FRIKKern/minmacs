@@ -77,7 +77,7 @@ static NSDictionary *LogLatestOf(NSString *rid) {
     if (self.state != MMUndoDone && self.state != MMUndoFailed) return NO;
     if ([self.kind isEqualToString:@"tool"]) return NO;
     NSDictionary *p = self.payload;
-    return self.hasParts || [p[@"trashed"] count] || p[@"restart"] || p[@"bundle"] || p[@"recovery"] || p[@"relaunch"];
+    return self.hasParts || [p[@"trashed"] count] || p[@"restart"] || p[@"bundle"] || p[@"worktree"] || p[@"recovery"] || p[@"relaunch"];
 }
 @end
 
@@ -301,11 +301,14 @@ static NSString *Tail(NSString *s, NSUInteger max) {
 - (NSString *)unbundle:(NSDictionary *)b {
     NSString *repo = b[@"repo"], *path = b[@"worktree"], *head = b[@"head"], *branch = b[@"branch"], *bundle = b[@"path"];
     if ([NSFileManager.defaultManager fileExistsAtPath:path]) return @"something already exists at that path";
-    if (![NSFileManager.defaultManager fileExistsAtPath:bundle]) return @"the bundle is missing";
     NSString *out = nil;
-    if (Git(repo, @[@"cat-file", @"-e", [head stringByAppendingString:@"^{commit}"]], nil) != 0 &&
-        Git(repo, @[@"fetch", @"--no-tags", bundle, @"HEAD"], &out) != 0)
-        return [@"the commits could not be read back from the bundle: " stringByAppendingString:Tail(out, 300)];
+    // The bundle is needed only when the repo lost the commit. A worktree whose commits are all on a remote has none.
+    if (Git(repo, @[@"cat-file", @"-e", [head stringByAppendingString:@"^{commit}"]], nil) != 0) {
+        if (!bundle.length || ![NSFileManager.defaultManager fileExistsAtPath:bundle])
+            return bundle.length ? @"the bundle is missing" : @"the commit is gone from the repo, and no bundle was taken";
+        if (Git(repo, @[@"fetch", @"--no-tags", bundle, @"HEAD"], &out) != 0)
+            return [@"the commits could not be read back from the bundle: " stringByAppendingString:Tail(out, 300)];
+    }
     NSArray *args;
     if (branch.length) {
         BOOL exists = Git(repo, @[@"rev-parse", @"--verify", @"--quiet", [@"refs/heads/" stringByAppendingString:branch]], nil) == 0;
@@ -396,6 +399,8 @@ static NSMutableSet<NSString *> *Restoring(void) {
     }
     if (!problem && [p[@"trashed"] count]) problem = [self untrash:p[@"trashed"]];
     if (!problem && p[@"bundle"]) problem = [self unbundle:p[@"bundle"]];
+    // A removed worktree with no bundle: its commit is still in the repo, so it is recreated from there.
+    else if (!problem && [p[@"worktree"] isKindOfClass:NSDictionary.class]) problem = [self unbundle:p[@"worktree"]];
     if (!problem && p[@"recovery"]) problem = [self unrecover:p[@"recovery"]];
     if (!problem && p[@"relaunch"]) problem = [self relaunch:p[@"relaunch"]];
     if (problem) [problems addObject:problem];

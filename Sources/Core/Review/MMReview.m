@@ -510,7 +510,7 @@ static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"
             break;
         }
         if (!x) {
-            MMVerdict *old = [prev verdictFor:f];
+            MMVerdict *old = q.ignoreCache ? nil : [prev verdictFor:f];
             if (Carries(old)) { x = [old copyVerdict]; decided[@"cache"] = @([decided[@"cache"] integerValue] + 1); }
         } else decided[x.decidedBy] = @([decided[x.decidedBy] integerValue] + 1);
         if (!x) { [send addObject:f]; continue; }

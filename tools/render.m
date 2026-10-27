@@ -1,6 +1,6 @@
 // Renders fixture menus and hover cards built with the menu kit to PNG, in light, dark and Increase Contrast.
 // Nothing is scanned and no model is asked: the subjects are made up here. LocoHost's menu and cards come from its own
-// spec code in Sources/Experts/LocoHost, fed fixture servers. The WorkForest one is still built with the kit by hand.
+// spec code in Sources/Experts/LocoHost, fed fixture servers, and WorkForest's from Sources/Experts/WorkForest, fed fixture worktrees.
 // The two describe one Mac, so a server and its worktree say the same thing on both sides.
 // The drawing and the menu checks live in Sources/UI/MMRender, so an expert's own tests can use them too.
 // Usage: render <output folder>. tools/render.sh builds and runs it.
@@ -12,6 +12,7 @@
 #import "Core/MMExpert.h"
 #import "UI/MMSpecKit.h"
 #import "Experts/LocoHost/MMLHHost.h"
+#import "Experts/WorkForest/MMWFTree.h"
 
 #pragma mark Checks
 
@@ -151,93 +152,107 @@ static Subject *LocoHostLike(void) {
     return s;
 }
 
+/// One fixture worktree for the WorkForest subject. Its git facts are known and its disk is walked.
+static MMWFTree *Tree(NSString *repo, NSString *folder, NSString *branch, uint64_t mb, uint64_t cacheMB, NSTimeInterval quiet) {
+    MMWFTree *t = [MMWFTree new];
+    t.repo = [@"/Users/dev/code" stringByAppendingPathComponent:repo];
+    t.path = [[t.repo stringByAppendingString:@".worktrees"] stringByAppendingPathComponent:folder];
+    t.findingID = [@"workforest:worktree:" stringByAppendingString:t.path];
+    t.branch = branch; t.maker = @"person"; t.gitKnown = YES; t.head = @"4f1c2d9e8a7b";
+    t.defaultBranch = @"origin/main"; t.upstream = [@"origin/" stringByAppendingString:branch ?: @""]; t.onRemote = YES;
+    t.sized = YES; t.diskBytes = mb << 20; t.freedBytes = mb << 20; t.cacheBytes = cacheMB << 20; t.files = 1200;
+    t.lastCommit = [NSDate dateWithTimeIntervalSinceNow:-quiet]; t.touched = t.lastCommit; t.created = [NSDate dateWithTimeIntervalSinceNow:-quiet - 86400];
+    return t;
+}
+
+/// WorkForest's own menu and cards, built by Sources/Experts/WorkForest/MMWFTree.m from fixture worktrees, and drawn by
+/// the kit through Sources/UI/MMSpecKit. The same code draws the app's menu from the graph. The fixture is the Mac the
+/// LocoHost subject shows: the checkout server runs in the checkout-flow worktree.
 static Subject *WorkForestLike(void) {
     Subject *s = [Subject new]; s.name = @"workforest"; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
-    NSMenu *m = [NSMenu new];
-    // The header adds up the rows below: thirteen worktrees, 10455 MB in all.
-    [m addItem:MMHeaderItem(MMBytes(10455ull << 20), @"in worktrees", nil,
-                            [NSString stringWithFormat:@"%@ in %@ · Proactive", MMPlural(13, @"worktree"), MMPlural(2, @"repo")])];
-    [m addItem:NSMenuItem.separatorItem];
-    [m addItem:MMTextItem(@"The promo banner branch is squash-merged and its remote branch is deleted. "
-                          @"The docs refresh is merged and untouched for two weeks. Both go at the next review. "
-                          @"The rate limits branch is parked on purpose, so it stays.", MMMaxSummaryLines)];
-    [m addItem:NSMenuItem.separatorItem];
-    [m addItem:MMActionItem(@"Clean Up", [NSString stringWithFormat:@"%@, %@", MMPlural(2, @"worktree"), MMBytes(5440ull << 20)], @selector(copy:), nil)];
-    [m addItem:MMActionItem(@"Review Now", MMAgo([NSDate dateWithTimeIntervalSinceNow:-9 * 60]), @selector(copy:), nil)];
-
-    MMCard *promo = Card(@"Promo banner for acme-web", MMMarkGoes, @"Goes at the next review.",
-                         @"Squash-merged and untouched for 6 days. Recently Removed can restore it.");
-    [promo fact:@"Branch" value:@"feat/promo-banner in acme-web"];
-    [promo fact:@"Last work" value:[NSString stringWithFormat:@"%@ ago · “Promo: show the autumn banner on the cart page”", MMDuration(6 * 86400 + 3 * 3600)]];
-    [promo fact:@"Disk" value:[NSString stringWithFormat:@"%@ freed, %@ of it caches", MMBytes(4900ull << 20), MMBytes(3900ull << 20)]];
-    [promo fact:@"Git" value:@"remote branch deleted"];
-    [promo fact:@"Agent" value:@"none found"];
-    [promo fact:@"Running" value:@"nothing"];   // a sixth fact: the card shows five
-    promo.noteBy = @"Haiku says stale"; promo.note = @"Squash-merged and untouched for 6 days.";   // repeats the status
-    [promo action:Act(@"Open in Finder")];
-    [promo action:Act(@"Open in Terminal")];
-    [promo action:Act(@"Keep for a Week")];
-    [promo action:Act(@"Remove…")];
-    [promo more:Act(@"Copy Path")];
-    [promo more:Act(@"Protect")];
-
-    MMCard *search = Card(@"Search facets for acme-web, in progress", MMMarkWorking, @"Stays.",
-                          @"Work here is not committed yet. The next review looks again after the next commit.");
-    [search fact:@"Branch" value:@"feat/search-facets in acme-web"];
-    [search fact:@"Last work" value:@"2h ago · “Search: facet counts per category”"];
-    [search fact:@"Disk" value:[NSString stringWithFormat:@"%@, %@ of it caches", MMBytes(820ull << 20), MMBytes(610ull << 20)]];
-    [search fact:@"Agent" value:@"Claude Code, “Facet filters”, 2h ago"];
-    [search link:@"Server" value:@":5173 Vite, in use" expert:@"LocoHost" key:@"5173"];
-    [search action:Act(@"Open in Finder")];
-    [search action:Act(@"Open in Terminal")];
-    [search action:Act(@"Keep for a Week")];
-    [search action:MMDimmedItem(@"Remove…", MMPlural(3, @"uncommitted file"))];
-    [search more:Act(@"Copy Path")];
-
-    MMCard *hooks = Card(@"Webhook retries for orbit-api", MMMarkWorking, @"Stays.",
-                         @"The Next.js server inside was used 4 minutes ago. The next review looks again once it stops.");
-    [hooks fact:@"Branch" value:@"fix/billing-webhooks in orbit-api"];
-    [hooks fact:@"Last work" value:@"1d 12h ago · “Billing: retry webhooks with backoff”"];
-    [hooks fact:@"Disk" value:MMBytes(1300ull << 20)];
-    [hooks fact:@"Git" value:@"1 commit not in main"];
-    [hooks link:@"Server" value:@":4000 Next.js" expert:@"LocoHost" key:@"4000"];
-    hooks.noteBy = @"Haiku says active"; hooks.note = @"The retry tests added in the last commit still fail, so the work is not done.";
-    [hooks action:Act(@"Open in Finder")];
-    [hooks action:Act(@"Open in Terminal")];
-    [hooks action:Act(@"Keep for a Week")];
-    [hooks action:MMDimmedItem(@"Remove…", @"a server runs inside")];
-
-    MMCard *limits = Card(@"Rate limits per API key for orbit-api, parked on purpose until the pricing call next week", MMMarkQuiet, @"Stays.",
-                          @"The branch name says the work is parked. Proactive removes only merged work.");
-    [limits fact:@"Branch" value:@"wip/rate-limits in orbit-api"];
-    [limits fact:@"Last work" value:@"9d ago · “WIP: token bucket per API key”"];
-    [limits fact:@"Disk" value:MMBytes(310ull << 20)];
-    [limits fact:@"Git" value:@"5 commits not in main"];
-    limits.noteBy = @"Haiku says active after the judge"; limits.note = @"The last three commits touch only the token bucket, so most of the work is still ahead.";
-    [limits action:Act(@"Open in Finder")];
-    [limits action:Act(@"Open in Terminal")];
-    [limits action:Act(@"Keep for a Week")];
-    [limits action:Act(@"Remove…")];
-
-    MMAddSection(m, @"Merged", @[
-        Row(s, @"promo", @"promo-banner", nil, @[@"acme-web", MMBytes(4900ull << 20), @"untouched 6d"], MMMarkGoes, promo),
-        Row(s, @"docs", @"docs-refresh", nil, @[@"acme-web", MMBytes(540ull << 20), @"untouched 13d"], MMMarkGoes, nil)]);
-    MMAddSection(m, @"In use", @[
-        Row(s, @"checkout", @"checkout-flow", nil, @[@"acme-web", MMBytes(905ull << 20), @"server :3000"], MMMarkWorking, nil),
-        Row(s, @"search", @"search-facets", nil, @[@"acme-web", MMBytes(820ull << 20), MMPlural(3, @"change")], MMMarkWorking, search),
-        Row(s, @"hooks", @"billing-webhooks", nil, @[@"orbit-api", MMBytes(1300ull << 20), @"server :4000"], MMMarkWorking, hooks)]);
-    // Eight quiet worktrees: six show and two go under More. Rows in Quiet say how long, not "quiet" again.
-    NSMutableArray *quiet = [NSMutableArray arrayWithObject:Row(s, @"limits", @"rate-limits", nil, @[@"orbit-api", MMBytes(310ull << 20), @"5 commits not in main"], MMMarkQuiet, limits)];
+    MMWFTree *promo = Tree(@"acme-web", @"acme-web-promo-banner", @"feat/promo-banner", 4900, 3900, 6 * 86400 + 3 * 3600);
+    promo.merged = @"squash"; promo.upstream = @"gone"; promo.notInDefault = 2;
+    MMWFTree *docs = Tree(@"acme-web", @"acme-web-docs-refresh", @"docs/refresh", 540, 380, 13 * 86400);
+    docs.merged = @"ancestor";
+    MMWFTree *checkout = Tree(@"acme-web", @"acme-web-checkout-flow", @"feat/checkout-flow", 905, 610, 3 * 3600);
+    checkout.processes = @[@"node", @"zsh"]; checkout.notInDefault = 4;
+    checkout.session = @{@"agent": @"Claude Code", @"title": @"Checkout flow", @"lastActiveAt": @(NSDate.date.timeIntervalSince1970 - 20 * 60), @"live": @YES};
+    MMWFTree *search = Tree(@"acme-web", @"acme-web-search-facets", @"feat/search-facets", 820, 610, 2 * 3600);
+    search.dirty = 3; search.notInDefault = 2;
+    search.session = @{@"agent": @"Claude Code", @"title": @"Facet filters", @"lastActiveAt": @(NSDate.date.timeIntervalSince1970 - 2 * 3600)};
+    MMWFTree *hooks = Tree(@"orbit-api", @"billing-webhooks", @"fix/billing-webhooks", 1300, 900, 36 * 3600);
+    hooks.processes = @[@"node"]; hooks.notInDefault = 1;
+    MMWFTree *limits = Tree(@"orbit-api", @"rate-limits", @"wip/rate-limits", 310, 120, 9 * 86400);
+    limits.notInDefault = 5;
+    NSMutableArray *trees = [@[promo, docs, checkout, search, hooks, limits] mutableCopy];
     NSArray *names = @[@"onboarding-copy", @"pricing-table", @"sso-okta", @"dark-mode", @"image-cdn", @"cart-refactor", @"i18n-nb"];
-    for (NSUInteger k = 0; k < names.count; k++)
-        [quiet addObject:Row(s, names[k], names[k], nil, @[k % 2 ? @"orbit-api" : @"acme-web", MMBytes((120 + 40 * k) << 20), [NSString stringWithFormat:@"untouched %ldd", (long)(4 + k)]], MMMarkQuiet, nil)];
-    MMAddSection(m, @"Quiet", quiet);
-    [m addItem:NSMenuItem.separatorItem];
-    NSMenuItem *removed = MMActionItem(@"Recently Removed", nil, nil, nil);
-    removed.submenu = [NSMenu new];
-    [removed.submenu addItem:MMActionItem(@"old-landing", @"3d ago by Proactive", @selector(copy:), nil)];
-    [m addItem:MMMoreItem(@[removed, MMActionItem(@"Missing Folders", nil, @selector(copy:), nil)])];
-    MMAddFooter(m, nil);
+    for (NSUInteger k = 0; k < names.count; k++) {
+        // dark-mode has been quiet for three weeks, so it is stale.
+        MMWFTree *q = Tree(k % 2 ? @"orbit-api" : @"acme-web", k % 2 ? names[k] : [@"acme-web-" stringByAppendingString:names[k]],
+                           [@"feat/" stringByAppendingString:names[k]], 120 + 40 * k, 60, (k == 3 ? 21 : 4 + k) * 86400);
+        q.notInDefault = 1 + k % 3;
+        [trees addObject:q];
+    }
+    for (NSString *repo in @[@"acme-web", @"orbit-api"]) {
+        MMWFTree *m = Tree(repo, repo, @"main", 2400, 1800, 3600);
+        m.path = m.repo; m.isMain = YES; m.findingID = [@"workforest:worktree:" stringByAppendingString:m.path];
+        [trees addObject:m];
+    }
+
+    MMWFView *v = [MMWFView new];
+    v.trees = trees;
+    v.mode = @"eager"; v.model = @"Haiku"; v.reviewAt = [NSDate dateWithTimeIntervalSinceNow:-9 * 60];
+    v.summaryWords = @"The promo banner branch is squash-merged and its remote branch is deleted. The docs refresh is merged and untouched "
+                     @"for two weeks. Both go at the next review. The rate limits branch is parked on purpose, so it stays.";
+    NSString *promoWhy = @"Squash-merged, and its remote branch is deleted";
+    v.verdicts = @{
+        promo.findingID: @{@"word": @"stale", @"kind": @"go", @"confidence": @0.92, @"about": @"Promo banner for acme-web, squash-merged",
+                           @"reason": promoWhy, @"decidedBy": @"model"},   // repeats the status, so the card leaves it out
+        docs.findingID: @{@"word": @"stale", @"kind": @"go", @"confidence": @0.9, @"about": @"Docs refresh for acme-web", @"reason": @"Merged and untouched for 13 days.", @"decidedBy": @"model"},
+        checkout.findingID: @{@"word": @"active", @"kind": @"keep", @"confidence": @1, @"reason": @"node runs inside it.", @"decidedBy": @"workforest.holds-work"},
+        hooks.findingID: @{@"word": @"active", @"kind": @"keep", @"confidence": @0.9, @"about": @"Webhook retries for orbit-api",
+                           @"reason": @"The retry tests added in the last commit still fail, so the work is not done.", @"decidedBy": @"model"},
+        limits.findingID: @{@"word": @"active", @"kind": @"keep", @"confidence": @0.85, @"judged": @YES, @"about": @"Rate limits per API key for orbit-api, parked on purpose",
+                            @"reason": @"Most of the work is still ahead.",
+                            @"keepEvidence": @"the branch name says the work is parked", @"decidedBy": @"judge"}};
+    v.plan = @{promo.findingID: @{@"remove": @YES, @"why": promoWhy},
+               docs.findingID: @{@"remove": @YES, @"why": @"Merged and untouched for 13 days."},
+               checkout.findingID: @{@"remove": @NO, @"why": @"node running inside"},
+               search.findingID: @{@"remove": @NO, @"why": @"3 changes not committed"},
+               hooks.findingID: @{@"remove": @NO, @"why": @"node running inside"},
+               limits.findingID: @{@"remove": @NO, @"why": @"evidence: the branch name says the work is parked"}};
+    v.candidates = @[promo.findingID, docs.findingID];
+    v.links = @{checkout.findingID: @[@{@"label": @"Server", @"value": @":3000 Vite, in use", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/acme-web.worktrees/checkout-flow#dev"}],
+                hooks.findingID: @[@{@"label": @"Server", @"value": @":4000 Next.js", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/orbit-api#dev"}]};
+    v.removed = @[@{@"rid": @"r1", @"path": @"/Users/dev/code/acme-web.worktrees/acme-web-old-landing", @"branch": @"feat/old-landing",
+                    @"at": @(NSDate.date.timeIntervalSince1970 - 3 * 86400), @"by": @"proactive", @"saved": @[@".env.local"]}];
+    v.act = ^(NSString *what, NSString *key, BOOL option) {};
+
+    MMMenuSpec *spec = MMWFMenu(v);
+    Check([spec.headerUnit isEqualToString:@"in worktrees"] && spec.sections.count == 4,
+          @"workforest: the menu is MMWFMenu's spec, with four sections", [NSString stringWithFormat:@"%lu sections", (unsigned long)spec.sections.count]);
+    NSDictionary *cardKeys = @{promo.findingID: @"promo", checkout.findingID: @"checkout", search.findingID: @"search", hooks.findingID: @"hooks",
+                               limits.findingID: @"limits"};
+    MMWFTree *(^treeFor)(NSString *) = ^MMWFTree *(NSString *fid) {
+        for (MMWFTree *t in trees) if ([t.findingID isEqualToString:fid]) return t;
+        return nil;
+    };
+    NSMenu *m = MMMenuForSpec(spec, ^MMCardSpec *(NSString *findingID) {
+        return cardKeys[findingID] ? MMWFCard(treeFor(findingID), v) : nil;
+    }, nil);
+    // The rows the menu drew, so each card is checked and drawn from the same menu item the person opens.
+    NSMutableDictionary<NSString *, NSString *> *byName = [NSMutableDictionary new];
+    for (MMSectionSpec *sec in spec.sections) for (MMRowSpec *r in sec.rows) if (cardKeys[r.findingID]) byName[r.name] = r.findingID;
+    for (NSMenuItem *i in m.itemArray) {
+        if (!i.submenu || i.view) continue;
+        NSString *fid = nil;
+        for (NSString *name in byName) if ([i.title hasSuffix:name] || [i.title containsString:[name stringByAppendingString:@"\n"]]) fid = byName[name];
+        if (!fid || s.cards[cardKeys[fid]]) continue;
+        NSString *k = cardKeys[fid];
+        s.cards[k] = MMCardForSpec(MMWFCard(treeFor(fid), v));
+        s.cardMenus[k] = i.submenu;
+        [s.order addObject:k];
+    }
     s.menu = m;
     return s;
 }
@@ -521,9 +536,7 @@ int main(int argc, char **argv) { @autoreleasepool {
         for (NSString *k in s.order) {
             MMCard *c = s.cards[k];
             NSArray *p = [c layoutProblems];
-            // The promo card is built to break one rule on purpose, six facts, so the check must report it.
-            NSArray *expected = [k isEqualToString:@"promo"] ? @[@"6 facts given, five shown"] : @[];
-            Check([p isEqualToArray:expected], [NSString stringWithFormat:@"%@ card %@: follows the card rules", s.name, k], [p componentsJoinedByString:@"; "]);
+            Check(p.count == 0, [NSString stringWithFormat:@"%@ card %@: follows the card rules", s.name, k], [p componentsJoinedByString:@"; "]);
             NSMenuItem *ci = [c cardItem];
             [ci.view layoutSubtreeIfNeeded];
             CGFloat x = ValueColumn(ci);

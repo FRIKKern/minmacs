@@ -25,6 +25,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P6 to P14, P66 | `Senses/MMSenses.h` | `MMProcKey`, `MMProc`, `MMSample`, `MMSocket`, `MMPower`, `MMSignal`, `MMSenses`, the test `MMPowerSource` |
 | P15 | `Senses/MMFolders.h` | `MMFolderWatch` on FSEvents |
 | P16 | `Know/MMSizer.h` | `MMSize` and `MMSizer`, three tiers. PLAN.md lists the Sizer under Know |
+| P16 | `Know/MMTreeDisk.h` | `MMTreeDisk`: one walk per checkout for its size, freed bytes, caches and newest change, from WorkForest's WalkDisk |
 | P17, P18 | `Know/MMRegistry.h` | `MMAgentRow`, `MMAgent`, `MMRegistry` and the ranked working signal |
 | P19 to P22, P64 | `Know/MMSessions.h` | `MMSession`, `MMSessions`, `MMAgentEvents`, `MMHookIngest` |
 | none | `Know/MMWhere.h` | `MMPlace`, `MMWhereIs`, `MMGoTo`, from LocoHost's Where |
@@ -36,6 +37,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P38 | `Store/MMLog.h` | The SQLite log for undo, restore, review history and trends, per decision 5 |
 | P39 to P47 | `Review/MMReview.h` | `MMUsage`, `MMModel`, `MMVerdictWords`, `MMVerdict`, `MMReview`, `MMRule`, `MMBudget`, `MMReviewRequest`, `MMReviewBroker` with Investigate |
 | P52, P53 | `Act/MMUndo.h` | `MMUndoRecord`, `MMUndo` with the Trash, git bundles and Wrap Up records, `MMToolCommand` with its dry run |
+| P52 | `Act/MMWorktreeAct.h` | `MMWorktreeIgnoredFiles`, `MMWorktreeRemove` with no `--force` and `git branch -d`, and `MMWorktreePrune` |
 | P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMNotify` |
 | P56 to P62 | `MMExpert.h` | The `MMExpert` protocol, `MMRowMark`, and the menu, card and verb specs it returns. The kit, render tool, formatters, verb registry and URL router themselves live in `Sources/UI` and `Sources/CLI` |
 | P65 | none | build.sh, test.sh and the CI workflow. `MMCore.h` notes it |
@@ -66,6 +68,12 @@ Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and 
 - `MMRepoIndex` walks its roots in the worker. The roots are `$MINMACS_ROOTS` when set. With `MINMACS_HOME` set and no `MINMACS_ROOTS` there are none, so a test never walks the person's folders. Otherwise they are the `roots` list in `core/rules.json`, which starts with WorkForest's roots and the Cursor and Conductor folders.
 - `MMCoreStart` watches the roots with FSEvents. Only a change to a `.git` folder, or to a folder near a root outside every known checkout, starts a walk, and walks are at least 10 seconds apart. A full walk also runs every 10 minutes.
 - `worktreeAt:` reads `.git` files above the path, with no spawn. `factsFor:wait:` returns nil until WorkForest brings git facts in phase 2.
+
+## WorkForest in phase 2, issue #24
+
+- `MMTreeDisk` walks one checkout at a time on `MMQueue(@"core", @"disk")` and keeps the answers in `treedisk.json`. A walk is fresh for 15 minutes and while the checkout folder's own change time holds. A cached read never blocks, and a stale one walks again in the background and posts `MMTreeDiskDidChangeNotification`. The walk runs in process for now. It belongs in the worker of P4.
+- An undo record with a `worktree` payload and no `bundle` restores by `git worktree add` at its commit. `unbundle:` needs the bundle file only when the repo lost the commit.
+- `MMReviewRequest.ignoreCache` sends every finding to the model past the fingerprint cache, for `--fresh` and for tests that review the same facts twice. Rules still decide first.
 
 ## Store
 
