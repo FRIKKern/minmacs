@@ -6,6 +6,7 @@
 // It also writes checks.txt, one line per DESIGN.md check, each starting with ok or FAIL.
 #import <Cocoa/Cocoa.h>
 #import "UI/MMUI.h"
+#import "UI/MMSettings.h"
 
 #pragma mark Checks
 
@@ -243,6 +244,50 @@ static Subject *WorkForestLike(void) {
     return s;
 }
 
+#pragma mark Settings
+
+/// The Settings window's fixture: the five experts of one Mac, saying what the two menus above say.
+static MMSettings *SettingsLike(void) {
+    MMSettings *s = [MMSettings new];
+    MMSettingsExpert *mm = [MMSettingsExpert expert:@"minmacs" name:@"MinMacs" symbol:@"gauge.with.dots.needle.33percent"];
+    mm.headline = @"9.8 GB of memory in use · 3 agents working"; mm.mode = @"proactive";
+    MMSettingsExpert *lh = [MMSettingsExpert expert:@"locohost" name:@"LocoHost" symbol:@"server.rack"];
+    lh.headline = [NSString stringWithFormat:@"%@ in servers · %@ · 2 quiet", MMBytes(3573ull << 20), MMPlural(7, @"localhost")]; lh.mode = @"eager";
+    lh.summary = @"The docs refresh server goes at 18:00, after a quiet afternoon.";
+    MMSettingsExpert *wf = [MMSettingsExpert expert:@"workforest" name:@"WorkForest" symbol:@"tree"];
+    wf.headline = [NSString stringWithFormat:@"%@ in %@ · %@ to remove", MMPlural(13, @"worktree"), MMPlural(2, @"repo"), MMBytes(5440ull << 20)]; wf.mode = @"proactive";
+    MMSettingsExpert *nn = [MMSettingsExpert expert:@"noonoo" name:@"Noo-Noo" symbol:@"sparkles"];
+    nn.headline = [NSString stringWithFormat:@"%@ of caches and build output", MMBytes(21ull << 30)]; nn.mode = @"idle"; nn.iconVisible = NO;
+    MMSettingsExpert *in = [MMSettingsExpert expert:@"insomnia" name:@"Insomnia" symbol:@"cup.and.saucer"];
+    in.headline = @"Keeps the Mac awake for 2 working agents";
+    s.experts = @[mm, lh, wf, nn, in];
+    s.model = @"auto"; s.oneIcon = NO; s.openAtLogin = YES;
+    s.onIcon = ^(NSString *e, BOOL v) {}; s.onMode = ^(NSString *e, NSString *m) {}; s.onModel = ^(NSString *m) {};
+    s.onOneIcon = ^(BOOL on) {}; s.onOpenAtLogin = ^(BOOL on) {}; s.onOpenMenu = ^(NSString *e, NSView *v) {};
+    return s;
+}
+
+/// Single-line labels whose text is wider than their frame, so the render can say nothing is cut off.
+static NSArray<NSString *> *CutLabels(NSView *root) {
+    NSMutableArray *cut = [NSMutableArray new];
+    NSMutableArray *todo = [NSMutableArray arrayWithObject:root];
+    while (todo.count) {
+        NSView *v = todo.lastObject; [todo removeLastObject];
+        if ([v isKindOfClass:NSTextField.class]) {
+            NSTextField *t = (NSTextField *)v;
+            BOOL wraps = t.cell.wraps || t.maximumNumberOfLines != 1;
+            if (!t.stringValue.length) continue;
+            if (!wraps && t.attributedStringValue.size.width > t.frame.size.width + 1) [cut addObject:t.stringValue];
+            // A wrapping label needs the height of all its lines at its width.
+            CGFloat need = ceil([t.attributedStringValue boundingRectWithSize:NSMakeSize(t.frame.size.width - 4, 10000)
+                                                                     options:NSStringDrawingUsesLineFragmentOrigin].size.height);
+            if (wraps && need > t.frame.size.height + 1) [cut addObject:t.stringValue];
+        }
+        [todo addObjectsFromArray:v.subviews];
+    }
+    return cut;
+}
+
 #pragma mark Status items
 
 /// Each expert's icon at the one point size, its badge beside it as the menu bar shows it, then its accessibility label.
@@ -334,6 +379,45 @@ int main(int argc, char **argv) { @autoreleasepool {
         if (!MMRenderView(StatusStrip(experts), path, ap)) [unwritten addObject:path.lastPathComponent];
         first = NO;
     }
+    // The Settings window's three panes, in their own folder, since the window is wider than a menu.
+    NSString *sout = [out stringByAppendingPathComponent:@"settings"];
+    [NSFileManager.defaultManager createDirectoryAtPath:sout withIntermediateDirectories:YES attributes:nil error:nil];
+    MMSettings *settings = SettingsLike();
+    BOOL sfirst = YES;
+    for (NSString *mode in @[@"light", @"dark", @"contrast-light", @"contrast-dark"]) {
+        NSAppearance *ap = appearances[mode];
+        if (!ap) continue;
+        for (MMSettingsPane p = MMSettingsOverview; p <= MMSettingsGeneral; p++) {
+            NSView *v = [settings viewFor:p];
+            NSString *name = MMSettingsPaneTitle(p).lowercaseString;
+            if (sfirst) {
+                // Laid out inside a window first, so the frames are the ones the PNG shows.
+                NSWindow *w = [[NSWindow alloc] initWithContentRect:v.frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+                w.releasedWhenClosed = NO; w.contentView = v; [w layoutIfNeeded];
+                NSArray *cut = CutLabels(v);
+                Check(cut.count == 0, [NSString stringWithFormat:@"settings %@: no label is cut off", name], [cut componentsJoinedByString:@", "]);
+                Check(v.frame.size.width == MMSettingsWidth, [NSString stringWithFormat:@"settings %@: the pane has the window's width", name],
+                      [NSString stringWithFormat:@"%.0f", v.frame.size.width]);
+                w.contentView = nil;
+                v = [settings viewFor:p];
+            }
+            NSString *path = [sout stringByAppendingFormat:@"/settings-%@-%@.png", name, mode];
+            if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
+        }
+        sfirst = NO;
+    }
+    // The overview names every expert, a hidden one too.
+    NSMutableArray *named = [NSMutableArray new];
+    NSMutableArray *todo = [NSMutableArray arrayWithObject:[settings viewFor:MMSettingsOverview]];
+    while (todo.count) {
+        NSView *v = todo.lastObject; [todo removeLastObject];
+        if ([v isKindOfClass:NSTextField.class]) [named addObject:((NSTextField *)v).stringValue];
+        [todo addObjectsFromArray:v.subviews];
+    }
+    NSMutableArray *missing = [NSMutableArray new];
+    for (MMSettingsExpert *e in settings.experts) if (![named containsObject:e.name]) [missing addObject:e.name];
+    Check(missing.count == 0 && settings.experts.count == 5, @"settings overview: names all five experts", [missing componentsJoinedByString:@", "]);
+    Check([named containsObject:@"21.0 GB of caches and build output · icon hidden"], @"settings overview: says when an icon is hidden", @"no line says icon hidden");
     Check(unwritten.count == 0, @"every PNG is written", [unwritten componentsJoinedByString:@", "]);
     // The menus still work after drawing: every card view went back to its item alone.
     NSInteger loose = 0;
