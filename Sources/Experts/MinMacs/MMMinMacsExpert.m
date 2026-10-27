@@ -258,6 +258,20 @@ static MMMinMacsGroup GroupOf(MMFinding *f) {
     return i == NSNotFound ? MMGroupUnsorted : (MMMinMacsGroup)i;
 }
 
+/// "findingID|pid:start" of every app instance MinMacs asked to quit, from one read of the undo log.
+static NSSet<NSString *> *QuitAsked(void) {
+    NSMutableSet *out = [NSMutableSet new];
+    for (MMUndoRecord *r in [MMUndo.shared recent:kExpert limit:200]) {
+        NSDictionary *rl = r.payload[@"relaunch"];
+        if ([r.kind isEqualToString:@"quit"] && [rl isKindOfClass:NSDictionary.class] && [rl[@"pid"] isKindOfClass:NSString.class])
+            [out addObject:[NSString stringWithFormat:@"%@|%@", r.findingID, rl[@"pid"]]];
+    }
+    return out;
+}
+static BOOL AskedIn(NSSet *asked, MMFinding *f) {
+    return f.instanceKey.length && [asked containsObject:[NSString stringWithFormat:@"%@|%@", f.findingID, f.instanceKey]];
+}
+
 static BOOL QuitBrowsers(void) { return MMPrefBool(@"minmacs.quitBrowsers", NO); }
 
 /// The reason a close-list app is spared, as 1.2's MakePlan gives it: serving first, then a working agent.
@@ -275,6 +289,8 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
     MMMinMacsInput *in = [self inputFrom:facts];
     MMMinMacsRules *rules = MMMinMacsRules.shared;
     BOOL quitBrowsers = QuitBrowsers();
+    // One read of the undo log per rebuild, here on the graph queue, so the menu and cards never read it on main.
+    NSSet *asked = QuitAsked();
     NSArray *apps = [in.apps sortedArrayUsingComparator:^NSComparisonResult(MMMinMacsApp *x, MMMinMacsApp *y) {
         if (x.memory != y.memory) return x.memory > y.memory ? NSOrderedAscending : NSOrderedDescending;
         return [x.bundleID compare:y.bundleID];
@@ -305,6 +321,7 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
         if (a.bundlePath) fx[@"bundlePath"] = a.bundlePath;
         if (a.agentName) fx[@"agent"] = a.agentName;
         if (a.loopbackPorts.count) fx[@"ports"] = a.loopbackPorts;
+        if ([asked containsObject:[NSString stringWithFormat:@"%@:app:%@|%@", kExpert, a.bundleID, instance]]) fx[@"quitAsked"] = @YES;
         double energy = a.energyRank;
         [out addObject:[MMFinding expert:kExpert kind:@"app" stableKey:a.bundleID build:^(MMFindingBuilder *b) {
             b.instanceKey = instance;
@@ -341,20 +358,6 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
 - (MMFinding *)finding:(NSString *)findingID in:(MMFacts *)facts {
     for (MMFinding *f in [self findingsFrom:facts]) if ([f.findingID isEqualToString:findingID]) return f;
     return nil;
-}
-
-/// "findingID|pid:start" of every app instance MinMacs asked to quit, from one read of the undo log.
-static NSSet<NSString *> *QuitAsked(void) {
-    NSMutableSet *out = [NSMutableSet new];
-    for (MMUndoRecord *r in [MMUndo.shared recent:kExpert limit:200]) {
-        NSDictionary *rl = r.payload[@"relaunch"];
-        if ([r.kind isEqualToString:@"quit"] && [rl isKindOfClass:NSDictionary.class] && [rl[@"pid"] isKindOfClass:NSString.class])
-            [out addObject:[NSString stringWithFormat:@"%@|%@", r.findingID, rl[@"pid"]]];
-    }
-    return out;
-}
-static BOOL AskedIn(NSSet *asked, MMFinding *f) {
-    return f.instanceKey.length && [asked containsObject:[NSString stringWithFormat:@"%@|%@", f.findingID, f.instanceKey]];
 }
 
 - (BOOL)quitAskedFor:(MMFinding *)f { return AskedIn(QuitAsked(), f); }
@@ -544,9 +547,8 @@ static NSArray<MMUndoRecord *> *Restorable(void) {
 
     NSMutableArray *sections = [NSMutableArray new];
     NSMutableArray *rows = [NSMutableArray new];
-    NSSet *asked = quit.count ? QuitAsked() : nil;
     for (MMFinding *f in quit) {
-        BOOL stuck = AskedIn(asked, f);
+        BOOL stuck = [f.facts[@"quitAsked"] boolValue];
         [rows addObject:MMMinMacsRow(f.title, @[MMBytes(f.cost.ramBytes), [Pct(f.cost.cpuPercent) stringByAppendingString:@" CPU"], stuck ? @"did not quit" : @""],
                                      stuck ? MMRowMarkBlocked : MMRowMarkGoes, f.findingID)];
     }
@@ -616,7 +618,8 @@ static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     MMCardSpec *c = MMMinMacsCard();
     MMMinMacsGroup g = GroupOf(f);
     NSString *bid = f.facts[@"bundleID"];
-    BOOL stuck = g == MMGroupQuit && [self quitAskedFor:f];
+    // From the finding, so the card reads no undo log on main. The Force Quit action checks the log again.
+    BOOL stuck = g == MMGroupQuit && [f.facts[@"quitAsked"] boolValue];
     c.title = f.title;
     switch (g) {
         case MMGroupQuit:
