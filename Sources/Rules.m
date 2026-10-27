@@ -127,22 +127,29 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
     NSDictionary *tabs = [j[@"tabs"] isKindOfClass:NSDictionary.class] ? j[@"tabs"] : @{};
     _noise = Strings(tabs[@"noise"]) ?: @[]; _work = Strings(tabs[@"work"]) ?: @[];
     _ignore = Strings(j[@"ignoreServing"]) ?: @[];
-    if ([j[@"version"] integerValue] < kRulesVersion) [self mergeDefaults];
+    // Every load, whatever the file's version, so defaults added in a later release always arrive.
+    if ([self mergeDefaults] || [j[@"version"] integerValue] != kRulesVersion) [self save];
 }
 
-/// Upgrade path: add defaults the file has never seen. Never removes or moves a user's entry.
-- (void)mergeDefaults {
+static BOOL IsDefaultApp(NSString *bid) { return [ARR(kDefaultKeep) containsObject:bid] || [ARR(kDefaultClose) containsObject:bid]; }
+
+/// Adds each default the file does not mention. Never removes or moves a user's entry.
+/// A default app already decided by the user's lists, or named on the unsorted list, is skipped.
+/// So is an ignoreServing default with a !<bundle id> exception. Returns YES when anything was added.
+- (BOOL)mergeDefaults {
+    NSUInteger before = _keep.count + _close.count + _noise.count + _work.count + _ignore.count;
+    // verdictFor: reads _keep and _close, so they point at the lists being filled.
     NSMutableArray *k = [_keep mutableCopy], *c = [_close mutableCopy];
-    for (NSString *p in ARR(kDefaultKeep))  if ([self verdictFor:p] == MMUnsorted && ![k containsObject:p]) [k addObject:p];
-    _keep = k;
-    for (NSString *p in ARR(kDefaultClose)) if ([self verdictFor:p] == MMUnsorted && ![c containsObject:p]) [c addObject:p];
-    _close = c;
+    _keep = k; _close = c;
+    for (NSString *p in ARR(kDefaultKeep))  if ([self verdictFor:p] == MMUnsorted && ![_unsorted containsObject:p]) [k addObject:p];
+    for (NSString *p in ARR(kDefaultClose)) if ([self verdictFor:p] == MMUnsorted && ![_unsorted containsObject:p]) [c addObject:p];
     NSMutableArray *n = [_noise mutableCopy], *w = [_work mutableCopy], *i = [_ignore mutableCopy];
     for (NSString *h in ARR(kDefaultWork))  if (![w containsObject:h] && ![n containsObject:h]) [w addObject:h];
     for (NSString *h in ARR(kDefaultNoise)) if (![n containsObject:h] && ![w containsObject:h]) [n addObject:h];
-    for (NSString *b in ARR(kDefaultIgnoreServing)) if (![i containsObject:b]) [i addObject:b];
+    for (NSString *b in ARR(kDefaultIgnoreServing))
+        if (![i containsObject:b] && ![i containsObject:[@"!" stringByAppendingString:b]]) [i addObject:b];
     _noise = n; _work = w; _ignore = i;
-    [self save];
+    return _keep.count + _close.count + _noise.count + _work.count + _ignore.count != before;
 }
 
 - (void)save {
@@ -150,6 +157,7 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
         @"_comment": @"MinMacs rules. keep: never closed. close: quit on MinMacs (browsers are trimmed instead). A trailing * matches a prefix. "
                       "An exact bundle id wins over any pattern, so com.adobe.Photoshop in keep is an exception to com.adobe.* in close. "
                       "unsorted: exact bundle ids that no pattern applies to; they are listed and never touched. "
+                      "New defaults are added on every load. To stop a default from coming back, put it on the unsorted list. "
                       "tabs.noise hosts are closed when a browser is trimmed; tabs.work hosts are never closed; a host matches its subdomains. "
                       "ignoreServing: apps whose local listeners do not mean an agent is using them, matched like keep and close; !<bundle id> is an exception to a pattern. Anything not listed is left alone.",
         @"version": @(kRulesVersion),
@@ -178,8 +186,9 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
     if (v == MMKeep) [k addObject:bid];
     if (v == MMClose) [c addObject:bid];
     _keep = k; _close = c; _unsorted = u;
-    // Unsorted needs an entry only when a pattern would still decide this app.
-    if (v == MMUnsorted && [self verdictFor:bid] != MMUnsorted) [u addObject:bid];
+    // Unsorted needs an entry when a pattern would still decide this app,
+    // or when it is a default, which the next load would add back.
+    if (v == MMUnsorted && ([self verdictFor:bid] != MMUnsorted || IsDefaultApp(bid))) [u addObject:bid];
     [self save];
 }
 
@@ -216,7 +225,7 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
     [i removeObject:bundleID]; [i removeObject:except];
     _ignore = i;
     if (ignore && ![self ignoresServing:bundleID]) [i addObject:bundleID];
-    if (!ignore && [self ignoresServing:bundleID]) [i addObject:except];
+    if (!ignore && ([self ignoresServing:bundleID] || [ARR(kDefaultIgnoreServing) containsObject:bundleID])) [i addObject:except];
     [self save];
 }
 

@@ -142,6 +142,35 @@ check "com.adobe.* is still listed"                 yes "$(listed ignoreServing 
 rc set-serving yes com.adobe.Photoshop
 check "turning it back on works"                    yes "$(rc serving com.adobe.Photoshop)"
 check "and drops the exception"                     no  "$(listed ignoreServing '!com.adobe.Photoshop')"
+# An old rules file: version 2, as 1.2.0 wrote it, without most of today's defaults.
+cat > "$RC" <<'EOF'
+{"version":2,"keep":["com.apple.Terminal","com.google.Chrome"],"close":["com.spotify.client","com.example.mine"],
+ "unsorted":["com.apple.Music"],"tabs":{"noise":["youtube.com"],"work":["github.com","netflix.com"]},"ignoreServing":["!com.hnc.Discord"]}
+EOF
+check "old file: a new keep default arrives"        yes "$(listed keep com.microsoft.VSCode)"
+check "old file: a new close default arrives"       yes "$(listed close com.apple.Photos)"
+check "old file: a new noise host arrives"          yes "$(listed noise reddit.com)"
+check "old file: a new ignoreServing default"       yes "$(listed ignoreServing com.spotify.client)"
+check "a user entry stays"                          yes "$(listed close com.example.mine)"
+check "a default the user moved to keep stays kept" keep "$(rc verdict com.google.Chrome)"
+check "and is not added to close"                   no  "$(listed close com.google.Chrome)"
+check "a host the user moved to work stays out of noise" no "$(listed noise netflix.com)"
+check "a default on the unsorted list stays out"    unsorted "$(rc verdict com.apple.Music)"
+check "a default with a ! exception stays out"      no  "$(rc serving com.hnc.Discord)"
+check "the file is written as version 3"            3   "$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$RC")"
+# A current file, version 3, that lacks a default: it still arrives. 1.2.0 merged only below version 2.
+python3 - "$RC" <<'PY'
+import json,sys
+p=sys.argv[1]; j=json.load(open(p)); j['close'].remove('com.apple.Photos'); j['tabs']['noise'].remove('reddit.com'); json.dump(j,open(p,'w'))
+PY
+check "current file: a missing default arrives"     yes "$(listed close com.apple.Photos)"
+check "current file: a missing host arrives"        yes "$(listed noise reddit.com)"
+sum1=$(shasum "$RC"); rc verdict com.example.mine >/dev/null; sum2=$(shasum "$RC")
+check "a load with nothing new leaves the file as is" "$sum1" "$sum2"
+rc set unsorted com.spotify.client
+check "Unsorted on a default survives the next load" unsorted "$(rc verdict com.spotify.client)"
+rc set-serving no com.tinyspeck.slackmacgap
+check "serving off on a default survives the next load" no "$(rc serving com.tinyspeck.slackmacgap)"
 
 echo "== agent detection (fixture: tools/fakeagent.c)"
 clang -O1 tools/fakeagent.c -o build/fakeagent || exit 1

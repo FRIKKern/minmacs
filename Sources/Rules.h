@@ -5,7 +5,8 @@ typedef NS_ENUM(NSInteger, MMVerdict) { MMKeep, MMClose, MMUnsorted };
 /// The rules file: keep / close lists of bundle ids (a trailing * matches a prefix; an exact id beats any pattern),
 /// noise / work lists of hosts for browser trimming, and apps whose local listeners
 /// do not mean "serving an agent". JSON the user can read and edit.
-/// Defaults are written on first run; new defaults merge in on upgrade, additively.
+/// Defaults are written on first run. Every load adds defaults the file does not mention,
+/// and never removes or moves a user's entry.
 @interface MMRules : NSObject
 + (instancetype)shared;
 @property (readonly) NSURL *fileURL;
