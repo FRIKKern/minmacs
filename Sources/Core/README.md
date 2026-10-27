@@ -35,6 +35,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P34 to P37 | `Store/MMStore.h` | The support folder, prefs on `no.guerrilla.minmacs`, `MMRules`, `MMStateFile` |
 | P38 | `Store/MMLog.h` | The SQLite log for undo, restore, review history and trends, per decision 5 |
 | P39 to P47 | `Review/MMReview.h` | `MMUsage`, `MMModel`, `MMVerdictWords`, `MMVerdict`, `MMReview`, `MMRule`, `MMBudget`, `MMReviewRequest`, `MMReviewBroker` with Investigate |
+| P51 to P53 | `Act/MMClutterAct.h` | `MMClutterAction`: clutter to the Trash, or a tool's command after an APFS recovery copy, with an audit |
 | P52, P53 | `Act/MMUndo.h` | `MMUndoRecord`, `MMUndo` with the Trash, git bundles and Wrap Up records, `MMToolCommand` with its dry run |
 | P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMNotify` |
 | P56 to P62 | `MMExpert.h` | The `MMExpert` protocol, `MMRowMark`, and the menu, card and verb specs it returns. The kit, render tool, formatters, verb registry and URL router themselves live in `Sources/UI` and `Sources/CLI` |
@@ -49,7 +50,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 
 ## Know in phase 1
 
-Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. Core wiring adds `MMSizer.m` and `MMRepoIndex.m`. `MMClutter` stays a header until phase 3.
+Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and `MMRun.m` under `Know/`. Core wiring adds `MMSizer.m` and `MMRepoIndex.m`. Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the clutter catalog from `registry/clutter/*.json`, its walls, its scans on `core.clutter` at each row's own pace, the trend math, and removal to the Trash or through a tool's own command after a recovery copy. `Sources/Experts/NooNoo/README.md` describes them.
 
 - `MMRun` and `MMRunTask` do all pipe work on the calling thread with poll. Past the limit the child gets SIGTERM, then SIGKILL a second later, and the pipes are closed half a second after that, even when a grandchild holds them. The review broker and Act's tool commands run through `MMRunTask`.
 - `MMWhereIs` drops a cached place once its pid and start time are gone, on every call, and empties the cache past 256 answers.

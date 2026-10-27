@@ -1,0 +1,17 @@
+{
+  "id": "codex-app-cache",
+  "title": "Codex app caches",
+  "group": "agents",
+  "class": "cache",
+  "paths": [
+    "~/Library/Caches/com.openai.codex",
+    "~/Library/Caches/Codex"
+  ],
+  "ownerNote": "Codex.app",
+  "every": 21600,
+  "rebuild": "Codex fills them again",
+  "measured_gib": 0.79,
+  "sources": [
+    "du -sk"
+  ]
+}

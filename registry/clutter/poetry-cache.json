@@ -1,0 +1,17 @@
+{
+  "id": "poetry-cache",
+  "title": "Poetry cache",
+  "group": "python",
+  "class": "cache",
+  "paths": [
+    "~/Library/Caches/pypoetry"
+  ],
+  "advice": "poetry cache clear PyPI --all",
+  "ownerNote": "global",
+  "every": 21600,
+  "rebuild": "Poetry downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://python-poetry.org/docs/cli/"
+  ]
+}

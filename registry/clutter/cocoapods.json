@@ -1,0 +1,17 @@
+{
+  "id": "cocoapods",
+  "title": "CocoaPods cache",
+  "group": "jvm",
+  "class": "cache",
+  "paths": [
+    "~/Library/Caches/CocoaPods"
+  ],
+  "advice": "pod cache clean --all",
+  "ownerNote": "Podfile.lock",
+  "every": 86400,
+  "rebuild": "pod install downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://guides.cocoapods.org/terminal/commands.html"
+  ]
+}

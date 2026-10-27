@@ -1,0 +1,24 @@
+{
+  "id": "simulator-devices",
+  "title": "Simulator devices",
+  "group": "apple",
+  "class": "tool",
+  "paths": [
+    "~/Library/Developer/CoreSimulator/Devices"
+  ],
+  "cleanup": [
+    "xcrun",
+    "simctl",
+    "delete",
+    "unavailable"
+  ],
+  "dryRun": null,
+  "owner": "simulator-device",
+  "ownerNote": "device.plist runtime, lastBootedAt",
+  "every": 86400,
+  "rebuild": "Its apps and data are lost",
+  "measured_gib": 3.7,
+  "sources": [
+    "xcrun simctl delete (help)"
+  ]
+}

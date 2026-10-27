@@ -1,0 +1,21 @@
+{
+  "id": "simulator-runtimes",
+  "title": "Simulator runtimes",
+  "group": "apple",
+  "class": "report",
+  "paths": [
+    "/Library/Developer/CoreSimulator/Volumes/*"
+  ],
+  "walk": false,
+  "ownerSetting": "xcrun simctl runtime delete removes runtimes you no longer use",
+  "advice": "xcrun simctl runtime delete --notUsedSinceDays <d> --dry-run",
+  "ownerNote": "device.plist runtime",
+  "every": 86400,
+  "rebuild": "A download of several GB",
+  "measured_gib": 7.8,
+  "sources": [
+    "xcrun simctl runtime (help)",
+    "xcrun simctl runtime list",
+    "mount"
+  ]
+}

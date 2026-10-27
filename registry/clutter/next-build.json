@@ -1,0 +1,25 @@
+{
+  "id": "next-build",
+  "title": "Next.js build",
+  "group": "js",
+  "class": "build",
+  "paths": [],
+  "names": [
+    ".next"
+  ],
+  "beside": [
+    "next.config.js",
+    "next.config.mjs",
+    "next.config.ts",
+    "next.config.cjs",
+    "package.json"
+  ],
+  "owner": "project",
+  "ownerNote": "next.config.*",
+  "every": 21600,
+  "rebuild": "next build, minutes",
+  "measured_gib": 32.53,
+  "sources": [
+    "du -sk"
+  ]
+}

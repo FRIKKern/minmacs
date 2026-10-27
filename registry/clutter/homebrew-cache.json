@@ -1,0 +1,19 @@
+{
+  "id": "homebrew-cache",
+  "title": "Homebrew cache",
+  "group": "brew",
+  "class": "report",
+  "paths": [
+    "${cache:brew}"
+  ],
+  "ownerSetting": "brew cleanup also removes old versions, which MinMacs cannot put back, so it leaves that to you",
+  "advice": "brew cleanup",
+  "ownerNote": "brew list --versions",
+  "every": 86400,
+  "rebuild": "Homebrew downloads again",
+  "measured_gib": 0.3,
+  "sources": [
+    "https://docs.brew.sh/Manpage",
+    "brew cleanup -n (507.5MB)"
+  ]
+}

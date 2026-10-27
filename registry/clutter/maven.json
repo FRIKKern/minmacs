@@ -1,0 +1,17 @@
+{
+  "id": "maven",
+  "title": "Maven repository",
+  "group": "jvm",
+  "class": "cache",
+  "paths": [
+    "~/.m2/repository"
+  ],
+  "advice": "mvn dependency:purge-local-repository",
+  "ownerNote": "global",
+  "every": 86400,
+  "rebuild": "Maven downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://maven.apache.org/plugins/maven-dependency-plugin/purge-local-repository-mojo.html"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "pip-cache",
+  "title": "pip cache",
+  "group": "python",
+  "class": "cache",
+  "paths": [
+    "${cache:pip}"
+  ],
+  "advice": "pip cache purge",
+  "ownerNote": "global",
+  "every": 21600,
+  "rebuild": "pip downloads again",
+  "measured_gib": 0.08,
+  "sources": [
+    "https://pip.pypa.io/en/stable/cli/pip_cache/"
+  ]
+}

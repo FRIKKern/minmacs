@@ -1,0 +1,22 @@
+{
+  "id": "uv-cache",
+  "title": "uv cache",
+  "group": "python",
+  "class": "tool",
+  "paths": [
+    "${cache:uv}"
+  ],
+  "cleanup": [
+    "uv",
+    "cache",
+    "prune"
+  ],
+  "dryRun": null,
+  "ownerNote": "global",
+  "every": 43200,
+  "rebuild": "uv downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://docs.astral.sh/uv/concepts/cache/"
+  ]
+}

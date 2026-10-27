@@ -1,0 +1,28 @@
+{
+  "id": "dist-build",
+  "title": "Build output",
+  "group": "js",
+  "class": "build",
+  "paths": [],
+  "names": [
+    "dist",
+    "build"
+  ],
+  "beside": [
+    "package.json"
+  ],
+  "never": [
+    "tracked by git (git ls-files)"
+  ],
+  "skipWhenTracked": true,
+  "owner": "project",
+  "advice": "project clean script",
+  "ownerNote": "sibling manifest",
+  "every": 21600,
+  "rebuild": "One build",
+  "measured_gib": 0.15,
+  "sources": [
+    "du -sk",
+    "locohost/build, workforest/build hold app bundles"
+  ]
+}

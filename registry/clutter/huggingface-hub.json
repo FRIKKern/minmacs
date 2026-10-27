@@ -1,0 +1,22 @@
+{
+  "id": "huggingface-hub",
+  "title": "Hugging Face cache",
+  "group": "models",
+  "class": "tool",
+  "paths": [
+    "${cache:hf}/hub"
+  ],
+  "cleanup": [
+    "hf",
+    "cache",
+    "prune"
+  ],
+  "dryRun": null,
+  "ownerNote": "repo id in name",
+  "every": 43200,
+  "rebuild": "A download",
+  "measured_gib": 0,
+  "sources": [
+    "https://huggingface.co/docs/huggingface_hub/guides/manage-cache"
+  ]
+}

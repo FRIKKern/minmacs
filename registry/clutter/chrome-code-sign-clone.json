@@ -1,0 +1,20 @@
+{
+  "id": "chrome-code-sign-clone",
+  "title": "Chrome code-sign clones",
+  "group": "system",
+  "class": "leak",
+  "paths": [
+    "/private/var/folders/*/*/X/*.code_sign_clone/code_sign_clone.??????"
+  ],
+  "signature": "open",
+  "workaround": "Quit and open Chrome cleanly, or start it with --disable-features=MacAppCodeSignClone",
+  "advice": "relaunch Chrome cleanly; --disable-features=MacAppCodeSignClone",
+  "ownerNote": "Chrome; lsof + launch causality",
+  "every": 3600,
+  "rebuild": "none; Chrome makes one when it starts",
+  "measured_gib": 11.94,
+  "sources": [
+    "noo-noo internal/leaks/leaks.go:169-189",
+    "du -sk"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "cocoapods-pods",
+  "title": "CocoaPods pods",
+  "group": "jvm",
+  "class": "build",
+  "paths": [],
+  "names": [
+    "Pods"
+  ],
+  "beside": [
+    "Podfile.lock"
+  ],
+  "skipWhenTracked": true,
+  "ownerNote": "project",
+  "every": 21600,
+  "rebuild": "pod install",
+  "sources": [
+    "https://guides.cocoapods.org/terminal/commands.html"
+  ]
+}

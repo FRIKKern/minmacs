@@ -1,0 +1,25 @@
+{
+  "id": "python-venv",
+  "title": "Python environment",
+  "group": "python",
+  "class": "build",
+  "paths": [],
+  "names": [
+    ".venv"
+  ],
+  "beside": [
+    "pyproject.toml",
+    "requirements.txt",
+    "setup.py",
+    "uv.lock",
+    "poetry.lock"
+  ],
+  "owner": "project",
+  "ownerNote": "pyproject.toml",
+  "every": 21600,
+  "rebuild": "uv sync or pip install",
+  "measured_gib": 0.0,
+  "sources": [
+    "du -sk"
+  ]
+}

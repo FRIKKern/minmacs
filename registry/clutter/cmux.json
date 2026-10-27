@@ -1,0 +1,20 @@
+{
+  "id": "cmux",
+  "title": "cmux caches",
+  "group": "agents",
+  "class": "cache",
+  "paths": [
+    "~/Library/Caches/com.cmuxterm.app",
+    "~/Library/Logs/cmux"
+  ],
+  "never": [
+    "~/Library/Application Support/cmux"
+  ],
+  "ownerNote": "cmux.app",
+  "every": 21600,
+  "rebuild": "cmux fills them again",
+  "measured_gib": 1.01,
+  "sources": [
+    "du -sk"
+  ]
+}

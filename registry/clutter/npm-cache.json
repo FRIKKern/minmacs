@@ -1,0 +1,19 @@
+{
+  "id": "npm-cache",
+  "title": "npm cache",
+  "group": "js",
+  "class": "cache",
+  "paths": [
+    "${cache:npm}/_cacache",
+    "${cache:npm}/_npx/*",
+    "${cache:npm}/_logs"
+  ],
+  "advice": "npm cache clean --force",
+  "ownerNote": "global; _npx/<hash>/package.json",
+  "every": 21600,
+  "rebuild": "npm downloads again",
+  "measured_gib": 0.67,
+  "sources": [
+    "https://docs.npmjs.com/cli/v10/commands/npm-cache"
+  ]
+}

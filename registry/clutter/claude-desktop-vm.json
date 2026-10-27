@@ -1,0 +1,18 @@
+{
+  "id": "claude-desktop-vm",
+  "title": "Claude app VM bundle",
+  "group": "agents",
+  "class": "data",
+  "paths": [
+    "~/Library/Application Support/Claude/vm_bundles"
+  ],
+  "ownerSetting": "The Claude app keeps its VM bundle while it is installed",
+  "ownerNote": "Claude.app",
+  "every": 86400,
+  "rebuild": "The Claude app downloads it again",
+  "measured_gib": 12.06,
+  "sources": [
+    "noo-noo internal/modules/offload/playbook.go:144-148",
+    "du -sk"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "ollama-models",
+  "title": "Ollama models",
+  "group": "models",
+  "class": "data",
+  "paths": [
+    "${cache:ollama}"
+  ],
+  "ownerSetting": "ollama rm removes a model you no longer use",
+  "advice": "ollama rm (guess)",
+  "ownerNote": "models/manifests (guess)",
+  "every": 86400,
+  "rebuild": "A model download",
+  "measured_gib": 0,
+  "sources": [
+    "https://docs.ollama.com/faq"
+  ]
+}

@@ -23,8 +23,9 @@ check "tools/render.sh builds and renders" 0 "$ui_r"
 [ "$ui_r" = 0 ] || tail -20 "$ui_log"
 check "the render build has no warnings" 0 "$(grep -c "warning:" "$MINMACS_HOME/ui/render-bin/clang.log" 2>/dev/null)"
 
-# Three subjects with one menu and four cards each, plus the status icons, in four appearances.
-ui_want=64
+# Three subjects with one menu and four cards each, Noo-Noo's with one menu and five cards, plus the status icons,
+# in four appearances.
+ui_want=88
 check "every PNG is there" "$ui_want" "$(ls "$ui_out"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 for ui_name in locohost-menu locohost-card-checkout locohost-card-orbit locohost-card-docs locohost-card-postgres \
                workforest-menu workforest-card-promo workforest-card-search workforest-card-hooks workforest-card-limits \

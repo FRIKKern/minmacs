@@ -1,0 +1,18 @@
+{
+  "id": "xcode-derived-data",
+  "title": "Xcode build data",
+  "group": "apple",
+  "class": "build",
+  "paths": [
+    "~/Library/Developer/Xcode/DerivedData/*"
+  ],
+  "owner": "derived-data",
+  "ownerNote": "info.plist WorkspacePath",
+  "every": 21600,
+  "rebuild": "One full build per project",
+  "measured_gib": 0.12,
+  "sources": [
+    "https://www.kodeco.com/19998365-understanding-and-managing-xcode-space",
+    "plutil -p DerivedData/*/info.plist"
+  ]
+}

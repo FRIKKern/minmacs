@@ -1,0 +1,19 @@
+{
+  "id": "android-sdk",
+  "title": "Android SDK",
+  "group": "jvm",
+  "class": "report",
+  "paths": [
+    "~/Library/Android/sdk/*",
+    "~/.android/avd/*.avd"
+  ],
+  "ownerSetting": "The Android SDK manager removes packages and emulators",
+  "advice": "sdkmanager --uninstall (guess)",
+  "ownerNote": "AVD config.ini (guess)",
+  "every": 86400,
+  "rebuild": "A large download",
+  "measured_gib": 0,
+  "sources": [
+    "ls (absent)"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "tmp-gocache",
+  "title": "Go caches in /private/tmp",
+  "group": "go",
+  "class": "leak",
+  "paths": [
+    "/private/tmp/*-gocache*",
+    "/private/tmp/*gocache.*"
+  ],
+  "signature": "aged",
+  "minAge": 604800,
+  "every": 21600,
+  "rebuild": "Slower next Go builds",
+  "sources": [
+    "noo-noo internal/leaks/leaks.go private-tmp-agent-scratch globs"
+  ]
+}

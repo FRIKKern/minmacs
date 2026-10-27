@@ -1,0 +1,18 @@
+{
+  "id": "go-build-cache",
+  "title": "Go build cache",
+  "group": "go",
+  "class": "cache",
+  "paths": [
+    "${cache:go}"
+  ],
+  "advice": "go clean -cache",
+  "ownerNote": "global",
+  "every": 21600,
+  "rebuild": "Slower next builds",
+  "measured_gib": 2.91,
+  "sources": [
+    "https://pkg.go.dev/cmd/go",
+    "go env GOCACHE"
+  ]
+}

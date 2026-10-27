@@ -1,0 +1,23 @@
+{
+  "id": "go-mod-cache",
+  "title": "Go module cache",
+  "group": "go",
+  "class": "tool",
+  "paths": [
+    "${cache:gomod}"
+  ],
+  "cleanup": [
+    "go",
+    "clean",
+    "-modcache"
+  ],
+  "dryRun": null,
+  "ownerNote": "module path",
+  "every": 86400,
+  "rebuild": "Go downloads again",
+  "measured_gib": 1.46,
+  "sources": [
+    "https://pkg.go.dev/cmd/go",
+    "ls -ld (dr-xr-xr-x)"
+  ]
+}

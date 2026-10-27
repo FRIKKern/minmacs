@@ -1,0 +1,16 @@
+{
+  "id": "puppeteer-browsers",
+  "title": "Puppeteer browsers",
+  "group": "js",
+  "class": "cache",
+  "paths": [
+    "${cache:puppeteer}"
+  ],
+  "advice": "npx @puppeteer/browsers clear (guess)",
+  "every": 21600,
+  "rebuild": "Puppeteer downloads again",
+  "measured_gib": 0,
+  "sources": [
+    "https://pptr.dev/guides/configuration"
+  ]
+}

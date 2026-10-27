@@ -1,0 +1,18 @@
+{
+  "id": "xcode-archives",
+  "title": "Xcode archives",
+  "group": "apple",
+  "class": "data",
+  "paths": [
+    "~/Library/Developer/Xcode/Archives/*/*.xcarchive"
+  ],
+  "ownerSetting": "Xcode keeps archives until you delete them in the Organizer",
+  "advice": "Xcode Organizer",
+  "ownerNote": "xcarchive Info.plist (guess)",
+  "every": 86400,
+  "rebuild": "Cannot be rebuilt for a past release",
+  "measured_gib": 0,
+  "sources": [
+    "ls (absent)"
+  ]
+}

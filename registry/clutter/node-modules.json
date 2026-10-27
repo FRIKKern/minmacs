@@ -1,0 +1,23 @@
+{
+  "id": "node-modules",
+  "title": "node_modules",
+  "group": "js",
+  "class": "build",
+  "paths": [],
+  "names": [
+    "node_modules"
+  ],
+  "beside": [
+    "package.json"
+  ],
+  "owner": "project",
+  "ownerNote": "package.json, then .git file (worktree) or .git dir",
+  "every": 21600,
+  "rebuild": "pnpm install from the store, seconds with a warm store",
+  "measured_gib": 53.78,
+  "sources": [
+    "https://pnpm.io/settings/node-modules",
+    "stat -f %l (1 link)",
+    "noo-noo internal/modules/dev/dev.go:17-66"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "orbstack",
+  "title": "OrbStack disk image",
+  "group": "containers",
+  "class": "report",
+  "paths": [
+    "~/Library/Group Containers/HUAQ24HBR6.dev.orbstack/data/data.img"
+  ],
+  "ownerSetting": "OrbStack shrinks its image when you delete data inside it",
+  "advice": "docker system prune",
+  "ownerNote": "machines inside",
+  "every": 86400,
+  "rebuild": "none",
+  "measured_gib": 0,
+  "sources": [
+    "https://docs.orbstack.dev/faq"
+  ]
+}

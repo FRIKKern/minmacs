@@ -1,0 +1,28 @@
+{
+  "id": "claude-code-scratch",
+  "title": "Claude Code scratch",
+  "group": "agents",
+  "class": "leak",
+  "paths": [
+    "/private/tmp/claude-*/*/*"
+  ],
+  "signature": "agent-scratch",
+  "minAge": 604800,
+  "session": {
+    "deadAfter": 3600,
+    "entryIdle": 86400,
+    "transcriptWindow": 1800,
+    "scratchDir": "scratchpad"
+  },
+  "owner": "session",
+  "advice": "retention sweep",
+  "ownerNote": "session UUID -> transcript + --session-id process",
+  "every": 3600,
+  "rebuild": "Nothing is lost; a session makes its scratch again",
+  "measured_gib": 3.93,
+  "sources": [
+    "noo-noo internal/leaks/leaks.go:190-228",
+    "https://code.claude.com/docs/en/claude-directory",
+    "ps -axo args"
+  ]
+}

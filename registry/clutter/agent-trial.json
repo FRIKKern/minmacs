@@ -1,0 +1,17 @@
+{
+  "id": "agent-trial",
+  "title": "Agent trial folders",
+  "group": "agents",
+  "class": "leak",
+  "paths": [
+    "/private/var/folders/*/*/T/grip-trial-*",
+    "/private/var/folders/*/*/T/emit-fence-*"
+  ],
+  "signature": "aged",
+  "minAge": 43200,
+  "every": 3600,
+  "rebuild": "none",
+  "sources": [
+    "noo-noo internal/leaks/leaks.go darwin-t-agent-trial"
+  ]
+}

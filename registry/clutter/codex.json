@@ -1,0 +1,21 @@
+{
+  "id": "codex",
+  "title": "Codex sessions",
+  "group": "agents",
+  "class": "data",
+  "paths": [
+    "${codex}/sessions",
+    "${codex}/log",
+    "${codex}/history.jsonl"
+  ],
+  "ownerSetting": "Codex caps its history with history.max_bytes",
+  "advice": "history.max_bytes",
+  "ownerNote": "session id in rollout name",
+  "every": 86400,
+  "rebuild": "Lost: resume for past sessions",
+  "measured_gib": 2.4,
+  "sources": [
+    "https://learn.chatgpt.com/docs/config-file/config-reference",
+    "find ~/.codex/sessions"
+  ]
+}
