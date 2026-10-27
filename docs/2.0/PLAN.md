@@ -191,7 +191,7 @@ On first launch MinMacs 2.0 reads the old apps' state and offers, once, to quit 
 
 ## 9. Phases
 
-Each phase ships something usable. CI runs build.sh, test.sh on fixtures, and the render tool, and keeps the PNGs (A15). Phases 2 and 3 run as parallel agents in separate worktrees once the core interfaces are fixed.
+Each phase ships something usable. Phase 6 starts once phase 4 is done and runs alongside phase 5, so release builds on its numbers. CI runs build.sh, test.sh on fixtures, and the render tool, and keeps the PNGs (A15). Phases 2 and 3 run as parallel agents in separate worktrees once the core interfaces are fixed.
 
 | Phase | Deliverable | Done when |
 |---|---|---|
@@ -201,6 +201,7 @@ Each phase ships something usable. CI runs build.sh, test.sh on fixtures, and th
 | 3. Noo-Noo and Insomnia | The clutter catalog on Undo, tool commands and the Trash. Disk trends. Insomnia from the graph, with its guards | Disk tests pass on fixtures, and nothing outside listed clutter rows can be touched. The guard matrix passes |
 | 4. One review | The broker with the fingerprint cache, rules as data, smaller calls and Investigate. Measured with a budget of about 2M Haiku tokens (decision 16) | Uncached tokens and list cost a day, against today's 3.26M, with the same verdicts on a recorded fixture |
 | 5. Release | Migration, docs, Homebrew, a notarized release, old repos archived | A clean install and an upgrade from each of the five apps work on a fresh user account. The README publishes the measured idle cost (C13) |
+| 6. Bench and polish | A bench suite with a regression gate in CI, then tuning of the tick, menus, scans, review and startup, a 24-hour soak, and two weeks of daily use with every bug fixed under a test | Every budget in docs/2.0/BENCH.md holds on this Mac: with five experts on, idle CPU 0.3 percent or less, idle footprint 45 MB or less, under 1 wakeup a second; menu open under 30 ms and card hover under 16 ms at p95; a warm scan of 300 worktrees under 2 seconds; icons within 300 ms of launch. A 24-hour soak has no leak, hang or crash |
 
 **Settling tests for phases 0 and 1.** Each needs a written result before code depends on it:
 - Does an ad-hoc signed app get notification permission on macOS 27?
