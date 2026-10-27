@@ -70,6 +70,8 @@ typedef NS_ENUM(NSInteger, MMVerdictKind) { MMVerdictUnsure = 0, MMVerdictKeep =
 @property (copy) NSString *expert, *trigger;            // trigger: schedule, new finding, age mark, memory pressure, manual
 @property (copy) NSString *summary;                     // P45: numbers from code, words from the model
 @property (copy) NSString *error, *judgeError;          // a failed judge keeps every finding it was asked about
+@property (copy) NSString *note;                        // why the first model was skipped, "Haiku: usage limit reached"
+@property (copy) NSString *summaryWords;                // the model's part of summary, kept while nothing moves
 @property NSDate *at;
 @property NSInteger mode;                               // the MMMode the review ran under
 @property NSDictionary<NSString *, MMVerdict *> *verdicts;   // by findingID, carried over for findings that did not move
@@ -114,11 +116,15 @@ NSString *MMClip(NSString *s, NSUInteger max);
 @property NSArray<MMFinding *> *findings;
 @property MMFacts *facts;
 @property (copy) NSString *system;                      // the expert's prompt
-@property NSDictionary *schema;                         // the routine schema: verdict, confidence, about, reason, keep_evidence
+/// The schema of one finding's answer. nil gives the routine one in the expert's words: id, verdict, confidence,
+/// about, reason and keep_evidence. The broker wraps it as {items, summary}.
+@property NSDictionary *schema;
 @property MMVerdictWords *words;
 @property (copy) NSDictionary *(^factsFor)(MMFinding *f);   // what is sent per finding, redacted; docs/REVIEW.md lists it
 @property NSUInteger batchSize, parallel;               // 25 and 3 by default, as WF Batches
 @property BOOL judge;                                   // Eager: a second look at findings the review keeps
+@property NSInteger mode;                               // the MMMode the review runs under, saved with it
+@property (copy) NSString *judgeSystem;                 // the expert's judge prompt; nil uses Core's, in the expert's words
 @end
 
 /// P43 to P47. The one broker. Starts from WF Review.m. Every review runs on MMQueue(@"core", @"review").
