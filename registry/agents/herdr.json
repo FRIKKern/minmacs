@@ -105,10 +105,6 @@
   },
   "working_signals": [
     {
-      "signal": "socket_activity",
-      "meaning": "Herdr is a host, so 'a turn is in progress' means at least one hosted agent has agent_status == working. That state is computed inside the server and is readable only through its JSON API socket (~/.config/herdr/herdr.sock, or ~/.config/herdr/sessions/<name>/herdr.sock, newline-delimited JSON): request pane.list or agent.list and read agent_status per pane (idle, working, blocked, done, unknown), or events.subscribe to pane.agent_status_changed. CLI form: `herdr agent list` (takes no flags and already prints the JSON response; `--json` is rejected with a usage error). It is per pane, and pane.process_info returns the shell pid and foreground pid so a pane can be tied to its agent process. Not a passive signal and not implemented by tools/agents_probe.py; a live query is needed. For most agents the state is scraped from the visible screen with per-agent TOML manifests, not reported by the agent."
-    },
-    {
       "signal": "tree_cpu",
       "floor_percent": 3,
       "meaning": "Weak fallback, unmeasured guess. Sums the server subtree (every pane shell and every agent below it plus the server's own VT parsing and rendering). It says something in the tree is busy, not that an agent is. Do not use tool_children or child_process for Herdr: the server's direct children are pane shells that live as long as the pane, so a shell-child rule reads every Herdr server as permanently working."

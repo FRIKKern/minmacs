@@ -1,0 +1,39 @@
+// Draws an expert's menu and card specs from Core/MMExpert.h with the kit, to DESIGN.md (P56 to P58).
+// The app shell and the render tool both use these, so what the render checks is what the menu bar shows.
+// It sends messages to the specs and never names their classes, so it links with Sources/UI alone.
+// Main thread only, like the rest of the kit.
+#import <Cocoa/Cocoa.h>
+#import "MMMenuKit.h"
+#import "MMCard.h"
+
+@class MMMenuSpec, MMCardSpec, MMActionSpec;
+
+/// The card spec for a row's finding, or nil when the row has no card.
+typedef MMCardSpec *(^MMCardProvider)(NSString *findingID);
+
+/// An action spec as a menu item: dimmed with its reason when it cannot run, else one that calls its block.
+NSMenuItem *MMItemFromAction(MMActionSpec *action);
+/// The spec's Option alternate, or nil when it has none. It follows its action's item.
+NSMenuItem *MMAlternateFromAction(MMActionSpec *action);
+
+/// A card spec as a kit card.
+MMCard *MMCardFromSpec(MMCardSpec *spec);
+
+/// An expert's main menu: the header, the summary, an optional notice line, at most two actions, the sections
+/// with a card under each row that has one, the More item and the footer. footerTarget gets hideIcon: and showSettings:.
+NSMenu *MMMenuFromSpec(MMMenuSpec *spec, MMCardProvider cards, NSString *notice, id footerTarget);
+
+/// One expert as the One Icon menu shows it, DESIGN.md menu bar rule 4.
+@interface MMOneIconPart : NSObject
+@property (copy) NSString *name;
+@property (strong) MMMenuSpec *spec;
+@property (copy) MMCardProvider cards;
+@end
+
+/// The rows each expert shows in the One Icon menu, so five experts still fit one screen.
+extern const NSUInteger MMOneIconRows;
+/// The One Icon menu: one flat section per visible expert, with its header line and top rows, then the footer.
+/// Experts never nest as submenus, so a card is one level deep, as in each expert's own menu.
+NSMenu *MMOneIconMenu(NSArray<MMOneIconPart *> *parts, NSString *notice, id footerTarget);
+/// An expert's header as one line, "3.5 GB in servers · 7 localhosts · 2 quiet".
+NSString *MMHeaderLine(MMMenuSpec *spec);

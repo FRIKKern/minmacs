@@ -15,7 +15,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-static const size_t kMaxRequest = 1 << 20;     // a request past 1 MB is refused
+static const size_t kMaxRequest = 4 << 20;     // a line past 4 MB is refused; a reply can carry a verb's whole output
 static const NSTimeInterval kReadLimit = 2;     // a peer that sends nothing for this long is closed
 
 NSString *MMCoreSocketPath(void) { return [MMSupportDir() stringByAppendingPathComponent:@"core.sock"]; }
@@ -176,10 +176,12 @@ static void Answer(int c, NSDictionary *(^handler)(NSDictionary *), dispatch_que
     __block NSDictionary *reply;
     if (![req isKindOfClass:NSDictionary.class]) reply = @{@"error": @"the request is not a JSON object"};
     else {
-        dispatch_sync(socketQueue, ^{
+        void (^run)(void) = ^{
             @try { reply = handler ? handler(req) : nil; }
             @catch (NSException *e) { reply = @{@"error": e.reason ?: e.name}; }
-        });
+        };
+        // ping skips the line, so a long verb in the app never makes the CLI think no app runs.
+        if ([req[@"verb"] isEqual:@"ping"]) run(); else dispatch_sync(socketQueue, run);
         if (![reply isKindOfClass:NSDictionary.class]) reply = @{@"error": @"no reply"};
     }
     WriteAll(c, Line(reply), [NSDate dateWithTimeIntervalSinceNow:kReadLimit]);
