@@ -229,6 +229,14 @@ static Subject *WorkForestLike(void) {
     v.act = ^(NSString *what, NSString *key, BOOL option) {};
 
     MMMenuSpec *spec = MMWFMenu(v);
+    {
+        NSArray *(^titles)(MMCardSpec *) = ^NSArray *(MMCardSpec *c) { return [c.actions valueForKey:@"title"]; };
+        MMWFView *pv = [MMWFView new]; pv.trees = trees; pv.mode = @"eager"; pv.protectedPaths = [NSSet setWithObject:docs.findingID];
+        MMWFTree *dev = Tree(@"acme-web", @"acme-web-develop", @"develop", 100, 0, 30 * 86400); dev.isProtected = YES;
+        BOOL ok = [titles(MMWFCard(docs, pv)) containsObject:@"Unprotect"] && [titles(MMWFCard(promo, pv)) containsObject:@"Protect"] &&
+                  ![titles(MMWFCard(dev, pv)) containsObject:@"Protect"] && ![titles(MMWFCard(dev, pv)) containsObject:@"Unprotect"];
+        Check(ok, @"workforest: Protect follows the protect list, and a long-lived branch has none", [titles(MMWFCard(docs, pv)) componentsJoinedByString:@", "]);
+    }
     Check([spec.headerUnit isEqualToString:@"in worktrees"] && spec.sections.count == 4,
           @"workforest: the menu is MMWFMenu's spec, with four sections", [NSString stringWithFormat:@"%lu sections", (unsigned long)spec.sections.count]);
     NSDictionary *cardKeys = @{promo.findingID: @"promo", checkout.findingID: @"checkout", search.findingID: @"search", hooks.findingID: @"hooks",
@@ -528,6 +536,14 @@ int main(int argc, char **argv) { @autoreleasepool {
         Check(MMStatusImage(e[1], label) != nil, [NSString stringWithFormat:@"%@: the symbol %@ exists", e[0], e[1]], @"no such symbol");
         Check([MMStatusAutosaveName(e[0]) isEqualToString:[@"minmacs." stringByAppendingString:[e[0] lowercaseString]]],
               [NSString stringWithFormat:@"%@: autosaveName is minmacs.<expert>", e[0]], MMStatusAutosaveName(e[0]));
+    }
+
+    // The card check itself: a card given six facts shows five and says so, so a check that passes is not empty.
+    {
+        MMCard *six = Card(@"Six facts", MMMarkQuiet, @"Stays.", @"A fixture that breaks the five-fact rule on purpose.");
+        for (NSString *k in @[@"One", @"Two", @"Three", @"Four", @"Five", @"Six"]) [six fact:k value:@"a value"];
+        NSArray *p = [six layoutProblems];
+        Check([p isEqualToArray:@[@"6 facts given, five shown"]], @"the card check reports a sixth fact", [p componentsJoinedByString:@"; "]);
     }
 
     for (Subject *s in subjects) {

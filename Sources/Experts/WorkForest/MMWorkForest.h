@@ -16,8 +16,9 @@
 - (MMWFView *)viewFor:(MMSnapshot *)s;
 @end
 
-/// YES while a verb builds its own snapshot: disk facts are then read fresh, as WorkForest 0.1's CLI did.
-extern BOOL MMWFReadNow;
+/// YES on the thread of a verb that builds its own snapshot: disk facts are then read fresh, as WorkForest 0.1's CLI did.
+/// Thread-local, so a verb in the app never changes how the graph queue builds.
+extern _Thread_local BOOL MMWFReadNow;
 
 /// WorkForest's rules file: the protect list of paths, and protect.branches, the long-lived branch names.
 MMRules *MMWFRules(void);

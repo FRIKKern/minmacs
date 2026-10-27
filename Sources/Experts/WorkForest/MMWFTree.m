@@ -125,7 +125,7 @@ NSString *MMWFWorkKeeps(MMWFTree *t) {
     if (t.missing) return @"its folder is missing; prune tidies git's record of it";
     if ([t.maker isEqualToString:@"cursor"]) return @"Cursor made it, and MinMacs only shows Cursor's worktrees";
     if ([t.maker isEqualToString:@"conductor"]) return @"Conductor made it, and MinMacs only shows Conductor's worktrees";
-    if (t.isProtected) return @"protected";
+    if (t.isProtected) return [NSString stringWithFormat:@"%@ is a long-lived branch", t.branch];
     if (t.locked) return @"locked";
     if (!t.gitKnown) return @"cannot verify: its git facts are not known yet";
     if (t.dirty < 0) return @"git status failed, so its changes are unknown";
@@ -358,6 +358,7 @@ static void Status(MMWFTree *t, MMWFView *v, MMCardSpec *c, NSString *category) 
     else if ([why hasPrefix:@"files changed"]) next = @" After a quiet day the next review looks again.";
     else if ([why hasPrefix:@"made "]) next = @" New worktrees get a day.";
     else if ([why isEqualToString:@"protected"]) next = @" Unprotect it under More to let the mode decide.";
+    else if ([why hasSuffix:@"is a long-lived branch"]) next = @" protect.branches in WorkForest's rules.json lists it.";
     else if ([why hasPrefix:@"locked"]) next = @" git worktree unlock lets the mode decide.";
     else if ([why hasPrefix:@"kept by you"]) next = @" The mode decides again when the keep ends.";
     else if ([why hasPrefix:@"evidence: "]) why = [@"the judge found evidence: " stringByAppendingString:[why substringFromIndex:10]];
@@ -431,7 +432,9 @@ MMCardSpec *MMWFCard(MMWFTree *t, MMWFView *v) {
         [actions addObject:rm];
     }
     [actions addObject:Action(v, @"Copy Path", nil, @"copy-path", t.findingID)];
-    if (!t.isMain) [actions addObject:Action(v, t.isProtected ? @"Unprotect" : @"Protect", nil, @"protect", t.findingID)];
+    // Protect toggles the path on the protect list. A long-lived branch is kept by protect.branches instead.
+    if (!t.isMain && !t.isProtected)
+        [actions addObject:Action(v, [v.protectedPaths containsObject:t.findingID] ? @"Unprotect" : @"Protect", nil, @"protect", t.findingID)];
     c.actions = actions;
     return c;
 }

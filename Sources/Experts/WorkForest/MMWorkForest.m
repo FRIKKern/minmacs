@@ -12,7 +12,7 @@
 static NSString *const kExpert = @"workforest";
 static const NSTimeInterval kEventGap = 30 * 60;   // reviews woken by events are at least this far apart
 
-BOOL MMWFReadNow = NO;
+_Thread_local BOOL MMWFReadNow = NO;
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] ? v : nil; }
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
@@ -220,7 +220,9 @@ static MMWFTree *FreshTree(MMFinding *f, MMFacts *facts) {
 static __weak MMFacts *gBuiltFacts;
 
 static MMWFTree *TreeFor(MMFinding *f, MMFacts *facts) {
-    if (facts && facts == gBuiltFacts) return MMWFTreeOf(f);
+    // Main never reads disk or processes. The menu plans on the facts each finding was built from,
+    // and MMRunAction checks fresh off main before anything is removed.
+    if (NSThread.isMainThread || (facts && facts == gBuiltFacts)) return MMWFTreeOf(f);
     return FreshTree(f, facts);
 }
 
@@ -546,7 +548,8 @@ NSInteger MMWFImportLegacy(void) {
 
 NSArray<NSDictionary *> *MMWFRemoved(NSUInteger limit) {
     NSMutableArray *out = [NSMutableArray new];
-    for (MMUndoRecord *r in [MMUndo.shared recent:kExpert limit:0]) {
+    // The menu asks for six on main, so the log is read with a bound, as LocoHost reads it.
+    for (MMUndoRecord *r in [MMUndo.shared recent:kExpert limit:limit ? MAX(limit * 4, (NSUInteger)20) : 0]) {
         if (![r.kind isEqualToString:@"remove"] || r.state == MMUndoPending) continue;
         NSDictionary *p = r.payload, *rm = Dict(p[@"removed"]);
         NSString *path = Str(rm[@"path"]) ?: Str(Dict(p[@"worktree"])[@"worktree"]) ?: Str(Dict(p[@"bundle"])[@"worktree"]);
@@ -705,6 +708,9 @@ static NSString *ModelWords(MMReview *r) {
     NSMutableDictionary *kept = [NSMutableDictionary new];
     for (MMFinding *f in findings) { NSDate *d = [MMKeep keptUntil:f.stableKey expert:kExpert]; if (d) kept[f.findingID] = d; }
     v.keptUntil = kept;
+    NSMutableSet *protectedPaths = [NSMutableSet new];
+    for (MMFinding *f in findings) if ([MMKeep isProtected:f.stableKey expert:kExpert] || [MMKeep isProtected:f.path expert:kExpert]) [protectedPaths addObject:f.findingID];
+    v.protectedPaths = protectedPaths;
     v.links = ServersIn(s, findings);
     v.removed = MMWFRemoved(6);
     v.watchingLeft = MMWatchingLeft(kExpert);

@@ -261,6 +261,24 @@ check "the expert walks no folder itself" 0 "$(grep -nE 'fts_open|enumeratorAtPa
 check "the expert never deletes a file itself" 0 "$(grep -nE 'removeItemAtPath|removeItemAtURL|unlink\(|rmdir\(|trashItemAtURL' Sources/Experts/WorkForest/*.m | grep -c .)"
 kill "$wf_busy" 2>/dev/null
 
+echo "== the disk walk keeps a new walk once the old one is stale"
+# shellcheck disable=SC2086
+clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources -DMM_VERSION='"2.0.0"' \
+  -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3 \
+  $wf_src test/workforest/treedisk.m -o "$wf/bin/treedisk" >"$wf/treedisk-clang.log" 2>&1
+check "test/workforest/treedisk.m builds with no warnings" 0 "$(grep -c 'warning:' "$wf/treedisk-clang.log"; [ -x "$wf/bin/treedisk" ] || echo 1)"
+mkdir -p "$wf/diskhome" "$wf/disk-fixture"; echo x > "$wf/disk-fixture/a.txt"
+python3 - "$wf/diskhome/treedisk.json" "$wf/disk-fixture" <<'PY2'
+import json, os, sys, time
+st = os.stat(sys.argv[2]); old = time.time() - 3600
+fp = "%d.%d" % (st.st_mtime_ns // 10**9, st.st_mtime_ns % 10**9)
+json.dump({sys.argv[2]: {"fp": fp, "at": old, "value": {"allocated": 4096, "freed": 4096, "cache": 0, "files": 1, "touched": old, "created": 0, "at": old}}},
+          open(sys.argv[1], "w"))
+PY2
+r=$(MINMACS_HOME="$wf/diskhome" "$wf/bin/treedisk" "$wf/disk-fixture")
+check "a fresh read past 15 minutes walks again" yes "$([ "${r#* }" -lt 60 ] 2>/dev/null && echo yes || echo "$r")"
+check "and keeps that walk for the next cached read" yes "$([ "${r%% *}" -lt 60 ] 2>/dev/null && echo yes || echo "$r")"
+
 echo "== the menu and cards, rendered"
 wf_r="$wf/render"
 if BUILD_DIR="$wf/render-build" tools/render.sh "$wf_r" >"$wf/render.log" 2>&1; then wf_ok=0; else wf_ok=1; tail -20 "$wf/render.log"; fi

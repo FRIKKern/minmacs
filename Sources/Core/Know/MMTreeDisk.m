@@ -97,7 +97,7 @@ static MMTreeDiskFacts *Walk(NSString *root, NSSet<NSString *> *caches) {
 
 - (instancetype)init {
     if ((self = [super init])) {
-        _cache = [[MMFactCache alloc] initWithName:@"treedisk" maxAge:0 persist:YES];
+        _cache = [[MMFactCache alloc] initWithName:@"treedisk" maxAge:kFresh persist:YES];   // a walk older than this is stored again, so at moves on
         _queue = MMQueue(@"core", @"disk", QOS_CLASS_UTILITY);
         _pending = [NSMutableSet new];
         _caches = @[@"node_modules", @".next", @".nuxt", @".svelte-kit", @".turbo", @".parcel-cache", @".vite", @".cache", @"dist",

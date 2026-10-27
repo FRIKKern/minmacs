@@ -86,6 +86,7 @@ NSString *MMWFCategory(MMWFTree *t, NSString *verdict);
 /// By findingID: facts that belong to another expert, each {label, value, expert, findingID}.
 @property (copy) NSDictionary<NSString *, NSArray<NSDictionary *> *> *links;
 @property (copy) NSDictionary<NSString *, NSDate *> *keptUntil;   // by findingID
+@property (copy) NSSet<NSString *> *protectedPaths;                // findingIDs on the protect list of rules.json
 @property NSTimeInterval watchingLeft;
 /// What an action asks for: reveal, terminal, keep, remove, protect, copy-path, restore, clean-up, review.
 /// key is a findingID or, for restore, a record id.

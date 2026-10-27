@@ -321,7 +321,8 @@ static int Protect(MMArgs *a, NSString *arg) {
     NSString *path = Absolute(arg, a);
     BOOL off = [a has:@"--off"];
     if (!a.dryRun) [MMWFRules() set:!off value:path inList:@"protect" key:nil];
-    [a print:off ? @"%@ is no longer protected" : @"%@ is protected", path.stringByAbbreviatingWithTildeInPath];
+    if (a.json) [a printJSON:@{@"path": path, @"protected": @(!off)}];
+    else [a print:off ? @"%@ is no longer protected" : @"%@ is protected", path.stringByAbbreviatingWithTildeInPath];
     return 0;
 }
 
