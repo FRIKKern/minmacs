@@ -72,10 +72,10 @@ static NSString *const kDefaultIgnoreServing[] = {
     @"com.hnc.Discord", @"com.spotify.client", @"com.tinyspeck.slackmacgap", @"us.zoom.xos", @"com.microsoft.teams2",
     @"com.valvesoftware.steam", @"com.apple.Music",
 };
-static const NSInteger kRulesVersion = 2;
+static const NSInteger kRulesVersion = 3;
 
 @implementation MMRules {
-    NSArray<NSString *> *_keep, *_close, *_noise, *_work, *_ignore;
+    NSArray<NSString *> *_keep, *_close, *_unsorted, *_noise, *_work, *_ignore;
 }
 
 + (instancetype)shared { static MMRules *r; static dispatch_once_t o; dispatch_once(&o, ^{ r = [MMRules new]; [r reload]; }); return r; }
@@ -96,6 +96,7 @@ static const NSInteger kRulesVersion = 2;
 
 - (NSArray<NSString *> *)keep { return _keep; }
 - (NSArray<NSString *> *)close { return _close; }
+- (NSArray<NSString *> *)unsorted { return _unsorted; }
 - (NSArray<NSString *> *)noiseHosts { return _noise; }
 - (NSArray<NSString *> *)workHosts { return _work; }
 - (NSArray<NSString *> *)ignoreServing { return _ignore; }
@@ -117,12 +118,12 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
     NSData *d = [NSData dataWithContentsOfURL:self.fileURL];
     NSDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
     if (![j isKindOfClass:NSDictionary.class] || !Strings(j[@"keep"]) || !Strings(j[@"close"])) {
-        _keep = ARR(kDefaultKeep); _close = ARR(kDefaultClose);
+        _keep = ARR(kDefaultKeep); _close = ARR(kDefaultClose); _unsorted = @[];
         _noise = ARR(kDefaultNoise); _work = ARR(kDefaultWork); _ignore = ARR(kDefaultIgnoreServing);
         [self save];
         return;
     }
-    _keep = j[@"keep"]; _close = j[@"close"];
+    _keep = j[@"keep"]; _close = j[@"close"]; _unsorted = Strings(j[@"unsorted"]) ?: @[];
     NSDictionary *tabs = [j[@"tabs"] isKindOfClass:NSDictionary.class] ? j[@"tabs"] : @{};
     _noise = Strings(tabs[@"noise"]) ?: @[]; _work = Strings(tabs[@"work"]) ?: @[];
     _ignore = Strings(j[@"ignoreServing"]) ?: @[];
@@ -147,10 +148,12 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
 - (void)save {
     NSDictionary *j = @{
         @"_comment": @"MinMacs rules. keep: never closed. close: quit on MinMacs (browsers are trimmed instead). A trailing * matches a prefix. "
+                      "An exact bundle id wins over any pattern, so com.adobe.Photoshop in keep is an exception to com.adobe.* in close. "
+                      "unsorted: exact bundle ids that no pattern applies to; they are listed and never touched. "
                       "tabs.noise hosts are closed when a browser is trimmed; tabs.work hosts are never closed; a host matches its subdomains. "
                       "ignoreServing: apps whose local listeners do not mean an agent is using them. Anything not listed is left alone.",
         @"version": @(kRulesVersion),
-        @"keep": _keep, @"close": _close,
+        @"keep": _keep, @"close": _close, @"unsorted": _unsorted,
         @"tabs": @{ @"noise": _noise, @"work": _work },
         @"ignoreServing": _ignore };
     NSData *d = [NSJSONSerialization dataWithJSONObject:j options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
@@ -158,19 +161,25 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
 }
 
 - (MMVerdict)verdictFor:(NSString *)bundleID {
+    // An exact entry is an exception to every pattern. Then keep patterns, then close patterns.
+    if ([_keep containsObject:bundleID]) return MMKeep;
+    if ([_close containsObject:bundleID]) return MMClose;
+    if ([_unsorted containsObject:bundleID]) return MMUnsorted;
     for (NSString *p in _keep)  if (Match(p, bundleID)) return MMKeep;
     for (NSString *p in _close) if (Match(p, bundleID)) return MMClose;
     return MMUnsorted;
 }
 
+/// A choice for one app changes only that app's exact entries. A pattern such as com.adobe.*
+/// stays for every other app. The exact entry added here is the exception to it.
 - (void)setVerdict:(MMVerdict)v forBundleID:(NSString *)bid {
-    NSMutableArray *k = [_keep mutableCopy], *c = [_close mutableCopy];
-    // Remove exact and pattern matches so the explicit choice wins.
-    [k filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSString *p, NSDictionary *_) { return !Match(p, bid); }]];
-    [c filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSString *p, NSDictionary *_) { return !Match(p, bid); }]];
+    NSMutableArray *k = [_keep mutableCopy], *c = [_close mutableCopy], *u = [_unsorted mutableCopy];
+    [k removeObject:bid]; [c removeObject:bid]; [u removeObject:bid];
     if (v == MMKeep) [k addObject:bid];
     if (v == MMClose) [c addObject:bid];
-    _keep = k; _close = c;
+    _keep = k; _close = c; _unsorted = u;
+    // Unsorted needs an entry only when a pattern would still decide this app.
+    if (v == MMUnsorted && [self verdictFor:bid] != MMUnsorted) [u addObject:bid];
     [self save];
 }
 

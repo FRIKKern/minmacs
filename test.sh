@@ -101,6 +101,34 @@ check "localhost with a port is work"   work  "$("$BIN" classify http://localhos
 check "unknown host is left alone"      other "$("$BIN" classify https://example.org/)"
 check "work wins when both could match" work  "$("$BIN" classify https://aws.amazon.com/console)"
 
+echo "== rules file (tools/rulecheck.m against fixture rules files)"
+clang -fobjc-arc -ISources -framework Foundation tools/rulecheck.m Sources/Rules.m -o build/rulecheck || exit 1
+RC="$TMP/rules-check.json"
+rc() { MINMACS_RULES_FILE="$RC" build/rulecheck "$@"; }
+listed() { rc list "$1" | grep -qxF "$2" && echo yes || echo no; }
+cat > "$RC" <<'EOF'
+{"version":3,"keep":["com.jetbrains.*"],"close":["com.adobe.*"],"unsorted":[],"tabs":{"noise":[],"work":[]},"ignoreServing":[]}
+EOF
+check "com.adobe.* closes Photoshop"                close "$(rc verdict com.adobe.Photoshop)"
+check "com.adobe.* closes Illustrator"              close "$(rc verdict com.adobe.illustrator)"
+rc set keep com.adobe.Photoshop
+check "Keep on Photoshop keeps it"                  keep  "$(rc verdict com.adobe.Photoshop)"
+check "Illustrator still closes"                    close "$(rc verdict com.adobe.illustrator)"
+check "com.adobe.* is still in the close list"      yes   "$(listed close 'com.adobe.*')"
+rc set unsorted com.adobe.Photoshop
+check "Unsorted on Photoshop leaves it alone"       unsorted "$(rc verdict com.adobe.Photoshop)"
+check "and is recorded as an exception"             yes   "$(listed unsorted com.adobe.Photoshop)"
+check "Illustrator still closes after that"         close "$(rc verdict com.adobe.illustrator)"
+rc set close com.adobe.Photoshop
+check "Close on Photoshop closes it again"          close "$(rc verdict com.adobe.Photoshop)"
+check "and drops the Unsorted exception"            no    "$(listed unsorted com.adobe.Photoshop)"
+rc set close com.jetbrains.goland
+check "Close on GoLand beats com.jetbrains.* keep"  close "$(rc verdict com.jetbrains.goland)"
+check "IntelliJ is still kept"                      keep  "$(rc verdict com.jetbrains.intellij)"
+check "com.jetbrains.* is still in the keep list"   yes   "$(listed keep 'com.jetbrains.*')"
+rc set unsorted com.example.nothing
+check "Unsorted with no pattern adds no entry"      no    "$(listed unsorted com.example.nothing)"
+
 echo "== agent detection (fixture: tools/fakeagent.c)"
 clang -O1 tools/fakeagent.c -o build/fakeagent || exit 1
 state() { "$BIN" agents --json --rows tools/fixtures | python3 -c "import json,sys; a=json.load(sys.stdin)['agents']; print(a[0]['state'] if a else 'absent')"; }

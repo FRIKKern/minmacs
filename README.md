@@ -97,7 +97,7 @@ How the last event decides: a permission request, question, plan approval or not
 
 ### Rules file
 
-`~/Library/Application Support/MinMacs/rules.json`, written with sensible defaults on first run and editable by hand (*Edit Rules…* opens it). Bundle ids take a trailing `*` to match a prefix. A host matches its subdomains. Work wins over noise. New defaults arrive with upgrades additively and never move or remove an entry of yours.
+`~/Library/Application Support/MinMacs/rules.json`, written with sensible defaults on first run and editable by hand (*Edit Rules…* opens it). Bundle ids take a trailing `*` to match a prefix. An exact bundle id wins over any pattern, so a choice for one app in the menu adds an exception for that app and leaves a pattern such as `com.adobe.*` in place for the others. An app set to Unsorted while a pattern covers it goes on the `unsorted` list. A host matches its subdomains. Work wins over noise. New defaults arrive with upgrades additively and never move or remove an entry of yours.
 
 ```json
 { "keep":  ["com.apple.Terminal", "com.microsoft.VSCode", "com.jetbrains.*", "no.guerrilla.insomnia", "…"],
