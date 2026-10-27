@@ -1,4 +1,5 @@
 #import "MMCLI.h"
+#import "Core/Runtime/MMWorker.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -14,16 +15,21 @@ static int Version(int argc, const char *argv[]) {
 
 static int Help(int argc, const char *argv[]);
 
+// The disk walk worker of P4. The app starts it as a child of this binary. It is not a verb for people.
+static int Walk(int argc, const char *argv[]) { return MMWorkerChildMain(); }
+
 // One verb registry. Each expert adds its rows here until phase 1 moves the table to Core.
 static const MMVerb kVerbs[] = {
     { "version", "print the version and exit", Version },
     { "help",    "list the verbs",             Help },
+    { "_walk",   "the disk walk worker",       Walk },
 };
 static const size_t kVerbCount = sizeof kVerbs / sizeof kVerbs[0];
 
 static int Help(int argc, const char *argv[]) {
     printf("usage: minmacs <verb>\n");
-    for (size_t i = 0; i < kVerbCount; i++) printf("  %-10s %s\n", kVerbs[i].name, kVerbs[i].summary);
+    for (size_t i = 0; i < kVerbCount; i++)
+        if (kVerbs[i].name[0] != '_') printf("  %-10s %s\n", kVerbs[i].name, kVerbs[i].summary);
     return 0;
 }
 
