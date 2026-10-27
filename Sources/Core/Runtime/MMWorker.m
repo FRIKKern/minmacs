@@ -12,6 +12,15 @@
 #include <signal.h>
 
 static const NSTimeInterval kIdle = 30;
+
+/// kIdle, or MM_WORKER_IDLE in a test build, so a test can reach the moment the child closes.
+static NSTimeInterval IdleSeconds(void) {
+#ifdef MM_TESTS
+    double t = [NSProcessInfo.processInfo.environment[@"MM_WORKER_IDLE"] doubleValue];
+    if (t > 0) return t;
+#endif
+    return kIdle;
+}
 static const NSInteger kWalkDepth = 4;
 static NSString *const kErrorDomain = @"no.guerrilla.minmacs.worker";
 
@@ -51,6 +60,9 @@ static NSString *SelfPath(void) {
 
 - (BOOL)ensureChild {
     if (_task.isRunning && _in >= 0) return YES;
+    // The old child is dead or closing, but its exit may not have reached _q yet. Drop it now, so its
+    // reader cannot touch the new child's state and its requests in flight fail instead of waiting forever.
+    if (_task) [self childEnded:_task];
     NSPipe *toChild = [NSPipe pipe], *fromChild = [NSPipe pipe];
     NSTask *t = [NSTask new];
     t.executableURL = [NSURL fileURLWithPath:SelfPath()];
@@ -74,7 +86,12 @@ static NSString *SelfPath(void) {
     _buffer = [NSMutableData new];
     _reader = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, (uintptr_t)_out, 0, _q);
     int fd = _out;
-    dispatch_source_set_event_handler(_reader, ^{ [weak readFrom:fd]; });
+    dispatch_source_t reader = _reader;
+    dispatch_source_set_event_handler(_reader, ^{
+        MMChildWorker *me = weak;
+        // A reader of a child that was dropped only drains and closes its own pipe.
+        if (me && me->_reader == reader) [me readFrom:fd]; else dispatch_source_cancel(reader);
+    });
     dispatch_source_set_cancel_handler(_reader, ^{ close(fd); });
     dispatch_resume(_reader);
     return YES;
@@ -117,7 +134,7 @@ static NSString *SelfPath(void) {
 - (void)scheduleIdle {
     if (_pending.count) return;
     uint64_t gen = ++_idleGeneration;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kIdle * NSEC_PER_SEC)), _q, ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(IdleSeconds() * NSEC_PER_SEC)), _q, ^{
         if (gen != self->_idleGeneration || self->_pending.count || self->_in < 0) return;
         close(self->_in); self->_in = -1;
     });

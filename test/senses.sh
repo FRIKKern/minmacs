@@ -64,11 +64,12 @@ kill "$sn_srv" "$sn_kid" 2>/dev/null; wait "$sn_srv" 2>/dev/null
 sn_budget=${MM_PASS_BUDGET_MS:-12}
 sn_budget95=${MM_PASS_P95_BUDGET_MS:-25}
 sn_out=$(sn bench 60)
-printf '    pass cost: %s\n' "$(printf '%s' "$sn_out" | json '"cpu median %.2f ms, p95 %.2f ms, wall median %.2f ms, %d pids, %d sockets, %.1f MB max resident" % (j["cpuMedianMs"], j["cpuP95Ms"], j["wallMedianMs"], j["pids"], j["sockets"], j["maxResidentMB"])')"
+printf '    pass cost: %s\n' "$(printf '%s' "$sn_out" | json '"cpu median %.2f ms, p95 %.2f ms, wall median %.2f ms, %d pids, %d sockets, %.1f MB max resident, %+.0f KB footprint after warm-up" % (j["cpuMedianMs"], j["cpuP95Ms"], j["wallMedianMs"], j["pids"], j["sockets"], j["maxResidentMB"], j["footprintGrowthKB"])')"
 check "60 passes ran" 60 "$(sj 'j["passes"]')"
 check "pass CPU median is at most ${sn_budget} ms" yes "$(sj '"yes" if j["cpuMedianMs"] <= '"$sn_budget"' else j["cpuMedianMs"]')"
 check "pass CPU p95 is at most ${sn_budget95} ms" yes "$(sj '"yes" if j["cpuP95Ms"] <= '"$sn_budget95"' else j["cpuP95Ms"]')"
 check "60 passes started no child process" 0 "$(sj 'j["children"]')"
+check "the footprint grows less than 4 MB over the passes" yes "$(sj '"yes" if j["footprintGrowthKB"] < 4096 else j["footprintGrowthKB"]')"
 
 # P11. Exits from kqueue NOTE_EXIT, on main.
 sleep 2 &
@@ -104,6 +105,7 @@ check "memory, disk, thermal, power and lid changes are pushed" 31 "$(sj 'j["bit
 check "the pass reads power on the Senses queue" no.guerrilla.minmacs.core.senses "$(sj 'j["readLabel"]')"
 check "the pass does not run on main" False "$(sj 'j["readOnMain"]')"
 check "nil goes back to the real power source" 1 "$(sj 'j["realAgain"]')"
+check "nm reads the release build's Senses symbols" yes "$(nm "$BIN" 2>/dev/null | grep -q MMProcAlive && echo yes || echo no)"
 check "the release build has no fake power source" 0 "$(nm "$BIN" 2>/dev/null | grep -c MMUsePowerSource)"
 
 # P3. A turn past its budget skips the next one, and a watched task is ended at the deadline.
@@ -112,6 +114,7 @@ check "an overrun skips exactly one turn" 2 "$(sj 'j["ranSlow"]')"
 check "pastDeadline turns YES once the budget is spent" '0.05:0:1 1:0:0' "$(sj '" ".join(j["turns"])')"
 check "a task past the deadline gets terminate" '2 15' "$(sj '"%d %d" % (j["childReason"], j["childStatus"])')"
 check "it ends near the deadline" 1 "$(sj 'j["childEndedSoon"]')"
+check "a task the job dropped is still ended at the deadline" 'True True' "$(sj '"%s %s" % (j["droppedRanFirst"], j["droppedEnded"])')"
 
 # P5. A crash leaves its breadcrumb. The next launch reads it once.
 sn crumbs crash >/dev/null
@@ -151,6 +154,10 @@ check "exactSize goes through MMSizer exact" 84 "$(sj 'j["exact"]')"
 check "the worker runs as a child of the caller" 1 "$(sj 'j["childFound"]')"
 check "a request in flight fails when the child dies" 1 "$(sj 'j["inflightFailed"]')"
 check "the next request starts a new child" 1 "$(sj 'j["restarted"]')"
+# The idle close ends the child. A request sent as that happens must still be answered by a new child.
+sn_out=$(MM_WORKER_IDLE=0.1 sn workerrace 40)
+check "requests sent at the idle close are all answered" '40 40 0' "$(sj '"%d %d %d" % (j["sent"], j["answered"], j["errors"])')"
+check "the idle close ends the child and the next request starts one" yes "$(sj '"yes" if j["children"] > 10 else j["children"]')"
 sn_req=$(printf '{"id":1,"method":"findWorktrees","args":{"roots":["%s"],"skip":["node_modules"]}}' "$sn_repos")
 check "minmacs _walk answers on stdout" 4 "$(printf '%s\n' "$sn_req" | "$BIN" _walk 2>/dev/null | json 'len(j["result"])')"
 check "minmacs help does not list _walk" 0 "$("$BIN" help 2>/dev/null | grep -c _walk)"

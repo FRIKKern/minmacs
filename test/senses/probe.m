@@ -8,6 +8,7 @@
 #import "Core/Senses/MMFolders.h"
 #import "Core/Know/MMSizer.h"
 #include <sys/resource.h>
+#include <libproc.h>
 #include <sys/sysctl.h>
 #include <arpa/inet.h>
 #include <signal.h>
@@ -80,7 +81,8 @@ static int Labels(void) {
     __block BOOL pool = NO;
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);
     __weak __block id weakObj = nil;
-    dispatch_async(c, ^{ id o = [NSMutableArray arrayWithObject:@1]; weakObj = o; });
+    // The object's only owner is the autorelease pool, so it dies when the block's pool drains and not before.
+    dispatch_async(c, ^{ __autoreleasing id o = [NSObject new]; weakObj = o; });
     dispatch_async(c, ^{ pool = weakObj == nil; dispatch_semaphore_signal(sem); });
     dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
     Out(@{@"senses": @(dispatch_queue_get_label(a)), @"same": @(a == b), @"where": inside, @"poolDrained": @(pool)});
@@ -120,12 +122,19 @@ static int Sample(pid_t pid, int port, pid_t kid) {
     return 0;
 }
 
+static uint64_t Footprint(void) {
+    struct rusage_info_v6 ru;
+    return proc_pid_rusage(getpid(), RUSAGE_INFO_V6, (rusage_info_t *)&ru) == 0 ? ru.ri_phys_footprint : 0;
+}
+
 static int Bench(int n) {
     MMSenses *s = MMSenses.shared;
     [s sampleNow];   // the first pass warms caches and has no CPU deltas
     NSMutableArray *cpu = [NSMutableArray new], *wall = [NSMutableArray new];
     NSUInteger pids = 0, socks = 0, children = 0;
+    uint64_t footAfterWarm = 0;
     for (int i = 0; i < n; i++) {
+        if (i == 10) footAfterWarm = Footprint();
         double c0 = CPUSeconds(); NSDate *t0 = NSDate.date;
         MMSample *x = [s sampleNow];
         [wall addObject:@(-t0.timeIntervalSinceNow * 1000)];
@@ -138,7 +147,8 @@ static int Bench(int n) {
     Out(@{@"passes": @(n), @"pids": @(pids), @"sockets": @(socks), @"children": @(children),
           @"cpuMedianMs": @(Quantile(cpu, 0.5)), @"cpuP95Ms": @(Quantile(cpu, 0.95)),
           @"wallMedianMs": @(Quantile(wall, 0.5)), @"wallP95Ms": @(Quantile(wall, 0.95)),
-          @"maxResidentMB": @(ru.ru_maxrss / 1048576.0)});
+          @"maxResidentMB": @(ru.ru_maxrss / 1048576.0),
+          @"footprintGrowthKB": @(((double)Footprint() - (double)footAfterWarm) / 1024.0)});
     return 0;
 }
 
@@ -253,9 +263,26 @@ static int Job(void) {
     pid_t child = t.processIdentifier;
     [t waitUntilExit];
     double took = -t0.timeIntervalSinceNow;
+
+    // A job that launches a task and keeps no reference to it. The deadline must still end it.
+    __block MMProcKey dropped = {0, 0};
+    [MMJob run:@"dropped" expert:@"test" on:q budget:0.3 work:^(MMJob *j) {
+        NSTask *d = [NSTask new];
+        d.executableURL = [NSURL fileURLWithPath:@"/bin/sleep"]; d.arguments = @[@"30"];
+        if (![d launchAndReturnError:nil]) return;
+        MMProc *p = [[MMSenses.shared sampleNow] proc:d.processIdentifier];
+        dropped = p ? p.key : (MMProcKey){ d.processIdentifier, 0 };
+        [j watchTask:d];
+    }];
+    dispatch_sync(q, ^{});
+    BOOL droppedAlive = dropped.startSec && MMProcAlive(dropped);
+    usleep(1000000);
+    BOOL droppedEnded = dropped.startSec && !MMProcAlive(dropped);
+    if (dropped.startSec && MMProcAlive(dropped)) kill(dropped.pid, SIGTERM);   // the sleep this probe started
     Out(@{@"ranSlow": @(ranSlow), @"turns": turns,
           @"childReason": @(t.terminationReason), @"childStatus": @(t.terminationStatus), @"childPid": @(child),
-          @"childEndedSoon": @(took > 0.2 && took < 3)});
+          @"childEndedSoon": @(took > 0.2 && took < 3),
+          @"droppedRanFirst": @(droppedAlive), @"droppedEnded": @(droppedEnded)});
     return 0;
 }
 
@@ -359,6 +386,42 @@ static int Worker(NSString *root) {
     return 0;
 }
 
+/// The pid of our own worker child in a fresh sample, or 0.
+static pid_t WorkerKid(void) {
+    MMSample *x = [MMSenses.shared sampleNow];
+    for (NSNumber *c in [x childrenOf:getpid()]) if ([[x argsOf:c.intValue] containsObject:@"_walk"]) return c.intValue;
+    return 0;
+}
+
+/// Sends each request just as the idle close ends the child, run with MM_WORKER_IDLE set low.
+/// The stdin of the old child is closed, but its exit has not reached the worker's queue yet.
+/// Every request must get a reply or an error, and the worker must keep answering after it.
+static int WorkerRace(int rounds) {
+    id<MMWorker> w = MMSharedWorker();
+    double idle = [NSProcessInfo.processInfo.environment[@"MM_WORKER_IDLE"] doubleValue];
+    __block NSInteger answered = 0, errors = 0;
+    NSInteger sent = 0;
+    NSMutableSet *kids = [NSMutableSet new];
+    for (int i = 0; i < rounds; i++) {
+        __block BOOL done = NO;
+        __block NSDate *repliedAt = nil;
+        sent++;
+        [w exactSize:@[@"/a"] reply:^(uint64_t f, NSError *e) {
+            NSDate *at = NSDate.date;   // the idle timer starts right after this reply, on the worker queue
+            dispatch_async(dispatch_get_main_queue(), ^{ answered++; if (e) errors++; repliedAt = at; done = YES; });
+        }];
+        if (!Spin(5, ^BOOL { return done; })) break;   // a request that never answers ends the run
+        pid_t kid = WorkerKid();
+        if (kid > 0) [kids addObject:@(kid)];
+        // Aim at the moment the idle close lands. dispatch_after may fire up to 10 percent late, so spread the aim.
+        double wait = idle * (0.98 + arc4random_uniform(150) / 1000.0) + repliedAt.timeIntervalSinceNow;
+        if (wait > 0) usleep((useconds_t)(wait * 1e6));
+    }
+    Out(@{@"rounds": @(rounds), @"sent": @(sent), @"answered": @(answered), @"errors": @(errors),
+          @"children": @(kids.count)});
+    return 0;
+}
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         if (argc < 2) { fprintf(stderr, "usage: probe <mode> [args]\n"); return 2; }
@@ -375,6 +438,7 @@ int main(int argc, const char *argv[]) {
         if ([mode isEqualToString:@"crumbs"] && argc > 2) return Crumbs(@(argv[2]));
         if ([mode isEqualToString:@"folders"] && argc > 2) return Folders(@(argv[2]));
         if ([mode isEqualToString:@"worker"] && argc > 2) return Worker(@(argv[2]));
+        if ([mode isEqualToString:@"workerrace"]) return WorkerRace(argc > 2 ? atoi(argv[2]) : 20);
         fprintf(stderr, "probe: unknown mode %s\n", argv[1]);
         return 2;
     }
