@@ -1,5 +1,7 @@
 # For AI agents working in this repo
 
+**MinMacs 2.0 is planned on `main`.** Read [docs/2.0/PLAN.md](docs/2.0/PLAN.md), the [milestones](https://github.com/FRIKKern/minmacs/milestones) and [docs/DESIGN.md](docs/DESIGN.md) first. Every piece of work belongs to an issue in a milestone. Fixes to MinMacs 1.2 go to the `legacy` branch, through the Legacy 1.x milestone. The 1.2 code below stays on `main` until phase 1 replaces it.
+
 **Build and verify**
 
 ```sh

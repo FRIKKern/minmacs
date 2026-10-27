@@ -5,13 +5,13 @@
 #   curl -fsSL https://raw.githubusercontent.com/FRIKKern/minmacs/main/install.sh | sh
 #
 # Options (env vars, so they work through a pipe):
-#   MINMACS_REF=v1.0.0     git ref to install (default: main)
+#   MINMACS_REF=v1.2.0     git ref to install (default: legacy, the 1.x line, while 2.0 is built on main)
 #   MINMACS_NO_LAUNCH=1    build and install only
 #   MINMACS_LOGIN=1        also register Launch at Login
 set -eu
 
 REPO="https://github.com/FRIKKern/minmacs"
-REF="${MINMACS_REF:-main}"
+REF="${MINMACS_REF:-legacy}"
 DEST="$HOME/Applications/MinMacs.app"
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }

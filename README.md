@@ -2,6 +2,8 @@
 
 # MinMacs
 
+> **MinMacs 2.0 is being planned on `main`.** It joins MinMacs, LocoHost, WorkForest, Noo-Noo and Insomnia into one app with five experts in the menu bar and one shared core. See [docs/2.0/PLAN.md](docs/2.0/PLAN.md) and the [milestones](https://github.com/FRIKKern/minmacs/milestones). MinMacs 1.2 lives on the [`legacy`](https://github.com/FRIKKern/minmacs/tree/legacy) branch and stays installable.
+
 Reclaim your Mac for developers and agents. A free menu bar app that shows exactly what is burning CPU and memory, quits the apps that do nothing for your work, trims the noise tabs out of your browser while keeping the browser, and leaves alone anything an agent is using. One click, with a Restore button. Made for MacBooks that run Claude Code, builds, and long agent sessions next to a browser with a hundred tabs.
 
 Part of a family: [Insomnia](https://github.com/FRIKKern/insomnia) keeps the Mac awake, [noo-noo](https://github.com/FRIKKern/noo-noo) keeps the disk clean, MinMacs keeps the CPU and RAM for what matters.
