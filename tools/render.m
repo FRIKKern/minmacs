@@ -167,7 +167,7 @@ static MMWFTree *Tree(NSString *repo, NSString *folder, NSString *branch, uint64
 }
 
 /// WorkForest's own menu and cards, built by Sources/Experts/WorkForest/MMWFTree.m from fixture worktrees, and drawn by
-/// the kit through Sources/UI/MMSpecKit. The same code draws the app's menu from the graph. The fixture is the Mac the
+/// the kit through Sources/UI/MMSpecMenu. The same code draws the app's menu from the graph. The fixture is the Mac the
 /// LocoHost subject shows: the checkout server runs in the checkout-flow worktree.
 static Subject *WorkForestLike(void) {
     Subject *s = [Subject new]; s.name = @"workforest"; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
