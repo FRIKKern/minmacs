@@ -1,15 +1,28 @@
 #!/bin/sh
-# End-to-end checks against the installed CLI, using fixtures only:
-#   TextEdit (graceful quit + restore) and build/Stubborn.app, a test app that refuses to quit.
-# Nothing else on the machine is touched. `./test.sh --browser` adds a live Chrome tab test
-# that opens its own two tabs and closes only the one on vimeo.com.
+# End-to-end checks of the CLI that ./build.sh --no-install builds, using fixtures only.
+#   build/Polite.app quits when asked. build/Stubborn.app refuses. Both come from tools/stubborn.m.
+#   tools/fakeagent.c and tools/fakehost.c stand in for agents. A temporary directory holds
+#   the rules file and the cmux files.
+# Your rules file and your MinMacs settings are never read or written. The CLI runs with
+# MINMACS_RULES_FILE and MINMACS_DEFAULTS_DOMAIN set to test copies, which are deleted at the end.
+# A check that needs something this machine lacks is skipped, and the reason is printed.
+#   ./test.sh --live      also compares real agent sessions between the CLI and the reference probe. Read only.
+#   ./test.sh --browser   adds a live Chrome test that opens its own two tabs and closes the one on vimeo.com.
 set -u
 cd "$(dirname "$0")"
-BIN="$HOME/.local/bin/minmacs"; R="$HOME/Library/Application Support/MinMacs/rules.json"
-STUB=no.guerrilla.minmacs.stubborn
-pass=0; fail=0
+BIN="${MINMACS_BIN:-build/MinMacs.app/Contents/MacOS/MinMacs}"
+# Bundle ids unique to this run, so a run never quits a fixture that another checkout's test started.
+POLITE=no.guerrilla.minmacs.test$$.polite; STUB=no.guerrilla.minmacs.test$$.stubborn
+pass=0; fail=0; skipped=0
 check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); printf '  ok    %-46s %s\n' "$1" "$3"; else fail=$((fail+1)); printf '  FAIL  %-46s got %s, want %s\n' "$1" "$3" "$2"; fi; }
-running() { pgrep -x "$1" >/dev/null && echo yes || echo no; }
+skip()  { skipped=$((skipped+1)); printf '  skip  %-46s %s\n' "$1" "$2"; }
+# Fixture apps are found by the full path of this checkout's copy, never by name alone.
+running() { pgrep -f "$PWD/build/$1.app/Contents/MacOS/$1" >/dev/null && echo yes || echo no; }
+[ -x "$BIN" ] || { echo "minmacs CLI not built; run ./build.sh --no-install"; exit 1; }
+
+TMP=$(mktemp -d)
+export MINMACS_RULES_FILE="$TMP/rules.json" MINMACS_DEFAULTS_DOMAIN="no.guerrilla.minmacs.test.$$"
+R="$MINMACS_RULES_FILE"; DOM="$MINMACS_DEFAULTS_DOMAIN"
 rule() { python3 - "$R" "$@" <<'PY'
 import json,sys
 p,op,key,val=sys.argv[1:5]; j=json.load(open(p)); l=j[key]
@@ -18,49 +31,67 @@ if op=='del' and val in l: l.remove(val)
 json.dump(j,open(p,'w'),indent=2)
 PY
 }
-[ -x "$BIN" ] || { echo "minmacs CLI not installed; run ./build.sh"; exit 1; }
-"$BIN" plan >/dev/null; [ -f "$R" ] || { echo "no rules file"; exit 1; }
-
-# fixture: the app that will not quit
-mkdir -p build/Stubborn.app/Contents/MacOS
-clang -fobjc-arc -framework Cocoa tools/stubborn.m -o build/Stubborn.app/Contents/MacOS/Stubborn || exit 1
-cat > build/Stubborn.app/Contents/Info.plist <<PL
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>CFBundleName</key><string>Stubborn</string><key>CFBundleIdentifier</key><string>$STUB</string>
-<key>CFBundleExecutable</key><string>Stubborn</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/></dict></plist>
-PL
-codesign --force --sign - build/Stubborn.app >/dev/null 2>&1
-
-cp "$R" "$R.bak"
-cleanup() { pkill -9 -x Stubborn 2>/dev/null; pkill -x fakeagent 2>/dev/null; pkill -x fakehost 2>/dev/null; osascript -e 'tell application "TextEdit" to quit' >/dev/null 2>&1; mv "$R.bak" "$R"
-            defaults delete no.guerrilla.minmacs minmacs.closedBundleIDs >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.closedTabs >/dev/null 2>&1
-            defaults delete no.guerrilla.minmacs minmacs.debug.cmuxDir >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.readCmux >/dev/null 2>&1; rm -rf "${CMUX:-/nonexistent-dir}"; }
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+FA=; FH=
+# Stops only what this run started: its own fixture apps by path, its fake agents by pid.
+cleanup() { pkill -9 -f "$PWD/build/Stubborn.app/Contents/MacOS/Stubborn" 2>/dev/null; pkill -f "$PWD/build/Polite.app/Contents/MacOS/Polite" 2>/dev/null
+            for p in $FA $FH; do pkill -P "$p" 2>/dev/null; kill "$p" 2>/dev/null; done
+            [ -x "$LSREGISTER" ] && "$LSREGISTER" -u "$PWD/build/Polite.app" "$PWD/build/Stubborn.app" >/dev/null 2>&1
+            defaults delete "$DOM" >/dev/null 2>&1; rm -f "$HOME/Library/Preferences/$DOM.plist"; rm -rf "$TMP"; }
 trap cleanup EXIT
-rule add close com.apple.TextEdit; rule add close $STUB
 
-echo "== graceful quit and restore (TextEdit)"
-open -g -a TextEdit; sleep 2;                                   check "TextEdit launched" yes "$(running TextEdit)"
-"$BIN" plan | grep -q "com.apple.TextEdit";                     check "plan lists it under Will quit" 0 "$?"
-r=$("$BIN" plan --json | python3 -c "import json,sys; j=json.load(sys.stdin); print('yes' if any(a['bundleID']=='com.apple.TextEdit' for a in j['close']) else 'no')")
-                                                                 check "json plan lists it" yes "$r"
-"$BIN" run --yes --only com.apple.TextEdit >/dev/null; sleep 1; check "run --only quits it" no "$(running TextEdit)"
-"$BIN" restore >/dev/null; sleep 2;                             check "restore relaunches it" yes "$(running TextEdit)"
-"$BIN" run --yes --only no.such.app | grep -q "nothing to close"; check "run with no targets is a no-op" 0 "$?"
+"$BIN" rules >/dev/null; [ -f "$R" ] || { echo "the CLI wrote no rules file to $R"; exit 1; }
+rule add close $POLITE; rule add close $STUB
+# Browsers on the close list are quit, not trimmed, so no check ever sends an Apple event to a real browser.
+defaults write "$DOM" minmacs.quitBrowsers -bool true
 
-echo "== force quit (an app that refuses to quit)"
-open -g -n build/Stubborn.app; sleep 2;                         check "Stubborn launched" yes "$(running Stubborn)"
-"$BIN" run --yes --only $STUB >/dev/null; rc=$?;                check "normal run leaves it running" yes "$(running Stubborn)"
-                                                                 check "and reports it with exit 3" 3 "$rc"
-"$BIN" run --yes --force --only $STUB >/dev/null; rc=$?; sleep 1; check "run --force kills it" no "$(running Stubborn)"
-                                                                 check "and exits 0" 0 "$rc"
+# fixtures: one app that quits when asked, one that will not
+mkfixture() {   # name bundle-id
+  mkdir -p "build/$1.app/Contents/MacOS"
+  clang -fobjc-arc -framework Cocoa tools/stubborn.m -o "build/$1.app/Contents/MacOS/$1" || exit 1
+  cat > "build/$1.app/Contents/Info.plist" <<PL
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleName</key><string>$1</string><key>CFBundleIdentifier</key><string>$2</string>
+<key>CFBundleExecutable</key><string>$1</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/></dict></plist>
+PL
+  codesign --force --sign - "build/$1.app" >/dev/null 2>&1
+}
+mkfixture Polite $POLITE; mkfixture Stubborn $STUB
+# Waits up to 5 s for a fixture app to show up after open.
+launched() { for _ in 1 2 3 4 5 6 7 8 9 10; do [ "$(running "$1")" = yes ] && { echo yes; return; }; sleep 0.5; done; echo no; }
 
-echo "== serving detection (loopback listener)"
-open -g -n build/Stubborn.app --args --listen 47999; sleep 2
-"$BIN" plan | grep -q "Spared Stubborn: serving on 127.0.0.1:47999"; check "plan spares it and names the port" 0 "$?"
-"$BIN" run --yes --force --only $STUB >/dev/null;               check "run --force does not touch a spared app" yes "$(running Stubborn)"
-rule add ignoreServing $STUB
-"$BIN" plan | sed -n "/^Will quit/,/^[A-Z][a-z]* /p" | grep -q Stubborn;          check "ignoreServing puts it back on the quit list" 0 "$?"
-"$BIN" run --yes --force --only $STUB >/dev/null; sleep 1;      check "then --force kills it" no "$(running Stubborn)"
+open -g -n build/Polite.app 2>/dev/null; GUI=$(launched Polite)
+if [ "$GUI" = no ]; then
+  echo "== quitting, restoring and serving"
+  skip "graceful quit, restore, force quit, serving" "could not launch a fixture app; this machine has no GUI login session"
+else
+  echo "== graceful quit and restore (build/Polite.app)"
+  check "Polite launched" yes "$GUI"
+  "$BIN" plan | sed -n "/^Will quit/,/^[A-Z][a-z]* /p" | grep -q "$POLITE"; check "plan lists it under Will quit" 0 "$?"
+  r=$("$BIN" plan --json | python3 -c "import json,sys; j=json.load(sys.stdin); print('yes' if any(a['bundleID']=='$POLITE' for a in j['close']) else 'no')")
+                                                                   check "json plan lists it" yes "$r"
+  "$BIN" run --yes --only $POLITE >/dev/null; sleep 1;            check "run --only quits it" no "$(running Polite)"
+  check "the closed list remembers it" "$POLITE" "$(defaults read "$DOM" minmacs.closedBundleIDs 2>/dev/null | tr -d ' (),"\n')"
+  "$BIN" restore >/dev/null;                                       check "restore relaunches it" yes "$(launched Polite)"
+  "$BIN" run --yes --only no.such.app | grep -q "nothing to close"; check "run with no targets is a no-op" 0 "$?"
+  "$BIN" run --yes --only $POLITE >/dev/null
+
+  echo "== force quit (an app that refuses to quit)"
+  open -g -n build/Stubborn.app;                                   check "Stubborn launched" yes "$(launched Stubborn)"
+  "$BIN" run --yes --only $STUB >/dev/null; rc=$?;                check "normal run leaves it running" yes "$(running Stubborn)"
+                                                                   check "and reports it with exit 3" 3 "$rc"
+  "$BIN" run --yes --force --only $STUB >/dev/null; rc=$?; sleep 1; check "run --force kills it" no "$(running Stubborn)"
+                                                                   check "and exits 0" 0 "$rc"
+
+  echo "== serving detection (loopback listener)"
+  open -g -n build/Stubborn.app --args --listen 47999; launched Stubborn >/dev/null; sleep 1
+  "$BIN" plan | grep -q "Spared Stubborn: serving on 127.0.0.1:47999"; check "plan spares it and names the port" 0 "$?"
+  "$BIN" run --yes --force --only $STUB >/dev/null;               check "run --force does not touch a spared app" yes "$(running Stubborn)"
+  rule add ignoreServing $STUB
+  "$BIN" plan | sed -n "/^Will quit/,/^[A-Z][a-z]* /p" | grep -q Stubborn;          check "ignoreServing puts it back on the quit list" 0 "$?"
+  "$BIN" run --yes --force --only $STUB >/dev/null; sleep 1;      check "then --force kills it" no "$(running Stubborn)"
+  rule del ignoreServing $STUB
+fi
 
 echo "== tab classification"
 check "youtube.com is noise"            noise "$("$BIN" classify https://www.youtube.com/watch?v=x)"
@@ -122,10 +153,10 @@ both "agent under a host: reported once, as the host"         "fake-host:working
                                                                  check "the host lists what it hosts" 0 "$?"
 sleep 8
 both "host after the hosted turn ended"                       "fake-host:idle w0 i1 u0"       host
-kill $FH 2>/dev/null; wait $FH 2>/dev/null
-pkill -x fakeagent 2>/dev/null
+pkill -P $FH 2>/dev/null; kill $FH 2>/dev/null; wait $FH 2>/dev/null
 
 # Real sessions: wherever the precise signal decides, both implementations must agree.
+if [ "${1:-}" = "--live" ]; then
 python3 - "$BIN" <<'PYEOF'
 import json, subprocess, sys
 a = {x["pid"]: x for x in json.loads(subprocess.run([sys.argv[1], "agents", "--json"], capture_output=True, text=True).stdout)["agents"]}
@@ -138,9 +169,12 @@ print(f"  {'ok  ' if not bad else 'FAIL'}  real sessions: {len(both)} seen by bo
 sys.exit(1 if bad else 0)
 PYEOF
 [ $? = 0 ] && pass=$((pass+1)) || fail=$((fail+1))
+else
+skip "real sessions: CLI and reference probe agree" "reads real processes; pass --live to run it"
+fi
 
 echo "== cmux reader (fixture directory; the real ~/.cmuxterm is never read)"
-CMUX=$(mktemp -d); defaults write no.guerrilla.minmacs minmacs.debug.cmuxDir "$CMUX"
+CMUX="$TMP/cmux"; mkdir -p "$CMUX"; defaults write "$DOM" minmacs.debug.cmuxDir "$CMUX"
 build/fakeagent & FA=$!; sleep 1
 ts() { date -u -v-"$1"S +%Y-%m-%dT%H:%M:%SZ; }
 ev() { printf '{"kind":"%s","createdAt":"%s","workstreamId":"claude-sess-1","payload":{"text":"SECRETPAYLOAD }{ \\" ]"},"cwd":"/x","title":"SECRETTITLE"}\n' "$1" "$(ts "$2")" >> "$CMUX/workstream.jsonl"; }
@@ -154,9 +188,9 @@ check "permission request reads blocked"       blocked "$(cmuxstate --cmux)"
 "$BIN" agents --json --rows tools/fixtures --cmux | grep -q '"why" : "waiting for permission (cmux)"'; check "reason names the permission wait" 0 "$?"
 "$BIN" agents --rows tools/fixtures --cmux | grep -q "blocked on you";                                  check "CLI summary counts it" 0 "$?"
 check "setting off falls back to idle"         idle "$(cmuxstate)"
-defaults write no.guerrilla.minmacs minmacs.readCmux -bool true
+defaults write "$DOM" minmacs.readCmux -bool true
 check "setting on (minmacs.readCmux) reads it" blocked "$(cmuxstate)"
-defaults write no.guerrilla.minmacs minmacs.readCmux -bool false
+defaults write "$DOM" minmacs.readCmux -bool false
 check "setting back off falls back"            idle "$(cmuxstate)"
 ev toolUse 1
 check "then a tool event reads working"        working "$(cmuxstate --cmux)"
@@ -181,10 +215,11 @@ check "log is over 3 MB" yes "$([ "$(stat -f %z "$CMUX/workstream.jsonl")" -gt 3
 check "a block outside the last 2 MB is not read" idle "$(cmuxstate --cmux)"
 check "no payload, title or body text in any output" 0 "$( { "$BIN" agents --json --rows tools/fixtures --cmux; "$BIN" agents --rows tools/fixtures --cmux; } 2>&1 | grep -c SECRET)"
 kill $FA 2>/dev/null; wait $FA 2>/dev/null
-defaults delete no.guerrilla.minmacs minmacs.debug.cmuxDir >/dev/null 2>&1; defaults delete no.guerrilla.minmacs minmacs.readCmux >/dev/null 2>&1
+defaults delete "$DOM" minmacs.debug.cmuxDir >/dev/null 2>&1; defaults delete "$DOM" minmacs.readCmux >/dev/null 2>&1
 
 if [ "${1:-}" = "--browser" ]; then
   echo "== live browser trim (opens two tabs of its own in Chrome)"
+  defaults write "$DOM" minmacs.quitBrowsers -bool false
   was=$(pgrep -f "Google Chrome.app/Contents/MacOS/Google Chrome$" >/dev/null && echo yes || echo no)
   open -g -a "Google Chrome" "https://vimeo.com/" "https://github.com/FRIKKern/minmacs"; sleep 6
   "$BIN" plan | grep -q "vimeo.com";                            check "plan lists the vimeo tab as noise" 0 "$?"
@@ -195,8 +230,7 @@ if [ "${1:-}" = "--browser" ]; then
   "$BIN" restore >/dev/null; sleep 4
   "$BIN" plan | grep -q "vimeo.com";                            check "restore reopens the closed tab" 0 "$?"
   "$BIN" trim --yes --only-host vimeo.com >/dev/null
-  defaults delete no.guerrilla.minmacs minmacs.closedTabs >/dev/null 2>&1
   [ "$was" = "no" ] && echo "  (Chrome was not running before the test; it is left open with the GitHub tab)"
 fi
 
-echo; echo "passed $pass, failed $fail"; [ $fail = 0 ]
+echo; echo "passed $pass, failed $fail, skipped $skipped"; [ $fail = 0 ]

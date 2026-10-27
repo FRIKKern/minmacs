@@ -26,14 +26,22 @@ static const NSTimeInterval kGrace = 8;   // seconds an app gets to quit on its 
 #pragma mark - Preferences
 
 // Explicit domain, so the CLI (run through a symlink, where the bundle may not resolve)
-// and the menu bar app read and write the same preferences.
-static CFStringRef const kDomain = CFSTR("no.guerrilla.minmacs");
+// and the menu bar app read and write the same preferences. The test suite sets
+// MINMACS_DEFAULTS_DOMAIN, so it never reads or writes your settings.
+static CFStringRef Domain(void) {
+    static CFStringRef d; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        const char *env = getenv("MINMACS_DEFAULTS_DOMAIN");
+        d = env && *env ? CFStringCreateWithCString(NULL, env, kCFStringEncodingUTF8) : CFSTR("no.guerrilla.minmacs");
+    });
+    return d;
+}
 static id PrefGet(NSString *key) {
-    return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, kDomain));
+    return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, Domain()));
 }
 static void PrefSet(NSString *key, id value) {
-    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, kDomain);
-    CFPreferencesAppSynchronize(kDomain);
+    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, Domain());
+    CFPreferencesAppSynchronize(Domain());
 }
 static BOOL PrefBool(NSString *key, BOOL dflt) { id v = PrefGet(key); return v ? [v boolValue] : dflt; }
 static MMForceMode ForceMode(void) { id v = PrefGet(kForceKey); return v ? (MMForceMode)[v integerValue] : MMForceAsk; }

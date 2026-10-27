@@ -4,10 +4,14 @@
 
 ```sh
 ./build.sh                       # universal build, installs ~/Applications/MinMacs.app and ~/.local/bin/minmacs
+./build.sh --no-install          # builds build/MinMacs.app only; test.sh tests this copy
 minmacs plan                     # non-destructive: shows the current plan
-./test.sh                        # fixtures only: TextEdit and build/Stubborn.app; nothing else is touched
+./test.sh                        # fixtures only: build/Polite.app, build/Stubborn.app, fake agents, a temp rules file
+./test.sh --live                 # adds a read-only comparison of real agent sessions with tools/agents_probe.py
 ./test.sh --browser              # adds a live Chrome test that opens its own two tabs
 ```
+
+`test.sh` sets `MINMACS_RULES_FILE` and `MINMACS_DEFAULTS_DOMAIN`, so it never reads or writes the real rules file or the `no.guerrilla.minmacs` settings. Every `run` in it passes `--only` with a fixture bundle id. CI runs it on macOS. A check that needs something the machine lacks is skipped with a printed reason, never counted as passed.
 
 **Layout**: `Sources/Scanner.m` samples processes and attributes them to apps. `Sources/Rules.m` holds the keep/close lists and the JSON rules file. `Sources/Browser.m` reads and closes tabs through ScriptingBridge aimed at one pid. `Sources/main.m` is the menu bar UI, the CLI (`RunCLI`), the plan, quitting, force quitting and restoring. `Sources/Hosts.m` holds host readers that feed `MMAgents.overrides`; today only `MMCmuxReader`. `tools/stubborn.m` is the test app that refuses to quit. `tools/mkicon.m` renders the icon.
 

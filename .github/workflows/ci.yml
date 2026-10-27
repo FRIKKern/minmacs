@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, legacy]
   pull_request:
 jobs:
   build:
@@ -9,4 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: sh build.sh --no-install
-      - run: sh -n install.sh && sh -n uninstall.sh
+      - run: sh -n install.sh && sh -n uninstall.sh && sh -n test.sh
+      # Fixtures only. A failed check makes test.sh exit 1, which fails the job.
+      # Checks the runner cannot do are skipped, and test.sh prints why.
+      - run: ./test.sh

@@ -1,12 +1,16 @@
 // Test fixture: an app that refuses a normal Quit, and can listen on a loopback port.
 //   open -g -n build/Stubborn.app --args --listen 47999
+// Built into a bundle whose id ends in .polite (build/Polite.app), it quits when asked.
+// test.sh uses that copy for the graceful quit and restore checks.
 #import <Cocoa/Cocoa.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import <arpa/inet.h>
 @interface Stubborn : NSObject <NSApplicationDelegate> @end
 @implementation Stubborn
-- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)s { return NSTerminateCancel; }
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)s {
+    return [NSBundle.mainBundle.bundleIdentifier hasSuffix:@".polite"] ? NSTerminateNow : NSTerminateCancel;
+}
 - (void)applicationDidFinishLaunching:(NSNotification *)n {
     NSArray *a = NSProcessInfo.processInfo.arguments;
     NSUInteger i = [a indexOfObject:@"--listen"];

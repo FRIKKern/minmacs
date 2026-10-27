@@ -81,6 +81,13 @@ static const NSInteger kRulesVersion = 2;
 + (instancetype)shared { static MMRules *r; static dispatch_once_t o; dispatch_once(&o, ^{ r = [MMRules new]; [r reload]; }); return r; }
 
 - (NSURL *)fileURL {
+    // The test suite sets MINMACS_RULES_FILE, so it never reads or writes your rules file.
+    const char *env = getenv("MINMACS_RULES_FILE");
+    if (env && *env) {
+        NSURL *u = [NSURL fileURLWithPath:@(env)];
+        [NSFileManager.defaultManager createDirectoryAtURL:u.URLByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
+        return u;
+    }
     NSURL *dir = [[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject
                   URLByAppendingPathComponent:@"MinMacs"];
     [NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:nil error:nil];
