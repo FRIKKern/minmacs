@@ -76,7 +76,7 @@ A close-list app is left alone when it is demonstrably in use by a tool:
 - it was started with a remote debugging port or pipe, which is how DevTools MCP, Puppeteer and Playwright drive a browser, or
 - one of its processes listens on a **loopback** TCP port, which is how Blender's and Godot's MCP bridges and similar tools work.
 
-The menu shows the reason, for example "serving on 127.0.0.1:9876". Listeners on all interfaces are ignored, since that is LAN discovery, not an agent. A few apps listen on loopback for their own reasons, such as Discord and Spotify, and ship on an `ignoreServing` list. *Close Even When Serving* in an app's submenu adds any other.
+The menu shows the reason, for example "serving on 127.0.0.1:9876". Listeners on all interfaces are ignored, since that is LAN discovery, not an agent. A few apps listen on loopback for their own reasons, such as Discord and Spotify, and ship on an `ignoreServing` list. Its entries match like the keep and close lists, so `com.adobe.*` covers every Adobe app. *Close Even When Serving* in an app's submenu adds any other. Turning it off for one app that a pattern covers adds `!` and the bundle id as an exception.
 
 ### Blocked: an agent that is waiting on you
 

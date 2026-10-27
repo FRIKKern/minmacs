@@ -128,6 +128,20 @@ check "IntelliJ is still kept"                      keep  "$(rc verdict com.jetb
 check "com.jetbrains.* is still in the keep list"   yes   "$(listed keep 'com.jetbrains.*')"
 rc set unsorted com.example.nothing
 check "Unsorted with no pattern adds no entry"      no    "$(listed unsorted com.example.nothing)"
+cat > "$RC" <<'EOF'
+{"version":3,"keep":[],"close":[],"unsorted":[],"tabs":{"noise":[],"work":[]},"ignoreServing":["com.adobe.*","*zoom*","com.hnc.Discord"]}
+EOF
+check "ignoreServing: exact id"                     yes "$(rc serving com.hnc.Discord)"
+check "ignoreServing: trailing * matches a prefix"  yes "$(rc serving com.adobe.Photoshop)"
+check "ignoreServing: *x* matches inside the id"    yes "$(rc serving us.zoom.xos)"
+check "ignoreServing: an unlisted app is not"       no  "$(rc serving com.example.app)"
+rc set-serving no com.adobe.Photoshop
+check "turning it off for Photoshop works"          no  "$(rc serving com.adobe.Photoshop)"
+check "Illustrator is still ignored"                yes "$(rc serving com.adobe.illustrator)"
+check "com.adobe.* is still listed"                 yes "$(listed ignoreServing 'com.adobe.*')"
+rc set-serving yes com.adobe.Photoshop
+check "turning it back on works"                    yes "$(rc serving com.adobe.Photoshop)"
+check "and drops the exception"                     no  "$(listed ignoreServing '!com.adobe.Photoshop')"
 
 echo "== agent detection (fixture: tools/fakeagent.c)"
 clang -O1 tools/fakeagent.c -o build/fakeagent || exit 1

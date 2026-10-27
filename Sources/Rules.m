@@ -151,7 +151,7 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
                       "An exact bundle id wins over any pattern, so com.adobe.Photoshop in keep is an exception to com.adobe.* in close. "
                       "unsorted: exact bundle ids that no pattern applies to; they are listed and never touched. "
                       "tabs.noise hosts are closed when a browser is trimmed; tabs.work hosts are never closed; a host matches its subdomains. "
-                      "ignoreServing: apps whose local listeners do not mean an agent is using them. Anything not listed is left alone.",
+                      "ignoreServing: apps whose local listeners do not mean an agent is using them, matched like keep and close; !<bundle id> is an exception to a pattern. Anything not listed is left alone.",
         @"version": @(kRulesVersion),
         @"keep": _keep, @"close": _close, @"unsorted": _unsorted,
         @"tabs": @{ @"noise": _noise, @"work": _work },
@@ -203,12 +203,20 @@ static BOOL HostMatch(NSString *rule, NSString *host) {
 - (void)addWorkHost:(NSString *)host  { [self moveHost:host toWork:YES]; }
 - (void)addNoiseHost:(NSString *)host { [self moveHost:host toWork:NO]; }
 
-- (BOOL)ignoresServing:(NSString *)bundleID { return [_ignore containsObject:bundleID]; }
+/// Matches like the keep and close lists. An entry !<bundle id> is an exception to a pattern.
+- (BOOL)ignoresServing:(NSString *)bundleID {
+    if ([_ignore containsObject:[@"!" stringByAppendingString:bundleID]]) return NO;
+    for (NSString *p in _ignore) if (![p hasPrefix:@"!"] && Match(p, bundleID)) return YES;
+    return NO;
+}
+/// Changes only this app's own entries. A pattern stays for every other app.
 - (void)setIgnoresServing:(BOOL)ignore forBundleID:(NSString *)bundleID {
+    NSString *except = [@"!" stringByAppendingString:bundleID];
     NSMutableArray *i = [_ignore mutableCopy];
-    [i removeObject:bundleID];
-    if (ignore) [i addObject:bundleID];
+    [i removeObject:bundleID]; [i removeObject:except];
     _ignore = i;
+    if (ignore && ![self ignoresServing:bundleID]) [i addObject:bundleID];
+    if (!ignore && [self ignoresServing:bundleID]) [i addObject:except];
     [self save];
 }
 
