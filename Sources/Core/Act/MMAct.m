@@ -87,7 +87,13 @@ static BOOL Matches(NSString *entry, NSString *value) {
 }
 static BOOL ProtectedIn(NSString *expert, NSString *value) {
     Class rules = NSClassFromString(@"MMRules");   // Store lands in parallel; until then the file is read here
-    if (rules) return [[rules rulesFor:expert defaults:@{}] list:@"protect" key:nil matches:value];
+    if (rules) {
+        // MMRules does not expand ~ in an entry, so a path is also matched in its ~ form, as the fallback below does.
+        MMRules *r = [rules rulesFor:expert defaults:@{}];
+        NSString *short_ = [value hasPrefix:@"/"] ? value.stringByAbbreviatingWithTildeInPath : nil;
+        return [r list:@"protect" key:nil matches:value] ||
+               (short_.length && ![short_ isEqualToString:value] && [r list:@"protect" key:nil matches:short_]);
+    }
     NSData *d = [NSData dataWithContentsOfFile:[MMExpertDir(expert) stringByAppendingPathComponent:@"rules.json"]];
     id j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
     id list = [j isKindOfClass:NSDictionary.class] ? j[@"protect"] : nil;

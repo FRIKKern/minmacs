@@ -287,10 +287,15 @@ static void MustKeep(void) {
     T(@"MustKeep: a passed keep no longer holds", @"nil", Or(MMMustKeep(ff, Gather(ff), nil, p)));
 
     NSString *rules = [MMExpertDir(gExpert) stringByAppendingPathComponent:@"rules.json"];
-    for (NSString *entry in @[ff.stableKey, [gDir stringByAppendingString:@"/*"], @"*keep-fi*"]) {
+    // gDir can hold a double slash from TMPDIR. A finding's path never does, so the entry uses the standard form.
+    for (NSString *entry in @[ff.stableKey, [gDir.stringByStandardizingPath stringByAppendingString:@"/*"], @"*keep-fi*"]) {
         Write(rules, [NSString stringWithFormat:@"{\"protect\": [\"%@\"]}", entry]);
         T([NSString stringWithFormat:@"MustKeep: the protect entry %@ holds", [entry hasPrefix:@"/"] ? @"<dir>/*" : entry], @"protected", Or(MMMustKeep(ff, Gather(ff), nil, p)));
     }
+    // An entry written with ~ matches a full path under home. Only strings are compared; no file is read.
+    Write(rules, @"{\"protect\": [\"~/mm-act-fixture-none/*\"]}");
+    T(@"MustKeep: a protect entry with ~ matches the full path", @"yes",
+      YN([MMKeep isProtected:[NSHomeDirectory() stringByAppendingPathComponent:@"mm-act-fixture-none/x"] expert:gExpert]));
     Write(rules, @"{\"protect\": [\"other*\"]}");
     T(@"MustKeep: a protect entry that does not match lets go", @"nil", Or(MMMustKeep(ff, Gather(ff), nil, p)));
     Write([MMExpertDir(@"core") stringByAppendingPathComponent:@"rules.json"], @"{\"protect\": [\"*keep-file*\"]}");
@@ -485,6 +490,25 @@ static void Stops(void) {
     usleep(300000);
     T(@"stop action: the restarted fixture runs", @"yes", YN(again > 0 && Running(KeyOf(again))));
     if (again > 0 && Running(KeyOf(again))) { MMStop(@[V(KeyOf(again))], MMStopTerm, 3); Reap(); }
+
+    // Two restores of one stop record at once, as the notification's Undo and the menu's Undo can ask.
+    // Only one may run the restart command.
+    MMUndoRecord *twice = [MMUndo.shared begin:gExpert kind:@"stop" finding:@"twice" subject:@"twice" why:@"test" by:@"proactive"
+                                        parent:nil payload:@{@"restart": @{@"command": [NSString stringWithFormat:@"exec '%@' plain 20", gFixture],
+                                                                           @"cwd": gDir, @"env": @{@"PATH": @"/usr/bin:/bin"}}}];
+    [MMUndo.shared finish:twice ok:YES freed:0 error:nil];
+    __block NSInteger ran = 0;
+    dispatch_group_t g = dispatch_group_create();
+    for (int i = 0; i < 2; i++)
+        dispatch_group_async(g, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            if (![MMUndo.shared restore:twice.rid]) @synchronized (gStarted) { ran++; }
+        });
+    dispatch_group_wait(g, DISPATCH_TIME_FOREVER);
+    pid_t once = [[MMUndo.shared record:twice.rid].payload[@"restored"][@"restartedPid"] intValue];
+    if (once > 0) [gStarted addObject:V(KeyOf(once))];
+    T(@"undo: two restores at once run the restart once", @"1", @(ran).stringValue);
+    usleep(200000);
+    if (once > 0 && Running(KeyOf(once))) { MMStop(@[V(KeyOf(once))], MMStopTerm, 3); Reap(); }
 }
 
 static void Bundles(void) {

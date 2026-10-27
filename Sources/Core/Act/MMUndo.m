@@ -395,9 +395,13 @@ static NSString *Tail(NSString *s, NSUInteger max) {
     return missed.count ? [@"these files could not be put back: " stringByAppendingString:[missed componentsJoinedByString:@", "]] : nil;
 }
 
+/// Opens the app again from its path in "url", or from its "bundleID" when the record has no path,
+/// as the rows imported from MinMacs 1.2 do.
 - (NSString *)relaunch:(NSDictionary *)r {
-    NSString *path = r[@"url"];
-    if (![path isKindOfClass:NSString.class]) return @"the record does not say where the app lives";
+    NSString *path = [r[@"url"] isKindOfClass:NSString.class] ? r[@"url"] : nil;
+    if (!path && [r[@"bundleID"] isKindOfClass:NSString.class])
+        path = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:r[@"bundleID"]].path;
+    if (!path.length) return @"the record does not say where the app lives";
     NSWorkspaceOpenConfiguration *cfg = [NSWorkspaceOpenConfiguration configuration];
     cfg.activates = NO;
     __block NSString *problem = nil;
@@ -417,7 +421,26 @@ static NSString *Tail(NSString *s, NSUInteger max) {
     return parts;   // newest first, as LogLatest returns them
 }
 
+/// The rids a restore runs on now. The notification's Undo and the menu's Undo can ask at once,
+/// and a second restore of the same record would run its restart command twice.
+static NSMutableSet<NSString *> *Restoring(void) {
+    static NSMutableSet *s; static dispatch_once_t once;
+    dispatch_once(&once, ^{ s = [NSMutableSet new]; });
+    return s;
+}
+
 - (NSString *)restore:(NSString *)rid {
+    if (!rid.length) return @"no undo record with that id";
+    @synchronized (Restoring()) {
+        if ([Restoring() containsObject:rid]) return @"a restore of it is already running";
+        [Restoring() addObject:rid];
+    }
+    NSString *problem = [self restoreOnce:rid];
+    @synchronized (Restoring()) { [Restoring() removeObject:rid]; }
+    return problem;
+}
+
+- (NSString *)restoreOnce:(NSString *)rid {
     MMUndoRecord *r = [self record:rid];
     if (!r) return @"no undo record with that id";
     if (r.state == MMUndoRestored) return @"it was already restored";
