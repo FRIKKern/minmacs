@@ -298,6 +298,10 @@ static int SelfTest(MMArgs *a) {
     C(a, @"icon: it shows once the field appears", @"1", [MMIconVisibleFor(NO, NO, NO) description]);
     C(a, @"icon: after that the person decides", @"nil", MMIconVisibleFor(YES, YES, NO) ? @"set" : @"nil");
     C(a, @"icon: an empty field later leaves the icon alone", @"nil", MMIconVisibleFor(YES, NO, NO) ? @"set" : @"nil");
+    C(a, @"one icon: a hidden expert has no section", @"NO", MMOneIconShows(@"locohost", NO, NO) ? @"YES" : @"NO");
+    C(a, @"one icon: an empty field has no section", @"NO", MMOneIconShows(@"locohost", YES, YES) ? @"YES" : @"NO");
+    C(a, @"one icon: a visible expert has a section", @"YES", MMOneIconShows(@"locohost", NO, YES) ? @"YES" : @"NO");
+    C(a, @"one icon: MinMacs keeps its section", @"YES", MMOneIconShows(@"minmacs", NO, NO) ? @"YES" : @"NO");
     C(a, @"experts: built-in classes in menu bar order", @"MMMinMacsExpert MMLocoHostExpert MMWorkForestExpert MMNooNooExpert MMInsomniaExpert",
       [MMBuiltInExpertClasses() componentsJoinedByString:@" "]);
     C(a, @"experts: registered once, in order", @"minmacs locohost", [[MMExperts() valueForKey:@"expertID"] componentsJoinedByString:@" "]);

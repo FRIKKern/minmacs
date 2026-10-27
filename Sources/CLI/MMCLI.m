@@ -58,8 +58,9 @@ NSArray<NSString *> *MMLegacyWords(NSString *program, NSArray<NSString *> *words
             @"review":     @[@"review", @"locohost", @"--now"],
             @"summary":    @[@"review", @"locohost"],
             @"auto":       @[@"tidy", @"locohost"],
-            @"idle":       @[@"tidy", @"locohost", @"--dry-run"],
-            @"close-idle": @[@"tidy", @"locohost"],
+            // 1.x stopped every server the review confirmed idle, whatever the mode. In 2.0 that is what Eager does.
+            @"idle":       @[@"tidy", @"locohost", @"--dry-run", @"--mode", @"eager"],
+            @"close-idle": @[@"tidy", @"locohost", @"--mode", @"eager"],
             @"stopped":    @[@"restore", @"--list", @"--expert", @"locohost"],
             @"mode":       @[@"mode", @"locohost", @"$1"],
         };
@@ -105,7 +106,7 @@ static BOOL RunsHere(NSString *verb) {
 
 BOOL MMWantsCLI(int argc, const char *argv[]) {
     if (argc < 2) return NO;
-    if (!strcmp(argv[1], "--version") || !strcmp(argv[1], "--help")) return YES;
+    if (!strcmp(argv[1], "--version") || !strcmp(argv[1], "--help") || !strcmp(argv[1], "-h")) return YES;
     return argv[1][0] != '-';
 }
 
@@ -203,6 +204,8 @@ NSDictionary *MMCLIReply(NSDictionary *request) {
     words = Resolve(program, words, &spec);
     NSMutableString *out = [NSMutableString new], *err = [NSMutableString new];
     int status;
+    // A hidden verb, such as the worker of P4, runs only in the process that was started for it, never in the app.
+    if (spec && [spec.verb hasPrefix:@"_"]) spec = nil;
     if (!spec) { [err appendFormat:@"%@: unknown verb '%@'. Try '%@ help'.\n", program, words.firstObject, program]; status = MMExitUsage; }
     else status = Run(spec, words, program, cwd, YES, out, err);
     return @{@"status": @(status), @"out": out, @"err": err, @"inApp": @YES};
@@ -214,7 +217,7 @@ int MMRunCLI(int argc, const char *argv[]) {
     for (int i = 1; i < argc; i++) [words addObject:@(argv[i])];
     if (!words.count) [words addObject:@""];
     if ([words[0] isEqualToString:@"--version"]) words[0] = @"version";
-    if ([words[0] isEqualToString:@"--help"]) words[0] = @"help";
+    if ([words[0] isEqualToString:@"--help"] || [words[0] isEqualToString:@"-h"]) words[0] = @"help";
 
     MMVerbSpec *spec = nil;
     NSArray *resolved = Resolve(program, words, &spec);

@@ -45,6 +45,12 @@ NSNumber *MMIconVisibleFor(BOOL fieldEmpty, BOOL seen, BOOL firstLaunch) {
     return firstLaunch ? @NO : nil;
 }
 
+BOOL MMOneIconShows(NSString *expertID, BOOL fieldEmpty, BOOL iconVisible) {
+    if (fieldEmpty) return NO;
+    // MinMacs's own visible state is the one icon's, so it never hides its own section.
+    return iconVisible || [expertID isEqualToString:kOneIconExpert];
+}
+
 static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@"core.fieldSeen.%@", expert]; }
 
 #pragma mark - One status item
@@ -88,7 +94,7 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
     if (self.expert) return MMMenuFromSpec([self.expert menuFor:s], [self cardsFor:self.expert snapshot:s], notice, self);
     NSMutableArray *parts = [NSMutableArray new];
     for (id<MMExpert> e in MMExperts()) {
-        if ([e fieldEmptyIn:s]) continue;
+        if (!MMOneIconShows(e.expertID, [e fieldEmptyIn:s], MMIconVisible(e.expertID))) continue;
         MMOneIconPart *p = [MMOneIconPart new];
         p.name = e.name; p.spec = [e menuFor:s]; p.cards = [self cardsFor:e snapshot:s];
         [parts addObject:p];
@@ -111,7 +117,9 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
     if (!self.expert) {
         NSInteger acts = 0;
         for (id<MMExpert> e in MMExperts()) acts += [MMStatusBadge([e badgeFor:s]) integerValue];
-        MMUpdateStatusItem(self.item, @"MinMacs", kOneIconSymbol, nil, acts ? [NSString stringWithFormat:@"%ld", (long)acts] : nil);
+        // The label names the state too, DESIGN.md menu bar rule 5: "MinMacs, 3 to act on".
+        NSString *state = acts ? [NSString stringWithFormat:@"%ld to act on", (long)acts] : nil;
+        MMUpdateStatusItem(self.item, @"MinMacs", kOneIconSymbol, state, acts ? [NSString stringWithFormat:@"%ld", (long)acts] : nil);
         return;
     }
     id<MMExpert> e = self.expert;
@@ -207,6 +215,8 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
 
 - (MMExpertItem *)itemFor:(NSString *)expert {
     for (MMExpertItem *i in self.items) if ([i.expert.expertID isEqualToString:expert]) return i;
+    // In One Icon mode MinMacs's own item is the one icon, under the same autosave name.
+    if ([expert isEqualToString:kOneIconExpert]) for (MMExpertItem *i in self.items) if (!i.expert) return i;
     return nil;
 }
 
@@ -247,7 +257,11 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
     if (!self.settings) {
         MMSettings *st = [MMSettings new];
         __weak MMShell *weak = self;
-        st.onIcon = ^(NSString *expert, BOOL visible) { [weak itemFor:expert].item.visible = visible; };
+        // In One Icon mode an expert has no item of its own, so its visible state goes to the pref its item reads.
+        st.onIcon = ^(NSString *expert, BOOL visible) {
+            MMExpertItem *i = [weak itemFor:expert];
+            if (i) i.item.visible = visible; else MMSetPref(MMIconVisibleKey(expert), @(visible));
+        };
         st.onMode = ^(NSString *expert, NSString *mode) { NSInteger m = MMModeFrom(mode); if (m >= 0) MMSetMode(expert, (MMMode)m); };
         st.onModel = ^(NSString *model) { MMSetPref(MMReviewModelKey, model); };
         st.onOneIcon = ^(BOOL on) { MMSetPref(MMOneIconKey, @(on)); [weak rebuildItems]; };

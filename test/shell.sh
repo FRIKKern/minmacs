@@ -75,6 +75,8 @@ check "help lists Core and expert verbs, none hidden" "yes no" \
   "$(fx help >"$sh_dir/help.txt"; grep -q '  hosts \[port\]' "$sh_dir/help.txt" && grep -q '  tidy ' "$sh_dir/help.txt" && echo yes || echo no) $(grep -c '_serve\|_walk\|_review' "$sh_dir/help.txt" | sed 's/^0$/no/')"
 check "help --json lists every verb" "yes" "$(fx help --json | jq_ '"yes" if {"status","work","hosts","apps","review","tidy","where","restore"} <= {v["verb"] for v in j["verbs"]} else "no"')"
 check "version --json" "2.0.0" "$(fx version --json | jq_ 'j["version"]')"
+# With a time limit, so a regression that starts the app instead stops after 5 seconds.
+check "-h is help, as in 1.x" 1 "$(perl -e 'alarm 5; exec @ARGV' "$sh_fx" -h | grep -c '^usage: ')"
 
 echo "  -- old names"
 ln -sf "$sh_fx" "$sh_dir/bin/locohost"
@@ -84,6 +86,10 @@ check "locohost explain 3000 explains one port" "Vite :3000" "$("$sh_dir/bin/loc
 check "locohost hosts is the 2.0 verb too" "Vite :3001" "$("$sh_dir/bin/locohost" hosts 3001)"
 check "locohost idle is tidy locohost --dry-run" "Vite :3001" \
   "$("$sh_dir/bin/locohost" idle --json | jq_ '" ".join(e["title"] for e in j["experts"][0]["entries"] if e["act"])')"
+fx mode locohost idle >/dev/null
+check "locohost idle lists the confirmed idle server in Idle mode too, as 1.x did" "Vite :3001" \
+  "$("$sh_dir/bin/locohost" idle --json | jq_ '" ".join(e["title"] for e in j["experts"][0]["entries"] if e["act"])')"
+fx mode locohost proactive >/dev/null
 "$sh_dir/bin/locohost" close-idle >/dev/null 2>&1
 check "locohost close-idle needs the app, as tidy does" 3 "$?"
 check "locohost mode is LocoHost's mode" proactive "$("$sh_dir/bin/locohost" mode)"
@@ -112,6 +118,8 @@ fx hosts 9 >/dev/null 2>"$sh_dir/hosts9.err"
 check "an exit status and stderr come back from the app" "1 1" "$? $(grep -c 'nothing listens on :9' "$sh_dir/hosts9.err")"
 fx nosuch >/dev/null 2>&1
 check "an unknown verb still exits 2" 2 "$?"
+# A hidden verb such as the worker never runs in the app, whoever asks. The CLI never sends one, so ask directly.
+check "the app refuses a hidden verb over core.sock" "2 False" "$(python3 test/shell/ask.py "$MINMACS_HOME/core.sock" _walk)"
 check "locohost list through the app" "Vite :3000,Vite :3001" "$("$sh_dir/bin/locohost" list --json | jq_ '",".join(h["title"] for h in j["hosts"])')"
 check "review --now runs in the app" "locohost" "$(fx review locohost --now --json | jq_ '",".join(j["started"])')"
 fx tidy locohost --json >"$sh_dir/tidy.json" 2>"$sh_dir/tidy.err"
@@ -134,6 +142,8 @@ kill "$sh_srv" 2>/dev/null; wait "$sh_srv" 2>/dev/null
 check "with the app gone the CLI runs cold again" False "$(fx status --json | jq_ 'j["app"]')"
 
 echo "  -- the real binary, cold"
+# Where asks cmux and tmux through their CLIs. Fakes that answer nothing keep this Mac's own sessions out.
+export MINMACS_CMUX=/usr/bin/false MINMACS_TMUX=/usr/bin/false
 check "minmacs version through the bundle" "MinMacs 2.0.0 (phase 1)" "$("$BIN" version)"
 check "minmacs status with no experts linked" "No experts are registered." "$("$BIN" status | tail -1)"
 check "minmacs status --json is JSON" False "$("$BIN" status --json | jq_ 'j["app"]')"
@@ -162,6 +172,7 @@ check "where on a port nobody holds exits 1" 1 "$?"
 "$BIN" where >/dev/null 2>&1
 check "where with no pid exits 2" 2 "$?"
 kill "$sh_l" 2>/dev/null; wait "$sh_l" 2>/dev/null
+unset MINMACS_CMUX MINMACS_TMUX
 
 check "Info.plist keeps the minmacs scheme" minmacs "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$APP/Contents/Info.plist" 2>/dev/null)"
 check "Info.plist adds the locohost scheme" locohost "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:1' "$APP/Contents/Info.plist" 2>/dev/null)"

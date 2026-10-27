@@ -22,6 +22,10 @@ BOOL MMMayRegisterLoginItem(NSDictionary<NSString *, NSString *> *env, NSString 
 /// the person's own choice alone.
 NSNumber *MMIconVisibleFor(BOOL fieldEmpty, BOOL seen, BOOL firstLaunch);
 
+/// DESIGN.md menu bar rule 4: the One Icon menu holds one section per visible expert. An expert with an empty
+/// field, or one the person hid in Settings, stays out. MinMacs's own section follows the one icon itself.
+BOOL MMOneIconShows(NSString *expertID, BOOL fieldEmpty, BOOL iconVisible);
+
 /// The line the menu shows for a day after first launch, decision 18.
 extern NSString *const MMLoginNotice;
 
