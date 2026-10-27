@@ -302,7 +302,8 @@ MMMenuSpec *MMLHMenu(MMLHView *v) {
     m.headerBig = MMBytes(mem);
     m.headerUnit = @"in servers";
     NSMutableArray *line = [NSMutableArray arrayWithObject:MMPlural(servers, @"localhost")];
-    [line addObject:[NSString stringWithFormat:@"%lu in use", (unsigned long)(inUse.count + services.count)]];
+    // The counts match the sections below: a service is listed under Services, not In use.
+    [line addObject:[NSString stringWithFormat:@"%lu in use", (unsigned long)inUse.count]];
     if (quiet.count) [line addObject:[NSString stringWithFormat:@"%lu quiet", (unsigned long)quiet.count]];
     [line addObject:MMLHModeLabel(v.mode)];
     m.headerLine = [line componentsJoinedByString:@" · "];

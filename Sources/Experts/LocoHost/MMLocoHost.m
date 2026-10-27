@@ -210,6 +210,9 @@ NSArray<MMFinding *> *MMLHCandidates(NSArray<MMFinding *> *findings, MMReview *r
         if (!h.isDev || h.isProtected || h.state != MMLHIdle) continue;
         MMVerdict *v = r.verdicts[f.findingID];
         if (v.kind != MMVerdictGo || v.confidence < MMMinConfidence) continue;
+        // The finding id outlives a restart. A verdict made for an earlier instance says nothing about this one.
+        // The fingerprint starts with the instance key, as LocoHost 0.1 keyed its verdicts by pid and start time.
+        if (![v.fingerprint hasPrefix:[f.instanceKey stringByAppendingString:@"|"]]) continue;
         if (h.lastActive && [h.lastActive compare:r.at] == NSOrderedDescending) continue;
         [c addObject:f];
     }

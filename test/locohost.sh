@@ -46,7 +46,9 @@ lh_serve() { # port, [stubborn], [seconds to wait before starting]
 # Stops what this section started and nothing else: the pids in its own pid files.
 lh_stop_all() { for f in "$lh"/pids/pid-*; do [ -e "$f" ] && kill -9 "${f##*pid-}" 2>/dev/null; rm -f "$f"; done; }
 # A fresh instance of the fixture on its port, so the fingerprint cache sends it to the model again.
-lh_fresh() { "$LH" close "$P" --yes --force >/dev/null 2>&1; lh_stop_all; lh_serve "$P" "${1:-plain}"; "$LH" ready "$P" --timeout 10 >/dev/null; }
+# close takes a port or a pid. With nothing on the port, it would match a process whose pid equals the port, so it runs
+# only while the fixture listens.
+lh_fresh() { [ "$(lh_listening "$P")" = yes ] && "$LH" close "$P" --yes --force >/dev/null 2>&1; lh_stop_all; lh_serve "$P" "${1:-plain}"; "$LH" ready "$P" --timeout 10 >/dev/null; }
 
 # The project folder: a package.json, a README, a secret .env and an agent session that started just before the server.
 APPDIR=$(cd "$lh/app" && pwd -P)
@@ -121,6 +123,9 @@ check "and the port is free" no "$(lh_listening "$P")"
 
 echo "== Luna when Haiku is out of usage"
 lh_stop_all; lh_serve "$P"; "$LH" ready "$P" --timeout 10 >/dev/null
+# The idle verdict above was for the stopped instance. The new one on the same port and folder has the same finding id.
+r=$(LOCOHOST_IDLE_MINUTES=0 "$LH" idle --json --port "$P" | json "len(j['candidates'])")
+                                                                     check "a verdict for an earlier instance makes no candidate" 0 "$r"
 RV_TEST_CLAUDE_LIMIT=1 OPENAI_API_KEY=sk-test "$LH" review --model auto --port "$P" --json >"$lh/luna.json" 2>/dev/null
 r=$(json "j['model']" <"$lh/luna.json");                             check "auto falls back to Luna, without the API key" gpt-6-luna "$r"
 r=$(json "'usage limit' in (j['note'] or '')" <"$lh/luna.json");     check "and notes why Haiku was skipped" True "$r"
