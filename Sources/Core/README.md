@@ -39,7 +39,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P51 to P53 | `Act/MMClutterAct.h` | `MMClutterAction`: clutter to the Trash, or a tool's command after an APFS recovery copy, with an audit |
 | P52, P53 | `Act/MMUndo.h` | `MMUndoRecord`, `MMUndo` with the Trash, git bundles and Wrap Up records, `MMToolCommand` with its dry run |
 | P52 | `Act/MMWorktreeAct.h` | `MMWorktreeIgnoredFiles`, `MMWorktreeRemove` with no `--force` and `git branch -d`, and `MMWorktreePrune` |
-| P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMNotify` |
+| P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMLidOverride`, `MMNotify` |
 | P56 to P62 | `MMExpert.h` | The `MMExpert` protocol, `MMRowMark`, and the menu, card and verb specs it returns. The kit, render tool, formatters, verb registry and URL router themselves live in `Sources/UI` and `Sources/CLI` |
 | P65 | none | build.sh, test.sh and the CI workflow. `MMCore.h` notes it |
 
@@ -49,6 +49,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 - One pass measured 6.1 to 7.5 ms CPU median and 6.6 to 9.4 ms p95 on the research Mac, over 60 to 100 passes with 836 to 929 pids. The spread follows the load from other builds. `test/senses.sh` fails above 12 ms median or 25 ms p95.
 - A zombie, a process that exited and waits for its parent to reap it, is left out of the sample, and `MMProcAlive` says it is gone. Every array a sample hands out is immutable.
 - `-[MMSenses stop]` ends the timer, the pushed sources and the notification observers. `MMCoreStop` calls it.
+- `MMPower.online` says a default route exists, from one `NET_RT_FLAGS` sysctl per address family. It stands in for Insomnia's reachability check, and a change fires `MMSignalPower`. Issue #31 added it for Insomnia's offline guard.
 
 ## Know in phase 1
 

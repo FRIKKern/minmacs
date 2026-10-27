@@ -21,6 +21,8 @@
 #include <sys/mount.h>
 #include <netinet/in.h>
 #include <netinet/tcp_fsm.h>
+#include <net/route.h>
+#include <net/if.h>
 
 static const NSTimeInterval kPassEvery = 5, kPassLeeway = 1;
 static const NSTimeInterval kPassBudget = 0.25;   // wall time; an overrun skips the next turn
@@ -248,7 +250,7 @@ NSRunningApplication *MMOwningApp(MMSample *s, pid_t pid) {
 
 @interface MMPower ()
 @property (readwrite) NSDate *at;
-@property (readwrite) BOOL onAC, lidClosed, lowPowerMode, lidOverride;
+@property (readwrite) BOOL onAC, lidClosed, lowPowerMode, lidOverride, online;
 @property (readwrite) int batteryPercent;
 @property (readwrite) NSProcessInfoThermalState thermal;
 @property (readwrite) NSInteger memoryPressure;
@@ -273,6 +275,34 @@ static io_service_t RootDomain(void) {
     return rd;
 }
 
+/// YES when the routing table holds an up default route, IPv4 or IPv6. One NET_RT_FLAGS sysctl per family.
+static BOOL HasDefaultRoute(void) {
+    int families[2] = { AF_INET, AF_INET6 };
+    for (int f = 0; f < 2; f++) {
+        int mib[6] = { CTL_NET, PF_ROUTE, 0, families[f], NET_RT_FLAGS, RTF_GATEWAY };
+        size_t len = 0;
+        if (sysctl(mib, 6, NULL, &len, NULL, 0) != 0 || len == 0) continue;
+        char *buf = malloc(len);
+        if (!buf) continue;
+        BOOL found = NO;
+        if (sysctl(mib, 6, buf, &len, NULL, 0) == 0) {
+            for (char *p = buf; p + sizeof(struct rt_msghdr) <= buf + len && !found; ) {
+                struct rt_msghdr *rtm = (struct rt_msghdr *)p;
+                if (rtm->rtm_msglen == 0) break;
+                struct sockaddr *dst = (struct sockaddr *)(rtm + 1);
+                if ((rtm->rtm_flags & RTF_UP) && (rtm->rtm_addrs & RTA_DST) && !(rtm->rtm_flags & RTF_IFSCOPE)) {
+                    if (dst->sa_family == AF_INET) found = ((struct sockaddr_in *)dst)->sin_addr.s_addr == 0;
+                    else if (dst->sa_family == AF_INET6) found = IN6_IS_ADDR_UNSPECIFIED(&((struct sockaddr_in6 *)dst)->sin6_addr);
+                }
+                p += rtm->rtm_msglen;
+            }
+        }
+        free(buf);
+        if (found) return YES;
+    }
+    return NO;
+}
+
 /// Every fact from IOKit, sysctl, statfs or NSProcessInfo. Never pmset.
 static MMPower *ReadPowerFromSystem(void) {
     MMPower *p = [MMPower new];
@@ -294,6 +324,7 @@ static MMPower *ReadPowerFromSystem(void) {
     io_service_t rd = RootDomain();
     p.lidClosed = RootDomainBool(rd, CFSTR("AppleClamshellState"));
     p.lidOverride = RootDomainBool(rd, CFSTR("SleepDisabled"));
+    p.online = HasDefaultRoute();
     NSProcessInfo *pi = NSProcessInfo.processInfo;
     p.lowPowerMode = pi.isLowPowerModeEnabled;
     p.thermal = pi.thermalState;
@@ -326,7 +357,7 @@ void MMUsePowerSource(id<MMPowerSource> source) {
 
 MMPower *MMPowerFrom(NSDictionary *facts) {
     MMPower *p = [MMPower new];
-    p.at = NSDate.date; p.onAC = YES; p.batteryPercent = -1; p.memoryPressure = 1; p.assertionsByPid = @{};
+    p.at = NSDate.date; p.onAC = YES; p.online = YES; p.batteryPercent = -1; p.memoryPressure = 1; p.assertionsByPid = @{};
     for (NSString *k in facts) [p setValue:facts[k] forKey:k];
     return p;
 }
@@ -632,7 +663,7 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     if (a.memoryPressure != b.memoryPressure) c |= MMSignalMemory;
     if (DiskBand(a.diskFree) != DiskBand(b.diskFree)) c |= MMSignalDisk;
     if (a.thermal != b.thermal) c |= MMSignalThermal;
-    if (a.onAC != b.onAC || a.batteryPercent != b.batteryPercent || a.lowPowerMode != b.lowPowerMode) c |= MMSignalPower;
+    if (a.onAC != b.onAC || a.batteryPercent != b.batteryPercent || a.lowPowerMode != b.lowPowerMode || a.online != b.online) c |= MMSignalPower;
     if (a.lidClosed != b.lidClosed || a.lidOverride != b.lidOverride) c |= MMSignalLid;
     return c;
 }

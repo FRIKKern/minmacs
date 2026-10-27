@@ -24,8 +24,8 @@ check "tools/render.sh builds and renders" 0 "$ui_r"
 check "the render build has no warnings" 0 "$(grep -c "warning:" "$MINMACS_HOME/ui/render-bin/clang.log" 2>/dev/null)"
 
 # Three subjects with one menu and four cards each, WorkForest with a fifth card, Noo-Noo with one menu and five cards,
-# plus the status icons, in four appearances.
-ui_want=92
+# plus the status icons, in four appearances: 92. Insomnia's four subjects add four menus and seven cards: 44.
+ui_want=136
 check "every PNG is there" "$ui_want" "$(ls "$ui_out"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 for ui_name in locohost-menu locohost-card-checkout locohost-card-orbit locohost-card-docs locohost-card-postgres \
                workforest-menu workforest-card-promo workforest-card-search workforest-card-hooks workforest-card-limits \
