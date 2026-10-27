@@ -39,7 +39,13 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// P52. `git bundle create` of every commit in the worktree that is on no remote, into <expert>/bundles/<rid>.bundle.
 /// Returns the bundle path, or nil with *error. An action that needs a bundle does not run without one.
 - (NSString *)bundle:(NSString *)worktree record:(MMUndoRecord *)record error:(NSString **)error;
-/// Undoes a done record: restarts, moves back from the Trash, or recreates a worktree from its bundle.
+/// The recovery folder. Copies each file, a path relative to root, into <expert>/recovery/<rid>/ and notes them.
+/// For files an action would lose that the Trash does not hold, such as a worktree's ignored .env.local.
+/// A file over 20 MB, or past 100 MB in all, is skipped and named in the payload. Returns the folder, or nil with *error.
+- (NSString *)recover:(NSArray<NSString *> *)files from:(NSString *)root record:(MMUndoRecord *)record
+                error:(NSString **)error;
+/// Undoes a done record: restarts, moves back from the Trash, recreates a worktree from its bundle,
+/// and copies back what the recovery folder holds.
 /// A Wrap Up record restores each of its parts, newest first. A tool command's record cannot be restored.
 /// Returns nil on success, else the problem in words.
 - (NSString *)restore:(NSString *)rid;
