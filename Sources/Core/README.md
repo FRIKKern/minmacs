@@ -55,6 +55,12 @@ Issue #15 adds `MMRegistry.m`, `MMSessions.m`, `MMWhere.m`, `MMFactCache.m` and 
 - Know reads `MMSample`, `MMProc` and `MMPower` by message only, so it links without Senses. `test/know/fakesample.m` stands in for Senses in `./test.sh know`.
 - The cmux events reader is behind the pref `core.cmuxEvents` or `MINMACS_CMUX_EVENTS=1`. `MINMACS_CMUX` and `MINMACS_TMUX` name the CLIs, which the checks use for fakes.
 
+## The expert specs, issue #22
+
+`MMExpert.m` holds the spec classes of `MMExpert.h` and the registry: `MMRegisterExpert`, `MMExperts` and `MMExpertNamed`. Registering hands the expert to the graph, and its rules and request maker to the broker. It looks both up at run time, so the render tool links the specs without the rest of Core. A second registration with the same id is a no-op. `Sources/UI/MMSpecKit` draws a menu spec and a card spec with the kit.
+
+With `MINMACS_HOME` set, `MMPref` reads only the current user's copy of the plist. `CFPreferencesCopyAppValue` also read an any-user copy of the same path, which cfprefsd kept from its first read, so a value written by one process was read stale by the next.
+
 ## How the parts meet
 
 1. Senses takes one sample every 5 seconds and pushes exits, app events and power changes.

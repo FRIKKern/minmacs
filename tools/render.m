@@ -1,5 +1,6 @@
 // Renders fixture menus and hover cards built with the menu kit to PNG, in light, dark and Increase Contrast.
-// Nothing is scanned and no model is asked: the subjects are made up here, one like LocoHost and one like WorkForest.
+// Nothing is scanned and no model is asked: the subjects are made up here. LocoHost's menu and cards come from its own
+// spec code in Sources/Experts/LocoHost, fed fixture servers. The WorkForest one is still built with the kit by hand.
 // The two describe one Mac, so a server and its worktree say the same thing on both sides.
 // The drawing and the menu checks live in Sources/UI/MMRender, so an expert's own tests can use them too.
 // Usage: render <output folder>. tools/render.sh builds and runs it.
@@ -7,6 +8,8 @@
 #import <Cocoa/Cocoa.h>
 #import "UI/MMUI.h"
 #import "UI/MMSettings.h"
+#import "UI/MMSpecKit.h"
+#import "Experts/LocoHost/MMLHHost.h"
 
 #pragma mark Checks
 
@@ -65,90 +68,83 @@ static NSMenuItem *Row(Subject *s, NSString *key, NSString *name, NSString *tag,
     return r;
 }
 
+/// One fixture server for the LocoHost subject.
+static MMLHHost *Server(NSString *key, NSString *folder, NSInteger port, NSString *framework, uint64_t mb, MMLHState state, NSTimeInterval up) {
+    MMLHHost *h = [MMLHHost new];
+    h.findingID = [@"locohost:server:" stringByAppendingString:key]; h.stableKey = key; h.key = [NSString stringWithFormat:@"%ld:1", (long)port];
+    h.pid = (pid_t)(40000 + port); h.name = @"node"; h.kind = @"dev"; h.framework = framework;
+    h.cwd = [@"/Users/dev/code" stringByAppendingPathComponent:folder]; h.ports = @[@(port)]; h.bind = @"127.0.0.1";
+    h.memory = mb << 20; h.state = state; h.started = [NSDate dateWithTimeIntervalSinceNow:-up]; h.firstSeen = h.started;
+    h.args = @[@"node", @"vite"]; h.launcher = @"pnpm dev · cmux";
+    return h;
+}
+
+/// LocoHost's own menu and cards, built by Sources/Experts/LocoHost from fixture servers, and drawn by the kit
+/// through Sources/UI/MMSpecKit. The same code draws the app's menu from the graph.
 static Subject *LocoHostLike(void) {
     Subject *s = [Subject new]; s.name = @"locohost"; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
-    NSMenu *m = [NSMenu new];
-    // The header adds up the rows below: seven servers, 3573 MB in all.
-    [m addItem:MMHeaderItem(MMBytes(3573ull << 20), @"in servers", @"12% CPU",
-                            [NSString stringWithFormat:@"%@ · 4 in use · 2 quiet · Eager", MMPlural(7, @"localhost")])];
-    [m addItem:NSMenuItem.separatorItem];
-    // The summary explains. The header and Close Idle already give the counts and the size, so it repeats neither.
-    [m addItem:MMTextItem(@"The docs refresh server goes at 18:00, after a quiet afternoon. The admin server has not been used since lunch. "
-                          @"Postgres is a shared service, so no mode stops it. Nothing else needs a look.", MMMaxSummaryLines)];
-    [m addItem:NSMenuItem.separatorItem];
-    [m addItem:MMActionItem(@"Close Idle", [NSString stringWithFormat:@"%@, %@", MMPlural(2, @"server"), MMBytes(1212ull << 20)], @selector(copy:), nil)];
-    [m addItem:MMAlternateItem(@"Force Close Idle", nil, @selector(copy:), nil)];
-    [m addItem:MMActionItem(@"Review Now", MMAgo([NSDate dateWithTimeIntervalSinceNow:-9 * 60]), @selector(copy:), nil)];
+    MMLHHost *checkout = Server(@"~/code/acme-web.worktrees/checkout-flow#dev", @"acme-web.worktrees/checkout-flow", 3000, @"Vite", 905, MMLHActive, 3 * 3600 + 12 * 60);
+    checkout.repo = @"acme-web"; checkout.worktree = @"checkout-flow"; checkout.branch = @"feat/checkout-flow"; checkout.repoRoot = checkout.cwd;
+    checkout.clients = @[@"Safari"]; checkout.connections = 2; checkout.newConnections = 1; checkout.cpuPercent = 4;
+    checkout.placeLabel = @"cmux, checkout"; checkout.placeTab = @"checkout"; checkout.placeApp = @"cmux";
+    MMLHHost *orbit = Server(@"~/code/orbit-api#dev", @"orbit-api", 4000, @"Next.js", 640, MMLHRecent, 2 * 3600);
+    orbit.repo = @"orbit-api"; orbit.lastActive = [NSDate dateWithTimeIntervalSinceNow:-4 * 60]; orbit.cpuPercent = 1; orbit.launcher = @"npm run dev · Terminal";
+    orbit.placeLabel = @"Terminal, orbit-api"; orbit.placeTab = @"orbit-api"; orbit.placeApp = @"Terminal";
+    orbit.session = @{@"agent": @"Claude Code", @"title": @"Retry webhooks", @"lastActiveAt": @(NSDate.date.timeIntervalSince1970 - 20 * 60)};
+    MMLHHost *storybook = Server(@"~/code/acme-web#storybook", @"acme-web", 6006, @"Storybook", 310, MMLHActive, 3600);
+    storybook.repo = @"acme-web";
+    MMLHHost *search = Server(@"~/code/acme-web.worktrees/search#dev", @"acme-web.worktrees/acme-web-really-long-feature-branch-name-for-search", 5173, @"Vite", 410, MMLHActive, 40 * 60);
+    search.repo = @"acme-web"; search.worktree = @"acme-web-really-long-feature-branch-name-for-search";
+    MMLHHost *docs = Server(@"~/code/acme-web/docs#docs", @"acme-web/docs", 3001, @"Vite", 512, MMLHIdle, 26 * 3600);
+    docs.repo = @"acme-web"; docs.subdir = @"docs"; docs.branch = @"main"; docs.lastActive = [NSDate dateWithTimeIntervalSinceNow:-3 * 3600];
+    docs.launcher = @"pnpm docs · cmux"; docs.placeLabel = @"cmux, acme-web"; docs.placeApp = @"cmux";
+    MMLHHost *admin = Server(@"~/code/acme-admin#dev", @"acme-admin", 3002, @"Vite", 700, MMLHIdle, 5 * 3600);
+    admin.repo = @"acme-admin"; admin.lastActive = [NSDate dateWithTimeIntervalSinceNow:-3 * 3600];
+    MMLHHost *pg = Server(@"postgres:5432", @"/", 5432, @"Postgres", 96, MMLHIdle, 5 * 86400 + 2 * 3600);
+    pg.kind = @"service"; pg.name = @"postgres"; pg.cwd = @"/opt/homebrew/var/postgresql@16"; pg.launcher = @"Homebrew";
+    pg.placeLabel = @"Homebrew service";
 
-    MMCard *checkout = Card(@"Vite dev server for the acme-web checkout flow", MMMarkWorking, @"Stays.",
-                            @"Safari has it open. Eager looks again after 30 minutes of quiet.");
-    [checkout fact:@"Where" value:@"cmux, tab “checkout”"];
-    [checkout fact:@"Up" value:[NSString stringWithFormat:@"%@, started by pnpm dev", MMDuration(3 * 3600 + 12 * 60)]];
-    [checkout fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 4%% CPU", MMBytes(905ull << 20)]];
-    [checkout fact:@"Git" value:[NSString stringWithFormat:@"feat/checkout-flow · %@", MMPlural(2, @"uncommitted file")]];
-    [checkout link:@"Worktree" value:@"checkout-flow, in use" expert:@"WorkForest" key:@"/Users/dev/code/acme-web.worktrees/checkout-flow"];
-    checkout.noteBy = @"Haiku says in use"; checkout.note = @"Safari has it open.";   // repeats the status, so it is left out
-    [checkout action:Act(@"Go to “checkout”")];
-    [checkout action:Act(@"Open localhost:3000")];
-    [checkout action:Act(@"Reveal in Finder")];
-    [checkout action:Act(@"Keep for 4 Hours")];
-    [checkout action:Act(@"Stop")];
-    [checkout action:MMAlternateItem(@"Force Stop", nil, @selector(copy:), nil)];
-    [checkout more:Act(@"Copy URL")];
-    [checkout more:Act(@"Copy Restart Command")];
+    MMLHView *v = [MMLHView new];
+    v.hosts = @[checkout, docs, admin, orbit, search, pg, storybook];
+    v.mode = @"eager"; v.model = @"Haiku"; v.reviewAt = [NSDate dateWithTimeIntervalSinceNow:-9 * 60];
+    v.summaryWords = @"The docs server goes at the next review, after a quiet afternoon. The admin server has not been used since lunch. "
+                     @"Postgres is a shared service, so no mode stops it. Nothing else needs a look.";
+    v.verdicts = @{
+        checkout.findingID: @{@"word": @"in_use", @"kind": @"keep", @"confidence": @0.95, @"about": @"Vite dev server for the acme-web checkout flow",
+                              @"reason": @"In use.", @"decidedBy": @"model"},
+        orbit.findingID: @{@"word": @"in_use", @"kind": @"keep", @"confidence": @0.9, @"about": @"Next.js server for orbit-api",
+                           @"reason": @"The agent's webhook tests call this server, so stopping it would break their next run.", @"decidedBy": @"model"},
+        docs.findingID: @{@"word": @"idle", @"kind": @"go", @"confidence": @0.9, @"about": @"Vite dev server for the acme-web docs",
+                          @"reason": @"Nobody has opened the docs site since it started yesterday.", @"decidedBy": @"model"}};
+    v.plan = @{checkout.findingID: @{@"stop": @NO, @"why": @"in use"},
+               orbit.findingID: @{@"stop": @NO, @"why": @"used 4m ago"},
+               docs.findingID: @{@"stop": @YES, @"why": @"quiet 3h, and no agent uses it"},
+               admin.findingID: @{@"stop": @NO, @"why": @"the review is not sure"}};
+    v.candidates = @[docs.findingID, admin.findingID];
+    v.links = @{checkout.findingID: @{@"label": @"Worktree", @"value": @"checkout-flow, in use", @"expert": @"workforest", @"findingID": @"workforest:tree:checkout-flow"}};
+    v.stopped = @[@{@"rid": @"r1", @"port": @3004, @"framework": @"Vite", @"at": @(NSDate.date.timeIntervalSince1970 - 2 * 3600), @"by": @"eager"}];
+    v.idleSeconds = 30 * 60;
+    v.act = ^(NSString *what, NSString *key, BOOL option) {};
 
-    MMCard *orbit = Card(@"Next.js server for orbit-api", MMMarkRecent, @"Stays.",
-                         @"Used 4 minutes ago from Safari. Eager looks again after 30 minutes of quiet.");
-    [orbit fact:@"Where" value:@"Terminal, tab “orbit-api”"];
-    [orbit fact:@"Up" value:[NSString stringWithFormat:@"%@, started by npm run dev", MMDuration(2 * 3600)]];
-    [orbit fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 1%% CPU", MMBytes(640ull << 20)]];
-    [orbit fact:@"Agent" value:@"Claude Code, “Retry webhooks”, 20m ago"];
-    [orbit link:@"Worktree" value:@"billing-webhooks" expert:@"WorkForest" key:@"/Users/dev/code/orbit-api.worktrees/billing-webhooks"];
-    orbit.noteBy = @"Haiku says in use"; orbit.note = @"The agent's webhook tests call this server, so stopping it would break their next run.";
-    [orbit action:Act(@"Go to “orbit-api”")];
-    [orbit action:Act(@"Open localhost:4000")];
-    [orbit action:Act(@"Keep for 4 Hours")];
-    [orbit action:Act(@"Stop")];
-
-    MMCard *docs = Card(@"Vite dev server for the acme-web docs", MMMarkGoes, @"Goes at 18:00.",
-                        @"Quiet for 3 hours, and no agent uses it. Recently Stopped keeps its restart command.");
-    [docs fact:@"Where" value:@"cmux, workspace “acme-web”"];
-    [docs fact:@"Up" value:[NSString stringWithFormat:@"%@, started by pnpm docs", MMDuration(26 * 3600)]];
-    [docs fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 0%% CPU", MMBytes(512ull << 20)]];
-    [docs fact:@"Git" value:@"main · up to date"];
-    docs.noteBy = @"Haiku says idle"; docs.note = @"Nobody has opened the docs site since it started yesterday.";
-    [docs action:MMDimmedItem(@"Go to Tab", @"the tab has closed")];
-    [docs action:Act(@"Open localhost:3001")];
-    [docs action:Act(@"Keep for 4 Hours")];
-    [docs action:Act(@"Stop")];
-
-    // An owned item says who owns it and how to change that.
-    MMCard *pg = Card(@"Postgres 16, a shared database service", MMMarkQuiet, @"Stays.",
-                      @"No mode stops a shared database. Homebrew runs it, and brew services stop postgresql@16 ends it.");
-    [pg fact:@"Where" value:@"Homebrew service"];
-    [pg fact:@"Up" value:MMDuration(5 * 86400 + 2 * 3600)];
-    [pg fact:@"Uses" value:[NSString stringWithFormat:@"%@ · 0%% CPU", MMBytes(96ull << 20)]];
-    [pg fact:@"Git" value:@""];   // empty, so it is left out
-    [pg action:Act(@"Copy URL")];
-    [pg action:MMDimmedItem(@"Stop", @"Homebrew owns it")];
-
-    NSString *longName = @"acme-web-really-long-feature-branch-name-for-search";
-    MMAddSection(m, @"In use", @[
-        Row(s, @"checkout", @"checkout-flow", @":3000", @[@"Vite", MMBytes(905ull << 20), @"in Safari"], MMMarkWorking, checkout),
-        Row(s, @"orbit", @"orbit-api", @":4000", @[@"Next.js", MMBytes(640ull << 20), @"used 4m ago"], MMMarkRecent, orbit),
-        Row(s, @"storybook", @"storybook", @":6006", @[@"Storybook", MMBytes(310ull << 20), @"up 1h"], MMMarkWorking, nil),
-        Row(s, @"long", longName, @":5173", @[@"Vite", MMBytes(410ull << 20), @"up 40m"], MMMarkWorking, nil)]);
-    // Rows in Quiet do not say quiet again. Each gives what the section does not: when it goes, or when it was last used.
-    MMAddSection(m, @"Quiet", @[
-        Row(s, @"docs", @"docs", @":3001", @[@"Vite", MMBytes(512ull << 20), @"goes at 18:00"], MMMarkGoes, docs),
-        Row(s, @"admin", @"admin", @":3002", @[@"Vite", MMBytes(700ull << 20), @"used 3h ago"], MMMarkQuiet, nil)]);
-    MMAddSection(m, @"Services", @[Row(s, @"postgres", @"Postgres", @":5432", @[@"Homebrew", MMBytes(96ull << 20), @"up 5d"], MMMarkQuiet, pg)]);
-    [m addItem:NSMenuItem.separatorItem];
-    NSMenuItem *stopped = MMActionItem(@"Recently Stopped", nil, nil, nil);
-    stopped.submenu = [NSMenu new];
-    [stopped.submenu addItem:MMActionItem(@":3004 Vite", @"2h ago by Eager", @selector(copy:), nil)];
-    [m addItem:MMMoreItem(@[stopped])];
-    MMAddFooter(m, nil);
+    NSDictionary *cardKeys = @{checkout.findingID: @"checkout", orbit.findingID: @"orbit", docs.findingID: @"docs", pg.findingID: @"postgres"};
+    NSMenu *m = MMMenuForSpec(MMLHMenu(v), ^MMCardSpec *(NSString *findingID) {
+        if (!cardKeys[findingID]) return nil;
+        for (MMLHHost *h in v.hosts) if ([h.findingID isEqualToString:findingID]) return MMLHCard(h, v);
+        return nil;
+    }, nil);
+    // The rows the menu drew, so each card is checked and drawn from the same menu item the person opens.
+    for (NSMenuItem *i in m.itemArray) {
+        if (!i.submenu || i.view) continue;
+        for (NSString *fid in cardKeys) {
+            MMLHHost *h = nil;
+            for (MMLHHost *x in v.hosts) if ([x.findingID isEqualToString:fid]) h = x;
+            if (![i.title containsString:[NSString stringWithFormat:@":%ld", (long)h.port]]) continue;
+            NSString *k = cardKeys[fid];
+            s.cards[k] = MMCardForSpec(MMLHCard(h, v));
+            s.cardMenus[k] = i.submenu;
+            [s.order addObject:k];
+        }
+    }
     s.menu = m;
     return s;
 }
