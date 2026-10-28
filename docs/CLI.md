@@ -49,6 +49,8 @@ work [path] [--here] [--json] | work wrap-up <id> [--dry-run] [--json]
 
 Flags: `--here`, `--json`, `--dry-run`.
 
+It changes things, so it runs only through the running app, unless `--dry-run` is given.
+
 #### `review`
 
 The last review, or a new one with --now.
@@ -58,6 +60,8 @@ review [expert] [--now] [--json]
 ```
 
 Flags: `--now`, `--json`.
+
+It changes things, so it runs only through the running app, unless `--dry-run` is given.
 
 #### `investigate`
 
@@ -100,6 +104,8 @@ restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]
 ```
 
 Flags: `--list`, `--expert`, `--limit`, `--dry-run`, `--json`.
+
+It changes things, so it runs only through the running app, unless `--dry-run` is given.
 
 #### `mode`
 
@@ -155,6 +161,8 @@ trees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|p
 
 Flags: `--all`, `--mode`, `--model`, `--path`, `--days`, `--off`, `--fresh`, `--review`, `--yes`, `--dry-run`, `--json`.
 
+It changes things, so it runs only through the running app, unless `--dry-run` is given.
+
 #### `worktrees`
 
 Every git worktree, whether it is merged, and what removing it frees.
@@ -164,6 +172,8 @@ worktrees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <
 ```
 
 Flags: `--all`, `--mode`, `--model`, `--path`, `--days`, `--off`, `--fresh`, `--review`, `--yes`, `--dry-run`, `--json`.
+
+It changes things, so it runs only through the running app, unless `--dry-run` is given.
 
 ### Noo-Noo
 
