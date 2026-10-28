@@ -155,3 +155,21 @@ Start from a copy of `p/59-b.html`. Keep its rules: tiles sized by holdings, one
 - The line shows a few small chips for the biggest items, such as "DerivedData 14.2 GB", and a count for the rest.
 - Pressing the line, or hovering it, opens a card that lists every leftover with its why, its size and its own action.
 - Leftovers never look like a workstream tile, because nobody owns them.
+
+## Round 60, part two: Settings for the bigger sheet
+
+The owner picked 60-a, A bigger sheet: "I like the Bigger sheet one, but the settings panel need update to match the new size". Edit `p/60-a.html` in place. Change only the Settings tab, and Performance where it shares the problem. The Workstreams tab stays as it is.
+
+The screenshots before the change are `briefs/60-a-settings-before.png` and `briefs/60-a-performance-before.png`. Settings still has the 760 px layout: one long column of rules, a narrow Mac column, and an empty lower half. Performance leaves a band empty at the bottom.
+
+**What Settings holds**, as before, from the facts above:
+- The rules, each with Off / Ask / Auto, what each mode does in one sentence, the "after" value chips, and a live line saying what it sees now. In simple mode these are Wrap Up workstreams, Close apps and Clean up leftovers. With Advanced on, add Stop idle servers and Remove merged worktrees.
+- This Mac: Keep working with the lid closed, One icon in the menu bar, and Open at login.
+- The Advanced mode card, with its four tabs and what each holds.
+
+**How to use the room:**
+- Lay the rules out as cards in a grid that fills the 1040 px width, with at least 16 px of padding and 14 px gaps, as the Workstreams tiles have.
+- Each rule card can now show what that rule did today, from the undo records, such as "Auto wrapped up lane-e-sort at 14:02 · Undo". Show it only when something happened.
+- This Mac and Advanced mode sit in their own column or row, and are not squeezed.
+- The page fills the sheet without a big empty band. It scrolls only when Advanced adds rules and the room runs out.
+- Performance uses the width for its two columns and lets them grow to the bottom, so no empty band is left.

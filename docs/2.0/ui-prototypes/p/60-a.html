@@ -25,6 +25,18 @@
   - The Leftovers column on the right is gone, and the grid takes the full width. Leftovers are one line
     pinned under the grid, with chips for the biggest items and the Clean Up button. Hovering or pressing
     the line opens a card with every leftover, its why, its size and its own action.
+
+  Round 60, part two. Settings and Performance for the bigger sheet:
+  - Settings has a two-column grid of rule cards on the left and a 260 px column for This Mac and Advanced
+    mode on the right. Cards have 16 px padding and 14 px gaps, as the Workstreams tiles have.
+  - Wrap Up workstreams is a wide card. Its right half lists the merged workstreams with frees or whyNot,
+    and the plan parts in run order for the first ones. Close apps and Clean up leftovers sit under it
+    and list what they see now. With Advanced on, Stop idle servers and Remove merged worktrees add a row,
+    the small cards drop their lists because the new tabs hold them, and the grid scrolls when it must.
+  - Each card shows what its rule did today, from the undo records, with an Undo for each record.
+  - The two Performance columns are panels that reach the bottom of the sheet.
+  - Close apps on Auto now quits the close list when pressure reaches its value. It never trims tabs, as MinMacs's
+    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names Insomnia's battery guards.
 -->
 <style>
 :root{
@@ -326,11 +338,64 @@ b{font-weight:500;color:var(--tx)}
 .mline .mnn{color:var(--tx2)}
 
 /* settings */
-.st{display:grid;grid-template-columns:minmax(0,1fr) 284px;column-gap:30px;height:100%}
-.st-l{display:flex;flex-direction:column;gap:0}
-.st-l .mode{padding:14px 0 16px;border-top:1px solid var(--line)}
-.st-l .mode:first-of-type{border-top:0;padding-top:8px}
-.st-r{display:flex;flex-direction:column;gap:0}
+/* 60-a: the rules are cards in a grid, This Mac and Advanced mode have their own column */
+.st{display:grid;grid-template-columns:minmax(0,1fr) 260px;column-gap:14px;height:100%}
+.st-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;min-height:0;overflow-y:auto;scrollbar-width:thin;align-content:stretch}
+.st-g.r2{grid-template-rows:auto minmax(min-content,1fr)}
+.st-g.r3{grid-template-rows:auto repeat(2,minmax(min-content,1fr));margin-right:-10px;padding-right:10px}
+.st-g .rc.wide{grid-column:span 2;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:28px}
+.rc .rcl,.rc .rcr{display:flex;flex-direction:column;min-width:0}
+.rc.wide .rcr .rsee:first-child{margin-top:0;padding-top:4px;border-top:0}
+.rc.wide .rcr .rsee .ft{margin-top:auto;padding-top:8px}
+.rc.wide .rcr .rsee{flex:1;display:flex;flex-direction:column}
+.rc{display:flex;flex-direction:column;min-width:0;padding:16px;border-radius:20px;background:radial-gradient(130% 90% at 14% 0%,color-mix(in srgb,var(--c) 9%,transparent),rgba(255,255,255,.025) 70%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);transition:background .4s,box-shadow .4s}
+.rc.off{background:rgba(255,255,255,.02)}
+.rc.lit{animation:lit 1.2s var(--ease)}
+.rc .mh{height:24px}
+.rc .mh{gap:10px}
+.rc .mt{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:600;white-space:nowrap}
+.rc .mh .seg3{flex:none}
+.rc .mt svg{flex:none}
+.rc .mx{margin-top:8px;min-height:0}
+.rc .rv{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px}
+.rc .rv .cap{font-size:11px;line-height:14px}
+.rc .rv .rvc{display:flex;flex-wrap:wrap;gap:6px}
+.rc.off .rv{opacity:.4}
+.rc .mn{margin-top:10px;white-space:normal;align-items:flex-start;font-size:12px;line-height:16px;color:var(--tx2)}
+.rc .mn i{margin-top:5px}
+.rsee{margin-top:10px;padding-top:6px;border-top:1px solid var(--line)}
+.rsee .h,.rtd .h{display:flex;justify-content:space-between;gap:10px;font-size:11px;line-height:14px;color:var(--tx3);margin-bottom:4px;white-space:nowrap}
+.rsr{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-height:24px;padding:4px 0;font-size:12px;line-height:16px;white-space:nowrap}
+.rsr .n{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--tx)}
+.rsr .v{flex:none;color:var(--tx3);font-size:11px}
+.rsr.blk .n{color:var(--tx2)}
+.rsr.blk .v{color:var(--ws)}
+.rsr.more .n{color:var(--tx3);font-size:11px}
+.rpt{display:grid;grid-template-columns:16px minmax(0,1fr);font-size:11px;line-height:15px;color:var(--tx2);padding:1px 0 1px 2px}
+.rpt .ix{color:var(--tx3)}
+.rpt .wn{grid-column:2;color:var(--ws)}
+.rpt+.rsr{margin-top:6px}
+.rsee .h.hs{margin-top:10px}
+.rsee .ft{font-size:11px;line-height:15px;color:var(--tx3);margin-top:8px}
+.rtd{margin-top:auto;padding-top:12px}
+.rtd .h{padding-top:8px;border-top:1px solid var(--line)}
+.rtr{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:3px 0;font-size:12px;line-height:16px}
+.rtr .t{min-width:0;color:var(--tx2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rtr .t b{color:var(--tx)}
+.rtr .lk{flex:none;font-size:11px}
+.rtr.nw{animation:lit 1.6s var(--ease)}
+.st-r{display:flex;flex-direction:column;gap:14px;min-height:0}
+.scard{flex:none;padding:16px 16px 12px;border-radius:20px;background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.scard>.cap{display:block;margin-bottom:6px}
+.scard .tg2{display:block;font-size:11px;line-height:14px;color:var(--tx3);margin:-6px 0 6px}
+.st-r .advc{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:0;padding:16px 16px 14px;border-radius:20px}
+.st-r .advl{margin-top:10px;gap:2px}
+.st-r .advl .ai{grid-template-columns:18px 1fr;row-gap:2px;padding:6px 10px;margin:0 -10px;white-space:normal;width:calc(100% + 20px)}
+.st-r .advl .ai .g{grid-row:span 2;align-self:start;padding-top:2px}
+.st-r .advl .ai .n{font-size:13px}
+.st-r .advl .ai .d{white-space:normal}
+.st-r .advl button.ai:hover{background:rgba(255,255,255,.05)}
+.st-r .advc .ft{margin-top:auto;padding-top:12px}
 .optrow{display:flex;align-items:center;justify-content:space-between;gap:12px;height:34px}
 .cb{flex:none;width:16px;height:16px;border-radius:5px;box-shadow:inset 0 0 0 1.5px var(--g3);display:flex;align-items:center;justify-content:center;transition:background .25s,box-shadow .25s}
 .cb svg{opacity:0;transition:opacity .2s}
@@ -395,6 +460,12 @@ b{font-weight:500;color:var(--tx)}
 .pf-cap em{font-style:normal;color:var(--ap)}
 .pf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:36px;margin-top:14px}
 .pf-cols>div{min-width:0}
+/* 60-a: the two Performance columns are panels that reach the bottom of the sheet */
+.adv .pf-cols.pf2{flex:1;min-height:0;column-gap:14px;margin-top:14px}
+.pf2 .pfp{min-height:0;overflow-y:auto;scrollbar-width:thin;padding:12px 18px 14px;border-radius:20px;background:rgba(255,255,255,.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.pf2 .rw{height:32px}
+.pf2 .rw.sub{height:24px}
+.pf2 .rw.sub .bar{width:72px}
 .adv-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-top:16px;white-space:nowrap}
 .lanes2{margin-top:8px}
 .sl2{position:relative;display:grid;grid-template-columns:172px 1fr 200px 56px;column-gap:14px;align-items:center;height:36px;margin:0 -8px;padding:0 8px;border-radius:9px;white-space:nowrap}
@@ -1074,7 +1145,8 @@ function nextAuto(s){
 function nextLine(s){
   if(!s.mode)return 'Not watching.';
   const auto=s.mode===2,n=nextAuto(s);
-  if(s.id==='apps'){const p=pressure();return `Memory pressure is <b>${p}</b>. ${auto?'Auto closes':'A button shows for'} Spotify once it ${s.vals[s.v]}.`}
+  if(s.id==='apps'){const p=pressure(),n=closeApps().map(a=>'<b>'+a.n+'</b>');if(!n.length)return `Memory pressure ${PW[p]}. Nothing on your close list is open.`;
+    return pressHit()?`Memory pressure ${PW[p]} now. ${auto?'Auto closes '+and(n)+' at its next check.':'The button for '+and(n)+' shows now.'}`:`Memory pressure ${PW[p]}. ${auto?'Auto closes':'A button shows for'} ${and(n)} once it ${s.vals[s.v]}.`}
   if(s.id==='left'){if(!n)return 'Nothing is left to clean.';const when=s.v===0?'tonight at 3:00':s.v===1?'on Sunday at 9:00':'on 1 Nov at 9:00';return auto?`Auto ${n.l} next, ${when}, <b>in ${durC(n.m)}</b>.`:`${cnt(leftGo().length,'leftover')} may go. Nothing happens until you press.`}
   if(!auto){
     if(s.id==='ws'){const r=readyGo();return r.length?`<b>${r.length} ready</b> · ${fmt(sum(r,w=>plan(w).disk))} disk. Wrap Up waits for your press.`:'Nothing is ready to wrap up.'}
@@ -1159,7 +1231,7 @@ function runAct(a,id){
     stopws:()=>{const s=wsSrv(o);return [`Stopped ${s.map(x=>'<b>:'+x.p+'</b>').join(' and ')} for ${o.n}, ${mb(sum(s,x=>x.mem))} memory back.`,()=>s.forEach(x=>fl(x.id).gone=1),s.map(x=>x.id)]}
   };
   if(!M[a])return;
-  const [msg,fn,leave]=M[a]();hideCard();commit(msg,fn,leave);
+  const [msg,fn,leave]=M[a]();hideCard();commit(msg,fn,leave,null,a==='wrapws'?'ws':a==='quit'?'apps':o.left?'left':null);
 }
 
 /* section actions: the label says what happens; hovering shows the result first */
@@ -1188,6 +1260,8 @@ const SA={
     res:()=>[`<b>Goes.</b> ${and(CA.filter(c=>c.left&&!gone(c.id)&&leftMay(c)).map(c=>c.kind+' '+fmt(c.gb)))}.`,'<b>Stays.</b> Every cache a workstream holds. Wrap Up takes those.'],
     run:()=>{const s=CA.filter(c=>c.left&&!gone(c.id)&&leftMay(c));return [`Cleaned <b>${fmt(sum(s,c=>c.gb))}</b> of caches no one owns.`,()=>s.forEach(c=>fl(c.id).gone=1)]},on:()=>CA.filter(c=>c.left&&!gone(c.id)&&leftMay(c)).length}
 };
+/* the rule each section action belongs to, so its undo record shows on that rule's Settings card */
+const SA_RULE={wrapready:'ws',left:'left',safe:'left',now:'apps',idle:'servers',merged:'trees'};
 const saBtn=(k,pri,label)=>{const a=SA[k],on=a.on();const tl=on?a.tl():'';return `<button class="btn${pri?' pri':''}" data-sa="${k}" style="--c:${C[a.c]}" ${on?'':'disabled'}>${on?(label||a.l()):'Nothing to do'}${tl?`<span class="tl">${nb(tl)}</span>`:''}</button>`};
 const tcls=id=>{if(!PV)return '';const t=SA[PV].t();return t.includes(id)?' hit':''};
 
@@ -1195,13 +1269,33 @@ const tcls=id=>{if(!PV)return '';const t=SA[PV].t();return t.includes(id)?' hit'
 let tT,lastAuto=-1e9,busy=0,advAt=-1e9;
 function hideToast(){$('toast').classList.remove('show')}
 function toast(msg,undo){$('tt').innerHTML=nb(msg);$('tbtn').style.display=undo===false?'none':'';$('toast').classList.add('show');clearTimeout(tT);tT=setTimeout(hideToast,6500)}
-function commit(msg,fn,leave,spare){
+/* 60-a: an undo record can name the rule that made it. The Settings cards list these records as what
+   each rule did today, and each one undoes on its own: it clears the flags its action set. */
+function recSay(msg){
+  const f=String(msg).split(/\.(\s|$)/)[0];
+  if(f.startsWith('<span class="au">Auto</span>'))return 'Auto'+f.slice(28);
+  return 'You '+f.charAt(0).toLowerCase()+f.slice(1);
+}
+function commit(msg,fn,leave,spare,rule){
   const pre=snap();
-  const doit=()=>{fn();UNDO.push({s:pre,spare:spare||[]});LEAVE.clear();busy=0;refresh();toast(msg)};
+  const doit=()=>{const was=JSON.stringify(F);fn();
+    const w0=JSON.parse(was),set=[];Object.keys(F).forEach(id=>Object.keys(F[id]).forEach(k=>{if(F[id][k]&&!(w0[id]&&w0[id][k]))set.push([id,k])}));
+    const rec=rule?{r:rule,say:recSay(msg),at:hhmm(T),set,t0:performance.now()}:null;
+    UNDO.push({s:pre,spare:spare||[],rec});LEAVE.clear();busy=0;refresh();toast(msg)};
   hidePv();
   if(leave&&leave.length&&!RM){busy=1;leave.forEach(id=>LEAVE.add(id));refresh();setTimeout(doit,420)}else doit();
 }
 $('tbtn').onclick=()=>{const u=UNDO.pop();if(!u)return;const hg=HELP.filter(h=>gone(h.id)).map(h=>h.id);restoreSnap(u.s);hg.forEach(id=>fl(id).gone=1);u.spare.forEach(id=>fl(id).spared=1);refresh();hideToast()};
+/* undo one record from a Settings card. Helpers stay stopped, because a helper whose parent exited has no restart.
+   Later snapshots forget the flags too, so the notice's Undo cannot bring them back */
+function undoRec(i){
+  const u=UNDO[i];if(!u||!u.rec)return;
+  const set=u.rec.set.filter(([id])=>!HELP.some(h=>h.id===id));
+  set.forEach(([id,k])=>{if(F[id])delete F[id][k]});(u.spare||[]).forEach(id=>fl(id).spared=1);
+  for(let j=i+1;j<UNDO.length;j++){const o=JSON.parse(UNDO[j].s);set.forEach(([id,k])=>{if(o.F[id])delete o.F[id][k]});UNDO[j].s=JSON.stringify(o)}
+  UNDO.splice(i,1);hideToast();refresh();
+  toast(`<b>Undone.</b> ${u.rec.say} at ${u.rec.at}.`,false);
+}
 
 /* ---------- DOM morph: keeps hover, focus and scroll while numbers tick ---------- */
 function morph(a,b){
@@ -1661,6 +1755,9 @@ const CORES=10;
 const CPU=()=>Math.round(Math.max(4,120+J.cpu+sum(working(),a=>a.cpu)+sum(live(SRV),s=>srvState(s)==='active'?s.cpu:0)+sum(APPS.filter(a=>!gone(a.id)),a=>a.cpu))/CORES);
 const MEM=()=>Math.min(63.2,6.2+J.mem+sum(APPS.filter(a=>!gone(a.id)),appMem)+sum(agentsLive(),a=>a.mem)/1000+sum(live(SRV),s=>s.mem)/1000);
 const pressure=()=>{const m=MEM();return m<52?'normal':m<60?'warn':'critical'};
+/* the pressure level in the words of the rule's chips, and whether the rule's threshold is reached */
+const PW={normal:'is normal',warn:'warns',critical:'is critical'};
+const pressHit=()=>{const p=pressure();return p==='critical'||p==='warn'&&S.apps.v===0};
 function appRow(a){
   return `<div class="rw hov${tcls(a.id)}${LEAVE.has(a.id)?' leave':''}" data-k="${a.id}" data-t="${a.id}" style="--c:${C.apps}">
     <span class="ic">${ICON[a.ic]}</span><span class="nm">${a.n}${a.x?` <span class="x">· ${a.id==='chrome'&&has('chrome','trim')?a.x.replace(', 14 noise tabs',''):a.x}</span>`:''}${kept(a.id)?' <span class="x">· you kept it</span>':''}</span>
@@ -1668,7 +1765,7 @@ function appRow(a){
 }
 function hostRows(h){
   const L=agentsLive().filter(a=>HOSTOF[a.place]===h).sort((a,b)=>b.cpu-a.cpu);
-  const top=L.slice(0,4),rest=L.slice(4);
+  const top=L.slice(0,6),rest=L.slice(6);
   return top.map(a=>`<div class="rw sub" data-k="ld-${a.id}"><span class="nm">${lk(a.ws)} <span class="x">· ${a.st==='w'?'working':a.st==='n'?'asks you':'idle'}</span></span><span class="bar"><i style="width:${Math.min(100,a.cpu*4)}%"></i></span><span class="v">${Math.max(0,Math.round(a.cpu))} %</span></div>`).join('')+(rest.length?`<div class="rw sub" data-k="ld-more-${h}"><span class="nm">${cnt(rest.length,'more agent')}</span><span class="v">${Math.round(sum(rest,a=>a.cpu))} %</span></div>`:'');
 }
 function syncHelpers(){const a=APPS.find(x=>x.id==='cft');if(!a)return;const h=live(HELP);if(!h.length){fl('cft').gone=1;return}delete F.cft;a.cpu=4*h.length;a.mem=sum(h,x=>x.mem)/1000;a.x=`${h.length} headless`}
@@ -1684,8 +1781,8 @@ function fPerf(){
       <div class="meter"><span class="big">${M.toFixed(1)}<u>/ 64 GB memory</u></span><div class="bar2"><i style="left:0;width:${(M-nf)/64*100}%;background:rgba(255,255,255,.34)"></i><i style="left:${(M-nf)/64*100}%;width:${nf/64*100}%;background:var(--ap)"></i></div></div>
       <div class="pf-act"><span class="cap">MinMacs Now</span>${saBtn('now',1)}${!(today&2)?`<button class="lk" data-sa="restore" style="font-size:11px;border:0">Restore Music and Preview from 11:05</button>`:'<span class="cap">Restored the apps from 11:05</span>'}</div>
     </div>
-    <div class="pf-cap">The <em>blue end</em> is the memory MinMacs Now frees, ${fmt(nf)}. Rows count 100 % per core. Memory pressure is ${pressure()}. <span style="color:var(--tx2)">${MODES[as.mode]},</span> ${as.mode===2?`closes them when pressure ${as.vals[as.v]}`:as.mode===1?'waits for your press':'not watching'} · <button class="lk" data-tab="set" style="font-size:11px">change</button></div>
-    <div class="pf-cols scr" style="margin-top:12px"><div>${left}</div><div>${right}</div></div>
+    <div class="pf-cap">The <em>blue end</em> is the memory MinMacs Now frees, ${fmt(nf)}. Rows count 100 % per core. Memory pressure ${PW[pressure()]}. <span style="color:var(--tx2)">${MODES[as.mode]},</span> ${as.mode===2?`closes them when pressure ${as.vals[as.v]}`:as.mode===1?'waits for your press':'not watching'} · <button class="lk" data-tab="set" style="font-size:11px">change</button></div>
+    <div class="pf-cols pf2"><div class="pfp">${left}</div><div class="pfp">${right}</div></div>
   </div>`;
 }
 
@@ -1748,22 +1845,68 @@ function fDisk(){
 }
 
 /* ---------- Settings ---------- */
+/* 60-a: each rule is a card. It shows its mode, what the mode does, the "after" chips, the live line,
+   the things it sees now, and what it did today from the undo records. */
+const RGL={ws:'ws',apps:'apps',left:'disk',servers:'servers',trees:'trees'};
+function seeList(s){
+  if(s.id==='ws'){const r=readyGo(),b=readyAll().filter(w=>plan(w).why&&!kept(w.id)),run=going().filter(w=>mergedOf(w)),nm=going().filter(w=>!mergedOf(w));
+    return {h:'Merged, sessions ended',n:r.length+b.length,rows:r.map(w=>[w.n,frees(plan(w)),'',w]).concat(b.map(w=>[w.n,'blocked · '+plan(w).why,'blk'])).concat(run.length?[['Merged, sessions still run',run.length,'hd']].concat(run.map(w=>[w.n,cnt(wsAgs(w).length,'session')+' still run','run'])):[]),
+      ft:nm.length?`${cnt(nm.length,'workstream')} not merged yet. Wrap Up waits until each one merges and its sessions end.`:''}}
+  if(s.id==='apps'){const r=closeApps().map(a=>[a.n,fmt(appMem(a))+' memory','']);
+    return {h:'On your close list',n:r.length,rows:r}}
+  if(s.id==='left'){const r=leftGo().slice().sort((a,b)=>(leftKind(b)==='srv'?0:leftDisk(b))-(leftKind(a)==='srv'?0:leftDisk(a)));
+    return {h:'May go now',n:r.length,rows:r.map(o=>[leftName(o),leftKind(o)==='srv'?mb(o.mem)+' memory':fmt(leftDisk(o))+' disk',''])}}
+  if(s.id==='servers'){const r=idleSrv().slice().sort((a,b)=>idleOf(b)-idleOf(a));
+    return {h:'Idle now',n:r.length,rows:r.map(x=>[':'+x.p+' '+x.fw,'idle '+coarse(idleOf(x))+' · '+mb(x.mem),''])}}
+  if(s.id==='trees'){const r=mergedLeft();
+    return {h:'Merged, no workstream owns it',n:r.length,rows:r.map(w=>[w.repo+' · '+w.n,'merged '+coarse(w.mm+T)+' ago · '+fmt(w.freed),''])}}
+}
+function todayRecs(s){
+  const r=[];UNDO.forEach((u,i)=>{if(u.rec&&u.rec.r===s.id)r.push({say:u.rec.say,at:u.rec.at,i,nw:performance.now()-u.rec.t0<1600})});
+  r.reverse();
+  if(s.id==='apps'&&!(today&2))r.push({say:'You quit <b>Music</b> and <b>Preview</b>',at:'11:05',sa:'restore'});
+  return r;
+}
+function ruleCard(s,cls,cap){
+  const mx=mxText(s),lab=s.id==='left'?'Cleans them':s.lab.charAt(0).toUpperCase()+s.lab.slice(1);
+  const lit=s.id==='servers'||s.id==='trees'?(performance.now()-LIT<2400?' lit':''):'';
+  const rec=todayRecs(s),rn=Math.min(rec.length,ADV?2:3);
+  const L=s.mode&&cap?seeList(s):null,room=s.id==='ws'?cap:Math.max(1,cap-rn);
+  const shown=L?L.rows.slice(0,L.rows.length>room?Math.max(1,room-1):room):[];
+  /* the first ready workstreams also list their Wrap Up plan parts, in run order, with any whyNot */
+  let pl=ADV||rn||L&&L.n>2?1:2;const hd=([n,v])=>`<div class="h hs"><span>${n}</span><span>${v}</span></div>`;
+  const row=([n,v,c,w])=>c==='hd'?hd([n,v]):`<div class="rsr${c?' '+c:''}"><span class="n">${n}</span><span class="v">${nb(v)}</span></div>`+(w&&pl-->0?plan(w).parts.map((x,k)=>`<div class="rpt"><span class="ix">${k+1}</span><span>${x.title}${x.nw?'<span class="tagn">new</span>':''}</span>${x.why?`<span class="wn">blocked · ${x.why}</span>`:''}</div>`).join(''):'');
+  const see=L&&(L.rows.length||L.ft)?`<div class="rsee">${L.n?`<div class="h"><span>${L.h}</span><span>${L.n}</span></div>`:''}${shown.map(row).join('')}${L.rows.length>shown.length?`<div class="rsr more"><span class="n">${L.rows.length-shown.length} more</span></div>`:''}${L.ft?`<div class="ft">${L.ft}</div>`:''}</div>`:'';
+  const td=rn?`<div class="rtd"><div class="h"><span>Today</span>${rec.length>rn?`<span>${rec.length-rn} earlier</span>`:''}</div>${rec.slice(0,rn).map(x=>`<div class="rtr${x.nw?' nw':''}" data-k="rec-${x.sa||x.i}" style="--c:${s.c}"><span class="t">${nb(x.say)} at ${x.at}</span>${x.sa?`<button class="lk" data-sa="${x.sa}">Restore</button>`:`<button class="lk" data-ru="${x.i}">${s.id==='apps'?'Restore':'Undo'}</button>`}</div>`).join('')}</div>`:'';
+  return `<div class="rc mode ${['off','ask','auto'][s.mode]}${cls?' '+cls:''}${lit}" data-k="rc-${s.id}" style="--c:${s.c}">
+    <div class="rcl"><div class="mh"><span class="mt">${gl(RGL[s.id],s.c,15,1.6)}${s.name}</span>${seg3(s,1)}</div>
+    <div class="mx${mx.pv?' pv':''}">${nb(mx.t)}</div>
+    <div class="rv"><span class="cap">${lab}</span><div class="rvc">${vals(s)}</div></div>
+    <div class="mn"><i></i><span>${nb(nextLine(s))}</span></div>${cls==='wide'?td:see+td}</div>
+    ${cls==='wide'?`<div class="rcr">${see}</div>`:''}
+  </div>`;
+}
 function fSet(){
   const lit=performance.now()-LIT<2400;
-  const D={agents:['Agents',`all ${agentsLive().length}, with their state`],servers:['Servers',`all ${live(SRV).length}, and a stop rule`],trees:['Worktrees',`all ${live(WT).length}, and a remove rule`],disk:['Disk',`${cacheLive().length} caches, and what may go`]};
-  const items=ADVTABS.map(k=>`<div class="ai${lit&&ADV?' lit':''}" data-k="ai-${k}" style="--c:${TABS_[k].c};animation-delay:${140+ADVTABS.indexOf(k)*150}ms"><span class="g">${gl(TABS_[k].g,TABS_[k].c,14,1.5)}</span><span class="n">${D[k][0]}</span><span class="d">${D[k][1]}</span></div>`).join('');
+  const D={agents:['Agents',`All ${agentsLive().length} agents, with their state, CPU and memory.`],servers:['Servers',`All ${live(SRV).length} servers, with their ports, and the Stop idle servers rule.`],trees:['Worktrees',`All ${live(WT).length} worktrees, merged or not, and the Remove merged worktrees rule.`],disk:['Disk',`${cacheLive().length} caches and build folders, ${fmt(sum(cacheLive(),d=>d.gb))} disk, and what may go.`]};
+  const items=ADVTABS.map(k=>{const tag=ADV?'button':'div';return `<${tag} class="ai${lit&&ADV?' lit':''}"${ADV?` data-tab="${k}"`:''} data-k="ai-${k}" style="--c:${TABS_[k].c};animation-delay:${140+ADVTABS.indexOf(k)*150}ms"><span class="g">${gl(TABS_[k].g,TABS_[k].c,14,1.5)}</span><span class="n">${D[k][0]}</span><span class="d">${D[k][1]}</span></${tag}>`}).join('');
+  const icons=tabList().filter(t=>t!=='set').map(tabName);
+  /* Advanced on: the small cards drop their lists, because the Apps, Servers, Worktrees and Disk tabs hold them */
+  const cards=ADV?ruleCard(S.ws,'wide',4)+ruleCard(S.apps,'',0)+ruleCard(S.left,'',0)+ruleCard(S.servers,'',0)+ruleCard(S.trees,'',0)
+                 :ruleCard(S.ws,'wide',6)+ruleCard(S.apps,'',5)+ruleCard(S.left,'',5);
   return `<div class="st">
-    <div class="st-l"><div class="cap" style="margin-bottom:2px">What MinMacs does for you</div>
-      ${modeBlock(S.ws)}${modeBlock(S.apps)}${modeBlock(S.left)}
-    </div>
+    <div class="st-g ${ADV?'r3':'r2'}" aria-label="What MinMacs does for you">${cards}</div>
     <div class="st-r">
-      <div class="cap" style="margin-bottom:6px">This Mac</div>
-      <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">Insomnia keeps the Mac awake while agents work.</span></span></button>
-      <button class="tog" role="switch" aria-checked="${one}" data-sw="one" style="margin-top:6px"><span>One icon in the menu bar</span><i class="sw"></i></button>
-      <button class="tog" role="switch" aria-checked="${login}" data-sw="login"><span>Open at login</span><i class="sw"></i></button>
+      <div class="scard">
+        <span class="cap">This Mac</span>
+        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">Insomnia keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
+        <button class="tog" role="switch" aria-checked="${one}" data-sw="one" style="margin-top:6px"><span>One icon in the menu bar</span><i class="sw"></i></button>
+        <span class="tg2">${one?`Off gives ${and(icons)} an icon each.`:`${and(icons)} each have an icon now.`}</span>
+        <button class="tog" role="switch" aria-checked="${login}" data-sw="login"><span>Open at login</span><i class="sw"></i></button>
+      </div>
       <div class="advc${ADV?' on':''}">
         <button class="tog" role="switch" aria-checked="${ADV}" data-adv="1"><span class="t">Advanced mode</span><i class="sw"></i></button>
-        <div class="p">${ADV?'The holdings of every workstream now also have their own tabs.':'Lifts each kind of thing a workstream holds out into its own tab.'}</div>
+        <div class="p">${ADV?'The holdings of every workstream now also have their own tabs. Press one to open it.':'Lifts each kind of thing a workstream holds out into its own tab.'}</div>
         <div class="advl">${items}</div>
         <div class="ft">${ADV?'Performance is called Apps here. Servers and Worktrees have their own Off, Ask and Auto. Disk uses the Leftovers rule.':'Performance becomes Apps. Workstreams stays as it is, and you can turn it off any time.'}</div>
       </div>
@@ -1901,10 +2044,11 @@ document.addEventListener('mouseover',e=>{
 function autoCheck(){
   if(performance.now()-lastAuto<6000||busy||performance.now()-advAt<8000)return;
   const auto=k=>S[k].mode===2;
-  if(auto('ws')){const w=readyGo().find(w=>mergedAgo(w)>=thr(S.ws)&&!has(w.id,'spared'));if(w){lastAuto=performance.now();commit(`<span class="au">Auto</span> ${wrapSay(w).replace('Wrapped','wrapped')}`,()=>wrapWs(w.id),wsLeave(w),[w.id]);return}}
+  if(auto('ws')){const w=readyGo().find(w=>mergedAgo(w)>=thr(S.ws)&&!has(w.id,'spared'));if(w){lastAuto=performance.now();commit(`<span class="au">Auto</span> ${wrapSay(w).replace('Wrapped','wrapped')}`,()=>wrapWs(w.id),wsLeave(w),[w.id],'ws');return}}
+  if(auto('apps')&&pressHit()){const n=closeApps().filter(a=>!has(a.id,'spared'));if(n.length){lastAuto=performance.now();commit(`<span class="au">Auto</span> quit <b>${and(n.map(a=>a.n))}</b>. Memory pressure ${PW[pressure()]}, so ${fmt(sum(n,a=>appMem(a)))} memory back. Restore brings it back.`,()=>n.forEach(a=>fl(a.id).gone=1),n.map(a=>a.id),n.map(a=>a.id),'apps');return}}
   if(!ADV)return;
-  if(auto('servers')){const x=idleSrv().find(x=>idleOf(x)>=thr(S.servers)&&!has(x.id,'spared'));if(x){lastAuto=performance.now();commit(`<span class="au">Auto</span> stopped <b>:${x.p} ${x.fw}</b>, idle ${dur(idleOf(x))}. ${mb(x.mem)} memory back.`,()=>{fl(x.id).gone=1},[x.id],[x.id]);return}}
-  if(auto('trees')){const w=mergedLeft().find(w=>w.mm+T>=thr(S.trees)&&!has(w.id,'spared'));if(w){lastAuto=performance.now();commit(`<span class="au">Auto</span> removed <b>${w.n}</b>, merged ${dur(w.mm+T)} ago. ${fmt(w.freed)} disk back.`,()=>{fl(w.id).gone=1},[w.id],[w.id]);return}}
+  if(auto('servers')){const x=idleSrv().find(x=>idleOf(x)>=thr(S.servers)&&!has(x.id,'spared'));if(x){lastAuto=performance.now();commit(`<span class="au">Auto</span> stopped <b>:${x.p} ${x.fw}</b>, idle ${dur(idleOf(x))}. ${mb(x.mem)} memory back.`,()=>{fl(x.id).gone=1},[x.id],[x.id],'servers');return}}
+  if(auto('trees')){const w=mergedLeft().find(w=>w.mm+T>=thr(S.trees)&&!has(w.id,'spared'));if(w){lastAuto=performance.now();commit(`<span class="au">Auto</span> removed <b>${w.n}</b>, merged ${dur(w.mm+T)} ago. ${fmt(w.freed)} disk back.`,()=>{fl(w.id).gone=1},[w.id],[w.id],'trees');return}}
 }
 
 /* ---------- simulation: rates per scenario ---------- */
@@ -1970,7 +2114,8 @@ document.addEventListener('click',e=>{
   if(t.closest('[data-adv]')){const v=!ADV;const pre=snap();setAdv(v);UNDO.push({s:pre,spare:[]});toast(v?'<b>Advanced mode</b> is on. Agents, Apps, Servers, Worktrees and Disk have their own tabs.':'<b>Advanced mode</b> is off. Back to three tabs.');return}
   if(t.closest('[data-lid]')){commit(lid?'Closing the lid sleeps the Mac again. Agents pause with it.':'<b>Your agents keep working</b> with the lid closed.',()=>{lid=!lid});return}
   const gw=t.closest('[data-gows]');if(gw){hideCard();goWs(gw.dataset.gows);return}
-  const sa=t.closest('[data-sa]');if(sa){const a=SA[sa.dataset.sa];if(!a.on())return;const [msg,fn]=a.run();const tg=a.t();PV=null;commit(msg,fn,tg);return}
+  const ru=t.closest('[data-ru]');if(ru){undoRec(+ru.dataset.ru);return}
+  const sa=t.closest('[data-sa]');if(sa){const a=SA[sa.dataset.sa];if(!a.on())return;const [msg,fn]=a.run();const tg=a.t();PV=null;commit(msg,fn,tg,null,SA_RULE[sa.dataset.sa]);return}
   const ac=t.closest('[data-act]');if(ac){runAct(ac.dataset.act,ac.dataset.id);return}
   const mi=t.closest('[data-mi]');if(mi){if(mi.dataset.mi!=='one')go(mi.dataset.mi);return}
 });
