@@ -115,6 +115,8 @@ check "bench: the watchdog hovers every expert's cards" "$bn_linked" "$(bh 'sum(
 check "bench: the menus opened on Core's live snapshots too" yes "$(bh '"yes" if j["liveOpens"] >= 4 * len(j["opensBy"]) else j["liveOpens"]')"
 check "bench: no pass of main over 50 ms in menu opens and card hovers" 0 "$(bh 'len(j["stalls"])')"
 [ "$(bh 'len(j["stalls"])')" = 0 ] || bh '"\n".join("    stall %s ms, %s ms CPU, %s, in %s" % (s["ms"], s["cpuMs"], s["state"], s["what"]) for s in j["stalls"])'
+# Core's start and first snapshot are counted apart and only reported: menu opens and hovers are what the gate reads.
+echo "  info  $(bh 'len(j.get("startStalls", []))') stalls over 50 ms in Core's start$(bh '"".join(", %s ms in %s" % (s["ms"], s["what"]) for s in j.get("startStalls", []))')"
 check "bench: the watchdog run ran no log query on main" 0 "$(bh 'j["logQueriesOnMain"]')"
 # A debug build turns the watchdog on, and MMMain starts it then.
 check "bench: DEBUG=1 ./build.sh defines MM_DEBUG, which turns the watchdog on" "1 1 1" \

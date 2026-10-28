@@ -989,6 +989,10 @@ static int Hangs(NSArray<NSString *> *args) {
 
     MMCoreStart();
     RunUntil(^BOOL { return MMGraph.shared.current != nil; }, 15);
+    // The stalls of MMCoreStart and the first snapshot are reported apart, since the gate counts menu opens and card
+    // hovers. On a busy Mac they held main in the socket's bind and the breadcrumb read, issue #54's review.
+    NSArray *startStalls = MMWatchdogStalls();
+    MMWatchdogReset();
     NSUInteger passesBefore = MMWatchdogPasses();
 
     // Each step makes its snapshot on a queue of its own, prepared off main as the graph queue does, then opens the
@@ -1047,7 +1051,7 @@ static int Hangs(NSArray<NSString *> *args) {
     MMCoreStop();
     PrintJSON(@{@"kind": @"hangs", @"rounds": @(rounds), @"limitMs": @(limit), @"finished": @(finished),
                 @"opens": @(opens), @"liveOpens": @(liveOpens), @"hovers": @(hovers), @"opensBy": opensBy, @"hoversBy": hoversBy,
-                @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls,
+                @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls, @"startStalls": startStalls,
                 @"selfCheck": @{@"ms": caught[@"ms"] ?: @0, @"state": caught[@"state"] ?: @"", @"what": caught[@"what"] ?: @"",
                                 @"named": @([[caught[@"stack"] componentsJoinedByString:@"\n"] containsString:@"MMBenchStallOnPurpose"])},
                 @"logQueriesOnMain": @(MMLogMainThreadQueries()), @"keepReadsOnMain": @(MMKeepMainThreadReads())});
