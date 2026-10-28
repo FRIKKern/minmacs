@@ -17,3 +17,11 @@ BOOL MMWorktreeRemove(NSString *repo, NSString *worktree, NSString *branch, BOOL
 /// P52. `git worktree prune` in repo, which tidies git's record of worktrees whose folder is gone. It removes no file.
 /// Returns NO when git failed. *output holds what git said.
 BOOL MMWorktreePrune(NSString *repo, NSString **output);
+
+/// P52 for Wrap Up. The untracked files in a worktree that git does not ignore, as paths relative to it.
+/// `git worktree remove` refuses while any exist, and Wrap Up never passes --force. nil when git could not list them.
+NSArray<NSString *> *MMWorktreeUntrackedFiles(NSString *worktree);
+/// YES for a file that holds local settings rather than work, such as .env.local, .envrc, .npmrc or
+/// .claude/settings.local.json. Wrap Up moves such files to the Trash before it removes the worktree, and any other
+/// untracked file keeps the worktree.
+BOOL MMWorktreeIsConfigFile(NSString *relativePath);

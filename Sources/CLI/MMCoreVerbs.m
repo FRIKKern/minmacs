@@ -196,7 +196,82 @@ static int Status(MMArgs *a) {
     return 0;
 }
 
+#pragma mark - Wrap Up
+
+/// Runs block off the main thread and waits. A cold CLI runs its verb on main, where fresh facts are never read.
+static void OffMain(dispatch_block_t block) {
+    if (!NSThread.isMainThread) { block(); return; }
+    dispatch_group_t g = dispatch_group_create();
+    dispatch_group_async(g, MMQueue(@"core", @"wrapup", QOS_CLASS_USER_INITIATED), block);
+    dispatch_group_wait(g, DISPATCH_TIME_FOREVER);
+}
+
+/// The worktree a Wrap Up id names: a WorkForest finding id, an owner id such as workstream:/path, or a path.
+static NSString *WrapUpPath(NSString *key, MMArgs *a, MMSnapshot *s) {
+    for (NSString *prefix in @[@"workforest:worktree:", @"core:workstream:", @"workstream:", @"worktree:"])
+        if ([key hasPrefix:prefix]) return [key substringFromIndex:prefix.length];
+    MMFinding *f = [s finding:key];
+    if (f.path.length) return f.path;
+    NSString *path = key.isAbsolutePath ? key : [a.cwd ?: NSFileManager.defaultManager.currentDirectoryPath stringByAppendingPathComponent:key];
+    return path.stringByStandardizingPath;
+}
+
+static NSString *Bytes(uint64_t n) { return [NSByteCountFormatter stringFromByteCount:(long long)n countStyle:NSByteCountFormatterCountStyleFile]; }
+
+static int WrapUp(MMArgs *a) {
+    NSString *key = [a word:1];
+    if (!key.length) return [a usageError];
+    if (!a.dryRun) { int r = [a needsApp]; if (r) return r; }
+    MMSnapshot *s = a.snapshot;
+    NSString *path = WrapUpPath(key, a, s);
+    MMWrapUpPlan *plan = MMWrapUpPlanFor(path, s);
+    __block MMUndoRecord *rec = nil;
+    __block NSString *err = nil;
+    __block NSDictionary *planJSON = nil;
+    // The check reads fresh facts, and the run writes the record and runs each part. Neither runs on main.
+    OffMain(^{
+        // The fresh check decides, so a size the snapshot had not walked yet does not keep a worktree here.
+        // MMRunWrapUp runs the same check before it starts anything.
+        if (!plan.subject.whyNot) {
+            if (a.dryRun) (void)MMWrapUpCheck(plan);
+            else rec = MMRunWrapUp(plan, @"cli", &err);
+        }
+        planJSON = [plan json:a.dryRun || !rec];
+    });
+    NSString *name = plan.subject.path.lastPathComponent ?: path.lastPathComponent;
+    NSMutableDictionary *j = [planJSON mutableCopy];
+    j[@"dryRun"] = @(a.dryRun);
+    if (rec) {
+        j[@"rid"] = rec.rid;
+        j[@"state"] = UndoStateWord(rec.state);
+        j[@"error"] = Or(rec.error);
+        j[@"freedBytes"] = @(rec.freedBytes);
+        if (rec.payload[@"failedPart"]) j[@"failedPart"] = rec.payload[@"failedPart"];
+        NSMutableArray *records = [NSMutableArray new];
+        for (MMUndoRecord *r in [MMUndo.shared recent:nil limit:500]) if ([r.parentRid isEqualToString:rec.rid]) [records insertObject:RecordJSON(r) atIndex:0];
+        j[@"records"] = records;
+    } else if (err) j[@"error"] = err;
+    int status = plan.whyNot || (!a.dryRun && (!rec || rec.state != MMUndoDone)) ? MMExitFailed : 0;
+    if (a.json) { [a printJSON:j]; return status; }
+    if (plan.whyNot && !rec) {
+        [a print:@"Wrap Up %@ cannot run: %@.", name, plan.whyNot];
+        for (MMWrapUpPart *p in plan.parts) if (p.whyNot) [a print:@"  %@%@: %@", Pad(MMWrapUpStepName(p.step), 10), p.title, p.whyNot];
+        return status;
+    }
+    if (a.dryRun) {
+        [a print:@"Wrap Up %@ would run %lu parts and free %@:", name, (unsigned long)plan.parts.count, Bytes(plan.freedBytes)];
+        for (NSDictionary *p in j[@"parts"])
+            [a print:@"  %@%@%@", Pad(p[@"step"], 10), p[@"title"], p[@"dryRun"] != NSNull.null ? [@": " stringByAppendingString:p[@"dryRun"]] : @""];
+        [a print:@"Dry run. Nothing was changed."];
+        return status;
+    }
+    if (rec.state == MMUndoDone) [a print:@"Wrapped up %@ in %lu parts. minmacs restore %@ takes it all back.", name, (unsigned long)plan.parts.count, rec.rid];
+    else [a print:@"Wrap Up %@ %@. minmacs restore %@ takes back the parts that ran.", name, rec.error ?: err ?: @"failed", rec.rid];
+    return status;
+}
+
 static int Work(MMArgs *a) {
+    if ([[a word:0] isEqualToString:@"wrap-up"]) return WrapUp(a);
     MMSnapshot *s = a.snapshot;
     if ([a has:@"--here"] || a.words.count) {
         NSString *path = [a word:0] ?: a.cwd;
@@ -436,7 +511,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
     dispatch_once(&once, ^{
         verbs = @[
             [MMVerbSpec verb:@"status" usage:@"status [--json]   what each expert sees, as its menu header says it" mutates:NO run:^(MMArgs *a) { return Status(a); }],
-            [MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json]   each workstream: a session with its worktree, servers and caches" mutates:NO run:^(MMArgs *a) { return Work(a); }],
+            [MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json] | work wrap-up <id> [--dry-run] [--json]   each workstream, or Wrap Up of a finished one" mutates:NO run:^(MMArgs *a) { return Work(a); }],
             [MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--json]   the last review, or a new one with --now" mutates:NO run:^(MMArgs *a) { return Review(a); }],
             [MMVerbSpec verb:@"investigate" usage:@"investigate <finding|workstream|path> [question] [--yes] [--json]   look deeper into one, after you confirm its cost" mutates:NO run:^(MMArgs *a) { return MMInvestigateVerb(a); }],
             [MMVerbSpec verb:@"tidy" usage:@"tidy [expert] [--dry-run] [--mode <mode>] [--json]   what each mode would act on, and act on it" mutates:YES run:^(MMArgs *a) { return Tidy(a); }],

@@ -25,7 +25,8 @@ check "the render build has no warnings" 0 "$(grep -c "warning:" "$MINMACS_HOME/
 
 # Three subjects with one menu and four cards each, WorkForest with a fifth card, Noo-Noo with one menu and five cards,
 # plus the status icons, in four appearances: 92. Insomnia's four subjects add four menus and seven cards: 44.
-ui_want=136
+# WorkForest's docs card, which shows Wrap Up, issue #27: 4.
+ui_want=140
 check "every PNG is there" "$ui_want" "$(ls "$ui_out"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 for ui_name in locohost-menu locohost-card-checkout locohost-card-orbit locohost-card-docs locohost-card-postgres \
                workforest-menu workforest-card-promo workforest-card-search workforest-card-hooks workforest-card-limits \

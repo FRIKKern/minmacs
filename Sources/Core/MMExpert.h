@@ -162,6 +162,9 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 /// last build's and only a new sample asked for this build, the graph reuses the last findings, for at most
 /// 30 seconds. An action, an exit or a change in Know always builds anew.
 - (uint64_t)inputDigestFrom:(MMFacts *)facts;
+/// Wrap Up, PLAN.md section 6, in MMAct.h. The parts of one finished workstream that this expert owns, such as
+/// LocoHost's servers in it. Reads the subject and the snapshot only, so it may run on main.
+- (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s;
 @end
 
 /// Registers an expert with the graph, the broker and the CLI. Called once per expert at launch.

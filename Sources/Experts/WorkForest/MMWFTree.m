@@ -425,6 +425,10 @@ MMCardSpec *MMWFCard(MMWFTree *t, MMWFView *v) {
     NSMutableArray *actions = [NSMutableArray new];
     [actions addObject:Action(v, @"Open in Finder", nil, @"reveal", t.findingID)];
     [actions addObject:Action(v, @"Open in Terminal", nil, @"terminal", t.findingID)];
+    // Wrap Up shows only when every part of it may run. It stops the servers and helpers, clears the caches and
+    // removes the worktree in one step, so it comes before Remove, which then sits under More.
+    NSDictionary *wrap = t.isMain || t.missing ? nil : v.wrapUps[t.findingID];
+    if (wrap) [actions addObject:Action(v, @"Wrap Up…", Str(wrap[@"tail"]), @"wrap-up", t.findingID)];
     if (!t.isMain && !t.missing) {
         NSDate *kept = v.keptUntil[t.findingID];
         [actions addObject:Action(v, kept ? [NSString stringWithFormat:@"Kept for %@ More", MMShortDuration(kept.timeIntervalSinceNow)] : @"Keep for a Week",

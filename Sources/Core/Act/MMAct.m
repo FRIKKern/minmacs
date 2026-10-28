@@ -240,8 +240,9 @@ static uint64_t FreeBytes(NSString *path) {
     return (uint64_t)s.f_bavail * s.f_bsize;
 }
 
-MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review,
-                          NSString *by, NSString *why, NSString **error) {
+/// MMRunAction and MMRunActionPart: the one way an action runs. parent and index name the Wrap Up it is a part of.
+static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review, NSString *by, NSString *why,
+                               NSString *parent, NSInteger index, NSString **error) {
     NSString *problem = nil;
     MMFinding *f = action.finding;
     BOOL byMode = [by isEqualToString:@"proactive"] || [by isEqualToString:@"eager"];
@@ -270,7 +271,7 @@ MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMRevi
         return nil;
     }
     MMUndoRecord *record = [MMUndo.shared begin:f.expert kind:action.kind finding:f.findingID subject:f.title
-                                            why:why by:by parent:nil payload:nil];
+                                            why:why by:by parent:parent payload:parent ? @{@"part": @(index)} : nil];
     uint64_t before = FreeBytes(f.path);
     NSString *err = nil;
     BOOL ok = NO;
@@ -281,6 +282,17 @@ MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMRevi
     [MMUndo.shared finish:record ok:ok freed:freed error:ok ? nil : (err ?: @"the action failed")];
     if (!ok && error) *error = err ?: @"the action failed";
     return [MMUndo.shared record:record.rid] ?: record;
+}
+
+MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review,
+                          NSString *by, NSString *why, NSString **error) {
+    return RunAction(action, policy, review, by, why, nil, 0, error);
+}
+
+MMUndoRecord *MMRunActionPart(id<MMAction> action, id<MMExpertPolicy> policy, NSString *by, NSString *why,
+                              NSString *parentRid, NSInteger index, NSString **error) {
+    if (!parentRid.length) { if (error) *error = @"a part needs the record it belongs to"; return nil; }
+    return RunAction(action, policy, nil, by, why, parentRid, index, error);
 }
 
 #pragma mark - Stopping

@@ -40,7 +40,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P51 to P53 | `Act/MMClutterAct.h` | `MMClutterAction`: clutter to the Trash, or a tool's command after an APFS recovery copy, with an audit |
 | P52, P53 | `Act/MMUndo.h` | `MMUndoRecord`, `MMUndo` with the Trash, git bundles and Wrap Up records, `MMToolCommand` with its dry run |
 | P52 | `Act/MMWorktreeAct.h` | `MMWorktreeIgnoredFiles`, `MMWorktreeRemove` with no `--force` and `git branch -d`, and `MMWorktreePrune` |
-| P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMLidOverride`, `MMNotify` |
+| P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMLidOverride`, `MMNotify`, and Wrap Up: `MMWrapUpPlan`, `MMRunWrapUp` and `MMRunActionPart` |
 | P56 to P62 | `MMExpert.h` | The `MMExpert` protocol, `MMRowMark`, and the menu, card and verb specs it returns. The kit, render tool, formatters, verb registry and URL router themselves live in `Sources/UI` and `Sources/CLI` |
 | P65 | none | build.sh, test.sh and the CI workflow. `MMCore.h` notes it |
 
@@ -103,6 +103,13 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - `MMInvestigations` keeps the newest run per subject in memory, and saves each run to the log table `investigate`. A read on main never touches the log: the first one there loads it on `no.guerrilla.minmacs.core.investigate-prepare` and asks the graph to rebuild. That queue also resolves the subject and the estimate for the card's alert, so the alert never waits behind a run on `no.guerrilla.minmacs.core.investigate`. A subject is marked as running before its run queues, so a second ask for it is refused at once. The estimate is the median uncached tokens of the last five runs that answered, or 35,000 before the first.
 - `minmacs investigate <finding|workstream|path> [question]` shows the folders, the question, the estimate and the model, and the last answer. Only `--yes` runs it. In the app it runs on its own queue and the card shows it, so core.sock stays free. Cold, the CLI waits and prints the answer and its cost.
 - LocoHost and WorkForest offer "Investigate…" on their cards, with the words and alerts of `Sources/UI/MMInvestigateUI.h`. The alert shows the cost and the model and asks for the question. The card's note shows the answer, cut at a whole sentence to two lines.
+## Wrap Up, issue #27
+
+- `MMWrapUpPlanFor` in `Act/MMAct.h` builds one plan for a finished workstream: a linked worktree whose branch is merged and whose agent sessions all ended. The graph keeps no workstream for an ended session, so `MMWrapUpSubject` reads the worktree, its git facts, its sessions and the findings it holds from the snapshot.
+- Each expert that owns a part returns it from the optional `-[MMExpert wrapUpParts:snapshot:]`. The parts run in step order: LocoHost stops the dev servers in it, MinMacs stops the helpers left in it, Noo-Noo moves its caches to the Trash, and WorkForest moves its untracked config files to the Trash, then saves its ignored files such as `.env` and removes the worktree with no `--force`. Caches go before the worktree, so a cache inside it comes back after git recreates the folder.
+- A menu shows Wrap Up only when every part passes MustKeep on the snapshot's facts. Untracked files are read with git once off main by `MMWrapUpConfigOnly`, and the menu waits for that answer. `MMWrapUpCheck` checks the subject and every part's recheck and MustKeep on fresh facts. `MMRunWrapUp` runs that check first and starts nothing when a part fails it. Then it writes one record of kind `wrapup` and runs each part through `MMRunActionPart`, which checks it fresh again right before it runs. A part that fails stops the rest, and the record fails with the part named in its error and in `failedPart`.
+- `-[MMUndo restore:]` of the record takes the parts back by their `part` index, newest first. A part that cannot come back stops the restore there, and the error says how many earlier parts are left. A second restore goes on from there.
+- `minmacs work wrap-up <id> [--dry-run] [--json]` takes a path, a WorkForest finding id or an owner id. `test/wrapup.sh` runs it end to end on fixtures.
 
 ## Store
 

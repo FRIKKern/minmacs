@@ -90,7 +90,10 @@ NSString *MMWFCategory(MMWFTree *t, NSString *verdict);
 @property (copy) NSDictionary<NSString *, NSDictionary *> *investigations;
 @property (copy) NSSet<NSString *> *protectedPaths;                // findingIDs on the protect list of rules.json
 @property NSTimeInterval watchingLeft;
-/// What an action asks for: reveal, terminal, keep, remove, protect, copy-path, restore, clean-up, review.
+/// By findingID, for a merged worktree whose agent finished and whose every Wrap Up part passes MustKeep:
+/// {tail, parts}. The tail is the servers it stops and what it frees, such as "1 server, 1.2 GB".
+@property (copy) NSDictionary<NSString *, NSDictionary *> *wrapUps;
+/// What an action asks for: reveal, terminal, wrap-up, keep, remove, protect, copy-path, restore, clean-up, review.
 /// key is a findingID or, for restore, a record id.
 @property (copy) void (^act)(NSString *what, NSString *key, BOOL option);
 @end
