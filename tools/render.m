@@ -414,10 +414,15 @@ static MMSettings *SettingsLike(void) {
     nn.headline = [NSString stringWithFormat:@"%@ of caches and build output", MMBytes(21ull << 30)]; nn.mode = @"idle"; nn.iconVisible = NO;
     MMSettingsExpert *in = [MMSettingsExpert expert:@"insomnia" name:@"Insomnia" symbol:@"cup.and.saucer"];
     in.headline = @"Keeps the Mac awake for 2 working agents";
+    // Insomnia's own pane. A battery guard the CLI set to a number the list lacks shows as that number.
+    MMINPrefs *inPrefs = [MMINPrefs defaults];
+    inPrefs.minBattery = 35;
+    in.prefs = MMINPrefSpecs(inPrefs);
     s.experts = @[mm, lh, wf, nn, in];
     s.model = @"auto"; s.oneIcon = NO; s.openAtLogin = YES;
     s.onIcon = ^(NSString *e, BOOL v) {}; s.onMode = ^(NSString *e, NSString *m) {}; s.onModel = ^(NSString *m) {};
     s.onOneIcon = ^(BOOL on) {}; s.onOpenAtLogin = ^(BOOL on) {}; s.onOpenMenu = ^(NSString *e, NSView *v) {};
+    s.onPref = ^(NSString *e, NSString *k, NSNumber *v) {};
     return s;
 }
 
@@ -755,9 +760,14 @@ int main(int argc, char **argv) { @autoreleasepool {
     for (NSString *mode in @[@"light", @"dark", @"contrast-light", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
-        for (MMSettingsPane p = MMSettingsOverview; p <= MMSettingsGeneral; p++) {
-            NSView *v = [settings viewFor:p];
-            NSString *name = MMSettingsPaneTitle(p).lowercaseString;
+        // The three fixed panes, then each expert's own pane, named by its id.
+        NSMutableArray *panes = [NSMutableArray arrayWithObjects:@0, @1, @2, nil];
+        for (MMSettingsExpert *e in settings.experts) if (e.prefs.count) [panes addObject:e.expert];
+        for (id p in panes) {
+            BOOL fixed = [p isKindOfClass:NSNumber.class];
+            NSView *(^draw)(void) = ^NSView *{ return fixed ? [settings viewFor:(MMSettingsPane)[p integerValue]] : [settings viewForExpert:p]; };
+            NSView *v = draw();
+            NSString *name = fixed ? MMSettingsPaneTitle((MMSettingsPane)[p integerValue]).lowercaseString : p;
             if (sfirst) {
                 // Laid out inside a window first, so the frames are the ones the PNG shows.
                 NSWindow *w = [[NSWindow alloc] initWithContentRect:v.frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
@@ -767,7 +777,7 @@ int main(int argc, char **argv) { @autoreleasepool {
                 Check(v.frame.size.width == MMSettingsWidth, [NSString stringWithFormat:@"settings %@: the pane has the window's width", name],
                       [NSString stringWithFormat:@"%.0f", v.frame.size.width]);
                 w.contentView = nil;
-                v = [settings viewFor:p];
+                v = draw();
             }
             NSString *path = [sout stringByAppendingFormat:@"/settings-%@-%@.png", name, mode];
             if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
@@ -786,6 +796,21 @@ int main(int argc, char **argv) { @autoreleasepool {
     for (MMSettingsExpert *e in settings.experts) if (![named containsObject:e.name]) [missing addObject:e.name];
     Check(missing.count == 0 && settings.experts.count == 5, @"settings overview: names all five experts", [missing componentsJoinedByString:@", "]);
     Check([named containsObject:@"21.0 GB of caches and build output · icon hidden"], @"settings overview: says when an icon is hidden", @"no line says icon hidden");
+    // Insomnia's pane: in the toolbar between Experts and General, with its guards and the CLI's 35%.
+    NSArray *titles = [settings paneTitles];
+    Check([titles isEqualToArray:@[@"Overview", @"Experts", @"Insomnia", @"General"]], @"settings toolbar: Insomnia's pane sits between Experts and General",
+          [titles componentsJoinedByString:@", "]);
+    NSMutableArray *menus = [NSMutableArray new];
+    NSMutableArray *look = [NSMutableArray arrayWithObject:[settings viewForExpert:@"insomnia"]];
+    while (look.count) {
+        NSView *v = look.lastObject; [look removeLastObject];
+        if ([v isKindOfClass:NSPopUpButton.class]) [menus addObject:[NSString stringWithFormat:@"%@=%@", v.identifier, ((NSPopUpButton *)v).titleOfSelectedItem]];
+        [look addObjectsFromArray:v.subviews];
+    }
+    [menus sortUsingSelector:@selector(compare:)];
+    Check([[menus componentsJoinedByString:@" "] isEqualToString:@"insomnia:battery=35% insomnia:offline=15 minutes insomnia:quiet=10 minutes insomnia:unplugged=2 hours"],
+          @"settings insomnia: each guard menu shows the value set", [menus componentsJoinedByString:@" "]);
+    Check([settings viewForExpert:@"locohost"] == nil, @"settings: an expert with no prefs has no pane", @"LocoHost has a pane");
     RenderShell(out, appearances, unwritten);
     Check(unwritten.count == 0, @"every PNG is written", [unwritten componentsJoinedByString:@", "]);
     // The menus still work after drawing: every card view went back to its item alone.

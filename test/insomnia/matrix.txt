@@ -113,6 +113,7 @@ unhold h
 proc g start
 cli insomnia hold $g render runs
 expect cli-status 0 the hold verb runs in the app
+expect undo-hold 1 the hold verb leaves an undo record that Undo cannot restore
 waitgraph
 step
 expect holdfor:g yes the graph carries it to Insomnia
@@ -321,3 +322,16 @@ expect cli-status 2 a word it does not know is a usage error
 cli awake --json
 expect cli-says "holding" awake --json reports the state
 expect undo-matches yes every lid write that ran has a done undo record
+
+section the Settings pane
+expect pane-keys battery,unplugged,offline,heat,quiet the pane offers the guard numbers, the heat guard and the quiet period
+pane battery 40
+expect pref:insomnia.lid.minBattery 40 a guard set in the pane changes the pref
+expect undo-pane setting_manual_40 through MMRunAction, with a record by manual
+step
+expect pane-value 40 battery the pane shows the new value after the pass
+pane heat off
+expect pref:insomnia.lid.thermalGuard 0 the heat switch turns the heat guard off
+pane heat on
+pane unplugged never
+expect pref:insomnia.lid.graceMinutes 0 never turns the unplugged guard off

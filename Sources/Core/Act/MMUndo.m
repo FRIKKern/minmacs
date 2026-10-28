@@ -111,11 +111,22 @@ static int RunTool(NSString *path, NSArray<NSString *> *args, NSString *cwd, NSD
     return r.timedOut ? -1 : r.status;
 }
 
+/// git through MMGitPath and MMRun, with MMGit's environment, so $MINMACS_GIT and a test's git config apply here too.
+/// Returns git's status, or -1 when no git is installed, it would not start or it ran past two minutes.
+/// output holds stdout and then stderr, trimmed, for the error tails below.
 static int Git(NSString *dir, NSArray<NSString *> *args, NSString **output) {
-    NSString *out = nil;
-    int st = RunTool(@"/usr/bin/git", [@[@"-C", dir] arrayByAddingObjectsFromArray:args], nil, nil, 120, &out);
-    if (output) *output = [out stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    return st;
+    NSString *git = MMGitPath();
+    if (!git) { if (output) *output = @"no git is installed"; return -1; }
+    NSData *o = nil, *x = nil;
+    MMRunResult r = MMRun(git, [@[@"-C", dir ?: @"/"] arrayByAddingObjectsFromArray:args], nil, MMGitEnvironment(), nil, 120, &o, &x);
+    if (output) {
+        NSMutableData *all = [o ?: NSData.data mutableCopy];
+        [all appendData:x ?: NSData.data];
+        NSString *out = !r.didRun ? @"git would not start" : r.timedOut ? @"git ran past two minutes"
+                      : [[NSString alloc] initWithData:all encoding:NSUTF8StringEncoding] ?: @"";
+        *output = [out stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    }
+    return !r.didRun || r.timedOut ? -1 : r.status;
 }
 
 static NSString *Quoted(NSArray<NSString *> *argv) {
@@ -174,9 +185,29 @@ static NSString *Tail(NSString *s, NSUInteger max) {
     }
 }
 
+NSString *MMTrashFolder(void) {
+    // MMSupportDir is MINMACS_HOME then, spelled as the test gave it, so paths in records match the test's own.
+    return NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length ? [MMSupportDir() stringByAppendingPathComponent:@"Trash"] : nil;
+}
+
+/// Moves item into folder under a name nothing there holds yet, as the Finder does: "name", then "name 2".
+static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
+    NSFileManager *fm = NSFileManager.defaultManager;
+    if (![fm createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:error]) return nil;
+    NSString *name = item.path.lastPathComponent, *base = name.stringByDeletingPathExtension, *ext = name.pathExtension;
+    NSString *to = [folder stringByAppendingPathComponent:name];
+    for (NSUInteger n = 2; [fm fileExistsAtPath:to] || [fm destinationOfSymbolicLinkAtPath:to error:nil]; n++) {
+        NSString *next = [NSString stringWithFormat:@"%@ %lu", base, (unsigned long)n];
+        to = [folder stringByAppendingPathComponent:ext.length ? [next stringByAppendingPathExtension:ext] : next];
+    }
+    return [fm moveItemAtPath:item.path toPath:to error:error] ? [NSURL fileURLWithPath:to] : nil;
+}
+
 - (NSURL *)trash:(NSURL *)item record:(MMUndoRecord *)record error:(NSError **)error {
     NSURL *to = nil;
-    if (![NSFileManager.defaultManager trashItemAtURL:item resultingItemURL:&to error:error] || !to) return nil;
+    NSString *folder = MMTrashFolder();
+    if (folder) { if (!(to = MoveInto(folder, item, error))) return nil; }
+    else if (![NSFileManager.defaultManager trashItemAtURL:item resultingItemURL:&to error:error] || !to) return nil;
     @synchronized (self) {
         NSMutableArray *t = [record.payload[@"trashed"] mutableCopy] ?: [NSMutableArray new];
         [t addObject:@{@"from": item.path, @"to": to.path}];

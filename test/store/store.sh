@@ -131,7 +131,7 @@ check "a home with no old apps plans nothing" 0 "$(json 'len(j["sources"])' <"$s
 
 # The Settings window: its controls, then its panes through the render tool, in light, dark and Increase Contrast.
 if clang -fobjc-arc -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa \
-     $(find Sources/UI -name '*.m' | LC_ALL=C sort) test/store/settings.m -o "$st_dir/settings" >"$st_dir/settings.log" 2>&1; then
+     $(find Sources/UI -name '*.m' | LC_ALL=C sort) Sources/Core/MMSpecs.m test/store/settings.m -o "$st_dir/settings" >"$st_dir/settings.log" 2>&1; then
   check "test/store/settings.m builds with no warnings" 0 "$(grep -c "warning:" "$st_dir/settings.log")"
   "$st_dir/settings" >"$st_dir/settings.out" 2>&1
   check "test/store/settings.m runs" 0 "$?"
@@ -144,13 +144,13 @@ st_out="$ROOT/build/render"
 BUILD_DIR="$st_dir/render" "$ROOT/tools/render.sh" "$st_out" >"$st_dir/render.log" 2>&1
 check "tools/render.sh renders the Settings panes" 0 "$?"
 st_ok=yes
-for st_p in overview experts general; do for st_m in light dark contrast-light contrast-dark; do
+for st_p in overview experts general insomnia; do for st_m in light dark contrast-light contrast-dark; do
   [ -s "$st_out/settings/settings-$st_p-$st_m.png" ] || st_ok=no
 done; done
 check "each Settings pane in light, dark and Increase Contrast" yes "$st_ok"
 check "the Settings panes have the window's width" "1080 " \
   "$(for f in "$st_out"/settings/*.png; do sips -g pixelWidth "$f" 2>/dev/null | awk '/pixelWidth/ {print $2}'; done | sort -u | tr '\n' ' ')"
-check "the render's Settings checks all pass" "0 8" \
+check "the render's Settings checks all pass" "0 13" \
   "$(grep -c '^FAIL  settings' "$st_out/checks.txt") $(grep -c '^ok    settings' "$st_out/checks.txt")"
 
 check "the person's own prefs file was not touched" "$st_real_before" "$(stat -f '%m %z' "$st_real_prefs" 2>/dev/null || echo none)"

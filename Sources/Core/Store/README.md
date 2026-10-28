@@ -15,6 +15,8 @@ The support folder, the prefs domain, rules files, state files, the SQLite log a
 - Keys carry the expert, such as `locohost.mode`. `review.model` and `core.oneIcon` belong to the Settings window. An icon's shown state is AppKit's own key, `NSStatusItem Visible minmacs.<expert>`.
 - `rules.json` keeps each named list at the top level. `_defaults` lists every default it ever added, so a default the person removed is not added again.
 - The log is one table of rows. Triggers refuse `UPDATE` and `DELETE`. A new state of a record is a new row with the same `rid`. Trend points sit in their own table, one per bucket.
+- Opening the log may wait up to 15 seconds for another process's lock: the 5-second busy timeout, then 10 seconds of retries. So `MMCoreStart` calls `MMLogOpenOffMain` first. From then on `+[MMLog shared]` on main never opens the log: it returns the log once the `core.log.open` queue has opened it, and nil before. `MMLogMainThreadOpens` counts opens on main, and `test/fixes.sh` holds the app to zero. A CLI run never calls `MMLogOpenOffMain`, so its main thread opens the log as before. The legacy import hands its rows to that queue through `MMLogWhenOpen` and marks a source done after its rows are in.
+- `MMRemoveStaleFiles` removes what an older build wrote and nothing reads. Today that is `repos.eventid`, the one event id of the first repo watch. Each root's stream keeps `repos.<hash>.eventid` now. `MMCoreStart` runs it once, on `core.store`, and it removes only a plain file of that name.
 
 ## The migration
 

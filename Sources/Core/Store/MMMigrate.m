@@ -188,15 +188,19 @@ NSDictionary *MMImportLegacy(NSString *home) {
         MMStateFile *f = [MMStateFile fileNamed:path.lastPathComponent.stringByDeletingPathExtension expert:path.stringByDeletingLastPathComponent];
         [f update:^id(id disk) { return disk ? nil : json; }];   // a file 2.0 already wrote stays as it is
     }];
-    MMLog *log = MMLog.shared;
-    for (NSDictionary *r in plan[@"rows"]) {
-        if ([log history:r[@"rid"]].count) continue;   // imported before, under another marker
-        [log append:r[@"table"] rid:r[@"rid"] expert:r[@"expert"] subject:r[@"subject"] state:r[@"state"] body:r[@"body"]];
-    }
-    if (todo.count) {
-        NSMutableDictionary *mark = [done mutableCopy];
-        for (NSString *n in todo) mark[n] = NSDate.date;
-        MMSetPref(kMigratedKey, mark);
-    }
+    // The rows go to the log off main in the app, and the marker is set after them, so a launch that ends first
+    // imports again. A row imported before is skipped by its rid.
+    NSArray *rows = plan[@"rows"];
+    MMLogWhenOpen(^(MMLog *log) {
+        for (NSDictionary *r in rows) {
+            if ([log history:r[@"rid"]].count) continue;   // imported before, under another marker
+            [log append:r[@"table"] rid:r[@"rid"] expert:r[@"expert"] subject:r[@"subject"] state:r[@"state"] body:r[@"body"]];
+        }
+        if (todo.count) {
+            NSMutableDictionary *mark = [done mutableCopy];
+            for (NSString *n in todo) mark[n] = NSDate.date;
+            MMSetPref(kMigratedKey, mark);
+        }
+    });
     return plan;
 }

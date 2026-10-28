@@ -19,6 +19,8 @@ typedef struct { NSTimeInterval at; double value; } MMTrendPoint;
 /// P38. The append-only log. Starts from NN's audit JSONL, audit.go:44, kept in SQLite instead, per decision 5.
 /// Every method is safe from any queue and from the CLI while the app runs.
 @interface MMLog : NSObject
+/// The log in the support folder. Opening it may wait up to 15 seconds for another process's lock.
+/// After MMLogOpenOffMain, on the main thread it never opens the log: it returns it once it is open, else nil.
 + (instancetype)shared;
 /// The same log at another path, for tests and for the CLI's --home.
 - (instancetype)initWithPath:(NSString *)path;
@@ -35,6 +37,17 @@ typedef struct { NSTimeInterval at; double value; } MMTrendPoint;
 - (void)addPoint:(NSString *)series value:(double)value at:(NSDate *)at bucket:(NSTimeInterval)bucket;
 - (NSData *)points:(NSString *)series since:(NSDate *)since;   // packed MMTrendPoint values, oldest first
 @end
+
+/// Opens the shared log on its own queue now, and from then on +shared on main never opens it.
+/// MMCoreStart calls this first. A CLI run never does, so its main thread opens the log when it needs it.
+void MMLogOpenOffMain(void);
+/// Runs work with the shared log: at once off main or in a CLI, or on the queue that opens it when the app calls
+/// it on main.
+/// For work that must reach the log from main, such as the legacy import at launch.
+typedef void (^MMLogWork)(MMLog *log);
+void MMLogWhenOpen(MMLogWork work);
+/// How many logs this process opened on the main thread. The app holds this to zero.
+NSUInteger MMLogMainThreadOpens(void);
 
 /// How many queries this process ran on the main thread. A menu reads what the graph already holds, so the checks
 /// hold menus and cards to zero.

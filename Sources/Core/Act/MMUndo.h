@@ -11,7 +11,7 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 @interface MMUndoRecord : NSObject
 @property (readonly, copy) NSString *rid;               // the log's record id
 @property (readonly, copy) NSString *expert, *kind;     // kind: "stop", "remove", "trash", "tool", "quit"
-@property (readonly, copy) NSString *findingID, *subject, *why, *by;   // by: "manual", "proactive", "eager", "cli"
+@property (readonly, copy) NSString *findingID, *subject, *why, *by;   // by: "manual", "cli", "proactive", "eager", "guard"
 /// The record of a Wrap Up that this record is one part of, PLAN.md section 6. nil for a single action.
 @property (readonly, copy) NSString *parentRid;
 @property (readonly) MMUndoState state;
@@ -35,6 +35,7 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 - (void)note:(MMUndoRecord *)record payload:(NSDictionary *)more;
 - (void)finish:(MMUndoRecord *)record ok:(BOOL)ok freed:(int64_t)bytes error:(NSString *)error;
 /// Moves item to the Trash with NSFileManager trashItemAtURL and notes where it went. Never empties the Trash.
+/// With MINMACS_HOME set it moves item into MMTrashFolder() instead, so a test never touches the person's Trash.
 - (NSURL *)trash:(NSURL *)item record:(MMUndoRecord *)record error:(NSError **)error;
 /// P52. `git bundle create` of every commit in the worktree that is on no remote, into <expert>/bundles/<rid>.bundle.
 /// Returns the bundle path, or nil with *error. An action that needs a bundle does not run without one.
@@ -52,6 +53,10 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 - (NSArray<MMUndoRecord *> *)recent:(NSString *)expert limit:(NSUInteger)limit;   // newest first, expert nil means all
 - (MMUndoRecord *)record:(NSString *)rid;
 @end
+
+/// The Trash of a test run: <MINMACS_HOME>/Trash when MINMACS_HOME is set, else nil for the real Trash.
+/// -[MMUndo trash:record:error:] moves items there, and restore moves them back from there.
+NSString *MMTrashFolder(void);
 
 /// P53. A tool's own cleanup command, run first in its dry-run form.
 /// New code. uv says direct edits to its cache are never safe, and Go's module cache is read-only on this Mac.

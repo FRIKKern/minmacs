@@ -76,7 +76,8 @@ NSUInteger MMKeepMainThreadReads(void);
 /// P51. Runs one action the safe way, in this order:
 /// recheck, then MMMustKeep on -[MMGraph freshFactsFor:], then the undo record, then perform, then finish.
 /// review is the review a mode acted on, so work after it keeps. Pass nil for an action the person asked for.
-/// by is "manual", "proactive", "eager" or "cli". Blocks. Never on main.
+/// by says who asked: "manual" from a menu, "cli" from the command line, "proactive" or "eager" from a mode,
+/// or "guard" from an expert's own rule that follows the state, such as Insomnia's lid override. Blocks. Never on main.
 /// Returns the finished record, or nil with *error when the action did not start.
 MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review,
                           NSString *by, NSString *why, NSString **error);

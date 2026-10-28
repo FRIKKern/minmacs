@@ -5,6 +5,8 @@
 #import "Core/Store/MMStore.h"
 #import "Core/Runtime/MMRuntime.h"
 #import <sqlite3.h>
+#import <os/lock.h>
+#import <stdatomic.h>
 
 @interface MMLogEntry ()
 @property (readwrite) int64_t row;
@@ -63,14 +65,51 @@ static int ExecPatiently(sqlite3 *db, const char *sql, char **err) {
     dispatch_queue_t _q;
 }
 
-+ (instancetype)shared {
-    static MMLog *s; static dispatch_once_t once;
-    dispatch_once(&once, ^{ s = [[MMLog alloc] initWithPath:[MMSupportDir() stringByAppendingPathComponent:@"minmacs.sqlite"]]; });
+// The shared log. Opening it may wait up to 15 seconds for another process's lock: the 5-second busy timeout,
+// then kLockPatience. So the app opens it on its own queue, and main only reads the pointer once it is set.
+static MMLog *gShared;                       // under gSharedLock, which guards the pointer only, never the open
+static os_unfair_lock gSharedLock = OS_UNFAIR_LOCK_INIT;
+static atomic_bool gOffMainOnly;             // set by MMLogOpenOffMain
+static atomic_uint gMainOpens;
+
+static dispatch_queue_t OpenQueue(void) { return MMQueue(@"core", @"log.open", QOS_CLASS_UTILITY); }
+
+static MMLog *SharedIfOpen(void) {
+    os_unfair_lock_lock(&gSharedLock);
+    MMLog *s = gShared;
+    os_unfair_lock_unlock(&gSharedLock);
     return s;
 }
 
++ (instancetype)shared {
+    // In the app main never opens the log: it gets the log once the open queue has it, and nil before.
+    if (NSThread.isMainThread && atomic_load(&gOffMainOnly)) return SharedIfOpen();
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        MMLog *s = [[MMLog alloc] initWithPath:[MMSupportDir() stringByAppendingPathComponent:@"minmacs.sqlite"]];
+        os_unfair_lock_lock(&gSharedLock);
+        gShared = s;
+        os_unfair_lock_unlock(&gSharedLock);
+    });
+    return SharedIfOpen();
+}
+
+void MMLogOpenOffMain(void) {
+    atomic_store(&gOffMainOnly, true);
+    dispatch_async(OpenQueue(), ^{ (void)[MMLog shared]; });
+}
+
+void MMLogWhenOpen(MMLogWork work) {
+    if (!work) return;
+    if (!NSThread.isMainThread || !atomic_load(&gOffMainOnly)) { work(MMLog.shared); return; }
+    dispatch_async(OpenQueue(), ^{ work(MMLog.shared); });
+}
+
+NSUInteger MMLogMainThreadOpens(void) { return atomic_load(&gMainOpens); }
+
 - (instancetype)initWithPath:(NSString *)path {
     if (!(self = [super init])) return nil;
+    if (NSThread.isMainThread) atomic_fetch_add(&gMainOpens, 1);
     _q = MMQueue(@"core", @"log", QOS_CLASS_UTILITY);   // one queue for every log in this process
     [NSFileManager.defaultManager createDirectoryAtPath:path.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
     if (sqlite3_open_v2(path.fileSystemRepresentation, &_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, NULL) != SQLITE_OK) {

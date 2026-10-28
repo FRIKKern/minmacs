@@ -1,7 +1,9 @@
 // Checks the Settings window's controls without drawing: each one calls its block with the right expert and value.
-// Prints one line per check as name<TAB>want<TAB>got. Built with Sources/UI only, like the render tool.
+// Prints one line per check as name<TAB>want<TAB>got. Built with Sources/UI and the plain specs of Core/MMSpecs.m,
+// like the render tool.
 #import <Cocoa/Cocoa.h>
 #import "UI/MMSettings.h"
+#import "Core/MMExpert.h"
 
 static void Out(NSString *name, NSString *want, NSString *got) { printf("%s\t%s\t%s\n", name.UTF8String, want.UTF8String, (got ?: @"nil").UTF8String); }
 
@@ -61,6 +63,30 @@ int main(void) { @autoreleasepool {
     [open performClick:nil];
     Out(@"settings: each control calls its block", @"icon insomnia 1|mode locohost idle|model haiku|one 1|open locohost", [calls componentsJoinedByString:@"|"]);
     Out(@"settings: the view keeps the new state", @"idle yes haiku", [NSString stringWithFormat:@"%@ %@ %@", lh.mode, in.iconVisible ? @"yes" : @"no", s.model]);
+
+    // An expert's own pane: Insomnia's guard numbers and its heat switch, each sent back with its key.
+    NSMutableArray *prefCalls = [NSMutableArray new];
+    MMPrefSpec *battery = [MMPrefSpec choice:@"battery" title:@"Low battery" values:@[@10, @20, @30] titles:@[@"10%", @"20%", @"30%"] value:@20];
+    MMPrefSpec *heat = [MMPrefSpec toggle:@"heat" title:@"Heat" switchTitle:@"Pause When Hot" on:YES];
+    MMPrefSpec *odd = [MMPrefSpec choice:@"offline" title:@"Offline" values:@[@5, @15] titles:@[@"5 minutes", @"15 minutes"] value:@45];
+    in.prefs = @[battery, heat, odd];
+    s.onPref = ^(NSString *e, NSString *k, NSNumber *v) { [prefCalls addObject:[NSString stringWithFormat:@"%@ %@ %@", e, k, v]]; };
+    Out(@"settings: an expert with prefs gets a pane between Experts and General", @"Overview,Experts,Insomnia,General",
+        [[s paneTitles] componentsJoinedByString:@","]);
+    Out(@"settings: an expert without prefs has no pane", @"nil", [s viewForExpert:@"locohost"] ? @"pane" : @"nil");
+    NSView *pane = [s viewForExpert:@"insomnia"];
+    NSPopUpButton *bm = Find(pane, NSPopUpButton.class, @"insomnia:battery");
+    Out(@"settings: a guard menu shows its value", @"20%", bm.titleOfSelectedItem);
+    [bm selectItemAtIndex:2];
+    [bm sendAction:bm.action to:bm.target];
+    NSButton *hb = Find(pane, NSButton.class, @"insomnia:heat");
+    [hb performClick:nil];
+    NSPopUpButton *om = Find(pane, NSPopUpButton.class, @"insomnia:offline");
+    Out(@"settings: a value the list lacks shows as it is", @"45", om.titleOfSelectedItem);
+    [om sendAction:om.action to:om.target];
+    Out(@"settings: each pref control calls onPref with its key and value, and the extra item calls nothing",
+        @"insomnia battery 30|insomnia heat 0", [prefCalls componentsJoinedByString:@"|"]);
+    Out(@"settings: the pane keeps the new values", @"30 0", [NSString stringWithFormat:@"%@ %@", battery.value, heat.value]);
 
     MMSettings *bare = [MMSettings new];
     bare.experts = @[lh];

@@ -10,6 +10,7 @@
 //   pref <key> <value|delete>  a pref in the test home
 //   set <what> <value>         -[MMInsomniaExpert set:value:by:] with by "cli": on, off, a number or never
 //   cli <words>                one verb through its MMVerbSpec, as the app runs it
+//   pane <key> <value>         -[MMInsomniaExpert setPref:value:], as the Settings pane sends it, then waits for the pass
 //   clock +<minutes>           moves the expert's clock
 //   worker <id> start|working|idle|exit
 //   proc <id> start|exit       a plain process that is no agent, for holds a script asks for
@@ -235,6 +236,10 @@ static int RunScript(NSString *path) {
             a.inApp = YES; a.outBuffer = [NSMutableString new]; a.errBuffer = [NSMutableString new];
             cliStatus = @(spec ? spec.run(a) : 2).stringValue;
             cliOut = [a.outBuffer stringByAppendingString:a.errBuffer];
+        } else if ([cmd isEqualToString:@"pane"] && w.count == 3) {
+            NSUInteger before = [MMUndo.shared recent:@"insomnia" limit:500].count;
+            [e setPref:w[1] value:Value(w[2])];
+            for (int i = 0; i < 60 && [MMUndo.shared recent:@"insomnia" limit:500].count == before; i++) usleep(50000);
         } else if ([cmd isEqualToString:@"clock"] && w.count == 2) {
             gOffset += [[w[1] stringByReplacingOccurrencesOfString:@"+" withString:@""] doubleValue] * 60;
         } else if ([cmd isEqualToString:@"worker"] && w.count == 3) {
@@ -314,6 +319,21 @@ static int RunScript(NSString *path) {
                 NSUInteger done = 0;
                 for (NSString *l in [Read(@"done") componentsSeparatedByString:@"\n"]) done += l.length > 0;
                 got = [field isEqualToString:@"undo"] ? @(n).stringValue : n == done && n > 0 ? @"yes" : [NSString stringWithFormat:@"%lu records, %lu writes", (unsigned long)n, (unsigned long)done];
+            } else if ([field isEqualToString:@"pane-keys"]) {
+                got = [[e.prefSpecs valueForKey:@"key"] componentsJoinedByString:@","];
+            } else if ([field isEqualToString:@"pane-value"]) {
+                // name's first word is the key; the value the pane shows for it now
+                NSString *key = w[3];
+                for (MMPrefSpec *p in e.prefSpecs) if ([p.key isEqualToString:key]) got = p.value.stringValue;
+            } else if ([field isEqualToString:@"undo-pane"]) {
+                MMUndoRecord *r = [MMUndo.shared recent:@"insomnia" limit:1].firstObject;
+                got = [NSString stringWithFormat:@"%@_%@_%@", r.kind, r.by, r.payload[@"to"]];
+            } else if ([field isEqualToString:@"undo-hold"]) {
+                // Records of the hold verb: done, by the CLI, naming the pid, and never restorable.
+                NSUInteger n = 0;
+                for (MMUndoRecord *r in [MMUndo.shared recent:@"insomnia" limit:500])
+                    n += [r.kind isEqualToString:@"hold"] && [r.by isEqualToString:@"cli"] && r.state == MMUndoDone && !r.canRestore && [r.payload[@"pid"] intValue] > 1;
+                got = @(n).stringValue;
             } else if ([field hasPrefix:@"holdfor:"]) {
                 NSString *id = [field substringFromIndex:8];
                 TWorker *t = gWorkers[id] ?: gProcs[id];

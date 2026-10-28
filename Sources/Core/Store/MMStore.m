@@ -4,6 +4,7 @@
 #import <sys/file.h>
 #import <fcntl.h>
 #import <unistd.h>
+#import <sys/stat.h>
 
 NSString *const MMPrefsDomain = @"no.guerrilla.minmacs";
 NSString *const MMReviewModelKey = @"review.model";
@@ -25,6 +26,19 @@ NSString *MMSupportDir(void) {
 
 NSString *MMExpertDir(NSString *expert) {
     return MakeDir([MMSupportDir() stringByAppendingPathComponent:expert.length ? expert : @"core"]);
+}
+
+NSArray<NSString *> *MMRemoveStaleFiles(void) {
+    NSMutableArray *gone = [NSMutableArray new];
+    // repos.eventid: the one FSEvents id of the first repo watch. Each root's stream keeps repos.<hash>.eventid now.
+    for (NSString *name in @[@"repos.eventid"]) {
+        NSString *path = [MMSupportDir() stringByAppendingPathComponent:name];
+        struct stat st;
+        // Only a plain file of that name, never a folder or a link someone put there.
+        if (lstat(path.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+        if (unlink(path.fileSystemRepresentation) == 0) [gone addObject:name];
+    }
+    return gone;
 }
 
 #pragma mark Prefs

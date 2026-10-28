@@ -15,8 +15,7 @@ NSString *MMGitPath(void) {
     return found;
 }
 
-/// What every git child gets on top of MMRun's clean environment.
-static NSDictionary<NSString *, NSString *> *GitEnvironment(void) {
+NSDictionary<NSString *, NSString *> *MMGitEnvironment(void) {
     static NSDictionary *env; static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSMutableDictionary *e = [@{ @"GIT_OPTIONAL_LOCKS": @"0", @"GIT_TERMINAL_PROMPT": @"0", @"GIT_PAGER": @"cat",
@@ -36,7 +35,7 @@ NSString *MMGitInput(NSString *dir, NSArray<NSString *> *args, NSData *input, NS
     if (!git || !dir.length) return nil;
     NSData *out = nil;
     MMRunResult r = MMRun(git, [@[@"-C", dir, @"--no-pager"] arrayByAddingObjectsFromArray:args ?: @[]], input,
-                          GitEnvironment(), nil, timeout, &out, NULL);
+                          MMGitEnvironment(), nil, timeout, &out, NULL);
     if (!r.didRun || r.timedOut) return nil;
     if (status) *status = r.status;
     NSString *s = [[NSString alloc] initWithData:out ?: [NSData data] encoding:NSUTF8StringEncoding];
@@ -60,7 +59,7 @@ NSString *MMGitPatchIds(NSString *dir, NSArray<NSString *> *args, NSData *input,
     NSString *script = @"g=\"$0\"; d=\"$1\"; shift; \"$g\" -C \"$d\" --no-pager \"$@\" | \"$g\" -C \"$d\" patch-id --stable";
     NSData *out = nil;
     MMRunResult r = MMRun(@"/bin/sh", [@[@"-c", script, git, dir] arrayByAddingObjectsFromArray:args ?: @[]], input,
-                          GitEnvironment(), nil, timeout, &out, NULL);
+                          MMGitEnvironment(), nil, timeout, &out, NULL);
     if (!r.didRun || r.timedOut) return nil;
     if (status) *status = r.status;
     return [[NSString alloc] initWithData:out ?: [NSData data] encoding:NSUTF8StringEncoding];

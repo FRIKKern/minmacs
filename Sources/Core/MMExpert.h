@@ -87,6 +87,22 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 + (instancetype)verb:(NSString *)verb usage:(NSString *)usage mutates:(BOOL)mutates run:(int (^)(MMArgs *args))run;
 @end
 
+/// One pref of an expert's own pane in the Settings window: a switch, or a choice among numbers.
+/// The pane draws it, and the change comes back to the expert through -setPref:value:.
+@interface MMPrefSpec : NSObject
+@property (copy) NSString *key;                         // the expert's word for it, such as "battery"
+@property (copy) NSString *title;                       // the label beside the control, such as "Low battery"
+@property (copy) NSString *switchTitle;                 // a switch's own title, such as "Pause When Hot"; nil for a choice
+@property (copy) NSString *note;                        // one or two sentences under the control, or nil
+@property (copy) NSArray<NSNumber *> *values;           // the choices, in order; nil for a switch
+@property (copy) NSArray<NSString *> *valueTitles;      // what each choice shows, such as "20%" or "Never"
+@property (strong) NSNumber *value;                     // the value now; a switch holds YES or NO
+@property (copy) NSString *section;                     // the group title above it; a new title starts a group
++ (instancetype)toggle:(NSString *)key title:(NSString *)title switchTitle:(NSString *)switchTitle on:(BOOL)on;
++ (instancetype)choice:(NSString *)key title:(NSString *)title values:(NSArray<NSNumber *> *)values
+                titles:(NSArray<NSString *> *)titles value:(NSNumber *)value;
+@end
+
 /// The protocol each of the five experts implements. One object per expert, made once at launch.
 /// New code. It replaces each standalone app's main.m: LH, WF, MM 1.2, NN and IN.
 @protocol MMExpert <NSObject>
@@ -133,6 +149,11 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 @property (readonly, copy) NSString *legacyName;
 /// P62. Handles a URL of the legacy scheme. The router owns login and quit, so an expert never sees those.
 - (BOOL)openURL:(NSURL *)url;
+/// Its own prefs, for its pane in the Settings window. An expert without them, or with none, has no pane.
+/// Main thread. It reads what the expert already holds, never disk.
+- (NSArray<MMPrefSpec *> *)prefSpecs;
+/// One change from that pane, on main. The expert makes it off main, through MMRunAction like any other change.
+- (void)setPref:(NSString *)key value:(NSNumber *)value;
 @end
 
 /// Registers an expert with the graph, the broker and the CLI. Called once per expert at launch.

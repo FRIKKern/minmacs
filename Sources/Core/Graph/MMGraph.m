@@ -378,6 +378,7 @@ static NSString *SizeBucket(uint64_t bytes) {
 @implementation MMGraph {
     dispatch_queue_t _queue;
     atomic_bool _pending;                               // a rebuild is queued and has not started
+    BOOL _stopped;                                      // under @synchronized (self): -stop was called after -start
     NSArray<id<MMExpert>> *_experts;                    // set on main before -start, read on the graph queue
     uint64_t _generation;                               // graph queue only
     NSMutableDictionary<NSString *, NSString *> *_holds;        // graph queue only
@@ -415,9 +416,17 @@ static NSString *SizeBucket(uint64_t bytes) {
 
 - (NSArray<id<MMExpert>> *)experts { @synchronized (self) { return _experts; } }
 
-- (void)start { [self rebuild:@"start"]; }
+- (void)start {
+    @synchronized (self) { _stopped = NO; }
+    [self rebuild:@"start"];
+}
+
+- (void)stop { @synchronized (self) { _stopped = YES; } }
+
+- (BOOL)stopped { @synchronized (self) { return _stopped; } }
 
 - (void)rebuild:(NSString *)why {
+    if (self.stopped) return;
     if (atomic_exchange(&_pending, true)) return;       // one is queued already; it will see these facts too
     dispatch_async(_queue, ^{
         atomic_store(&self->_pending, false);           // a signal from now on asks for one more build
@@ -428,7 +437,7 @@ static NSString *SizeBucket(uint64_t bytes) {
 /// One build. Graph queue only.
 - (void)buildNow {
     id<MMFactSource> source = self.source;
-    if (!source) return;
+    if (!source || self.stopped) return;
     uint64_t gen = ++_generation;
     MMFacts *facts = [source factsFor:gen];
     if (!facts) return;
@@ -445,7 +454,12 @@ static NSString *SizeBucket(uint64_t bytes) {
     snap.awakeHolds = [kept copy];
     [_holds setDictionary:kept];
     for (NSString *k in _holdSince.allKeys) if (!kept[k]) [_holdSince removeObjectForKey:k];
-    self.latest = snap;
+    // A build that was running when -stop came publishes nothing. The check and the store share -stop's lock,
+    // so once -stop returns no snapshot lands.
+    @synchronized (self) {
+        if (_stopped) return;
+        self.latest = snap;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{ [self publish:snap]; });
 }
 
@@ -458,6 +472,7 @@ static NSString *SizeBucket(uint64_t bytes) {
 /// Main only. Builds run in order on one queue, so an older snapshot never arrives after a newer one.
 /// The check stays in case that ever changes.
 - (void)publish:(MMSnapshot *)snap {
+    if (self.stopped) return;
     if (_current && snap.generation <= _current.generation) return;
     _current = snap;
     NSArray<NSNumber *> *tokens;

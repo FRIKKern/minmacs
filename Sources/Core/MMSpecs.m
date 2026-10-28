@@ -30,6 +30,20 @@
 @implementation MMCardSpec
 @end
 
+@implementation MMPrefSpec
++ (instancetype)toggle:(NSString *)key title:(NSString *)title switchTitle:(NSString *)switchTitle on:(BOOL)on {
+    MMPrefSpec *p = [self new];
+    p.key = key; p.title = title; p.switchTitle = switchTitle; p.value = @(on);
+    return p;
+}
++ (instancetype)choice:(NSString *)key title:(NSString *)title values:(NSArray<NSNumber *> *)values
+                titles:(NSArray<NSString *> *)titles value:(NSNumber *)value {
+    MMPrefSpec *p = [self new];
+    p.key = key; p.title = title; p.values = values; p.valueTitles = titles; p.value = value;
+    return p;
+}
+@end
+
 @implementation MMVerbSpec
 + (instancetype)verb:(NSString *)verb usage:(NSString *)usage mutates:(BOOL)mutates run:(int (^)(MMArgs *args))run {
     MMVerbSpec *v = [self new];

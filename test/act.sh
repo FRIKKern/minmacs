@@ -2,7 +2,8 @@
 # Sourced by test.sh. It builds test/act/act.m with all of Sources/Core, the real Graph, Review and Store included,
 # makes a fixture repo with a worktree inside $MINMACS_HOME, and runs the checks.
 # The test binary starts its own fixture processes, which exit on their own when it ends, and stops only those.
-# It passes the real Trash only fixture files, and restores each one, so the Trash ends as it began.
+# With MINMACS_HOME set, MMUndo trashes into $MINMACS_HOME/Trash, so the person's Trash is never touched, and each
+# file is restored.
 
 act_dir="$MINMACS_HOME/act"
 mkdir -p "$act_dir/fixtures"

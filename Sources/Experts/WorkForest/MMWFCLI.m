@@ -310,7 +310,15 @@ static int Keep(MMArgs *a, NSString *arg) {
     NSString *path = Absolute(arg, a);
     BOOL off = [a has:@"--off"];
     NSInteger days = [a option:@"--days"] ? [a option:@"--days"].integerValue : 7;
-    if (!a.dryRun) [MMKeep keep:path expert:kExpert until:off ? nil : [NSDate dateWithTimeIntervalSinceNow:days * 86400]];
+    if (a.dryRun) {
+        if (a.json) [a printJSON:@{@"path": path, @"kept": @(!off), @"days": @(off ? 0 : days), @"dryRun": @YES}];
+        else [a print:off ? @"would stop keeping %@" : @"would keep %@ for %ld days", path.stringByAbbreviatingWithTildeInPath, (long)days];
+        return 0;
+    }
+    // A keep changes what the modes may remove, so it runs in the app, as remove and restore do.
+    int needs = [a needsApp];
+    if (needs) return needs;
+    [MMKeep keep:path expert:kExpert until:off ? nil : [NSDate dateWithTimeIntervalSinceNow:days * 86400]];
     if (a.json) [a printJSON:@{@"path": path, @"kept": @(!off), @"days": @(off ? 0 : days)}];
     else [a print:off ? @"%@ is no longer kept" : @"%@ is kept for %ld days", path.stringByAbbreviatingWithTildeInPath, (long)days];
     return 0;
@@ -320,7 +328,14 @@ static int Protect(MMArgs *a, NSString *arg) {
     if (!arg) return [a usageError];
     NSString *path = Absolute(arg, a);
     BOOL off = [a has:@"--off"];
-    if (!a.dryRun) [MMWFRules() set:!off value:path inList:@"protect" key:nil];
+    if (a.dryRun) {
+        if (a.json) [a printJSON:@{@"path": path, @"protected": @(!off), @"dryRun": @YES}];
+        else [a print:off ? @"would stop protecting %@" : @"would protect %@", path.stringByAbbreviatingWithTildeInPath];
+        return 0;
+    }
+    int needs = [a needsApp];
+    if (needs) return needs;
+    [MMWFRules() set:!off value:path inList:@"protect" key:nil];
     if (a.json) [a printJSON:@{@"path": path, @"protected": @(!off)}];
     else [a print:off ? @"%@ is no longer protected" : @"%@ is protected", path.stringByAbbreviatingWithTildeInPath];
     return 0;
