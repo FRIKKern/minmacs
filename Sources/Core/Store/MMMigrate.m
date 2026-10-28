@@ -18,6 +18,7 @@ NSString *const MMNooNooAgentLabel = @"io.noo-noo.d";
 static NSString *const kOldVisibleKey = @"NSStatusItem Visible Item-0";
 static NSString *const kInsomniaDomain = @"no.guerrilla.insomnia";
 static NSString *const kAlreadyOff = @"it is already off";
+static NSString *const kLidModeOwns = @"MinMacs's own lid mode sets it now";
 
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
 static NSArray *List(id v) { return [v isKindOfClass:NSArray.class] ? v : nil; }
@@ -501,7 +502,33 @@ static double StoreTime(id v) {
     return 0;
 }
 
-static NSDictionary *NooNooPlan(NSString *home) {
+/// store.db's rows as log rows, history in table "legacy". Its cleans removed files for good, so there is nothing to
+/// restore, and never undo rows, so Undo Last Clean never picks one.
+static NSArray<NSDictionary *> *NooNooStoreRows(NSString *storePath) {
+    NSArray *actions = StoreRows(storePath, @"SELECT id, ts, module, op, target, size_bytes, evidence_json, outcome FROM actions ORDER BY id DESC LIMIT 500");
+    NSArray *autos = StoreRows(storePath, @"SELECT id, started_at_unix, ended_at_unix, trigger, outcome, skip_reason, target_path, module, "
+                                           "target_size_bytes, freed_bytes, idle_days_at_decision, error_msg FROM auto_clean_events ORDER BY id DESC LIMIT 500");
+    if (!actions && !autos) return nil;
+    NSMutableArray *rows = [NSMutableArray new];
+    for (NSDictionary *a in actions.reverseObjectEnumerator) {
+        NSString *rid = [NSString stringWithFormat:@"legacy.noonoo.action.%@", a[@"id"]];
+        NSMutableDictionary *body = [a mutableCopy];
+        body[@"at"] = @(StoreTime(a[@"ts"])); body[@"from"] = @"Noo-Noo store.db actions";
+        [rows addObject:@{@"table": @"legacy", @"rid": rid, @"expert": @"noonoo", @"subject": Str(a[@"target"]) ?: @"",
+                          @"state": Str(a[@"outcome"]) ?: @"", @"body": body}];
+    }
+    for (NSDictionary *a in autos.reverseObjectEnumerator) {
+        NSString *rid = [NSString stringWithFormat:@"legacy.noonoo.autoclean.%@", a[@"id"]];
+        NSMutableDictionary *body = [a mutableCopy];
+        body[@"at"] = a[@"started_at_unix"] ?: @0; body[@"from"] = @"Noo-Noo store.db auto_clean_events";
+        [rows addObject:@{@"table": @"legacy", @"rid": rid, @"expert": @"noonoo", @"subject": Str(a[@"target_path"]) ?: @"",
+                          @"state": Str(a[@"outcome"]) ?: @"", @"body": body}];
+    }
+    return rows;
+}
+
+/// readStore NO leaves store.db's rows out and names the file in plan["store"], so the import reads it off main.
+static NSDictionary *NooNooPlan(NSString *home, BOOL readStore) {
     NSMutableDictionary *plan = EmptyPlan();
     NSMutableArray *sources = plan[@"sources"];
     // Noo-Noo's app kept only its status item's state in its own domain.
@@ -534,26 +561,12 @@ static NSDictionary *NooNooPlan(NSString *home) {
         }
     }
 
-    // store.db: what Noo-Noo did. Its cleans removed files for good, so there is nothing to restore. They join the log
-    // as history rows, table "legacy", never as undo rows, so Undo Last Clean never picks one.
+    // store.db: what Noo-Noo did, as history rows. In the import it is read with the other rows, off main.
     if ([NSFileManager.defaultManager fileExistsAtPath:storePath]) {
-        NSArray *actions = StoreRows(storePath, @"SELECT id, ts, module, op, target, size_bytes, evidence_json, outcome FROM actions ORDER BY id DESC LIMIT 500");
-        NSArray *autos = StoreRows(storePath, @"SELECT id, started_at_unix, ended_at_unix, trigger, outcome, skip_reason, target_path, module, "
-                                               "target_size_bytes, freed_bytes, idle_days_at_decision, error_msg FROM auto_clean_events ORDER BY id DESC LIMIT 500");
-        if (actions || autos) [sources addObject:storePath];
-        for (NSDictionary *a in actions.reverseObjectEnumerator) {
-            NSString *rid = [NSString stringWithFormat:@"legacy.noonoo.action.%@", a[@"id"]];
-            NSMutableDictionary *body = [a mutableCopy];
-            body[@"at"] = @(StoreTime(a[@"ts"])); body[@"from"] = @"Noo-Noo store.db actions";
-            [plan[@"rows"] addObject:@{@"table": @"legacy", @"rid": rid, @"expert": @"noonoo", @"subject": Str(a[@"target"]) ?: @"",
-                                       @"state": Str(a[@"outcome"]) ?: @"", @"body": body}];
-        }
-        for (NSDictionary *a in autos.reverseObjectEnumerator) {
-            NSString *rid = [NSString stringWithFormat:@"legacy.noonoo.autoclean.%@", a[@"id"]];
-            NSMutableDictionary *body = [a mutableCopy];
-            body[@"at"] = a[@"started_at_unix"] ?: @0; body[@"from"] = @"Noo-Noo store.db auto_clean_events";
-            [plan[@"rows"] addObject:@{@"table": @"legacy", @"rid": rid, @"expert": @"noonoo", @"subject": Str(a[@"target_path"]) ?: @"",
-                                       @"state": Str(a[@"outcome"]) ?: @"", @"body": body}];
+        if (!readStore) { plan[@"store"] = storePath; [sources addObject:storePath]; }
+        else {
+            NSArray *rows = NooNooStoreRows(storePath);
+            if (rows) { [sources addObject:storePath]; [plan[@"rows"] addObjectsFromArray:rows]; }
         }
     }
     return plan;
@@ -563,12 +576,12 @@ static NSDictionary *NooNooPlan(NSString *home) {
 
 static NSArray<NSString *> *SourceNames(void) { return @[@"insomnia", @"locohost", @"minmacs-1.2", @"noonoo", @"workforest"]; }
 
-static NSDictionary *PlanFor(NSString *name, NSString *home) {
+static NSDictionary *PlanFor(NSString *name, NSString *home, BOOL readStore) {
     if ([name isEqualToString:@"locohost"]) return LocoHostPlan(home);
     if ([name isEqualToString:@"minmacs-1.2"]) return MinMacs12Plan(home);
     if ([name isEqualToString:@"workforest"]) return WorkForestPlan(home);
     if ([name isEqualToString:@"insomnia"]) return InsomniaPlan(home);
-    if ([name isEqualToString:@"noonoo"]) return NooNooPlan(home);
+    if ([name isEqualToString:@"noonoo"]) return NooNooPlan(home, readStore);
     return EmptyPlan();
 }
 
@@ -617,7 +630,7 @@ static void Mark(NSArray<NSString *> *parts) {
 NSDictionary *MMLegacyPlan(NSString *home) {
     home = home.length ? home : NSHomeDirectory();
     NSMutableDictionary *plans = [NSMutableDictionary new];
-    for (NSString *n in SourceNames()) plans[n] = PlanFor(n, home);
+    for (NSString *n in SourceNames()) plans[n] = PlanFor(n, home, YES);
     return Merge(plans, SourceNames());
 }
 
@@ -630,7 +643,7 @@ NSDictionary *MMImportLegacy(NSString *home) {
     // again when it appears.
     for (NSString *n in SourceNames()) {
         if (done[n]) continue;
-        plans[n] = PlanFor(n, home);
+        plans[n] = PlanFor(n, home, NO);
         if ([plans[n][@"sources"] count]) [todo addObject:n];
     }
     NSDictionary *plan = Merge(plans, todo);
@@ -653,10 +666,13 @@ NSDictionary *MMImportLegacy(NSString *home) {
     }];
     // The rows go to the log off main in the app, and the marker is set after them, so a launch that ends first
     // imports again. A row imported before is skipped by its rid.
+    // store.db is read there too, since the app calls the import on main.
     NSArray *rows = plan[@"rows"];
     NSArray *names = [todo copy];
+    NSString *store = [todo containsObject:@"noonoo"] ? plans[@"noonoo"][@"store"] : nil;
     MMLogWhenOpen(^(MMLog *log) {
-        for (NSDictionary *r in rows) {
+        NSArray *all = store ? [rows arrayByAddingObjectsFromArray:NooNooStoreRows(store) ?: @[]] : rows;
+        for (NSDictionary *r in all) {
             if ([log history:r[@"rid"]].count) continue;   // imported before, under another marker
             [log append:r[@"table"] rid:r[@"rid"] expert:r[@"expert"] subject:r[@"subject"] state:r[@"state"] body:r[@"body"]];
         }
@@ -666,11 +682,7 @@ NSDictionary *MMImportLegacy(NSString *home) {
 }
 
 BOOL MMMigrateWanted(NSDictionary<NSString *, NSString *> *env) {
-#ifdef MM_TESTS
-    return NO;
-#else
     return !env[@"MINMACS_HOME"].length && !env[@"MM_TESTS"].length;
-#endif
 }
 
 #pragma mark - What the follow-up finds
@@ -862,7 +874,10 @@ static MMProcKey KeyOf(pid_t pid) {
     if (![f.kind isEqualToString:@"lid"]) return nil;
     if (RunningAt(nil, kInsomniaDomain)) return @"Insomnia.app runs and sets it";
     if (!facts.power) return @"cannot verify the power facts";
-    return facts.power.lidOverride ? nil : kAlreadyOff;
+    if (!facts.power.lidOverride) return kAlreadyOff;
+    // The Insomnia expert writes the override while its lid mode is on, and clears it when nothing wants it. It may
+    // want it on now, with the lid shut and an agent at work, so the follow-up leaves it to the expert.
+    return MMPrefBool(@"insomnia.lid", NO) ? kLidModeOwns : nil;
 }
 - (NSString *)reviewKeeps:(MMFinding *)f review:(MMReview *)r { return nil; }
 @end
@@ -889,6 +904,7 @@ static NSDictionary *LidPart(NSString *home) {
     MMUndoRecord *r = MMRunAction(a, [MMMigratePolicy new], nil, @"guard", @"MinMacs takes over from Insomnia.app", &err);
     if (r.state == MMUndoDone) { Mark(@[@"insomnia.lid"]); return @{@"state": @"off", @"rid": r.rid}; }
     if ([err hasSuffix:kAlreadyOff]) { Mark(@[@"insomnia.lid"]); return @{@"state": @"already off"}; }
+    if ([err hasSuffix:kLidModeOwns]) { Mark(@[@"insomnia.lid"]); return @{@"state": @"lid mode owns it"}; }
     // Insomnia.app runs, or the write failed: the next launch tries again.
     return @{@"state": @"waits", @"why": err ?: r.error ?: @"the write failed"};
 }

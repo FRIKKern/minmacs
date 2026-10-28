@@ -30,7 +30,7 @@ check "migrate: Core builds with no warnings under -Wextra" 0 "$(grep -c 'warnin
 # The real paths are named from $HOME at run time. The tool may not read or write any of them.
 mg_real_files="$HOME/Library/Preferences/no.guerrilla.locohost.plist $HOME/Library/Preferences/no.guerrilla.workforest.plist
 $HOME/Library/Preferences/no.guerrilla.insomnia.plist $HOME/Library/Preferences/io.noo-noo.app.plist
-$HOME/Library/LaunchAgents/io.noo-noo.d.plist"
+$HOME/Library/Preferences/no.guerrilla.minmacs.plist $HOME/Library/LaunchAgents/io.noo-noo.d.plist"
 mg_real_dirs="$HOME/Library/Application Support/LocoHost|$HOME/Library/Application Support/WorkForest|$HOME/Library/Application Support/noo-noo|$HOME/Library/Application Support/MinMacs|$HOME/.config/noo-noo|$HOME/.Trash|/Applications/LocoHost.app|/Applications/WorkForest.app|/Applications/Insomnia.app|/Applications/Noo-Noo.app|$HOME/Applications/LocoHost.app|$HOME/Applications/WorkForest.app|$HOME/Applications/Insomnia.app|$HOME/Applications/Noo-Noo.app|$mg_dir/denied"
 mg_profile="(version 1)(allow default)"
 for f in $mg_real_files; do mg_profile="$mg_profile(deny file-read-data file-write* (literal \"$f\"))"; done
@@ -137,6 +137,8 @@ check "migrate: config.toml is kept whole" "45 524288000 2.5 ~/Library/Caches tw
   "$(json '"%s %s %s %s %s" % (j["heuristics"]["idle_repos"]["min_idle_days"], j["heuristics"]["idle_repos"]["min_node_modules_bytes"], j["heuristics"]["cache_velocity"]["growth_multiplier"], j["scan"]["cache_roots"][0], j["offload"]["inline"]["b"])' <"$mg_home/noonoo/legacy-config.json")"
 check "migrate: a comment inside an array is no value" "~/code,~/Documents/GitHub" "$(json '",".join(j["scan"]["roots"])' <"$mg_home/noonoo/legacy-config.json")"
 mg_db="$mg_home/minmacs.sqlite"
+check "migrate: the import reads store.db with the log rows, not in the plan it returns" 0 \
+  "$(json 'len([r for r in j["rows"] if r["table"] == "legacy"])' <"$mg_dir/import.json")"
 check "migrate: Noo-Noo's actions and auto cleans join the log as history" "3 0" \
   "$(sqlite3 -separator ' ' "$mg_db" "SELECT (SELECT COUNT(*) FROM rows WHERE tbl='legacy' AND expert='noonoo'), (SELECT COUNT(*) FROM rows WHERE tbl='undo' AND expert='noonoo');")"
 check "migrate: a history row keeps its time and outcome" "1777690800 accepted" \
@@ -165,11 +167,11 @@ check "migrate: the record is restored" restored "$(mg record legacy.workforest.
 mkdir -p "$mg_home/migrate-fake"; echo 1 >"$mg_home/migrate-fake/lid"
 (MIGRATE_AGENT_STATUS=1 mg followup "$mg_old" yes "$mg_dir/asked.log") >"$mg_dir/follow.json" 2>"$mg_dir/follow.err"
 check "migrate: the follow-up exits 0" 0 "$?"
-check "migrate: a live lid override the old lid mode set goes off" off "$(json 'j["insomnia.lid"]["state"]' <"$mg_dir/follow.json")"
-check "migrate: through the one pmset command, and nothing touches the sudoers rule" "/usr/bin/sudo -n /usr/bin/pmset -a disablesleep 0" \
-  "$(grep -v launchctl "$mg_home/migrate-fake/log")"
-mg_lidrid=$(json 'j["insomnia.lid"]["rid"]' <"$mg_dir/follow.json")
-check "migrate: the lid write has an undo record" "lid insomnia done guard" "$(mg record "$mg_lidrid" | json '"%s %s %s %s" % (j["kind"], j["expert"], j["state"], j["by"])')"
+# The import carried lid mode over, so the Insomnia expert owns the override now. It may want it on, with the lid
+# shut and an agent at work, so the follow-up writes nothing.
+check "migrate: with lid mode carried over, the expert owns the live override" "lid mode owns it 1" \
+  "$(json 'j["insomnia.lid"]["state"]' <"$mg_dir/follow.json") $(cat "$mg_home/migrate-fake/lid")"
+check "migrate: and no pmset command runs" "" "$(grep -v launchctl "$mg_home/migrate-fake/log")"
 check "migrate: one confirm for the agent and one for the apps" 2 "$(grep -c . "$mg_dir/asked.log")"
 check "migrate: the agent's status comes from SMAppService" 1 "$(json 'j["noonoo.agent"]["status"]' <"$mg_dir/follow.json")"
 check "migrate: on yes the agent is stopped with launchctl bootout" "/bin/launchctl bootout gui/$(id -u) $mg_lib/LaunchAgents/io.noo-noo.d.plist" \
@@ -235,11 +237,15 @@ mg followup "$mg_dir/lid-home" no >"$mg_dir/follow-fail.json" 2>/dev/null
 check "migrate: a refused write waits for the next launch" waits "$(json 'j["insomnia.lid"]["state"]' <"$mg_dir/follow-fail.json")"
 rm -f "$mg_home/migrate-fake/fail"
 mg followup "$mg_dir/lid-home" no >"$mg_dir/follow-fail2.json" 2>/dev/null
-check "migrate: and the next launch turns it off" off "$(json 'j["insomnia.lid"]["state"]' <"$mg_dir/follow-fail2.json")"
+check "migrate: and the next launch turns it off" "off 0" "$(json 'j["insomnia.lid"]["state"]' <"$mg_dir/follow-fail2.json") $(cat "$mg_home/migrate-fake/lid")"
+check "migrate: through the one pmset command, and nothing touches the sudoers rule" "/usr/bin/sudo -n /usr/bin/pmset -a disablesleep 0" \
+  "$(sort -u "$mg_home/migrate-fake/log")"
+mg_lidrid=$(json 'j["insomnia.lid"]["rid"]' <"$mg_dir/follow-fail2.json")
+check "migrate: the lid write has an undo record" "lid insomnia done guard" "$(mg record "$mg_lidrid" | json '"%s %s %s %s" % (j["kind"], j["expert"], j["state"], j["by"])')"
 
 # ----- The app -----
 mg_home="$mg_dir/probe-home"
-check "migrate: only the real app migrates, never a test home" "no no no" "$(mg wanted)"
+check "migrate: only the real app migrates, never a test home" "yes no no" "$(mg wanted)"
 check "migrate: Info.plist adds the insomnia scheme" insomnia \
   "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:2' "$APP/Contents/Info.plist" 2>/dev/null)"
 check "migrate: insomnia:// goes to the Insomnia expert" "expert insomnia" "$(mg route 'insomnia://lid-off')"

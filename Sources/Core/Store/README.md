@@ -36,7 +36,7 @@ The support folder, the prefs domain, rules files, state files, the SQLite log a
 | WorkForest `rules.json` | `workforest/rules.json`. `protect.paths` becomes `protect`, `ignore.paths` becomes `ignore`, and the roots join `core/rules.json` |
 | WorkForest `removed.json` | one `undo` row per removal, which restore takes back at its commit with the files 0.1 saved, left where 0.1 put them. `workforest/legacy-removed.json` maps 0.1's id to the rid, the map the expert's own import keeps, so each record comes in once |
 | Noo-Noo `config.toml` | `noonoo/legacy-config.json`, the whole file. `auto_clean.enabled` off makes `noonoo.mode` idle, on with the risk acknowledged makes it proactive. The scan and worktree roots join `core/rules.json` |
-| Noo-Noo `store.db` | the last 500 `actions` and `auto_clean_events` as `legacy` rows. Noo-Noo deleted for good, so they are history and never undo rows |
+| Noo-Noo `store.db` | the last 500 `actions` and `auto_clean_events` as `legacy` rows. Noo-Noo deleted for good, so they are history and never undo rows. The import reads it in its `MMLogWhenOpen` work, off main in the app |
 | MinMacs 1.2 `rules.json` | `minmacs/rules.json`, wildcards kept |
 | `minmacs.closedBundleIDs` and `minmacs.closedTabs` | one `undo` row per app to relaunch, with its tabs |
 
@@ -48,7 +48,7 @@ Each source is imported once, and the `core.migrated` pref records when. A sourc
 
 `MMMigrateFollowUp` runs once after the import, off main. The shell starts it 20 seconds after launch on `no.guerrilla.minmacs.core.migrate`, only when `MMMigrateWanted` says so: never under `MINMACS_HOME` or `MM_TESTS`, and never headless. Each part is recorded in `core.migrated` when it is done, so a second launch asks nothing and runs nothing.
 
-- **The lid.** When the old Insomnia had `insomnia.lid` on and the override is still live, it goes off once, through `MMRunAction` and `MMLidOverride`, with an undo record of kind `lid` by `guard`. An override another tool set stays. While Insomnia.app runs it owns the override, and a refused write tries again at the next launch. Insomnia's sudoers rule is never touched.
+- **The lid.** When the old Insomnia had `insomnia.lid` on and the override is still live, it goes off once, through `MMRunAction` and `MMLidOverride`, with an undo record of kind `lid` by `guard`. An override another tool set stays. While Insomnia.app runs it owns the override, and a refused write tries again at the next launch. While the 2.0 pref `insomnia.lid` is on, which the import carries over, the Insomnia expert owns the override: it may want it on with the lid shut and an agent at work, and it clears it itself when nothing does. Then the part is done with no write. Insomnia's sudoers rule is never touched.
 - **Noo-Noo's LaunchAgent.** `~/Library/LaunchAgents/io.noo-noo.d.plist`, with its state from `+[SMAppService statusForLegacyURL:]`. One confirm. On yes `launchctl bootout` stops it, as Noo-Noo's own uninstall does, and the plist goes to the Trash with an undo record that puts it back.
 - **The old apps.** LocoHost, WorkForest, Insomnia and Noo-Noo in `~/Applications` and `/Applications`, each checked by its bundle id. One confirm names them. On yes each is quit when it runs and goes to the Trash, each with its own undo record. `minmacs restore <rid>` puts one back. What failed goes in one alert.
 

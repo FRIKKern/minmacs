@@ -22,15 +22,16 @@
 NSDictionary *MMLegacyPlan(NSString *home);
 /// Applies MMLegacyPlan once per source and records that in the core.migrated pref. A file that already exists
 /// in 2.0 is left as it is. Returns the plan it applied, with nothing in it on a second run. A source already
-/// marked is not read again.
+/// marked is not read again. The rows go to the log through MMLogWhenOpen, off main in the app, and Noo-Noo's
+/// store.db is read there too, so its rows are not in the plan it returns.
 NSDictionary *MMImportLegacy(NSString *home);
 
 /// The pref that records what the migration did and when: one date per source, and "insomnia.lid",
 /// "noonoo.agent" and "apps" for the follow-up.
 extern NSString *const MMMigratedKey;                   // @"core.migrated"
 
-/// NO when the migration must not run in this process: under MINMACS_HOME or MM_TESTS, where a test never reads
-/// the person's old apps. The app calls the import and the follow-up only when this says YES.
+/// NO when env has MINMACS_HOME or MM_TESTS set, where a test never reads the person's old apps.
+/// The app calls the follow-up only when this says YES.
 BOOL MMMigrateWanted(NSDictionary<NSString *, NSString *> *env);
 
 /// The label of Noo-Noo's LaunchAgent, and where it lives under home: Library/LaunchAgents/io.noo-noo.d.plist.
@@ -55,7 +56,8 @@ typedef BOOL (^MMMigrateAsk)(NSString *title, NSString *body, NSString *yesButto
 /// The follow-up, once per part, each part recorded in MMMigratedKey when it is done:
 ///   insomnia.lid  When the old Insomnia had lid mode on and the override is still live, it is turned off once,
 ///                 through MMRunAction with an undo record of kind "lid". The sudoers rule stays as it is.
-///                 While Insomnia.app runs it owns the override, so the part waits for a later launch.
+///                 While Insomnia.app runs it owns the override, so the part waits for a later launch. While the
+///                 2.0 pref insomnia.lid is on, the Insomnia expert owns it, and the part is done without a write.
 ///   noonoo.agent  When Noo-Noo's LaunchAgent plist exists, ask once. On yes `launchctl bootout` stops it and the plist
 ///                 goes to the Trash, through MMRunAction with an undo record that puts it back.
 ///   apps          When old apps are found, ask once. On yes each one is quit when it runs and moved to the Trash,
