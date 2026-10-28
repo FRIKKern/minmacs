@@ -230,7 +230,7 @@ static int Broker(NSDictionary *day, NSString *outPath, BOOL fresh, BOOL plain) 
 
 #pragma mark - Legacy mode
 
-/// One call the way the 0.1 apps made it: pretty-printed input, the old prompt and schema, no effort flag, so the
+/// One call the way the 0.1 apps made it: pretty-printed input, the old prompt and schema, and --effort medium, so the
 /// fake counts the default effort. Returns the structured answer and adds the usage to t.
 static NSDictionary *OldCall(NSString *system, NSDictionary *schema, NSDictionary *input, RDTotal *t) {
     NSData *prompt = [NSJSONSerialization dataWithJSONObject:input options:NSJSONWritingPrettyPrinted | NSJSONWritingWithoutEscapingSlashes error:nil];

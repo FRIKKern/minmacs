@@ -417,7 +417,7 @@ NSString *const MMWorkKeepsRuleID = @"core.work-keeps";
 
 /// /private/var and /private/tmp as /var and /tmp, so a real path and the path git or a session wrote compare equal.
 static NSString *Plain(NSString *p) {
-    if ([p hasPrefix:@"/private/var/"] || [p hasPrefix:@"/private/tmp/"]) return [p substringFromIndex:8];
+    if ([p hasPrefix:@"/private/var/"] || [p hasPrefix:@"/private/tmp/"]) p = [p substringFromIndex:8];
     return p.length > 1 && [p hasSuffix:@"/"] ? [p substringToIndex:p.length - 1] : p;
 }
 
@@ -646,7 +646,6 @@ static BOOL Carries(MMVerdict *v, NSString *context) {
         if (!x.word) x.word = [words wordFor:x.kind];
         v[f.findingID] = x;
     }
-    r.sent = (NSInteger)send.count;
 
     NSMutableArray<NSString *> *summaries = [NSMutableArray new];
     NSUInteger batchCount = 0;
@@ -654,6 +653,7 @@ static BOOL Carries(MMVerdict *v, NSString *context) {
         r.error = [NSString stringWithFormat:@"The daily review budget is used: %ld of %ld uncached tokens. A manual review still runs.",
                    (long)MMBudget.shared.uncachedToday, (long)MMBudget.shared.dailyUncached];
     } else if (send.count) {
+        r.sent = (NSInteger)send.count;   // a review the budget stops sends nothing
         NSMutableDictionary *byID = [NSMutableDictionary new];
         for (MMFinding *f in send) byID[IDFor(f)] = f;
         NSMutableArray *errors = [NSMutableArray new];
@@ -700,8 +700,9 @@ static BOOL Carries(MMVerdict *v, NSString *context) {
             [j addObject:f];
         }
         if (j.count) [self judge:j request:q into:r];
+        // Only the judge's verdicts of this review count. A judge verdict the cache carried counts as cache.
         NSInteger judged = 0;
-        for (MMVerdict *x in r.verdicts.allValues) if ([x.decidedBy isEqualToString:@"judge"]) judged++;
+        for (MMFinding *f in j) if ([r.verdicts[f.findingID].decidedBy isEqualToString:@"judge"]) judged++;
         if (judged) { NSMutableDictionary *d = [r.decided mutableCopy]; d[@"judge"] = @(judged); r.decided = d; }
     }
 

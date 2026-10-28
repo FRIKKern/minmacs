@@ -168,7 +168,7 @@ By expert and rule:
 
 ### The fingerprint cache, issue #33
 
-- With the cache off, the broker sent 1,586 findings and 734,945 uncached tokens. With it on, 94 findings and 56,846 tokens. The cache removed 92.3 % of what the rules left.
+- With the cache off, the broker sent 1,586 findings and 734,945 uncached tokens. With it on, 94 findings and 56,846 tokens. The cache removed 94.1 % of the findings the rules left, and 92.3 % of their uncached tokens.
 - A verdict is carried only while three keys hold: the expert's fingerprint, the instance key and Core's context from `MMReviewContext`. The context is the HEAD of the finding's worktree, the activity bucket of the newest session there and a size bucket of what the finding frees. The buckets are those of the graph's workstream fingerprint.
 - The instance key rule of LocoHost now holds in `-[MMReview verdictFor:]` for every expert. The server that restarts at hour 10 was sent again at that tick.
 - No finding was sent because the context alone moved. The fingerprints of WorkForest and LocoHost already hold HEAD and activity buckets. The context keeps the same rule for the experts whose fingerprints do not.

@@ -161,6 +161,9 @@ check "the judge gets the first review" True "$(python3 -c "import json,sys; pri
 check "the judge keeps a finding with evidence" "in_use True fixture: a test client still uses it" "$(rv_get "' '.join(str(v[k]) for k, v in [x for x in j['verdicts'].items() if x[0].endswith('#api')] for k in ('word', 'judged', 'keep_evidence'))")"
 check "without evidence the judge says go" "idle judge" "$(rv_get "' '.join(v['word'] + ' ' + v['decided_by'] for k, v in j['verdicts'].items() if k.endswith('#docs'))")"
 check "the broker counts what the judge decided" 3 "$(rv_get "j['decided'].get('judge')")"
+RV_TEST_GO="#dev" RV_TEST_UNSURE="#api,#docs" RV_TEST_KEEP="#api" "$RV" review "$rv_dir/judge.json" --model haiku --judge >"$rv_dir/out.json"
+check "a judge verdict the cache carries counts as cache, not judge" "None 4" \
+  "$(rv_get "str(j['review_decided'].get('judge')) + ' ' + str(j['review_decided'].get('cache'))")"
 rv_fx judgepar "$rv_app" --keep "#web" >/dev/null; rv_fresh
 RV_TEST_GO="#dev" RV_TEST_UNSURE="#api,#docs" RV_TEST_KEEP="#api" "$RV" review "$rv_dir/judgepar.json" --model haiku --judge --batch 1 --parallel 3 >"$rv_dir/out.json"
 check "the judge in parallel batches of one gives the same verdicts" "in_use idle 3" \
@@ -179,6 +182,7 @@ rv_fx budget "$rv_app" >/dev/null; rv_fresh
 check "a scheduled review waits when the day is over budget" 1 "$?"
 check "and says so" True "$(rv_get "'budget' in j['error']")"
 check "and asks no model" no "$([ -e "$RV_TEST_SENT.calls" ] && echo yes || echo no)"
+check "and counts no finding as sent" 0 "$(rv_get "j['sent']")"
 "$RV" review "$rv_dir/budget.json" --trigger manual --budget 100 >"$rv_dir/out.json"
 check "a manual review still runs" 0 "$?"
 
