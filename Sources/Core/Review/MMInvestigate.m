@@ -199,7 +199,8 @@ static NSString *const kSystem =
     NSMutableDictionary<NSString *, MMInvestigation *> *_latest;
     NSMutableArray<NSNumber *> *_costs;                 // uncached tokens of finished runs, newest first
     BOOL _loaded, _loading;
-    dispatch_queue_t _queue;
+    dispatch_queue_t _queue;                            // runs, one at a time
+    dispatch_queue_t _prepare;                          // loads and estimates, so an alert never waits on a run
 }
 
 + (instancetype)shared {
@@ -212,6 +213,7 @@ static NSString *const kSystem =
     if (!(self = [super init])) return nil;
     _latest = [NSMutableDictionary new]; _costs = [NSMutableArray new];
     _queue = MMQueue(@"core", @"investigate", QOS_CLASS_UTILITY);
+    _prepare = MMQueue(@"core", @"investigate-prepare", QOS_CLASS_USER_INITIATED);
     return self;
 }
 
@@ -219,7 +221,7 @@ static NSString *const kSystem =
 /// rebuilds when it is done, so an open card shows what was saved.
 - (void)loadSoon {
     @synchronized (self) { if (_loaded || _loading) return; _loading = YES; }
-    dispatch_async(_queue, ^{
+    dispatch_async(_prepare, ^{
         [self load];
         BOOL any;
         @synchronized (self) { any = self->_latest.count > 0; }
@@ -285,16 +287,28 @@ static void ReadAudit(NSString *path, MMInvestigation *r) {
     }
 }
 
-- (MMInvestigation *)run:(MMInvestigateSubject *)subject question:(NSString *)question error:(NSString **)error {
-    if (!subject.folders.count) { if (error) *error = @"there is no folder to look in"; return nil; }
-    [self load];
+/// The running record for subject, put in memory, or nil when one already runs for it.
+- (MMInvestigation *)reserve:(MMInvestigateSubject *)subject question:(NSString *)question {
     MMInvestigation *r = [MMInvestigation new];
     r.subjectID = subject.subjectID; r.title = subject.title; r.folders = subject.folders; r.model = MMInvestigateModel;
     r.question = question.length ? question : subject.question; r.at = NSDate.date; r.running = YES;
     @synchronized (self) {
-        if (_latest[r.subjectID].running) { if (error) *error = @"an investigation of this already runs"; return nil; }
+        if (_latest[r.subjectID].running) return nil;
         _latest[r.subjectID] = r;
     }
+    return r;
+}
+
+- (MMInvestigation *)run:(MMInvestigateSubject *)subject question:(NSString *)question error:(NSString **)error {
+    if (!subject.folders.count) { if (error) *error = @"there is no folder to look in"; return nil; }
+    [self load];
+    MMInvestigation *r = [self reserve:subject question:question];
+    if (!r) { if (error) *error = @"an investigation of this already runs"; return nil; }
+    return [self runReserved:r subject:subject error:error];
+}
+
+- (MMInvestigation *)runReserved:(MMInvestigation *)r subject:(MMInvestigateSubject *)subject error:(NSString **)error {
+    [self load];
     Rebuild(@"investigate started");
     NSString *dir = [MMExpertDir(@"review") stringByAppendingPathComponent:@"investigate"];
     [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
@@ -326,7 +340,7 @@ static void ReadAudit(NSString *path, MMInvestigation *r) {
 
 - (void)prepare:(NSString *)subjectID snapshot:(MMSnapshot *)s
            done:(void (^)(MMInvestigateSubject *, MMInvestigateEstimate *))done {
-    dispatch_async(_queue, ^{
+    dispatch_async(_prepare, ^{
         MMInvestigateSubject *x = [MMInvestigateSubject named:subjectID snapshot:s cwd:nil];
         MMInvestigateEstimate *e = [self estimate];
         dispatch_async(dispatch_get_main_queue(), ^{ done(x, e); });
@@ -359,9 +373,18 @@ static void ReadAudit(NSString *path, MMInvestigation *r) {
 }
 
 - (void)start:(MMInvestigateSubject *)subject question:(NSString *)question done:(void (^)(MMInvestigation *, NSString *))done {
+    // The run is marked as running before it queues, so a second ask for the same subject while one waits or runs
+    // is refused at once and the card dims its action, and no subject is paid for twice.
+    MMInvestigation *reserved = subject.folders.count ? [self reserve:subject question:question] : nil;
+    if (!reserved) {
+        NSString *e = subject.folders.count ? @"an investigation of this already runs" : @"there is no folder to look in";
+        if (done) dispatch_async(dispatch_get_main_queue(), ^{ done(nil, e); });
+        return;
+    }
+    Rebuild(@"investigate queued");
     dispatch_async(_queue, ^{
         NSString *e = nil;
-        MMInvestigation *r = [self run:subject question:question error:&e];
+        MMInvestigation *r = [self runReserved:reserved subject:subject error:&e];
         Rebuild(@"investigate done");
         if (done) dispatch_async(dispatch_get_main_queue(), ^{ done(r, e); });
     });
@@ -391,7 +414,8 @@ static BOOL Binary(NSData *d) {
 
 /// Opens a real path for reading and checks the file it got, so a swap after the check cannot lead out.
 static NSData *ReadScoped(NSArray *folders, NSString *real, NSUInteger max, NSString **reason) {
-    int fd = open(real.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    // O_NONBLOCK, so a named pipe or a device in the folder never holds the tool server. A regular file reads as before.
+    int fd = open(real.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
     if (fd < 0) { *reason = [NSString stringWithFormat:@"%@ could not be opened", Tilde(real)]; return nil; }
     struct stat st;
     char got[PATH_MAX];

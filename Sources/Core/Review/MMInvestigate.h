@@ -80,11 +80,12 @@ NSArray<NSString *> *MMInvestigateFolders(NSArray<NSString *> *candidates);
 /// Runs one Investigate now, saves it and returns it. Blocks. Never on main. question nil asks the default.
 /// It counts against MMBudget as "investigate". A second run for a subject that is running returns nil with *error.
 - (MMInvestigation *)run:(MMInvestigateSubject *)subject question:(NSString *)question error:(NSString **)error;
-/// The same on MMQueue(@"core", @"investigate"). done runs on main. The graph is asked to rebuild when the run
-/// starts and when it ends, so the card shows it.
+/// The same on MMQueue(@"core", @"investigate"), one run at a time. done runs on main. The subject is marked as
+/// running before the run queues, so a second start for it, while one waits or runs, calls done with nil and an error.
+/// The graph is asked to rebuild when the run queues and when it ends, so the card shows it.
 - (void)start:(MMInvestigateSubject *)subject question:(NSString *)question done:(void (^)(MMInvestigation *run, NSString *error))done;
-/// Resolves the subject of a finding or workstream id and the estimate on the investigate queue, since both read
-/// the disk, and calls done on main with them. subject is nil when it has no folder to look in.
+/// Resolves the subject of a finding or workstream id and the estimate on MMQueue(@"core", @"investigate-prepare"),
+/// since both read the disk, and calls done on main with them. That queue never waits on a run. subject is nil when it has no folder to look in.
 - (void)prepare:(NSString *)subjectID snapshot:(MMSnapshot *)s
            done:(void (^)(MMInvestigateSubject *subject, MMInvestigateEstimate *estimate))done;
 /// The card action's flow. Resolves the subject and the estimate off main, then calls confirm on main with a title,

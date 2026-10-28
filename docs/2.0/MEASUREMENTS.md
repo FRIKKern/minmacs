@@ -180,6 +180,8 @@ Research F section 4.4 found that Claude Code's default first turn reads 7k to 2
 
 **End to end with the fake CLI.** `investigate <folder> --yes` with three tool calls took 0.10 to 0.11 s in the test tool over five runs. The app binary run cold builds a snapshot first and took 0.46 to 0.48 s, and 1.59 s on its first run. Showing only the estimate took 0.37 to 0.38 s cold.
 
-**Menus.** A card reads the last run from memory, through the expert's view. `inv start` counts 0 log queries on main while a run goes and after it ends. In the app, `investigate --yes` starts the run on `no.guerrilla.minmacs.core.investigate` and returns at once, so core.sock stays free.
+**Menus.** A card reads the last run from memory, through the expert's view. `inv start` counts 0 log queries on main while a run goes and after it ends. In the app, `investigate --yes` starts the run on `no.guerrilla.minmacs.core.investigate` and returns at once, so core.sock stays free. The card's alert resolves its subject and estimate on `no.guerrilla.minmacs.core.investigate-prepare`, so it opens while another run goes. `inv start` checks both: a second start of the same subject is refused at once, and another subject's alert is ready before the 3 s fixture run ends.
+
+**A named pipe.** Read opens with `O_NONBLOCK`, so a FIFO inside the folder is refused as not a file. Before that fix the tool server hung on it until the test stopped it after 5 s.
 
 **Not measured yet.** The tokens and the time of a real run on a real login. That needs a paid call, which this work did not make. The first real run replaces the 35,000-token default in the estimate on its own.

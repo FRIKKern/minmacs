@@ -169,6 +169,20 @@ static int Start(NSString *name) {
     Out(@"start: while it runs, memory says it runs", @"yes", B(now.running));
     MMInvestigation *again = [MMInvestigations.shared run:x question:nil error:nil];
     Out(@"start: a second run of the same subject is refused", @"nil", again ? @"run" : @"nil");
+    // A second start while one runs is refused at once, so a second click never queues a paid run behind the first.
+    __block BOOL secondDone = NO; __block NSString *secondError = nil; __block MMInvestigation *secondRun = nil;
+    [MMInvestigations.shared start:x question:nil done:^(MMInvestigation *run, NSString *error) { secondRun = run; secondError = error; secondDone = YES; }];
+    until = [NSDate dateWithTimeIntervalSinceNow:0.5];
+    while (!secondDone && [until timeIntervalSinceNow] > 0) [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+    Out(@"start: a second start of the same subject is refused at once", @"an investigation of this already runs",
+        secondDone && !secondRun ? secondError : @"(it queued)");
+    // The card's alert resolves its subject and estimate while another run goes, without waiting for it.
+    __block BOOL prepared = NO; __block MMInvestigateSubject *other = nil;
+    [MMInvestigations.shared prepare:[AppFolder() stringByAppendingPathComponent:@"src"] snapshot:s
+                                done:^(MMInvestigateSubject *subject, MMInvestigateEstimate *estimate) { other = subject; prepared = YES; }];
+    until = [NSDate dateWithTimeIntervalSinceNow:0.5];
+    while (!prepared && [until timeIntervalSinceNow] > 0) [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+    Out(@"start: another card's alert does not wait for the run", @"yes", B(prepared && !finished && other.folders.count == 1));
     until = [NSDate dateWithTimeIntervalSinceNow:30];
     while (!finished && [until timeIntervalSinceNow] > 0) [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
     Out(@"start: done runs on main with the answer", @"yes", B(finished && got.answer.length > 0));

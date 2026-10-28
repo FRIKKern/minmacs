@@ -53,6 +53,23 @@ echo "  -- the path checks"
 check "inv unit runs" 0 "$?"
 while IFS="$inv_tab" read -r n w g; do check "$n" "$w" "$g"; done <"$inv/unit.out"
 
+echo "  -- a named pipe never holds the tool server"
+# Read opens with O_NONBLOCK, so a FIFO inside the folder is refused as not a file, and the server answers at once.
+# The pipe is made in its own fixture folder, so the scripted calls below see the same files as before.
+mkdir -p "$fx/pipe-in"
+mkfifo "$fx/pipe-in/inv-fifo-$$"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Read","arguments":{"file_path":"inv-fifo-'"$$"'"}}}' \
+  | "$INV" _investigate-tools --folder "$fx/pipe-in" >"$inv/fifo.out" 2>&1 &
+inv_fifo_pid=$!
+inv_fifo_wait=0
+while kill -0 "$inv_fifo_pid" 2>/dev/null && [ "$inv_fifo_wait" -lt 50 ]; do sleep 0.1; inv_fifo_wait=$((inv_fifo_wait + 1)); done
+inv_fifo_hung=no
+if kill -0 "$inv_fifo_pid" 2>/dev/null; then inv_fifo_hung=yes; kill "$inv_fifo_pid" 2>/dev/null; fi
+wait "$inv_fifo_pid" 2>/dev/null
+check "Read of a named pipe does not hang the tool server" no "$inv_fifo_hung"
+check "and is refused as not a file" 1 "$(grep -c 'is not a file inside the folders' "$inv/fifo.out")"
+rm -f "$fx/pipe-in/inv-fifo-$$"
+
 echo "  -- the cost before it runs"
 inv_fresh
 "$INV" investigate "$fx/in" "What is this folder for?" >"$inv/out.txt" 2>&1
@@ -156,7 +173,7 @@ check "in the app it starts and returns at once" 1 "$(grep -c '^Started. The ans
 check "the finding's run reads only the app folder" True "$(inv_calls "'Folders: $fx/in' + chr(10) in c['prompt']")"
 "$INV" investigate "invtest:server:fixture-app#dev" --json >"$inv/out.json"
 check "the answer is saved with the finding" True "$(inv_get "j['last']['subject'] == 'invtest:server:fixture-app#dev' and j['last']['answer'].startswith('Fixture answer')")"
-INV_TEST_SLEEP=1.5 "$INV" start "invtest:server:fixture-app#dev" >"$inv/start.out" 2>&1
+INV_TEST_SLEEP=3 "$INV" start "invtest:server:fixture-app#dev" >"$inv/start.out" 2>&1
 check "inv start runs" 0 "$?"
 while IFS="$inv_tab" read -r n w g; do check "$n" "$w" "$g"; done <"$inv/start.out"
 check "no tool server is left running" 0 "$(inv_servers)"
