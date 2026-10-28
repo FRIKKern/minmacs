@@ -64,6 +64,8 @@ for f in glob.glob('Sources/**/*.m', recursive=True):
         used.update(re.findall(r'@"([a-z]+)"', call.split(';')[0])[:1])
         if 'MMModeName(' in call.split(';')[0]:
             used.update(['proactive', 'eager'])
+    # A caller that passes by on, such as -set:value:by: or -hold:reason:by:rid:, gets its word as by:@"word".
+    used.update(re.findall(r'\bby:@"([^"]*)"', t))
 print(' '.join(sorted(used - listed)))
 PY
 )"
