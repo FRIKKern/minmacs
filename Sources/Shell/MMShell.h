@@ -59,6 +59,11 @@ NSDictionary *MMStartupTimes(void);
 id MMShellStartHeadless(void);
 /// Stops what MMShellStartHeadless started.
 void MMShellStopHeadless(id shell);
+/// The menu a cross-link opens, from the snapshot. With five icons it is the linked expert's own menu, with the
+/// linked finding's card as the first row below the header, TESTS.md question 5. In One Icon mode it is the one menu,
+/// with the linked expert's part first and the card first in it. nil when no such expert is registered.
+/// Every link row of every card opens through this, so no expert wires its own jump. Main thread.
+NSMenu *MMLinkMenu(NSString *expertID, NSString *findingID, MMSnapshot *s, BOOL oneIcon, id footerTarget);
 
 /// The app delegate. One per process, made by MMMain.
 @interface MMShell : NSObject <NSApplicationDelegate>

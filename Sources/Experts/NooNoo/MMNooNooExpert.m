@@ -256,7 +256,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
             NSMutableArray *ev = [NSMutableArray arrayWithObject:[MMEvidence label:@"Size" value:MMBytes(i.size.freedIfDeleted) raw:@(i.size.freedIfDeleted)]];
             if (i.lastUsed) [ev addObject:[MMEvidence label:@"Last used" value:MMAgo(i.lastUsed) raw:i.lastUsed]];
             if (ownerState) [ev addObject:[MMEvidence label:@"Owner" value:ownerState raw:ownerState
-                                                linkExpert:@"workforest" findingID:tree.path ? [@"workforest:worktree:" stringByAppendingString:Tilde(tree.path)] : nil]];
+                                                linkExpert:@"workforest" findingID:tree.path ? [@"workforest:worktree:" stringByAppendingString:tree.path] : nil]];
             b.evidence = ev;
             b.keepReasons = keep;
             b.proposal = proposal;
@@ -483,7 +483,7 @@ static void RunOffMain(dispatch_block_t block) {
     r.goesOnItsOwn = [x[@"goes"] boolValue];
     r.members = [x[@"members"] integerValue];
     r.folder = [x[@"folder"] boolValue];
-    if (x[@"worktree"] && x[@"ownerState"]) { r.ownerLinkExpert = @"workforest"; r.ownerLinkID = [@"workforest:worktree:" stringByAppendingString:Tilde(x[@"worktree"])]; }
+    if (x[@"worktree"] && x[@"ownerState"]) { r.ownerLinkExpert = @"workforest"; r.ownerLinkID = [@"workforest:worktree:" stringByAppendingString:x[@"worktree"]]; }
     return r;
 }
 

@@ -31,11 +31,17 @@ BOOL MMLHProtects(MMLHHost *h);
 @property (readonly) NSDate *watchingSince;
 @end
 
-/// The git facts of a folder: repo, root, subdir, branch, worktree, and touched, the index time in seconds since 1970.
-/// From facts.worktrees when Know has the checkout. Until Know brings git facts, from git's own files through the fact
-/// cache, with no git spawn. This is the one place LocoHost reads git, so the git work replaces this function's body
-/// with MMGitFacts and nothing else in LocoHost changes. read says whether a file read may wait, as for hosts.
+/// The git facts of a folder: repo, root, subdir, branch, worktree, touched as the last commit's time in seconds
+/// since 1970 and merged in words. The checkout comes from
+/// facts.worktrees, else from -[MMRepoIndex worktreeAt:], and the facts from -[MMFacts gitFor:], else
+/// -[MMRepoIndex factsFor:wait:NO]. LocoHost reads no git file and runs no git. read NO never waits on the
+/// .git read of a folder no walk covered.
 NSDictionary *MMLHGitOf(NSString *folder, MMFacts *facts, MMLHRead read);
+/// A path with macOS's /private prefix taken off /var and /tmp, so the kernel's folders and the repo index's
+/// standardized paths compare with no disk read.
+NSString *MMLHCanon(NSString *path);
+/// "merged", "squash-merged", "merged through a pull request" or "not merged". nil for a main checkout or no facts.
+NSString *MMLHMergeWords(MMGitFacts *g, BOOL isMain);
 
 /// Where the host runs, from Know's Where. wait YES asks cmux and tmux now, for the CLI.
 void MMLHFillWhere(MMLHHost *h, MMSample *s, BOOL wait);

@@ -111,38 +111,6 @@ static NSString *WrapperLabel(NSString *tool, NSArray<NSString *> *args) {
 
 #pragma mark - Git and project files
 
-/// Repo, root, subdir, branch, worktree and the index time for a folder, from git's own files. No git spawn.
-static NSDictionary *ReadGit(NSString *cwd) {
-    NSFileManager *fm = NSFileManager.defaultManager;
-    for (NSString *d = cwd; d.length > 1; d = d.stringByDeletingLastPathComponent) {
-        NSString *dotgit = [d stringByAppendingPathComponent:@".git"];
-        BOOL isDir = NO;
-        if (![fm fileExistsAtPath:dotgit isDirectory:&isDir]) continue;
-        NSMutableDictionary *info = [NSMutableDictionary new];
-        NSString *gitdir = dotgit, *repoName = d.lastPathComponent;
-        if (!isDir) {
-            NSString *line = [[NSString stringWithContentsOfFile:dotgit encoding:NSUTF8StringEncoding error:nil]
-                              stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-            if ([line hasPrefix:@"gitdir:"]) {
-                gitdir = [[line substringFromIndex:7] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-                if (!gitdir.isAbsolutePath) gitdir = [[d stringByAppendingPathComponent:gitdir] stringByStandardizingPath];
-                NSRange r = [gitdir rangeOfString:@"/.git/worktrees/"];
-                if (r.location != NSNotFound) { repoName = [[gitdir substringToIndex:r.location] lastPathComponent]; info[@"worktree"] = d.lastPathComponent; }
-            }
-        }
-        info[@"repo"] = repoName; info[@"root"] = d;
-        info[@"subdir"] = cwd.length > d.length ? [cwd substringFromIndex:d.length + 1] : @"";
-        NSString *head = [[NSString stringWithContentsOfFile:[gitdir stringByAppendingPathComponent:@"HEAD"] encoding:NSUTF8StringEncoding error:nil]
-                          stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-        if ([head hasPrefix:@"ref: refs/heads/"]) info[@"branch"] = [head substringFromIndex:16];
-        else if (head.length >= 7) info[@"branch"] = [NSString stringWithFormat:@"detached %@", [head substringToIndex:7]];
-        NSDate *m = [fm attributesOfItemAtPath:[gitdir stringByAppendingPathComponent:@"index"] error:nil].fileModificationDate;
-        if (m) info[@"touched"] = @(m.timeIntervalSince1970);
-        return info;
-    }
-    return @{};
-}
-
 static NSString *HeadText(NSString *path, NSUInteger max) {
     NSFileHandle *f = [NSFileHandle fileHandleForReadingAtPath:path];
     NSData *d = [f readDataUpToLength:max error:nil];
@@ -246,26 +214,58 @@ static NSDictionary *ReadProject(NSArray<NSString *> *folders, NSArray<NSString 
     return p;
 }
 
-static MMFactCache *GitCache(void) {
+/// The checkout of a folder no walk covered, from MMRepoIndex's read of the .git files above it. A miss computes in
+/// the background, so a rebuild never waits on a file read.
+static MMFactCache *TreeCache(void) {
     static MMFactCache *c; static dispatch_once_t once;
-    dispatch_once(&once, ^{ c = [[MMFactCache alloc] initWithName:@"locohost.git" maxAge:30 persist:NO]; });
+    dispatch_once(&once, ^{ c = [[MMFactCache alloc] initWithName:@"locohost.tree" maxAge:30 persist:NO]; });
     return c;
 }
-NSDictionary *MMLHGitOf(NSString *folder, MMFacts *facts, MMLHRead read) {
-    if (!folder.length) return @{};
-    MMWorktree *wt = nil;
-    for (MMWorktree *w in facts.worktrees)
-        if (w.path.length && ([folder isEqualToString:w.path] || [folder hasPrefix:[w.path stringByAppendingString:@"/"]]) && w.path.length > wt.path.length) wt = w;
-    if (wt) {
-        NSMutableDictionary *g = [NSMutableDictionary new];
-        g[@"repo"] = wt.repo.lastPathComponent ?: wt.path.lastPathComponent; g[@"root"] = wt.path;
-        g[@"subdir"] = folder.length > wt.path.length ? [folder substringFromIndex:wt.path.length + 1] : @"";
-        g[@"branch"] = wt.branch; g[@"worktree"] = wt.isMain ? nil : wt.path.lastPathComponent;
-        return g;
+
+NSString *MMLHMergeWords(MMGitFacts *g, BOOL isMain) {
+    if (!g || isMain) return nil;
+    switch (g.merged) {
+        case MMMergedSquash: return @"squash-merged";
+        case MMMergedPR: return @"merged through a pull request";
+        case MMMergedNone: return @"not merged";
+        default: return @"merged";
     }
-    // Until Know brings git facts, git's own files, through the fact cache. The git agent replaces this part.
-    NSDictionary *g = [GitCache() valueFor:folder fingerprint:@"" orCompute:^id{ return ReadGit(folder); } wait:read == MMLHReadNow];
-    return Dict(g) ?: @{};
+}
+
+NSString *MMLHCanon(NSString *p) {
+    for (NSString *x in @[@"/private/var/", @"/private/tmp/"]) if ([p hasPrefix:x]) return [p substringFromIndex:8];
+    return p;
+}
+
+NSDictionary *MMLHGitOf(NSString *raw, MMFacts *facts, MMLHRead read) {
+    if (!raw.length) return @{};
+    // The kernel names a process's folder /private/var/x, and the repo index keeps /var/x.
+    NSString *folder = MMLHCanon(raw);
+    MMWorktree *wt = nil;
+    for (MMWorktree *w in facts.worktrees) {
+        NSString *p = MMLHCanon(w.path);
+        if (p.length && ([folder isEqualToString:p] || [folder hasPrefix:[p stringByAppendingString:@"/"]]) && p.length > MMLHCanon(wt.path).length) wt = w;
+    }
+    if (!wt) {
+        id x = [TreeCache() valueFor:folder fingerprint:@"" orCompute:^id{ return [MMRepoIndex.shared worktreeAt:folder] ?: NSNull.null; }
+                                wait:read == MMLHReadNow];
+        wt = [x isKindOfClass:MMWorktree.class] ? x : nil;
+    }
+    if (!wt) return @{};
+    NSMutableDictionary *g = [NSMutableDictionary new];
+    g[@"repo"] = wt.repo.lastPathComponent ?: wt.path.lastPathComponent; g[@"root"] = wt.path;
+    NSString *root = MMLHCanon(wt.path);
+    g[@"subdir"] = [folder hasPrefix:[root stringByAppendingString:@"/"]] ? [folder substringFromIndex:root.length + 1] : @"";
+    if (!wt.isMain) g[@"worktree"] = wt.path.lastPathComponent;
+    // The git facts the index holds, from memory. A worktree it has not read yet has a branch and no facts.
+    MMGitFacts *gf = [facts gitFor:wt] ?: [MMRepoIndex.shared factsFor:wt wait:NO];
+    NSString *branch = wt.branch ?: gf.branch;
+    if (branch) g[@"branch"] = branch;
+    else if (gf.head.length >= 7) g[@"branch"] = [@"detached " stringByAppendingString:[gf.head substringToIndex:7]];
+    if (gf.lastCommit) g[@"touched"] = @(gf.lastCommit.timeIntervalSince1970);
+    NSString *merged = MMLHMergeWords(gf, wt.isMain);
+    if (merged) g[@"merged"] = merged;
+    return g;
 }
 
 static MMFactCache *ProjectCache(void) {
@@ -543,6 +543,7 @@ static NSString *LocalAddr(const MMSocket *s) {
             h.repo = Str(g[@"repo"]); h.repoRoot = Str(g[@"root"]); h.subdir = Str(g[@"subdir"]);
             h.branch = Str(g[@"branch"]); h.worktree = Str(g[@"worktree"]);
             h.repoTouched = g[@"touched"] ? [NSDate dateWithTimeIntervalSince1970:[g[@"touched"] doubleValue]] : nil;
+            h.merged = Str(g[@"merged"]);
         }
 
         // The project's own files, for dev servers only.

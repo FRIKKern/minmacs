@@ -2,6 +2,32 @@
 #import "MMFormat.h"
 
 static const CGFloat kPad = 16, kTextSize = 12.5, kFactSize = 12, kLabelSize = 11.5;
+static const CGFloat kItemText = 24;   // where a native menu item's title text starts, past the state column
+
+#pragma mark Links
+
+static void (^gOpener)(NSString *expert, NSString *key);
+void MMSetLinkOpener(void (^opener)(NSString *expert, NSString *key)) { gOpener = [opener copy]; }
+void MMOpenLink(NSString *expert, NSString *key) { if (gOpener && expert.length && key.length) gOpener(expert, key); }
+
+/// The target of every link row. The row carries its link as its representedObject.
+@interface MMLinkTarget : NSObject
++ (instancetype)shared;
+- (void)openLink:(NSMenuItem *)sender;
+@end
+@implementation MMLinkTarget
++ (instancetype)shared { static MMLinkTarget *t; static dispatch_once_t once; dispatch_once(&once, ^{ t = [MMLinkTarget new]; }); return t; }
+- (void)openLink:(NSMenuItem *)sender {
+    NSDictionary *l = MMLinkOfItem(sender);
+    MMOpenLink(l[@"expert"], l[@"key"]);
+}
+@end
+
+NSDictionary<NSString *, NSString *> *MMLinkOfItem(NSMenuItem *item) {
+    if (item.action != @selector(openLink:) || item.target != MMLinkTarget.shared) return nil;
+    NSDictionary *l = item.representedObject;
+    return [l isKindOfClass:NSDictionary.class] ? l : nil;
+}
 
 @implementation MMCard {
     NSMutableArray<NSArray *> *_facts;          // @[label, value, linked]
@@ -29,7 +55,32 @@ static CGFloat ValueWidth(void) { return Inner() - MMLabelColumn - 10; }
     _offered++;
     if (_facts.count >= MMMaxCardFacts) return;
     [_facts addObject:@[label ?: @"", value, @YES]];
-    [_links addObject:@{@"label": label ?: @"", @"expert": expert ?: @"", @"key": key ?: @""}];
+    [_links addObject:@{@"label": label ?: @"", @"value": value, @"expert": expert ?: @"", @"key": key ?: @""}];
+}
+
+/// A link row: the label right-aligned in the card's label column and the value where the card's values start,
+/// both measured from where a native item's title begins.
+- (NSArray<NSMenuItem *> *)linkItems {
+    NSMutableArray *out = [NSMutableArray new];
+    NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new];
+    ps.tabStops = @[[[NSTextTab alloc] initWithTextAlignment:NSTextAlignmentRight location:kPad + MMLabelColumn - kItemText options:@{}],
+                    [[NSTextTab alloc] initWithTextAlignment:NSTextAlignmentLeft location:kPad + MMLabelColumn + 10 - kItemText options:@{}]];
+    ps.lineBreakMode = NSLineBreakByTruncatingTail;
+    NSFont *vf = [NSFont systemFontOfSize:kFactSize];
+    for (NSDictionary *l in _links) {
+        NSString *value = MMFitWidth(l[@"value"], vf, ValueWidth());
+        NSMutableAttributedString *t = [[NSMutableAttributedString alloc] initWithString:[NSString stringWithFormat:@"\t%@\t", l[@"label"]] attributes:@{
+            NSFontAttributeName: [NSFont systemFontOfSize:kLabelSize], NSForegroundColorAttributeName: NSColor.secondaryLabelColor, NSParagraphStyleAttributeName: ps}];
+        [t appendAttributedString:[[NSAttributedString alloc] initWithString:value attributes:@{
+            NSFontAttributeName: vf, NSForegroundColorAttributeName: NSColor.linkColor, NSParagraphStyleAttributeName: ps}]];
+        NSMenuItem *i = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"%@ %@", l[@"label"], l[@"value"]] action:@selector(openLink:) keyEquivalent:@""];
+        i.attributedTitle = t;
+        i.target = MMLinkTarget.shared;
+        i.representedObject = @{@"expert": l[@"expert"], @"key": l[@"key"]};
+        i.toolTip = l[@"value"];
+        [out addObject:i];
+    }
+    return out;
 }
 
 - (NSArray<NSDictionary *> *)links { return [_links copy]; }
@@ -87,19 +138,20 @@ static CGFloat ValueWidth(void) { return Inner() - MMLabelColumn - 10; }
     CGFloat inner = Inner();
     NSStackView *s = [NSStackView new];
     s.orientation = NSUserInterfaceLayoutOrientationVertical; s.alignment = NSLayoutAttributeLeading; s.spacing = 8;
-    s.edgeInsets = NSEdgeInsetsMake(10, kPad, 10, kPad);
+    s.edgeInsets = NSEdgeInsetsMake(10, kPad, _links.count ? 2 : 10, kPad);   // link rows follow as items of their own
 
     [s addArrangedSubview:MMPara(MMCapitalized(self.title), [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold], NSColor.labelColor, inner, MMMaxCardTitleLines)];
     [s addArrangedSubview:MMParaRich([self statusString], inner, MMMaxCardStatusLines)];
 
     // Facts as label and value, in two columns. The label column is the same on every card.
-    if (_facts.count) {
+    if (_facts.count > _links.count) {
         NSMutableArray *rows = [NSMutableArray new];
         for (NSArray *f in _facts) {
+            if ([f[2] boolValue]) continue;   // a link is a row of its own under the card
             NSTextField *l = [NSTextField labelWithString:f[0]];
             l.font = [NSFont systemFontOfSize:kLabelSize]; l.textColor = NSColor.secondaryLabelColor; l.alignment = NSTextAlignmentRight;
             NSTextField *x = [NSTextField labelWithString:f[1]];
-            x.font = [NSFont systemFontOfSize:kFactSize]; x.textColor = [f[2] boolValue] ? NSColor.linkColor : NSColor.labelColor;
+            x.font = [NSFont systemFontOfSize:kFactSize]; x.textColor = NSColor.labelColor;
             x.lineBreakMode = NSLineBreakByTruncatingTail; x.toolTip = f[1];
             [x.widthAnchor constraintLessThanOrEqualToConstant:ValueWidth()].active = YES;
             [rows addObject:@[l, x]];
@@ -111,19 +163,33 @@ static CGFloat ValueWidth(void) { return Inner() - MMLabelColumn - 10; }
         g.rowAlignment = NSGridRowAlignmentFirstBaseline;
         [s addArrangedSubview:g];
     }
-    if ([self noteAddsSomething]) {
-        NSFont *f = [NSFont systemFontOfSize:kLabelSize];
-        [s addArrangedSubview:MMPara(MMFitSentences([self noteString], f, inner, MMMaxCardNoteLines), f, NSColor.secondaryLabelColor, inner, MMMaxCardNoteLines)];
-    }
+    // With link rows the note follows them, so the facts and the links read as one list.
+    if ([self noteAddsSomething] && !_links.count) [s addArrangedSubview:[self noteView]];
     NSSize fit = s.fittingSize;
     s.frame = NSMakeRect(0, 0, MMMenuWidth, fit.height);
     NSMenuItem *i = [NSMenuItem new]; i.view = s;
     return i;
 }
 
+- (NSTextField *)noteView {
+    NSFont *f = [NSFont systemFontOfSize:kLabelSize];
+    CGFloat inner = Inner();
+    return MMPara(MMFitSentences([self noteString], f, inner, MMMaxCardNoteLines), f, NSColor.secondaryLabelColor, inner, MMMaxCardNoteLines);
+}
+
 - (NSMenu *)menu {
     NSMenu *m = [NSMenu new];
     [m addItem:[self cardItem]];
+    for (NSMenuItem *l in [self linkItems]) [m addItem:l];
+    if (_links.count && [self noteAddsSomething]) {
+        NSStackView *s = [NSStackView new];
+        s.orientation = NSUserInterfaceLayoutOrientationVertical; s.alignment = NSLayoutAttributeLeading;
+        s.edgeInsets = NSEdgeInsetsMake(6, kPad, 10, kPad);
+        [s addArrangedSubview:[self noteView]];
+        s.frame = NSMakeRect(0, 0, MMMenuWidth, s.fittingSize.height);
+        NSMenuItem *i = [NSMenuItem new]; i.view = s;
+        [m addItem:i];
+    }
     NSMutableArray *rest = [NSMutableArray new];
     NSInteger shown = 0;
     BOOL lastShown = NO;

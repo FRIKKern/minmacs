@@ -612,8 +612,8 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
     NSArray *trees = [s findingsFor:@"workforest"];
     for (MMLHHost *h in v.hosts) {
         NSString *root = h.repoRoot;
-        for (MMFinding *w in trees) if (root.length && [w.path isEqualToString:root]) {
-            links[h.findingID] = @{@"label": @"Worktree", @"value": w.title ?: root.lastPathComponent, @"expert": @"workforest", @"findingID": w.findingID};
+        for (MMFinding *w in trees) if (root.length && [MMLHCanon(w.path) isEqualToString:MMLHCanon(root)]) {
+            links[h.findingID] = @{@"label": @"Worktree", @"value": MMLHWorktreeWords(h), @"expert": @"workforest", @"findingID": w.findingID};
             break;
         }
     }

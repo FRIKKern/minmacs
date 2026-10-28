@@ -4,7 +4,7 @@
 # Fixtures only: a repo with a bare origin and twelve worktrees inside $MINMACS_HOME, MINMACS_ROOTS pointing there
 # and nowhere else, and test/review's fake claude and codex in place of the real CLIs. Every removal names a fixture
 # path. The one process this section starts is a sleep inside one fixture worktree, and only that pid is stopped.
-# Git facts come from test/workforest/gitfacts.py, which reads the fixture repos, until Know computes them itself.
+# Git facts come from Core's repo index, which reads the fixture repos through the cold CLI's fact source.
 
 wf=$(cd "$MINMACS_HOME" && mkdir -p wf && cd wf && pwd -P)
 mkdir -p "$wf/bin" "$wf/home" "$wf/legacy" "$wf/claude" "$wf/codex"
@@ -13,7 +13,7 @@ wf_top="$MINMACS_HOME"
 export MINMACS_HOME="$wf/home"
 wf_saved_claude="$CLAUDE_CONFIG_DIR"; wf_saved_codex="$CODEX_HOME"
 export CLAUDE_CONFIG_DIR="$wf/claude" CODEX_HOME="$wf/codex" GIT_CONFIG_NOSYSTEM=1
-export MINMACS_ROOTS="$wf/code" WORKFOREST_HOME="$wf/legacy" WF_GIT_FACTS="$wf/git.json"
+export MINMACS_ROOTS="$wf/code" WORKFOREST_HOME="$wf/legacy"
 export MINMACS_CLAUDE="$ROOT/test/review/fakeclaude.py" MINMACS_CODEX="$ROOT/test/review/fakecodex.py" RV_TEST_SENT="$wf/sent.json"
 unset RV_TEST_GO RV_TEST_UNSURE RV_TEST_KEEP RV_TEST_CLAUDE_LIMIT RV_TEST_CODEX_UNSUPPORTED ANTHROPIC_API_KEY OPENAI_API_KEY
 unset WORKFOREST_PROACTIVE_HOURS WORKFOREST_RECENT_HOURS WORKFOREST_BATCH
@@ -31,7 +31,6 @@ WF="$wf/bin/workforest"     # WorkForest 0.1's syntax, through the workforest na
 MM="$wf/bin/MinMacs"        # the 2.0 verbs
 
 G() { git -c user.name=Fixture -c user.email=fixture@example.com -c commit.gpgsign=false -c init.defaultBranch=main -c advice.detachedHead=false "$@"; }
-wf_facts() { python3 test/workforest/gitfacts.py "$WF_GIT_FACTS" "$A" "$W"/*; }
 wf_has() { [ -d "$1" ] && echo yes || echo no; }
 
 echo "== fixtures in $wf"
@@ -78,7 +77,6 @@ PY
 # Detached, so the shell reports nothing when it is stopped. Only this pid is ever signaled.
 ( ( cd "$W/busy" && exec sleep 600 ) >/dev/null 2>&1 & echo $! > "$wf/busy.pid" ); wf_busy=$(cat "$wf/busy.pid"); procs="$procs $wf_busy"
 unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
-wf_facts
 sleep 1
 
 echo "== discovery and git facts"
@@ -151,7 +149,6 @@ check "the removal records the mode" proactive "$("$WF" removed --json | json "j
 "$WF" restore "$W/merged" >/dev/null;                                     check "restore recreates it" 0 "$?"
 check "at the same commit" "merged work" "$(G -C "$W/merged" log -1 --format=%s 2>/dev/null)"
 find "$W/merged" -exec touch -h -t 202501011200 {} +
-wf_facts
 WF_RULES=$("$WF" rules | head -1)
 python3 - "$WF_RULES" "$W/merged" <<'PY'
 import json,sys; p,w=sys.argv[1],sys.argv[2]; j=json.load(open(p)); j.setdefault('protect',[]).append(w); json.dump(j,open(p,'w'))
@@ -191,7 +188,6 @@ check "auto removes it" no "$(wf_has "$W/judged")"
 G -C "$A" rev-parse --verify -q judged >/dev/null;                         check "and keeps the unmerged branch" 0 "$?"
 
 echo "== ignored files are saved, caches are not"
-wf_facts
 RV_TEST_GO=/envy "$WF" review --model haiku --mode eager --fresh >/dev/null 2>&1
 "$WF" auto --mode eager --path "$W/envy" >/dev/null
 check "envy is removed" no "$(wf_has "$W/envy")"
@@ -203,7 +199,6 @@ check "and puts .env back" "DB_PASSWORD=hunter2" "$(cat "$W/envy/.env" 2>/dev/nu
 check "without the cache" no "$(wf_has "$W/envy/node_modules")"
 
 echo "== remove checks again"
-wf_facts
 "$WF" remove "$W/dirty" --yes >/dev/null 2>&1;                            check "remove refuses uncommitted changes, exit 1" 1 "$?"
 check "and the worktree is still there" yes "$(wf_has "$W/dirty")"
 "$WF" remove "$W/busy" --yes >/dev/null 2>&1;                             check "remove refuses with a process inside" 1 "$?"
@@ -217,7 +212,6 @@ check "and the worktree is still there" yes "$(wf_has "$W/squash")"
 
 echo "== 2.0: decision 7, the undo log, the shim and WorkForest 0.1's records"
 find "$W/squash" -exec touch -h -t 202501011201 {} +
-wf_facts
 RV_TEST_GO=/squash "$WF" review --model haiku --mode eager --fresh >/dev/null 2>&1
 r=$("$WF" auto --mode eager --path "$W/squash" --json | json "'removed' if j['actions'] and j['actions'][0]['removed'] else j")
                                                                           check "eager removes a squash merge on no remote" removed "$r"
@@ -295,6 +289,6 @@ check "the WorkForest menu renders in light, dark and Increase Contrast" 4 "$wf_
 check "every WorkForest card renders in four appearances" 0 "$(for c in $(ls "$wf_r" | grep -v contrast | sed -n 's/^workforest-card-\(.*\)-light\.png$/\1/p'); do for m in dark contrast-light contrast-dark; do [ -s "$wf_r/workforest-card-$c-$m.png" ] || echo "$c-$m"; done; done | grep -c .)"
 check "WorkForest renders at least four cards" yes "$([ "$(ls "$wf_r" | grep -c '^workforest-card-.*-light\.png$')" -ge 4 ] && echo yes || echo no)"
 
-unset MINMACS_CLAUDE MINMACS_CODEX RV_TEST_SENT MINMACS_ROOTS WORKFOREST_HOME WF_GIT_FACTS GIT_CONFIG_NOSYSTEM
+unset MINMACS_CLAUDE MINMACS_CODEX RV_TEST_SENT MINMACS_ROOTS WORKFOREST_HOME GIT_CONFIG_NOSYSTEM
 export CLAUDE_CONFIG_DIR="$wf_saved_claude" CODEX_HOME="$wf_saved_codex"
 export MINMACS_HOME="$wf_top"

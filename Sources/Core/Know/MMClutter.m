@@ -463,26 +463,24 @@ static NSTimeInterval ShallowNewest(NSString *path) {
 
 #pragma mark - Git
 
-/// A real git binary. /usr/bin/git is a stub that asks to install the developer tools when they are missing.
-static NSString *GitBin(void) {
-    for (NSString *p in @[@"/Library/Developer/CommandLineTools/usr/bin/git", @"/Applications/Xcode.app/Contents/Developer/usr/bin/git",
-                          @"/opt/homebrew/bin/git", @"/usr/local/bin/git"])
-        if ([NSFileManager.defaultManager isExecutableFileAtPath:p]) return p;
-    return nil;
-}
-
-/// `git ls-files -- name` in dir, read-only, with no prompt and no lock. Its output, or nil with *status not 0.
+/// `git ls-files -- name` in dir, read-only, through MMGit, so the git is MMGitPath's and the child runs through
+/// MMRun. git runs on its own queue, no.guerrilla.minmacs.core.clutter.git, and the caller waits for it. In the app
+/// only actions and verbs ask, off main. The cold CLI may ask from its main thread. Its output, or nil with *status
+/// not 0, which keeps the folder.
 static NSString *GitLsFiles(NSString *dir, NSString *name, int *status) {
-    NSString *git = GitBin();
     *status = -1;
-    if (!git) return nil;
-    NSData *out = nil;
-    MMRunResult r = MMRun(git, @[@"-C", dir, @"ls-files", @"--", name], nil,
-                          @{@"LC_ALL": @"C", @"GIT_OPTIONAL_LOCKS": @"0", @"GIT_TERMINAL_PROMPT": @"0",
-                            @"GIT_CONFIG_GLOBAL": @"/dev/null", @"HOME": NSHomeDirectory()}, nil, 10, &out, NULL);
-    *status = r.didRun && !r.timedOut ? r.status : -1;
-    return [[[NSString alloc] initWithData:out ?: NSData.data encoding:NSUTF8StringEncoding]
-            stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!MMGitPath()) return nil;
+    static dispatch_queue_t q; static dispatch_once_t once;
+    dispatch_once(&once, ^{ q = MMQueue(@"core", @"clutter.git", QOS_CLASS_UTILITY); });
+    __block NSString *out = nil;
+    __block int st = -1;
+    // dispatch_sync would run the block on the caller's thread, which may be the CLI's main, where MMGit refuses.
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(q, ^{ out = MMGit(dir, @[@"ls-files", @"--", name], 10, &st); dispatch_semaphore_signal(done); });
+    // A pass that has not finished keeps the folder, and its block may still write out and st, so neither is read.
+    if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) return nil;
+    *status = out ? st : -1;
+    return out;
 }
 
 #pragma mark - Families

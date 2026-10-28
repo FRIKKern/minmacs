@@ -283,10 +283,12 @@ check "no registry row declares socket_activity" 0 "$(grep -l socket_activity re
 check "the expert never runs lsof, nettop, ps or pmset" 0 "$(grep -nE '"[^"]*(lsof|nettop|pmset|/bin/ps)[^"]*"' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert lists no processes or sockets itself" 0 "$(grep -nE 'proc_listpids|PROC_PIDLISTFDS|KERN_PROC_ALL|proc_pidfdinfo' Sources/Experts/LocoHost/*.m | grep -c .)"
 # Invariant 2: the CLI's cold facts come from Sources/CLI. LocoHost has no fact source of its own and takes no sample.
-check "the expert has no fact source and takes no sample" 0 "$(grep -nE 'MMFactSource|sampleNow|factsFor:' Sources/Experts/LocoHost/*.m | grep -c .)"
+check "the expert has no fact source and takes no sample" 0 "$(grep -nE 'MMFactSource|sampleNow|factsFor:\(uint64_t|freshFactsFor' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert prints only through MMArgs" 0 "$(grep -nE '(^|[^a-zA-Z_])printf\(' Sources/Experts/LocoHost/*.m | grep -vE '\[y/N\]|initWithData:d' | grep -c .)"
-check "git's own files are read behind MMLHGitOf alone" "1 1" \
-  "$(grep -c '^NSDictionary \*MMLHGitOf(' Sources/Experts/LocoHost/MMLHScan.h) $(grep -n 'ReadGit(' Sources/Experts/LocoHost/*.m | grep -v 'static NSDictionary \*ReadGit' | grep -c .)"
+# Git facts come from Core's repo index. LocoHost reads no git file and runs no git.
+check "the expert reads no git file and runs no git" 0 "$(grep -nE '"HEAD"|/\.git|gitdir|MMGit\(|ls-files|@"index"' Sources/Experts/LocoHost/*.m | grep -c .)"
+check "MMLHGitOf reads the repo index's worktree and facts" "1 1" \
+  "$(grep -c 'MMRepoIndex.shared worktreeAt:' Sources/Experts/LocoHost/MMLHScan.m) $(grep -c 'MMRepoIndex.shared factsFor:wt wait:NO' Sources/Experts/LocoHost/MMLHScan.m)"
 check "the expert never asks the model itself" 0 "$(grep -nE 'MMModel|claudePath|codexPath|NSTask' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert never signals a process itself" 0 "$(grep -nE '[^a-zA-Z_]kill\(' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert names no .env file in its code" 0 "$(grep -nE '@"[^"]*\.env("|[^a-zA-Z])' Sources/Experts/LocoHost/*.m | grep -c .)"

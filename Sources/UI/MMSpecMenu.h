@@ -36,6 +36,13 @@ void MMLoadCards(NSMenu *menu);
 BOOL MMCardWaits(NSMenu *submenu);
 /// How many cards a hover has built in this process, for the checks that a menu opens with none built.
 NSUInteger MMCardsBuiltOnHover(void);
+/// The menu a cross-link opens. TESTS.md question 5 found no way to open another status item's menu at a given row,
+/// so the link opens the other expert's menu at the top, and the row of focusID, with its card, is the first row
+/// below the header. It leaves its section, so the menu never shows it twice. A finding with a card but no row gets
+/// a row named by its card. focusID nil, or one with no card, gives MMMenuFromSpec's menu.
+NSMenu *MMMenuFromSpecFocused(MMMenuSpec *spec, MMCardProvider cards, NSString *notice, id footerTarget, NSString *focusID);
+/// The row a focused menu shows first, the one whose card a link opens. nil when the menu has none.
+NSMenuItem *MMFocusedRow(NSMenu *menu);
 
 /// One expert as the One Icon menu shows it, DESIGN.md menu bar rule 4.
 @interface MMOneIconPart : NSObject
@@ -44,6 +51,8 @@ NSUInteger MMCardsBuiltOnHover(void);
 @property (copy) MMCardProvider cards;
 /// Set by the app: the cards are then built on hover, as in MMMenuFromSpecOnHover. nil builds them with the menu.
 @property (copy) MMCardCheck has;
+/// Set when a link opened the One Icon menu: this part comes first, with the row of focusID first in it.
+@property (copy) NSString *focusID;
 @end
 
 /// The rows each expert shows in the One Icon menu, so five experts still fit one screen.

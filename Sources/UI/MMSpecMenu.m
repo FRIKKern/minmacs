@@ -130,21 +130,52 @@ static NSMenuItem *RowFrom(MMRowSpec *r, MMCardCheck has, MMCardProvider cards) 
     return i;
 }
 
-static NSMenu *SpecMenu(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget);
+static NSString *const kFocusedTag = @"minmacs.focused";
+
+NSMenuItem *MMFocusedRow(NSMenu *menu) {
+    for (NSMenuItem *i in menu.itemArray) if ([i.identifier isEqualToString:kFocusedTag]) return i;
+    return nil;
+}
+
+/// The row of focusID with its card, or nil when the finding has no card. A finding with no row in the spec gets
+/// a row named by its card's title. The linked card is built at once, since the link opens the menu to show it.
+static NSMenuItem *FocusRow(MMMenuSpec *spec, MMCardProvider cards, NSString *focusID, id *found) {
+    *found = nil;
+    if (!focusID.length || !cards) return nil;
+    for (MMSectionSpec *s in spec.sections) for (MMRowSpec *r in s.rows) if ([r.findingID isEqualToString:focusID]) { *found = r; break; }
+    NSMenuItem *i = nil;
+    if (*found) i = RowFrom(*found, nil, cards);
+    else {
+        MMCardSpec *card = cards(focusID);
+        if (card) { i = MMRowItem(card.title ?: @"", nil, @[], (MMMark)card.mark); i.submenu = [MMCardFromSpec(card) menu]; }
+    }
+    if (!i.submenu) return nil;
+    i.identifier = kFocusedTag;
+    return i;
+}
+
+static NSMenu *SpecMenu(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget, NSString *focusID);
 
 NSMenu *MMMenuFromSpec(MMMenuSpec *spec, MMCardProvider cards, NSString *notice, id footerTarget) {
-    return SpecMenu(spec, nil, cards, notice, footerTarget);
+    return SpecMenu(spec, nil, cards, notice, footerTarget, nil);
 }
 
 NSMenu *MMMenuFromSpecOnHover(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget) {
-    return SpecMenu(spec, has ?: ^BOOL(NSString *fid) { return YES; }, cards, notice, footerTarget);
+    return SpecMenu(spec, has ?: ^BOOL(NSString *fid) { return YES; }, cards, notice, footerTarget, nil);
 }
 
-static NSMenu *SpecMenu(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget) {
+NSMenu *MMMenuFromSpecFocused(MMMenuSpec *spec, MMCardProvider cards, NSString *notice, id footerTarget, NSString *focusID) {
+    return SpecMenu(spec, ^BOOL(NSString *fid) { return YES; }, cards, notice, footerTarget, focusID);
+}
+
+static NSMenu *SpecMenu(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget, NSString *focusID) {
     NSMenu *m = [NSMenu new];
     m.autoenablesItems = NO;
     [m addItem:MMHeaderItem(spec.headerBig ?: @"", spec.headerUnit, nil, spec.headerLine)];
     [m addItem:NSMenuItem.separatorItem];
+    id focused = nil;
+    NSMenuItem *focus = FocusRow(spec, cards, focusID, &focused);
+    if (focus) { [m addItem:focus]; [m addItem:NSMenuItem.separatorItem]; }
     BOOL text = NO;
     if (spec.summary.length) { [m addItem:MMTextItem(spec.summary, MMMaxSummaryLines)]; text = YES; }
     if (notice.length) { [m addItem:MMTextItem(notice, 1)]; text = YES; }
@@ -157,7 +188,7 @@ static NSMenu *SpecMenu(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards,
     for (MMSectionSpec *s in spec.sections) {
         if (sections >= MMMaxSections) break;
         NSMutableArray *rows = [NSMutableArray new];
-        for (MMRowSpec *r in s.rows) [rows addObject:RowFrom(r, has, cards)];
+        for (MMRowSpec *r in s.rows) if (!focus || r != focused) [rows addObject:RowFrom(r, has, cards)];
         if (!rows.count) continue;
         MMAddSection(m, s.title, rows);
         sections++;
@@ -193,7 +224,11 @@ static void AddPart(NSMenu *m, MMOneIconPart *p, MMCardProvider cards) {
     NSString *line = MMHeaderLine(p.spec);
     [m addItem:MMTextItem(line.length ? line : @"Nothing found yet.", 2)];   // two lines, so the header line is never cut
     NSUInteger shown = 0;
+    id focused = nil;
+    NSMenuItem *focus = FocusRow(p.spec, cards, p.focusID, &focused);
+    if (focus) { [m addItem:focus]; shown++; }
     for (MMSectionSpec *s in p.spec.sections) for (MMRowSpec *r in s.rows) {
+        if (focus && r == focused) continue;
         if (shown++ >= MMOneIconRows) break;
         [m addItem:RowFrom(r, has, cards)];
     }
@@ -207,7 +242,10 @@ NSMenu *MMOneIconMenu(NSArray<MMOneIconPart *> *parts, NSString *notice, id foot
     // line and its top rows, with no cards there, so no card is ever two levels deep.
     NSUInteger n = 0;
     NSMenu *more = nil;
-    for (MMOneIconPart *p in parts) {
+    // A link opens the part it names first, so its card is the first row below that part's header line.
+    NSMutableArray *ordered = [parts mutableCopy];
+    for (MMOneIconPart *p in parts) if (p.focusID.length) { [ordered removeObject:p]; [ordered insertObject:p atIndex:0]; break; }
+    for (MMOneIconPart *p in ordered) {
         if (n++ < MMMaxSections) { AddPart(m, p, p.cards); continue; }
         if (!more) { more = [NSMenu new]; more.autoenablesItems = NO; }
         AddPart(more, p, nil);
