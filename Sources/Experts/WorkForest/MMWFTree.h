@@ -90,6 +90,8 @@ NSString *MMWFCategory(MMWFTree *t, NSString *verdict);
 @property (copy) NSDictionary<NSString *, NSDictionary *> *investigations;
 @property (copy) NSSet<NSString *> *protectedPaths;                // findingIDs on the protect list of rules.json
 @property NSTimeInterval watchingLeft;
+/// The workforest.reviewMinutes pref, read on the graph queue, so the app's watch on main reads no pref.
+@property NSInteger reviewMinutes;
 /// By findingID, for a merged worktree whose agent finished and whose every Wrap Up part passes MustKeep:
 /// {tail, parts}. The tail is the servers it stops and what it frees, such as "1 server, 1.2 GB".
 @property (copy) NSDictionary<NSString *, NSDictionary *> *wrapUps;

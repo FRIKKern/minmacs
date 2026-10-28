@@ -156,7 +156,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property (strong) NSMenu *menu;
 @property (weak) MMShell *shell;
 - (void)label:(MMSnapshot *)s;
-@property (copy) NSString *focusExpert, *focusID;       // the link that opens the menu next, cleared when it closes
+@property (strong) MMLinkFocus *focus;                  // the link that opens the menu next
 @end
 
 @interface MMShell ()
@@ -169,6 +169,25 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 - (void)showSettings:(id)sender;
 - (void)rebuildItems;
 - (void)launch;
+@end
+
+@implementation MMLinkFocus {
+    NSUInteger _turn;
+    BOOL _opened;
+}
+- (void)set:(NSString *)expert finding:(NSString *)findingID click:(void (^)(void))click {
+    NSUInteger turn = ++_turn;
+    _expert = [expert copy]; _findingID = [findingID copy]; _opened = NO;
+    if (!click) return;
+    click();
+    if (_opened) return;
+    // The menu may open on a later turn of the run loop. When it has not opened by then, no menu will.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(MMLinkFocusWait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (turn == self->_turn && !self->_opened) [self closed];
+    });
+}
+- (void)opened { _opened = YES; }
+- (void)closed { _expert = nil; _findingID = nil; _opened = NO; _turn++; }
 @end
 
 @implementation MMExpertItem
@@ -209,10 +228,11 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         MMAddFooter(m, self);
         return m;
     }
-    return BuildMenu(self.expert, s, notice, self, self.focusExpert, self.focusID);
+    return BuildMenu(self.expert, s, notice, self, self.focus.expert, self.focus.findingID);
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
+    [self.focus opened];
     NSMenu *built = [self build];
     NSArray *items = built.itemArray;
     [built removeAllItems];
@@ -220,7 +240,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     for (NSMenuItem *i in items) [menu addItem:i];
 }
 
-- (void)menuDidClose:(NSMenu *)menu { self.focusExpert = nil; self.focusID = nil; }
+- (void)menuDidClose:(NSMenu *)menu { [self.focus closed]; }
 
 - (void)hideIcon:(id)sender { [self setVisible:NO]; }
 - (void)showSettings:(id)sender { [self.shell showSettings:sender]; }
@@ -375,15 +395,17 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     MMExpertItem *i = MMPrefBool(MMOneIconKey, NO) ? nil : [self itemFor:expert];
     if (!i) for (MMExpertItem *x in self.items) if (!x.expert) i = x;
     if (!i) return;
-    i.focusExpert = expert; i.focusID = findingID;
+    if (!i.focus) i.focus = [MMLinkFocus new];
     dispatch_async(dispatch_get_main_queue(), ^{
         NSStatusBarButton *b = i.item.button;
         if (i.item.visible && (b.window.occlusionState & NSWindowOcclusionStateVisible)) {
-            [b performClick:nil];
+            // A click that opens no menu leaves no focus, so the next plain click opens the plain menu.
+            [i.focus set:expert finding:findingID click:^{ [b performClick:nil]; }];
             return;
         }
+        [i.focus set:expert finding:findingID click:nil];
         NSMenu *m = [i build];
-        i.focusExpert = nil; i.focusID = nil;
+        [i.focus closed];
         [m popUpMenuPositioningItem:nil atLocation:NSEvent.mouseLocation inView:nil];
     });
 }

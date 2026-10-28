@@ -588,6 +588,7 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
     v.hosts = [self hostsIn:s];
     MMMode mode = MMModeFor(kExpert);
     v.mode = MMModeName(mode);
+    v.reviewMinutes = MMPrefInt(@"locohost.reviewMinutes", 60);
     v.reviewAt = r.at; v.reviewError = r.error; v.summaryWords = r.summaryWords; v.model = ModelWords(r);
     v.reviewing = _reviewing;
     NSMutableDictionary *verdicts = [NSMutableDictionary new];
@@ -766,7 +767,11 @@ static void Copy(NSString *s) {
 }
 
 /// Ported from watchEvents and tick in LocoHost's main.m. Main thread, once per snapshot.
+/// The mode and the review interval come from what the graph queue prepared for the snapshot, so main reads no pref.
+/// A snapshot with nothing prepared, which only a test makes, wakes nothing and acts on nothing.
 - (void)watch:(MMSnapshot *)s {
+    MMLHView *prepared = [s preparedFor:kExpert];
+    if (![prepared isKindOfClass:MMLHView.class]) return;
     NSArray<MMFinding *> *findings = [s findingsFor:kExpert];
     MMReview *r = [s reviewFor:kExpert];
     if (_reviewing && r.at && -r.at.timeIntervalSinceNow < 60) { _reviewing = NO; _view = nil; }
@@ -791,19 +796,19 @@ static void Copy(NSString *s) {
             wake = [NSString stringWithFormat:@":%ld up %@", (long)h.port, MMDuration(marks[passed - 1])];
         }
     }
-    NSInteger every = MMPrefInt(@"locohost.reviewMinutes", 60);
+    NSInteger every = prepared.reviewMinutes;
     if (every > 0 && findings.count && (!r || -r.at.timeIntervalSinceNow >= every * 60)) wake = @"schedule";
     if (wake && every > 0) [MMReviewBroker.shared wake:wake expert:kExpert];
     // A new review: the mode acts on fresh facts, through MMRunAction, and one notification says what it did.
     if (r.at && (!_actedOn || [r.at compare:_actedOn] == NSOrderedDescending)) {
         _actedOn = r.at;
-        MMMode mode = MMModeFor(kExpert);
+        NSInteger m = MMModeFrom(prepared.mode);
+        MMMode mode = m < 0 ? MMModeIdle : (MMMode)m;
         if (mode == MMModeIdle || r.error.length) return;
+        // The plan the graph queue made for this snapshot, under the mode it read, so main never runs MMPlan.
+        // MMRunAction checks the mode again before each stop.
         NSMutableArray *todo = [NSMutableArray new];
-        // The plan the graph queue made for this snapshot, so main never runs MMPlan.
-        MMLHView *prepared = [s preparedFor:kExpert];
-        NSDictionary *plan = [prepared isKindOfClass:MMLHView.class] && [prepared.mode isEqualToString:MMModeName(mode)]
-            ? prepared.plan : MMLHPlanMap(findings, s.facts, r, mode);
+        NSDictionary *plan = prepared.plan;
         for (MMFinding *f in findings) if ([plan[f.findingID][@"stop"] boolValue]) [todo addObject:@[f, plan[f.findingID][@"why"]]];
         if (!todo.count) return;
         dispatch_async(ActQueue(), ^{ [self autoStop:todo review:r mode:mode]; });

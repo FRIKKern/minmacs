@@ -31,7 +31,7 @@ SIGTERM goes first. `MMStopKill` reaches only what got SIGTERM on an earlier req
 
 ## Git and the worktree card
 
-`MMLHGitOf` in `MMLHScan.m` finds a server's checkout in `MMFacts.worktrees`, else through `-[MMRepoIndex worktreeAt:]`, and its git facts through `-[MMFacts gitFor:]`, else `-[MMRepoIndex factsFor:wait:NO]`. LocoHost reads no git file and runs no git. A folder no walk covered is looked up in the background, so a rebuild never waits on its `.git` read. The host keeps the repo, root, subdir, branch, worktree, the last commit's time and whether the worktree is merged.
+`MMLHGitOf` in `MMLHScan.m` finds a server's checkout in `MMFacts.worktrees`, else through `-[MMRepoIndex worktreeAt:]`, and its git facts through `-[MMFacts gitFor:]`, else `-[MMRepoIndex factsFor:wait:NO]` for a checkout under the roots. A checkout outside the roots gets only its branch from its `.git` files: asking for its facts ran seven git commands for each such server, which the bench read as wakeups, and WorkForest has no card of it to link to. LocoHost reads no git file and runs no git. A folder no walk covered is looked up in the background, so a rebuild never waits on its `.git` read. The host keeps the repo, root, subdir, branch, worktree, the last commit's time and whether the worktree is merged.
 
 A server's card names its worktree and whether it is merged, such as "checkout-flow, merged" or "acme-web, main checkout". When WorkForest has a finding for that checkout, the fact is a link row that opens WorkForest's card of it. The kit and the shell do the opening, as for every expert. Without WorkForest the card shows the same words as a plain Git fact.
 
@@ -55,7 +55,7 @@ A verb reads `MMArgs.snapshot`, or `MMArgs.settledSnapshot` when it reports CPU 
 
 ## In the app
 
-`main.m` registers `MMLocoHost.shared` through `MMRegisterBuiltInExperts`. `MMRegisterExpert` ignores a second call with the same id. After the graph builds its first findings, LocoHost observes snapshots on main. A review wakes on the `locohost.reviewMinutes` schedule, 60 by default, for a dev server new for two minutes, at one, three and seven days of uptime, and on memory pressure. After a new review the mode's plan runs through `MMRunAction` and one `MMNotify` says what it did. The newest review is read from the log at most once a minute and handed to the graph with `saveReview:`.
+`main.m` registers `MMLocoHost.shared` through `MMRegisterBuiltInExperts`. `MMRegisterExpert` ignores a second call with the same id. After the graph builds its first findings, LocoHost observes snapshots on main. The watch reads the mode and `locohost.reviewMinutes` from the view `prepareFor:` made on the graph queue, so main reads no pref, and a snapshot with nothing prepared wakes nothing. A review wakes on the `locohost.reviewMinutes` schedule, 60 by default, for a dev server new for two minutes, at one, three and seven days of uptime, and on memory pressure. After a new review the mode's plan runs through `MMRunAction` and one `MMNotify` says what it did. The newest review is read from the log at most once a minute and handed to the graph with `saveReview:`.
 
 ## Left open
 

@@ -10,7 +10,7 @@
     {"key": "menuOpenP95Ms", "max": 30, "ceiling": 60, "unit": "ms", "what": "menu open at p95, worst expert"},
     {"key": "cardHoverP95Ms", "max": 16, "ceiling": 32, "unit": "ms", "what": "card hover at p95, worst expert"},
     {"key": "warmScan300Seconds", "max": 2, "unit": "s", "what": "warm scan of 300 worktrees", "measured": false,
-     "why": "WorkForest is not merged yet, so there is no scan to time"},
+     "why": "the bench does not time a scan yet; ./test.sh git times a warm full pass of the repo index over its 100 fixture worktrees and checks it stays under a second"},
     {"key": "iconsAfterLaunchMs", "max": 300, "ceiling": 300, "unit": "ms", "what": "icons after launch, headless", "input": "startup",
      "from": "bench startup: MMMain's start to every item made, without the status bar's own cost, the slower of a first and a later launch"},
     {"key": "summariesAfterLaunchMs", "max": 5000, "ceiling": 5000, "unit": "ms", "what": "every summary after launch, headless", "input": "startup",

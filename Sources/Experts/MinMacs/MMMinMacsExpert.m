@@ -725,9 +725,12 @@ static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     else [actions addObject:MMMinMacsAction(@"Quit", nil, keep, ^(BOOL o) { [me menuRun:@[[me actionFor:f step:MMStopTerm]]]; })];
     if (g == MMGroupTrim && f.proposal) [actions addObject:MMMinMacsAction(@"Trim Tabs", nil, nil, ^(BOOL o) { [me menuRun:@[[me actionFor:f step:MMStopTerm]]]; })];
     MMMinMacsVerdict v = (MMMinMacsVerdict)MAX(0, MMMinMacsVerdictFrom(f.facts[@"verdict"]));
+    // The rules file is written on the act queue, so main never waits on disk. The rebuild after it shows the change.
     void (^sort)(MMMinMacsVerdict) = ^(MMMinMacsVerdict to) {
-        [MMMinMacsRules.shared setVerdict:to forBundleID:bid];
-        [MMGraph.shared rebuild:@"minmacs.rules"];
+        dispatch_async(MMQueue(kExpert, @"act", QOS_CLASS_USER_INITIATED), ^{
+            [MMMinMacsRules.shared setVerdict:to forBundleID:bid];
+            [MMGraph.shared rebuild:@"minmacs.rules"];
+        });
     };
     if (v != MMMinMacsKeep) [actions addObject:MMMinMacsAction(@"Always Keep", nil, nil, ^(BOOL o) { sort(MMMinMacsKeep); })];
     if (v != MMMinMacsClose) [actions addObject:MMMinMacsAction(@"Quit on MinMacs", nil, nil, ^(BOOL o) { sort(MMMinMacsClose); })];
@@ -735,8 +738,10 @@ static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     BOOL ignores = [MMMinMacsRules.shared ignoresServing:bid];
     if ((g == MMGroupSpared && !f.facts[@"agent"]) || (ignores && [f.facts[@"ports"] count])) {
         [actions addObject:MMMinMacsAction(ignores ? @"Spare When Serving" : @"Close Even When Serving", nil, nil, ^(BOOL o) {
-            [MMMinMacsRules.shared setIgnoresServing:!ignores forBundleID:bid];
-            [MMGraph.shared rebuild:@"minmacs.rules"];
+            dispatch_async(MMQueue(kExpert, @"act", QOS_CLASS_USER_INITIATED), ^{
+                [MMMinMacsRules.shared setIgnoresServing:!ignores forBundleID:bid];
+                [MMGraph.shared rebuild:@"minmacs.rules"];
+            });
         })];
     }
     c.actions = actions;

@@ -78,11 +78,23 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 @property (copy) NSArray<MMActionSpec *> *actions;      // at most four, the rest under More
 @end
 
+/// What a cold run of a verb reads before it runs, when no app answers.
+typedef NS_ENUM(NSInteger, MMVerbReads) {
+    MMVerbReadsAll = 0,          // walks the roots and runs git status for every worktree, so git facts are fresh
+    MMVerbReadsCachedGit,        // walks the roots and takes the git facts the fact cache holds, as the menu does
+    MMVerbReadsNoWorktrees,      // no walk and no git: the verb reads no worktree
+};
+
 /// P61. One CLI verb. Every verb takes --json and --dry-run. A verb that changes things runs in the app,
 /// through the core socket of P63. Starts from NN Register, cli.go:25.
 @interface MMVerbSpec : NSObject
 @property (copy) NSString *verb, *usage;                // "hosts", "hosts [port] [--json]"
-@property BOOL mutates;
+@property BOOL mutates;                                 // every form changes things
+/// For a verb that mostly reads: the forms that change things, each a first word such as "wrap-up", a flag such
+/// as "--now", or "!--list" for every run without --list. Such a form runs in the app, as a verb that mutates does.
+/// help --json lists them.
+@property (copy) NSArray<NSString *> *mutatingForms;
+@property MMVerbReads reads;                            // MMVerbReadsAll unless set
 @property (copy) int (^run)(MMArgs *args);              // returns the exit status
 + (instancetype)verb:(NSString *)verb usage:(NSString *)usage mutates:(BOOL)mutates run:(int (^)(MMArgs *args))run;
 @end

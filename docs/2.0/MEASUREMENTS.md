@@ -60,6 +60,27 @@ The same run, in CPU ms. 174 samples and 192 snapshots in the window, 852 pids, 
 
 **Slow spot, reported and not fixed here.** A tick costs about 46 ms of CPU: 6 ms for the pass and 39 ms for the rebuild. At one tick every 5 seconds that alone is 0.9 % of a core. The rebuild costs six times the pass. About half of it is reading process arguments: the registry's `agentsIn:` takes 9.2 ms on a new sample and LocoHost's findings 9.0 ms, together 18 of the 39 ms. Each falls to under 1 ms when the sample already holds the args. A 10-second run of `bench idle --tick-runs 10` timed each part twice on one sample: the registry took 9.64 ms and then 0.24 ms at the median, LocoHost's findings 10.81 ms and then 0.70 ms. MinMacs's findings took 3.65 ms and then 3.42 ms, so its cost is not the args. Every rebuild runs both on every sample, even when no process started or ended. A budget of 0.3 % leaves 15 ms a tick, so with the pass at 6 ms the rebuild must come under about 9 ms.
 
+## Wakeups after the cross-links
+
+The wave 4 review reported that `test/bench.sh`'s idle line read 0.23 to 0.27 wakeups a second at each merge point up to w4/wrapup and 0.83 to 1.1 after the w4/links merge, while a 40-second `tools/bench/run.sh` window read 0.25. Every run below is `bench idle` with a fresh `MINMACS_HOME`, on 2026-10-28, while other agents built and tested on this Mac at load averages of 35 to 69. "w4/wrapup" is 3193130, before the links. "main" is 8533429.
+
+**What the links added.** `MMLHGitOf` asked the repo index for the git facts of every server's checkout that no walk covered, through `-[MMRepoIndex factsFor:wait:NO]`. The bench and the tests set `MINMACS_HOME` with no roots, so every checkout is one no walk covers, and the fact cache starts empty. For each checkout the index ran seven git commands: status, show, two rev-lists, diff, merge-base and the patch-id rev-list. A run of main with `MINMACS_GIT` pointing at a logging wrapper ran 42 git commands in its first 5 seconds, for the 6 checkouts that held servers then, and 7 more each time a server started in a new checkout. Other agents' test fixtures start such servers all day.
+
+**Why the two measurements differ.** `test/bench.sh` opens its 30-second window 6 seconds after Core starts, while those first git runs still go, and `tools/bench/run.sh` opens it 30 seconds after, once they are done. Each window also counts the servers that start in new checkouts while it is open, which depends on what else runs on the Mac.
+
+**The fix.** `MMLHGitOf` takes git facts only for a checkout under the roots. One outside them gets its branch from its `.git` files, with no git run. WorkForest lists no card for such a checkout, so the link has nowhere to go. The tick's other parts stay: the tree cache reads `.git` files for each server folder every 30 seconds, with no spawn.
+
+| Run, 30-second window, 6 s warm-up | w4/wrapup | main | this branch |
+|---|---|---|---|
+| Wakeups a second, round 1 | 0.233, 0.300, 0.233 | 0.500, 0.500, 0.567 | |
+| Child CPU seconds in the window, round 1 | 0.000 | 0.830 to 1.232 | |
+| Wakeups a second, round 2, the LocoHost fix alone | 0.500, 0.333, 0.333 | 0.333, 1.033, 1.200 | 0.333, 0.400, 0.267 |
+| Child CPU seconds in the window, round 2 | 0.003 | 0.053 to 1.767 | 0.003 to 0.006 |
+| Wakeups a second, round 3, the whole branch | 0.267, 0.533, 0.500 | 0.467, 1.000, 0.400 | 0.400, 0.600, 0.533 |
+| git commands over the whole run, with the logging wrapper | | 74 in 11 checkouts, twice | 0, twice |
+
+With a 60-second warm-up and a 60-second window, main read 0.433 and 0.417 with 0.11 to 0.25 s of child CPU, and w4/wrapup 0.300 both times. In round 3 main's git runs fell outside two of its three windows, and the load was higher, so the rounds move together.
+
 ## Menus
 
 200 builds each, wall ms on main. Same run.
@@ -70,7 +91,7 @@ The same run, in CPU ms. 174 samples and 192 snapshots in the window, 852 pids, 
 | MinMacs | 20 apps, 2 agents | 14 | 0.44 | 22.02 | 23.78 | 4.82 | 5.73 |
 | One Icon, both | | | | 12.66 | 14.04 | | |
 
-**Slow spot, reported and not fixed here.** Menu open is within 30 ms at p95, by less than 2 ms for LocoHost. A 40-build run in `./test.sh bench` under load gave 31.8 ms at p95 for LocoHost, over the budget. The spec takes 2 ms or less. The rest is the card under every row, which `MMMenuFromSpec` builds before the menu opens, at about 2 ms each. Menu open grows with the number of rows that have a card. Card hover is well under 16 ms.
+**The slow spot of this run is fixed.** In this run menu open was within 30 ms at p95, by less than 2 ms for LocoHost, because `MMMenuFromSpec` built the card under every row before the menu opened, at about 2 ms each. Since issue #55 the shell builds each card when its row is hovered, through `MMMenuFromSpecOnHover`, so menu open no longer grows with the rows. [BENCH.md](BENCH.md) has the numbers after that change. A 40-build run of `./test.sh bench` on 2026-10-28, at load averages of 58 to 69, gave a menu open p95 of 1.3 to 9.0 ms and a card hover p95 of 6.0 to 14.2 ms across the five experts.
 
 ## The regression gate, issue #51
 
@@ -84,7 +105,7 @@ The same run, in CPU ms. 174 samples and 192 snapshots in the window, 852 pids, 
 | Wakeups a second | under 1 | under 1 | 0.423 |
 | Menu open at p95, worst expert | 30 ms | 60 ms | 28.43 ms, LocoHost |
 | Card hover at p95, worst expert | 16 ms | 32 ms | 7.29 ms, LocoHost |
-| Warm scan of 300 worktrees | 2 s | | not measured, WorkForest is not merged |
+| Warm scan of 300 worktrees | 2 s | | not timed by the bench. `./test.sh git` times a warm full pass over 100 fixture worktrees |
 | Icons after launch | 300 ms | | not measured, the bench makes no status item |
 
 A value over the phase 6 budget and under its ceiling prints as `over` and passes, so `./test.sh` passes while idle CPU waits for phase 6. Over the ceiling fails. `MM_BENCH_STRICT=1` fails on the phase 6 budgets themselves. Idle CPU over 30 seconds moves with how many processes start and end on the Mac, since each exit of a watched process adds a sample and a rebuild. One full `./test.sh` run measured 2.81 % in that window, against 0.89 % to 1.33 % in runs of the section alone. So the idle CPU ceiling is loose at 5 %, and the CPU a tick carries the tight one. Its budget of 15 ms is 0.3 % of a core over the 5-second tick, and its ceiling of 80 ms sits about 1.7 times above today's 46.69 ms. That full `./test.sh` run measured 61.76 ms a tick, so the ceiling has little room under heavy load. The menu ceilings sit at twice the budget, because the menu numbers are wall time and other builds on this Mac move them.
@@ -172,6 +193,7 @@ By expert and rule:
 - A verdict is carried only while three keys hold: the expert's fingerprint, the instance key and Core's context from `MMReviewContext`. The context is the HEAD of the finding's worktree, the activity bucket of the newest session there and a size bucket of what the finding frees. The buckets are those of the graph's workstream fingerprint.
 - The instance key rule of LocoHost now holds in `-[MMReview verdictFor:]` for every expert. The server that restarts at hour 10 was sent again at that tick.
 - No finding was sent because the context alone moved. The fingerprints of WorkForest and LocoHost already hold HEAD and activity buckets. The context keeps the same rule for the experts whose fingerprints do not.
+- A carried verdict holds at most 24 hours after the model made it, `MMVerdictMaxAge`. The day replay has 24 hourly ticks, so the default asks nothing again within the day, and the day's uncached tokens stayed at 56,850. A replay with the age set to 6 hours carried no verdict past 6.0 hours and asked the model again for 180 WorkForest and 4 LocoHost findings whose keys held. Before the age, that replay carried verdicts for 23.0 hours and asked again for none.
 
 ### One fact block per workstream, issue #34
 

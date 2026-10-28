@@ -29,7 +29,7 @@ Developer clutter on the shared core, issues #28, #29 and #30. Noo-Noo lists cac
 
 One finding per item, `noonoo:clutter:<row>:<path>`. Finished projects come first: build output whose worktree is merged, squash-merged, lost its remote branch, is gone, or whose Claude Code session ended. Then leftovers, then caches and build output of active projects, then what stays. Within a section the order is what deleting frees.
 
-The rule `noonoo.owner-state` decides every finding, so the model is never asked about clutter. Proactive cleans finished projects and leftovers. Eager adds caches. A tool's own cleanup runs only when the person asks. An agent working in the project keeps its build output in every mode.
+The rule `noonoo.owner-state` decides every finding, so the model is never asked about clutter. Proactive cleans finished projects and leftovers. Eager adds caches. After a new review the app's watch on main takes the mode from the view `prepareFor:` made on the graph queue, so main reads no pref. A tool's own cleanup runs only when the person asks. An agent working in the project keeps its build output in every mode.
 
 ## Menu
 

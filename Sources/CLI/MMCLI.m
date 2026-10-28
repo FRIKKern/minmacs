@@ -143,6 +143,9 @@ void MMSetCLIFactSource(id<MMFactSource> source) { gCLISource = source; }
 @end
 @implementation MMColdFacts
 
+/// What the verb being run cold reads, from its spec. MMVerbReadsAll until Run sets it.
+static MMVerbReads gColdReads = MMVerbReadsAll;
+
 /// Waits for the index's update pass that starts after this call, at most a minute.
 static void WaitForGit(void) {
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
@@ -150,20 +153,29 @@ static void WaitForGit(void) {
     dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 60 * NSEC_PER_SEC));
 }
 
-/// One walk of the roots, waited for, then every worktree's facts.
+/// One walk of the roots, waited for, then every worktree's facts read again with git, at most once each per run.
+/// The verb's MMVerbReads says how far to go: a verb that reads no worktree skips both, and one that takes the
+/// cached facts walks and runs no git.
 static void ColdIndex(void) {
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        MMRepoIndex *index = MMRepoIndex.shared;
-        if (!index.roots.count) return;
+    static BOOL walked, read;
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    MMVerbReads want = gColdReads;
+    if (want == MMVerbReadsNoWorktrees) return;
+    os_unfair_lock_lock(&lock);
+    MMRepoIndex *index = MMRepoIndex.shared;
+    if (!walked && index.roots.count) {
         NSInteger before = [index.stats[@"walksDone"] integerValue];
         [index refresh:nil];
         NSDate *until = [NSDate dateWithTimeIntervalSinceNow:30];
         while ([index.stats[@"walksDone"] integerValue] <= before && until.timeIntervalSinceNow > 0) usleep(10000);
-        if (!index.worktrees.count) return;
+    }
+    walked = YES;
+    if (want == MMVerbReadsAll && !read && index.worktrees.count) {
         [index invalidate:nil subtrees:NO];
         WaitForGit();
-    });
+        read = YES;
+    }
+    os_unfair_lock_unlock(&lock);
 }
 
 static MMFacts *ColdFacts(uint64_t generation, MMSample *s) {
@@ -187,6 +199,7 @@ static MMFacts *ColdFacts(uint64_t generation, MMSample *s) {
 - (MMFacts *)freshFactsFor:(MMFinding *)finding {
     MMWorktree *w = finding.path.length ? [MMRepoIndex.shared worktreeAt:finding.path] : nil;
     if (w.path.length) {
+        gColdReads = MMVerbReadsAll;   // a fresh check reads every worktree as the app knows them
         ColdIndex();
         [MMRepoIndex.shared invalidate:[NSSet setWithObject:w.path] subtrees:NO];
         WaitForGit();
@@ -285,7 +298,11 @@ static int Run(MMVerbSpec *spec, NSArray<NSString *> *words, NSString *program, 
     args.program = program; args.inApp = inApp; args.outBuffer = out; args.errBuffer = err;
     if (cwd.length) args.cwd = cwd;
     // A verb that changes things runs in the app. With --dry-run it only reads, so it runs anywhere.
+    // A verb whose mutatingForms change things checks those forms itself, after its usage checks.
     if (spec.mutates && !args.dryRun && !inApp) return [args needsApp];
+    // A cold run reads only what the verb needs: no walk for a verb that reads no worktree, and no git for one
+    // that takes the cached facts.
+    if (!inApp) gColdReads = spec.reads;
     if (!spec.run) return MMExitFailed;
     @autoreleasepool { return spec.run(args); }
 }

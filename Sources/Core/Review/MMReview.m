@@ -2,6 +2,7 @@
 // Ported from WorkForest's Review.m: batches in parallel, the judge through the same batches, and the summary
 // with totals from code. New here: rules first, the fingerprint cache, one block per workstream and the budget.
 #import "Core/Review/MMReview.h"
+#import "Core/Store/MMStore.h"
 #import "Core/Review/MMInvestigate.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Runtime/MMRuntime.h"
@@ -103,6 +104,7 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     j[@"word"] = self.word; j[@"finding"] = self.findingID; j[@"fingerprint"] = self.fingerprint;
     j[@"about"] = self.about; j[@"reason"] = self.reason; j[@"keep_evidence"] = self.keepEvidence; j[@"decided_by"] = self.decidedBy;
     j[@"instance"] = self.instanceKey; j[@"context"] = self.context;
+    if (self.madeAt) j[@"made_at"] = @(self.madeAt.timeIntervalSince1970);
     return j;
 }
 
@@ -115,6 +117,7 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     v.word = Str(j[@"word"]); v.findingID = Str(j[@"finding"]); v.fingerprint = Str(j[@"fingerprint"]);
     v.about = Str(j[@"about"]); v.reason = Str(j[@"reason"]); v.keepEvidence = Str(j[@"keep_evidence"]); v.decidedBy = Str(j[@"decided_by"]);
     v.instanceKey = Str(j[@"instance"]); v.context = Str(j[@"context"]);
+    if ([j[@"made_at"] isKindOfClass:NSNumber.class]) v.madeAt = [NSDate dateWithTimeIntervalSince1970:[j[@"made_at"] doubleValue]];
     return v;
 }
 
@@ -608,9 +611,18 @@ static NSString *TTLFor(MMReview *prev) {
 /// A verdict that may be carried to the next review while its fingerprint, instance and context hold: one the model
 /// or the judge made. A rule decides again on every review, so a rule's verdict is never carried, and a failed judge
 /// is asked again.
-static BOOL Carries(MMVerdict *v, NSString *context) {
+/// It also holds at most MMVerdictMaxAgeNow after the call that made it.
+static BOOL Carries(MMVerdict *v, NSString *context, NSDate *now, NSTimeInterval maxAge) {
     if (![v.decidedBy isEqualToString:@"model"] && ![v.decidedBy isEqualToString:@"judge"]) return NO;
+    if (!v.madeAt || [now timeIntervalSinceDate:v.madeAt] > maxAge) return NO;
     return !v.context || [v.context isEqualToString:context];   // a verdict saved before contexts holds on its fingerprint
+}
+
+const NSTimeInterval MMVerdictMaxAge = 24 * 3600;
+
+NSTimeInterval MMVerdictMaxAgeNow(void) {
+    double h = MMPrefDouble(@"review.verdictMaxHours", 0);
+    return h > 0 ? h * 3600 : MMVerdictMaxAge;
 }
 
 - (MMReview *)runHere:(MMReviewRequest *)q {
@@ -618,6 +630,9 @@ static BOOL Carries(MMVerdict *v, NSString *context) {
     r.expert = q.expert; r.trigger = q.trigger; r.mode = q.mode; r.at = NSDate.date; r.calls = @[]; r.actions = @[];
     MMVerdictWords *words = WordsFor(q);
     MMReview *prev = [MMReview lastFor:q.expert];
+    NSDate *now = self.clock ? self.clock() : nil;
+    if (!now) now = NSDate.date;
+    NSTimeInterval maxAge = MMVerdictMaxAgeNow();
     NSArray<id<MMRule>> *rules;
     @synchronized (self) { rules = self.rules[q.expert ?: @""] ?: @[]; }
 
@@ -639,7 +654,9 @@ static BOOL Carries(MMVerdict *v, NSString *context) {
         if (!x) x = WorkKeep(f);
         if (!x) {
             MMVerdict *old = q.ignoreCache ? nil : [prev verdictFor:f];
-            if (Carries(old, ctx)) { x = [old copyVerdict]; decided[@"cache"] = @([decided[@"cache"] integerValue] + 1); }
+            // A verdict saved before madeAt existed counts from the review that carried it last.
+            if (old && !old.madeAt) { old = [old copyVerdict]; old.madeAt = prev.at; }
+            if (Carries(old, ctx, now, maxAge)) { x = [old copyVerdict]; decided[@"cache"] = @([decided[@"cache"] integerValue] + 1); }
         } else decided[x.decidedBy] = @([decided[x.decidedBy] integerValue] + 1);
         if (!x) { [send addObject:f]; continue; }
         x.findingID = f.findingID; x.fingerprint = f.fingerprint; x.instanceKey = f.instanceKey; x.context = ctx;
@@ -672,7 +689,7 @@ static BOOL Carries(MMVerdict *v, NSString *context) {
                 w.word = [words wordFor:w.kind];
                 w.about = Str(x[@"about"]); w.reason = Str(x[@"reason"]); w.keepEvidence = Str(x[@"keep_evidence"]) ?: @"";
                 w.findingID = f.findingID; w.fingerprint = f.fingerprint; w.decidedBy = @"model";
-                w.instanceKey = f.instanceKey; w.context = contexts[f.findingID];
+                w.instanceKey = f.instanceKey; w.context = contexts[f.findingID]; w.madeAt = now;
                 if (!v[f.findingID]) byModel++;
                 v[f.findingID] = w;
             }
@@ -781,6 +798,7 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
                 w.reason = Str(x[@"reason"]); w.about = old.about;
                 w.judged = YES; w.decidedBy = @"judge";
                 w.findingID = f.findingID; w.fingerprint = f.fingerprint; w.instanceKey = f.instanceKey; w.context = old.context;
+                w.madeAt = (self.clock ? self.clock() : nil) ?: NSDate.date;
                 v[f.findingID] = w;
                 judged++;
             }
