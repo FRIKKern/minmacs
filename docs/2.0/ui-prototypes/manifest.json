@@ -1588,5 +1588,65 @@
   "surface": "menubar",
   "groupId": "90",
   "direction": "Notice: a quiet sign, the story in the inspect view"
+ },
+ {
+  "file": "91-a.html",
+  "name": "Memory Ring Hero",
+  "idea": "Performance gets 89-a's anatomy exactly: one large memory ring (one slice per app or group, colored by fate: will close, unsorted, kept, spared, idle and busy servers, agents, macOS), a legend with Keep Awake under it, and four round gauges (CPU with heat and the agents' share, Disk used and free with what may go, Network, and the next rule's countdown); the ring's center is the chain button for the best next thing on the whole Mac, over a list grouped Apps by fate, then Leftovers, then Servers, with the inspect view on the right.",
+  "good": "It reads like Agents, Servers, Worktrees and Disk. Hovering the button lifts the slices it touches and lights their rows. Pressing it gives a 1.1 s count of the memory or disk that came back, then shows the next button (Close 14 tabs, Clean up 6, Wrap Up, Quit Spotify, Stop 2 servers). The inspect view holds what the action touches, the queue in ranked order, the rule with Off / Ask / Auto and its countdown, and Done today with Restore for quit apps and Undo for stopped servers.",
+  "tradeoff": "Disk is only a gauge, so a disk action such as Clean up shows its size in the center and lights the Disk gauge and the leftover rows, but nothing lifts out of the ring. Proposed facts: Network live total down and up from interface counters (marked proposed on the gauge); memory per app and the macOS share as ring slices are fixture values.",
+  "surface": "menubar",
+  "groupId": "91",
+  "direction": "Performance: the same family as the other tabs"
+ },
+ {
+  "file": "91-b.html",
+  "name": "Memory and Disk Rings",
+  "idea": "Two rings of the same size side by side, memory (slices per app or group by fate) and disk (outer ring for the whole disk, inner ring for the leftovers and workstream caches by how they go). The chain button sits between them, with a small arrow toward the ring its action frees. Two legends, three smaller gauges (CPU, Network, next rule), and Keep Awake pinned under the list.",
+  "good": "Memory and disk are always two rings and two numbers. Whatever the next action is, its slices lift in the right ring: noise tabs and idle servers in memory, leftovers in disk. So every step of the chain is visible in the hero.",
+  "tradeoff": "The hero is denser: legends at 22 px rows, the gauges small with short lines, and the disk ring's center smaller. Keep Awake moves out of the hero to a strip under the list, which costs the list about one row. Proposed facts: Network live total from interface counters (marked proposed); memory per app and the macOS share as ring slices are fixture values.",
+  "surface": "menubar",
+  "groupId": "91",
+  "direction": "Performance: the same family as the other tabs"
+ },
+ {
+  "file": "92-a.html",
+  "name": "Queue in Two Rings",
+  "idea": "The hero ring is the ranked queue of things worth doing on the whole Mac: an inner ring for memory and an outer ring for disk. Each slice is one action, sized by its share of what that ring frees, and Wrap Up has a slice in each. The center shows #1 and its button, a numbered legend beside it names the queue, and CPU, memory, disk and network sit to the right as ftop gauges with Keep Awake under them.",
+  "good": "Memory and disk can never be added, because they are two rings. Hover any slice or legend line and the center, the inspect view and the lit rows in the list switch to that action. Press and the slice flies out, the center counts what came back for 1.5 s, the gap closes and #2 rotates to the top.",
+  "tradeoff": "The disk ring is often one big slice (29 GB of leftovers next to a 1.9 GB Wrap Up), so small disk actions show as thin slivers. Proposed facts: Live network total down and up from interface counters (marked proposed); everything else comes from the code's existing facts and the 71 rank.",
+  "surface": "menubar",
+  "groupId": "92",
+  "direction": "Performance: the queue is the ring"
+ },
+ {
+  "file": "92-b.html",
+  "name": "One Ring, Ranked Words",
+  "idea": "One ring where every slice is an action, sized by its rank score and colored by its section. A thin outer track under each slice splits blue memory from amber disk, and the queue is also written as a short ranked line of words under the ring. The gauges and Keep Awake take the wider right side.",
+  "good": "The biggest win is the biggest slice whatever its kind. The line of words reads the whole chain at a glance and lights the same things as the slices when hovered.",
+  "tradeoff": "Slice size is a rank score, not GB, so the GB numbers live in the center, the gauges and the inspect view. The hero is 24 px taller, so the list gets a little less room. Proposed facts: Live network total down and up from interface counters (marked proposed); none else.",
+  "surface": "menubar",
+  "groupId": "92",
+  "direction": "Performance: the queue is the ring"
+ },
+ {
+  "file": "93-a.html",
+  "name": "Four Rings, One Button",
+  "idea": "Four equal ftop rings in one row (CPU, Memory, Disk, Network) show the whole Mac. Each has a big number, a gray unit, its state in words, and a colored end that is exactly what the next action frees; the chain's button sits inside the ring it frees most and moves as you press (Memory for tabs, apps and servers, Disk for leftovers), above a chip-switched list (Apps, Leftovers, Servers, Network) and the inspect view.",
+  "good": "The eye lands on one button inside one ring. Press it: the end flies out, the gap closes, the ring counts what came back ('1.2 GB memory back'), then the button appears in the next ring. Wrap Up lights a blue end on Memory and an amber end on Disk, two rings that never add up. Hovering a ring or one of its gray parts tells its story in the inspect view ('who holds it', 'what frees memory, in order') and lights those items in the list.",
+  "tradeoff": "The CPU and Network rings rarely host the button or show an end, since no action in the queue frees much CPU or closes connections. They mostly report, and the ranked queue lives only in the inspect view, not on the hero. Proposed facts: Interface totals (down and up), and the route's kind (Wi-Fi).",
+  "surface": "menubar",
+  "groupId": "93",
+  "direction": "Performance: the Mac at a glance, ftop pure"
+ },
+ {
+  "file": "93-b.html",
+  "name": "Rings Over the Hour",
+  "idea": "The same four rings, a bit smaller, with a thin live strip under them showing the last hour of CPU (pink line) and memory (blue area); the button is a small pill with its amount under the ring it frees most, and the ring's center keeps the number and says '1.4 GB to free'.",
+  "good": "You see the trend as well as the moment. Hover any minute of the strip and it says CPU and memory at that time. The ring numbers stay whole because the button moved out of the center.",
+  "tradeoff": "The hero is about 20 px taller, so the list and inspect view below lose some room. Proposed facts: An hour of CPU and memory samples, one a minute, kept in memory; interface totals (down and up); the route's kind (Wi-Fi).",
+  "surface": "menubar",
+  "groupId": "93",
+  "direction": "Performance: the Mac at a glance, ftop pure"
  }
 ]

@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-159 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+165 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -32,6 +32,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 76–81 | Lift the Advanced tabs | 71-a kept, its Agents, Servers, Worktrees and Disk tabs brought to its Performance tab's level, and "utilize the space better": no flat full-width rows, no scroll when the items fit in columns. Six layouts: 71-a's own, list and detail, one big graph, columns by fate, workstream blocks, ftop tiles |
 | 82–87 | A hero on top of 77-a | 77-a kept (list left, live detail right), and each Advanced tab gets a hero band above it that shows the whole section at a glance, "a cool way to grasp it all in a beautiful way": ftop gauges, a panorama graph, a map of every item, a sentence with inline graphs, strata bars, a small bento. Hero and list light each other |
 | 88–90 | An elegant notice on 82-a | 82-a kept. The focal sentence and big button felt "just in the way", so the notice becomes small and placed (a pill under the ring, the ring itself, or a badge), gives an elegant reward when something is done, shows its full story in the inspect view on hover, and keeps Undo there instead of a toast |
+| 91–93 | Performance in 89-a's language | 89-a kept (the favorite: the ring is the notice, press, pop, next, far less Undo, deletes are permanent). Its Performance tab gets the same hero and one chain button for the best next thing on the whole Mac: a memory ring like the other tabs, the queue as the ring, or four ftop rings for CPU, memory, disk and network |
 
 ## Direction so far
 
@@ -41,6 +42,6 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 - Keep Awake is one checkbox, "Keep working with the lid closed", with a short note on when it stops.
 - Every graph says in words what it means. Every button says exactly what it does. Off, Ask and Auto are explained where you choose them.
 - The UI is live: numbers tick and agents come and go.
-- Favorites so far: 82-a Ring and Gauges, 77-a List and Detail, 71-a Worth Doing First, 60-a A bigger sheet, 41-b Corner Drawer Spotlight, 18-b Hanging Sheet, 20-a Live Index, 09-a Workstream Cards, 03-b One Icon ftop Lines.
+- Favorites so far: 89-a Ring Is the Notice, 82-a Ring and Gauges, 77-a List and Detail, 71-a Worth Doing First, 60-a A bigger sheet, 41-b Corner Drawer Spotlight, 18-b Hanging Sheet, 20-a Live Index, 09-a Workstream Cards, 03-b One Icon ftop Lines.
 
 These are design explorations. They break [DESIGN.md](../../DESIGN.md) in places on purpose, most of all its rule that the menu is a native NSMenu, and the rules there change only by decision.
