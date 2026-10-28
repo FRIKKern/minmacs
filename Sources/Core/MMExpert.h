@@ -11,6 +11,7 @@
 #import "Core/Act/MMAct.h"
 
 @class MMArgs;   // P61, defined in Sources/CLI
+@class MMSheetBuilder;   // the sheet of prototype 54-a, Sources/Core/MMSheet.h
 
 /// The state mark of a row or a card's status. Each mark draws a different shape, so state never rests on color alone.
 /// The members follow MMMark in Sources/UI/MMMenuKit.h in the same order with the same values, so the kit casts it.
@@ -148,6 +149,9 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 /// Here the expert reads its keeps, rules, prefs and undo log, and runs MMPlan, so menuFor:, cardFor:, badgeFor: and
 /// accessibilityStateFor: on main read only -[MMSnapshot preparedFor:]. nil when there is nothing to keep.
 - (id)prepareFor:(MMSnapshot *)s;
+/// Its part of the sheet, on the graph queue: holds and actions on the lanes it owns, leftovers, its rule,
+/// and its advanced tab. Reads the snapshot and what -prepareFor: made, never disk or a process.
+- (void)sheet:(MMSheetBuilder *)b snapshot:(MMSnapshot *)s;
 /// P61 and P62. The standalone app's name, such as "locohost". It works as argv[0] for the binary
 /// and as a URL scheme, so old scripts and links keep working. The URL router of P62 lives in Sources/CLI.
 @property (readonly, copy) NSString *legacyName;
