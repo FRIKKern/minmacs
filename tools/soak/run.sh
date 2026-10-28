@@ -10,6 +10,8 @@
 #                 default build/soak/<date>
 #   BUILD_DIR     where the soak binaries are built, default build. SOAK_DIR names a folder built already.
 #   SOAK_MENUS_EVERY  seconds between rounds of every expert's menu and cards on the live snapshot, default 60
+#   SOAK_KEEP     how many worktrees, servers and agents stay alive at once, default 4, 3 and 3. A number keeps
+#                 that many of each, so a short run removes and stops some too
 #
 # Each churn step, inside a fresh MINMACS_HOME under TMPDIR: a fixture worktree is made in the fixture repo, with a
 # commit, and the oldest past four is removed. A Python HTTP server starts in the newest worktree on a free high port,
@@ -91,10 +93,10 @@ count() { ls "$1" 2>/dev/null | grep -c .; }
 
 churn() {
   i=$((i + 1))
-  # A worktree with a commit, and the oldest past four removed, with the servers inside it stopped first.
+  # A worktree with a commit, and the oldest past SOAK_KEEP removed, with the servers inside it stopped first.
   G -C "$A" worktree add -q -b "b$i" "$W/wt$i" main 2>/dev/null &&
     ( cd "$W/wt$i" && echo "$i" >"f$i.txt" && G add -A && G commit -qm "work $i" ) && made=$((made + 1))
-  while [ "$(ls "$W" | grep -c .)" -gt 4 ]; do
+  while [ "$(ls "$W" | grep -c .)" -gt "${SOAK_KEEP:-4}" ]; do
     old=$(ls "$W" | sed 's/^wt//' | sort -n | head -1)
     for f in "$H"/pids/servers/*; do
       [ -e "$f" ] && [ "$(cat "$f")" = "$W/wt$old" ] && { stop_pid "${f##*/}"; rm -f "$f"; stopped_servers=$((stopped_servers + 1)); }
@@ -103,15 +105,14 @@ churn() {
     [ -d "$W/wt$old" ] && rm -rf "$W/wt$old"
     removed=$((removed + 1))
   done
-  # A server in the newest worktree, and the oldest past three stopped.
+  # A server in the newest worktree, and the oldest past SOAK_KEEP stopped. Its pid file may come a step later.
   free_port
   ( ( cd "$W/wt$i" && exec python3 -c "$PY" "$PORT" "$H/pids/servers" "$LIFE" "mmsoak-$TAG" ) >/dev/null 2>&1 & )
   PORT=$((PORT + 1)); started_servers=$((started_servers + 1))
-  sleep 1
-  while [ "$(count "$H/pids/servers")" -gt 3 ]; do
+  while [ "$(count "$H/pids/servers")" -gt "${SOAK_KEEP:-3}" ]; do
     f=$(oldest "$H/pids/servers"); stop_pid "$f"; rm -f "$H/pids/servers/$f"; stopped_servers=$((stopped_servers + 1))
   done
-  # A fake agent with a session file and a transcript, and the oldest past three stopped with its files.
+  # A fake agent with a session file and a transcript, and the oldest past SOAK_KEEP stopped with its files.
   "$H/bin/$AGENT" "$LIFE" "$TAG" >/dev/null 2>&1 &
   ap=$!; started_agents=$((started_agents + 1))
   proj="$H/claude/projects/$(printf %s "$W/wt$i" | tr '/.' '--')"; mkdir -p "$proj"
@@ -121,7 +122,7 @@ churn() {
     "$ap" "$ap" "$W/wt$i" "$now" "$now" >"$H/claude/sessions/$ap.json"
   printf '{"type":"user","sessionId":"soak-%s","cwd":"%s","timestamp":"%s","message":{"role":"user","content":"step %s"}}\n' \
     "$ap" "$W/wt$i" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$i" >"$proj/soak-$ap.jsonl"
-  while [ "$(count "$H/pids/agents")" -gt 3 ]; do
+  while [ "$(count "$H/pids/agents")" -gt "${SOAK_KEEP:-3}" ]; do
     f=$(oldest "$H/pids/agents"); proj=$(cat "$H/pids/agents/$f")
     stop_pid "$f"; wait "$f" 2>/dev/null
     rm -f "$H/pids/agents/$f" "$H/claude/sessions/$f.json" "$proj/soak-$f.jsonl"; rmdir "$proj" 2>/dev/null
