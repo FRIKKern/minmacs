@@ -1,6 +1,6 @@
 # Bench
 
-Issues #52, #53, #54 and #55. MEASUREMENTS.md keeps #23 and #51.
+Issues #52 to #56. MEASUREMENTS.md keeps #23 and #51.
 
 ## The idle tick
 
@@ -254,6 +254,79 @@ The worker child closes 27.4 to 29.9 seconds after its last request, as its 30-s
 - A later `./test.sh` at a load average near 50 had one 67.7 ms stall with 0 ms CPU in `+[MMCoreSocket serve:error:]`, which `MMCoreStart` calls on main. `bench hangs` now reports the stalls of Core's start and first snapshot as `startStalls` and gates only those of the menu opens and card hovers, as the check's name says. The socket's bind on main is left for its own issue.
 - The idle CPU budget failed in some `./test.sh bench` runs today, at 0.652 to 0.875 %, against a 0.6 % ceiling. `main` at 8533429 does the same: two 30-second idle runs of each, one after the other at load averages of 11 to 16, gave 0.403 and 0.874 % for `main` and 0.682 and 0.408 % for this branch.
 
+## Soak
+
+Issue #56. Whether MinMacs 2.0 holds up over hours: no leak, no growth, no crash and no hang, with all five experts on and the world around them changing. Every number here comes from `tools/soak/run.sh` on the research Mac, a MacBookPro18,1 with 10 cores on macOS 27.0.1, while other agents built and tested in other worktrees.
+
+### What runs
+
+- `tools/soak/soak` is Core headless with the five built-in experts in one process, as `tools/bench/bench idle` runs it, with every mode Idle and the main-thread watchdog at 50 ms. Once a minute it opens every expert's menu and the One Icon menu on Core's live snapshot and hovers every card, each open and each hover in a pass of main of its own. It writes a status line a minute and a summary when SIGTERM stops it. It answers `_walk`, so Core's worker gets its real walker child, as in the app.
+- Beside it, every churn step, 20 seconds by default, inside a fresh `MINMACS_HOME`: a worktree with a commit is made in a fixture repo under `MINMACS_ROOTS`, and the oldest past four is removed. A Python HTTP server starts in the newest worktree on a free port from 40000, and the oldest past three stops. A fake agent starts with a Claude Code session file and a transcript, and the oldest past three stops, its files removed. Every live transcript gets a line.
+- Every fixture name carries the run's tag. A fixture is stopped by its pid, only after `ps` shows the tag in its command line. Servers and agents call `setsid` and end by themselves after a few minutes, even if the script dies. The script stops the run when more than 20 processes carry the tag.
+- Only the fixture registry row is loaded, and the fake agent has no working signal, so Insomnia holds no power assertion. The model, cmux and tmux CLIs are `/usr/bin/false`. The soak refuses to run without `MINMACS_HOME`, `MINMACS_ROOTS` and the agent folders inside it.
+- Each sample reads the process with `tools/soak/procstat`: footprint, peak footprint, resident size and CPU time from `proc_pid_rusage`, threads and open fds from `proc_pidinfo`. Then `leaks(1)` reads its heap. At the end the script looks for crash, hang and spin reports of the run's processes in both DiagnosticReports folders.
+- `tools/soak/report.py` writes `report.md` and the verdict.
+
+### What passes
+
+| Check | How it is read |
+|---|---|
+| No leak | Every `leaks(1)` run worked and found no leaked block in a tree that names a MinMacs class or a function of the soak binary. Trees that only system frameworks made are counted apart and must not grow from the first sample to the last. |
+| Footprint growth under 5 MB a day | The least-squares slope of the footprint over the samples, judged on a run of 6 hours or more |
+| No crash | The soak lived to the stop, exited 0 on SIGTERM, and no crash, hang or spin report names a process of the run |
+| No hang | No pass of main over 50 ms. Passes while `leaks(1)` held the process suspended are listed apart, and so are passes in which main was ready but got under a tenth of the time on a core, which is the Mac's load and not a wait of MinMacs |
+| Nothing acted | Every mode stayed Idle, the undo log is empty, no awake hold was taken and no fixture is left running |
+
+### What the first runs found
+
+**A retain cycle that kept every snapshot.** LocoHost's and WorkForest's menu views keep an `act` block, and the block held the snapshot strongly. The snapshot holds those views through `prepareFor:`. So no snapshot was ever freed. In a one-minute run before the fix, `leaks(1)` found 1888 leaked blocks at 8 seconds and 18936 at 71 seconds, and the footprint went from 10.59 MB to 24.22 MB. The block now holds the snapshot weakly and falls back to `MMGraph.shared.current`. That is two lines in `Sources/Experts/LocoHost/MMLocoHost.m` and `Sources/Experts/WorkForest/MMWorkForest.m`, outside this issue's paths. After it, MinMacs code leaks nothing in every run below.
+
+**Core's worker runs its own binary again as `_walk`.** The first soak binary did not answer that verb, so each walker child started a whole soak with its own child. One minute made 287 copies, all stopped by pid. The soak now hands `_walk` to `MMWorkerChildMain`. `tools/bench/bench` prints its usage for `_walk` and exits 2, so the bench's worker never gets a walker. That is outside this issue and left as it is.
+
+**Three system leaks.** Every run has three leaked `NSXPCConnection` trees for `LNDaemonApplicationInterface`, made by AppIntents' `-[LNProcessInstanceRegistryClient makeXPCConnection]` on a dispatch queue, 417 blocks in all. A run with `MallocStackLogging=1` showed no MinMacs frame in their allocation stack. They appear in the first seconds and do not grow.
+
+### One hour
+
+`tools/soak/run.sh 3600 600 20 build/w5-soak/hour`, built with `BUILD_DIR=build/w5-soak-hour` from 84beb0c. One hour from 08:15:48 UTC on 2026-10-28, at load averages of 16.93, 32.45 and 43.38 at the start. A sample every 10 minutes in place of every hour, so one hour has a curve.
+
+| Sample | Elapsed s | Footprint MB | Peak MB | CPU % since last | Threads | Fds | MinMacs leaks | System leak trees |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 133 | 16.70 | 17.19 | | 8 | 28 | 0 | 3 |
+| 2 | 735 | 18.24 | 18.83 | 1.861 | 8 | 25 | 0 | 3 |
+| 3 | 1327 | 18.66 | 19.20 | 2.686 | 9 | 28 | 0 | 3 |
+| 4 | 1937 | 18.72 | 20.16 | 2.870 | 8 | 29 | 0 | 3 |
+| 5 | 2525 | 19.52 | 21.45 | 3.528 | 7 | 25 | 0 | 3 |
+| 6 | 3128 | 19.80 | 21.45 | 3.235 | 8 | 25 | 0 | 3 |
+| 7 | 3600 | 19.91 | 21.45 | 3.091 | 6 | 25 | 0 | 3 |
+
+- 159 churn steps: 159 worktrees made and 155 removed, 159 servers and 159 agents started and stopped. The soak published 2319 snapshots and ran 60 menu rounds, 360 menu opens and 3085 card hovers. At most LocoHost listed 29 servers, MinMacs 22 items, WorkForest 6 worktrees, and the graph held 3 agents and 3 sessions. The churn keeps at most 4 servers alive, so most of the 29 were this Mac's own servers. LocoHost is Idle, so it only read them. Since that run the summary also has `peakFixtureFindings`, the findings about a folder inside `MINMACS_HOME`, and `test/soak.sh` asks that LocoHost and WorkForest each saw one.
+- No leak in MinMacs code at any sample. Threads stayed between 6 and 9 and fds between 25 and 29.
+- The soak lived to the stop and exited 0 on SIGTERM. No crash, hang or spin report names its processes. Every mode stayed Idle, with no undo record, no awake hold and no fixture left.
+- The watchdog saw 46419 passes of main. Two took over 50 ms, at 08:21:49 and 08:21:50 UTC: 234.4 ms and 96.9 ms, both with main ready to run and 0 ms of CPU, in AppKit while a card's label and color were made. No `leaks(1)` ran then. Main waited for a core while this worktree's tests ran beside it, besides the other agents' work. The report as `run.sh` wrote it at the end counted both and exited 1. The report rule for main waiting for a core came after, and `report.py` on the same folder now lists them apart and exits 0.
+- CPU from the first sample to the last was 2.869 %. It is not the idle cost: it holds the churn, a menu round a minute and the `leaks(1)` runs. BENCH.md "The idle tick" has the idle cost.
+- The footprint grew 3.20 MB from the first sample to the last, 72 MB a day by least squares. The growth slowed: 1.54 MB in the first 10 minutes after warm-up, 0.39 MB in the last 18. One hour cannot say whether it levels off, so the 24-hour run judges it. In a second, 25-minute run, `heap(1)` 3 and 18 minutes in showed the malloc heap at 6.09 MB and 6.52 MB while the footprint went from 16.3 MB to 19.3 MB. The largest malloc growth was 260 KB of `CFString` storage in 163 strings. Most of the footprint growth is outside the malloc heap. That is the first place to look if the 24-hour slope stays over 5 MB a day.
+
+### The 24-hour run
+
+On a Mac that stays on, plugged in, with the lid open. The soak itself holds no power assertion, so the Mac's own sleep settings apply. Start it in a terminal that stays open:
+
+```sh
+BUILD_DIR=build/soak-24h tools/soak/run.sh 86400 3600 20 build/soak/24h
+```
+
+It samples every hour, 25 samples with the warm-up one, and writes `report.md` at the end. It passes when every check in "What passes" says pass and footprint growth is judged under 5 MB a day. The run leaves `build/soak/24h` for the record, and `samples.jsonl` has the raw numbers.
+
+### The week of real use
+
+The soak runs fixtures only. The week of real use runs the app on the person's Mac, so it is started by the person, never by an agent or a test:
+
+1. Build with `DEBUG=1 BUILD_DIR=build/week ./build.sh`, so the watchdog writes every stall to `stalls.log` in the support folder. Install it the way the release is installed, when phase 1 allows that.
+2. Use the Mac as every day, with the modes as the person sets them, for seven days.
+3. Once a day, read the app with `tools/soak/procstat <pid>` and run `leaks <pid>`. Keep the lines.
+4. At the end, check `~/Library/Logs/DiagnosticReports` for MinMacs crash, hang and spin reports, and `stalls.log` for passes over 50 ms.
+
+It passes on the same rules: no leak in MinMacs code, footprint growth under 5 MB a day by least squares over the daily reads, no crash report, and no stall that is not a `leaks(1)` read or main waiting for a core.
+
 ## Rerun
 
 ```sh
@@ -264,4 +337,6 @@ tools/bench/scale.sh                    # 300 worktrees, the clutter tree and a 
 ./test.sh bench                         # the short run and the gate
 tools/bench/run.sh 60 10 200          # one minute of idle, then menus, startup twice, the watchdog run and the gate
 DEBUG=1 BUILD_DIR=build/debug ./build.sh   # a build whose main-thread watchdog is on
+tools/soak/run.sh 3600 600 20           # one hour of soak, a sample every 10 minutes
+./test.sh soak                          # the short soak and its report rules
 ```

@@ -880,7 +880,10 @@ static NSString *ModelWords(MMReview *r) {
     v.removed = MMWFRemoved(6);
     v.watchingLeft = MMWatchingLeft(kExpert);
     __weak MMWorkForestExpert *weak = self;
-    v.act = ^(NSString *what, NSString *key, BOOL option) { [weak act:what key:key option:option snapshot:s]; };
+    // The snapshot holds this view through prepareFor:, so the block holds the snapshot weakly. A strong capture
+    // made a cycle that kept every snapshot alive, issue #56. A menu that outlives its snapshot acts on the current one.
+    __weak MMSnapshot *weakS = s;
+    v.act = ^(NSString *what, NSString *key, BOOL option) { [weak act:what key:key option:option snapshot:weakS ?: MMGraph.shared.current]; };
     return v;
 }
 
