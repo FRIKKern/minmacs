@@ -102,6 +102,8 @@ NSString *MMLHModeLabel(NSString *mode);
 /// By findingID: a fact that belongs to another expert, {label, value, expert, findingID}.
 @property (copy) NSDictionary<NSString *, NSDictionary *> *links;
 @property (copy) NSDictionary<NSString *, NSDate *> *keptUntil;   // by findingID
+/// By findingID: the last Investigate run as -[MMInvestigation json], read from memory. Issue #35.
+@property (copy) NSDictionary<NSString *, NSDictionary *> *investigations;
 @property NSTimeInterval idleSeconds, watchingLeft;
 @property NSInteger otherCount;                          // listeners of macOS and apps, never shown as rows
 /// What an action asks for: stop, go, open, reveal, keep, copy-url, copy-restart, protect, restart, close-idle, review.

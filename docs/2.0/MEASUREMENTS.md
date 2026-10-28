@@ -137,3 +137,49 @@ Both warm numbers are under the one second of PLAN.md phase 2, and the checks fa
 - a branch merged by ancestry or tree is never checked
 
 **One git run.** A scratch tool ran `git --version` 20 times through `MMRun`, then 20 times through a bare NSTask, three to six times for each build. The 2.0 code before issue #25 waited for NSTask's running flag in 50 ms poll steps and took 121 to 134 ms per run. The first kqueue `NOTE_EXIT` change took 35 to 74 ms, because `waitUntilExit` still noticed the exit 70 to 95 ms late on most runs. With the status taken from `NOTE_EXITSTATUS` and no `waitUntilExit` after a normal exit, it took 8.3 to 11.0 ms. A bare NSTask took 6.0 to 37.2 ms across all of these runs. 50 pairs of a git run and an `exit 3` run gave the right status every time and left no zombie child.
+
+## Investigate
+
+Issue #35: one deeper agent run, only on request, for one finding or one workstream. `./test.sh investigate` runs the checks against `test/investigate/fakeclaude.py`. No real model was asked for any number here, so the tokens of a real run are not measured yet.
+
+**The path bug and its fix.** Before, Investigate ran Claude Code's own Read, Grep and Glob in the workstream's folder, and Read opened any path it was given. Now every built-in tool is off with `--tools ""`, and the only tools are MinMacs's own Read, Grep and Glob, served by the same binary over MCP as `_investigate-tools`. Each path goes through realpath before the check, so a symlink or `..` cannot lead out, and Read checks the opened file again with `F_GETPATH`. Walks never follow a symlink. Of the 15 scripted tool calls in the test, 10 try to leave the folder or reach a secret:
+
+- an absolute path outside
+- `..` out of the folder
+- a symlink that points out
+- a symlinked folder that points out
+- a sibling folder whose name starts with the same name
+- `.env`
+- a Grep path through the symlinked folder
+- a glob with `..` and an absolute glob
+- a tool named Bash
+
+All 10 are refused, in the test tool and in the app binary, and no byte of the outside files or of `.env` reaches the fake model.
+
+**What one call sends before any tool runs.**
+
+| Part | Size |
+|---|---|
+| The system prompt | 426 characters |
+| The three tool schemas, compact JSON | 1,088 bytes |
+| The message: subject, folders and question | 224 to 242 bytes, with a 116-character fixture path |
+
+Research F section 4.4 found that Claude Code's default first turn reads 7k to 28k tokens from cache and writes 3k to 35k on this Mac. The custom system prompt and the three small tools replace that default.
+
+**The estimate shown before a run.** Before the first run it is 35,000 tokens on Haiku, the top of research F's first-turn writes. After that it is the median uncached tokens of the last five runs that answered. A failed run does not count. The fake CLI reports 360 uncached tokens per call. The checks see 360 after one run, and 460 as the median of 360, 460 and 560.
+
+**The tool server.** A scratch bench drove `MinMacs _investigate-tools` over a fixture of 2,000 TypeScript files of 61 lines in 40 folders, with a symlinked folder that points out. Medians over 50 calls for Read and 5 for Grep and Glob, three runs:
+
+| Call | Time |
+|---|---|
+| Start and initialize | 28 to 36 ms, 276 ms on the first run after a build |
+| Read of one file inside | 1.12 to 1.14 ms |
+| Read refused through the symlink | 0.46 to 0.49 ms |
+| Grep over 2,000 files, 40 hits | 479 to 498 ms. 538 to 585 ms before a whole-file match ran first |
+| Glob over 2,000 files, 40 hits | 10.1 to 12.0 ms |
+
+**End to end with the fake CLI.** `investigate <folder> --yes` with three tool calls took 0.10 to 0.11 s in the test tool over five runs. The app binary run cold builds a snapshot first and took 0.46 to 0.48 s, and 1.59 s on its first run. Showing only the estimate took 0.37 to 0.38 s cold.
+
+**Menus.** A card reads the last run from memory, through the expert's view. `inv start` counts 0 log queries on main while a run goes and after it ends. In the app, `investigate --yes` starts the run on `no.guerrilla.minmacs.core.investigate` and returns at once, so core.sock stays free.
+
+**Not measured yet.** The tokens and the time of a real run on a real login. That needs a paid call, which this work did not make. The first real run replaces the 35,000-token default in the estimate on its own.

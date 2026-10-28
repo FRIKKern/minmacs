@@ -128,6 +128,8 @@ static Subject *LocoHostLike(void) {
     v.links = @{checkout.findingID: @{@"label": @"Worktree", @"value": @"checkout-flow, in use", @"expert": @"workforest", @"findingID": @"workforest:tree:checkout-flow"}};
     v.stopped = @[@{@"rid": @"r1", @"port": @3004, @"framework": @"Vite", @"at": @(NSDate.date.timeIntervalSince1970 - 2 * 3600), @"by": @"eager"}];
     v.idleSeconds = 30 * 60;
+    // Issue #35: an Investigate run that still goes shows on its card.
+    v.investigations = @{docs.findingID: @{@"subject": docs.findingID, @"model": @"haiku", @"running": @YES, @"at": @(NSDate.date.timeIntervalSince1970 - 20)}};
     v.act = ^(NSString *what, NSString *key, BOOL option) {};
 
     NSDictionary *cardKeys = @{checkout.findingID: @"checkout", orbit.findingID: @"orbit", docs.findingID: @"docs", pg.findingID: @"postgres"};
@@ -227,6 +229,10 @@ static Subject *WorkForestLike(void) {
                 hooks.findingID: @[@{@"label": @"Server", @"value": @":4000 Next.js", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/orbit-api#dev"}]};
     v.removed = @[@{@"rid": @"r1", @"path": @"/Users/dev/code/acme-web.worktrees/acme-web-old-landing", @"branch": @"feat/old-landing",
                     @"at": @(NSDate.date.timeIntervalSince1970 - 3 * 86400), @"by": @"proactive", @"saved": @[@".env.local"]}];
+    // Issue #35: the answer of an Investigate run is the card's note.
+    v.investigations = @{search.findingID: @{@"subject": search.findingID, @"model": @"haiku", @"at": @(NSDate.date.timeIntervalSince1970 - 40 * 60),
+                                             @"answer": @"The branch adds price and brand filters to search. The brand filter still has no API call, "
+                                                        @"and its test in search.test.ts fails."}};
     v.act = ^(NSString *what, NSString *key, BOOL option) {};
 
     MMMenuSpec *spec = MMWFMenu(v);

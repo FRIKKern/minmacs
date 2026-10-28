@@ -60,3 +60,7 @@ WorkForest 0.1's syntax works under the `workforest` name through the shim in `S
 - Sessions that only named a worktree in a parent folder's log, WorkForest 0.1's "a session named this folder", are not matched. Know's session index matches by working folder only.
 - `fetch` is gone: MinMacs never fetches. The merged pull request check through `gh` is gone too.
 - docs/REVIEW.md does not exist yet, so the list above stands in for WorkForest's part of it.
+
+## Investigate, issue #35
+
+The card of every worktree that is on disk offers "Investigate…" after its main actions, so it often sits under More. The view carries each finding's last run from `MMInvestigations`, read from memory, and the card's note shows its answer. The action goes to `-[MMInvestigations ask:snapshot:confirm:failed:]`, which shows the cost and the model before anything runs. `Sources/Core/README.md` says how the run is scoped.

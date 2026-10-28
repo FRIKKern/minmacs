@@ -18,6 +18,7 @@
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Review/MMReview.h"
+#import "Core/Review/MMInvestigate.h"
 #import "Core/Act/MMUndo.h"
 #import "Core/Act/MMAct.h"
 #import "Core/Act/MMWorktreeAct.h"

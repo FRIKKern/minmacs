@@ -35,7 +35,8 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P31 to P33 | `Graph/MMGraph.h` | `MMOwner`, `MMCost`, `MMEvidence`, `MMProposal`, `MMFinding`, `MMFacts`, `MMWorkstream`, `MMSnapshot`, `MMGraph` and its fresh facts |
 | P34 to P37 | `Store/MMStore.h` | The support folder, prefs on `no.guerrilla.minmacs`, `MMRules`, `MMStateFile` |
 | P38 | `Store/MMLog.h` | The SQLite log for undo, restore, review history and trends, per decision 5 |
-| P39 to P47 | `Review/MMReview.h` | `MMUsage`, `MMModel`, `MMVerdictWords`, `MMVerdict`, `MMReview`, `MMRule`, `MMBudget`, `MMReviewRequest`, `MMReviewBroker` with Investigate |
+| P39 to P47 | `Review/MMReview.h` | `MMUsage`, `MMModel`, `MMVerdictWords`, `MMVerdict`, `MMReview`, `MMRule`, `MMBudget`, `MMReviewRequest`, `MMReviewBroker` |
+| none | `Review/MMInvestigate.h` | Investigate, issue #35: `MMInvestigateScoped`, `MMInvestigateFolders`, `MMInvestigation`, `MMInvestigateEstimate`, `MMInvestigateSubject`, `MMInvestigations` and the tool server |
 | P51 to P53 | `Act/MMClutterAct.h` | `MMClutterAction`: clutter to the Trash, or a tool's command after an APFS recovery copy, with an audit |
 | P52, P53 | `Act/MMUndo.h` | `MMUndoRecord`, `MMUndo` with the Trash, git bundles and Wrap Up records, `MMToolCommand` with its dry run |
 | P52 | `Act/MMWorktreeAct.h` | `MMWorktreeIgnoredFiles`, `MMWorktreeRemove` with no `--force` and `git branch -d`, and `MMWorktreePrune` |
@@ -85,6 +86,15 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - `MMTreeDisk` walks one checkout at a time on `MMQueue(@"core", @"disk")` and keeps the answers in `treedisk.json`. A walk is fresh for 15 minutes and while the checkout folder's own change time holds. A cached read never blocks, and a stale one walks again in the background and posts `MMTreeDiskDidChangeNotification`. The walk runs in process for now. It belongs in the worker of P4.
 - An undo record with a `worktree` payload and no `bundle` restores by `git worktree add` at its commit. `unbundle:` needs the bundle file only when the repo lost the commit.
 - `MMReviewRequest.ignoreCache` sends every finding to the model past the fingerprint cache, for `--fresh` and for tests that review the same facts twice. Rules still decide first.
+
+## Investigate, issue #35
+
+- Investigate runs only when the person asks, for one finding, one workstream or one folder. `-[MMInvestigateSubject finding:snapshot:]` reads the finding's folder, its owner's and its workstream's worktree. A file stands for its folder, a folder inside another counts once, and the root, the home folder and any folder above it are never used.
+- Claude Code's own Read opened any path, whatever folder the call ran in. So every built-in tool is off with `--tools ""`, and the only tools are MinMacs's Read, Grep and Glob, which this binary serves over MCP as the hidden verb `_investigate-tools`. `--mcp-config` names it, `--strict-mcp-config` and `--setting-sources ""` keep every other server and setting out, and `--max-turns 12` bounds the run. No hook is involved, so decision 11 holds.
+- `MMInvestigateScoped` resolves every symlink and `..` with realpath, then refuses anything outside the folders. Read opens with `O_NOFOLLOW` and checks the opened file again with `F_GETPATH`. Grep and Glob walk with fts and never follow a symlink. `.env`, keys and credential files are never read. Each call writes one audit line, and the run saves the count of calls and refusals.
+- `MMInvestigations` keeps the newest run per subject in memory, and saves each run to the log table `investigate`. A read on main never touches the log: the first one there loads it on `no.guerrilla.minmacs.core.investigate` and asks the graph to rebuild. The estimate is the median uncached tokens of the last five runs that answered, or 35,000 before the first.
+- `minmacs investigate <finding|workstream|path> [question]` shows the folders, the question, the estimate and the model, and the last answer. Only `--yes` runs it. In the app it runs on its own queue and the card shows it, so core.sock stays free. Cold, the CLI waits and prints the answer and its cost.
+- LocoHost and WorkForest offer "Investigate…" on their cards, with the words and alerts of `Sources/UI/MMInvestigateUI.h`. The alert shows the cost and the model and asks for the question. The card's note shows the answer, cut at a whole sentence to two lines.
 
 ## Store
 

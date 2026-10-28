@@ -1,6 +1,7 @@
 // LocoHost's model, words, menu and cards. Pure: no sampling, no files, no model. See MMLHHost.h.
 #import "Experts/LocoHost/MMLHHost.h"
 #import "UI/MMFormat.h"
+#import "UI/MMInvestigateUI.h"
 
 #pragma mark - Host
 
@@ -442,6 +443,8 @@ MMCardSpec *MMLHCard(MMLHHost *h, MMLHView *v) {
         c.noteBy = [NSString stringWithFormat:@"%@ says %@%@", v.model.length ? v.model : @"The review", word, [verdict[@"judged"] boolValue] ? @" after the judge" : @""];
         c.note = MMSentence(reason);
     }
+    NSString *by = nil, *note = nil;   // what the person asked for wins over the review's note
+    if (MMInvestigateNote(v.investigations[h.findingID], &by, &note)) { c.noteBy = by; c.note = note; }
 
     NSMutableArray *actions = [NSMutableArray new];
     if (h.placeTab.length || h.placeApp.length) {
@@ -456,6 +459,12 @@ MMCardSpec *MMLHCard(MMLHHost *h, MMLHView *v) {
     if (Managed(h)) stop.disabledReason = [h.launcher containsString:@"Homebrew"] ? @"Homebrew owns it" : @"launchd owns it";
     else stop.optionTitle = @"Force Stop";
     [actions addObject:stop];
+    if (h.cwd.length > 1) {
+        NSDictionary *run = v.investigations[h.findingID];
+        MMActionSpec *inv = Action(v, @"Investigate…", MMInvestigateTail(run), @"investigate", h.findingID);
+        inv.disabledReason = MMInvestigateDisabledReason(run);
+        [actions addObject:inv];
+    }
     if (h.cwd.length > 1) [actions addObject:Action(v, @"Reveal in Finder", nil, @"reveal", h.findingID)];
     if (![h.kind isEqualToString:@"service"]) [actions addObject:Action(v, @"Copy URL", nil, @"copy-url", h.findingID)];
     [actions addObject:Action(v, @"Copy Restart Command", nil, @"copy-restart", h.findingID)];

@@ -5,6 +5,7 @@
 #import "Experts/LocoHost/MMLocoHost.h"
 #import "Experts/LocoHost/MMLHScan.h"
 #import "UI/MMFormat.h"
+#import "UI/MMInvestigateUI.h"
 
 static NSString *const kExpert = @"locohost";
 static const NSTimeInterval kGrace = 6;                  // seconds a server gets to stop after SIGTERM
@@ -478,6 +479,9 @@ static NSArray<NSDictionary *> *StoppedRecords(void) {
         if ([until isKindOfClass:NSNumber.class] && until.doubleValue > now) kept[f.findingID] = [NSDate dateWithTimeIntervalSince1970:until.doubleValue];
     }
     v.keptUntil = kept;
+    NSMutableDictionary *runs = [NSMutableDictionary new];
+    for (MMFinding *f in findings) { MMInvestigation *x = [MMInvestigations.shared latestFor:f.findingID]; if (x) runs[f.findingID] = x.json; }
+    v.investigations = runs;   // memory only, so the menu never reads the log on main
     // A server inside a worktree links to WorkForest's card of that worktree.
     NSMutableDictionary *links = [NSMutableDictionary new];
     NSArray *trees = [s findingsFor:@"workforest"];
@@ -552,6 +556,13 @@ static void Copy(NSString *s) {
 
 /// Main thread. Anything that signals or restarts runs on the act queue, through MMRunAction or MMUndo.
 - (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s {
+    if ([what isEqualToString:@"investigate"] && key) {
+        // Issue #35. The cost and the model show first, and only a confirmed run starts.
+        [MMInvestigations.shared ask:key snapshot:s confirm:^NSString *(NSString *title, NSString *text, NSString *placeholder) {
+            return MMInvestigateConfirm(title, text, placeholder);
+        } failed:^(NSString *error) { MMInvestigateFailed(error); }];
+        return;
+    }
     MMFinding *f = key ? [s finding:key] : nil;
     MMLHHost *h = f ? HostOf(f) : nil;
     if ([what isEqualToString:@"stop"] && f) {

@@ -2,7 +2,6 @@
 //   rv unit                         checks without a model; prints name<TAB>want<TAB>got lines
 //   rv review <fixture.json> [flags] runs one review and prints it as JSON; exit 1 when the review has an error
 //       --model m --trigger t --batch n --parallel n --budget n --judge --rules --mode n
-//   rv investigate <folder> <question>
 //   rv wake                         the wake queue, in process; prints name<TAB>want<TAB>got lines
 // A fixture is {"expert", "words": [keep, go, unsure], "system", "findings": [...]}. Each finding has id, title,
 // fingerprint, facts, keep_reasons and an owner {kind, key, name, path, parent}.
@@ -28,17 +27,6 @@
 @implementation RVFinding
 - (BOOL)kept { return self.keepReasons.count > 0; }
 @end
-
-@interface RVWorktree : NSObject
-@property (copy) NSString *path;
-@end
-@implementation RVWorktree @end
-
-@interface RVWorkstream : NSObject
-@property RVWorktree *worktree;
-@property RVOwner *owner;
-@end
-@implementation RVWorkstream @end
 
 /// A rule as an expert would write one: a finding whose facts say kind service is kept.
 @interface RVServiceRule : NSObject <MMRule>
@@ -170,17 +158,6 @@ static int Review(int argc, const char *argv[]) {
     return r.error ? 1 : 0;
 }
 
-static int Investigate(int argc, const char *argv[]) {
-    if (argc < 4) return 2;
-    RVWorkstream *w = [RVWorkstream new];
-    w.worktree = [RVWorktree new]; w.worktree.path = @(argv[2]);
-    MMUsage *u = nil; NSString *e = nil;
-    NSString *text = [MMReviewBroker.shared investigate:(MMWorkstream *)(id)w question:@(argv[3]) usage:&u error:&e];
-    Print(@{@"text": text ?: NSNull.null, @"error": e ?: NSNull.null, @"uncached": @(u.uncached),
-            @"investigate_today": @(MMBudget.shared.todayByExpert[@"investigate"].uncached)});
-    return text ? 0 : 1;
-}
-
 /// The wake queue with a short gap: wakes inside the gap give one review after it, and a manual wake runs at once.
 static int Wake(void) {
     MMReviewBroker *b = MMReviewBroker.shared;
@@ -207,11 +184,10 @@ static int Wake(void) {
 }
 
 int main(int argc, const char *argv[]) { @autoreleasepool {
-    if (argc < 2) { fprintf(stderr, "usage: rv unit | review | investigate | wake\n"); return 2; }
+    if (argc < 2) { fprintf(stderr, "usage: rv unit | review | wake\n"); return 2; }
     NSString *cmd = @(argv[1]);
     if ([cmd isEqualToString:@"unit"]) return Unit();
     if ([cmd isEqualToString:@"review"]) return Review(argc, argv);
-    if ([cmd isEqualToString:@"investigate"]) return Investigate(argc, argv);
     if ([cmd isEqualToString:@"wake"]) return Wake();
     fprintf(stderr, "rv: unknown command\n");
     return 2;

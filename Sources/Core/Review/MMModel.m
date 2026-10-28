@@ -237,6 +237,8 @@ static NSString *JSONText(id obj) { return [[NSString alloc] initWithData:MMRevi
 @interface MMClaudeCall : NSObject
 @property (copy) NSString *model, *system, *tools, *effort, *ttl, *cwd;
 @property NSDictionary *schema;
+@property (copy) NSString *allowed;                     // --allowedTools; nil takes tools
+@property (copy) NSArray<NSString *> *extra;            // more flags, such as --mcp-config
 @end
 @implementation MMClaudeCall @end
 
@@ -247,7 +249,9 @@ static NSDictionary *AskClaude(MMAnswer *a, NSString *claude, MMClaudeCall *c, N
                               @"--system-prompt", c.system ?: @""] mutableCopy];
     if (c.effort.length) [args addObjectsFromArray:@[@"--effort", c.effort]];
     if (c.schema) [args addObjectsFromArray:@[@"--json-schema", JSONText(c.schema)]];
-    if (c.tools.length) [args addObjectsFromArray:@[@"--allowedTools", c.tools]];
+    NSString *allowed = c.allowed ?: c.tools;
+    if (allowed.length) [args addObjectsFromArray:@[@"--allowedTools", allowed]];
+    if (c.extra.count) [args addObjectsFromArray:c.extra];
     // The person's own Claude login, never an API key from the environment, and not a nested session of the agent that launched us.
     NSArray *dropped = @[@"ANTHROPIC_API_KEY", @"ANTHROPIC_AUTH_TOKEN", @"CLAUDECODE", @"CLAUDE_CODE_ENTRYPOINT", @"CLAUDE_CODE_SSE_PORT"];
     NSDictionary *add = c.ttl.length ? @{@"CLAUDE_CODE_PROMPT_CACHE_TTL": c.ttl} : nil;
@@ -440,13 +444,25 @@ static BOOL IsCodexModel(NSString *m) { return [m isEqualToString:@"luna"] || [m
     return a;
 }
 
-/// Investigate's call, PLAN.md section 4 and research F9: Claude with only Read, Grep and Glob, run in folder.
-+ (MMAnswer *)investigate:(NSString *)question system:(NSString *)system folder:(NSString *)folder {
+/// Investigate's call, PLAN.md section 4 and research F9. Every built-in tool is off, so Claude Code's own Read,
+/// which opens any path, never runs. The only tools are MinMacs's Read, Grep and Glob, served by this same binary
+/// over MCP and scoped to folders, MMInvestigate.h. The call runs in a fresh folder, so no project file is read
+/// unless a tool reads it.
++ (MMAnswer *)investigate:(NSString *)question system:(NSString *)system folders:(NSArray<NSString *> *)folders
+                    audit:(NSString *)audit maxTurns:(NSInteger)maxTurns {
     MMAnswer *a = [MMAnswer new];
     NSString *claude = [self claudePath];
     if (!claude) { a.error = @"claude CLI not found. Install Claude Code and sign in, or set review.claudePath."; a.usage = [MMUsage new]; return a; }
+    NSString *me = NSBundle.mainBundle.executablePath;
+    if (!me.length) { a.error = @"could not find the MinMacs binary for the tools"; a.usage = [MMUsage new]; return a; }
+    NSMutableArray *serverArgs = [@[@"_investigate-tools"] mutableCopy];
+    for (NSString *f in folders) [serverArgs addObjectsFromArray:@[@"--folder", f]];
+    if (audit.length) [serverArgs addObjectsFromArray:@[@"--audit", audit]];
+    NSDictionary *mcp = @{@"mcpServers": @{@"minmacs": @{@"type": @"stdio", @"command": me, @"args": serverArgs, @"env": @{}}}};
     MMClaudeCall *c = [MMClaudeCall new];
-    c.model = @"haiku"; c.system = system; c.tools = @"Read,Grep,Glob"; c.effort = @"low"; c.cwd = folder;
+    c.model = @"haiku"; c.system = system; c.tools = @""; c.effort = @"low";
+    c.allowed = @"mcp__minmacs__Read,mcp__minmacs__Grep,mcp__minmacs__Glob";
+    c.extra = @[@"--mcp-config", JSONText(mcp), @"--max-turns", [NSString stringWithFormat:@"%ld", (long)maxTurns]];
     NSDictionary *so = AskClaude(a, claude, c, [question dataUsingEncoding:NSUTF8StringEncoding]);
     a.json = so;
     if (!a.usage) a.usage = [MMUsage new];
