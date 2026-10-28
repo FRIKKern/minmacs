@@ -472,7 +472,19 @@ static void RunOffMain(dispatch_block_t block) {
     return r;
 }
 
+/// The menu's view, made on the graph queue once per snapshot, so main never reads the mode or the day of watching.
+- (id)prepareFor:(MMSnapshot *)s { return [self makeView:s]; }
+
+/// On main, what the graph queue prepared for the snapshot. A snapshot made by hand has none and is built here.
 - (MMNNView *)viewFor:(MMSnapshot *)s {
+    if (NSThread.isMainThread) {
+        MMNNView *p = [s preparedFor:kExpert];
+        if ([p isKindOfClass:MMNNView.class]) return p;
+    }
+    return [self makeView:s];
+}
+
+- (MMNNView *)makeView:(MMSnapshot *)s {
     MMNNView *v = [MMNNView new];
     NSMutableArray *rows = [NSMutableArray new];
     NSString *growth = nil;

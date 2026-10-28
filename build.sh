@@ -2,6 +2,7 @@
 # Builds a universal MinMacs.app from every .m under Sources/.
 # Usage: ./build.sh [--install | --no-install]
 #   BUILD_DIR=dir    output folder, default build. Give each parallel build its own.
+#   DEBUG=1          a debug build: -O0 -g and MM_DEBUG, which turns on the main-thread watchdog of Sources/Shell.
 #   --install        also installs ~/Applications/MinMacs.app and ~/.local/bin/minmacs.
 #                    The default is no install, so a 2.0 build never replaces an installed 1.2.
 # A compiler warning fails the build.
@@ -23,8 +24,9 @@ rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # Sorted, so the link order is the same on every machine. Source paths must not hold spaces.
 SOURCES=$(find Sources -name '*.m' | LC_ALL=C sort)
 LOG="$BUILD_DIR/clang.log"
+OPT="-O2"; [ "${DEBUG:-}" = 1 ] && OPT="-O0 -g -DMM_DEBUG"
 # shellcheck disable=SC2086
-if ! clang -fobjc-arc -O2 -Wall -mmacosx-version-min=14.0 -arch arm64 -arch x86_64 \
+if ! clang -fobjc-arc $OPT -Wall -mmacosx-version-min=14.0 -arch arm64 -arch x86_64 \
     -ISources -DMM_VERSION="\"$VERSION\"" \
     -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications \
     -framework QuartzCore -lsqlite3 \

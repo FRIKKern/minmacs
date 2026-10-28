@@ -1,4 +1,6 @@
 #import "MMSpecMenu.h"
+#import <objc/runtime.h>
+#import <stdatomic.h>
 #import "Core/MMExpert.h"
 
 const NSUInteger MMOneIconRows = 3;
@@ -51,19 +53,94 @@ MMCard *MMCardFromSpec(MMCardSpec *spec) {
     return c;
 }
 
+#pragma mark Cards on hover
+
+static _Atomic NSUInteger gBuiltOnHover;
+static const void *kLazyKey = &kLazyKey;
+
+/// The delegate of a card's submenu until its first hover. The submenu holds it, since a menu's delegate is weak.
+@interface MMLazyCard : NSObject <NSMenuDelegate>
+@property (copy) NSString *findingID;
+@property (copy) MMCardProvider cards;
+@property BOOL done;
+@end
+@implementation MMLazyCard
+/// Main thread. The card's items move into the submenu the row already holds, so the arrow never changes.
+- (void)fill:(NSMenu *)m {
+    if (self.done) return;
+    self.done = YES;
+    MMCardSpec *spec = self.cards ? self.cards(self.findingID) : nil;
+    NSMenu *built = spec ? [MMCardFromSpec(spec) menu] : nil;
+    NSArray *items = built.itemArray ?: @[];
+    [built removeAllItems];
+    [m removeAllItems];
+    for (NSMenuItem *i in items) [m addItem:i];
+    // The finding left between the menu's build and the hover. One readable line says so.
+    if (!items.count) [m addItem:MMTextItem(@"It went away after the menu opened.", 1)];
+    MMRemoveSymbols(m);
+    atomic_fetch_add(&gBuiltOnHover, 1);
+    self.cards = nil;
+}
+- (void)menuNeedsUpdate:(NSMenu *)m { [self fill:m]; }
+@end
+
+NSUInteger MMCardsBuiltOnHover(void) { return atomic_load(&gBuiltOnHover); }
+
+BOOL MMCardWaits(NSMenu *submenu) {
+    MMLazyCard *l = submenu ? objc_getAssociatedObject(submenu, kLazyKey) : nil;
+    return l && !l.done;
+}
+
+void MMLoadCards(NSMenu *menu) {
+    for (NSMenuItem *i in menu.itemArray) {
+        if (!i.submenu) continue;
+        MMLazyCard *l = objc_getAssociatedObject(i.submenu, kLazyKey);
+        if (l) [l fill:i.submenu];
+        MMLoadCards(i.submenu);
+    }
+}
+
+/// A submenu that builds its card when it opens. It holds one empty line until then, so AppKit opens it.
+static NSMenu *LazyCard(NSString *fid, MMCardProvider cards) {
+    NSMenu *m = [NSMenu new];
+    m.autoenablesItems = NO;
+    NSMenuItem *wait = [[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""];
+    wait.enabled = NO;
+    [m addItem:wait];
+    MMLazyCard *l = [MMLazyCard new];
+    l.findingID = fid; l.cards = cards;
+    objc_setAssociatedObject(m, kLazyKey, l, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    m.delegate = l;
+    return m;
+}
+
+#pragma mark Menus
+
 /// A row spec as a kit row. A name may carry its tag after a tab, such as "checkout-flow\t:3000". The kit cuts the
-/// name at the tail and never the tag. cards nil draws the row without its card.
-static NSMenuItem *RowFrom(MMRowSpec *r, MMCardProvider cards) {
+/// name at the tail and never the tag. cards nil draws the row without its card. With has, the card waits for a hover.
+static NSMenuItem *RowFrom(MMRowSpec *r, MMCardCheck has, MMCardProvider cards) {
     NSString *name = r.name ?: @"", *tag = nil;
     NSRange tab = [name rangeOfString:@"\t" options:NSBackwardsSearch];
     if (tab.location != NSNotFound) { tag = [name substringFromIndex:tab.location + 1]; name = [name substringToIndex:tab.location]; }
     NSMenuItem *i = MMRowItem(name, tag, r.facts ?: @[], (MMMark)r.mark);
-    MMCardSpec *card = r.findingID.length && cards ? cards(r.findingID) : nil;
+    if (!r.findingID.length || !cards) return i;
+    if (has) { if (has(r.findingID)) i.submenu = LazyCard(r.findingID, cards); return i; }
+    MMCardSpec *card = cards(r.findingID);
     if (card) i.submenu = [MMCardFromSpec(card) menu];
     return i;
 }
 
+static NSMenu *SpecMenu(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget);
+
 NSMenu *MMMenuFromSpec(MMMenuSpec *spec, MMCardProvider cards, NSString *notice, id footerTarget) {
+    return SpecMenu(spec, nil, cards, notice, footerTarget);
+}
+
+NSMenu *MMMenuFromSpecOnHover(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget) {
+    return SpecMenu(spec, has ?: ^BOOL(NSString *fid) { return YES; }, cards, notice, footerTarget);
+}
+
+static NSMenu *SpecMenu(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget) {
     NSMenu *m = [NSMenu new];
     m.autoenablesItems = NO;
     [m addItem:MMHeaderItem(spec.headerBig ?: @"", spec.headerUnit, nil, spec.headerLine)];
@@ -80,7 +157,7 @@ NSMenu *MMMenuFromSpec(MMMenuSpec *spec, MMCardProvider cards, NSString *notice,
     for (MMSectionSpec *s in spec.sections) {
         if (sections >= MMMaxSections) break;
         NSMutableArray *rows = [NSMutableArray new];
-        for (MMRowSpec *r in s.rows) [rows addObject:RowFrom(r, cards)];
+        for (MMRowSpec *r in s.rows) [rows addObject:RowFrom(r, has, cards)];
         if (!rows.count) continue;
         MMAddSection(m, s.title, rows);
         sections++;
@@ -111,13 +188,14 @@ NSString *MMHeaderLine(MMMenuSpec *spec) {
 /// One expert's part of the One Icon menu: its name as a section title, its header line, then its top rows.
 /// cards nil leaves the rows without cards, for a part under More, where a card would sit two levels deep.
 static void AddPart(NSMenu *m, MMOneIconPart *p, MMCardProvider cards) {
+    MMCardCheck has = cards ? p.has : nil;
     [m addItem:MMSectionItem(p.name)];
     NSString *line = MMHeaderLine(p.spec);
     [m addItem:MMTextItem(line.length ? line : @"Nothing found yet.", 2)];   // two lines, so the header line is never cut
     NSUInteger shown = 0;
     for (MMSectionSpec *s in p.spec.sections) for (MMRowSpec *r in s.rows) {
         if (shown++ >= MMOneIconRows) break;
-        [m addItem:RowFrom(r, cards)];
+        [m addItem:RowFrom(r, has, cards)];
     }
 }
 

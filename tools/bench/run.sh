@@ -1,5 +1,6 @@
 #!/bin/sh
-# Runs the bench: idle cost with the old apps over the same window, then menu build times, then the gate.
+# Runs the bench: idle cost with the old apps over the same window, menu and card times, startup twice,
+# the main-thread watchdog over every expert's menus, then the gate.
 # Usage: tools/bench/run.sh [seconds] [warmup] [iterations] [out]
 #   seconds     the idle window, default 600, the ten minutes of PLAN.md phase 1
 #   warmup      seconds after MMCoreStart before the window opens, default 30
@@ -31,10 +32,20 @@ run() {
 run idle --seconds "$SECS" --warmup "$WARM" >"$OUT/idle.json"
 uptime >>"$OUT/host.txt"
 run menus --iterations "$ITER" >"$OUT/menus.json"
+# Startup twice in one home: a first launch, then a later one, where an expert whose field was empty waits.
+SHOME=$(mktemp -d "${TMPDIR:-/tmp}/minmacs-bench-startup.XXXXXX")
+trap 'rm -rf "$HOME_DIR" "$SHOME"' EXIT
+HOME_DIR_KEEP=$HOME_DIR; HOME_DIR=$SHOME
+run startup >"$OUT/startup-first.json"
+run startup >"$OUT/startup-later.json"
+HOME_DIR=$HOME_DIR_KEEP
+run hangs --rounds 10 >"$OUT/hangs.json" 2>"$OUT/hangs.err"
 strict=""
 [ "${MM_BENCH_STRICT:-}" = 1 ] && strict=--strict
-python3 tools/bench/gate.py $strict tools/bench/budgets.json "$OUT/idle.json" "$OUT/menus.json" >"$OUT/gate.txt" && r=0 || r=$?
-python3 tools/bench/report.py "$OUT/idle.json" "$OUT/menus.json" "$OUT/host.txt" >"$OUT/report.md"
+python3 tools/bench/gate.py $strict tools/bench/budgets.json "$OUT/idle.json" "$OUT/menus.json" \
+  "$OUT/startup-first.json" "$OUT/startup-later.json" "$OUT/hangs.json" >"$OUT/gate.txt" && r=0 || r=$?
+python3 tools/bench/report.py "$OUT/idle.json" "$OUT/menus.json" "$OUT/host.txt" \
+  "$OUT/startup-first.json" "$OUT/startup-later.json" "$OUT/hangs.json" >"$OUT/report.md"
 cat "$OUT/report.md" "$OUT/gate.txt"
 echo "results in $OUT"
 exit "$r"

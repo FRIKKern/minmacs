@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turns one bench run into Markdown tables: 2.0 against the old apps over the same window, the tick, and the menus.
 
-Usage: report.py idle.json menus.json [host.txt]
+Usage: report.py idle.json menus.json [host.txt] [startup.json ...] [hangs.json]
 """
 import json
 import sys
@@ -15,7 +15,16 @@ def fmt(x, places=2):
 def main():
     idle = json.load(open(sys.argv[1]))
     menus = json.load(open(sys.argv[2]))
-    host = open(sys.argv[3]).read().strip().splitlines() if len(sys.argv) > 3 else []
+    host, startups, hangs = [], [], None
+    for a in sys.argv[3:]:
+        if not a.endswith(".json"):
+            host = open(a).read().strip().splitlines()
+            continue
+        x = json.load(open(a))
+        if x.get("kind") == "startup":
+            startups.append(x)
+        elif x.get("kind") == "hangs":
+            hangs = x
     start = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(idle["startedAt"]))
     out = []
     out.append("Window: %s minutes from %s, after %s seconds of warm-up." % (fmt(idle["windowSeconds"] / 60, 1), start, fmt(idle["warmupSeconds"], 0)))
@@ -62,6 +71,8 @@ def main():
             ("In the window: rebuild wall time", w["rebuildWallms"]),
             ("Alone: Senses pass", t["passCPUms"]), ("Alone: Senses pass, wall time", t["passWallms"]),
             ("Alone: the facts of a rebuild", t["factsCPUms"]), ("Alone: the snapshot from those facts", t["snapshotCPUms"])]
+    if "prepareCPUms" in t:
+        rows += [("Alone: what each menu reads, prepared on the graph queue", t["prepareCPUms"])]
     if p:
         rows += [("Alone, own sample: registry agentsIn", p["registryAgentsCPUms"]), ("Alone, own sample: sessions refresh", p["sessionsRefreshCPUms"])]
         rows += [("Alone, own sample: %s findings" % k, v) for k, v in sorted(p["findingsCPUms"].items())]
@@ -71,16 +82,37 @@ def main():
     for name, s in rows:
         out.append("| %s | %s | %s | %s | %s |" % (name, s.get("median", ""), s.get("p95", ""), s.get("max", ""), s.get("n", 0)))
     out.append("")
-    out.append("Menus, in wall ms on main, %d builds each from a fixture snapshot:" % menus["iterations"])
+    out.append("Menus, in wall ms on main, %d builds each from a fixture snapshot. Prepare runs on the graph queue, before main sees the snapshot:" % menus["iterations"])
     out.append("")
-    out.append("| Expert | Fixture | Rows | Spec median | Menu open median | Menu open p95 | Card build p95 | Card hover median | Card hover p95 |")
-    out.append("|---|---|---|---|---|---|---|---|---|")
+    out.append("| Expert | Fixture | Rows | Cards | Prepare median | Spec median | Menu open median | Menu open p95 | Card build p95 | Card hover median | Card hover p95 |")
+    out.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for eid, e in sorted(menus["experts"].items()):
-        out.append("| %s | %s | %d | %s | %s | %s | %s | %s | %s |" % (
-            eid, e["fixture"], e["rows"], e["specMs"].get("median"), e["menuOpenMs"].get("median"), e["menuOpenMs"].get("p95"),
+        out.append("| %s | %s | %d | %d | %s | %s | %s | %s | %s | %s | %s |" % (
+            eid, e["fixture"], e["rows"], e.get("cards", 0), e.get("prepareMs", {}).get("median", ""), e["specMs"].get("median"),
+            e["menuOpenMs"].get("median"), e["menuOpenMs"].get("p95"),
             e["cardBuildMs"].get("p95"), e["cardHoverMs"].get("median"), e["cardHoverMs"].get("p95")))
-    out.append("| One Icon, every expert | | | | %s | %s | | | |" % (menus["oneIconMs"].get("median"), menus["oneIconMs"].get("p95")))
+    out.append("| One Icon, every expert | | | | | | %s | %s | | | |" % (menus["oneIconMs"].get("median"), menus["oneIconMs"].get("p95")))
     out.append("")
+    if "cardsBuiltAtOpen" in menus:
+        out.append("Cards built while a menu opened: %d. Log queries on main: %d. Keep file reads on main: %d." % (
+            menus["cardsBuiltAtOpen"], menus.get("logQueriesOnMain", 0), menus.get("keepReadsOnMain", 0)))
+        out.append("")
+    if startups:
+        out.append("Startup, headless, in ms from where MMMain starts:")
+        out.append("")
+        out.append("| Launch | Core started | Items made | First snapshot | Every summary | Made at launch | Left for later |")
+        out.append("|---|---|---|---|---|---|---|")
+        for r in startups:
+            t = r["times"]
+            out.append("| %s | %s | %s | %s | %s | %s | %s |" % ("first" if r.get("firstLaunch") else "later", t.get("core", ""), t.get("items", ""),
+                       t.get("snapshot", ""), t.get("summaries", ""), ", ".join(t.get("made", [])), ", ".join(t.get("deferred", [])) or "none"))
+        out.append("")
+    if hangs:
+        out.append("Watchdog: %d menu opens and %d card hovers in %d passes of main, %d of them on the live snapshot. %d stalls over %s ms." % (
+            hangs["opens"] + hangs["liveOpens"], hangs["hovers"], hangs["passes"], hangs["liveOpens"], len(hangs["stalls"]), hangs["limitMs"]))
+        for st in hangs["stalls"]:
+            out.append("- %s ms, %s ms CPU, %s, in %s" % (st["ms"], st["cpuMs"], st["state"], st["what"]))
+        out.append("")
     out.append("Nothing acted: %d undo records, every mode %s. Child process CPU in the window: %s s." % (idle["undoRecords"], idle["modes"], idle["childCPUSeconds"]))
     print("\n".join(out))
 

@@ -687,14 +687,30 @@ static NSString *ModelWords(MMReview *r) {
     return trees;
 }
 
+/// The menu's view, made on the graph queue once per snapshot: MMPlan, the keeps, the rules and Recently Removed
+/// from the undo log, so main reads none of them. The review is the one the snapshot carries.
+- (id)prepareFor:(MMSnapshot *)s { return [self makeView:s review:[s reviewFor:kExpert]]; }
+
+/// On main, what the graph queue prepared. A snapshot made by hand, as in a test, has none, and then main builds it.
+/// Any other queue, such as the CLI's, builds it and reads the log for the review.
 - (MMWFView *)viewFor:(MMSnapshot *)s {
-    if (NSThread.isMainThread && _view && _viewGen == s.generation && s.generation) return _view;
+    if (NSThread.isMainThread) {
+        MMWFView *p = [s preparedFor:kExpert];
+        if ([p isKindOfClass:MMWFView.class]) { p.reviewing = _reviewing; return p; }
+        if (_view && _viewGen == s.generation && s.generation) return _view;
+        MMWFView *v = [self makeView:s review:[s reviewFor:kExpert]];
+        _view = v; _viewGen = s.generation;
+        return v;
+    }
+    return [self makeView:s review:[s reviewFor:kExpert] ?: MMWFLastReview()];
+}
+
+- (MMWFView *)makeView:(MMSnapshot *)s review:(MMReview *)r {
     MMWFView *v = [MMWFView new];
     NSArray<MMFinding *> *findings = [s findingsFor:kExpert];
     v.trees = [self treesIn:s];
     MMMode mode = MMModeFor(kExpert);
     v.mode = MMModeName(mode);
-    MMReview *r = [s reviewFor:kExpert] ?: (NSThread.isMainThread ? nil : MMWFLastReview());
     v.reviewAt = r.at; v.reviewError = r.error; v.summaryWords = r.summaryWords; v.model = ModelWords(r);
     v.reviewing = _reviewing;
     NSMutableDictionary *verdicts = [NSMutableDictionary new];
@@ -716,7 +732,6 @@ static NSString *ModelWords(MMReview *r) {
     v.watchingLeft = MMWatchingLeft(kExpert);
     __weak MMWorkForestExpert *weak = self;
     v.act = ^(NSString *what, NSString *key, BOOL option) { [weak act:what key:key option:option snapshot:s]; };
-    if (NSThread.isMainThread) { _view = v; _viewGen = s.generation; }
     return v;
 }
 
@@ -824,14 +839,23 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         [NSPasteboard.generalPasteboard clearContents];
         [NSPasteboard.generalPasteboard setString:t.path forType:NSPasteboardTypeString];
     } else if ([what isEqualToString:@"keep"]) {
-        BOOL kept = [MMKeep keptUntil:f.stableKey expert:kExpert] != nil;
-        [MMKeep keep:f.stableKey expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400]];
+        // The keeps and rules files are read and written on the act queue, so main never waits on disk.
+        // The rebuild after it carries the change to the menu.
+        NSString *stable = f.stableKey;
+        dispatch_async(ActQueue(), ^{
+            BOOL kept = [MMKeep keptUntil:stable expert:kExpert] != nil;
+            [MMKeep keep:stable expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400]];
+            [MMGraph.shared rebuild:@"workforest keep"];
+        });
         _view = nil;
     } else if ([what isEqualToString:@"protect"]) {
-        BOOL on = ![MMKeep isProtected:t.path expert:kExpert];
-        [MMWFRules() set:on value:t.path inList:@"protect" key:nil];
+        NSString *path = t.path;
+        dispatch_async(ActQueue(), ^{
+            BOOL on = ![MMKeep isProtected:path expert:kExpert];
+            [MMWFRules() set:on value:path inList:@"protect" key:nil];
+            [MMGraph.shared rebuild:@"workforest protect"];
+        });
         _view = nil;
-        [MMGraph.shared rebuild:@"workforest protect"];
     }
 }
 
@@ -887,7 +911,14 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         MMMode mode = MMModeFor(kExpert);
         if (mode == MMModeIdle || r.error.length || _removing) return;
         NSMutableArray *todo = [NSMutableArray new];
-        for (MMPlanEntry *e in MMPlan(findings, s.facts, r, mode, MMWFModePolicy())) if (e.act) [todo addObject:@[e.finding, e.why ?: @""]];
+        // The plan the graph queue made for this snapshot, so main never runs MMPlan.
+        MMWFView *prepared = [s preparedFor:kExpert];
+        if ([prepared isKindOfClass:MMWFView.class] && [prepared.mode isEqualToString:MMModeName(mode)]) {
+            for (MMFinding *f in findings) {
+                NSDictionary *e = prepared.plan[f.findingID];
+                if ([e[@"remove"] boolValue]) [todo addObject:@[f, e[@"why"] ?: @""]];
+            }
+        } else for (MMPlanEntry *e in MMPlan(findings, s.facts, r, mode, MMWFModePolicy())) if (e.act) [todo addObject:@[e.finding, e.why ?: @""]];
         if (!todo.count) return;
         _removing = YES;
         dispatch_async(ActQueue(), ^{ [self autoRemove:todo review:r mode:mode]; });

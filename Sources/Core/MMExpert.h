@@ -128,6 +128,10 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 - (NSArray<MMVerbSpec *> *)verbs;
 
 @optional
+/// What the menu reads, made once per snapshot on the graph queue, after the snapshot is built and before main sees it.
+/// Here the expert reads its keeps, rules, prefs and undo log, and runs MMPlan, so menuFor:, cardFor:, badgeFor: and
+/// accessibilityStateFor: on main read only -[MMSnapshot preparedFor:]. nil when there is nothing to keep.
+- (id)prepareFor:(MMSnapshot *)s;
 /// P61 and P62. The standalone app's name, such as "locohost". It works as argv[0] for the binary
 /// and as a URL scheme, so old scripts and links keep working. The URL router of P62 lives in Sources/CLI.
 @property (readonly, copy) NSString *legacyName;

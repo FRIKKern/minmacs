@@ -4,7 +4,12 @@
 //
 //   bench idle --seconds N [--warmup N]   MMCoreStart with every built-in expert, no status items, every mode Idle.
 //                                         Senses samples the real process table. Nothing acts.
-//   bench menus [--iterations N]          each expert's menu spec, cards and NSMenu from a fixture snapshot
+//   bench menus [--iterations N]          each expert's menu as the app opens it, and each card as a hover builds it,
+//                                         from a fixture snapshot that the graph queue's prepare step ran on first
+//   bench hangs [--rounds N]              menu opens and card hovers for every expert under the main-thread watchdog,
+//                                         with Core running, issue #55. Lists every pass of main over 50 ms
+//   bench startup [--wait N]              the app's launch headless: Core, the items without the status bar, and
+//                                         each expert's first summary line, timed from where MMMain starts
 //   bench apps                            the old apps that run now, read once with proc_pid_rusage
 //
 // Each prints one JSON object on stdout. It reads itself with getrusage, task_info and proc_pid_rusage,
@@ -21,8 +26,12 @@
 #import "Shell/MMShell.h"
 #import "UI/MMUI.h"
 #import "UI/MMSpecMenu.h"
+#import "Shell/MMWatchdog.h"
 #import "Experts/LocoHost/MMLHHost.h"
 #import "Experts/MinMacs/MMMinMacs.h"
+#import "Experts/WorkForest/MMWorkForest.h"
+#import "Experts/NooNoo/MMNooNoo.h"
+#import "Experts/Insomnia/MMInsomnia.h"
 
 #pragma mark - Clocks and counters
 
@@ -227,11 +236,12 @@ static void RunMain(double seconds) {
 #pragma mark - Idle
 
 /// The cost of one tick, measured on one thread after the window, so nothing else runs inside the numbers:
-/// a Senses pass, the facts a rebuild gathers, and the snapshot the experts build from them.
+/// a Senses pass, the facts a rebuild gathers, the snapshot the experts build from them, and what each menu reads.
 /// A sample reads args and cwd once and keeps them, so each part is also timed alone on a sample of its own:
 /// the registry, the session index and each expert's findings. Those runs start with a new pass too.
 static NSDictionary *TickCost(int n) {
     NSMutableArray *pass = [NSMutableArray new], *passWall = [NSMutableArray new], *facts = [NSMutableArray new], *snap = [NSMutableArray new];
+    NSMutableArray *prep = [NSMutableArray new];
     NSMutableArray *sessions = [NSMutableArray new], *agents = [NSMutableArray new], *agentsWarm = [NSMutableArray new];
     NSMutableDictionary<NSString *, NSMutableArray *> *experts = [NSMutableDictionary new], *expertsWarm = [NSMutableDictionary new];
     for (id<MMExpert> e in MMExperts()) { experts[e.expertID] = [NSMutableArray new]; expertsWarm[e.expertID] = [NSMutableArray new]; }
@@ -245,9 +255,12 @@ static NSDictionary *TickCost(int n) {
             uint64_t c0 = ThreadCPUNs();
             MMFacts *f = [MMGraph.shared.source factsFor:1000000 + (uint64_t)i];
             uint64_t c1 = ThreadCPUNs();
-            [MMSnapshot snapshotFrom:f experts:MMExperts() reviews:nil holds:nil];
+            MMSnapshot *built = [MMSnapshot snapshotFrom:f experts:MMExperts() reviews:nil holds:nil];
+            uint64_t c2 = ThreadCPUNs();
+            [built prepareFor:MMExperts()];   // what each menu reads, made as the graph queue makes it
             [facts addObject:@((c1 - c0) / 1e6)];
-            [snap addObject:@((ThreadCPUNs() - c1) / 1e6)];
+            [snap addObject:@((c2 - c1) / 1e6)];
+            [prep addObject:@((ThreadCPUNs() - c2) / 1e6)];
         });
         // The parts, each on a new sample, so none reads what another part already read.
         dispatch_sync(graphQ, ^{
@@ -277,7 +290,7 @@ static NSDictionary *TickCost(int n) {
     NSMutableDictionary *findings = [NSMutableDictionary new], *findingsWarm = [NSMutableDictionary new];
     for (NSString *k in experts) { findings[k] = Stats(experts[k]); findingsWarm[k] = Stats(expertsWarm[k]); }
     return @{@"passes": @(n), @"passCPUms": Stats(pass), @"passWallms": Stats(passWall),
-             @"factsCPUms": Stats(facts), @"snapshotCPUms": Stats(snap),
+             @"factsCPUms": Stats(facts), @"snapshotCPUms": Stats(snap), @"prepareCPUms": Stats(prep),
              @"parts": @{@"sessionsRefreshCPUms": Stats(sessions), @"registryAgentsCPUms": Stats(agents), @"findingsCPUms": findings,
                          @"registryAgentsWarmCPUms": Stats(agentsWarm), @"findingsWarmCPUms": findingsWarm}};
 }
@@ -448,12 +461,15 @@ static MMFacts *FixtureFacts(uint64_t generation) {
     NSString *home = [NSProcessInfo.processInfo.environment[@"MINMACS_HOME"] stringByAppendingPathComponent:@"bench-fixture"];
     NSArray *rows = @[@[@1, @0, @"launchd", @"/"], @[@100050, @1, @"Terminal", @"/"], @[@100060, @100050, @"zsh", home],
                       @[@100110, @100060, @"node", [home stringByAppendingPathComponent:@"web"]],
-                      @[@100130, @100060, @"node", [home stringByAppendingPathComponent:@"docs"]], @[@100500, @1, @"Notes", @"/"]];
+                      @[@100130, @100060, @"node", [home stringByAppendingPathComponent:@"docs"]], @[@100500, @1, @"Notes", @"/"],
+                      @[@100700, @100060, @"claude", [home stringByAppendingPathComponent:@"web"]],
+                      @[@100701, @100060, @"codex", [home stringByAppendingPathComponent:@"docs"]]];
     NSMutableDictionary *procs = [NSMutableDictionary new];
     for (NSArray *r in rows) {
         MMBenchProcFix *p = [MMBenchProcFix new];
         p.pid = [r[0] intValue]; p.ppid = [r[1] intValue]; p.uid = getuid(); p.startSec = 1761000000 + (uint64_t)p.pid;
         p.name = r[2]; p.cwd = r[3]; p.cpuPercent = 0.5; p.footprint = 64ull << 20;
+        if (p.pid >= 100700) p.startSec = 1761000100 + (uint64_t)(p.pid - 100700) * 100;   // the agents' keys in InsomniaFixture
         procs[@(p.pid)] = p;
     }
     MMBenchSample *s = [MMBenchSample new];
@@ -543,13 +559,139 @@ static MMMinMacsInput *MinMacsFixture(MMFacts *facts) {
     return in;
 }
 
+/// One worktree, as WorkForest's own finding would hold it.
+static MMWFTree *FixtureTree(NSString *repo, NSString *folder, NSString *branch, uint64_t mb, NSTimeInterval quiet) {
+    MMWFTree *t = [MMWFTree new];
+    t.repo = [@"/Users/dev/code" stringByAppendingPathComponent:repo];
+    t.path = [[t.repo stringByAppendingString:@".worktrees"] stringByAppendingPathComponent:folder];
+    t.findingID = [@"workforest:worktree:" stringByAppendingString:t.path];
+    t.branch = branch; t.maker = @"person"; t.gitKnown = YES; t.head = @"4f1c2d9e8a7b";
+    t.defaultBranch = @"origin/main"; t.upstream = [@"origin/" stringByAppendingString:branch ?: @""]; t.onRemote = YES;
+    t.sized = YES; t.diskBytes = mb << 20; t.freedBytes = mb << 20; t.cacheBytes = (mb / 2) << 20; t.files = 1200;
+    t.lastCommit = [NSDate dateWithTimeIntervalSinceNow:-quiet]; t.touched = t.lastCommit; t.created = [NSDate dateWithTimeIntervalSinceNow:-quiet - 86400];
+    return t;
+}
+
+/// Sixteen worktrees in two repos, the size of the render tool's WorkForest subject: merged, squash-merged, busy,
+/// dirty and quiet ones, and both main checkouts. Built as WorkForest's FindingFor builds them, from each tree's JSON.
+static NSArray<MMFinding *> *WorkForestFixture(void) {
+    NSMutableArray<MMWFTree *> *trees = [NSMutableArray new];
+    MMWFTree *promo = FixtureTree(@"acme-web", @"acme-web-promo-banner", @"feat/promo-banner", 4900, 6 * 86400);
+    promo.merged = @"squash"; promo.upstream = @"gone"; promo.notInDefault = 2; [trees addObject:promo];
+    MMWFTree *docs = FixtureTree(@"acme-web", @"acme-web-docs-refresh", @"docs/refresh", 540, 13 * 86400);
+    docs.merged = @"ancestor"; [trees addObject:docs];
+    MMWFTree *checkout = FixtureTree(@"acme-web", @"acme-web-checkout-flow", @"feat/checkout-flow", 905, 3 * 3600);
+    checkout.processes = @[@"node", @"zsh"]; checkout.notInDefault = 4;
+    checkout.session = @{@"agent": @"Claude Code", @"title": @"Checkout flow", @"lastActiveAt": @(NSDate.date.timeIntervalSince1970 - 1200), @"live": @YES};
+    [trees addObject:checkout];
+    MMWFTree *search = FixtureTree(@"acme-web", @"acme-web-search-facets", @"feat/search-facets", 820, 2 * 3600);
+    search.dirty = 3; search.notInDefault = 2; [trees addObject:search];
+    MMWFTree *hooks = FixtureTree(@"orbit-api", @"billing-webhooks", @"fix/billing-webhooks", 1300, 36 * 3600);
+    hooks.processes = @[@"node"]; hooks.notInDefault = 1; [trees addObject:hooks];
+    MMWFTree *limits = FixtureTree(@"orbit-api", @"rate-limits", @"wip/rate-limits", 310, 9 * 86400);
+    limits.notInDefault = 5; [trees addObject:limits];
+    NSArray *names = @[@"onboarding-copy", @"pricing-table", @"sso-okta", @"dark-mode", @"image-cdn", @"cart-refactor", @"i18n-nb", @"search-v2"];
+    for (NSUInteger k = 0; k < names.count; k++) {
+        MMWFTree *q = FixtureTree(k % 2 ? @"orbit-api" : @"acme-web", names[k], [@"feat/" stringByAppendingString:names[k]], 120 + 40 * k, (4 + 3 * k) * 86400);
+        q.notInDefault = 1 + k % 3;
+        [trees addObject:q];
+    }
+    for (NSString *repo in @[@"acme-web", @"orbit-api"]) {
+        MMWFTree *m = FixtureTree(repo, repo, @"main", 2400, 3600);
+        m.path = m.repo; m.isMain = YES; m.isProtected = YES; m.findingID = [@"workforest:worktree:" stringByAppendingString:m.path];
+        [trees addObject:m];
+    }
+    NSMutableArray *out = [NSMutableArray new];
+    for (MMWFTree *t in trees) {
+        [out addObject:[MMFinding expert:@"workforest" kind:@"worktree" stableKey:t.path build:^(MMFindingBuilder *b) {
+            b.instanceKey = t.head; b.path = t.path;
+            b.title = t.isMain ? t.repoName : [NSString stringWithFormat:@"%@/%@", t.repoName, t.name];
+            b.cost = (MMCost){ .cpuPercent = -1, .diskFreed = t.freedBytes, .diskAllocated = t.diskBytes };
+            if (!t.isMain) b.proposal = [MMProposal verb:@"remove" title:@"Remove Worktree" reversibility:MMReversibleRestart];
+            NSString *keep = t.isMain ? nil : MMWFWorkKeeps(t);
+            if (keep) b.keepReasons = @[keep];
+            b.facts = t.json;
+            b.fingerprint = t.path;
+        }]];
+    }
+    return out;
+}
+
+/// Twelve clutter items in Noo-Noo's four sections, with the facts its findings carry.
+static NSArray<MMFinding *> *NooNooFixture(void) {
+    NSArray *rows = @[
+        @[@"next-build", @".next", @"Next.js build output", @"finished", @3170, @"search", @"squash-merged", @YES],
+        @[@"node-modules", @"node_modules", @"node_modules", @"finished", @1536, @"search", @"squash-merged", @YES],
+        @[@"node-modules", @"node_modules", @"node_modules", @"finished", @900, @"old-onboarding", @"remote branch deleted", @YES],
+        @[@"claude-scratch", @"Claude Code scratch", @"Claude Code scratch", @"leftovers", @3410, @"", @"", @NO],
+        @[@"tmp-family", @"server-budget-* folders", @"temp folders", @"leftovers", @12, @"", @"", @NO],
+        @[@"go-build", @"Go build cache", @"Go build cache", @"caches", @2980, @"", @"", @NO],
+        @[@"pnpm-store", @"pnpm store", @"pnpm store", @"caches", @5610, @"", @"", @NO],
+        @[@"playwright", @"Playwright browsers", @"Playwright browsers", @"caches", @2540, @"chromium-1187", @"", @NO],
+        @[@"xcode-derived", @"DerivedData", @"Xcode DerivedData", @"caches", @7400, @"", @"", @NO],
+        @[@"node-modules", @"node_modules", @"node_modules", @"kept", @1610, @"checkout-flow", @"", @YES],
+        @[@"claude-transcripts", @"Claude Code transcripts", @"Claude Code transcripts", @"kept", @2040, @"acme-web", @"", @NO],
+        @[@"trash", @"Trash", @"Trash", @"caches", @2150, @"", @"", @NO]];
+    NSMutableArray *out = [NSMutableArray new];
+    NSInteger i = 0;
+    for (NSArray *r in rows) {
+        NSString *path = [NSString stringWithFormat:@"/Users/dev/code/fixture-%ld/%@", (long)i, r[1]];
+        uint64_t bytes = [r[4] unsignedLongLongValue] << 20;
+        NSMutableDictionary *fx = [@{@"kindID": r[0], @"kindTitle": r[2], @"class": @"build", @"path": path, @"members": @1,
+                                     @"state": [r[3] isEqual:@"kept"] ? @"live" : @"free", @"section": r[3], @"allocated": @(bytes), @"freed": @(bytes),
+                                     @"name": r[1], @"goes": @([r[3] isEqual:@"finished"]), @"reportOnly": @NO, @"folder": r[7],
+                                     @"lastUsed": @(NSDate.date.timeIntervalSince1970 - 86400.0 * (i + 1)),
+                                     @"trend": @{@"ok": @YES, @"bytesPerDay": @(bytes / 14.0), @"windowDays": @14, @"firstBytes": @(bytes / 3.0),
+                                                 @"lastBytes": @(bytes), @"weekRatio": @1.4}} mutableCopy];
+        if ([r[5] length]) fx[@"owner"] = r[5];
+        if ([r[6] length]) { fx[@"ownerState"] = r[6]; fx[@"worktree"] = [@"/Users/dev/code/acme-web.worktrees" stringByAppendingPathComponent:r[5]]; }
+        if ([r[3] isEqual:@"kept"]) fx[@"why"] = @"an agent works in checkout-flow";
+        BOOL kept = [r[3] isEqual:@"kept"];
+        NSString *key = [NSString stringWithFormat:@"%@:%@", r[0], path];
+        [out addObject:[MMFinding expert:@"noonoo" kind:@"clutter" stableKey:key build:^(MMFindingBuilder *b) {
+            b.instanceKey = key; b.title = r[1]; b.path = path;
+            b.cost = (MMCost){ .cpuPercent = -1, .diskFreed = bytes, .diskAllocated = bytes };
+            b.proposal = [MMProposal verb:@"remove" title:@"Move to Trash" reversibility:MMReversibleTrash];
+            if (kept) b.keepReasons = @[@"an agent works in checkout-flow"];
+            b.facts = fx;
+            b.fingerprint = key;
+        }]];
+        i++;
+    }
+    return out;
+}
+
+/// Two agents, one working and one quiet, in the fixture facts' folders. Insomnia makes its own findings from them.
+static MMINInput *InsomniaFixture(MMFacts *facts) {
+    NSString *home = [NSProcessInfo.processInfo.environment[@"MINMACS_HOME"] stringByAppendingPathComponent:@"bench-fixture"];
+    MMINWorker *claude = [MMINWorker new];
+    claude.kind = @"agent"; claude.key = (MMProcKey){ 100700, 1761000100 }; claude.name = @"Claude Code"; claude.harness = @"claude-code";
+    claude.sessionID = @"bench-1"; claude.cwd = [home stringByAppendingPathComponent:@"web"]; claude.why = @"status file busy"; claude.working = YES;
+    claude.stableKey = @"claude-code:bench-1";
+    MMINWorker *codex = [MMINWorker new];
+    codex.kind = @"agent"; codex.key = (MMProcKey){ 100701, 1761000200 }; codex.name = @"Codex"; codex.harness = @"codex";
+    codex.sessionID = @"bench-2"; codex.cwd = [home stringByAppendingPathComponent:@"docs"]; codex.why = @"newest turn completed"; codex.working = NO;
+    codex.stableKey = @"codex:bench-2";
+    MMINInput *in = [MMINInput new];
+    in.workers = @[claude, codex];
+    return in;
+}
+
+static MMBenchReplay *Replay(NSString *expertID, NSArray<MMFinding *> *findings) {
+    MMBenchReplay *r = [MMBenchReplay new];
+    r.expertID = expertID; r.findings = findings;
+    return r;
+}
+
 /// The expert that makes each registered expert's findings for the fixture snapshot, and what it is called.
 static id<MMExpert> FixtureSource(id<MMExpert> e, NSString **kind) {
-    if ([e.expertID isEqualToString:@"locohost"]) {
-        MMBenchReplay *r = [MMBenchReplay new];
-        r.expertID = e.expertID; r.findings = LocoHostFixture();
-        *kind = @"12 fixture servers";
-        return r;
+    if ([e.expertID isEqualToString:@"locohost"]) { *kind = @"12 fixture servers"; return Replay(e.expertID, LocoHostFixture()); }
+    if ([e.expertID isEqualToString:@"workforest"]) { *kind = @"16 fixture worktrees in 2 repos"; return Replay(e.expertID, WorkForestFixture()); }
+    if ([e.expertID isEqualToString:@"noonoo"]) { *kind = @"12 fixture clutter items"; return Replay(e.expertID, NooNooFixture()); }
+    if ([(NSObject *)e isKindOfClass:MMInsomniaExpert.class]) {
+        ((MMInsomniaExpert *)e).inputFrom = ^MMINInput *(MMFacts *f) { return InsomniaFixture(f); };
+        *kind = @"2 fixture agents";
+        return e;
     }
     if ([(NSObject *)e isKindOfClass:MMMinMacsExpert.class]) {
         ((MMMinMacsExpert *)e).inputFrom = ^MMMinMacsInput *(MMFacts *f) { return MinMacsFixture(f); };
@@ -581,6 +723,78 @@ static void Draw(NSView *v) {
     if (rep) [v cacheDisplayInRect:r toBitmapImageRep:rep];
 }
 
+/// The fixture experts and their snapshots: each registered expert, the source of its fixture findings, and a block
+/// that makes a new snapshot of a new generation, so no expert answers from a cache it keeps per snapshot.
+@interface MMBenchFixture : NSObject
+@property (copy) NSArray<id<MMExpert>> *experts, *sources;
+@property (copy) NSDictionary<NSString *, NSString *> *kinds;
+@property uint64_t gen;
+@end
+@implementation MMBenchFixture
+/// A snapshot from the fixture facts, with what the graph queue prepares for each menu. Any queue.
+- (MMSnapshot *)fresh {
+    uint64_t g;
+    @synchronized (self) { g = ++_gen; }
+    MMSnapshot *s = [MMSnapshot snapshotFrom:FixtureFacts(g) experts:self.sources reviews:nil holds:nil];
+    [s prepareFor:self.experts];
+    return s;
+}
+@end
+
+static MMBenchFixture *Fixture(void) {
+    MMRegisterBuiltInExperts();
+    AllIdle();
+    MMBenchFixture *fx = [MMBenchFixture new];
+    fx.experts = MMExperts();
+    NSMutableArray *sources = [NSMutableArray new];
+    NSMutableDictionary *kinds = [NSMutableDictionary new];
+    for (id<MMExpert> e in fx.experts) { NSString *k = nil; [sources addObject:FixtureSource(e, &k)]; kinds[e.expertID] = k; }
+    fx.sources = sources; fx.kinds = kinds;
+    return fx;
+}
+
+/// Runs block on q and waits. dispatch_sync from main would run it on main, so it goes through dispatch_async.
+static void OffMain(dispatch_queue_t q, dispatch_block_t block) {
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(q, ^{ block(); dispatch_semaphore_signal(done); });
+    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+}
+
+/// Each row's card that waits for a hover, in menu order, with the More items' rows too.
+static NSArray<NSMenu *> *WaitingCards(NSMenu *m) {
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSMenuItem *i in m.itemArray) {
+        if (!i.submenu) continue;
+        if (MMCardWaits(i.submenu)) [out addObject:i.submenu];
+        else [out addObjectsFromArray:WaitingCards(i.submenu)];
+    }
+    return out;
+}
+
+/// A hover: the card's spec, its kit card and its items, as the submenu's delegate builds them, then the layout and
+/// drawing as the submenu shows. Returns the time of the build alone in *build.
+static double Hover(NSMenu *card, double *build) {
+    uint64_t c0 = NowNs();
+    [card.delegate menuNeedsUpdate:card];
+    uint64_t c1 = NowNs();
+    Draw([card itemAtIndex:0].view);
+    uint64_t c2 = NowNs();
+    if (build) *build = (c1 - c0) / 1e6;
+    return (c2 - c0) / 1e6;
+}
+
+/// A menu's items as text, submenus included: each title, a view's size, and the alternates, for comparing two menus.
+static NSString *Shape(NSMenu *m) {
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSMenuItem *i in m.itemArray) {
+        NSString *t = i.isSeparatorItem ? @"-" : i.view ? [NSString stringWithFormat:@"view %.0fx%.0f", i.view.frame.size.width, i.view.frame.size.height]
+                                        : [NSString stringWithFormat:@"%@%@%@", i.attributedTitle.string ?: i.title, i.isAlternate ? @" alt" : @"", i.enabled ? @"" : @" off"];
+        if (i.submenu) t = [NSString stringWithFormat:@"%@ [%@]", t, Shape(i.submenu)];
+        [out addObject:t];
+    }
+    return [out componentsJoinedByString:@"; "];
+}
+
 static int Menus(NSArray<NSString *> *args) {
     int n = Option(args, @"--iterations", @"200").intValue;
     if (n <= 0) { fprintf(stderr, "usage: bench menus [--iterations N]\n"); return 2; }
@@ -588,75 +802,229 @@ static int Menus(NSArray<NSString *> *args) {
     [NSApplication sharedApplication];
     // The menu builds where the app builds it: on main at user-interactive QoS.
     pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
-    MMRegisterBuiltInExperts();
-    AllIdle();
-    NSArray<id<MMExpert>> *experts = MMExperts();
-    NSMutableArray<id<MMExpert>> *sources = [NSMutableArray new];
-    NSMutableDictionary *fixtureKinds = [NSMutableDictionary new];
-    for (id<MMExpert> e in experts) { NSString *k = nil; [sources addObject:FixtureSource(e, &k)]; fixtureKinds[e.expertID] = k; }
+    MMBenchFixture *fx = Fixture();
     MMBenchFooter *footer = [MMBenchFooter new];
-    __block uint64_t gen = 1;
-    MMSnapshot *(^fresh)(void) = ^MMSnapshot *{ return [MMSnapshot snapshotFrom:FixtureFacts(gen++) experts:sources reviews:nil holds:nil]; };
+    // The graph queue's prepare step runs where the graph runs it, on a queue of its own, outside the menu's time.
+    dispatch_queue_t graphQ = dispatch_queue_create("no.guerrilla.minmacs.bench.graph", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
 
     NSMutableDictionary *out = [NSMutableDictionary new];
-    for (id<MMExpert> e in experts) {
+    NSUInteger before = MMCardsBuiltOnHover();
+    BOOL noneAtOpen = YES;
+    for (id<MMExpert> e in fx.experts) {
         NSMutableArray *spec = [NSMutableArray new], *open = [NSMutableArray new], *cardBuild = [NSMutableArray new], *hover = [NSMutableArray new];
+        NSMutableArray *prepare = [NSMutableArray new];
         __block NSUInteger rows = 0, cards = 0, items = 0;
+        uint64_t began = NowNs();
         for (int i = -3; i < n; i++) @autoreleasepool {   // three turns of warm-up
-            // A new generation every turn, so no expert answers from a cache it keeps per snapshot.
-            MMSnapshot *s = fresh();
+            __block MMSnapshot *s = nil;
+            __block double prep = 0;
+            OffMain(graphQ, ^{
+                s = [MMSnapshot snapshotFrom:FixtureFacts(++fx.gen) experts:fx.sources reviews:nil holds:nil];
+                // This expert's part of the graph queue's prepare step, timed. Its menu reads only its own.
+                uint64_t p0 = NowNs();
+                [s prepareFor:@[e]];
+                prep = (NowNs() - p0) / 1e6;
+            });
             uint64_t t0 = NowNs();
             MMMenuSpec *m = [e menuFor:s];
             uint64_t t1 = NowNs();
-            // What MMExpertItem's menuNeedsUpdate: does on main: the spec, every row's card and the NSMenu.
-            NSMenu *menu = MMMenuFromSpec(m, ^MMCardSpec *(NSString *fid) {
-                MMFinding *f = [s finding:fid];
-                return f ? [e cardFor:f snapshot:s] : nil;
-            }, nil, footer);
+            // What MMExpertItem's menuNeedsUpdate: does on main: MMShellMenu, the spec and the NSMenu, no card.
+            NSUInteger built = MMCardsBuiltOnHover();
             uint64_t t2 = NowNs();
+            NSMenu *menu = MMShellMenu(e, s, nil, footer);
+            uint64_t t3 = NowNs();
+            if (MMCardsBuiltOnHover() != built) noneAtOpen = NO;
             if (i < 0) continue;
+            [prepare addObject:@(prep)];
             [spec addObject:@((t1 - t0) / 1e6)];
-            [open addObject:@((t2 - t0) / 1e6)];
+            [open addObject:@((t3 - t2) / 1e6)];
             items = menu.numberOfItems;
             rows = 0; for (MMSectionSpec *sec in m.sections) rows += sec.rows.count;
-            // A hover: the card's spec and view, then its layout and drawing as the submenu opens.
             cards = 0;
-            for (MMSectionSpec *sec in m.sections) for (MMRowSpec *r in sec.rows) {
-                MMFinding *f = r.findingID ? [s finding:r.findingID] : nil;
-                if (!f) continue;
-                uint64_t c0 = NowNs();
-                MMCardSpec *cs = [e cardFor:f snapshot:s];
-                if (!cs) continue;
-                MMCard *card = MMCardFromSpec(cs);
-                NSMenu *cm = [card menu];
-                uint64_t c1 = NowNs();
-                Draw([cm itemAtIndex:0].view);
-                uint64_t c2 = NowNs();
-                [cardBuild addObject:@((c1 - c0) / 1e6)];
-                [hover addObject:@((c2 - c0) / 1e6)];
+            for (NSMenu *card in WaitingCards(menu)) {
+                double b = 0, h = Hover(card, &b);
+                [cardBuild addObject:@(b)];
+                [hover addObject:@(h)];
                 cards++;
             }
         }
-        out[e.expertID] = @{@"fixture": fixtureKinds[e.expertID], @"rows": @(rows), @"cards": @(cards), @"items": @(items),
-                            @"specMs": Stats(spec), @"menuOpenMs": Stats(open), @"cardBuildMs": Stats(cardBuild), @"cardHoverMs": Stats(hover)};
+        out[e.expertID] = @{@"fixture": fx.kinds[e.expertID], @"rows": @(rows), @"cards": @(cards), @"items": @(items),
+                            @"prepareMs": Stats(prepare), @"runSeconds": R2((NowNs() - began) / 1e9), @"specMs": Stats(spec), @"menuOpenMs": Stats(open),
+                            @"cardBuildMs": Stats(cardBuild), @"cardHoverMs": Stats(hover)};
+    }
+    // The menu the app opens, with each card built on hover, holds what the menu with every card built up front holds.
+    NSMutableArray *same = [NSMutableArray new], *differ = [NSMutableArray new];
+    {
+        __block MMSnapshot *s = nil;
+        OffMain(graphQ, ^{ s = [fx fresh]; });
+        for (id<MMExpert> e in fx.experts) {
+            NSMenu *eager = MMMenuFromSpec([e menuFor:s], ^MMCardSpec *(NSString *fid) {
+                MMFinding *f = [s finding:fid];
+                return f ? [e cardFor:f snapshot:s] : nil;
+            }, nil, footer);
+            NSMenu *lazy = MMShellMenu(e, s, nil, footer);
+            MMLoadCards(lazy);
+            [([Shape(eager) isEqualToString:Shape(lazy)] ? same : differ) addObject:e.expertID];
+        }
     }
     // One Icon: one menu with a section per expert, built the way the shell builds it.
     NSMutableArray *one = [NSMutableArray new];
     for (int i = -3; i < n; i++) @autoreleasepool {
-        MMSnapshot *s = fresh();
+        __block MMSnapshot *s = nil;
+        OffMain(graphQ, ^{ s = [fx fresh]; });
         uint64_t t0 = NowNs();
-        NSMutableArray *parts = [NSMutableArray new];
-        for (id<MMExpert> e in experts) {
-            if ([e fieldEmptyIn:s]) continue;
-            MMOneIconPart *p = [MMOneIconPart new];
-            p.name = e.name; p.spec = [e menuFor:s];
-            p.cards = ^MMCardSpec *(NSString *fid) { MMFinding *f = [s finding:fid]; return f ? [e cardFor:f snapshot:s] : nil; };
-            [parts addObject:p];
-        }
-        MMOneIconMenu(parts, nil, footer);
+        MMShellOneIconMenu(s, nil, footer);
         if (i >= 0) [one addObject:@((NowNs() - t0) / 1e6)];
     }
-    PrintJSON(@{@"kind": @"menus", @"iterations": @(n), @"experts": out, @"oneIconMs": Stats(one)});
+    PrintJSON(@{@"kind": @"menus", @"iterations": @(n), @"experts": out, @"oneIconMs": Stats(one),
+                @"cardsBuiltAtOpen": @(noneAtOpen ? 0 : 1), @"cardsBuiltOnHover": @(MMCardsBuiltOnHover() - before),
+                @"sameAsCardsUpFront": same, @"differFromCardsUpFront": differ,
+                @"logQueriesOnMain": @(MMLogMainThreadQueries()), @"keepReadsOnMain": @(MMKeepMainThreadReads())});
+    return 0;
+}
+
+#pragma mark - Hangs
+
+/// A stall made on purpose, so the run shows the watchdog catches one and names this function in its stack.
+/// Not static, so its name is in the symbol table dladdr reads.
+/// It keeps its own frame: no inlining and no tail call, so the stack shows it above usleep.
+void MMBenchStallOnPurpose(double ms) __attribute__((noinline, disable_tail_calls));
+void MMBenchStallOnPurpose(double ms) { usleep((useconds_t)(ms * 1000)); }
+
+static void RunUntil(BOOL (^done)(void), double seconds) {
+    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    while (!done() && end.timeIntervalSinceNow > 0) @autoreleasepool {
+        [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+    }
+}
+
+/// Hovers card k, then card k + 1 in a pass of its own 3 ms later, and so on to the last. Then done.
+static void HoverChain(NSArray<NSMenu *> *cards, NSUInteger k, void (^each)(void), dispatch_block_t done) {
+    if (k >= cards.count) { done(); return; }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        Hover(cards[k], NULL);
+        each();
+        HoverChain(cards, k + 1, each, done);
+    });
+}
+
+typedef void (^MMBenchStep)(dispatch_semaphore_t done);
+
+/// Every menu open and card hover runs as its own pass of main's run loop, 3 ms after the one before, with Core
+/// running beside it. The watchdog logs any pass over 50 ms with main's stack.
+static int Hangs(NSArray<NSString *> *args) {
+    int rounds = Option(args, @"--rounds", @"5").intValue;
+    double limit = Option(args, @"--ms", @"50").doubleValue;
+    if (rounds <= 0 || limit <= 0) { fprintf(stderr, "usage: bench hangs [--rounds N] [--ms N]\n"); return 2; }
+    if (!SafeEnvironment()) return 2;
+    [NSApplication sharedApplication].activationPolicy = NSApplicationActivationPolicyProhibited;
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    MMBenchFixture *fx = Fixture();
+    MMBenchFooter *footer = [MMBenchFooter new];
+    MMWatchdogStart(limit);
+
+    // The watchdog itself: a pass that sleeps 120 ms on purpose is caught, with this function in its stack.
+    dispatch_async(dispatch_get_main_queue(), ^{ MMBenchStallOnPurpose(120); fflush(stderr); });
+    RunUntil(^BOOL { return MMWatchdogStalls().count > 0; }, 5);
+    NSDictionary *caught = MMWatchdogStalls().firstObject ?: @{};
+    MMWatchdogReset();
+
+    MMCoreStart();
+    RunUntil(^BOOL { return MMGraph.shared.current != nil; }, 15);
+    NSUInteger passesBefore = MMWatchdogPasses();
+
+    // Each step makes its snapshot on a queue of its own, prepared off main as the graph queue does, then opens the
+    // menu on main and hovers each card in a pass of its own.
+    dispatch_queue_t prepQ = dispatch_queue_create("no.guerrilla.minmacs.bench.prep", DISPATCH_QUEUE_SERIAL);
+    __block NSUInteger opens = 0, hovers = 0, liveOpens = 0;
+    NSMutableDictionary<NSString *, NSNumber *> *hoversBy = [NSMutableDictionary new], *opensBy = [NSMutableDictionary new];
+    __block BOOL finished = NO;
+    NSMutableArray<MMBenchStep> *steps = [NSMutableArray new];
+    for (int r = 0; r < rounds; r++) {
+        for (id<MMExpert> e in fx.experts) {
+            NSString *eid = e.expertID;
+            void (^counted)(void) = ^{ hovers++; hoversBy[eid] = @(hoversBy[eid].integerValue + 1); };
+            [steps addObject:^(dispatch_semaphore_t done) {
+                __block MMSnapshot *s = nil;
+                dispatch_sync(prepQ, ^{ s = [fx fresh]; });
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSMenu *m = MMShellMenu(e, s, nil, footer);
+                    opens++; opensBy[eid] = @(opensBy[eid].integerValue + 1);
+                    HoverChain(WaitingCards(m), 0, counted, ^{ dispatch_semaphore_signal(done); });
+                });
+            }];
+            // The same menu on the live snapshot Core published last, which the graph queue prepared.
+            [steps addObject:^(dispatch_semaphore_t done) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    MMSnapshot *live = MMGraph.shared.current;
+                    NSMenu *m = live ? MMShellMenu(e, live, nil, footer) : nil;
+                    if (m) liveOpens++;
+                    HoverChain(m ? WaitingCards(m) : @[], 0, counted, ^{ dispatch_semaphore_signal(done); });
+                });
+            }];
+        }
+        [steps addObject:^(dispatch_semaphore_t done) {
+            __block MMSnapshot *s = nil;
+            dispatch_sync(prepQ, ^{ s = [fx fresh]; });
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSMenu *m = MMShellOneIconMenu(s, nil, footer);
+                opens++;
+                HoverChain(WaitingCards(m), 0, ^{ hovers++; }, ^{ dispatch_semaphore_signal(done); });
+            });
+        }];
+    }
+    dispatch_async(dispatch_queue_create("no.guerrilla.minmacs.bench.steps", DISPATCH_QUEUE_SERIAL), ^{
+        for (MMBenchStep step in steps) {
+            dispatch_semaphore_t done = dispatch_semaphore_create(0);
+            step(done);
+            dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+            usleep(3000);
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{ finished = YES; });
+    });
+    RunUntil(^BOOL { return finished; }, 600);
+    RunMain(0.3);
+    MMWatchdogStop();
+    NSArray *stalls = MMWatchdogStalls();
+    MMCoreStop();
+    PrintJSON(@{@"kind": @"hangs", @"rounds": @(rounds), @"limitMs": @(limit), @"finished": @(finished),
+                @"opens": @(opens), @"liveOpens": @(liveOpens), @"hovers": @(hovers), @"opensBy": opensBy, @"hoversBy": hoversBy,
+                @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls,
+                @"selfCheck": @{@"ms": caught[@"ms"] ?: @0, @"state": caught[@"state"] ?: @"", @"what": caught[@"what"] ?: @"",
+                                @"named": @([[caught[@"stack"] componentsJoinedByString:@"\n"] containsString:@"MMBenchStallOnPurpose"])},
+                @"logQueriesOnMain": @(MMLogMainThreadQueries()), @"keepReadsOnMain": @(MMKeepMainThreadReads())});
+    return 0;
+}
+
+#pragma mark - Startup
+
+/// The app's launch from where MMMain starts, headless: Core, the status items as the shell makes them but without the
+/// status bar, and each expert's first summary line. Run it twice in one MINMACS_HOME: the second run is a later
+/// launch, where an expert whose field was empty starts with its item left for later.
+static int Startup(NSArray<NSString *> *args) {
+    double wait = Option(args, @"--wait", @"10").doubleValue;
+    if (wait <= 0) { fprintf(stderr, "usage: bench startup [--wait N]\n"); return 2; }
+    if (!SafeEnvironment()) return 2;
+    [NSApplication sharedApplication].activationPolicy = NSApplicationActivationPolicyProhibited;
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    // main.m registers the experts, then calls MMMain. The modes are set before, so nothing acts.
+    MMRegisterBuiltInExperts();
+    AllIdle();
+    BOOL first = !MMPrefBool(@"core.launched", NO);
+    MMStartupBegin();
+    id shell = MMShellStartHeadless();
+    NSDictionary *atStart = MMStartupTimes();
+    RunUntil(^BOOL { return MMStartupTimes()[@"summaries"] != nil; }, wait);
+    NSDictionary *t = MMStartupTimes();
+    MMSnapshot *s = MMGraph.shared.current;
+    NSMutableDictionary *empty = [NSMutableDictionary new], *summaries = [NSMutableDictionary new];
+    for (id<MMExpert> e in MMExperts()) {
+        empty[e.expertID] = @(s ? [e fieldEmptyIn:s] : YES);
+        summaries[e.expertID] = s ? [e menuFor:s].summary ?: @"" : @"";
+    }
+    MMShellStopHeadless(shell);
+    PrintJSON(@{@"kind": @"startup", @"firstLaunch": @(first), @"times": t, @"itemsAtStart": atStart[@"items"] ?: NSNull.null,
+                @"fieldEmpty": empty, @"summaries": summaries, @"experts": [MMExperts() valueForKey:@"expertID"]});
     return 0;
 }
 
@@ -687,8 +1055,10 @@ int main(int argc, const char *argv[]) {
         NSString *mode = args.firstObject ?: @"";
         if ([mode isEqualToString:@"idle"]) return Idle(args);
         if ([mode isEqualToString:@"menus"]) return Menus(args);
+        if ([mode isEqualToString:@"hangs"]) return Hangs(args);
+        if ([mode isEqualToString:@"startup"]) return Startup(args);
         if ([mode isEqualToString:@"apps"]) return Apps();
-        fprintf(stderr, "usage: bench idle --seconds N [--warmup N] | menus [--iterations N] | apps\n");
+        fprintf(stderr, "usage: bench idle --seconds N [--warmup N] | menus [--iterations N] | hangs [--rounds N] | startup [--wait N] | apps\n");
         return 2;
     }
 }

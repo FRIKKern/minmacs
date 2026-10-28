@@ -452,16 +452,38 @@ static NSArray<NSDictionary *> *StoppedRecords(void) {
     return hosts;
 }
 
-/// Main thread, or any queue for the CLI and the render tool. On main it reads only what the snapshot and the last
-/// rebuild hold: the keeps are in each finding's facts and Recently Stopped was read on the graph queue.
+/// The menu's view, made on the graph queue once per snapshot, so main never runs MMPlan, which reads the rules,
+/// the prefs and the day of watching through MMMustKeep. The review is the one the snapshot carries, and Recently
+/// Stopped is what findingsFrom: read from the undo log in the same rebuild.
+- (id)prepareFor:(MMSnapshot *)s {
+    NSArray *records;
+    @synchronized (self) { records = _stopped ?: @[]; }
+    return [self makeView:s review:[s reviewFor:kExpert] stopped:records];
+}
+
+/// Main thread, or any queue for the CLI and the render tool. On main it reads what the graph queue prepared for the
+/// snapshot. A snapshot made by hand, as in a test, has none, and then main builds the view from the snapshot and
+/// the last rebuild: the keeps are in each finding's facts and Recently Stopped was read on the graph queue.
 - (MMLHView *)viewFor:(MMSnapshot *)s {
-    if (NSThread.isMainThread && _view && _viewGen == s.generation && s.generation) return _view;
+    if (NSThread.isMainThread) {
+        MMLHView *p = [s preparedFor:kExpert];
+        if ([p isKindOfClass:MMLHView.class]) { p.reviewing = _reviewing; return p; }
+        if (_view && _viewGen == s.generation && s.generation) return _view;
+        NSArray *records;
+        @synchronized (self) { records = _stopped ?: @[]; }
+        MMLHView *v = [self makeView:s review:[s reviewFor:kExpert] stopped:records];
+        _view = v; _viewGen = s.generation;
+        return v;
+    }
+    return [self makeView:s review:[s reviewFor:kExpert] ?: MMLHLastReview() stopped:StoppedRecords()];
+}
+
+- (MMLHView *)makeView:(MMSnapshot *)s review:(MMReview *)r stopped:(NSArray *)records {
     MMLHView *v = [MMLHView new];
     NSArray<MMFinding *> *findings = [s findingsFor:kExpert];
     v.hosts = [self hostsIn:s];
     MMMode mode = MMModeFor(kExpert);
     v.mode = MMModeName(mode);
-    MMReview *r = [s reviewFor:kExpert] ?: (NSThread.isMainThread ? nil : MMLHLastReview());
     v.reviewAt = r.at; v.reviewError = r.error; v.summaryWords = r.summaryWords; v.model = ModelWords(r);
     v.reviewing = _reviewing;
     NSMutableDictionary *verdicts = [NSMutableDictionary new];
@@ -491,9 +513,6 @@ static NSArray<NSDictionary *> *StoppedRecords(void) {
     v.links = links;
     NSMutableSet *listening = [NSMutableSet new];
     for (MMLHHost *h in v.hosts) [listening addObjectsFromArray:h.ports];
-    NSArray *records;
-    if (NSThread.isMainThread) { @synchronized (self) { records = _stopped ?: @[]; } }
-    else records = StoppedRecords();
     NSMutableArray *stopped = [NSMutableArray new];
     for (NSDictionary *x in records) {
         NSMutableDictionary *y = [x mutableCopy];
@@ -506,7 +525,6 @@ static NSArray<NSDictionary *> *StoppedRecords(void) {
     v.otherCount = self.ignored.count;
     __weak MMLocoHost *weak = self;
     v.act = ^(NSString *what, NSString *key, BOOL option) { [weak act:what key:key option:option snapshot:s]; };
-    if (NSThread.isMainThread) { _view = v; _viewGen = s.generation; }
     return v;
 }
 
@@ -611,8 +629,13 @@ static void Copy(NSString *s) {
         _view = nil;
     } else if ([what isEqualToString:@"protect"]) {
         // Only this port's own entry changes. A pattern that covers it stays for the others, as legacy #43 fixed for apps.
-        [MMLHRules() set:!h.isProtected value:@(h.port) inList:@"protect.ports" key:nil];
-        [MMGraph.shared rebuild:@"locohost protect"];
+        // The rules file is written on the act queue, so main never waits on disk.
+        BOOL on = !h.isProtected;
+        NSInteger port = h.port;
+        dispatch_async(ActQueue(), ^{
+            [MMLHRules() set:on value:@(port) inList:@"protect.ports" key:nil];
+            [MMGraph.shared rebuild:@"locohost protect"];
+        });
     }
 }
 
@@ -663,7 +686,10 @@ static void Copy(NSString *s) {
         MMMode mode = MMModeFor(kExpert);
         if (mode == MMModeIdle || r.error.length) return;
         NSMutableArray *todo = [NSMutableArray new];
-        NSDictionary *plan = MMLHPlanMap(findings, s.facts, r, mode);
+        // The plan the graph queue made for this snapshot, so main never runs MMPlan.
+        MMLHView *prepared = [s preparedFor:kExpert];
+        NSDictionary *plan = [prepared isKindOfClass:MMLHView.class] && [prepared.mode isEqualToString:MMModeName(mode)]
+            ? prepared.plan : MMLHPlanMap(findings, s.facts, r, mode);
         for (MMFinding *f in findings) if ([plan[f.findingID][@"stop"] boolValue]) [todo addObject:@[f, plan[f.findingID][@"why"]]];
         if (!todo.count) return;
         dispatch_async(ActQueue(), ^{ [self autoStop:todo review:r mode:mode]; });

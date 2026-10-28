@@ -624,8 +624,31 @@ static void RenderShell(NSString *out, NSDictionary<NSString *, NSAppearance *> 
         @"shell-minmacs-menu": MMMenuFromSpec(MinMacsSpec(), cards, @"MinMacs opens at login. Settings can turn that off.", nil),
         @"shell-one-icon": MMOneIconMenu(@[mm, lh], nil, nil),
         @"shell-one-icon-five": MMOneIconMenu(five, nil, nil),
+        @"shell-locohost-hover": MMMenuFromSpecOnHover(LocoHostSpec(), ^BOOL(NSString *fid) { return [@[@"checkout", @"docs", @"keynote"] containsObject:fid]; },
+                                                       cards, nil, nil),
     };
+    // The app's menus build each card on hover, issue #53. Before the hover a row holds its arrow and a card that waits.
+    // Drawing it hovers every row, and then it holds what the menu with every card built holds.
+    MMCardCheck hasCard = ^BOOL(NSString *fid) { return [@[@"checkout", @"docs", @"keynote"] containsObject:fid]; };
+    NSMenu *hover = MMMenuFromSpecOnHover(LocoHostSpec(), hasCard, cards, nil, nil);
+    NSInteger waits = 0, arrows = 0;
+    for (NSMenuItem *i in hover.itemArray) { arrows += i.submenu && ![i.title hasSuffix:@"More"]; waits += MMCardWaits(i.submenu); }
+    NSUInteger builtBefore = MMCardsBuiltOnHover();
+    NSInteger eagerArrows = 0;
+    for (NSMenuItem *i in menus[@"shell-locohost-menu"].itemArray) eagerArrows += i.submenu && ![i.title hasSuffix:@"More"];
+    Check(waits == arrows && arrows == eagerArrows && MMCardsBuiltOnHover() == builtBefore,
+          @"shell hover menu: each row with a card has its arrow, and no card is built before a hover",
+          [NSString stringWithFormat:@"%ld waiting of %ld arrows, %ld with every card built", (long)waits, (long)arrows, (long)eagerArrows]);
+    // A finding that went away between the menu's build and the hover gets one readable line.
+    NSMenu *goneMenu = MMMenuFromSpecOnHover(LocoHostSpec(), ^BOOL(NSString *fid) { return [fid isEqualToString:@"checkout"]; },
+                                             ^MMCardSpec *(NSString *fid) { return nil; }, nil, nil);
+    NSMenu *gone = nil;
+    for (NSMenuItem *i in goneMenu.itemArray) if (MMCardWaits(i.submenu)) gone = i.submenu;
+    MMLoadCards(goneMenu);
+    Check(gone.numberOfItems == 1 && gone.itemArray.firstObject.view != nil && !MMCardWaits(gone),
+          @"shell hover menu: a card whose finding went away says so in one line", [NSString stringWithFormat:@"%ld items", (long)gone.numberOfItems]);
     NSDictionary<NSString *, NSMenu *> *cardMenus = @{
+        @"shell-card-gone": gone ?: [NSMenu new],
         @"shell-card-checkout": [MMCardFromSpec(SCard(@"checkout")) menu],
         @"shell-card-docs": [MMCardFromSpec(SCard(@"docs")) menu],
         @"shell-card-keynote": [MMCardFromSpec(SCard(@"keynote")) menu],
@@ -667,6 +690,17 @@ static void RenderShell(NSString *out, NSDictionary<NSString *, NSAppearance *> 
         if (!MMRenderView(StatusStrip(experts), path, ap)) [unwritten addObject:path.lastPathComponent];
         first = NO;
     }
+    // Drawn, the hover menu built every card, so it holds what the menu with every card built up front holds.
+    MMLoadCards(hover);
+    NSArray *(^cardHeights)(NSMenu *) = ^NSArray *(NSMenu *m) {
+        NSMutableArray *h = [NSMutableArray new];
+        for (NSMenuItem *i in m.itemArray) if (i.submenu.itemArray.firstObject.view) [h addObject:@(i.submenu.itemArray.firstObject.view.frame.size.height)];
+        return h;
+    };
+    Check([cardHeights(hover) isEqualToArray:cardHeights(menus[@"shell-locohost-menu"])] && hover.numberOfItems == menus[@"shell-locohost-menu"].numberOfItems &&
+          MMCardsBuiltOnHover() >= builtBefore + 3,
+          @"shell hover menu: after each hover it holds the cards built up front",
+          [NSString stringWithFormat:@"%@ against %@", cardHeights(hover), cardHeights(menus[@"shell-locohost-menu"])]);
 }
 
 int main(int argc, char **argv) { @autoreleasepool {

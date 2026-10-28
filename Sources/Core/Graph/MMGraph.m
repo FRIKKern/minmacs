@@ -75,6 +75,7 @@ static MMProc *LiveProc(MMSample *s, MMProcKey k) {
 @property NSDictionary<NSString *, NSArray<MMFinding *> *> *byExpert;
 @property NSDictionary<NSString *, MMReview *> *reviews;
 @property NSInteger working;
+@property NSDictionary<NSString *, id> *prepared;
 @end
 
 /// One live agent session while a build runs: a session, an agent, or both.
@@ -364,6 +365,19 @@ static NSString *SizeBucket(uint64_t bytes) {
     return [out copy];
 }
 
+- (id)preparedFor:(NSString *)expert { return expert ? self.prepared[expert] : nil; }
+
+- (void)prepareFor:(NSArray<id<MMExpert>> *)experts {
+    if (self.prepared) return;
+    NSMutableDictionary *p = [NSMutableDictionary new];
+    for (id<MMExpert> e in experts) {
+        if (![e respondsToSelector:@selector(prepareFor:)] || !e.expertID) continue;
+        id v = [e prepareFor:self];
+        if (v) p[e.expertID] = v;
+    }
+    self.prepared = [p copy];
+}
+
 - (NSInteger)workingAgents { return self.working; }
 - (MMReview *)reviewFor:(NSString *)expert { return expert ? self.reviews[expert] : nil; }
 
@@ -445,6 +459,8 @@ static NSString *SizeBucket(uint64_t bytes) {
     snap.awakeHolds = [kept copy];
     [_holds setDictionary:kept];
     for (NSString *k in _holdSince.allKeys) if (!kept[k]) [_holdSince removeObjectForKey:k];
+    // What each menu reads, made here so main never reads the keeps, rules, prefs or undo log.
+    [snap prepareFor:self.experts];
     self.latest = snap;
     dispatch_async(dispatch_get_main_queue(), ^{ [self publish:snap]; });
 }

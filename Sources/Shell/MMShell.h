@@ -4,6 +4,9 @@
 // and the login item on first launch.
 #import <Cocoa/Cocoa.h>
 
+@protocol MMExpert;
+@class MMSnapshot;
+
 /// The class names of the five experts, in menu bar order. main.m registers each one that is linked in, so an
 /// expert lands by adding its class under Sources/Experts and nothing else. Each class implements MMExpert.
 NSArray<NSString *> *MMBuiltInExpertClasses(void);
@@ -32,6 +35,30 @@ extern NSString *const MMOneIconAutosaveName;
 
 /// The line the menu shows for a day after first launch, decision 18.
 extern NSString *const MMLoginNotice;
+
+/// The menu an expert's own icon opens, built as the app builds it when the menu opens: menuFor: on the snapshot,
+/// which reads what the graph queue prepared, then the kit, with each row's card built on hover. Main thread.
+/// footerTarget gets hideIcon: and showSettings:.
+NSMenu *MMShellMenu(id<MMExpert> expert, MMSnapshot *s, NSString *notice, id footerTarget);
+/// The One Icon menu: a section for each expert MMOneIconShows lets in, cards built on hover. Main thread.
+NSMenu *MMShellOneIconMenu(MMSnapshot *s, NSString *notice, id footerTarget);
+
+#pragma mark Startup, issue #55
+
+/// Marks the start of MMMain. MMMain calls it first. The bench calls it where MMMain would run.
+void MMStartupBegin(void);
+/// Times in ms since MMStartupBegin, main thread: "items" when every status item that starts visible is made,
+/// "snapshot" at the first snapshot on main, "summaries" once every expert has its first summary line, and
+/// "summary.<expert>" for each. "made" and "deferred" list the experts whose items were made at launch and those
+/// left for later. An expert whose icon was hidden at the last run, such as one whose field is empty on this Mac,
+/// gets its status item, menu and per-snapshot updates only once its field appears or Settings shows it.
+NSDictionary *MMStartupTimes(void);
+/// The app's launch without the status bar and without NSApp's run loop, for the bench: Core, core.sock, then each
+/// item as the app makes it, with the icon image and label made but no NSStatusItem. Returns the shell, which the
+/// caller keeps. Main thread. The caller turns the run loop.
+id MMShellStartHeadless(void);
+/// Stops what MMShellStartHeadless started.
+void MMShellStopHeadless(id shell);
 
 /// The app delegate. One per process, made by MMMain.
 @interface MMShell : NSObject <NSApplicationDelegate>

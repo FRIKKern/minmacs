@@ -5,7 +5,7 @@ build.sh compiles every `.m` under this folder into one binary. Core symbols use
 | Folder | What it holds |
 |---|---|
 | `main.m` | The entry point. It registers the experts linked in, then hands over to the shell. |
-| `Shell` | The app delegate: MMCoreStart, core.sock, one status item per expert, One Icon, Settings, the login item and URLs. |
+| `Shell` | The app delegate: MMCoreStart, core.sock, one status item per expert, One Icon, Settings, the login item and URLs. The main-thread watchdog of `MMWatchdog.h`, and the startup marks the bench reads. |
 | `Core/Runtime` | Labeled serial queues, dispatch timers, jobs with deadlines, the out-of-process worker and crash breadcrumbs. |
 | `Core/Senses` | The one 5-second pass over processes, sockets, power, thermal, memory and lid, plus kqueue exits and FSEvents. |
 | `Core/Know` | The agent registry, sessions, Where, git, the Sizer and the clutter catalog. |

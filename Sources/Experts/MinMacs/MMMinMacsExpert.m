@@ -489,7 +489,17 @@ static NSArray<MMUndoRecord *> *Restorable(void) {
     return @"youtube.com";
 }
 
+/// What the menu reads from the prefs and the support folder, read on the graph queue once per snapshot:
+/// the mode and whether the day of watching is over.
+- (id)prepareFor:(MMSnapshot *)s {
+    return @{@"mode": @(MMModeFor(kExpert)), @"watched": @(MMWatchedLongEnough(kExpert))};
+}
+
 - (MMMenuSpec *)menuFor:(MMSnapshot *)s {
+    NSDictionary *prepared = NSThread.isMainThread ? [s preparedFor:kExpert] : nil;
+    if (![prepared isKindOfClass:NSDictionary.class]) prepared = [self prepareFor:s];
+    MMMode menuMode = (MMMode)[prepared[@"mode"] integerValue];
+    BOOL watched = [prepared[@"watched"] boolValue];
     NSArray *quit = AppsIn(s, MMGroupQuit), *trim = AppsIn(s, MMGroupTrim), *spared = AppsIn(s, MMGroupSpared);
     NSArray *unsorted = AppsIn(s, MMGroupUnsorted), *agents = AgentsIn(s), *apps = AllApps(s);
     NSInteger working = 0;
@@ -501,12 +511,12 @@ static NSArray<MMUndoRecord *> *Restorable(void) {
     m.headerUnit = @"in apps";
     NSMutableArray *line = [NSMutableArray arrayWithObjects:MMPlural((NSInteger)apps.count, @"app"), [Pct(CPUOf(apps)) stringByAppendingString:@" CPU"], nil];
     if (working) [line addObject:[MMPlural(working, @"agent") stringByAppendingString:@" working"]];
-    [line addObject:MMCapitalized(MMModeName(MMModeFor(kExpert)))];
+    [line addObject:MMCapitalized(MMModeName(menuMode))];
     m.headerLine = [line componentsJoinedByString:@" · "];
 
     // The summary explains. The header and the action tails already give the counts and sizes.
     NSMutableArray<NSString *> *say = [NSMutableArray new];
-    if (!MMWatchedLongEnough(kExpert)) [say addObject:[NSString stringWithFormat:@"Watching %@. Quits nothing on its own.", MMPlural((NSInteger)apps.count, @"app")]];
+    if (!watched) [say addObject:[NSString stringWithFormat:@"Watching %@. Quits nothing on its own.", MMPlural((NSInteger)apps.count, @"app")]];
     if (power.memoryPressure >= 2) [say addObject:@"Memory pressure is high, so quitting apps helps now."];
     if (power.thermal >= NSProcessInfoThermalStateSerious) [say addObject:@"The Mac runs hot."];
     if (quit.count) {
