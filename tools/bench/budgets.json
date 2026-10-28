@@ -1,12 +1,12 @@
 {
   "source": "docs/2.0/PLAN.md section 9, phase 6: with five experts on, on this Mac",
-  "note": "max is the phase 6 budget. ceiling is where today's code fails the gate, set above what it measured before phase 6 tuning. Idle CPU over a short window moves with how many processes start and end on the Mac, so its ceiling is loose and the CPU a tick carries the tight one. MM_BENCH_STRICT=1 gates on max. docs/2.0/MEASUREMENTS.md has the numbers behind each ceiling.",
+  "note": "max is the phase 6 budget. ceiling is where today's code fails the gate. Issue #52 tightened the idle ceilings to about twice what the 30-minute run reached, since a 30-second window under other builds moves with how many processes start and end. The CPU a tick is the mean of the whole process's CPU from one sample to the next. MM_BENCH_STRICT=1 gates on max. docs/2.0/BENCH.md has the numbers behind the idle ceilings, docs/2.0/MEASUREMENTS.md those behind the menu ceilings.",
   "budgets": [
-    {"key": "idleCPUPercent", "max": 0.3, "ceiling": 5, "unit": "%", "what": "idle CPU"},
-    {"key": "tickCPUms", "max": 15, "ceiling": 80, "unit": "ms", "what": "CPU a tick, pass and rebuild at the median",
+    {"key": "idleCPUPercent", "max": 0.3, "ceiling": 0.6, "unit": "%", "what": "idle CPU"},
+    {"key": "tickCPUms", "max": 15, "ceiling": 30, "unit": "ms", "what": "CPU a tick, the mean from one sample to the next",
      "from": "0.3 % of one core over the 5-second tick"},
-    {"key": "idleFootprintMB", "max": 45, "ceiling": 45, "unit": "MB", "what": "idle footprint"},
-    {"key": "wakeupsPerSecond", "max": 1, "ceiling": 1, "unit": "/s", "what": "wakeups a second", "below": true},
+    {"key": "idleFootprintMB", "max": 45, "ceiling": 20, "unit": "MB", "what": "idle footprint"},
+    {"key": "wakeupsPerSecond", "max": 1, "ceiling": 0.5, "unit": "/s", "what": "wakeups a second", "below": true},
     {"key": "menuOpenP95Ms", "max": 30, "ceiling": 60, "unit": "ms", "what": "menu open at p95, worst expert"},
     {"key": "cardHoverP95Ms", "max": 16, "ceiling": 32, "unit": "ms", "what": "card hover at p95, worst expert"},
     {"key": "warmScan300Seconds", "max": 2, "unit": "s", "what": "warm scan of 300 worktrees", "measured": false,

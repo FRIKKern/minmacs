@@ -1,6 +1,7 @@
 // LocoHost on the shared core. See MMLocoHost.h.
 // Ported from LocoHost's main.m: Candidates, MustKeep, Plan, the judge subjects, AutoStop, watchEvents, the menu and
 // the card. The modes, the judge and the undo record are Core's now, so this file only says what LocoHost knows.
+#import <os/lock.h>
 #import <AppKit/AppKit.h>
 #import "Experts/LocoHost/MMLocoHost.h"
 #import "Experts/LocoHost/MMLHScan.h"
@@ -350,7 +351,23 @@ static NSDictionary *VerdictJSON(MMVerdict *v) {
 }
 
 /// Recently Stopped: LocoHost's done stops, newest first, as {rid, port, framework, project, at, by}. Reads the undo log.
+/// Kept until the log moves, issue #52, so a rebuild with nothing new in the log runs no query.
+static NSArray<NSDictionary *> *ReadStoppedRecords(void);
 static NSArray<NSDictionary *> *StoppedRecords(void) {
+    static NSString *stamp; static NSArray *kept; static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    NSString *now = MMLogStamp();
+    os_unfair_lock_lock(&lock);
+    NSArray *have = kept && [stamp isEqualToString:now] ? kept : nil;
+    os_unfair_lock_unlock(&lock);
+    if (have) return have;
+    NSArray *read = ReadStoppedRecords();
+    os_unfair_lock_lock(&lock);
+    kept = read; stamp = now;
+    os_unfair_lock_unlock(&lock);
+    return read;
+}
+
+static NSArray<NSDictionary *> *ReadStoppedRecords(void) {
     NSMutableArray *stopped = [NSMutableArray new];
     for (MMUndoRecord *rec in [MMUndo.shared recent:kExpert limit:20]) {
         NSDictionary *rs = Dict(rec.payload[@"restart"]);
@@ -387,6 +404,56 @@ static NSArray<NSDictionary *> *StoppedRecords(void) {
 - (NSString *)legacyName { return @"locohost"; }
 - (MMVerdictWords *)words { return [MMVerdictWords keep:@"in_use" go:@"idle" unsure:@"unsure"]; }
 - (NSArray<NSDictionary *> *)ignored { @synchronized (self) { return _ignored ?: @[]; } }
+
+/// Issue #52. What the hosts are built from, at the precision the menu shows: the socket table, which holds every
+/// listener and every connection; each listener's tree with each process's start, CPU band and memory in 16 MB steps;
+/// its parents, which name the launcher; every agent and its state; and the identity of the session, worktree
+/// and git facts Know holds. A tree at 10 % CPU or more is never reused, since two busy samples in a row mark
+/// a server busy. Nor are findings while a server still waits for its first place.
+static uint64_t LHMix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 ? 1 : cpu < 10 ? 2 : 3; }
+
+- (uint64_t)inputDigestFrom:(MMFacts *)facts {
+    MMSample *s = facts.sample;
+    uint64_t fresh = LHMix(facts.generation ^ 0xa5a5);   // a digest that never matches
+    if (!s || ![(NSObject *)s respondsToSelector:@selector(sockets:)] || MMLHPlacesPending()) return fresh;
+    uint64_t h = LHMix(s.procs.count);
+    NSUInteger n = 0;
+    const MMSocket *sv = [s sockets:&n];
+    // Listeners, and the connections to or from a listening port. A browser's connections to the internet change
+    // every few seconds and no host reads them.
+    NSMutableSet<NSNumber *> *listeners = [NSMutableSet new], *peers = [NSMutableSet new], *ports = [NSMutableSet new];
+    for (NSUInteger i = 0; sv && i < n; i++) if (sv[i].state == MMSocketListen) [ports addObject:@(sv[i].localPort)];
+    for (NSUInteger i = 0; sv && i < n; i++) {
+        BOOL listen = sv[i].state == MMSocketListen;
+        if (!listen && ![ports containsObject:@(sv[i].localPort)] && ![ports containsObject:@(sv[i].remotePort)]) continue;
+        const uint8_t *b = (const uint8_t *)(const void *)&sv[i];
+        uint64_t x = 0xcbf29ce484222325ull;
+        for (size_t j = 0; j < sizeof(MMSocket); j++) { x ^= b[j]; x *= 0x100000001b3ull; }
+        h += LHMix(x);
+        [(listen ? listeners : peers) addObject:@(sv[i].pid)];
+    }
+    NSMutableSet<NSNumber *> *skipped = [NSMutableSet new];   // listeners of macOS and apps, which are not servers
+    for (NSDictionary *x in self.ignored) if (x[@"pid"]) [skipped addObject:x[@"pid"]];
+    for (NSNumber *pid in listeners) {
+        if (![skipped containsObject:pid] && [s treeCPU:pid.intValue] >= 10) return fresh;
+        for (NSNumber *t in [s treeOf:pid.intValue limit:500]) {
+            MMProc *p = [s proc:t.intValue];
+            h += LHMix(((uint64_t)p.pid << 32) ^ LHMix(p.startSec) ^ (LHBand(p.cpuPercent) << 60) ^ LHMix((p.footprint >> 24) + 3));
+        }
+        for (NSNumber *a in [s ancestorsOf:pid.intValue limit:20]) h += LHMix(((uint64_t)a.intValue << 32) ^ [s proc:a.intValue].startSec ^ 0x77);
+    }
+    for (NSNumber *pid in peers) { MMProc *p = [s proc:pid.intValue]; h += LHMix(((uint64_t)pid.intValue << 32) ^ p.startSec ^ p.name.hash); }
+    for (MMAgent *a in facts.agents) h += LHMix(((uint64_t)a.key.pid << 32) ^ a.key.startSec ^ ((uint64_t)a.state << 56));
+    // Know replaces a session or worktree object when it changes, and arrays may be copied, so each element counts.
+    for (id x in facts.sessions) h += LHMix((uint64_t)(uintptr_t)(__bridge void *)x + 1);
+    for (id x in facts.worktrees) h += LHMix((uint64_t)(uintptr_t)(__bridge void *)x + 2);
+    for (MMWorktree *w in facts.worktrees) h += LHMix((uint64_t)(uintptr_t)(__bridge void *)[facts gitFor:w] + 3);
+    return h;
+}
 
 - (NSArray<MMFinding *> *)findingsFrom:(MMFacts *)facts {
     NSArray *ignored = nil;

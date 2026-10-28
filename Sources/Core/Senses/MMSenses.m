@@ -11,6 +11,8 @@
 #import <IOKit/pwr_mgt/IOPMLib.h>
 #import <IOKit/pwr_mgt/IOPM.h>
 #import <os/lock.h>
+#import <os/signpost.h>
+#include <stdatomic.h>
 #include <libproc.h>
 #include <dlfcn.h>
 #include <notify.h>
@@ -24,8 +26,24 @@
 #include <net/route.h>
 #include <net/if.h>
 
-static const NSTimeInterval kPassEvery = 5, kPassLeeway = 1;
+static const NSTimeInterval kPassEvery = 5;
+// The timer's leeway is a fifth of the interval: 1 second at 5 seconds, as before issue #52, and in proportion for
+// the backoff and for the short MINMACS_TICK of a test.
+static const double kLeewayShare = 0.2;
 static const NSTimeInterval kPassBudget = 0.25;   // wall time; an overrun skips the next turn
+// Issue #52: the pass backs off on battery and while the person is away from the keyboard and pointer.
+static const NSTimeInterval kAwayAfter = 300;
+static const double kBatteryFactor = 2, kAwayFactor = 3;
+// A process that used no CPU time keeps its sockets this long, plus up to 15 seconds by pid, so carried
+// sockets are not all read again in the same pass.
+static const uint64_t kSocketCarryNs = 45ull * NSEC_PER_SEC;
+
+/// The tick's signposts: the pass here, and the rebuild and each expert's findings in the graph.
+static os_log_t MMTickLog(void) {
+    static os_log_t log; static dispatch_once_t once;
+    dispatch_once(&once, ^{ log = os_log_create("no.guerrilla.minmacs", "tick"); });
+    return log;
+}
 
 #pragma mark - P7 identity
 
@@ -51,6 +69,7 @@ NSString *MMProcKeyString(MMProcKey key) { return [NSString stringWithFormat:@"%
     pid_t _pid, _ppid; uid_t _uid; uint64_t _startSec;
     double _cpuPercent, _energyRank, _energyDelta; uint64_t _footprint;
     NSString *_name;
+    BOOL _idle;                           // our own process, same start, and no CPU time used since the last pass
 }
 @end
 
@@ -96,15 +115,28 @@ static NSString *ProcessCwd(pid_t pid) {
     return v.pvi_cdir.vip_path[0] ? @(v.pvi_cdir.vip_path) : nil;
 }
 
+/// Bumped on every app launch or quit that NSWorkspace reports, so app lookups kept across samples are read again.
+static _Atomic uint64_t gAppGeneration;
+static uint64_t NowNs(void) { return clock_gettime_nsec_np(CLOCK_UPTIME_RAW); }
+static const uint64_t kCwdCarryNs = 30ull * NSEC_PER_SEC;
+
 @interface MMSample () {
+@public                                   // MMSenses reads these two to make a sample without exited processes
     NSDictionary<NSNumber *, NSArray<NSNumber *> *> *_kids;
     NSData *_sockets;
+@private
     os_unfair_lock _lock;
     NSMutableDictionary *_args, *_cwds, *_treeCPU, *_treeFoot, *_socketsByPid;
+    // Kept across samples for the same process, issue #52. _cwdAt holds when each cwd was read, in NowNs.
+    NSMutableDictionary *_cwdAt, *_resp, *_owner, *_appOf;
+    uint64_t _appGen;
 }
 @property (readwrite) NSDate *at;
 @property (readwrite) uint64_t generation;
 @property (readwrite) NSDictionary<NSNumber *, MMProc *> *procs;
+- (pid_t)responsibleOf:(pid_t)pid;
+- (NSRunningApplication *)appOf:(pid_t)pid;
+- (NSRunningApplication *)ownerOf:(pid_t)pid compute:(NSRunningApplication *(^)(void))compute;
 @end
 
 @implementation MMSample
@@ -116,9 +148,53 @@ static NSString *ProcessCwd(pid_t pid) {
         _lock = OS_UNFAIR_LOCK_INIT;
         _args = [NSMutableDictionary new]; _cwds = [NSMutableDictionary new];
         _treeCPU = [NSMutableDictionary new]; _treeFoot = [NSMutableDictionary new];
+        _cwdAt = [NSMutableDictionary new]; _resp = [NSMutableDictionary new];
+        _owner = [NSMutableDictionary new]; _appOf = [NSMutableDictionary new];
+        _appGen = atomic_load(&gAppGeneration);
     }
     return self;
 }
+
+static BOOL SameProc(MMProc *a, MMProc *b) {
+    if (a && a == b) return YES;   // a process object the pass kept
+    return a && b && a->_startSec == b->_startSec && a->_ppid == b->_ppid && [a->_name isEqualToString:b->_name];
+}
+
+/// Issue #52. Takes what old read for every process that is still the same one: same pid, start time, parent
+/// and name. An exec changes the name, so its args are read again. Runs in the pass, before the sample is published.
+- (void)carryFrom:(MMSample *)old now:(uint64_t)nowNs args:(uint64_t *)argsCarried cwds:(uint64_t *)cwdsCarried {
+    if (!old) return;
+    os_unfair_lock_lock(&old->_lock);
+    NSDictionary *args = [old->_args copy], *cwds = [old->_cwds copy], *cwdAt = [old->_cwdAt copy], *resp = [old->_resp copy];
+    BOOL sameApps = old->_appGen == _appGen;
+    NSDictionary *owner = sameApps ? [old->_owner copy] : nil, *appOf = sameApps ? [old->_appOf copy] : nil;
+    os_unfair_lock_unlock(&old->_lock);
+    NSDictionary<NSNumber *, MMProc *> *mine = _procs, *theirs = old->_procs;
+    __block uint64_t na = 0, nc = 0;
+    [args enumerateKeysAndObjectsUsingBlock:^(NSNumber *pid, id v, BOOL *stop) {
+        if (SameProc(mine[pid], theirs[pid])) { self->_args[pid] = v; na++; }
+    }];
+    [cwds enumerateKeysAndObjectsUsingBlock:^(NSNumber *pid, id v, BOOL *stop) {
+        MMProc *p = mine[pid];
+        uint64_t at = [cwdAt[pid] unsignedLongLongValue];
+        // A process that did not run cannot have changed folder. One that ran is read again after 30 seconds.
+        if (!SameProc(p, theirs[pid]) || !(p->_idle || nowNs - at < kCwdCarryNs)) return;
+        self->_cwds[pid] = v; self->_cwdAt[pid] = cwdAt[pid] ?: @(nowNs); nc++;
+    }];
+    [resp enumerateKeysAndObjectsUsingBlock:^(NSNumber *pid, id v, BOOL *stop) {
+        if (SameProc(mine[pid], theirs[pid])) self->_resp[pid] = v;
+    }];
+    [owner enumerateKeysAndObjectsUsingBlock:^(NSNumber *pid, id v, BOOL *stop) {
+        if (SameProc(mine[pid], theirs[pid])) self->_owner[pid] = v;
+    }];
+    [appOf enumerateKeysAndObjectsUsingBlock:^(NSNumber *pid, id v, BOOL *stop) {
+        if (SameProc(mine[pid], theirs[pid])) self->_appOf[pid] = v;
+    }];
+    if (argsCarried) *argsCarried = na;
+    if (cwdsCarried) *cwdsCarried = nc;
+}
+
+- (BOOL)unchanged:(pid_t)pid { MMProc *p = _procs[@(pid)]; return p && p->_idle; }
 
 - (MMProc *)proc:(pid_t)pid { return _procs[@(pid)]; }
 
@@ -142,7 +218,26 @@ static NSString *ProcessCwd(pid_t pid) {
 
 - (NSString *)cwdOf:(pid_t)pid {
     if (!_procs[@(pid)]) return nil;
-    id v = [self memo:_cwds pid:pid make:^id { return ProcessCwd(pid); }];
+    __block BOOL read = NO;
+    id v = [self memo:_cwds pid:pid make:^id { read = YES; return ProcessCwd(pid); }];
+    if (read) { os_unfair_lock_lock(&_lock); _cwdAt[@(pid)] = @(NowNs()); os_unfair_lock_unlock(&_lock); }
+    return v == NSNull.null ? nil : v;
+}
+
+- (pid_t)responsibleOf:(pid_t)pid {
+    if (!_procs[@(pid)]) return MMResponsiblePid(pid);
+    return [[self memo:_resp pid:pid make:^id { return @(MMResponsiblePid(pid)); }] intValue];
+}
+
+- (NSRunningApplication *)appOf:(pid_t)pid {
+    if (!_procs[@(pid)]) return [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+    id v = [self memo:_appOf pid:pid make:^id { return [NSRunningApplication runningApplicationWithProcessIdentifier:pid]; }];
+    return v == NSNull.null ? nil : v;
+}
+
+- (NSRunningApplication *)ownerOf:(pid_t)pid compute:(NSRunningApplication *(^)(void))compute {
+    if (!_procs[@(pid)]) return compute();
+    id v = [self memo:_owner pid:pid make:^id { return compute(); }];
     return v == NSNull.null ? nil : v;
 }
 
@@ -221,16 +316,77 @@ pid_t MMResponsiblePid(pid_t pid) {
     return r > 0 ? r : pid;
 }
 
+@interface MMApp ()
+@property (readwrite) pid_t pid;
+@property (readwrite, copy) NSString *bundleID, *name, *bundlePath;
+@property (readwrite) NSInteger policy;
+@property (readwrite) NSRunningApplication *app;
+@end
+@implementation MMApp
+@end
+
+static const uint64_t kAppsMaxAgeNs = 300ull * NSEC_PER_SEC;
+static os_unfair_lock gAppsLock = OS_UNFAIR_LOCK_INIT;
+static NSArray<MMApp *> *gApps;
+static uint64_t gAppsGen, gAppsAt;
+
+/// Each app's identity, read from LaunchServices once per app. The list is walked again when an app launches or
+/// quits, and an app already in it keeps what was read, so a launch costs one app's reads. Every 5 minutes each
+/// app is read again, which catches one that changed its activation policy.
+NSArray<MMApp *> *MMRunningApps(void) {
+    uint64_t gen = atomic_load(&gAppGeneration), now = NowNs();
+    os_unfair_lock_lock(&gAppsLock);
+    NSArray<MMApp *> *have = gApps;
+    BOOL stale = !have || now - gAppsAt >= kAppsMaxAgeNs;
+    BOOL fresh = have && !stale && gAppsGen == gen;
+    os_unfair_lock_unlock(&gAppsLock);
+    if (fresh) return have;
+    NSMutableDictionary<NSNumber *, MMApp *> *old = [NSMutableDictionary new];
+    if (!stale) for (MMApp *a in have) old[@(a.pid)] = a;
+    NSMutableArray<MMApp *> *out = [NSMutableArray new];
+    for (NSRunningApplication *ra in NSWorkspace.sharedWorkspace.runningApplications) {
+        pid_t pid = ra.processIdentifier;
+        if (pid <= 0) continue;
+        MMApp *was = old[@(pid)];
+        if (was && was.app == ra) { [out addObject:was]; continue; }
+        if (ra.terminated) continue;
+        MMApp *a = [MMApp new];
+        a.pid = pid; a.bundleID = ra.bundleIdentifier; a.name = ra.localizedName;
+        a.bundlePath = ra.bundleURL.path; a.policy = ra.activationPolicy; a.app = ra;
+        [out addObject:a];
+    }
+    NSArray *list = [out copy];
+    os_unfair_lock_lock(&gAppsLock);
+    gApps = list; gAppsGen = gen;
+    if (stale) gAppsAt = now;
+    os_unfair_lock_unlock(&gAppsLock);
+    return list;
+}
+
+static BOOL IsSample(MMSample *s) { return [(NSObject *)s isKindOfClass:MMSample.class]; }
+
+pid_t MMResponsiblePidIn(MMSample *s, pid_t pid) {
+    return IsSample(s) ? [s responsibleOf:pid] : MMResponsiblePid(pid);
+}
+
+NSRunningApplication *MMAppWithPid(MMSample *s, pid_t pid) {
+    if (pid <= 0) return nil;
+    return IsSample(s) ? [s appOf:pid] : [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+}
+
 /// From AppOf in LocoHost Where.m:62: the process itself, its parents, then its responsible app.
-NSRunningApplication *MMOwningApp(MMSample *s, pid_t pid) {
+static NSRunningApplication *OwningApp(MMSample *s, pid_t pid) {
     NSMutableArray<NSNumber *> *chain = [NSMutableArray arrayWithObject:@(pid)];
     [chain addObjectsFromArray:[s ancestorsOf:pid limit:20]];
-    pid_t r = MMResponsiblePid(pid);
+    pid_t r = MMResponsiblePidIn(s, pid);
     if (r > 1 && r != pid) [chain addObject:@(r)];
+    NSArray<MMApp *> *apps = MMRunningApps();
+    NSMutableDictionary<NSNumber *, MMApp *> *byPid = [NSMutableDictionary dictionaryWithCapacity:apps.count];
+    for (MMApp *a in apps) byPid[@(a.pid)] = a;
     for (NSNumber *p in chain) {
         if (p.intValue <= 1) continue;
-        NSRunningApplication *a = [NSRunningApplication runningApplicationWithProcessIdentifier:p.intValue];
-        if (a.bundleIdentifier && a.activationPolicy == NSApplicationActivationPolicyRegular) return a;
+        MMApp *a = byPid[p];
+        if (a.bundleID && a.policy == NSApplicationActivationPolicyRegular) return a.app;
     }
     // A helper whose path sits inside a running app's bundle belongs to that app.
     for (NSNumber *p in chain) {
@@ -240,10 +396,15 @@ NSRunningApplication *MMOwningApp(MMSample *s, pid_t pid) {
         NSRange app = [exec rangeOfString:@".app/Contents/"];
         if (app.location == NSNotFound) continue;
         NSString *bundle = [exec substringToIndex:app.location + 4];
-        for (NSRunningApplication *ra in NSWorkspace.sharedWorkspace.runningApplications)
-            if ([ra.bundleURL.path isEqualToString:bundle] && ra.activationPolicy == NSApplicationActivationPolicyRegular) return ra;
+        for (MMApp *a in apps)
+            if ([a.bundlePath isEqualToString:bundle] && a.policy == NSApplicationActivationPolicyRegular) return a.app;
     }
     return nil;
+}
+
+NSRunningApplication *MMOwningApp(MMSample *s, pid_t pid) {
+    if (!IsSample(s)) return OwningApp(s, pid);
+    return [s ownerOf:pid compute:^NSRunningApplication *{ return OwningApp(s, pid); }];
 }
 
 #pragma mark - P13 and P14 MMPower
@@ -375,25 +536,48 @@ static MMPower *ReadPower(void) {
 
 #pragma mark - P10 sockets
 
-/// From ScanSockets in LocoHost Ports.m:326. One fd buffer is reused for every pid.
-static void ScanSockets(const pid_t *pids, size_t n, NSMutableData *out) {
+/// The socket fds of one pid, listed into a buffer reused for every pid. One call while the buffer is big enough.
+/// Returns the count, and in *hash a digest of the socket fd numbers. Senses queue only.
+static int ListSocketFds(pid_t pid, int32_t **out, uint64_t *hash) {
     static struct proc_fdinfo *fds; static int cap;
-    for (size_t j = 0; j < n; j++) {
-        pid_t pid = pids[j];
-        int size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, NULL, 0);
-        if (size <= 0) continue;
-        size += 32 * (int)sizeof(struct proc_fdinfo);   // room for fds opened since the size query
-        if (size > cap) { free(fds); cap = size * 2; fds = malloc((size_t)cap); if (!fds) { cap = 0; return; } }
+    static int32_t *socks; static int socksCap;
+    *hash = 0;
+    if (!fds) { cap = 512 * (int)sizeof(struct proc_fdinfo); fds = malloc((size_t)cap); if (!fds) { cap = 0; return 0; } }
+    int size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds, cap);
+    while (size >= cap - (int)sizeof(struct proc_fdinfo)) {   // it may not have fit: grow and ask again
+        int need = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, NULL, 0);
+        if (need <= 0) return 0;
+        free(fds); cap = (need + 32 * (int)sizeof(struct proc_fdinfo)) * 2; fds = malloc((size_t)cap);
+        if (!fds) { cap = 0; return 0; }
         size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds, cap);
-        for (int i = 0; i < size / (int)sizeof(struct proc_fdinfo); i++) {
-            if (fds[i].proc_fdtype != PROX_FDTYPE_SOCKET) continue;
+    }
+    if (size <= 0) return 0;
+    int n = size / (int)sizeof(struct proc_fdinfo), count = 0;
+    if (n > socksCap) { free(socks); socksCap = n * 2; socks = malloc(sizeof(int32_t) * (size_t)socksCap); if (!socks) { socksCap = 0; return 0; } }
+    uint64_t h = 0x9e3779b97f4a7c15ull;
+    for (int i = 0; i < n; i++) {
+        if (fds[i].proc_fdtype != PROX_FDTYPE_SOCKET) continue;
+        socks[count++] = fds[i].proc_fd;
+        uint64_t x = (uint64_t)fds[i].proc_fd * 0xff51afd7ed558ccdull;
+        h += x ^ (x >> 29);
+    }
+    *hash = h + (uint64_t)count;
+    *out = socks;
+    return count;
+}
+
+/// The TCP sockets, LISTEN and ESTABLISHED, of one pid's socket fds. From ScanSockets in LocoHost Ports.m:326.
+/// tcp gets the fd numbers that held a TCP socket in any state, so the next pass can read those alone.
+static void ScanSocketFds(pid_t pid, const int32_t *fds, int n, NSMutableData *out, NSMutableData *tcp) {
+    for (int i = 0; i < n; i++) {
             struct socket_fdinfo si;
-            if (proc_pidfdinfo(pid, fds[i].proc_fd, PROC_PIDFDSOCKETINFO, &si, sizeof si) != sizeof si) continue;
+            if (proc_pidfdinfo(pid, fds[i], PROC_PIDFDSOCKETINFO, &si, sizeof si) != sizeof si) continue;
             if (si.psi.soi_kind != SOCKINFO_TCP) continue;
+            [tcp appendBytes:&fds[i] length:sizeof fds[i]];
             struct tcp_sockinfo *t = &si.psi.soi_proto.pri_tcp;
             if (t->tcpsi_state != TCPS_LISTEN && t->tcpsi_state != TCPS_ESTABLISHED) continue;
             struct in_sockinfo *in = &t->tcpsi_ini;
-            MMSocket s = {0};
+            MMSocket s; memset(&s, 0, sizeof s);   // padding too, since the graph digests the bytes
             s.pid = pid;
             s.state = t->tcpsi_state == TCPS_LISTEN ? MMSocketListen : MMSocketEstablished;
             s.localPort = ntohs((uint16_t)in->insi_lport);
@@ -415,7 +599,6 @@ static void ScanSockets(const pid_t *pids, size_t n, NSMutableData *out) {
                 memcpy(s.remoteAddr, &in->insi_faddr.ina_46.i46a_addr4, 4);
             }
             [out appendBytes:&s length:sizeof s];
-        }
     }
 }
 
@@ -428,6 +611,10 @@ static void ScanSockets(const pid_t *pids, size_t n, NSMutableData *out) {
 @implementation MMSenseObserver @end
 
 typedef struct { uint64_t start; double cpuNs; double energyNj; } MMPrevUse;
+/// Where one pid's sockets sit in the last pass's table, and when they were last read from the kernel.
+/// fdHash digests the pid's socket fd numbers. A pid with no TCP socket whose socket fds are the same ones keeps
+/// its empty list without a read of each socket.
+typedef struct { uint64_t start, readNs, fdHash; NSUInteger loc, len; } MMSocketSeen;
 
 static const uint64_t kDiskMarks[] = { 50ull << 30, 20ull << 30, 10ull << 30, 5ull << 30, 2ull << 30, 1ull << 30 };
 
@@ -457,6 +644,16 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     NSMutableDictionary<NSNumber *, NSNumber *> *_watched;   // pid -> start time
     IONotificationPortRef _ioPort;
     io_object_t _ioNotifier;
+    // Issue #52, on _q: the last pass's socket table and where each pid's part of it sits.
+    NSData *_prevSocks;
+    NSDictionary<NSNumber *, NSValue *> *_sockSeen;
+    NSDictionary<NSNumber *, NSData *> *_tcpFds;     // pid to the fds that held a TCP socket when last read
+    NSTimeInterval _base, _interval;       // _interval and _reason under _lock
+    NSString *_reason;
+    BOOL _noBackoff;
+    io_registry_entry_t _hid;
+    MMSensesCounts _counts;                // under _lock
+    uint64_t _timedPassAt;                 // under _lock: when the timer last started a pass, in NowNs
 }
 
 static void *kSensesQueueKey = &kSensesQueueKey;
@@ -478,8 +675,60 @@ static void *kSensesQueueKey = &kSensesQueueKey;
         _kq = -1;
         mach_timebase_info_data_t tb; mach_timebase_info(&tb);
         _tbScale = (double)tb.numer / tb.denom;
+        NSDictionary *env = NSProcessInfo.processInfo.environment;
+        double tick = [env[@"MINMACS_TICK"] doubleValue];
+        _base = tick >= 0.2 ? tick : kPassEvery;
+        _noBackoff = [env[@"MINMACS_NO_BACKOFF"] isEqualToString:@"1"];
+        _interval = _base; _reason = @"base";
     }
     return self;
+}
+
+- (NSTimeInterval)interval { os_unfair_lock_lock(&_lock); NSTimeInterval i = _interval; os_unfair_lock_unlock(&_lock); return i; }
+- (NSString *)intervalReason { os_unfair_lock_lock(&_lock); NSString *r = _reason; os_unfair_lock_unlock(&_lock); return r; }
+- (MMSensesCounts)counts { os_unfair_lock_lock(&_lock); MMSensesCounts c = _counts; os_unfair_lock_unlock(&_lock); return c; }
+
+- (NSTimeInterval)untilNextPass {
+    os_unfair_lock_lock(&_lock);
+    uint64_t at = _timedPassAt; NSTimeInterval every = _interval; BOOL on = _observing;
+    os_unfair_lock_unlock(&_lock);
+    if (!on || !at) return 0;
+    double since = (double)(NowNs() - at) / NSEC_PER_SEC;
+    return MAX(0, every - since);
+}
+
+/// Seconds since the last key press or pointer move, from IOHIDSystem's HIDIdleTime. 0 when it cannot be read.
+- (double)awaySeconds {
+#ifdef MM_TESTS
+    const char *fake = getenv("MINMACS_AWAY_SECONDS");   // tests set how long the person has been away
+    if (fake && *fake) return atof(fake);
+#endif
+    if (!_hid) _hid = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"));
+    if (!_hid) return 0;
+    CFTypeRef v = IORegistryEntryCreateCFProperty(_hid, CFSTR("HIDIdleTime"), kCFAllocatorDefault, 0);
+    uint64_t ns = 0;
+    if (v && CFGetTypeID(v) == CFNumberGetTypeID()) CFNumberGetValue(v, kCFNumberSInt64Type, &ns);
+    if (v) CFRelease(v);
+    return ns / 1e9;
+}
+
+/// The interval for the power facts p, and the timer moved to it when it changed. Runs on _q.
+- (void)pace:(MMPower *)p {
+    NSTimeInterval want = _base;
+    NSString *why = @"base";
+    if (!_noBackoff && p) {
+        BOOL battery = !p.onAC, away = [self awaySeconds] >= kAwayAfter;
+        if (battery) want *= kBatteryFactor;
+        if (away) want *= kAwayFactor;
+        why = battery && away ? @"battery, away" : battery ? @"battery" : away ? @"away" : @"base";
+    }
+    os_unfair_lock_lock(&_lock);
+    BOOL moved = want != _interval;
+    _interval = want; _reason = why;
+    os_unfair_lock_unlock(&_lock);
+    if (moved && _timer)
+        dispatch_source_set_timer(_timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(want * NSEC_PER_SEC)),
+                                  (uint64_t)(want * NSEC_PER_SEC), (uint64_t)(want * kLeewayShare * NSEC_PER_SEC));
 }
 
 - (MMSample *)latest { os_unfair_lock_lock(&_lock); MMSample *s = _latest; os_unfair_lock_unlock(&_lock); return s; }
@@ -498,7 +747,7 @@ static void *kSensesQueueKey = &kSensesQueueKey;
         self->_started = YES;
         [self startPushedSources];
         __weak MMSenses *weak = self;
-        self->_timer = MMTimer(self->_q, kPassEvery, kPassLeeway, ^{ [weak scheduledPass]; });
+        self->_timer = MMTimer(self->_q, self->_base, self->_base * kLeewayShare, ^{ [weak scheduledPass]; });
         [self scheduledPass];
     });
     // App, sleep and power state notifications. They arrive on the posting thread, main for NSWorkspace,
@@ -511,7 +760,10 @@ static void *kSensesQueueKey = &kSensesQueueKey;
             [tokens addObject:@{@"center": c, @"token": [c addObserverForName:n object:nil queue:nil usingBlock:block]}];
         };
     for (NSNotificationName n in @[NSWorkspaceDidLaunchApplicationNotification, NSWorkspaceDidTerminateApplicationNotification])
-        add(ws, n, ^(NSNotification *note) { [weak emit:MMSignalApp detail:note.userInfo[NSWorkspaceApplicationKey]]; });
+        add(ws, n, ^(NSNotification *note) {
+            atomic_fetch_add(&gAppGeneration, 1);   // app lookups kept across samples are read again
+            [weak emit:MMSignalApp detail:note.userInfo[NSWorkspaceApplicationKey]];
+        });
     for (NSNotificationName n in @[NSWorkspaceWillSleepNotification, NSWorkspaceDidWakeNotification])
         add(ws, n, ^(NSNotification *note) { [weak emit:MMSignalSleep detail:nil]; });
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
@@ -567,6 +819,9 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
 #pragma mark The pass
 
 - (void)scheduledPass {
+    os_unfair_lock_lock(&_lock);
+    _timedPassAt = NowNs();
+    os_unfair_lock_unlock(&_lock);
     [MMJob run:@"senses" expert:@"core" on:_q budget:kPassBudget work:^(MMJob *job) { [self pass]; }];
 }
 
@@ -580,8 +835,50 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     return self.latest;
 }
 
+- (MMSample *)sampleWithout:(NSArray<NSValue *> *)keys {
+    __block MMSample *out = nil;
+    void (^work)(void) = ^{
+        MMSample *old = self.latest;
+        if (!old) { [self pass]; out = self.latest; return; }
+        NSMutableSet<NSNumber *> *gone = [NSMutableSet new];
+        for (NSValue *v in keys) {
+            MMProcKey k; [v getValue:&k size:sizeof k];
+            MMProc *p = old.procs[@(k.pid)];
+            if (p && (k.startSec == 0 || p->_startSec == k.startSec)) [gone addObject:@(k.pid)];
+        }
+        if (!gone.count) { out = old; return; }
+        NSMutableDictionary *procs = [old.procs mutableCopy];
+        [procs removeObjectsForKeys:gone.allObjects];
+        NSMutableDictionary<NSNumber *, NSArray *> *kids = [NSMutableDictionary dictionaryWithCapacity:old->_kids.count];
+        [old->_kids enumerateKeysAndObjectsUsingBlock:^(NSNumber *ppid, NSArray *list, BOOL *stop) {
+            if ([gone containsObject:ppid]) return;
+            BOOL touched = NO;
+            for (NSNumber *k in list) if ([gone containsObject:k]) { touched = YES; break; }
+            if (!touched) { kids[ppid] = list; return; }
+            NSMutableArray *left = [list mutableCopy];
+            [left removeObjectsInArray:gone.allObjects];
+            kids[ppid] = [left copy];
+        }];
+        NSMutableData *socks = [NSMutableData dataWithCapacity:old->_sockets.length];
+        const MMSocket *sv = old->_sockets.bytes;
+        for (NSUInteger i = 0; i < old->_sockets.length / sizeof(MMSocket); i++)
+            if (![gone containsObject:@(sv[i].pid)]) [socks appendBytes:&sv[i] length:sizeof(MMSocket)];
+        MMSample *s = [[MMSample alloc] initWithProcs:[procs copy] kids:kids sockets:[socks copy] at:old.at generation:++self->_generation];
+        [s carryFrom:old now:NowNs() args:NULL cwds:NULL];
+        os_unfair_lock_lock(&self->_lock);
+        self->_latest = s;
+        os_unfair_lock_unlock(&self->_lock);
+        out = s;
+    };
+    if (dispatch_get_specific(kSensesQueueKey)) work(); else dispatch_sync(_q, work);
+    return out;
+}
+
 /// The one pass. Runs on _q only.
 - (void)pass {
+    os_signpost_id_t sp = os_signpost_id_generate(MMTickLog());
+    os_signpost_interval_begin(MMTickLog(), sp, "pass");
+    uint64_t cpu0 = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
     uint64_t nowNs = (uint64_t)(mach_absolute_time() * _tbScale);
     double wallDelta = _prevWallNs ? (double)(nowNs - _prevWallNs) : 0;
     uid_t me = getuid();
@@ -600,22 +897,38 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
         len = 0;
     }
     size_t n = kp ? len / sizeof(struct kinfo_proc) : 0;
+    uint64_t cpuTable = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
 
     NSMutableDictionary<NSNumber *, MMProc *> *procs = [NSMutableDictionary dictionaryWithCapacity:n];
     NSMutableDictionary<NSNumber *, NSMutableArray *> *kids = [NSMutableDictionary dictionaryWithCapacity:n / 2];
     NSMutableDictionary<NSNumber *, NSValue *> *use = [NSMutableDictionary dictionaryWithCapacity:n];
-    pid_t *mine = malloc(sizeof(pid_t) * (n + 1)); size_t mineCount = 0;
+    MMProc *__unsafe_unretained *mine = (MMProc *__unsafe_unretained *)calloc(n + 1, sizeof(MMProc *));
+    size_t mineCount = 0;
     double maxEnergy = 0;
+    NSDictionary<NSNumber *, MMProc *> *before = self.latest.procs;
     for (size_t i = 0; i < n; i++) {
         struct kinfo_proc *k = &kp[i];
         pid_t pid = k->kp_proc.p_pid;
         // A zombie has exited and only waits for its parent to reap it, so it is left out, as MMProcAlive says.
         if (pid < 0 || k->kp_proc.p_stat == SZOMB) continue;
+        uid_t uid = k->kp_eproc.e_ucred.cr_uid;
+        uint64_t start = (uint64_t)k->kp_proc.p_starttime.tv_sec;
+        // The same process as in the last pass keeps its name. Another user's process has nothing more to read,
+        // so it keeps its whole object, which no pass changes once made.
+        MMProc *was = before[@(pid)];
+        size_t commLen = strnlen(k->kp_proc.p_comm, MAXCOMLEN);
+        BOOL same = was && was->_startSec == start && was->_ppid == k->kp_eproc.e_ppid && was->_uid == uid &&
+                    strlen(was->_name.UTF8String ?: "") == commLen && !strncmp(was->_name.UTF8String ?: "", k->kp_proc.p_comm, commLen);
+        if (same && uid != me) {
+            procs[@(pid)] = was;
+            NSMutableArray *siblings = kids[@(was->_ppid)] ?: (kids[@(was->_ppid)] = [NSMutableArray new]);
+            if (pid != was->_ppid) [siblings addObject:@(pid)];
+            continue;
+        }
         MMProc *p = [MMProc new];
-        p->_pid = pid; p->_ppid = k->kp_eproc.e_ppid; p->_uid = k->kp_eproc.e_ucred.cr_uid;
-        p->_startSec = (uint64_t)k->kp_proc.p_starttime.tv_sec;
-        p->_name = [[NSString alloc] initWithBytes:k->kp_proc.p_comm length:strnlen(k->kp_proc.p_comm, MAXCOMLEN)
-                                          encoding:NSUTF8StringEncoding] ?: @"?";
+        p->_pid = pid; p->_ppid = k->kp_eproc.e_ppid; p->_uid = uid;
+        p->_startSec = start;
+        p->_name = same ? was->_name : [[NSString alloc] initWithBytes:k->kp_proc.p_comm length:commLen encoding:NSUTF8StringEncoding] ?: @"?";
         p->_cpuPercent = -1;
         if (p->_uid == me && pid > 0) {
             struct rusage_info_v6 ru;
@@ -628,32 +941,103 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
                 if (pv) { [pv getValue:&prev size:sizeof prev]; had = prev.start == p->_startSec; }
                 p->_cpuPercent = had && wallDelta > 0 ? MAX(0, (cpuNs - prev.cpuNs) / wallDelta * 100.0) : 0;
                 p->_energyDelta = had ? MAX(0, now.energyNj - prev.energyNj) : 0;
+                p->_idle = had && cpuNs == prev.cpuNs;
+                // Idle in this pass and the one before, with the same footprint: the last object says it all.
+                if (same && p->_idle && was->_idle && was->_cpuPercent == 0 && was->_footprint == p->_footprint &&
+                    was->_energyDelta == 0 && was->_energyRank == 0)
+                    p = was;
                 if (p->_energyDelta > maxEnergy) maxEnergy = p->_energyDelta;
                 use[@(pid)] = [NSValue valueWithBytes:&now objCType:@encode(MMPrevUse)];
             }
-            mine[mineCount++] = pid;
+            mine[mineCount++] = p;
         }
         procs[@(pid)] = p;
         NSMutableArray *siblings = kids[@(p->_ppid)] ?: (kids[@(p->_ppid)] = [NSMutableArray new]);
         if (pid != p->_ppid) [siblings addObject:@(pid)];
     }
     if (maxEnergy > 0)
-        for (MMProc *p in procs.objectEnumerator) p->_energyRank = p->_energyDelta / maxEnergy;
+        for (MMProc *p in procs.objectEnumerator) if (p->_energyDelta > 0) p->_energyRank = p->_energyDelta / maxEnergy;
     free(kp);
     _prevUse = use; _prevWallNs = nowNs;
 
+    uint64_t cpuProcs = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
+    // Sockets. A process that used no CPU time since it was last read keeps what it had, for a while.
     NSMutableData *socks = [NSMutableData dataWithCapacity:512 * sizeof(MMSocket)];
-    ScanSockets(mine, mineCount, socks);
+    NSMutableDictionary<NSNumber *, NSValue *> *seen = [NSMutableDictionary dictionaryWithCapacity:mineCount];
+    NSMutableDictionary<NSNumber *, NSData *> *tcpFds = [NSMutableDictionary new];
+    uint64_t scanned = 0, carried = 0;
+    const uint8_t *prevBytes = _prevSocks.bytes;
+    NSUInteger prevLen = _prevSocks.length;
+    for (size_t j = 0; j < mineCount; j++) {
+        MMProc *p = mine[j];
+        MMSocketSeen was = {0}, now = { p->_startSec, nowNs, 0, socks.length, 0 };
+        NSValue *v = _sockSeen[@(p->_pid)];
+        BOOL had = NO, keep = NO;
+        if (v) {
+            [v getValue:&was size:sizeof was];
+            uint64_t maxAge = kSocketCarryNs + (uint64_t)(p->_pid % 16) * NSEC_PER_SEC;
+            had = was.start == p->_startSec && nowNs - was.readNs < maxAge && was.loc + was.len <= prevLen;
+        }
+        keep = had && p->_idle;
+        now.fdHash = was.fdHash;
+        NSData *tcpWas = had ? _tcpFds[@(p->_pid)] : nil;
+        if (!keep) {
+            int32_t *fds = NULL; uint64_t hash = 0;
+            int nfds = ListSocketFds(p->_pid, &fds, &hash);
+            now.fdHash = hash;
+            if (had && hash == was.fdHash) {
+                // It ran, but holds the same socket fds. Those that were not TCP are still not, so only the TCP ones
+                // are read again, for their state. With none, it keeps its empty list.
+                if (tcpWas.length) {
+                    NSMutableData *tcp = [NSMutableData new];
+                    ScanSocketFds(p->_pid, tcpWas.bytes, (int)(tcpWas.length / sizeof(int32_t)), socks, tcp);
+                    tcpWas = tcp;
+                    scanned++;
+                    now.readNs = was.readNs;   // every socket fd is read again once the full read is a minute old
+                    now.len = socks.length - now.loc;
+                    seen[@(p->_pid)] = [NSValue valueWithBytes:&now objCType:@encode(MMSocketSeen)];
+                    if (tcp.length) tcpFds[@(p->_pid)] = tcp;
+                    continue;
+                }
+                keep = YES;
+            } else {
+                NSMutableData *tcp = [NSMutableData new];
+                ScanSocketFds(p->_pid, fds, nfds, socks, tcp);
+                tcpWas = tcp;
+                scanned++;
+            }
+        }
+        if (keep) {
+            if (was.len) [socks appendBytes:prevBytes + was.loc length:was.len];
+            now.readNs = was.readNs;
+            carried++;
+        }
+        if (tcpWas.length) tcpFds[@(p->_pid)] = tcpWas;
+        now.len = socks.length - now.loc;
+        seen[@(p->_pid)] = [NSValue valueWithBytes:&now objCType:@encode(MMSocketSeen)];
+    }
     free(mine);
+    _prevSocks = socks; _sockSeen = seen; _tcpFds = tcpFds;
 
+    uint64_t cpuSockets = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
     NSMutableDictionary<NSNumber *, NSArray *> *frozen = [NSMutableDictionary dictionaryWithCapacity:kids.count];
     [kids enumerateKeysAndObjectsUsingBlock:^(NSNumber *k, NSMutableArray *v, BOOL *stop) { frozen[k] = [v copy]; }];
-    MMSample *s = [[MMSample alloc] initWithProcs:[procs copy] kids:frozen sockets:socks at:NSDate.date generation:++_generation];
+    MMSample *s = [[MMSample alloc] initWithProcs:[procs copy] kids:frozen sockets:[socks copy] at:NSDate.date generation:++_generation];
+    uint64_t argsCarried = 0, cwdsCarried = 0;
+    [s carryFrom:self.latest now:NowNs() args:&argsCarried cwds:&cwdsCarried];
+    uint64_t cpuCarry = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
     MMPower *p = ReadPower();
     MMPower *old = self.power;
+    uint64_t cpu = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu0;
     os_unfair_lock_lock(&_lock);
     _latest = s; _power = p;
+    _counts.passes++; _counts.pids += s.procs.count; _counts.argsCarried += argsCarried; _counts.cwdsCarried += cwdsCarried;
+    _counts.socketPidsScanned += scanned; _counts.socketPidsCarried += carried; _counts.cpuNs += cpu;
+    _counts.tableNs += cpuTable - cpu0; _counts.procsNs += cpuProcs - cpuTable; _counts.socketsNs += cpuSockets - cpuProcs;
+    _counts.carryNs += cpuCarry - cpuSockets; _counts.powerNs += cpu0 + cpu - cpuCarry;
     os_unfair_lock_unlock(&_lock);
+    os_signpost_interval_end(MMTickLog(), sp, "pass", "%zu pids, %llu socket reads, %llu carried", s.procs.count, scanned, carried);
+    [self pace:p];
     [self emit:MMSignalSample | [self changesFrom:old to:p] detail:nil];
 }
 
@@ -677,6 +1061,7 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     MMPower *old = _power; _power = p;
     os_unfair_lock_unlock(&_lock);
     MMSignal c = [self changesFrom:old to:p];
+    if (c & MMSignalPower) [self pace:p];   // plugging in returns to the base interval at once
     if (c) [self emit:c detail:nil];
 }
 

@@ -302,8 +302,8 @@ static int Idle(NSArray<NSString *> *args) {
     __block BOOL sampleOpen = NO, haveSnap = NO;
     __block NSUInteger snapshots = 0, samples = 0;
     NSMutableArray *passCPU = [NSMutableArray new], *rebuildCPU = [NSMutableArray new], *rebuildWall = [NSMutableArray new];
-    NSMutableArray *tickGaps = [NSMutableArray new];
-    __block uint64_t prevSampleAt = 0;
+    NSMutableArray *tickGaps = [NSMutableArray new], *tickCPU = [NSMutableArray new];
+    __block uint64_t prevSampleAt = 0, prevSampleCPU = 0;
     id sensesToken = [MMSenses.shared observe:MMSignalSample block:^(MMSignal changed, id detail) {
         uint64_t cpu = ProcessCPUNs(), now = NowNs();
         if (inWindow) {
@@ -311,9 +311,26 @@ static int Idle(NSArray<NSString *> *args) {
             // Everything since the last snapshot reached main: the pass itself, and the quiet time before it.
             if (haveSnap) [passCPU addObject:@((cpu - lastSnapCPU) / 1e6)];
             if (prevSampleAt) [tickGaps addObject:@((now - prevSampleAt) / 1e9)];
+            // Issue #52: the whole process's CPU from one sample to the next. A tick whose rebuild found nothing
+            // changed has no snapshot, so this is the number that holds every tick.
+            if (prevSampleCPU) [tickCPU addObject:@((cpu - prevSampleCPU) / 1e6)];
         }
-        prevSampleAt = now;
+        prevSampleAt = now; prevSampleCPU = cpu;
         sampleGen = MMSenses.shared.latest.generation; sampleCPU = cpu; sampleAt = now; sampleOpen = YES;
+    }];
+    // The pushed signals in the window, by kind, so the report can say what woke the graph besides the tick.
+    NSCountedSet *signals = [NSCountedSet new];
+    id signalToken = [MMSenses.shared observe:MMSignalExit | MMSignalApp | MMSignalPower | MMSignalLid | MMSignalMemory |
+                                              MMSignalThermal | MMSignalSleep | MMSignalDisk block:^(MMSignal changed, id detail) {
+        if (!inWindow) return;
+        NSArray *names = @[@"memory", @"disk", @"thermal", @"power", @"lid", @"exit", @"app", @"sleep"];
+        for (NSUInteger i = 0; i < names.count; i++) if (changed & (1u << i)) [signals addObject:names[i]];
+        if ((changed & MMSignalExit) && [detail isKindOfClass:NSValue.class]) {
+            // Which process ended, by name, from the sample before it ended.
+            MMProcKey k; [(NSValue *)detail getValue:&k size:sizeof k];
+            NSString *name = [MMSenses.shared.latest proc:k.pid].name ?: @"?";
+            [signals addObject:[@"exit:" stringByAppendingString:name]];
+        }
     }];
     id graphToken = [MMGraph.shared observe:^(MMSnapshot *s) {
         uint64_t cpu = ProcessCPUNs(), now = NowNs();
@@ -336,12 +353,46 @@ static int Idle(NSArray<NSString *> *args) {
     for (NSDictionary *a in apps) { MMBenchProc p = ReadProc([a[@"pid"] intValue]); appStart[a[@"pid"]] = [NSValue valueWithBytes:&p objCType:@encode(MMBenchProc)]; }
     MMBenchSelf a = ReadSelf();
     MMBenchProc selfA = ReadProc(getpid());
+    NSDictionary *costA = MMGraph.shared.costs;
+    MMSensesCounts sensesA = MMSenses.shared.counts;
+    NSUInteger readsA = MMSessions.shared.readCount, skipsA = MMSessions.shared.skipCount;
     NSDate *startedAt = NSDate.date;
     inWindow = YES;
     RunMain(seconds);
     inWindow = NO;
     MMBenchSelf b = ReadSelf();
     MMBenchProc selfB = ReadProc(getpid());
+    NSDictionary *costB = MMGraph.shared.costs;
+    MMSensesCounts sensesB = MMSenses.shared.counts;
+    NSUInteger readsB = MMSessions.shared.readCount, skipsB = MMSessions.shared.skipCount;
+    NSString *interval = [NSString stringWithFormat:@"%.0f s, %@", MMSenses.shared.interval, MMSenses.shared.intervalReason];
+    // Issue #52: what each part of the tick cost in the window, in CPU ms a build, from the graph's own counters,
+    // and what the Senses passes read and carried.
+    double builds = MAX(1, [costB[@"builds"] doubleValue] - [costA[@"builds"] doubleValue]);
+    NSMutableDictionary *perBuild = [NSMutableDictionary new], *reused = [NSMutableDictionary new];
+    for (NSString *k in costB) {
+        if ([k isEqualToString:@"builds"] || [k isEqualToString:@"skipped"]) continue;
+        double d = [costB[k] doubleValue] - [costA[k] doubleValue];
+        if ([k hasPrefix:@"reused."]) { reused[[k substringFromIndex:7]] = @((uint64_t)d); continue; }   // a count
+        perBuild[k] = R3(d / 1e6 / builds);
+    }
+    double passes = MAX(1, (double)(sensesB.passes - sensesA.passes));
+    NSDictionary *senses = @{@"passes": @(sensesB.passes - sensesA.passes),
+                             @"passCPUms": R3((sensesB.cpuNs - sensesA.cpuNs) / 1e6 / passes),
+                             @"argsCarriedPerPass": R2((sensesB.argsCarried - sensesA.argsCarried) / passes),
+                             @"cwdsCarriedPerPass": R2((sensesB.cwdsCarried - sensesA.cwdsCarried) / passes),
+                             @"socketPidsReadPerPass": R2((sensesB.socketPidsScanned - sensesA.socketPidsScanned) / passes),
+                             @"socketPidsCarriedPerPass": R2((sensesB.socketPidsCarried - sensesA.socketPidsCarried) / passes),
+                             @"interval": interval,
+                             @"partsCPUms": @{@"table": R3((sensesB.tableNs - sensesA.tableNs) / 1e6 / passes),
+                                              @"procs": R3((sensesB.procsNs - sensesA.procsNs) / 1e6 / passes),
+                                              @"sockets": R3((sensesB.socketsNs - sensesA.socketsNs) / 1e6 / passes),
+                                              @"carry": R3((sensesB.carryNs - sensesA.carryNs) / 1e6 / passes),
+                                              @"power": R3((sensesB.powerNs - sensesA.powerNs) / 1e6 / passes)}};
+    NSDictionary *graph = @{@"builds": @((NSUInteger)builds),
+                            @"skipped": @([costB[@"skipped"] unsignedLongLongValue] - [costA[@"skipped"] unsignedLongLongValue]),
+                            @"perBuildCPUms": perBuild, @"reusedFindings": reused,
+                            @"sessionReads": @(readsB - readsA), @"sessionSkips": @(skipsB - skipsA)};
     double window = (b.wallNs - a.wallNs) / 1e9;
     NSArray *old = OldAppsOver(apps, appStart, psStart, window);
 
@@ -349,6 +400,9 @@ static int Idle(NSArray<NSString *> *args) {
     NSMutableDictionary *findings = [NSMutableDictionary new];
     for (id<MMExpert> e in MMExperts()) findings[e.expertID] = @([snap findingsFor:e.expertID].count);
     [MMSenses.shared stopObserving:sensesToken];
+    [MMSenses.shared stopObserving:signalToken];
+    NSMutableDictionary *signalCounts = [NSMutableDictionary new];
+    for (NSString *k in signals) signalCounts[k] = @([signals countForObject:k]);
     [MMGraph.shared stopObserving:graphToken];
     MMCoreStop();
     NSUInteger records = [MMUndo.shared recent:nil limit:1000].count;
@@ -371,8 +425,11 @@ static int Idle(NSArray<NSString *> *args) {
         @"peakFootprintMB": (R2(MB(b.peakFootprint))), @"footprintAtWindowStartMB": (R2(MB(a.footprint))),
         @"samples": @(samples), @"snapshots": @(snapshots), @"pids": @(snap.facts.sample.procs.count),
         @"tickSeconds": Stats(tickGaps),
-        @"inWindow": @{@"passCPUms": Stats(passCPU), @"rebuildCPUms": Stats(rebuildCPU), @"rebuildWallms": Stats(rebuildWall)},
+        @"inWindow": @{@"passCPUms": Stats(passCPU), @"rebuildCPUms": Stats(rebuildCPU), @"rebuildWallms": Stats(rebuildWall),
+                       @"tickCPUms": Stats(tickCPU)},
         @"tickCost": ticks,
+        @"senses": senses, @"graph": graph, @"signals": signalCounts,
+        @"backoff": NSProcessInfo.processInfo.environment[@"MINMACS_NO_BACKOFF"].length ? @"off" : @"on",
         @"oldApps": old,
     });
     return 0;

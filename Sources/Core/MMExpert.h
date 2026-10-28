@@ -154,6 +154,10 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 - (NSArray<MMPrefSpec *> *)prefSpecs;
 /// One change from that pane, on main. The expert makes it off main, through MMRunAction like any other change.
 - (void)setPref:(NSString *)key value:(NSNumber *)value;
+/// Issue #52. A digest of what findingsFrom: reads from facts, cheaper to make than the findings. When it matches the
+/// last build's and only a new sample asked for this build, the graph reuses the last findings, for at most
+/// 30 seconds. An action, an exit or a change in Know always builds anew.
+- (uint64_t)inputDigestFrom:(MMFacts *)facts;
 @end
 
 /// Registers an expert with the graph, the broker and the CLI. Called once per expert at launch.

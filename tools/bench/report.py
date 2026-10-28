@@ -57,7 +57,8 @@ def main():
     out.append("")
     out.append("| Part | Median | p95 | Max | Runs |")
     out.append("|---|---|---|---|---|")
-    rows = [("In the window: sample signal, from the last snapshot", w["passCPUms"]),
+    rows = [("In the window: the whole process, one sample to the next", w.get("tickCPUms", {})),
+            ("In the window: sample signal, from the last snapshot", w["passCPUms"]),
             ("In the window: rebuild, sample signal to snapshot on main", w["rebuildCPUms"]),
             ("In the window: rebuild wall time", w["rebuildWallms"]),
             ("Alone: Senses pass", t["passCPUms"]), ("Alone: Senses pass, wall time", t["passWallms"]),
@@ -70,6 +71,28 @@ def main():
             rows += [("Again, same sample: %s findings" % k, v) for k, v in sorted(p["findingsWarmCPUms"].items())]
     for name, s in rows:
         out.append("| %s | %s | %s | %s | %s |" % (name, s.get("median", ""), s.get("p95", ""), s.get("max", ""), s.get("n", 0)))
+    sn, gr = idle.get("senses"), idle.get("graph")
+    if sn and gr:
+        out.append("")
+        out.append("Issue #52, in the window. The Senses pass ran %d times at %s, %s ms CPU each." % (sn["passes"], sn["interval"], fmt(sn["passCPUms"], 3)))
+        out.append("Each pass carried the args of %s processes and the cwd of %s, read the sockets of %s and carried those of %s." % (
+            fmt(sn["argsCarriedPerPass"], 0), fmt(sn["cwdsCarriedPerPass"], 0), fmt(sn["socketPidsReadPerPass"], 0), fmt(sn["socketPidsCarriedPerPass"], 0)))
+        out.append("The graph built %d snapshots and skipped %d builds whose facts did not change. The session index read its folders %d times and skipped %d refreshes." % (
+            gr["builds"], gr["skipped"], gr["sessionReads"], gr["sessionSkips"]))
+        if gr.get("reusedFindings"):
+            out.append("Experts that handed back their last findings: %s." % ", ".join("%s %d times" % (k, v) for k, v in sorted(gr["reusedFindings"].items())))
+        sig = idle.get("signals", {})
+        if sig:
+            out.append("Signals besides the tick: %s." % ", ".join("%s %d" % (k, v) for k, v in sorted(sig.items()) if ":" not in k))
+        out.append("")
+        out.append("| Part | CPU ms each |")
+        out.append("|---|---|")
+        for k, v in sorted(sn.get("partsCPUms", {}).items()):
+            out.append("| Pass: %s | %s |" % (k, v))
+        for k, v in sorted(gr["perBuildCPUms"].items()):
+            if k.startswith("reused."):
+                continue
+            out.append("| Build: %s | %s |" % (k, v))
     out.append("")
     out.append("Menus, in wall ms on main, %d builds each from a fixture snapshot:" % menus["iterations"])
     out.append("")

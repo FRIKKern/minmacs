@@ -3,6 +3,8 @@
 // processes or sockets itself. Agent names are registry lookups. Sessions are Know's. Git and the allowlisted
 // project files go through Core's fact cache on its own queue. The HTTP title probe is gone.
 #import <AppKit/AppKit.h>
+#import <os/lock.h>
+#import <stdatomic.h>
 #import <arpa/inet.h>
 #import <sys/stat.h>
 #import "Experts/LocoHost/MMLHScan.h"
@@ -13,12 +15,17 @@ static NSString *const kExpert = @"locohost";
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] ? v : nil; }
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
 
+/// getenv, which costs a lookup where NSProcessInfo copies the whole environment. A rebuild reads these.
+static NSString *Env(const char *key) {
+    const char *v = getenv(key);
+    return v && *v ? @(v) : nil;
+}
 static double EnvMinutes(NSString *key, double dflt) {
-    NSString *env = NSProcessInfo.processInfo.environment[key];
+    NSString *env = Env(key.UTF8String);
     return (env.length ? env.doubleValue : dflt) * 60;
 }
 NSTimeInterval MMLHIdleSeconds(void) {
-    NSString *env = NSProcessInfo.processInfo.environment[@"LOCOHOST_IDLE_MINUTES"];
+    NSString *env = Env("LOCOHOST_IDLE_MINUTES");
     return (env.length ? env.doubleValue : (double)MMPrefInt(@"locohost.idleMinutes", 30)) * 60;
 }
 NSTimeInterval MMLHMinUptime(void) { return EnvMinutes(@"LOCOHOST_MIN_UPTIME_MINUTES", 30); }
@@ -510,7 +517,7 @@ static NSString *LocalAddr(const MMSocket *s) {
                 else if ([[aargs componentsJoinedByString:@" "] containsString:@"/.claude/shell-snapshots/"]) { h.agent = AgentName(@"claude-code"); h.agentPid = ap; }
             }
             if ([Multiplexers() containsObject:tool]) { [via addObject:tool]; break; }
-            if ([NSRunningApplication runningApplicationWithProcessIdentifier:ap]) break;
+            if (MMAppWithPid(s, ap)) break;
         }
         if (!h.agent) {
             MMAgent *ag = [MMRegistry.shared agentAbove:pid in:facts.agents sample:s];
@@ -518,8 +525,8 @@ static NSString *LocalAddr(const MMSocket *s) {
         }
         if (wrapper) [via insertObject:wrapper atIndex:0];
         if (h.agent && ![via containsObject:h.agent]) [via addObject:h.agent];
-        pid_t resp = MMResponsiblePid(pid);
-        NSRunningApplication *ra = resp != pid ? [NSRunningApplication runningApplicationWithProcessIdentifier:resp] : nil;
+        pid_t resp = MMResponsiblePidIn(s, pid);
+        NSRunningApplication *ra = resp != pid ? MMAppWithPid(s, resp) : nil;
         if (ra.localizedName && ![via containsObject:ra.localizedName]) [via addObject:ra.localizedName];
         // launchd adopts a process whose parent exits. One an app or a terminal started, which macOS still names
         // as responsible, that has no shell, agent or app above it now, lost its parent. A brew service is responsible
@@ -583,7 +590,7 @@ static NSString *LocalAddr(const MMSocket *s) {
             // as itself, even though macOS names the terminal it was started in as responsible.
             NSString *cexec = [s argsOf:sv[i].pid].firstObject ?: @"", *cn = nil;
             if ([cexec containsString:@".app/"] || [cexec containsString:@".xpc/"])
-                cn = [NSRunningApplication runningApplicationWithProcessIdentifier:MMResponsiblePid(sv[i].pid)].localizedName;
+                cn = MMAppWithPid(s, MMResponsiblePidIn(s, sv[i].pid)).localizedName;
             [clients addObject:cn ?: [s proc:sv[i].pid].name ?: @"?"];
         }
         h.connections = connNow.count; h.newConnections = fresh.count;
@@ -656,9 +663,50 @@ static NSString *LocalAddr(const MMSocket *s) {
 
 @end
 
+/// Issue #52. Know's Where answers from its cache and works out a new answer in the background on every call,
+/// which runs sysctls, LaunchServices and the cmux and tmux CLIs. A rebuild asks it once a minute per server.
+/// The first ask only starts the work, so a server with no answer yet is asked once more 10 seconds later.
+/// In between, the last answer is reused.
+static NSMutableDictionary<NSString *, NSArray *> *gAsked;   // pid:start to [place or null, time asked, times asked]
+static os_unfair_lock gAskedLock = OS_UNFAIR_LOCK_INIT;
+
+/// Servers asked once in the last 15 seconds that have no answer yet, so they will be asked again.
+uint64_t MMLHPlacesPending(void) {
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
+    uint64_t n = 0;
+    os_unfair_lock_lock(&gAskedLock);
+    for (NSArray *a in gAsked.objectEnumerator)
+        if (a.firstObject == NSNull.null && [a.lastObject integerValue] < 2 && now - [a[1] doubleValue] < 15) n++;
+    os_unfair_lock_unlock(&gAskedLock);
+    return n;
+}
+
+static MMPlace *PlaceFor(MMProcKey k, MMSample *s) {
+    NSMutableDictionary<NSString *, NSArray *> *asked;
+    os_unfair_lock *lockp = &gAskedLock;
+    NSString *key = [NSString stringWithFormat:@"%d:%llu", k.pid, (unsigned long long)k.startSec];
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
+    os_unfair_lock_lock(lockp);
+    if (!gAsked) gAsked = [NSMutableDictionary new];
+    asked = gAsked;
+    NSArray *last = asked[key];
+    os_unfair_lock_unlock(lockp);
+    id place = last.firstObject;
+    double age = now - [last[1] doubleValue];
+    NSInteger times = [last.lastObject integerValue];
+    if (last && age < (place == NSNull.null && times < 2 ? 10 : 60)) return place == NSNull.null ? nil : place;
+    MMPlace *p = MMWhereIs(k, s, NO);
+    os_unfair_lock_lock(lockp);
+    asked[key] = @[p ?: NSNull.null, @(now), @(times + 1)];
+    // Servers that are gone leave the memory.
+    if (asked.count > 64) for (NSString *x in asked.allKeys) if (now - [asked[x][1] doubleValue] > 300) [asked removeObjectForKey:x];
+    os_unfair_lock_unlock(lockp);
+    return p;
+}
+
 void MMLHFillWhere(MMLHHost *h, MMSample *s, BOOL wait) {
     MMProcKey k = { h.pid, h.startSec };
-    MMPlace *p = MMWhereIs(k, s, wait);
+    MMPlace *p = wait ? MMWhereIs(k, s, YES) : PlaceFor(k, s);
     h.placeLabel = p.label.length ? p.label : nil;
     h.placeTab = p.tab.length ? p.tab : nil;
     h.placeApp = p.app.length ? p.app : nil;

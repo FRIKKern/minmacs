@@ -215,4 +215,9 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 - (void)holdAwake:(NSString *)reason pid:(MMProcKey)key;
 /// The broker saves each expert's newest review here. The next snapshot carries it.
 - (void)saveReview:(MMReview *)review forExpert:(NSString *)expert;
+/// Issue #52. Thread CPU time in ns since launch: "facts" for the fact source, "snapshot" for the rest of a build,
+/// "findings.<expert>" for each expert's findingsFrom:, "publish" for main's part, plus "builds" and "skipped" as
+/// counts. The bench reads it at both ends of its window. Signposts in no.guerrilla.minmacs, category tick,
+/// mark the same intervals.
+- (NSDictionary<NSString *, NSNumber *> *)costs;
 @end

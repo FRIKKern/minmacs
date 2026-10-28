@@ -58,13 +58,13 @@ static MMRowMark AgentMark(MMAgentState s) {
 #pragma mark - Reading the facts
 
 /// 1.2's IsBucket: regular apps, plus menu bar apps that are not Apple's own. Helpers roll up into their app.
-static BOOL IsBucket(NSRunningApplication *ra) {
-    NSString *bid = ra.bundleIdentifier;
+static BOOL IsBucket(MMApp *ra) {
+    NSString *bid = ra.bundleID;
     if (!bid) return NO;
     if ([bid containsString:@".helper"] || [bid containsString:@".Helper"] || [bid containsString:@".framework."] ||
         [bid hasPrefix:@"com.apple.WebKit"]) return NO;
-    if (ra.activationPolicy == NSApplicationActivationPolicyRegular) return ![bid isEqualToString:@"com.apple.loginwindow"];
-    if (ra.activationPolicy == NSApplicationActivationPolicyAccessory) return ![bid hasPrefix:@"com.apple."];
+    if (ra.policy == NSApplicationActivationPolicyRegular) return ![bid isEqualToString:@"com.apple.loginwindow"];
+    if (ra.policy == NSApplicationActivationPolicyAccessory) return ![bid hasPrefix:@"com.apple."];
     return NO;
 }
 
@@ -121,8 +121,15 @@ static NSArray<MMUndoRecord *> *Restorable(void);
 @interface MMMinMacsListRule : NSObject <MMRule>
 @end
 
+/// One process's app, as rollUp found it: kept while the start time and parent hold. owner 0 is no app.
+typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
+
 @implementation MMMinMacsExpert {
     MMVerdictWords *_words;
+    NSArray *_ownerApps;                 // the app list _ownerOf was made against
+    NSDictionary<NSNumber *, NSValue *> *_ownerOf;
+    NSString *_logStamp;                 // the log's stamp when _quitAsked and restorableRecords were read
+    NSSet<NSString *> *_quitAsked;
 }
 
 + (instancetype)shared {
@@ -167,30 +174,50 @@ static NSArray<MMUndoRecord *> *Restorable(void);
     NSMutableDictionary<NSNumber *, MMMinMacsApp *> *byPid = [NSMutableDictionary new];
     NSMutableDictionary<NSNumber *, NSMutableArray *> *pidsOf = [NSMutableDictionary new];
     pid_t me = getpid();
-    for (NSRunningApplication *ra in NSWorkspace.sharedWorkspace.runningApplications) {
-        pid_t pid = ra.processIdentifier;
-        if (pid <= 1 || pid == me || ra.terminated || !IsBucket(ra)) continue;
+    // The app list is Core's, read once per app launch or quit, so a rebuild asks LaunchServices nothing.
+    for (MMApp *ra in MMRunningApps()) {
+        pid_t pid = ra.pid;
+        if (pid <= 1 || pid == me || !IsBucket(ra)) continue;
         MMProc *p = [s proc:pid];
         if (!p) continue;                                  // not in this sample, so nothing to say about it
         MMMinMacsApp *a = [MMMinMacsApp new];
-        a.pid = pid; a.startSec = p.startSec; a.bundleID = ra.bundleIdentifier;
-        a.name = ra.localizedName.length ? ra.localizedName : ra.bundleIdentifier;
-        a.bundlePath = ra.bundleURL.path;
+        a.pid = pid; a.startSec = p.startSec; a.bundleID = ra.bundleID;
+        a.name = ra.name.length ? ra.name : ra.bundleID;
+        a.bundlePath = ra.bundlePath;
         byPid[@(pid)] = a;
         pidsOf[@(pid)] = [NSMutableArray new];
     }
     double total = 0;
-    for (MMProc *p in s.procs.allValues) {
+    // Which app each process rolls up into, kept per process while the app list holds, issue #52.
+    // A process's responsible app does not change, and its parents change only when one exits.
+    NSArray *appList = MMRunningApps();
+    NSDictionary<NSNumber *, NSValue *> *ownerOf;
+    @synchronized (self) {
+        if (_ownerApps != appList) { _ownerApps = appList; _ownerOf = @{}; }
+        ownerOf = _ownerOf;
+    }
+    NSMutableDictionary<NSNumber *, NSValue *> *ownerNow = [NSMutableDictionary dictionaryWithCapacity:s.procs.count];
+    for (MMProc *p in s.procs.objectEnumerator) {
         if (p.cpuPercent > 0) total += p.cpuPercent;
         if (p.pid == me) continue;
-        MMMinMacsApp *owner = byPid[@(MMResponsiblePid(p.pid))];
-        pid_t cur = p.pid;
-        for (int hops = 0; !owner && hops < 12 && cur > 1; hops++) {
-            if ((owner = byPid[@(cur)])) break;
-            MMProc *parent = [s proc:cur];
-            if (!parent) break;
-            cur = parent.ppid;
+        MMMinMacsOwnerMemo m = {0, 0, 0};
+        NSValue *v = ownerOf[@(p.pid)];   // a memo is replaced whole, never changed, so it is read without the lock
+        if (v) [v getValue:&m size:sizeof m];
+        MMMinMacsApp *owner = nil;
+        if (v && m.start == p.startSec && m.ppid == p.ppid) {
+            owner = m.owner > 0 ? byPid[@(m.owner)] : nil;
+        } else {
+            owner = byPid[@(MMResponsiblePidIn(s, p.pid))];
+            pid_t cur = p.pid;
+            for (int hops = 0; !owner && hops < 12 && cur > 1; hops++) {
+                if ((owner = byPid[@(cur)])) break;
+                MMProc *parent = [s proc:cur];
+                if (!parent) break;
+                cur = parent.ppid;
+            }
         }
+        MMMinMacsOwnerMemo now = { p.startSec, p.ppid, owner ? owner.pid : 0 };
+        ownerNow[@(p.pid)] = [NSValue valueWithBytes:&now objCType:@encode(MMMinMacsOwnerMemo)];
         if (!owner) continue;
         owner.cpuPercent += MAX(0, p.cpuPercent);
         owner.memory += p.footprint;
@@ -199,6 +226,7 @@ static NSArray<MMUndoRecord *> *Restorable(void);
         [pidsOf[@(owner.pid)] addObject:@(p.pid)];
     }
     in.totalCPU = total;
+    @synchronized (self) { if (_ownerApps == appList) _ownerOf = [ownerNow copy]; }   // processes that are gone leave
 
     // Loopback listeners, from the sample's socket table.
     NSMutableDictionary<NSNumber *, NSMutableOrderedSet *> *ports = [NSMutableDictionary new];
@@ -293,9 +321,18 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
     MMMinMacsInput *in = [self inputFrom:facts];
     MMMinMacsRules *rules = MMMinMacsRules.shared;
     BOOL quitBrowsers = QuitBrowsers();
-    // One read of the undo log per rebuild, here on the graph queue, so the menu and cards never read it on main.
-    NSSet *asked = QuitAsked();
-    self.restorableRecords = Restorable();
+    // The undo log is read here on the graph queue, so the menu and cards never read it on main.
+    // It is read again only when the log moved, issue #52.
+    NSSet *asked = nil;
+    NSString *stamp = MMLogStamp();
+    @synchronized (self) {
+        if (_logStamp && [_logStamp isEqualToString:stamp]) asked = _quitAsked;
+    }
+    if (!asked) {
+        asked = QuitAsked();
+        self.restorableRecords = Restorable();
+        @synchronized (self) { _quitAsked = asked; _logStamp = stamp; }
+    }
     NSArray *apps = [in.apps sortedArrayUsingComparator:^NSComparisonResult(MMMinMacsApp *x, MMMinMacsApp *y) {
         if (x.memory != y.memory) return x.memory > y.memory ? NSOrderedAscending : NSOrderedDescending;
         return [x.bundleID compare:y.bundleID];

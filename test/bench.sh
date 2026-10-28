@@ -12,8 +12,11 @@ bn_bin=$(BUILD_DIR="$bn" tools/bench/build.sh 2>"$bn/build.err"); bn_r=$?
 check "bench: the bench builds" 0 "$bn_r"
 check "bench: the bench has no warnings" 0 "$(cat "$bn/bench/clang.log" "$bn/build.err" 2>/dev/null | grep -c 'warning:')"
 [ "$bn_r" = 0 ] || tail -20 "$bn/build.err"
+# MINMACS_NO_BACKOFF=1 keeps the 5-second pass on battery and while the person is away, so the window holds as many
+# ticks as on a Mac in use, issue #52.
 bn_env() {
   env MINMACS_HOME="$bn/home" CLAUDE_CONFIG_DIR="$bn/home/claude" CODEX_HOME="$bn/home/codex" \
+    PI_CODING_AGENT_SESSION_DIR="$bn/home/pi" MINMACS_NO_BACKOFF=1 \
     MINMACS_CLAUDE=/usr/bin/false MINMACS_CODEX=/usr/bin/false MINMACS_CMUX=/usr/bin/false MINMACS_TMUX=/usr/bin/false "$@"
 }
 
@@ -48,7 +51,12 @@ check "bench: every mode is Idle and nothing acted" "idle 0" "$(bi '"%s %d" % (j
 check "bench: the window is 30 seconds" yes "$(bi '"yes" if 29.5 <= j["windowSeconds"] <= 32 else j["windowSeconds"]')"
 # An exit of a watched process adds a sample of its own, so gaps can be shorter, never longer.
 check "bench: Senses samples at least every 5 seconds in the window" yes "$(bi '"yes" if j["samples"] >= 5 and j["tickSeconds"]["max"] <= 6.5 else (j["samples"], j["tickSeconds"])')"
-check "bench: each sample gives a rebuild" yes "$(bi '"yes" if j["inWindow"]["rebuildCPUms"]["n"] >= j["samples"] - 1 else j["inWindow"]["rebuildCPUms"]["n"]')"
+# Issue #52: a sample whose facts did not change is skipped, so each sample gives a build or a skip.
+check "bench: each sample gives a rebuild or a skip" yes "$(bi '"yes" if j["graph"]["builds"] + j["graph"]["skipped"] >= j["samples"] - 1 else (j["graph"], j["samples"])')"
+check "bench: the 5-second pass held without backoff" "off 5 s, base" "$(bi '"%s %s" % (j["backoff"], j["senses"]["interval"])')"
+check "bench: the window counts each expert's findings cost" "$bn_linked" "$(bi 'sum(1 for k in j["graph"]["perBuildCPUms"] if k.startswith("findings."))')"
+check "bench: the pass carried args, cwds and sockets" yes "$(bi '"yes" if j["senses"]["argsCarriedPerPass"] > 50 and j["senses"]["socketPidsCarriedPerPass"] > 0 else j["senses"]')"
+check "bench: the session index read its folders at most once a minute" yes "$(bi '"yes" if j["graph"]["sessionReads"] <= j["windowSeconds"] / 60 + 1 else j["graph"]')"
 check "bench: the pass reads the real process table" yes "$(bi '"yes" if j["pids"] > 50 else j["pids"]')"
 check "bench: the tick is timed alone too" 8 "$(bi 'j["tickCost"]["passes"]')"
 check "bench: each expert's findings are timed alone" "$bn_linked" "$(bi 'len(j["tickCost"]["parts"]["findingsCPUms"])')"

@@ -121,8 +121,12 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
 @end
 
 NSString *MMLHQuote(NSString *s) {
-    if (s.length && [s rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:
-            @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./=:@%+,"] invertedSet]].location == NSNotFound) return s;
+    static NSCharacterSet *unsafe; static dispatch_once_t once;   // made once: a rebuild quotes every server's args
+    dispatch_once(&once, ^{
+        unsafe = [[NSCharacterSet characterSetWithCharactersInString:
+                   @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./=:@%+,"] invertedSet];
+    });
+    if (s.length && [s rangeOfCharacterFromSet:unsafe].location == NSNotFound) return s;
     return [NSString stringWithFormat:@"'%@'", [s stringByReplacingOccurrencesOfString:@"'" withString:@"'\\''"]];
 }
 

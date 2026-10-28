@@ -27,13 +27,28 @@
 /// pi sessions come from $PI_CODING_AGENT_SESSION_DIR, $PI_CODING_AGENT_DIR/sessions or ~/.pi/agent/sessions.
 @interface MMSessions : NSObject
 + (instancetype)shared;
-- (void)refresh;                                        // the graph queue calls this; reads never block
+/// The graph queue calls this; reads never block. Issue #52: once startWatching ran, it reads the folders again only
+/// when FSEvents saw a change under them, when a live status file's process ended, or after a minute.
+/// Before startWatching, as in the CLI and the tools, every call reads them.
+- (void)refresh;
+/// Reads every folder and database now, for fresh facts.
+- (void)refreshAll;
+/// One FSEvents stream over Claude Code's, Codex's and pi's folders. A change posts MMSessionsDidChangeNotification.
+/// A missing folder is watched from the nearest folder above it, but never from the home folder or above.
+/// Such a folder costs a stat on each refresh, and the watch starts again once it exists.
+- (void)startWatching;
+- (void)stopWatching;
+/// How many refresh calls read the folders, and how many found nothing new and returned at once.
+@property (readonly) NSUInteger readCount, skipCount;
 - (NSArray<MMSession *> *)all;
 - (MMSession *)latestIn:(NSString *)folder;             // the newest session whose cwd is folder or inside it
 - (MMSession *)openAt:(NSDate *)t inFolders:(NSArray<NSString *> *)folders;
 - (MMSession *)forPid:(pid_t)pid;
 - (MMSession *)withID:(NSString *)sessionID;
 @end
+
+/// Posted on the sessions watch queue after FSEvents saw a change in a session folder. Core asks for a rebuild.
+extern NSNotificationName const MMSessionsDidChangeNotification;
 
 /// P22. One agent event, kept small: the event name, session id, cwd, parent pid and time. Nothing else is kept.
 @interface MMAgentEvent : NSObject

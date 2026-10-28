@@ -2,6 +2,8 @@
 // Ported from LocoHost's LHSupportDir and SaveActivity, WorkForest's WFRules and WFPref, and MinMacs 1.2's wildcards.
 #import "Core/Store/MMStore.h"
 #import <sys/file.h>
+#import <stdatomic.h>
+#import <sys/stat.h>
 #import <fcntl.h>
 #import <unistd.h>
 #import <sys/stat.h>
@@ -12,14 +14,32 @@ NSString *const MMOneIconKey = @"core.oneIcon";
 
 #pragma mark Folders
 
+/// MINMACS_HOME read with getenv, which sees a change made after launch as NSProcessInfo does, without copying
+/// the whole environment on every call. Issue #52: the tick asks for the support folder many times a rebuild.
+static NSString *HomeEnv(void) {
+    const char *h = getenv("MINMACS_HOME");
+    return h && *h ? [NSFileManager.defaultManager stringWithFileSystemRepresentation:h length:strlen(h)] : nil;
+}
+
 static NSString *MakeDir(NSString *dir) {
+    // One stat when the folder is there, issue #52: the tick asks for these paths many times a rebuild.
+    struct stat st;
+    if (stat(dir.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)) return dir;
     [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     return dir;
 }
 
+/// A file's identity and change time from one stat, with no extended attributes read. nil when it is missing.
+static NSString *FileStamp(NSString *path) {
+    struct stat st;
+    if (!path || stat(path.fileSystemRepresentation, &st) != 0) return nil;
+    return [NSString stringWithFormat:@"%llu:%ld.%ld:%lld", (unsigned long long)st.st_ino, (long)st.st_mtimespec.tv_sec,
+                                      st.st_mtimespec.tv_nsec, (long long)st.st_size];
+}
+
 NSString *MMSupportDir(void) {
     // Read each time, so a test that sets MINMACS_HOME after launch still gets its own folder.
-    NSString *env = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
+    NSString *env = HomeEnv();
     if (env.length) return MakeDir(env);
     return MakeDir([NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/MinMacs"]);
 }
@@ -44,7 +64,7 @@ NSArray<NSString *> *MMRemoveStaleFiles(void) {
 #pragma mark Prefs
 
 NSString *MMPrefsTarget(void) {
-    NSString *env = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
+    NSString *env = HomeEnv();
     if (!env.length) return MMPrefsDomain;
     // The test prefs stay inside MINMACS_HOME, in a plist that MMPref and MMSetPref read and write themselves.
     return [MakeDir([env stringByAppendingPathComponent:@"Preferences"]) stringByAppendingPathComponent:@"no.guerrilla.minmacs.plist"];
@@ -65,16 +85,36 @@ static void WithPrefsFile(NSString *path, BOOL write, void (^body)(void)) {
     @finally { if (fd >= 0) { flock(fd, LOCK_UN); close(fd); } }
 }
 
+/// The test plist, parsed again only when its inode, change time or size moved. MMSetPref writes it atomically,
+/// so every write gives a new inode.
+static NSString *gKeptPrefsPath, *gKeptPrefsStamp;
+static NSDictionary *gKeptPrefs;
+static NSDictionary *KeptPrefs(NSString *path) {
+    NSString *stamp = FileStamp(path);
+    @synchronized (NSFileManager.class) {
+        if (stamp && gKeptPrefs && [gKeptPrefsPath isEqualToString:path] && [gKeptPrefsStamp isEqualToString:stamp]) return gKeptPrefs;
+    }
+    return nil;
+}
+
 static NSDictionary *ReadPrefsFile(NSString *path) {
+    NSString *stamp = FileStamp(path);
+    NSDictionary *have = KeptPrefs(path);
+    if (have) return have;
     NSData *d = [NSData dataWithContentsOfFile:path];
     id j = d ? [NSPropertyListSerialization propertyListWithData:d options:NSPropertyListImmutable format:NULL error:nil] : nil;
-    return [j isKindOfClass:NSDictionary.class] ? j : @{};
+    NSDictionary *out = [j isKindOfClass:NSDictionary.class] ? j : @{};
+    @synchronized (NSFileManager.class) { gKeptPrefs = out; gKeptPrefsPath = path; gKeptPrefsStamp = stamp; }
+    return out;
 }
 
 id MMPref(NSString *key) {
     if (!key.length) return nil;
     NSString *path = FilePrefsPath();
     if (path) {
+        // The parse of an unchanged file needs no lock: the stamp says nothing wrote it since.
+        NSDictionary *kept = KeptPrefs(path);
+        if (kept) return kept[key];
         __block id v = nil;
         WithPrefsFile(path, NO, ^{ v = ReadPrefsFile(path)[key]; });
         return v;
@@ -164,11 +204,18 @@ BOOL MMIconVisible(NSString *expert) { return MMPrefBool(MMIconVisibleKey(expert
 
 /// rules.json holds each named list at the top level, and under "_defaults" every default entry it has
 /// ever added. A default that is listed there and missing from its list was removed by the person, so it stays out.
+/// Every set: in this process, by any instance, so another instance's cache is checked again at once.
+static _Atomic uint64_t gRulesWrites;
+
+void MMRulesCheckNow(void) { atomic_fetch_add(&gRulesWrites, 1); }
+
 @implementation MMRules {
     MMStateFile *_file;
     NSDictionary *_defaults;
     NSDictionary *_cache;
-    NSDate *_cacheStamp;
+    NSString *_cacheStamp;                 // inode, change time and size of the file when _cache was read
+    uint64_t _checkedAt;                   // when the stamp was last read, in CLOCK_UPTIME_RAW ns
+    uint64_t _checkedWrites;               // gRulesWrites then
 }
 
 + (instancetype)rulesFor:(NSString *)expert defaults:(NSDictionary<NSString *, NSArray *> *)defaults {
@@ -179,6 +226,7 @@ BOOL MMIconVisible(NSString *expert) { return MMPrefBool(MMIconVisibleKey(expert
     [r->_file update:^id(id disk) {
         BOOL changed = ![disk isKindOfClass:NSDictionary.class];
         NSMutableDictionary *j = [r merged:disk changed:&changed];
+        if (changed) atomic_fetch_add(&gRulesWrites, 1);
         return changed ? j : nil;
     }];
     return r;
@@ -205,8 +253,13 @@ BOOL MMIconVisible(NSString *expert) { return MMPrefBool(MMIconVisibleKey(expert
 
 - (NSDictionary *)current {
     @synchronized (self) {
-        NSDate *stamp = [NSFileManager.defaultManager attributesOfItemAtPath:_file.path error:nil].fileModificationDate;
-        if (!_cache || ![stamp isEqual:_cacheStamp]) {
+        // The file is checked at most once a second, issue #52: a rebuild asks every list for every server.
+        // A change through set: drops the cache at once, so only an edit from outside waits up to a second.
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW), writes = atomic_load(&gRulesWrites);
+        if (_cache && now - _checkedAt < NSEC_PER_SEC && writes == _checkedWrites) return _cache;
+        _checkedAt = now; _checkedWrites = writes;
+        NSString *stamp = FileStamp(_file.path);
+        if (!_cache || !(stamp == _cacheStamp || [stamp isEqual:_cacheStamp])) {
             _cache = [self merged:[_file read] changed:NULL];
             _cacheStamp = stamp;
         }
@@ -260,6 +313,7 @@ static BOOL Matches(NSString *pattern, NSString *value) {
             return j;
         }];
         _cache = nil;
+        atomic_fetch_add(&gRulesWrites, 1);
     }
 }
 

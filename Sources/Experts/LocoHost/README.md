@@ -13,6 +13,12 @@ Localhost servers on the shared core, issue #22. LocoHost lists every server, sa
 
 One finding per listening process, kind `server`, id `locohost:server:<stableKey>`. Decision 8 sets the stable key: the project folder and the package.json script, such as `~/code/app#dev`, else the folder and the port. A second server with the same key adds its port. The instance key is `pid:start`. The fingerprint holds the instance, the state, whether a client has it open, duplicates, the protect list, whether its agent session is fresh, and how long it has been quiet, in the graph's age buckets. The finding's facts are the whole host as JSON, for `--json` and the menu. The proposal is Stop Server, reversible by restart.
 
+## The idle tick, issue #52
+
+- `inputDigestFrom:` digests what the hosts are built from: the listeners and the connections to or from a listening port, each listener's tree with each process's start, a CPU band and its memory in 16 MB steps, the parents above it, each agent and its state, and the session, worktree and git objects. When it matches, the graph hands back the last findings. A server tree at 10 % CPU or more always builds, since two busy samples in a row mark a server busy, and so does a server that still waits for its first place.
+- Know's Where works out a new place in the background on every call. A rebuild asks it once a minute per server, and once more 10 seconds after the first ask, and reuses the last answer in between.
+- The stopped records come from the undo log only after `MMLogStamp()` moved. `MMLHQuote` makes its character set once, and the env lookups use `getenv`.
+
 ## Keeps
 
 - **Every mode.** Not a dev server, protected, used within the quiet threshold, younger than 30 minutes, or its agent session active in the last hour. A server that restarted since the plan cannot be verified, so it stays.
