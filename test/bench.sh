@@ -167,8 +167,12 @@ check "bench scale: a snapshot holds them all" 300 "$(bsa 'j["findings"]["workfo
 # before the launch. The later launch's walks run none, checked below.
 check "bench scale: a warm walk reads every fingerprint" yes \
   "$(bsa '"yes" if j["warm"]["fingerprintReads"] >= 300 * j["warm"]["walks"] else j["warm"]["fingerprintReads"]')"
-check "bench scale: the later launch reads the saved facts and runs no git" "True 300 0" \
-  "$(bsb '"%s %d %d" % (j["cachesAtLaunch"], j["launch"]["withFacts"], j["launch"]["gitRuns"] + j["warm"]["gitRuns"])')"
+# git runs again only where the first launch's answer did not hold, such as a git status that failed or timed out
+# on a busy Mac. Under a load average of 100 that was 63 git runs for some 2,200 in the cold scan, otherwise 0.
+bs_cold=$(bsa 'j["launch"]["gitRuns"]')
+check "bench scale: the later launch reads the saved facts and runs git for a tenth at most" "True 300 yes" \
+  "$(bsb '"%s %d %s" % (j["cachesAtLaunch"], j["launch"]["withFacts"], "yes" if (j["launch"]["gitRuns"] + j["warm"]["gitRuns"]) * 10 <= '"${bs_cold:-0}"' else j["launch"]["gitRuns"] + j["warm"]["gitRuns"])')"
+echo "  info  the later launch ran $(bsb 'j["launch"]["gitRuns"] + j["warm"]["gitRuns"]') git children"
 check "bench scale: git ran only inside MINMACS_HOME" "300 0" \
   "$(python3 -c 'import json,os,sys; k=json.load(open(sys.argv[1])); r=os.path.realpath(sys.argv[2]) + "/"; print(len(k), sum(1 for p in k if not os.path.realpath(p).startswith(r)))' \
      "$bs/git.json" "$bs/roots" 2>&1)"
