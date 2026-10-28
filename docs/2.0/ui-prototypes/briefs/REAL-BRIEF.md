@@ -112,3 +112,23 @@ Peak is the test. The map must stay readable and smooth there, with no overlappi
 **Two directions:**
 - **58-a: Faithful map.** 54-b as drawn, corrected to the facts. Keep the islands, the lines, the browser nodes, the Advanced pour-out and the motion. Make it hold up at Busy, and show what happens at Peak honestly.
 - **58-b: Map at peak.** The map designed for Peak first. Islands pack by what they need from you: Asks you, Working, Ready, Blocked. A quiet island shrinks to a ring with a count. Hovering over an island, or picking it, expands it to full size with its nodes and browser tabs. Leftovers stay unowned at the edge, and a crowd of them merges into one bubble with a count.
+
+## Round 59: Faithful map as a bento grid
+
+The owner prefers 58-a, Faithful map, over 58-b. Their words, in Norwegian: "Størrelsen kan være litt sånn bentogrid, ved tanke på at ting som har flere detaljer kan ta mer plass osv - vi liker bedre faithful." In English: the sizes can be a bit like a bento grid, so things with more details take more space.
+
+Start from a copy of `p/58-a.html`. Keep its look, its islands, lines, browser nodes, the Advanced pour-out, the motion and the Quiet, Busy and Peak switch. Keep every fact rule above. Only the layout of the islands changes.
+
+**The grid.** The Workstreams body is a bento grid of tiles, one per island.
+- A tile spans one, two or four cells, such as 1 x 1, 2 x 1 or 2 x 2, picked from what the island holds: its agents, servers, browser tabs, caches and helpers.
+- A tile with more holdings is bigger, so its nodes and labels show in full and need no merge such as ":3000 +2".
+- A small tile shows the name, the state and one line of counts, with no node field.
+- Tiles pack with no holes, in a stable order, so a tile does not jump when one number changes.
+- A tile changes size only when a holding is added or removed, and it animates to its new size.
+- Leftovers are one tile at the edge of the grid.
+
+**Two directions:**
+- **59-a: Bento by holdings.** Tile size follows what the island holds, and nothing else.
+- **59-b: Bento by holdings and need.** As 59-a, but an island that asks you something, or is ready to wrap up, gets one size step bigger, so what needs you is the largest thing on the sheet.
+
+At Peak, both say on the page what they give up, as 58-a does.

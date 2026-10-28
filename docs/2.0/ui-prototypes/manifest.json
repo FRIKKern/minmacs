@@ -1128,5 +1128,25 @@
   "surface": "menubar",
   "groupId": "58",
   "direction": "Holdings Map with real facts, Quiet to Peak"
+ },
+ {
+  "file": "59-a.html",
+  "name": "Bento by holdings",
+  "idea": "58-a Faithful map laid out as a bento grid. Each workstream is one tile, and its size counts only what it holds: agents, servers, servers with localhost tabs, caches and helpers. Four holdings or fewer give a 1 x 1 tile with the name, the state and one line of colored counts. A 2 x 1 tile draws the 58-a node field with no merges. Anything bigger gets 2 x 2, with one row per server showing its port, framework and browser node. Tiles keep the fixture order and pack into two lanes, each tile into the shorter one. Leftovers are one tile at the right edge.",
+  "good": "The workstreams with the most going on get the most room. speed-3-base shows all three servers with their tabs and its helper, and nothing merges. In two minutes of Peak in headless Chrome, no label overlapped another, no node left its tile, the grid had no holes and frames held at 61 per second. Tiles moved only when a holding changed. That happened at two Auto wrap ups and once when a server got its first tab, and then the tile grew from 1 x 1 to 2 x 1. The Wrap Up card and the Undo flow match the plan facts. Undo restarts the stopped servers and leaves helpers stopped.",
+  "tradeoff": "The grid scrolls at Busy as well as at Peak, so 58-a's view of all 12 at Busy is gone. Tiles that ask you are not sorted to the top. A tile that asks can sit below the fold, and the header, the tab dot and the fold line point to it. Small tiles have no lines, and a question or session title in one is cut with an ellipsis, with the full text in the hover card. When one tile grows, the tiles after it repack, and a tile with no change of its own can move to the other lane. The tab-closing Wrap Up line is new, because no plan part closes tabs yet.",
+  "surface": "menubar",
+  "groupId": "59",
+  "direction": "Faithful map as a bento grid"
+ },
+ {
+  "file": "59-b.html",
+  "name": "Bento by need",
+  "idea": "58-a's map as a bento grid. A tile is 1 x 1, 1 x 2 or 2 x 2 from what the island holds. An island that asks you or is ready to wrap up gets one size step bigger. Ready tiles lead, and the other tiles keep a stable order.",
+  "good": "What needs you is bigger. Big tiles draw every server, tab and cache with no merge, and add frameworks and a line of worktree facts. Small tiles keep quiet islands to one line of counts. Busy fits eight rows with no holes and no scrolling.",
+  "tradeoff": "Need changes tile sizes. When an agent asks or is answered, its tile grows or shrinks and some nearby tiles glide. At Peak the field scrolls. Small tiles draw no nodes, and a tile can grow past its holdings to fill a cell.",
+  "surface": "menubar",
+  "groupId": "59",
+  "direction": "Faithful map as a bento grid"
  }
 ]
