@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --prefix) [ $# -ge 2 ] || die "--prefix needs a folder"; PREFIX="$2"; shift 2 ;;
     --purge) PURGE=1; shift ;;
-    -h|--help) sed -n '2,20p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1. Try --help." ;;
   esac
 done
@@ -62,11 +62,10 @@ for name in minmacs locohost; do
   esac
 done
 
-# 3. The app.
-apps="$PREFIX/Applications/MinMacs.app"
-[ "$REAL" = 1 ] && apps="$apps /Applications/MinMacs.app"
-for a in $apps; do
-  [ -e "$a" ] || continue
+# 3. The app. Each path is passed whole, so a prefix with a space in it stays one path.
+remove_app() {
+  a="$1"
+  [ -e "$a" ] || return 0
   if is_minmacs "$a"; then
     rm -rf "$a" && say "Removed $a"
     if [ "$REAL" = 1 ]; then
@@ -75,7 +74,10 @@ for a in $apps; do
   else
     warn "$a is not MinMacs, so it is left as it is"
   fi
-done
+  return 0
+}
+remove_app "$PREFIX/Applications/MinMacs.app"
+[ "$REAL" = 1 ] && remove_app /Applications/MinMacs.app
 
 # 4. The data, only when asked. It goes to the Trash, so it can come back.
 if [ "$PURGE" = 1 ]; then

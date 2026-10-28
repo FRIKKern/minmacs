@@ -212,6 +212,18 @@ check "release: --purge moves the data out" no "$([ -e "$rl_p/Library/Applicatio
 check "release: --purge puts the data in the prefix's Trash" '{"kept":1}' \
   "$(cat "$rl_p/.Trash/"MinMacs\ data*/locohost/rules.json 2>/dev/null)"
 
+echo "-- a prefix with a space in it"
+rl_s="$rl/prefix with space"; mkdir -p "$rl_s"
+rl_inst --app "$APP" --prefix "$rl_s"
+check "release: install to a prefix with a space exits 0" 0 "$?"
+check "release: the app is under the spaced prefix" no.guerrilla.minmacs "$(rl_id "$rl_s/Applications/MinMacs.app" CFBundleIdentifier)"
+rl_uninst --prefix "$rl_s"
+check "release: uninstall from a prefix with a space exits 0" 0 "$?"
+check "release: uninstall removes the app under the spaced prefix" no "$([ -e "$rl_s/Applications/MinMacs.app" ] && echo yes || echo no)"
+check "release: uninstall removes the link under the spaced prefix" no "$([ -L "$rl_s/.local/bin/minmacs" ] && echo yes || echo no)"
+check "release: each script's help ends before its code" 0 \
+  "$(for s in install.sh uninstall.sh release.sh; do ./$s --help; done | grep -cE '^set -')"
+
 echo "-- nothing outside the prefix"
 # build.sh runs python3, which keeps its bytecode in ~/Library/Caches/com.apple.python. Nothing else may be there.
 check "release: the fake home stays empty" 0 \

@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
     --app) [ $# -ge 2 ] || die "--app needs a path"; GIVEN="$2"; shift 2 ;;
     --no-tests) TESTS=0; shift ;;
     --allow-dirty) DIRTY_OK=1; shift ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1. Try --help." ;;
   esac
 done

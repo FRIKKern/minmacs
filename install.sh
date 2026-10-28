@@ -44,7 +44,7 @@ while [ $# -gt 0 ]; do
     --no-checksum) NO_SUM=1; shift ;;
     --no-launch) NO_LAUNCH=1; shift ;;
     --login) LOGIN=1; shift ;;
-    -h|--help) sed -n '2,26p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1. Try --help." ;;
   esac
 done
@@ -79,7 +79,9 @@ if [ -n "$SRC_ZIP" ]; then
   [ -d "$TMP/zip/MinMacs.app" ] || die "$SRC_ZIP holds no MinMacs.app at its top"
   SRC_APP="$TMP/zip/MinMacs.app"
 elif [ -z "$SRC_APP" ]; then
-  HERE=$(cd "$(dirname "$0")" 2>/dev/null && pwd -P || echo "")
+  # Piped through sh, $0 names the shell and not this file, so the current folder is never taken for a checkout.
+  HERE=""
+  case "$0" in install.sh|*/install.sh) [ -f "$0" ] && HERE=$(cd "$(dirname "$0")" 2>/dev/null && pwd -P || echo "") ;; esac
   if [ -n "$HERE" ] && [ -f "$HERE/build.sh" ] && [ -d "$HERE/Sources" ]; then
     say "Building this checkout"
     BUILD_DIR="$TMP/build" sh "$HERE/build.sh" --no-install >/dev/null || die "build.sh failed"
