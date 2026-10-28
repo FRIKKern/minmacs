@@ -61,8 +61,7 @@ Settings has a pane for Insomnia, between Experts and General. It shows the batt
 
 ## Left open
 
-- `insomnia://` is not in Info.plist yet. While the standalone Insomnia.app is installed it owns that scheme. `minmacs://insomnia/<command>` works now. Phase 5 adds the scheme with the migration.
-- The migration of Insomnia's `no.guerrilla.insomnia` prefs, its hidden icon and a still-live override is phase 5's, PLAN.md section 8.
+- `insomnia://` is in Info.plist since issue #37, and the router sends it to this expert.
 - C8's offer to turn keep-awake off on battery is not in the menu.
 - No notification says that agent holds ended on low battery.
 - The administrator prompt comes from `osascript`, so macOS names osascript in it. Insomnia ran the same script in its own process. A lid-mode LaunchDaemon waits for a notarized build, B8.

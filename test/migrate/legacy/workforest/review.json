@@ -1,0 +1,2 @@
+{"at": 1793200000, "model": "sonnet", "tokens": 1200, "treeCount": 3, "seconds": 12.5, "costUSD": 0.02,
+ "trees": {"/tmp/x": {"verdict": "stale", "confidence": 0.9}}, "summary": "One stale worktree.", "mode": "eager", "actions": []}

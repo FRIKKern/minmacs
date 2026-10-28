@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "roots": ["~/Documents/GitHub", "~/work/forest-root"],
+  "depth": 3,
+  "protect": {"paths": ["~/work/keep-this"], "branches": ["main", "release-train"]},
+  "ignore": {"paths": ["~/work/scratch"]},
+  "caches": ["node_modules", ".next"]
+}

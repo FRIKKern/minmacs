@@ -1,0 +1,36 @@
+# Noo-Noo config, as `noo-noo config init` writes it, with some keys changed.
+[daemon]
+scan_hour = 4
+
+[heuristics.idle_repos]
+enabled = true
+min_idle_days = 45            # a comment after a value
+min_node_modules_bytes = 524_288_000
+
+[heuristics.cache_velocity]
+growth_multiplier = 2.5
+
+[scan]
+roots = [
+  "~/code",     # where the work is
+  "~/Documents/GitHub",
+]
+cache_roots = ['~/Library/Caches']
+
+[worktrees]
+enabled = true
+roots = ["~/conductor/workspaces"]
+judge_cmd = "claude -p"
+
+[notify]
+enabled = false
+min_severity = "high"
+
+[auto_clean]
+enabled = false
+modules_allowed = ["caches", "dev"]
+risk_acknowledged_at = ""
+
+[offload]
+dest_root = "/Volumes/Archive"
+inline = { a = 1, b = "two" }
