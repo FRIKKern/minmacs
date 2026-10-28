@@ -1,4 +1,4 @@
-# Issue #17: the review broker. Sourced by test.sh after core.
+# Issues #17, #32, #33, #34 and #36: the review broker. Sourced by test.sh after core.
 # Builds test/review/rv.m with Sources/Core and runs it against the fake CLIs in test/review, ported from LocoHost.
 # The real claude and codex are never run: MINMACS_CLAUDE and MINMACS_CODEX always name a fake or a path that fails.
 # Every file the broker writes goes to $MINMACS_HOME/review, and every fixture lives in $MINMACS_HOME/rv.
@@ -82,6 +82,42 @@ check "a moved fingerprint sends only that finding" "1 #api" "$(rv_sent "str(len
 check "the next review within the hour asks a one hour cache" 1h "$(python3 -c "import json,sys; print(json.loads(open(sys.argv[1]).readline())['ttl'])" "$RV_TEST_SENT.calls")"
 check "the history holds every review" 3 "$(rv_get "j['history']")"
 
+echo "  -- the instance key and Core's context, issue #33"
+rv_fx lh "$(cd "$rv_app" && pwd -P)" --move "#api" --restart "#api" >/dev/null; rv_fresh
+"$RV" review "$rv_dir/lh.json" >"$rv_dir/out.json"
+check "a new instance is sent again, though its fingerprint holds" "1 #api" "$(rv_sent "str(len(items)) + ' ' + items[0]['id'][-4:]")"
+rv_fx lh "$(cd "$rv_app" && pwd -P)" --move "#api" --restart "#api" --head def >/dev/null; rv_fresh
+"$RV" review "$rv_dir/lh.json" >"$rv_dir/out.json"
+check "a new HEAD sends that workstream's findings again, and no other" "#api #dev" "$(rv_sent "' '.join(sorted(f['id'][-4:] for f in items))")"
+check "each verdict keeps the context it was made for" True "$(rv_get "all(v['context'].startswith('gdef|') for k, v in j['verdicts'].items() if k.endswith(('#dev', '#api')))")"
+"$RV" review "$rv_dir/lh.json" >"$rv_dir/out.json"
+check "with nothing moved, the cache carries all five" 5 "$(rv_get "j['review_decided'].get('cache')")"
+
+echo "  -- rules first: Core's work keeps and the triage count, issue #32"
+rv_fx keeps "$rv_app" --keep "#web" >/dev/null; rv_fresh
+"$RV" review "$rv_dir/keeps.json" >"$rv_dir/out.json"
+check "a finding with a work keep is kept by Core's rule" "core.work-keeps in_use" "$(rv_get "' '.join([v['decided_by'] + ' ' + v['word'] for k, v in j['verdicts'].items() if k.endswith('#web')])")"
+grep -q "#web" "$RV_TEST_SENT";                                  check "and never reaches the model" 1 "$?"
+check "the review counts what decided each finding" "1 4 4" "$(rv_get "str(j['review_decided'].get('core.work-keeps')) + ' ' + str(j['review_decided'].get('model')) + ' ' + str(j['sent'])")"
+"$RV" review "$rv_dir/keeps.json" >"$rv_dir/out.json"
+check "a rule decides again on the next review, and is not carried" "1 4" "$(rv_get "str(j['review_decided'].get('core.work-keeps')) + ' ' + str(j['review_decided'].get('cache'))")"
+
+echo "  -- one fact block per workstream, issue #34"
+rv_fx blocks "$rv_app" >/dev/null; rv_fresh
+"$RV" review "$rv_dir/blocks.json" --shared agent_session,branch >"$rv_dir/out.json"
+rv_line() { python3 -c "
+import json, sys
+j = json.loads(open(sys.argv[1]).readline())
+print($1)" "$RV_TEST_SENT"; }
+check "a fact both servers of a workstream share is sent once, in ws" "{'branch': 'main'} 0" \
+  "$(rv_line "[b.get('ws') for b in j['blocks'] if len(b['f']) == 2 and any('#dev' in f['id'] for f in b['f'])][0], sum('branch' in f for b in j['blocks'] for f in b['f'])")"
+check "a shared key with different values stays with each finding" 1 "$(rv_line "sum('agent_session' in f for b in j['blocks'] for f in b['f'])")"
+check "a fact every finding shares is sent once, in all" "{'quiet_after_minutes': 30} 0" \
+  "$(rv_line "j.get('all'), sum('quiet_after_minutes' in f for b in j['blocks'] for f in b['f'])")"
+check "only the block whose findings share a value gets ws" 1 "$(rv_line "sum('ws' in b for b in j['blocks'])")"
+check "the model still reads every finding" 5 "$(rv_get "len(j['verdicts'])")"
+check "the system prompt says how the blocks read" True "$(python3 -c "import json,sys; print(json.loads(open(sys.argv[1]).readline())['note'])" "$RV_TEST_SENT.calls")"
+
 echo "  -- rules first"
 rv_fx rules "$rv_app" >/dev/null; rv_fresh
 "$RV" review "$rv_dir/rules.json" --rules >"$rv_dir/out.json"
@@ -125,6 +161,9 @@ check "the judge gets the first review" True "$(python3 -c "import json,sys; pri
 check "the judge keeps a finding with evidence" "in_use True fixture: a test client still uses it" "$(rv_get "' '.join(str(v[k]) for k, v in [x for x in j['verdicts'].items() if x[0].endswith('#api')] for k in ('word', 'judged', 'keep_evidence'))")"
 check "without evidence the judge says go" "idle judge" "$(rv_get "' '.join(v['word'] + ' ' + v['decided_by'] for k, v in j['verdicts'].items() if k.endswith('#docs'))")"
 check "the broker counts what the judge decided" 3 "$(rv_get "j['decided'].get('judge')")"
+RV_TEST_GO="#dev" RV_TEST_UNSURE="#api,#docs" RV_TEST_KEEP="#api" "$RV" review "$rv_dir/judge.json" --model haiku --judge >"$rv_dir/out.json"
+check "a judge verdict the cache carries counts as cache, not judge" "None 4" \
+  "$(rv_get "str(j['review_decided'].get('judge')) + ' ' + str(j['review_decided'].get('cache'))")"
 rv_fx judgepar "$rv_app" --keep "#web" >/dev/null; rv_fresh
 RV_TEST_GO="#dev" RV_TEST_UNSURE="#api,#docs" RV_TEST_KEEP="#api" "$RV" review "$rv_dir/judgepar.json" --model haiku --judge --batch 1 --parallel 3 >"$rv_dir/out.json"
 check "the judge in parallel batches of one gives the same verdicts" "in_use idle 3" \
@@ -143,6 +182,7 @@ rv_fx budget "$rv_app" >/dev/null; rv_fresh
 check "a scheduled review waits when the day is over budget" 1 "$?"
 check "and says so" True "$(rv_get "'budget' in j['error']")"
 check "and asks no model" no "$([ -e "$RV_TEST_SENT.calls" ] && echo yes || echo no)"
+check "and counts no finding as sent" 0 "$(rv_get "j['sent']")"
 "$RV" review "$rv_dir/budget.json" --trigger manual --budget 100 >"$rv_dir/out.json"
 check "a manual review still runs" 0 "$?"
 
@@ -173,3 +213,68 @@ echo "  -- the wake queue"
 check "rv wake runs" 0 "$?"
 while IFS="$rv_tab" read -r rv_n rv_w rv_g; do check "$rv_n" "$rv_w" "$rv_g"; done <"$rv_dir/wake.out"
 check "no call folder is left behind" 0 "$(ls "$MINMACS_HOME/review/calls" 2>/dev/null | wc -l | tr -d ' ')"
+
+echo "  -- tokens a day, issue #36"
+# One generated day of findings for all five experts, replayed twice with the fake claude counting tokens from the
+# bytes of each call: once as LocoHost 0.1 and WorkForest 0.1 asked, once through the broker. Each run has its own
+# support folder. The real claude and codex never run: MINMACS_CLAUDE is the fake and codex is /usr/bin/false.
+rd="$MINMACS_HOME/rvday"
+mkdir -p "$rd"
+RVD="$rd/rvday"
+rd_src=$(find Sources -name '*.m' ! -path 'Sources/main.m' ! -path 'Sources/Shell/*' | LC_ALL=C sort)
+# shellcheck disable=SC2086
+if clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources \
+     -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3 \
+     $rd_src test/review/day.m -o "$RVD" >"$rd/clang.log" 2>&1; then
+  check "test/review/day.m builds with no warnings" 0 "$(grep -c "warning:" "$rd/clang.log")"
+else
+  check "test/review/day.m builds" 0 1
+  tail -20 "$rd/clang.log"
+fi
+python3 -I test/review/dayfix.py "$rd/day.json"
+check "the day fixture is the recorded one" e2d14c98d2ab33f7fd1736e146b66a5baecc8f6260c32f480039fbba7c5ac92f "$(shasum -a 256 "$rd/day.json" | cut -d' ' -f1)"
+rd_run() {
+  rd_m=$1; shift
+  mkdir -p "$rd/$rd_m/claude" "$rd/$rd_m/codex"
+  MINMACS_HOME="$rd/$rd_m" CLAUDE_CONFIG_DIR="$rd/$rd_m/claude" CODEX_HOME="$rd/$rd_m/codex" RV_TEST_SENT="$rd/$rd_m/sent.json" \
+    RV_TEST_FACTS=1 RV_TEST_COUNT="$rd/$rd_m/count.json" MINMACS_CLAUDE="$ROOT/test/review/fakeclaude.py" MINMACS_CODEX=/usr/bin/false \
+    "$RVD" "$@" 2>"$rd/$rd_m.err"
+}
+rd_run legacy legacy "$rd/day.json" test/review/legacy.json "$rd/legacy.json"; check "the 1.x replay runs" 0 "$?"
+rd_run broker broker "$rd/day.json" "$rd/broker.json";                          check "the broker replay runs" 0 "$?"
+rd_run fresh broker "$rd/day.json" "$rd/fresh.json" --fresh;                     check "the replay past the cache runs" 0 "$?"
+check "no replay reports an error" 0 "$(cat "$rd"/*.err | wc -l | tr -d ' ')"
+python3 -I test/review/daycompare.py "$rd/legacy.json" "$rd/broker.json" >"$rd/compare.json"
+python3 -I test/review/daycompare.py "$rd/legacy.json" "$rd/fresh.json" >"$rd/compare-fresh.json"
+rd_get() { json "$1" <"$rd/compare.json"; }
+rd_run_get() { python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print($2)" "$rd/$1.json"; }
+check "every call went to the fake claude, and it counted each one" True "$(python3 -c "
+import json, sys
+ok = True
+for m in ('legacy', 'broker'):
+    calls = [json.loads(l) for l in open('$rd/%s/sent.json.calls' % m)]
+    run = json.load(open('$rd/%s.json' % m))
+    ok = ok and all(c['cli'] == 'claude' for c in calls) and len(calls) == sum(e['calls'] for e in run['experts'].values()) > 0
+print(ok)")"
+check "the 1.x replay asks at the 0.1 cadence" "24 12 0 0 0" \
+  "$(rd_run_get legacy "' '.join(str(j['experts'][e]['reviews']) for e in ('locohost', 'workforest', 'minmacs', 'noonoo', 'insomnia'))")"
+check "the broker reviews every expert every hour, and Insomnia asks for none" "24 24 24 24 0" \
+  "$(rd_run_get broker "' '.join(str(j['experts'][e]['reviews']) for e in ('locohost', 'workforest', 'minmacs', 'noonoo', 'insomnia'))")"
+check "rules decide every MinMacs and Noo-Noo finding" "0 0" \
+  "$(rd_run_get broker "' '.join(str(j['experts'][e]['sent']) for e in ('minmacs', 'noonoo'))")"
+check "no finding a rule or the cache decided reaches the model" True "$(python3 -c "
+import json, sys
+v = json.load(open('$rd/broker.json'))['verdicts']
+sent = [json.loads(l) for l in open('$rd/broker/sent.json.ids')]
+print(all(v['%d|%s' % ((c['clock'] - 60) // 3600, i)]['by'] == 'model' for c in sent for i in c['ids']) and len(sent) > 0)")"
+check "a restarted server is asked again, not carried" model \
+  "$(rd_run_get broker "[x['by'] for k, x in j['verdicts'].items() if k.startswith('10|') and k.endswith('#express')][0]")"
+check "the day costs a fifth of the 1.x replay or less" True "$(rd_get "j['ratio'] <= 0.2")"
+check "and a fifth of the 2.7M baseline or less" True "$(rd_get "j['after_uncached'] <= 540000")"
+check "the broker never says go where the 1.x review did not" 0 \
+  "$(rd_get "sum(n for k, n in j['differ_as'].items() if k.split(' to ')[1] in ('stale', 'idle'))")"
+printf '  info  %s\n' "$(rd_get "'uncached tokens a day: %d in the 1.x replay, %d through the broker, %.1f %%; %d past the cache' % (j['before_uncached'], j['after_uncached'], 100 * j['ratio'], json.load(open('$rd/compare-fresh.json'))['after_uncached'])")"
+printf '  info  %s\n' "$(rd_get "'as counted before, cache reads included: %d and %d. list cost: \$%.4f and \$%.4f' % (j['before_as_counted'], j['after_as_counted'], j['before_cost'], j['after_cost'])")"
+printf '  info  %s\n' "$(rd_get "'findings reviewed: %d. rules %d, %.1f %%. cache %d, %.1f %%. model %d, %.1f %%' % (j['decided'], j['by_rules'], 100.0 * j['by_rules'] / j['decided'], j['by_cache'], 100.0 * j['by_cache'] / j['decided'], j['by_model'], 100.0 * j['by_model'] / j['decided'])")"
+printf '  info  %s\n' "$(rd_get "'verdicts compared: %d, the same: %d, different: %d, %s' % (j['verdicts_compared'], j['verdicts_same'], j['verdicts_differ'], j['differ_as'])")"
+printf '  info  %s\n' "$(python3 -I test/review/daybytes.py "$rd/legacy/sent.json" | json "'the 1.x inputs, %d calls: %d bytes pretty, %d compact, %d with empty values dropped, %d with shared values once' % (j['calls'], j['pretty'], j['compact'], j['dropped'], j['blocks'])")"

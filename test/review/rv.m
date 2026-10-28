@@ -4,8 +4,10 @@
 //       --model m --trigger t --batch n --parallel n --budget n --judge --rules --mode n
 //   rv investigate <folder> <question>
 //   rv wake                         the wake queue, in process; prints name<TAB>want<TAB>got lines
-// A fixture is {"expert", "words": [keep, go, unsure], "system", "findings": [...]}. Each finding has id, title,
-// fingerprint, facts, keep_reasons and an owner {kind, key, name, path, parent}.
+//       --shared k1,k2 sets the request's sharedKeys
+// A fixture is {"expert", "words": [keep, go, unsure], "system", "findings": [...], "facts": {...}}. Each finding has id,
+// title, fingerprint, instance, facts, keep_reasons and an owner {kind, key, name, path, parent}. The fixture's facts
+// hold worktrees [{path, head}] and sessions [{cwd, ago, working}] for MMReviewContext.
 #import <Foundation/Foundation.h>
 #import "Core/Review/MMReview.h"
 
@@ -23,6 +25,7 @@
 @property RVOwner *owner;
 @property NSDictionary *facts;
 @property NSArray<NSString *> *keepReasons;
+@property MMCost cost;
 @property (readonly) BOOL kept;
 @end
 @implementation RVFinding
@@ -33,6 +36,45 @@
 @property (copy) NSString *path;
 @end
 @implementation RVWorktree @end
+
+@interface RVGit : NSObject
+@property (copy) NSString *head;
+@end
+@implementation RVGit @end
+
+@interface RVSession : NSObject
+@property (copy) NSString *cwd;
+@property NSDate *lastActive;
+@property BOOL stillWorking;
+@end
+@implementation RVSession @end
+
+/// The facts MMReviewContext reads: worktrees, their git HEAD and the sessions.
+@interface RVFacts : NSObject
+@property NSArray *worktrees, *sessions;
+@property NSDictionary *git;
+@end
+@implementation RVFacts
+- (RVGit *)gitFor:(RVWorktree *)w { return self.git[w.path]; }
+@end
+
+static RVFacts *Facts(NSDictionary *j) {
+    if (![j isKindOfClass:NSDictionary.class]) return nil;
+    RVFacts *x = [RVFacts new];
+    NSMutableArray *ws = [NSMutableArray new], *ss = [NSMutableArray new];
+    NSMutableDictionary *git = [NSMutableDictionary new];
+    for (NSDictionary *w in j[@"worktrees"]) {
+        RVWorktree *t = [RVWorktree new]; t.path = w[@"path"]; [ws addObject:t];
+        RVGit *g = [RVGit new]; g.head = w[@"head"]; git[t.path] = g;
+    }
+    for (NSDictionary *w in j[@"sessions"]) {
+        RVSession *t = [RVSession new]; t.cwd = w[@"cwd"]; t.stillWorking = [w[@"working"] boolValue];
+        t.lastActive = [NSDate dateWithTimeIntervalSinceNow:-[w[@"ago"] doubleValue]];
+        [ss addObject:t];
+    }
+    x.worktrees = ws; x.sessions = ss; x.git = git;
+    return x;
+}
 
 @interface RVWorkstream : NSObject
 @property RVWorktree *worktree;
@@ -65,7 +107,8 @@ static NSArray<MMFinding *> *Findings(NSArray *list, NSString *expert) {
     NSMutableArray *l = [NSMutableArray new];
     for (NSDictionary *j in list) {
         RVFinding *f = [RVFinding new];
-        f.findingID = j[@"id"]; f.expert = expert; f.title = j[@"title"]; f.fingerprint = j[@"fingerprint"];
+        f.findingID = j[@"id"]; f.expert = expert; f.title = j[@"title"]; f.fingerprint = j[@"fingerprint"]; f.instanceKey = j[@"instance"];
+        f.cost = (MMCost){ .cpuPercent = -1, .diskFreed = [j[@"freed"] unsignedLongLongValue] };
         f.facts = j[@"facts"] ?: @{}; f.keepReasons = j[@"keep_reasons"] ?: @[]; f.owner = Owner(j[@"owner"]);
         [l addObject:(MMFinding *)(id)f];
     }
@@ -80,13 +123,13 @@ static NSDictionary *ReviewJSON(MMReview *r) {
         MMVerdict *x = r.verdicts[k];
         v[k] = @{@"kind": kKinds[x.kind], @"word": x.word ?: @"", @"confidence": @(x.confidence), @"judged": @(x.judged),
                  @"decided_by": x.decidedBy ?: @"", @"fingerprint": x.fingerprint ?: @"", @"reason": x.reason ?: @"",
-                 @"keep_evidence": x.keepEvidence ?: @"", @"about": x.about ?: @""};
+                 @"keep_evidence": x.keepEvidence ?: @"", @"about": x.about ?: @"", @"context": x.context ?: @"", @"instance": x.instanceKey ?: @""};
     }
     NSMutableArray *calls = [NSMutableArray new];
     for (MMUsage *u in r.calls) [calls addObject:u.json];
     return @{@"expert": r.expert ?: @"", @"trigger": r.trigger ?: @"", @"summary": r.summary ?: @"", @"error": r.error ?: NSNull.null,
              @"judge_error": r.judgeError ?: NSNull.null, @"note": r.note ?: NSNull.null, @"mode": @(r.mode), @"verdicts": v,
-             @"calls": calls, @"decided": [MMReviewBroker.shared decidedCounts:r.expert],
+             @"calls": calls, @"decided": [MMReviewBroker.shared decidedCounts:r.expert], @"review_decided": r.decided ?: @{}, @"sent": @(r.sent),
              @"uncached_today": @(MMBudget.shared.uncachedToday), @"list_cost_today": @(MMBudget.shared.listCostToday)};
 }
 
@@ -138,6 +181,40 @@ static int Unit(void) {
     f.fingerprint = @"b";
     Out(@"a moved fingerprint drops the verdict", @"no", [r verdictFor:(MMFinding *)(id)f] ? @"yes" : @"no");
     Out(@"the wake gap is ten minutes", @"600", N(MMReviewBroker.shared.minGap));
+
+    // Issue #33: the instance key holds for every expert, as LocoHost 0.1 keyed verdicts by pid and start time.
+    f.fingerprint = @"a"; f.instanceKey = @"100:1"; v.instanceKey = @"100:1";
+    Out(@"a verdict holds for its own instance", @"yes", [r verdictFor:(MMFinding *)(id)f] ? @"yes" : @"no");
+    f.instanceKey = @"200:2";
+    Out(@"a verdict made for another instance is dropped", @"no", [r verdictFor:(MMFinding *)(id)f] ? @"yes" : @"no");
+    v.instanceKey = nil;
+    Out(@"a verdict saved with no instance holds on its fingerprint", @"yes", [r verdictFor:(MMFinding *)(id)f] ? @"yes" : @"no");
+    MMVerdict *keep = [MMVerdict new]; keep.instanceKey = @"7:7"; keep.context = @"g1|a0|z0";
+    MMReview *saved = [MMReview new]; saved.expert = @"rvunit"; saved.at = NSDate.date; saved.verdicts = @{@"x": keep};
+    saved.decided = @{@"cache": @2}; saved.sent = 3;
+    [saved save];
+    MMReview *read = [MMReview lastFor:@"rvunit"];
+    MMVerdict *back = read.verdicts[@"x"];
+    Out(@"the triage counts survive the log", @"2 3", [NSString stringWithFormat:@"%@ %ld", read.decided[@"cache"], (long)read.sent]);
+    Out(@"the instance and the context survive the log", @"7:7 g1|a0|z0", [NSString stringWithFormat:@"%@ %@", back.instanceKey, back.context]);
+
+    // MMReviewContext: HEAD, the activity bucket of the newest session, and a size bucket.
+    RVOwner *ws = [RVOwner new]; ws.kind = MMOwnerWorkstream; ws.key = @"/var/rv/tree"; ws.path = @"/var/rv/tree";
+    RVFinding *g = [RVFinding new]; g.findingID = @"test:x:2"; g.owner = ws; g.cost = (MMCost){ .diskFreed = 300ull << 20 };
+    RVFacts *facts = Facts(@{@"worktrees": @[@{@"path": @"/private/var/rv/tree", @"head": @"0123456789abcdef0123"}],
+                             @"sessions": @[@{@"cwd": @"/var/rv/tree/sub", @"ago": @5400, @"working": @NO},
+                                            @{@"cwd": @"/var/rv/tree", @"ago": @60, @"working": @YES},
+                                            @{@"cwd": @"/var/rv/other", @"ago": @1, @"working": @YES}]});
+    MMFinding *gf = (MMFinding *)(id)g;
+    Out(@"the context: HEAD, a working session a minute old, 300 MB", @"g0123456789ab|aw0|z5", MMReviewContext(gf, (MMFacts *)(id)facts));
+    [facts.sessions[1] setStillWorking:NO]; [facts.sessions[1] setLastActive:[NSDate dateWithTimeIntervalSinceNow:-3 * 3600]];
+    Out(@"the newest session decides the activity bucket", @"g0123456789ab|a1|z5", MMReviewContext(gf, (MMFacts *)(id)facts));
+    g.cost = (MMCost){ .diskFreed = 1200ull << 20 };
+    Out(@"a size past the next power of four moves the bucket", @"g0123456789ab|a1|z6", MMReviewContext(gf, (MMFacts *)(id)facts));
+    g.owner = nil; g.path = nil;
+    Out(@"a finding with no folder has no HEAD and no session", @"g-|a-|z6", MMReviewContext(gf, (MMFacts *)(id)facts));
+    Out(@"no facts give the empty context", @"g-|a-|z0", MMReviewContext((MMFinding *)(id)f, nil));
+    Out(@"Core's rule for work keeps", @"core.work-keeps", MMWorkKeepsRuleID);
     return 0;
 }
 
@@ -150,6 +227,7 @@ static int Review(int argc, const char *argv[]) {
     NSArray *w = fx[@"words"];
     if (w.count == 3) q.words = [MMVerdictWords keep:w[0] go:w[1] unsure:w[2]];
     q.findings = Findings(fx[@"findings"], q.expert);
+    q.facts = (MMFacts *)(id)Facts(fx[@"facts"]);
     for (int i = 3; i < argc; i++) {
         NSString *a = @(argv[i]), *next = i + 1 < argc ? @(argv[i + 1]) : nil;
         if ([a isEqualToString:@"--model"] && next) { q.model = next; i++; }
@@ -159,6 +237,7 @@ static int Review(int argc, const char *argv[]) {
         else if ([a isEqualToString:@"--budget"] && next) { MMBudget.shared.dailyUncached = next.integerValue; i++; }
         else if ([a isEqualToString:@"--mode"] && next) { q.mode = next.integerValue; i++; }
         else if ([a isEqualToString:@"--judge"]) q.judge = YES;
+        else if ([a isEqualToString:@"--shared"] && next) { q.sharedKeys = [next componentsSeparatedByString:@","]; i++; }
         else if ([a isEqualToString:@"--rules"]) [MMReviewBroker.shared registerRules:@[[RVServiceRule new]] expert:q.expert];
         else { fprintf(stderr, "rv: unknown flag %s\n", argv[i]); return 2; }
     }

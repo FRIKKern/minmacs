@@ -86,6 +86,15 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - An undo record with a `worktree` payload and no `bundle` restores by `git worktree add` at its commit. `unbundle:` needs the bundle file only when the repo lost the commit.
 - `MMReviewRequest.ignoreCache` sends every finding to the model past the fingerprint cache, for `--fresh` and for tests that review the same facts twice. Rules still decide first.
 
+## The review broker in phase 4, issues #32 to #36
+
+- Triage runs in this order for every finding: the expert's rules, then Core's `core.work-keeps`, then the fingerprint cache, then the model. `core.work-keeps` keeps a finding that has a work keep, with its first keep reason. Each `MMReview` saves `decided`, the count per rule id plus `cache`, `model` and `judge`, and `sent`, the findings sent to the model.
+- A rule decides again on every review, so the cache carries only a verdict the model or the judge made. A failed judge is asked again.
+- A verdict carries while three keys hold: the expert's fingerprint, the instance key and `MMReviewContext`. `-[MMReview verdictFor:]` checks the first two for every expert, as LocoHost 0.1 keyed its verdicts by pid and start time. A verdict saved before the context existed holds on its fingerprint.
+- `MMReviewContext` reads facts only: the HEAD of the deepest worktree that holds the finding's top owner, the activity bucket of the newest session in it, and a size bucket of what the finding frees. `/private/var` and `/var` compare equal.
+- A batch is one block per top owner. The values in `MMReviewRequest.sharedKeys` that every finding of a block of two or more shares go once in its `ws`. Values every finding of a call of two or more shares go once in `all`. Every system prompt ends with one fixed note on how to read them.
+- `test/review/day.m` replays one generated day for all five experts, as the 0.1 apps asked and through the broker, and the fake claude counts each call's tokens. docs/2.0/MEASUREMENTS.md, section Review, has the numbers.
+
 ## Store
 
 - With `MINMACS_HOME` set, `MMPref` and `MMSetPref` read and write `$MINMACS_HOME/Preferences/no.guerrilla.minmacs.plist` as a file under an flock, never through CFPreferences, so no test writes the real `no.guerrilla.minmacs` domain.

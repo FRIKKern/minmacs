@@ -89,13 +89,118 @@ The same run, in CPU ms. 174 samples and 192 snapshots in the window, 852 pids, 
 
 A value over the phase 6 budget and under its ceiling prints as `over` and passes, so `./test.sh` passes while idle CPU waits for phase 6. Over the ceiling fails. `MM_BENCH_STRICT=1` fails on the phase 6 budgets themselves. Idle CPU over 30 seconds moves with how many processes start and end on the Mac, since each exit of a watched process adds a sample and a rebuild. One full `./test.sh` run measured 2.81 % in that window, against 0.89 % to 1.33 % in runs of the section alone. So the idle CPU ceiling is loose at 5 %, and the CPU a tick carries the tight one. Its budget of 15 ms is 0.3 % of a core over the 5-second tick, and its ceiling of 80 ms sits about 1.7 times above today's 46.69 ms. That full `./test.sh` run measured 61.76 ms a tick, so the ceiling has little room under heavy load. The menu ceilings sit at twice the budget, because the menu numbers are wall time and other builds on this Mac move them.
 
-## Tokens per day for the review
+## Review
 
-No model ran for this file, and the bench points the model CLIs at `/usr/bin/false`. Review cost is measured as decision 10 says, as uncached tokens and list cost:
+Issues #32, #33, #34 and #36. What the review broker sends to the model in one day, against what LocoHost 0.1 and WorkForest 0.1 sent. Every number here comes from the last part of `./test.sh review`, which prints each one as an `info` line. No real model ran. The fake claude in `test/review` answered every call and counted its tokens.
+
+**How cost is counted.** Decision 10 measures review cost as uncached tokens and list cost.
 
 - The broker records every call's usage with `-[MMBudget record:expert:]`, as a `usage` row in the SQLite log, with input, both cache writes, cache reads, output and thinking.
-- `-[MMBudget todayByExpert]` sums one day's rows per expert. Uncached is input plus both cache writes plus output. Cache reads are left out.
-- The phase 4 measurement replays the recorded fixture through the broker on the person's login, within the approved 2M Haiku tokens of decision 16, and reads one day's sum. It compares that with today's 3.26M a day from PLAN.md section 4. The target is a fifth of that, and a quarter on a bad day.
+- Uncached is input plus both cache writes plus output. Cache reads are left out. The 0.1 apps added cache reads at full weight. The tables give that sum too, as "as counted before".
+
+**The fixture.** `test/review/dayfix.py` writes one day of findings for all five experts, as the graph holds them at each of 24 hourly reviews. The day is made, not recorded on a real Mac. Its counts follow research F:
+
+- 91 linked worktrees in 10 repos at the start, 58 percent merged in some way. 12 of them get work in the day and 20 more are made in the day, so 32 trees get work. 8 of those merge after their last work, and 10 old merged trees are removed.
+- LocoHost's 5 servers: 2 shared services, 2 dev servers in one worktree, one of which restarts at hour 10, and one dev server left in an old merged worktree.
+- 20 apps for MinMacs, 30 clutter items for Noo-Noo and 3 agents for Insomnia.
+
+The test checks the SHA-256 of the written file, so a change to the day is a deliberate one.
+
+**The counting.** `test/review/fakecount.py` counts the same way for both runs:
+
+- A token is 4 bytes of UTF-8. Research F assumes 3 to 4 bytes. All the totals rest on this guess.
+- The system prompt and the schema are the cached prefix. A call reads them from cache when the same prefix was used within the TTL on the replay's clock, and writes them otherwise.
+- The input on stdin is written to the cache, as research F saw in its test calls.
+- Visible output is the bytes of the answer. Thinking is 4 times that at the default effort and 2 times at `--effort low`. The first factor follows research F's 76 to 85 percent. The second is F's guess A4. Neither is measured.
+
+**The two runs.** `test/review/day.m` builds each expert's request with the expert's own code, so both runs start from the same facts per finding.
+
+- The 1.x replay: LocoHost every hour and WorkForest every two hours, the 0.1 cadence. Every finding goes to the model, pretty-printed, with the 0.1 prompt and its prose schema from `test/review/legacy.json`. WorkForest goes in batches of 25 with one summary call, as in WorkForest 0.1. MinMacs 1.2, Noo-Noo and Insomnia asked no model on a schedule, so they send nothing here.
+- The broker replay: every expert every hour, as `MMCoreStart` wakes them, through `MMReviewBroker` with each expert's rules.
+
+### Tokens a day, issue #36
+
+| Run | Uncached tokens | As counted before | List cost |
+|---|---|---|---|
+| 1.x replay | 1,842,725 | 1,879,463 | $0.7787 |
+| Broker, cache off with `--fresh` | 734,945 | 774,065 | $0.2564 |
+| Broker | 56,846 | 58,476 | $0.0173 |
+
+| Expert | 1.x uncached | Broker uncached | Broker calls | Findings sent |
+|---|---|---|---|---|
+| WorkForest | 1,630,277 | 39,915 | 12 | 75 of 2,313 |
+| LocoHost | 212,448 | 16,931 | 11 | 19 of 120 |
+| MinMacs, Noo-Noo, Insomnia | 0 | 0 | 0 | 0 |
+
+What the numbers show:
+
+- The broker's day is 3.1 % of the 1.x replay on the same fixture. The target was a fifth or less, and the check fails above a fifth.
+- 56,846 is 2.1 % of the 2.7M baseline of PLAN.md section 4. The check fails above 540,000.
+- The 1.x replay counts 1.88M, below the 2.7M of PLAN.md and the 3.26M of research F. Per tree it gives 1,445 tokens as counted before, against the 2,671 research F measured. The fake adds nothing for what Claude Code itself sends, and the bytes-per-token figure is a guess. So the share is the steadier number, not the totals.
+- Output was 74 % of the 1.x replay's uncached tokens, and 80 % of that output is thinking by the fake's rule.
+- The same replay on the person's login, within the 2M Haiku tokens of decision 16, has not run. It would replace the fake's counting with the CLI's.
+
+### Rules first, issue #32
+
+Of 3,705 findings over the day, 528 never reach the broker. Insomnia asks for no review, and MinMacs and Noo-Noo ask only about findings with a proposal. The broker decided the other 3,177:
+
+| Decided by | Findings | Share |
+|---|---|---|
+| Rules | 1,591 | 50.1 % |
+| The fingerprint cache | 1,492 | 47.0 % |
+| The model | 94 | 3.0 % |
+
+By expert and rule:
+
+| Expert | Rule | Findings |
+|---|---|---|
+| WorkForest | `workforest.holds-work` | 617 |
+| WorkForest | `core.work-keeps` | 176 |
+| WorkForest | `workforest.locked-or-protected` | 4 |
+| LocoHost | `locohost.not-a-dev-server` | 48 |
+| LocoHost | `locohost.in-use-now` | 2 |
+| MinMacs | `minmacs.lists` | 168, all of its findings |
+| Noo-Noo | `noonoo.owner-state` | 576, all of its findings |
+
+- `core.work-keeps` is new in Core. A finding with a work keep, such as a session active today, is kept with its first keep reason and never sent. Before it, those 176 went to the model.
+- A rule decides again on every review. Its verdict is never carried by the cache, so a keep that ends is sent to the model at the next review.
+- The test checks every id each call sent against the verdicts of that tick. None was decided by a rule or the cache.
+
+### The fingerprint cache, issue #33
+
+- With the cache off, the broker sent 1,586 findings and 734,945 uncached tokens. With it on, 94 findings and 56,846 tokens. The cache removed 94.1 % of the findings the rules left, and 92.3 % of their uncached tokens.
+- A verdict is carried only while three keys hold: the expert's fingerprint, the instance key and Core's context from `MMReviewContext`. The context is the HEAD of the finding's worktree, the activity bucket of the newest session there and a size bucket of what the finding frees. The buckets are those of the graph's workstream fingerprint.
+- The instance key rule of LocoHost now holds in `-[MMReview verdictFor:]` for every expert. The server that restarts at hour 10 was sent again at that tick.
+- No finding was sent because the context alone moved. The fingerprints of WorkForest and LocoHost already hold HEAD and activity buckets. The context keeps the same rule for the experts whose fingerprints do not.
+
+### One fact block per workstream, issue #34
+
+Measured on the 75 inputs the 1.x replay sent, encoded four ways by `test/review/daybytes.py`:
+
+| Encoding | Bytes | Against pretty |
+|---|---|---|
+| Pretty-printed, as the 0.1 apps sent | 1,408,944 | 100 % |
+| Compact with sorted keys | 928,658 | 66 % |
+| Compact, null, false, zero and empty values dropped | 718,587 | 51 % |
+| And values every finding of a call shares sent once, in `all` | 649,923 | 46 % |
+
+- Research F's 30 % cut came from one sample that was not saved, so it is unverified. On these 75 inputs, pretty to dropped cuts 49 %.
+- `ws` holds the values in `MMReviewRequest.sharedKeys` that every finding of one block shares. LocoHost lists the agent session, branch, project and worktree. WorkForest lists the agent session, repo and default branch. In the broker replay, ws saved 70 uncached tokens over the day: 56,916 without it, 56,846 with it. Only LocoHost's two servers in one worktree share a block. A WorkForest block holds one tree, so it gets no ws.
+- Every system prompt ends with one fixed note on how blocks, ws and all read, so the prompt stays one cached prefix.
+
+### Verdicts before and after
+
+The verdicts were compared where both runs reviewed the same finding at the same tick: 1,274 pairs. The fake model decides from the facts it is sent, by the evidence lists of the 0.1 prompts, so a difference comes from what the broker sends or decides.
+
+| 1.x verdict | Broker verdict | Pairs | Decided by |
+|---|---|---|---|
+| Same | Same | 1,224 | |
+| unsure | active | 24 | `workforest.holds-work`, for commits on no remote |
+| stale | unsure | 23 | the cache |
+| unsure | in_use | 3 | the cache |
+
+- The broker never said go where the 1.x review said keep or unsure. The test checks that.
+- The 26 differences from the cache are verdicts carried while a time fact drifted inside one fingerprint bucket. WorkForest's quiet bucket runs from one to seven days, and the fake calls a merged tree stale after three. Each such verdict is asked again when a bucket moves.
 
 ## Rerun
 

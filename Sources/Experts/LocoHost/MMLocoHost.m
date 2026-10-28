@@ -312,6 +312,8 @@ MMReviewRequest *MMLHReviewRequest(NSArray<MMFinding *> *findings, MMFacts *fact
     q.system = kSystem;
     q.words = [MMVerdictWords keep:@"in_use" go:@"idle" unsure:@"unsure"];
     q.factsFor = ^NSDictionary *(MMFinding *f) { return ReviewFacts(f); };
+    // Issue #34: what the servers of one workstream share goes once in its block.
+    q.sharedKeys = @[@"agent_session", @"branch", @"project", @"project_files", @"repo_touched_minutes_ago", @"worktree"];
     q.judge = mode == MMModeEager;
     q.mode = mode;
     return q;
