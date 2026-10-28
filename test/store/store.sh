@@ -131,7 +131,7 @@ check "a home with no old apps plans nothing" 0 "$(json 'len(j["sources"])' <"$s
 
 # The Settings window: its controls, then its panes through the render tool, in light, dark and Increase Contrast.
 if clang -fobjc-arc -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa \
-     $(find Sources/UI -name '*.m' | LC_ALL=C sort) Sources/Core/MMSpecs.m test/store/settings.m -o "$st_dir/settings" >"$st_dir/settings.log" 2>&1; then
+     $(find Sources/UI -name '*.m' | LC_ALL=C sort) Sources/Core/MMSpecs.m Sources/Core/MMSheet.m test/store/settings.m -o "$st_dir/settings" >"$st_dir/settings.log" 2>&1; then
   check "test/store/settings.m builds with no warnings" 0 "$(grep -c "warning:" "$st_dir/settings.log")"
   "$st_dir/settings" >"$st_dir/settings.out" 2>&1
   check "test/store/settings.m runs" 0 "$?"

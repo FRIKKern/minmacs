@@ -52,7 +52,7 @@ check "one spec converter, MMSpecMenu" "no 0" \
 
 # The kit's own checks, without drawing.
 if clang -fobjc-arc -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa \
-     $(find Sources/UI -name '*.m' | LC_ALL=C sort) test/ui/kit.m -o "$MINMACS_HOME/ui/kit" >"$MINMACS_HOME/ui/kit.log" 2>&1; then
+     $(find Sources/UI -name '*.m' | LC_ALL=C sort) Sources/Core/MMSpecs.m Sources/Core/MMSheet.m test/ui/kit.m -o "$MINMACS_HOME/ui/kit" >"$MINMACS_HOME/ui/kit.log" 2>&1; then
   check "test/ui/kit.m builds with no warnings" 0 "$(grep -c "warning:" "$MINMACS_HOME/ui/kit.log")"
   ui_tab=$(printf '\t')
   "$MINMACS_HOME/ui/kit" >"$MINMACS_HOME/ui/kit.out" 2>&1
