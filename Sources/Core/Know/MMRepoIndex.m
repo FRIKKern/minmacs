@@ -47,14 +47,13 @@ static BOOL PathIn(NSString *path, NSString *folder) {
     return [path isEqualToString:folder] || [path hasPrefix:[folder hasSuffix:@"/"] ? folder : [folder stringByAppendingString:@"/"]];
 }
 
-/// With MINMACS_HOME set, as in a test or the bench, git and size walks never run in the person's home folder,
-/// unless the path lies inside MINMACS_HOME or one of the index's roots. Fixtures live under TMPDIR or in the test
-/// home. Issue #54 found the bench's real process table led the index to run git in the person's repos.
+/// With MINMACS_HOME set, as in a test or the bench, git and size walks run only inside MINMACS_HOME or one of
+/// the index's roots. Issue #54 found the bench's real process table led the index to run git in the person's
+/// repos. Its review found 3 more git cache entries outside the fixture roots and outside the home folder.
 static BOOL ReadableAt(NSString *path, NSArray<NSString *> *roots) {
     NSString *home = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
     if (!home.length) return YES;
-    NSString *p = path.stringByStandardizingPath, *mine = NSHomeDirectory().stringByStandardizingPath;
-    if (!PathIn(p, mine)) return YES;
+    NSString *p = path.stringByStandardizingPath;
     if (PathIn(p, home.stringByStandardizingPath)) return YES;
     for (NSString *r in roots) if (PathIn(p, r.stringByStandardizingPath)) return YES;
     return NO;

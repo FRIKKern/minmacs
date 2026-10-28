@@ -74,7 +74,7 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// The default roots are $MINMACS_ROOTS, colon separated, when it is set. With MINMACS_HOME set and no
 /// MINMACS_ROOTS there are none, so a test never walks the person's folders. Otherwise the "roots" list in
 /// core/rules.json, which starts with WorkForest's roots and the Cursor and Conductor folders.
-/// With MINMACS_HOME set, git facts and sizes are never read in the person's home folder outside MINMACS_HOME and the roots.
+/// With MINMACS_HOME set, git facts and sizes are read only inside MINMACS_HOME and the roots.
 @interface MMRepoIndex : NSObject
 + (instancetype)shared;
 @property (copy) NSArray<NSString *> *roots;
