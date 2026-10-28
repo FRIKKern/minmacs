@@ -7,19 +7,27 @@
 <!--
   89-b, Ring and Reward Trail. A copy of 82-a, Ring and Gauges. The notice moves into the ring. Workstreams, Apps and Settings stay.
   - No notice block. The right of the hero is the four gauges only, larger.
-  - The slices the notice means lift out of the ring and glow softly. The ring's center says the next thing in two
-    short lines ("4 idle" big, "1 GB to free" small). The count eases when it changes.
+  - The ring's center says the next thing in two short lines ("4 idle" big, "1 GB to free" small), with a small
+    button that is always there and names the action ("Stop 4 idle"). At rest the ring is calm. Hover or focus the
+    button: the slices it means lift out and glow, and the same items light in the list. The count eases when it
+    changes.
   - Hover the center or a lifted slice: the detail on the bottom right shows the notice's full story: the sentence,
     why, the items it touches (lit in the list and on the ring), the rule with Off / Ask / Auto and its countdown, and
     the button with what it does written beside it. Leave and the picked item comes back. Click the center (or Enter
     on it) to keep the story there; Back, Esc, or a row click lets it go.
-  - Hovering the center also shows a small button under the two lines, so the action is one move away.
-  - After an action, yours or Auto's: the lifted slices fly out, the gap closes, and the center counts up what came
-    back ("1 GB" / "memory back"), one shimmer, and after about 3.5 s it fades back to its two lines. Nothing stays
-    parked. Every delete is for good (caches, worktrees, Wrap Up's deletes): no Trash, no Undo; the preview before you
-    press says exactly what is deleted and its size. Undo shows in that moment only for a stopped server, which Undo
-    starts again with its launch command (and Restore for a quit app). A tool's own clean command, Keep and navigation
-    get no Undo; navigation (Answer in Tab, Open in Browser, Workstream) gets no reward at all, it just goes. Memory and disk
+  - The center is the button: press it (or Enter) and it does the action it names; the button under the two
+    lines names it. "Keep this here" in the detail pins the story.
+  - A chain: press, a small pop, next. After an action, yours or Auto's, the lifted slices fly out, the gap closes,
+    and the center counts what came back ("520 MB" / "memory back") for about a second, then names the next thing worth
+    doing in this tab with its slices lifted, so pressing the center again does it. Each tab has a short queue:
+    Servers, idle ones nobody holds, then idle ones in a workstream; Disk, caches to delete, then a tool's own clean
+    commands; Worktrees, merged ones nobody owns, then a ready Wrap Up; Agents, the next one who asks. The detail
+    names what comes after ("Then: ..."). When the queue is empty, the center says the calm state.
+  - No Undo in the ring, the chips or toasts. Every delete is for good (caches, worktrees, Wrap Up's deletes): no
+    Trash; the preview before you press says exactly what is deleted and its size. Undo lives only quietly in the
+    detail's "Done today" list, for a stopped server (its launch command starts it again). A merged worktree with
+    changed files, new files git does not track, unpushed commits or stashes is never deleted: it stays and says why.
+    Navigation (Answer in Tab, Open in Browser, Workstream) gets no reward at all, it just goes. Memory and disk
     are never added: a server gives memory back, a worktree or a cache gives disk back.
   - On these four tabs there is no toast. Navigation just goes. A rule change or Keep says one word in the center
     for 2 s, without Undo. Auto acting in another tab lights that tab's name; its ring shows the result when you open it. The detail
@@ -61,7 +69,7 @@
     minute with the idle stretch and the rule's mark drawn on the time axis, connected apps and the tabs that show
     it, and the idle rule with Off / Ask / Auto. Worktree detail: counts, a timeline to the rule, disk split, and
     what Wrap Up or Remove takes, in plan order. Disk detail: size over 30 days, its share of the disk, and whether
-    it is deleted for good, by its own command, with a Wrap Up, or stays.
+    it goes to the Trash, by its own command, with a Wrap Up, or stays.
   - Every button says what it does before you press it, in the line at the foot of the detail.
   - Live: agents start in a workstream and leave when an idle session ends; subagent dots arrive; the countdowns run.
   - Proposed facts: an hour of CPU and memory samples per agent, kept in memory as MinMacs keeps connections;
@@ -81,7 +89,7 @@
     free, and the network (online and over what, down and up). Like 04-a, the colored end of a bar is what the list
     frees, and while you hover an item, exactly what that item frees.
   - Three panels that explain: Apps by fate (Will close, Unsorted, Kept with agents' load per workstream, Spared),
-    Storage (every leftover on disk, what is deleted for good, what a tool's own command cleans, what stays, and what
+    Storage (every leftover on disk, what goes to the Trash, what a tool's own command cleans, what stays, and what
     goes with Wrap Up), and Network and servers (each server's connections now, the apps connected, memory, idle
     marks, what MinMacs pauses offline, and Keep working with the lid closed as one checkbox).
   - Hover a row in the list: the panels dim everything it does not touch. Hover its button: the preview card says
@@ -1248,6 +1256,13 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var
 .n89b,.n89u{position:relative;height:0;margin-top:0;padding:0 11px;border-radius:11px;font-size:11px;line-height:22px;font-weight:500;white-space:nowrap;opacity:0;overflow:hidden;background:color-mix(in srgb,var(--c) 32%,transparent);transition:height .3s var(--ease),margin .3s var(--ease),opacity .25s,background .2s}
 .nrc.hv .n89b,.nrc:hover .n89b,.nrc:focus-within .n89b,.nrc .n89u{height:22px;margin-top:6px;opacity:1}
 .n89b:hover{background:color-mix(in srgb,var(--c) 46%,transparent)}
+.nrc .n89b,.nrc.hv .n89b,.nrc:hover .n89b,.nrc:focus-within .n89b{height:24px;margin-top:8px;padding:0 13px;border-radius:12px;line-height:24px;opacity:1;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 40%,transparent)}
+.nrc .n89b:hover,.nrc .n89b:focus-visible{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 70%,transparent),0 0 14px color-mix(in srgb,var(--c) 45%,transparent);outline:none}
+.nrc.on::before{animation:none;opacity:0}
+.nrc.hv::before,.nrc:hover::before{opacity:0}
+.nrc.hb::before{opacity:.9}
+.hring.sm .nrc .s{white-space:nowrap;display:block;text-overflow:ellipsis;font-size:10.5px}
+.hring.sm .nrc .n89b{height:22px;line-height:22px;margin-top:5px;padding:0 9px;font-size:10.5px}
 .n89u{background:rgba(255,255,255,.1)}
 .n89u:hover{background:rgba(255,255,255,.18)}
 .nrc.rew .v{background:linear-gradient(100deg,#fff 42%,color-mix(in srgb,var(--c) 55%,#fff) 50%,#fff 58%) 0 0/260% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:n89in .4s var(--ease),n89sh 1.5s .15s ease-out both}
@@ -1297,6 +1312,7 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var
 .n89a .btn{flex:none}
 .n89p{flex:1;min-width:0;font-size:11px;line-height:15px;color:var(--tx2)}
 .n89p p+p{margin-top:2px}
+.n89p .n89n{margin-top:6px;color:var(--tx3)}
 .n89p b{font-weight:500;color:var(--tx)}
 /* 89-b: the reward trail along the ring's lower edge */
 .n89ch{position:absolute;z-index:2;transition:opacity 2s!important;display:flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:9px;background:rgba(36,36,50,.92);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);font-size:10px;line-height:18px;color:var(--tx2);white-space:nowrap;cursor:pointer;transition:opacity .4s,background .2s}
@@ -1456,7 +1472,7 @@ const BUSY={ws:[
  {id:'pb',n:'perf-budget',repo:'speed',wt:{maker:'claude-code',unp:1,nid:1,disk:.73,lc:4},
   ags:[['cc','cmux','w','Set a bundle size budget',-45],['cx','Terminal','w','Measure the size of each route',-15]],
   srv:[[4321,'Astro','dev',.3,{Chrome:2}],[4322,'Astro','preview',.1,{Chrome:1},{dup:[4321]}]],cache:[['node_modules',.6]],saved:['.env']},
- {id:'ar',n:'fix-auth-redirect',repo:'atlas',wt:{maker:'person',merged:'squash',mm:120,up:'gone',untr:1,disk:1.92,lc:150},
+ {id:'ar',n:'fix-auth-redirect',repo:'atlas',wt:{maker:'person',merged:'squash',mm:120,up:'gone',disk:1.92,lc:150},
   sess:['cx','Terminal','Fix the auth redirect loop',-310,-130],
   srv:[[4000,'Phoenix','dev',0,{Safari:1},{la:-118,orphan:1}]],help:[['Chrome for Testing',380]],cache:[['node_modules',1.8]],cfg:['.env.local'],saved:['.env']},
  {id:'bs',n:'bundle-split',repo:'speed',wt:{maker:'cursor',merged:'pr',mm:300,dirty:3,unp:2,disk:1.1,lc:320},
@@ -1465,7 +1481,7 @@ const BUSY={ws:[
 left:{
  srv:[[6007,'Storybook','storybook',{la:-4320,launcher:'pnpm storybook · Terminal'}],[3001,'Next.js','dev',{la:-2880,tabs:{Chrome:2},launcher:'pnpm dev · Terminal'}],[8888,'Jupyter',null,{la:-2400,tabs:{Safari:1},launcher:'jupyter lab · Terminal'}],[1313,'Hugo','server',{la:-9000,launcher:'hugo server · Terminal'}]],
  prot:[[5432,'PostgreSQL',140],[9000,'MinIO',210]],
- wt:[['studio','fieldsets','claude-code','squash',7200,'gone',.94,{lc:7300}],['atlas','icons-v1','cursor','ancestor',12960,'pushed',.61,{lc:13100}],['studio','dogfood','conductor',null,0,'pushed',3.2,{nid:1,stash:2,lc:30240}],['speed','sweep-403','claude-code',null,0,'gone',1.1,{lc:48960}]],
+ wt:[['studio','fieldsets','claude-code','squash',7200,'gone',.94,{lc:7300}],['atlas','icons-v1','cursor','ancestor',12960,'pushed',.61,{lc:13100}],['atlas','uploader-v2','claude-code','squash',5800,'pushed',.72,{lc:5900,untr:3}],['studio','dogfood','conductor',null,0,'pushed',3.2,{nid:1,stash:2,lc:30240}],['speed','sweep-403','claude-code',null,0,'gone',1.1,{lc:48960}]],
  cax:[['DerivedData',14.2,'~/Library/Developer/Xcode/DerivedData',12960,'may','4 of its 7 projects are gone',1],['Playwright browsers',3.3,'~/Library/Caches/ms-playwright',59040,'may','two old versions, unused for 41 d',0],
   ['npm cache',6.1,'~/.npm/_cacache',3,'may','npm cleans it with its own command',0,{cmd:'npm cache clean --force',tool:'npm'}],
   ['Docker build cache',4.2,'Docker Desktop',2880,'may','Docker cleans it with its own command',0,{cmd:'docker builder prune',tool:'Docker'}],
@@ -1653,6 +1669,7 @@ function plan(w){
     if(!t.merged)wn=t.nid>0?cnt(t.nid,'commit')+' not in main':'not merged';
     else if(t.unp>0)wn='unpushed changes';
     else if(t.dirty>0)wn=cnt(t.dirty,'changed file');
+    else if(t.untr>0)wn='has '+cnt(t.untr,'new file')+' git does not track';
     else if(t.stash>0)wn=t.stash===1?'1 stash':t.stash+' stashes';
     parts.push({sn:'Worktree',ex:'WorkForest',title:'Delete '+t.n+' for good',gb:Math.max(.01,t.freed-cache),why:wn,ids:[t.id]});
   }
@@ -1695,7 +1712,7 @@ const sortWS=L=>L.slice().sort((a,b)=>RANK[nextOf(a,1)[2]]-RANK[nextOf(b,1)[2]]|
 /* leftovers: things no workstream owns */
 const LEFT=()=>[...SRV.filter(s=>s.left),...WT.filter(t=>t.left),...CA.filter(c=>c.left)].filter(o=>!gone(o.id));
 const leftKind=o=>o.p?'srv':o.br?'tree':'disk';
-const leftMay=o=>!o.block&&!kept(o.id)&&o.state!=='kept'&&o.state!=='report';
+const leftMay=o=>!o.block&&!(o.br&&n89Work(o))&&!kept(o.id)&&o.state!=='kept'&&o.state!=='report';
 const leftGo=()=>LEFT().filter(leftMay);
 const leftDisk=o=>o.br?o.freed:o.gb||0;
 const leftDiskT=()=>sum(leftGo().filter(o=>leftKind(o)!=='srv'),leftDisk);
@@ -1827,7 +1844,7 @@ const SA={
     res:()=>{const r=readyGo();return [`<b>Runs.</b> ${r.map(w=>'<br>'+w.n+': '+plan(w).parts.map(p=>p.title).join(', ')).join('')}`,`<b>Frees.</b> ${fmt(sum(r,w=>plan(w).disk))} disk · ${mb(sum(r,w=>plan(w).mem))} memory.`,`<b>Stays.</b> The ${going().length} workstreams still going, and every blocked one. Deletes are for good, so there is no Undo.`]},
     run:()=>{const r=readyGo();return [`Wrapped up <b>${r.map(w=>w.n).join('</b> and <b>')}</b>. ${fmt(sum(r,w=>plan(w).disk))} disk · ${mb(sum(r,w=>plan(w).mem))} memory back.`,()=>r.forEach(w=>wrapWs(w.id))]},on:()=>readyGo().length},
   left:{c:'disk',l:()=>`Clean Up ${cnt(leftGo().length,'Leftover')}`,tl:()=>'',t:()=>leftGo().map(o=>o.id),
-    res:()=>{const L=leftGo(),b=LEFT().filter(o=>!leftMay(o));return [`<b>Goes.</b> ${and([L.filter(o=>o.p).length?'stops '+and(L.filter(o=>o.p).map(o=>':'+o.p)):'',L.filter(o=>o.br).length?'deletes '+cnt(L.filter(o=>o.br).length,'worktree'):'',L.filter(o=>o.kind).length?'deletes '+cnt(L.filter(o=>o.kind).length,'cache'):''].filter(Boolean))}.`,`<b>Frees.</b> ${leftFrees()}.`,b.length?`<b>Stays.</b> ${b.map(o=>leftName(o)).join(', ')}, blocked or kept.`:'Deletes are for good, so there is no Undo.']},
+    res:()=>{const L=leftGo(),b=LEFT().filter(o=>!leftMay(o));return [`<b>Goes.</b> ${and([L.filter(o=>o.p).length?'stops '+and(L.filter(o=>o.p).map(o=>':'+o.p)):'',L.filter(o=>o.br).length?'deletes '+cnt(L.filter(o=>o.br).length,'worktree'):'',L.filter(o=>o.kind).length?'trashes '+cnt(L.filter(o=>o.kind).length,'cache'):''].filter(Boolean))}.`,`<b>Frees.</b> ${leftFrees()}.`,b.length?`<b>Stays.</b> ${b.map(o=>leftName(o)).join(', ')}, blocked or kept.`:'Deletes are for good, so there is no Undo.']},
     run:()=>{const L=leftGo();return [`Cleaned up <b>${cnt(L.length,'leftover')}</b>. ${leftFrees()} back.`,()=>L.forEach(o=>fl(o.id).gone=1)]},on:()=>leftGo().length},
   now:{c:'apps',l:()=>!noise()?'Quit Spotify':`Quit Spotify, Close ${noise()} Noise Tabs`,tl:()=>fmt(sum(closeApps(),a=>a.mem)+noiseMem())+' memory',
     t:()=>closeApps().map(a=>a.id).concat(!noise()?[]:['chrome']),
@@ -1854,7 +1871,7 @@ const tcls=id=>{if(!PV)return '';const t=SA[PV].t();return t.includes(id)?' hit'
 /* ---------- commit / undo / toast ---------- */
 let tT,lastAuto=-1e9,busy=0,advAt=-1e9;
 function hideToast(){$('toast').classList.remove('show')}
-function toast(msg,undo){if(ADVT()){if(undo!==false)n89Note(msg);return}$('tt').innerHTML=nb(msg);$('tbtn').style.display=undo===false?'none':'';$('toast').classList.add('show');clearTimeout(tT);tT=setTimeout(hideToast,6500)}
+function toast(msg,undo){if(ADVT()){if(undo!==false)n89Note(msg);return}$('tt').innerHTML=nb(msg);$('tbtn').style.display='none';$('toast').classList.add('show');clearTimeout(tT);tT=setTimeout(hideToast,6500)}
 /* 60-a: an undo record can name the rule that made it. The Settings cards list these records as what
    each rule did today, and each one undoes on its own: it clears the flags its action set. */
 function recSay(msg){
@@ -2739,7 +2756,7 @@ function srvSay(s){
   if(st==='prot')return `<b>Protected.</b> Docker runs it, so the rule never stops it. ${cnt(s.conns,'connection')} open now.`;
   if(kept(s.id))return `<b>You kept it.</b> The rule skips it. ${st==='idle'?'No new connections for '+dur(since)+'.':''}`;
   if(st==='active')return `<b>Busy.</b> ${last10} new connections in the last 10 min, ${s.conns} open now${s.clients.length?' from '+clientsW(s):''}. ${R.mode?'If it goes quiet now, the rule acts after '+R.vals[R.v]+'.':'The rule is off.'}`;
-  const words=R.mode===0?'The rule is off, so nothing happens.':R.mode===1?(rem<=0?'Ask: the Stop button shows now. Nothing happens until you press it.':`Ask: in ${durC(rem)} a Stop button shows. Nothing happens until you press it.`):(rem<=0?'Auto stops it now. Undo shows on the ring for a moment.':`Auto stops it in <b>${durC(rem)}</b>. Undo shows on the ring for a moment.`);
+  const words=R.mode===0?'The rule is off, so nothing happens.':R.mode===1?(rem<=0?'Ask: the Stop button shows now. Nothing happens until you press it.':`Ask: in ${durC(rem)} a Stop button shows. Nothing happens until you press it.`):(rem<=0?'Auto stops it now.':`Auto stops it in <b>${durC(rem)}</b>.`);
   return `<b>${st==='idle'?'Idle':'Quiet'}.</b> No new connection for ${dur(since)}. ${words}`;
 }
 function dServer(s,lay){
@@ -2771,7 +2788,7 @@ function trState(t){const k=treeGrp(t),w=t.ws&&byId[t.ws];
   if(k==='w')return `In a workstream · ${wsAgs(w).length?cnt(wsAgs(w).length,'session')+' work in it':'no session runs'}`;
   if(k==='m')return `Merged, no owner · ${MERGEW[t.merged]} ${coarse(t.mm+T)} ago`;
   return `Stale · ${t.block||n89Work(t)||'not merged'}, quiet ${coarse(t.lc+T)}`;}
-function trShort(t){const k=treeGrp(t);if(k==='r'||k==='m')return 'merged '+coarse(t.mm+T);if(k==='b')return plan(byId[t.ws]).why;if(k==='w')return t.dirty?cnt(t.dirty,'change'):t.unp?t.unp+' unpushed':'clean';return 'quiet '+coarse(t.lc+T)}
+function trShort(t){const k=treeGrp(t);if(k==='r'||k==='m')return 'merged '+coarse(t.mm+T);if(k==='b')return plan(byId[t.ws]).why;if(k==='w')return t.dirty?cnt(t.dirty,'change'):t.unp?t.unp+' unpushed':'clean';return t.merged&&n89Work(t)?n89Work(t):'quiet '+coarse(t.lc+T)}
 function gTree(t,W){
   const N=[['Changed files',t.dirty],['Untracked',t.untr],['Unpushed',t.unp],['Stashes',t.stash],['Not in main',t.merged?0:t.nid]];
   const w=t.ws&&byId[t.ws],cs=w?wsCaches(w):[],cg=sum(cs,c=>c.gb);
@@ -3155,7 +3172,7 @@ function heroHTML(k,K,L,H,cur,hv){
   const ringC=`<div class="hrc"><span class="v">${H.big}</span><span class="u">${H.unit}</span>${H.sub?`<span class="s">${H.sub}</span>`:''}</div>`;
   if(HEROL==='a'){const D=N89TRAIL?172:180,sw=H.outer?11:15,R0=D/2-sw/2-5,so=Math.max(4,Math.round(sw*.6)),rIn=H.outer?R0-so/2-sw/2-6:R0,cs=Math.floor(2*(rIn-sw/2-3));
     return `<div class="hero a${N89TRAIL?' n89tr':''}" data-k="hero" style="--c:${K.c}">
-    <div class="hr-l"><div class="hring" style="width:${D}px;height:${D}px;--cs:${cs}px;--vs:${cs<120?28:34}px">${ringSVG(H,D,sw,cur)}${n89Center(k,K,L,H,N89N)}${N89TRAIL?n89Trail(k,D,K):''}</div>
+    <div class="hr-l"><div class="hring${cs<120?' sm':''}" style="width:${D}px;height:${D}px;--cs:${cs}px;--vs:${cs<120?24:34}px">${ringSVG(H,D,sw,cur)}${n89Center(k,K,L,H,N89N)}${N89TRAIL?n89Trail(k,D,K):''}</div>
       <div class="hleg">${H.legend.map(s=>legRow(s,k)).join('')}<div class="hcap">${H.cap}</div></div></div>
     <div class="hr-r"><div class="hgs">${H.gauges.map(g=>gaugeHTML(g,k,94,7,hv,K.c)).join('')}</div></div></div>`}
   /* at this size the disk's two rings leave no room for the number: the ring shows the caches by fate, and the
@@ -3195,9 +3212,9 @@ function fQ(k){
   if(fh&&!fp)delete FLT[k];
   if(fp){const s=new Set(fp.ids);Lf=L.filter(o=>s.has(o.id));
     if(!Lf.length){delete FLT[k];Lf=L}else chip=`<div class="qflt" data-k="flt"><span>Showing <b>${fp.lab}</b> · ${Lf.length} of ${L.length}</span><button class="lk" data-unf="1">Show all</button></div>`}
-  const N=N89N=n89Notice(k,L);H.parts.nt={ids:N.ids,lab:'The notice'};N89LIFT={ids:new Set(N.ids),c:K.c};
+  const N=N89N=n89Notice(k,L);H.parts.nt={ids:N.ids,lab:'The notice'};const rw=n89Rew(k);N89LIFT={ids:new Set(rw&&!rw.note||!N89BH?[]:N.ids),c:K.c};
   const nshow=n89Show(k);
-  HPIDS=HP==='nt'&&!N.ids.length?null:heroIds(H,HP)||(nshow&&N.ids.length?new Set(N.ids):null);
+  const nl=N89BH&&N.ids.length?new Set(N.ids):null;HPIDS=HP==='nt'?nl:heroIds(H,HP)||nl;
   if(!L.length)return `<div class="adv q77 q82">${heroHTML(k,K,L,H,null,null)}<div class="qempty">Nothing here right now.</div></div>`;
   const [cur,sel,prev]=pickOf(k,Lf),hv=HOV&&L.find(o=>o.id===HOV)||null,D=K.detail(cur,'b');
   return `<div class="adv q77 q82 qa${HEROL==='b'?' qbb':''}${PV?' plan':''}${HPIDS?' hp':''}">${heroHTML(k,K,L,H,cur,hv)}<div class="qb"><div class="ql psc" role="listbox" aria-label="${TABS_[k].n}" data-k="ql">${rowsH(K,Lf,cur,sel,chip)}${sumRows(k,Lf,9999)}</div>${nshow?n89Detail(k,K,L,N,sel):detailH(D,K,prev,k)}</div></div>`;
@@ -3223,7 +3240,7 @@ function setHov(id){clearTimeout(HOVT);if(HOV!==id){HOV=id;refresh()}}
 function dropHov(){clearTimeout(HOVT);if(HOV)HOVT=setTimeout(()=>{HOV=null;refresh()},260)}
 function stepSel(d){const L=QK[tab].items(),i=L.findIndex(o=>o.id===SEL[tab]),n=L[Math.max(0,Math.min(L.length-1,i+d))];if(n){SEL[tab]=n.id;HOV=null;refresh();const el=$('pin').querySelector(`[data-pick="${n.id}"]`);if(el){el.focus({preventScroll:true});el.scrollIntoView({block:'nearest'})}}}
 
-const Q_GUIDE=`<div class="t">How these tabs work</div><ul><li>On top, a hero shows the whole tab: one ring split by state, one slice per item, and round gauges, each with a plain line under it.</li><li>The ring is the notice. The slices it means lift out and glow, and the center says the next thing. Hover the center: the detail tells the whole story, with the button. Click it to keep the story there.</li><li>After an action, yours or Auto's, the slices fly out, the center counts what came back, then it fades back. Undo shows in that moment only for what really comes back. The last three show as chips along the ring's lower edge for a few seconds.</li><li>Hover a slice, a state or a gauge: the list lights what it means. Click it to show only those. Show all brings the rest back.</li><li>Hover a row: its slice is marked on the ring, and each gauge shows its share in white.</li><li>The rule's gauge counts down to its next action. Click it to open the rule in the detail, with Off / Ask / Auto in words.</li><li>The detail folds its lower part: Facts and two panels, one at a time.</li><li><span class="tagn">proposed</span> An hour of CPU and memory per agent, 30 days of size per cache, and an hour of disk used.</li></ul>`;
+const Q_GUIDE=`<div class="t">How these tabs work</div><ul><li>On top, a hero shows the whole tab: one ring split by state, one slice per item, and round gauges, each with a plain line under it.</li><li>The ring is the notice. The center says the next thing and its button names it; hover the button and the slices it means lift out and glow. Press the center to do what it names. Hover it: the detail tells the whole story, and Keep this here pins it.</li><li>After an action, yours or Auto's, the slices fly out, the center counts what came back, then names the next thing. Press the center again to do it. The last three show as chips along the ring's lower edge for a few seconds.</li><li>Hover a slice, a state or a gauge: the list lights what it means. Click it to show only those. Show all brings the rest back.</li><li>Hover a row: its slice is marked on the ring, and each gauge shows its share in white.</li><li>The rule's gauge counts down to its next action. Click it to open the rule in the detail, with Off / Ask / Auto in words.</li><li>The detail folds its lower part: Facts and two panels, one at a time.</li><li><span class="tagn">proposed</span> An hour of CPU and memory per agent, 30 days of size per cache, and an hour of disk used.</li></ul>`;
 function qFit(){const l=$('pin').querySelector('.psc');if(!l)return '';const n=l.querySelectorAll('[data-pick]').length,v=[...l.querySelectorAll('[data-pick]')].filter(e=>e.offsetTop+e.offsetHeight<=l.scrollTop+l.clientHeight+1).length;return v>=n?`all ${n} in view, no scroll`:`${v} of ${n} in view, the rest scroll`}
 /* ---------- Settings ---------- */
 /* 60-a: each rule is a card. It shows its mode, what the mode does, the "after" chips, the live line,
@@ -3258,7 +3275,7 @@ function ruleCard(s,cls,cap){
   let pl=ADV||rn||L&&L.n>2?1:2;const hd=([n,v])=>`<div class="h hs"><span>${n}</span><span>${v}</span></div>`;
   const row=([n,v,c,w])=>c==='hd'?hd([n,v]):`<div class="rsr${c?' '+c:''}"><span class="n">${n}</span><span class="v">${nb(v)}</span></div>`+(w&&pl-->0?plan(w).parts.map((x,k)=>`<div class="rpt"><span class="ix">${k+1}</span><span>${x.title}${x.nw?'<span class="tagn">new</span>':''}</span>${x.why?`<span class="wn">blocked · ${x.why}</span>`:''}</div>`).join(''):'');
   const see=L&&(L.rows.length||L.ft)?`<div class="rsee">${L.n?`<div class="h"><span>${L.h}</span><span>${L.n}</span></div>`:''}${shown.map(row).join('')}${L.rows.length>shown.length?`<div class="rsr more"><span class="n">${L.rows.length-shown.length} more</span></div>`:''}${L.ft?`<div class="ft">${L.ft}</div>`:''}</div>`:'';
-  const td=rn?`<div class="rtd"><div class="h"><span>Today</span>${rec.length>rn?`<span>${rec.length-rn} earlier</span>`:''}</div>${rec.slice(0,rn).map(x=>`<div class="rtr${x.nw?' nw':''}" data-k="rec-${x.sa||x.i}" style="--c:${s.c}"><span class="t">${nb(x.say)} at ${x.at}</span>${x.sa?`<button class="lk" data-sa="${x.sa}">Restore</button>`:x.perm?'':`<button class="lk" data-ru="${x.i}">${s.id==='apps'?'Restore':'Undo'}</button>`}</div>`).join('')}</div>`:'';
+  const td=rn?`<div class="rtd"><div class="h"><span>Today</span>${rec.length>rn?`<span>${rec.length-rn} earlier</span>`:''}</div>${rec.slice(0,rn).map(x=>`<div class="rtr${x.nw?' nw':''}" data-k="rec-${x.sa||x.i}" style="--c:${s.c}"><span class="t">${nb(x.say)} at ${x.at}</span>${x.sa?`<button class="lk" data-sa="${x.sa}">Restore</button>`:x.perm||s.id!=='apps'?'':`<button class="lk" data-ru="${x.i}">${s.id==='apps'?'Restore':'Undo'}</button>`}</div>`).join('')}</div>`:'';
   return `<div class="rc mode ${['off','ask','auto'][s.mode]}${cls?' '+cls:''}${lit}" data-k="rc-${s.id}" style="--c:${s.c}">
     <div class="rcl"><div class="mh"><span class="mt">${gl(RGL[s.id],s.c,15,1.6)}${s.name}</span>${seg3(s,1)}</div>
     <div class="mx${mx.pv?' pv':''}">${nb(mx.t)}</div>
@@ -3435,11 +3452,27 @@ document.addEventListener('mouseover',e=>{
    thing in two short lines and is the hover target. Its full story shows in the detail. After an action the center
    counts up what came back for a moment (Undo only if it really comes back), then fades back to its two lines. */
 const N89TRAIL=true;
-let N89H=false,N89HT=0,N89F=false,N89R=-1,N89LIFT=null,N89N=null,N89RAF=0;const N89PIN={},REWS=[];
+let N89BH=false,N89H=false,N89HT=0,N89F=false,N89R=-1,N89LIFT=null,N89N=null,N89RAF=0;const N89PIN={},REWS=[];
 /* a delete is for good, so it has no Undo; only a stopped server (restarted by its launch command) or a quit app comes back */
 const n89Perm=set=>set.some(([id,k])=>k==='gone'&&(WT.some(t=>t.id===id)||CA.some(c=>c.id===id)||WS.some(w=>w.id===id)));
 /* a worktree with work left is never deleted: it stays and says why */
-function n89Work(t){return t.dirty>0?cnt(t.dirty,'changed file'):t.unp>0?t.unp+' unpushed':t.stash>0?(t.stash===1?'1 stash':t.stash+' stashes'):''}
+function n89Work(t){return t.dirty>0?cnt(t.dirty,'changed file'):t.untr>0?'has '+cnt(t.untr,'new file')+' git does not track':t.unp>0?t.unp+' unpushed':t.stash>0?(t.stash===1?'1 stash':t.stash+' stashes'):''}
+const n89Q=Q=>Object.assign(Q[0],{then:Q[0].then||(Q[1]?Q[1].t:null)});
+const n89DelCa=()=>dTrash().filter(o=>!o.br);
+const n89IdleFree=()=>idleSrv().filter(s=>!s.ws).sort((a,b)=>b.mem-a.mem);
+const n89IdleWs=()=>idleSrv().filter(s=>s.ws).sort((a,b)=>b.mem-a.mem);
+function n89SrvSA(get,stay){return {c:'servers',l:()=>{const o=get();return o.length===1?`Stop :${o[0].p}`:`Stop ${o.length} Idle Servers`},tl:()=>mb(sum(get(),s=>s.mem))+' memory',t:()=>get().map(s=>s.id),
+  res:()=>{const o=get();return [`<b>Stops.</b> ${and(o.map(s=>`:${s.p} ${s.fw}, idle ${coarse(idleOf(s))}`))}.`,`<b>Stays.</b> ${stay}`,`<b>Frees.</b> ${mb(sum(o,s=>s.mem))} memory.`]},
+  run:()=>{const o=get();return [`Stopped ${and(o.map(s=>'<b>:'+s.p+'</b>'))}, ${mb(sum(o,s=>s.mem))} memory back.`,()=>o.forEach(s=>fl(s.id).gone=1)]},on:()=>get().length}}
+SA.n89s1=n89SrvSA(n89IdleFree,'Every busy, quiet or protected server, and every idle one a workstream holds.');
+SA.n89s2=n89SrvSA(n89IdleWs,'Their workstreams, worktrees and sessions, and every busy or protected server.');
+SA.n89d1={c:'disk',l:()=>`Delete ${cnt(n89DelCa().length,'Cache')}`,tl:()=>fmt(sum(n89DelCa(),leftDisk))+' disk',t:()=>n89DelCa().map(o=>o.id),
+  res:()=>{const a=n89DelCa();return [`<b>Deleted for good.</b> ${and(a.map(o=>leftName(o)+' '+fmt(leftDisk(o))))}.`,'<b>Stays.</b> What a workstream holds, what a tool cleans with its own command, and every worktree.',`<b>Frees.</b> ${fmt(sum(a,leftDisk))} disk.`]},
+  run:()=>{const a=n89DelCa();return [`Deleted <b>${cnt(a.length,'cache')}</b> for good, ${fmt(sum(a,leftDisk))} disk back.`,()=>a.forEach(o=>fl(o.id).gone=1)]},on:()=>n89DelCa().length};
+SA.n89d2={c:'disk',l:()=>{const b=dCmd();return b.length===1?`Run ${b[0].tool}'s Clean`:`Run ${b.length} Clean Commands`},tl:()=>fmt(sum(dCmd(),leftDisk))+' disk',t:()=>dCmd().map(o=>o.id),nu:()=>1,
+  res:()=>{const b=dCmd(),[tw,pl]=tools(b);return [`<b>Runs.</b> ${and(b.map(o=>`<code>${o.cmd}</code> ${fmt(o.gb)}`))}.`,`${tw} ${pl?'fetch':'fetches'} again what ${pl?'they need':'it needs'}.`,`<b>Frees.</b> ${fmt(sum(b,leftDisk))} disk.`]},
+  run:()=>{const b=dCmd();return [`Ran ${and(b.map(o=>'<b>'+o.cmd+'</b>'))}, ${fmt(sum(b,leftDisk))} disk back.`,()=>b.forEach(o=>fl(o.id).gone=1)]},on:()=>dCmd().length};
+Object.assign(SA_RULE,{n89s1:'servers',n89s2:'servers',n89d1:'left',n89d2:'left'});
 const n89Show=k=>N89H||N89F||!!N89PIN[k];
 const n89Sec=id=>SRV.some(s=>s.id===id)?'servers':WT.some(t=>t.id===id)?'trees':CA.some(c=>c.id===id)?'disk':AG.some(a=>a.id===id)?'agents':null;
 const N89NOUN={servers:'server',trees:'worktree',disk:'cache',agents:'agent'};
@@ -3449,45 +3482,54 @@ function n89Notice(k,L){
     if(q.length){const a=q[0];return {on:1,ids:q.map(x=>x.id),big:q.length,bw:q.length===1?'asks':'ask',small:'longest '+coarse(T-a.la),
       t:`${byId[a.ws].n} asks “${a.q||'for you'}”`,why:`Waiting ${coarse(T-a.la)} in ${a.place}${q.length>1?`. ${q.length-1} more ${q.length>2?'ask':'asks'} too`:''}. MinMacs never answers for you. It takes you to the tab.`,
       items:q.map(x=>[x.id,byId[x.ws].n,`“${x.q||'asks for you'}”`,coarse(T-x.la)]),ih:'Who asks, longest first',rule:null,
-      btn:`<button class="btn pri" data-act="nav" data-id="${a.id}" style="--c:${C.agents}">Answer in Tab</button>`,res:[`<b>Opens.</b> ${a.place}, on “${a.title}”, where it asks.`,'<b>Stays.</b> Everything else. Nothing is answered for you.'],nav:a.id,pill:'Answer in Tab'}}
+      then:q[1]?`${byId[q[1].ws].n} asks “${q[1].q||'for you'}”`:null,btn:`<button class="btn pri" data-act="nav" data-id="${a.id}" style="--c:${C.agents}">Answer in Tab</button>`,res:[`<b>Opens.</b> ${a.place}, on “${a.title}”, where it asks.`,'<b>Stays.</b> Everything else. Nothing is answered for you.'],nav:a.id,pill:'Answer in Tab'}}
     return {on:0,ids:[],big:L.length,bu:L.length===1?'agent':'agents',small:'none asks you',t:`${cnt(wk.length,'agent')} working, none asks you`,
       why:'When an agent asks for you, its slice lifts out of the ring, white, and the center says who.',rule:null}}
-  if(k==='servers'){const i=idleSrv().slice().sort((a,b)=>idleOf(b)-idleOf(a)),R=S.servers,act=L.filter(s=>srvG(s)==='active'),f=QK.servers.focal(L);
-    const w=f.w.replace(', then sends a notice with Undo.','. Undo shows on the ring for a moment.');
-    if(i.length)return {on:1,ids:i.map(s=>s.id),big:i.length,bw:'idle',small:mb(sum(i,s=>s.mem))+' to free',t:f.t,
-      why:`Nothing connected to ${i.length===1?'it':'them'} for a while, so stopping breaks no page. ${w}`,
-      items:i.map(s=>[s.id,`:${s.p} ${s.fw}`,'idle '+coarse(idleOf(s)),mb(s.mem)]),ih:'What it stops',rule:R,rt:'Stop idle',sa:'idle',pill:i.length===1?`Stop :${i[0].p}`:`Stop all ${i.length}`};
+  if(k==='servers'){const R=S.servers,act=L.filter(s=>srvG(s)==='active'),f=QK.servers.focal(L),w=f.w.replace(', then sends a notice with Undo.','.');
+    const mk=(i,sa,who,t)=>({on:1,ids:i.map(s=>s.id),big:i.length,bw:'idle',small:mb(sum(i,s=>s.mem))+' to free',t,
+      why:`Nothing connected to ${i.length===1?'it':'them'} for a while, so stopping breaks no page. ${who} ${w}`,
+      items:i.map(s=>[s.id,`:${s.p} ${s.fw}`,'idle '+coarse(idleOf(s)),mb(s.mem)]),ih:'What it stops',rule:R,rt:'Stop idle',sa,pill:i.length===1?`Stop :${i[0].p}`:`Stop ${i.length} idle`});
+    const g1=n89IdleFree(),g2=n89IdleWs(),Q=[];
+    if(g1.length)Q.push(mk(g1,'n89s1',`Nobody holds ${g1.length===1?'it':'them'}.`,`${cnt(g1.length,'server')} idle that nobody holds, ${mb(sum(g1,s=>s.mem))} memory`));
+    if(g2.length)Q.push(mk(g2,'n89s2',`${g2.length===1?'Its workstream and worktree stay':'Their workstreams and worktrees stay'}.`,`${cnt(g2.length,'server')} idle in ${g2.length===1?byId[g2[0].ws].n:'workstreams'}, ${mb(sum(g2,s=>s.mem))} memory`));
+    if(Q.length)return n89Q(Q);
     return {on:0,ids:[],big:L.length,bu:L.length===1?'server':'servers',small:'nothing idle',t:`${act.length} busy, nothing idle`,
       why:R.mode?`When a server has had no new connection for ${R.vals[R.v]}, its slice lifts out of the ring here.`:'The idle rule is off, so nothing lifts out of the ring.',rule:R,rt:'Stop idle'}}
-  if(k==='trees'){const m=mergedLeft(),r=readyGo(),f=QK.trees.focal(L);
-    if(m.length)return {on:1,ids:m.map(t=>t.id),big:m.length,bw:'merged',small:fmt(sum(m,t=>t.freed))+' to free',t:f.t,why:`Merged, no workstream owns ${m.length===1?'it':'them'}, and nothing is left: no changed files, no unpushed commits, no stashes, no session. ${f.w}`,
-      items:m.map(t=>[t.id,`${t.repo} · ${t.n}`,'merged '+coarse(t.mm+T),fmt(t.freed)]),ih:'What it deletes for good',rule:S.trees,rt:'Delete merged',sa:'merged',pill:m.length===1?'Delete it':`Delete all ${m.length}`};
+  if(k==='trees'){const m=mergedLeft(),r=readyGo(),f=QK.trees.focal(L),Q=[];
+    if(m.length)Q.push({on:1,ids:m.map(t=>t.id),big:m.length,bw:'merged',small:fmt(sum(m,t=>t.freed))+' to free',t:f.t,why:`Merged, no workstream owns ${m.length===1?'it':'them'}, and nothing is left: no changed files, no unpushed commits, no stashes, no session. ${f.w}`,
+      items:m.map(t=>[t.id,`${t.repo} · ${t.n}`,'merged '+coarse(t.mm+T),fmt(t.freed)]),ih:'What it deletes for good',rule:S.trees,rt:'Delete merged',sa:'merged',pill:`Delete ${m.length} merged`});
     if(r.length){const ids=r.map(w=>wsTree(w)).filter(Boolean).map(t=>t.id);
-      return {on:1,ids,big:r.length,bw:'ready',small:fmt(sum(r,w=>plan(w).disk))+' to free',t:f.t,why:f.w,
-        items:r.map(w=>{const t=wsTree(w);return [t?t.id:w.id,w.n,cnt(plan(w).parts.length,'step'),fmt(plan(w).disk)]}),ih:'What Wrap Up takes',rule:S.ws,rt:'Wrap Up',sa:'wrapready',pill:'Wrap Up'}}
+      Q.push({on:1,ids,big:r.length,bw:'ready',small:fmt(sum(r,w=>plan(w).disk))+' to free',t:f.t,why:f.w,
+        items:r.map(w=>{const t=wsTree(w);return [t?t.id:w.id,w.n,cnt(plan(w).parts.length,'step'),fmt(plan(w).disk)]}),ih:'What Wrap Up takes',rule:S.ws,rt:'Wrap Up',sa:'wrapready',pill:'Wrap Up'})}
+    if(Q.length)return n89Q(Q);
     return {on:0,ids:[],big:L.length,bu:L.length===1?'worktree':'worktrees',small:'nothing to delete',t:'Nothing to delete',
       why:'Every worktree has a session in it, or is not merged yet. A merged one nobody owns lifts out of the ring here.',rule:S.trees,rt:'Delete merged'}}
-  const g=dGo(),U=DISKU(),f=QK.disk.focal(L);
-  if(g.length){const q=vu(fmt(sum(g,leftDisk)));return {on:1,ids:g.map(c=>c.id),big:q.v,bw:q.u,small:'may go now',t:f.t,why:`${f.w} Nobody holds ${g.length===1?'it':'them'}.`,
-    items:g.map(o=>[o.id,leftName(o),o.cmd?'its own command':'deletes',fmt(leftDisk(o))]),ih:'What it cleans',rule:S.left,rt:'Clean up',sa:'clean',pill:'Clean up'}}
+  const a=n89DelCa(),b=dCmd().filter(o=>!o.br),U=DISKU(),Q=[];
+  if(a.length){const q=vu(fmt(sum(a,leftDisk)));Q.push({on:1,ids:a.map(c=>c.id),big:q.v,bw:q.u,small:a.length+' to delete',t:`${fmt(sum(a,leftDisk))} of caches nobody holds`,
+    why:`Nobody holds ${a.length===1?'it':'them'}, so ${a.length===1?'it is':'they are'} deleted for good. The list below is exactly what goes.`,
+    items:a.map(o=>[o.id,leftName(o),'deletes',fmt(leftDisk(o))]),ih:'What it deletes for good',rule:S.left,rt:'Clean up',sa:'n89d1',pill:`Delete ${cnt(a.length,'cache')}`})}
+  if(b.length){const q=vu(fmt(sum(b,leftDisk))),[tw,pl]=tools(b);Q.push({on:1,ids:b.map(c=>c.id),big:q.v,bw:q.u,small:b.length===1?'by its own command':`by ${b.length} commands`,t:`${fmt(sum(b,leftDisk))} ${tw} ${pl?'clean':'cleans'} with ${pl?'their':'its'} own command`,
+    why:`${tw} ${pl?'fetch':'fetches'} again what ${pl?'they need':'it needs'}.`,
+    items:b.map(o=>[o.id,leftName(o),`<code>${o.cmd}</code>`,fmt(leftDisk(o))]),ih:'What it runs',rule:S.left,rt:'Clean up',sa:'n89d2',pill:b.length===1?`Run ${b[0].tool} clean`:`Run ${b.length} cleans`})}
+  if(Q.length)return n89Q(Q);
   return {on:0,ids:[],big:Math.round(DISK_T-U),bu:'GB free',small:'nothing may go',t:'Nothing may go now',
     why:'Every cache belongs to a workstream or stays. A cache nobody holds lifts out of the ring here.',rule:S.left,rt:'Clean up'};
 }
 /* the newest result for this tab, while it still shows in the center */
-const N89MO=3600,N89NO=2200,N89TR=12000;
+const N89MO=1100,N89NO=2200,N89TR=12000;
 function n89Rew(k){const r=REWS.find(x=>x.sec===k);if(!r)return null;const n=performance.now();
   if(r.undone)return n-r.ut<1800?r:null;return n-r.t0<(r.note?N89NO:N89MO)?r:null}
-function n89Val(r){if(!r.kind)return r.word;const x=RM?1:Math.min(1,(performance.now()-r.t0)/1100),e=1-Math.pow(1-x,3);
+function n89Val(r){if(!r.kind)return r.word;const x=RM?1:Math.min(1,(performance.now()-r.t0)/700),e=1-Math.pow(1-x,3);
   const q=vu(r.kind==='memory'?mb(r.val*e):fmt(r.val*e));return `${q.v}<small>${q.u}</small>`}
 const n89CanUndo=r=>!!(r&&r.undoable&&r.u&&!r.undone&&UNDO.includes(r.u));
 const n89Moment=r=>r&&!r.undone&&performance.now()-r.t0<N89MO;
 function n89Center(k,K,L,H,N){
   const r=n89Rew(k),hv=n89Show(k),i=r?REWS.indexOf(r):-1;
   if(r&&r.undone)return `<div class="nrc rew note" data-k="nrc" style="--c:${K.c}"><span class="v" data-k="nrv-u${r.t0}">Undone</span><span class="s">${r.back}</span></div>`;
-  if(r)return `<div class="nrc rew${r.note?' note':''}${hv?' hv':''}" data-k="nrc" data-hp="nt" tabindex="0" role="group" aria-label="${n89Plain(r.say)}" style="--c:${K.c}"><span class="v" data-k="nrv-r${r.t0}" data-n89v="${i}">${n89Val(r)}</span><span class="s">${r.small}</span>${n89CanUndo(r)&&n89Moment(r)?`<button class="n89u" data-n89u="${i}">Undo</button>`:''}</div>${r.note?'':`<i class="n89pulse" data-k="np-${r.t0}" style="--c:${K.c}"></i>`}`;
+  if(r)return `<div class="nrc rew${r.note?' note':''}" data-k="nrc" tabindex="0" role="status" aria-label="${n89Plain(r.say)}" style="--c:${K.c}"><span class="v" data-k="nrv-r${r.t0}" data-n89v="${i}">${n89Val(r)}</span><span class="s">${r.small}</span></div>${r.note?'':`<i class="n89pulse" data-k="np-${r.t0}" style="--c:${K.c}"></i>`}`;
   const lab=`${n89Plain(N.t)}. Enter keeps the story in the detail.`;
   if(N.on){const pill=N.sa?`<button class="n89b" data-sa="${N.sa}" data-nopv="1" style="--c:${K.c}">${N.pill}</button>`:`<button class="n89b" data-act="nav" data-id="${N.nav}" style="--c:${K.c}">${N.pill}</button>`;
-    return `<div class="nrc on${hv?' hv':''}" data-k="nrc" data-hp="nt" tabindex="0" role="group" aria-label="Notice: ${lab}" style="--c:${K.c}"><span class="v" data-k="nrv-${N.big}${N.bw}">${N.big}<small>${N.bw}</small></span><span class="s">${nb(N.small)}</span>${pill}</div>`}
+    return `<div class="nrc on${hv?' hv':''}${N89BH?' hb':''}" data-k="nrc" data-hp="nt" tabindex="0" role="group" aria-label="Notice: ${n89Plain(N.t)}. Press to ${n89Plain(N.pill)}." style="--c:${K.c}"><span class="v" data-k="nrv-${N.big}${N.bw}">${N.big}<small>${N.bw}</small></span><span class="s">${nb(N.small)}</span>${pill}</div>`}
   return `<div class="nrc calm${hv?' hv':''}" data-k="nrc" data-hp="nt" tabindex="0" role="group" aria-label="${lab}" style="--c:${K.c}"><span class="v" data-k="nrv-c">${N.big}</span><span class="u">${N.bu}</span><span class="s">${N.small}</span></div>`;
 }
 function n89Detail(k,K,L,N,sel){
@@ -3497,14 +3539,14 @@ function n89Detail(k,K,L,N,sel){
   const jd=sh.length?`<div class="n89dt" data-k="ndt"><div class="h"><span>Done today</span>${dt.length>sh.length?`<span>${dt.length-sh.length} earlier</span>`:''}</div>${sh.map(r=>{const j=REWS.indexOf(r);
     return `<div class="n89dr${r===fr?' on':''}${r.undone?' ud':''}" data-k="nd-${r.t0}"><span class="at">${r.at}</span><span class="t">${r.undone?'Undone. ':''}${n89Plain(r.say)}</span>${n89CanUndo(r)?`<button class="lk" data-n89u="${j}">Undo</button>`:''}</div>`}).join('')}</div>`:'';
   const IT=N.items||[],mx=jd?4:6;
-  const list=IT.length?IT.slice(0,mx).map(([id,a,b,v])=>`<div class="n89r" data-k="nr-${id}" data-n89p="${id}"><span class="n"><i></i><b>${a}</b> <span>${b}</span></span><span class="v">${nb(v)}</span></div>`).join('')+(IT.length>mx?`<div class="n89m">${IT.length-mx} more, lit in the list and on the ring</div>`:`<div class="n89m">Lit in the list and on the ring.</div>`)
+  const list=IT.length?IT.slice(0,mx).map(([id,a,b,v])=>`<div class="n89r" data-k="nr-${id}" data-n89p="${id}"><span class="n"><i></i><b>${a}</b> <span>${b}</span></span><span class="v">${nb(v)}</span></div>`).join('')+(IT.length>mx?`<div class="n89m">${IT.length-mx} more. Hover the button to light them.</div>`:`<div class="n89m">Hover the button to light them.</div>`)
     :`<div class="n89m">Nothing to touch now. ${N.why}</div>`;
-  const rule=N.rule?ruleBlk(N.rule,N.rt).replace(/, then sends a notice with (Undo|Restore)\./,'. Undo shows on the ring for a moment.'):`<div class="n89nr"><b>No rule</b><span>Agents have no rule. MinMacs never answers for you. It shows who asks and takes you to the tab.</span></div>`;
-  const act=N.on?`<div class="n89a">${N.sa?saBtn(N.sa,1).replace('data-sa=','data-nopv="1" data-sa='):N.btn}<div class="n89p">${(N.sa?SA[N.sa].res():N.res).map(x=>`<p>${nb(x)}</p>`).join('')}</div></div>`
+  const rule=N.rule?ruleBlk(N.rule,N.rt).replace(/, then sends a notice with (Undo|Restore)\./,'.'):`<div class="n89nr"><b>No rule</b><span>Agents have no rule. MinMacs never answers for you. It shows who asks and takes you to the tab.</span></div>`;
+  const act=N.on?`<div class="n89a">${N.sa?saBtn(N.sa,1).replace('data-sa=','data-nopv="1" data-sa='):N.btn}<div class="n89p">${(N.sa?SA[N.sa].res():N.res).map(x=>`<p>${nb(x)}</p>`).join('')}${N.then?`<p class="n89n">Then: ${nb(N.then)}</p>`:''}</div></div>`
     :`<div class="n89a"><div class="n89p"><p><b>Nothing to press.</b> MinMacs keeps watching, and the ring lifts what needs you.</p></div></div>`;
   const sn=sel?n89Plain(QK[k].row(sel).n):'';
   return `<div class="qd n89d" data-k="dt-n" style="--c:${K.c}">
-    <div class="n89h"><span class="n89tag"><i></i>${N.on?'Notice':'All calm'}</span>${pin?`<button class="lk" data-n89x="1">Back to ${sn||'the list'}</button>`:`<span>Click the ring's center to keep this here</span>`}</div>
+    <div class="n89h"><span class="n89tag"><i></i>${N.on?'Notice':'All calm'}</span>${pin?`<button class="lk" data-n89x="1">Back to ${sn||'the list'}</button>`:`<button class="lk" data-n89k="1">Keep this here</button>`}</div>
     <div class="n89t">${nb(N.t)}</div>${N.on||!IT.length?`<div class="n89w">${nb(N.on?N.why:'')}</div>`:''}${jd}
     <div class="n89g"><div class="n89l"><div class="h">${N.on?N.ih:'What would lift'}</div>${list}</div><div class="n89l"><div class="h">${N.rule?'The rule':'Rule'}</div>${rule}</div></div>${act}</div>`;
 }
@@ -3513,7 +3555,7 @@ function n89Trail(k,D,K){
   const now=performance.now(),R=REWS.filter(r=>r.sec===k&&!r.note&&now-r.t0<N89TR).slice(0,3),rad=D/2+10,ang=[55,90,125];
   return R.map((r,i)=>{const a=ang[i]*Math.PI/180,x=D/2+rad*Math.cos(a),y=D/2+rad*Math.sin(a),j=REWS.indexOf(r);
     const lab=r.undone?'undone':r.kind?(r.kind==='memory'?mb(r.val):fmt(r.val)):r.word;
-    return `<div class="n89ch${r.undone?' ud':''}${i?'':' nw'}${N89R===j?' on':''}" data-k="ch-${r.t0}" data-hp="nt" data-n89r="${j}" title="${n89Plain(r.say)}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${((ang[i]-90)*.45).toFixed(1)}deg);opacity:${now-r.t0>N89TR-2200?0:[1,.74,.52][i]}"><i style="background:${r.by==='Auto'?K.c:'#fff'}"></i><span>${nb(lab)}</span>${n89CanUndo(r)?`<button data-n89u="${j}">Undo</button>`:''}</div>`}).join('');
+    return `<div class="n89ch${r.undone?' ud':''}${i?'':' nw'}${N89R===j?' on':''}" data-k="ch-${r.t0}" data-hp="nt" data-n89r="${j}" title="${n89Plain(r.say)}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${((ang[i]-90)*.45).toFixed(1)}deg);opacity:${now-r.t0>N89TR-2200?0:[1,.74,.52][i]}"><i style="background:${r.by==='Auto'?K.c:'#fff'}"></i><span>${nb(lab)}</span></div>`}).join('');
 }
 /* a result: which tab it belongs to, what came back. Memory and disk stay apart */
 function n89Reward(msg,set,ue){
@@ -3524,7 +3566,7 @@ function n89Reward(msg,set,ue){
   if(!secs.length){if(!ADVT())return false;n89Note(msg,ue);return true}
   const sec=secs.includes(tab)?tab:['trees','servers','disk','agents'].find(x=>secs.includes(x));
   const of=x=>gn.filter(id=>n89Sec(id)===x);
-  const mem=sum(of('servers'),id=>byId[id].mem||0),dsk=sum(of('trees'),id=>byId[id].freed||0)+sum(of('disk'),id=>byId[id].gb||0);
+  const mem=sum(of('servers'),id=>byId[id].mem||0),dsk=sum(of('trees'),id=>byId[id].freed||0)+sum(of('disk').filter(id=>{const c=byId[id],t=c.ws&&WT.find(x=>x.ws===c.ws);return !(t&&gn.includes(t.id))}),id=>byId[id].gb||0);
   let kind=sec==='servers'?'memory':sec==='agents'?null:'disk';const val=kind==='memory'?mem:dsk;if(kind&&!val)kind=null;
   const mine=ids.filter(id=>n89Sec(id)===sec);
   const r={sec,t0:performance.now(),kind,val,word:sec==='agents'?'Opened':'Done',small:kind?kind+' back':sec==='agents'?'in its tab':cnt(mine.length,N89NOUN[sec])+' done',
@@ -3535,7 +3577,7 @@ function n89Reward(msg,set,ue){
   n89Run();n89Later();refresh();return ADVT();
 }
 /* the moment ends on its own, even while the simulation is paused */
-let N89LT=[];function n89Later(){N89LT.forEach(clearTimeout);N89LT=[1150,N89MO-450,N89MO+40,N89NO+40,N89TR-2150,N89TR+40].map(ms=>setTimeout(()=>{const c=$('pin').querySelector('.nrc.rew');if(c&&ms===N89MO-450)c.classList.add('out');refresh()},ms))}
+let N89LT=[];function n89Later(){N89LT.forEach(clearTimeout);N89LT=[750,N89MO-300,N89MO+40,N89NO+40,N89TR-2150,N89TR+40].map(ms=>setTimeout(()=>{const c=$('pin').querySelector('.nrc.rew');if(c&&ms===N89MO-300)c.classList.add('out');refresh()},ms))}
 /* small results with nothing given back say one word in the center */
 function n89Note(msg,word){
   const p=n89Plain(msg),b=(String(msg).match(/<b>([^<]{1,9})<\/b>/)||[])[1],w=word||b||p.split(/\s/)[0].replace(/[.,]$/,'');
@@ -3554,12 +3596,13 @@ function n89Undo(i){
 }
 /* hover: the center, a lifted slice or a chip shows the story; the story stays while the pointer travels to it */
 document.addEventListener('mouseover',e=>{
-  if(!ADVT())return;const t=e.target,nt=t.closest&&t.closest('[data-hp="nt"]');
+  if(!ADVT())return;const t=e.target,nt=t.closest&&t.closest('[data-hp="nt"]'),bh=!!(t.closest&&t.closest('.n89b,.n89a .btn'));
+  if(bh!==N89BH){N89BH=bh;refresh()}
   if(nt){clearTimeout(N89HT);const ri=nt.dataset.n89r!=null?+nt.dataset.n89r:-1;if(!N89H||ri!==N89R){N89H=true;N89R=ri;refresh()}}
   else if(t.closest&&t.closest('.n89d'))clearTimeout(N89HT);
   else if(N89H){clearTimeout(N89HT);N89HT=setTimeout(()=>{N89H=false;N89R=-1;refresh()},900)}
 });
-document.addEventListener('focusin',e=>{const v=!!(ADVT()&&e.target.closest&&(e.target.closest('.nrc[data-hp="nt"]')||e.target.closest('.n89d')));if(v!==N89F){N89F=v;refresh()}});
+document.addEventListener('focusin',e=>{const bf=!!(ADVT()&&e.target.closest&&e.target.closest('.n89b,.n89a .btn'));if(bf!==N89BH){N89BH=bf;refresh()}const v=!!(ADVT()&&e.target.closest&&(e.target.closest('.nrc[data-hp="nt"]')||e.target.closest('.n89d')));if(v!==N89F){N89F=v;refresh()}});
 
 /* ---------- Auto: acts when a timer crosses its value, then a notice with Undo ---------- */
 function autoCheck(){
@@ -3651,6 +3694,8 @@ document.addEventListener('click',e=>{
   const n9u=t.closest('[data-n89u]');if(n9u){n89Undo(+n9u.dataset.n89u);return}
   const n9x=t.closest('[data-n89x]');if(n9x&&ADVT()){delete N89PIN[tab];N89H=false;N89R=-1;refresh();return}
   const n9p=t.closest('[data-n89p]');if(n9p&&ADVT()){SEL[tab]=n9p.dataset.n89p;delete N89PIN[tab];N89H=false;N89R=-1;HOV=null;refresh();return}
+  const n9k=t.closest('[data-n89k]');if(n9k&&ADVT()){if(N89PIN[tab])delete N89PIN[tab];else N89PIN[tab]=1;refresh();return}
+  const n9a=t.closest('.nrc[data-hp="nt"]');if(n9a&&ADVT()){const b=n9a.querySelector('.n89b');if(b){b.click();return}}
   const n9c=t.closest('[data-hp="nt"]');if(n9c&&ADVT()){const ri=n9c.dataset.n89r;if(ri!=null)N89R=+ri;if(N89PIN[tab]&&ri==null)delete N89PIN[tab];else N89PIN[tab]=1;refresh();return}
   const hpc=t.closest('[data-hp]');if(hpc&&ADVT()&&hpc.dataset.hp){heroClick(hpc.dataset.hp);return}
   const pk=t.closest('[data-pick]');if(pk&&ADVT()){SEL[tab]=pk.dataset.pick;delete N89PIN[tab];N89H=false;N89R=-1;HOV=null;refresh();return}
@@ -3658,7 +3703,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){if(RP)setRP(false);hideCard();closeL();if(N89PIN[tab]||N89H){delete N89PIN[tab];N89H=false;N89R=-1;refresh()}return}
-  if((e.key==='Enter'||e.key===' ')&&ADVT()&&e.target.matches&&e.target.matches('.nrc[data-hp="nt"]')){if(N89PIN[tab])delete N89PIN[tab];else N89PIN[tab]=1;refresh();e.preventDefault();return}
+  if((e.key==='Enter'||e.key===' ')&&ADVT()&&e.target.matches&&e.target.matches('.nrc[data-hp="nt"]')){const b=e.target.querySelector('.n89b');if(b)b.click();else{if(N89PIN[tab])delete N89PIN[tab];else N89PIN[tab]=1;refresh()}e.preventDefault();return}
   if(ADVT()&&(e.key==='ArrowDown'||e.key==='ArrowUp')&&!(e.target.closest&&e.target.closest('.tabs'))){stepSel(e.key==='ArrowDown'?1:-1);e.preventDefault();return}
   if(ADVT()&&e.key==='Enter'&&e.target.closest&&e.target.closest('[data-pick]')){SEL[tab]=e.target.closest('[data-pick]').dataset.pick;HOV=null;refresh();return}
   if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&e.target.closest('.tabs')){const L=tabList(),i=L.indexOf(tab)+(e.key==='ArrowRight'?1:-1);if(L[i]){go(L[i]);setTimeout(()=>$('tabs').querySelector(`[data-tab="${L[i]}"]`).focus(),200)}e.preventDefault()}
