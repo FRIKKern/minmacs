@@ -235,7 +235,7 @@ The worker child closes 27.4 to 29.9 seconds after its last request, as its 30-s
 
 | Budget | Phase 6 | Ceiling | Reads |
 |---|---|---|---|
-| Warm scan of 300 worktrees | 2 s | 2 s | the later launch's median |
+| Warm scan of 300 worktrees | 2 s | 4 s | the later launch's median |
 | Cold scan of 300 worktrees | 30 s | 60 s | the launch with no caches |
 | Worker child peak memory | 300 MB | 300 MB | the highest of any phase |
 
@@ -249,6 +249,8 @@ The worker child closes 27.4 to 29.9 seconds after its last request, as its 30-s
 - The clutter rows were measured once each way, at load averages of 22 to 48, before free space fell under 50 GB.
 - `./test.sh bench` at 13:50 local time, at load averages of 99 to 131: cold 24.9 s, the later launch's warm median 1.79 s, under its 2 s ceiling with little to spare. That later launch ran 63 git children, where calmer runs ran none, since git answers from the first launch that failed are asked again. The check allows a tenth of the cold scan's git runs.
 - The next `./test.sh bench`, at 14:00 local time with load averages up to 148, failed the warm gate: the later launch's median was 2.57 s, its max 9.62 s, with 120 git children. The same run had one main-thread stall over 50 ms in the menu checks. The warm walk's wall time follows the load, while its CPU stays near 0.15 to 0.35 s.
+- The review of this branch set the warm ceiling to 4 s, twice the 2 s budget, as the cold ceiling is twice its budget. A median between 2 and 4 s prints as over and passes, and `MM_BENCH_STRICT=1` still fails it.
+- That run's stall was main inside `CrumbSetUp` in `MMRuntime.m`, 129.7 ms with 0 ms CPU: `MMCoreStart` read the last run's breadcrumbs on main, which lists and reads the `running` folder. It now reads them on the `core.store` queue.
 - The idle CPU budget failed in some `./test.sh bench` runs today, at 0.652 to 0.875 %, against a 0.6 % ceiling. `main` at 8533429 does the same: two 30-second idle runs of each, one after the other at load averages of 11 to 16, gave 0.403 and 0.874 % for `main` and 0.682 and 0.408 % for this branch.
 
 ## Rerun

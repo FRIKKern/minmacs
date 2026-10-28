@@ -52,8 +52,7 @@ static void AddCost(NSString *key, uint64_t value) {
 
 static NSString *ProcKeyString(MMProcKey k) { return [NSString stringWithFormat:@"%d:%llu", k.pid, (unsigned long long)k.startSec]; }
 
-/// YES when path is folder or inside it.
-/// path is folder or inside it. No string is made: a build asks this for every finding against every worktree.
+/// YES when path is folder or inside it. No string is made: a build asks this for every finding against every worktree.
 static BOOL PathIn(NSString *path, NSString *folder) {
     if (!path.length || !folder.length || ![path hasPrefix:folder]) return NO;
     return path.length == folder.length || [folder hasSuffix:@"/"] || [path characterAtIndex:folder.length] == '/';

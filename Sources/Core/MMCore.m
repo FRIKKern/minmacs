@@ -251,9 +251,11 @@ void MMCoreStart(void) {
     NSString *dir = MMSupportDir();
     dispatch_async(MMQueue(@"core", @"store", QOS_CLASS_UTILITY), ^{
         for (NSString *name in MMRemoveStaleFiles()) os_log(CoreLog(), "removed the old %{public}@", name);
+        // The breadcrumbs the last run left, read off main: the first read lists and reads the running folder.
+        // On main it was a 130 ms stall in bench hangs on a busy disk, issue #54.
+        NSString *crashed = MMBreadcrumbLeftOver();
+        if (crashed) os_log(CoreLog(), "the last run ended inside %{public}@", crashed);
     });
-    NSString *crashed = MMBreadcrumbLeftOver();
-    if (crashed) os_log(CoreLog(), "the last run ended inside %{public}@", crashed);
     // A test home never reads the person's old apps.
     if (!NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) MMImportLegacy(nil);
     MMStartWatching();
