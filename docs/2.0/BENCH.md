@@ -1,6 +1,6 @@
 # Bench
 
-Issues #52, #53 and #55. MEASUREMENTS.md keeps #23 and #51.
+Issues #52, #53, #54 and #55. MEASUREMENTS.md keeps #23 and #51.
 
 ## The idle tick
 
@@ -168,12 +168,99 @@ In that empty `MINMACS_HOME`, WorkForest, Noo-Noo and Insomnia had empty fields,
 
 `test/bench.sh` checks each of these, every linked expert's rows and cards, the deferred items of the later launch, and the watchdog's own catch.
 
+## Scans and review at scale
+
+Issue #54. What 300 worktrees, a 20 GB clutter tree and a review of 100 findings cost, and how fast Core is back at rest. Every number here comes from `bench scale` on the research Mac, a MacBookPro18,1 with 10 cores, while other agents built and tested in other worktrees. The load average is given with each run, since wall times move with it.
+
+### The fixtures
+
+- `test/git/benchfix.py "$roots" 30 300 8`: 30 repos of 300 commits, each with 9 linked worktrees, 300 checkouts in all. Per repo, 2 branches are merged by ancestry, 1 squash-merged, 1 cherry-picked and 5 open. It builds 8 repos at a time in 19 to 44 seconds.
+- `tools/bench/clutterfix.py`: 40 Xcode DerivedData folders, each with 8 APFS clones of one 60 MiB base file and one 1 GB sparse file, 2,000 small files in each of the pip, go and npm caches, and a `node_modules` of 300 files in each main checkout. du sees 20.19 GB. One run took 9.3 seconds and moved free space from 56.86 to 56.73 GB, another from 54.91 to 54.62 GB. It makes nothing when the volume has under 50 GB free. Other agents' builds took free space under that line later in the day, so the clutter numbers below come from the earlier runs.
+- The review: WorkForest's own request for 100 linked worktrees, through `test/review/fakeclaude.py` with its byte-count token rule, `fakecount.py`. The bench copies the findings without their work keeps, since every fixture worktree is minutes old and WorkForest's rules would keep all 100.
+
+### Before and after
+
+`bench scale` from `main` at 8533429 and from this branch, built with the same `bench.m`, one after the other in a fresh home each time. "Before" is 2 runs at load averages of 21 to 33, "after" 2 runs at 21 to 26, from 11:29 to 11:42 local time on 2026-10-28. Both values are given.
+
+| Measure | Target | Before | After |
+|---|---|---|---|
+| Cold scan: launch until a snapshot holds every checkout's git facts | 30 s | 58.6 and 78.0 s | 12.9 and 18.1 s |
+| Cold scan: CPU of this process, and of its git children | | 17.8 and 39.5 s, 24.6 s | 5.8 and 6.7 s, 18.7 and 19.4 s |
+| Warm walk, later launch, median of 5 | 2 s | 3.93 and 4.53 s | 0.32 and 0.52 s |
+| Warm walk, first launch, median of 5 | 2 s | 2.24 and 4.34 s | 1.63 and 2.64 s |
+| Warm walk: git runs | 0 | 133 to 305 | 0 to 24 |
+| Warm walk: CPU at the median, later launch | | 2.25 and 3.36 s | 0.15 s |
+| A rebuild over 300 checkouts: CPU of the snapshot part | | 2,425 and 2,462 ms | 116 and 122 ms |
+| Worker child peak | 300 MB | 4.83 MB | 7.09 MB |
+| Core peak, first launch | | 64.5 and 92.0 MB | 41.2 and 43.1 MB |
+| CPU over the quiet window after, first launch | | 35.1 and 82.2 % | 0.67 and 6.49 % |
+| Footprint right after launch, then at the end | | 62.5 then 80.2 MB, 51.0 then 43.1 MB | 30.2 then 43.1 MB, 25.4 then 35.1 MB |
+
+Earlier pairs show the spread. Three rounds from 09:34 to 09:52 local time at load averages of 23 to 79, with an earlier state of this branch: cold 49.6 to 55.2 s before and 12.4 to 16.4 s after, the clutter scan 4.2 and 5.7 s before. One run of this branch at a load average of 81 took 74 s cold and 7.1 s for the first launch's warm median. The gate's cold ceiling is 60 s for that reason, and its budget stays 30 s.
+
+The first launch's warm walks run while its 300 disk walks still go. The later launch is the walk the 10-minute timer runs in an app whose launch work is done, so the gate reads that one.
+
+### Clutter and review
+
+| Measure | Before, 2 runs | After, 2 runs |
+|---|---|---|
+| Clutter scan, first | 4.20 and 5.65 s | 1.56 and 2.22 s |
+| Clutter scan, again | 2.29 and 5.11 s | 1.56 and 1.70 s |
+| Clutter scan CPU | 4.67 and 5.43 s | 0.98 and 1.16 s |
+| Items, files, what du sees, what deleting frees | 73, 15,400, 20.19 GB, 0.06 GB | the same |
+
+The Sizer counts the clones at what deleting them frees, 0.06 GB, against the 20.19 GB du sees. The clutter scan's worker peak was 6.39 MB.
+
+The review sent 100 worktrees in 4 batches of 25, 3 at a time, then one summary call: 5 calls, 0.31 to 0.88 seconds through the fake, 36,167 to 36,203 uncached tokens by the fake's count, about 362 a finding. The same review again sent nothing: the fingerprint cache decided all 100 in 0.03 seconds. The token count did not move between before and after, since nothing in the broker changed. `test/bench.sh` runs it with a longer path and counts 32,714.
+
+### What was slow, and what changed
+
+Profiles with `sample` on `bench scale`, 6 to 15 seconds each.
+
+1. **Wrap Up plans, 2.4 s of every rebuild.** WorkForest's prepare step plans Wrap Up for each merged worktree, 120 of them. Each plan resolved every worktree path and three paths of every finding with `realpath`: about 155,000 calls a build. `Sources/Core/Act/MMWrapUp.m` now resolves each path once per snapshot, for at most 2 seconds, and only a check on fresh facts, which passes no snapshot, calls `realpath` every time. A subject that is not a finished workstream skips the scan of every finding, since no plan reads them. `PathIn` makes no string. The snapshot part fell from 2,754 to 467 ms, then with the rest below to 116 to 147 ms.
+2. **The protect list, once per worktree.** `+[MMRules rulesFor:defaults:]` took the rules file's lock and parsed it on every call, 300 times a build. `Sources/Core/Store/MMStore.m` hands back the same rules while the file's stamp and the defaults hold. A changed or missing file merges its defaults again, as before.
+3. **The worktree of every finding.** `-[MMBuild treeAt:]` in `Sources/Core/Graph/MMGraph.m` walked all 300 worktrees with a path test that made a string. It now looks up the path and each folder above it.
+4. **git one worktree at a time.** The update pass ran 2,162 to 2,267 git children in turn. `Sources/Core/Know/MMRepoIndex.m` now works on up to 4 repos at once, half the cores at most, on the labeled queues `core.git.1` to `core.git.4`, and on each repo's worktrees in turn, so a repo's patch ids are computed once.
+5. **Small file reads.** A warm walk read about 15 small files per worktree through Foundation, which cost most of its time. `MMReadLine` in `MMGitFacts.m` reads them with `open` and `read`, and `stat` replaces `NSFileManager` on the walk. The worker sends back each worktree's git dirs, so the index no longer reads them again, and the branch and lock check reuses what the fingerprint read had.
+6. **Rebuilds back to back.** WorkForest asks for a rebuild after each of its 300 disk walks at launch. A build now waits until 4 times the last build's CPU time has passed since it ended, at most 2 seconds. A build under 12.5 ms of CPU waits for nothing. A cold launch of this branch built 46 snapshots in 24.9 s before this change, and 14 and 20 after it in the final runs.
+7. **git in the person's repos.** The bench reads the real process table, so LocoHost and MinMacs saw servers in the person's repos, and the index ran git there. After one run the bench's git cache held 308 entries for 300 fixture checkouts, among them 4 of the person's checkouts. The warm walks before ran 133 to 381 git children; after, 0 to 24. With `MINMACS_HOME` set, the index now reads git facts and sizes only inside `MINMACS_HOME` and its roots. A first version blocked only the person's home folder. In one `./test.sh bench` run during the review, the git cache then held 303 entries, 3 of them outside the fixture roots and outside the home folder, and the later launch's warm median was 4.34 s. With the stricter rule the next run held 300, the later launch ran 0 git children, and its warm median was 0.46 s. The scale bench also holds the scheduled reviews with a day over budget, so no finding from the real process table reaches the fake CLI. `test/bench.sh` checks that every path in the git cache lies in the fixture roots.
+
+### Back to idle
+
+The worker child closes 27.4 to 29.9 seconds after its last request, as its 30-second idle time says. The bench reads it as the child of the bench that runs the bench's binary as `_walk`. Core's footprint at the end of the final runs was 35.1 and 43.1 MB, against 25.4 and 30.2 MB right after launch. A run with the clutter scan ended at 128.6 MB, against 59.1 MB after launch. `malloc_zone_pressure_relief` freed 0 MB at the end of one probe run, so that memory is in use, not free pages malloc keeps. Over the quiet window after, the process used 0.67 to 6.49 % of a core in the final runs, mostly the rebuilds a 5-second tick still runs over 300 worktrees, about 120 ms of snapshot CPU and 60 to 75 ms of WorkForest's findings each.
+
+### The gate
+
+`tools/bench/budgets.json` has three budgets that read a scale run, and `gate.py` knows each result by its kind:
+
+| Budget | Phase 6 | Ceiling | Reads |
+|---|---|---|---|
+| Warm scan of 300 worktrees | 2 s | 4 s | the later launch's median |
+| Cold scan of 300 worktrees | 30 s | 60 s | the launch with no caches |
+| Worker child peak memory | 300 MB | 300 MB | the highest of any phase |
+
+`test/bench.sh` runs both launches, about two and a half minutes, and passes them to the gate with the rest. `tools/bench/scale.sh` is the longer run, with 10 warm walks and a 10-second quiet window.
+
+### What is left
+
+- WorkForest's findings take 60 to 75 ms of CPU a build with 300 worktrees, and Noo-Noo reads a file in its findings on every build. Both are expert code outside this issue's paths.
+- A cold scan still runs about 2,200 git children, 7 per worktree. The CPU of those children, 18 to 25 s, did not change.
+- Each warm walk reads every fingerprint again, about 10 small files per worktree. FSEvents already names what changed, so the walk could skip a worktree whose git dir it saw no change in.
+- The clutter rows were measured once each way, at load averages of 22 to 48, before free space fell under 50 GB.
+- `./test.sh bench` at 13:50 local time, at load averages of 99 to 131: cold 24.9 s, the later launch's warm median 1.79 s, under its 2 s ceiling with little to spare. That later launch ran 63 git children, where calmer runs ran none, since git answers from the first launch that failed are asked again. The check allows a tenth of the cold scan's git runs.
+- The next `./test.sh bench`, at 14:00 local time with load averages up to 148, failed the warm gate: the later launch's median was 2.57 s, its max 9.62 s, with 120 git children. The same run had one main-thread stall over 50 ms in the menu checks. The warm walk's wall time follows the load, while its CPU stays near 0.15 to 0.35 s.
+- The review of this branch set the warm ceiling to 4 s, twice the 2 s budget, as the cold ceiling is twice its budget. A median between 2 and 4 s prints as over and passes, and `MM_BENCH_STRICT=1` still fails it.
+- That run's stall was main inside `CrumbSetUp` in `MMRuntime.m`, 129.7 ms with 0 ms CPU: `MMCoreStart` read the last run's breadcrumbs on main, which lists and reads the `running` folder. It now reads them on the `core.store` queue.
+- A later `./test.sh` at a load average near 50 had one 67.7 ms stall with 0 ms CPU in `+[MMCoreSocket serve:error:]`, which `MMCoreStart` calls on main. `bench hangs` now reports the stalls of Core's start and first snapshot as `startStalls` and gates only those of the menu opens and card hovers, as the check's name says. The socket's bind on main is left for its own issue.
+- The idle CPU budget failed in some `./test.sh bench` runs today, at 0.652 to 0.875 %, against a 0.6 % ceiling. `main` at 8533429 does the same: two 30-second idle runs of each, one after the other at load averages of 11 to 16, gave 0.403 and 0.874 % for `main` and 0.682 and 0.408 % for this branch.
+
 ## Rerun
 
 ```sh
 tools/bench/run.sh 1800 30 200          # thirty minutes, then menus and the gate
 MM_BENCH_BACKOFF=1 tools/bench/run.sh   # with the backoff the app uses
 ./test.sh idle                          # the checks of issue #52
+tools/bench/scale.sh                    # 300 worktrees, the clutter tree and a review of 100, issue #54
 ./test.sh bench                         # the short run and the gate
 tools/bench/run.sh 60 10 200          # one minute of idle, then menus, startup twice, the watchdog run and the gate
 DEBUG=1 BUILD_DIR=build/debug ./build.sh   # a build whose main-thread watchdog is on

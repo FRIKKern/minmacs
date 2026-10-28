@@ -5,6 +5,7 @@
 # CLIs are /usr/bin/false. The old apps are read with proc_pid_rusage and ps, and never signaled.
 # Then the menus build from fixture snapshots, the app launches headless twice, and the watchdog watches main while
 # every expert's menu opens and its cards are hovered. tools/bench/gate.py checks them against tools/bench/budgets.json.
+# Then issue #54's scale run: 300 checkouts, a 20 GB clutter tree and a review of 100 worktrees, about 150 seconds.
 # The idle run and the menu run take about 55 seconds together, the rest about 15. MM_BENCH_STRICT=1 gates on the
 # phase 6 budgets.
 
@@ -114,6 +115,8 @@ check "bench: the watchdog hovers every expert's cards" "$bn_linked" "$(bh 'sum(
 check "bench: the menus opened on Core's live snapshots too" yes "$(bh '"yes" if j["liveOpens"] >= 4 * len(j["opensBy"]) else j["liveOpens"]')"
 check "bench: no pass of main over 50 ms in menu opens and card hovers" 0 "$(bh 'len(j["stalls"])')"
 [ "$(bh 'len(j["stalls"])')" = 0 ] || bh '"\n".join("    stall %s ms, %s ms CPU, %s, in %s" % (s["ms"], s["cpuMs"], s["state"], s["what"]) for s in j["stalls"])'
+# Core's start and first snapshot are counted apart and only reported: menu opens and hovers are what the gate reads.
+echo "  info  $(bh 'len(j.get("startStalls", []))') stalls over 50 ms in Core's start$(bh '"".join(", %s ms in %s" % (s["ms"], s["what"]) for s in j.get("startStalls", []))')"
 check "bench: the watchdog run ran no log query on main" 0 "$(bh 'j["logQueriesOnMain"]')"
 # A debug build turns the watchdog on, and MMMain starts it then.
 check "bench: DEBUG=1 ./build.sh defines MM_DEBUG, which turns the watchdog on" "1 1 1" \
@@ -121,10 +124,87 @@ check "bench: DEBUG=1 ./build.sh defines MM_DEBUG, which turns the watchdog on" 
 printf '    idle: %s\n' "$(bi '"%.3f %% CPU, %.2f MB footprint, %.2f MB resident, %.3f wakeups/s, %s pids; rebuild %.1f ms CPU median" % (j["cpuPercent"], j["footprintMB"], j["residentMB"], j["interruptWakeupsPerSecond"], j["pids"], j["inWindow"]["rebuildCPUms"]["median"])')"
 printf '    menus: %s\n' "$(bm '", ".join("%s open p95 %.1f ms, hover p95 %.1f ms" % (k, e["menuOpenMs"]["p95"], e["cardHoverMs"]["p95"]) for k, e in sorted(j["experts"].items()))')"
 
+# Scale, issue #54: 300 fixture checkouts in 30 repos from test/git/benchfix.py, and a 20 GB clutter tree of APFS
+# clones and sparse files from tools/bench/clutterfix.py, which costs about 300 MB of real disk. clutterfix.py makes
+# nothing when the volume has under 50 GB free, and the clutter checks are then skipped with a line that says so.
+# Two launches of `bench scale` in one home: the first with no caches, then a later one that reads what it saved.
+# The first also scans the clutter tree and reviews 100 worktrees through test/review/fakeclaude.py, copied into
+# the home, since the bench takes a model CLI only from inside MINMACS_HOME. About two and a half minutes in all.
+bs="$bn/scale"
+mkdir -p "$bs/roots" "$bs/fake" "$bs/claude" "$bs/codex"
+cp test/review/fakeclaude.py test/review/fakeanswer.py test/review/fakecount.py "$bs/fake/"
+bs_t0=$(date +%s)
+env GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=fixture GIT_AUTHOR_EMAIL=fixture@example.invalid \
+  GIT_COMMITTER_NAME=fixture GIT_COMMITTER_EMAIL=fixture@example.invalid \
+  python3 test/git/benchfix.py "$bs/roots" 30 300 8 >"$bs/fixture.json" 2>"$bs/fixture.err"
+check "bench scale: the 300-checkout fixture builds" "0 300" "$? $(json 'len(j["worktrees"])' <"$bs/fixture.json" 2>/dev/null)"
+echo "  info  300 checkouts built in $(( $(date +%s) - bs_t0 )) s"
+bs_cl=""
+MINMACS_HOME="$bn/scale" python3 tools/bench/clutterfix.py "$bs/clutter" "$bs/roots" 20 >"$bs/clutterfix.json" 2>"$bs/clutterfix.err"
+bs_clr=$?
+if [ "$bs_clr" = 0 ]; then
+  bs_cl=--clutter
+  echo "  info  clutter tree: $(json '"%s GB in %d clones and %d sparse files, %d small files; free space %s GB before, %s GB after" % (j["cloneGB"], j["clones"], j["sparseFiles"], j["smallFiles"] + j["nodeModulesFiles"], j["freeBeforeGB"], j["freeAfterGB"])' <"$bs/clutterfix.json")"
+else
+  check "bench scale: clutterfix.py refuses only for the 50 GB floor" 3 "$bs_clr"
+  echo "  info  skip  the clutter tree: $(cat "$bs/clutterfix.err")"
+fi
+bs_env() {
+  env MINMACS_HOME="$bs" MINMACS_ROOTS="$bs/roots" MINMACS_CLUTTER_ROOT="$bs/clutter" MINMACS_CLUTTER_ROWS="$ROOT/registry/clutter" \
+    CLAUDE_CONFIG_DIR="$bs/claude" CODEX_HOME="$bs/codex" PI_CODING_AGENT_SESSION_DIR="$bs/pi" GIT_CONFIG_GLOBAL=/dev/null \
+    MINMACS_CLAUDE="$bs/fake/fakeclaude.py" MINMACS_CODEX=/usr/bin/false MINMACS_CMUX=/usr/bin/false MINMACS_TMUX=/usr/bin/false \
+    RV_TEST_SENT="$bs/sent.json" RV_TEST_COUNT="$bs/count.json" "$@"
+}
+bs_env "$bn_bin" scale --expect 300 $bs_cl --review 100 --warm 5 --idle 3 >"$bs/first.json" 2>"$bs/first.err"
+check "bench scale: the first launch exits 0" 0 "$?"
+bs_env "$bn_bin" scale --expect 300 --warm 5 --idle 0 >"$bs/later.json" 2>"$bs/later.err"
+check "bench scale: the later launch exits 0" 0 "$?"
+bsa() { json "$1" <"$bs/first.json" 2>/dev/null; }
+bsb() { json "$1" <"$bs/later.json" 2>/dev/null; }
+check "bench scale: the first launch has git facts for all 300" "False 300 300" "$(bsa '"%s %d %d" % (j["cachesAtLaunch"], j["launch"]["worktrees"], j["launch"]["withFacts"])')"
+check "bench scale: merge kinds across the 300" "ancestor=60 none=180 patch=30 squash=30" \
+  "$(bsa '" ".join("%s=%d" % kv for kv in sorted(j["merged"].items()))')"
+check "bench scale: a snapshot holds them all" 300 "$(bsa 'j["findings"]["workforest"]')"
+# The first launch's warm walks may run git for a worktree FSEvents marked, such as one the fixture wrote a moment
+# before the launch. The later launch's walks run none, checked below.
+check "bench scale: a warm walk reads every fingerprint" yes \
+  "$(bsa '"yes" if j["warm"]["fingerprintReads"] >= 300 * j["warm"]["walks"] else j["warm"]["fingerprintReads"]')"
+# git runs again only where the first launch's answer did not hold, such as a git status that failed or timed out
+# on a busy Mac. Under a load average of 100 that was 63 git runs for some 2,200 in the cold scan, otherwise 0.
+bs_cold=$(bsa 'j["launch"]["gitRuns"]')
+check "bench scale: the later launch reads the saved facts and runs git for a tenth at most" "True 300 yes" \
+  "$(bsb '"%s %d %s" % (j["cachesAtLaunch"], j["launch"]["withFacts"], "yes" if (j["launch"]["gitRuns"] + j["warm"]["gitRuns"]) * 10 <= '"${bs_cold:-0}"' else j["launch"]["gitRuns"] + j["warm"]["gitRuns"])')"
+echo "  info  the later launch ran $(bsb 'j["launch"]["gitRuns"] + j["warm"]["gitRuns"]') git children"
+check "bench scale: git ran only inside MINMACS_HOME" "300 0" \
+  "$(python3 -c 'import json,os,sys; k=json.load(open(sys.argv[1])); r=os.path.realpath(sys.argv[2]) + "/"; print(len(k), sum(1 for p in k if not os.path.realpath(p).startswith(r)))' \
+     "$bs/git.json" "$bs/roots" 2>&1)"
+if [ -n "$bs_cl" ]; then
+  check "bench scale: the clutter scan finds every fixture item" "73 1 30 1 1 40" \
+    "$(bsa '"%d %s" % (j["clutter"]["items"], " ".join(str(v) for k, v in sorted(j["clutter"]["rows"].items())))')"
+  # du counts each clone in full. Deleting them frees almost nothing, since they share one base file.
+  check "bench scale: the Sizer sees 20 GB, and that deleting it frees under 1 GB" yes \
+    "$(bsa '"yes" if j["clutter"]["allocatedGB"] >= 19.5 and j["clutter"]["freedIfDeletedGB"] < 1 else j["clutter"]')"
+fi
+check "bench scale: the review sends 100 worktrees in batches of 25, 3 at a time" "100 100 25 3" \
+  "$(bsa '"%d %d %d %d" % (j["review"]["first"]["sent"], j["review"]["first"]["verdicts"], j["review"]["batchSize"], j["review"]["parallel"])')"
+check "bench scale: every batch is a call, plus the summary" "5 None" "$(bsa '"%d %s" % (j["review"]["first"]["calls"], j["review"]["first"]["error"])')"
+check "bench scale: the same review again sends nothing" "0 0 100" \
+  "$(bsa '"%d %d %d" % (j["review"]["cached"]["sent"], j["review"]["cached"]["calls"], j["review"]["cached"]["decided"].get("cache", 0))')"
+check "bench scale: the worker child closed after its idle time" "yes 0" \
+  "$(bsa '"%s %d" % ("yes" if 0 <= j["idleAfter"]["workerGoneSeconds"] <= 45 else j["idleAfter"]["workerGoneSeconds"], j["idleAfter"]["workerChildren"])')"
+check "bench scale: nothing acted" "0 0" "$(bsa 'j["undoRecords"]') $(bsb 'j["undoRecords"]')"
+echo "  info  cold $(bsa '"%.1f s until every checkout has facts, %.1f s until a snapshot holds them, %.1f s CPU and %.1f s in git, %d git runs" % (j["launch"]["factsSeconds"], j["launch"]["snapshotSeconds"], j["launch"]["cpuSeconds"], j["launch"]["childCPUSeconds"], j["launch"]["gitRuns"])')"
+echo "  info  warm $(bsa '"median %s s, max %s s, %d git runs" % (j["warm"]["seconds"]["median"], j["warm"]["seconds"]["max"], j["warm"]["gitRuns"])'); later launch $(bsb '"%s s to facts, warm median %s s, max %s s" % (j["launch"]["factsSeconds"], j["warm"]["seconds"]["median"], j["warm"]["seconds"]["max"])')"
+echo "  info  rebuild over 300 checkouts $(bsa '"%s ms at the median, %s ms CPU in the snapshot" % (j["warm"]["rebuildMs"]["median"], j["warm"]["graph"]["perBuildCPUms"]["snapshot"])')"
+[ -n "$bs_cl" ] && echo "  info  clutter $(bsa '"%s s, again %s s, %d items, %d files, %s GB du sees" % (j["clutter"]["firstSeconds"], j["clutter"]["againSeconds"], j["clutter"]["items"], j["clutter"]["files"], j["clutter"]["allocatedGB"])')"
+echo "  info  review $(bsa '"%d findings in %s s, %d calls, %d uncached tokens, %s a finding" % (j["review"]["first"]["sent"], j["review"]["first"]["seconds"], j["review"]["first"]["calls"], j["review"]["first"]["uncachedTokens"], j["review"]["first"]["uncachedPerFinding"])')"
+echo "  info  memory $(bsa '"; ".join("%s: Core %s MB, worker %s MB" % (k, v["corePeakMB"], v["workerPeakMB"]) for k, v in j["memory"].items() if isinstance(v, dict))')"
+echo "  info  after $(bsa '"worker gone in %s s, then %s %% CPU over %s s, footprint %s MB, %s MB at launch" % (j["idleAfter"]["workerGoneSeconds"], j["idleAfter"]["cpuPercent"], j["idleAfter"]["windowSeconds"], j["idleAfter"]["footprintMB"], j["idleAfter"]["footprintAtLaunchMB"])')"
+
 # The gate. A budget over the phase 6 number but under today's ceiling prints as over and passes.
 bn_strict=""; [ "${MM_BENCH_STRICT:-}" = 1 ] && bn_strict=--strict
 python3 tools/bench/gate.py $bn_strict tools/bench/budgets.json "$bn/idle.json" "$bn/menus.json" \
-  "$bn/startup-first.json" "$bn/startup-later.json" "$bn/hangs.json" >"$bn/gate.txt"
+  "$bn/startup-first.json" "$bn/startup-later.json" "$bn/hangs.json" "$bs/first.json" "$bs/later.json" >"$bn/gate.txt"
 bn_gate=$?
 bn_tab=$(printf '\t')
 while IFS="$bn_tab" read -r word what value budget ceiling; do

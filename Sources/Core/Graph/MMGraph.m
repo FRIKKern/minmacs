@@ -52,12 +52,16 @@ static void AddCost(NSString *key, uint64_t value) {
 
 static NSString *ProcKeyString(MMProcKey k) { return [NSString stringWithFormat:@"%d:%llu", k.pid, (unsigned long long)k.startSec]; }
 
-/// YES when path is folder or inside it.
+/// YES when path is folder or inside it. No string is made: a build asks this for every finding against every worktree.
 static BOOL PathIn(NSString *path, NSString *folder) {
-    if (!path.length || !folder.length) return NO;
-    if ([path isEqualToString:folder]) return YES;
-    NSString *f = [folder hasSuffix:@"/"] ? folder : [folder stringByAppendingString:@"/"];
-    return [path hasPrefix:f];
+    if (!path.length || !folder.length || ![path hasPrefix:folder]) return NO;
+    return path.length == folder.length || [folder hasSuffix:@"/"] || [path characterAtIndex:folder.length] == '/';
+}
+
+/// folder without its trailing slashes, "/" kept.
+static NSString *NoSlash(NSString *folder) {
+    while (folder.length > 1 && [folder hasSuffix:@"/"]) folder = [folder substringToIndex:folder.length - 1];
+    return folder;
 }
 
 /// The process the sample knows at this key, or nil when that pid now runs something else.
@@ -259,6 +263,7 @@ static uint64_t FactsDigest(MMFacts *f) {
 @property NSMutableDictionary<NSString *, MMOwner *> *ownerOfTree;      // worktree path to its owner
 @property NSMutableDictionary<NSNumber *, MMOwner *> *ownerOfAgentPid;
 @property NSMutableArray<MMWorkstream *> *streams;
+@property NSDictionary<NSString *, MMWorktree *> *treeByPath;   // trees by path without a trailing slash, made on first use
 @end
 @implementation MMBuild
 
@@ -270,9 +275,29 @@ static uint64_t FactsDigest(MMFacts *f) {
     return o;
 }
 
+/// The deepest worktree that holds path. Issue #54: a lookup of path and each folder above it, where a walk over
+/// every worktree took 185 of 476 samples of a build with 300 worktrees and 330 findings.
 - (MMWorktree *)treeAt:(NSString *)path {
-    for (MMWorktree *w in self.trees) if (PathIn(path, w.path)) return w;
-    return nil;
+    if (!path.length) return nil;
+    if (!self.treeByPath) {
+        NSMutableDictionary *by = [NSMutableDictionary new];
+        for (MMWorktree *w in self.trees) {
+            NSString *k = NoSlash(w.path ?: @"");
+            if (k.length && !by[k]) by[k] = w;   // deepest first, so the first of two equal paths stays
+        }
+        self.treeByPath = by;
+    }
+    NSDictionary<NSString *, MMWorktree *> *by = self.treeByPath;
+    MMWorktree *w = by[path];
+    if (w && PathIn(path, w.path)) return w;
+    // Each folder above path, deepest first: the part before each slash.
+    for (NSUInteger i = path.length; i > 0;) {
+        NSRange r = [path rangeOfString:@"/" options:NSBackwardsSearch | NSLiteralSearch range:NSMakeRange(0, i)];
+        if (r.location == NSNotFound) break;
+        if (r.location > 0 && (w = by[[path substringToIndex:r.location]])) return w;
+        i = r.location;
+    }
+    return [path hasPrefix:@"/"] ? by[@"/"] : nil;
 }
 
 @end
@@ -565,6 +590,7 @@ static NSString *SizeBucket(uint64_t bytes) {
     atomic_bool _pending;                               // a rebuild is queued and has not started
     BOOL _stopped;                                      // under @synchronized (self): -stop was called after -start
     atomic_bool _forced;                                // a rebuild asked for a reason other than a new sample
+    _Atomic uint64_t _lastCPUNs, _lastEndNs;            // the last build's CPU time, and when it ended
     uint64_t _lastDigest;                               // graph queue only: the digest of the last build's facts
     uint64_t _lastBuiltNs;                              // graph queue only
     NSMutableDictionary<NSString *, MMKeptFindings *> *_kept;   // graph queue only: each expert's last findings
@@ -596,6 +622,8 @@ static NSString *SizeBucket(uint64_t bytes) {
         _kept = [NSMutableDictionary new];
         atomic_init(&_pending, false);
         atomic_init(&_forced, true);
+        atomic_init(&_lastCPUNs, 0);
+        atomic_init(&_lastEndNs, 0);
     }
     return self;
 }
@@ -622,10 +650,22 @@ static NSString *SizeBucket(uint64_t bytes) {
     // action, always builds.
     if (![why isEqualToString:@"sample"]) atomic_store(&_forced, true);
     if (atomic_exchange(&_pending, true)) return;       // one is queued already; it will see these facts too
-    dispatch_async(_queue, ^{
+    // Issue #54: a build waits until 4 times the last build's CPU time has passed since it ended, at most
+    // 2 seconds, so builds take at most a fifth of the graph queue. With 300 worktrees a build took 150 to 250 ms,
+    // and a launch asked for one after each of 300 disk walks: 46 builds and 9 seconds of CPU in a 25-second launch.
+    // A build under 12.5 ms of CPU waits for nothing, so a Mac with a few worktrees builds at once, as before.
+    // CPU time, not wall time, so a busy Mac does not make a small build wait.
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW), end = atomic_load(&_lastEndNs);
+    uint64_t gap = MIN(4 * atomic_load(&_lastCPUNs), 2 * NSEC_PER_SEC), since = end && now > end ? now - end : UINT64_MAX;
+    dispatch_block_t build = ^{
         atomic_store(&self->_pending, false);           // a signal from now on asks for one more build
+        uint64_t c0 = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
         [self buildNow];
-    });
+        atomic_store(&self->_lastCPUNs, clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - c0);
+        atomic_store(&self->_lastEndNs, clock_gettime_nsec_np(CLOCK_UPTIME_RAW));
+    };
+    if (gap < 50 * NSEC_PER_MSEC || since >= gap) dispatch_async(_queue, build);
+    else dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(gap - since)), _queue, build);
 }
 
 /// One build. Graph queue only.

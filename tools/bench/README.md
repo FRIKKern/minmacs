@@ -1,13 +1,15 @@
 # Bench
 
-Issues #23, #51, #52, #53 and #55. docs/2.0/MEASUREMENTS.md has the method and the numbers of #23 and #51, and docs/2.0/BENCH.md those of the idle tick, the menus, startup and the watchdog.
+Issues #23, #51, #52, #53, #54 and #55. docs/2.0/MEASUREMENTS.md has the method and the numbers of #23 and #51, and docs/2.0/BENCH.md those of the idle tick, the menus, startup and the watchdog.
 
 | File | What it does |
 |---|---|
-| `bench.m` | `idle`, `menus`, `hangs`, `startup` and `apps`. Each prints one JSON object. |
+| `bench.m` | `idle`, `menus`, `hangs`, `startup`, `scale` and `apps`. Each prints one JSON object. `_walk` is the worker child. |
 | `build.sh` | Builds `bench` from every `.m` under `Sources` except `main.m`, at -O2, eight files at a time. |
 | `run.sh` | A full run: idle with the old apps over the same window, menus, startup twice, the watchdog run, the gate and `report.md`. |
-| `gate.py` | Checks a run against `budgets.json`: ok, over, FAIL or skip per budget. |
+| `scale.sh` | Issue #54: 300 fixture checkouts, a 20 GB clutter tree, two `scale` launches, the gate and `report.md`. |
+| `clutterfix.py` | The clutter tree of APFS clones and sparse files. It makes nothing when the volume has under 50 GB free. |
+| `gate.py` | Checks a run against `budgets.json`: ok, over, FAIL or skip per budget. Each result is known by its kind. |
 | `budgets.json` | The phase 6 budgets of PLAN.md section 9, and today's ceilings. |
 | `report.py` | The Markdown tables of one run. |
 
@@ -20,3 +22,13 @@ The bench refuses to run unless `MINMACS_HOME`, `MINMACS_CLAUDE`, `MINMACS_CODEX
 Every expert has a menu fixture in `FixtureSource`. A new expert with none gets the shared fixture facts in `FixtureFacts`. Add a fixture there when that gives it no rows, since `test/bench.sh` wants rows and cards from every linked expert.
 
 Issue #52 added to `bench idle`: the whole process's CPU from one sample to the next (`inWindow.tickCPUms`), what each pass read and carried and its CPU by part (`senses`), each build's CPU by part and by expert, the skipped builds and the reused findings (`graph`), and the pushed signals by kind (`signals`). `run.sh` and `test/bench.sh` set `MINMACS_NO_BACKOFF=1`, so the pass keeps 5 seconds on battery and while the person is away. `MM_BENCH_BACKOFF=1` lets `run.sh` back off as the app does.
+
+Issue #54 added `bench scale`. It runs `MMCoreStart` with every built-in expert over `MINMACS_ROOTS`, which must lie inside `MINMACS_HOME`, and times:
+- the launch, from `MMCoreStart` until every checkout has git facts and until a snapshot holds them. With no caches in the home it is the cold scan. A second launch in the same home reads the caches the first saved.
+- `--warm N` full walks, as the 10-minute timer runs them, each with every fingerprint read again, and a rebuild after each.
+- `--clutter`: two scans of every clutter row under `MINMACS_CLUTTER_ROOT`, sized through the worker.
+- `--review N`: WorkForest's review request for N worktrees through the fake CLI, once past the fingerprint cache and once with it. The copies carry no work keeps, since every fixture worktree is new and its rules would keep them all. A day over budget holds the scheduled reviews, so no finding from the real process table reaches the fake CLI.
+- `--idle S`: waits for the worker child to close, then a quiet window of S seconds. 0 skips it.
+
+A thread reads this process's footprint and the worker child's footprint and lifetime peak every 20 ms, per phase. The worker child is a child of the bench that runs the bench's own binary as `_walk`.
+

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Makes the bench fixture: repos with a long default branch and linked worktrees, under one roots folder.
 
-Usage: benchfix.py <roots> <repos> <commits>
+Usage: benchfix.py <roots> <repos> <commits> [jobs]
+jobs repos are made at a time, 1 by default. tools/bench and test/bench.sh make 30 repos, 300 checkouts, 8 at a time.
 Each repo gets <commits> commits on main through git fast-import, then 9 linked worktrees in <roots>/wt:
   1, 2   branches at old main commits, merged by ancestry
   3      a branch of two commits, squash-merged into main
@@ -15,7 +16,10 @@ import os
 import subprocess
 import sys
 
-roots, repos, commits = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+from concurrent.futures import ThreadPoolExecutor
+
+roots, repos, commits = os.path.abspath(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
+jobs = int(sys.argv[4]) if len(sys.argv) > 4 else 1
 
 
 def git(cwd, *args, stdin=None):
@@ -47,14 +51,16 @@ def history(n):
     return b"".join(out)
 
 
-made = {"repos": [], "worktrees": []}
 os.makedirs(os.path.join(roots, "wt"), exist_ok=True)
-for k in range(repos):
+stream = history(commits)
+
+
+def make(k):
+    """One repo and its 9 worktrees. Returns the repo's path and its 10 checkouts."""
     repo = os.path.join(roots, "r%d" % k)
     git(roots, "init", "-q", repo)
-    git(repo, "fast-import", "--quiet", stdin=history(commits))
+    git(repo, "fast-import", "--quiet", stdin=stream)
     git(repo, "reset", "-q", "--hard", "main")
-    made["repos"].append(repo)
     wt = lambda j: os.path.join(roots, "wt", "r%d-%d" % (k, j))
     git(repo, "worktree", "add", "-q", "-b", "a1", wt(1), "main~100")
     git(repo, "worktree", "add", "-q", "-b", "a2", wt(2), "main~10")
@@ -76,5 +82,12 @@ for k in range(repos):
         f.write("changed\n")
     with open(os.path.join(wt(9), "new.txt"), "w") as f:
         f.write("untracked\n")
-    made["worktrees"] += [repo] + [wt(j) for j in range(1, 10)]
+    return repo, [repo] + [wt(j) for j in range(1, 10)]
+
+
+made = {"repos": [], "worktrees": []}
+with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
+    for repo, trees in pool.map(make, range(repos)):
+        made["repos"].append(repo)
+        made["worktrees"] += trees
 print(json.dumps(made))

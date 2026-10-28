@@ -22,6 +22,7 @@
 #import <libproc.h>
 #import <pthread/qos.h>
 #import <sys/resource.h>
+#import <sys/sysctl.h>
 #import "Core/MMCore.h"
 #import "Shell/MMShell.h"
 #import "UI/MMUI.h"
@@ -988,6 +989,10 @@ static int Hangs(NSArray<NSString *> *args) {
 
     MMCoreStart();
     RunUntil(^BOOL { return MMGraph.shared.current != nil; }, 15);
+    // The stalls of MMCoreStart and the first snapshot are reported apart, since the gate counts menu opens and card
+    // hovers. On a busy Mac they held main in the socket's bind and the breadcrumb read, issue #54's review.
+    NSArray *startStalls = MMWatchdogStalls();
+    MMWatchdogReset();
     NSUInteger passesBefore = MMWatchdogPasses();
 
     // Each step makes its snapshot on a queue of its own, prepared off main as the graph queue does, then opens the
@@ -1046,7 +1051,7 @@ static int Hangs(NSArray<NSString *> *args) {
     MMCoreStop();
     PrintJSON(@{@"kind": @"hangs", @"rounds": @(rounds), @"limitMs": @(limit), @"finished": @(finished),
                 @"opens": @(opens), @"liveOpens": @(liveOpens), @"hovers": @(hovers), @"opensBy": opensBy, @"hoversBy": hoversBy,
-                @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls,
+                @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls, @"startStalls": startStalls,
                 @"selfCheck": @{@"ms": caught[@"ms"] ?: @0, @"state": caught[@"state"] ?: @"", @"what": caught[@"what"] ?: @"",
                                 @"named": @([[caught[@"stack"] componentsJoinedByString:@"\n"] containsString:@"MMBenchStallOnPurpose"])},
                 @"logQueriesOnMain": @(MMLogMainThreadQueries()), @"keepReadsOnMain": @(MMKeepMainThreadReads())});
@@ -1085,6 +1090,364 @@ static int Startup(NSArray<NSString *> *args) {
     return 0;
 }
 
+#pragma mark - Scale
+
+// Issue #54: scans and review at scale. MMCoreStart with every built-in expert over MINMACS_ROOTS, a fixture of
+// test/git/benchfix.py, and MINMACS_CLUTTER_ROOT, a fixture of tools/bench/clutterfix.py, both inside MINMACS_HOME.
+// A thread of its own reads the memory of this process and of the worker child every 20 ms.
+
+/// argv[1] of pid, from KERN_PROCARGS2, or nil.
+static NSString *FirstArg(pid_t pid) {
+    int mib[3] = {CTL_KERN, KERN_PROCARGS2, pid};
+    size_t size = 0;
+    if (sysctl(mib, 3, NULL, &size, NULL, 0) != 0 || size < sizeof(int)) return nil;
+    char *buf = malloc(size);
+    NSString *out = nil;
+    if (buf && sysctl(mib, 3, buf, &size, NULL, 0) == 0) {
+        int argc; memcpy(&argc, buf, sizeof argc);
+        char *p = buf + sizeof argc, *end = buf + size;
+        while (p < end && *p) p++;          // the exec path
+        while (p < end && !*p) p++;         // its padding
+        if (argc >= 2 && p < end) {
+            while (p < end && *p) p++;      // argv[0]
+            p++;
+            if (p < end) out = [[NSString alloc] initWithBytes:p length:strnlen(p, (size_t)(end - p)) encoding:NSUTF8StringEncoding];
+        }
+    }
+    free(buf);
+    return out;
+}
+
+/// The worker children: children of this process that run this binary as `bench _walk`. git's children run git.
+static NSArray<NSNumber *> *WorkerPids(void) {
+    static char me[PROC_PIDPATHINFO_MAXSIZE]; static dispatch_once_t once;
+    dispatch_once(&once, ^{ if (proc_pidpath(getpid(), me, sizeof me) <= 0) me[0] = 0; });
+    pid_t pids[256];
+    int n = proc_listchildpids(getpid(), pids, (int)sizeof pids);
+    NSMutableArray *out = [NSMutableArray new];
+    for (int i = 0; i < n && i < 256; i++) {
+        char path[PROC_PIDPATHINFO_MAXSIZE];
+        if (pids[i] > 1 && proc_pidpath(pids[i], path, sizeof path) > 0 && me[0] && !strcmp(path, me) &&
+            [FirstArg(pids[i]) isEqualToString:@"_walk"]) [out addObject:@(pids[i])];
+    }
+    return out;
+}
+
+/// Peak memory by phase: this process's footprint, and the worker child's footprint and lifetime peak.
+@interface MMBenchMemory : NSObject
+- (void)phase:(NSString *)name;
+- (NSDictionary *)report;
+@end
+
+@implementation MMBenchMemory {
+    dispatch_source_t _timer;
+    NSString *_phase;
+    NSMutableArray<NSString *> *_order;
+    NSMutableDictionary<NSString *, NSMutableDictionary *> *_byPhase;
+    NSMutableSet<NSNumber *> *_workers;
+}
+
+- (instancetype)init {
+    if ((self = [super init])) {
+        _order = [NSMutableArray new]; _byPhase = [NSMutableDictionary new]; _workers = [NSMutableSet new];
+        _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+                                        dispatch_queue_create("no.guerrilla.minmacs.bench.memory", DISPATCH_QUEUE_SERIAL));
+        dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, 20 * NSEC_PER_MSEC, 5 * NSEC_PER_MSEC);
+        __weak MMBenchMemory *weak = self;
+        dispatch_source_set_event_handler(_timer, ^{ [weak sample]; });
+        dispatch_resume(_timer);
+    }
+    return self;
+}
+
+- (void)sample {
+    MMBenchSelf me = ReadSelf();
+    uint64_t now = 0, life = 0;
+    NSArray *pids = WorkerPids();
+    for (NSNumber *pid in pids) {
+        MMBenchProc p = ReadProc(pid.intValue);
+        if (!p.ok) continue;
+        now += p.footprint; life = MAX(life, p.peakFootprint);
+    }
+    @synchronized (self) {
+        [_workers addObjectsFromArray:pids];
+        NSMutableDictionary *d = _phase ? _byPhase[_phase] : nil;
+        if (!d) return;
+        d[@"samples"] = @([d[@"samples"] integerValue] + 1);
+        if (me.footprint > [d[@"core"] unsignedLongLongValue]) d[@"core"] = @(me.footprint);
+        if (now > [d[@"worker"] unsignedLongLongValue]) d[@"worker"] = @(now);
+        if (life > [d[@"workerLife"] unsignedLongLongValue]) d[@"workerLife"] = @(life);
+        if (pids.count) [d[@"pids"] addObjectsFromArray:pids];
+    }
+}
+
+- (void)phase:(NSString *)name {
+    [self sample];
+    @synchronized (self) {
+        _phase = name;
+        if (name && !_byPhase[name]) {
+            _byPhase[name] = [@{@"samples": @0, @"pids": [NSMutableSet new]} mutableCopy];
+            [_order addObject:name];
+        }
+    }
+    [self sample];
+}
+
+- (NSDictionary *)report {
+    [self sample];
+    NSMutableDictionary *out = [NSMutableDictionary new];
+    @synchronized (self) {
+        for (NSString *k in _order) {
+            NSDictionary *d = _byPhase[k];
+            out[k] = @{@"samples": d[@"samples"], @"corePeakMB": R2(MB([d[@"core"] unsignedLongLongValue])),
+                       @"workerPeakMB": R2(MB(MAX([d[@"worker"] unsignedLongLongValue], [d[@"workerLife"] unsignedLongLongValue]))),
+                       @"workerPids": @([d[@"pids"] count])};
+        }
+        out[@"workerPidsSeen"] = @(_workers.count);
+    }
+    return out;
+}
+
+- (void)stop { dispatch_source_cancel(_timer); }
+@end
+
+/// Every checkout's git facts are in memory: the number with facts, of all the index lists.
+static NSUInteger KnownFacts(void) {
+    NSUInteger n = 0;
+    for (MMWorktree *w in MMRepoIndex.shared.worktrees) if ([MMRepoIndex.shared factsFor:w wait:NO]) n++;
+    return n;
+}
+
+/// Runs block on a queue off main while main keeps its run loop, and returns the seconds it took.
+static double TimedOffMain(dispatch_queue_t q, dispatch_block_t block, double limit) {
+    __block BOOL done = NO;
+    __block uint64_t took = 0;
+    dispatch_async(q, ^{ uint64_t t0 = NowNs(); block(); took = NowNs() - t0; done = YES; });
+    RunUntil(^BOOL { return done; }, limit);
+    return done ? took / 1e9 : -1;
+}
+
+/// A full walk and the update pass after it, as the 10-minute timer runs it. Off main. Returns NO on a timeout.
+/// *walk is the seconds until the worker's walk was in.
+static BOOL WalkAndSettle(double limit, double *walk) {
+    MMRepoIndex *ix = MMRepoIndex.shared;
+    NSInteger done = ix.stats[@"walksDone"].integerValue;
+    uint64_t t0 = NowNs(), end = t0 + (uint64_t)(limit * 1e9);
+    [ix refresh:nil];
+    while (ix.stats[@"walksDone"].integerValue <= done) { if (NowNs() > end) return NO; usleep(1000); }
+    if (walk) *walk = (NowNs() - t0) / 1e9;
+    dispatch_semaphore_t s = dispatch_semaphore_create(0);
+    [ix updateFacts:^(NSUInteger ran) { dispatch_semaphore_signal(s); }];
+    return dispatch_semaphore_wait(s, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(limit * NSEC_PER_SEC))) == 0;
+}
+
+static NSInteger Counter(NSDictionary *a, NSDictionary *b, NSString *k) { return [b[k] integerValue] - [a[k] integerValue]; }
+
+/// What the graph's builds cost between two reads of -[MMGraph costs]: builds, skips, and CPU ms a build by part.
+static NSDictionary *GraphCosts(NSDictionary *a, NSDictionary *b) {
+    double builds = MAX(1, [b[@"builds"] doubleValue] - [a[@"builds"] doubleValue]);
+    NSMutableDictionary *per = [NSMutableDictionary new];
+    for (NSString *k in b) {
+        if ([k isEqualToString:@"builds"] || [k isEqualToString:@"skipped"] || [k hasPrefix:@"reused."]) continue;
+        per[k] = R3(([b[k] doubleValue] - [a[k] doubleValue]) / 1e6 / builds);
+    }
+    return @{@"builds": @(Counter(a, b, @"builds")), @"skipped": @(Counter(a, b, @"skipped")), @"perBuildCPUms": per};
+}
+
+static NSDictionary *UsageOf(MMReview *r, double seconds) {
+    NSInteger uncached = 0, cacheRead = 0, output = 0, input = 0, writes = 0;
+    double cost = 0;
+    NSMutableArray *callSeconds = [NSMutableArray new];
+    for (MMUsage *u in r.calls) {
+        uncached += u.uncached; cacheRead += u.cacheRead; output += u.output; input += u.input;
+        writes += u.cacheWrite5m + u.cacheWrite1h; cost += u.listCostUSD;
+        [callSeconds addObject:@(u.seconds)];
+    }
+    return @{@"seconds": R3(seconds), @"sent": @(r.sent), @"verdicts": @(r.verdicts.count), @"calls": @(r.calls.count),
+             @"decided": r.decided ?: @{}, @"error": r.error ?: NSNull.null, @"uncachedTokens": @(uncached),
+             @"cacheReadTokens": @(cacheRead), @"cacheWriteTokens": @(writes), @"outputTokens": @(output), @"inputTokens": @(input),
+             @"listCostUSD": R3(cost * 1000), @"listCostUnit": @"thousandths of a dollar",
+             @"callSeconds": Stats(callSeconds), @"uncachedPerFinding": R2(r.sent ? (double)uncached / r.sent : 0)};
+}
+
+/// bench scale: a launch over the fixture roots, warm walks, the clutter scans and a review of N worktrees.
+static int Scale(NSArray<NSString *> *args) {
+    NSUInteger expect = (NSUInteger)Option(args, @"--expect", @"300").integerValue;
+    int warmRuns = Option(args, @"--warm", @"5").intValue;
+    NSUInteger reviewN = (NSUInteger)Option(args, @"--review", @"0").integerValue;
+    BOOL clutter = [args containsObject:@"--clutter"];
+    double idleWait = Option(args, @"--idle", @"10").doubleValue;
+    if (!SafeEnvironment()) return 2;
+    NSDictionary<NSString *, NSString *> *env = NSProcessInfo.processInfo.environment;
+    if (!env[@"MINMACS_ROOTS"].length) { fprintf(stderr, "bench: scale needs MINMACS_ROOTS inside MINMACS_HOME\n"); return 2; }
+    if (clutter && (!env[@"MINMACS_CLUTTER_ROOT"].length || !Inside(env[@"MINMACS_CLUTTER_ROOT"], env[@"MINMACS_HOME"]))) {
+        fprintf(stderr, "bench: --clutter needs MINMACS_CLUTTER_ROOT inside MINMACS_HOME\n"); return 2;
+    }
+    if (reviewN && [env[@"MINMACS_CLAUDE"] isEqualToString:@"/usr/bin/false"]) {
+        fprintf(stderr, "bench: --review needs MINMACS_CLAUDE to name a fake inside MINMACS_HOME\n"); return 2;
+    }
+    [NSApplication sharedApplication].activationPolicy = NSApplicationActivationPolicyProhibited;
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    MMRegisterBuiltInExperts();
+    NSArray *notIdle = AllIdle();
+    if (notIdle.count) { fprintf(stderr, "bench: these experts are not Idle: %s\n", [notIdle componentsJoinedByString:@" "].UTF8String); return 1; }
+    BOOL cached = [NSFileManager.defaultManager fileExistsAtPath:[MMSupportDir() stringByAppendingPathComponent:@"git.json"]];
+    // The scheduled reviews would send LocoHost's and MinMacs's findings from the real process table to the fake CLI
+    // a minute after launch. A day over budget makes them wait. The review below is manual, and a manual review runs.
+    MMBudget.shared.dailyUncached = 1;
+    [MMBudget.shared record:[MMUsage fromJSON:@{@"input": @2, @"model": @"bench"}] expert:@"bench"];
+    MMBenchMemory *mem = [MMBenchMemory new];
+    MMRepoIndex *ix = MMRepoIndex.shared;
+    NSMutableDictionary *out = [@{@"kind": @"scale", @"expect": @(expect), @"cachesAtLaunch": @(cached)} mutableCopy];
+    dispatch_queue_t off = dispatch_queue_create("no.guerrilla.minmacs.bench.scale", DISPATCH_QUEUE_SERIAL);
+
+    // The launch: from MMCoreStart until every checkout has git facts in memory, then until a snapshot holds them.
+    MMBenchSelf boot = ReadSelf();
+    NSDictionary *gl0 = MMGraph.shared.costs;
+    [mem phase:@"launch"];
+    uint64_t t0 = NowNs();
+    MMCoreStart();
+    __block double factsAt = -1;
+    RunUntil(^BOOL {
+        if (factsAt < 0 && ix.worktrees.count >= expect && KnownFacts() >= ix.worktrees.count) factsAt = (NowNs() - t0) / 1e9;
+        return factsAt >= 0;
+    }, 600);
+    __block double graphAt = -1;
+    RunUntil(^BOOL {
+        MMFacts *f = MMGraph.shared.current.facts;
+        NSUInteger withGit = 0;
+        for (MMWorktree *w in f.worktrees) if ([f gitFor:w]) withGit++;
+        if (factsAt >= 0 && f.worktrees.count >= expect && withGit >= f.worktrees.count) graphAt = (NowNs() - t0) / 1e9;
+        return graphAt >= 0;
+    }, 120);
+    MMBenchSelf launched = ReadSelf();
+    NSDictionary *st = ix.stats;
+    out[@"launch"] = @{@"factsSeconds": R3(factsAt), @"snapshotSeconds": R3(graphAt), @"worktrees": @(ix.worktrees.count),
+                       @"withFacts": @(KnownFacts()), @"cpuSeconds": R3((launched.cpuNs - boot.cpuNs) / 1e9),
+                       @"childCPUSeconds": R3((launched.childCPUNs - boot.childCPUNs) / 1e9),
+                       @"gitRuns": st[@"gitRuns"] ?: @0, @"statusRuns": st[@"statusRuns"] ?: @0, @"historyRuns": st[@"historyRuns"] ?: @0,
+                       @"patchIdsComputed": st[@"patchIdsComputed"] ?: @0, @"squashChecks": st[@"squashChecks"] ?: @0,
+                       @"walks": st[@"walksDone"] ?: @0, @"lastUpdateMs": st[@"lastUpdateMs"] ?: @0,
+                       @"graph": GraphCosts(gl0, MMGraph.shared.costs)};
+    NSMutableDictionary *kinds = [NSMutableDictionary new];
+    for (MMWorktree *w in ix.worktrees) {
+        NSString *k = [ix factsFor:w wait:NO].json[@"merged"] ?: @"unknown";
+        kinds[k] = @([kinds[k] integerValue] + 1);
+    }
+    out[@"merged"] = kinds;
+
+    // Warm: the full walk the 10-minute timer runs, with every fingerprint read again. git runs for none.
+    [mem phase:@"warm"];
+    NSMutableArray *warm = [NSMutableArray new], *warmCPU = [NSMutableArray new], *rebuild = [NSMutableArray new];
+    NSMutableArray *walks = [NSMutableArray new], *passes = [NSMutableArray new];
+    NSDictionary *w0 = ix.stats, *g0 = MMGraph.shared.costs;
+    for (int i = 0; i < warmRuns; i++) {
+        uint64_t c0 = ProcessCPUNs();
+        __block double walk = -1;
+        double secs = TimedOffMain(off, ^{ WalkAndSettle(60, &walk); }, 90);
+        [warm addObject:@(secs)];
+        [walks addObject:@(walk)];
+        [passes addObject:ix.stats[@"lastUpdateMs"] ?: @(-1)];
+        [warmCPU addObject:@((ProcessCPUNs() - c0) / 1e9)];
+        // A rebuild over the 300 checkouts, from the request to the snapshot on main.
+        uint64_t g = MMGraph.shared.current.generation, r0 = NowNs();
+        [MMGraph.shared rebuild:@"bench"];
+        RunUntil(^BOOL { return MMGraph.shared.current.generation > g; }, 30);
+        [rebuild addObject:@((NowNs() - r0) / 1e6)];
+    }
+    NSDictionary *w1 = ix.stats;
+    out[@"warm"] = @{@"seconds": Stats(warm), @"cpuSeconds": Stats(warmCPU), @"gitRuns": @(Counter(w0, w1, @"gitRuns")),
+                     @"statusRuns": @(Counter(w0, w1, @"statusRuns")), @"historyRuns": @(Counter(w0, w1, @"historyRuns")),
+                     @"fingerprintReads": @(Counter(w0, w1, @"fingerprintReads")), @"walks": @(Counter(w0, w1, @"walksDone")),
+                     @"walkSeconds": Stats(walks), @"lastPassMs": Stats(passes), @"rebuildMs": Stats(rebuild), @"graph": GraphCosts(g0, MMGraph.shared.costs)};
+    MMSnapshot *snap = MMGraph.shared.current;
+    NSMutableDictionary *findings = [NSMutableDictionary new];
+    for (id<MMExpert> e in MMExperts()) findings[e.expertID] = @([snap findingsFor:e.expertID].count);
+    out[@"findings"] = findings;
+    out[@"workstreams"] = @(snap.workstreams.count);
+
+    // The clutter tree: every row scanned through the worker, then again.
+    if (clutter) {
+        [mem phase:@"clutter"];
+        MMClutterCatalog *c = MMClutterCatalog.shared;
+        __block NSArray<MMClutterItem *> *items = nil;
+        dispatch_queue_t cq = MMQueue(@"core", @"clutter", QOS_CLASS_UTILITY);
+        uint64_t c0 = ProcessCPUNs(); MMBenchSelf cs = ReadSelf();
+        double first = TimedOffMain(cq, ^{ items = [c scan]; }, 600);
+        double firstCPU = (ProcessCPUNs() - c0) / 1e9; MMBenchSelf ce = ReadSelf();
+        double again = TimedOffMain(cq, ^{ items = [c scan]; }, 600);
+        uint64_t alloc = 0, freed = 0; NSInteger files = 0;
+        NSMutableDictionary *rows = [NSMutableDictionary new];
+        for (MMClutterItem *it in items) {
+            alloc += it.size.allocated; freed += it.size.freedIfDeleted; files += it.size.files;
+            rows[it.kind.kindID] = @([rows[it.kind.kindID] integerValue] + 1);
+        }
+        out[@"clutter"] = @{@"firstSeconds": R3(first), @"againSeconds": R3(again), @"cpuSeconds": R3(firstCPU),
+                            @"childCPUSeconds": R3((ce.childCPUNs - cs.childCPUNs) / 1e9), @"items": @(items.count), @"rows": rows,
+                            @"allocatedGB": R2(alloc / 1e9), @"freedIfDeletedGB": R2(freed / 1e9), @"files": @(files)};
+    }
+
+    // A review of N worktrees through the fake CLI: once past the fingerprint cache, then again with it.
+    if (reviewN) {
+        [mem phase:@"review"];
+        MMSnapshot *s = MMGraph.shared.current;
+        NSMutableArray *pick = [NSMutableArray new];
+        NSArray *all = [MMWFReviewable([s findingsFor:@"workforest"]) sortedArrayUsingComparator:^NSComparisonResult(MMFinding *a, MMFinding *b) {
+            return [a.path compare:b.path];
+        }];
+        // The first N linked worktrees by path, copied without their work keeps. The fixture's worktrees were made a
+        // minute ago, so WorkForest's rules keep every one, and a review would send none. The request is WorkForest's
+        // own: its prompt, words, facts per finding and shared keys, under an expert id with no rules of its own.
+        for (MMFinding *f in all) {
+            if (pick.count >= reviewN) break;
+            [pick addObject:[MMFinding expert:f.expert kind:f.kind stableKey:f.stableKey build:^(MMFindingBuilder *b) {
+                b.instanceKey = f.instanceKey; b.title = f.title; b.path = f.path; b.fingerprint = f.fingerprint;
+                b.ownerPath = f.ownerPath; b.owner = f.owner; b.cost = f.cost; b.evidence = f.evidence;
+                b.proposal = f.proposal; b.procs = f.procs; b.facts = f.facts;
+            }]];
+        }
+        __block MMReview *first = nil, *again = nil;
+        MMReviewRequest *(^request)(void) = ^MMReviewRequest *{
+            MMReviewRequest *q = MMWFReviewRequest(pick, s, @"manual", MMModeIdle, @"auto");
+            q.expert = @"benchscale";
+            return q;
+        };
+        MMReviewRequest *q = request();
+        q.ignoreCache = YES;
+        double t1 = TimedOffMain(off, ^{ first = [MMReviewBroker.shared run:q]; }, 600);
+        MMReviewRequest *q2 = request();
+        double t2 = TimedOffMain(off, ^{ again = [MMReviewBroker.shared run:q2]; }, 600);
+        out[@"review"] = @{@"asked": @(pick.count), @"reviewable": @(all.count), @"first": first ? UsageOf(first, t1) : NSNull.null,
+                           @"cached": again ? UsageOf(again, t2) : NSNull.null, @"batchSize": @(q.batchSize), @"parallel": @(q.parallel)};
+    }
+
+    // Back to idle: the worker child closes 30 seconds after its last request. Then a quiet window. --idle 0 skips it.
+    if (idleWait > 0) {
+        [mem phase:@"after"];
+        uint64_t a0 = NowNs();
+        RunUntil(^BOOL { return WorkerPids().count == 0; }, 60);
+        double workerGone = WorkerPids().count ? -1 : (NowNs() - a0) / 1e9;
+        MMBenchSelf ia = ReadSelf();
+        NSDictionary *ga = MMGraph.shared.costs, *ra = ix.stats;
+        RunMain(idleWait);
+        MMBenchSelf ib = ReadSelf();
+        NSDictionary *gb = MMGraph.shared.costs, *rb = ix.stats;
+        double window = (ib.wallNs - ia.wallNs) / 1e9;
+        out[@"idleAfter"] = @{@"workerGoneSeconds": R3(workerGone), @"windowSeconds": R3(window),
+                              @"cpuPercent": R3((ib.cpuNs - ia.cpuNs) / 1e9 / window * 100), @"footprintMB": R2(MB(ib.footprint)),
+                              @"footprintAtLaunchMB": R2(MB(launched.footprint)), @"footprintBootMB": R2(MB(boot.footprint)),
+                              @"lifetimePeakFootprintMB": R2(MB(ib.peakFootprint)), @"workerChildren": @(WorkerPids().count),
+                              @"graph": GraphCosts(ga, gb), @"gitRuns": @(Counter(ra, rb, @"gitRuns")),
+                              @"fingerprintReads": @(Counter(ra, rb, @"fingerprintReads")), @"sizeWalks": @(Counter(ra, rb, @"sizeWalks"))};
+    }
+    out[@"memory"] = [mem report];
+    [mem stop];
+    MMCoreStop();
+    out[@"undoRecords"] = @([MMUndo.shared recent:nil limit:1000].count);
+    PrintJSON(out);
+    return 0;
+}
+
 #pragma mark - Apps
 
 static int Apps(void) {
@@ -1110,12 +1473,15 @@ int main(int argc, const char *argv[]) {
         NSMutableArray *args = [NSMutableArray new];
         for (int i = 1; i < argc; i++) [args addObject:@(argv[i])];
         NSString *mode = args.firstObject ?: @"";
+        if ([mode isEqualToString:@"_walk"]) return MMWorkerChildMain();   // the worker child, as `minmacs _walk`
         if ([mode isEqualToString:@"idle"]) return Idle(args);
         if ([mode isEqualToString:@"menus"]) return Menus(args);
         if ([mode isEqualToString:@"hangs"]) return Hangs(args);
         if ([mode isEqualToString:@"startup"]) return Startup(args);
         if ([mode isEqualToString:@"apps"]) return Apps();
-        fprintf(stderr, "usage: bench idle --seconds N [--warmup N] | menus [--iterations N] | hangs [--rounds N] | startup [--wait N] | apps\n");
+        if ([mode isEqualToString:@"scale"]) return Scale(args);
+        fprintf(stderr, "usage: bench idle --seconds N [--warmup N] | menus [--iterations N] | hangs [--rounds N] | startup [--wait N] | apps\n"
+                        "       bench scale [--expect N] [--warm N] [--clutter] [--review N] [--idle S]\n");
         return 2;
     }
 }

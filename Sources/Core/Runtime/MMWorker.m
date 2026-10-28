@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/stat.h>
 
 static const NSTimeInterval kIdle = 30;
 
@@ -222,25 +223,23 @@ static id ExactSize(NSDictionary *args, NSString **error) {
 /// Folders under the roots that hold a .git: a folder for a main checkout, a file for a linked worktree.
 /// From Walk in WorkForest Trees.m:57. Hidden folders, skipped names and the inside of repos are not searched.
 static void Walk(NSString *dir, NSInteger depth, BOOL root, NSSet *skip, NSMutableSet *mains, NSMutableSet *linked) {
-    NSFileManager *fm = NSFileManager.defaultManager;
-    BOOL isDir = NO;
-    if ([fm fileExistsAtPath:[dir stringByAppendingPathComponent:@".git"] isDirectory:&isDir]) {
-        [(isDir ? mains : linked) addObject:dir];
+    struct stat st;
+    // stat follows a symlinked .git as fileExistsAtPath did. lstat below never follows a symlinked folder.
+    if (stat([dir stringByAppendingPathComponent:@".git"].fileSystemRepresentation, &st) == 0) {
+        [(S_ISDIR(st.st_mode) ? mains : linked) addObject:dir];
         if (!root) return;   // a scan root that is itself a repo is still searched
     }
     if (depth <= 0) return;
-    for (NSString *n in [fm contentsOfDirectoryAtPath:dir error:nil]) {
+    for (NSString *n in [NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:nil]) {
         if ([n hasPrefix:@"."] || [skip containsObject:n]) continue;
         NSString *p = [dir stringByAppendingPathComponent:n];
-        if (![[fm attributesOfItemAtPath:p error:nil].fileType isEqualToString:NSFileTypeDirectory]) continue;   // no symlinks
+        if (lstat(p.fileSystemRepresentation, &st) != 0 || !S_ISDIR(st.st_mode)) continue;   // no symlinks
         @autoreleasepool { Walk(p, depth - 1, NO, skip, mains, linked); }
     }
 }
 
-static NSString *ReadLine(NSString *path) {
-    NSString *s = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
-    return [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-}
+NSString *MMReadLine(NSString *path);   // MMGitFacts.m: a small file's text, trimmed, read with open and read
+static NSString *ReadLine(NSString *path) { return MMReadLine(path); }
 
 /// "main" from "ref: refs/heads/main". nil when HEAD is detached.
 static NSString *BranchIn(NSString *gitDir) {
@@ -248,8 +247,9 @@ static NSString *BranchIn(NSString *gitDir) {
     return [head hasPrefix:@"ref: refs/heads/"] ? [head substringFromIndex:16] : nil;
 }
 
-static NSDictionary *Entry(NSString *path, NSString *repo, NSString *gitDir, BOOL locked) {
-    NSMutableDictionary *e = [@{@"path": path, @"repo": repo, @"locked": @(locked)} mutableCopy];
+/// gitDir and common go back too, so the index needs no read of its own to map a change to the worktree, issue #54.
+static NSDictionary *Entry(NSString *path, NSString *repo, NSString *gitDir, NSString *common, BOOL locked) {
+    NSMutableDictionary *e = [@{@"path": path, @"repo": repo, @"locked": @(locked), @"gitDir": gitDir, @"common": common} mutableCopy];
     NSString *b = BranchIn(gitDir);
     if (b) e[@"branch"] = b;
     return e;
@@ -267,8 +267,9 @@ static NSDictionary *Linked(NSString *dir) {
     if (!common.isAbsolutePath) common = [gitDir stringByAppendingPathComponent:common];
     common = common.stringByStandardizingPath;
     NSString *repo = [common.lastPathComponent isEqualToString:@".git"] ? common.stringByDeletingLastPathComponent : common;
-    BOOL locked = [NSFileManager.defaultManager fileExistsAtPath:[gitDir stringByAppendingPathComponent:@"locked"]];
-    return Entry(dir, repo, gitDir, locked);
+    struct stat st;
+    BOOL locked = stat([gitDir stringByAppendingPathComponent:@"locked"].fileSystemRepresentation, &st) == 0;
+    return Entry(dir, repo, gitDir, common, locked);
 }
 
 static id FindWorktrees(NSDictionary *args, NSString **error) {
@@ -283,12 +284,13 @@ static id FindWorktrees(NSDictionary *args, NSString **error) {
         for (NSString *n in [fm contentsOfDirectoryAtPath:wts error:nil]) {
             NSString *gitFile = ReadLine([[wts stringByAppendingPathComponent:n] stringByAppendingPathComponent:@"gitdir"]);
             NSString *dir = gitFile.stringByStandardizingPath.stringByDeletingLastPathComponent;
-            if (dir.length && [fm fileExistsAtPath:[dir stringByAppendingPathComponent:@".git"]]) [linked addObject:dir];
+            struct stat st;
+            if (dir.length && stat([dir stringByAppendingPathComponent:@".git"].fileSystemRepresentation, &st) == 0) [linked addObject:dir];
         }
     }
     NSMutableArray *out = [NSMutableArray new];
     for (NSString *repo in [mains.allObjects sortedArrayUsingSelector:@selector(compare:)])
-        [out addObject:Entry(repo, repo, [repo stringByAppendingPathComponent:@".git"], NO)];
+        [out addObject:Entry(repo, repo, [repo stringByAppendingPathComponent:@".git"], [repo stringByAppendingPathComponent:@".git"], NO)];
     for (NSString *dir in [linked.allObjects sortedArrayUsingSelector:@selector(compare:)]) {
         NSDictionary *e = Linked(dir);
         if (e) [out addObject:e];

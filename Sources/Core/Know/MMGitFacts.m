@@ -10,6 +10,9 @@
 #import "Core/Know/MMGit.h"
 #import "Core/Know/MMFactCache.h"
 #import <sys/stat.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 NSString *MMGitInput(NSString *dir, NSArray<NSString *> *args, NSData *input, NSTimeInterval timeout, int *status);
 NSString *MMGitPatchIds(NSString *dir, NSArray<NSString *> *args, NSData *input, NSTimeInterval timeout, int *status);
@@ -77,10 +80,28 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
 
 #pragma mark - git's own files
 
-static NSString *ReadLine(NSString *path) {
-    NSString *s = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
+/// A small file's text, trimmed, or nil when it cannot be read or is not UTF-8: HEAD, a ref, a .git file, commondir.
+/// Issue #54: open and read, since Foundation's file read cost most of a warm walk of 300 worktrees, which reads
+/// about 15 such files each. A file over 4 KB is read by Foundation, as before.
+NSString *MMReadLine(NSString *path) {
+    if (!path.length) return nil;
+    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return nil;
+    char buf[4096];
+    ssize_t got = 0, n = 0;
+    while (got < (ssize_t)sizeof buf && (n = read(fd, buf + got, sizeof buf - (size_t)got)) != 0) {
+        if (n < 0) { if (errno == EINTR) continue; break; }
+        got += n;
+    }
+    BOOL more = got == (ssize_t)sizeof buf;
+    close(fd);
+    if (n < 0) return nil;
+    NSString *s = more ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil]
+                       : [[NSString alloc] initWithBytes:buf length:(NSUInteger)got encoding:NSUTF8StringEncoding];
     return [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
 }
+
+static NSString *ReadLine(NSString *path) { return MMReadLine(path); }
 
 /// mtime, size and inode, or "-" when the file is missing. A rewrite of the file always moves it.
 static NSString *Stamp(NSString *path) {
@@ -192,9 +213,9 @@ static NSInteger StashesOn(NSString *common, NSString *branch) {
 /// The git dir and the common dir of the checkout at path, read from its .git, or nil.
 NSDictionary<NSString *, NSString *> *MMGitDirsOf(NSString *path) {
     NSString *dotgit = [path stringByAppendingPathComponent:@".git"];
-    BOOL isDir = NO;
-    if (![NSFileManager.defaultManager fileExistsAtPath:dotgit isDirectory:&isDir]) return nil;
-    if (isDir) return @{@"gitDir": dotgit, @"common": dotgit};
+    struct stat st;   // stat, not NSFileManager, issue #54: once per worktree on every walk
+    if (stat(dotgit.fileSystemRepresentation, &st) != 0) return nil;
+    if (S_ISDIR(st.st_mode)) return @{@"gitDir": dotgit, @"common": dotgit};
     NSString *line = ReadLine(dotgit);
     if (![line hasPrefix:@"gitdir: "]) return nil;
     NSString *gitDir = [line substringFromIndex:8];

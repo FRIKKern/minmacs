@@ -171,6 +171,7 @@ NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, cach
 @property (readonly) MMGitFacts *git;
 @property (readonly) NSArray<MMSession *> *sessions;    // every session that ran in it, newest first
 /// Every finding the worktree holds, from every expert: its owner, back-link, path or first process is inside.
+/// Empty when whyNot is set.
 @property (readonly) NSArray<MMFinding *> *findings;
 /// Why it is not a finished workstream, or nil when it is.
 @property (readonly, copy) NSString *whyNot;
