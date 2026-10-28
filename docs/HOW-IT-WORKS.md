@@ -53,7 +53,7 @@ Every action runs through one function in Act, `MMRunAction`. In order, it:
 1. reads the facts again, fresh, and checks that the thing is the same one the menu showed
 2. runs the keep checks, which keep anything with work in it, such as uncommitted files, a process inside or an active agent session. Each expert adds its own. What cannot be checked is kept
 3. writes the undo record
-4. acts: to the Trash, to a recovery folder, through the owning tool's own command, or by a stop signal
+4. acts: to the Trash, to a recovery folder, through the owning tool's own command, by a stop signal or a quit request, by closing browser tabs, or by Insomnia's lid setting
 
 A stop sends SIGTERM first. SIGKILL comes only on a second request, and the pid and start time are checked before each. MinMacs never empties the Trash.
 

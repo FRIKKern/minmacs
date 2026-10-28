@@ -6,6 +6,7 @@
 # @{@"key": ...} and the lists in for (NSString *k in @[...]). Then it checks, per section of PRIVACY.md:
 #   - every key the code writes is the first key named in a table row of that section
 #   - every key a table row names first is one the code writes, so no row is stale
+# An expert's function may write keys only as literals or from a for-list of literals, so none is missed.
 # It prints one line per check as "ok <name>" or "FAIL <name>: <what>", and exits 1 on a failure.
 import os, re, sys
 
@@ -74,6 +75,15 @@ def keys_in(code):
     return keys
 
 
+def unread_writes(code):
+    """Writes keys_in cannot name: a key from a variable outside a for-list, or a merge of another dictionary."""
+    code = re.sub(r"//[^\n]*", "", code)
+    loop_vars = set(re.findall(r"for \(NSString \*(\w+) in @\[", code))
+    out = ["[%s] = " % k for k in re.findall(r'\w+\[(\w+)\]\s*=(?!=)', code) if k not in loop_vars]
+    out += [m for m in ("addEntriesFromDictionary", "setObject:", "setValue:", "setDictionary:") if m in code]
+    return out
+
+
 def doc_sections():
     text = open(os.path.join(ROOT, "docs", "PRIVACY.md")).read()
     out, name = {}, None
@@ -100,6 +110,9 @@ for section, parts in SOURCES.items():
         report(b is not None, "%s: finds the function in %s" % (section, path), "no line starts %r" % opener)
         if b:
             keys |= keys_in(b)
+            if section != "Every review call":
+                odd = unread_writes(b)
+                report(not odd, "%s: every key in %s is a literal the reader can name" % (section, path), "found %s" % ", ".join(odd))
     found[section] = keys
 for section, (path, line) in FACTS_FOR.items():
     report(line in read(path), "%s: its reviewRequest sends the facts of the function read here" % section, "factsFor changed in %s" % path)

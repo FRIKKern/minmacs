@@ -2,7 +2,7 @@
 
 MinMacs asks a model only through the review broker and Investigate, both in `Sources/Core/Review`. It runs the `claude` CLI or the `codex` CLI on the person's own login, so the data goes where that CLI sends it, under that account. [REVIEW.md](REVIEW.md) says when a call happens and how the broker keeps calls few.
 
-This page lists every field a review sends, per expert, from the code that builds it. `./test.sh docs` runs `test/docs/privacy.py`, which reads that code. It fails when an expert sends a key that is not in a table here, or when a table here names a key the code no longer sends.
+This page lists every field a review sends, per expert, from the code that builds it. `./test.sh docs` runs `test/docs/privacy.py`, which reads that code. It fails when an expert sends a key that is not in a table here, or when a table here names a key the code no longer sends. It also fails when a facts function writes a key it cannot name, such as one from a variable or a merged dictionary.
 
 ## What is redacted
 
@@ -193,7 +193,7 @@ Then the model asks for tool calls, and their results are sent too:
 - One call's output stops at 100 KB, and a run stops after 12 turns.
 - Files named like `.env`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.keychain`, `id_rsa` and its kin, `.netrc`, `.npmrc`, `.pypirc`, `credentials`, `credentials.json` and `.git-credentials` are never read. `.env.example`, `.env.sample` and `.env.template` may be. A path outside the folders, through `..` or a symlink, is refused.
 
-So unlike a review, Investigate sends the contents of files in the folders it may read. Each tool call writes one line to an audit file in the support folder.
+So unlike a review, Investigate sends the contents of files in the folders it may read. Each tool call writes one line to an audit file in the support folder. When the run ends, MinMacs keeps the count of calls and refusals and the bytes handed to the model, and deletes that file.
 
 ## Where it goes
 

@@ -18,7 +18,7 @@ check "docs: CLI.md has a heading for every verb of minmacs" "" "$dc_missing"
 python3 -I test/docs/privacy.py "$ROOT" >"$dc_dir/privacy.txt" 2>&1
 check "docs: privacy.py passes" 0 "$?"
 grep '^FAIL' "$dc_dir/privacy.txt" | sed 's/^/  /'
-check "docs: privacy.py ran every check" 32 "$(grep -c '^ok' "$dc_dir/privacy.txt")"
+check "docs: privacy.py ran every check" 36 "$(grep -c '^ok' "$dc_dir/privacy.txt")"
 # The check fails when an expert starts to send a key the page does not list.
 dc_fx="$dc_dir/privacy-fx"
 mkdir -p "$dc_fx/docs" "$dc_fx/Sources/Core/Review" "$dc_fx/Sources/Experts"
@@ -33,6 +33,18 @@ EOF
 python3 -I test/docs/privacy.py "$dc_fx" >"$dc_dir/privacy-fx.txt" 2>&1
 check "docs: privacy.py fails on a key PRIVACY.md does not list" 1 "$?"
 check "docs: privacy.py names that key" 1 "$(grep -c 'LocoHost sends: not listed: probe_key' "$dc_dir/privacy-fx.txt")"
+# It fails too when an expert merges a dictionary into its facts, since the reader cannot name those keys.
+cp Sources/Experts/LocoHost/MMLocoHost.m "$dc_fx/Sources/Experts/LocoHost/"
+python3 -I - "$dc_fx/Sources/Experts/WorkForest/MMWorkForest.m" <<'EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+s = s.replace('    x[@"repo"] = t.repoName;', '    [x addEntriesFromDictionary:f.facts];\n    x[@"repo"] = t.repoName;', 1)
+open(p, "w").write(s)
+EOF
+python3 -I test/docs/privacy.py "$dc_fx" >"$dc_dir/privacy-fx2.txt" 2>&1
+check "docs: privacy.py fails on a merged dictionary" 1 "$?"
+check "docs: privacy.py names the merge" 1 "$(grep -c 'WorkForest: every key in .* found addEntriesFromDictionary' "$dc_dir/privacy-fx2.txt")"
 
 # The README's pictures are renders of tools/render.sh.
 dc_missing=""

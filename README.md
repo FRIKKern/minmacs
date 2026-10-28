@@ -23,7 +23,7 @@ Every picture on this page is a PNG from `tools/render.sh`, which draws each exp
 | Noo-Noo | Caches, build output and leftovers of agents and tools | Move them to the Trash, or run the tool's own clean command after a recovery copy | Noo-Noo 0.7 |
 | Insomnia | Agents that work right now, power, battery, lid and heat | Keep the Mac awake while an agent works, and let it sleep when none does | Insomnia 1.3 |
 
-Each expert has three modes. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge, a second model call, lets go. No mode acts on its own during the first day after the first launch. Every action is checked again right before it runs, writes an undo record first, and goes to the Trash, to a recovery folder or through the owning tool's own command.
+Each expert has three modes. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge, a second model call, lets go. No mode acts on its own during the first day after the first launch. Every action is checked again right before it runs and writes an undo record first. What it removes goes to the Trash, to a recovery folder or through the owning tool's own command.
 
 <table>
 <tr>
@@ -97,7 +97,7 @@ The bench runs Core and the experts in one process with no status item, menu or 
 
 ## The review
 
-Some decisions need judgment, such as whether a quiet dev server is still wanted. One review broker in Core asks the model for every expert, through the `claude` or `codex` CLI on the person's own login. Rules and a cache of earlier answers decide most findings first, so only what changed is sent. On a generated day of findings for all five experts, the broker sent 56,846 uncached tokens, 3.1 % of what the old apps' way of asking sent for the same day. [docs/REVIEW.md](docs/REVIEW.md) explains how. [docs/PRIVACY.md](docs/PRIVACY.md) lists every field each expert sends.
+Some decisions need judgment, such as whether a quiet dev server is still wanted. One review broker in Core asks the model for every expert, through the `claude` or `codex` CLI on the person's own login. Rules and a cache of earlier answers decide most findings first, so only what changed is sent. On a generated day of findings for all five experts, replayed against a fake CLI that counts 4 bytes as one token, the broker sent 56,846 uncached tokens, 3.1 % of what the old apps' way of asking sent for the same day. [docs/REVIEW.md](docs/REVIEW.md) explains how. [docs/PRIVACY.md](docs/PRIVACY.md) lists every field each expert sends.
 
 ## More
 
