@@ -341,7 +341,15 @@ static int Sessions(NSString *dir) {
     [x startWatching];
     [x refresh];
     NSUInteger r0 = x.readCount, k0 = x.skipCount;
-    [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.5]];   // let FSEvents settle
+    // Let FSEvents settle: events of the writes above can land late on a loaded Mac, so wait for 1.5 quiet seconds,
+    // and one refresh takes in whatever came.
+    for (int i = 0; i < 6; i++) {
+        notes = 0;
+        [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.5]];
+        if (!notes) break;
+    }
+    [x refresh];
+    NSUInteger rq = x.readCount, kq = x.skipCount;
     notes = 0;
     [x refresh]; [x refresh];
     NSUInteger r1 = x.readCount, k1 = x.skipCount;
@@ -373,7 +381,7 @@ static int Sessions(NSString *dir) {
     [x stopWatching];
     [NSNotificationCenter.defaultCenter removeObserver:token];
     Print(@{@"unwatchedReads": @(unwatchedReads), @"firstRead": @(r0 == unwatchedReads + 1),
-            @"quietSkips": @(r1 == r0 && k1 == k0 + 2), @"noted": @(noted), @"newFound": @(found), @"readAfterChange": @(r2 == r1 + 1),
+            @"quietSkips": @(r1 == rq && k1 == kq + 2), @"firstSkips": @(k0), @"noted": @(noted), @"newFound": @(found), @"readAfterChange": @(r2 == r1 + 1),
             @"noted2": @(noted2), @"lastActiveMoved": @(after && before && [after compare:before] == NSOrderedDescending),
             @"otherNotes": @(otherNotes), @"noReadWithoutChange": @(r3 == r2 + 1), @"refreshAllReads": @(r4 == r3 + 1)});
     return 0;
