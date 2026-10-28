@@ -470,6 +470,8 @@ MMReviewRequest *MMWFReviewRequest(NSArray<MMFinding *> *findings, MMSnapshot *s
     q.system = kSystem; q.judgeSystem = kJudge;
     q.words = [MMVerdictWords keep:@"active" go:@"stale" unsure:@"unsure"];
     q.factsFor = ^NSDictionary *(MMFinding *f) { return ReviewFacts(f, [servers[f.findingID] valueForKey:@"value"]); };
+    // Issue #34: the session and the repo facts of a workstream go once in its block.
+    q.sharedKeys = @[@"agent_session", @"default_branch", @"repo"];
     q.judge = mode == MMModeEager;
     q.mode = mode;
     const char *batch = getenv("WORKFOREST_BATCH");   // tests use small batches

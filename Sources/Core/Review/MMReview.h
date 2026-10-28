@@ -60,6 +60,11 @@ typedef NS_ENUM(NSInteger, MMVerdictKind) { MMVerdictUnsure = 0, MMVerdictKeep =
 @property double confidence;
 @property BOOL judged;                                  // the Eager judge of P44 decided it
 @property (copy) NSString *findingID, *fingerprint;     // the fingerprint the verdict was made for
+/// The instance the verdict was made for, such as pid:start. A verdict never carries to another instance, for any expert.
+@property (copy) NSString *instanceKey;
+/// MMReviewContext when the verdict was made: HEAD, an activity bucket and a size bucket. The cache carries a verdict
+/// only while this and the fingerprint both hold.
+@property (copy) NSString *context;
 @property (copy) NSString *about, *reason, *keepEvidence;
 @property (copy) NSString *decidedBy;                   // a rule id of P47, "model" or "judge"
 @end
@@ -77,7 +82,11 @@ typedef NS_ENUM(NSInteger, MMVerdictKind) { MMVerdictUnsure = 0, MMVerdictKeep =
 @property NSDictionary<NSString *, MMVerdict *> *verdicts;   // by findingID, carried over for findings that did not move
 @property NSArray<MMUsage *> *calls;
 @property NSArray<NSDictionary *> *actions;             // what the mode did after this review
-- (MMVerdict *)verdictFor:(MMFinding *)f;               // nil when the review has none, or the fingerprint moved since
+/// Triage of this review: how many findings each rule decided, by ruleID, plus "cache", "model" and "judge".
+@property NSDictionary<NSString *, NSNumber *> *decided;
+@property NSInteger sent;                               // findings sent to the model, the judge left out
+/// nil when the review has none, when the fingerprint moved since, or when the verdict names another instance.
+- (MMVerdict *)verdictFor:(MMFinding *)f;
 - (void)save;                                           // appends to the log
 + (instancetype)lastFor:(NSString *)expert;
 + (NSArray<MMReview *> *)historyFor:(NSString *)expert since:(NSDate *)since;
@@ -95,6 +104,15 @@ NSString *MMClip(NSString *s, NSUInteger max);
 @property (readonly, copy) NSString *ruleID;            // "locohost.listen-only-no-traffic"
 - (MMVerdict *)decide:(MMFinding *)f facts:(MMFacts *)facts;   // nil when the rule cannot tell
 @end
+
+/// The key Core adds to every expert's fingerprint, so the cache holds the same rule for all five: the git HEAD of the
+/// worktree the finding sits in, the activity bucket of the newest session there, and a size bucket of what it frees.
+/// Activity buckets: under 15 minutes, 2 hours and a day, then older, with "w" while a turn runs.
+/// Size buckets: powers of four from 1 MB. Reads facts only, never the disk.
+NSString *MMReviewContext(MMFinding *f, MMFacts *facts);
+
+/// P47. Core's own rule, after the expert's rules: a finding with a work keep is kept, with its first keep reason.
+extern NSString *const MMWorkKeepsRuleID;               // "core.work-keeps"
 
 /// The daily review budget, measured as decision 10 says. The target is a fifth of today's 3.26M tokens a day,
 /// and a bad day at a quarter is acceptable.
@@ -121,6 +139,9 @@ NSString *MMClip(NSString *s, NSUInteger max);
 @property NSDictionary *schema;
 @property MMVerdictWords *words;
 @property (copy) NSDictionary *(^factsFor)(MMFinding *f);   // what is sent per finding, redacted; docs/REVIEW.md lists it
+/// Keys of factsFor that belong to the workstream, such as agent_session and branch. Where every finding of one block
+/// has the same value, the broker sends it once in the block's ws. Facts every finding of a call shares go in all.
+@property (copy) NSArray<NSString *> *sharedKeys;
 @property NSUInteger batchSize, parallel;               // 25 and 3 by default, as WF Batches
 @property BOOL judge;                                   // Eager: a second look at findings the review keeps
 @property NSInteger mode;                               // the MMMode the review runs under, saved with it

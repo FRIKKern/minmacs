@@ -102,6 +102,7 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     NSMutableDictionary *j = [@{@"kind": kKinds[self.kind], @"confidence": @(self.confidence), @"judged": @(self.judged)} mutableCopy];
     j[@"word"] = self.word; j[@"finding"] = self.findingID; j[@"fingerprint"] = self.fingerprint;
     j[@"about"] = self.about; j[@"reason"] = self.reason; j[@"keep_evidence"] = self.keepEvidence; j[@"decided_by"] = self.decidedBy;
+    j[@"instance"] = self.instanceKey; j[@"context"] = self.context;
     return j;
 }
 
@@ -113,6 +114,7 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     v.confidence = [j[@"confidence"] doubleValue]; v.judged = [j[@"judged"] boolValue];
     v.word = Str(j[@"word"]); v.findingID = Str(j[@"finding"]); v.fingerprint = Str(j[@"fingerprint"]);
     v.about = Str(j[@"about"]); v.reason = Str(j[@"reason"]); v.keepEvidence = Str(j[@"keep_evidence"]); v.decidedBy = Str(j[@"decided_by"]);
+    v.instanceKey = Str(j[@"instance"]); v.context = Str(j[@"context"]);
     return v;
 }
 
@@ -130,7 +132,7 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     NSMutableArray *calls = [NSMutableArray new];
     for (MMUsage *u in self.calls) [calls addObject:u.json];
     NSMutableDictionary *j = [@{@"at": @(self.at.timeIntervalSince1970), @"mode": @(self.mode), @"verdicts": v, @"calls": calls,
-                                @"actions": self.actions ?: @[]} mutableCopy];
+                                @"actions": self.actions ?: @[], @"decided": self.decided ?: @{}, @"sent": @(self.sent)} mutableCopy];
     j[@"expert"] = self.expert; j[@"trigger"] = self.trigger; j[@"summary"] = self.summary; j[@"error"] = self.error;
     j[@"judge_error"] = self.judgeError; j[@"note"] = self.note; j[@"summary_words"] = self.summaryWords;
     return j;
@@ -151,13 +153,19 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     for (id c in List(j[@"calls"]) ?: @[]) { MMUsage *u = [MMUsage fromJSON:c]; if (u) [calls addObject:u]; }
     r.calls = calls;
     r.actions = List(j[@"actions"]) ?: @[];
+    r.decided = Dict(j[@"decided"]) ?: @{};
+    r.sent = [j[@"sent"] integerValue];
     return r;
 }
 
 - (MMVerdict *)verdictFor:(MMFinding *)f {
     MMVerdict *v = self.verdicts[f.findingID];
     if (!v) return nil;
-    return (v.fingerprint == f.fingerprint || [v.fingerprint isEqualToString:f.fingerprint]) ? v : nil;
+    if (!(v.fingerprint == f.fingerprint || [v.fingerprint isEqualToString:f.fingerprint])) return nil;
+    // The finding id outlives a restart, so a verdict made for an earlier instance says nothing about this one.
+    // LocoHost 0.1 keyed its verdicts by pid and start time. The same rule holds for every expert.
+    if (v.instanceKey.length && ![v.instanceKey isEqualToString:f.instanceKey ?: @""]) return nil;
+    return v;
 }
 
 - (void)save { StoreAppend(@"review", self.expert, [self json]); }
@@ -403,11 +411,94 @@ static NSString *BlockKey(MMFinding *f) {
     return o ? [NSString stringWithFormat:@"%ld:%@", (long)o.kind, o.key ?: @""] : @"";
 }
 
-/// What the model gets for one batch: one block per workstream, the owner named once, then each finding's facts.
+#pragma mark The context key and the work keeps rule
+
+NSString *const MMWorkKeepsRuleID = @"core.work-keeps";
+
+/// /private/var and /private/tmp as /var and /tmp, so a real path and the path git or a session wrote compare equal.
+static NSString *Plain(NSString *p) {
+    if ([p hasPrefix:@"/private/var/"] || [p hasPrefix:@"/private/tmp/"]) return [p substringFromIndex:8];
+    return p.length > 1 && [p hasSuffix:@"/"] ? [p substringToIndex:p.length - 1] : p;
+}
+
+static BOOL Inside(NSString *path, NSString *folder) {
+    if (!path.length || !folder.length) return NO;
+    path = Plain(path); folder = Plain(folder);
+    return [path isEqualToString:folder] || [path hasPrefix:[folder stringByAppendingString:@"/"]];
+}
+
+/// The deepest worktree in facts that holds folder, or nil.
+static MMWorktree *WorktreeHolding(NSString *folder, MMFacts *facts) {
+    MMWorktree *best = nil;
+    for (MMWorktree *w in facts.worktrees)
+        if (Inside(folder, w.path) && (!best || w.path.length > best.path.length)) best = w;
+    return best;
+}
+
+/// The newest session whose folder is folder or inside it, or nil.
+static MMSession *NewestSessionIn(NSString *folder, MMFacts *facts) {
+    MMSession *best = nil;
+    for (MMSession *x in facts.sessions) {
+        if (!Inside(x.cwd, folder)) continue;
+        if (!best || (x.lastActive && (!best.lastActive || [x.lastActive compare:best.lastActive] == NSOrderedDescending))) best = x;
+    }
+    return best;
+}
+
+/// The same buckets as the graph's workstream fingerprint, MMGraph.m.
+static NSString *ActivityBucket(MMSession *x) {
+    if (!x) return @"-";
+    NSString *working = x.stillWorking ? @"w" : @"";
+    if (!x.lastActive) return [working stringByAppendingString:@"?"];
+    NSTimeInterval age = -x.lastActive.timeIntervalSinceNow;
+    return [working stringByAppendingString:age < 15 * 60 ? @"0" : age < 2 * 3600 ? @"1" : age < 86400 ? @"2" : @"3"];
+}
+
+static NSString *SizeBucketOf(uint64_t bytes) {
+    if (bytes < (1ull << 20)) return @"0";
+    int b = 0;
+    for (uint64_t v = bytes >> 20; v >= 4; v >>= 2) b++;
+    return [NSString stringWithFormat:@"%d", b + 1];
+}
+
+NSString *MMReviewContext(MMFinding *f, MMFacts *facts) {
+    NSString *folder = TopOwner(f).path ?: f.path;
+    MMWorktree *w = folder.length ? WorktreeHolding(folder, facts) : nil;
+    NSString *head = w ? [facts gitFor:w].head : nil;
+    MMSession *x = folder.length ? NewestSessionIn(w.path ?: folder, facts) : nil;
+    return [NSString stringWithFormat:@"g%@|a%@|z%@", head.length > 12 ? [head substringToIndex:12] : head.length ? head : @"-",
+            ActivityBucket(x), SizeBucketOf(f.cost.diskFreed)];
+}
+
+/// Core's rule after the expert's own: work keeps decide keep with no model call.
+static MMVerdict *WorkKeep(MMFinding *f) {
+    if (!f.kept) return nil;
+    MMVerdict *v = [MMVerdict new];
+    v.kind = MMVerdictKeep; v.confidence = 1; v.reason = f.keepReasons.firstObject; v.keepEvidence = @"";
+    v.decidedBy = MMWorkKeepsRuleID;
+    return v;
+}
+
+#pragma mark The input
+
+/// Appended to every system prompt, so the model reads the blocks the same way for every expert. It never changes,
+/// so the prompt stays one cached prefix.
+static NSString *const kInputNote =
+    @"\n\nHow the input is laid out: blocks holds one block per workstream. w names its folder, ws holds the facts that every "
+    @"finding in the block shares, and f lists the findings. all holds the facts that every finding in this call shares. "
+    @"A fact in ws or all belongs to each of those findings as if it were listed with it.";
+
+static NSString *WithNote(NSString *system) { return [system ?: @"" stringByAppendingString:kInputNote]; }
+
+/// What the model gets for one batch: one block per workstream, its shared facts once, then each finding's own facts.
 /// extra adds fields per finding, such as the judge's first review. MMModel compacts and redacts it all.
+/// F5 and issue #34: a sharedKeys value that every finding of a block of two or more holds goes once in the block's ws,
+/// and a value that every finding of a call of two or more holds goes once in all. Nothing is dropped, so the model
+/// sees the same facts.
 static NSDictionary *BatchInput(NSArray<MMFinding *> *batch, MMReviewRequest *q, NSDictionary *(^extra)(MMFinding *)) {
     NSMutableArray *blocks = [NSMutableArray new];
     NSMutableDictionary<NSString *, NSMutableDictionary *> *byKey = [NSMutableDictionary new];
+    NSMutableArray<NSMutableDictionary *> *all = [NSMutableArray new];
     for (MMFinding *f in batch) {
         NSString *k = BlockKey(f);
         NSMutableDictionary *b = byKey[k];
@@ -423,8 +514,36 @@ static NSDictionary *BatchInput(NSArray<MMFinding *> *batch, MMReviewRequest *q,
         NSDictionary *more = extra ? extra(f) : nil;
         if (more) [x addEntriesFromDictionary:more];
         [b[@"f"] addObject:x];
+        [all addObject:x];
     }
-    return @{@"blocks": blocks, @"now": Now()};   // sorted keys put now last, after the facts that stay the same
+    for (NSMutableDictionary *b in blocks) {
+        NSArray<NSMutableDictionary *> *fs = b[@"f"];
+        if (fs.count < 2) continue;   // a block of one finding would only add the ws wrapper
+        NSMutableDictionary *ws = [NSMutableDictionary new];
+        for (NSString *key in q.sharedKeys) {
+            id first = fs.firstObject[key];
+            if (!first) continue;
+            BOOL same = YES;
+            for (NSDictionary *x in fs) if (![x[key] isEqual:first]) { same = NO; break; }
+            if (!same) continue;
+            ws[key] = first;
+            for (NSMutableDictionary *x in fs) [x removeObjectForKey:key];
+        }
+        if (ws.count) b[@"ws"] = ws;
+    }
+    NSMutableDictionary *same = [NSMutableDictionary new];
+    if (all.count > 1) {
+        for (NSString *key in [all.firstObject.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+            if ([key isEqualToString:@"id"]) continue;
+            id first = all.firstObject[key];
+            BOOL equal = YES;
+            for (NSDictionary *x in all) if (![x[key] isEqual:first]) { equal = NO; break; }
+            if (equal) same[key] = first;
+        }
+        for (NSMutableDictionary *x in all) [x removeObjectsForKeys:same.allKeys];
+    }
+    // Sorted keys put all and blocks before now, so the facts that stay the same come first.
+    return same.count ? @{@"all": same, @"blocks": blocks, @"now": Now()} : @{@"blocks": blocks, @"now": Now()};
 }
 
 /// F4. Five minutes when this expert's last review was more than an hour ago, so one-shot facts are written at
@@ -486,8 +605,13 @@ static NSString *TTLFor(MMReview *prev) {
     return failed;
 }
 
-/// A verdict that may be carried to the next review while its fingerprint holds.
-static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"judge-failed"]; }
+/// A verdict that may be carried to the next review while its fingerprint, instance and context hold: one the model
+/// or the judge made. A rule decides again on every review, so a rule's verdict is never carried, and a failed judge
+/// is asked again.
+static BOOL Carries(MMVerdict *v, NSString *context) {
+    if (![v.decidedBy isEqualToString:@"model"] && ![v.decidedBy isEqualToString:@"judge"]) return NO;
+    return !v.context || [v.context isEqualToString:context];   // a verdict saved before contexts holds on its fingerprint
+}
 
 - (MMReview *)runHere:(MMReviewRequest *)q {
     MMReview *r = [MMReview new];
@@ -501,7 +625,10 @@ static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"
     NSMutableDictionary<NSString *, MMVerdict *> *v = [NSMutableDictionary new];
     NSMutableArray<MMFinding *> *send = [NSMutableArray new];
     NSMutableDictionary<NSString *, NSNumber *> *decided = [NSMutableDictionary new];
+    NSMutableDictionary<NSString *, NSString *> *contexts = [NSMutableDictionary new];
     for (MMFinding *f in q.findings) {
+        NSString *ctx = MMReviewContext(f, q.facts);
+        contexts[f.findingID] = ctx;
         MMVerdict *x = nil;
         for (id<MMRule> rule in rules) {
             x = [rule decide:f facts:q.facts];
@@ -509,15 +636,17 @@ static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"
             x.decidedBy = rule.ruleID;
             break;
         }
+        if (!x) x = WorkKeep(f);
         if (!x) {
             MMVerdict *old = q.ignoreCache ? nil : [prev verdictFor:f];
-            if (Carries(old)) { x = [old copyVerdict]; decided[@"cache"] = @([decided[@"cache"] integerValue] + 1); }
+            if (Carries(old, ctx)) { x = [old copyVerdict]; decided[@"cache"] = @([decided[@"cache"] integerValue] + 1); }
         } else decided[x.decidedBy] = @([decided[x.decidedBy] integerValue] + 1);
         if (!x) { [send addObject:f]; continue; }
-        x.findingID = f.findingID; x.fingerprint = f.fingerprint;
+        x.findingID = f.findingID; x.fingerprint = f.fingerprint; x.instanceKey = f.instanceKey; x.context = ctx;
         if (!x.word) x.word = [words wordFor:x.kind];
         v[f.findingID] = x;
     }
+    r.sent = (NSInteger)send.count;
 
     NSMutableArray<NSString *> *summaries = [NSMutableArray new];
     NSUInteger batchCount = 0;
@@ -530,7 +659,7 @@ static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"
         NSMutableArray *errors = [NSMutableArray new];
         NSArray *batches = nil;
         __block NSInteger byModel = 0;
-        [self batches:send request:q review:r system:q.system schema:ReviewSchema(q) ttl:TTLFor(prev)
+        [self batches:send request:q review:r system:WithNote(q.system) schema:ReviewSchema(q) ttl:TTLFor(prev)
                 input:^NSDictionary *(NSArray<MMFinding *> *batch) { return BatchInput(batch, q, nil); }
                 parse:^(NSDictionary *so, NSArray<MMFinding *> *batch) {
             for (NSDictionary *x in List(so[@"items"]) ?: @[]) {
@@ -543,6 +672,7 @@ static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"
                 w.word = [words wordFor:w.kind];
                 w.about = Str(x[@"about"]); w.reason = Str(x[@"reason"]); w.keepEvidence = Str(x[@"keep_evidence"]) ?: @"";
                 w.findingID = f.findingID; w.fingerprint = f.fingerprint; w.decidedBy = @"model";
+                w.instanceKey = f.instanceKey; w.context = contexts[f.findingID];
                 if (!v[f.findingID]) byModel++;
                 v[f.findingID] = w;
             }
@@ -558,6 +688,7 @@ static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"
     }
     r.verdicts = v;
     for (NSString *k in decided) [self count:k expert:q.expert by:decided[k].integerValue];
+    r.decided = decided;
 
     // P44. The judge looks at what the review keeps: free to decide, decided by the model, not judged and not a sure go.
     if (q.judge && !r.error) {
@@ -569,6 +700,9 @@ static BOOL Carries(MMVerdict *v) { return v && ![v.decidedBy isEqualToString:@"
             [j addObject:f];
         }
         if (j.count) [self judge:j request:q into:r];
+        NSInteger judged = 0;
+        for (MMVerdict *x in r.verdicts.allValues) if ([x.decidedBy isEqualToString:@"judge"]) judged++;
+        if (judged) { NSMutableDictionary *d = [r.decided mutableCopy]; d[@"judge"] = @(judged); r.decided = d; }
     }
 
     // P45. Words from the model, numbers from code.
@@ -623,7 +757,7 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
     NSMutableArray *errors = [NSMutableArray new];
     NSArray *batches = nil;
     __block NSInteger judged = 0;
-    NSIndexSet *failed = [self batches:findings request:q review:r system:JudgeSystem(q) schema:JudgeSchema(words) ttl:@"1h"
+    NSIndexSet *failed = [self batches:findings request:q review:r system:WithNote(JudgeSystem(q)) schema:JudgeSchema(words) ttl:@"1h"
         input:^NSDictionary *(NSArray<MMFinding *> *batch) {
             return BatchInput(batch, q, ^NSDictionary *(MMFinding *f) {
                 MMVerdict *w = first[f.findingID];
@@ -645,7 +779,7 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
                 w.keepEvidence = keep ? Str(x[@"evidence"]) ?: @"" : @"";
                 w.reason = Str(x[@"reason"]); w.about = old.about;
                 w.judged = YES; w.decidedBy = @"judge";
-                w.findingID = f.findingID; w.fingerprint = f.fingerprint;
+                w.findingID = f.findingID; w.fingerprint = f.fingerprint; w.instanceKey = f.instanceKey; w.context = old.context;
                 v[f.findingID] = w;
                 judged++;
             }
@@ -657,7 +791,7 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
             w.kind = MMVerdictKeep; w.word = words.keep; w.confidence = old.confidence; w.about = old.about;
             w.reason = [NSString stringWithFormat:@"The judge failed, so it stays: %@", errors.firstObject ?: @"no answer"];
             w.keepEvidence = @""; w.decidedBy = @"judge-failed";
-            w.findingID = f.findingID; w.fingerprint = f.fingerprint;
+            w.findingID = f.findingID; w.fingerprint = f.fingerprint; w.instanceKey = f.instanceKey; w.context = old.context;
             v[f.findingID] = w;
         }
     }];

@@ -4,6 +4,8 @@
 # It fails when tools are on for a review, when an API key reaches it, or when the effort flag is missing.
 # With $RV_TEST_CLAUDE_LIMIT set it answers like an account that is out of usage, and with $RV_TEST_JUDGE_FAIL a judge call fails.
 # Every call appends its folder, cache TTL and model to $RV_TEST_SENT.calls.
+# With $RV_TEST_COUNT naming a state file, the usage is counted from the bytes of the call instead of fixed numbers,
+# by count() below. The day replay of test/review/day.m uses that, with $RV_TEST_CLOCK as the replay's clock.
 import json, os, sys
 args = sys.argv[1:]
 data = sys.stdin.read()
@@ -12,7 +14,8 @@ def fail(msg):
     sys.exit(1)
 sent = os.environ["RV_TEST_SENT"]
 open(sent + ".calls", "a").write(json.dumps({"cli": "claude", "cwd": os.getcwd(), "ttl": os.environ.get("CLAUDE_CODE_PROMPT_CACHE_TTL", ""),
-                                             "model": args[args.index("--model") + 1], "tools": args[args.index("--tools") + 1]}) + "\n")
+                                             "model": args[args.index("--model") + 1], "tools": args[args.index("--tools") + 1],
+                                             "note": "How the input is laid out" in (args[args.index("--system-prompt") + 1] if "--system-prompt" in args else "")}) + "\n")
 if os.environ.get("RV_TEST_CLAUDE_LIMIT"): fail("Claude AI usage limit reached|1793880000")
 if "ANTHROPIC_API_KEY" in os.environ: fail("fixture: an API key reached claude")
 if "--effort" not in args: fail("fixture: no --effort")
@@ -30,5 +33,10 @@ schema = args[args.index("--json-schema") + 1]
 if os.environ.get("RV_TEST_JUDGE_FAIL") and '"decision"' in schema: fail("fixture: the judge fails")
 import fakeanswer
 so = fakeanswer.answer(data, schema)
+cost = 0.0001
+if os.environ.get("RV_TEST_COUNT"):
+    import fakecount
+    usage, cost = fakecount.count(os.environ["RV_TEST_COUNT"], args[args.index("--system-prompt") + 1] + schema, data, so,
+                                  args[args.index("--effort") + 1], os.environ.get("CLAUDE_CODE_PROMPT_CACHE_TTL", ""))
 print(json.dumps({"type": "result", "is_error": False, "result": "", "structured_output": so,
-                  "total_cost_usd": 0.0001, "usage": usage}))
+                  "total_cost_usd": cost, "usage": usage}))

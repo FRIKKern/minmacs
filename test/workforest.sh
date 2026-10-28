@@ -122,9 +122,12 @@ r=$(WORKFOREST_BATCH=2 "$WF" review --model haiku --mode idle --fresh --json | j
                                                                           check "three batches and one summary cover every worktree" "Fixture overall summary: 12 lines. 12" "$r"
 
 echo "== what the model gets"
-grep -q "SUPERSECRETVALUE123" "$RV_TEST_SENT";                            check "a secret in a session title is redacted" 1 "$?"
-grep -q "hunter2" "$RV_TEST_SENT";                                        check "no .env content or session prompt is sent" 1 "$?"
-grep -q "try a thing" "$RV_TEST_SENT";                                    check "the rest of the title is sent" 0 "$?"
+# The agent worktree has a work keep, so Core's rule decides it and the model never gets it. The dry run shows the
+# facts a review builds for every worktree, so the redaction is checked there too.
+"$WF" review --dry-run --json --fresh >"$wf/would.json"
+grep -q "SUPERSECRETVALUE123" "$RV_TEST_SENT" "$wf/would.json";           check "a secret in a session title is redacted" 1 "$?"
+grep -q "hunter2" "$RV_TEST_SENT" "$wf/would.json";                       check "no .env content or session prompt is sent" 1 "$?"
+grep -q "try a thing" "$wf/would.json";                                   check "the rest of the title is in the facts a review builds" 0 "$?"
 ANTHROPIC_API_KEY=sk-ant-test "$WF" review --model haiku --mode idle --fresh >/dev/null 2>&1; check "an API key never reaches claude" 0 "$?"
 r=$(RV_TEST_CLAUDE_LIMIT=1 OPENAI_API_KEY=sk-test "$WF" review --model auto --mode idle --fresh --json | json "j['model']")
                                                                           check "out of Haiku usage, Luna answers without the key" gpt-6-luna "$r"
