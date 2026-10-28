@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One Icon Readings</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.84);--line:rgba(255,255,255,.08);
+  --txt:rgba(255,255,255,.92);--dim:rgba(255,255,255,.55);--faint:rgba(255,255,255,.34);
+  --mm:#5B9BFF;--lh:#3FD0B8;--wf:#4CC96B;--nn:#F2B544;--in:#B18CFF;
+  --bar:rgba(14,12,30,.46);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--txt);-webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;background:#1d1940}
+.desk{
+  background:
+    radial-gradient(900px 620px at 10% 6%,rgba(98,74,200,.78),transparent 62%),
+    radial-gradient(780px 560px at 86% 4%,rgba(34,112,164,.72),transparent 60%),
+    radial-gradient(900px 720px at 90% 100%,rgba(178,62,112,.62),transparent 62%),
+    radial-gradient(720px 600px at 18% 100%,rgba(42,30,96,.85),transparent 60%),
+    linear-gradient(160deg,#2b2264,#1b1a3e 52%,#3b1f47);
+}
+body.desk{background-attachment:fixed}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden}
+
+.mb{position:absolute;left:0;top:0;width:1280px;height:37px;background:var(--bar);
+  -webkit-backdrop-filter:blur(26px) saturate(160%);backdrop-filter:blur(26px) saturate(160%);
+  display:flex;align-items:center;font-size:13.5px;z-index:5}
+.mb .menus{display:flex;align-items:center;gap:19px;padding-left:18px;height:37px}
+.mb .menus b{font-weight:700}
+.mb .apple{font-size:16px;width:16px;text-align:center}
+.notch{position:absolute;top:0;height:37px;background:#000}
+.notch.full{left:545px;width:190px;border-radius:0 0 13px 13px}
+.notch.full::before,.notch.full::after{content:"";position:absolute;top:0;width:7px;height:7px}
+.notch.full::before{left:-7px;background:radial-gradient(circle at 0 100%,transparent 6.5px,#000 7px)}
+.notch.full::after{right:-7px;background:radial-gradient(circle at 100% 100%,transparent 6.5px,#000 7px)}
+.mb .right{position:absolute;right:10px;top:0;height:37px;display:flex;align-items:center}
+.clock{padding:0 8px;font-size:13.5px;white-space:nowrap}
+
+.si{position:relative;height:24px;display:inline-flex;align-items:center;gap:2px;padding:0 7px;border-radius:6px;color:var(--txt);white-space:nowrap;transition:background .18s ease}
+.si svg{width:18px;height:18px;flex:none;overflow:visible}
+.si svg.bat{width:28px}
+.si.other{color:rgba(255,255,255,.8)}
+.si.mine{cursor:pointer}
+.si.mine:hover,.si.mine.on{background:rgba(255,255,255,.15)}
+.si .n{font-size:13px;font-weight:500;letter-spacing:.1px;padding-right:1px}
+.si .n small{font-size:10.5px;font-weight:500;color:rgba(255,255,255,.52);margin-left:1px}
+.si .rd{display:inline-flex;align-items:center;gap:2px}
+.si .rd+.rd{margin-left:9px}
+.si .cl{display:inline-flex;align-items:center;gap:4px}
+.si .cl svg{width:15px;height:15px}
+.slit{animation:look 3.4s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
+@keyframes look{0%,45%{transform:translateX(-1.5px)}55%,100%{transform:translateX(1.5px)}}
+.ready .fresh{animation:numIn .32s ease both}
+@keyframes numIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+
+.panel{position:absolute;background:var(--glass);border:1px solid var(--line);border-radius:22px;
+  -webkit-backdrop-filter:blur(30px) saturate(140%);backdrop-filter:blur(30px) saturate(140%);box-shadow:0 24px 60px rgba(8,6,24,.35)}
+.cap{position:absolute;font-size:12px;color:var(--dim)}
+.cap b{color:var(--txt);font-weight:600;font-size:13px;margin-right:8px}
+.frag{position:relative;display:inline-flex;align-items:center;height:30px;padding:0 5px;border-radius:8px;
+  background:rgba(10,9,22,.55);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.07)}
+
+/* compare rows */
+.cmp{position:absolute;left:14px;right:14px;height:126px;border-radius:16px;cursor:pointer;transition:background .25s ease}
+.cmp:hover{background:rgba(255,255,255,.035)}
+.cmp.on{background:rgba(255,255,255,.065)}
+.cmp .h{position:absolute;left:16px;top:13px;right:16px;display:flex;align-items:baseline;gap:10px;font-size:12.5px;color:var(--dim)}
+.cmp .h b{font-size:13px;font-weight:600;color:var(--txt)}
+.cmp .h .w{margin-left:auto;color:var(--txt);font-weight:500}
+.cmp .h .w small{color:var(--dim);font-weight:400;font-size:12px}
+.cmp .z{position:absolute;left:16px;top:38px;transform-origin:0 0}
+.cmp .tag{display:none;font-size:11px;color:#10121f;background:#7f9cff;border-radius:8px;padding:1px 7px;font-weight:600}
+.cmp.on .tag{display:inline-block}
+.meter{position:absolute;right:16px;top:12px;width:150px;display:flex;flex-direction:column;align-items:flex-end}
+.meter .bar{width:150px;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;position:relative}
+.meter .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--mm);transition:width .4s ease}
+.meter .t{font-size:11.5px;color:var(--dim);margin-top:5px;text-align:right;order:-1;margin:0 0 5px}
+.meter .t b{color:var(--txt);font-weight:500}
+
+/* true-size strips */
+.strip{position:relative;width:809px;height:37px;background:rgba(14,12,30,.62);border-radius:10px;overflow:hidden;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.07)}
+.strip .notch{left:0;width:40px;border-radius:0 0 13px 0}
+.strip .notch::after{content:"";position:absolute;top:0;left:40px;width:7px;height:7px;background:radial-gradient(circle at 100% 100%,transparent 6.5px,#000 7px)}
+.srow{position:absolute;right:10px;top:0;height:37px;display:flex;align-items:center}
+.srow .si.mine{background:rgba(255,255,255,.1)}
+.trow{position:absolute;left:26px;display:flex;align-items:center;gap:0}
+.trow .l{width:270px;font-size:12.5px;color:var(--dim)}
+.trow .l b{display:block;color:var(--txt);font-weight:500;font-size:13px;margin-bottom:2px}
+
+/* drop */
+.drop{position:absolute;top:42px;width:360px;padding:12px 12px 12px;background:rgba(30,31,42,.9);border:1px solid rgba(255,255,255,.09);border-radius:20px;
+  -webkit-backdrop-filter:blur(34px) saturate(150%);backdrop-filter:blur(34px) saturate(150%);box-shadow:0 22px 60px rgba(0,0,0,.45);z-index:10;
+  transform-origin:top left;transition:opacity .18s ease,transform .18s ease}
+.drop.hide{opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none}
+.rrow{position:relative;display:grid;grid-template-columns:32px 66px 1fr;align-items:center;column-gap:10px;height:50px;padding:0 6px;border-radius:12px;transition:background .15s}
+.rrow:hover{background:rgba(255,255,255,.05)}
+.bdg{position:relative;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c)}
+.bdg>svg{width:16px;height:16px;overflow:visible}
+.bdg .arc{position:absolute;inset:-2px;width:34px;height:34px}
+.val{font-size:20px;font-weight:500;letter-spacing:-.2px;white-space:nowrap}
+.val small{font-size:12px;color:var(--dim);font-weight:400;margin-left:2px}
+.val.zero{color:var(--faint)}
+.what{font-size:12.5px;line-height:16px;min-width:0}
+.what em{display:block;font-style:normal;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act{position:absolute;right:8px;top:13px;height:24px;padding:0 10px;border-radius:12px;border:0;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;background:color-mix(in srgb,var(--c) 85%,#000);color:#10121f;
+  opacity:0;transition:opacity .15s}
+.rrow:hover .act,.act:focus{opacity:1}
+.rrow:hover .what{padding-right:104px}
+.sep{height:1px;background:var(--line);margin:8px 6px}
+.dcap{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);padding:4px 8px 10px}
+.dcap b{color:var(--txt);font-weight:500}
+.tg{display:grid;grid-template-columns:repeat(4,1fr);row-gap:10px;padding:0 2px}
+.tb{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);background:none;border:0;font-family:inherit;cursor:pointer;user-select:none}
+.tb i{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);color:rgba(255,255,255,.62);transition:background .2s,color .2s,transform .15s}
+.tb i svg{width:18px;height:18px;overflow:visible}
+.tb:hover i{background:rgba(255,255,255,.13)}
+.tb:active i{transform:scale(.94)}
+.tb.on{color:var(--txt)}
+.tb.on i{background:var(--c);color:#10121f}
+.hint{font-size:11.5px;color:var(--faint);text-align:center;height:16px;margin-top:10px;transition:color .3s}
+.hint.lit{color:var(--dim)}
+.dfoot{white-space:nowrap;display:flex;align-items:center;justify-content:space-between;padding:2px 8px 0;font-size:12.5px}
+.dfoot span{color:var(--dim)}
+.seg{display:flex;gap:4px;background:rgba(255,255,255,.06);border-radius:14px;padding:2px}
+.seg button{height:24px;padding:0 9px;border-radius:12px;border:0;background:none;color:var(--dim);font:inherit;font-size:11.5px;cursor:pointer;transition:background .2s,color .2s}
+.seg button.on{background:rgba(255,255,255,.14);color:var(--txt)}
+.legend{font-size:11.5px;color:var(--dim);padding:6px 8px 4px;display:flex;flex-wrap:wrap;gap:4px 14px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend svg{width:13px;height:13px}
+
+.toast{position:absolute;left:50%;top:0;transform:translate(-50%,-6px);height:34px;display:flex;align-items:center;gap:14px;padding:0 6px 0 16px;border-radius:17px;
+  background:rgba(30,31,42,.95);border:1px solid rgba(255,255,255,.09);font-size:12.5px;z-index:30;box-shadow:0 12px 30px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{height:24px;padding:0 12px;border-radius:12px;border:0;background:rgba(255,255,255,.12);color:var(--txt);font:inherit;font-size:12px;cursor:pointer}
+#measure{position:absolute;left:-9999px;top:0;visibility:hidden}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="desk">
+<div id="stage" class="desk">
+  <div class="mb">
+    <div class="menus"><span class="apple">&#63743;</span><b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span></div>
+    <div class="notch full"></div>
+    <div class="right" id="topRight"></div>
+  </div>
+
+  <div class="panel" id="cmpP" style="left:40px;top:58px;width:700px;height:440px">
+    <div class="cap" style="left:28px;top:20px"><b>2.6&times;</b>Three ways to sit in the menu bar. Pick one.</div>
+    <div id="cmps"></div>
+  </div>
+
+  <div class="panel" id="trueP" style="left:40px;top:516px;width:1200px;height:264px">
+    <div class="cap" style="left:26px;top:22px"><b>Side by side, true size</b>the right half of a 16-inch menu bar, 769 pt past the notch</div>
+    <div id="trows"></div>
+  </div>
+
+  <div class="drop" id="drop"></div>
+  <div style="position:absolute;left:760px;width:480px;top:474px;height:0" id="toastWrap"><div class="toast" id="toast"><span id="tmsg"></span><button id="undo">Undo</button></div></div>
+  <div id="measure"></div>
+</div>
+
+<script>
+(function(){
+const stage=document.getElementById('stage');let scale=1;
+function fit(){const w=innerWidth,h=innerHeight;scale=Math.min(w/1280,h/800);
+  stage.style.transform=`translate(${Math.max(0,(w-1280*scale)/2)}px,${Math.max(0,(h-800*scale)/2)}px) scale(${scale})`;}
+fit();addEventListener('resize',fit);
+const $=id=>document.getElementById(id);
+
+/* glyphs */
+const F='fill="currentColor" stroke="none"';
+const G={
+  gauge:()=>`<path d="M3.54 13.15A6.3 6.3 0 1 1 14.46 13.15"/><path d="M9 10L12.1 6.5"/><circle cx="9" cy="10" r="1.35" ${F}/>`,
+  chip:()=>`<rect x="3" y="5" width="12" height="8" rx="1.8"/><path d="M6 5V3M9 5V3M12 5V3M6 13v2M9 13v2M12 13v2"/>`,
+  prompt:()=>`<rect x="2.5" y="3.5" width="13" height="11" rx="2.2"/><path d="M5.6 7.4l1.9 1.6-1.9 1.6M9.4 11h3"/>`,
+  server:()=>`<rect x="2.75" y="3" width="12.5" height="5" rx="1.6"/><rect x="2.75" y="10" width="12.5" height="5" rx="1.6"/><circle cx="5.6" cy="5.5" r=".95" ${F}/><circle cx="5.6" cy="12.5" r=".95" ${F}/>`,
+  branch:()=>`<circle cx="5.5" cy="3.9" r="1.75"/><circle cx="5.5" cy="14.1" r="1.75"/><circle cx="12.6" cy="5.4" r="1.75"/><path d="M5.5 5.65V12.35"/><path d="M12.6 7.15c0 3.3-7.1 2.6-7.1 5.2"/>`,
+  broom:()=>`<path d="M15.2 2.4L10.6 8.2"/><path d="M7.5 7.3l4.7 3.1-1.8 4.8c-2.7-.3-5.7-1.8-7.1-4.1z" stroke-linejoin="round"/><path d="M7.7 11.7l-1.8 2.3M10 12.6l-1.1 2.3"/>`,
+  disk:()=>`<rect x="2.5" y="5" width="13" height="8.5" rx="2"/><path d="M2.8 10.2h12.4"/><circle cx="12.6" cy="11.9" r=".8" ${F}/>`,
+  eyeClosed:()=>`<path d="M2.8 8.2c2.6 3.7 9.8 3.7 12.4 0"/><path d="M5 10.9l-1.1 1.7M9 11.9v2M13 10.9l1.1 1.7"/>`,
+  eyeAgent:()=>`<path d="M2.3 9c2.2-4.4 11.2-4.4 13.4 0-2.2 4.4-11.2 4.4-13.4 0z" stroke-linejoin="round"/><rect class="slit" x="8.05" y="6.4" width="1.9" height="5.2" rx=".95" ${F}/>`,
+  cloud:()=>`<path d="M5.5 14h7.6a3.4 3.4 0 0 0 .4-6.8A4.6 4.6 0 0 0 4.7 8.6 2.8 2.8 0 0 0 5.5 14z" stroke-linejoin="round"/>`,
+  key:()=>`<circle cx="6" cy="9" r="3.2"/><path d="M9.2 9H15.5M13.2 9v2.6M15.3 9v2"/>`,
+  shield:()=>`<path d="M9 2.6l5.6 2v4.3c0 3.4-2.4 5.6-5.6 6.6-3.2-1-5.6-3.2-5.6-6.6V4.6z" stroke-linejoin="round"/>`,
+  wave:()=>`<path d="M3.2 9h.1M6 6.2v5.6M9 3.6v10.8M12 6.6v4.8M14.8 9h.1"/>`,
+  clip:()=>`<rect x="4" y="3.6" width="10" height="11.8" rx="2"/><path d="M7 3.6h4v2.2H7z" stroke-linejoin="round"/>`,
+  globe:()=>`<circle cx="9" cy="9" r="6.3"/><path d="M2.7 9h12.6M9 2.7c-3.4 3.6-3.4 9 0 12.6M9 2.7c3.4 3.6 3.4 9 0 12.6"/>`,
+  wifi:()=>`<path d="M2.5 7.2a9.5 9.5 0 0 1 13 0M4.9 9.8a6 6 0 0 1 8.2 0M7.3 12.4a2.5 2.5 0 0 1 3.4 0"/><circle cx="9" cy="14.6" r="1.05" ${F}/>`,
+  cc:()=>`<rect x="2.5" y="3.4" width="13" height="4.8" rx="2.4"/><circle cx="12.9" cy="5.8" r="1.25" ${F}/><rect x="2.5" y="9.8" width="13" height="4.8" rx="2.4"/><circle cx="5.1" cy="12.2" r="1.25" ${F}/>`
+};
+const svg=i=>`<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round">${i}</svg>`;
+const battery=`<svg class="bat" viewBox="0 0 28 18"><rect x="1.5" y="4.5" width="21.5" height="9.5" rx="2.8" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.1"/><rect x="3.2" y="6.2" width="11.6" height="6.1" rx="1.4" fill="currentColor"/><path d="M24.6 7.7v3.1" stroke="rgba(255,255,255,.45)" stroke-width="1.6" stroke-linecap="round"/><path d="M13.4 5.2l-2.6 4.3h2.4l-.9 3.8 3-4.6h-2.4z" fill="#fff" stroke="rgba(14,12,30,.8)" stroke-width=".6" stroke-linejoin="round"/></svg>`;
+const SYS=`<span class="si">${svg(G.wifi())}</span><span class="si">${battery}</span><span class="si">${svg(G.cc())}</span><span class="clock">Tue 27 Oct&nbsp;&nbsp;16:42</span>`;
+const OTH=['cloud','key','shield','wave','clip','globe'];
+const others=n=>Array.from({length:n},(_,i)=>`<span class="si other">${svg(G[OTH[i%OTH.length]]())}</span>`).join('');
+
+/* data */
+const HEX={mm:'#5B9BFF',lh:'#3FD0B8',wf:'#4CC96B',nn:'#F2B544',in:'#B18CFF'};
+const NAME={mm:'MinMacs',lh:'LocoHost',wf:'WorkForest',nn:'Noo-Noo',in:'Insomnia'};
+let done={};
+const R={
+  load:  {ex:'mm',g:'gauge', lab:'Load',   v:()=>['63','%'],  what:'System load',            more:()=>'MinMacs · pressure normal, cool', gauge:.63},
+  mem:   {ex:'mm',g:'chip',  lab:'Memory', v:()=>['24.1','G'],what:'Memory in use of 32 GB', more:()=>'MinMacs · 3.4 GB compressed', gauge:24.1/32},
+  agents:{ex:'mm',g:'prompt',lab:'Agents', v:()=>['1',''],    what:'Agent working',          more:()=>'Claude Code in speed-3 · 2m'},
+  idle:  {ex:'lh',g:'server',lab:'Idle',   v:()=>done.lh?['0','']:['3',''],  what:'Idle servers', more:()=>done.lh?'LocoHost · all closed':'LocoHost · :3334 :4000 :6006 · 1.45 GB', act:'Close Idle',k:'lh'},
+  merged:{ex:'wf',g:'branch',lab:'Merged', v:()=>done.wf?['0','']:['4',''],  what:'Merged worktrees', more:()=>done.wf?'WorkForest · removed, can restore':'WorkForest · 5.65 GB · 2 more stale', act:'Remove Merged',k:'wf'},
+  clean: {ex:'nn',g:'broom', lab:'Clean',  v:()=>done.nn?['0','G']:['30','G'],what:'Safe to clean', more:()=>done.nn?'Noo-Noo · in the Trash':'Noo-Noo · DerivedData, node_modules, npm', act:'Clean Safe',k:'nn'},
+  free:  {ex:'nn',g:'disk',  lab:'Free',   v:()=>done.nn?['212','G']:['182','G'],what:'Disk free of 994 GB', more:()=>'Noo-Noo · Trash not yet emptied', gauge:812/994},
+  awake: {ex:'in',g:'eye',   lab:'Awake',  v:()=>done.in?['',' ']:['2','m'], what:()=>done.in?'May sleep':'Awake for speed-3', more:()=>done.in?'Insomnia · off until an agent works':'Insomnia · sleeps when speed-3 finishes', act:'Sleep Now',k:'in'}
+};
+const ORDER=['load','mem','agents','idle','merged','clean','free','awake'];
+let chosen=['load','idle','awake'],style='read',open=true,hint='',fresh=false;
+const glyphOf=id=>id==='awake'?(done.in?G.eyeClosed():G.eyeAgent()):G[R[id].g]();
+const isZero=id=>{const v=R[id].v()[0];return v==='0'||v==='';};
+
+/* menu bar items */
+function readingsItem(list){
+  return `<span class="si mine" data-mine>${list.map(id=>{
+    const [n,u]=R[id].v();
+    return `<span class="rd">${svg(glyphOf(id))}${isZero(id)?'':`<span class="n${fresh?' fresh':''}">${n}${u?`<small>${u}</small>`:''}</span>`}</span>`;
+  }).join('')}</span>`;
+}
+function clusterBadge(k){
+  const c=HEX[k];
+  const ring=(f,dot)=>{const r=6.4,L=2*Math.PI*r;
+    return `<circle cx="8" cy="8" r="7.4" fill="${c}" fill-opacity=".2"/><circle cx="8" cy="8" r="${r}" fill="none" stroke="${c}" stroke-opacity=".35" stroke-width="1.5"/>`+
+      `<circle cx="8" cy="8" r="${r}" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-dasharray="${(L*f).toFixed(2)} ${L.toFixed(2)}" transform="rotate(-90 8 8)"/>`+
+      (dot?`<circle cx="8" cy="8" r="2.4" fill="${c}"/>`:'');};
+  const solid=t=>`<circle cx="8" cy="8" r="7.4" fill="${c}"/><text x="8" y="8.4" text-anchor="middle" dominant-baseline="middle" font-size="10" font-weight="700" fill="#10121f" font-family="-apple-system,system-ui">${t}</text>`;
+  const calm=`<circle cx="8" cy="8" r="6.6" fill="${c}" fill-opacity=".14" stroke="${c}" stroke-opacity=".7" stroke-width="1.3"/>`;
+  let b;
+  if(k==='mm') b=ring(.63,!done.mm);
+  else if(k==='nn') b=ring(812/994,!done.nn);
+  else if(k==='lh') b=done.lh?calm:solid('3');
+  else if(k==='wf') b=done.wf?calm:solid('4');
+  else b=done.in?calm:`<circle cx="8" cy="8" r="7.4" fill="${c}"/><path d="M3.3 8c1.9-3 7.5-3 9.4 0-1.9 3-7.5 3-9.4 0z" fill="#10121f"/><rect class="slit" x="7.3" y="5.9" width="1.4" height="4.2" rx=".7" fill="${c}"/>`;
+  return `<svg viewBox="0 0 16 16">${b}</svg>`;
+}
+const clusterItem=()=>`<span class="si mine" data-mine><span class="cl">${['mm','lh','wf','nn','in'].map(clusterBadge).join('')}</span></span>`;
+function fiveItem(){
+  const a={nn:done.nn?null:['30','G'],wf:done.wf?null:['4',''],lh:done.lh?null:['3',''],mm:done.mm?null:['2','']};
+  const g={nn:'broom',wf:'branch',lh:'server',mm:'gauge'};
+  return ['nn','wf','lh','mm'].map(k=>`<span class="si mine" data-mine>${svg(G[g[k]]())}${a[k]?`<span class="n">${a[k][0]}${a[k][1]?`<small>${a[k][1]}</small>`:''}</span>`:''}</span>`).join('')+
+    `<span class="si mine" data-mine>${svg(done.in?G.eyeClosed():G.eyeAgent())}</span>`;
+}
+const itemFor=s=>s==='read'?readingsItem(chosen):s==='badge'?clusterItem():fiveItem();
+const meas=$('measure');
+function widthOf(html){meas.innerHTML=`<div style="display:inline-flex;align-items:center">${html}</div>`;return meas.firstChild.offsetWidth;}
+
+/* drop */
+function bdg(id){
+  const r=R[id],c=HEX[r.ex];let arc='';
+  if(r.gauge){const rr=15.2,L=2*Math.PI*rr;arc=`<svg class="arc" viewBox="0 0 34 34"><circle cx="17" cy="17" r="${rr}" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-dasharray="${(L*r.gauge).toFixed(2)} ${L.toFixed(2)}" transform="rotate(-90 17 17)"/></svg>`;}
+  return `<span class="bdg" style="--c:${c}">${svg(glyphOf(id))}${arc}</span>`;
+}
+function readRow(id){
+  const r=R[id],[n,u]=r.v(),z=isZero(id),w=typeof r.what==='function'?r.what():r.what;
+  return `<div class="rrow">${bdg(id)}<div class="val${z?' zero':''}">${n===''?'&ndash;':n}${u&&n!==''?`<small>${u}</small>`:''}</div>
+    <div class="what">${w}<em>${r.more()}</em></div>${r.act&&!z&&!done[r.k]?`<button class="act" style="--c:${HEX[r.ex]}" data-act="${r.k}">${r.act}</button>`:'<span></span>'}</div>`;
+}
+const EXROWS=()=>[
+  ['mm',done.mm?'Load 63 %. Nothing to close.':'Arc is load, 63 %. Dot: 2 apps will close.','Now'],
+  ['lh',done.lh?'Ring: every server in use.':'Solid: 3 idle servers, 1.45 GB.','Close Idle'],
+  ['wf',done.wf?'Ring: nothing to remove.':'Solid: 4 merged worktrees, 5.65 GB.','Remove Merged'],
+  ['nn',done.nn?'Arc is disk use. Nothing to clean.':'Arc is disk use, 82 %. Dot: 30.1 GB to clean.','Clean Safe'],
+  ['in',done.in?'Ring: the Mac may sleep.':'Eye: awake while speed-3 works.','Sleep Now']
+];
+const EXG={mm:'gauge',lh:'server',wf:'branch',nn:'broom'};
+function exRow([k,t,a]){
+  const icon=style==='badge'?`<span class="bdg" style="--c:${HEX[k]};background:none">${clusterBadge(k).replace('<svg ','<svg style="width:22px;height:22px" ')}</span>`
+    :`<span class="bdg" style="--c:${HEX[k]}">${svg(k==='in'?(done.in?G.eyeClosed():G.eyeAgent()):G[EXG[k]]())}</span>`;
+  return `<div class="rrow" style="grid-template-columns:32px 1fr">${icon}<div class="what">${NAME[k]}<em>${t}</em></div>${done[k]?'<span></span>':`<button class="act" style="--c:${HEX[k]}" data-act="${k}">${a}</button>`}</div>`;
+}
+function renderDrop(){
+  const d=$('drop');let h='';
+  if(style==='read'){
+    h+=chosen.map(readRow).join('');
+    h+=`<div class="sep"></div><div class="dcap"><span><b>Menu bar shows</b></span><span>${chosen.length} of 3</span></div>`;
+    h+=`<div class="tg">${ORDER.map(id=>`<button class="tb${chosen.includes(id)?' on':''}" data-r="${id}" style="--c:${HEX[R[id].ex]}"><i>${svg(glyphOf(id))}</i>${R[id].lab}</button>`).join('')}</div>`;
+    h+=`<div class="hint${hint?' lit':''}">${hint||'Up to three readings, in the order you pick them.'}</div>`;
+  }else{
+    h+=EXROWS().map(exRow).join('');
+    if(style==='badge') h+=`<div class="legend"><span>${mini('ring')}calm</span><span>${mini('arc')}gauge</span><span>${mini('solid')}asks you to act</span><span>${mini('eye')}awake</span></div>`;
+  }
+  h+=`<div class="sep"></div><div class="dfoot"><span>Open MinMacs</span><div class="seg" id="dseg">${[['read','Readings'],['badge','Badges'],['five','Five icons']].map(([s,l])=>`<button data-s="${s}" class="${s===style?'on':''}">${l}</button>`).join('')}</div></div>`;
+  d.innerHTML=h;
+  const it=$('topRight').querySelector('[data-mine]');
+  if(it){const r=it.getBoundingClientRect(),s=stage.getBoundingClientRect();let l=(r.left-s.left)/scale;l=Math.min(l,1280-370);d.style.left=l+'px';}
+  d.classList.toggle('hide',!open);
+  $('topRight').querySelectorAll('[data-mine]').forEach(e=>e.classList.toggle('on',open));
+}
+function mini(t){const c='rgba(255,255,255,.75)';
+  if(t==='ring')return `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="${c}" stroke-width="1.4"/></svg>`;
+  if(t==='arc')return `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="${c}" stroke-opacity=".35" stroke-width="1.4"/><path d="M8 2a6 6 0 0 1 5.7 7.9" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+  if(t==='solid')return `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="${c}"/></svg>`;
+  return `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="${c}"/><path d="M3.3 8c1.9-3 7.5-3 9.4 0-1.9 3-7.5 3-9.4 0z" fill="#1e1f2a"/></svg>`;
+}
+
+/* compare + true size */
+const STY=[
+  ['read','One Icon, readings','Glyph and number, up to three, your pick.'],
+  ['badge','One Icon, badges','Five round badges. Color says whose, shape says what.'],
+  ['five','Five icons','One template icon per expert.']
+];
+const Z=2.6;
+function render(){
+  $('topRight').innerHTML=`<div style="display:flex;align-items:center">${itemFor(style)}</div>${others(2)}${SYS}`;
+  const sysW=widthOf(SYS), room=769-10-8; // past the notch, less margins
+  $('cmps').innerHTML=STY.map(([s,n,d],i)=>{
+    const w=widthOf(itemFor(s));
+    return `<div class="cmp${s===style?' on':''}" data-s="${s}" style="top:${46+i*130}px">
+      <div class="h"><b>${n}</b><span>${d}</span><span class="tag">In use</span></div>
+      <div class="z" style="transform:scale(${Z})"><div class="frag">${itemFor(s).replace(/ data-mine/g,'')}</div></div>
+      <div class="meter"><div class="bar"><i style="width:${(w/(room-sysW)*100).toFixed(1)}%"></i></div><div class="t"><b>${w} pt</b> of ${room-sysW} free</div></div>
+    </div>`;}).join('');
+  $('trows').innerHTML=STY.map(([s,n],i)=>{
+    const w=widthOf(itemFor(s)),fits=Math.floor((room-sysW-w)/32);
+    return `<div class="trow" style="top:${58+i*62}px"><div class="l"><b>${n}</b>room left for ${fits} other icons</div>
+      <div class="strip"><div class="notch"></div><div class="srow">${itemFor(s)}${others(4)}${SYS}</div></div></div>`;}).join('');
+  renderDrop();
+}
+
+/* interaction */
+let lastUndo=null,tT=null;
+const DONE_MSG={mm:'Closed Spotify, trimmed 14 tabs',lh:'Closed 3 idle servers · 1.45 GB',wf:'Removed 4 worktrees · 5.65 GB',nn:'Moved 30.1 GB to Trash',in:'Insomnia off · speed-3 still works'};
+function toast(m){$('tmsg').textContent=m;const t=$('toast');t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),6000);}
+stage.addEventListener('click',e=>{
+  const mine=e.target.closest('#topRight [data-mine]');
+  if(mine){open=!open;hint='';renderDrop();return;}
+  const cmp=e.target.closest('.cmp');
+  if(cmp){style=cmp.dataset.s;open=true;render();return;}
+  const sg=e.target.closest('#dseg button');
+  if(sg){style=sg.dataset.s;render();return;}
+  const tb=e.target.closest('.tb');
+  if(tb){const id=tb.dataset.r,i=chosen.indexOf(id);
+    if(i>=0){if(chosen.length>1){chosen.splice(i,1);hint=`${R[id].lab} left the menu bar.`;}else hint='Keep at least one reading.';}
+    else{if(chosen.length>=3){const out=chosen.shift();hint=`Up to three. ${R[out].lab} made room for ${R[id].lab}.`;}else hint=`${R[id].lab} joined the menu bar.`;chosen.push(id);}
+    fresh=true;render();fresh=false;return;}
+  const a=e.target.closest('[data-act]');
+  if(a){const k=a.dataset.act;done[k]=true;lastUndo=k;toast(DONE_MSG[k]);fresh=true;render();fresh=false;return;}
+  if(open&&!e.target.closest('#drop')&&!e.target.closest('.toast')){open=false;renderDrop();}
+});
+$('undo').addEventListener('click',e=>{e.stopPropagation();if(lastUndo){delete done[lastUndo];lastUndo=null;fresh=true;render();fresh=false;}$('toast').classList.remove('show');});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&open){open=false;renderDrop();}});
+addEventListener('resize',()=>renderDrop());
+
+render();requestAnimationFrame(()=>document.body.classList.add('ready'));
+})();
+</script>
+</body>
+</html>

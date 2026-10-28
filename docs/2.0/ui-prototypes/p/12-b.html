@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Five-Arc Dial</title>
+<style>
+:root{
+  --mm:#5B9BFF; --lh:#3FD0B8; --wf:#4CC96B; --nn:#F2B544; --in:#B18CFF;
+  --go:#FF8A7A;
+  --text:#F2F3F7; --dim:rgba(235,235,245,.56); --faint:rgba(235,235,245,.32);
+  --hair:rgba(255,255,255,.07);
+  --spring:cubic-bezier(.32,.72,0,1);
+  --ease:cubic-bezier(.25,.8,.25,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1b1a33}
+body{font:13px/1.25 -apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--text);
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(900px 600px at 12% 8%, #463d9a 0%, transparent 62%),
+   radial-gradient(800px 560px at 86% 4%, #1f5e88 0%, transparent 60%),
+   radial-gradient(900px 640px at 92% 100%, #93406b 0%, transparent 62%),
+   radial-gradient(700px 500px at 18% 100%, #2c2556 0%, transparent 70%),
+   #25234a;}
+
+.menubar{position:absolute;left:0;right:0;top:0;height:32px;display:flex;align-items:center;
+  padding:0 14px;background:rgba(14,12,30,.30);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  font-size:13.5px;color:rgba(255,255,255,.92);z-index:5}
+.menubar .l{display:flex;gap:19px;align-items:center}
+.menubar .l b{font-weight:700}
+.menubar .r{margin-left:auto;display:flex;gap:15px;align-items:center}
+.menubar svg{display:block}
+.mbi{display:flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;margin-right:-4px}
+.mbi.on{background:rgba(255,255,255,.2)}
+.mbi b{font-weight:500}
+.notch{position:absolute;top:0;left:50%;width:196px;margin-left:-98px;height:32px;background:#000;border-radius:0 0 12px 12px;z-index:6}
+.notch::before,.notch::after{content:"";position:absolute;top:0;width:8px;height:8px}
+.notch::before{left:-8px;background:radial-gradient(circle at 0 100%,transparent 7.5px,#000 8px)}
+.notch::after{right:-8px;background:radial-gradient(circle at 100% 100%,transparent 7.5px,#000 8px)}
+
+/* the panel */
+.panel{position:absolute;top:40px;right:14px;width:780px;height:340px;border-radius:24px;z-index:10;
+  background:rgba(28,29,38,.86);backdrop-filter:blur(34px) saturate(1.2);-webkit-backdrop-filter:blur(34px) saturate(1.2);
+  border:1px solid rgba(255,255,255,.08);box-shadow:0 24px 70px rgba(0,0,0,.42);overflow:hidden;
+  transition:width .55s var(--spring),border-radius .55s var(--spring)}
+.panel.disc{width:340px;border-radius:170px}
+.side{position:absolute;left:0;top:0;bottom:0;width:440px;padding:20px 8px 20px 26px;transition:opacity .25s var(--ease),transform .5s var(--spring)}
+.panel.disc .side{opacity:0;transform:translateX(-24px);pointer-events:none}
+.dialbox{position:absolute;right:0;top:0;width:340px;height:340px}
+.sep{position:absolute;left:440px;top:24px;bottom:24px;width:1px;background:var(--hair);transition:opacity .3s}
+.panel.disc .sep{opacity:0}
+
+svg.dial{position:absolute;left:0;top:0}
+.seg .trk{stroke-opacity:.16}
+.seg .fil{transition:stroke-dasharray .9s var(--spring),opacity .4s var(--ease),stroke-width .3s var(--spring)}
+.seg .trk{transition:stroke-width .3s var(--spring),stroke-opacity .3s}
+.seg .hit{stroke:transparent;stroke-width:34;cursor:pointer;pointer-events:stroke}
+.seg .gl{transition:opacity .3s}
+.dial.focus .seg:not(.hi) .fil{opacity:.35}
+.dial.focus .seg:not(.hi) .gl{opacity:.35}
+.seg.hi .fil,.seg.hi .trk{stroke-width:15}
+.seg.skip .fil{opacity:.28}
+
+.center{position:absolute;left:50%;top:50%;width:190px;height:150px;margin:-75px 0 0 -95px;text-align:center;cursor:pointer;border-radius:50%}
+.center > div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .25s var(--ease),transform .45s var(--spring)}
+.center .hov{opacity:0;transform:scale(.97)}
+.center.h .def{opacity:0;transform:scale(1.03)}
+.center.h .hov{opacity:1;transform:none}
+.cbig{font-size:46px;font-weight:500;letter-spacing:-1px;line-height:1}
+.cbig u{text-decoration:none;font-size:15px;color:var(--dim);font-weight:400;margin-left:4px;letter-spacing:0}
+.cbig.m{font-size:34px;letter-spacing:-.6px}
+.clbl{font-size:12.5px;color:var(--dim);margin-top:8px}
+.csub{font-size:11.5px;color:var(--faint);margin-top:5px}
+
+.resize{position:absolute;top:14px;right:14px;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;color:var(--dim);z-index:3;transition:background .2s,color .2s}
+.resize:hover{background:rgba(255,255,255,.13);color:var(--text)}
+
+/* side views */
+.view{position:absolute;left:26px;right:8px;top:20px;bottom:20px;display:flex;flex-direction:column;transition:opacity .28s var(--ease),transform .5s var(--spring)}
+.view:not(.on){opacity:0;transform:translateX(-10px);pointer-events:none}
+.vh{display:flex;align-items:center;gap:9px;height:26px;font-size:12px;color:var(--dim)}
+.vh .t{color:var(--text);font-weight:600;font-size:13px}
+.vh .rt{margin-left:auto;display:flex;align-items:center;gap:6px}
+.lnk{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:12px;color:var(--dim);font-size:12px}
+.lnk:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.back{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.07);margin-left:-2px}
+.back:hover{background:rgba(255,255,255,.13)}
+
+.plan{margin-top:10px}
+.prow{display:flex;align-items:center;gap:12px;height:43px;padding:0 10px;margin:0 -10px;border-radius:12px;transition:background .15s,opacity .4s var(--ease)}
+.prow:hover,.prow.hi{background:rgba(255,255,255,.05)}
+.prow .tgl{flex:none;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .3s var(--ease),box-shadow .3s}
+.prow .pt{flex:1;min-width:0;cursor:pointer}
+.prow .pt div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .pt .a{font-size:13px}
+.prow .pt .b{font-size:11.5px;color:var(--faint);margin-top:3px}
+.prow .pv{flex:none;width:70px;text-align:right;font-size:14px;font-weight:500}
+.prow .pv u{text-decoration:none;color:var(--faint);font-size:11px;font-weight:400;margin-left:2px}
+.prow.off .pt,.prow.off .pv{opacity:.4}
+.prow.done .pt .a{color:var(--dim)}
+.prow.done .pv{color:var(--dim);font-weight:400;font-size:12px}
+
+.foot{margin-top:auto;position:relative;height:38px}
+.foot > *{position:absolute;inset:0;transition:opacity .3s var(--ease),transform .45s var(--spring)}
+.act{display:flex;align-items:center;justify-content:space-between;height:38px;padding:0 16px 0 17px;border-radius:19px;font-size:13px;font-weight:600;
+  background:rgba(255,255,255,.12);transition:transform .18s var(--ease),background .25s,opacity .3s}
+.act:hover{background:rgba(255,255,255,.16)}
+.act span{font-weight:400;color:var(--dim);font-size:12px}
+.act:active{transform:scale(.97)}
+.act.done{opacity:.35;pointer-events:none}
+.toast{display:flex;align-items:center;gap:10px;padding-left:4px;font-size:12.5px;white-space:nowrap;opacity:0;transform:translateY(10px);pointer-events:none}
+.foot.t .toast{opacity:1;transform:none;pointer-events:auto}
+.foot.t .act{opacity:0;transform:translateY(-10px);pointer-events:none}
+.toast .undo{margin-left:auto;height:28px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.12);font-weight:600;font-size:12px}
+.toast .undo:hover{background:rgba(255,255,255,.18)}
+
+/* detail rows */
+.rows{margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;height:31px;max-height:40px;padding:0 8px;margin:0 -8px;border-radius:9px;overflow:hidden;cursor:default;
+  transition:max-height .45s var(--spring),height .45s var(--spring),opacity .3s var(--ease),transform .45s var(--spring),background .15s}
+.row.two{height:39px}
+.row:hover{background:rgba(255,255,255,.045)}
+.row:active{transform:scale(.988)}
+.row.gone{max-height:0;height:0;opacity:0;transform:translateX(14px)}
+.ic{width:20px;height:20px;flex:none;display:flex;align-items:center;justify-content:center}
+.ic svg{display:block}
+.nmc{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.nmc em{display:block;font-style:normal;color:var(--faint);font-size:11.5px;margin-top:2px}
+.port{width:46px;flex:none;font-weight:600;font-size:13px}
+.st{flex:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);width:118px;white-space:nowrap}
+.v{flex:none;width:58px;text-align:right;font-size:13px}
+.v u{text-decoration:none;color:var(--faint);font-size:11px;margin-left:2px}
+.strip{display:flex;gap:9px;align-items:center;height:31px}
+.strip em{font-style:normal;color:var(--faint);font-size:12px;margin-left:4px}
+.toggles{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:16px}
+.tg{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:11.5px;color:var(--dim);text-align:center;line-height:1.25}
+.tg i{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);color:rgba(255,255,255,.55);transition:background .3s,color .3s}
+.tg.on i{background:var(--in);color:#17131f}
+.tg.on{color:var(--text)}
+
+/* hover card */
+.card{position:absolute;z-index:40;width:268px;padding:14px 15px 13px;border-radius:15px;
+  background:rgba(28,29,38,.94);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
+  border:1px solid rgba(255,255,255,.09);box-shadow:0 18px 50px rgba(0,0,0,.45);
+  opacity:0;transform:translateX(4px) scale(.98);pointer-events:none;transition:opacity .18s var(--ease),transform .3s var(--spring)}
+.card.on{opacity:1;transform:none;pointer-events:auto}
+.card h4{font-size:13.5px;font-weight:600}
+.card .s{font-size:12px;margin-top:4px;font-weight:500}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin-top:11px;font-size:12px}
+.card dt{color:var(--dim)}.card dd{text-align:right}
+.card .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px}
+.card .acts button{height:25px;padding:0 11px;border-radius:13px;background:rgba(255,255,255,.08);font-size:12px}
+.card .acts button:hover{background:rgba(255,255,255,.14)}
+.card .acts button.p{background:rgba(255,255,255,.16);font-weight:600}
+
+.states{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;gap:4px;padding:5px;border-radius:20px;
+  background:rgba(28,29,38,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.07)}
+.states button{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px 0 9px;border-radius:15px;font-size:12px;color:var(--dim)}
+.states button.on{background:rgba(255,255,255,.1);color:var(--text)}
+.hint{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);font-size:11.5px;color:rgba(255,255,255,.38);white-space:nowrap}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01s !important;transition-property:opacity !important}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="menubar">
+    <div class="l">
+      <svg width="14" height="17" viewBox="0 0 14 17" fill="#fff"><path d="M11.6 9c0-2 1.7-3 1.8-3-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.5 1.6 5.4.9 6.8c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.6 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2-.8-1.9-3.8zM9.5 3c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z"/></svg>
+      <b>cmux</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="r">
+      <button class="mbi on" id="mbi"><svg id="mbRing" width="18" height="18" viewBox="0 0 18 18"></svg><b id="mbN">4</b></button>
+      <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".5" y=".5" width="21" height="11" rx="3.2" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2" y="2" width="12.2" height="8" rx="1.8" fill="#fff"/><path d="M23 4v4c.8-.2 1.3-1 1.3-2S23.8 4.2 23 4z" fill="rgba(255,255,255,.55)"/></svg>
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="#fff"><path d="M8.5 2.3c2.3 0 4.4.9 6 2.4l1.1-1.2A10.2 10.2 0 0 0 8.5.6C5.8.6 3.3 1.6 1.4 3.5l1.1 1.2a8.6 8.6 0 0 1 6-2.4zm0 3.3c1.4 0 2.7.5 3.7 1.4l1.1-1.2a7.1 7.1 0 0 0-9.6 0L4.8 7c1-.9 2.3-1.4 3.7-1.4zm0 3.3c-.6 0-1.1.2-1.5.6l1.5 1.7L10 9.5c-.4-.4-.9-.6-1.5-.6z"/></svg>
+      <svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="#fff" stroke-width="1.4"><rect x="1" y="1.5" width="14" height="4.6" rx="2.3"/><rect x="1" y="7.9" width="14" height="4.6" rx="2.3"/><circle cx="11.6" cy="3.8" r="1.1" fill="#fff" stroke="none"/><circle cx="4.4" cy="10.2" r="1.1" fill="#fff" stroke="none"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+  <div class="notch"></div>
+
+  <div class="panel" id="panel">
+    <div class="side" id="side"></div>
+    <div class="sep"></div>
+    <div class="dialbox">
+      <svg class="dial" id="dial" width="340" height="340" viewBox="0 0 340 340"></svg>
+      <div class="center" id="center">
+        <div class="def"><div class="cbig"><span id="readyN">4</span></div><div class="clbl" id="readyL">steps ready</div><div class="csub">Review 9m ago · Haiku</div></div>
+        <div class="hov" id="hov"></div>
+      </div>
+    </div>
+    <button class="resize" id="resize" title="Disc or panel"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 1.5h3v3M10.5 1.5 7 5M4.5 10.5h-3v-3M1.5 10.5 5 7"/></svg></button>
+  </div>
+
+  <div class="card" id="card"></div>
+  <div class="hint">Hover an arc · press it for its list · press the centre for the plan</div>
+  <div class="states" id="states">
+    <button data-s="disc"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="currentColor"/></svg>Disc</button>
+    <button data-s="panel" class="on"><svg width="30" height="16" viewBox="0 0 30 16"><rect x="1" y="1.5" width="28" height="13" rx="5" fill="currentColor"/></svg>Panel</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const C={mm:'#5B9BFF',lh:'#3FD0B8',wf:'#4CC96B',nn:'#F2B544',in:'#B18CFF',go:'#FF8A7A'};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* ---------- glyphs ---------- */
+const G={
+ mm:'<path d="M3 11.2a5 5 0 1 1 10 0"/><path d="M8 11.2l2.7-3.1"/><circle cx="8" cy="11.2" r=".9" fill="currentColor" stroke="none"/>',
+ lh:'<rect x="2.8" y="2.6" width="10.4" height="4.4" rx="1.4"/><rect x="2.8" y="9" width="10.4" height="4.4" rx="1.4"/><circle cx="5.4" cy="4.8" r=".75" fill="currentColor" stroke="none"/><circle cx="5.4" cy="11.2" r=".75" fill="currentColor" stroke="none"/>',
+ wf:'<circle cx="5" cy="3.6" r="1.5"/><circle cx="5" cy="12.4" r="1.5"/><circle cx="11.2" cy="5.4" r="1.5"/><path d="M5 5.1v5.8M11.2 6.9c0 2.7-6.2 1.9-6.2 4"/>',
+ nn:'<path d="M12.6 2.2 8.9 6.6"/><path d="M6.6 6.2l3.6 2.9-1.6 4.5c-2.3-.4-5-2.5-5.9-4.9z"/><path d="M5.3 10.4l1.4-1.6M7 12.2l1.2-1.8"/>',
+ in:'<path d="M1.7 8c1.6-2.9 3.8-4.4 6.3-4.4S12.7 5.1 14.3 8c-1.6 2.9-3.8 4.4-6.3 4.4S3.3 10.9 1.7 8z"/><circle cx="8" cy="8" r="2"/>',
+ inOff:'<path d="M1.9 6.6c1.6 2.3 3.6 3.4 6.1 3.4s4.5-1.1 6.1-3.4"/><path d="M4 9.2 3 10.8M8 10v1.9M12 9.2l1 1.6"/>'
+};
+const glyph=(k,c,sz=16)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:${c}">${G[k]}</svg>`;
+function badge(k,frac,id){
+  const c=C[k]||C.in, r=14.6, L=2*Math.PI*r;
+  return `<svg class="bd" viewBox="0 0 32 32"${id?` id="${id}"`:''}>
+   <circle cx="16" cy="16" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2"/>
+   <circle class="arc" cx="16" cy="16" r="${r}" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"
+     stroke-dasharray="${L*frac} ${L}" transform="rotate(-90 16 16)" style="transition:stroke-dasharray .7s var(--spring)" data-l="${L}"/>
+   <circle cx="16" cy="16" r="12" fill="${c}" fill-opacity=".15"/>
+   <g transform="translate(8 8)" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:${c}">${G[k]}</g></svg>`;
+}
+/* state marks: differ in shape, then color */
+const M={
+ goes:`<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${C.go}" stroke-width="1.4"><circle cx="6" cy="6" r="4.6"/><path d="M3.8 6h4.4" stroke-linecap="round"/></svg>`,
+ ask:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(235,235,245,.5)" stroke-width="1.4" stroke-dasharray="2.2 1.7"><circle cx="6" cy="6" r="4.6"/></svg>',
+ spared:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1.2 10.2 2.8v3.1c0 2.5-1.8 4.1-4.2 4.9C3.6 10 1.8 8.4 1.8 5.9V2.8z" fill="#DCE2EE"/></svg>',
+ kept:'<svg width="12" height="12" viewBox="0 0 12 12"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="2" fill="rgba(235,235,245,.42)"/></svg>',
+ report:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6h7" stroke="rgba(235,235,245,.42)" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ fine:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(235,235,245,.42)" stroke-width="1.4"><circle cx="6" cy="6" r="3"/></svg>',
+ use:c=>`<svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.4" fill="${c}"/></svg>`
+};
+/* app icons, drawn */
+const A={
+ chrome:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#34A853"/><path d="M10 10 2.2 5.5A9 9 0 0 1 17.8 5.5z" fill="#EA4335"/><path d="M10 10h9a9 9 0 0 1-4.5 7.8z" fill="#FBBC05"/><circle cx="10" cy="10" r="4.1" fill="#fff"/><circle cx="10" cy="10" r="3.1" fill="#4285F4"/></svg>',
+ cft:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#C9CDD3"/><path d="M10 10 2.2 5.5A9 9 0 0 1 17.8 5.5z" fill="#E7A93C"/><path d="M10 10h9a9 9 0 0 1-4.5 7.8z" fill="#F3D27A"/><circle cx="10" cy="10" r="4.1" fill="#fff"/><circle cx="10" cy="10" r="3.1" fill="#6B7380"/></svg>',
+ spotify:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#1ED760"/><g fill="none" stroke="#0b1a10" stroke-linecap="round"><path d="M5.2 7.6c3.4-1 6.8-.7 9.6.9" stroke-width="1.6"/><path d="M5.8 10.5c2.8-.8 5.6-.5 7.9.8" stroke-width="1.35"/><path d="M6.4 13.1c2.2-.6 4.3-.4 6.1.6" stroke-width="1.1"/></g></svg>',
+ figma:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#26262C"/><circle cx="8" cy="6" r="2" fill="#F24E1E"/><circle cx="12" cy="6" r="2" fill="#FF7262"/><circle cx="8" cy="10" r="2" fill="#A259FF"/><circle cx="12" cy="10" r="2" fill="#1ABCFE"/><circle cx="8" cy="14" r="2" fill="#0ACF83"/></svg>',
+ raycast:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#FF6363"/><path d="M6 12.5v1.5h1.5M6 9.5 10.5 14M6 6.5 13.5 14M8.5 6H14v5.5" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ cmux:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#16181E" stroke="rgba(255,255,255,.18)"/><path d="M5.5 7.2 8.3 10l-2.8 2.8M10 13h4.5" fill="none" stroke="#E9ECF2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ cursor:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#1E1E22" stroke="rgba(255,255,255,.14)"/><path d="M10 4.6 14.7 7.3v5.4L10 15.4 5.3 12.7V7.3z" fill="none" stroke="#D7DAE0" stroke-width="1.2"/><path d="M10 4.6v5.4l4.7 2.7M10 10l-4.7 2.7" fill="none" stroke="#D7DAE0" stroke-width="1" opacity=".6"/></svg>',
+ docker:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#1D63ED"/><g fill="#fff"><rect x="4.5" y="9" width="2.2" height="2"/><rect x="7.2" y="9" width="2.2" height="2"/><rect x="9.9" y="9" width="2.2" height="2"/><rect x="7.2" y="6.5" width="2.2" height="2"/><rect x="9.9" y="6.5" width="2.2" height="2"/></g><path d="M3.8 11.6h10.6c.9 0 1.6-.6 1.9-1.4.4.1.8.1 1-.1-.6 2.9-3 4.6-6.6 4.6-3.4 0-5.8-1.2-6.9-3.1z" fill="#fff"/></svg>',
+ claude:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#D97757"/><g stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M10 5v10M5 10h10M6.5 6.5l7 7M13.5 6.5l-7 7"/></g></svg>',
+ finder:'<svg width="20" height="20" viewBox="0 0 20 20"><defs><clipPath id="fc"><rect x="1" y="1" width="18" height="18" rx="5"/></clipPath></defs><g clip-path="url(#fc)"><rect x="1" y="1" width="18" height="18" fill="#E8F3FF"/><path d="M1 1h10.2c-1 2.6-1.6 5.5-1.6 9h1.8c-.1 3.2.2 6 .8 9H1z" fill="#3E9BF5"/></g><path d="M6.5 7v1.6M13.5 7v1.6M6 13c2.4 1.6 5.6 1.6 8 0" fill="none" stroke="#123" stroke-width="1.2" stroke-linecap="round"/></svg>',
+ tree:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.5" fill="rgba(76,201,107,.14)"/><g transform="translate(3 3) scale(.875)" fill="none" stroke="#4CC96B" stroke-width="1.6" stroke-linecap="round">'+G.wf+'</g></svg>',
+ folder:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.5" fill="rgba(242,181,68,.14)"/><path d="M5.2 7.2c0-.6.4-1 1-1h2.3l1.1 1.2h4.2c.6 0 1 .4 1 1v4.4c0 .6-.4 1-1 1H6.2c-.6 0-1-.4-1-1z" fill="none" stroke="#F2B544" stroke-width="1.4" stroke-linejoin="round"/></svg>'
+};
+
+/* ---------- data ---------- */
+const ITEMS={
+ chrome:{x:'mm',cpu:21,mem:8.7}, spotify:{x:'mm',cpu:1,mem:.578},
+ s3334:{x:'lh',mem:.64,label:':3334'}, s4000:{x:'lh',mem:.29,label:':4000'}, s6006:{x:'lh',mem:.52,label:':6006'},
+ auth:{x:'wf',gb:1.8}, lane:{x:'wf',gb:2.3}, sb:{x:'wf',gb:.94}, w19:{x:'wf',gb:.61},
+ dd:{x:'nn',gb:14.2}, nm:{x:'nn',gb:9.8}, npm:{x:'nn',gb:6.1}, pw:{x:'nn',gb:3.3}, dk:{x:'nn',gb:4.2}
+};
+
+/* ---------- cards ---------- */
+const st=(w,c)=>({w,c});
+const CARDS={
+ chrome:{t:'Google Chrome',s:st('Goes with Now · trims 14 noise tabs',C.go),f:[['CPU','21 %'],['Memory','8.7 GB'],['Noise tabs','youtube.com ×6, x.com ×5, reddit.com ×3'],['Work tabs','31 stay open'],['Energy','uses the most energy']],a:[['Keep'],['Trim now','go','p']]},
+ spotify:{t:'Spotify',s:st('Goes with Now',C.go),f:[['CPU','1 %'],['Memory','578 MB'],['Comes back','with Restore']],a:[['Keep'],['Quit now','go','p']]},
+ figma:{t:'FigmaAgent',s:st('Unsorted · you decide','rgba(235,235,245,.7)'),f:[['CPU','0 %'],['Memory','13 MB']],a:[['Always keep'],['Close with Now']]},
+ raycast:{t:'Raycast',s:st('Unsorted · you decide','rgba(235,235,245,.7)'),f:[['CPU','0.4 %'],['Memory','210 MB']],a:[['Always keep'],['Close with Now']]},
+ cft:{t:'Chrome for Testing',s:st('Stays · Playwright drives it','#DCE2EE'),f:[['CPU','9 %'],['Memory','1.2 GB'],['Driven by','Playwright']],a:[['Show agent']]},
+ 'k-cmux':{t:'cmux',s:st('Stays · essential','#DCE2EE'),f:[['CPU','44 %'],['Memory','6.8 GB'],['Agents inside','2 Claude Code tabs']],a:[]},
+ 'k-cursor':{t:'Cursor',s:st('Stays · essential','#DCE2EE'),f:[['CPU','12 %'],['Memory','3.1 GB']],a:[]},
+ 'k-docker':{t:'Docker',s:st('Stays · essential','#DCE2EE'),f:[['CPU','6 %'],['Memory','2.4 GB'],['Runs','postgres :5432']],a:[]},
+ 'k-claude':{t:'Claude',s:st('Stays · essential','#DCE2EE'),f:[['CPU','3 %'],['Memory','900 MB']],a:[]},
+ 'k-finder':{t:'Finder',s:st('Stays · part of macOS','#DCE2EE'),f:[],a:[]},
+ s3000:{t:'next dev  :3000',s:st('Stays · in use by Claude Code',C.lh),f:[['Worktree','speed-3-base'],['Agent','Claude Code · speed-3'],['Memory','412 MB']],a:[['Open in browser','','p']]},
+ s5173:{t:'vite  :5173',s:st('Stays · in use by Claude Code',C.lh),f:[['Worktree','speed-3-base'],['Agent','Claude Code · speed-3'],['Memory','188 MB']],a:[['Open in browser','','p']]},
+ s3334:{t:'sanity  :3334',s:st('Goes with Close Idle · idle 40m',C.go),f:[['Worktree','studio-parity'],['Agent','Claude Code · idle 40m'],['Memory','640 MB']],a:[['Keep'],['Stop now','go','p'],['Open']]},
+ s4000:{t:'phoenix  :4000',s:st('Goes with Close Idle · idle 2h',C.go),f:[['Worktree','auth-redirect'],['Merged','squash-merged'],['Agent','Codex · finished 2h ago'],['Memory','290 MB']],a:[['Keep'],['Stop now','go','p'],['Wrap Up workstream','wrap']]},
+ s6006:{t:'storybook  :6006',s:st('Goes with Close Idle · idle 3d',C.go),f:[['Worktree','none'],['Agent','nobody'],['Memory','520 MB']],a:[['Keep'],['Stop now','go','p']]},
+ s5432:{t:'postgres  :5432',s:st('Stays · Docker keeps it','#DCE2EE'),f:[['Owner','Docker'],['Memory','140 MB']],a:[]},
+ auth:{t:'auth-redirect',s:st('Goes with Remove Merged · squash-merged',C.go),f:[['Size','1.8 GB'],['Server',':4000 phoenix · idle 2h'],['Agent','Codex · finished 2h ago'],['Branch','kept, restorable']],a:[['Keep'],['Remove','go','p'],['Wrap Up workstream','wrap']]},
+ lane:{t:'lane-e-sort',s:st('Goes with Remove Merged · merged',C.go),f:[['Size','2.3 GB'],['Servers','none']],a:[['Keep'],['Remove','go','p'],['Reveal']]},
+ sb:{t:'sb-fieldsets',s:st('Goes with Remove Merged · merged',C.go),f:[['Size','940 MB'],['Servers','none']],a:[['Keep'],['Remove','go','p'],['Reveal']]},
+ w19:{t:'w19-fire',s:st('Goes with Remove Merged · merged',C.go),f:[['Size','610 MB'],['Servers','none']],a:[['Keep'],['Remove','go','p'],['Reveal']]},
+ bp7:{t:'bp7-studio-dogfood',s:st('Stays · 1 commit not in main',C.nn),f:[['Last commit','21 days ago'],['Size','3.2 GB']],a:[['Show commit','','p'],['Remove anyway']]},
+ bp8:{t:'bp8-sweep-studio403',s:st('Asks · remote branch deleted',C.nn),f:[['Last commit','34 days ago'],['Size','1.1 GB']],a:[['Remove','','p'],['Keep']]},
+ dd:{t:'Xcode DerivedData',s:st('Goes with Clean Safe',C.go),f:[['Size','14.2 GB'],['Projects','7, of which 4 are gone'],['Rebuilds','on next build']],a:[['Keep'],['Clean now','go','p']]},
+ nm:{t:'node_modules',s:st('Goes with Clean Safe · worktrees merged',C.go),f:[['Size','9.8 GB'],['Where','merged worktrees']],a:[['Keep'],['Clean now','go','p']]},
+ npm:{t:'npm cache',s:st('Goes with Clean Safe · npm’s own clean',C.go),f:[['Size','6.1 GB'],['How','npm cache clean']],a:[['Keep'],['Clean now','go','p']]},
+ dk:{t:'Docker build cache',s:st('Asks first',C.nn),f:[['Size','4.2 GB'],['How','Docker’s own prune']],a:[['Clean','go','p'],['Keep']]},
+ pw:{t:'Playwright browsers',s:st('Asks first · old versions',C.nn),f:[['Size','3.3 GB'],['Stays','the version Playwright uses']],a:[['Clean','go','p'],['Keep']]},
+ sim:{t:'Simulator runtimes',s:st('Report only · Xcode manages these','rgba(235,235,245,.7)'),f:[['Size','0.8 GB']],a:[['Open Xcode settings']]},
+ ws1:{t:'Claude Code · speed-3',s:st('Holds the Mac awake · working 2m',C.in),f:[['Worktree','speed-3-base'],['Servers',':3000, :5173']],a:[['Show tab','','p']]},
+ ws2:{t:'Claude Code · studio-parity',s:st('Idle 40m · does not hold',C.in),f:[['Worktree','studio-parity'],['Server',':3334']],a:[['Show tab']]},
+ ws3:{t:'Codex · fix auth redirect',s:st('Finished 2h ago · ready to wrap up',C.in),f:[['Worktree','auth-redirect · squash-merged'],['Server',':4000']],a:[['Wrap Up','wrap','p']]},
+ wrap:{t:'Wrap Up “fix auth redirect”',s:st('Codex finished 2h ago',C.in),f:[['Stops',':4000 phoenix · 290 MB'],['Removes','auth-redirect · 1.8 GB'],['Keeps','the branch, restorable']],a:[['Wrap Up','wrap','p'],['Not now']]}
+};
+
+
+
+/* ---------- state ---------- */
+const ORDER=['mm','lh','wf','nn','in'];
+const NAME={mm:'MinMacs',lh:'LocoHost',wf:'WorkForest',nn:'Noo-Noo',in:'Insomnia'};
+const STEP={mm:['chrome','spotify'],lh:['s3334','s4000','s6006'],wf:['auth','lane','sb','w19'],nn:['dd','nm','npm']};
+const SZ={chrome:8.7,spotify:.578,s3334:.64,s4000:.29,s6006:.52,auth:1.8,lane:2.3,sb:.94,w19:.61,dd:14.2,nm:9.8,npm:6.1,pw:3.3,dk:4.2};
+const S={gone:new Set(),inc:{mm:true,lh:true,wf:true,nn:true},awake:true,stack:[],view:'plan',hi:null};
+const gone=k=>S.gone.has(k);
+const left=x=>STEP[x].filter(k=>!gone(k));
+const sum=a=>a.reduce((t,k)=>t+SZ[k],0);
+function V(){
+  return {
+    mm:{f:sum(left('mm'))/24.1, n:sum(left('mm')), of:24.1},
+    lh:{f:left('lh').length/6, n:left('lh').length, gb:sum(left('lh'))},
+    wf:{f:left('wf').length/14, n:left('wf').length, gb:sum(left('wf'))},
+    nn:{f:sum(left('nn'))/38.4, n:sum(left('nn'))},
+    in:{f:.64}
+  };
+}
+const ready=()=>['mm','lh','wf','nn'].filter(x=>left(x).length);
+
+/* ---------- dial ---------- */
+const CX=170,R=134,SW=12;
+const pt=(a,r)=>[CX+r*Math.cos(a*Math.PI/180),CX+r*Math.sin(a*Math.PI/180)];
+function arc(a0,a1,r){const [x0,y0]=pt(a0,r),[x1,y1]=pt(a1,r);return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`}
+const SPAN=72, GAP=13;
+let dsvg='';
+ORDER.forEach((x,i)=>{
+  const a0=-90+i*SPAN+GAP/2, a1=a0+SPAN-GAP, mid=(a0+a1)/2, d=arc(a0,a1,R);
+  const [gx,gy]=pt(mid,R-34);
+  let tick='';
+  if(x==='in'){const ta=a0+(a1-a0)*.2,[t0x,t0y]=pt(ta,R-9),[t1x,t1y]=pt(ta,R+9);tick=`<path d="M${t0x} ${t0y}L${t1x} ${t1y}" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".9"/>`}
+  dsvg+=`<g class="seg" data-x="${x}">
+    <path class="trk" d="${d}" fill="none" stroke="${C[x]}" stroke-width="${SW}" stroke-linecap="round"/>
+    <path class="fil" d="${d}" pathLength="100" fill="none" stroke="${C[x]}" stroke-width="${SW}" stroke-linecap="round" stroke-dasharray="0 200"/>
+    ${tick}
+    <g class="gl" transform="translate(${gx-8} ${gy-8})" fill="none" stroke="${C[x]}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:${C[x]}">${G[x]}</g>
+    <path class="hit" d="${d}" fill="none"/>
+  </g>`;
+});
+$('#dial').innerHTML=dsvg;
+// menu bar glyph: the same dial, 18px
+function mbRing(v){
+  let s='';const c=9,r=7;
+  ORDER.forEach((x,i)=>{const a0=-90+i*72+11,a1=a0+50,f=x==='in'?(S.awake?1:0):v[x].f>0?1:0;
+    const p=(a)=>[c+r*Math.cos(a*Math.PI/180),c+r*Math.sin(a*Math.PI/180)];const [x0,y0]=p(a0),[x1,y1]=p(a1);
+    s+=`<path d="M${x0} ${y0}A${r} ${r} 0 0 1 ${x1} ${y1}" fill="none" stroke="${f?C[x]:'rgba(255,255,255,.35)'}" stroke-width="2.2" stroke-linecap="round"/>`});
+  $('#mbRing').innerHTML=s;
+}
+
+/* ---------- side views ---------- */
+const restoreIc='<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.5v2.8h2.8"/></svg>';
+const chev='<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 1.8 3 5l3.2 3.2"/></svg>';
+const PLAN={
+ mm:{a:'Quit Spotify, trim 14 Chrome tabs',b:'youtube.com, x.com, reddit.com · 31 work tabs stay',v:'9.3<u>GB</u>'},
+ lh:{a:'Close 3 idle servers',b:':3334 sanity, :4000 phoenix, :6006 storybook',v:'1.45<u>GB</u>'},
+ wf:{a:'Remove 4 merged worktrees',b:'auth-redirect, lane-e-sort, sb-fieldsets, w19-fire',v:'5.65<u>GB</u>'},
+ nn:{a:'Clean Safe to Trash',b:'Xcode DerivedData, node_modules, npm cache',v:'30.1<u>GB</u>'},
+ in:{a:'Stays awake while speed-3 works',b:'Claude Code in cmux · sleeps when it finishes',v:'On'}
+};
+const tglHTML=(x,on)=>`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${on?'#15161d':C[x]}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${G[x]}</svg>`;
+function planView(){
+  return `<div class="view on" data-v="plan">
+   <div class="vh"><span class="t">Ready now</span><span class="rt"><button class="lnk" id="restore">${restoreIc}Restore 11:05</button></span></div>
+   <div class="plan">${ORDER.map(x=>`<div class="prow" data-x="${x}"><button class="tgl" data-tg="${x}"></button><div class="pt" data-open="${x}"><div class="a">${PLAN[x].a}</div><div class="b">${PLAN[x].b}</div></div><div class="pv">${PLAN[x].v}</div></div>`).join('')}</div>
+   <div class="foot" id="foot-plan"><button class="act" id="doAll"><b id="doLbl">Do 4 steps</b><span>each one undoable</span></button><div class="toast"><span class="msg"></span><button class="undo">Undo</button></div></div>
+  </div>`;
+}
+const row=o=>`<div class="row${o.em?' two':''}" data-id="${o.id}">${o.port?`<span class="port">${o.port}</span>`:`<span class="ic">${o.icon}</span>`}<span class="nmc">${o.name}${o.em?`<em>${o.em}</em>`:''}</span>${o.st?`<span class="st">${M[o.st]||o.st}${o.stw||''}</span>`:''}${o.v!=null?`<span class="v">${o.v}<u>${o.u}</u></span>`:''}</div>`;
+const tgIc={bat:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5.5" width="12" height="7" rx="2"/><path d="M16 8v2" stroke-linecap="round"/><path d="M4.5 8v2" stroke-linecap="round"/></svg>',
+ net:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 7a9.5 9.5 0 0 1 13 0M5 9.8a6 6 0 0 1 8 0M7.6 12.5a2.2 2.2 0 0 1 2.8 0"/></svg>',
+ heat:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7.3 10.6V4a1.7 1.7 0 0 1 3.4 0v6.6a3 3 0 1 1-3.4 0z"/><path d="M9 8v4.2"/></svg>',
+ lid:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 12.5V5.5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 14 5.5v7M2 13.5h14"/></svg>'};
+const codexIc='<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#F2F3F5"/><path d="M7 7.5 9.5 10 7 12.5M10.5 13h3" fill="none" stroke="#111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const DETAIL={
+ mm:{rows:
+   row({id:'chrome',icon:A.chrome,name:'Google Chrome',em:'trims 14 noise tabs, keeps 31',st:'goes',stw:'21 %',v:8.7,u:'GB'})+
+   row({id:'spotify',icon:A.spotify,name:'Spotify',st:'goes',stw:'1 %',v:578,u:'MB'})+
+   row({id:'figma',icon:A.figma,name:'FigmaAgent',st:'ask',stw:'0 %',v:13,u:'MB'})+
+   row({id:'raycast',icon:A.raycast,name:'Raycast',st:'ask',stw:'0.4 %',v:210,u:'MB'})+
+   row({id:'cft',icon:A.cft,name:'Chrome for Testing',em:'spared · Playwright drives it',st:'spared',stw:'9 %',v:1.2,u:'GB'})+
+   `<div class="strip">${['cmux','cursor','docker','claude','finder'].map(k=>`<span class="ic" data-id="k-${k}">${A[k]}</span>`).join('')}<em>kept, essentials</em></div>`,
+   act:'Now',sub:'frees 22 % CPU'},
+ lh:{rows:
+   row({id:'s3000',port:':3000',name:'next dev',st:M.use(C.lh),stw:'in use',v:412,u:'MB'})+
+   row({id:'s5173',port:':5173',name:'vite',st:M.use(C.lh),stw:'in use',v:188,u:'MB'})+
+   row({id:'s3334',port:':3334',name:'sanity',st:'goes',stw:'idle 40m',v:640,u:'MB'})+
+   row({id:'s4000',port:':4000',name:'phoenix',st:'goes',stw:'idle 2h',v:290,u:'MB'})+
+   row({id:'s6006',port:':6006',name:'storybook',st:'goes',stw:'idle 3d',v:520,u:'MB'})+
+   row({id:'s5432',port:':5432',name:'postgres',st:'kept',stw:'Docker',v:140,u:'MB'}),
+   act:'Close Idle',sub:'restartable'},
+ wf:{rows:
+   row({id:'auth',icon:A.tree,name:'auth-redirect',st:'goes',stw:'squash-merged',v:1.8,u:'GB'})+
+   row({id:'lane',icon:A.tree,name:'lane-e-sort',st:'goes',stw:'merged',v:2.3,u:'GB'})+
+   row({id:'sb',icon:A.tree,name:'sb-fieldsets',st:'goes',stw:'merged',v:940,u:'MB'})+
+   row({id:'w19',icon:A.tree,name:'w19-fire',st:'goes',stw:'merged',v:610,u:'MB'})+
+   row({id:'bp7',icon:A.tree,name:'bp7-studio-dogfood',em:'1 commit not in main',st:'ask',stw:'stale 21d',v:3.2,u:'GB'})+
+   row({id:'bp8',icon:A.tree,name:'bp8-sweep-studio403',em:'remote branch deleted',st:'ask',stw:'stale 34d',v:1.1,u:'GB'}),
+   act:'Remove Merged',sub:'branches kept'},
+ nn:{rows:
+   row({id:'dd',icon:A.folder,name:'Xcode DerivedData',st:'goes',stw:'safe',v:14.2,u:'GB'})+
+   row({id:'nm',icon:A.folder,name:'node_modules',st:'goes',stw:'safe',v:9.8,u:'GB'})+
+   row({id:'npm',icon:A.folder,name:'npm cache',st:'goes',stw:'safe',v:6.1,u:'GB'})+
+   row({id:'dk',icon:A.folder,name:'Docker build cache',st:'ask',stw:'asks first',v:4.2,u:'GB'})+
+   row({id:'pw',icon:A.folder,name:'Playwright browsers',st:'ask',stw:'asks first',v:3.3,u:'GB'})+
+   row({id:'sim',icon:A.folder,name:'Simulator runtimes',st:'report',stw:'report only',v:0.8,u:'GB'}),
+   act:'Clean Safe',sub:'to Trash'},
+ in:{rows:
+   row({id:'ws1',icon:A.claude,name:'Claude Code',em:'cmux tab speed-3 · holds it awake',st:M.use(C.in),stw:'working 2m'})+
+   row({id:'ws2',icon:A.claude,name:'Claude Code',em:'cmux tab studio-parity',st:'fine',stw:'idle 40m'})+
+   row({id:'ws3',icon:codexIc,name:'Codex',em:'fix auth redirect',st:'fine',stw:'finished 2h'})+
+   `<div class="toggles" id="toggles">
+     <button class="tg on"><i>${tgIc.bat}</i>Battery<br>below 20 %</button>
+     <button class="tg on"><i>${tgIc.net}</i>Network<br>lost</button>
+     <button class="tg on"><i>${tgIc.heat}</i>Heat<br>serious</button>
+     <button class="tg" id="lidTg"><i>${tgIc.lid}</i><span>Lid mode<br><span class="lm">off</span></span></button></div>`,
+   act:'Let it sleep',sub:'now, not at the end'}
+};
+const FIG={
+ mm:v=>`<b data-k="mm">${v.mm.n.toFixed(1)}</b><u>GB</u>`,
+ lh:v=>`<b>${v.lh.n}</b><u>idle</u>`, wf:v=>`<b>${v.wf.n}</b><u>merged</u>`,
+ nn:v=>`<b>${v.nn.n.toFixed(1)}</b><u>GB safe</u>`, in:()=>`<b>${S.awake?'On':'Off'}</b>`
+};
+function detailView(x){
+  const d=DETAIL[x];
+  return `<div class="view" data-v="${x}">
+   <div class="vh"><button class="back" data-back>${chev}</button><span class="t" style="color:${C[x]}">${NAME[x]}</span><span class="rt" data-fig="${x}" style="font-size:13px;color:var(--text);gap:0"></span></div>
+   <div class="rows">${d.rows}</div>
+   <div class="foot" id="foot-${x}"><button class="act" data-act="${x}" style="background:${C[x]}38"><b>${d.act}</b><span style="color:rgba(255,255,255,.75)">${d.sub}</span></button><div class="toast"><span class="msg"></span><button class="undo">Undo</button></div></div>
+  </div>`;
+}
+$('#side').innerHTML=planView()+ORDER.map(detailView).join('');
+$$('[data-fig]').forEach(e=>e.style.cssText+=';font-weight:500');
+
+/* ---------- render ---------- */
+function update(){
+  const v=V();
+  ORDER.forEach(x=>{
+    const g=document.querySelector(`.seg[data-x="${x}"]`), f=g.querySelector('.fil');
+    const fr=x==='in'?(S.awake?v.in.f:0):v[x].f;
+    f.setAttribute('stroke-dasharray',`${(fr*100).toFixed(2)} 200`);
+    f.style.opacity=fr<0.004?0:'';
+    g.classList.toggle('skip',x!=='in'&&!S.inc[x]);
+  });
+  const r=ready(), inc=r.filter(x=>S.inc[x]);
+  $('#readyN').textContent=r.length; $('#readyL').textContent=r.length===0?'nothing waiting':r.length===1?'step ready':'steps ready';
+  $('#mbN').textContent=r.length||'';
+  $('#doLbl').textContent=inc.length?`Do ${inc.length} step${inc.length>1?'s':''}`:'Nothing to do';
+  $('#doAll').classList.toggle('done',!inc.length);
+  $$('.prow').forEach(p=>{const x=p.dataset.x, t=p.querySelector('.tgl');
+    const isDone=x!=='in'&&!left(x).length, on=x==='in'?S.awake:(S.inc[x]&&!isDone);
+    p.classList.toggle('off',x!=='in'&&!S.inc[x]&&!isDone); p.classList.toggle('done',isDone);
+    t.style.background=on?C[x]:'rgba(255,255,255,.07)';
+    t.style.boxShadow=on?'none':`inset 0 0 0 1.5px ${C[x]}55`;
+    t.innerHTML=isDone?`<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="${C[x]}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.3 5.8 10 11 4.2"/></svg>`:tglHTML(x,on);
+    if(x==='in'){p.querySelector('.a').textContent=S.awake?PLAN.in.a:'Sleeps normally';p.querySelector('.b').textContent=S.awake?PLAN.in.b:'nothing holds it';p.querySelector('.pv').textContent=S.awake?'On':'Off'}
+    else if(isDone){p.querySelector('.pv').textContent='Done'}
+    else p.querySelector('.pv').innerHTML=PLAN[x].v;
+  });
+  $$('.row[data-id]').forEach(rw=>rw.classList.toggle('gone',gone(rw.dataset.id)));
+  $$('[data-act]').forEach(b=>{const x=b.dataset.act; if(x!=='in')b.classList.toggle('done',!left(x).length);
+    else{b.querySelector('b').textContent=S.awake?'Let it sleep':'Keep awake';b.querySelector('span').textContent=S.awake?'now, not at the end':'while speed-3 works'}});
+  $$('[data-fig]').forEach(e=>e.innerHTML=FIG[e.dataset.fig](v).replace(/<u>/g,'<u style="text-decoration:none;color:var(--dim);font-weight:400;font-size:12px;margin-left:3px">'));
+  mbRing(v);
+  if(S.hi)hover(S.hi);
+}
+
+/* ---------- hover the dial ---------- */
+function hoverHTML(x,v){
+  const big=(n,u,m)=>`<div class="cbig${m?' m':''}" style="color:${C[x]}">${n}<u>${u}</u></div>`;
+  switch(x){
+   case 'mm':return big(v.mm.n.toFixed(1),'/ 24.1 GB',1)+`<div class="clbl">${v.mm.n?'Now frees':'Nothing to free'}</div><div class="csub">MinMacs · load 63 %</div>`;
+   case 'lh':return big(v.lh.n,'/ 6')+`<div class="clbl">servers idle</div><div class="csub">LocoHost</div>`;
+   case 'wf':return big(v.wf.n,'/ 14')+`<div class="clbl">worktrees merged</div><div class="csub">WorkForest</div>`;
+   case 'nn':return big(v.nn.n.toFixed(1),'/ 38.4 GB',1)+`<div class="clbl">${v.nn.n?'safe to clean':'cleaned'}</div><div class="csub">Noo-Noo · 182 GB free</div>`;
+   case 'in':return big('64','%')+`<div class="clbl">${S.awake?'awake · ends below 20 %':'sleeps normally'}</div><div class="csub">Insomnia · on power adapter</div>`;
+  }
+}
+function hover(x){
+  S.hi=x;
+  $('#dial').classList.toggle('focus',!!x);
+  $$('.seg').forEach(g=>g.classList.toggle('hi',g.dataset.x===x));
+  $$('.prow').forEach(p=>p.classList.toggle('hi',p.dataset.x===x));
+  if(x){$('#hov').innerHTML=hoverHTML(x,V());$('#center').classList.add('h')} else $('#center').classList.remove('h');
+}
+$('#dial').addEventListener('mouseover',e=>{const g=e.target.closest('.seg');if(g)hover(g.dataset.x)});
+$('#dial').addEventListener('mouseout',e=>{const g=e.target.closest('.seg');if(g&&!g.contains(e.relatedTarget))hover(null)});
+$('#dial').addEventListener('click',e=>{const g=e.target.closest('.seg');if(g){ if(isDisc())setMode('panel'); show(g.dataset.x)}});
+$('#center').addEventListener('click',()=>{ if(isDisc())setMode('panel'); show('plan')});
+$('#side').addEventListener('mouseover',e=>{const p=e.target.closest('.prow');if(p)hover(p.dataset.x)});
+$('#side').addEventListener('mouseout',e=>{const p=e.target.closest('.prow');if(p&&!p.contains(e.relatedTarget))hover(null)});
+
+/* ---------- views ---------- */
+function show(v){S.view=v; $$('.view').forEach(e=>e.classList.toggle('on',e.dataset.v===v)); hideCard(true)}
+$('#side').addEventListener('click',e=>{
+  const tg=e.target.closest('[data-tg]'); if(tg){const x=tg.dataset.tg; if(x==='in'){toggleAwake();return} if(left(x).length){S.inc[x]=!S.inc[x];update()} return}
+  const op=e.target.closest('[data-open]'); if(op){show(op.dataset.open);return}
+  if(e.target.closest('[data-back]')){show('plan');return}
+  const a=e.target.closest('[data-act]'); if(a){const x=a.dataset.act; if(x==='in')toggleAwake(); else run(left(x),MSG[x],x); return}
+  const u=e.target.closest('.undo'); if(u){undo();return}
+  const t=e.target.closest('.tg'); if(t){t.classList.toggle('on'); if(t.id==='lidTg')t.querySelector('.lm').textContent=t.classList.contains('on')?'on':'off'}
+});
+$('#restore').addEventListener('click',()=>toast('plan','Reopened 2 apps and 14 tabs from 11:05',false));
+
+/* ---------- actions ---------- */
+const MSG={mm:'Quit Spotify · closed 14 noise tabs',lh:'Stopped idle servers',wf:'Removed merged worktrees · branches kept',nn:'Moved safe clutter to Trash'};
+let tT;
+function toast(where,msg,canUndo=true){
+  $$('.foot').forEach(f=>f.classList.remove('t'));
+  const f=$('#foot-'+where); f.querySelector('.msg').textContent=msg; f.querySelector('.undo').style.display=canUndo?'':'none'; f.classList.add('t');
+  clearTimeout(tT); tT=setTimeout(()=>f.classList.remove('t'),7000);
+}
+function run(keys,msg,where,extra){
+  const added=keys.filter(k=>!gone(k)); if(!added.length&&!extra)return;
+  added.forEach(k=>S.gone.add(k)); S.stack.push({added,extra}); if(extra)extra.do();
+  update(); toast(where,msg);
+}
+function undo(){const l=S.stack.pop(); if(!l)return; l.added.forEach(k=>S.gone.delete(k)); if(l.extra)l.extra.undo(); update(); $$('.foot').forEach(f=>f.classList.remove('t'))}
+function toggleAwake(){const was=S.awake; run([],was?'Insomnia off · the Mac sleeps normally':'Awake again while speed-3 works',S.view==='plan'?'plan':'in',{do:()=>S.awake=!was,undo:()=>S.awake=was})}
+$('#doAll').addEventListener('click',()=>{
+  const xs=ready().filter(x=>S.inc[x]); const keys=xs.flatMap(left);
+  run(keys,`${xs.length} step${xs.length>1?'s':''} done · each one undoable`,'plan');
+});
+
+/* ---------- disc / panel ---------- */
+const isDisc=()=>$('#panel').classList.contains('disc');
+function setMode(m){$('#panel').classList.toggle('disc',m==='disc'); $$('#states button').forEach(b=>b.classList.toggle('on',b.dataset.s===m)); hideCard(true)}
+$('#resize').addEventListener('click',()=>setMode(isDisc()?'panel':'disc'));
+$('#states').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.s)});
+$('#mbi').addEventListener('click',()=>{const p=$('#panel');const hid=p.style.opacity==='0';p.style.transition+=',opacity .25s';p.style.opacity=hid?1:0;p.style.pointerEvents=hid?'':'none';$('#mbi').classList.toggle('on',hid);hideCard(true)});
+
+/* ---------- hover cards ---------- */
+const card=$('#card'); let showT,hideT,cardFor=null;
+function showCard(el,id){
+  const d=CARDS[id]; if(!d)return; cardFor=id;
+  card.innerHTML=`<h4>${d.t}</h4><div class="s" style="color:${d.s.c}">${d.s.w}</div>${d.f.length?`<dl>${d.f.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`:''}${d.a.length?`<div class="acts">${d.a.map(([l,t,c])=>`<button class="${c||''}" data-a="${t||''}">${l}</button>`).join('')}</div>`:''}`;
+  const sr=$('#stage').getBoundingClientRect(), s=sr.width/1280, r=el.getBoundingClientRect(), pr=$('#panel').getBoundingClientRect();
+  card.classList.add('on');
+  const ch=card.offsetHeight, y=(r.top-sr.top)/s+r.height/s/2-ch/2;
+  card.style.left=((pr.left-sr.left)/s-268-12)+'px';
+  card.style.top=Math.max(40,Math.min(800-ch-12,y))+'px';
+}
+function hideCard(now){clearTimeout(showT); if(now){card.classList.remove('on');cardFor=null;return}
+  hideT=setTimeout(()=>{card.classList.remove('on');cardFor=null},140)}
+$('#side').addEventListener('mouseover',e=>{
+  const r=e.target.closest('[data-id]'); if(!r||r.classList.contains('gone'))return;
+  clearTimeout(hideT); clearTimeout(showT); if(cardFor===r.dataset.id)return;
+  showT=setTimeout(()=>showCard(r,r.dataset.id),card.classList.contains('on')?60:220);
+});
+$('#side').addEventListener('mouseout',e=>{const r=e.target.closest('[data-id]'); if(r&&!r.contains(e.relatedTarget))hideCard()});
+$('#side').addEventListener('mousedown',e=>{const r=e.target.closest('[data-id]'); if(r){clearTimeout(showT);showCard(r,r.dataset.id)}});
+card.addEventListener('mouseenter',()=>clearTimeout(hideT));
+card.addEventListener('mouseleave',()=>hideCard());
+card.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return; const a=b.dataset.a, id=cardFor; hideCard(true);
+  const where=S.view;
+  if(a==='wrap')run(['s4000','auth'],'Wrapped up “fix auth redirect” · :4000 stopped, auth-redirect removed',where);
+  else if(a==='go'){const x=ITEMS[id]&&ITEMS[id].x; run([id],(x==='lh'?'Stopped ':x==='wf'?'Removed ':x==='nn'?'Moved to Trash: ':'Quit ')+CARDS[id].t.replace(/\s+/g,' '),where)}
+});
+
+function fit(){const s=Math.min(innerWidth/1280,innerHeight/800);
+  $('#stage').style.transform=`translate(${(innerWidth-1280*s)/2}px,${(innerHeight-800*s)/2}px) scale(${s})`}
+addEventListener('resize',fit); fit();
+update();
+})();
+</script>
+</body>
+</html>

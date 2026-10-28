@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notch HUD</title>
+<style>
+:root{
+  --mm:#5B9BFF; --lh:#3FD0B8; --wf:#4CC96B; --nn:#F2B544; --in:#B18CFF;
+  --go:#FF8A7A;
+  --text:#F2F3F7; --dim:rgba(235,235,245,.56); --faint:rgba(235,235,245,.32);
+  --hair:rgba(255,255,255,.07);
+  --spring:cubic-bezier(.32,.72,0,1);
+  --ease:cubic-bezier(.25,.8,.25,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1b1a33}
+body{font:13px/1.25 -apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--text);
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(900px 600px at 12% 8%, #463d9a 0%, transparent 62%),
+   radial-gradient(800px 560px at 86% 4%, #1f5e88 0%, transparent 60%),
+   radial-gradient(900px 640px at 92% 100%, #93406b 0%, transparent 62%),
+   radial-gradient(700px 500px at 18% 100%, #2c2556 0%, transparent 70%),
+   #25234a;}
+
+/* menu bar */
+.menubar{position:absolute;left:0;right:0;top:0;height:32px;display:flex;align-items:center;
+  padding:0 14px;background:rgba(14,12,30,.30);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  font-size:13.5px;color:rgba(255,255,255,.92);z-index:5}
+.menubar .l{display:flex;gap:19px;align-items:center}
+.menubar .l b{font-weight:700}
+.menubar .r{margin-left:auto;display:flex;gap:17px;align-items:center}
+.menubar svg{display:block}
+.menubar .l span{transition:opacity .3s var(--ease)}
+.menubar.dim .l span{opacity:0}
+
+/* island */
+.island{position:absolute;top:0;left:50%;width:300px;height:32px;margin-left:-150px;z-index:20;
+  border-radius:0 0 13px 13px;background:#000;
+  transition:width .5s var(--spring),height .5s var(--spring),margin-left .5s var(--spring),border-radius .5s var(--spring),box-shadow .5s var(--ease);}
+.island::before,.island::after{content:"";position:absolute;top:0;width:10px;height:10px}
+.island::before{left:-10px;background:radial-gradient(circle at 0 100%,transparent 9.5px,#000 10px)}
+.island::after{right:-10px;background:radial-gradient(circle at 100% 100%,transparent 9.5px,#000 10px)}
+.clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;
+  background:linear-gradient(#000 0 32px,#0b0b10 120px,#101118 100%)}
+.island.peek{width:548px;margin-left:-274px;height:90px;border-radius:0 0 26px 26px;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+.island.open{width:872px;margin-left:-436px;height:476px;border-radius:0 0 30px 30px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+
+.fade{transition:opacity .28s var(--ease),transform .4s var(--spring)}
+.ear{position:absolute;top:0;height:32px;width:52px;display:flex;align-items:center;justify-content:center}
+.ear.l{left:0}.ear.r{right:0}
+.island:not(.rest) .ear{opacity:0;pointer-events:none}
+.band{position:absolute;top:0;height:32px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);white-space:nowrap}
+.band.l{left:22px}.band.r{right:18px}
+.island.rest .band{opacity:0;pointer-events:none}
+.band .w{color:var(--text)}
+.dots{display:flex;gap:4px}
+.dots i{width:5px;height:5px;border-radius:50%;transition:opacity .4s,transform .4s var(--spring)}
+.dots i.off{opacity:0;transform:scale(.3)}
+
+.peekrow{position:absolute;top:32px;left:14px;right:14px;height:58px;display:grid;grid-template-columns:repeat(5,1fr);align-items:center}
+.island:not(.peek) .peekrow{opacity:0;pointer-events:none;transform:translateY(-6px)}
+.pk{display:flex;align-items:center;justify-content:center;gap:8px;height:40px;border-radius:20px;transition:background .2s}
+.pk:hover{background:rgba(255,255,255,.06)}
+.pk .bd{width:26px;height:26px}
+
+.body{position:absolute;top:32px;left:24px;right:24px;bottom:0}
+.island:not(.open) .body{opacity:0;pointer-events:none;transform:translateY(-10px)}
+
+/* tabs */
+.tabs{margin-top:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tab{display:flex;align-items:center;gap:11px;height:62px;padding:0 12px;border-radius:16px;text-align:left;transition:background .25s var(--ease)}
+.tab:hover{background:rgba(255,255,255,.035)}
+.tab.on{background:rgba(255,255,255,.065)}
+.tab .bd{width:36px;height:36px;flex:none}
+.tab .fig{font-size:19px;font-weight:500;letter-spacing:-.2px;line-height:1.1}
+.tab .fig u{text-decoration:none;font-size:12.5px;color:var(--dim);font-weight:400;margin-left:3px}
+.tab .nm{font-size:11.5px;color:var(--faint);margin-top:2px}
+.tab.on .nm{color:var(--dim)}
+.hr{height:1px;background:var(--hair);margin:12px 0 0}
+
+.panes{position:relative;height:300px;margin-top:16px}
+.pane{position:absolute;inset:0;display:grid;grid-template-columns:236px 1fr;gap:30px;transition:opacity .3s var(--ease),transform .45s var(--spring)}
+.pane:not(.on){opacity:0;transform:translateY(8px);pointer-events:none}
+.lc{display:flex;flex-direction:column;min-width:0}
+.big{font-size:27px;font-weight:500;letter-spacing:-.4px;line-height:1}
+.big u{text-decoration:none;font-size:14px;color:var(--dim);font-weight:400;margin-left:4px;letter-spacing:0}
+.cap{font-size:12px;color:var(--dim);margin-top:7px}
+.cap b{font-weight:500;color:var(--text)}
+.bar{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:14px;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;left:0;border-radius:3px;transition:width .6s var(--spring),left .6s var(--spring),background .4s}
+.split{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:9px}
+.split b{font-weight:500;color:var(--text)}
+.facts{margin-top:18px;display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:12px}
+.facts dt{color:var(--dim)}.facts dd{text-align:right}
+.spacer{flex:1}
+.act{display:flex;align-items:center;justify-content:space-between;height:38px;padding:0 16px 0 17px;border-radius:19px;font-size:13px;font-weight:600;
+  transition:transform .18s var(--ease),background .25s,opacity .3s}
+.act span{font-weight:400;opacity:.75;font-size:12px}
+.act:active{transform:scale(.97)}
+.act.done{opacity:.35;pointer-events:none}
+.sec{white-space:nowrap;margin-top:8px;height:30px;display:flex;align-items:center;gap:7px;padding:0 6px;font-size:12px;color:var(--dim);border-radius:15px}
+.sec:hover{color:var(--text)}
+.sec svg{opacity:.8}
+
+/* rows */
+.rc{min-width:0}
+.grp{display:grid;grid-template-columns:72px 1fr;transition:opacity .35s}
+.grp+.grp{margin-top:8px}
+.grp.empty{opacity:0}
+.gl{font-size:11.5px;color:var(--faint);padding-top:9px}
+.row{display:flex;align-items:center;gap:10px;height:32px;max-height:32px;padding:0 8px;margin:0 -8px;border-radius:9px;overflow:hidden;cursor:default;
+  transition:max-height .45s var(--spring),opacity .3s var(--ease),transform .45s var(--spring),background .15s}
+.row:hover{background:rgba(255,255,255,.045)}
+.row:active{transform:scale(.988)}
+.row.gone{max-height:0;opacity:0;transform:translateX(14px)}
+.ic{width:20px;height:20px;flex:none;display:flex;align-items:center;justify-content:center}
+.ic svg{display:block}
+.nmc{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.nmc em{font-style:normal;color:var(--faint);font-size:12px;margin-left:8px}
+.port{width:48px;flex:none;font-weight:600;font-size:13px}
+.st{flex:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);width:118px}
+.st svg{flex:none}
+.v{flex:none;width:44px;text-align:right;font-size:13px}
+.v.w{width:62px}
+.v u{text-decoration:none;color:var(--faint);font-size:11px;margin-left:2px}
+.apps .st{width:auto}
+.strip{display:flex;gap:9px;align-items:center;height:32px}
+.strip .ic{cursor:default;transition:transform .2s var(--spring)}
+.strip .ic:hover{transform:translateY(-1px)}
+.strip em{font-style:normal;color:var(--faint);font-size:12px;margin-left:4px}
+
+/* insomnia */
+.toggles{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:22px}
+.tg{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:11.5px;color:var(--dim);text-align:center;line-height:1.25}
+.tg i{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);color:rgba(255,255,255,.55);transition:background .3s,color .3s}
+.tg.on i{background:var(--in);color:#17131f}
+.tg.on{color:var(--text)}
+
+.foot{position:absolute;left:0;right:0;bottom:0;height:40px;border-top:1px solid var(--hair);font-size:11.5px;color:var(--faint)}
+.foot > div{position:absolute;inset:0;display:flex;align-items:center;transition:opacity .3s var(--ease),transform .45s var(--spring)}
+.foot .toast{color:var(--text);font-size:12.5px;gap:10px;opacity:0;transform:translateY(10px);pointer-events:none}
+.foot.t .toast{opacity:1;transform:none;pointer-events:auto}
+.foot.t .info{opacity:0;transform:translateY(-10px)}
+.toast .undo{margin-left:auto;height:26px;padding:0 13px;border-radius:13px;background:rgba(255,255,255,.1);font-weight:600;font-size:12px}
+.toast .undo:hover{background:rgba(255,255,255,.16)}
+.chip{height:22px;padding:0 10px;border-radius:11px;background:rgba(255,255,255,.09);color:var(--text);font-size:11.5px;font-weight:600}
+.chip:hover{background:rgba(255,255,255,.15)}
+
+/* hover card */
+.card{position:absolute;z-index:40;width:268px;padding:14px 15px 13px;border-radius:15px;
+  background:rgba(28,29,38,.94);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
+  border:1px solid rgba(255,255,255,.09);box-shadow:0 18px 50px rgba(0,0,0,.45);
+  opacity:0;transform:translateY(4px) scale(.98);pointer-events:none;transition:opacity .18s var(--ease),transform .3s var(--spring)}
+.card.on{opacity:1;transform:none;pointer-events:auto}
+.card h4{font-size:13.5px;font-weight:600}
+.card .s{font-size:12px;margin-top:4px;font-weight:500}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin-top:11px;font-size:12px}
+.card dt{color:var(--dim)}.card dd{text-align:right}
+.card .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px}
+.card .acts button{height:25px;padding:0 11px;border-radius:13px;background:rgba(255,255,255,.08);font-size:12px}
+.card .acts button:hover{background:rgba(255,255,255,.14)}
+.card .acts button.p{background:rgba(255,255,255,.16);font-weight:600}
+
+/* state switcher */
+.states{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;gap:4px;padding:5px;border-radius:20px;
+  background:rgba(28,29,38,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.07)}
+.states button{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px 0 9px;border-radius:15px;font-size:12px;color:var(--dim)}
+.states button.on{background:rgba(255,255,255,.1);color:var(--text)}
+.hint{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);font-size:11.5px;color:rgba(255,255,255,.38);white-space:nowrap}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01s !important;transition-property:opacity !important}
+  .row.gone{transform:none}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="menubar">
+    <div class="l">
+      <svg width="14" height="17" viewBox="0 0 14 17" fill="#fff"><path d="M11.6 9c0-2 1.7-3 1.8-3-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.5 1.6 5.4.9 6.8c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.6 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2-.8-1.9-3.8zM9.5 3c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z"/></svg>
+      <b>cmux</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="r">
+      <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".5" y=".5" width="21" height="11" rx="3.2" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2" y="2" width="12.2" height="8" rx="1.8" fill="#fff"/><path d="M23 4v4c.8-.2 1.3-1 1.3-2S23.8 4.2 23 4z" fill="rgba(255,255,255,.55)"/></svg>
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="#fff"><path d="M8.5 2.3c2.3 0 4.4.9 6 2.4l1.1-1.2A10.2 10.2 0 0 0 8.5.6C5.8.6 3.3 1.6 1.4 3.5l1.1 1.2a8.6 8.6 0 0 1 6-2.4zm0 3.3c1.4 0 2.7.5 3.7 1.4l1.1-1.2a7.1 7.1 0 0 0-9.6 0L4.8 7c1-.9 2.3-1.4 3.7-1.4zm0 3.3c-.6 0-1.1.2-1.5.6l1.5 1.7L10 9.5c-.4-.4-.9-.6-1.5-.6z"/></svg>
+      <svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="#fff" stroke-width="1.4"><rect x="1" y="1.5" width="14" height="4.6" rx="2.3"/><rect x="1" y="7.9" width="14" height="4.6" rx="2.3"/><circle cx="11.6" cy="3.8" r="1.1" fill="#fff" stroke="none"/><circle cx="4.4" cy="10.2" r="1.1" fill="#fff" stroke="none"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="island open" id="island">
+    <div class="clip">
+      <!-- rest: ears either side of the camera housing -->
+      <div class="ear l fade" id="earL"></div>
+      <div class="ear r fade"><div class="dots" id="dots"></div></div>
+      <!-- peek / open: the band beside the notch -->
+      <div class="band l fade" id="bandL"></div>
+      <div class="band r fade" id="bandR"></div>
+      <div class="peekrow fade" id="peekrow"></div>
+      <div class="body fade">
+        <div class="tabs" id="tabs"></div>
+        <div class="hr"></div>
+        <div class="panes" id="panes"></div>
+        <div class="foot" id="foot">
+          <div class="info">Review 9m ago with Haiku · 14k tokens today</div>
+          <div class="toast"><span id="toastMsg"></span><button class="undo" id="undo">Undo</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="card"></div>
+
+  <div class="hint" id="hint">Hover the notch to peek · press to open · Esc to rest</div>
+  <div class="states" id="states">
+    <button data-s="rest"><svg width="30" height="14" viewBox="0 0 30 14"><path d="M6 0h18v5a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3z" fill="currentColor"/></svg>Rest</button>
+    <button data-s="peek"><svg width="30" height="14" viewBox="0 0 30 14"><path d="M2 0h26v7a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="currentColor"/></svg>Peek</button>
+    <button data-s="open" class="on"><svg width="30" height="14" viewBox="0 0 30 14"><path d="M0 0h30v10a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4z" fill="currentColor"/></svg>Open</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const C={mm:'#5B9BFF',lh:'#3FD0B8',wf:'#4CC96B',nn:'#F2B544',in:'#B18CFF',go:'#FF8A7A'};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- glyphs ---------- */
+const G={
+ mm:'<path d="M3 11.2a5 5 0 1 1 10 0"/><path d="M8 11.2l2.7-3.1"/><circle cx="8" cy="11.2" r=".9" fill="currentColor" stroke="none"/>',
+ lh:'<rect x="2.8" y="2.6" width="10.4" height="4.4" rx="1.4"/><rect x="2.8" y="9" width="10.4" height="4.4" rx="1.4"/><circle cx="5.4" cy="4.8" r=".75" fill="currentColor" stroke="none"/><circle cx="5.4" cy="11.2" r=".75" fill="currentColor" stroke="none"/>',
+ wf:'<circle cx="5" cy="3.6" r="1.5"/><circle cx="5" cy="12.4" r="1.5"/><circle cx="11.2" cy="5.4" r="1.5"/><path d="M5 5.1v5.8M11.2 6.9c0 2.7-6.2 1.9-6.2 4"/>',
+ nn:'<path d="M12.6 2.2 8.9 6.6"/><path d="M6.6 6.2l3.6 2.9-1.6 4.5c-2.3-.4-5-2.5-5.9-4.9z"/><path d="M5.3 10.4l1.4-1.6M7 12.2l1.2-1.8"/>',
+ in:'<path d="M1.7 8c1.6-2.9 3.8-4.4 6.3-4.4S12.7 5.1 14.3 8c-1.6 2.9-3.8 4.4-6.3 4.4S3.3 10.9 1.7 8z"/><circle cx="8" cy="8" r="2"/>',
+ inOff:'<path d="M1.9 6.6c1.6 2.3 3.6 3.4 6.1 3.4s4.5-1.1 6.1-3.4"/><path d="M4 9.2 3 10.8M8 10v1.9M12 9.2l1 1.6"/>'
+};
+const glyph=(k,c,sz=16)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:${c}">${G[k]}</svg>`;
+function badge(k,frac,id){
+  const c=C[k]||C.in, r=14.6, L=2*Math.PI*r;
+  return `<svg class="bd" viewBox="0 0 32 32"${id?` id="${id}"`:''}>
+   <circle cx="16" cy="16" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2"/>
+   <circle class="arc" cx="16" cy="16" r="${r}" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"
+     stroke-dasharray="${L*frac} ${L}" transform="rotate(-90 16 16)" style="transition:stroke-dasharray .7s var(--spring)" data-l="${L}"/>
+   <circle cx="16" cy="16" r="12" fill="${c}" fill-opacity=".15"/>
+   <g transform="translate(8 8)" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:${c}">${G[k]}</g></svg>`;
+}
+/* state marks: differ in shape, then color */
+const M={
+ goes:`<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${C.go}" stroke-width="1.4"><circle cx="6" cy="6" r="4.6"/><path d="M3.8 6h4.4" stroke-linecap="round"/></svg>`,
+ ask:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(235,235,245,.5)" stroke-width="1.4" stroke-dasharray="2.2 1.7"><circle cx="6" cy="6" r="4.6"/></svg>',
+ spared:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1.2 10.2 2.8v3.1c0 2.5-1.8 4.1-4.2 4.9C3.6 10 1.8 8.4 1.8 5.9V2.8z" fill="#DCE2EE"/></svg>',
+ kept:'<svg width="12" height="12" viewBox="0 0 12 12"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="2" fill="rgba(235,235,245,.42)"/></svg>',
+ report:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6h7" stroke="rgba(235,235,245,.42)" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ fine:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(235,235,245,.42)" stroke-width="1.4"><circle cx="6" cy="6" r="3"/></svg>',
+ use:c=>`<svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.4" fill="${c}"/></svg>`
+};
+/* app icons, drawn */
+const A={
+ chrome:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#34A853"/><path d="M10 10 2.2 5.5A9 9 0 0 1 17.8 5.5z" fill="#EA4335"/><path d="M10 10h9a9 9 0 0 1-4.5 7.8z" fill="#FBBC05"/><circle cx="10" cy="10" r="4.1" fill="#fff"/><circle cx="10" cy="10" r="3.1" fill="#4285F4"/></svg>',
+ cft:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#C9CDD3"/><path d="M10 10 2.2 5.5A9 9 0 0 1 17.8 5.5z" fill="#E7A93C"/><path d="M10 10h9a9 9 0 0 1-4.5 7.8z" fill="#F3D27A"/><circle cx="10" cy="10" r="4.1" fill="#fff"/><circle cx="10" cy="10" r="3.1" fill="#6B7380"/></svg>',
+ spotify:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#1ED760"/><g fill="none" stroke="#0b1a10" stroke-linecap="round"><path d="M5.2 7.6c3.4-1 6.8-.7 9.6.9" stroke-width="1.6"/><path d="M5.8 10.5c2.8-.8 5.6-.5 7.9.8" stroke-width="1.35"/><path d="M6.4 13.1c2.2-.6 4.3-.4 6.1.6" stroke-width="1.1"/></g></svg>',
+ figma:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#26262C"/><circle cx="8" cy="6" r="2" fill="#F24E1E"/><circle cx="12" cy="6" r="2" fill="#FF7262"/><circle cx="8" cy="10" r="2" fill="#A259FF"/><circle cx="12" cy="10" r="2" fill="#1ABCFE"/><circle cx="8" cy="14" r="2" fill="#0ACF83"/></svg>',
+ raycast:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#FF6363"/><path d="M6 12.5v1.5h1.5M6 9.5 10.5 14M6 6.5 13.5 14M8.5 6H14v5.5" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ cmux:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#16181E" stroke="rgba(255,255,255,.18)"/><path d="M5.5 7.2 8.3 10l-2.8 2.8M10 13h4.5" fill="none" stroke="#E9ECF2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ cursor:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#1E1E22" stroke="rgba(255,255,255,.14)"/><path d="M10 4.6 14.7 7.3v5.4L10 15.4 5.3 12.7V7.3z" fill="none" stroke="#D7DAE0" stroke-width="1.2"/><path d="M10 4.6v5.4l4.7 2.7M10 10l-4.7 2.7" fill="none" stroke="#D7DAE0" stroke-width="1" opacity=".6"/></svg>',
+ docker:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#1D63ED"/><g fill="#fff"><rect x="4.5" y="9" width="2.2" height="2"/><rect x="7.2" y="9" width="2.2" height="2"/><rect x="9.9" y="9" width="2.2" height="2"/><rect x="7.2" y="6.5" width="2.2" height="2"/><rect x="9.9" y="6.5" width="2.2" height="2"/></g><path d="M3.8 11.6h10.6c.9 0 1.6-.6 1.9-1.4.4.1.8.1 1-.1-.6 2.9-3 4.6-6.6 4.6-3.4 0-5.8-1.2-6.9-3.1z" fill="#fff"/></svg>',
+ claude:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#D97757"/><g stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M10 5v10M5 10h10M6.5 6.5l7 7M13.5 6.5l-7 7"/></g></svg>',
+ finder:'<svg width="20" height="20" viewBox="0 0 20 20"><defs><clipPath id="fc"><rect x="1" y="1" width="18" height="18" rx="5"/></clipPath></defs><g clip-path="url(#fc)"><rect x="1" y="1" width="18" height="18" fill="#E8F3FF"/><path d="M1 1h10.2c-1 2.6-1.6 5.5-1.6 9h1.8c-.1 3.2.2 6 .8 9H1z" fill="#3E9BF5"/></g><path d="M6.5 7v1.6M13.5 7v1.6M6 13c2.4 1.6 5.6 1.6 8 0" fill="none" stroke="#123" stroke-width="1.2" stroke-linecap="round"/></svg>',
+ tree:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.5" fill="rgba(76,201,107,.14)"/><g transform="translate(3 3) scale(.875)" fill="none" stroke="#4CC96B" stroke-width="1.6" stroke-linecap="round">'+G.wf+'</g></svg>',
+ folder:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.5" fill="rgba(242,181,68,.14)"/><path d="M5.2 7.2c0-.6.4-1 1-1h2.3l1.1 1.2h4.2c.6 0 1 .4 1 1v4.4c0 .6-.4 1-1 1H6.2c-.6 0-1-.4-1-1z" fill="none" stroke="#F2B544" stroke-width="1.4" stroke-linejoin="round"/></svg>'
+};
+
+/* ---------- data ---------- */
+const ITEMS={
+ chrome:{x:'mm',cpu:21,mem:8.7}, spotify:{x:'mm',cpu:1,mem:.578},
+ s3334:{x:'lh',mem:.64,label:':3334'}, s4000:{x:'lh',mem:.29,label:':4000'}, s6006:{x:'lh',mem:.52,label:':6006'},
+ auth:{x:'wf',gb:1.8}, lane:{x:'wf',gb:2.3}, sb:{x:'wf',gb:.94}, w19:{x:'wf',gb:.61},
+ dd:{x:'nn',gb:14.2}, nm:{x:'nn',gb:9.8}, npm:{x:'nn',gb:6.1}, pw:{x:'nn',gb:3.3}, dk:{x:'nn',gb:4.2}
+};
+const S={gone:new Set(),awake:true,stack:[]};
+const gone=k=>S.gone.has(k);
+function V(){
+  const v={};
+  v.load=63-(gone('chrome')?21:0)-(gone('spotify')?1:0);
+  v.mem=24.1-(gone('chrome')?8.7:0)-(gone('spotify')?.578:0);
+  const idle=['s3334','s4000','s6006'].filter(k=>!gone(k));
+  v.idle=idle.length; v.idleGb=idle.reduce((a,k)=>a+ITEMS[k].mem,0);
+  const mer=['auth','lane','sb','w19'].filter(k=>!gone(k));
+  v.merged=mer.length; v.mergedGb=mer.reduce((a,k)=>a+ITEMS[k].gb,0);
+  const nnAll=['dd','nm','npm','pw','dk'];
+  v.reclaim=nnAll.filter(k=>!gone(k)).reduce((a,k)=>a+ITEMS[k].gb,0)+0.8; // simulator runtimes stay, report only
+  v.trash=nnAll.filter(k=>gone(k)).reduce((a,k)=>a+ITEMS[k].gb,0);
+  v.safe=['dd','nm','npm'].filter(k=>!gone(k)).reduce((a,k)=>a+ITEMS[k].gb,0);
+  return v;
+}
+
+/* ---------- build ---------- */
+const TABS=[
+ {k:'mm',name:'MinMacs',fig:'<b data-k="load" data-d="0">63</b><u>%</u>',frac:.63},
+ {k:'lh',name:'LocoHost',fig:'<b data-k="idle" data-d="0">3</b><u>idle</u>',frac:.5},
+ {k:'wf',name:'WorkForest',fig:'<b data-k="merged" data-d="0">4</b><u>merged</u>',frac:4/14},
+ {k:'nn',name:'Noo-Noo',fig:'<b data-k="reclaim" data-d="1">38.4</b><u>GB</u>',frac:38.4/182},
+ {k:'in',name:'Insomnia',fig:'<b class="awakeW">On</b>',frac:1}
+];
+$('#tabs').innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-t="${t.k}">${badge(t.k,t.frac,'tb-'+t.k)}<div><div class="fig">${t.fig}</div><div class="nm">${t.name}</div></div></button>`).join('');
+$('#peekrow').innerHTML=TABS.map(t=>`<button class="pk" data-t="${t.k}">${badge(t.k,t.frac,'pb-'+t.k)}<span class="tab" style="all:unset"><span class="fig" style="font-size:15px;font-weight:500">${t.fig.replace(/<u>/g,'<u style="text-decoration:none;font-size:11.5px;color:var(--dim);font-weight:400;margin-left:3px">')}</span></span></button>`).join('');
+$('#earL').innerHTML=`<span id="earEye">${glyph('in',C.in,15)}</span>`;
+$('#dots').innerHTML=['mm','lh','wf','nn'].map(k=>`<i id="dot-${k}" style="background:${C[k]}"></i>`).join('');
+$('#bandL').innerHTML=`<span id="bandEye">${glyph('in',C.in,14)}</span><span class="w" id="awakeLine">Awake</span><span id="awakeWhy">· Claude Code works in speed-3</span>`;
+$('#bandR').innerHTML=`<span class="peekOnly" id="readyLine"><span class="w" id="readyN">4</span> ready</span><span class="openOnly">Codex finished “fix auth redirect” 2h ago</span><button class="chip openOnly" id="wrapChip">Wrap Up</button>`;
+
+const row=o=>`<div class="row" data-id="${o.id}">${o.port?`<span class="port">${o.port}</span>`:`<span class="ic">${o.icon}</span>`}<span class="nmc">${o.name}${o.em?`<em>${o.em}</em>`:''}</span>${o.st?`<span class="st">${M[o.st]||o.st}${o.stw||''}</span>`:''}${o.v1!=null?`<span class="v">${o.v1}<u>${o.u1}</u></span>`:''}${o.v2!=null?`<span class="v w">${o.v2}<u>${o.u2}</u></span>`:''}</div>`;
+const grp=(label,rows,cls='')=>`<div class="grp ${cls}"><div class="gl">${label}</div><div class="apps">${rows}</div></div>`;
+const btn=(k,id,label,sub)=>`<button class="act" id="${id}" style="background:${C[k]}3a;color:${C[k]}"><b style="color:#fff;font-weight:600">${label}</b><span style="color:#fff">${sub}</span></button>`;
+const restoreIc='<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.5v2.8h2.8"/></svg>';
+
+const P={};
+P.mm=`<div class="lc">
+  <div class="big"><b data-k="mem" data-d="1">24.1</b><u>/ 32 GB</u></div>
+  <div class="bar"><i id="memBar" style="width:75.3%;background:${C.mm}"></i><i id="memCmp" style="left:64.7%;width:10.6%;background:#3c6fc4"></i></div>
+  <div class="split"><span>Compressed <b>3.4</b> GB</span><span>Swap <b>1.1</b> GB</span></div>
+  <dl class="facts"><dt>Pressure</dt><dd>Normal</dd><dt>Heat</dt><dd>Nominal</dd></dl>
+  <div class="spacer"></div>
+  ${btn('mm','actNow','Now','frees 22 % · 9.3 GB')}
+  <button class="sec" id="restore">${restoreIc}Restore 2 apps, 14 tabs from 11:05</button>
+ </div>
+ <div class="rc">
+  ${grp('Will close',
+     row({id:'chrome',icon:A.chrome,name:'Google Chrome',em:'trims 14 noise tabs',st:'goes',v1:21,u1:'%',v2:8.7,u2:'GB'})+
+     row({id:'spotify',icon:A.spotify,name:'Spotify',st:'goes',v1:1,u1:'%',v2:578,u2:'MB'}),'g-close')}
+  ${grp('Unsorted',
+     row({id:'figma',icon:A.figma,name:'FigmaAgent',st:'ask',v1:0,u1:'%',v2:13,u2:'MB'})+
+     row({id:'raycast',icon:A.raycast,name:'Raycast',st:'ask',v1:0.4,u1:'%',v2:210,u2:'MB'}))}
+  ${grp('Spared',
+     row({id:'cft',icon:A.cft,name:'Chrome for Testing',em:'Playwright drives it',st:'spared',v1:9,u1:'%',v2:1.2,u2:'GB'}))}
+  ${grp('Kept',`<div class="strip">${['cmux','cursor','docker','claude','finder'].map(k=>`<span class="ic" data-id="k-${k}">${A[k]}</span>`).join('')}<em>essentials</em></div>`)}
+ </div>`;
+
+P.lh=`<div class="lc">
+  <div class="big"><b data-k="idleGb" data-d="2">1.45</b><u>GB idle</u></div>
+  <div class="bar" id="lhBar"></div>
+  <div class="split"><span>${M.use(C.lh)} in use</span><span>${M.goes} idle</span><span>${M.kept} kept</span></div>
+  <dl class="facts"><dt>Servers</dt><dd>6</dd><dt>Agents using them</dt><dd>1</dd></dl>
+  <div class="spacer"></div>
+  ${btn('lh','actIdle','Close Idle','stops, restartable')}
+  <button class="sec" id="lhRe">${restoreIc}Restarts with its own command</button>
+ </div>
+ <div class="rc">
+  ${row({id:'s3000',port:':3000',name:'next dev',em:'speed-3-base',st:M.use(C.lh),stw:'in use',v2:412,u2:'MB'})}
+  ${row({id:'s5173',port:':5173',name:'vite',em:'speed-3-base',st:M.use(C.lh),stw:'in use',v2:188,u2:'MB'})}
+  ${row({id:'s3334',port:':3334',name:'sanity',em:'studio-parity',st:'goes',stw:'idle 40m',v2:640,u2:'MB'})}
+  ${row({id:'s4000',port:':4000',name:'phoenix',em:'auth-redirect · squash-merged',st:'goes',stw:'idle 2h',v2:290,u2:'MB'})}
+  ${row({id:'s6006',port:':6006',name:'storybook',em:'nobody',st:'goes',stw:'idle 3d',v2:520,u2:'MB'})}
+  ${row({id:'s5432',port:':5432',name:'postgres',em:'Docker',st:'kept',stw:'kept',v2:140,u2:'MB'})}
+ </div>`;
+
+P.wf=`<div class="lc">
+  <div class="big"><b data-k="mergedGb" data-d="2">5.65</b><u>GB merged</u></div>
+  <div id="forest" style="display:grid;grid-template-columns:repeat(7,16px);gap:9px 12px;margin-top:16px"></div>
+  <div class="split" style="justify-content:flex-start;gap:12px"><span>${M.use(C.wf)} in use</span><span>${M.goes} merged</span><span>${M.ask} stale</span><span>${M.fine} fine</span></div>
+  <div class="spacer"></div>
+  ${btn('wf','actMerged','Remove Merged','branches kept')}
+  <button class="sec">${restoreIc}Removed worktrees can be restored</button>
+ </div>
+ <div class="rc">
+  ${row({id:'auth',icon:A.tree,name:'auth-redirect',em:':4000',st:'goes',stw:'squash-merged',v2:1.8,u2:'GB'})}
+  ${row({id:'lane',icon:A.tree,name:'lane-e-sort',st:'goes',stw:'merged',v2:2.3,u2:'GB'})}
+  ${row({id:'sb',icon:A.tree,name:'sb-fieldsets',st:'goes',stw:'merged',v2:940,u2:'MB'})}
+  ${row({id:'w19',icon:A.tree,name:'w19-fire',st:'goes',stw:'merged',v2:610,u2:'MB'})}
+  ${row({id:'bp7',icon:A.tree,name:'bp7-studio-dogfood',em:'1 commit not in main',st:'ask',stw:'stale 21d',v2:3.2,u2:'GB'})}
+  ${row({id:'bp8',icon:A.tree,name:'bp8-sweep-studio403',em:'remote branch deleted',st:'ask',stw:'stale 34d',v2:1.1,u2:'GB'})}
+ </div>`;
+
+P.nn=`<div class="lc">
+  <div class="big">812<u>/ 994 GB</u></div>
+  <div class="bar"><i style="width:81.7%;background:rgba(242,181,68,.55)"></i><i id="nnSeg" style="left:77.8%;width:3.9%;background:${C.nn}"></i></div>
+  <div class="split"><span>Free <b>182</b> GB</span><span id="trashLine">Trash <b data-k="trash" data-d="1">0.0</b> GB</span></div>
+  <dl class="facts"><dt>Biggest</dt><dd>Xcode DerivedData</dd><dt>Projects gone</dt><dd>4 of 7</dd></dl>
+  <div class="spacer"></div>
+  ${btn('nn','actClean','Clean Safe','<b data-k="safe" data-d="1" style="font-weight:400">30.1</b> GB to Trash')}
+  <button class="sec">${restoreIc}Everything goes to Trash first</button>
+ </div>
+ <div class="rc">
+  ${row({id:'dd',icon:A.folder,name:'Xcode DerivedData',em:'4 projects gone',st:'goes',stw:'safe',v2:14.2,u2:'GB'})}
+  ${row({id:'nm',icon:A.folder,name:'node_modules',em:'in merged worktrees',st:'goes',stw:'safe',v2:9.8,u2:'GB'})}
+  ${row({id:'npm',icon:A.folder,name:'npm cache',em:'npm’s own clean',st:'goes',stw:'safe',v2:6.1,u2:'GB'})}
+  ${row({id:'dk',icon:A.folder,name:'Docker build cache',st:'ask',stw:'asks first',v2:4.2,u2:'GB'})}
+  ${row({id:'pw',icon:A.folder,name:'Playwright browsers',em:'old versions',st:'ask',stw:'asks first',v2:3.3,u2:'GB'})}
+  ${row({id:'sim',icon:A.folder,name:'Simulator runtimes',st:'report',stw:'report only',v2:0.8,u2:'GB'})}
+ </div>`;
+
+const tgIc={bat:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5.5" width="12" height="7" rx="2"/><path d="M16 8v2" stroke-linecap="round"/><path d="M4.5 8v2" stroke-linecap="round"/></svg>',
+ net:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 7a9.5 9.5 0 0 1 13 0M5 9.8a6 6 0 0 1 8 0M7.6 12.5a2.2 2.2 0 0 1 2.8 0"/></svg>',
+ heat:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7.3 10.6V4a1.7 1.7 0 0 1 3.4 0v6.6a3 3 0 1 1-3.4 0z"/><path d="M9 8v4.2"/></svg>',
+ lid:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 12.5V5.5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 14 5.5v7M2 13.5h14"/></svg>'};
+P.in=`<div class="lc">
+  <div style="display:flex;align-items:center;gap:12px">
+   <svg width="38" height="38" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14.6" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2"/><circle cx="16" cy="16" r="14.6" fill="none" stroke="${C.in}" stroke-width="2" stroke-linecap="round" stroke-dasharray="${2*Math.PI*14.6*.64} 200" transform="rotate(-90 16 16)"/><circle cx="16" cy="16" r="12" fill="${C.in}" fill-opacity=".15"/><g transform="translate(16 16) rotate(-90) translate(-16 -16)"><path d="M16 1.4v2.4" stroke="#fff" stroke-width="1.6" transform="rotate(72 16 16)"/></g><g transform="translate(8 8)" fill="none" stroke="${C.in}" stroke-width="1.5">${tgIc.bat.replace(/<svg[^>]*>|<\/svg>/g,'').replace(/currentColor/g,C.in)}</g></svg>
+   <div><div class="big">64<u>%</u></div></div>
+  </div>
+  <div class="cap" id="inStatus" style="color:${C.in};font-weight:500;margin-top:12px">Sleeps when speed-3 finishes</div>
+  <dl class="facts"><dt>Power</dt><dd>adapter</dd><dt>Lid closed</dt><dd id="lidLine">sleeps</dd></dl>
+  <div class="spacer"></div>
+  <button class="act" id="actSleep" style="background:${C.in}3a"><b style="color:#fff;font-weight:600" id="sleepLbl">Let it sleep</b><span style="color:#fff" id="sleepSub">now, not at the end</span></button>
+  <button class="sec">${restoreIc}Wakes again when an agent starts</button>
+ </div>
+ <div class="rc">
+  ${grp('<span id="holdLbl">Holds it</span>',row({id:'ws1',icon:A.claude,name:'Claude Code',em:'cmux tab speed-3',st:M.use(C.in),stw:'working 2m'}))}
+  ${grp('Not holding',
+     row({id:'ws2',icon:A.claude,name:'Claude Code',em:'cmux tab studio-parity',st:'fine',stw:'idle 40m'})+
+     row({id:'ws3',icon:'<svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="5" fill="#F2F3F5"/><path d="M7 7.5 9.5 10 7 12.5M10.5 13h3" fill="none" stroke="#111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',name:'Codex',em:'fix auth redirect',st:'fine',stw:'finished 2h ago'}))}
+  <div class="grp" style="margin-top:18px"><div class="gl" style="padding-top:12px">Guards</div>
+  <div class="toggles" id="toggles" style="margin-top:0">
+   <button class="tg on"><i>${tgIc.bat}</i>Battery<br>below 20 %</button>
+   <button class="tg on"><i>${tgIc.net}</i>Network<br>lost</button>
+   <button class="tg on"><i>${tgIc.heat}</i>Heat<br>serious</button>
+   <button class="tg" id="lidTg"><i>${tgIc.lid}</i>Lid mode<br>off</button>
+  </div></div>
+ </div>`;
+$('#panes').innerHTML=TABS.map((t,i)=>`<div class="pane${i?'':' on'}" data-p="${t.k}">${P[t.k]}</div>`).join('');
+
+// LocoHost segmented bar: 6 servers
+$('#lhBar').style.cssText='display:flex;gap:3px;background:none;overflow:visible';
+$('#lhBar').innerHTML=['use','use','idle','idle','idle','kept'].map((s,i)=>`<i style="position:static;flex:1;height:6px;border-radius:3px;background:${s==='use'?C.lh:s==='idle'?'rgba(63,208,184,.32)':'rgba(255,255,255,.22)'}" data-seg="${['','','s3334','s4000','s6006',''][i]}"></i>`).join('');
+// WorkForest: 14 worktrees as marks
+const F=[['use'],['use'],['use'],['goes','auth'],['goes','lane'],['goes','sb'],['goes','w19'],['ask'],['ask'],['fine'],['fine'],['fine'],['fine'],['fine']];
+$('#forest').innerHTML=F.map(([s,id])=>`<span data-f="${id||''}" style="display:flex;width:16px;height:16px;align-items:center;justify-content:center;transition:opacity .4s,transform .5s var(--spring)">${s==='use'?M.use(C.wf).replace('width="12" height="12"','width="14" height="14"'):M[s].replace('width="12" height="12"','width="14" height="14"')}</span>`).join('');
+
+/* ---------- cards ---------- */
+const st=(w,c)=>({w,c});
+const CARDS={
+ chrome:{t:'Google Chrome',s:st('Goes with Now · trims 14 noise tabs',C.go),f:[['CPU','21 %'],['Memory','8.7 GB'],['Noise tabs','youtube.com ×6, x.com ×5, reddit.com ×3'],['Work tabs','31 stay open'],['Energy','uses the most energy']],a:[['Keep'],['Trim now','go','p']]},
+ spotify:{t:'Spotify',s:st('Goes with Now',C.go),f:[['CPU','1 %'],['Memory','578 MB'],['Comes back','with Restore']],a:[['Keep'],['Quit now','go','p']]},
+ figma:{t:'FigmaAgent',s:st('Unsorted · you decide','rgba(235,235,245,.7)'),f:[['CPU','0 %'],['Memory','13 MB']],a:[['Always keep'],['Close with Now']]},
+ raycast:{t:'Raycast',s:st('Unsorted · you decide','rgba(235,235,245,.7)'),f:[['CPU','0.4 %'],['Memory','210 MB']],a:[['Always keep'],['Close with Now']]},
+ cft:{t:'Chrome for Testing',s:st('Stays · Playwright drives it','#DCE2EE'),f:[['CPU','9 %'],['Memory','1.2 GB'],['Driven by','Playwright']],a:[['Show agent']]},
+ 'k-cmux':{t:'cmux',s:st('Stays · essential','#DCE2EE'),f:[['CPU','44 %'],['Memory','6.8 GB'],['Agents inside','2 Claude Code tabs']],a:[]},
+ 'k-cursor':{t:'Cursor',s:st('Stays · essential','#DCE2EE'),f:[['CPU','12 %'],['Memory','3.1 GB']],a:[]},
+ 'k-docker':{t:'Docker',s:st('Stays · essential','#DCE2EE'),f:[['CPU','6 %'],['Memory','2.4 GB'],['Runs','postgres :5432']],a:[]},
+ 'k-claude':{t:'Claude',s:st('Stays · essential','#DCE2EE'),f:[['CPU','3 %'],['Memory','900 MB']],a:[]},
+ 'k-finder':{t:'Finder',s:st('Stays · part of macOS','#DCE2EE'),f:[],a:[]},
+ s3000:{t:'next dev  :3000',s:st('Stays · in use by Claude Code',C.lh),f:[['Worktree','speed-3-base'],['Agent','Claude Code · speed-3'],['Memory','412 MB']],a:[['Open in browser','','p']]},
+ s5173:{t:'vite  :5173',s:st('Stays · in use by Claude Code',C.lh),f:[['Worktree','speed-3-base'],['Agent','Claude Code · speed-3'],['Memory','188 MB']],a:[['Open in browser','','p']]},
+ s3334:{t:'sanity  :3334',s:st('Goes with Close Idle · idle 40m',C.go),f:[['Worktree','studio-parity'],['Agent','Claude Code · idle 40m'],['Memory','640 MB']],a:[['Keep'],['Stop now','go','p'],['Open']]},
+ s4000:{t:'phoenix  :4000',s:st('Goes with Close Idle · idle 2h',C.go),f:[['Worktree','auth-redirect'],['Merged','squash-merged'],['Agent','Codex · finished 2h ago'],['Memory','290 MB']],a:[['Keep'],['Stop now','go','p'],['Wrap Up workstream','wrap']]},
+ s6006:{t:'storybook  :6006',s:st('Goes with Close Idle · idle 3d',C.go),f:[['Worktree','none'],['Agent','nobody'],['Memory','520 MB']],a:[['Keep'],['Stop now','go','p']]},
+ s5432:{t:'postgres  :5432',s:st('Stays · Docker keeps it','#DCE2EE'),f:[['Owner','Docker'],['Memory','140 MB']],a:[]},
+ auth:{t:'auth-redirect',s:st('Goes with Remove Merged · squash-merged',C.go),f:[['Size','1.8 GB'],['Server',':4000 phoenix · idle 2h'],['Agent','Codex · finished 2h ago'],['Branch','kept, restorable']],a:[['Keep'],['Remove','go','p'],['Wrap Up workstream','wrap']]},
+ lane:{t:'lane-e-sort',s:st('Goes with Remove Merged · merged',C.go),f:[['Size','2.3 GB'],['Servers','none']],a:[['Keep'],['Remove','go','p'],['Reveal']]},
+ sb:{t:'sb-fieldsets',s:st('Goes with Remove Merged · merged',C.go),f:[['Size','940 MB'],['Servers','none']],a:[['Keep'],['Remove','go','p'],['Reveal']]},
+ w19:{t:'w19-fire',s:st('Goes with Remove Merged · merged',C.go),f:[['Size','610 MB'],['Servers','none']],a:[['Keep'],['Remove','go','p'],['Reveal']]},
+ bp7:{t:'bp7-studio-dogfood',s:st('Stays · 1 commit not in main',C.nn),f:[['Last commit','21 days ago'],['Size','3.2 GB']],a:[['Show commit','','p'],['Remove anyway']]},
+ bp8:{t:'bp8-sweep-studio403',s:st('Asks · remote branch deleted',C.nn),f:[['Last commit','34 days ago'],['Size','1.1 GB']],a:[['Remove','','p'],['Keep']]},
+ dd:{t:'Xcode DerivedData',s:st('Goes with Clean Safe',C.go),f:[['Size','14.2 GB'],['Projects','7, of which 4 are gone'],['Rebuilds','on next build']],a:[['Keep'],['Clean now','go','p']]},
+ nm:{t:'node_modules',s:st('Goes with Clean Safe · worktrees merged',C.go),f:[['Size','9.8 GB'],['Where','merged worktrees']],a:[['Keep'],['Clean now','go','p']]},
+ npm:{t:'npm cache',s:st('Goes with Clean Safe · npm’s own clean',C.go),f:[['Size','6.1 GB'],['How','npm cache clean']],a:[['Keep'],['Clean now','go','p']]},
+ dk:{t:'Docker build cache',s:st('Asks first',C.nn),f:[['Size','4.2 GB'],['How','Docker’s own prune']],a:[['Clean','go','p'],['Keep']]},
+ pw:{t:'Playwright browsers',s:st('Asks first · old versions',C.nn),f:[['Size','3.3 GB'],['Stays','the version Playwright uses']],a:[['Clean','go','p'],['Keep']]},
+ sim:{t:'Simulator runtimes',s:st('Report only · Xcode manages these','rgba(235,235,245,.7)'),f:[['Size','0.8 GB']],a:[['Open Xcode settings']]},
+ ws1:{t:'Claude Code · speed-3',s:st('Holds the Mac awake · working 2m',C.in),f:[['Worktree','speed-3-base'],['Servers',':3000, :5173']],a:[['Show tab','','p']]},
+ ws2:{t:'Claude Code · studio-parity',s:st('Idle 40m · does not hold',C.in),f:[['Worktree','studio-parity'],['Server',':3334']],a:[['Show tab']]},
+ ws3:{t:'Codex · fix auth redirect',s:st('Finished 2h ago · ready to wrap up',C.in),f:[['Worktree','auth-redirect · squash-merged'],['Server',':4000']],a:[['Wrap Up','wrap','p']]},
+ wrap:{t:'Wrap Up “fix auth redirect”',s:st('Codex finished 2h ago',C.in),f:[['Stops',':4000 phoenix · 290 MB'],['Removes','auth-redirect · 1.8 GB'],['Keeps','the branch, restorable']],a:[['Wrap Up','wrap','p'],['Not now']]}
+};
+
+/* ---------- motion helpers ---------- */
+const cur={};
+function tween(el,to,d){
+  const k=el.dataset.k, from=cur[k+el.dataset.i]??parseFloat(el.textContent);
+  const id=k+el.dataset.i; cur[id]=to;
+  const fmt=x=>Math.abs(x)<0.005?'0':x.toFixed(d);
+  if(RM||from===to){el.textContent=fmt(to);return}
+  const t0=performance.now(), dur=650;
+  (function f(t){const p=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-p,3);
+    el.textContent=p<1?(from+(to-from)*e).toFixed(d):fmt(to); if(p<1)requestAnimationFrame(f)})(t0);
+}
+$$('[data-k]').forEach((el,i)=>el.dataset.i=i);
+function setArc(id,frac){const a=document.querySelector('#'+id+' .arc'); if(a){a.setAttribute('stroke-dasharray',`${a.dataset.l*frac} ${a.dataset.l}`);a.style.opacity=frac<0.005?0:1}}
+
+function update(){
+  const v=V();
+  $$('[data-k]').forEach(el=>tween(el,v[el.dataset.k],+el.dataset.d));
+  ['tb-','pb-'].forEach(p=>{setArc(p+'mm',v.load/100);setArc(p+'lh',v.idle/6);setArc(p+'wf',v.merged/14);setArc(p+'nn',v.reclaim/182);setArc(p+'in',S.awake?1:0)});
+  $('#memBar').style.width=(v.mem/32*100)+'%'; $('#memCmp').style.left=(v.mem/32*100-10.6)+'%';
+  $$('#lhBar [data-seg]').forEach(s=>{if(s.dataset.seg)s.style.opacity=gone(s.dataset.seg)?.15:1});
+  $$('#forest [data-f]').forEach(s=>{if(s.dataset.f){s.style.opacity=gone(s.dataset.f)?.18:1;s.style.transform=gone(s.dataset.f)?'scale(.6)':'none'}});
+  $('#nnSeg').style.width=(v.reclaim-0.8)/994*100+'%'; $('#nnSeg').style.left=(81.7-(v.reclaim-0.8)/994*100)+'%';
+  $$('.row[data-id]').forEach(r=>r.classList.toggle('gone',gone(r.dataset.id)));
+  $$('.grp').forEach(g=>{const rs=g.querySelectorAll('.row');g.classList.toggle('empty',rs.length>0&&[...rs].every(r=>r.classList.contains('gone')))});
+  $('#actNow').classList.toggle('done',gone('chrome')&&gone('spotify'));
+  $('#actIdle').classList.toggle('done',v.idle===0);
+  $('#actMerged').classList.toggle('done',v.merged===0);
+  $('#actClean').classList.toggle('done',v.safe<0.05);
+  const ready={mm:!(gone('chrome')&&gone('spotify')),lh:v.idle>0,wf:v.merged>0,nn:v.safe>0.05};
+  Object.entries(ready).forEach(([k,on])=>$('#dot-'+k).classList.toggle('off',!on));
+  $('#readyN').textContent=Object.values(ready).filter(Boolean).length;
+  const wrapped=gone('s4000')&&gone('auth');
+  $$('.openOnly').forEach(e=>e.style.display=wrapped||st2!=='open'?'none':'');
+  $('#readyLine').style.display=st2==='peek'||(st2==='open'&&wrapped)?'':'none';
+  // insomnia
+  $$('.awakeW').forEach(e=>e.textContent=S.awake?'On':'Off');
+  $('#earEye').innerHTML=glyph(S.awake?'in':'inOff',S.awake?C.in:'rgba(235,235,245,.45)',15);
+  $('#bandEye').innerHTML=glyph(S.awake?'in':'inOff',S.awake?C.in:'rgba(235,235,245,.45)',14);
+  $('#awakeLine').textContent=S.awake?'Awake':'Sleeps normally';
+  $('#awakeWhy').textContent=S.awake?'· Claude Code works in speed-3':'· nothing holds it';
+  $('#inStatus').textContent=S.awake?'Sleeps when speed-3 finishes':'Sleeps normally';
+  $('#holdLbl').textContent=S.awake?'Holds it':'Working';
+  $('#sleepLbl').textContent=S.awake?'Let it sleep':'Keep awake';
+  $('#sleepSub').textContent=S.awake?'now, not at the end':'while speed-3 works';
+}
+
+/* ---------- actions with undo ---------- */
+let toastT;
+function run(keys,msg,extra){
+  const added=keys.filter(k=>!gone(k)); if(!added.length&&!extra)return;
+  added.forEach(k=>S.gone.add(k)); S.stack.push({added,extra});
+  if(extra)extra.do();
+  update(); toast(msg);
+}
+function toast(msg){
+  $('#toastMsg').textContent=msg; $('#foot').classList.add('t');
+  clearTimeout(toastT); toastT=setTimeout(()=>$('#foot').classList.remove('t'),7000);
+}
+$('#undo').onclick=()=>{const l=S.stack.pop(); if(!l)return; l.added.forEach(k=>S.gone.delete(k)); if(l.extra)l.extra.undo(); update(); $('#foot').classList.remove('t')};
+$('#actNow').onclick=()=>run(['chrome','spotify'],'Quit Spotify · closed 14 noise tabs in Chrome');
+$('#actIdle').onclick=()=>run(['s3334','s4000','s6006'].filter(k=>!gone(k)),'Stopped '+['s3334','s4000','s6006'].filter(k=>!gone(k)).map(k=>ITEMS[k].label).join(', '));
+$('#actMerged').onclick=()=>run(['auth','lane','sb','w19'],'Removed merged worktrees · branches kept');
+$('#actClean').onclick=()=>run(['dd','nm','npm'],'Moved safe clutter to Trash');
+$('#restore').onclick=()=>toast('Reopened 2 apps and 14 tabs from 11:05');
+$('#actSleep').onclick=()=>{const was=S.awake; run([],was?'Insomnia off · the Mac sleeps normally':'Awake again while speed-3 works',{do:()=>S.awake=!was,undo:()=>S.awake=was})};
+const wrap=()=>run(['s4000','auth'],'Wrapped up “fix auth redirect” · :4000 stopped, auth-redirect removed');
+$('#toggles').addEventListener('click',e=>{const b=e.target.closest('.tg');if(b)b.classList.toggle('on'); const lo=$('#lidTg').classList.contains('on'); $('#lidLine').textContent=lo?'stays awake':'sleeps'; $('#lidTg').lastChild.textContent=lo?'on':'off'});
+
+/* ---------- tabs ---------- */
+function select(k){
+  $$('.tab').forEach(t=>t.classList.toggle('on',t.dataset.t===k));
+  $$('.pane').forEach(p=>p.classList.toggle('on',p.dataset.p===k));
+  hideCard(true);
+}
+$('#tabs').addEventListener('click',e=>{const t=e.target.closest('.tab');if(t)select(t.dataset.t)});
+$('#peekrow').addEventListener('click',e=>{const t=e.target.closest('.pk');if(t){setState('open');select(t.dataset.t)}});
+
+/* ---------- island states ---------- */
+const island=$('#island'); let st2='open', leaveT;
+function setState(s){
+  st2=s; island.className='island '+s; document.querySelector('.menubar').classList.toggle('dim',s==='open');
+  $$('#states button').forEach(b=>b.classList.toggle('on',b.dataset.s===s));
+  if(s!=='open')hideCard(true);
+  update();
+}
+island.addEventListener('mouseenter',()=>{clearTimeout(leaveT); if(st2==='rest')setState('peek')});
+island.addEventListener('mouseleave',()=>{ if(st2==='peek')leaveT=setTimeout(()=>setState('rest'),450)});
+island.addEventListener('click',e=>{ if(st2!=='open'&&!e.target.closest('.pk'))setState('open')});
+$('#states').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setState(b.dataset.s)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')setState('rest')});
+$('#stage').addEventListener('mousedown',e=>{ if(st2==='open'&&!e.target.closest('#island,#card,#states'))setState('rest')});
+
+/* ---------- hover cards ---------- */
+const card=$('#card'); let showT,hideT,cardFor=null;
+function scale(){return $('#stage').getBoundingClientRect().width/1280}
+function showCard(el,id){
+  const d=CARDS[id]; if(!d)return; cardFor=id;
+  card.innerHTML=`<h4>${d.t}</h4><div class="s" style="color:${d.s.c}">${d.s.w}</div>${d.f.length?`<dl>${d.f.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`:''}${d.a.length?`<div class="acts">${d.a.map(([l,t,c])=>`<button class="${c||''}" data-a="${t||''}">${l}</button>`).join('')}</div>`:''}`;
+  const s=scale(), sr=$('#stage').getBoundingClientRect(), r=el.getBoundingClientRect();
+  const x=(r.left-sr.left)/s, y=(r.top-sr.top)/s, w=r.width/s, h=r.height/s;
+  card.classList.add('on');
+  const ch=card.offsetHeight;
+  let left = id==='wrap' ? x+w-268 : x-268-14;
+  if(left<12) left=x+w+14;
+  let top = id==='wrap' ? y+h+10 : y+h/2-ch/2;
+  top=Math.max(id==='wrap'?44:126,Math.min(800-ch-12,top));
+  card.style.left=left+'px'; card.style.top=top+'px';
+}
+function hideCard(now){clearTimeout(showT); if(now){card.classList.remove('on');cardFor=null;return}
+  hideT=setTimeout(()=>{card.classList.remove('on');cardFor=null},140)}
+$('#panes').addEventListener('mouseover',e=>{
+  const r=e.target.closest('[data-id]'); if(!r||r.classList.contains('gone'))return;
+  clearTimeout(hideT); clearTimeout(showT);
+  if(cardFor===r.dataset.id)return;
+  showT=setTimeout(()=>showCard(r,r.dataset.id), card.classList.contains('on')?60:220);
+});
+$('#panes').addEventListener('mouseout',e=>{const r=e.target.closest('[data-id]'); if(r&&!r.contains(e.relatedTarget))hideCard()});
+$('#panes').addEventListener('mousedown',e=>{const r=e.target.closest('[data-id]'); if(r){clearTimeout(showT);showCard(r,r.dataset.id)}});
+card.addEventListener('mouseenter',()=>clearTimeout(hideT));
+card.addEventListener('mouseleave',()=>{ if(cardFor!=='wrap')hideCard()});
+card.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return; const a=b.dataset.a, id=cardFor;
+  hideCard(true);
+  if(a==='wrap')wrap();
+  else if(a==='go'){const nm=CARDS[id].t.replace(/\s+/g,' ');
+    if(id==='chrome')run([id],'Closed 14 noise tabs in Chrome');
+    else run([id],(ITEMS[id]&&ITEMS[id].x==='lh'?'Stopped ':ITEMS[id]&&ITEMS[id].x==='wf'?'Removed ':ITEMS[id]&&ITEMS[id].x==='nn'?'Moved to Trash: ':'Quit ')+nm);}
+});
+$('#wrapChip').addEventListener('click',e=>{e.stopPropagation(); if(cardFor==='wrap'){hideCard(true);return} showCard(e.currentTarget,'wrap')});
+
+/* ---------- fit ---------- */
+function fit(){const s=Math.min(innerWidth/1280,innerHeight/800);
+  $('#stage').style.transform=`translate(${(innerWidth-1280*s)/2}px,${(innerHeight-800*s)/2}px) scale(${s})`}
+addEventListener('resize',fit); fit();
+setState('open'); select('mm');
+})();
+</script>
+</body>
+</html>

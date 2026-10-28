@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toggle Grid Settings</title>
+<style>
+:root{
+  --text:#f2f3f7; --gray:#8e909c; --dim:#5f616d;
+  --panel:rgba(28,29,38,.86); --line:rgba(255,255,255,.085);
+  --off:#393a45; --offglyph:#8a8c98; --glyph:#15161d;
+  --accent:#7d97ff;
+  --e-minmacs:#5B9BFF; --e-locohost:#3FD0B8; --e-workforest:#4CC96B; --e-noonoo:#F2B544; --e-insomnia:#B18CFF;
+  --ease:cubic-bezier(.22,.8,.26,1);
+  --t:.32s;
+}
+:root[data-theme="graphite"]{ --accent:#c6c8d1; --panel:rgba(30,30,33,.88); }
+:root[data-theme="warm"]{ --accent:#f0a35e; --panel:rgba(36,30,31,.86); }
+:root.still{ --t:0s; }
+@media (prefers-reduced-motion: reduce){ :root{ --t:0s; } }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#17142e}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(900px 620px at 14% 6%, #43338f 0%, transparent 62%),
+   radial-gradient(760px 520px at 82% 4%, #1f5f86 0%, transparent 60%),
+   radial-gradient(900px 700px at 92% 104%, #8a3a62 0%, transparent 60%),
+   radial-gradient(700px 600px at 30% 100%, #2b2160 0%, transparent 70%),
+   #1b1838;}
+svg.g{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
+
+/* menu bar */
+.mb{position:absolute;left:0;top:0;right:0;height:32px;background:rgba(18,16,38,.42);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);display:flex;align-items:center;font-size:13.5px;padding:0 10px 0 18px;color:#fff}
+.mb .left{display:flex;align-items:center;gap:20px;flex:1}
+.mb .left b{font-weight:700}
+.mb .apple{width:14px;height:16px}
+.notch{position:absolute;left:50%;top:0;width:196px;height:32px;margin-left:-98px;background:#000;border-radius:0 0 11px 11px}
+.mb .right{display:flex;align-items:center;gap:2px}
+.mbi{height:24px;width:30px;display:flex;align-items:center;justify-content:center;border-radius:5px;overflow:hidden;transition:width var(--t) var(--ease),opacity var(--t) var(--ease)}
+.mbi svg{width:16px;height:16px;stroke-width:2.1}
+.mbi.gone{width:0;opacity:0}
+.mbi.sys svg{width:17px;height:17px}
+.clock{margin-left:10px;padding-right:4px;white-space:nowrap}
+
+/* panel */
+.panel{position:absolute;left:296px;top:60px;width:688px;border-radius:22px;background:var(--panel);
+  border:1px solid var(--line);backdrop-filter:blur(34px) saturate(140%);-webkit-backdrop-filter:blur(34px) saturate(140%);
+  box-shadow:0 30px 80px rgba(6,4,20,.45),0 1px 0 rgba(255,255,255,.04) inset;padding:26px 24px 18px;transition:background var(--t) var(--ease)}
+.grid{display:grid;grid-template-columns:repeat(5,128px);row-gap:16px}
+.tg{display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:0;color:inherit;font:inherit;cursor:default;padding:2px 0;outline:none}
+.tg .b{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--off);color:var(--offglyph);
+  transition:background var(--t) var(--ease),color var(--t) var(--ease),transform .18s var(--ease),box-shadow var(--t) var(--ease)}
+.tg .b svg{width:27px;height:27px;stroke-width:2.15}
+.tg .l{font-size:13px;line-height:16px;color:var(--gray);white-space:nowrap;transition:color var(--t) var(--ease)}
+.tg.on .l{color:var(--text)}
+.tg.on .b{background:var(--c,var(--accent));color:var(--glyph)}
+.tg:hover .b{transform:scale(1.045)}
+.tg:active .b{transform:scale(.94)}
+.tg:focus-visible .b{box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+.tg[data-k="quit"] .b{background:var(--off);color:#c9cad3}
+.tg[data-k="quit"].arm .b{background:#e5646a;color:var(--glyph)}
+.tg[data-k="quit"].arm .l{color:var(--text)}
+.tg[data-k="more"] .b{background:var(--off);color:#c9cad3}
+.tg[data-k="more"] .b svg{transition:transform var(--t) var(--ease)}
+.tg[data-k="more"].open .b svg{transform:rotate(180deg)}
+
+/* theme swatches */
+.sw .b{position:relative;background:none!important;overflow:visible}
+.sw .b i{position:absolute;inset:0;border-radius:50%}
+.sw .b::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid #fff;opacity:0;transform:scale(.9);transition:opacity var(--t) var(--ease),transform var(--t) var(--ease)}
+.sw.on .b::after{opacity:1;transform:scale(1)}
+.sw[data-k="sea"] .b i{background:linear-gradient(135deg,#7d97ff 50%,#8fd3c3 50%)}
+.sw[data-k="graphite"] .b i{background:linear-gradient(135deg,#f1f1f3 50%,#9a9ba3 50%)}
+.sw[data-k="warm"] .b i{background:linear-gradient(135deg,#e2906a 50%,#ebc66a 50%)}
+
+.cap{height:34px;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--gray);margin-top:10px;text-align:center}
+.cap span{transition:opacity .2s var(--ease)}
+.cap b{font-weight:500;color:#c9cad3}
+
+/* more rows */
+.more{display:grid;grid-template-rows:1fr;transition:grid-template-rows var(--t) var(--ease),opacity var(--t) var(--ease)}
+.more.shut{grid-template-rows:0fr;opacity:0}
+.more>div{overflow:hidden}
+.rows{padding:4px 18px 2px}
+.row{display:flex;align-items:center;height:42px;font-size:15px;border-radius:10px;margin:0 -10px;padding:0 10px;cursor:default;transition:background .16s}
+.row:hover{background:rgba(255,255,255,.035)}
+.row:active{background:rgba(255,255,255,.06)}
+.row .k{flex:1;color:var(--text)}
+.row .v{color:var(--gray);display:flex;align-items:center;gap:10px;white-space:nowrap}
+.row .v .x{transition:opacity .18s var(--ease),transform .18s var(--ease);display:inline-block}
+.row .v .x.swap{opacity:0;transform:translateY(3px)}
+.row .v em{font-style:normal;color:var(--dim)}
+.row .chev{width:12px;height:12px;color:var(--dim)}
+.row .chev svg{stroke-width:2.4}
+
+/* quit overlay */
+.quitwrap{position:absolute;inset:0;border-radius:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--panel);opacity:0;pointer-events:none;transition:opacity var(--t) var(--ease)}
+.quitwrap.show{opacity:1;pointer-events:auto}
+.quitwrap p{font-size:15px}
+.quitwrap small{font-size:12.5px;color:var(--gray)}
+.pill{border:0;background:rgba(255,255,255,.1);color:var(--text);font:inherit;font-size:13px;padding:7px 16px;border-radius:999px}
+.pill:hover{background:rgba(255,255,255,.16)}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="left">
+      <svg class="apple" viewBox="0 0 14 17"><path fill="#fff" d="M11.6 9c0-2 1.6-3 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7s-1.6-.7-2.6-.7C3.4 4.4 2 5.2 1.3 6.6c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7s1.8-1 2.5-2c.8-1.2 1.1-2.3 1.1-2.3s-2.3-.9-2.3-3.9zM9.7 3c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.6.6-1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z"/></svg>
+      <b>MinMacs</b><span>Edit</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="notch"></div>
+    <div class="right" id="mbIcons"></div>
+    <span class="clock">Tue 27 Oct&nbsp;&nbsp;16:42</span>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="grid" id="grid"></div>
+    <div class="cap"><span id="cap"></span></div>
+    <div class="more" id="more"><div><div class="rows" id="rows"></div></div></div>
+    <div class="quitwrap" id="quitwrap">
+      <p>MinMacs has quit</p>
+      <small>Nothing was closed. Open it again to land back here.</small>
+      <button class="pill" id="reopen">Open Again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const G = {
+  minmacs:'<path d="M3.8 16.5a8.2 8.2 0 1 1 16.4 0"/><path d="M12 16.5l4-5"/><circle cx="12" cy="16.5" r="1.5" fill="currentColor" stroke="none"/>',
+  locohost:'<path d="M9 3.6v4.2M15 3.6v4.2"/><path d="M6.4 7.8h11.2v2.8a5.6 5.6 0 0 1-11.2 0z"/><path d="M12 16.2v4.2"/>',
+  workforest:'<circle cx="7" cy="5.8" r="2"/><circle cx="7" cy="18.2" r="2"/><circle cx="17" cy="7.8" r="2"/><path d="M7 7.8v8.4"/><path d="M17 9.8c0 4.2-4.6 4-8.6 6.6"/>',
+  noonoo:'<path d="M16.5 3.8l-4.3 7.4"/><path d="M8.2 10.4l6.6 3.6-1.7 5.8c-3.2-.6-6.3-2.8-7.9-5.6z"/><path d="M9.4 15.6l-1.6 2.3"/>',
+  insomnia:'<path d="M5 10.2h11v3.8a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 11.2h1.4a2.4 2.4 0 0 1 0 4.8H16"/><path d="M8.8 4.4c-.9 1 .9 2 0 3.2M12.4 4.4c-.9 1 .9 2 0 3.2"/>',
+  one:'<rect x="3.5" y="7.5" width="17" height="9" rx="3.2"/><circle cx="12" cy="12" r="1.9" fill="currentColor" stroke="none"/>',
+  proactive:'<path d="M13.2 3.6L6.2 13.4h5.2l-1 7 7-9.8h-5.2z"/>',
+  ask:'<path d="M4.5 6.6a2.1 2.1 0 0 1 2.1-2.1h10.8a2.1 2.1 0 0 1 2.1 2.1v7.8a2.1 2.1 0 0 1-2.1 2.1H11l-4 3.1v-3.1h-.4a2.1 2.1 0 0 1-2.1-2.1z"/><path d="M10 8.8a2 2 0 1 1 2.9 1.8c-.6.3-.9.6-.9 1.3"/><circle cx="12" cy="14" r=".6" fill="currentColor" stroke="none"/>',
+  login:'<path d="M14 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3"/><path d="M4.5 12h10"/><path d="M11 8.5l3.5 3.5-3.5 3.5"/>',
+  smooth:'<path d="M4 13.2c2.6-4.2 5.2-4.2 8 0s5.4 4.2 8 0"/>',
+  quit:'<path d="M12 4v7"/><path d="M7.4 7.2a7 7 0 1 0 9.2 0"/>',
+  chevd:'<path d="M7 10l5 5 5-5"/>',
+  wifi:'<path d="M3.5 9.5a12 12 0 0 1 17 0"/><path d="M6.6 12.7a7.6 7.6 0 0 1 10.8 0"/><path d="M9.7 15.8a3.2 3.2 0 0 1 4.6 0"/><circle cx="12" cy="18.6" r=".9" fill="currentColor" stroke="none"/>',
+  battery:'<rect x="2.5" y="7.5" width="17" height="9" rx="2.6"/><rect x="4.5" y="9.5" width="8.4" height="5" rx="1.2" fill="currentColor" stroke="none"/><path d="M21.5 10.6v2.8"/>',
+  cc:'<rect x="3.5" y="5" width="17" height="6" rx="3"/><rect x="3.5" y="13" width="17" height="6" rx="3"/><circle cx="17.4" cy="8" r="1.4" fill="currentColor" stroke="none"/><circle cx="6.6" cy="16" r="1.4" fill="currentColor" stroke="none"/>',
+  chevr:'<path d="M9 5.5l6.5 6.5L9 18.5"/>',
+  ext:'<path d="M7.5 16.5l9-9"/><path d="M9 7.5h7.5V15"/>'
+};
+const svg = k => '<svg class="g" viewBox="0 0 24 24">'+G[k]+'</svg>';
+
+const EX = [
+  {k:'minmacs',n:'MinMacs'},{k:'locohost',n:'LocoHost'},{k:'workforest',n:'WorkForest'},
+  {k:'noonoo',n:'Noo-Noo'},{k:'insomnia',n:'Insomnia'}
+];
+const S = {minmacs:1,locohost:1,workforest:1,noonoo:1,insomnia:1, one:0, proactive:1, ask:1, login:1, smooth:1, theme:'sea', more:1, arm:0};
+
+const HELP = {
+  minmacs:o=>o?'<b>MinMacs</b> icon is in the menu bar. Hiding it keeps the expert working.':'<b>MinMacs</b> icon is hidden. It still watches apps; open MinMacs again to reach it.',
+  locohost:o=>o?'<b>LocoHost</b> icon is in the menu bar, watching 6 servers.':'<b>LocoHost</b> icon is hidden. It still watches 6 servers.',
+  workforest:o=>o?'<b>WorkForest</b> icon is in the menu bar, watching 14 worktrees.':'<b>WorkForest</b> icon is hidden. It still watches 14 worktrees.',
+  noonoo:o=>o?'<b>Noo-Noo</b> icon is in the menu bar. 38.4 GB reclaimable.':'<b>Noo-Noo</b> icon is hidden. It still tracks clutter.',
+  insomnia:o=>o?'<b>Insomnia</b> icon is in the menu bar. Awake for speed-3.':'<b>Insomnia</b> icon is hidden. It still keeps the Mac awake for speed-3.',
+  one:o=>o?'<b>One Icon</b>: the five experts share one menu bar icon, one flat menu.':'<b>One Icon</b> is off: each expert keeps its own icon.',
+  proactive:o=>o?'<b>Proactive</b>: experts act on the plan they showed you, always with Undo.':'<b>Proactive</b> is off: experts only suggest. You press every button.',
+  ask:o=>o?'<b>Ask Before Closing</b>: every close waits for your yes.':'<b>Ask Before Closing</b> is off: shown plans run on their own, with Undo.',
+  login:o=>o?'<b>Launch at Login</b>: MinMacs starts with the Mac.':'<b>Launch at Login</b> is off: start MinMacs yourself.',
+  smooth:o=>o?'<b>Smooth</b>: values ease and rows slide. Reduce Motion turns this into fades.':'<b>Smooth</b> is off: values change in place.',
+  sea:()=>'<b>Sea</b> theme: blue and teal on dark glass.',
+  graphite:()=>'<b>Graphite</b> theme: white and gray, no color but the experts.',
+  warm:()=>'<b>Warm</b> theme: amber and sand on dark glass.',
+  quit:()=>S.arm?'Press <b>Quit</b> again to quit. Nothing will be closed.':'<b>Quit</b> MinMacs. Servers, worktrees and apps stay as they are.',
+  more:()=>S.more?'Hide the value rows.':'Show value rows: quitting, review model, guards, timings.'
+};
+
+const grid = document.getElementById('grid');
+const items = [
+  ...EX.map(e=>({k:e.k,l:e.n,c:'var(--e-'+e.k+')'})),
+  {k:'one',l:'One Icon'},{k:'proactive',l:'Proactive'},{k:'ask',l:'Ask Before Closing'},{k:'login',l:'Launch at Login'},{k:'smooth',l:'Smooth'},
+  {k:'sea',l:'Sea',sw:1},{k:'graphite',l:'Graphite',sw:1},{k:'warm',l:'Warm',sw:1},{k:'quit',l:'Quit'},{k:'more',l:'More'}
+];
+grid.innerHTML = items.map(it=>{
+  const inner = it.sw ? '<i></i>' : svg(it.k==='more'?'chevd':it.k);
+  return '<button class="tg'+(it.sw?' sw':'')+'" data-k="'+it.k+'"'+(it.c?' style="--c:'+it.c+'"':'')+'><span class="b">'+inner+'</span><span class="l">'+it.l+'</span></button>';
+}).join('');
+
+const ROWS = [
+  {k:'When an app won’t quit', v:['Ask Me','Force Quit','Leave It Open']},
+  {k:'Review model', v:['Haiku','Sonnet','Off'], tail:['<em>14k tokens today</em>','<em>14k tokens today</em>','<em>no reviews</em>']},
+  {k:'Insomnia guards', v:['Battery 20 % · Network · Thermal','Battery 10 % · Thermal','None']},
+  {k:'Lid closed, keep awake', v:['Off','On power only','Always']},
+  {k:'Idle servers count after', v:['2 h','1 h','4 h','Never']},
+  {k:'Worktrees count as stale after', v:['21 d','14 d','30 d']},
+  {k:'Updates', v:['Version 2.0.0 · up to date'], fixed:1},
+  {k:'Open settings file', ext:1}
+];
+const rowsEl = document.getElementById('rows');
+rowsEl.innerHTML = ROWS.map((r,i)=>{
+  const v = r.ext ? '' : '<span class="x" data-i="'+i+'">'+val(r,0)+'</span>';
+  return '<div class="row" data-i="'+i+'"><span class="k">'+r.k+'</span><span class="v">'+v+'<span class="chev">'+svg(r.ext?'ext':'chevr')+'</span></span></div>';
+}).join('');
+function val(r,j){ return r.v[j] + (r.tail ? ' · '+r.tail[j] : ''); }
+const idx = ROWS.map(()=>0);
+rowsEl.addEventListener('click',e=>{
+  const row = e.target.closest('.row'); if(!row) return;
+  const i = +row.dataset.i, r = ROWS[i]; if(r.ext||r.fixed) return;
+  idx[i] = (idx[i]+1)%r.v.length;
+  const x = row.querySelector('.x');
+  x.classList.add('swap');
+  setTimeout(()=>{ x.innerHTML = val(r,idx[i]); x.classList.remove('swap'); }, reduced()?0:150);
+});
+function reduced(){ return matchMedia('(prefers-reduced-motion: reduce)').matches || !S.smooth; }
+
+const mb = document.getElementById('mbIcons');
+mb.innerHTML =
+  '<span class="mbi" data-m="one">'+svg('minmacs')+'</span>' +
+  EX.map(e=>'<span class="mbi" data-m="'+e.k+'">'+svg(e.k)+'</span>').join('') +
+  '<span class="mbi sys">'+svg('wifi')+'</span><span class="mbi sys">'+svg('battery')+'</span><span class="mbi sys">'+svg('cc')+'</span>';
+
+const cap = document.getElementById('cap');
+let hoverK = null;
+function defaultCap(){
+  if(S.one) return 'One icon in the menu bar. Five experts running.';
+  const n = EX.filter(e=>S[e.k]).length;
+  return n===5 ? 'Five icons in the menu bar. Five experts running.'
+       : n+' of 5 icons in the menu bar. All five experts keep running.';
+}
+let capTimer;
+function setCap(html){
+  if(cap.innerHTML===html) return;
+  clearTimeout(capTimer);
+  cap.style.opacity = 0;
+  capTimer = setTimeout(()=>{ cap.innerHTML = html; cap.style.opacity = 1; }, reduced()?0:120);
+}
+
+function render(){
+  document.documentElement.dataset.theme = S.theme;
+  document.documentElement.classList.toggle('still', !S.smooth);
+  grid.querySelectorAll('.tg').forEach(b=>{
+    const k = b.dataset.k;
+    let on = false;
+    if(k in S && typeof S[k]==='number' && k!=='more' && k!=='arm') on = !!S[k];
+    if(b.classList.contains('sw')) on = S.theme===k;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on);
+  });
+  grid.querySelector('[data-k="more"]').classList.toggle('open', !!S.more);
+  grid.querySelector('[data-k="quit"]').classList.toggle('arm', !!S.arm);
+  document.getElementById('more').classList.toggle('shut', !S.more);
+  mb.querySelectorAll('.mbi[data-m]').forEach(el=>{
+    const m = el.dataset.m;
+    el.classList.toggle('gone', S.quit || (m==='one' ? !S.one : (S.one || !S[m])));
+  });
+  setCap(hoverK ? HELP[hoverK](S[hoverK]) : defaultCap());
+}
+
+grid.addEventListener('click',e=>{
+  const b = e.target.closest('.tg'); if(!b) return;
+  const k = b.dataset.k;
+  if(k!=='quit') S.arm = 0;
+  if(b.classList.contains('sw')) S.theme = k;
+  else if(k==='more') S.more = S.more?0:1;
+  else if(k==='quit'){
+    if(S.arm){ S.arm=0; quit(); } else S.arm = 1;
+  }
+  else S[k] = S[k]?0:1;
+  render();
+});
+grid.addEventListener('mouseover',e=>{
+  const b = e.target.closest('.tg'); const k = b ? b.dataset.k : null;
+  if(k!==hoverK){ hoverK = k; render(); }
+});
+grid.addEventListener('mouseleave',()=>{ hoverK=null; if(S.arm){S.arm=0;} render(); });
+
+const qw = document.getElementById('quitwrap');
+function quit(){
+  S.quit = 1; qw.classList.add('show'); render();
+}
+document.getElementById('reopen').addEventListener('click',()=>{ S.quit = 0; qw.classList.remove('show'); render(); });
+
+cap.innerHTML = defaultCap();
+render();
+
+function fit(){
+  const s = Math.min(innerWidth/1280, innerHeight/800);
+  const st = document.getElementById('stage');
+  st.style.transform = 'translate('+((innerWidth-1280*s)/2)+'px,'+((innerHeight-800*s)/2)+'px) scale('+s+')';
+}
+addEventListener('resize',fit); fit();
+})();
+</script>
+</body>
+</html>

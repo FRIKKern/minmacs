@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Five Template Icons</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.84);--line:rgba(255,255,255,.08);--hair:rgba(255,255,255,.14);
+  --txt:rgba(255,255,255,.92);--dim:rgba(255,255,255,.55);--faint:rgba(255,255,255,.34);
+  --mm:#5B9BFF;--lh:#3FD0B8;--wf:#4CC96B;--nn:#F2B544;--in:#B18CFF;
+  --bar:rgba(14,12,30,.46);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--txt);
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;
+  background:#1d1940;
+}
+.desk{
+  background:
+    radial-gradient(900px 620px at 10% 6%,rgba(98,74,200,.78),transparent 62%),
+    radial-gradient(780px 560px at 86% 4%,rgba(34,112,164,.72),transparent 60%),
+    radial-gradient(900px 720px at 90% 100%,rgba(178,62,112,.62),transparent 62%),
+    radial-gradient(720px 600px at 18% 100%,rgba(42,30,96,.85),transparent 60%),
+    linear-gradient(160deg,#2b2264,#1b1a3e 52%,#3b1f47);
+}
+body.desk{background-attachment:fixed}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden}
+
+/* menu bar */
+.mb{position:absolute;left:0;top:0;width:1280px;height:37px;background:var(--bar);
+  -webkit-backdrop-filter:blur(26px) saturate(160%);backdrop-filter:blur(26px) saturate(160%);
+  display:flex;align-items:center;font-size:13.5px;z-index:5}
+.mb .menus{display:flex;align-items:center;gap:19px;padding-left:18px;height:37px}
+.mb .menus b{font-weight:700}
+.mb .apple{font-size:16px;width:16px;text-align:center}
+.notch{position:absolute;top:0;height:37px;background:#000}
+.notch.full{left:545px;width:190px;border-radius:0 0 13px 13px}
+.notch.full::before,.notch.full::after{content:"";position:absolute;top:0;width:7px;height:7px}
+.notch.full::before{left:-7px;background:radial-gradient(circle at 0 100%,transparent 6.5px,#000 7px)}
+.notch.full::after{right:-7px;background:radial-gradient(circle at 100% 100%,transparent 6.5px,#000 7px)}
+.mb .right{position:absolute;right:10px;top:0;height:37px;display:flex;align-items:center}
+.clock{padding:0 8px;font-size:13.5px;letter-spacing:.1px;white-space:nowrap}
+
+/* status items */
+.si{position:relative;height:24px;display:inline-flex;align-items:center;gap:2px;padding:0 7px;border-radius:6px;
+  color:var(--txt);white-space:nowrap;transition:background .18s ease}
+.si svg{width:18px;height:18px;flex:none;overflow:visible}
+.si.sys svg.bat{width:28px}
+.si.other{color:rgba(255,255,255,.80)}
+.si[data-k]{cursor:default}
+.si[data-k]:hover,.si.on{background:rgba(255,255,255,.15)}
+.si .n{font-size:13px;font-weight:500;letter-spacing:.1px;padding-right:1px}
+.ready .si .n.fresh{animation:numIn .32s ease both}
+.si .n small{font-size:10.5px;font-weight:500;color:rgba(255,255,255,.52);margin-left:1px}
+@keyframes numIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.slit{animation:look 3.4s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
+@keyframes look{0%{transform:translateX(-1.5px)}45%{transform:translateX(-1.5px)}55%{transform:translateX(1.5px)}100%{transform:translateX(1.5px)}}
+
+/* panels */
+.panel{position:absolute;background:var(--glass);border:1px solid var(--line);border-radius:22px;
+  -webkit-backdrop-filter:blur(30px) saturate(140%);backdrop-filter:blur(30px) saturate(140%);
+  box-shadow:0 24px 60px rgba(8,6,24,.35)}
+.cap{position:absolute;font-size:12px;color:var(--dim);letter-spacing:.1px}
+.cap b{color:var(--txt);font-weight:600;font-size:13px;margin-right:8px}
+.frag{position:relative;display:inline-flex;align-items:center;height:30px;padding:0 5px;border-radius:8px;
+  background:rgba(10,9,22,.55);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.07)}
+#zbox{position:absolute;transform-origin:0 0}
+#zlabels{position:absolute;display:grid;grid-template-columns:repeat(5,1fr);text-align:center}
+#zlabels .lb{font-size:12px;color:var(--dim);line-height:17px;transition:opacity .25s}
+#zlabels .lb b{display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600;color:var(--txt);font-size:12.5px;margin-bottom:1px}
+.dotc{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
+#leaders{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+#leaders path{fill:none;stroke:rgba(255,255,255,.17);stroke-width:1}
+#leaders circle{fill:rgba(255,255,255,.35)}
+.truerow{position:absolute;left:30px;right:30px;bottom:22px;height:44px;display:flex;align-items:center;gap:16px;
+  border-top:1px solid var(--line);padding-top:12px}
+.truerow .k{font-size:12px;color:var(--dim);width:28px}
+.truerow .w{margin-left:auto;font-size:12px;color:var(--dim)}
+.truerow .w b{color:var(--txt);font-weight:500}
+
+/* state buttons (ftop settings grid) */
+.grid{position:absolute;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center}
+.rb{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--dim);cursor:pointer;user-select:none;background:none;border:0;font-family:inherit}
+.rb i{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.09);color:rgba(255,255,255,.7);
+  transition:background .2s ease,color .2s ease,transform .15s ease;font-style:normal;font-size:14px;font-weight:600}
+.rb i svg{width:20px;height:20px;overflow:visible}
+.rb:hover i{background:rgba(255,255,255,.14)}
+.rb:active i{transform:scale(.94)}
+.rb.on{color:var(--txt)}
+.rb.on i{background:#7f9cff;color:#11132a}
+.legend{position:absolute;left:24px;right:24px}
+.lg{display:flex;align-items:center;gap:12px;min-height:38px;font-size:12.5px;line-height:16px;color:var(--dim)}
+.lg .smp{width:74px;flex:none;display:flex;justify-content:center}
+.lg .smp .frag{transform:scale(1.4);transform-origin:center;background:none;box-shadow:none;height:24px}
+.lg b{color:var(--txt);font-weight:500}
+
+/* notch panel */
+.strip{position:relative;width:809px;height:37px;background:rgba(14,12,30,.62);border-radius:10px;overflow:hidden;
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.07)}
+.strip .notch{left:0;width:40px;border-radius:0 0 13px 0}
+.strip .notch::after{content:"";position:absolute;top:0;left:40px;width:7px;height:7px;background:radial-gradient(circle at 100% 100%,transparent 6.5px,#000 7px)}
+.srow{position:absolute;right:10px;top:0;height:37px;display:flex;align-items:center}
+.srow .si{transition:opacity .25s ease}
+.rungs{position:absolute;width:809px}
+.rung{display:grid;grid-template-columns:30px 172px 1fr 250px 58px;align-items:center;height:40px;padding:0 10px 0 6px;border-radius:10px;
+  transition:background .25s ease;font-size:12.5px;color:var(--dim)}
+.rung .rn{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:600;background:rgba(255,255,255,.08);color:rgba(255,255,255,.65);transition:background .25s,color .25s}
+.rung b{color:var(--txt);font-weight:500;font-size:13px}
+.rung .rp{display:flex;justify-content:flex-end}
+.rung .rp .frag{height:28px}
+.rung .rw{text-align:right;color:var(--dim)}
+.rung.on{background:rgba(255,255,255,.065)}
+.rung.on .rn{background:var(--mm);color:#0f1530}
+.rung .none{font-size:12px;color:var(--faint)}
+.lcol{position:absolute;left:26px;top:24px;width:252px}
+.lcol h3{font-size:14px;font-weight:600;margin-bottom:10px}
+.lcol p{font-size:12.5px;line-height:18.5px;color:var(--dim)}
+.lcol p b{color:var(--txt);font-weight:500}
+.ctl{margin-top:20px}
+.ctl .row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--dim);margin-bottom:8px}
+.ctl .row b{color:var(--txt);font-weight:500}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.12);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#e9ebff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#e9ebff;border:0}
+.seg{display:flex;gap:6px;margin-top:18px}
+.seg button{flex:1;height:30px;border-radius:15px;border:0;background:rgba(255,255,255,.08);color:var(--dim);font:inherit;font-size:12.5px;cursor:pointer;transition:background .2s,color .2s}
+.seg button.on{background:#7f9cff;color:#11132a;font-weight:500}
+.hidden-note{position:absolute;font-size:12px;color:var(--faint);height:16px;transition:opacity .2s}
+.hidden-note b{color:#ff9a8a;font-weight:500}
+
+/* hover card */
+.card{position:absolute;width:286px;padding:14px 16px 14px;background:rgba(30,31,42,.94);border:1px solid rgba(255,255,255,.09);border-radius:16px;
+  -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);box-shadow:0 18px 50px rgba(0,0,0,.45);z-index:20;
+  opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .16s ease,transform .16s ease}
+.card.show{opacity:1;transform:none;pointer-events:auto}
+.card .ct{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600}
+.badge{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c);flex:none}
+.badge svg{width:14px;height:14px;overflow:visible}
+.card .cs{font-size:12.5px;font-weight:500;margin:8px 0 9px;color:var(--c)}
+.card .cf{display:grid;grid-template-columns:auto 1fr;column-gap:14px;row-gap:5px;font-size:12px}
+.card .cf span:nth-child(odd){color:var(--dim)}
+.card .cf span:nth-child(even){text-align:right;color:var(--txt)}
+.card .ca{display:flex;gap:6px;margin-top:13px}
+.card .ca button{height:26px;padding:0 11px;border-radius:13px;border:0;background:rgba(255,255,255,.09);color:var(--txt);font:inherit;font-size:12px;cursor:pointer;transition:background .15s}
+.card .ca button:hover{background:rgba(255,255,255,.16)}
+.card .ca button.p{background:var(--c);color:#10121f;font-weight:600}
+.card .ca button.p:hover{filter:brightness(1.08)}
+
+.toast{position:absolute;top:46px;right:180px;height:34px;display:flex;align-items:center;gap:14px;padding:0 6px 0 16px;border-radius:17px;
+  background:rgba(30,31,42,.94);border:1px solid rgba(255,255,255,.09);font-size:12.5px;z-index:30;box-shadow:0 12px 30px rgba(0,0,0,.35);
+  opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .2s,transform .2s}
+.toast.show{opacity:1;transform:none;pointer-events:auto}
+.toast button{height:24px;padding:0 12px;border-radius:12px;border:0;background:rgba(255,255,255,.12);color:var(--txt);font:inherit;font-size:12px;cursor:pointer}
+#measure{position:absolute;left:-9999px;top:0;visibility:hidden}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="desk">
+<div id="stage" class="desk">
+
+  <!-- menu bar, true size -->
+  <div class="mb">
+    <div class="menus"><span class="apple">&#63743;</span><b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span></div>
+    <div class="notch full"></div>
+    <div class="right" id="topRight"></div>
+  </div>
+
+  <!-- zoom -->
+  <div class="panel" id="zoomP" style="left:40px;top:58px;width:820px;height:336px">
+    <div class="cap" style="left:28px;top:22px"><b>3&times;</b>Five experts, five template icons. Hover one.</div>
+    <div id="zbox"></div>
+    <svg id="leaders" width="820" height="336"></svg>
+    <div id="zlabels"></div>
+    <div class="truerow"><span class="k">1&times;</span><div id="tfrag"></div><span class="w" id="tw"></span></div>
+  </div>
+
+  <!-- states -->
+  <div class="panel" id="stateP" style="left:880px;top:58px;width:360px;height:336px">
+    <div class="cap" style="left:24px;top:22px"><b>State</b>what the icons say</div>
+    <div class="grid" id="sgrid" style="left:16px;right:16px;top:56px"></div>
+    <div class="legend" id="legend" style="top:136px"></div>
+  </div>
+
+  <!-- notch -->
+  <div class="panel" id="notchP" style="left:40px;top:410px;width:1200px;height:370px">
+    <div class="lcol">
+      <h3>The 16-inch notch</h3>
+      <p>Right of the notch a 16-inch MacBook Pro has <b>769 pt</b>. macOS hides any icon that doesn&rsquo;t fit, and says nothing.</p>
+      <p style="margin-top:9px">MinMacs checks that its own icons are on screen and steps down one rung at a time. Insomnia&rsquo;s eye stays longest: being awake costs battery.</p>
+      <div class="ctl">
+        <div class="row"><span>Other apps&rsquo; icons</span><b id="nv">6</b></div>
+        <input type="range" id="others" min="0" max="16" value="6" aria-label="Other apps' icons">
+        <div class="seg" id="seg"><button class="on" data-m="steps">Steps down</button><button data-m="alone">macOS alone</button></div>
+      </div>
+    </div>
+    <div class="cap" style="left:322px;top:24px">True size &middot; the right half of the 16-inch menu bar</div>
+    <div class="strip" id="strip" style="position:absolute;left:322px;top:46px"><div class="notch"></div><div class="srow" id="srow"></div></div>
+    <div class="hidden-note" id="hnote" style="left:322px;top:91px"></div>
+    <div class="rungs" id="rungs" style="left:322px;top:114px"></div>
+    <div class="cap" style="left:328px;top:326px">&#8984;-drag reorders. The closer to the clock, the longer an icon stays; Noo-Noo sits leftmost and leaves first.</div>
+  </div>
+
+  <div class="card" id="card"></div>
+  <div class="toast" id="toast"><span id="tmsg"></span><button id="undo">Undo</button></div>
+  <div id="measure"></div>
+</div>
+
+<script>
+(function(){
+const stage=document.getElementById('stage');let scale=1;
+function fit(){const w=innerWidth,h=innerHeight;scale=Math.min(w/1280,h/800);
+  stage.style.transform=`translate(${Math.max(0,(w-1280*scale)/2)}px,${Math.max(0,(h-800*scale)/2)}px) scale(${scale})`;}
+fit();addEventListener('resize',fit);
+
+/* ---------- glyphs (18 pt template) ---------- */
+const F='fill="currentColor" stroke="none"';
+const G={
+  gauge:(hub)=>`<path d="M3.54 13.15A6.3 6.3 0 1 1 14.46 13.15"/><path d="M9 10L12.1 6.5"/>`+
+     (hub==='ring'?`<circle cx="9" cy="10" r="1.9"/>`:hub==='fill'?`<circle cx="9" cy="10" r="2.3" ${F}/>`:`<circle cx="9" cy="10" r="1.35" ${F}/>`),
+  server:()=>`<rect x="2.75" y="3" width="12.5" height="5" rx="1.6"/><rect x="2.75" y="10" width="12.5" height="5" rx="1.6"/><circle cx="5.6" cy="5.5" r=".95" ${F}/><circle cx="5.6" cy="12.5" r=".95" ${F}/>`,
+  branch:()=>`<circle cx="5.5" cy="3.9" r="1.75"/><circle cx="5.5" cy="14.1" r="1.75"/><circle cx="12.6" cy="5.4" r="1.75"/><path d="M5.5 5.65V12.35"/><path d="M12.6 7.15c0 3.3-7.1 2.6-7.1 5.2"/>`,
+  broom:()=>`<path d="M15.2 2.4L10.6 8.2"/><path d="M7.5 7.3l4.7 3.1-1.8 4.8c-2.7-.3-5.7-1.8-7.1-4.1z" stroke-linejoin="round"/><path d="M7.7 11.7l-1.8 2.3M10 12.6l-1.1 2.3"/>`,
+  eyeClosed:()=>`<path d="M2.8 8.2c2.6 3.7 9.8 3.7 12.4 0"/><path d="M5 10.9l-1.1 1.7M9 11.9v2M13 10.9l1.1 1.7"/>`,
+  eyeOpen:()=>`<path d="M2.3 9c2.2-4.4 11.2-4.4 13.4 0-2.2 4.4-11.2 4.4-13.4 0z" stroke-linejoin="round"/><circle cx="9" cy="9" r="2.3" ${F}/>`,
+  eyeAgent:()=>`<path d="M2.3 9c2.2-4.4 11.2-4.4 13.4 0-2.2 4.4-11.2 4.4-13.4 0z" stroke-linejoin="round"/><rect class="slit" x="8.05" y="6.4" width="1.9" height="5.2" rx=".95" ${F}/>`,
+  clock:()=>`<circle cx="9" cy="9" r="6.3"/><path d="M9 5.4V9l2.4 1.6"/>`,
+  /* other apps */
+  cloud:()=>`<path d="M5.5 14h7.6a3.4 3.4 0 0 0 .4-6.8A4.6 4.6 0 0 0 4.7 8.6 2.8 2.8 0 0 0 5.5 14z" stroke-linejoin="round"/>`,
+  key:()=>`<circle cx="6" cy="9" r="3.2"/><path d="M9.2 9H15.5M13.2 9v2.6M15.3 9v2"/>`,
+  shield:()=>`<path d="M9 2.6l5.6 2v4.3c0 3.4-2.4 5.6-5.6 6.6-3.2-1-5.6-3.2-5.6-6.6V4.6z" stroke-linejoin="round"/>`,
+  wave:()=>`<path d="M3.2 9h.1M6 6.2v5.6M9 3.6v10.8M12 6.6v4.8M14.8 9h.1"/>`,
+  clip:()=>`<rect x="4" y="3.6" width="10" height="11.8" rx="2"/><path d="M7 3.6h4v2.2H7z" stroke-linejoin="round"/>`,
+  globe:()=>`<circle cx="9" cy="9" r="6.3"/><path d="M2.7 9h12.6M9 2.7c-3.4 3.6-3.4 9 0 12.6M9 2.7c3.4 3.6 3.4 9 0 12.6"/>`,
+  timer:()=>`<circle cx="9" cy="10" r="5.6"/><path d="M9 10V7M7.4 2.6h3.2"/>`,
+  bell:()=>`<path d="M5 12.6V8.6a4 4 0 0 1 8 0v4l1.3 1.5H3.7z" stroke-linejoin="round"/><path d="M7.6 16h2.8"/>`,
+  /* system */
+  wifi:()=>`<path d="M2.5 7.2a9.5 9.5 0 0 1 13 0M4.9 9.8a6 6 0 0 1 8.2 0M7.3 12.4a2.5 2.5 0 0 1 3.4 0"/><circle cx="9" cy="14.6" r="1.05" ${F}/>`,
+  cc:()=>`<rect x="2.5" y="3.4" width="13" height="4.8" rx="2.4"/><circle cx="12.9" cy="5.8" r="1.25" ${F}/><rect x="2.5" y="9.8" width="13" height="4.8" rx="2.4"/><circle cx="5.1" cy="12.2" r="1.25" ${F}/>`
+};
+let mid=0;
+function svg(inner,dot){
+  if(!dot) return `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round">${inner}</svg>`;
+  const id='m'+(++mid);
+  return `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"><defs><mask id="${id}" maskUnits="userSpaceOnUse" x="-4" y="-4" width="26" height="26"><rect x="-4" y="-4" width="26" height="26" fill="#fff"/><circle cx="15.4" cy="3" r="3.7" fill="#000"/></mask></defs><g mask="url(#${id})">${inner}</g><circle cx="15.4" cy="3" r="2.35" ${F}/></svg>`;
+}
+const battery=`<svg class="bat" viewBox="0 0 28 18"><rect x="1.5" y="4.5" width="21.5" height="9.5" rx="2.8" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.1"/><rect x="3.2" y="6.2" width="${(18.1*.64).toFixed(1)}" height="6.1" rx="1.4" fill="currentColor"/><path d="M24.6 7.7v3.1" stroke="rgba(255,255,255,.45)" stroke-width="1.6" stroke-linecap="round"/><path d="M13.4 5.2l-2.6 4.3h2.4l-.9 3.8 3-4.6h-2.4z" fill="#fff" stroke="rgba(14,12,30,.8)" stroke-width=".6" stroke-linejoin="round"/></svg>`;
+
+/* ---------- data ---------- */
+const EX={
+  nn:{name:'Noo-Noo',c:'var(--nn)',g:'broom'},
+  wf:{name:'WorkForest',c:'var(--wf)',g:'branch'},
+  lh:{name:'LocoHost',c:'var(--lh)',g:'server'},
+  mm:{name:'MinMacs',c:'var(--mm)',g:'gauge'},
+  in:{name:'Insomnia',c:'var(--in)',g:'eye'}
+};
+const ORDER=['nn','wf','lh','mm','in'];
+const ASKS={mm:['2',''],lh:['3',''],wf:['4',''],nn:['30','G']};
+const STATES={
+  calm:{asks:{},eye:'closed',label:'Calm'},
+  asks:{asks:ASKS,eye:'closed',label:'Asks'},
+  awake:{asks:{},eye:'open',label:'Awake'},
+  working:{asks:{},eye:'agent',label:'Working'},
+  now:{asks:ASKS,eye:'agent',label:'Now'}
+};
+let cur='now',cleared={},others=6,mode='steps',fresh=false;
+const ask=k=>cleared[k]?null:(STATES[cur].asks[k]||null);
+const eye=()=>cleared.in?'closed':STATES[cur].eye;
+const anyAsk=()=>['mm','lh','wf','nn'].some(k=>ask(k));
+const eyeGlyph=e=>e==='open'?G.eyeOpen():e==='agent'?G.eyeAgent():G.eyeClosed();
+
+function item(k,m){ // m: full | dot | bare
+  if(k==='in') return `<span class="si" data-k="in">${svg(eyeGlyph(eye()))}</span>`;
+  const a=ask(k), inner=G[EX[k].g]();
+  if(m==='full'&&a) return `<span class="si" data-k="${k}">${svg(inner)}<span class="n${fresh?' fresh':''}">${a[0]}${a[1]?`<small>${a[1]}</small>`:''}</span></span>`;
+  return `<span class="si" data-k="${k}">${svg(inner,m==='dot'&&a)}</span>`;
+}
+function rungHTML(r){
+  if(r===1) return ORDER.map(k=>item(k,'full')).join('');
+  if(r===2) return ORDER.map(k=>item(k,'dot')).join('');
+  if(r===3) return `<span class="si" data-k="mm">${svg(G.gauge(),anyAsk())}</span>`+item('in');
+  if(r===4) return `<span class="si" data-k="mm">${svg(G.gauge(eye()==='closed'?'ring':'fill'),anyAsk())}</span>`;
+  return '';
+}
+const OTHERS=['cloud','key','shield','wave','clip','globe','timer','bell'];
+const otherHTML=n=>Array.from({length:n},(_,i)=>`<span class="si other">${svg(G[OTHERS[i%OTHERS.length]]())}</span>`).join('');
+const SYS=`<span class="si sys">${svg(G.wifi())}</span><span class="si sys">${battery}</span><span class="si sys">${svg(G.cc())}</span><span class="clock">Tue 27 Oct&nbsp;&nbsp;16:42</span>`;
+const meas=document.getElementById('measure');
+function widthOf(html){meas.innerHTML=`<div class="srow" style="position:static;display:inline-flex">${html}</div>`;return meas.firstChild.offsetWidth;}
+
+/* labels + cards */
+function label(k){
+  const a=ask(k),e=eye();
+  return {
+    mm:a?'2 apps will close':'Nothing to close',
+    lh:a?'3 idle servers':'Every server in use',
+    wf:a?'4 merged worktrees':'Nothing to remove',
+    nn:a?'30.1 GB safe to clean':'Nothing worth cleaning',
+    in:e==='agent'?'Awake: speed-3 works':e==='open'?'Awake: you asked':'May sleep'
+  }[k];
+}
+function cardData(k){
+  const a=ask(k),e=eye();
+  if(k==='mm') return a?{s:'Ready: frees 22 % CPU · 9.3 GB',f:[['System load','63 %'],['Memory','24.1 / 32 GB'],['Trims','14 Chrome tabs'],['Closes','Spotify'],['Spares','Chrome for Testing']],act:['Now','Restore']}
+                    :{s:'Stays: nothing to close',f:[['System load','63 %'],['Memory','24.1 / 32 GB'],['Pressure','Normal'],['Last run','11:05']],act:['Restore']};
+  if(k==='lh') return a?{s:'Ready: 3 idle servers · 1.45 GB',f:[[':3334 sanity','idle 40m'],[':4000 phoenix','idle 2h · merged'],[':6006 storybook','idle 3d · nobody'],['In use',':3000 :5173 · speed-3'],['Kept',':5432 postgres']],act:['Close Idle']}
+                    :{s:'Stays: every server in use',f:[['In use',':3000 :5173 · speed-3'],['Kept',':5432 postgres']],act:[]};
+  if(k==='wf') return a?{s:'Ready: 4 merged · 5.65 GB',f:[['auth-redirect','squash-merged · 1.8 GB'],['lane-e-sort','merged · 2.3 GB'],['sb-fieldsets','merged · 940 MB'],['w19-fire','merged · 610 MB'],['Also','2 stale · 3 in use']],act:['Remove Merged']}
+                    :{s:'Stays: nothing to remove',f:[['Worktrees','14'],['In use','3']],act:[]};
+  if(k==='nn') return a?{s:'Ready: 30.1 GB to Trash',f:[['DerivedData','14.2 GB'],['node_modules, merged','9.8 GB'],['npm cache','6.1 GB'],['Disk','812 / 994 GB'],['Report only','Simulators 0.8 GB']],act:['Clean Safe']}
+                    :{s:'Stays: nothing worth cleaning',f:[['Disk','812 / 994 GB'],['Free','182 GB']],act:[]};
+  if(e==='agent') return {s:'Awake while speed-3 works',f:[['Agent','Claude Code · speed-3'],['Ends','when speed-3 finishes'],['Battery','64 % · on adapter'],['Lid mode','Off'],['Guards','battery 20 % · network · heat']],act:['Sleep Now','Lid Mode']};
+  if(e==='open') return {s:'Awake: you turned it on',f:[['Ends','when you stop it'],['Battery','64 % · on adapter'],['Lid mode','Off']],act:['Sleep Now']};
+  return {s:'Sleeps: no agent works',f:[['Battery','64 % · on adapter'],['Lid mode','Off']],act:['Keep Awake']};
+}
+const DONE={Now:['mm','Closed Spotify, trimmed 14 tabs'],'Close Idle':['lh','Closed 3 idle servers · 1.45 GB'],'Remove Merged':['wf','Removed 4 worktrees · 5.65 GB'],'Clean Safe':['nn','Moved 30.1 GB to Trash'],'Sleep Now':['in','Insomnia off · speed-3 still works']};
+
+/* ---------- render ---------- */
+const $=id=>document.getElementById(id);
+function render(){
+  mid=0;
+  $('topRight').innerHTML=`<div style="display:flex;align-items:center" id="topMM">${rungHTML(1)}</div>${otherHTML(2)}${SYS}`;
+  // zoom
+  const zb=$('zbox');zb.innerHTML=`<div class="frag" id="zfrag">${rungHTML(1)}</div>`;
+  const zf=$('zfrag'),w=zf.offsetWidth,h=zf.offsetHeight,Z=3;
+  const zl=Math.round((820-w*Z)/2),zt=62;
+  zb.style.cssText=`left:${zl}px;top:${zt}px;width:${w}px;height:${h}px;transform:scale(${Z})`;
+  const lt=zt+h*Z+48,cellW=150,gridW=cellW*5,gl=(820-gridW)/2;
+  const zlab=$('zlabels');zlab.style.cssText=`left:${gl}px;top:${lt}px;width:${gridW}px`;
+  zlab.innerHTML=ORDER.map(k=>`<div class="lb"><b><span class="dotc" style="--c:${EX[k].c}"></span>${EX[k].name}</b>${label(k)}</div>`).join('');
+  let p='';
+  [...zf.querySelectorAll('.si')].forEach((el,i)=>{
+    const x1=Math.round(zl+(el.offsetLeft+el.offsetWidth/2)*Z)+.5,y1=zt+h*Z+8;
+    const x2=Math.round(gl+cellW*i+cellW/2)+.5,y2=lt-8,ym=Math.round((y1+y2)/2)+.5;
+    p+=`<path d="M${x1} ${y1}V${ym}H${x2}V${y2}"/><circle cx="${x1}" cy="${y1}" r="1.6"/>`;
+  });
+  $('leaders').innerHTML=p;
+  $('tfrag').innerHTML=`<div class="frag">${rungHTML(1)}</div>`;
+  $('tw').innerHTML=`<b>${widthOf(rungHTML(1))} pt</b> wide &middot; numbers only when an expert asks you to act`;
+  // state grid
+  const SG={calm:svg(G.gauge()),asks:'3',awake:svg(G.eyeOpen()),working:svg(G.eyeAgent()),now:svg(G.clock())};
+  $('sgrid').innerHTML=Object.keys(STATES).map(s=>`<button class="rb${s===cur?' on':''}" data-s="${s}"><i>${SG[s]}</i>${STATES[s].label}</button>`).join('');
+  renderNotch();
+}
+function legend(){
+  const L=[
+    [`<span class="si">${svg(G.server())}</span>`,'<b>Glyph alone</b>: calm, nothing to do'],
+    [`<span class="si">${svg(G.server())}<span class="n">3</span></span>`,'<b>Number</b>: asks you to act, 3 characters max'],
+    [`<span class="si">${svg(G.eyeClosed())}</span>`,'<b>Closed eye</b>: the Mac may sleep'],
+    [`<span class="si">${svg(G.eyeOpen())}</span>`,'<b>Open eye</b>: awake, because you asked'],
+    [`<span class="si">${svg(G.eyeAgent())}</span>`,'<b>Slit pupil, looking</b>: awake for an agent']
+  ];
+  $('legend').innerHTML=L.map(([s,t])=>`<div class="lg"><div class="smp"><div class="frag">${s}</div></div><span>${t}</span></div>`).join('');
+}
+const RUNGS=[
+  ['All five','Numbers only where an expert asks.'],
+  ['Numbers become dots','Same glyphs. A dot says it asks.'],
+  ['Two icons','MinMacs holds three. Insomnia keeps its eye.'],
+  ['One icon','A dot asks. A filled hub means awake.'],
+  ['No room','&#8997;&#8984;M opens the menu. Told once.']
+];
+function renderNotch(){
+  $('nv').textContent=others;
+  const room=809-48-10, sysW=widthOf(otherHTML(others)+SYS);
+  const ws=[1,2,3,4].map(r=>widthOf(rungHTML(r)));
+  let active=5;
+  for(let r=1;r<=4;r++){if(ws[r-1]<=room-sysW){active=r;break;}}
+  let rowHTML,note='';
+  if(mode==='steps'){
+    rowHTML=rungHTML(active)+otherHTML(others)+SYS;
+    if(active===5) note='MinMacs has no room. <b>&#8997;&#8984;M</b> opens its menu.';
+  }else{
+    // macOS alone: all five with numbers; leftmost that don't fit are dropped silently
+    const items=ORDER.map(k=>item(k,'full'));let lost=[];let html=items.join('');
+    while(lost.length<5&&widthOf(html)>room-sysW){lost.push(ORDER[lost.length]);html=items.slice(lost.length).join('');}
+    rowHTML=html+otherHTML(others)+SYS;
+    if(lost.length) note=`Hidden by macOS, no warning: <b>${lost.map(k=>EX[k].name).join(', ')}</b>`;
+    active=0;
+  }
+  $('srow').innerHTML=rowHTML;
+  $('hnote').innerHTML=note;
+  $('rungs').innerHTML=RUNGS.map(([t,d],i)=>{
+    const r=i+1,prev=r<5?`<div class="frag">${rungHTML(r)}</div>`:`<span class="none">nothing in the bar</span>`;
+    return `<div class="rung${r===active?' on':''}"><span class="rn">${r}</span><b>${t}</b><span>${d}</span><div class="rp">${prev}</div><span class="rw">${r<5?ws[i]+' pt':'0 pt'}</span></div>`;
+  }).join('');
+}
+
+/* ---------- interaction ---------- */
+const card=$('card');let hideT=null,pinned=null,lastUndo=null;
+function rel(el){const r=el.getBoundingClientRect(),s=stage.getBoundingClientRect();
+  return {l:(r.left-s.left)/scale,t:(r.top-s.top)/scale,w:r.width/scale,h:r.height/scale};}
+function showCard(k,el){
+  clearTimeout(hideT);
+  const d=cardData(k),c=EX[k].c;
+  card.style.setProperty('--c',c);
+  card.innerHTML=`<div class="ct"><span class="badge">${svg(k==='in'?eyeGlyph(eye()):G[EX[k].g]())}</span>${EX[k].name}</div>
+    <div class="cs">${d.s}</div>
+    <div class="cf">${d.f.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join('')}</div>
+    <div class="ca">${d.act.map((a,i)=>`<button class="${i===0?'p':''}" data-a="${a}">${a}</button>`).join('')}<button data-a="open">Open ${EX[k].name}</button></div>`;
+  const r=rel(el);let left=r.l+r.w/2-143;left=Math.max(10,Math.min(1280-296,left));
+  let top=r.t+r.h+8; if(top+250>800) top=r.t-8-card.offsetHeight;
+  card.style.left=left+'px';card.style.top=top+'px';card.classList.add('show');
+}
+function hideCard(){hideT=setTimeout(()=>{card.classList.remove('show');document.querySelectorAll('.si.on').forEach(e=>e.classList.remove('on'));pinned=null;},200);}
+stage.addEventListener('mouseover',e=>{
+  const el=e.target.closest('.si[data-k]');if(!el||pinned)return;
+  if(el.closest('#measure'))return;
+  showCard(el.dataset.k,el);
+});
+stage.addEventListener('mouseout',e=>{const el=e.target.closest('.si[data-k]');if(el&&!pinned&&!el.contains(e.relatedTarget))hideCard();});
+card.addEventListener('mouseenter',()=>clearTimeout(hideT));
+card.addEventListener('mouseleave',()=>{if(!pinned)hideCard();});
+stage.addEventListener('click',e=>{
+  const el=e.target.closest('#topMM .si[data-k]');
+  if(el){document.querySelectorAll('.si.on').forEach(x=>x.classList.remove('on'));el.classList.add('on');pinned=el.dataset.k;showCard(pinned,el);e.stopPropagation();return;}
+  const b=e.target.closest('.rb');
+  if(b){cur=b.dataset.s;cleared={};card.classList.remove('show');pinned=null;fresh=true;render();fresh=false;return;}
+  const a=e.target.closest('.card button');
+  if(a){const act=a.dataset.a;
+    if(DONE[act]){const [k,msg]=DONE[act];cleared[k]=true;lastUndo=k;$('tmsg').textContent=msg;toast();}
+    card.classList.remove('show');pinned=null;render();return;}
+  if(!e.target.closest('.card')&&pinned){card.classList.remove('show');document.querySelectorAll('.si.on').forEach(x=>x.classList.remove('on'));pinned=null;}
+});
+let tT=null;
+function toast(){const t=$('toast');t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),6000);}
+$('undo').addEventListener('click',()=>{if(lastUndo){delete cleared[lastUndo];lastUndo=null;fresh=true;render();fresh=false;}$('toast').classList.remove('show');});
+$('others').addEventListener('input',e=>{others=+e.target.value;renderNotch();});
+$('seg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;
+  [...$('seg').children].forEach(x=>x.classList.toggle('on',x===b));renderNotch();});
+
+legend();render();requestAnimationFrame(()=>document.body.classList.add('ready'));
+})();
+</script>
+</body>
+</html>

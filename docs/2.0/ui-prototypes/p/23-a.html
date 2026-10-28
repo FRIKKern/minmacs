@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agents First</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.88);
+  --line:rgba(255,255,255,.06);
+  --tx:rgba(255,255,255,.94);
+  --tx2:rgba(235,235,245,.55);
+  --tx3:rgba(235,235,245,.28);
+  --ease:cubic-bezier(.3,.7,.2,1);
+  --apps:#5B9BFF;--servers:#3FD0B8;--trees:#4CC96B;--disk:#F2B544;--awake:#B18CFF;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1a1636}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-size:13px;cursor:default;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;text-align:left}
+:focus{outline:none}
+:focus-visible{outline:2px solid rgba(255,255,255,.55);outline-offset:3px;border-radius:8px}
+small{font-size:.86em;color:var(--tx2)}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(760px 560px at 10% 6%,#4b3c9e 0%,rgba(75,60,158,0) 70%),
+   radial-gradient(700px 520px at 84% 2%,#22618f 0%,rgba(34,97,143,0) 70%),
+   radial-gradient(820px 620px at 88% 104%,#a0436f 0%,rgba(160,67,111,0) 70%),
+   radial-gradient(640px 520px at 18% 100%,#3a2463 0%,rgba(58,36,99,0) 75%),
+   #1d1a3c}
+
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;background:rgba(18,14,40,.32);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:13px;color:rgba(255,255,255,.92);z-index:5}
+.mb-l,.mb-r{display:flex;align-items:center;gap:18px}
+.mb-l b{font-weight:700}
+.mb-r{gap:14px}
+.icons{position:relative;display:flex;align-items:center;gap:12px}
+.hl{position:absolute;left:0;top:-3px;height:22px;width:28px;border-radius:6px;background:rgba(255,255,255,.2);transition:transform .45s var(--ease),width .45s var(--ease),opacity .3s;pointer-events:none}
+.mi{position:relative;display:flex;width:16px;overflow:hidden;cursor:pointer;transition:width .4s var(--ease),opacity .3s,margin .4s var(--ease)}
+.mi.off{width:0;opacity:0;margin-left:-12px}
+
+/* sheet */
+.sheet{position:absolute;top:34px;left:480px;width:760px;background:var(--glass);backdrop-filter:blur(36px) saturate(1.5);-webkit-backdrop-filter:blur(36px) saturate(1.5);border:1px solid rgba(255,255,255,.085);border-radius:22px;box-shadow:0 34px 100px rgba(6,4,24,.5),inset 0 1px 0 rgba(255,255,255,.035);animation:drop .6s var(--ease) both}
+@keyframes drop{from{opacity:0;transform:translateY(-10px)}}
+.nub{position:absolute;top:-8px;left:0;width:18px;height:8px;margin-left:-9px;transition:transform .45s var(--ease)}
+.nub svg{display:block}
+
+.head{display:flex;align-items:center;gap:12px;height:56px;padding:0 36px;white-space:nowrap}
+.head .lbl{font-size:12px;color:var(--tx3)}
+.head .txt{font-size:13px;color:var(--tx2)}
+.head .txt b{font-weight:500;color:var(--tx)}
+.head .undo{margin-left:auto;font-size:13px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(255,255,255,.07);transition:background .2s}
+.head .undo:hover{background:rgba(255,255,255,.13)}
+
+.body{display:grid;grid-template-columns:212px 1fr;column-gap:34px;padding:2px 36px 24px}
+
+/* index */
+.idx{display:flex;flex-direction:column}
+.it{display:flex;align-items:center;gap:14px;height:54px;white-space:nowrap}
+.it.ag{margin-bottom:14px}
+.it .dot{flex:none;width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(235,235,245,.28);transition:background .35s,box-shadow .35s}
+.it .nm{font-size:27px;font-weight:600;letter-spacing:-.022em;color:rgba(235,235,245,.34);transition:color .3s}
+.it .md{margin-left:auto;font-size:12px;color:var(--tx3);transition:color .3s}
+.it:hover .nm{color:var(--tx2)}
+.it.sel .nm{color:var(--tx)}
+.it.sel .md{color:var(--tx2)}
+.it.ag .dot{background:rgba(255,255,255,.8);box-shadow:none;position:relative}
+.it.ag .dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.22)}
+
+/* detail */
+.det{position:relative;height:486px}
+.det .in{height:100%;display:flex;flex-direction:column;transition:opacity .22s,transform .35s var(--ease)}
+.det .in.swap{opacity:0;transform:translateY(6px)}
+.lab{font-size:12px;color:var(--tx3)}
+.nowrow{display:flex;align-items:flex-end;margin-top:4px}
+.big{display:flex;align-items:baseline;gap:6px;white-space:nowrap;height:46px}
+.big .n{font-size:42px;font-weight:500;letter-spacing:-.02em;line-height:46px}
+.big .u{font-size:15px;color:var(--tx2)}
+.big .n2{margin-left:16px;font-size:14px;color:var(--tx2)}
+.big .n2 b{font-weight:500;color:var(--tx)}
+.big .n.w{font-size:24px;color:var(--tx3)}
+.insight{margin-top:6px;font-size:14px;line-height:20px;color:var(--tx2);min-height:40px;max-width:440px}
+.insight b{font-weight:500;color:var(--tx)}
+.viz{margin-top:14px;transition:opacity .35s}
+.cap{font-size:12px;line-height:16px;color:var(--tx3);margin-top:6px}
+.cap b{font-weight:500;color:var(--tx2)}
+
+/* meters */
+.meter{display:grid;grid-template-columns:56px 1fr 92px;align-items:center;column-gap:14px;height:24px}
+.ml{font-size:12px;color:var(--tx2)}
+.mv{text-align:right;font-size:14px;font-weight:500;white-space:nowrap}
+.mv small{font-weight:400}
+.hbar{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.08)}
+.hbar i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:3px}
+.hbar .u{background:rgba(235,235,245,.32);transition:width .8s var(--ease)}
+.hbar .f{background:var(--c);border-radius:0 3px 3px 0;transition:left .8s var(--ease),width .8s var(--ease),opacity .35s}
+.hbar .tk{top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:#fff;transition:left .6s var(--ease),opacity .3s}
+
+/* rows */
+.list{margin-top:14px}
+.row{display:grid;align-items:center;column-gap:10px;height:28px;font-size:13px;white-space:nowrap}
+.row>*{min-width:0}
+.row .nm{color:var(--tx);overflow:hidden;text-overflow:ellipsis}
+.row .g{color:var(--tx2)}
+.row .r{text-align:right}
+.mk{width:7px;height:7px;border-radius:50%;transition:background .35s,box-shadow .35s,transform .35s var(--ease);transform:scale(.6)}
+.mk.on{background:var(--c);transform:none}
+.mk.ask{box-shadow:inset 0 0 0 1.5px var(--c);transform:none}
+.own{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);white-space:nowrap;max-width:100%;overflow:hidden;transition:color .2s}
+.own svg{flex:none}
+button.own:hover{color:var(--tx)}
+.own.none{color:var(--tx3)}
+.stk{display:inline-flex}
+.stk svg+svg{margin-left:-5px}
+
+.r-app{grid-template-columns:7px 20px 1fr 112px 88px}
+.r-srv{grid-template-columns:7px 22px 46px 68px 1fr 64px 56px}
+.r-wt{grid-template-columns:7px 1fr 132px 96px 56px}
+.r-dk{grid-template-columns:7px 1fr 118px 96px 54px}
+.r-aw{grid-template-columns:7px 20px 1fr 108px 112px}
+.r-srv .port{font-weight:500}
+.sbar{height:4px;border-radius:2px;background:var(--c);transition:width .8s var(--ease),opacity .35s}
+.ring circle{transition:stroke-dashoffset .9s var(--ease),stroke .35s}
+.tag{font-size:12px;color:var(--tx2);text-align:right;transition:color .3s}
+.tag.hold{color:var(--tx)}
+
+/* worktree columns */
+.cols{display:flex;align-items:flex-end;gap:18px;height:84px}
+.grp{display:flex;flex-direction:column;align-items:flex-start}
+.grp .cs{display:flex;align-items:flex-end;gap:8px;height:64px}
+.grp .gl{margin-top:6px;font-size:11px;color:var(--tx3);white-space:nowrap}
+.col{width:20px;border-radius:5px;height:6px;transition:height .8s var(--ease),background .4s,box-shadow .4s}
+.col.inuse{background:rgba(235,235,245,.5)}
+.col.fine{background:rgba(255,255,255,.1)}
+.col.stale{background:repeating-linear-gradient(135deg,rgba(235,235,245,.26) 0 2px,transparent 2px 5px);box-shadow:inset 0 0 0 1px rgba(235,235,245,.22)}
+.col.mg{box-shadow:inset 0 0 0 1.5px var(--trees)}
+.col.mg.due{background:var(--trees);box-shadow:none}
+
+/* keep awake gauge */
+.gauge{margin-left:auto;display:flex;align-items:center;gap:12px;margin-bottom:2px}
+.gauge .gt{display:flex;flex-direction:column}
+.gauge .gv{font-size:18px;font-weight:500;line-height:22px}
+.gauge .gs{font-size:11px;color:var(--tx3)}
+.gauge .arc{transition:stroke-dashoffset .9s var(--ease)}
+.gauge .tickg{transition:transform .7s var(--ease),opacity .3s}
+
+/* settings block */
+.set{margin-top:auto;padding-top:14px;border-top:1px solid var(--line)}
+.setrow{display:grid;grid-template-columns:auto 1fr;column-gap:30px;align-items:start;margin-top:4px}
+.modes{position:relative;display:flex;gap:24px;height:44px;align-items:flex-start}
+.modes button{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:36px;color:var(--tx3);transition:color .3s}
+.modes button:hover{color:var(--tx2)}
+.modes button[aria-checked="true"]{color:var(--tx)}
+.bar{position:absolute;left:0;top:40px;height:2px;border-radius:1px;background:var(--c);transition:transform .45s var(--ease),width .45s var(--ease),opacity .35s}
+.rule{font-size:13px;line-height:18px;color:var(--tx2);padding-top:1px}
+.vals{display:flex;align-items:baseline;gap:20px;margin-top:10px;white-space:nowrap;transition:opacity .3s}
+.vals .lab{min-width:118px}
+.opts{display:flex;gap:18px;height:24px;align-items:flex-start}
+.opts button{position:relative;font-size:15px;color:var(--tx3);line-height:20px;transition:color .25s}
+.opts button:hover{color:var(--tx2)}
+.opts button[aria-checked="true"]{color:var(--tx);font-weight:500}
+.opts button[aria-checked="true"]::after{content:"";position:absolute;left:50%;bottom:-5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--c)}
+.det.off .vals{opacity:.3;pointer-events:none}
+.det.off .viz,.det.off .list{opacity:.45}
+
+/* agents view */
+.legend{display:flex;align-items:center;gap:16px;margin-top:14px;font-size:12px;color:var(--tx3);white-space:nowrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.r-ag{display:grid;grid-template-columns:28px 1fr 150px;column-gap:14px;align-items:center;height:40px;border-radius:10px;transition:background .6s}
+.r-ag.flash{background:rgba(255,255,255,.07);transition:background .1s}
+.r-ag .ic{position:relative;width:26px;height:26px}
+.r-ag .ic>svg{display:block}
+.sd{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;border:2px solid #22232d}
+.sd.working{background:#fff}
+.sd.working::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:1px solid rgba(255,255,255,.7);animation:pulse 2.4s ease-out infinite}
+@keyframes pulse{from{transform:scale(1);opacity:.8}to{transform:scale(2.2);opacity:0}}
+.sd.needs{background:#FF9F5A;border-radius:2px;transform:rotate(45deg);width:9px;height:9px}
+.sd.idle{background:#22232d;box-shadow:inset 0 0 0 1.5px rgba(235,235,245,.5)}
+.sd.done{background:rgba(235,235,245,.5)}
+.r-ag .tt{display:flex;flex-direction:column;min-width:0;white-space:nowrap}
+.r-ag .an{font-size:14.5px;font-weight:500;line-height:19px;overflow:hidden;text-overflow:ellipsis}
+.r-ag .as{font-size:12px;color:var(--tx3);line-height:16px}
+.r-ag .as .nd{color:#FF9F5A}
+.slots{display:grid;grid-template-columns:repeat(5,22px);column-gap:8px;justify-content:end}
+.bd{position:relative;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;cursor:pointer;transition:transform .2s var(--ease)}
+.bd:hover{transform:scale(1.12)}
+.bd .ct{position:absolute;right:-5px;top:-4px;font-size:9.5px;font-weight:600;color:var(--tx);background:#2b2c38;border-radius:6px;padding:0 3px;line-height:12px}
+.more .ic{display:flex;align-items:center}
+
+.foot{display:flex;align-items:center;gap:28px;height:56px;padding:0 36px;border-top:1px solid var(--line)}
+.sw{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--tx2);transition:color .2s}
+.sw i{width:32px;height:19px;border-radius:10px;background:rgba(255,255,255,.14);position:relative;transition:background .25s;flex:none}
+.sw i::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
+.sw[aria-checked="true"]{color:var(--tx)}
+.sw[aria-checked="true"] i{background:#5B9BFF}
+.sw[aria-checked="true"] i::after{transform:translateX(13px)}
+.foot .hint{margin-left:auto;font-size:11px;color:var(--tx3)}
+
+.tip{position:absolute;left:0;top:0;z-index:30;pointer-events:none;padding:6px 10px;border-radius:8px;background:rgba(46,46,60,.97);border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:12px;color:var(--tx);white-space:nowrap;opacity:0;transform:translate(-50%,calc(-100% - 6px));transition:opacity .15s}
+.tip.on{opacity:1}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="mb-l">
+      <svg viewBox="0 0 17 20" width="13" height="16" aria-hidden="true"><path fill="#fff" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.7 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z"/></svg>
+      <b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="mb-r">
+      <div class="icons" id="icons"><i class="hl" id="hl"></i></div>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 6.3a8.6 8.6 0 0 1 12 0M4.2 8.6a5.4 5.4 0 0 1 7.6 0"/><circle cx="8" cy="11.6" r="1.3" fill="#fff" stroke="none"/></svg>
+      <svg viewBox="0 0 26 14" width="25" height="13" aria-hidden="true"><rect x=".7" y=".7" width="21.6" height="12.6" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/><rect x="2.6" y="2.6" width="11.6" height="8.8" rx="2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet" role="dialog" aria-label="Settings">
+    <div class="nub" id="nub"><svg viewBox="0 0 18 8" width="18" height="8" aria-hidden="true"><path d="M0 8 C5 8 6.5 0 9 0 C11.5 0 13 8 18 8 Z" fill="rgba(36,36,48,.96)"/></svg></div>
+    <div class="head" id="today"></div>
+    <div class="body">
+      <div class="idx" id="idx" role="tablist" aria-orientation="vertical"></div>
+      <div class="det" id="det"><div class="in" id="in"></div></div>
+    </div>
+    <div class="foot">
+      <button class="sw" id="one" role="switch" aria-checked="false"><i></i>One icon in the menu bar</button>
+      <button class="sw" id="login" role="switch" aria-checked="true"><i></i>Open at login</button>
+      <span class="hint">Click a badge or an owner to jump</span>
+    </div>
+  </div>
+  <div class="tip" id="tip"></div>
+</div>
+
+<script>
+const G = {
+  apps:'<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.6"/><path d="M6.6 1.8v2.4M9.4 1.8v2.4M6.6 11.8v2.4M9.4 11.8v2.4M1.8 6.6h2.4M1.8 9.4h2.4M11.8 6.6h2.4M11.8 9.4h2.4"/>',
+  servers:'<rect x="2.5" y="2.8" width="11" height="4.2" rx="1.4"/><rect x="2.5" y="9" width="11" height="4.2" rx="1.4"/><path d="M5.2 4.9h.01M5.2 11.1h.01" stroke-width="2.2"/>',
+  trees:'<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7c0 2.7-2.4 3.4-5.4 4.2"/>',
+  disk:'<ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  awake:'<path d="M1.8 8s2.3-4.3 6.2-4.3S14.2 8 14.2 8s-2.3 4.3-6.2 4.3S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  one:'<circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.6l2.4 1.4"/>'
+};
+const COL={apps:'#5B9BFF',servers:'#3FD0B8',trees:'#4CC96B',disk:'#F2B544',awake:'#B18CFF'};
+const gl=(k,c,s)=>`<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[k]}</svg>`;
+function tool(t,s){
+  if(t==='cc') return `<svg viewBox="0 0 20 20" width="${s}" height="${s}" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#D97757"/><path d="M10 4.8v10.4M4.8 10h10.4M6.3 6.3l7.4 7.4M13.7 6.3l-7.4 7.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+  if(t==='codex') return `<svg viewBox="0 0 20 20" width="${s}" height="${s}" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#ECECF1"/><path d="M6.2 7.3l2.7 2.7-2.7 2.7M10.6 13h3.4" fill="none" stroke="#1b1b20" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  return `<svg viewBox="0 0 20 20" width="${s}" height="${s}" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#2a2a31"/><circle cx="10" cy="10" r="9.5" fill="none" stroke="rgba(255,255,255,.16)"/><path d="M10 4.9l4.4 2.55v5.1L10 15.1l-4.4-2.55v-5.1zM10 10l4.4-2.55M10 10v5.1M10 10L5.6 7.45" fill="none" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+}
+function appIcon(k){
+  if(k==='spotify') return `<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#1DB954"/><path d="M5.2 7.6c3.3-1 6.9-.7 9.7.9M5.8 10.4c2.7-.8 5.6-.5 7.9.8M6.4 13c2.1-.6 4.3-.4 6.1.6" fill="none" stroke="#0b2a17" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  const a = k==='cft' ? ['#E58A3A','#F2C14E','#B56A2C','#F7E3C4'] : ['#DB4437','#F4B400','#0F9D58','#4285F4'];
+  return `<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M10 10L10 0A10 10 0 0 1 18.66 15Z" fill="${a[0]}" transform="rotate(-60 10 10)"/><path d="M10 10L10 0A10 10 0 0 1 18.66 15Z" fill="${a[1]}" transform="rotate(60 10 10)"/><path d="M10 10L10 0A10 10 0 0 1 18.66 15Z" fill="${a[2]}" transform="rotate(180 10 10)"/><circle cx="10" cy="10" r="4.6" fill="#fff"/><circle cx="10" cy="10" r="3.4" fill="${a[3]}"/></svg>`;
+}
+
+/* ---------- agents ---------- */
+const AG=[
+ {id:'speed-3',t:'cc',tn:'Claude Code',st:'working',w:'working 2m',h:{servers:[':3000',':5173'],trees:'speed-3-base, in use',awake:1}},
+ {id:'bp-lane-c',t:'cc',tn:'Claude Code',st:'working',w:'working 14m',h:{trees:'bp-lane-c, in use',awake:1}},
+ {id:'media-scope',t:'codex',tn:'Codex',st:'working',w:'working 6m',h:{trees:'media-scope, in use',awake:1}},
+ {id:'studio-icons',t:'cursor',tn:'Cursor',st:'working',w:'working 1m',h:{apps:'Cursor',awake:1}},
+ {id:'lexicon-judge',t:'cc',tn:'Claude Code',st:'needs',w:'needs you 3m',h:{apps:'Chrome for Testing',disk:'old Playwright browsers, 3.3 GB'}},
+ {id:'studio-parity',t:'cc',tn:'Claude Code',st:'idle',w:'idle 40m',h:{servers:[':3334'],trees:'studio-parity'}},
+ {id:'fix auth redirect',t:'codex',tn:'Codex',st:'done',w:'finished 2h ago',h:{servers:[':4000'],trees:'auth-redirect, merged',disk:'node_modules, 2.6 GB'}}
+];
+const MORE=[['lane-e','cc'],['fieldsets','codex'],['w19','cc'],['dogfood','cc'],['sweep-403','codex']];
+const AGT=Object.fromEntries(AG.map(a=>[a.id,a]).concat(MORE.map(m=>[m[0],{id:m[0],t:m[1]}])));
+const own=(id,txt)=> id ? `<button class="own" data-agent="${id}" data-tip="Owned by ${id}">${tool(AGT[id].t,14)}<span>${id}</span></button>` : `<span class="own none">${txt||'no agent'}</span>`;
+const ownMany=(ids,txt)=>`<button class="own" data-agent="${ids[0]}" data-tip="${ids.join(', ')}"><span class="stk">${ids.slice(0,3).map(i=>tool(AGT[i].t,14)).join('')}</span><span>${txt}</span></button>`;
+const mk=()=>`<i class="mk"></i>`;
+
+/* ---------- sections ---------- */
+const MODES=['Off','Ask','Auto'];
+let undone=false;
+const SRV=[
+ {p:':3000',k:'next dev',o:'speed-3',use:'in use',idle:0,mem:'412 MB'},
+ {p:':5173',k:'vite',o:'speed-3',use:'in use',idle:0,mem:'188 MB'},
+ {p:':3334',k:'sanity',o:'studio-parity',idle:40,mem:'640 MB'},
+ {p:':4000',k:'phoenix',o:'fix auth redirect',idle:120,mem:'290 MB'},
+ {p:':6006',k:'storybook',o:null,idle:4320,mem:'520 MB'},
+ {p:':5432',k:'postgres',o:null,ot:'Docker',use:'kept',idle:0,mem:'140 MB'}
+];
+const LIM=[30,60,120,240,1440];
+const WT=[
+ {n:'speed-3-base',g:'inuse',s:2.1,o:'speed-3'},{n:'bp-lane-c',g:'inuse',s:1.6,o:'bp-lane-c'},{n:'media-scope',g:'inuse',s:1.3,o:'media-scope'},
+ {n:'studio-parity',g:'fine',s:2.6,o:'studio-parity'},{n:'studio-rhythm',g:'fine',s:1.4},{n:'studio-collab',g:'fine',s:.9},{n:'studio-dayref',g:'fine',s:1.2},{n:'lexicon-deploy',g:'fine',s:.7},
+ {n:'bp7-studio-dogfood',g:'stale',s:3.2,o:'dogfood',why:'stale 21d, 1 commit not in main'},{n:'bp8-sweep-studio403',g:'stale',s:1.1,o:'sweep-403',why:'stale 34d, remote branch deleted'},
+ {n:'auth-redirect',g:'mg',s:1.8,o:'fix auth redirect',age:2880,ago:'2d',how:'squash-merged'},{n:'lane-e-sort',g:'mg',s:2.3,o:'lane-e',age:4320,ago:'3d',how:'merged'},
+ {n:'sb-fieldsets',g:'mg',s:.94,o:'fieldsets',age:7200,ago:'5d',how:'merged'},{n:'w19-fire',g:'mg',s:.61,o:'w19',age:12960,ago:'9d',how:'merged'}
+];
+const AFTER=[60,1440,10080];
+const DK=[
+ {n:'Xcode DerivedData',s:14.2,safe:1,o:()=>own(null,'no agent, 4 gone')},
+ {n:'node_modules',s:9.8,safe:1,o:()=>ownMany(['fix auth redirect','lane-e','fieldsets','w19'],'4 finished')},
+ {n:'npm cache',s:6.1,safe:1,o:()=>own(null,'shared by all')},
+ {n:'Docker build cache',s:4.2,o:()=>own(null,'Docker')},
+ {n:'Playwright, old',s:3.3,o:()=>own('lexicon-judge')},
+ {n:'Simulator runtimes',s:.8,o:()=>own(null,'report only')}
+];
+const NEXT=['tonight','on Sunday','on 1 Nov'];
+const fmtLeft=m=>m>=60?`${Math.floor(m/60)} h${m%60?' '+(m%60)+' m':''}`:`${m} m`;
+
+const S=[
+ {id:'agents',name:'Agents',agents:true},
+ {id:'apps',name:'Apps',c:COL.apps,mode:2,lab:'When load is above',vals:['60 %','70 %','80 %','90 %'],th:[60,70,80,90],v:1,
+  rule:['Not watching apps.','Shows noise apps you could close when the Mac is busy.','Closes noise apps when the Mac is busy.'],
+  big(){ if(!this.mode) return ['Not watching']; return this.mode===2?[undone?'0':'2','closed today']:['2','ready to close'] },
+  insight(){ const t=this.th[this.v], over=63>=t;
+    if(!this.mode) return 'Not watching apps. Load is <b>63 %</b>, and Chrome uses the most memory, 8.7 GB.';
+    if(this.mode===2) return over?`Load is <b>63 %</b>, over your ${t} %, so Auto closes Chrome and Spotify now. That frees 22 % CPU and 9.3 GB.`:`Load is <b>63 %</b>, under your ${t} %, so nothing closes yet. Next to go: Chrome and Spotify, 22 % CPU and 9.3 GB.`;
+    return over?`Load is <b>63 %</b>, over ${t} %. Chrome and Spotify are shown to close, freeing 9.3 GB.`:`Load is <b>63 %</b>, under ${t} %. If it rises, you are asked about Chrome and Spotify.`},
+  build(){ return `<div class="viz">
+      <div class="meter"><span class="ml">CPU</span><div class="hbar"><i class="u" id="cu"></i><i class="f" id="cf"></i><i class="tk" id="ct"></i></div><span class="mv">63<small> %</small></span></div>
+      <div class="meter"><span class="ml">Memory</span><div class="hbar"><i class="u" id="mu"></i><i class="f" id="mf"></i></div><span class="mv">24.1<small> / 32 GB</small></span></div>
+      <p class="cap">Colored end: what closing the marked apps frees. White tick: busy above <span id="thr"></span>.</p></div>
+    <div class="list">
+      <div class="row r-app" data-act="1">${mk()}${appIcon('chrome')}<span class="nm">Google Chrome <small>14 noise tabs</small></span>${own(null,'no agent')}<span class="r">21<small> %</small>&ensp;8.7<small> GB</small></span></div>
+      <div class="row r-app" data-act="1">${mk()}${appIcon('spotify')}<span class="nm">Spotify</span>${own(null,'no agent')}<span class="r">1<small> %</small>&ensp;578<small> MB</small></span></div>
+      <div class="row r-app">${mk()}${appIcon('cft')}<span class="nm">Chrome for Testing</span>${own('lexicon-judge')}<span class="r">9<small> %</small>&ensp;1.2<small> GB</small></span></div>
+      <p class="cap" id="lcap"></p></div>`},
+  upd(){ const t=this.th[this.v], on=this.mode>0;
+    w('cu',63);w('mu',75.3);
+    $('cf').style.left=(on?41:63)+'%';$('cf').style.width=(on?22:0)+'%';
+    $('mf').style.left=(on?46.25:75.3)+'%';$('mf').style.width=(on?29.05:0)+'%';
+    $('ct').style.left=t+'%';$('ct').style.opacity=on?1:0;$('thr').textContent=t+' %';
+    marks(()=>true);
+    $('lcap').innerHTML=!on?'Not watching. Chrome for Testing would be spared anyway.':
+      (this.mode===2?`<b>Marked</b>: Auto closes these above ${t} %. Spared: Chrome for Testing, Playwright drives it.`:`<b>Marked</b>: shown to close above ${t} %. Spared: Chrome for Testing, Playwright drives it.`)}},
+ {id:'servers',name:'Servers',c:COL.servers,mode:2,lab:'Idle for',vals:['30 min','1 h','2 h','4 h','1 day'],v:2,
+  rule:['Not watching servers.','Shows localhost servers nobody is using.','Stops localhost servers nobody used.'],
+  big(){ if(!this.mode) return ['Not watching']; return this.mode===2?['3','idle now',`<b>${undone?0:3}</b> stopped today`]:['3','idle now'] },
+  insight(){ return this.mode? '<b>3 servers idle.</b> :6006 storybook has been idle 3 days and nobody owns it.' : 'Not watching. 6 servers run on this Mac, 2.19 GB in all.' },
+  build(){ return `<div class="list" style="margin-top:12px">${SRV.map((s,i)=>`<div class="row r-srv">${mk()}${ring(i)}<span class="nm port">${s.p}</span><span class="g">${s.k}</span>${own(s.o,s.ot)}<span class="g r">${s.use||'idle '+(s.idle>=1440?s.idle/1440+'d':s.idle>=60?s.idle/60+'h':s.idle+'m')}</span><span class="r">${s.mem.replace(' ','<small> ')}</small></span></div>`).join('')}
+      <p class="cap" id="lcap"></p></div>`},
+  upd(){ const L=LIM[this.v], due=[];
+    SRV.forEach((s,i)=>{ const p=s.idle?Math.min(1,s.idle/L):0; const a=$('ra'+i); a.style.strokeDashoffset=(1-p)*50.3; if(p>=1) due.push(s.p) });
+    marks(i=>SRV[i].idle>=L);
+    const left=SRV.filter(s=>s.idle&&s.idle<L).map(s=>`${s.p} has ${fmtLeft(L-s.idle)} left`);
+    $('lcap').innerHTML=!this.mode?'Not watching servers.':
+      `Ring fills toward ${this.vals[this.v]} idle. <b>Marked</b>: ${this.mode===2?'Auto stops':'shown to stop'} ${due.join(' and ')||'none yet'}${left.length?'. '+left.join(', '):''}.`}},
+ {id:'trees',name:'Worktrees',c:COL.trees,mode:1,lab:'After merge',vals:['1 h','1 day','1 week'],v:1,
+  rule:['Not watching worktrees.','Shows git worktrees that are merged.','Removes merged worktrees. Undo brings them back.'],
+  free(){ return WT.filter(x=>x.g==='mg'&&x.age>=AFTER[this.v]).reduce((a,x)=>a+x.s,0) },
+  big(){ if(!this.mode) return ['Not watching']; return ['4','merged',`<b>${this.free().toFixed(2)}</b> GB ${this.mode===2?'to free':'ready'}`] },
+  insight(){ return this.mode?'<b>4 worktrees are merged</b> and hold 5.65 GB. bp7-studio-dogfood is stale 21 days with 1 commit not in main.':'Not watching. 14 worktrees, 3 in use by speed-3, bp-lane-c and media-scope.' },
+  build(){ const grp=[['inuse','in use'],['fine','fine'],['stale','stale'],['mg','merged']];
+    return `<div class="viz"><div class="cols">${grp.map(([g,l])=>`<div class="grp"><div class="cs">${WT.map((x,i)=>x.g!==g?'':`<i class="col ${g}" id="wc${i}" data-tip="${x.n} · ${x.why||x.how||l} · ${x.s} GB · ${x.o||'no agent'}"></i>`).join('')}</div><span class="gl">${l}</span></div>`).join('')}</div>
+      <p class="cap" id="vcap"></p></div>
+      <div class="list">${WT.filter(x=>x.g==='mg').map(x=>`<div class="row r-wt">${mk()}<span class="nm">${x.n}</span>${own(x.o)}<span class="g" data-tip="${x.how}">merged ${x.ago} ago</span><span class="r">${x.s<1?Math.round(x.s*1000)+'<small> MB</small>':x.s+'<small> GB</small>'}</span></div>`).join('')}</div>`},
+  upd(){ const A=AFTER[this.v];
+    WT.forEach((x,i)=>{ const c=$('wc'+i); c.style.height=(8+x.s/3.2*56)+'px'; if(x.g==='mg') c.classList.toggle('due',this.mode>0&&x.age>=A) });
+    const mg=WT.filter(x=>x.g==='mg'); marks(i=>mg[i].age>=A);
+    $('vcap').innerHTML=!this.mode?'Height is size.':`Height is size. <b>Solid green</b>: ${this.mode===2?'Remove Merged frees these':'shown to remove'}, ${this.free().toFixed(2)} GB.`}},
+ {id:'disk',name:'Disk',c:COL.disk,mode:2,lab:'How often',vals:['daily','weekly','monthly'],v:1,
+  rule:['Not watching the disk.','Shows caches and build output that are safe to clean.','Moves safe caches and build output to the Trash.'],
+  big(){ if(!this.mode) return ['Not watching']; return ['30.1','GB safe to clean',(this.mode===2?'next ':'check ')+NEXT[this.v]] },
+  insight(){ return this.mode?'The disk is <b>82 % full</b>. 38.4 GB of it is clutter, most of it Xcode DerivedData for 4 projects that are gone.':'Not watching. The disk is 82 % full, 182 GB free.' },
+  build(){ return `<div class="viz"><div class="meter"><span class="ml">Disk</span><div class="hbar"><i class="u" id="du"></i><i class="f" id="df"></i></div><span class="mv">812<small> / 994 GB</small></span></div>
+      <p class="cap">Amber end: the 38.4 GB of clutter, split below. Faded bars are shown only.</p></div>
+    <div class="list" style="margin-top:8px">${DK.map((d,i)=>`<div class="row r-dk">${mk()}<span class="nm">${d.n}</span>${d.o()}<span><i class="sbar" id="db${i}" style="display:block;width:0;opacity:${d.safe?1:.35}"></i></span><span class="r">${d.s}<small> GB</small></span></div>`).join('')}
+      <p class="cap" id="lcap"></p></div>`},
+  upd(){ w('du',77.8); $('df').style.left='77.8%'; $('df').style.width='3.86%';
+    DK.forEach((d,i)=>$('db'+i).style.width=(d.s/14.2*96)+'px');
+    marks(i=>DK[i].safe);
+    $('lcap').innerHTML=!this.mode?'Not watching the disk.':(this.mode===2?`<b>Marked</b>: Clean Safe moves these 30.1 GB to the Trash ${NEXT[this.v]}.`:`<b>Marked</b>: safe to clean, 30.1 GB, shown ${NEXT[this.v]}.`)}},
+ {id:'awake',name:'Keep Awake',c:COL.awake,mode:2,lab:'Ends at battery',vals:['10 %','20 %','30 %','never'],bt:[10,20,30,null],v:1,
+  rule:['The Mac sleeps as usual.','Asks when an agent starts working.','Keeps the Mac awake while agents work, then lets it sleep.'],
+  big(){ return this.mode?['4','agents keep it awake']:['Sleeps as usual'] },
+  insight(){ const b=this.bt[this.v];
+    if(!this.mode) return 'The Mac sleeps as usual, even while <b>4 agents</b> work.';
+    if(this.mode===1) return `<b>4 agents are working</b>. You said yes to each, so it stays awake until they finish${b?` or the battery hits ${b} %`:''}.`;
+    return `Awake because <b>4 agents are working</b>. It sleeps when the last one finishes${b?`, or at ${b} % battery`:''}.`},
+  side(){ return `<div class="gauge"><svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="19" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="4"/><circle class="arc" id="garc" cx="23" cy="23" r="19" fill="none" stroke="${COL.awake}" stroke-width="4" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" transform="rotate(-90 23 23)"/><g class="tickg" id="gtk" style="transform-origin:23px 23px"><path d="M23 1.5v7.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g></svg><div class="gt"><span class="gv">64<small> %</small></span><span class="gs" id="gs"></span></div></div>` },
+  build(){ const rows=AG.slice(0,6); return `<div class="list" style="margin-top:12px">${rows.map(a=>`<div class="row r-aw" data-agent-row="${a.id}">${mk()}${tool(a.t,20)}<span class="nm">${a.id}</span><span class="g">${a.w}</span><span class="tag"></span></div>`).join('')}
+      <p class="cap" id="lcap"></p></div>`},
+  upd(){ const b=this.bt[this.v];
+    $('garc').style.strokeDashoffset=119.4*(1-.64);
+    $('gtk').style.transform=`rotate(${(b||0)*3.6}deg)`; $('gtk').style.opacity=b?1:0;
+    $('gs').textContent=b?`battery, stops at ${b} %`:'battery, no stop';
+    const rows=AG.slice(0,6); marks(i=>rows[i].h.awake);
+    document.querySelectorAll('.r-aw .tag').forEach((t,i)=>{ const a=rows[i]; const hold=a.h.awake&&this.mode;
+      t.textContent= hold?(this.mode===2?'holds it awake':'you said yes'): a.st==='needs'?'waiting on you': a.h.awake?'working':'resting'; t.classList.toggle('hold',!!hold) });
+    $('lcap').innerHTML=this.mode?'<b>Marked</b>: holding the Mac awake. 6 more agents rest. Also ends if the network drops or the Mac runs hot.':'Nothing holds the Mac awake. 6 more agents rest.'}}
+];
+function ring(i){ return `<svg class="ring" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2.6" ${SRV[i].use==='kept'?'stroke-dasharray="2 2.2"':''}/><circle id="ra${i}" cx="11" cy="11" r="8" fill="none" stroke="${COL.servers}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="50.3" transform="rotate(-90 11 11)"/>${SRV[i].use==='in use'?'<circle cx="11" cy="11" r="2.4" fill="rgba(235,235,245,.7)"/>':''}</svg>` }
+const $=id=>document.getElementById(id);
+const w=(id,p)=>$(id).style.width=p+'%';
+let sel='agents';
+const cur=()=>S.find(s=>s.id===sel);
+function marks(pred){ const s=cur(); document.querySelectorAll('#in .list .row').forEach((r,i)=>{ const m=r.querySelector('.mk'); if(!m) return;
+  const act=(s.id!=='apps'||r.dataset.act)&&pred(i); m.className='mk'+(act&&s.mode?(s.mode===2?' on':' ask'):'') }) }
+
+/* agents view */
+function slots(h){
+  const tips={apps:h.apps&&('Uses '+h.apps),servers:h.servers&&('Servers '+h.servers.join(', ')),trees:h.trees&&('Worktree '+h.trees),disk:h.disk&&('Left on disk: '+h.disk),awake:h.awake&&'Holds the Mac awake'};
+  return `<div class="slots">${['apps','servers','trees','disk','awake'].map(k=>h[k]?`<button class="bd" data-jump="${k}" data-tip="${tips[k]}" style="background:${COL[k]}26">${gl(k,COL[k],12)}${k==='servers'&&h.servers.length>1?`<span class="ct">${h.servers.length}</span>`:''}</button>`:'<span></span>').join('')}</div>`;
+}
+function agentsHTML(){
+  return `<div class="lab">Right now</div>
+   <div class="nowrow"><div class="big"><span class="n">12</span><span class="u">agents</span><span class="n2"><b>4</b> working · <b>1</b> needs you · <b>7</b> resting</span></div></div>
+   <p class="insight"><b>4 are working</b> and keep the Mac awake. lexicon-judge needs you. fix auth redirect finished 2 h ago and still holds :4000.</p>
+   <div class="legend"><span>Holds</span>${['apps','servers','trees','disk','awake'].map(k=>`<span>${`<i class="bd" style="width:16px;height:16px;background:${COL[k]}26">${gl(k,COL[k],10)}</i>`}${{apps:'app',servers:'servers',trees:'worktree',disk:'disk',awake:'keeps awake'}[k]}</span>`).join('')}</div>
+   <div class="list" style="margin-top:8px">${AG.map(a=>`<div class="r-ag" data-agent-row="${a.id}"><span class="ic">${tool(a.t,26)}<i class="sd ${a.st}"></i></span><span class="tt"><span class="an">${a.id}</span><span class="as">${a.tn} · ${a.st==='needs'?'<span class="nd">needs you</span> 3m':a.w}</span></span>${slots(a.h)}</div>`).join('')}
+    <div class="r-ag more"><span class="ic"><span class="stk">${MORE.slice(0,3).map(m=>tool(m[1],14)).join('')}</span></span><span class="tt"><span class="an" data-tip="${MORE.map(m=>m[0]).join(', ')}">5 more</span><span class="as">idle over 1 h</span></span>${slots({trees:'lane-e-sort, sb-fieldsets, w19-fire merged; 2 stale',disk:'node_modules, 7.2 GB'})}</div></div>`;
+}
+
+function dot(s){ if(s.agents) return ''; return s.mode===2?`background:${s.c};box-shadow:none`:s.mode===1?`background:transparent;box-shadow:inset 0 0 0 1.5px ${s.c}`:'' }
+function renderIdx(){
+  $('idx').innerHTML=S.map(s=>`<button class="it${s.agents?' ag':''}${s.id===sel?' sel':''}" role="tab" aria-selected="${s.id===sel}" data-s="${s.id}" id="it-${s.id}">
+    <i class="dot" style="${dot(s)}"></i><span class="nm">${s.name}</span><span class="md">${s.agents?'12':MODES[s.mode]}</span></button>`).join('');
+}
+function bigHTML(n){ return n.length===1?`<span class="n w">${n[0]}</span>`:`<span class="n">${n[0]}</span><span class="u">${n[1]}</span>${n[2]?`<span class="n2">${n[2]}</span>`:''}` }
+function detHTML(s){
+  if(s.agents) return agentsHTML();
+  return `<div class="lab">Right now</div>
+    <div class="nowrow"><div class="big" id="big"></div>${s.side?s.side():''}</div>
+    <p class="insight" id="ins"></p>
+    ${s.build()}
+    <div class="set"><div class="lab">Setting</div>
+      <div class="setrow"><div class="modes" role="radiogroup" aria-label="${s.name} mode">${MODES.map((m,i)=>`<button role="radio" aria-checked="${i===s.mode}" data-m="${i}">${m}</button>`).join('')}<i class="bar" id="bar"></i></div>
+        <p class="rule" id="rule"></p></div>
+      <div class="vals"><span class="lab">${s.lab}</span><div class="opts" role="radiogroup" aria-label="${s.lab}">${s.vals.map((v,i)=>`<button role="radio" aria-checked="${i===s.v}" data-v="${i}">${v}</button>`).join('')}</div></div>
+    </div>`;
+}
+function placeBar(instant){
+  const s=cur(), b=$('bar'); if(!b) return; const t=document.querySelector(`.modes button[data-m="${s.mode}"]`);
+  if(instant) b.style.transition='none';
+  b.style.width=t.offsetWidth+'px'; b.style.transform=`translateX(${t.offsetLeft}px)`; b.style.opacity=s.mode?1:.35;
+  if(instant){ void b.offsetWidth; b.style.transition='' }
+}
+function upd(){
+  const s=cur(); if(s.agents) return;
+  $('det').classList.toggle('off',!s.mode);
+  document.querySelectorAll('.modes button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.m===s.mode)));
+  document.querySelectorAll('.opts button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.v===s.v)));
+  $('big').innerHTML=bigHTML(s.big()); $('ins').innerHTML=s.insight(); $('rule').textContent=s.rule[s.mode];
+  s.upd(); placeBar(false);
+}
+function renderDet(animate){
+  const s=cur(), d=$('det'), inn=$('in');
+  d.style.setProperty('--c',s.c||'#fff');
+  const fill=()=>{ inn.innerHTML=detHTML(s); d.classList.toggle('off',!s.agents&&!s.mode);
+    if(!s.agents){ $('big').innerHTML=bigHTML(s.big()); $('ins').innerHTML=s.insight(); $('rule').textContent=s.rule[s.mode]; placeBar(true);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>s.upd())) } };
+  if(!animate){ fill(); return }
+  inn.classList.add('swap');
+  setTimeout(()=>{ fill(); requestAnimationFrame(()=>inn.classList.remove('swap')) },170);
+}
+function renderToday(){
+  $('today').innerHTML = undone
+   ? `<span class="lbl">Today</span><span class="txt">Reopened 2 apps and started 3 servers again</span><button class="undo" id="redo">Redo</button>`
+   : `<span class="lbl">Today</span><span class="txt">Closed <b>2 apps</b>, stopped <b>3 servers</b></span><button class="undo" id="undo">Undo</button>`;
+}
+function renderIcons(){
+  const one=$('one').getAttribute('aria-checked')==='true', box=$('icons');
+  if(!box.querySelector('.mi')) box.insertAdjacentHTML('beforeend',S.filter(s=>!s.agents).map(s=>`<span class="mi" id="mi-${s.id}" data-s="${s.id}" title="${s.name}">${gl(s.id,'#fff',16)}</span>`).join('')+`<span class="mi off" id="mi-one" title="MinMacs">${gl('one','#fff',16)}</span>`);
+  S.forEach(s=>{ if(!s.agents) $('mi-'+s.id).classList.toggle('off',one||s.mode===0) });
+  $('mi-one').classList.toggle('off',!one);
+  setTimeout(aim,420); aim();
+}
+// the sheet hangs from what it is about: one icon, or for Agents the whole group of icons
+function span(){
+  const one=$('one').getAttribute('aria-checked')==='true';
+  if(one) return [$('mi-one'),$('mi-one')];
+  const vis=[...document.querySelectorAll('.mi:not(.off)')]; if(!vis.length) return null;
+  const s=cur(); if(s.agents) return [vis[0],vis[vis.length-1]];
+  if(s.mode) return [$('mi-'+s.id),$('mi-'+s.id)];
+  return [vis[0],vis[0]];
+}
+function aim(){
+  const sp=span(), hl=$('hl'), box=$('icons');
+  if(!sp){ hl.style.opacity=0; return }
+  const x1=sp[0].offsetLeft-6, x2=sp[1].offsetLeft+22;
+  hl.style.opacity=1; hl.style.width=(x2-x1)+'px'; hl.style.transform=`translateX(${x1}px)`;
+  const st=$('stage').getBoundingClientRect(), k=st.width/1280, sh=$('sheet').getBoundingClientRect();
+  const bx=(box.getBoundingClientRect().left-sh.left)/k;
+  $('nub').style.transform=`translateX(${bx+(x1+x2)/2-1}px)`;
+}
+function select(id){
+  if(id===sel) return; sel=id;
+  document.querySelectorAll('.it').forEach(e=>{const on=e.dataset.s===id; e.classList.toggle('sel',on); e.setAttribute('aria-selected',on)});
+  renderDet(true); aim();
+}
+function setMode(m){
+  const s=cur(); if(s.mode===m) return; s.mode=m;
+  const it=$('it-'+s.id); it.querySelector('.dot').setAttribute('style',dot(s)); it.querySelector('.md').textContent=MODES[m];
+  upd(); renderIcons();
+}
+function flash(id){ setTimeout(()=>{ const r=document.querySelector(`.r-ag[data-agent-row="${CSS.escape(id)}"]`); if(r){ r.classList.add('flash'); setTimeout(()=>r.classList.remove('flash'),900) } },360) }
+
+document.addEventListener('click',e=>{
+  const it=e.target.closest('.it'); if(it){ select(it.dataset.s); return }
+  const mb=e.target.closest('.modes button'); if(mb){ setMode(+mb.dataset.m); return }
+  const ob=e.target.closest('.opts button'); if(ob){ cur().v=+ob.dataset.v; upd(); return }
+  const bd=e.target.closest('[data-jump]'); if(bd){ hideTip(); select(bd.dataset.jump); return }
+  const ow=e.target.closest('button.own'); if(ow){ hideTip(); const a=ow.dataset.agent; const known=AG.some(x=>x.id===a); select('agents'); flash(known?a:'5 more'); return }
+  const mi=e.target.closest('.mi'); if(mi&&mi.dataset.s){ select(mi.dataset.s); return }
+  if(e.target.closest('#undo')){undone=true;renderToday();upd();return}
+  if(e.target.closest('#redo')){undone=false;renderToday();upd();return}
+  const sw=e.target.closest('.sw'); if(sw){ sw.setAttribute('aria-checked',String(sw.getAttribute('aria-checked')!=='true')); renderIcons() }
+});
+document.addEventListener('keydown',e=>{
+  const it=e.target.closest&&e.target.closest('.it'); if(!it) return;
+  const i=S.findIndex(s=>s.id===it.dataset.s);
+  const j = e.key==='ArrowDown'?Math.min(S.length-1,i+1): e.key==='ArrowUp'?Math.max(0,i-1): -1;
+  if(j<0) return; e.preventDefault(); select(S[j].id); $('it-'+S[j].id).focus();
+});
+/* tooltip */
+const tip=$('tip');
+function hideTip(){ tip.classList.remove('on') }
+document.addEventListener('mouseover',e=>{
+  const t=e.target.closest('[data-tip]'); if(!t){ hideTip(); return }
+  const st=$('stage').getBoundingClientRect(), k=st.width/1280, r=t.getBoundingClientRect();
+  tip.textContent=t.dataset.tip; tip.style.left=((r.left+r.width/2-st.left)/k)+'px'; tip.style.top=((r.top-st.top)/k)+'px'; tip.classList.add('on');
+});
+
+function fit(){const st=$('stage'),k=Math.min(innerWidth/1280,innerHeight/800);st.style.transform=`translate(${(innerWidth-1280*k)/2}px,${(innerHeight-800*k)/2}px) scale(${k})`;aim()}
+addEventListener('resize',fit);
+renderIdx(); renderDet(false); renderToday(); renderIcons(); fit();
+document.fonts&&document.fonts.ready.then(()=>{placeBar(true);aim()});
+</script>
+</body>
+</html>

@@ -1,0 +1,1389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workstream Skyline</title>
+<!--
+COMPOSITION PLAN: "Every tab its own composition" + Workstreams (variant a)
+
+Workstreams  A board of four stage columns standing on one ground line, like a skyline:
+            Working (4 short cards, the tallest tower, left) / Needs you (one tall card with
+            the question) / Idle / Ready to wrap up (2 wide cards, right). Height = how much
+            is going on. The short Ready tower leaves sky above it, and the setting hangs in
+            that sky (mode words, the rule with 1 h / 1 day / 1 week inline, Wrap Up Ready as
+            its live "2 · 4.4 GB"), with a bracket down onto exactly the cards it wraps up.
+            Reading: "2 ready to wrap up" -> insight -> the hung setting -> the Ready cards ->
+            the ground labels -> the calm "No workstream" line at the foot.
+            Every other tab links its items back to their workstream.
+
+LIVE (owner update)  The sheet runs a calm simulation: ages and idle timers tick, the menu bar clock moves,
+            and every 6-8 s something arrives or leaves (a speed-3 subagent, :5174 vite, media-scope's
+            tests pass, studio-icons finishes and folds away, docs-sweep arrives with a "New" glow).
+            A live line in the head says what just happened, with Pause. Every setting carries a live
+            "next" line with a countdown ("Auto stops :6006 at the next check, in 54 s"); at the check,
+            sections on Auto really act and send a notice with Undo. Hovering a mode word rewrites the rule
+            in place to say what that mode will do. Section buttons say exactly what they do
+            ("Stop 3 Servers Now · 1.45 GB"); hovering one shows Goes / Stays before anything happens.
+            Keep Awake left the index and tabs: one checkbox in the footer, "Keep working with the lid
+            closed", with a gray note on 20 % battery, Wi-Fi and heat.
+
+System shared by every tab
+  Sheet 900 x 700, hangs from its menu bar icon. Left = Live Index (316 px, 6 entries), right = the pane (508 x 600).
+  Type: 11 caption / 13 body / 24 display (index names + mode words) / 40 ftop number. Nothing else.
+  Spacing scale 4 8 12 16 24 32. Section color is the only accent per tab.
+  The setting is always the same three parts: mode words Off Ask Auto (24, sliding underline),
+  one rule sentence (13), the value. Where it sits, and where the value lives, depends on the tab.
+
+Agents      Grid of agent cards, 3 x 3 (each names its workstream; the setting now says when to tell you an agent waits). Focal: the big "4 working" and the grid.
+            Reading: number -> insight -> cards row by row -> the finished card bottom-left.
+            Setting = the last two cells of the grid, right beside the finished agent it acts on,
+            joined by a short pink line. Section action Wrap Up Finished closes the grid on the right.
+Apps        ftop columns hero. Left column = the setting: mode words, rule, then the load column
+            (63 %) whose white tick IS the threshold; 60/70/80/90 sit on its ruler. Right: insight,
+            one column per app (height = memory, blue = what Auto closes). Actions under the hero.
+Servers     A ring of six port badges. Each arc fills toward the moment Auto stops it, so the
+            setting sits in the hub: every arc is measured against the value in the middle.
+            Close Idle top right, insight top left.
+Worktrees   A forest of 14 columns grouped merged / fine / in use / stale (height = size).
+            Setting hangs in the sky over the merged group, with a bracket down onto the trees it
+            removes. Insight + Remove Merged on top.
+Disk        One thin disk bar 812/994 GB zooms into one huge split bar of the 38.4 GB clutter.
+            Under the bar two brackets: the safe 30.1 GB carries the setting (how often),
+            the rest lists what asks first. Big number + Clean Safe on top.
+Keep Awake  Removed as a tab: one footer checkbox (see LIVE).
+-->
+<style>
+:root{
+  --glass:rgba(28,29,38,.9);
+  --line:rgba(255,255,255,.07);
+  --tx:rgba(255,255,255,.94);
+  --tx2:rgba(235,235,245,.62);
+  --tx3:rgba(235,235,245,.34);
+  --g1:rgba(255,255,255,.06);
+  --g2:rgba(255,255,255,.16);
+  --g3:rgba(255,255,255,.4);
+  --cardbg:rgba(255,255,255,.035);
+  --ease:cubic-bezier(.3,.7,.2,1);
+  --c:#EE85B5;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1a1636}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-size:13px;line-height:20px;cursor:default;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;text-align:left;line-height:inherit}
+b{font-weight:500;color:var(--tx)}
+:focus{outline:none}
+:focus-visible{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;border-radius:8px}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(760px 560px at 10% 6%,#4b3c9e 0%,rgba(75,60,158,0) 70%),
+   radial-gradient(700px 520px at 84% 2%,#22618f 0%,rgba(34,97,143,0) 70%),
+   radial-gradient(820px 620px at 88% 104%,#a0436f 0%,rgba(160,67,111,0) 70%),
+   radial-gradient(640px 520px at 18% 100%,#3a2463 0%,rgba(58,36,99,0) 75%),
+   #1d1a3c}
+
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;background:rgba(18,14,40,.32);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:13px;color:rgba(255,255,255,.92);z-index:5}
+.mb-l,.mb-r{display:flex;align-items:center;gap:18px}
+.mb-l b{font-weight:700}
+.mb-r{gap:14px}
+.icons{position:relative;display:flex;align-items:center;gap:12px}
+.hl{position:absolute;top:-3px;left:-6px;height:22px;width:28px;border-radius:6px;background:rgba(255,255,255,.2);transition:transform .45s var(--ease),opacity .3s;pointer-events:none}
+.mi{position:relative;display:flex;width:16px;overflow:hidden;cursor:pointer;transition:width .4s var(--ease),opacity .3s,margin .4s var(--ease)}
+.mi.off{width:0;opacity:0;margin-left:-12px}
+
+/* sheet */
+.sheet{position:absolute;top:34px;left:344px;width:916px;background:var(--glass);backdrop-filter:blur(36px) saturate(1.5);-webkit-backdrop-filter:blur(36px) saturate(1.5);border:1px solid rgba(255,255,255,.085);border-radius:22px;box-shadow:0 34px 100px rgba(6,4,24,.5),inset 0 1px 0 rgba(255,255,255,.035);animation:drop .6s var(--ease) both}
+@keyframes drop{from{opacity:0;transform:translateY(-10px)}}
+.nub{position:absolute;top:-8px;left:0;width:18px;height:8px;margin-left:-9px;transition:transform .45s var(--ease)}
+.nub svg{display:block}
+.head{display:flex;align-items:center;gap:12px;height:52px;padding:0 28px;white-space:nowrap}
+.head .lbl{font-size:11px;color:var(--tx3)}
+.head .txt{color:var(--tx2)}
+.head .undo{margin-left:auto;font-weight:500;height:26px;padding:0 12px;border-radius:13px;background:rgba(255,255,255,.07);transition:background .2s}
+.head .undo:hover{background:rgba(255,255,255,.13)}
+.body{display:grid;grid-template-columns:316px 508px;column-gap:36px;padding:0 28px;height:596px}
+.foot{display:flex;align-items:center;gap:28px;height:52px;padding:0 28px;border-top:1px solid var(--line)}
+.sw{display:flex;align-items:center;gap:10px;color:var(--tx2);transition:color .2s}
+.sw i{width:32px;height:19px;border-radius:10px;background:rgba(255,255,255,.14);position:relative;transition:background .25s;flex:none}
+.sw i::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
+.sw[aria-checked="true"]{color:var(--tx)}
+.sw[aria-checked="true"] i{background:#5B9BFF}
+.sw[aria-checked="true"] i::after{transform:translateX(13px)}
+.foot{justify-content:space-between}
+.foot .sws{display:flex;gap:24px}
+.lid{display:grid;grid-template-columns:18px auto;column-gap:10px;align-items:center}
+.ck{display:flex;align-items:center;gap:10px;white-space:nowrap;font-weight:500}
+.ck i{flex:none;width:18px;height:18px;border-radius:5px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3);display:grid;place-items:center;transition:background .2s,box-shadow .2s}
+.ck i svg{opacity:0;transition:opacity .2s}
+.ck[aria-checked="true"] i{background:#5B9BFF;box-shadow:none}
+.ck[aria-checked="true"] i svg{opacity:1}
+.ck .lv{font-weight:400;color:var(--tx2);margin-left:6px}
+.lid .note{grid-column:2;font-size:11px;line-height:15px;color:var(--tx3);white-space:nowrap}
+.lid .row1{grid-column:1/3;display:flex;align-items:center}
+.head .live{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:11px;color:var(--tx3);white-space:nowrap}
+.head .live .pulse{width:6px;height:6px;border-radius:50%;background:#4CC96B;box-shadow:0 0 0 0 rgba(76,201,107,.5);animation:pulse 2s infinite}
+.head .live.paused .pulse{background:var(--g3);animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,201,107,.45)}70%{box-shadow:0 0 0 6px rgba(76,201,107,0)}100%{box-shadow:none}}
+.head .live b{color:var(--tx2);font-weight:500}
+.head .pz{height:22px;padding:0 9px;border-radius:11px;background:rgba(255,255,255,.06);font-size:11px;color:var(--tx2);transition:background .2s}
+.head .pz:hover{background:rgba(255,255,255,.12)}
+.head .undo{margin-left:12px}
+.next{margin-top:6px;font-size:11px;line-height:16px;color:var(--tx2);text-wrap:pretty}
+.next b{font-weight:500}
+.nw{white-space:nowrap}
+.next::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--c);margin-right:7px;vertical-align:1px}
+.off .next::before{background:var(--g3)}
+.rule.pv{color:var(--tx)}
+.rule.pv::before{content:attr(data-pv);color:var(--c);font-weight:500;margin-right:5px}
+.newtag{display:inline-block;height:16px;padding:0 6px;border-radius:8px;background:color-mix(in srgb,var(--c) 30%,transparent);color:#fff;font-size:10px;line-height:16px;font-weight:600;letter-spacing:.02em}
+.arr{animation:arr .6s var(--ease) both}
+@keyframes arr{from{opacity:0;transform:translateY(8px)}}
+.isfin .stt{color:var(--tx)!important}
+.plan{position:absolute;z-index:22;width:300px;padding:12px 16px;border-radius:16px;background:#2c2c3a;border:1px solid rgba(255,255,255,.1);box-shadow:0 18px 50px rgba(0,0,0,.45);opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity .18s,transform .25s var(--ease)}
+.plan.show{opacity:1;transform:none}
+.plan .h{font-size:11px;line-height:16px;color:var(--tx3);margin-bottom:6px}
+.plan .r{display:grid;grid-template-columns:44px 1fr;gap:8px;color:var(--tx2);text-wrap:pretty}
+.plan .r+.r{margin-top:4px}
+.plan .r span:first-child{color:var(--tx3)}
+.plan .r.go span:first-child{color:var(--c);font-weight:500}
+.plan .f{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;line-height:16px;color:var(--tx3)}
+
+/* live index */
+.idx{display:flex;flex-direction:column;padding-bottom:8px}
+.it{display:flex;align-items:center;gap:10px;flex:1;border-radius:14px;padding:0 8px;margin:0 -8px;transition:background .25s}
+.it:hover{background:rgba(255,255,255,.03)}
+.it .dot{flex:none;width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(235,235,245,.28);transition:background .35s,box-shadow .35s}
+.it .nm{flex:1;min-width:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-.022em;color:rgba(235,235,245,.36);transition:color .3s;white-space:nowrap}
+.it:hover .nm{color:var(--tx2)}
+.it.sel .nm{color:var(--tx)}
+.mg{flex:none;position:relative;width:56px;height:24px;display:flex;align-items:flex-end;justify-content:space-between;transition:opacity .4s,filter .4s}
+.it.m0 .mg{opacity:.28;filter:grayscale(1)}
+.mg i{display:block;transition:height .55s var(--ease),width .55s var(--ease),left .55s var(--ease),background .35s,box-shadow .35s}
+.mg .tr{position:absolute;left:0;right:0;top:9px;height:6px;border-radius:3px;background:var(--g1)}
+.mg .tr i{position:absolute;top:0;bottom:0;left:0;border-radius:3px}
+.mg .tr .tk{top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:#fff;transition:left .55s var(--ease),opacity .3s}
+.mg.cl i{flex:none;border-radius:2px}
+.mg.dots{flex-wrap:wrap;align-content:center;row-gap:4px}
+.mg.dots i{width:6px;height:6px;border-radius:50%}
+.mg.ring{justify-content:flex-end;align-items:center}
+.nb{flex:none;width:76px;display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
+.nb .n{font-size:13px;font-weight:600;line-height:18px;color:var(--tx2);transition:color .3s}
+.nb .n u{text-decoration:none;font-size:11px;font-weight:400;color:var(--tx3);margin-left:3px}
+.nb .cp{font-size:11px;line-height:15px;color:var(--tx3)}
+.it.sel .nb .n{color:var(--tx)}
+.it.m0 .nb .n{color:var(--tx3);font-weight:400}
+
+/* pane */
+.det{position:relative;min-width:0}
+.pane{position:relative;width:508px;height:596px;transition:opacity .22s,transform .35s var(--ease)}
+.pane.swap{opacity:0;transform:translateY(6px)}
+.pane *{transition-timing-function:var(--ease)}
+.cap{font-size:11px;line-height:16px;color:var(--tx3);white-space:nowrap}
+.ins{color:var(--tx2);text-wrap:pretty}
+.ins b{white-space:nowrap}
+.big{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+.big .n{font-size:40px;line-height:46px;font-weight:500;letter-spacing:-.02em}
+.big .u{color:var(--tx2)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 14px;border-radius:15px;background:rgba(255,255,255,.08);font-weight:500;white-space:nowrap;transition:background .2s,opacity .3s}
+.btn:hover{background:rgba(255,255,255,.15)}
+.btn .tl{font-weight:400;color:var(--tx3)}
+.btn.pri{background:color-mix(in srgb,var(--c) 26%,transparent)}
+.btn.pri:hover{background:color-mix(in srgb,var(--c) 40%,transparent)}
+.btn.pri .tl{color:rgba(255,255,255,.55)}
+.btn[disabled]{opacity:.35;pointer-events:none}
+
+/* the setting: one system, placed per tab */
+.set{position:absolute}
+.modes{position:relative;display:flex;gap:18px;height:34px;white-space:nowrap}
+.modes button{font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:30px;color:var(--tx3);transition:color .3s}
+.modes button:hover{color:var(--tx2)}
+.modes button[aria-checked="true"]{color:var(--tx)}
+.modes .bar{position:absolute;left:0;top:31px;height:2px;border-radius:1px;background:var(--c);transition:transform .45s var(--ease),width .45s var(--ease)}
+.rule{margin-top:6px;color:var(--tx2);text-wrap:pretty}
+.vals{display:inline-flex;gap:12px;white-space:nowrap;vertical-align:baseline}
+.vals button{position:relative;color:var(--tx3);transition:color .25s}
+.vals button:hover{color:var(--tx2)}
+.vals button[aria-checked="true"]{color:var(--tx);font-weight:500}
+.vals button[aria-checked="true"]::after{content:"";position:absolute;left:50%;bottom:-3px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--c)}
+.off .vals,.off .valon{opacity:.35;pointer-events:none}
+
+/* highlight from section actions */
+.hlon [data-k]:not(.hit){opacity:.2}
+.hlon .hit{box-shadow:0 0 0 1px rgba(255,255,255,.7),0 0 16px color-mix(in srgb,var(--c) 70%,transparent)}
+[data-k]{transition:opacity .3s,box-shadow .3s,transform .32s var(--ease)}
+.hlon .badge.hit{box-shadow:none}
+.hlon .badge.hit .rg{box-shadow:0 0 0 1.5px rgba(255,255,255,.8),0 0 18px color-mix(in srgb,var(--c) 70%,transparent)}
+.apc{border-radius:8px}
+.badge .rg{transition:transform .3s var(--ease),box-shadow .3s}
+.out{opacity:0!important;transform:scale(.92)}
+.flash{animation:flash 1.6s var(--ease)}
+@keyframes flash{0%,40%{box-shadow:0 0 0 1.5px var(--c),0 0 18px var(--c)}100%{box-shadow:none}}
+
+/* ---------- workstreams (skyline board) ---------- */
+.mg.lanes{justify-content:flex-start;align-items:center;gap:6px}
+.mg.lanes span,.ws-strip span{display:flex;gap:3px}
+.mg.lanes i{flex:none;width:3px;height:18px;border-radius:1.5px}
+.ws-head{position:absolute;left:0;top:0;right:0;display:flex;justify-content:space-between;align-items:flex-end}
+.ws-sw{display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-bottom:6px}
+.ws-strip{display:flex;gap:9px;align-items:flex-end}
+.ws-strip i{width:6px;height:18px;border-radius:3px;transition:background .35s,box-shadow .35s}
+.ws-ins{position:absolute;left:0;top:58px;width:508px}
+.wc{position:absolute;border-radius:14px;background:var(--cardbg);border:1px solid rgba(255,255,255,.05);padding:10px 11px 0;transition:background .25s,opacity .5s,box-shadow 1.2s,transform .5s var(--ease),top .6s var(--ease),height .6s var(--ease)}
+.wc:hover{background:rgba(255,255,255,.07)}
+.wc .top{display:flex;justify-content:space-between;align-items:center;height:18px}
+.wc .top svg,.card .top svg{flex:none}
+.newtag{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.wc .stt{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--tx3);white-space:nowrap}
+.wc .nm{margin-top:4px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wc .sub{font-size:11px;line-height:16px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wc .hold{position:absolute;left:11px;right:11px;bottom:10px;height:16px;display:flex;align-items:center;gap:6px;font-size:11px;line-height:16px;color:var(--tx3)}
+.wc .hold span{display:flex;align-items:center;gap:3px;height:16px}
+.wc .hold .gb{margin-left:auto;color:var(--tx);font-weight:500}
+.wc.w .stt{color:var(--c)}
+.wc.n{background:rgba(255,255,255,.065);border-color:rgba(255,255,255,.13)}
+.wc.n .stt{color:var(--tx)}
+.wc .q{margin-top:6px;color:var(--tx);line-height:18px;text-wrap:balance}
+.wc .go{position:absolute;left:11px;bottom:10px;height:24px;padding:0 11px;border-radius:12px;background:rgba(255,255,255,.1);font-size:11px;font-weight:500;line-height:24px;transition:background .2s}
+.wc .go:hover{background:rgba(255,255,255,.18)}
+.wc.i .nm{color:var(--tx2)}
+.wc.r{background:color-mix(in srgb,var(--c) 8%,transparent);border-color:color-mix(in srgb,var(--c) 26%,transparent)}
+.wc.r:hover{background:color-mix(in srgb,var(--c) 13%,transparent)}
+.wc.r .stt{color:var(--c)}
+.wc.r.wait .stt{color:var(--tx2)}
+.wc.r.kept{background:var(--cardbg);border-color:rgba(255,255,255,.1)}
+.wc.r.kept .stt{color:var(--tx3)}
+.wc.ghost{background:none;border:1px dashed rgba(255,255,255,.14)}
+.wc.ghost .nm,.wc.ghost .sub{color:var(--tx3)}
+.wc.ghost .stt{color:var(--tx3)}
+.ws-set{left:126px;width:382px}
+.ws-set .srow{display:flex;justify-content:space-between;align-items:flex-start}
+.wc .ic{display:flex;align-items:center;gap:5px}
+.subn{font-size:11px;line-height:16px;color:var(--tx2);font-weight:500}
+.ws-set .vals{margin:0 2px}
+.ws-set .rule{margin-top:8px}
+.ws-set .btn{margin-top:14px}
+.ws-glab{position:absolute;top:484px;white-space:nowrap}
+.ws-glab b{display:block;font-size:13px;line-height:20px}
+.ws-glab b span{font-weight:400;color:var(--tx3);margin-left:4px}
+.ws-loose{position:absolute;left:0;right:0;top:536px}
+.ws-loose .row{display:flex;justify-content:space-between;margin-top:4px}
+.ws-loose .ch{display:flex;align-items:center;gap:7px;white-space:nowrap;color:var(--tx2);border-radius:8px;padding:0 6px;margin:0 -6px;transition:background .2s,opacity .3s,box-shadow .3s}
+.ws-loose .ch:hover{background:rgba(255,255,255,.06)}
+.ws-loose .ch span{color:var(--tx3)}
+.ws-loose .ch.ghost{color:var(--tx3)}
+
+/* ---------- agents ---------- */
+.ag-head{position:absolute;left:0;top:0;right:0;display:flex;justify-content:space-between;align-items:flex-end}
+.ag-dots{display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-bottom:6px}
+.ag-dots .row{display:flex;gap:5px}
+.ag-dots i{width:8px;height:8px;border-radius:50%;transition:background .35s,box-shadow .35s}
+.ag-ins{position:absolute;left:0;top:58px;width:508px}
+.grid{position:absolute;left:0;top:124px;display:grid;grid-template-columns:repeat(3,160px);grid-auto-rows:122px;gap:14px}
+.card{position:relative;border-radius:16px;background:var(--cardbg);border:1px solid rgba(255,255,255,.05);padding:14px 14px 0;transition:background .25s,opacity .3s,box-shadow .3s,transform .32s var(--ease)}
+.card:hover{background:rgba(255,255,255,.07)}
+.card .top{display:flex;justify-content:space-between;align-items:center;height:18px}
+.card .stt{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--tx3);white-space:nowrap}
+.card .nm{margin-top:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .wh{font-size:11px;line-height:16px;color:var(--tx3);white-space:nowrap}
+.card .hold{position:absolute;left:14px;bottom:12px;height:16px;display:flex;align-items:center;gap:10px;font-size:11px;line-height:16px;color:var(--tx3)}
+.card .hold span{display:flex;align-items:center;gap:3px;height:16px}
+.card.w .stt{color:var(--c)}
+.card.n .stt{color:var(--tx)}
+.card.f .stt{color:var(--c)}
+.card.i .nm{color:var(--tx2)}
+.card.ghost{background:none;border:1px dashed rgba(255,255,255,.12)}
+.card.ghost .nm,.card.ghost .wh{color:var(--tx3)}
+.sm{width:7px;height:7px;border-radius:50%;flex:none}
+.sm.w{background:var(--c)}
+.sm.n{background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.16)}
+.sm.i{box-shadow:inset 0 0 0 1.5px var(--g3)}
+.sm.f{box-shadow:inset 0 0 0 1.5px var(--c)}
+.setcard{grid-column:span 2;position:relative;border-radius:16px;padding:14px 18px 0;background:color-mix(in srgb,var(--c) 7%,transparent);border:1px solid color-mix(in srgb,var(--c) 18%,transparent)}
+.setcard::before{content:"";position:absolute;left:-15px;top:50%;width:14px;height:1px;background:var(--c);opacity:.7}
+.setcard .rule{margin-top:8px}
+.ag-foot{position:absolute;left:0;right:0;top:546px;display:flex;justify-content:space-between;align-items:center}
+
+/* ---------- apps ---------- */
+.ap-set{left:0;top:0;width:168px}
+.ap-set .rule{width:168px}
+.load{position:absolute;left:0;top:206px;width:60px;height:244px;border-radius:10px;background:rgba(255,255,255,.05);overflow:visible}
+.load .f{position:absolute;left:0;right:0;bottom:0;border-radius:10px;background:var(--c);transition:height .6s var(--ease)}
+.load .tk{position:absolute;left:-6px;width:72px;height:2px;margin-top:-1px;border-radius:1px;background:#fff;transition:top .5s var(--ease),opacity .3s}
+.ruler{position:absolute;left:74px;top:206px;height:244px;width:80px}
+.ruler button{position:absolute;left:0;height:20px;margin-top:-10px;display:flex;align-items:center;gap:6px;color:var(--tx3);white-space:nowrap;transition:color .25s}
+.ruler button::before{content:"";width:6px;height:1px;background:var(--g3)}
+.ruler button:hover{color:var(--tx2)}
+.ruler button[aria-checked="true"]{color:var(--tx);font-weight:500}
+.ruler button[aria-checked="true"]::before{background:#fff;width:10px}
+.load-cap{position:absolute;left:0;top:462px;width:168px;margin-top:0}
+.ap-big{position:absolute;left:0;top:148px}
+.ap-ins{position:absolute;left:198px;top:0;width:310px}
+.apcols{position:absolute;left:198px;top:206px;width:310px;height:244px;display:flex;gap:7px;align-items:flex-end}
+.apc{position:relative;flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.apc .bx{position:relative;width:100%;height:100%;border-radius:8px;background:rgba(255,255,255,.03)}
+.apc .bx i{position:absolute;left:0;right:0;bottom:0;border-radius:8px;transition:height .6s var(--ease),background .35s,box-shadow .35s}
+.apc.close .bx i{background:var(--c)}
+.apc.uns .bx i{background:color-mix(in srgb,var(--c) 22%,transparent);box-shadow:inset 0 0 0 1.5px var(--c)}
+.apc.kept .bx i{background:var(--g2)}
+.apc.spared .bx i{background:repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 3px,rgba(255,255,255,.09) 3px 6px)}
+.apc.ghost .bx i{background:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.apic{position:absolute;left:198px;top:462px;width:310px;display:flex;gap:7px}
+.apic div{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.apic .v{font-size:11px;line-height:16px;color:var(--tx3)}
+.apic .ghost{opacity:.35}
+.ap-leg{position:absolute;left:198px;top:510px;display:flex;gap:14px}
+.ap-leg span{display:flex;align-items:center;gap:6px}
+.ap-leg i{width:8px;height:8px;border-radius:2px}
+.ap-act{position:absolute;left:0;right:0;top:552px;display:flex;gap:10px;align-items:center}
+.ap-act .cap{margin-left:auto}
+
+/* ---------- servers ---------- */
+.sv-ins{position:absolute;left:0;top:0;width:300px}
+.sv-act{position:absolute;right:0;top:4px}
+.orbit{position:absolute;left:0;top:0;pointer-events:none}
+.badge{position:absolute;width:120px;margin-left:-60px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.badge .rg{position:relative;width:64px;height:64px;border-radius:50%;background:rgba(28,29,38,.9);transition:transform .3s var(--ease)}
+.badge:hover .rg{transform:scale(1.05)}
+.badge svg{position:absolute;left:0;top:0}
+.badge .p{position:absolute;left:0;right:0;top:22px;font-weight:600;line-height:20px}
+.badge .k{margin-top:8px;white-space:nowrap}
+.badge .s{font-size:11px;line-height:16px;color:var(--tx3);white-space:nowrap}
+.badge.ghost .p,.badge.ghost .k{color:var(--tx3)}
+.arc{transition:stroke-dashoffset .7s var(--ease),stroke .35s}
+.hub{left:144px;width:220px;text-align:center}
+
+.hub .modes{justify-content:center}
+.hub .rule{margin-top:8px}
+.hub .vals{margin-top:4px}
+
+/* ---------- worktrees ---------- */
+.wt-ins{position:absolute;left:0;top:0;width:270px}
+.wt-act{position:absolute;right:0;top:4px}
+.wt-set{left:0;top:92px;width:300px}
+.brk{position:absolute;height:10px;border:1px solid var(--c);border-bottom:0;border-radius:4px 4px 0 0;opacity:.6;transition:opacity .3s}
+.forest{position:absolute;left:0;top:166px;width:508px;height:330px}
+.tree{position:absolute;bottom:0;width:25px;border-radius:7px;transition:height .6s var(--ease),background .35s,box-shadow .35s,opacity .3s}
+.tree.m{background:var(--c)}
+.tree.s{background:color-mix(in srgb,var(--c) 18%,transparent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c) 70%,transparent)}
+.tree.u{background:rgba(255,255,255,.55)}
+.tree.u::after{content:"";position:absolute;left:5px;right:5px;top:6px;height:2px;border-radius:1px;background:var(--c)}
+.tree.f{background:var(--g2)}
+.tree.ghost{background:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.off .tree.m{background:var(--g3)}
+.ground{position:absolute;left:0;right:0;top:496px;height:1px;background:var(--line)}
+.glab{position:absolute;top:506px;white-space:nowrap}
+.glab b{display:block;font-size:13px;line-height:20px}
+.wt-leg{position:absolute;left:0;top:560px}
+
+/* ---------- disk ---------- */
+.dk-big{position:absolute;left:0;top:0}
+.dk-act{position:absolute;right:0;top:10px}
+.dk-ins{position:absolute;left:0;top:58px;width:508px}
+.thin{position:absolute;left:0;top:160px;width:508px}
+.thin .bar{position:relative;height:8px;margin-top:6px;border-radius:4px;background:var(--g1);overflow:hidden}
+.thin .bar i{position:absolute;top:0;bottom:0;transition:left .6s var(--ease),width .6s var(--ease)}
+.wedge{position:absolute;left:0;top:184px}
+.huge{position:absolute;left:0;top:250px;width:508px;height:136px;display:flex}
+.huge .sg{position:relative;height:100%;border-radius:12px;margin-right:3px;overflow:hidden;transition:flex-grow .6s var(--ease),margin .6s var(--ease),background .35s,box-shadow .3s,opacity .3s}
+.huge .sg:last-child{margin-right:0}
+.huge .sg.z{margin-right:0}
+.huge .sg .lb{position:absolute;left:12px;top:14px;color:rgba(28,22,8,.86);white-space:nowrap}
+.huge .sg .lb b{display:block;color:rgba(28,22,8,.9);font-weight:600}
+.huge .sg .lb span{font-size:11px;line-height:16px}
+.dk-set{left:0;top:424px;width:300px}
+.dk-rest{position:absolute;right:0;top:428px;width:170px;text-align:right}
+.dk-rest .r{display:flex;justify-content:flex-end;gap:8px;white-space:nowrap;color:var(--tx2);border-radius:6px;padding:0 6px;margin-right:-6px}
+.dk-rest .r span{color:var(--tx3)}
+.dk-rest .cap{margin-bottom:8px}
+.ghostseg{background:none!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+
+/* ---------- keep awake ---------- */
+.ka-ins{position:absolute;left:0;top:0;width:508px}
+.kring{position:absolute;left:0;top:0;pointer-events:none}
+.kv{position:absolute;height:20px;margin:-10px 0 0 0;color:var(--tx3);white-space:nowrap;transition:color .25s}
+.kv:hover{color:var(--tx2)}
+.kv[aria-checked="true"]{color:var(--tx);font-weight:500}
+.ka-c{position:absolute;left:250px;top:250px;width:160px;margin-left:-80px;text-align:center}
+.ka-c .big{justify-content:center}
+.agn{position:absolute;display:flex;align-items:center;gap:10px;flex-direction:row-reverse;white-space:nowrap;border-radius:10px;padding:2px 6px;margin:-2px -6px}
+.agn .sm{width:9px;height:9px}
+.agn .t{text-align:right}
+.agn .t .s{font-size:11px;line-height:16px;color:var(--tx3)}
+.agn.dim .t>div:first-child{color:var(--tx3)}
+.ka-set{left:0;top:458px;width:330px}
+.ka-act{position:absolute;right:0;top:464px;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+
+/* hover card */
+.hc{position:absolute;z-index:20;width:252px;padding:14px 16px 10px;border-radius:16px;background:#2c2c3a;border:1px solid rgba(255,255,255,.1);box-shadow:0 18px 50px rgba(0,0,0,.45);opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity .18s,transform .25s var(--ease)}
+.hc.show{opacity:1;transform:none;pointer-events:auto}
+.hc .t{font-weight:600}
+.hc .sb{font-size:11px;line-height:16px;color:var(--tx3)}
+.hc .stl{margin-top:8px}
+.hc .stl b{color:var(--c)}
+.hc .fx{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.hc .fx div{display:flex;gap:8px;color:var(--tx2);white-space:nowrap}
+.hc .fx div span:first-child{width:64px;color:var(--tx3);flex:none}
+.hc .lk{color:var(--tx);border-bottom:1px solid rgba(255,255,255,.2);cursor:pointer}
+.hc .ac{margin-top:8px;padding-top:6px;border-top:1px solid var(--line)}
+.hc .ac button{display:flex;width:100%;justify-content:space-between;height:28px;align-items:center;padding:0 8px;margin:0 -8px;width:calc(100% + 16px);border-radius:8px;font-weight:500;transition:background .15s}
+.hc .ac button:hover{background:rgba(255,255,255,.08)}
+.hc .ac button span{font-weight:400;color:var(--tx3)}
+.hc .ac button.dis{color:var(--tx3);font-weight:400;cursor:default}
+.hc .ac button.dis:hover{background:none}
+
+/* toast */
+.toast{position:absolute;left:634px;bottom:66px;display:flex;align-items:center;gap:14px;height:40px;max-width:640px;padding:0 6px 0 16px;border-radius:20px;background:rgba(50,50,64,.97);border:1px solid rgba(255,255,255,.1);box-shadow:0 14px 40px rgba(0,0,0,.35);color:var(--tx2);white-space:nowrap;opacity:0;transform:translate(-50%,10px);pointer-events:none;transition:opacity .3s,transform .4s var(--ease);z-index:30}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{flex:none;height:28px;padding:0 13px;border-radius:14px;background:rgba(255,255,255,.1);font-weight:500;color:var(--tx);transition:background .2s}
+.toast button:hover{background:rgba(255,255,255,.18)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+@media (prefers-reduced-motion:reduce){.pulse,.flowdash,.ping{animation:none!important}.arr{animation:fadein .4s both!important}}
+@keyframes fadein{from{opacity:0}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="mb-l">
+      <svg viewBox="0 0 17 20" width="13" height="16" aria-hidden="true"><path fill="#fff" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.900-.9 3.500-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.7 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.300-1 0-2.300.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.300-.6 3-1.5z"/></svg>
+      <b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="mb-r">
+      <div class="icons" id="icons"><i class="hl" id="hl"></i></div>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 6.3a8.6 8.6 0 0 1 12 0M4.2 8.6a5.4 5.4 0 0 1 7.6 0"/><circle cx="8" cy="11.6" r="1.3" fill="#fff" stroke="none"/></svg>
+      <svg viewBox="0 0 26 14" width="25" height="13" aria-hidden="true"><rect x=".7" y=".7" width="21.6" height="12.6" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/><rect x="2.6" y="2.6" width="11.6" height="8.8" rx="2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span data-tick="clock">Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet" role="dialog" aria-label="MinMacs">
+    <div class="nub" id="nub"><svg viewBox="0 0 18 8" width="18" height="8" aria-hidden="true"><path d="M0 8 C5 8 6.5 0 9 0 C11.5 0 13 8 18 8 Z" fill="rgba(36,36,48,.96)"/></svg></div>
+    <div class="head" id="today"></div>
+    <div class="body">
+      <div class="idx" id="idx" role="tablist" aria-orientation="vertical"></div>
+      <div class="det" id="det"><div class="pane" id="pane"></div></div>
+    </div>
+    <div class="foot">
+      <div class="lid"><div class="row1"><button class="ck" id="lid" role="checkbox" aria-checked="true"><i><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.6 6.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>Keep working with the lid closed</button><span class="ck"><span class="lv" data-tick="lid"></span></span></div>
+        <span class="note">Stops at 20&nbsp;% battery, if Wi-Fi drops, or if the Mac runs hot.</span></div>
+      <div class="sws"><button class="sw" id="one" role="switch" aria-checked="false"><i></i>One icon in the menu bar</button>
+      <button class="sw" id="login" role="switch" aria-checked="true"><i></i>Open at login</button></div>
+    </div>
+    <div class="hc" id="hc"></div>
+    <div class="plan" id="plan"></div>
+    <div class="toast" id="toast" role="status"><span id="tt"></span><button id="tbtn">Undo</button></div>
+  </div>
+</div>
+
+<script>
+const VARIANT='a';
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $=id=>document.getElementById(id);
+const G={
+  ws:'<path d="M8 2.2l5.8 3L8 8.2 2.2 5.2z"/><path d="M2.2 8.3L8 11.3l5.8-3M2.2 11.2L8 14.2l5.8-3"/>',
+  browser:'<circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.8 1.7 2.6 3.6 2.6 5.8S9.8 12.1 8 13.8M8 2.2C6.2 3.9 5.4 5.8 5.4 8s.8 4.1 2.6 5.8"/>',
+  agents:'<circle cx="5.6" cy="5.8" r="2.2"/><circle cx="11" cy="5.8" r="2.2"/><path d="M1.8 13.2c.6-2.2 2-3.3 3.8-3.3s3.2 1.1 3.8 3.3M9.2 10.3c.6-.3 1.2-.4 1.8-.4 1.8 0 3.2 1.1 3.8 3.3"/>',
+  apps:'<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.6"/><path d="M6.6 1.8v2.4M9.4 1.8v2.4M6.6 11.8v2.4M9.4 11.8v2.4M1.8 6.6h2.4M1.8 9.4h2.4M11.8 6.6h2.4M11.8 9.4h2.4"/>',
+  servers:'<rect x="2.5" y="2.8" width="11" height="4.2" rx="1.4"/><rect x="2.5" y="9" width="11" height="4.2" rx="1.4"/><path d="M5.2 4.9h.01M5.2 11.1h.01" stroke-width="2.2"/>',
+  trees:'<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7c0 2.7-2.4 3.4-5.4 4.2"/>',
+  disk:'<ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  awake:'<path d="M1.8 8s2.3-4.3 6.2-4.3S14.2 8 14.2 8s-2.3 4.3-6.2 4.3S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  one:'<circle cx="8" cy="8" r="5.8"/><path d="M5.6 8.2l1.7 1.7 3.2-3.4"/>'
+};
+const gl=(k,c,s,w)=>`<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="${w||1.6}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[k]}</svg>`;
+const ICON={
+  chrome:`<svg viewBox="0 0 18 18" width="18" height="18"><path d="M9 9L2.07 5A8 8 0 0 1 15.93 5Z" fill="#E8453C"/><path d="M9 9L15.93 5A8 8 0 0 1 9 17Z" fill="#F7BE2D"/><path d="M9 9L9 17A8 8 0 0 1 2.07 5Z" fill="#33A853"/><circle cx="9" cy="9" r="3.9" fill="#fff"/><circle cx="9" cy="9" r="3" fill="#4285F4"/></svg>`,
+  cft:`<svg viewBox="0 0 18 18" width="18" height="18"><path d="M9 9L2.07 5A8 8 0 0 1 15.93 5Z" fill="#8f97a6"/><path d="M9 9L15.93 5A8 8 0 0 1 9 17Z" fill="#b7bdc8"/><path d="M9 9L9 17A8 8 0 0 1 2.07 5Z" fill="#6d7584"/><circle cx="9" cy="9" r="3.9" fill="#fff"/><circle cx="9" cy="9" r="3" fill="#7c8698"/></svg>`,
+  spotify:`<svg viewBox="0 0 18 18" width="18" height="18"><circle cx="9" cy="9" r="8" fill="#1DB954"/><path d="M4.6 6.9c3-.9 6.1-.6 8.8.8M5.1 9.3c2.4-.7 4.9-.4 7 .7M5.6 11.6c1.9-.5 3.7-.3 5.3.5" fill="none" stroke="#0b1a10" stroke-width="1.25" stroke-linecap="round"/></svg>`,
+  raycast:`<svg viewBox="0 0 18 18" width="18" height="18"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#FF6363"/><path d="M5 9.6l3.4 3.4M5 6.4l6.6 6.6M8.2 5l4.8 4.8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  figma:`<svg viewBox="0 0 18 18" width="18" height="18"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#2b2b33"/><circle cx="10.6" cy="9" r="1.9" fill="#1ABCFE"/><path d="M7.4 5.2h3.2a1.9 1.9 0 0 1 0 3.8H7.4z" fill="#FF7262"/><path d="M5.5 7.1a1.9 1.9 0 0 1 1.9-1.9h0V9H7.4a1.9 1.9 0 0 1-1.9-1.9z" fill="#F24E1E"/><path d="M5.5 10.9A1.9 1.9 0 0 1 7.4 9v3.8a1.9 1.9 0 0 1-1.9-1.9z" fill="#0ACF83"/><path d="M5.5 10.9A1.9 1.9 0 0 0 7.4 12.8 1.9 1.9 0 0 0 7.4 9" fill="#A259FF"/></svg>`,
+  cmux:`<svg viewBox="0 0 18 18" width="18" height="18"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#2c2d3a"/><path d="M5 6.4l2.6 2.6L5 11.6M9.4 11.8h3.6" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  cursorapp:`<svg viewBox="0 0 18 18" width="18" height="18"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#15161b"/><path d="M9 3.6l4.6 2.7v5.4L9 14.4l-4.6-2.7V6.3z" fill="none" stroke="#d9dbe2" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.6 6.3L9 9l4.4-2.7M9 9v5.3" stroke="#d9dbe2" stroke-width="1.1" fill="none"/></svg>`,
+  docker:`<svg viewBox="0 0 18 18" width="18" height="18"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#1D63ED"/><path d="M3.8 9.4h10c-.3 2.4-2.2 4-5.2 4-2.6 0-4.3-1.5-4.8-4z" fill="#fff"/><path d="M5 7.4h1.6v1.4H5zM7 7.4h1.6v1.4H7zM9 7.4h1.6v1.4H9zM7 5.4h1.6v1.4H7z" fill="#fff"/></svg>`,
+  claude:`<svg viewBox="0 0 18 18" width="18" height="18"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#D97757"/><path d="M9 4.4v9.2M4.9 6.6l8.2 4.8M4.9 11.4l8.2-4.8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  cc:`<svg viewBox="0 0 18 18" width="18" height="18"><circle cx="9" cy="9" r="8" fill="#3a2a26"/><path d="M9 4.3v9.4M4.9 6.6l8.2 4.8M4.9 11.4l8.2-4.8" stroke="#E5896B" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  cx:`<svg viewBox="0 0 18 18" width="18" height="18"><circle cx="9" cy="9" r="8" fill="#2b2d33"/><path d="M9 4.6l3.8 2.2v4.4L9 13.4l-3.8-2.2V6.8z" fill="none" stroke="#e9ebf0" stroke-width="1.4" stroke-linejoin="round"/></svg>`,
+  cu:`<svg viewBox="0 0 18 18" width="18" height="18"><circle cx="9" cy="9" r="8" fill="#26272e"/><path d="M5.4 4.9l7.6 3.4-3.3 1.1-1.1 3.4z" fill="#e9ebf0"/></svg>`
+};
+const C={ws:'#FF8F6B',agents:'#EE85B5',apps:'#5B9BFF',servers:'#3FD0B8',trees:'#4CC96B',disk:'#F2B544',awake:'#B18CFF'};
+const MODES=['Off','Ask','Auto'];
+
+/* ---------- fixture ---------- */
+const S=[
+  {id:'ws',name:'Workstreams',vals:['1 h','1 day','1 week'],num:[60,1440,10080]},
+  {id:'agents',name:'Agents',vals:['1 min','5 min','15 min'],num:[1,5,15]},
+  {id:'apps',name:'Apps',vals:['60 %','70 %','80 %','90 %'],num:[60,70,80,90]},
+  {id:'servers',name:'Servers',vals:['30 min','1 h','2 h','4 h','1 day'],num:[30,60,120,240,1440]},
+  {id:'trees',name:'Worktrees',vals:['1 h','1 day','1 week'],num:[1/24,1,7]},
+  {id:'disk',name:'Disk',vals:['daily','weekly','monthly'],next:['tonight','on Sunday','on Sunday'],at:[new Date(2026,9,28,3,0),new Date(2026,10,1,3,0),new Date(2026,10,1,3,0)]}
+];
+const APPS=[
+  {id:'chrome',n:'Google Chrome',ic:'chrome',cpu:21,mem:8.7,cls:'close'},
+  {id:'spotify',n:'Spotify',ic:'spotify',cpu:1,mem:.578,cls:'close'},
+  {id:'raycast',n:'Raycast',ic:'raycast',cpu:.4,mem:.21,cls:'uns'},
+  {id:'figma',n:'FigmaAgent',ic:'figma',cpu:0,mem:.013,cls:'uns'},
+  {id:'cmux',n:'cmux',ic:'cmux',cpu:44,mem:6.8,cls:'kept'},
+  {id:'cursorapp',n:'Cursor',ic:'cursorapp',cpu:12,mem:3.1,cls:'kept'},
+  {id:'docker',n:'Docker',ic:'docker',cpu:6,mem:2.4,cls:'kept'},
+  {id:'claude',n:'Claude',ic:'claude',cpu:3,mem:.9,cls:'kept'},
+  {id:'cft',n:'Chrome for Testing',ic:'cft',cpu:9,mem:1.2,cls:'spared',ag:'speed3',ws:'w-speed3'}
+];
+const SRV=[
+  {id:'s3000',p:'3000',k:'next dev',ag:'speed3',ws:'w-speed3',wt:'speed-3-base',mb:412,use:1},
+  {id:'s5173',p:'5173',k:'vite',ag:'speed3',ws:'w-speed3',wt:'speed-3-base',mb:188,use:1},
+  {id:'s4100',p:'4100',k:'phoenix',ag:'lanec',ws:'w-lanec',wt:'barkpark-lane-c',mb:260,use:1},
+  {id:'s3334',p:'3334',k:'sanity',ag:'parity',ws:'w-parity',wt:'studio-parity',mb:640,idle:40},
+  {id:'s4000',p:'4000',k:'phoenix',ag:'far',ws:'w-far',wt:'auth-redirect',mb:290,idle:119.2},
+  {id:'s6006',p:'6006',k:'storybook',mb:520,idle:4320},
+  {id:'s5432',p:'5432',k:'postgres',o:'Docker',mb:140,kept:1}
+];
+const WT=[
+  {id:'wt-auth',n:'auth-redirect',k:'m',gb:1.8,x:'squash-merged 2 h ago',ag:'far',ws:'w-far',srv:':4000',ago:120},
+  {id:'wt-lane',n:'lane-e-sort',k:'m',gb:2.3,x:'merged yesterday',ws:'w-lane',ago:1542},
+  {id:'wt-sb',n:'sb-fieldsets',k:'m',gb:.94,x:'merged 5 days ago',ago:7200},
+  {id:'wt-w19',n:'w19-fire',k:'m',gb:.61,x:'merged 9 days ago',ago:12960},
+  {id:'wt-lc',n:'barkpark-lane-c',k:'f',gb:1.2,ag:'lanec',ws:'w-lanec'},
+  {id:'wt-pj',n:'lexicon-judge',k:'f',gb:1.0,ag:'lexicon',ws:'w-lexicon'},
+  {id:'wt-ic',n:'gallery-shots',k:'f',gb:.8},
+  {id:'wt-ds',n:'docs-sweep',k:'f',gb:.7},
+  {id:'wt-gp',n:'ges-preview',k:'f',gb:.5},
+  {id:'wt-s3',n:'speed-3-base',k:'u',gb:2.6,ag:'speed3',ws:'w-speed3',srv:':3000, :5173'},
+  {id:'wt-par',n:'studio-parity',k:'u',gb:1.9,ag:'parity',ws:'w-parity',srv:':3334'},
+  {id:'wt-med',n:'media-scope',k:'u',gb:1.4,ag:'media',ws:'w-media'},
+  {id:'wt-bp7',n:'bp7-studio-dogfood',k:'s',gb:3.2,x:'no commits for 21 days',why:'1 commit not in main'},
+  {id:'wt-bp8',n:'bp8-sweep-studio403',k:'s',gb:1.1,x:'no commits for 34 days',why:'remote branch deleted'}
+];
+const DK=[
+  {id:'dk-dd',n:'Xcode DerivedData',sh:'DerivedData',x:'7 projects, 4 gone',gb:14.2,safe:1},
+  {id:'dk-nm',n:'node_modules',sh:'node_modules',x:'in merged worktrees',gb:9.8,safe:1,ws:'w-far'},
+  {id:'dk-npm',n:'npm cache',sh:'npm',x:'npm cleans it',gb:6.1,safe:1,tool:'npm cache clean'},
+  {id:'dk-dock',n:'Docker build cache',x:'Docker cleans it',gb:4.2,tool:'docker builder prune'},
+  {id:'dk-pw',n:'Playwright browsers',x:'old versions',gb:3.3},
+  {id:'dk-sim',n:'Simulator runtimes',x:'report only',gb:.8,rep:1}
+];
+const TOOL={cc:'Claude Code',cx:'Codex',cu:'Cursor'};
+const AG=[
+  {id:'speed3',n:'speed-3',t:'cc',w:'cmux tab',st:'w',a:'2m',ws:'w-speed3'},
+  {id:'lanec',n:'bp-lane-c',t:'cc',w:'cmux tab',st:'w',a:'14m',ws:'w-lanec'},
+  {id:'media',n:'media-scope',t:'cx',w:'Codex app',st:'w',a:'6m',ws:'w-media'},
+  {id:'icons',n:'studio-icons',t:'cu',w:'Cursor window',st:'w',a:'1m',ws:'w-icons'},
+  {id:'lexicon',n:'lexicon-judge',t:'cc',w:'tmux pane',st:'n',a:'3m',ws:'w-lexicon'},
+  {id:'parity',n:'studio-parity',t:'cc',w:'cmux tab',st:'i',a:'40m',ws:'w-parity'},
+  {id:'far',n:'fix auth redirect',t:'cx',w:'Codex thread',st:'f',a:'2h',fmin:120,ws:'w-far'}
+];
+/* workstreams: the Wrap Up unit. start/end/idle in minutes ago (for the time view) */
+const WS=[
+  {id:'w-speed3',n:'speed-3',st:'w',a:'2m',ag:['speed3'],sub:2,t:'cc',where:'cmux tab speed-3',wt:'wt-s3',br:'speed-3-base',brx:'3 commits ahead',pr:'#214',prx:'draft',srv:['s3000','s5173'],cache:[['node_modules',1.3]],browser:'Chrome for Testing',awake:1,why:'3 commits not in main',start:450},
+  {id:'w-lanec',n:'bp-lane-c',st:'w',a:'14m',ag:['lanec'],t:'cc',where:'cmux tab bp-lane-c',wt:'wt-lc',br:'barkpark-lane-c',srv:['s4100'],cache:[['.next',.64]],awake:1,why:'its agent is working',start:202},
+  {id:'w-media',n:'media-scope',st:'w',a:'6m',note:'tests running',ag:['media'],t:'cx',where:'Codex app',wt:'wt-med',br:'media-scope',awake:1,why:'tests are running',start:97},
+  {id:'w-icons',n:'studio-icons',st:'w',a:'1m',ag:['icons'],t:'cu',where:'barkpark-studio window',br:'main checkout',awake:1,why:'it works in the main checkout',start:32},
+  {id:'w-lexicon',n:'lexicon-judge',st:'n',a:'3m',q:'Allow npm run build?',ag:['lexicon'],t:'cc',where:'tmux pane lexicon:1',wt:'wt-pj',br:'lexicon-judge',why:'it waits for you',start:252},
+  {id:'w-parity',n:'studio-parity',st:'i',a:'40m',ag:['parity'],t:'cc',where:'cmux tab studio-parity',wt:'wt-par',br:'studio-parity',pr:'#209',prx:'open, checks pass',srv:['s3334'],why:'PR #209 is not merged',start:1360,idle:40},
+  {id:'w-far',n:'fix auth redirect',st:'r',a:'2h',fin:120,ag:['far'],t:'cx',where:'Codex thread',wt:'wt-auth',br:'auth-redirect',brx:'squash-merged',pr:'#207',prx:'merged',srv:['s4000'],cache:[['node_modules',1.8]],start:1780,end:120},
+  {id:'w-lane',n:'lane-e-sort',st:'r',a:'1d',fin:1542,ag:[],where:'agent ended yesterday',wt:'wt-lane',br:'lane-e-sort',brx:'merged',pr:'#201',prx:'merged',cache:[['node_modules',2.3]],start:5700,end:1542}
+];
+const LOOSE=[
+  {k:'s6006',ic:'servers',c:'#3FD0B8',t:':6006 storybook',x:'3 d'},
+  {k:'wt-bp8',ic:'trees',c:'#4CC96B',t:'bp8-sweep-studio403',x:''},
+  {k:'dk-dd',ic:'disk',c:'#F2B544',t:'DerivedData',x:'4 gone'}
+];
+const WSST={w:'working',n:'needs you',i:'idle',r:'ready'};
+const STW={w:'working',n:'needs you',i:'idle',f:'finished'};
+const byId={};[...APPS,...SRV,...WT,...DK,...AG,...WS].forEach(o=>byId[o.id]=o);
+
+/* ---------- live: a simulated clock. Ages, idle timers and countdowns tick; things arrive and leave ---------- */
+const SIM={t:0,paused:false,last:null,told:0};
+const byAge={far:120,'w-far':120,'w-lane':1542};
+const parseAge=a=>{const n=parseFloat(a);return /d/.test(a)?n*1440+102:/h/.test(a)?n*60:n};
+const ageTxt=m=>m<60?Math.floor(m)+'m':m<1440?Math.floor(m/60)+'h':Math.floor(m/1440)+'d';
+function liveAge(o){if(o.am!=null)return;o.am=byAge[o.id]!=null?byAge[o.id]:parseAge(o.a||'0m');Object.defineProperty(o,'a',{get(){return ageTxt(this.am+SIM.t/60)},configurable:true})}
+function liveNum(o,k){if(typeof o[k]!=='number'||(k+'0') in o)return;o[k+'0']=o[k];Object.defineProperty(o,k,{get(){return this[k+'0']+SIM.t/60},configurable:true})}
+[...AG,...WS].forEach(liveAge);
+SRV.forEach(x=>liveNum(x,'idle'));WS.forEach(w=>liveNum(w,'fin'));AG.forEach(a=>liveNum(a,'fmin'));WT.forEach(w=>liveNum(w,'ago'));
+const waited=id=>byId[id].am+SIM.t/60;
+const LIFE={};
+function life(id,base,glow){
+  const L=LIFE[id];let cls='',sty=base||'',txt=null;
+  if(L){txt=L.txt||null;
+    if(L.k==='new'){cls=' isnew'+(L.fresh?' arr':'');sty+=glow==='filter'?';filter:drop-shadow(0 0 12px color-mix(in srgb,var(--c) 80%,transparent))':';box-shadow:0 0 0 1px rgba(255,255,255,.45),0 0 22px color-mix(in srgb,var(--c) 55%,transparent)'}
+    if(L.k==='fin'){cls=' isfin';sty+=';opacity:.6'}
+    if(L.k==='fold'){cls=' isfin';sty+=';opacity:0;transform:scale(.92)'}}
+  return {cls,sty,txt,L};
+}
+function dur(sec){sec=Math.max(0,Math.round(sec));const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60),s=sec%60;
+  return `<span class="nw">${d?`${d} d ${h} h`:h?`${h} h ${m} m`:m?`${m} m ${String(s).padStart(2,'0')} s`:`${s} s`}</span>`}
+const nextCheck=()=>SIM.t<60?60-SIM.t:300-((SIM.t-60)%300);
+const simClock=(sec)=>{const t=new Date(NOW0.getTime()+(sec==null?SIM.t:sec)*1000);return t};
+const NOW0=new Date(2026,9,27,16,42,0);
+
+/* ---------- state ---------- */
+let st={sel:'ws',mode:{ws:1,agents:1,apps:2,servers:2,trees:1,disk:2,awake:2},v:{ws:0,agents:1,apps:1,servers:2,trees:1,disk:1,awake:2},F:{},today:0,one:false,login:true,k1h:0,lid:true};
+const UNDO=[];
+const snap=()=>JSON.stringify(st);
+const fl=id=>st.F[id]||(st.F[id]={});
+const has=(id,k)=>!!(st.F[id]&&st.F[id][k]);
+const gone=id=>has(id,'gone');
+const sec=id=>S.find(s=>s.id===id);
+const md=id=>st.mode[id];
+const val=id=>sec(id).vals[st.v[id]];
+const num=id=>sec(id).num?sec(id).num[st.v[id]]:0;
+const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+function fmt(x){
+  if(x<.0005) return '0 MB';
+  if(x<.995) return Math.round(x*1000)+' MB';
+  if(x>=10) return (Math.round(x*10)/10).toFixed(1)+' GB';
+  const d=Math.abs(x*10-Math.round(x*10));
+  return (d<.25?(Math.round(x*10)/10).toFixed(1):(Math.round(x*100)/100).toFixed(2))+' GB';
+}
+const fN=x=>fmt(x).split(' ')[0], fU=x=>fmt(x).split(' ')[1];
+const idleTxt=m=>m>=1440?Math.floor(m/1440)+' days':m>=60?Math.floor(m/60)+'h '+Math.floor(m%60)+'m':Math.floor(m)+' min';
+
+/* derived */
+const memOf=a=>a.mem-(a.id==='chrome'&&has('chrome','trim')?2.6:0);
+const cpuOf=a=>a.cpu-(a.id==='chrome'&&has('chrome','trim')?6:0);
+const appCls=a=>gone(a.id)?'ghost':has(a.id,'keep')?'kept':(a.cls==='uns'&&has(a.id,'list'))?'close':a.cls;
+const noise=()=>APPS.filter(a=>appCls(a)==='close');
+const LOAD=()=>Math.max(5,Math.round(63+2.6*Math.sin(SIM.t/7)-sum(APPS,a=>gone(a.id)?cpuOf(a):0)-(has('chrome','trim')&&!gone('chrome')?6:0)));
+const idleSrv=()=>SRV.filter(x=>x.idle&&!gone(x.id)&&!has(x.id,'keep'));
+const mergedWT=()=>WT.filter(w=>w.k==='m'&&!gone(w.id)&&!has(w.id,'keep'));
+const safeDK=()=>DK.filter(d=>d.safe&&!gone(d.id)&&!has(d.id,'keep'));
+const holders=()=>AG.filter(a=>a.st==='w'&&!gone(a.id)&&!has(a.id,'sleep'));
+const finished=()=>AG.filter(a=>a.st==='f'&&!gone(a.id));
+const agSrv=id=>SRV.filter(x=>x.ag===id&&!gone(x.id));
+const agWT=id=>WT.find(w=>w.ag===id&&!gone(w.id));
+const agHeld=id=>{const w=byId[byId[id].ws];return w?wsHeld(w):0};
+/* workstreams */
+const wsSrv=w=>(w.srv||[]).filter(id=>!gone(id)).map(id=>byId[id]);
+const wsHeld=w=>gone(w.id)?0:sum(wsSrv(w),x=>x.mb/1000)+sum(w.cache||[],c=>c[1]);
+const readyWS=()=>WS.filter(w=>w.st==='r'&&!gone(w.id)&&!has(w.id,'keep'));
+const dueWS=()=>readyWS().filter(w=>w.fin>=num('ws'));
+const wsLink=id=>`<span class="lk" data-goto="${id}">${byId[id].n}</span>`;
+const NOW={getTime:()=>NOW0.getTime()+SIM.t*1000};
+function when(min){
+  if(min<=0) return 'now';
+  const t=new Date(NOW.getTime()+min*60000),hm=`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  const dd=Math.round((new Date(t.getFullYear(),t.getMonth(),t.getDate())-new Date(2026,9,27))/864e5);
+  if(dd===0) return 'at '+hm; if(dd===1) return 'tomorrow '+hm;
+  return t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+}
+const wsWhen=w=>when(num('ws')-w.fin);
+function wrapWS(w){
+  const s=wsSrv(w),h=wsHeld(w);
+  s.forEach(x=>fl(x.id).gone=1); if(w.wt) fl(w.wt).gone=1; (w.ag||[]).forEach(a=>fl(a).gone=1); fl(w.id).gone=1;
+  return h;
+}
+function unwrapWS(w){(w.srv||[]).forEach(id=>fl(id).gone=0); if(w.wt) fl(w.wt).gone=0; (w.ag||[]).forEach(a=>fl(a).gone=0); fl(w.id).gone=0}
+const working=()=>AG.filter(a=>a.st==='w'&&!gone(a.id));
+
+/* ---------- live index ---------- */
+function wsPill(w,big){
+  const g=gone(w.id),c=C.ws;let bg='var(--g2)',sh='none';
+  if(g){bg='transparent';sh='inset 0 0 0 1px var(--g2)'}
+  else if(w.st==='w')bg=c; else if(w.st==='n')bg='#fff'; else if(w.st==='r'){bg=has(w.id,'keep')?'transparent':'color-mix(in srgb,'+c+' 25%,transparent)';sh='inset 0 0 0 1.5px '+(has(w.id,'keep')?'var(--g3)':c)}
+  return `<i style="background:${bg};box-shadow:${sh}"></i>`;
+}
+function wsStrip(cls){
+  const grp=['w','n','i','r'].map(k=>`<span>${WS.filter(w=>w.st===k).map(w=>wsPill(w)).join('')}</span>`).join('');
+  return `<div class="${cls}">${grp}</div>`;
+}
+function mini(id){
+  const m=md(id);
+  if(id==='ws') return wsStrip('mg lanes');
+  if(id==='agents'){
+    const dots=[...AG.map(a=>a),...Array(5).fill({st:'x'})].map(a=>{
+      let bg='var(--g2)',sh='none';
+      if(a.st==='w')bg=C.agents; else if(a.st==='n')bg='#fff'; else if(a.st==='f'){bg=gone(a.id)?'transparent':'transparent';sh=gone(a.id)?'inset 0 0 0 1px var(--g2)':'inset 0 0 0 1.5px '+C.agents}
+      else if(a.st==='x')bg='rgba(255,255,255,.1)';
+      return `<i style="background:${bg};box-shadow:${sh}"></i>`}).join('');
+    return `<div class="mg dots" style="column-gap:4px;width:56px">${dots}</div>`;
+  }
+  if(id==='apps'){
+    const l=LOAD();
+    return `<div class="mg"><div class="tr"><i data-a="mi-ap" style="width:${l}%;background:${C.apps}"></i><i class="tk" data-a="mi-apt" style="left:${num('apps')}%"></i></div></div>`;
+  }
+  if(id==='servers'){
+    return `<div class="mg cl">${SRV.map(x=>`<i data-a="mi-${x.id}" style="width:7px;height:${gone(x.id)?2:Math.max(5,x.mb/640*24)}px;background:${gone(x.id)?'var(--g1)':x.idle&&!has(x.id,'keep')?C.servers:'var(--g2)'}"></i>`).join('')}</div>`;
+  }
+  if(id==='trees'){
+    return `<div class="mg cl">${WT.map(w=>`<i data-a="mi-${w.id}" style="width:2px;height:${gone(w.id)?2:Math.max(3,w.gb/3.2*24)}px;background:${gone(w.id)?'var(--g1)':w.k==='m'&&!has(w.id,'keep')?C.trees:'var(--g2)'}"></i>`).join('')}</div>`;
+  }
+  if(id==='disk'){
+    const r=9,cf=2*Math.PI*r,safe=sum(safeDK(),d=>d.gb),all=sum(DK.filter(d=>!gone(d.id)),d=>d.gb);
+    return `<div class="mg ring"><svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="3.2"/><circle data-a="mi-dk2" cx="12" cy="12" r="${r}" fill="none" stroke="rgba(242,181,68,.35)" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="${cf}" transform="rotate(-90 12 12)" class="arc" style="stroke-dashoffset:${cf*(1-all/38.4*.95)}"/><circle data-a="mi-dk" cx="12" cy="12" r="${r}" fill="none" stroke="${C.disk}" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="${cf}" transform="rotate(-90 12 12)" class="arc" style="stroke-dashoffset:${cf*(1-safe/38.4*.95)}"/></svg></div>`;
+  }
+  const n=num('awake');
+  return `<div class="mg"><div class="tr"><i data-a="mi-ka" style="width:64%;background:${holders().length||st.k1h?C.awake:'var(--g2)'}"></i><i class="tk" data-a="mi-kat" style="left:${n}%;opacity:${n?1:0}"></i></div></div>`;
+}
+function idxNum(id){
+  const m=md(id),verb=(o,a,au)=>m===0?'not watching':m===1?a:au;
+  if(id==='ws'){const r=readyWS().length;return {n:`${r}<u>ready</u>`,c:verb(0,'Ask shows','Auto wraps up')}}
+  if(id==='agents'){const w=working().length;return {n:`${w}<u>working</u>`,c:lexiconWaiting()?'1 needs you':`${finished().length} finished`}}
+  if(id==='apps'){const f=sum(noise(),memOf);return {n:`${fN(f)}<u>${fU(f)}</u>`,c:verb(0,'Ask shows','Auto frees')}}
+  if(id==='servers'){const n=idleSrv().length;return {n:`${n}<u>idle</u>`,c:verb(0,'Ask shows','Auto stops')}}
+  if(id==='trees'){const f=sum(mergedWT(),w=>w.gb);return {n:`${fN(f)}<u>${fU(f)}</u>`,c:verb(0,'Ask shows','Auto removes')}}
+  if(id==='disk'){const f=sum(safeDK(),d=>d.gb);return {n:`${fN(f)}<u>${fU(f)}</u>`,c:verb(0,'Ask shows','Auto cleans')}}
+  const h=holders().length;
+  return m===0?{n:'0<u>agents</u>',c:'Mac sleeps as usual'}:{n:`${h}<u>agents</u>`,c:h?'keep it awake':'Mac may sleep'};
+}
+const lexiconWaiting=()=>!has('lexicon','seen');
+function renderIdx(){
+  return S.map(s=>{const m=md(s.id),c=C[s.id],k=idxNum(s.id);
+    return `<button class="it${st.sel===s.id?' sel':''}${m===0?' m0':''}" role="tab" aria-selected="${st.sel===s.id}" data-sec="${s.id}">
+      <i class="dot" style="background:${m===2?c:'transparent'};box-shadow:${m===1?'inset 0 0 0 1.5px '+c:m===2?'none':'inset 0 0 0 1.5px rgba(235,235,245,.28)'}"></i>
+      <span class="nm">${s.name}</span>${mini(s.id)}
+      <span class="nb"><span class="n">${k.n}</span><span class="cp">${k.c}</span></span></button>`}).join('');
+}
+
+/* ---------- the setting (one system) ---------- */
+function modes(id){
+  return `<div class="modes" role="radiogroup" aria-label="Mode" data-modes="${id}">${MODES.map((w,i)=>`<button role="radio" aria-checked="${md(id)===i}" data-mode="${i}">${w}</button>`).join('')}<i class="bar" style="${PB[id+'last']||''}"></i></div>`;
+}
+function vals(id){
+  return `<span class="vals" role="radiogroup" aria-label="Value">${sec(id).vals.map((w,i)=>`<button role="radio" aria-checked="${st.v[id]===i}" data-val="${i}" data-for="${id}">${w.replace(' ','&nbsp;')}</button>`).join('')}</span>`;
+}
+const NOAUTO='Not watching. Nothing happens on its own.';
+function rule(id,m){
+  if(m==null) m=md(id);
+  const V=vals(id),dn=sec('disk').next[st.v.disk];
+  if(m===0) return NOAUTO;
+  const ask=m===1;
+  switch(id){
+    case 'ws':return ask?`Shows a Wrap Up button ${V} after the PR merges and the agents finish. Nothing happens until you press it.`:`Wraps it up for you ${V} after the PR merges and the agents finish, then sends a notice with Undo.`;
+    case 'agents':return ask?`Sends a notice when an agent has waited for you ${V}. Nothing else happens.`:`Brings its tab to the front when an agent has waited for you ${V}, and sends a notice.`;
+    case 'apps':return ask?`Shows a Quit button for noise apps once load passes the white tick. Nothing quits until you press it.`:`Quits noise apps for you once load passes the white tick, then sends a notice with Undo.`;
+    case 'servers':return ask?`Shows a Stop button for servers nobody used for ${V}. Nothing stops until you press it.`:`Stops servers nobody used for ${V}, then sends a notice with Undo.`;
+    case 'trees':return ask?`Shows a Remove button once a worktree has been merged for ${V}. Nothing goes until you press it.`:`Moves a worktree to the Trash once it has been merged for ${V}, then sends a notice with Undo.`;
+    case 'disk':return ask?`Shows a Clean button for safe clutter ${V}. Nothing is cleaned until you press it.`:`Moves safe clutter to the Trash ${V}, then sends a notice with Undo.`;
+  }
+}
+const nm2=a=>a.length>2?a.slice(0,-1).join(', ')+' and '+a[a.length-1]:a.join(' and ');
+/* the live "what happens next" line under every setting */
+function nextTxt(id,m){
+  if(m==null) m=md(id);
+  if(m===0) return 'Not watching. Nothing will happen on its own.';
+  const A=(auto,would)=>m===2?auto:would, cd=dur(nextCheck());
+  if(id==='ws'){const r=readyWS();if(!r.length)return 'Nothing is ready to wrap up.';
+    const due=r.filter(w=>w.fin>=num('ws'));
+    if(due.length) return `${A('Auto wraps up','Auto would wrap up')} ${nm2(due.map(w=>'<b>'+w.n+'</b>'))} at the next check, in ${cd}`;
+    const w=r.slice().sort((a,b)=>b.fin-a.fin)[0];return `${A('Auto wraps up','Auto would wrap up')} <b>${w.n}</b> in ${dur((num('ws')-w.fin)*60)}`}
+  if(id==='agents'){if(!AG.find(a=>a.id==='lexicon')||has('lexicon','seen'))return 'No agent waits for you.';
+    const left=(num('agents')-waited('lexicon'))*60;
+    if(left<=0) return m===2?'Brought <b>lexicon-judge</b> to the front.':'Sent a notice: <b>lexicon-judge</b> waits for you.';
+    return `${A('Brings','Sends a notice about')} <b>lexicon-judge</b>${m===2?' to the front':''} in ${dur(left)}`}
+  if(id==='apps'){const n=noise();if(!n.length)return 'Nothing left to quit.';
+    return `${A('Auto quits','Auto would quit')} ${nm2(n.map(a=>'<b>'+a.n.replace('Google ','')+'</b>'))} once load passes ${num('apps')}&nbsp;%. Now ${LOAD()}&nbsp;%.`}
+  if(id==='servers'){const idle=idleSrv();if(!idle.length)return 'No idle servers.';
+    const th=num('servers'),due=idle.filter(x=>x.idle>=th);
+    if(due.length) return `${A('Auto stops','Auto would stop')} ${nm2(due.map(x=>'<b>:'+x.p+'</b>'))} at the next check, in ${cd}`;
+    const x=idle.slice().sort((a,b)=>b.idle-a.idle)[0];return `${A('Auto stops','Auto would stop')} <b>:${x.p}</b> in ${dur((th-x.idle)*60)}`}
+  if(id==='trees'){const mg=mergedWT();if(!mg.length)return 'No merged worktrees left.';
+    const th=num('trees')*1440,due=mg.filter(w=>w.ago>=th);
+    if(due.length) return `${A('Auto removes','Auto would remove')} ${due.length===1?'<b>'+due[0].n+'</b>':due.length+' of them'} at the next check, in ${cd}`;
+    const w=mg.slice().sort((a,b)=>b.ago-a.ago)[0];return `${A('Auto removes','Auto would remove')} <b>${w.n}</b> in ${dur((th-w.ago)*60)}`}
+  if(id==='disk'){const f=sum(safeDK(),d=>d.gb);if(!f)return 'Nothing safe left to clean.';
+    const at=sec('disk').at[st.v.disk];return `${A('Auto moves','Auto would move')} <b>${fmt(f)}</b> to the Trash ${sec('disk').next[st.v.disk]}, in ${dur((at-NOW.getTime())/1000)}`}
+  return '';
+}
+const nextP=(id,cls)=>`<p class="next${cls?' '+cls:''}" data-tick="next:${id}">${nextTxt(id)}</p>`;
+const PB={};
+function placeBars(root){
+  root.querySelectorAll('.modes').forEach(g=>{const b=g.querySelector('[aria-checked="true"]'),bar=g.querySelector('.bar');if(!b)return;
+    const id=g.dataset.modes,last=PB[id+'last'];
+    if(!bar.getAttribute("style")&&last){bar.style.cssText=last}void bar.offsetWidth;
+    bar.style.width=b.offsetWidth+'px';bar.style.transform=`translateX(${b.offsetLeft}px)`;
+    PB[id+md(id)]=PB[id+'last']=`width:${b.offsetWidth}px;transform:translateX(${b.offsetLeft}px)`});
+}
+
+/* ---------- compositions ---------- */
+const R={};
+const markFor=(on,id)=>on?(md(id)===2?'a':'s'):'n';
+
+const ENDED=`<svg viewBox="0 0 18 18" width="18" height="18"><circle cx="9" cy="9" r="7.3" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.3" stroke-dasharray="2 2.4"/></svg>`;
+function wsHold(w,withGb){
+  const s=wsSrv(w).length,wt=w.wt&&!gone(w.wt),ca=(w.cache||[]).length,aw=w.awake&&w.st==='w';
+  return [s?`<span>${gl('servers',C.servers,12)}${s}</span>`:'',wt?`<span>${gl('trees',C.trees,12)}</span>`:'',ca?`<span>${gl('disk',C.disk,12)}</span>`:'',
+    w.browser?`<span>${gl('browser',C.apps,12)}</span>`:'',aw?`<span>${gl('awake',C.awake,12)}</span>`:'',
+    (!s&&!wt&&!ca&&!aw)?'<span>holds nothing</span>':'',withGb?`<span class="gb">${fmt(wsHeld(w))}</span>`:''].join('');
+}
+function wsStage(w){
+  if(gone(w.id)) return 'wrapped up';
+  if(w.st!=='r') return `${WSST[w.st]} ${w.a}`;
+  if(has(w.id,'keep')) return 'kept';
+  if(md('ws')===0) return 'ready';
+  return w.fin>=num('ws')?(md('ws')===2?'wraps up now':'ready now'):wsWhen(w);
+}
+function wsCard(w,x,y,wd,h){
+  const g=gone(w.id),r=w.st==='r',wait=r&&!g&&w.fin<num('ws');
+  const ic=w.t?ICON[w.t]:ENDED;
+  const L=life(w.id,`left:${x}px;top:${y}px;width:${wd}px;height:${h}px`);
+  let mid='',foot='';
+  if(g){mid=`<div class="sub">Undo brings it back</div>`}
+  else if(w.st==='n'){mid=`<div class="q">${w.q}</div>`;foot=`<button class="go" data-wsact="tab" data-id="${w.id}">Go to Tab</button>`}
+  else if(w.st==='i'){mid=`<div class="sub">PR ${w.pr} open</div>`;foot=`<div class="hold">${wsHold(w)}</div>`}
+  else if(r){mid=`<div class="sub">PR ${w.pr} merged</div>`;foot=`<div class="hold">${wsHold(w,1)}</div>`}
+  else foot=`<div class="hold">${wsHold(w)}</div>`;
+  const stt=L.L&&L.L.k==='new'?`<span class="newtag">${L.txt||'New'}</span>`:(L.txt||wsStage(w));
+  return `<div class="wc ${w.st}${g?' ghost':''}${wait?' wait':''}${has(w.id,'keep')?' kept':''}${L.cls}" data-item="${w.id}" data-k="${w.id}" data-a="wc-${w.id}" style="${L.sty}">
+    <div class="top">${ic}<span class="stt">${stt}</span></div><div class="nm">${w.n}${w.sub?` <span class="subn">+${w.sub}</span>`:''}</div>${mid}${foot}</div>`;
+}
+R.ws=()=>{
+  const m=md('ws'),r=readyWS(),held=sum(r,wsHeld),GR=468;
+  const COL={w:[0,118],n:[126,118],i:[252,112],r:[372,136]},H={w:80,n:134,i:100,r:96},GAP=8;
+  let cards='';const tops={};
+  ['w','n','i','r'].forEach(k=>{const L=WS.filter(w=>w.st===k),tot=L.length*H[k]+(L.length-1)*GAP;let y=GR-tot;tops[k]=y;
+    L.forEach(w=>{cards+=wsCard(w,COL[k][0],y,COL[k][1],H[k]);y+=H[k]+GAP})});
+  tops.r=GR-2*H.r-GAP;
+  const nm=r.map(w=>`<b>${w.n}</b>`),wk=WS.filter(w=>w.st==='w'&&!gone(w.id));
+  let ins;
+  if(m===0) ins=`Not watching. ${WS.length} workstreams, ${r.length} of them merged and done.`;
+  else if(r.length) ins=`${nm2(nm)} ${r.length>1?'are':'is'} merged and done, yet still hold${r.length>1?'':'s'} <b>${fmt(held)}</b>.`+'';
+  else ins=`Every finished workstream is wrapped up. <b>studio-parity</b> sits idle with PR #209 open.`;
+  const lab=[['w','Working',`+ ${sum(wk,w=>w.sub||0)} subagents`],['n','Needs you',`waits ${Math.floor(waited('w-lexicon'))} min`],['i','Idle',`${byId['w-parity'].a.replace('m',' min')}, holds :3334`],['r','Ready to wrap up',r.length?fmt(held):'all wrapped up']]
+    .map(([k,t,c])=>`<div class="ws-glab cap" style="left:${COL[k][0]}px"><b>${t}<span>${WS.filter(w=>w.st===k&&!gone(w.id)).length}</span></b>${c}</div>`).join('');
+  const loose=LOOSE.map(o=>{const g=gone(o.k);return `<div class="ch${g?' ghost':''}" data-item="${o.k}" data-k="${o.k}">${gl(o.ic,g?'var(--tx3)':o.c,12)}${o.t} <span>${g?'gone':o.x}</span></div>`}).join('');
+  return `<div class="ws-head"><div class="big"><span class="n" data-n="ws-r">${r.length}</span><span class="u">ready to wrap up</span></div>
+      <div class="ws-sw">${wsStrip('ws-strip')}<span class="cap">${WS.filter(w=>!gone(w.id)).length} workstreams by stage</span></div></div>
+    <p class="ins ws-ins">${ins}</p>
+    <div class="set ws-set${m===0?' off':''}" style="top:104px"><div class="srow">${modes('ws')}
+      <button class="btn pri" data-sa="wrapready"${r.length?'':' disabled'}>${r.length?`Wrap Up ${r.length} Now <span class="tl">${fmt(held)}</span>`:'Nothing to Wrap Up'}</button></div>
+      <p class="rule">${rule('ws')}</p>${nextP('ws')}</div>
+    <i class="brk" style="left:${COL.r[0]}px;width:${COL.r[1]}px;top:${tops.r-14}px;opacity:${m===0||!r.length?.15:.6}"></i>
+    ${cards}
+    <i class="ground" style="top:${GR+8}px"></i>${lab}
+    <div class="ws-loose"><div class="cap">No workstream: idle or stale, nobody owns these</div><div class="row">${loose}</div></div>`;
+};
+
+R.agents=()=>{
+  const c=C.agents, w=working().length;
+  const subs=sum(WS.filter(w=>!gone(w.id)),w=>w.sub||0);
+  const dots=[...AG,...Array(subs).fill({st:'sub'}),...Array(5).fill({st:'x'})];
+  const dot=a=>{if(a.st==='sub')return `<i style="background:${c};opacity:.55;transform:scale(.7)"></i>`;let bg='var(--g2)',sh='none';if(a.st==='w')bg=has(a.id,'sleep')?'var(--g3)':c;else if(a.st==='n')bg='#fff';else if(a.st==='f'){bg='transparent';sh=gone(a.id)?'inset 0 0 0 1px var(--g2)':'inset 0 0 0 1.5px '+c}else if(a.st==='x')bg='rgba(255,255,255,.1)';return `<i style="background:${bg};box-shadow:${sh}"></i>`};
+  const f=finished(), fh=sum(f,a=>agHeld(a.id));
+  let ins=[];
+  if(lexiconWaiting()) ins.push(`<b>lexicon-judge</b> has waited ${Math.floor(waited('lexicon'))}&nbsp;min for you.`);
+  if(f.length) ins.push(`<b>fix auth redirect</b> finished 2&nbsp;h ago and still holds <b>${fmt(fh)}</b>.`);
+  else ins.push(`Every finished agent is wrapped up. <b>studio-parity</b> is idle but still holds :3334.`);
+  const card=a=>{
+    const g=gone(a.id);
+    const srv=agSrv(a.id).length, wt=agWT(a.id), awake=a.st==='w'&&!has(a.id,'sleep');
+    const hold=g?`<span>wrapped up, Undo brings it back</span>`:[
+      srv?`<span>${gl('servers',C.servers,12)}${srv}</span>`:'',
+      wt?`<span>${gl('trees',C.trees,12)}${wt.k==='m'?'merged':''}</span>`:'',
+      awake?`<span>${gl('awake',C.awake,12)}</span>`:'',
+      (!srv&&!wt&&!awake)?'<span>holds nothing</span>':''].join('');
+    const L=life(a.id,'');
+    const stt=L.L&&L.L.k==='new'?`<span class="newtag">${L.txt||'New'}</span>`:L.txt?L.txt:g?'wrapped up':`${STW[a.st]} ${a.a}`;
+    return `<div class="card ${a.st}${g?' ghost':''}${L.cls}" data-item="${a.id}" data-k="${a.id}" data-a="ag-${a.id}" style="${L.sty}">
+      <div class="top">${ICON[a.t]}<span class="stt"><i class="sm ${g?'i':a.st}"></i>${stt}</span></div>
+      <div class="nm">${a.n}</div><div class="wh">${TOOL[a.t]} · ${a.w}</div>
+      <div class="hold">${hold}</div></div>`};
+  const fa=AG.find(a=>a.id==='far');
+  return `<div class="ag-head"><div class="big"><span class="n" data-n="ag-w">${w}</span><span class="u">working</span></div>
+      <div class="ag-dots"><div class="row">${dots.map(dot).join('')}</div><span class="cap">${AG.length+5} agents · ${subs} subagents</span></div></div>
+    <p class="ins ag-ins">${ins.join(' ')}</p>
+    <div class="grid">${AG.filter(a=>a.id!=='far').map(card).join('')}${card(fa)}
+      <div class="setcard${md('agents')===0?' off':''}">${modes('agents')}<p class="rule">${rule('agents')}</p>${nextP('agents')}</div>
+    </div>
+    <div class="ag-foot"><span class="cap">5 more idle over 1 h, holding nothing</span>
+      <button class="btn pri" data-sa="wrap"${f.length?'':' disabled'}>${f.length?`Wrap Up ${f.length===1?f[0].n:f.length+' Finished'} Now <span class="tl">${fmt(fh)}</span>`:'Nothing to Wrap Up'}</button></div>`;
+};
+
+R.apps=()=>{
+  const l=LOAD(),th=num('apps'),m=md('apps'),n=noise(),fr=sum(n,memOf),H=244;
+  const y=p=>H-(p/100)*H;
+  const waits=l<th;
+  const nm=a=>a.n.replace('Google ','');
+  let ins;
+  if(m===0) ins=`Load is <b>${l}&nbsp;%</b>. Apps are not watched, so nothing closes.`;
+  else if(!n.length) ins=`Nothing left to close. <b>cmux</b> uses the most energy and stays: it is an essential.`;
+  else ins=`Load is <b>${l}&nbsp;%</b>, under ${th}&nbsp;%, so ${m===2?'Auto waits':'nothing is shown yet'}. Past ${th}&nbsp;% it closes <b>${n.map(nm).join('</b> and <b>')}</b> and frees <b>${fmt(fr)}</b>.`;
+  if(m!==0&&n.length&&!waits) ins=`Load is <b>${l}&nbsp;%</b>, past ${th}&nbsp;%. ${m===2?'Auto closes':'Ask shows'} <b>${n.map(nm).join('</b> and <b>')}</b> now, freeing <b>${fmt(fr)}</b>.`;
+  const cols=APPS.map(a=>{const cl=appCls(a),h=gone(a.id)?4:Math.max(6,memOf(a)/9*H);
+    return `<div class="apc ${cl}" data-item="${a.id}" data-k="${a.id}"><div class="bx"><i data-a="ap-${a.id}" style="height:${h}px"></i></div></div>`}).join('');
+  const ics=APPS.map(a=>`<div class="${gone(a.id)?'ghost':''}">${ICON[a.ic]}<span class="v">${gone(a.id)?'quit':memOf(a)<.05?'0.0':(Math.round(memOf(a)*10)/10).toFixed(1)}</span></div>`).join('');
+  return `<div class="set ap-set${m===0?' off':''}">${modes('apps')}<p class="rule">${rule('apps')}</p></div>
+    <div class="ap-big"><div class="big"><span class="n" data-n="ap-l">${l}</span><span class="u">% load</span></div></div>
+    <div class="load${m===0?' off':''}"><i class="f" data-a="ap-load" style="height:${l/100*H}px;background:${m===0?'var(--g2)':'color-mix(in srgb,'+C.apps+' 55%,rgba(255,255,255,.1))'}"></i><i class="tk" data-a="ap-th" style="top:${y(th)}px;opacity:${m===0?.25:1}"></i></div>
+    <div class="ruler${m===0?' off':''}" role="radiogroup" aria-label="Load threshold">${sec('apps').num.map((p,i)=>`<button role="radio" aria-checked="${st.v.apps===i}" data-val="${i}" data-for="apps" style="top:${y(p)}px">${p}&nbsp;%</button>`).join('')}</div>
+    <div class="load-cap${m===0?' off':''}">${nextP('apps')}</div>
+    <p class="ins ap-ins">${ins}</p>
+    <div class="apcols${m===0?' off':''}">${cols}</div>
+    <div class="apic">${ics}</div>
+    <div class="ap-leg cap"><span><i style="background:${C.apps}"></i>closes</span><span><i style="box-shadow:inset 0 0 0 1.5px ${C.apps}"></i>unsorted</span><span><i style="background:var(--g2)"></i>kept</span><span>height = memory, GB</span></div>
+    <div class="ap-act"><button class="btn pri" data-sa="now"${n.length?'':' disabled'}>${n.length?`Quit ${n.length} App${n.length>1?'s':''} Now <span class="tl">${fmt(fr)}</span>`:'Nothing to Quit'}</button><button class="btn" data-sa="restore">Reopen What 11:05 Closed <span class="tl">2 apps, 14 tabs</span></button></div>`;
+};
+
+R.servers=()=>{
+  const m=md('servers'),th=num('servers'),c=C.servers,idle=idleSrv(),fr=sum(idle,x=>x.mb/1000);
+  const cx=254,cy=334,rx=192,ry=192;
+  const order=SRV.map(x=>x.id);
+  const ang=order.map((_,i)=>-90+i*360/order.length);
+  const r=29,cf=2*Math.PI*r;
+  const badges=order.map((id,i)=>{const x=byId[id],a=ang[i]*Math.PI/180,bx=cx+rx*Math.cos(a),by=cy+ry*Math.sin(a);
+    const g=gone(id),keep=has(id,'keep');
+    let frac=0,stroke=c,ring='rgba(255,255,255,.1)',s='';
+    if(g){s='stopped';}
+    else if(x.use){s=`in use · ${x.mb} MB`;frac=0}
+    else if(x.kept||keep){s=`kept · ${x.mb} MB`;}
+    else {frac=Math.min(1,x.idle/th);s=`idle ${idleTxt(x.idle)} · ${x.mb} MB`;}
+    if(m===0)stroke='var(--g3)';
+    const inner=x.use&&!g?`<circle cx="32" cy="32" r="${r-2}" fill="${m===0?'rgba(255,255,255,.08)':'rgba(63,208,184,.16)'}"/>`:'';
+    const dash=(x.kept||keep)&&!g?`stroke-dasharray="3 4"`:'';
+    const L=life(id,`left:${bx}px;top:${by-32}px`,'filter');if(L.txt)s=L.txt;
+    return `<div class="badge${g?' ghost':''}${L.cls}" data-item="${id}" data-k="${id}" data-a="bd-${id}" style="${L.sty}">
+      <div class="rg"><svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="${r}" fill="none" stroke="${ring}" stroke-width="4" ${dash}/>${inner}
+      <circle class="arc" data-a="sv-${id}" cx="32" cy="32" r="${r}" fill="none" stroke="${stroke}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${cf}" transform="rotate(-90 32 32)" style="stroke-dashoffset:${cf*(1-frac)};opacity:${frac>0?1:0}"/></svg>
+      <span class="p">:${x.p}</span></div><div class="k">${x.k}</div><div class="s">${s}</div></div>`}).join('');
+  let ins=m===0?`Not watching. ${SRV.filter(x=>!gone(x.id)).length} servers run, <b>${idle.length}</b> of them idle.`:idle.length?`${idle.length} servers sit idle. <b>:6006 storybook</b> has been idle 3&nbsp;days and nobody owns it.`:`No idle servers left. :3000 and :5173 serve <b>speed-3</b>.`;
+  if(gone('s6006')&&idle.length) ins=`${idle.length} server${idle.length>1?'s':''} sit idle, held by finished or idle agents.`;
+  const hubTop=cy-66;
+  return `<p class="ins sv-ins">${ins}</p>
+    <button class="btn pri sv-act" data-sa="idle"${idle.length?'':' disabled'}>${idle.length?`Stop ${idle.length} Server${idle.length>1?'s':''} Now <span class="tl">${fmt(fr)}</span>`:'Nothing Idle'}</button>
+    <svg class="orbit" width="508" height="596"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none" stroke="rgba(255,255,255,.07)" stroke-dasharray="2 5"/></svg>
+    ${badges}
+    <div class="set hub${m===0?' off':''}" style="top:${hubTop}px">${modes('servers')}<p class="rule">${rule('servers')}</p>${nextP('servers')}</div>
+    <p class="cap" style="position:absolute;left:0;top:44px">Each arc fills toward the moment ${m===2?'Auto stops':'Ask shows'} that server</p>`;
+};
+
+R.trees=()=>{
+  const m=md('trees'),c=C.trees,mg=mergedWT(),fr=sum(mg,w=>w.gb);
+  const W=25,gap=7,gg=22,H=330,sc=H/3.2*0.92;
+  const groups=[['m','merged'],['f','fine'],['u','in use'],['s','stale']];
+  let x=0;const pos={},gx={};
+  groups.forEach(([k],gi)=>{const ws=WT.filter(w=>w.k===k);gx[k]=[x];ws.forEach((w,i)=>{pos[w.id]=x;x+=W+(i<ws.length-1?gap:0)});gx[k][1]=x;x+=gg});
+  const off=(508-(x-gg))/2;
+  const trees=WT.map(w=>{const g=gone(w.id),cls=g?'ghost':has(w.id,'keep')&&w.k==='m'?'f':w.k;
+    return `<div class="tree ${cls}" data-item="${w.id}" data-k="${w.id}" data-a="wt-${w.id}" style="left:${pos[w.id]+off}px;height:${g?6:w.gb*sc}px"></div>`}).join('');
+  const labs=groups.map(([k,l])=>{const ws=WT.filter(w=>w.k===k&&!gone(w.id));const gb=sum(ws,w=>w.gb);
+    return `<div class="glab cap" style="left:${gx[k][0]+off}px"><b>${ws.length} ${l}</b>${fmt(gb)}</div>`}).join('');
+  const bl=gx.m[0]+off,bw=gx.m[1]-gx.m[0];
+  const tallest=Math.max(...WT.filter(w=>w.k==='m').map(w=>w.gb))*sc;
+  const by=166+H-tallest-22;
+  let ins=m===0?`Not watching. 14 worktrees, ${mg.length} of them merged.`:mg.length?`${mg.length} merged worktrees hold <b>${fmt(fr)}</b>. <b>bp7-studio-dogfood</b> stays: 1 commit is not in main.`:`Every merged worktree is gone. Two stale ones wait for you to look.`;
+  return `<p class="ins wt-ins">${ins}</p>
+    <button class="btn pri wt-act" data-sa="merged"${mg.length?'':' disabled'}>${mg.length?`Remove ${mg.length} Merged Now <span class="tl">${fmt(fr)}</span>`:'Nothing Merged'}</button>
+    <div class="set wt-set${m===0?' off':''}" style="bottom:${596-by+12}px">${modes('trees')}<p class="rule">${rule('trees')}</p>${nextP('trees')}</div>
+    <i class="brk" style="left:${bl}px;width:${bw}px;top:${by}px;opacity:${m===0?.15:.6}"></i>
+    <div class="forest${m===0?' off':''}">${trees}</div>
+    <i class="ground"></i>${labs}
+    <p class="cap wt-leg">Height = size on disk. Solid = merged, outline = stale, white = an agent works in it</p>`;
+};
+
+R.disk=()=>{
+  const m=md('disk'),c=C.disk,sf=safeDK(),fr=sum(sf,d=>d.gb),live=DK.filter(d=>!gone(d.id)),all=sum(live,d=>d.gb);
+  const used=812-(38.4-all), W=508, uX=used/994*W, rX=(used-all)/994*W;
+  const shade={'dk-dd':c,'dk-nm':'#E8A93A','dk-npm':'#DDA040','dk-dock':'rgba(242,181,68,.42)','dk-pw':'rgba(242,181,68,.3)','dk-sim':'rgba(242,181,68,.16)'};
+  const segs=DK.map(d=>{const g=gone(d.id);return `<div class="sg${g?' z':''}${has(d.id,'keep')?' ghostseg':''}" data-item="${d.id}" data-k="${d.id}" data-a="dk-${d.id}" style="flex-grow:${g?0.0001:d.gb};background:${m===0?'rgba(255,255,255,'+(d.safe?.2:.1)+')':shade[d.id]}">${d.safe&&!g?`<span class="lb"><b>${d.sh}</b><span>${fmt(d.gb)}</span></span>`:''}</div>`}).join('');
+  const safeW=all?sum(sf,d=>d.gb)/all*W:0;
+  const rest=DK.filter(d=>!d.safe||has(d.id,'keep'));
+  let ins=m===0?`Not watching. ${fmt(all)} of clutter sits on the disk.`:gone('dk-dd')?`Safe clutter is in the Trash. Docker and Playwright ask before they go.`:`<b>Xcode DerivedData</b> holds 14.2&nbsp;GB, and 4 of its 7 projects are gone. npm and Docker clean with their own commands.`;
+  return `<div class="dk-big"><div class="big"><span class="n" data-n="dk-all">${fN(all)}</span><span class="u">${fU(all)} of clutter</span></div></div>
+    <button class="btn pri dk-act" data-sa="clean"${sf.length?'':' disabled'}>${sf.length?`Clean ${sf.length} Now <span class="tl">${fmt(fr)} to the Trash</span>`:'All Clean'}</button>
+    <p class="ins dk-ins">${ins}</p>
+    <div class="thin"><div class="cap" style="display:flex;justify-content:space-between"><span>Disk <b style="font-weight:500;color:var(--tx2)">${Math.round(used)} / 994 GB</b></span><span>${Math.round(994-used)} GB free</span></div>
+      <div class="bar"><i data-a="dk-used" style="left:0;width:${rX}px;background:rgba(255,255,255,.22)"></i><i data-a="dk-cl" style="left:${rX}px;width:${uX-rX}px;background:${c}"></i></div></div>
+    <svg class="wedge" width="508" height="66" style="pointer-events:none"><path data-a="dk-wedge" d="M${rX} 0 L0 66 M${uX} 0 L508 66" stroke="rgba(242,181,68,.35)" fill="none"/></svg>
+    <div class="huge">${segs}</div>
+    <i class="brk" style="left:0;width:${Math.max(0,safeW-2)}px;top:394px;transform:scaleY(-1);opacity:${sf.length?.6:0}"></i>
+    <i class="brk" style="left:${safeW+2}px;width:${Math.max(0,W-safeW-2)}px;top:394px;transform:scaleY(-1);border-color:rgba(255,255,255,.3)"></i>
+    <div class="set dk-set${m===0?' off':''}">${modes('disk')}<p class="rule">${rule('disk')}</p>${nextP('disk')}</div>
+    <div class="dk-rest"><div class="cap">${m===2?'Asks first':'Shown, never cleaned alone'}</div>${rest.map(d=>`<div class="r" data-item="${d.id}" data-k="${d.id}">${d.n.replace(' browsers','').replace(' build cache',' cache')} <span>${gone(d.id)?'cleaned':fmt(d.gb)}</span></div>`).join('')}</div>`;
+};
+
+/* ---------- hover card per item ---------- */
+const A=(v,lab,tail,dis)=>({v,lab,tail,dis});
+function cardFor(id){
+  const o=byId[id];
+  if(WS.includes(o)){
+    const w=o,g=gone(w.id),srv=wsSrv(w),held=wsHeld(w),kept=has(w.id,'keep'),m=md('ws');
+    const status=g?['Wrapped up','Undo brings it back']:w.st==='w'?['Working',`${w.a}${w.note?', '+w.note:''}, keeps the Mac awake`]:w.st==='n'?['Needs you',`${w.a}: &ldquo;${w.q}&rdquo;`]:w.st==='i'?['Idle',`for ${w.a}, PR ${w.pr} ${w.prx}`]:
+      kept?['Stays','you kept it']:m===0?['Ready','not watched']:w.fin>=num('ws')?[m===2?'Wraps up':'Ready',m===2?'at the next check, 16:45':'PR merged, agents done']:['Ready',`${m===2?'wraps up':'suggested'} ${wsWhen(w)}`];
+    const ag=w.ag.length?w.ag.map(a=>TOOL[byId[a].t]).join(', ')+(w.sub?` + ${w.sub} subagents`:''):'none, ended yesterday';
+    const facts=[['Agents',ag],['Where',w.where],['Branch',w.br+(w.brx?' · '+w.brx:'')],w.pr?['PR',`${w.pr} ${w.prx}`]:null,
+      srv.length?['Servers',srv.map(x=>':'+x.p).join(', ')+' · '+sum(srv,x=>x.mb)+' MB']:null,
+      w.cache?['Caches',w.cache.map(c=>c[0]+' '+fmt(c[1])).join(', ')]:null,w.browser?['Browser',w.browser]:null].filter(Boolean);
+    let acts=[];
+    if(g) acts=[A('undows','Undo Wrap Up','')];
+    else{
+      acts.push(w.st==='r'&&!kept?A('wrapws','Wrap Up',fmt(held)):A('wrapws','Wrap Up…',kept?'you kept it':w.why,1));
+      if(w.ag.length) acts.push(A('tab','Go to Tab',w.where.split(' ').slice(0,2).join(' ')));
+      if(w.pr) acts.push(A('pr','Open PR',w.pr));
+      if(srv.length) acts.push(A('stopsrv','Stop Servers',sum(srv,x=>x.mb)+' MB'));
+      if(w.st==='r') acts.push(kept?A('unkeepws','Let It Go',''):A('keepws','Keep',''));
+      if(w.wt&&!gone(w.wt)) acts.push(A('editor','Open in Editor',''));
+    }
+    return {t:w.n,sb:'Workstream · '+WSST[w.st],status,facts,acts:acts.slice(0,5),sec:'ws',w:300};
+  }
+  if(AG.includes(o)){
+    const a=o,g=gone(a.id),s=agSrv(a.id),w=agWT(a.id);
+    const status=g?['Wrapped up','Undo brings it back']:a.st==='w'?['Working',`for ${a.a}`]:a.st==='n'?['Waiting',`for you, ${a.a}`]:a.st==='i'?['Idle',`for ${a.a}`]:['Finished',`2 h ago, still holds ${fmt(agHeld(a.id))}`];
+    const facts=[['Tool',TOOL[a.t]],['Where',a.w],a.ws?['Workstream',wsLink(a.ws)]:null,s.length?['Servers',s.map(x=>':'+x.p).join(', ')]:null].filter(Boolean);
+    let acts=[];
+    if(g) acts=[A('undo','Undo Wrap Up','')];
+    else{acts.push(A('tab','Go to Tab',a.w.split(' ')[0]));
+      if(a.st==='f') acts.unshift(A('wrap1','Wrap Up',fmt(agHeld(a.id))));
+      if(s.length&&a.st!=='w') acts.push(A('stopag','Stop Its Servers',fmt(sum(s,x=>x.mb/1000))));
+      if(a.ws) acts.push(A('gows','Go to Workstream',byId[a.ws].n));}
+    return {t:a.n,sb:`${TOOL[a.t]} · ${a.w}`,status,facts,acts,sec:'agents'};
+  }
+  if(APPS.includes(o)){
+    const a=o,cl=appCls(a),g=gone(a.id);
+    const status=g?['Quit','Restore brings it back']:cl==='close'?[md('apps')===2?'Closes':'Shown',`when load passes ${val('apps')}`]:cl==='uns'?['Unsorted','not on a list yet']:cl==='spared'?['Spared','Playwright drives it']:['Stays','an essential'];
+    const facts=[['CPU',`${Math.round(cpuOf(a)*10)/10} %`],['Memory',fmt(memOf(a))]];
+    if(a.id==='chrome') facts.push(['Tabs',has('chrome','trim')?'31 work tabs':'45 tabs, 14 noise']);
+    if(a.ws) facts.push(['Workstream',wsLink(a.ws)]);
+    let acts=[];
+    if(g) acts=[A('restore1','Restore','')];
+    else{
+      if(a.id==='chrome'&&!has('chrome','trim')) acts.push(A('trim','Trim Tabs','14 tabs'));
+      if(cl!=='spared') acts.push(A('quit','Quit',fmt(memOf(a))));
+      if(cl==='uns') acts.push(A('list','Move to Close List',''));
+      if(cl==='close') acts.push(A('keep','Keep',''));
+      if(cl==='spared') acts.push(A('quit','Quit…','Playwright drives it',1));
+    }
+    return {t:a.n,sb:'App',status,facts,acts,sec:'apps'};
+  }
+  if(SRV.includes(o)){
+    const x=o,g=gone(x.id),th=num('servers');
+    const status=g?['Stopped','Restart brings it back']:x.use?['In use',`by ${byId[x.ag].n}`]:x.kept||has(x.id,'keep')?['Stays',x.kept?'Docker keeps it':'you kept it']:[md('servers')===2?'Goes':'Shown',x.idle>=th?'at the next check, 16:45':`at ${clock(th-x.idle)}`];
+    const facts=[['Port',':'+x.p+' · '+x.k],['Memory',x.mb+' MB'],x.ws?['Workstream',wsLink(x.ws)]:['Owner',x.o||'no workstream'],x.wt?['Worktree',x.wt]:null,x.idle?['Unused',idleTxt(x.idle)]:null].filter(Boolean);
+    let acts=[];
+    if(g) acts=[A('restart','Restart','')];
+    else{acts.push(A('stop','Stop',x.mb+' MB'));if(!x.use&&!x.kept)acts.push(has(x.id,'keep')?A('unkeep','Let It Go',''):A('keep','Keep',''));acts.push(A('open','Open in Browser','localhost:'+x.p));if(x.ws)acts.push(A('goag','Go to Workstream',byId[x.ws].n));}
+    return {t:':'+x.p+' '+x.k,sb:'Server',status,facts,acts:acts.slice(0,4),sec:'servers'};
+  }
+  if(WT.includes(o)){
+    const w=o,g=gone(w.id);
+    const status=g?['In the Trash','Undo brings it back']:w.k==='m'?(has(w.id,'keep')?['Stays','you kept it']:[md('trees')===2?'Goes':'Shown',w.x]):w.k==='s'?['Stale',w.x]:w.k==='u'?['In use',`by ${byId[w.ag].n}`]:['Fine','recent commits'];
+    const facts=[['Size',fmt(w.gb)],w.ws?['Workstream',wsLink(w.ws)]:null,w.srv?['Servers',w.srv]:null,w.why?['Note',w.why]:null].filter(Boolean);
+    let acts=[];
+    if(g) acts=[A('undorm','Bring Back','')];
+    else{
+      if(w.k==='m'||w.id==='wt-bp8') acts.push(A('rm','Remove',w.id==='wt-bp8'?'git bundle first':fmt(w.gb)));
+      if(w.id==='wt-bp7') acts.push(A('rm','Remove…','1 commit not in main',1));
+      if(w.k==='u') acts.push(A('rm','Remove…','an agent works in it',1));
+      if(w.k==='m'||w.k==='s') acts.push(has(w.id,'keep')?A('unkeep','Let It Go',''):A('keep','Keep',''));
+      acts.push(A('finder','Show in Finder',''));acts.push(A('editor','Open in Editor',''));
+    }
+    return {t:w.n,sb:'Worktree',status,facts,acts:acts.slice(0,4),sec:'trees'};
+  }
+  const d=o,g=gone(d.id);
+  const status=g?['In the Trash','Undo brings it back']:d.rep?['Report only','macOS manages it']:d.safe&&!has(d.id,'keep')?[md('disk')===2?'Goes':'Shown',`${val('disk')}, next ${sec('disk').next[st.v.disk]}`]:has(d.id,'keep')?['Stays','you kept it']:['Asks first','before it is cleaned'];
+  const facts=[['Size',fmt(d.gb)],['What',d.x],d.tool?['Command',d.tool]:null,d.id==='dk-nm'?['Workstream',wsLink('w-far')+', '+wsLink('w-lane')]:d.id==='dk-dd'?['Workstream','none, 4 projects gone']:null].filter(Boolean);
+  let acts=[];
+  if(g) acts=[A('undocl','Bring Back','')];
+  else{if(!d.rep) acts.push(A('clean','Clean',d.tool?'its own command':'to the Trash'));else acts.push(A('clean','Clean…','report only',1));
+    if(!d.rep) acts.push(has(d.id,'keep')?A('unkeep','Let It Go',''):A('keep','Keep',''));acts.push(A('finder','Show in Finder',''));}
+  return {t:d.n,sb:'Clutter',status,facts,acts,sec:'disk'};
+}
+function clock(min){const t=16*60+42+min;return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(Math.round(t%60)).padStart(2,'0')}`}
+
+/* ---------- item actions ---------- */
+function act(id,v){
+  const o=byId[id],nm=o.n||(':'+o.p);
+  if(WS.includes(o)) return actWS(id,v);
+  const msgs={
+    tab:`Opened <b>${nm}</b> in its ${o.w}.`,open:`Opened <b>localhost:${o.p}</b> in the browser.`,finder:`Showed <b>${nm}</b> in Finder.`,editor:`Opened <b>${nm}</b> in Cursor.`
+  };
+  if(v==='goag'||v==='gows'){go(o.ws,true);hideCard();return}
+  if(msgs[v]){ if(v==='tab'&&id==='lexicon') {push(); fl('lexicon').seen=1; paint(); toast(msgs[v]);} else toast(msgs[v],true); return;}
+  const OUT=['quit','stop','rm','clean','wrap1'];
+  const doIt=()=>{
+    push();
+    let m='';
+    switch(v){
+      case 'quit':fl(id).gone=1;m=`Quit <b>${nm}</b>. Freed ${fmt(memOf(o))}.`;break;
+      case 'trim':fl('chrome').trim=1;m=`Closed 14 noise tabs in <b>Chrome</b>. 31 work tabs stay.`;break;
+      case 'list':fl(id).list=1;m=`<b>${nm}</b> is on the close list.`;break;
+      case 'keep':fl(id).keep=1;m=`<b>${nm}</b> stays.`;break;
+      case 'unkeep':fl(id).keep=0;m=`<b>${nm}</b> is back on the plan.`;break;
+      case 'restore1':case 'restart':case 'undorm':case 'undocl':fl(id).gone=0;m=`Brought back <b>${nm}</b>.`;break;
+      case 'stop':fl(id).gone=1;m=`Stopped <b>:${o.p} ${o.k}</b>. Freed ${o.mb} MB.`;break;
+      case 'rm':fl(id).gone=1;m=`Moved <b>${nm}</b> to the Trash${id==='wt-bp8'?' after a git bundle':''}. Freed ${fmt(o.gb)}.`;break;
+      case 'clean':fl(id).gone=1;m=`Cleaned <b>${nm}</b>. Freed ${fmt(o.gb)}.`;break;
+      case 'wrap1':m=wrap(o);break;
+      case 'undo':unwrapWS(byId[o.ws]);m=`Brought back <b>${byId[o.ws].n}</b> with its server, worktree and caches.`;break;
+      case 'sleep1':fl(id).sleep=1;m=`<b>${nm}</b> no longer keeps the Mac awake.`;break;
+      case 'wake':fl(id).sleep=0;m=`<b>${nm}</b> keeps the Mac awake again.`;break;
+      case 'k1h1':st.k1h=1;m=`The Mac stays awake until <b>17:42</b>.`;break;
+      case 'stopag':agSrv(id).forEach(x=>fl(x.id).gone=1);m=`Stopped the servers of <b>${nm}</b>.`;break;
+    }
+    paint();toast(m);
+  };
+  hideCard();
+  if(OUT.includes(v)){outgo([id]);setTimeout(doIt,RM?0:320)} else doIt();
+}
+const agSrvAll=id=>SRV.filter(x=>x.ag===id);
+function actWS(id,v){
+  const w=byId[id];hideCard();
+  if(v==='tab'){if(id==='w-lexicon'){push();fl('lexicon').seen=1;paint();toast(`Opened <b>${w.n}</b> in its ${w.where}.`)}else toast(`Opened <b>${w.n}</b> in its ${w.where}.`,true);return}
+  if(v==='pr'){toast(`Opened PR <b>${w.pr}</b> on GitHub.`,true);return}
+  if(v==='editor'){toast(`Opened <b>${w.br}</b> in Cursor.`,true);return}
+  const run=()=>{push();let m='';
+    switch(v){
+      case 'wrapws':{const s=wsSrv(w).map(x=>':'+x.p),h=wrapWS(w);m=`Wrapped up <b>${w.n}</b>: ${s.length?'stopped '+s.join(', ')+', ':''}removed ${w.br} and its caches. Freed ${fmt(h)}.`;break}
+      case 'undows':unwrapWS(w);m=`Brought back <b>${w.n}</b> with its worktree, caches${w.srv?' and server':''}.`;break;
+      case 'stopsrv':{const s=wsSrv(w);s.forEach(x=>fl(x.id).gone=1);m=`Stopped ${s.map(x=>'<b>:'+x.p+'</b>').join(' and ')} of ${w.n}. Freed ${sum(s,x=>x.mb)} MB.`;break}
+      case 'keepws':fl(id).keep=1;m=`<b>${w.n}</b> stays. Wrap Up skips it.`;break;
+      case 'unkeepws':fl(id).keep=0;m=`<b>${w.n}</b> is ready to wrap up again.`;break;
+    }
+    paint();toast(m)};
+  if(v==='wrapws'){outgo([id]);setTimeout(run,RM?0:320)} else run();
+}
+function wrap(a){
+  const w=byId[a.ws],s=wsSrv(w).map(x=>':'+x.p).join(', '),h=wrapWS(w);
+  return `Wrapped up <b>${w.n}</b>: stopped ${s}, removed its worktree and caches. Freed ${fmt(h)}.`;
+}
+
+/* section actions: hover lights up what they touch */
+const SA={
+  wrapready:{keys:()=>readyWS().map(w=>w.id),run:()=>{const r=readyWS(),sv=r.flatMap(w=>wsSrv(w).map(x=>':'+x.p)),h=sum(r.map(wrapWS),x=>x);return `Wrapped up <b>${nm2(r.map(w=>w.n))}</b>: ${sv.length?'stopped '+sv.join(', ')+', ':''}removed ${r.length>1?r.length+' merged worktrees':r[0].br} and their caches. Freed ${fmt(h)}.`}},
+  wrap:{keys:()=>finished().map(a=>a.id),run:()=>finished().map(wrap).join(' ')},
+  now:{keys:()=>noise().map(a=>a.id),run:()=>{const n=noise(),f=sum(n,memOf);n.forEach(a=>fl(a.id).gone=1);return `MinMacs closed <b>${n.length} apps</b>. Freed ${fmt(f)}.`}},
+  restore:{keys:()=>[],run:()=>`Restored 2 apps and 14 tabs from the run at <b>11:05</b>.`},
+  idle:{keys:()=>idleSrv().map(x=>x.id),run:()=>{const n=idleSrv(),f=sum(n,x=>x.mb/1000);n.forEach(x=>fl(x.id).gone=1);return `Stopped <b>${n.length} idle servers</b>. Freed ${fmt(f)}.`}},
+  merged:{keys:()=>mergedWT().map(w=>w.id),run:()=>{const n=mergedWT(),f=sum(n,w=>w.gb);n.forEach(w=>fl(w.id).gone=1);return `Moved <b>${n.length} merged worktrees</b> to the Trash. Freed ${fmt(f)}.`}},
+  clean:{keys:()=>safeDK().map(d=>d.id),run:()=>{const n=safeDK(),f=sum(n,d=>d.gb);n.forEach(d=>fl(d.id).gone=1);return `Cleaned <b>${fmt(f)}</b>: DerivedData and node_modules to the Trash, npm by its own command.`}},
+  k1h:{keys:()=>[],run:()=>{st.k1h=1;return `The Mac stays awake until <b>17:42</b>, even if every agent stops.`}},
+  sleep:{keys:()=>holders().map(a=>a.id),run:()=>{const h=holders();h.forEach(a=>fl(a.id).sleep=1);st.k1h=0;return `<b>${h.length} agents</b> keep working, and the Mac may sleep.`}}
+};
+/* what a section action will do, shown on hover before anything happens */
+function planFor(k){
+  const L=a=>a.length?nm2(a):'nothing';
+  switch(k){
+    case 'wrapready':{const r=readyWS();return {go:r.map(w=>`<b>${w.n}</b>: ${[...wsSrv(w).map(x=>':'+x.p),w.br,...(w.cache||[]).map(c=>c[0]+' '+fmt(c[1]))].join(', ')}`).join('<br>'),stay:`the other ${WS.filter(w=>!gone(w.id)).length-r.length} workstreams and every branch that is not merged`}}
+    case 'wrap':{const f=finished();return {go:f.map(a=>{const w=byId[a.ws];return `<b>${w.n}</b>: ${[...wsSrv(w).map(x=>':'+x.p),w.br,...(w.cache||[]).map(c=>c[0])].join(', ')}`}).join('<br>'),stay:'every agent that is still working or waiting'}}
+    case 'now':return {go:L(noise().map(a=>a.id==='chrome'?'Chrome (its 31 work tabs come back with Reopen)':a.n)),stay:'cmux, Cursor, Docker, Claude and Chrome for Testing'};
+    case 'restore':return {go:'nothing',stay:'everything open now',h:'Reopens Slack and Notion and the 14 tabs MinMacs closed at 11:05.'};
+    case 'idle':{const i=idleSrv();return {go:L(i.map(x=>`:${x.p} ${x.k}`)),stay:L(SRV.filter(x=>!gone(x.id)&&!i.includes(x)).map(x=>':'+x.p))}}
+    case 'merged':return {go:L(mergedWT().map(w=>w.n)),stay:'bp7-studio-dogfood (1 commit not in main) and every worktree in use'};
+    case 'clean':return {go:L(safeDK().map(d=>d.sh+' '+fmt(d.gb))),stay:'Docker cache, Playwright and Simulator: they ask first'};
+  }
+  return null;
+}
+let planOn=null;
+function showPlan(btn){
+  const k=btn.dataset.sa,d=planFor(k);if(!d||btn.disabled)return;planOn=k;
+  const pl=$('plan');pl.style.setProperty('--c',C[st.sel]);
+  pl.innerHTML=`<div class="h">${d.h||'Pressing it does exactly this:'}</div><div class="r go"><span>Goes</span><span>${d.go}</span></div><div class="r"><span>Stays</span><span>${d.stay}</span></div><div class="f">One Undo brings it all back.</div>`;
+  const sc=scale(),sh=$('sheet').getBoundingClientRect(),r=btn.getBoundingClientRect();
+  const L=(r.left-sh.left)/sc,T=(r.top-sh.top)/sc,B=(r.bottom-sh.top)/sc;
+  pl.style.visibility='hidden';pl.classList.add('show');const h=pl.offsetHeight,w=pl.offsetWidth;
+  let x=L-w-14,y=T;if(x<340){x=Math.min(L,916-16-w);y=B+10;if(y+h>700-56)y=T-10-h}
+  pl.style.left=x+'px';pl.style.top=y+'px';pl.style.visibility='';
+}
+function hidePlan(){$('plan').classList.remove('show');planOn=null}
+function runSA(k){hidePlan();
+  const keys=SA[k].keys();clearHl();
+  const go2=()=>{push();const m=SA[k].run();paint();toast(m)};
+  if(keys.length&&k!=='sleep'){outgo(keys);setTimeout(go2,RM?0:340)} else go2();
+}
+function outgo(keys){keys.forEach(k=>document.querySelectorAll(`#pane [data-k="${k}"]`).forEach(e=>e.classList.add('out')))}
+function hl(k){const keys=SA[k].keys();if(!keys.length)return;const p=$('pane');p.classList.add('hlon');keys.forEach(id=>p.querySelectorAll(`[data-k="${id}"]`).forEach(e=>e.classList.add('hit')))}
+function clearHl(){const p=$('pane');p.classList.remove('hlon');p.querySelectorAll('.hit').forEach(e=>e.classList.remove('hit'))}
+
+/* ---------- undo + toast ---------- */
+function push(){UNDO.push(snap());if(UNDO.length>40)UNDO.shift()}
+let tT;
+function toast(m,noUndo){
+  $('tt').innerHTML=m;$('tbtn').style.display=noUndo?'none':'';$('toast').classList.add('show');
+  clearTimeout(tT);tT=setTimeout(()=>$('toast').classList.remove('show'),6000);
+}
+$('tbtn').onclick=()=>{const s=UNDO.pop();if(!s)return;const sel=st.sel;st=JSON.parse(s);st.sel=sel;paint();toast('Undone. Everything is back where it was.',true)};
+
+/* ---------- paint with easing (old style -> new style) ---------- */
+function morph(el,html){
+  const old={},oldN={};
+  el.querySelectorAll('[data-a]').forEach(e=>old[e.dataset.a]=e.getAttribute('style')||'');
+  el.querySelectorAll('[data-n]').forEach(e=>oldN[e.dataset.n]=e.textContent);
+  el.innerHTML=html;
+  const todo=[];
+  el.querySelectorAll('[data-a]').forEach(e=>{const o=old[e.dataset.a],n=e.getAttribute('style')||'';if(o!=null&&o!==n){e.setAttribute('style',o);todo.push([e,n])}});
+  if(todo.length){void el.offsetWidth;requestAnimationFrame(()=>todo.forEach(([e,n])=>e.setAttribute('style',n)))}
+  el.querySelectorAll('[data-n]').forEach(e=>{const o=parseFloat(oldN[e.dataset.n]),n=parseFloat(e.textContent);if(isNaN(o)||isNaN(n)||o===n||RM)return;
+    const dec=(e.textContent.split('.')[1]||'').length,t0=performance.now();
+    const step=t=>{const k=Math.min(1,(t-t0)/600),q=1-Math.pow(1-k,3);e.textContent=(o+(n-o)*q).toFixed(dec);if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)});
+}
+let lastSel=null;
+function paint(){
+  hideCard();
+  document.documentElement.style.setProperty('--c',C[st.sel]);
+  morph($('idx'),renderIdx());
+  const p=$('pane');
+  if(lastSel!==st.sel&&lastSel!==null&&!RM){
+    p.classList.add('swap');
+    setTimeout(()=>{p.innerHTML='';morph(p,R[st.sel]());placeBars(p);p.classList.remove('swap')},180);
+  } else {morph(p,R[st.sel]());placeBars(p)}
+  lastSel=st.sel;
+  renderToday();renderMenu();tickTexts();
+  setTimeout(()=>Object.values(LIFE).forEach(L=>L.fresh=false),400);
+}
+function renderToday(){
+  const live=`<span class="live${SIM.paused?' paused':''}"><i class="pulse"></i><span data-tick="ticker">${tickerTxt()}</span><button class="pz" id="pz">${SIM.paused?'Resume':'Pause'}</button></span>`;
+  $('today').innerHTML=st.today?`<span class="lbl">Today</span><span class="txt">Brought back <b>2 apps</b> and <b>3 servers</b> that Auto closed</span>${live}<button class="undo" id="tu">Redo</button>`:
+   `<span class="lbl">Today</span><span class="txt">Auto closed <b>2 apps</b>, stopped <b>3 servers</b></span>${live}<button class="undo" id="tu">Undo</button>`;
+  $('pz').onclick=()=>{SIM.paused=!SIM.paused;renderToday()};
+  $('tu').onclick=()=>{push();st.today=st.today?0:1;paint();toast(st.today?'Reopened Slack and Notion, restarted :8080, :8788 and :9229.':'Closed them again.')};
+}
+
+/* ---------- menu bar ---------- */
+function renderMenu(){
+  const box=$('icons');
+  if(!box.querySelector('.mi')){
+    box.insertAdjacentHTML('beforeend',`<span class="mi" data-sec="one" title="MinMacs">${gl('one','#fff',16)}</span>`+S.map(s=>`<span class="mi" data-sec="${s.id}" title="${s.name}">${gl(s.id,'#fff',16)}</span>`).join(''));
+    box.querySelectorAll('.mi').forEach(e=>e.onclick=()=>{if(e.dataset.sec!=='one')go(e.dataset.sec)});
+  }
+  box.querySelectorAll('.mi').forEach(e=>{const id=e.dataset.sec;
+    if(id==='one') e.classList.toggle('off',!st.one); else e.classList.toggle('off',st.one||md(id)===0)});
+  requestAnimationFrame(()=>{
+    let tgt=box.querySelector(st.one?'.mi[data-sec="one"]':`.mi[data-sec="${st.sel}"]`);
+    if(!tgt||tgt.classList.contains('off'))tgt=[...box.querySelectorAll('.mi')].find(e=>!e.classList.contains('off'));
+    if(!tgt)return;
+    const sc=scale(),br=box.getBoundingClientRect(),tr=tgt.getBoundingClientRect(),sh=$('sheet').getBoundingClientRect();
+    const lx=(tr.left-br.left)/sc;
+    $('hl').style.transform=`translateX(${lx}px)`;
+    const cxs=(tr.left+tr.width/2-sh.left)/sc;
+    $('nub').style.transform=`translateX(${cxs}px)`;
+  });
+}
+
+/* ---------- hover cards ---------- */
+let hcT,hcId=null;
+function showCard(el){
+  const id=el.dataset.item;clearTimeout(hcT);
+  const d=cardFor(id);hcId=id;
+  const hc=$('hc');
+  hc.style.setProperty('--c',C[d.sec]);hc.style.width=(d.w||252)+'px';
+  hc.innerHTML=`<div class="t">${d.t}</div><div class="sb">${d.sb}</div><div class="stl"><b>${d.status[0]}</b> <span style="color:var(--tx2)">${d.status[1]}</span></div>
+    <div class="fx">${d.facts.map(f=>`<div><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div>
+    <div class="ac">${d.acts.map(a=>`<button data-act="${a.v}" class="${a.dis?'dis':''}">${a.lab}<span>${a.tail||''}</span></button>`).join('')}</div>`;
+  const sc=scale(),sh=$('sheet').getBoundingClientRect(),r=el.getBoundingClientRect();
+  const L=(r.left-sh.left)/sc,T=(r.top-sh.top)/sc,W=r.width/sc,Hh=r.height/sc;
+  hc.style.visibility='hidden';hc.classList.add('show');
+  const cw=hc.offsetWidth,ch=hc.offsetHeight;
+  let x=L+W+12; if(x+cw>916-12) x=L-cw-12; if(x<12) x=12;
+  let y=T+Math.min(0,Hh/2-40); if(y+ch>700-60) y=700-60-ch; if(y<56) y=56;
+  hc.style.left=x+'px';hc.style.top=y+'px';hc.style.visibility='';
+  hc.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{if(b.classList.contains('dis'))return;act(id,b.dataset.act)});
+  hc.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{go(b.dataset.goto,true);hideCard()});
+}
+function hideCard(){$('hc').classList.remove('show');hcId=null}
+const stage=$('stage');
+stage.addEventListener('mouseover',e=>{
+  const it=e.target.closest('[data-item]');
+  if(it&&it.closest('#pane')){if(hcId!==it.dataset.item||!$('hc').classList.contains('show'))showCard(it);else clearTimeout(hcT);return}
+  if(e.target.closest('#hc')){clearTimeout(hcT);return}
+  const sa=e.target.closest('[data-sa]');
+  if(sa){hl(sa.dataset.sa);if(planOn!==sa.dataset.sa)showPlan(sa)}
+  const mb=e.target.closest('[data-mode]');if(mb)previewMode(mb);
+  if(hcId){clearTimeout(hcT);hcT=setTimeout(hideCard,160)}
+});
+stage.addEventListener('mouseout',e=>{const sa=e.target.closest('[data-sa]');if(sa&&!sa.contains(e.relatedTarget)){clearHl();hidePlan()}
+  const mg=e.target.closest('[data-modes]');if(mg&&!mg.contains(e.relatedTarget))endPreview(mg)});
+/* hovering a mode word says, in place, what that mode will do */
+let pvOn=null;
+function previewMode(b){
+  const g=b.closest('[data-modes]'),id=g.dataset.modes,m=+b.dataset.mode,box=g.closest('.set,.setcard')||g.parentNode;
+  const ru=box.querySelector('.rule'),nx=box.querySelector('.next');if(!ru)return;
+  if(m===md(id)){endPreview(g);return}
+  pvOn=id;ru.classList.add('pv');ru.dataset.pv=MODES[m]+':';ru.innerHTML=rule(id,m);if(nx)nx.innerHTML=nextTxt(id,m);
+}
+function endPreview(g){if(!pvOn)return;const id=g.dataset.modes,box=g.closest('.set,.setcard')||g.parentNode,ru=box.querySelector('.rule'),nx=box.querySelector('.next');
+  pvOn=null;if(ru){ru.classList.remove('pv');ru.innerHTML=rule(id)}if(nx)nx.innerHTML=nextTxt(id)}
+stage.addEventListener('click',e=>{
+  const wa=e.target.closest('[data-wsact]');if(wa){actWS(wa.dataset.id,wa.dataset.wsact);return}
+  const t=e.target.closest('[data-sec],[data-mode],[data-val],[data-sa],[data-goto]');if(!t)return;
+  if(t.dataset.sa){if(!t.disabled)runSA(t.dataset.sa);return}
+  if(t.dataset.goto){go(t.dataset.goto,true);return}
+  if(t.classList.contains('it')){go(t.dataset.sec);return}
+  if(t.dataset.mode!=null){const id=t.closest('[data-modes]').dataset.modes,m=+t.dataset.mode;if(md(id)===m)return;push();st.mode[id]=m;paint();pvOn=null;toast(`<b>${sec(id).name}: ${MODES[m]}.</b> ${m===0?'Not watching. Nothing happens on its own.':m===1?'Shows a button. Nothing happens until you press it.':'Does it for you after '+val(id)+' and sends a notice with Undo.'}`,true);return}
+  if(t.dataset.val!=null){const id=t.dataset.for,v=+t.dataset.val;if(st.v[id]===v)return;push();st.v[id]=v;paint();return}
+});
+function go(id,flash){
+  const sid=WS.find(w=>w.id===id)?'ws':AG.find(a=>a.id===id)?'agents':S.find(s=>s.id===id)?id:null;
+  if(!sid)return;
+  st.sel=sid;hideCard();paint();
+  if(flash&&id!==sid) setTimeout(()=>{const e=document.querySelector(`#pane [data-k="${id}"]`);if(e){e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash')}},260);
+}
+$('one').onclick=()=>{st.one=!st.one;$('one').setAttribute('aria-checked',st.one);renderMenu()};
+$('login').onclick=()=>{st.login=!st.login;$('login').setAttribute('aria-checked',st.login)};
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){const i=S.findIndex(s=>s.id===st.sel),n=(i+(e.key==='ArrowDown'?1:-1)+S.length)%S.length;go(S[n].id);e.preventDefault()}
+  if((e.metaKey||e.ctrlKey)&&e.key==='z'){$('tbtn').click()}
+});
+
+/* ---------- the live simulation ---------- */
+const hm=t=>`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+function tickerTxt(){if(!SIM.last)return 'Live · next check in '+dur(nextCheck());const ago=SIM.t-SIM.last.t;return `<b>${hm(simClock(SIM.last.t))}</b> ${SIM.last.msg}${ago>1?` · ${ago}&nbsp;s ago`:''}`}
+function log(msg){SIM.last={t:SIM.t,msg}}
+function mark(id,k,txt,secs){LIFE[id]={k,txt,until:SIM.t+(secs||5),fresh:k==='new'}}
+function LIVE(key){
+  if(key==='clock'){const t=simClock();return `Tue 27 Oct&nbsp;&nbsp;${hm(t)}`}
+  if(key==='ticker') return tickerTxt();
+  if(key==='lid'){const n=working().length;return st.lid?`${n} agent${n===1?'':'s'} working · the lid can close`:'The Mac sleeps when the lid closes'}
+  if(key.startsWith('next:')){const id=key.slice(5);return pvOn===id?null:nextTxt(id)}
+  return null;
+}
+function tickTexts(){document.querySelectorAll('[data-tick]').forEach(e=>{const v=LIVE(e.dataset.tick);if(v!=null&&e.innerHTML!==v)e.innerHTML=v})}
+const addTo=(arr,o,at)=>{if(byId[o.id]&&arr.includes(byId[o.id]))return;byId[o.id]=o;if(at==null)arr.push(o);else arr.splice(at,0,o)};
+const drop=(arr,id)=>{const i=arr.findIndex(o=>o.id===id);if(i>=0)arr.splice(i,1)};
+const S5174={id:'s5174',p:'5174',k:'vite',ag:'speed3',ws:'w-speed3',wt:'speed-3-base',mb:96,use:1};
+const DOCS_WS={id:'w-docs',n:'docs-sweep',st:'w',ag:['docs'],t:'cc',where:'cmux tab docs-sweep',wt:'wt-ds',br:'docs-sweep',awake:1,why:'its agent is working',start:0,am:0};
+const DOCS_AG={id:'docs',n:'docs-sweep',t:'cc',w:'cmux tab',st:'w',ws:'w-docs',am:0};
+[DOCS_WS,DOCS_AG].forEach(o=>Object.defineProperty(o,'a',{get(){return ageTxt(this.am+(SIM.t-(o.born||0))/60)},configurable:true}));
+const EV={
+  subUp(){const w=byId['w-speed3'];if(gone(w.id))return;w.sub=(w.sub||0)+1;mark('w-speed3','new','new subagent');mark('speed3','new','new subagent');log(`<b>speed-3</b> started subagent ${w.sub}`)},
+  subDown(){const w=byId['w-speed3'];if(gone(w.id)||w.sub<=2)return;w.sub--;mark('w-speed3','new','subagent done');log(`A <b>speed-3</b> subagent finished and left`)},
+  srvUp(){const w=byId['w-speed3'];if(gone(w.id)||SRV.includes(S5174))return;addTo(SRV,S5174,2);w.srv.push('s5174');fl('s5174').gone=0;mark('s5174','new','new · 96 MB');mark('w-speed3','new','started :5174');log(`<b>speed-3</b> started <b>:5174</b> vite`)},
+  srvDown(){if(!SRV.includes(S5174))return;mark('s5174','fin','stopped by speed-3',3);LIFE.s5174.done=()=>{drop(SRV,'s5174');const w=byId['w-speed3'];w.srv=w.srv.filter(x=>x!=='s5174')};log(`<b>speed-3</b> stopped <b>:5174</b>`)},
+  tests(){const w=byId['w-media'];w.note='tests passed';mark('w-media','new','214 tests pass');mark('media','new','tests pass');log(`<b>media-scope</b>: 214 tests passed`)},
+  iconsDone(){if(!WS.find(w=>w.id==='w-icons'))return;mark('w-icons','fin','Finished',3);mark('icons','fin','Finished',3);
+    LIFE['w-icons'].done=()=>drop(WS,'w-icons');LIFE.icons.done=()=>drop(AG,'icons');log(`<b>studio-icons</b> finished. It held nothing, so it folds away`)},
+  docsIn(){if(WS.includes(DOCS_WS))return;DOCS_WS.born=DOCS_AG.born=SIM.t;addTo(WS,DOCS_WS,3);addTo(AG,DOCS_AG,3);byId['wt-ds'].ws='w-docs';byId['wt-ds'].ag='docs';mark('w-docs','new','New',6);mark('docs','new','New',6);log(`New workstream <b>docs-sweep</b>: Claude Code in cmux`)}
+};
+const SCRIPT=[[6,'subUp'],[13,'srvUp'],[21,'tests'],[29,'subDown'],[37,'iconsDone'],[46,'docsIn'],[54,'srvDown']];
+const LOOP=['subUp','srvUp','subDown','srvDown'];
+function runCheck(){
+  const msg=[];let did=false;const pre=snap();
+  if(md('servers')===2){const due=idleSrv().filter(x=>x.idle>=num('servers'));if(due.length){due.forEach(x=>fl(x.id).gone=1);did=true;msg.push(`stopped ${nm2(due.map(x=>'<b>:'+x.p+'</b>'))}, idle over ${val('servers')}`)}}
+  if(md('ws')===2){const due=readyWS().filter(w=>w.fin>=num('ws'));if(due.length){due.forEach(wrapWS);did=true;msg.push(`wrapped up ${nm2(due.map(w=>'<b>'+w.n+'</b>'))}`)}}
+  if(md('trees')===2){const due=mergedWT().filter(w=>w.ago>=num('trees')*1440);if(due.length){due.forEach(w=>fl(w.id).gone=1);did=true;msg.push(`removed ${due.length} merged worktree${due.length>1?'s':''}`)}}
+  if(did){UNDO.push(pre);log('Auto '+msg.join('; '));toast('Auto '+msg.join('; ')+'.');return true}
+  log('Checked. Nothing was due');return false;
+}
+function settle(){ // expire arrivals and departures
+  let ch=false;
+  Object.keys(LIFE).forEach(id=>{const L=LIFE[id];if(SIM.t<L.until)return;ch=true;
+    if(L.k==='new')delete LIFE[id];else if(L.k==='fin'){L.k='fold';L.until=SIM.t+1}else{L.done&&L.done();delete LIFE[id]}});
+  return ch;
+}
+let dirty=false;
+const busy=()=>$('hc').classList.contains('show')||planOn||pvOn||$('pane').classList.contains('hlon');
+function simTick(){
+  if(!SIM.paused){
+    SIM.t++;
+    const ev=SCRIPT.find(e=>e[0]===SIM.t);if(ev){EV[ev[1]]();dirty=true}
+    if(SIM.t>60&&(SIM.t-60)%8===0){EV[LOOP[((SIM.t-60)/8-1)%LOOP.length]]();dirty=true}
+    if(nextCheck()===300||SIM.t===60){if(runCheck())dirty=true}
+    if(!has('lexicon','seen')&&!SIM.told&&md('agents')>0&&waited('lexicon')>=num('agents')){SIM.told=1;toast(md('agents')===2?`Brought <b>lexicon-judge</b>&rsquo;s tab to the front. It asks: &ldquo;Allow npm run build?&rdquo;`:`<b>lexicon-judge</b> has waited ${val('agents')} for you: &ldquo;Allow npm run build?&rdquo;`,true);log(`Told you <b>lexicon-judge</b> waits`)}
+    if(settle())dirty=true;
+    if(SIM.t%5===0)dirty=true;
+  }
+  if(dirty&&!busy()){dirty=false;paint()}
+  tickTexts();
+}
+setInterval(simTick,1000);
+$('lid').onclick=()=>{st.lid=!st.lid;$('lid').setAttribute('aria-checked',st.lid);tickTexts();toast(st.lid?'Close the lid and your agents keep working. Stops at 20&nbsp;% battery, if Wi-Fi drops, or if the Mac runs hot.':'The Mac sleeps when you close the lid, as usual.',true)};
+
+/* ---------- stage scale ---------- */
+function scale(){return parseFloat(stage.dataset.s||1)}
+function fit(){const s=Math.min(innerWidth/1280,innerHeight/800);stage.dataset.s=s;stage.style.transform=`translate(${(innerWidth-1280*s)/2}px,${(innerHeight-800*s)/2}px) scale(${s})`;renderMenu()}
+addEventListener('resize',fit);
+const q=new URLSearchParams(location.search).get('tab');if(q&&sec(q))st.sel=q;
+paint();fit();tickTexts();
+document.fonts&&document.fonts.ready.then(()=>placeBars($('pane')));
+</script>
+</body>
+</html>

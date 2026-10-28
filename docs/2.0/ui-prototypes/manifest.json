@@ -1,0 +1,1082 @@
+[
+ {
+  "file": "01-a.html",
+  "name": "One Panel, Medium",
+  "idea": "One floating glass panel shows all five experts in an ftop grid. Round 2: agents now sit top right, 7 rows plus '5 more' (12 in total), sorted working, needs you, idle, finished. Each row shows what the agent holds: servers, worktree, and a violet eye if it keeps the Mac awake. Insomnia is one plain line at the bottom: why it's awake, what stops it early, Lid closed, Let It Sleep.",
+  "good": "You can see at a glance which agents work, which one needs you, and which are done. Hovering Awake lights up exactly the agents holding the Mac awake, and Wrap Up Finished clears a finished agent's server and worktree in one step.",
+  "tradeoff": "Names must stay short (where it runs moved into the hover card), and with more than 7 agents the rest fold into one '5 more' line.",
+  "surface": "panel",
+  "groupId": "01",
+  "direction": "One panel for all five"
+ },
+ {
+  "file": "01-b.html",
+  "name": "One Panel, Every Size",
+  "idea": "The same panel animates between strip, corner, small, medium and large with a size switcher (keys 1-5): shared badges, numbers and rows slide to their new places while the panel frame resizes, and a caption says what each size keeps.",
+  "good": "It proves the ftop idea that one panel works at any size: the corner shows five gauges, the strip one figure per expert, small one figure plus its action, medium the top three rows each, and large every row plus the cores, the workstreams and what is spared, all at the same type size.",
+  "tradeoff": "Five layouts mean five things to design and keep in step, and small and strip drop the per-row detail, so acting from them leans on trusting the summary line.",
+  "surface": "panel",
+  "groupId": "01",
+  "direction": "One panel for all five"
+ },
+ {
+  "file": "02-a.html",
+  "name": "Five Template Icons",
+  "idea": "Five monochrome square template icons (broom, branch, server stack, gauge, eye), drawn at 3x and at true size, where a number of at most three characters appears only when an expert asks you to act; you can switch between the states calm, asks, awake (round pupil), agent working (slit pupil that looks around) and now, hover any icon for its card, and act with Undo.",
+  "good": "It is the most native and honest option: the 16-inch notch panel shows true size, with a slider for other apps' icons, how MinMacs steps down rung by rung (numbers turn into dots, then two icons, then one icon, then \u2325\u2318M), and a 'macOS alone' toggle where Noo-Noo and WorkForest silently disappear.",
+  "tradeoff": "Five icons with numbers take 223 pt, which leaves room for only about 9 other icons on a 16-inch, so many owners will live on rung 2 or 3 and lose the numbers that make it worth having.",
+  "surface": "NSMenu",
+  "groupId": "02",
+  "direction": "The menu bar itself"
+ },
+ {
+  "file": "02-b.html",
+  "name": "One Icon Readings",
+  "idea": "An ftop-style single item showing up to three readings you pick (glyph plus number, like 63 % load, 3 idle servers, 2m awake); a colored five-badge cluster is the alternative, where ring means calm, arc is a gauge, solid means it asks and the eye means awake. Clicking opens a small glass drop that says what each reading means, with ftop's round toggle grid for choosing readings. It sits next to five-icon mode at 2.6x and at true size in a 16-inch bar.",
+  "good": "It looks and feels most like ftop, and the comparison makes the space argument plain: readings use 154 pt and badges 105 pt against 223 pt for five icons, so it survives the notch with room for 11 or 12 other icons.",
+  "tradeoff": "Readings hide whatever you did not pick (for example, 4 merged worktrees stay out of sight), and the colored badges are not template images, need learning, and get small at 1x.",
+  "surface": "popover",
+  "groupId": "02",
+  "direction": "The menu bar itself"
+ },
+ {
+  "file": "03-a.html",
+  "name": "Native Menu, ftop Card",
+  "idea": "The MinMacs expert's own NSMenu follows DESIGN.md exactly: a two-line header with ftop arc gauges (63 %, 24.1 / 32 GB) and a thin memory bar, a two-line summary, MinMacs Now and Restore, four state sections of app rows with tabular % and GB columns, and the three footer items; the hover card on Google Chrome is a submenu with arc-badge facts and a noise-tab bar (youtube.com 6, x.com 5, reddit.com 3).",
+  "good": "It keeps the speed and keyboard feel of a system menu, and ftop's look shows up only in the three custom views, so you get the calm of a glance without leaving the standard; MinMacs Now eases the gauges down in place and turns Restore into Undo.",
+  "tradeoff": "Most of the menu is still plain NSMenu rows, so the ftop look is limited to the header and card, and it reads as a tidy menu more than as ftop.",
+  "surface": "NSMenu",
+  "groupId": "03",
+  "direction": "Native menu, ftop soul"
+ },
+ {
+  "file": "03-b.html",
+  "name": "One Icon, ftop Lines",
+  "idea": "One flat NSMenu: the header carries system gauges plus Insomnia's Awake line, then MinMacs, LocoHost, WorkForest and Noo-Noo sections, each opened by an ftop-style mini header (badge with arc, big number, small gray unit like 3 / 6 idle) over rows with owner, size and a state mark that differs in shape; the :4000 phoenix card cross-links to Worktree auth-redirect, squash-merged, and hovering that fact lights up the matching WorkForest row.",
+  "good": "The whole Mac fits on one glanceable page, the experts visibly help each other, and Wrap Up stops the finished workstream's server and removes its worktree in one undoable step, with the counts easing down.",
+  "tradeoff": "Five experts against a four-section cap forced Insomnia into the header line and pushed the per-expert actions under More, and at about 750 px tall the menu is close to the screen limit.",
+  "surface": "NSMenu",
+  "groupId": "03",
+  "direction": "Native menu, ftop soul"
+ },
+ {
+  "file": "04-a.html",
+  "name": "Fate Rows",
+  "idea": "An ftop glass panel under the menu bar icon. Round 2: the core columns are gone. On top are two plain bars, CPU 63 % and Memory 24.1 / 32 GB, and the colored end of each bar is exactly what MinMacs Now frees (22 %, 9.3 GB). Below are the app rows grouped by fate: Will close, Unsorted, Kept, Spared. MinMacs Now closes them, the bars ease down, and Restore brings them back.",
+  "good": "The top now explains the plan below it: you see how much of the Mac the close list holds, before you press anything.",
+  "tradeoff": "It is a tall panel (about 730 px) with ten rows plus meters, so it is far denser than an NSMenu and needs a smaller size before it works on a 13-inch screen.",
+  "surface": "panel",
+  "groupId": "04",
+  "direction": "MinMacs performance expert"
+ },
+ {
+  "file": "04-b.html",
+  "name": "Fate Columns",
+  "idea": "A wide glass panel where each app is an ftop column: height is memory, the white tick is CPU, and columns are grouped and styled by fate (solid rose for close, dashed outline for unsorted, frosted for kept, striped teal for spared). A big two-arc gauge on the left reads 'frees 9.3 GB \u00b7 22% CPU'. Pressing a column opens its card (Chrome's lists youtube.com \u00d76, x.com \u00d75, reddit.com \u00d73 and the 31 work tabs that stay). Now drains the close columns, slides the rest left and turns the gauge to 'Freed at 16:42' with Restore.",
+  "good": "It is the most glanceable and ftop-like: the cost of each app and the payoff of MinMacs Now are visible as shapes before any text is read.",
+  "tradeoff": "Names only appear on hover or in the card, and tiny apps (13 MB FigmaAgent) become slivers, so it depends on recognising icons and is weaker for finding one specific app.",
+  "surface": "panel",
+  "groupId": "04",
+  "direction": "MinMacs performance expert"
+ },
+ {
+  "file": "05-a.html",
+  "name": "Port Rows",
+  "idea": "A floating glass panel under the LocoHost menu bar icon with one quiet row per server: a round port badge whose teal arc fills toward the time the server goes, then name, worktree, owner, memory and a state mark (dot means in use, ring means idle, square means kept), and a Close Idle button that first marks the 3 idle rows, then closes them with an 8-second Undo.",
+  "good": "It reads like ftop's process list: the idle arc carries the 'Goes at 17:02' timing with no extra text, and the hover card gives a colored status line, five aligned facts, a green WorkForest link to the worktree, and round Stop, Keep, Open and Go to tab buttons.",
+  "tradeoff": "A list shows how much memory each server uses but not which workstream holds the most, and a cramped 42px badge leaves little room for ports longer than 5 characters.",
+  "surface": "panel",
+  "groupId": "05",
+  "direction": "LocoHost servers expert"
+ },
+ {
+  "file": "05-b.html",
+  "name": "Port Map",
+  "idea": "A wide glass panel laid out as a treemap: each workstream (speed-3, studio-parity, auth-redirect, nobody, Docker) gets a group, tile area is memory, tile tone and mark show the state, idle tiles carry a thin bar filling toward the time they go, and pressing a tile opens its card with Stop, Keep, Open and Go to tab.",
+  "good": "In one glance you see that studio-parity and an unowned storybook hold more memory than the working speed-3 session; hovering Close Idle outlines exactly the 3 tiles it will close, and closing reflows the map smoothly with Undo.",
+  "tradeoff": "Tile sizes shift as servers come and go, so it is less steady and less scannable than rows, it needs a large panel (about 756px wide), and small servers like postgres get only minimum-size tiles.",
+  "surface": "panel",
+  "groupId": "05",
+  "direction": "LocoHost servers expert"
+ },
+ {
+  "file": "06-a.html",
+  "name": "Worktree Columns",
+  "idea": "All 14 worktrees stand as ftop-style columns grouped In use / Fine / Stale / Merged. Fill height is disk size, fill style follows state (solid, muted, hatched, outlined), a white tick marks commits not in main, and below are rows for the merged and stale ones with Remove Merged, a confirmation and Restore.",
+  "good": "You see the whole forest and what can go in one glance, read the same way as ftop's core columns (fill and tick, two numbers under each), and the merged columns visibly fold away when removed.",
+  "tradeoff": "A worktree's name only shows in its hover card or in the rows, and the size shows twice for the six actionable ones (once under the column, once in its row), which bends the 'a number appears once' rule.",
+  "surface": "panel",
+  "groupId": "06",
+  "direction": "WorkForest worktrees expert"
+ },
+ {
+  "file": "06-b.html",
+  "name": "Worktree List",
+  "idea": "A calm list in ftop's row grammar, grouped Merged / Stale / In use, with the 5 fine worktrees folded into one row. Each row is a shape badge, the name, the state in plain words and the size, over a thin ftop-style memory bar split by state.",
+  "good": "It is the quietest and most readable option, and its hover card shows what each worktree holds (agent, servers, node_modules, uncommitted files) with links that open small LocoHost and Noo-Noo cards under their own menu bar icons.",
+  "tradeoff": "It shows less at a glance than columns, and opening the fine group makes the list long enough to scroll inside the panel.",
+  "surface": "panel",
+  "groupId": "06",
+  "direction": "WorkForest worktrees expert"
+ },
+ {
+  "file": "07-a.html",
+  "name": "Disk Lens",
+  "idea": "A popover under the Noo-Noo menu bar icon. The whole disk is one thin ftop-style bar (812 / 994 GB), and a faint lens lifts the 38.4 GB reclaimable slice into a full-width bar split by category: the solid part is what Clean Safe takes, the hatched part stays. Below are six rows, each with how it is cleaned (Trash, the tool's own command, or report only). Pressing Clean Safe 30.1 GB first turns every row into a dry run, then the segments drain, rows that are emptied slide away, and Undo puts the 24.0 GB in the Trash back.",
+  "good": "One glance shows how small the clutter is against the disk and exactly which part goes. Hovering a row or a segment lights up the other one, and a hover card names each project, version and command before anything moves.",
+  "tradeoff": "Two bars plus rows is a lot of detail for 4% of a disk. Being honest that the npm cache can't be put back also makes Undo partial, which the owner may not like.",
+  "surface": "popover",
+  "groupId": "07",
+  "direction": "Noo-Noo clutter expert"
+ },
+ {
+  "file": "07-b.html",
+  "name": "Clutter Badges",
+  "idea": "A floating ftop-style panel with a grid of six round category badges, laid out like ftop's settings. Each badge's arc is its share of the 38.4 GB: bright for the part that goes, dim for the part that stays. Pressing a badge opens its items, for example DerivedData with 7 projects, 4 of them gone. Each item says who owns it, and you can press an item to keep it or include it. Clean Safe shows a plain three-part plan (to the Trash / npm's own command / stays) before it runs, and Undo comes after.",
+  "good": "It is the most ftop-like of the two: calm round gauges, almost nothing to read until you press a badge, and a compact form that shrinks to six badges.",
+  "tradeoff": "The arcs show shares, not the disk, so you lose how big the clutter is next to 812 GB. The badges also take more room than a list does.",
+  "surface": "panel",
+  "groupId": "07",
+  "direction": "Noo-Noo clutter expert"
+ },
+ {
+  "file": "08-a.html",
+  "name": "Awake Arc",
+  "idea": "A floating glass panel under the Insomnia eye icon. One big violet round badge carries a full arc and a slow highlight sweep while Claude Code works in speed-3. Below it sit four ftop-style guard badges, each showing its value and its threshold as a fill plus a white tick (battery 64 % ends below 20 %, adapter, Wi-Fi ends if lost, thermal nominal ends at serious). Then a lid-mode toggle, and a footer reading 'Sleeps when speed-3 finishes' with a Sleep now / Undo button. A prototype button finishes speed-3: the arc drains, the eye turns into a moon, and the panel reads 'Sleep allowed'.",
+  "good": "The why is one glance: the big arc stands for the agent holding the Mac awake. The four guards read like ftop gauges. Hover cards explain each one, and the speed-3 card names its worktree, its servers and which agent is not holding.",
+  "tradeoff": "One big badge is a lot of space for what is a single yes/no fact. The four guards crowd at this width, and a menu bar icon that opens a large panel goes against the current NSMenu standard.",
+  "surface": "panel",
+  "groupId": "08",
+  "direction": "Insomnia keep-awake expert"
+ },
+ {
+  "file": "08-b.html",
+  "name": "Quiet Eye",
+  "idea": "A compact drop with three lines: state and reason, what ends it, and the guards as tiny badges. Under them is a row of round ftop-style buttons: Auto, Awake, Sleep, plus a Lid toggle, with the caption 'manual wins'. The same state also shows in a bottom strip and a three-badge corner widget. A board shows the four menu bar icon states (eye + 'speed-3' for awake by agent, underlined eye for awake manual, closed laptop for lid mode, dim moon for off); click any state to switch to it.",
+  "good": "It is the smallest and calmest form. You can change mode in one press, and the four menu bar icons differ in shape, not only tone. Seeing the agent's name in the menu bar tells you what holds the Mac without opening anything.",
+  "tradeoff": "Thresholds live only in hover cards, so the guards say less at a glance. The board with the four icon states is a prototype aid that the real app would not show.",
+  "surface": "popover",
+  "groupId": "08",
+  "direction": "Insomnia keep-awake expert"
+ },
+ {
+  "file": "09-a.html",
+  "name": "Workstream Cards",
+  "idea": "A floating glass panel under the menu bar with one card per agent session (speed-3 working, studio-parity idle 40m, fix auth redirect finished 2h). Each card lists its servers, worktree, caches, spared browser and keep-awake state as ftop rows, each led by a badge in that expert's color. Badge shape shows state: filled is in use, ring is idle, dashed is goes, arc is keeping the Mac awake. A Cards/Strips toggle shrinks every card to one line of badges.",
+  "good": "It answers \"what is this agent holding?\" in one card. Wrap Up turns the finished card's own rows into the plan (Stop :4000, Remove auth-redirect with its branch kept, Trash node_modules 2.4 GB) with an undo note on each row, then the steps tick off and the card settles into a single Undo row.",
+  "tradeoff": "Things no agent owns get only one footer line (:6006, 5 worktrees). Per-workstream cache sizes are invented because the fixture gives none, and three full cards take about 670 px of height.",
+  "surface": "panel",
+  "groupId": "09",
+  "direction": "Workstreams across experts"
+ },
+ {
+  "file": "09-b.html",
+  "name": "Workstream Lanes",
+  "idea": "A wide glass panel set out as a matrix: workstreams are rows and the five experts are columns. Column headers are solid round expert badges, as in ftop's settings grid. A Nobody row collects the orphans: :6006 storybook, 3 merged worktrees, bp8 stale, bp7 kept because it has 1 commit not in main, DerivedData of gone projects, and FigmaAgent unsorted. A Detail/Glance toggle hides the text and leaves a pure dot matrix.",
+  "good": "You can see at a glance which agent owns what, and which experts are involved in each workstream. Hovering a header lights its whole column. Wrap Up and Tidy recolor the cells in place, then the cleared chips fade column by column and leave an empty row with Undo.",
+  "tradeoff": "It is wide (about 1170 px), more a dashboard than a quick menu. Long names wrap inside narrow columns, and the empty-cell dots add a little visual noise.",
+  "surface": "panel",
+  "groupId": "09",
+  "direction": "Workstreams across experts"
+ },
+ {
+  "file": "10-a.html",
+  "name": "Five Cards",
+  "idea": "One hover card per expert, side by side, each under the list row it came from: Chrome, :3334 sanity, bp7-studio-dogfood, Xcode DerivedData and Insomnia. All five share one grid: a 240px card, an 80px label column and 21px fact rows. Each card has a colored status that starts with a word and has its own mark shape, up to five facts with cross-links, and up to four actions that confirm in place and offer Undo.",
+  "good": "The fact columns line up to the pixel across all five experts. A cross-link dot sits in the gutter, and pressing a link pulses the expert that owns that fact, which makes the experts helping each other visible without adding a line.",
+  "tradeoff": "It is a comparison sheet of detail moments rather than a real surface, so it shows the card style but not the menu or panel these cards would come out of.",
+  "surface": "popover",
+  "groupId": "10",
+  "direction": "Cards, confirmation and undo"
+ },
+ {
+  "file": "10-b.html",
+  "name": "Now, Then Undo",
+  "idea": "A clickable walkthrough of MinMacs Now in a glass panel under the menu bar icon. Ready leads to the plan in place: what goes, and what is spared and why. Spotify quits on its own; Chrome trims its 14 noise tabs, gets an 8-second ring, does not reply, so Force Quit or Leave Open is offered. The run ends with Restore and a 'Closed 2 Apps, Freed 9.3 GB' notification with Undo. Header numbers ease down as each app goes.",
+  "good": "Every promise in DESIGN.md happens on screen in one place. Nothing closes until it has been shown, a row can be pressed to keep its app, the refusing app is handled calmly, and Undo reverses the whole run. A step rail jumps to any stage.",
+  "tradeoff": "DESIGN.md sends notifications only when an expert acted on its own, but here the person pressed Now, so either that rule or this notification must give. The plan view is also taller than a quick NSMenu glance.",
+  "surface": "panel",
+  "groupId": "10",
+  "direction": "Cards, confirmation and undo"
+ },
+ {
+  "file": "11-a.html",
+  "name": "Toggle Grid Settings",
+  "idea": "One frameless glass panel in ftop's grammar, with three rows of five round toggles: the five experts in their own colors (each toggle shows or hides that expert's menu bar icon), then One Icon, Proactive, Ask Before Closing, Launch at Login and Smooth, then Sea, Graphite, Warm, Quit and More; More opens plain value rows such as When an app won't quit: Ask Me and Review model: Haiku \u00b7 14k tokens today.",
+  "good": "It is nearly a direct port of the ftop settings screen the owner loves: pressing a toggle changes the fake menu bar live, theme swatches recolor the panel, value rows cycle in place, and a single quiet caption line explains whatever you hover.",
+  "tradeoff": "Expert toggles only control icon visibility, so per-expert mode (Off, Suggest, Proactive) and the hidden-icon problem need a separate place, and the 15 round buttons say less about what each expert is doing right now.",
+  "surface": "window",
+  "groupId": "11",
+  "direction": "Settings"
+ },
+ {
+  "file": "11-b.html",
+  "name": "Settings, Small and Smart",
+  "idea": "Round 3: a narrow Settings window, about two-thirds the size of round 2. A top line says what Auto did today, with one Undo. Each section (Apps, Servers, Worktrees, Disk, Keep Awake) has a small Off / Ask / Auto control and one smart line: the rule with a value you click to change (70 % load, 2 h idle, 1 day, weekly, 20 % battery), and on the right what it sees right now (3 idle now, 4 merged \u00b7 5.7 GB, 4 agents now).",
+  "good": "Small, yet each row tells you the rule, lets you tune it in one click, and shows its effect today, so there is no separate details page.",
+  "tradeoff": "Only one tunable value per section; anything else would need fixed defaults or a hidden More.",
+  "surface": "window",
+  "groupId": "11",
+  "direction": "Settings"
+ },
+ {
+  "file": "12-a.html",
+  "name": "Notch HUD",
+  "idea": "A black island grows out of the MacBook notch in three steps: at rest it is the notch plus an Insomnia eye on the left and a dot for each expert with work waiting on the right; on hover it widens to show the five expert badges with one figure each; on press it opens into a panel with five badge tabs, each expert's list, its one action, hover cards, Wrap Up and Undo.",
+  "good": "It needs no menu bar icons at all, so it is ambient and always in the same spot, and you can read the state of all five experts from the rest and peek forms without opening anything, much like ftop's corner of three badges.",
+  "tradeoff": "It only works on notched Macs (an external display needs a fallback shape), the open panel is pure black to blend with the notch rather than ftop's glass, and it covers the app's menu titles while open.",
+  "surface": "panel",
+  "groupId": "12",
+  "direction": "Wild cards"
+ },
+ {
+  "file": "12-b.html",
+  "name": "Five-Arc Dial",
+  "idea": "ftop's badge-with-arc made into the whole app: one round dial split into five colored arcs, each filled by how much that expert could clear now (Insomnia's arc is battery, with a white tick at the 20 % guard); beside it a plan list with a toggle per step and one 'Do 4 steps' button with Undo, and a press on any arc opens that expert's full list.",
+  "good": "It turns five separate tools into one glance and one decision: hover an arc and the centre reads like ftop ('3 / 6 servers idle', '30.1 / 38.4 GB'), and it folds down into a 340 px disc and an 18 px ring plus a number in the menu bar.",
+  "tradeoff": "Arc length means 'share of its own field that could go', which differs per expert and has to be learned, and the round disc mode is a custom-shaped panel that takes more AppKit work than a rectangle.",
+  "surface": "panel",
+  "groupId": "12",
+  "direction": "Wild cards"
+ },
+ {
+  "file": "13-a.html",
+  "name": "Five Round Buttons",
+  "idea": "One row of five big round section buttons, where a full fill means Auto, a colored ring means Ask and gray means Off. Pressing the selected button again cycles its mode, and the selected section's rule shows below in large calm type with a clickable value and what it sees now.",
+  "good": "It has one clear focal row and a lot of space, and it reads in a second: the colors tell you the modes, and the sentence tells you what the selected section is doing.",
+  "tradeoff": "You only see one section's smart line at a time, and cycling by pressing again has to be learned, though the small Off/Ask/Auto picker next to the sentence covers that.",
+  "surface": "window",
+  "groupId": "13",
+  "direction": "Settings: ftop round buttons"
+ },
+ {
+  "file": "13-b.html",
+  "name": "Three Round Rows",
+  "idea": "An ftop-style 3x5 grid. The first row is the five sections, the second row is the selected section's Off/Ask/Auto plus its value and a live count, and the third row is One Icon, At Login, Undo, Quit and More, which opens plain value rows and Today. A centered caption explains whatever is selected or under the pointer.",
+  "good": "It is the closest match to ftop's settings.png: compact, symmetric and all round buttons, and the caption makes every button explain itself.",
+  "tradeoff": "The middle row changes meaning with the selected section, and the smart line is one caption instead of five visible rules.",
+  "surface": "window",
+  "groupId": "13",
+  "direction": "Settings: ftop round buttons"
+ },
+ {
+  "file": "14-a.html",
+  "name": "Five Sentences",
+  "idea": "Each section is one calm 21px sentence, such as \"Servers \u2014 stop them when nobody used them for 2 hours. Do it.\" The value and the mode word (Do it / Ask me / Leave it) are the only tappable words, shown in the section color, and each opens a small glass menu where every mode explains itself; a quiet gray line underneath says what it sees now.",
+  "good": "It reads like plain language with no controls in sight. The whole window is five lines and lots of air, and the menu bar choice and login choice are a sentence too.",
+  "tradeoff": "Because the mode sits at the end of each sentence, scanning all five modes takes reading rather than a glance down one column.",
+  "surface": "window",
+  "groupId": "14",
+  "direction": "Settings: Settings as sentences"
+ },
+ {
+  "file": "14-b.html",
+  "name": "One Sentence",
+  "idea": "A slim left list of the five names, each with a dot that is filled for Do it, a ring for Ask me and gray for Leave it. The right side shows that section's sentence in large 28px type, its mode as three words with a sliding underline in the section color and a one-line note on what that mode does, and its live state as big ftop-style numbers with small gray units.",
+  "good": "It has one clear focal point at a time and the most ftop feel: large type, big numbers and a lot of calm space, while the list still shows all five modes at a glance.",
+  "tradeoff": "Only one section's rule and live numbers show at a time, so comparing sections takes clicks.",
+  "surface": "window",
+  "groupId": "14",
+  "direction": "Settings: Settings as sentences"
+ },
+ {
+  "file": "15-a.html",
+  "name": "Grouped Inset List",
+  "idea": "Five rounded inset groups like macOS System Settings: a badge, the name with a live caption under it, and a native Off/Ask/Auto segmented control. Below that sits one sub-row with the rule and a real pop-up menu. The sub-row folds away when the section is Off.",
+  "good": "It reads at a glance: the badge fill shows the mode (solid for Auto, tinted for Ask, gray for Off), the segmented thumb slides, and the pop-up opens over the button with a checkmark the way a real macOS menu does.",
+  "tradeoff": "All five sections stay on screen, so the window is tall (685px) and has less air than the sidebar version.",
+  "surface": "window",
+  "groupId": "15",
+  "direction": "Settings: Refined native"
+ },
+ {
+  "file": "15-b.html",
+  "name": "Sidebar and Cards",
+  "idea": "A narrow sidebar lists the five sections, each with a colored icon and a small state dot. The detail pane has a large title with the live state under it, three big Off/Ask/Auto cards that each say what they do, and one rule row with a pop-up. A Today card with Undo sits in the sidebar, and General holds the two switches.",
+  "good": "It is the calmest and most spacious layout: one section at a time, a clear focal title, and mode choices that explain themselves.",
+  "tradeoff": "You only see one section's rule at a time, so comparing sections means clicking through the sidebar.",
+  "surface": "window",
+  "groupId": "15",
+  "direction": "Settings: Refined native"
+ },
+ {
+  "file": "16-a.html",
+  "name": "Five Tall Tiles",
+  "idea": "Five slim tiles stand in one row, each with a solid round badge, a big live number with a small gray unit, and a vertical Auto / Ask / Off selector at the bottom; press a tile and it flips to show its rule, its value as a short vertical list to pick from, and what it sees now.",
+  "good": "It looks the most like ftop and is the calmest: one number per tile and lots of room, while the details sit one press away on the back.",
+  "tradeoff": "You have to flip a tile to see the rule and change the value, so you can't compare all five rules at a glance.",
+  "surface": "window",
+  "groupId": "16",
+  "direction": "Settings: Five tiles"
+ },
+ {
+  "file": "16-b.html",
+  "name": "Bento Tiles",
+  "idea": "Five tiles in a 2+3 grid, all the same height; each shows a badge, name, big live number and a one-line rule whose value you click to change, and a small mode pill opens on hover into Off / Ask / Auto, showing what each mode would do before you pick it.",
+  "good": "Everything is visible without a click: mode, rule, value and what it sees, and it still feels open and calm.",
+  "tradeoff": "The mode only shows its three choices when you hover, and the rules had to be cut short to fit on one line in the narrow tiles.",
+  "surface": "window",
+  "groupId": "16",
+  "direction": "Settings: Five tiles"
+ },
+ {
+  "file": "17-a.html",
+  "name": "Five Rings",
+  "idea": "Five large ftop-style rings in one calm row; an empty ring means Off, a half arc means Ask and a full arc means Auto, and clicking a ring sweeps its arc to the next mode while one centred caption below shows the hovered ring's rule, its underlined value and a big live number.",
+  "good": "One clear focal point and almost no text on screen, so each mode reads at a glance from the ring's shape alone, which makes it the most elegant and airy option.",
+  "tradeoff": "Only one section's rule and live state show at a time, so comparing sections means hovering each ring.",
+  "surface": "window",
+  "groupId": "17",
+  "direction": "Settings: Rings and dials"
+ },
+ {
+  "file": "17-b.html",
+  "name": "Quiet Dials",
+  "idea": "A spare vertical list with only space between rows; each row has a small arc dial, the name with its mode word and one fact from today, the rule with its value as a soft underlined word, and the live number at the far right.",
+  "good": "All five rules and live states are visible at once without clutter, and hovering a dial previews the next mode ('then Off') before you click.",
+  "tradeoff": "It is denser and more conventional than the row of rings, so the ring idea is a smaller accent here than the main focus.",
+  "surface": "window",
+  "groupId": "17",
+  "direction": "Settings: Rings and dials"
+ },
+ {
+  "file": "18-a.html",
+  "name": "Mixing Desk",
+  "idea": "One horizontal desk of five vertical faders with a shared Off\u2013Ask\u2013Auto scale. Under each fader sits a big ftop-style number for what that section sees now, plus a value pill you click to change. One caption line below the desk spells out the full rule for whichever channel you hover, drag or focus.",
+  "good": "You see all five modes at once from the fader heights, so the window stays airy with almost no lines, and dragging a fader feels physical and calm.",
+  "tradeoff": "It is wider than a list (648px), and the rule is written out in full only in the shared caption, not on every channel.",
+  "surface": "window",
+  "groupId": "18",
+  "direction": "Settings: Free picks"
+ },
+ {
+  "file": "18-b.html",
+  "name": "Hanging Sheet",
+  "idea": "A calm sheet hangs from the menu bar icon it belongs to. Its nub and the highlighted status item slide to whichever section you pick. On the left are five large section names with a mode dot and word; on the right are big Off / Ask / Auto words with a sliding accent underline, the rule, the value choices as plain words, and a large 'Now' number.",
+  "good": "The large type gives one clear focal point and lots of space. Clicking a menu bar icon jumps straight to that section, which ties Settings to the menu bar where the app actually lives.",
+  "tradeoff": "Only one section's rule and details show at a time; the other four show just their name and mode.",
+  "surface": "menubar",
+  "groupId": "18",
+  "direction": "Settings: Free picks"
+ },
+ {
+  "file": "19-a.html",
+  "name": "Sheet with a Graph",
+  "idea": "The 18-b sheet unchanged at the top (big Off / Ask / Auto, rule, value words), with a Right now block below it: the big Now number, one plain sentence about what is happening, one ftop graph whose tick or line moves with the chosen value, and the real items, where a dot in the section color marks each one Auto will act on.",
+  "good": "The most faithful step from 18-b: the same calm and hierarchy, and you can watch a setting act, because changing 70 % to 60 % or 2 h to 30 min slides the line and re-marks the items right below it.",
+  "tradeoff": "The sheet is about 752 \u00d7 632, a bit taller than the target, and Keep Awake shows six agent rows, so it holds more than the original 18-b.",
+  "surface": "menubar",
+  "groupId": "19",
+  "direction": "Hanging Sheet: Same sheet, plus one graph"
+ },
+ {
+  "file": "19-b.html",
+  "name": "Graph Hero Sheet",
+  "idea": "The graph is the hero of the right pane: a load ring with the threshold tick for Apps, idle-time columns with the stop line for Servers, size bars per worktree for Worktrees, a 38.4 GB donut split by kind for Disk, and a battery ring with the stop tick plus six agents for Keep Awake. Each is labeled in plain words, and the mode words, value and rule sit in a quieter band at the bottom.",
+  "good": "What is going on right now reads first and at a glance, the band at the bottom still changes the graph live, and at about 752 \u00d7 568 it is the shorter sheet.",
+  "tradeoff": "Off / Ask / Auto drop from 30 px poster words to 19 px, so the setting loses some of the presence of 18-b.",
+  "surface": "menubar",
+  "groupId": "19",
+  "direction": "Hanging Sheet: Same sheet, plus one graph"
+ },
+ {
+  "file": "20-a.html",
+  "name": "Live Index",
+  "idea": "Each of the five large names on the left has its own small live ftop graph beside it: a load bar with the 70 % tick for Apps, server columns, worktree columns, a clutter arc for Disk and 12 agent dots for Keep Awake, with a number and mode verb such as 'Auto frees'. The right pane leads with Right now (a big number, one plain-words insight, the full graph, the real items with a mark on the ones Auto acts on), and Off / Ask / Auto with the rule and value sits right below.",
+  "good": "The left column alone works as a monitor of all five, one line at the top ('Colored part = what each one acts on') explains every graph, and changing a value eases both the mini graph and the marked rows to the new answer.",
+  "tradeoff": "Five colored mini graphs plus numbers make the left column busier than 18-b, and the right pane is narrower (about 346 px), so extra notes on rows are left out.",
+  "surface": "menubar",
+  "groupId": "20",
+  "direction": "Hanging Sheet: Live left column"
+ },
+ {
+  "file": "20-b.html",
+  "name": "Live Blocks",
+  "idea": "Each left entry is a two-line block: the name and mode word on top, then a thin full-width segmented graph whose colored part is what that section acts on, with one number in plain words under it, such as '3 of 6 servers are idle' or '30.1 GB safe to clean'. The right pane holds the same Right now plus Setting stack as variant a.",
+  "good": "It reads like a calm ftop strip per section, the captions are self-explanatory sentences, and the wider right pane has room for reasons on rows ('14 noise tabs', 'merged 3 days ago', '4 of 7 gone').",
+  "tradeoff": "The names are smaller (23 px), and every left graph is the same thin bar shape, so sections tell apart by color and caption more than by graph type.",
+  "surface": "menubar",
+  "groupId": "20",
+  "direction": "Hanging Sheet: Live left column"
+ },
+ {
+  "file": "21-a.html",
+  "name": "Three Quiet Columns",
+  "idea": "The sheet is 792 px wide with three columns split by faint hairlines: the sections, then the section's settings (Off / Ask / Auto, the rule, the value, a large Now number), then a scrolling Right now column with a plain-words insight sentence, an ftop graph built from the rows below it, and the real items as ftop rows with icons, each marked goes now, goes later, asks or stays (filled dot, half dot, ring, dash) with a time or reason like 'Stops 18:02' or 'Playwright drives it'.",
+  "good": "Settings and their effect sit side by side: change the value (say 'Idle for 1 h') and the server arcs fill, the marks and times update, and the colored part of the bar is exactly what that mode will do.",
+  "tradeoff": "It is wider than the brief's ~760 px, and the narrow middle column wraps longer value lists like the five idle times onto two lines.",
+  "surface": "menubar",
+  "groupId": "21",
+  "direction": "Hanging Sheet: Settings and what it sees"
+ },
+ {
+  "file": "21-b.html",
+  "name": "Settings Over the List",
+  "idea": "A two-column, 760 \u00d7 622 sheet: the settings fold into one calm strip on top (big Off / Ask / Auto plus the value words on one line, the rule under it), the switches move under the section names, and the rest is Right now (a large Now number beside the insight sentence, the live graph, then the item rows with icon, facts, size and fate).",
+  "good": "The list of actual apps, servers, worktrees, caches or agents gets most of the room, and changing the mode re-marks every row in a quick top-to-bottom ripple, so you watch the setting act on what is there.",
+  "tradeoff": "The settings are smaller than in 18-b, so the strip reads as a header rather than the focal point, and about 5 rows fit before the list scrolls.",
+  "surface": "menubar",
+  "groupId": "21",
+  "direction": "Hanging Sheet: Settings and what it sees"
+ },
+ {
+  "file": "22-a.html",
+  "name": "Day Strips",
+  "idea": "Each section's tab shows Right now first: a large number, a one-sentence insight, a thin bar whose colored part is what Auto acts on, then a 24-hour strip from 06:00 to 06:00 with ticks for what happened today, a now line and a hollow tick for the next planned action, then the items marked by what the setting will do (closed or stopped items carry Undo), and Off / Ask / Auto with the rule and value at the bottom.",
+  "good": "Past, present and next sit in one place per section, so you see what Auto did, what it is about to do and why ('stops 18:02', 'goes 02:00', 'goes Sunday'), and changing the value visibly moves the next tick and the limit tick.",
+  "tradeoff": "Every section repeats the same strip and mark grammar, so the sheet sits near its 760 x 618 limit and the Servers and Disk tabs are full.",
+  "surface": "menubar",
+  "groupId": "22",
+  "direction": "Hanging Sheet: Trust through Today"
+ },
+ {
+  "file": "22-b.html",
+  "name": "Today First",
+  "idea": "A calm Today item at the top of the list opens by default with three big ftop totals (memory freed, CPU freed, servers stopped), one 24-hour strip for all five sections colored by section, and a single chronological list with Undo on each change, a now divider and the planned actions after it; each section tab is live ftop detail (CPU and memory bars, server rings, worktree columns, disk split bar, agents beside a battery arc with the stop tick) with marks and settings below.",
+  "good": "Trust is gathered in one glance (5 changes, none needed you, all undoable), and the section tabs get richer graphs because they don't have to hold history.",
+  "tradeoff": "History lives in one place, so a section tab only offers a one-line Today summary with a See Today link, and the combined strip gets crowded between 09:00 and 15:00.",
+  "surface": "menubar",
+  "groupId": "22",
+  "direction": "Hanging Sheet: Trust through Today"
+ },
+ {
+  "file": "23-a.html",
+  "name": "Agents First",
+  "idea": "A sixth entry, Agents, sits at the top of the left list and opens by default: 7 agents plus \"5 more\", each with a state mark and small badges in the section colors for the apps, servers, worktree, disk clutter and keep-awake it holds. Each of the five sections has Right now on top (big number, one plain sentence, an ftop graph, its items with the owning agent) and the setting below (Off/Ask/Auto, rule, values), with a dot on each item the setting will act on.",
+  "good": "Every item says which agent left it, and Keep Awake lists the exact four agents holding the Mac awake, so you never wonder why something is there or why the Mac is up; clicking an owner or badge jumps between the two views.",
+  "tradeoff": "Each section packs a sentence, a graph, a list and the setting into about 480 px, so it is the fullest version of the sheet and leans on hairlines and gray text to stay calm.",
+  "surface": "menubar",
+  "groupId": "23",
+  "direction": "Hanging Sheet: Agents first"
+ },
+ {
+  "file": "23-b.html",
+  "name": "Agent Matrix",
+  "idea": "A grid with agents as rows (plus \"5 more\" and \"No agent\") and the five sections as columns of small ftop marks (app icons, idle rings, size columns, clutter bars, awake dots). Picking a column header widens that column into words, slides the nub to its menu bar icon, and shows its Right now sentence next to its setting.",
+  "good": "One look shows all 12 agents against all five sections at once, and when you change a setting the marks move in the grid, so you see the setting act on the actual items.",
+  "tradeoff": "It gives up the large stacked section names for column headers, and the four columns you have not picked show marks only, so you need the caption, the legend or a hover to read them.",
+  "surface": "menubar",
+  "groupId": "23",
+  "direction": "Hanging Sheet: Agents first"
+ },
+ {
+  "file": "24-a.html",
+  "name": "Every Size",
+  "idea": "Like ftop, one sheet comes in three sizes, picked by plain words in the header (Small, Medium, Large); the sheet grows to the left from the icon it hangs from and the type never gets bigger: Small shows the Now number, the insight sentence, the mode and the rule with its value; Medium adds the live graph, the value choices and six items in two columns, each marked by what the setting will do to it; Large adds full item rows and a live line under each section name.",
+  "good": "It answers both 'less is more' and 'more details, graphs': keep the calm sheet at Small and open the detail only when wanted, and every size keeps the same height on every tab, so nothing jumps.",
+  "tradeoff": "Small leaves out the graph and the item list, so activity rests on one sentence there, and Medium and Large are only 40 px apart in width.",
+  "surface": "menubar",
+  "groupId": "24",
+  "direction": "Hanging Sheet: Free picks"
+ },
+ {
+  "file": "24-b.html",
+  "name": "Before and After",
+  "idea": "Each tab shows Now \u2192 After as two big numbers and two matching bars (63 % \u2192 41 % load, 6 \u2192 4 servers, 14 \u2192 10 worktrees, 182 \u2192 212 GB free, Awake \u2192 Sleeps), where every bar piece is a real app, server, worktree or cache; pointing at Off/Ask/Auto or a value previews its result live (pieces it acts on drop out of the After bar, item rows change their marks, a 'Preview' tag shows) and clicking commits it.",
+  "good": "The setting sits under the activity and you watch it act on the items before you choose, so each graph answers one plain question: what will this do to my Mac?",
+  "tradeoff": "The preview needs a pointer (keyboard focus also works, touch does not), and two bars per tab plus six rows makes the sheet 740 \u00d7 630.",
+  "surface": "menubar",
+  "groupId": "24",
+  "direction": "Hanging Sheet: Free picks"
+ },
+ {
+  "file": "25-a.html",
+  "name": "Inline Icons",
+  "idea": "Live Index on the left now leads with Agents (12 state dots); hovering any row slides its values aside for three round ftop icon buttons, a More chevron, and a gray caption line naming the hovered verb with its size or reason, while the calm bar at the bottom of the right pane holds the section actions, and hovering one stripes exactly the rows and graph parts it will touch.",
+  "good": "The row never changes size or opens a popup, so it stays as quiet as 20-a until you point at something, and each icon still reads as a plain verb through the caption (\"Remove \u00b7 1.8 GB \u00b7 stops :4000\", \"Remove\u2026 1 commit not in main\").",
+  "tradeoff": "You have to read the caption or learn the icons before you know what a button does, and the cross-section effect of an action is shown only in the right pane.",
+  "surface": "menubar",
+  "groupId": "25",
+  "direction": "Actions: Inline actions"
+ },
+ {
+  "file": "25-b.html",
+  "name": "Inline Words",
+  "idea": "Same sheet with plain text buttons in the row (\"Stop 640 MB\", \"Keep\", \"Open in Browser\"), with as many as fit and the rest under More; hovering a section or row action also previews it in the left Live Index, where the graph pieces it removes turn to pulsing outlines and the number eases to its after-value, including cross-section effects like Wrap Up touching Agents, Servers and Worktrees at once.",
+  "good": "Nothing to decode, and the left graphs show the whole plan across sections before you click, so it most directly delivers \"nothing happens that was not shown first\".",
+  "tradeoff": "Text buttons take more width, so long-named rows push more actions into More, and the left column moves on every hover, which can feel busier.",
+  "surface": "menubar",
+  "groupId": "25",
+  "direction": "Actions: Inline actions"
+ },
+ {
+  "file": "26-a.html",
+  "name": "Hover Cards",
+  "idea": "Hover any row in any of the six sections (Agents first) and a glass card opens to the left, outside the sheet: title, the agent's job or the item's path, a colored status that starts with a word (Goes, Stays, Working, Needs you), icon-led facts whose cross-links jump to the linked section and flash that row, and up to 4 actions. Pressing a row pins the card. Hovering a section action opens a plan card, dims everything it will not touch and lights up the other sections it reaches in the left list.",
+  "good": "It keeps the 03-b card you loved and puts it on every server, worktree, app, cache and agent, and links them: the card for :4000 leads to its agent, and the agent's card leads to its worktree.",
+  "tradeoff": "The card takes about 300 px of desktop to the left of the sheet, and the rows stay lean, so the owner and the reasons mostly live in the card, not the row.",
+  "surface": "menubar",
+  "groupId": "26",
+  "direction": "Actions: Hover cards"
+ },
+ {
+  "file": "26-b.html",
+  "name": "Cards with Graphs",
+  "idea": "The same hover cards, plus a small graph for that one item and a Before \u2192 After line for its main action: a server's idle arc against the 2 h rule, a worktree's size split into node_modules, .git and code, Chrome's 31 work / 14 noise tabs, an agent's held 2.1 GB. Each graph has a caption, and the line reads like \"Server memory 2.19 \u2192 1.90 GB\".",
+  "good": "Before you press anything, you see what it is, why it goes, and what the Mac looks like afterwards.",
+  "tradeoff": "The cards are taller (up to about 520 px) and denser, so the calm 03-b card turns into more of a small inspector.",
+  "surface": "menubar",
+  "groupId": "26",
+  "direction": "Actions: Hover cards"
+ },
+ {
+  "file": "27-a.html",
+  "name": "Pick and Act",
+  "idea": "Live Index on the left, with Agents first and its 12-dot state graph. On the right, each tab's rows show a round check and inline verbs on hover. Picking rows (click, shift-click, or a section action such as Close Idle used as a preset you can adjust) slides up an action bar where the main verb carries the count and the size it frees: Stop 3 servers \u00b7 1.45 GB.",
+  "good": "Hovering a section action or the bar's main verb lights up the exact rows and the colored part of the graph it will free; blocked items stay dimmed with the reason ('skips bp7-studio-dogfood \u00b7 1 commit not in main'), and each run ends with one calm Undo.",
+  "tradeoff": "Picking is limited to one tab, so a server, its worktree and its agent take three separate runs (Wrap Up is the only verb that reaches across tabs).",
+  "surface": "menubar",
+  "groupId": "27",
+  "direction": "Actions: Pick, then act"
+ },
+ {
+  "file": "27-b.html",
+  "name": "Plan Tray",
+  "idea": "Same sheet, but picks stay while you switch tabs and collect in a tray at the bottom as section-colored chips (fix auth redirect, 3 servers, auth-redirect, 3 caches). A ghost chip suggests the related item ('+ auth-redirect \u00b7 its worktree'). Run Plan \u00b7 8 steps \u00b7 33.4 GB does all of it as one plan with one Undo.",
+  "good": "Hovering Run Plan opens the plan in order (Wrap Up, Stop, Remove, Skip with its reason, Clean, each with its size) and each Live Index entry shows '3 picked', so you see a cleanup across Agents, Servers, Worktrees and Disk before it runs.",
+  "tradeoff": "One more idea to learn: the tray persists across tabs and each pick runs its default verb.",
+  "surface": "menubar",
+  "groupId": "27",
+  "direction": "Actions: Pick, then act"
+ },
+ {
+  "file": "28-a.html",
+  "name": "Key Caps in Row",
+  "idea": "A Live Index with six sections (Agents first, each with a live mini graph and a number with a mode verb) beside a detail pane: rows show a gray detail line, and when you hover or focus a row, that line turns into its actions with tiny key caps (S Stop, K Keep, R Remove, W Wrap Up, G Go to Tab); arrows move through sections and rows, Enter runs the main action, \u2318Z undoes.",
+  "good": "Hover and keys are one model: whatever is lit shows its shortcuts, and the insight line turns into the plan ('Stops :4000, moves auth-redirect and its caches to the Trash. Frees 2.1 GB.') with the touched rows and graph segments highlighted.",
+  "tradeoff": "Key caps on four-action rows leave little room, so lower-value actions are dropped on crowded rows, and the sheet had to grow to 868 px wide.",
+  "surface": "menubar",
+  "groupId": "28",
+  "direction": "Actions: Keyboard and hover together"
+ },
+ {
+  "file": "28-b.html",
+  "name": "Quiet Command Line",
+  "idea": "The same sheet with no key caps in rows; instead a quiet command line in the footer (type anywhere or press /) matches actions across every section as you type, switches to the matching tab, lights the rows and graph segments it will touch, and shows the best 3 matches where the settings sit.",
+  "good": "Typing 'stop idle', 'wrap up auth', 'clean xcode' or 'quit spo' reaches any of about 40 real actions in two words, with a written plan of what will be freed before you press Enter, while hover still gives plain inline buttons.",
+  "tradeoff": "Matches replace the Off/Ask/Auto settings while you type, and the command line takes space in the footer.",
+  "surface": "menubar",
+  "groupId": "28",
+  "direction": "Actions: Keyboard and hover together"
+ },
+ {
+  "file": "29-a.html",
+  "name": "Suggestion Stack",
+  "idea": "Each tab, Agents first, opens with 2\u20133 plain-words sentences that each have their own button (\":6006 storybook has been idle 3 days and nobody owns it.  Stop 520 MB\"); the section's big action is the first, tinted line; hovering any line lights exactly the rows, graph parts and other sections' mini graphs it touches; rows show inline actions on hover, and owners link to their agent.",
+  "good": "The insight and the action become one line you read and press, and the hover preview makes 'the menu is the plan' visible, including across sections (Remove auth-redirect also lights :4000 in Servers).",
+  "tradeoff": "The stack pushes the graph and rows down, so each tab is fuller and the right column only just fits.",
+  "surface": "menubar",
+  "groupId": "29",
+  "direction": "Actions: Insights you can act on"
+ },
+ {
+  "file": "29-b.html",
+  "name": "Suggested First",
+  "idea": "A seventh Live Index entry, Suggested, sits on top with its own section-colored mini bar and '46.5 GB Do All Safe frees'; its pane ranks the best suggestions from all sections by what they free, with a stacked bar by section and one Do All Safe button (5 actions, one Undo) that, on hover, lights every line and every touched mini graph on the left.",
+  "good": "One glance and one press answer 'what can I free right now', and the ranked list still shows the your-call items (Docker cache, Trim Tabs) as rings, so nothing is hidden.",
+  "tradeoff": "Seven index entries make the left column tighter (names at 24 px), and the tabs carry the same sentences again, so the suggestions appear twice.",
+  "surface": "menubar",
+  "groupId": "29",
+  "direction": "Actions: Insights you can act on"
+ },
+ {
+  "file": "30-a.html",
+  "name": "Graph Is the Menu",
+  "idea": "The live graph is where you act: every column, bar or puck is one item (apps, servers, worktrees, caches, agents). Hovering it fills a readout strip below with its facts, its owning agent as a link, and its real verbs, with blocked ones dimmed and their reason in gray. Each Live Index entry shows its section action on hover and lights the exact parts of its mini graph that the action will take.",
+  "good": "The picture you already read becomes the control, with no separate list. Hovering a section action dims everything except the columns it will touch and says what it frees; after acting, those columns shrink to nothing, numbers count down and Undo slides in.",
+  "tradeoff": "Small items like FigmaAgent (13 MB) make thin columns that are harder to point at, and the readout has to do the explaining.",
+  "surface": "menubar",
+  "groupId": "30",
+  "direction": "Actions: Free picks"
+ },
+ {
+  "file": "30-b.html",
+  "name": "Goes or Stays",
+  "idea": "Each row is a small sliding switch: the item's card sits left in Stays or right in Goes. You drag it across, or click its open side, which shows the verb (Stop, Clean, Wrap Up, Let It Sleep, Keep). A blocked item bounces back and says why. Clicking a card opens it to full width with its act-now verbs and agent link.",
+  "good": "The plan stops being abstract: what the big button will do is literally the right-hand column, and the Live Index bars re-weigh live as you sort.",
+  "tradeoff": "Dragging is the main gesture, so per-item verbs like Open in Browser are one click deeper, and the Agents tab nearly fills the sheet.",
+  "surface": "menubar",
+  "groupId": "30",
+  "direction": "Actions: Free picks"
+ },
+ {
+  "file": "31-a.html",
+  "name": "Hero Graph",
+  "idea": "Each tab gets one large graph in its own form, with its items in a quiet caption column beside it. The rule's value is a mark you drag on that graph: a clock hand across the servers' idle rings, the tick on the load column, a line through the worktree columns placed by days since merge, the stop tick on the battery ring, and cleaning days on a five-week ruler under the clutter ring. The mode is the graph's legend: Off draws no marks, Ask outlines what it acts on, Auto fills it and adds a time.",
+  "good": "Every tab has one clear focal point that is also the control, so you see the setting act on the items: drag the hand to 30 min and :3334's ring passes it and its tag turns to now.",
+  "tradeoff": "The six graph forms differ, so each tab needs a second to learn, and the 208 px caption column keeps row facts and hover actions short.",
+  "surface": "menubar",
+  "groupId": "31",
+  "direction": "Compose: The setting lives in the graph"
+ },
+ {
+  "file": "31-b.html",
+  "name": "Ruler Through Rows",
+  "idea": "The rows are the graph. Every item carries its own piece in a shared track column: an idle bar, an age bar, a slice of a load waterfall, a run of cleaning dots, or a battery span. The rule is one white line dropped from a knob on the axis through all the rows like a ruler. The mode legend sits next to the axis, and a tag column on the right says when each item is acted on (outlined in Ask, filled with a time in Auto).",
+  "good": "One grid on every tab, and you can read rule against reality per item: you see exactly which bars cross the line and which are still running toward it.",
+  "tradeoff": "Item graphs are thin bars rather than ftop's big shapes, so the view reads as an organized list more than a striking picture.",
+  "surface": "menubar",
+  "groupId": "31",
+  "direction": "Compose: The setting lives in the graph"
+ },
+ {
+  "file": "32-a.html",
+  "name": "Headline Spread",
+  "idea": "Each tab is a magazine spread: a large two-sentence headline top-left (what is happening, then what MinMacs does), the big ftop number with its graph and a one-line caption top-right, a short standfirst and the section action under the headline, and a calm two-column item list at the bottom; the mode is the headline's verb ('stops / suggests stopping / leaves them running') and the value is its time word, and clicking either opens an in-place word picker.",
+  "good": "The setting stops being a form: you read a sentence and change it where it stands, and hovering any word or action lights up exactly the items it means in the list and the graph.",
+  "tradeoff": "All six tabs share one skeleton, so the variety comes from the copy and the graphs rather than the layout, and long mode phrases make some headlines run to five lines.",
+  "surface": "menubar",
+  "groupId": "32",
+  "direction": "Compose: The setting lives in the headline"
+ },
+ {
+  "file": "32-b.html",
+  "name": "Headline and Picture",
+  "idea": "A wider sheet with two things only: a headline set vertically centered beside one large ftop picture made of the items themselves; hovering a headline word ('3 servers', the mode verb, the value, the action) turns the picture into exactly those items, each with hover verbs, and the picture comes back when you leave.",
+  "good": "It is the calmest at rest and the most direct about meaning: every word shows its items, and after an action the picture returns so the numbers visibly ease down.",
+  "tradeoff": "The items only show on hover (or by clicking a graph mark for all of them), so the full list at a glance takes a gesture.",
+  "surface": "menubar",
+  "groupId": "32",
+  "direction": "Compose: The setting lives in the headline"
+ },
+ {
+  "file": "33-a.html",
+  "name": "Toolbar Band",
+  "idea": "Each tab opens with a calm toolbar band: the section name and its big ftop number on the left with the rule as one gray line under them, and three small round ftop buttons (Off, Ask, Auto) on the right with the value as a pill that drops a short list. Below the band, the body runs edge to edge in its own shape for each tab: an agent state strip over workstream rows, wide load and memory bars, six server rings in a row, 14 worktree columns, a disk bar that zooms into the 38.4 GB that could go, and a battery gauge beside its guards.",
+  "good": "The setting reads like window chrome rather than a form, it sits in the same place every time so it is learned once, and the body is free to give each tab its own focal point, with ringed items showing exactly what the mode will act on.",
+  "tradeoff": "The round mode buttons are icon-only until you hover or read the rule line, and the section name now shows in both the index and the band.",
+  "surface": "menubar",
+  "groupId": "33",
+  "direction": "Compose: The setting lives in the title bar of the tab"
+ },
+ {
+  "file": "33-b.html",
+  "name": "Cycling Title",
+  "idea": "The title bar reads like a document title: the section name, then the mode as one colored word that cycles when pressed (Auto \u25b8), the rule as a subtitle with its value as an inline pill you press to step through, and the big number at the far right. Every tab then uses the same asymmetric grid: items on the wide left (hovering a row turns its second line into that row's actions), and a narrow story column on the right with the picture, the sentence and the big action.",
+  "good": "The setting becomes a sentence you can edit in place, and the one fixed asymmetric grid makes all six tabs read as one system while each story column has its own focal point.",
+  "tradeoff": "Cycling means Off is always one press away from Auto with no preview of the other modes (Undo covers it), and the narrow story column gives the graphs less width.",
+  "surface": "menubar",
+  "groupId": "33",
+  "direction": "Compose: The setting lives in the title bar of the tab"
+ },
+ {
+  "file": "34-a.html",
+  "name": "Six Compositions",
+  "idea": "Each tab gets a layout shaped by its content. Agents is a 3x3 grid of workstream cards, with the setting in the two cells beside the finished agent. Apps has ftop columns, with the setting as the left column whose load bar carries the threshold tick. Servers is a ring of port badges with the setting in the hub. Worktrees is a forest of columns with the setting hung over the merged group. Disk zooms into one huge split bar with the setting under the bracket around the safe 30.1 GB. Keep Awake is a battery ring with its stop values on the ring and agents wired to it.",
+  "good": "No two tabs look alike, yet type, color, spacing and the three-part setting read as one system, and the setting always sits right against the thing it acts on.",
+  "tradeoff": "Moving from tab to tab means learning a new layout each time, and the ring and forest compositions are harder to keep tidy when counts grow.",
+  "surface": "menubar",
+  "groupId": "34",
+  "direction": "Compose: Every tab its own composition"
+ },
+ {
+  "file": "34-b.html",
+  "name": "One Skeleton",
+  "idea": "Every tab uses the same grid: a top band (big number, action, insight), a focal band and an items band, over a wide and a narrow column. Only the cells change: the setting sits beside the agent strip, under the app columns with its own load bar, on a time axis under the server badges, left of the worktree forest, under the Disk bracket, or above the Keep Awake agent list.",
+  "good": "Calm and predictable: your eye always knows where the number, the action and the insight are, while the moving setting still feels placed on purpose.",
+  "tradeoff": "Less striking than variant a, and on Agents and Worktrees the shared skeleton leaves some empty space.",
+  "surface": "menubar",
+  "groupId": "34",
+  "direction": "Compose: Every tab its own composition"
+ },
+ {
+  "file": "35-a.html",
+  "name": "Corner Drawer",
+  "idea": "Every tab front is its own composition of activity and actions only: an agents queue, a load ring with words beside it, six server arc badges, a worktree skyline, a disk-to-zoom column, and a battery column beside a sentence. The setting is a tiny mode mark in the same top-right corner of every tab. Pressing it folds the Live Index down to its graphs, slides the activity left, and brings in a drawer a third of the sheet wide: Off, Ask and Auto stacked vertically, a value ruler, the rule, and what it touches now.",
+  "good": "The activity stays visible beside the drawer and marks exactly the items the mode and value would act on, live as you change them.",
+  "tradeoff": "Opening the drawer hides the Live Index names and leaves only its graphs, so you tell sections apart by color and graph.",
+  "surface": "menubar",
+  "groupId": "35",
+  "direction": "Compose: Activity in front, setting one gesture away"
+ },
+ {
+  "file": "35-b.html",
+  "name": "Turning Card",
+  "idea": "Same composed activity fronts and the same corner mark, but pressing the mark turns the whole pane over like a card. The back is that section's setting laid out as a poster: the mode as one huge word, a three-mode legend, the rule as a sentence with its value in color, and the rule drawn on a real axis where the value stops are clickable and the real items sit as dots, lit when they fall inside the area the mode acts on.",
+  "good": "Each setting becomes a composition of its own: it reads at a glance and explains itself with the real items, not with a form.",
+  "tradeoff": "You see the setting and the activity one at a time, never side by side, and the card turn costs about 0.85 s of motion.",
+  "surface": "menubar",
+  "groupId": "35",
+  "direction": "Compose: Activity in front, setting one gesture away"
+ },
+ {
+  "file": "36-a.html",
+  "name": "Index Holds the Mode",
+  "idea": "The mode moves into the Live Index entry itself: the picked section opens into a quiet card with Off / Ask / Auto, the rule sentence and the value words, so the right side is pure 'right now', set like ftop's large layout with a big number and one tall graph in a hero column (the section action sits under the colored part it frees) next to the item list.",
+  "good": "The left half reads as 'what I decided' and the right half as 'what is happening', and the setting slides down the index with the tab you pick, so it is never a form bolted under the content.",
+  "tradeoff": "Only the open entry shows its rule and values, the other five show just a dot and verb, and the sheet grows to 1040 wide.",
+  "surface": "menubar",
+  "groupId": "36",
+  "direction": "Compose: Free compositions"
+ },
+ {
+  "file": "36-b.html",
+  "name": "Margin Note",
+  "idea": "A book-page grid (index | text block | narrow margin) where the setting is set as an editor's margin note: a section-colored bracket holds exactly the rows the rule acts on (solid for Auto, dashed for Ask, gone for Off) and its arm points at the chosen word in a vertical Off / Ask / Auto stack.",
+  "good": "The setting is visibly tied to what it touches: change 2 h to 30 min and the bracket grows from two servers to three, change the mode and the stack slides so the arm meets the new word.",
+  "tradeoff": "The margin is empty above and below the note, which is calm but can look unbalanced, and the 188 px margin wraps the rule into short lines.",
+  "surface": "menubar",
+  "groupId": "36",
+  "direction": "Compose: Free compositions"
+ },
+ {
+  "file": "37-a.html",
+  "name": "Workstream Lanes",
+  "idea": "Workstreams opens first as a ladder of 8 lanes, each drawn on the same baseline as its row on the right, so it reads straight across into the name, what the workstream holds and its hover actions. A lane's length is the time spent in its current stage; only the finished, merged ones are colored, and the '1 h after its PR merges and its agents finish' rule is the white line you drag across all lanes.",
+  "good": "One glance answers who is still working and what is past the line; below it the mode says in plain words what it does ('Ask: shows a button. Nothing happens until you press it.') with a live countdown ('Auto wraps up lane-e-sort at 17:32 \u00b7 in 49 m 54 s') and an explicit 'Wrap Up 2 Workstreams 4.4 GB' that previews what goes and what stays.",
+  "tradeoff": "The lanes and rows have to stay aligned, so the tab is held to 8 workstreams; new arrivals show up inside a workstream (subagents, servers) rather than as new lanes.",
+  "surface": "menubar",
+  "groupId": "37",
+  "direction": "Workstreams: the setting lives in the graph"
+ },
+ {
+  "file": "37-b.html",
+  "name": "Workstream Wall",
+  "idea": "Workstreams becomes one full-width piece: a 4 x 2 wall of small workstream cards (based on the starred 09-a) with name, stage, a thin stacked bar of what each holds in section colors and two fact lines that turn into actions on hover; below it a 'fuse' hero graph where ready work stands as pins on a time ruler and the rule is the line you drag.",
+  "good": "The boldest composition of the round: the two ready cards sit directly above their pins, outlined in Ask and filled in Auto, so it is clear what the rule acts on and when.",
+  "tradeoff": "The cards are narrow (about 120 px of text), so fact lines are cut to the essentials and some blocked reasons wrap onto two lines.",
+  "surface": "menubar",
+  "groupId": "37",
+  "direction": "Workstreams: the setting lives in the graph"
+ },
+ {
+  "file": "38-a.html",
+  "name": "Workstream Spread",
+  "idea": "Workstreams opens first and uses the 32-a spread: the headline reads \"8 workstreams. 4 are working, one needs you, 2 are done. MinMacs [wraps them up] [1 hour] after they merge.\" The column at top right shows how much the ready ones hold, four stage lanes and the No workstream leftovers, and it turns into a workstream's full inventory when you hover its cell.",
+  "good": "One system across all six tabs, each live: timers count up, subagents arrive with a New glow and fold away as Finished, Auto stops :4000 and later wraps up fix auth redirect with a notice and Undo, and a mode line under every headline says in plain words what Off, Ask or Auto does, with a countdown.",
+  "tradeoff": "A workstream's full inventory only shows on hover, so at rest the cells carry their holdings as small section-colored glyphs.",
+  "surface": "menubar",
+  "groupId": "38",
+  "direction": "Workstreams: Headline Spread"
+ },
+ {
+  "file": "38-b.html",
+  "name": "Sentence Board",
+  "idea": "The Workstreams headline is the board itself: it names every workstream, grouped by stage in plain words (\"speed-3, bp-lane-c, media-scope and studio-icons are working. lexicon-judge needs you\u2026\"), then the setting sentence, a mode line with a live countdown, and a 09-a style card for the hovered or pinned workstream beside the ready figure, the lanes and \"Wrap Up 2 Workstreams Now\".",
+  "good": "The boldest form of the editorial idea: you read the whole state of your work as one sentence, names glow in and drop out of it live, and hovering a name shows that workstream's anatomy.",
+  "tradeoff": "The six-line headline is heavy type and pushes the detail into a single card, so you compare workstreams by reading, not by scanning a list.",
+  "surface": "menubar",
+  "groupId": "38",
+  "direction": "Workstreams: Headline Spread"
+ },
+ {
+  "file": "39-a.html",
+  "name": "Band of Cards",
+  "idea": "Workstreams opens first: the band holds Off / Ask / Auto as labeled words, the rule in plain words and a live countdown line; below it, 8 Workstream Cards sit in a calm 2 x 4 grid that reads top to bottom as the life of the work (needs you, working, idle, then the two ready cards with their Wrap Up buttons as the finish line), with a quiet No workstream strip at the foot, and hovering a card opens it to the full pane width with every holding and its actions.",
+  "good": "It keeps the starred 09-a cards and the 33-a band, and the live clock, subagents that arrive and leave, previews that show what goes and what stays, and Auto that really acts with Undo make it feel alive and easy to read.",
+  "tradeoff": "The cards only show badges until you hover, so to see exact names and sizes you have to open the card.",
+  "surface": "menubar",
+  "groupId": "39",
+  "direction": "Workstreams: Toolbar Band"
+ },
+ {
+  "file": "39-b.html",
+  "name": "Holdings Matrix",
+  "idea": "Same band and same live simulation, but Workstreams becomes a matrix: one row per workstream, and columns for Agents, Worktree, PR, Servers and Caches (each column head opens its tab), ending in an ftop bar of what each row holds, where coral means what Wrap Up frees; hovering a row hangs its action bar under it, and hovering a cell explains it.",
+  "good": "One glance answers who holds what across every section, and the two coral bars make the ready work stand out without extra words.",
+  "tradeoff": "It is denser and more abstract than cards, so the shape legend (filled, ring, dashed, check) has to be learned once.",
+  "surface": "menubar",
+  "groupId": "39",
+  "direction": "Workstreams: Toolbar Band"
+ },
+ {
+  "file": "40-a.html",
+  "name": "Workstream Skyline",
+  "idea": "Workstreams opens first as a board of four stage columns (Working, Needs you, Idle, Ready to wrap up) standing on one ground line, with the Off / Ask / Auto setting, its live countdown and \"Wrap Up 2 Now \u00b7 4.4 GB\" hung in the sky over the short Ready column and a bracket dropping onto exactly the two cards it wraps up.",
+  "good": "It reads at a glance (where the work is, what waits for you, what is done but still holds space), with things arriving, glowing \"New\" and folding away live.",
+  "tradeoff": "The empty space above the Needs you column and the four small Working cards make the left half quieter and a little dense.",
+  "surface": "menubar",
+  "groupId": "40",
+  "direction": "Workstreams: the setting placed against what it acts on"
+ },
+ {
+  "file": "40-b.html",
+  "name": "Workstream Rivers",
+  "idea": "Each workstream is a horizontal river on one shared time axis (1 week ago to now): working rivers flow into now, the Ready ones end at their merge dot and trail a dotted \"still holds\" tail into a holdings column, and the wrap-up value (1 h / 1 day / 1 week) is a white line through every river that you set on the axis, with the mode words and countdown hung above it like a flag.",
+  "good": "The rule becomes something you can see: moving the line shows exactly which merged workstreams are past it, and the flowing rivers make the real-time activity obvious.",
+  "tradeoff": "A log time axis is more abstract than cards, the left third is mostly empty week-old history, and per-item detail sits in the hover card.",
+  "surface": "menubar",
+  "groupId": "40",
+  "direction": "Workstreams: the setting placed against what it acts on"
+ },
+ {
+  "file": "41-a.html",
+  "name": "Corner Drawer Ledger",
+  "idea": "Workstreams comes first among the 6 Live Index entries and shows one holdings ledger: 8 rows grouped by stage (needs you, working, idle, ready), one section-colored column each for worktree, PR, servers, caches and headless browser, a live stage timer per row, the two ready rows just above 'Wrap Up 2 Workstreams Now \u00b7 4.4 GB', and a 'No workstream' footnote; opening the corner drawer lights exactly the rows the '[1 h] after the PR merges' rule would wrap up.",
+  "good": "Read across a row for what one piece of work holds and down a column for who holds servers; the screen stays calm while the live simulation runs (subagents spawn and finish, :5174 comes and goes, Auto stops :6006 then :4000 with a notice and Undo), and every mode and button says in plain words what will happen, with a countdown.",
+  "tradeoff": "The ledger stays inside a 528 px pane, so names and blocked reasons are tight, and on hover the row actions cover part of the subtitle.",
+  "surface": "menubar",
+  "groupId": "41",
+  "direction": "Workstreams: Corner Drawer"
+ },
+ {
+  "file": "41-b.html",
+  "name": "Corner Drawer Spotlight",
+  "idea": "Workstreams opens first and takes the whole sheet (the Live Index folds to its graphs): the ready workstreams are big cards in the style of the starred 09-a, each listing exactly what Wrap Up stops and removes plus the clock the rule counts from ('PR merged 2 h ago', 'Auto wraps it up in 22 h'); the live ones sit below as small tiles with a hover card, and with the drawer open the rule rings the cards it would wrap up.",
+  "good": "The Wrap Up unit is the clear focal point, with its own button, its consequences and its countdown on each card; Auto running and Undo show right where you look.",
+  "tradeoff": "Folding the Live Index on this tab hides the section names until you leave it, and with the drawer open the tiles shrink to names and timers only.",
+  "surface": "menubar",
+  "groupId": "41",
+  "direction": "Workstreams: Corner Drawer"
+ },
+ {
+  "file": "42-a.html",
+  "name": "Workstream Hero Column",
+  "idea": "Workstreams comes first in a 6-entry Live Index and opens first; its mode sits in the opened index entry, the right side shows a big '4.4 GB to wrap up', one tall column per workstream (height is what it holds, the two ready ones stand tallest in coral) and rich rows whose second line shows servers, worktree, PR, caches and browser as marks in each section's color, with hover actions replacing that line, plus a calm 'No workstream' group.",
+  "good": "The live layer: timers count up, a speed-3 subagent and :5174 arrive with a 'New' glow and leave via 'Finished', each mode says what it does, live countdowns run to real Auto actions with Undo, and buttons name what they do ('Stop 3 Servers Now 1.45 GB').",
+  "tradeoff": "The rich rows are dense at 370 px wide, so some facts move into the hover actions, and the hero column has some empty space above its button.",
+  "surface": "menubar",
+  "groupId": "42",
+  "direction": "Workstreams: Index Holds the Mode"
+ },
+ {
+  "file": "42-b.html",
+  "name": "Workstream Margin Board",
+  "idea": "The sheet widens to 1200 and the Workstreams tab becomes a board (rows are workstreams, columns are Servers, Worktree and PR, Caches and browser) with the mode set as a margin note: a coral bracket (dashed for Ask, solid for Auto) holds the ready rows and points at a vertical Off/Ask/Auto stack where each mode is explained in plain words, followed by the values, the live countdown and 'Wrap Up 2 Now 4.4 GB' with its what-goes/what-stays result.",
+  "good": "Read across a row and you see one piece of work, read down a column and you see one section; the setting sits right next to the rows it acts on, and when Auto fires the bracketed rows fold away with Undo.",
+  "tradeoff": "This tab moves its mode out of the index into the margin, so it breaks the rule the other tabs follow, and the wider sheet covers more of the desktop.",
+  "surface": "menubar",
+  "groupId": "42",
+  "direction": "Workstreams: Index Holds the Mode"
+ },
+ {
+  "file": "43-a.html",
+  "name": "Badge Rail Heartbeat",
+  "idea": "A slim left column of six round ftop badges, each with its section glyph and an arc as the live glance (unused share for Servers, ready share for Workstreams, working share for Agents); the arc turns gray when Off, Agents gets a white dot when someone waits, and hovering shows a pill with name, number and mode. Servers is one heartbeat lane per server: busy lanes show request spikes and a beating dot at now; an unused lane is a teal flatline whose last-request dot creeps left into the shaded 'over 2 h' zone where Auto stops it, with memory and 'stops in 1 h 19 m' on the right.",
+  "good": "At a glance: which servers are busy, which are idle, how close each is to the 2 h rule and what each costs, and the rule zone moves when the value changes in the drawer.",
+  "tradeoff": "The 30 min to 2 h stretch of the time axis is compressed, and with the drawer open the lanes narrow to 300 px.",
+  "surface": "menubar",
+  "groupId": "43",
+  "direction": "Minimal: round badges \u00b7 heartbeat lanes"
+ },
+ {
+  "file": "43-b.html",
+  "name": "Badge Row Pulse",
+  "idea": "The same badges sit in a row across the top of a 632 \u00d7 456 sheet, and the pane gets the full width. Servers is one combined pulse: the top line is every request to the busy servers as a single heartbeat; below it each unused server has a labelled teal flatline (thickness = memory) creeping toward the shaded 2 h zone; hovering the pulse opens it into one row per server, and a cost strip splits all server memory by server.",
+  "good": "The calmest Servers view: one heartbeat answers 'is anything busy', the flatlines answer 'what is idle and how close to stopping', and the cost strip answers 'what it costs'.",
+  "tradeoff": "Without hovering you can't see which busy server takes which requests, and the top badges cost about 56 px of height.",
+  "surface": "menubar",
+  "groupId": "43",
+  "direction": "Minimal: round badges \u00b7 heartbeat lanes"
+ },
+ {
+  "file": "44-a.html",
+  "name": "Quiet Index Memory Map",
+  "idea": "A 620 \u00d7 472 sheet. The sidebar is only type: six words, each with one live number right-aligned in gray, the current one in white, lots of air, and Today's Undo at the foot. Servers is a memory map: each server is a block sized by memory and grouped by workstream; busy blocks glow and give off small sparks as requests arrive, with a live req/min count; idle blocks fade and show an arc filling toward the 2 h stop, with a countdown underneath.",
+  "good": "At a glance: what is busy (glowing), what is idle and how close it is to being stopped (faded, arc filling), and what each costs (block size); the drawer slides out from under the sheet's left edge, so nothing inside gets squeezed.",
+  "tradeoff": "Tiny servers get a minimum block size so their text fits, which slightly overstates them, and blocks move when a server starts or stops.",
+  "surface": "menubar",
+  "groupId": "44",
+  "direction": "Minimal: six words \u00b7 memory map"
+ },
+ {
+  "file": "44-b.html",
+  "name": "Footer Index Columns",
+  "idea": "The same six words and numbers sit in a footer nav at the bottom of the sheet, so the content gets the full width in a 620 \u00d7 492 sheet. Servers is tall ftop-style columns: height is memory, the teal fill is live requests with a white tick for the recent peak, and below the baseline each idle server grows a bar down toward one white horizontal line labelled '2 h unused: Auto stops it'.",
+  "good": "The idle rule is literally one line across the chart: each idle bar creeping toward it tells you which server goes next, and columns stay in a fixed workstream order.",
+  "tradeoff": "The sheet is 20 px taller to fit the footer, and long workstream labels wrap onto two lines under their column.",
+  "surface": "menubar",
+  "groupId": "44",
+  "direction": "Minimal: six words \u00b7 memory map"
+ },
+ {
+  "file": "45-a.html",
+  "name": "Edge Rail Flow",
+  "idea": "The sidebar is a 20 px strip on the left edge with six short bars in section colors (length = how much each section has to act on, full color = Auto, half = Ask, a white dot = something needs you); touch it and the bars slide apart into names and live counts. Servers is a flow graph: server pills filled by memory joined to their workstreams; busy lines carry moving request dots, idle lines are dim and still with a clock chip ('40 min of 2 h', then 'stops in 2 min'), and :6006 hangs alone with 'no owner'.",
+  "good": "At 608 \u00d7 472 you read busy, idle, cost and the 2 h rule in one look: dots move or they don't, the fill length is the cost, and the chip counts down to the rule.",
+  "tradeoff": "When the corner drawer opens, the pane becomes a short list of what the rule touches instead of lighting the original layout.",
+  "surface": "menubar",
+  "groupId": "45",
+  "direction": "Minimal: edge rail \u00b7 live server flow"
+ },
+ {
+  "file": "45-b.html",
+  "name": "Right Rail Orbit",
+  "idea": "The same quiet rail sits on the right edge and opens leftward. Servers is a radial: total server memory in the center, workstreams on a dashed inner ring, servers orbiting as satellites sized by memory; busy links carry flowing dots, idle satellites fill a ring toward 2 h with a countdown, and :6006 floats alone with no link.",
+  "good": "The most striking 'cool graph' of the two: you see right away who owns what, how big each server is, and which one is close to being stopped.",
+  "tradeoff": "Labels around the orbit are short, so server kind and request rate live only in the hover card.",
+  "surface": "menubar",
+  "groupId": "45",
+  "direction": "Minimal: edge rail \u00b7 live server flow"
+ },
+ {
+  "file": "46-a.html",
+  "name": "Pill Row Port Clock",
+  "idea": "The sidebar becomes one quiet row of six pills at the top of a 620 \u00d7 480 sheet (dot = mode, number = what you could act on now, the dot pulses when something new arrives). Servers is a port clock: one ring of servers, each segment sized by its memory; busy segments carry moving white dashes that flare on each request, and inside, hands sweep each unused server's idle time toward a 2 h notch, and when :4000 reaches it Auto stops it with Undo.",
+  "good": "Content gets the full width, and one glance at the clock shows who is busy, who is idle, what each costs and how close each idle server is to the 2 h stop.",
+  "tradeoff": "The clock uses angle for two things (memory around the ring, idle time for the hands), so it needs its caption and the list beside it to read right the first time.",
+  "surface": "menubar",
+  "groupId": "46",
+  "direction": "Minimal: no sidebar \u00b7 port clock"
+ },
+ {
+  "file": "46-b.html",
+  "name": "Glyph Dock Rings",
+  "idea": "The tabs become a small dock of six glyphs at the foot of the sheet; the picked glyph shows its color and name, the others a count badge and a mode dot. Servers are concentric rings, one per server, thickness = memory, most idle outermost; a teal arc grows clockwise toward the 2 h line and Auto stops the server when its ring closes; in-use rings shimmer with request dashes.",
+  "good": "Each ring reads as one plain measure (how close this server is to being stopped), so a nearly closed outer ring says what happens next before you read a word.",
+  "tradeoff": "Glyph-only tabs depend on the badge and hover tip, and port labels get tight when more than eight servers run.",
+  "surface": "menubar",
+  "groupId": "46",
+  "direction": "Minimal: no sidebar \u00b7 port clock"
+ },
+ {
+  "file": "47-a.html",
+  "name": "Number Rail",
+  "idea": "The sidebar is a column of six large live numbers (8, 12, 63 %, 7, 14, 38 GB), each with a tiny gray label and a mode dot, the current one white and the rest dim; Servers is a stacked area of memory per server over the last hour under a big '2.45 GB in servers', where busy teal bands move with their requests and idle bands lie flat and shift from gray to coral as they near the 2 h stop.",
+  "good": "The whole idle rule is on the graph: which servers are busy, which are idle, what each costs and how close each is to being stopped, and a stopped server's band drops off at 'now'.",
+  "tradeoff": "With the drawer open the rail fades and the pane narrows to 340 px, so card rows get cut short until you press Done.",
+  "surface": "menubar",
+  "groupId": "47",
+  "direction": "Minimal: big numbers as the menu \u00b7 live server memory"
+ },
+ {
+  "file": "47-b.html",
+  "name": "Number Row",
+  "idea": "The same six live numbers sit in one row across the top; Servers is one horizontal stacked bar (width is memory now, teal in use, gray to coral as idle time grows) above a live activity strip with one lane per server: request ticks for busy ones, an idle clock filling to the 2 h mark for idle ones, and dimmed 'stopped, 520 MB back' lanes for what Auto just stopped.",
+  "good": "The bar and the lanes use the same order and colors, so 'who costs what' and 'who is busy or about to be stopped' read in one glance.",
+  "tradeoff": "The top row costs height, so the Workstreams headline drops to one line.",
+  "surface": "menubar",
+  "groupId": "47",
+  "direction": "Minimal: big numbers as the menu \u00b7 live server memory"
+ },
+ {
+  "file": "48-a.html",
+  "name": "Picker Wheel Idle Drift",
+  "idea": "The sidebar is a looping picker wheel: the open tab sits full size in a soft middle band with one caption (\"2 ready \u00b7 4.4 GB\"), the other five shrink and fade by distance, each keeping its mode dot and a count; click, arrow keys or scroll turn it. Servers is one time axis: busy servers stack at \"in use\" and ripple with each request, unused ones sit at their time since the last request as circles sized by memory and drift right, a dashed fuse runs from each to the 2 h stop line, and stopped servers stay as hollow ghosts in the stop zone.",
+  "good": "The wheel uses about 120 px yet always shows all six tabs, and the graph makes \"how long until it stops\" a length you can see: :4000 sitting on the line reads as \"about to go\" without any text.",
+  "tradeoff": "The wheel reorders as you move, so tabs have no fixed spots for muscle memory.",
+  "surface": "menubar",
+  "groupId": "48",
+  "direction": "Minimal: free picks"
+ },
+ {
+  "file": "48-b.html",
+  "name": "Sparkline Column Busy Idle",
+  "idea": "The sidebar is six quiet rows: a small name, the mode dot, a count of things that want action, and a hairline sparkline of that tab's last 48 seconds, with only the open tab's line in color. Servers is a diverging bar chart around one shared axis: requests a minute grow left and pulse with each request, time unused grows right up to the 2 h rule, bar thickness is memory with MB on the right, kept servers get a dotted bar and stopped ones a hollow ghost row.",
+  "good": "Both pieces read in one pass like a table, busy on one side and idle on the other with the rule as a single vertical line, and the sidebar keeps fixed positions while still moving live.",
+  "tradeoff": "The sparklines for Worktrees and Disk stay flat until something is cleaned, so half the column looks still.",
+  "surface": "menubar",
+  "groupId": "48",
+  "direction": "Minimal: free picks"
+ },
+ {
+  "file": "49-a.html",
+  "name": "Roomy Badge Rail",
+  "idea": "43-a's round badge rail and heartbeat lanes on a 760 \u00d7 580 sheet: each badge now has its live number under it, workstream cards list one line each for what Wrap Up stops, removes and cleans plus the PR it keeps, tiles get a third line of holdings, a Leftovers row shows :6006, bp8-sweep, DerivedData and npm cache as chips, Apps groups apps by fate, and the Servers lanes gain a cost strip that splits server memory by server.",
+  "good": "Same type sizes as 43-a: the extra room adds detail, not bigger text, so every tab reads without hovering, and the badge numbers make the rail a live glance.",
+  "tradeoff": "Opening the drawer still narrows the pane to 372 px, which hides the Leftovers row and some captions.",
+  "surface": "menubar",
+  "groupId": "49",
+  "direction": "More space: badge rail \u00b7 quiet words"
+ },
+ {
+  "file": "49-b.html",
+  "name": "Roomy Quiet Index",
+  "idea": "44-a's six quiet words and memory map at 760 \u00d7 580: each word gets one gray line under it that says what its number means ('3 unused \u00b7 1.45 GB'), the memory map grows so each block has room for its workstream, memory, unused time and countdown, with a legend under it, and the other tabs get richer rows.",
+  "good": "The calmest of the two: the sidebar is still only type but now explains itself, and the bigger map reads at a glance (glowing = busy, faded with a filling arc = about to be stopped, size = cost).",
+  "tradeoff": "Tiny servers still get a minimum block size, and four tiles per row leave about 130 px each, so tile text stays short.",
+  "surface": "menubar",
+  "groupId": "49",
+  "direction": "More space: badge rail \u00b7 quiet words"
+ },
+ {
+  "file": "50-a.html",
+  "name": "Roomy Edge Rail",
+  "idea": "45-a's edge rail and live server flow on a 760 \u00d7 580 sheet, with the room spent on content: under the flow, the idle rule is a time line ('The next 2 h') showing where Auto stops each unused server; ready cards list Stops / Removes / Leaves line by line; tiles get a third line; a quiet Left over row holds :6006, bp8-sweep-studio403 and DerivedData; Agents get a 'Just now' log of subagents arriving and leaving; Apps split into Can go and Stays columns.",
+  "good": "Nothing is cut off any more, and every tab gains one calm extra layer that answers 'when' or 'why'.",
+  "tradeoff": "The edge rail still hides tab names until you touch it.",
+  "surface": "menubar",
+  "groupId": "50",
+  "direction": "More space: edge rail \u00b7 number rail"
+ },
+ {
+  "file": "50-b.html",
+  "name": "Roomy Number Rail",
+  "idea": "47-a's big-number menu and server memory area at 760 \u00d7 580: each rail number gets a third quiet line saying what waits there ('2 ready \u00b7 4.4 GB', '1 waits for you', '3 idle \u00b7 1.45 GB'); the memory area is taller with each label naming its workstream and a legend in words; Workstreams get two-line Stops/Removes rows and a Left over row; Agents get a Just now log.",
+  "good": "The menu itself reads as a live summary, so you see what needs you on every tab without opening it, and the memory area shows an hour of server history with readable labels.",
+  "tradeoff": "With the drawer open the pane narrows to 440 px, and six numbers with three lines each make a busier left column than the minimal round.",
+  "surface": "menubar",
+  "groupId": "50",
+  "direction": "More space: edge rail \u00b7 number rail"
+ },
+ {
+  "file": "51-a.html",
+  "name": "Three Words",
+  "idea": "41-b's Workstreams spotlight becomes the main tab (big ready cards, live tiles that open in place, servers as tiny heartbeat lines, a quiet Leftovers strip), Performance uses 04-a's fate rows, Settings is a short native list ending in Advanced mode. The tabs are three words at the top of a 780 \u00d7 616 sheet; turning on Advanced shrinks them, grows Agents, Servers, Worktrees and Disk in between one after another, each lit briefly in its color, and rolls Performance up into Apps.",
+  "good": "You read all three tabs at a glance, and Advanced mode is an obvious, lively moment you can undo, with every advanced tab working.",
+  "tradeoff": "With Advanced on, seven words share one header line, so the tabs give no live counts, only a white dot when someone waits.",
+  "surface": "menubar",
+  "groupId": "51",
+  "direction": "Three tabs: spotlight cards from #82"
+ },
+ {
+  "file": "51-b.html",
+  "name": "Round Rail",
+  "idea": "The same three tabs as three round ftop badges in a slim left rail: Workstreams' arc shows the share ready to wrap up, Performance's arc shows load with its blue end what MinMacs Now frees; turning on Advanced widens the sheet to the left and opens the rail into 41-b's full Live Index while the pane stays put.",
+  "good": "Even the simple badges carry a live reading, and Advanced mode visibly hands back the Live Index you know, row by row, without moving the content.",
+  "tradeoff": "The badges need a hover label to name themselves, and with Advanced on the sheet is 976 wide.",
+  "surface": "menubar",
+  "groupId": "51",
+  "direction": "Three tabs: spotlight cards from #82"
+ },
+ {
+  "file": "52-a.html",
+  "name": "Stage Board Columns",
+  "idea": "Workstreams as a calm stage board: four stage columns left to right (Needs you, Working, Idle, Ready to wrap up, with the Wrap Up rule inside Ready) and Leftovers as a shelf of four chips under the board; clicking a card widens its column while the others give way, and the card lists its agents, servers with small request-tick graphs, worktree and PR, caches and browser, then its actions with a preview of what goes and what stays. Performance shows ftop meters and apps by fate; Settings is written as sentences with words you can change.",
+  "good": "You see every workstream's stage and holdings in one look, and the section button, Auto countdown, Undo and the Advanced mode fold-out all work.",
+  "tradeoff": "The columns are narrow: when Working fills up it scrolls, and while a card is expanded the other columns cut long names short.",
+  "surface": "menubar",
+  "groupId": "52",
+  "direction": "Three tabs: stage board"
+ },
+ {
+  "file": "52-b.html",
+  "name": "Stage Swimlanes",
+  "idea": "Each stage is a horizontal lane read top to bottom, with two wide cards per row so long names fit and the marks sit on the right of each card; Leftovers is a fifth, quieter lane holding its rule and the Clean Up Leftovers button, and an expanded card takes the full lane width in two columns.",
+  "good": "Names, states and sizes are never cut off, and the stages read like a short list from 'needs you' down to 'ready to wrap up', then leftovers.",
+  "tradeoff": "It is taller per workstream, so when a new workstream arrives or a card is expanded the board scrolls.",
+  "surface": "menubar",
+  "groupId": "52",
+  "direction": "Three tabs: stage board"
+ },
+ {
+  "file": "53-a.html",
+  "name": "Accordion Rows",
+  "idea": "A 780 \u00d7 600 sheet with a three-word segmented control. Workstreams is grouped lists: Ready to wrap up first, with its Auto/Ask/Off chip and a live countdown in the group header, then Going, then Leftovers last. Each closed row shows its stage mark, name, live stage words, agent dots, a stacked bar of what it holds (servers, worktree, caches, browser) and its size. One row opens at a time into Agents (live, subagents arriving), Servers (mini heartbeat), Worktree and PR, and Caches and browser, each with its actions, plus a footer that says exactly what Wrap Up stops and removes. Advanced mode unfolds Agents, Servers, Worktrees and Disk into the same control while Performance turns into Apps.",
+  "good": "It reads like one calm native list: closed, almost every workstream fits on one screen, and opening a row answers 'what does this hold and what does Wrap Up take' in place.",
+  "tradeoff": "An open row is about 230 px tall, so the list below it scrolls, and only one workstream's anatomy shows at a time.",
+  "surface": "menubar",
+  "groupId": "53",
+  "direction": "Three tabs: rows that open in place"
+ },
+ {
+  "file": "53-b.html",
+  "name": "Row Poster",
+  "idea": "The same rows sit in a 300 px list on the left; on the right, the picked row is laid out as a small poster: big name and live stage, the big 'held right now' number, a wide stacked bar, its action row, four labelled blocks (Agents with subagents as chips that come and go, Servers with heartbeats, Worktree, Caches with sizes), the Auto countdown and the Wrap Up footer. Leftovers becomes a memory map of blocks sized by GB. Performance, Settings and every Advanced tab use the same list and poster.",
+  "good": "Every workstream gets a full, composed page that shows everything it holds and exactly what Wrap Up takes, while the list keeps the whole picture beside it.",
+  "tradeoff": "The 300 px list trims stage words to one line, and a busy workstream like speed-3 fills the poster to its edge.",
+  "surface": "menubar",
+  "groupId": "53",
+  "direction": "Three tabs: rows that open in place"
+ },
+ {
+  "file": "54-a.html",
+  "name": "Day Lanes",
+  "idea": "A 760 \u00d7 580 sheet with three segmented tabs. Workstreams is today drawn as one lane per workstream: who it is and where it runs; what it did since 9:00 (a bar while the agent works, a thin line while idle, white while it waits for you, a line under it for its servers, dots for its PR); a now line; a Next column that says live what happens next ('Asks you \u00b7 Allow npm run build?', 'Ready 2 h \u00b7 waits for your press', 'Auto wraps it up in 22 h'); and Holds. Leftovers are calm chips with 'Clean Up Leftovers \u00b7 31 GB'. Turning Advanced on unfolds Agents, Servers, Worktrees and Disk out of the tab bar one at a time, each with a glow in its own color.",
+  "good": "Time explains the state: you see that fix auth redirect stopped at 14:42, its PR merged, and its 'ready' line has been waiting since 15:42; each lane answers what it is doing, what comes next and what it holds, and the setting sits in the column it controls.",
+  "tradeoff": "Lanes are short (about 34 px), so long next-step text is cut at the column edge, and the morning part of the track is mostly empty.",
+  "surface": "menubar",
+  "groupId": "54",
+  "direction": "Three tabs: timeline or live map"
+ },
+ {
+  "file": "54-b.html",
+  "name": "Holdings Map",
+  "idea": "Workstreams is a live map: each workstream is an island whose agent is a ring (breathing while it works, white when it waits), subagents orbit and pop in or fade out, and what it holds hangs off it on thin lines (servers that ripple on each request, a worktree with its PR, caches sized by GB, a browser). Ready islands get a dashed coral edge and their own Wrap Up button; Leftovers float unowned at the right edge as drifting bubbles with no lines. The star moment: turning Advanced on makes the holdings pour out as colored dots that arc through the sheet and land in Agents, Servers, Worktrees and Disk as those tabs unfold, each landing with a count.",
+  "good": "Ownership is something you see (a line to an agent means it belongs to a workstream, no line means leftover), and the Advanced transition shows in one look what Advanced is: the same holdings lifted out into tabs of their own.",
+  "tradeoff": "Each island has room for about four nodes, so busy workstreams fold servers into one node like ':3000 +1' and the details live in the hover card.",
+  "surface": "menubar",
+  "groupId": "54",
+  "direction": "Three tabs: timeline or live map"
+ }
+]

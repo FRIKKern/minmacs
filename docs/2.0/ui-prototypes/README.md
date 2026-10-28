@@ -1,0 +1,38 @@
+# MinMacs 2.0 UI prototypes
+
+108 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+
+## View them
+
+```sh
+cd docs/2.0/ui-prototypes && python3 -m http.server 8765
+```
+
+Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one, `G` shows a grid, `W` switches between the full window and the list. Stars and notes stay in that browser. One page alone opens at `http://127.0.0.1:8765/p/<id>.html`.
+
+`manifest.json` holds each page's name, idea, strength and cost. `briefs/` holds the brief each round's design agents worked from, with the owner's words for that round. The briefs name scratchpad paths from the session that made them.
+
+## Rounds
+
+| Pages | Round | What the owner asked for |
+|---|---|---|
+| 01–12 | First spread | Many alternatives in ftop's style: one panel, the menu bar, native menus, one page per expert, workstreams, cards, settings, wild cards |
+| 13–18 | Settings | "More elegant and spacey", plain names instead of the old app names, Off / Ask / Auto per section |
+| 19–24 | Hanging Sheet | Picked 18-b, "more details - graphs and such", each tab mixing activity and settings |
+| 25–30 | Actions | Hover to act on any item, section actions, the Live Index sidebar from 20-a, an Agents tab |
+| 31–36 | Composition | "Perfect compositions": the setting woven into each view, not a block at the bottom |
+| 37–42 | Workstreams | A Workstreams tab, real time (things spawn and finish), plain-word actions, Keep Awake as one checkbox |
+| 43–48 | Minimal | Continue 41-b, a much smaller sheet, a very minimal sidebar, a Servers tab with a real graph |
+| 49–54 | More space and three tabs | Roomier sheets, and a simple mode of Workstreams, Performance and Settings with an Advanced mode that brings every tab back |
+
+## Direction so far
+
+- Inspiration is ftop: dark glass, round badges with arcs, a big number and a small gray unit.
+- Sections use plain names: Workstreams, Agents, Apps, Servers, Worktrees, Disk. Never the old app names.
+- Workstreams are the main unit. A workstream holds its agents, worktree, PR, servers, caches and browser, and Wrap Up clears it in one undoable step. The owner runs 12 or more agents at once.
+- Keep Awake is one checkbox, "Keep working with the lid closed", with a short note on when it stops.
+- Every graph says in words what it means. Every button says exactly what it does. Off, Ask and Auto are explained where you choose them.
+- The UI is live: numbers tick and agents come and go.
+- Favorites so far: 41-b Corner Drawer Spotlight, 18-b Hanging Sheet, 20-a Live Index, 09-a Workstream Cards, 03-b One Icon ftop Lines.
+
+These are design explorations. They break [DESIGN.md](../../DESIGN.md) in places on purpose, most of all its rule that the menu is a native NSMenu, and the rules there change only by decision.

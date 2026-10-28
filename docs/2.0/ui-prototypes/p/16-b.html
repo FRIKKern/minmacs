@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bento Tiles</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.85);
+  --tile:rgba(255,255,255,.035);
+  --tile-b:rgba(255,255,255,.055);
+  --tx:rgba(255,255,255,.94);
+  --tx2:rgba(235,235,245,.55);
+  --tx3:rgba(235,235,245,.32);
+  --ease:cubic-bezier(.3,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1a1636}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-size:13px;cursor:default;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible{outline:2px solid rgba(255,255,255,.55);outline-offset:2px}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(760px 560px at 10% 6%,#4b3c9e 0%,rgba(75,60,158,0) 70%),
+   radial-gradient(700px 520px at 84% 2%,#22618f 0%,rgba(34,97,143,0) 70%),
+   radial-gradient(820px 620px at 88% 104%,#a0436f 0%,rgba(160,67,111,0) 70%),
+   radial-gradient(640px 520px at 18% 100%,#3a2463 0%,rgba(58,36,99,0) 75%),
+   #1d1a3c}
+
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;background:rgba(18,14,40,.32);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:13px;color:rgba(255,255,255,.92)}
+.mb-l,.mb-r{display:flex;align-items:center;gap:18px}
+.mb-l b{font-weight:700}
+.mb-r{gap:14px}
+.icons{display:flex;align-items:center;gap:12px}
+.mi{display:flex;width:16px;overflow:hidden;transition:width .35s var(--ease),opacity .3s,margin .35s var(--ease)}
+.mi.off{width:0;opacity:0;margin-left:-12px}
+
+/* window */
+.win{position:absolute;left:50%;top:112px;width:740px;transform:translateX(-50%);background:var(--glass);backdrop-filter:blur(34px) saturate(1.5);-webkit-backdrop-filter:blur(34px) saturate(1.5);border:1px solid rgba(255,255,255,.085);border-radius:22px;box-shadow:0 30px 90px rgba(6,4,24,.5),inset 0 1px 0 rgba(255,255,255,.035);padding:0 28px 26px}
+.tb{height:48px;display:flex;align-items:center;position:relative}
+.lights{display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.tb h1{position:absolute;left:0;right:0;text-align:center;font-size:13px;font-weight:600;color:var(--tx2);pointer-events:none}
+
+/* today */
+.today{display:flex;align-items:center;gap:12px;height:24px;margin:8px 4px 20px;font-size:13px;color:var(--tx2);white-space:nowrap}
+.today .lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3)}
+.today b{color:var(--tx);font-weight:500}
+.today .undo{margin-left:auto;font-size:12px;font-weight:500;color:var(--tx);height:24px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.08);transition:background .2s}
+.today .undo:hover{background:rgba(255,255,255,.14)}
+
+/* bento */
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.tile{grid-column:span 2;position:relative;height:190px;padding:20px 22px;border-radius:18px;background:var(--tile);border:1px solid var(--tile-b);display:flex;flex-direction:column;transition:background .25s}
+.tile.wide{grid-column:span 3}
+.tile:hover{background:rgba(255,255,255,.05)}
+
+.bdg{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--c);transition:background .35s var(--ease)}
+.off .bdg{background:rgba(255,255,255,.09)}
+.nm{margin-top:12px;font-size:14px;font-weight:500;transition:color .3s}
+.off .nm{color:var(--tx2)}
+
+.num{margin-top:12px;height:44px;display:flex;align-items:baseline;gap:6px;white-space:nowrap;transition:opacity .3s}
+.num .n{font-size:40px;font-weight:500;letter-spacing:-.02em;line-height:44px}
+.num .u{font-size:13px;color:var(--tx2)}
+.off .num{opacity:.3}
+.swap{animation:swap .35s var(--ease)}
+@keyframes swap{0%{opacity:0;transform:translateY(4px)}100%{opacity:1;transform:none}}
+
+.rule{margin-top:auto;font-size:12.5px;color:var(--tx2);white-space:nowrap;height:17px;transition:color .2s}
+.rule.peek{color:var(--tx3)}
+.off .rule{color:var(--tx3)}
+.val{color:var(--tx);border-bottom:1px dotted rgba(255,255,255,.35);border-radius:2px;padding:0 1px;cursor:pointer;transition:background .15s,border-color .2s}
+.val:hover{background:rgba(255,255,255,.1)}
+.peek .val{color:var(--tx2)}
+.val.bump{animation:bump .4s var(--ease)}
+@keyframes bump{40%{background:color-mix(in srgb,var(--c) 40%,transparent)}}
+
+/* mode pill: collapsed shows the current mode, opens into Off / Ask / Auto */
+.pill{position:absolute;top:22px;right:20px;height:28px;width:48px;padding:3px;border-radius:14px;background:rgba(0,0,0,.2);overflow:hidden;transition:width .38s var(--ease),background .3s}
+.pill:hover,.pill:focus-within,.pill.open{width:132px;background:rgba(0,0,0,.28)}
+.track{position:relative;display:flex;width:126px;transition:transform .38s var(--ease)}
+.track .th{position:absolute;top:0;left:0;width:42px;height:22px;border-radius:11px;background:rgba(255,255,255,.12);transition:transform .38s var(--ease)}
+.track button{position:relative;z-index:1;width:42px;height:22px;flex:none;border-radius:11px;font-size:12px;font-weight:500;color:var(--tx3);transition:color .2s,opacity .25s}
+.track button:hover:not([aria-checked="true"]){color:var(--tx2)}
+.track button[aria-checked="true"]{color:var(--c)}
+.off .track button[aria-checked="true"]{color:var(--tx2)}
+
+/* footer */
+.foot{display:flex;gap:28px;margin-top:24px;padding:0 4px}
+.sw{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--tx2);transition:color .2s}
+.sw i{width:30px;height:18px;border-radius:9px;background:rgba(255,255,255,.14);position:relative;transition:background .25s;flex:none}
+.sw i::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .3s var(--ease)}
+.sw[aria-checked="true"]{color:var(--tx)}
+.sw[aria-checked="true"] i{background:rgba(255,255,255,.42)}
+.sw[aria-checked="true"] i::after{transform:translateX(12px)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="mb-l">
+      <svg viewBox="0 0 17 20" width="13" height="16" aria-hidden="true"><path fill="#fff" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.7 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z"/></svg>
+      <b>MinMacs</b><span>Edit</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="mb-r">
+      <div class="icons" id="icons"></div>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 6.3a8.6 8.6 0 0 1 12 0M4.2 8.6a5.4 5.4 0 0 1 7.6 0"/><circle cx="8" cy="11.6" r="1.3" fill="#fff" stroke="none"/></svg>
+      <svg viewBox="0 0 26 14" width="25" height="13" aria-hidden="true"><rect x=".7" y=".7" width="21.6" height="12.6" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/><rect x="2.6" y="2.6" width="11.6" height="8.8" rx="2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="win" role="dialog" aria-label="Settings">
+    <div class="tb"><div class="lights"><i></i><i></i><i></i></div><h1>Settings</h1></div>
+    <div class="today" id="today"></div>
+    <div class="grid" id="grid"></div>
+    <div class="foot">
+      <button class="sw" id="one" role="switch" aria-checked="false"><i></i>One icon in the menu bar</button>
+      <button class="sw" id="login" role="switch" aria-checked="true"><i></i>Open at login</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const G = {
+  apps:'<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.6"/><path d="M6.6 1.8v2.4M9.4 1.8v2.4M6.6 11.8v2.4M9.4 11.8v2.4M1.8 6.6h2.4M1.8 9.4h2.4M11.8 6.6h2.4M11.8 9.4h2.4"/>',
+  servers:'<rect x="2.5" y="2.8" width="11" height="4.2" rx="1.4"/><rect x="2.5" y="9" width="11" height="4.2" rx="1.4"/><path d="M5.2 4.9h.01M5.2 11.1h.01" stroke-width="2.2"/>',
+  trees:'<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7c0 2.7-2.4 3.4-5.4 4.2"/>',
+  disk:'<ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  awake:'<path d="M1.8 8s2.3-4.3 6.2-4.3S14.2 8 14.2 8s-2.3 4.3-6.2 4.3S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  one:'<circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.6l2.4 1.4"/>'
+};
+const gl=(k,c,s,w=1.6)=>`<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[k]}</svg>`;
+const MODES=['Off','Ask','Auto'];
+let undone=false;
+const nextClean=v=>['tomorrow','Sunday','1 Nov'][v];
+
+/* {v} is the one tunable value, clickable to step through its choices */
+const S=[
+  {id:'apps',name:'Apps',c:'#5B9BFF',mode:2,wide:1,vals:['60 %','70 %','80 %','90 %'],v:1,
+   rule:['Not watching apps','Shows noise apps to close above {v} load','Closes noise apps when load passes {v}'],
+   big(m){ if(m===1) return ['2','noise apps to close']; return undone?['0','closed today, 2 reopened']:['2','closed today'] }},
+  {id:'servers',name:'Servers',c:'#3FD0B8',mode:2,wide:1,vals:['30 min','1 h','2 h','4 h','1 day'],v:2,
+   rule:['Not watching servers','Shows localhost servers idle for {v}','Stops servers nobody used for {v}'],
+   big(m){ if(m===1) return [undone?'6':'3','idle on localhost']; return undone?['6','idle now, 0 stopped']:['3','idle now, 3 stopped today'] }},
+  {id:'trees',name:'Worktrees',c:'#4CC96B',mode:1,vals:['1 h','1 day','1 week'],v:1,
+   rule:['Not watching worktrees','Shows merged after {v}','Clears merged after {v}'],
+   big(){ return ['4','merged, 5.7 GB'] }},
+  {id:'disk',name:'Disk',c:'#F2B544',mode:2,vals:['daily','weekly','monthly'],v:1,
+   rule:['Not watching caches','Finds safe clutter {v}','Trashes safe clutter {v}'],
+   big(m){ return ['30', m===2?'GB, next '+nextClean(this.v):'GB safe to clean'] }},
+  {id:'awake',name:'Keep Awake',c:'#B18CFF',mode:2,vals:['10 %','20 %','30 %','never'],v:1,
+   rule:['The Mac sleeps as usual','Asks when an agent starts','Awake till battery hits {v}'],
+   big(){ return ['4','agents working'] }}
+];
+function ruleHTML(s,m){
+  let r=s.rule[m];
+  if(s.id==='awake'&&m===2&&s.vals[s.v]==='never') r='Awake on {v}';
+  const label = s.id==='awake'&&s.vals[s.v]==='never' ? 'any battery' : s.vals[s.v];
+  return r.replace('{v}',`<span class="val" data-v="${s.id}" title="Click to change">${label}</span>`);
+}
+function numHTML(s){
+  const [n,u]=s.mode?s.big(s.mode):['—',''];
+  return `<span class="n">${n}</span><span class="u">${u}</span>`;
+}
+function tileHTML(s){
+  return `<div class="tile${s.wide?' wide':''}${s.mode?'':' off'}" id="t-${s.id}" style="--c:${s.c}">
+    <span class="bdg">${gl(s.id,s.mode?'#15131f':'rgba(235,235,245,.45)',16,1.7)}</span>
+    <span class="nm">${s.name}</span>
+    <span class="num">${numHTML(s)}</span>
+    <div class="rule">${ruleHTML(s,s.mode)}</div>
+    <div class="pill" role="radiogroup" aria-label="${s.name} mode">
+      <div class="track" style="transform:translateX(${-s.mode*42}px)">
+        <i class="th" style="transform:translateX(${s.mode*42}px)"></i>
+        ${MODES.map((m,i)=>`<button role="radio" aria-checked="${i===s.mode}" data-s="${s.id}" data-m="${i}">${m}</button>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+function placeTrack(t,s,open){
+  t.querySelector('.track').style.transform=`translateX(${open?0:-s.mode*42}px)`;
+}
+function renderTile(id,anim){
+  const s=S.find(x=>x.id===id), t=document.getElementById('t-'+id);
+  t.classList.toggle('off',!s.mode);
+  t.querySelector('.bdg').innerHTML=gl(s.id,s.mode?'#15131f':'rgba(235,235,245,.45)',16,1.7);
+  const num=t.querySelector('.num'), h=numHTML(s);
+  if(num.innerHTML!==h){ num.innerHTML=h; if(anim){num.classList.remove('swap');void num.offsetWidth;num.classList.add('swap')} }
+  const ru=t.querySelector('.rule'); ru.innerHTML=ruleHTML(s,s.mode); ru.classList.remove('peek');
+  t.querySelector('.th').style.transform=`translateX(${s.mode*42}px)`;
+  t.querySelectorAll('.track button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.m===s.mode)));
+  const p=t.querySelector('.pill'); placeTrack(t,s,p.matches(':hover')||p.matches(':focus-within'));
+}
+function renderToday(){
+  document.getElementById('today').innerHTML = undone
+    ? `<span class="lbl">Today</span><span>Undone: reopened <b>2 apps</b>, started <b>3 servers</b></span><button class="undo" id="redo">Redo</button>`
+    : `<span class="lbl">Today</span><span>Closed <b>2 apps</b>, stopped <b>3 servers</b></span><button class="undo" id="undo">Undo</button>`;
+}
+function renderIcons(){
+  const one=document.getElementById('one').getAttribute('aria-checked')==='true';
+  const box=document.getElementById('icons');
+  if(!box.children.length) box.innerHTML=S.map(s=>`<span class="mi" id="mi-${s.id}">${gl(s.id,'#fff',16)}</span>`).join('')+`<span class="mi off" id="mi-one">${gl('one','#fff',16)}</span>`;
+  S.forEach(s=>document.getElementById('mi-'+s.id).classList.toggle('off',one||s.mode===0));
+  document.getElementById('mi-one').classList.toggle('off',!one);
+}
+document.getElementById('grid').innerHTML=S.map(tileHTML).join('');
+renderToday(); renderIcons();
+
+/* pill open / close */
+document.querySelectorAll('.pill').forEach(p=>{
+  const t=p.closest('.tile'), s=S.find(x=>'t-'+x.id===t.id);
+  const open=()=>placeTrack(t,s,true);
+  const close=()=>{ if(p.matches(':focus-within')||p.matches(':hover')) return; placeTrack(t,s,false); const ru=t.querySelector('.rule'); ru.innerHTML=ruleHTML(s,s.mode); ru.classList.remove('peek') };
+  p.addEventListener('mouseenter',open); p.addEventListener('focusin',open);
+  p.addEventListener('mouseleave',()=>setTimeout(close,0)); p.addEventListener('focusout',()=>setTimeout(close,0));
+  /* hover a mode to read what it would do */
+  p.addEventListener('mouseover',e=>{ const b=e.target.closest('button'); if(!b) return; const m=+b.dataset.m, ru=t.querySelector('.rule'); ru.innerHTML=ruleHTML(s,m); ru.classList.toggle('peek',m!==s.mode) });
+});
+
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.track button');
+  if(b){ const s=S.find(x=>x.id===b.dataset.s); s.mode=+b.dataset.m; renderTile(s.id,true); renderIcons(); return }
+  const v=e.target.closest('.val');
+  if(v){ const s=S.find(x=>x.id===v.dataset.v); s.v=(s.v+1)%s.vals.length; renderTile(s.id,true); const nv=document.querySelector('#t-'+s.id+' .val'); nv&&nv.classList.add('bump'); return }
+  if(e.target.closest('#undo')||e.target.closest('#redo')){ undone=!undone; renderToday(); S.forEach(s=>renderTile(s.id,true)); return }
+  const sw=e.target.closest('.sw');
+  if(sw){ sw.setAttribute('aria-checked',String(sw.getAttribute('aria-checked')!=='true')); renderIcons() }
+});
+function fit(){ const st=document.getElementById('stage'), k=Math.min(innerWidth/1280,innerHeight/800); st.style.transform=`translate(${(innerWidth-1280*k)/2}px,${(innerHeight-800*k)/2}px) scale(${k})` }
+addEventListener('resize',fit); fit();
+</script>
+</body>
+</html>

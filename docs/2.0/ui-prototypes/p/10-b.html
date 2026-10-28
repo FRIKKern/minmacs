@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Now, Then Undo</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.86);
+  --hair:rgba(255,255,255,.07);
+  --t1:rgba(255,255,255,.94);
+  --t2:rgba(235,235,245,.56);
+  --t3:rgba(235,235,245,.34);
+  --mm:#5B9BFF; --mm2:#8DB8FF;
+  --goes:#FF9A85; --stays:#82DFA0; --done:rgba(235,235,245,.72);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1c1b3a}
+body{font:13px/1.35 -apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--t1);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default;text-align:left}
+button:focus-visible{outline:2px solid rgba(255,255,255,.4);outline-offset:1px}
+#stage{position:absolute;left:50%;top:50%;width:1280px;height:800px;transform:translate(-50%,-50%);transform-origin:50% 50%;overflow:hidden;
+  background:
+   radial-gradient(900px 620px at 10% 6%,#40368f 0%,rgba(64,54,143,0) 62%),
+   radial-gradient(760px 560px at 84% 4%,#1c5a7c 0%,rgba(28,90,124,0) 62%),
+   radial-gradient(940px 700px at 92% 104%,#923b67 0%,rgba(146,59,103,0) 62%),
+   radial-gradient(760px 520px at 18% 104%,#3b2b6c 0%,rgba(59,43,108,0) 70%),
+   #20204a}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(150%);backdrop-filter:blur(28px) saturate(150%);
+  border:1px solid rgba(255,255,255,.09);box-shadow:0 22px 50px rgba(8,6,28,.42),inset 0 1px 0 rgba(255,255,255,.035)}
+.u{color:var(--t2);font-size:.82em;font-weight:400;margin-left:3px}
+
+/* menu bar */
+#mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;padding:0 8px 0 14px;
+  background:rgba(16,14,40,.42);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);font-size:13px;color:rgba(255,255,255,.92);z-index:5}
+#mb .l{display:flex;gap:19px;align-items:center}
+#mb .l b{font-weight:700}
+#mb .r{margin-left:auto;display:flex;align-items:center;gap:1px}
+.mi{height:22px;padding:0 7px;display:flex;align-items:center;gap:4px;border-radius:5px;transition:background .2s}
+.mi svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.mi .n{font-size:12.5px}
+.mi.on{background:rgba(255,255,255,.2)}
+#mi-mm{cursor:pointer}
+.clock{padding:0 6px 0 8px}
+
+/* panel */
+#panel{position:absolute;top:32px;width:360px;border-radius:22px;padding:16px 16px 10px;z-index:4;transform-origin:85% 0;
+  transition:opacity .22s ease,transform .26s cubic-bezier(.2,.8,.3,1)}
+#panel.hide{opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none}
+.hd{display:flex;align-items:center;height:28px}
+.hd .g{display:flex;align-items:center;gap:9px}
+.hd .g2{margin-left:auto}
+.big{font-size:22px;font-weight:500;letter-spacing:-.2px}
+.bd{display:inline-grid;place-items:center;border-radius:50%;flex:none;position:relative}
+.bd svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.bd .arc{position:absolute;inset:0}
+.bar{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.1);margin:11px 0 7px;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;left:0;border-radius:3px;transition:width .7s cubic-bezier(.3,.7,.3,1)}
+#used{background:var(--mm)}
+#comp{background:#3D6FC0}
+.subl{display:flex;color:var(--t2);font-size:12px;height:17px}
+.subl b{color:var(--t1);font-weight:500}
+.subl .r{margin-left:auto}
+
+#body{overflow:hidden;transition:height .32s cubic-bezier(.25,.8,.3,1)}
+.sum{border-top:1px solid var(--hair);margin-top:11px;padding:10px 0 4px;color:var(--t2);font-size:12.5px;line-height:17px}
+.sum.lead{color:var(--t1)}
+.sh{display:flex;align-items:center;gap:7px;height:28px;margin-top:4px;font-size:11.5px;font-weight:600;color:var(--t2)}
+.sh svg{width:11px;height:11px}
+.k-goes{color:var(--goes)}.k-stays{color:var(--stays)}.k-done{color:var(--done)}
+
+/* simple rows (ready) */
+.rw{display:flex;align-items:center;gap:10px;height:30px;padding:0 2px}
+.rw .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rw .v{font-weight:500}
+.rw .mk{width:11px;height:11px;margin-right:-3px}
+
+/* plan rows */
+.pr{display:flex;gap:10px;padding:7px 8px;margin:0 -8px;border-radius:11px;transition:background .18s,opacity .25s,transform .18s cubic-bezier(.3,.7,.4,1)}
+.pr.tog{cursor:pointer}
+.pr.tog:hover{background:rgba(255,255,255,.05)}
+.pr.tog:active{transform:scale(.985);background:rgba(255,255,255,.09)}
+.pr .ic{margin-top:1px}
+.pr .mid{flex:1;min-width:0}
+.pr .nm{height:20px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .why{color:var(--t2);font-size:12px;line-height:16px;margin-top:1px;transition:color .25s}
+.pr .why.bad{color:var(--goes)}
+.pr .rt{flex:none;height:20px;display:flex;align-items:center;gap:7px;font-weight:500;white-space:nowrap}
+.pr .rt.g{color:var(--t2);font-weight:400}
+.pr.kept .nm,.pr.kept .ic{opacity:.45}
+.pr.rest{opacity:.62}
+.chips{display:flex;gap:5px;margin-top:6px;margin-right:-70px;flex-wrap:wrap}
+.chips span{font-size:11px;line-height:18px;padding:0 7px;border-radius:9px;background:rgba(255,255,255,.07);color:var(--t2)}
+.pr.kept .chips{opacity:.45}
+.chips span{transition:opacity .3s}
+.chips.gone span{text-decoration:line-through;opacity:.45}
+.stack{display:flex;width:24px;height:24px;position:relative;flex:none}
+.stack>*{position:absolute}
+.inl{display:flex;gap:6px;margin-top:8px}
+.pill{height:24px;padding:0 11px;border-radius:12px;font-size:12px;font-weight:500;background:rgba(255,255,255,.08);transition:background .15s}
+.pill:hover{background:rgba(255,255,255,.13)}
+.pill.warn{background:rgba(255,154,133,.16);color:var(--goes)}
+.pill.warn:hover{background:rgba(255,154,133,.24)}
+
+.ring{width:18px;height:18px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:2.2}
+.ring .trk{stroke:rgba(255,255,255,.12)}
+.ring .ar{stroke:var(--mm);stroke-linecap:round;transition:stroke-dashoffset .12s linear}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(270deg)}}
+.mk12{width:12px;height:12px}
+
+/* actions */
+.acts{border-top:1px solid var(--hair);margin-top:8px;padding-top:10px;display:flex;flex-direction:column;gap:2px}
+.now{display:flex;align-items:center;height:36px;padding:0 14px;border-radius:12px;background:var(--mm);color:#fff;font-weight:600;font-size:13.5px;transition:background .15s,transform .15s}
+.now:hover{background:#6CA6FF}
+.now:active{transform:scale(.985)}
+.now .tl{margin-left:auto;font-weight:400;color:rgba(255,255,255,.78);font-size:12.5px}
+.now[disabled]{background:rgba(255,255,255,.08);color:var(--t3)}
+.now[disabled] .tl{color:var(--t3)}
+.a{display:flex;align-items:center;height:30px;padding:0 8px;margin:0 -2px;border-radius:8px;font-size:13px;color:rgba(255,255,255,.88);transition:background .15s}
+.a:hover{background:rgba(255,255,255,.07)}
+.a .tl{margin-left:auto;color:var(--t3)}
+.a.pri{color:var(--mm);font-weight:500}
+.prog{display:flex;align-items:center;height:30px;padding:0 2px;color:var(--t2);font-size:12.5px}
+.prog .a{margin-left:auto}
+.freed{display:flex;align-items:center;gap:9px;height:44px;margin-top:2px}
+.freed .sep{width:1px;height:20px;background:var(--hair);margin:0 8px}
+
+.in>*{animation:slide .34s cubic-bezier(.2,.8,.3,1) both}
+.in>*:nth-child(2){animation-delay:.03s}.in>*:nth-child(3){animation-delay:.06s}.in>*:nth-child(4){animation-delay:.09s}
+.in>*:nth-child(5){animation-delay:.12s}.in>*:nth-child(6){animation-delay:.15s}.in>*:nth-child(n+7){animation-delay:.18s}
+@keyframes slide{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.swap{animation:fade .3s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* notification */
+#note{position:absolute;top:34px;right:12px;width:352px;border-radius:20px;padding:12px 12px 12px 12px;display:flex;gap:11px;align-items:center;z-index:6;
+  transition:transform .45s cubic-bezier(.2,.85,.25,1),opacity .3s;transform:translateX(380px);opacity:0}
+#note.show{transform:none;opacity:1}
+#note .appic{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;background:linear-gradient(160deg,#79AEFF,#3A74E8);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.3)}
+#note .appic svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:1.7;stroke-linecap:round}
+#note .nb{flex:1;min-width:0}
+#note .nt{display:flex;font-weight:600;font-size:13px;line-height:17px}
+#note .nt .when{margin-left:auto;color:var(--t3);font-weight:400;font-size:12px;padding-left:8px}
+#note .nbody{font-size:12.5px;line-height:16.5px;color:rgba(235,235,245,.78);margin-top:1px}
+#note .nu{flex:none;align-self:center;height:28px;padding:0 13px;border-radius:14px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:500}
+#note .nu:hover{background:rgba(255,255,255,.2)}
+#note .nx{position:absolute;left:-7px;top:-7px;width:20px;height:20px;border-radius:50%;background:rgba(60,61,74,.96);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;opacity:0;transition:opacity .15s}
+#note:hover .nx{opacity:1}
+#note .nx svg{width:8px;height:8px;stroke:#fff;stroke-width:1.6;stroke-linecap:round}
+
+/* dock */
+#dock{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);height:66px;padding:0 9px;border-radius:22px;display:flex;align-items:center;gap:8px;
+  background:rgba(40,40,60,.42);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.1)}
+.dk{position:relative;display:grid;place-items:center;width:48px;height:56px;transition:width .4s cubic-bezier(.3,.7,.3,1),opacity .4s,margin .4s}
+.dk .dot{position:absolute;bottom:0;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(255,255,255,.7);transition:opacity .3s}
+.dk.off .dot{opacity:0}
+.dsep{width:1px;height:44px;background:rgba(255,255,255,.16);margin:0 3px}
+
+/* walkthrough */
+#walk{position:absolute;left:16px;bottom:16px;border-radius:16px;padding:6px;display:flex;flex-direction:column;gap:2px;width:230px;z-index:3}
+#walk .wt{font-size:11.5px;font-weight:600;color:var(--t2);padding:5px 8px 3px}
+#walk .st{display:flex;align-items:center;gap:9px;height:28px;padding:0 8px;border-radius:9px;color:var(--t2);font-size:12.5px;transition:background .15s,color .15s}
+#walk .st:hover{background:rgba(255,255,255,.06)}
+#walk .st i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:600;background:rgba(255,255,255,.08);color:var(--t2);transition:background .2s,color .2s}
+#walk .st.on{color:var(--t1)}
+#walk .st.on i{background:var(--mm);color:#fff}
+#walk .st.past i{background:rgba(91,155,255,.28);color:#fff}
+#walk .hint{font-size:12px;line-height:16px;color:var(--t2);padding:6px 8px 5px;border-top:1px solid var(--hair);margin-top:3px;min-height:43px}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-delay:0s!important}
+  .spin{animation:none}
+  #note{transform:none;transition:opacity .3s!important}
+  #panel.hide{transform:none}
+  .in>*{animation:fade .2s ease both!important}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="mb">
+    <div class="l">
+      <svg width="14" height="17" viewBox="0 0 14 17" fill="#fff"><path d="M11.2 9.1c0-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.2-1.5-2.7-1.5-1.1-.1-2.2.7-2.8.7-.6 0-1.5-.7-2.4-.6-1.3 0-2.4.7-3.1 1.9-1.3 2.3-.3 5.6.9 7.5.6.9 1.3 1.9 2.3 1.8.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6c1 0 1.6-.9 2.2-1.8.7-1 1-2 1-2.1 0 0-1.8-.7-1.8-3zM9.4 3.5c.5-.6.9-1.5.8-2.3-.7 0-1.6.5-2.1 1.1-.5.5-.9 1.4-.8 2.2.8.1 1.6-.4 2.1-1z"/></svg>
+      <b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="r" id="mbr"></div>
+  </div>
+
+  <div id="panel" class="glass">
+    <div class="hd">
+      <div class="g"><span id="loadBadge"></span><span><span class="big" id="load">63</span><span class="u">%</span></span></div>
+      <div class="g g2"><span id="memBadge"></span><span><span class="big" id="mem">24.1</span><span class="u">/ 32 GB</span></span></div>
+    </div>
+    <div class="bar"><i id="comp"></i><i id="used"></i></div>
+    <div class="subl"><span>Compressed <b>3.4</b> GB&nbsp;&nbsp; Swap <b>1.1</b> GB</span><span class="r">Normal</span></div>
+    <div id="body"></div>
+  </div>
+
+  <div id="note" class="glass" role="status" aria-live="polite">
+    <button class="nx" id="nX" aria-label="Close"><svg viewBox="0 0 8 8"><path d="M1 1l6 6M7 1 1 7"/></svg></button>
+    <div class="appic"><svg viewBox="0 0 16 16"><path d="M3.1 11.6a5.1 5.1 0 1 1 9.8 0"/><path d="M8 10.4 10.5 6.8"/></svg></div>
+    <div class="nb"><div class="nt"><span id="nT"></span></div><div class="nbody" id="nB"></div></div>
+    <button class="nu" id="nUndo">Undo</button>
+  </div>
+
+  <div id="dock"></div>
+
+  <div id="walk" class="glass">
+    <div class="wt">Walkthrough</div>
+    <button class="st" data-s="ready"><i>1</i>Ready</button>
+    <button class="st" data-s="plan"><i>2</i>The plan</button>
+    <button class="st" data-s="closing"><i>3</i>Closing</button>
+    <button class="st" data-s="done"><i>4</i>Done and Undo</button>
+    <div class="hint" id="hint"></div>
+  </div>
+</div>
+<script>
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const C = {mm:'#5B9BFF',lh:'#3FD0B8',wf:'#4CC96B',nn:'#F2B544',in:'#B18CFF'};
+const G = {
+  gauge:'<path d="M3.1 11.6a5.1 5.1 0 1 1 9.8 0"/><path d="M8 10.4 10.5 6.8"/>',
+  plug:'<rect x="4" y="4.6" width="8" height="5.4" rx="1.6"/><path d="M6.2 2.2v2.4M9.8 2.2v2.4M8 10v3.8"/>',
+  branch:'<circle cx="5" cy="3.8" r="1.5"/><circle cx="5" cy="12.2" r="1.5"/><circle cx="11" cy="5.4" r="1.5"/><path d="M5 5.3v5.4M11 6.9c0 2.8-6 2.1-6 3.8"/>',
+  broom:'<path d="M11.6 2 8.4 7.7"/><path d="M5 8.1h6.3l.8 5.7H4.2z"/><path d="M7.1 10.8v3M9.3 10.8v3"/>',
+  moon:'<path d="M12.9 9.7A5.2 5.2 0 0 1 6.3 3.1a5.3 5.3 0 1 0 6.6 6.6z"/>',
+  chip:'<rect x="3" y="4.5" width="10" height="7" rx="1.6"/><path d="M5.5 2.5v2M8 2.5v2M10.5 2.5v2M5.5 11.5v2M8 11.5v2M10.5 11.5v2"/>'
+};
+const MARK = {
+  goes:'<path d="M2 3.2h8L6 10z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  stays:'<circle cx="6" cy="6" r="4.6" fill="currentColor"/>',
+  done:'<circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.9 6.1l1.5 1.5 2.8-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
+  open:'<circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.6 6h4.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+};
+const mark=(k,cls='mk12')=>`<svg class="${cls} k-${k==='open'?'goes':k}" viewBox="0 0 12 12">${MARK[k]}</svg>`;
+function rgba(h,a){const n=parseInt(h.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`}
+
+/* app icons, drawn */
+function app(k,s){
+  const r=Math.round(s*.23), st=`width:${s}px;height:${s}px;`;
+  const sq=(bg,inner)=>`<span class="ic" style="${st}border-radius:${r}px;background:${bg};display:grid;place-items:center;flex:none;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.14)">${inner}</span>`;
+  const sv=(p,w=.62)=>`<svg viewBox="0 0 16 16" width="${s*w}" height="${s*w}" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  switch(k){
+    case 'chrome': return `<span class="ic" style="${st}border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(from -60deg,#EA4335 0 120deg,#FBBC04 0 240deg,#34A853 0 360deg)"><i style="width:42%;height:42%;border-radius:50%;background:#4A8CF7;box-shadow:0 0 0 ${s/12}px #fff"></i></span>`;
+    case 'cft': return `<span class="ic" style="${st}border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(from -60deg,#F08A2C 0 120deg,#F6C04E 0 240deg,#D8692A 0 360deg)"><i style="width:42%;height:42%;border-radius:50%;background:#F4F4F6;box-shadow:0 0 0 ${s/12}px #fff"></i></span>`;
+    case 'spotify': return `<span class="ic" style="${st}border-radius:50%;flex:none;background:#1ED760;display:grid;place-items:center"><svg viewBox="0 0 16 16" width="${s*.7}" height="${s*.7}"><path d="M3.6 6.1c2.9-.9 5.8-.7 8.4.7M4.3 8.6c2.3-.6 4.6-.4 6.5.6M5 10.9c1.7-.4 3.3-.3 4.8.4" stroke="#0a2a16" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></span>`;
+    case 'cmux': return sq('linear-gradient(160deg,#2b2d3a,#121318)',sv('<path d="M4 5l3 3-3 3"/><path d="M8.5 11.5h4"/>'));
+    case 'cursor': return sq('linear-gradient(160deg,#3a3a3a,#111)',sv('<path d="M8 2.3 13 5.2v5.6L8 13.7 3 10.8V5.2z"/><path d="M3 5.2 8 8l5-2.8M8 8v5.7"/>'));
+    case 'docker': return sq('linear-gradient(160deg,#3B82F6,#1D5FE0)',sv('<path d="M2.5 8.5h11c-.4 2.9-2.7 4.6-5.8 4.6-2.7 0-4.6-1.6-5.2-4.6z"/><path d="M4.5 6.5h2v2M6.5 6.5h2v2M8.5 6.5h2v2M6.5 4.5h2v2"/>'));
+    case 'claude': return sq('linear-gradient(160deg,#E3876A,#C9623F)',sv('<path d="M8 2.5v11M2.5 8h11M4.1 4.1l7.8 7.8M11.9 4.1l-7.8 7.8"/>',.56));
+    case 'finder': return `<span class="ic" style="${st}border-radius:${r}px;flex:none;position:relative;overflow:hidden;background:linear-gradient(90deg,#2F8CFF 0 52%,#E6F0FF 52%)"><svg viewBox="0 0 16 16" width="${s}" height="${s}" style="position:absolute;inset:0" fill="none" stroke="#12305a" stroke-width="1.1" stroke-linecap="round"><path d="M5.2 5.6v1.6M10.8 5.6v1.6M4.6 10.6c2.2 1.4 4.6 1.4 6.8 0"/></svg></span>`;
+    case 'figma': return sq('linear-gradient(160deg,#34313f,#1b1a22)',`<i style="width:${s*.32}px;height:${s*.32}px;border-radius:50%;background:#A78BFA"></i>`);
+    case 'raycast': return sq('linear-gradient(160deg,#FF7A7A,#E54848)',sv('<path d="M4 12 12 4M4 8.5 7.5 12M8.5 4 12 7.5"/>'));
+  }
+}
+function badge(g,c,s,arc){
+  const R=s/2-1.2, L=2*Math.PI*R;
+  return `<span class="bd" style="width:${s}px;height:${s}px;background:${rgba(c,.17)};color:${c}">
+    <svg viewBox="0 0 16 16" width="${Math.round(s*.56)}" height="${Math.round(s*.56)}">${G[g]}</svg>
+    ${arc!=null?`<svg class="arc" viewBox="0 0 ${s} ${s}" style="transform:rotate(-90deg)"><circle cx="${s/2}" cy="${s/2}" r="${R}" stroke="${rgba(c,.22)}" stroke-width="1.6" fill="none"/><circle id="arcFill" cx="${s/2}" cy="${s/2}" r="${R}" stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-dasharray="${L}" stroke-dashoffset="${L*(1-arc)}" style="transition:stroke-dashoffset .7s cubic-bezier(.3,.7,.3,1)"/></svg>`:''}
+  </span>`;
+}
+
+/* menu bar */
+document.getElementById('mbr').innerHTML =
+  [['mm','gauge',''],['lh','plug','3'],['wf','branch','4'],['nn','broom',''],['in','moon','']].map(([k,g,num])=>
+    `<div class="mi" id="mi-${k}"><svg viewBox="0 0 16 16">${G[g]}</svg>${num?`<span class="n">${num}</span>`:''}</div>`).join('') +
+  `<div class="mi"><svg viewBox="0 0 22 16" style="width:22px"><rect x="1" y="4" width="17" height="8.6" rx="2.4"/><rect x="3" y="6" width="8.4" height="4.6" rx="1" fill="#fff" stroke="none"/><path d="M20 7v2.6"/></svg></div>
+   <div class="mi"><svg viewBox="0 0 16 16"><path d="M1.6 6.2a9.4 9.4 0 0 1 12.8 0"/><path d="M3.9 8.6a6 6 0 0 1 8.2 0"/><path d="M6.2 11a2.6 2.6 0 0 1 3.6 0"/></svg></div>
+   <div class="mi"><svg viewBox="0 0 16 16"><rect x="1.8" y="3" width="12.4" height="4.2" rx="2.1"/><circle cx="11.9" cy="5.1" r="1.1" fill="#fff"/><rect x="1.8" y="8.8" width="12.4" height="4.2" rx="2.1"/><circle cx="4.1" cy="10.9" r="1.1" fill="#fff"/></svg></div>
+   <div class="clock">Tue 27 Oct&nbsp; 16:42</div>`;
+
+/* dock */
+const DOCK=['finder','cmux','cursor','chrome','spotify','docker','claude','|','cft','figma','raycast'];
+document.getElementById('dock').innerHTML = DOCK.map(k=>k==='|'?'<span class="dsep"></span>':`<span class="dk" id="dk-${k}">${app(k,44)}<i class="dot"></i></span>`).join('');
+
+/* header badges */
+document.getElementById('loadBadge').innerHTML = badge('gauge',C.mm,26,.63);
+document.getElementById('memBadge').innerHTML = badge('chip','#8DB8FF',26,null);
+
+/* ---------- model ---------- */
+const T0 = {load:63, mem:24.1};
+let S, timers=[], cur={load:63,mem:24.1};
+function fresh(){return {phase:'ready', note:'', apps:{
+  spotify:{keep:false,st:'wait'}, chrome:{keep:false,st:'wait'}}}}
+const APPS = {
+  spotify:{name:'Spotify',ic:'spotify',cpu:1,gb:.578,size:'<span>578<span class="u">MB</span></span>',why:'Nothing is playing.'},
+  chrome:{name:'Google Chrome',ic:'chrome',cpu:21,gb:8.7,size:'<span>8.7<span class="u">GB</span></span>',why:'Trims 14 noise tabs, then quits. Its 31 work tabs are saved.'}
+};
+const ORDER=['chrome','spotify']; // display order
+const RUN=['spotify','chrome'];   // quit order: small first
+
+function later(fn,ms){const t=setTimeout(fn,ms);timers.push(t);return t}
+function every(fn,ms){const t=setInterval(fn,ms);timers.push(t);return t}
+function stopAll(){timers.forEach(t=>{clearTimeout(t);clearInterval(t)});timers=[]}
+
+/* numbers ease */
+const tw={};
+function ease(id,to,dec){
+  const el=document.getElementById(id); const from=parseFloat(el.textContent);
+  cancelAnimationFrame(tw[id]);
+  if(RM||from===to){el.textContent=to.toFixed(dec);return}
+  const t0=performance.now(), d=700;
+  const step=t=>{const p=Math.max(0,Math.min(1,(t-t0)/d)), e=1-Math.pow(1-p,3);el.textContent=(from+(to-from)*e).toFixed(dec);if(p<1)tw[id]=requestAnimationFrame(step)};
+  tw[id]=requestAnimationFrame(step);
+}
+function setNums(load,mem){
+  cur={load,mem};
+  ease('load',load,0); ease('mem',mem,1);
+  const R=26/2-1.2,L=2*Math.PI*R; const a=document.getElementById('arcFill'); a.style.strokeDashoffset=L*(1-load/100);
+  document.getElementById('comp').style.width=((mem)/32*100)+'%';
+  document.getElementById('used').style.width=((mem-3.4)/32*100)+'%';
+}
+
+/* ---------- rendering ---------- */
+const body=document.getElementById('body');
+function swap(html,anim){
+  const h0=body.offsetHeight;
+  body.innerHTML=`<div class="${anim===false?'':'in'}">${html}</div>`;
+  if(RM||anim===false){body.style.height='auto';return}
+  const h1=body.firstChild.offsetHeight;
+  body.style.height=h0+'px'; void body.offsetHeight; body.style.height=h1+'px';
+  clearTimeout(body._t); body._t=setTimeout(()=>body.style.height='auto',360);
+}
+const closable=()=>ORDER.filter(k=>!S.apps[k].keep);
+function fmtGB(g){return g<1?Math.round(g*1000)+'<span class="u">MB</span>':g.toFixed(1)+'<span class="u">GB</span>'}
+function fmtPlain(g){return g<1?Math.round(g*1000)+' MB':g.toFixed(1)+' GB'}
+
+function readyView(){
+  const rows=[['cmux','cmux',44],['chrome','Google Chrome',21,'goes'],['cursor','Cursor',12],['cft','Chrome for Testing',9],['docker','Docker',6]];
+  const restored = S.note;
+  return `
+   <div class="sum ${restored?'lead':''}">${restored||'Chrome and Spotify can go. Everything an agent uses stays.'}</div>
+   ${rows.map(r=>`<div class="rw">${app(r[0],20)}<span class="nm">${r[1]}</span>${r[3]&&!restored?mark(r[3],'mk'):''}<span class="v">${r[2]}<span class="u">%</span></span></div>`).join('')}
+   <div class="acts">
+     <button class="now" id="goPlan">MinMacs Now<span class="tl">22 % CPU, 9.3 GB</span></button>
+     <button class="a" id="restoreOld">Restore<span class="tl">${restored?'Nothing to restore':'11:05'}</span></button>
+   </div>`;
+}
+function goesRow(k){
+  const a=APPS[k], s=S.apps[k];
+  const chips = k==='chrome'?`<div class="chips"><span>youtube.com ×6</span><span>x.com ×5</span><span>reddit.com ×3</span></div>`:'';
+  return `<div class="pr ${S.phase==='plan'?'tog':''} ${s.keep?'kept':''}" id="r-${k}" data-k="${k}">
+     ${app(a.ic,24)}
+     <div class="mid"><div class="nm">${a.name}</div><div class="why" id="w-${k}">${whyText(k)}</div>${S.phase==='plan'||S.phase==='closing'?chips.replace('class="chips"',S.apps.chrome.trimmed?'class="chips gone"':'class="chips"'):''}<div id="x-${k}"></div></div>
+     <div class="rt" id="t-${k}">${rtHTML(k)}</div>
+   </div>`;
+}
+function whyText(k){
+  const s=S.apps[k];
+  if(S.phase==='plan') return s.keep?'Stays this time. Press again to let it go.':APPS[k].why;
+  if(s.keep) return 'Stays this time.';
+  switch(s.st){
+    case 'wait': return 'Waits its turn.';
+    case 'trim': return 'Closing noise tabs.';
+    case 'ask': return 'Asked to quit. It has 8 seconds to save its work.';
+    case 'quit': return k==='spotify'?'Quit on its own in 2 seconds.':'Quit on its own.';
+    case 'refused': return 'Did not quit in 8 seconds. Its 45 tabs are saved either way.';
+    case 'forcing': return 'Force quitting.';
+    case 'forced': return 'Forced after 8 seconds. Restore brings back all 45 tabs.';
+    case 'left': return k==='chrome'&&S.apps.chrome.trimmed?'Stays open, with its 14 noise tabs trimmed.':'Stays open.';
+    case 'reopen': return k==='chrome'?'Reopening with all 45 tabs.':'Reopening.';
+  }
+  return '';
+}
+function rtHTML(k){
+  const s=S.apps[k];
+  if(S.phase==='plan') return s.keep?`${mark('stays')}<span style="color:var(--t2);font-weight:400">Stays</span>`:APPS[k].size;
+  if(s.keep) return `<span style="color:var(--t2);font-weight:400">Stays</span>`;
+  switch(s.st){
+    case 'wait': return `<span style="color:var(--t3);font-weight:400">${APPS[k].size.replace(/<[^>]+>/g,' ')}</span>`;
+    case 'trim': return `<span style="color:var(--t2);font-weight:400"><span id="tabs-${k}">14</span> tabs</span>`;
+    case 'ask': return `<svg class="ring" viewBox="0 0 18 18"><circle class="trk" cx="9" cy="9" r="7"/><circle class="ar" id="ar-${k}" cx="9" cy="9" r="7" stroke-dasharray="43.98" stroke-dashoffset="0"/></svg><span style="color:var(--t2);font-weight:400;width:24px;text-align:right" id="sec-${k}">8 s</span>`;
+    case 'forcing': case 'reopen': return `<svg class="ring spin" viewBox="0 0 18 18"><circle class="trk" cx="9" cy="9" r="7"/><circle class="ar" cx="9" cy="9" r="7" stroke-dasharray="43.98" stroke-dashoffset="30"/></svg>`;
+    case 'quit': case 'forced': return `${mark('done')}<span>${APPS[k].size}</span>`;
+    case 'refused': return `${mark('goes')}<span style="color:var(--goes);font-weight:500">No reply</span>`;
+    case 'left': return `${mark('open')}<span style="color:var(--t2);font-weight:400">Open</span>`;
+  }
+}
+function updRow(k){
+  const s=S.apps[k];
+  const w=document.getElementById('w-'+k), t=document.getElementById('t-'+k), x=document.getElementById('x-'+k);
+  if(!w) return;
+  w.textContent=whyText(k); w.className='why'+(s.st==='refused'?' bad':'');
+  t.innerHTML=rtHTML(k); t.classList.remove('swap'); void t.offsetWidth; t.classList.add('swap');
+  x.innerHTML = s.st==='refused'?`<div class="inl swap"><button class="pill warn" id="force">Force Quit</button><button class="pill" id="leave">Leave Open</button></div>`:'';
+  if(s.st==='refused'){
+    document.getElementById('force').onclick=forceQuit;
+    document.getElementById('leave').onclick=leaveOpen;
+  }
+}
+function sparedRows(rest){
+  const P=[[0,0],[13,0],[0,13],[13,13]];
+  const stack=(ks)=>`<span class="stack">${ks.map((k,i)=>`<span style="left:${P[i][0]}px;top:${P[i][1]}px">${app(k,11)}</span>`).join('')}</span>`;
+  return `
+   <div class="sh">${mark('stays')}<span>Spared</span></div>
+   <div class="pr ${rest?'rest':''}">${app('cft',24)}<div class="mid"><div class="nm">Chrome for Testing</div><div class="why">Playwright drives it.</div></div><div class="rt"><span>1.2<span class="u">GB</span></span></div></div>
+   <div class="pr ${rest?'rest':''}">${stack(['cmux','cursor','docker','claude'])}<div class="mid"><div class="nm">Essentials</div><div class="why">cmux, Cursor, Docker, Claude, Finder.</div></div><div class="rt"><span>13.2<span class="u">GB</span></span></div></div>
+   <div class="pr ${rest?'rest':''}">${stack(['figma','raycast'])}<div class="mid"><div class="nm">FigmaAgent, Raycast</div><div class="why">Unsorted, so they stay.</div></div><div class="rt"><span>223<span class="u">MB</span></span></div></div>`;
+}
+function planView(){
+  const go=closable(); const gb=go.reduce((a,k)=>a+APPS[k].gb,0);
+  const label = go.length? `Close ${go.length} App${go.length>1?'s':''}`:'Close';
+  return `
+   <div class="sum">The plan. Press a row to keep it; nothing closes until you confirm.</div>
+   <div class="sh">${mark('goes')}<span>Goes</span></div>
+   ${ORDER.map(goesRow).join('')}
+   ${sparedRows(false)}
+   <div class="acts">
+     <button class="now" id="goClose" ${go.length?'':'disabled'}>${label}<span class="tl">${go.length?fmtPlain(gb):'Nothing to close'}</span></button>
+     <button class="a" id="cancel">Cancel</button>
+   </div>`;
+}
+function closingView(){
+  return `
+   <div class="sum">Asking apps to quit, one at a time. Each gets 8 seconds to save its work.</div>
+   <div class="sh">${mark('goes')}<span>Goes</span></div>
+   ${ORDER.map(goesRow).join('')}
+   ${sparedRows(true)}
+   <div class="acts"><div class="prog"><span id="progT">${progText()}</span><button class="a" id="stop">Stop</button></div></div>`;
+}
+function progText(){
+  const go=closable(); const doneN=go.filter(k=>['quit','forced','left'].includes(S.apps[k].st)).length;
+  if(go.some(k=>S.apps[k].st==='refused')) return 'Chrome needs you';
+  return `Closing ${Math.min(doneN+1,go.length)} of ${go.length}`;
+}
+function totals(){
+  const closed=ORDER.filter(k=>['quit','forced'].includes(S.apps[k].st));
+  const gb=closed.reduce((a,k)=>a+APPS[k].gb,0), cpu=closed.reduce((a,k)=>a+APPS[k].cpu,0);
+  return {closed,gb,cpu,trim:!!S.apps.chrome.trimmed};
+}
+function doneView(){
+  const t=totals();
+  const tail=[t.closed.length?`${t.closed.length} app${t.closed.length>1?'s':''}`:'',t.trim?'14 tabs':''].filter(Boolean).join(', ');
+  return `
+   <div class="sum lead" style="padding-bottom:0">${t.closed.length?'Done. Restore brings everything back, as it was.':'Done. Nothing was closed.'}</div>
+   <div class="freed">${badge('gauge',C.mm,26,null).replace('id="arcFill"','')}
+     <span><span class="big">${t.gb<1?Math.round(t.gb*1000):t.gb.toFixed(1)}</span><span class="u">${t.gb<1?'MB':'GB'} freed</span></span>
+     <span class="sep"></span>
+     <span><span class="big">${t.cpu}</span><span class="u">% CPU freed</span></span></div>
+   ${ORDER.map(goesRow).join('')}
+   <div class="sum" style="margin-top:6px">Spared Chrome for Testing because Playwright drives it, and 7 other apps.</div>
+   <div class="acts">
+     ${tail?`<button class="a pri" id="restore">Restore<span class="tl">${tail}</span></button>`:''}
+     <button class="a" id="doneBtn">Done</button>
+   </div>`;
+}
+function restoringView(){
+  return `
+   <div class="sum">Reopening what MinMacs closed.</div>
+   ${ORDER.map(goesRow).join('')}
+   <div class="acts"><div class="prog"><span>Restoring</span></div></div>`;
+}
+
+function render(anim){
+  const v={ready:readyView,plan:planView,closing:closingView,done:doneView,restoring:restoringView}[S.phase]();
+  swap(v,anim); wire(); walkUI();
+}
+function wire(){
+  const on=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
+  on('goPlan',()=>{S.note='';S.phase='plan';render()});
+  on('restoreOld',()=>flash('restoreOld'));
+  on('cancel',()=>{S.phase='ready';render()});
+  on('goClose',startClosing);
+  on('stop',stopRun);
+  on('restore',undo);
+  on('doneBtn',()=>{panelShow(false);walkUI()});
+  if(S.phase==='plan') document.querySelectorAll('.pr.tog').forEach(r=>r.onclick=()=>{const k=r.dataset.k;S.apps[k].keep=!S.apps[k].keep;render()});
+}
+function flash(id){const e=document.getElementById(id);e.style.background='rgba(255,255,255,.12)';setTimeout(()=>e.style.background='',260)}
+
+/* ---------- the run ---------- */
+function startClosing(){
+  S.phase='closing'; render();
+  const queue=RUN.filter(k=>!S.apps[k].keep);
+  const next=()=>{const k=queue.shift(); if(!k){later(finish,700);return} runApp(k,next)};
+  later(next,450);
+}
+function setSt(k,st){S.apps[k].st=st;updRow(k);const p=document.getElementById('progT');if(p)p.textContent=progText()}
+function askQuit(k,quitsAt,onQuit,onRefuse){
+  setSt(k,'ask');
+  const t0=performance.now(), L=43.98;
+  const iv=every(()=>{
+    const el=(performance.now()-t0)/1000, left=Math.max(0,8-el);
+    const ar=document.getElementById('ar-'+k), sc=document.getElementById('sec-'+k);
+    if(ar) ar.style.strokeDashoffset=L*(1-left/8);
+    if(sc) sc.textContent=Math.ceil(left)+' s';
+    if(quitsAt!=null && el>=quitsAt){clearInterval(iv);onQuit()}
+    else if(left<=0){clearInterval(iv);onRefuse()}
+  },100);
+}
+function runApp(k,next){
+  if(k==='spotify'){
+    askQuit(k,2.1,()=>{setSt(k,'quit');dockOff(k);setNums(cur.load-1,+(cur.mem-.6).toFixed(1));later(next,600)},null);
+  } else {
+    setSt(k,'trim');
+    let n=14;
+    const iv=every(()=>{n--;const e=document.getElementById('tabs-'+k);if(e)e.textContent=n;
+      if(n<=0){clearInterval(iv);S.apps.chrome.trimmed=true;const ch=document.querySelector('#r-chrome .chips');if(ch)ch.classList.add('gone');later(()=>askQuit(k,null,null,()=>{setSt(k,'refused');walkUI()}),250)}},90);
+    S._next=next;
+  }
+}
+function forceQuit(){
+  setSt('chrome','forcing');
+  later(()=>{setSt('chrome','forced');dockOff('chrome');setNums(cur.load-21,+(cur.mem-8.7).toFixed(1));later(S._next||finish,500)},700);
+}
+function leaveOpen(){setSt('chrome','left');walkUI();later(S._next||finish,400)}
+function stopRun(){
+  stopAll();
+  ORDER.forEach(k=>{const s=S.apps[k];if(!s.keep&&!['quit','forced'].includes(s.st))s.st='left'});
+  finish();
+}
+function finish(){
+  S.phase='done'; render(); notify();
+}
+function notify(){
+  const t=totals(); if(!t.closed.length) return;
+  const n=t.closed.length;
+  document.getElementById('nT').textContent=`Closed ${n} App${n>1?'s':''}, Freed ${fmtPlain(t.gb)}`;
+  const c=S.apps.chrome.st, sp=S.apps.spotify.st;
+  let b;
+  if(c==='forced'&&sp==='quit') b='Chrome was forced to quit after 8 seconds. Undo reopens both apps, with all 45 tabs.';
+  else if(c==='forced') b='Chrome was forced to quit after 8 seconds. Undo reopens it with all 45 tabs.';
+  else if(sp==='quit'&&S.apps.chrome.trimmed) b='Spotify quit. Chrome did not and stays open, with its 14 noise tabs trimmed.';
+  else b='Spotify quit. Undo reopens it.';
+  document.getElementById('nB').textContent=b;
+  later(()=>document.getElementById('note').classList.add('show'),RM?0:350);
+}
+function hideNote(){document.getElementById('note').classList.remove('show')}
+function undo(){
+  stopAll(); hideNote(); panelShow(true);
+  const t=totals();
+  S.phase='restoring';
+  ORDER.forEach(k=>{if(['quit','forced'].includes(S.apps[k].st))S.apps[k].st='reopen'});
+  if(S.apps.chrome.st==='left'&&S.apps.chrome.trimmed) S.apps.chrome.st='reopen';
+  render();
+  later(()=>{
+    ORDER.forEach(k=>dockOn(k));
+    setNums(T0.load,T0.mem);
+    const both=t.closed.length===2;
+    S=fresh(); S.note=both?'Restored at 16:42. Chrome is back with all 45 tabs, and Spotify too.':
+      (t.closed.includes('chrome')?'Restored at 16:42. Chrome is back with all 45 tabs.':
+      (t.trim?'Restored at 16:42. Spotify is back, and Chrome has its 14 tabs again.':'Restored at 16:42. Spotify is back.'));
+    render();
+  },1600);
+}
+
+/* dock running dots */
+function dockOff(k){const d=document.getElementById('dk-'+k);if(d)d.classList.add('off')}
+function dockOn(k){const d=document.getElementById('dk-'+k);if(d)d.classList.remove('off')}
+
+/* panel open/close */
+const panel=document.getElementById('panel'), miMM=document.getElementById('mi-mm');
+function panelShow(v){panel.classList.toggle('hide',!v);miMM.classList.toggle('on',v)}
+miMM.onclick=()=>{panelShow(panel.classList.contains('hide'));walkUI()};
+document.getElementById('nUndo').onclick=undo;
+document.getElementById('nX').onclick=hideNote;
+
+/* walkthrough */
+const STEPS=['ready','plan','closing','done'];
+function walkUI(){
+  const ph=S.phase==='restoring'?'done':S.phase; const i=STEPS.indexOf(ph);
+  document.querySelectorAll('#walk .st').forEach((b,j)=>{b.classList.toggle('on',j===i);b.classList.toggle('past',j<i)});
+  let h;
+  if(panel.classList.contains('hide')) h='The panel is closed. Click the MinMacs icon in the menu bar to open it again.';
+  else if(S.phase==='ready') h=S.note?'Back where it started. Run it again any time.':'Press MinMacs Now. Nothing closes yet.';
+  else if(S.phase==='plan') h='Press a row to keep that app, then press Close.';
+  else if(S.phase==='closing') h=S.apps.chrome.st==='refused'?'Chrome did not answer. Choose Force Quit or Leave Open.':'Spotify quits on its own. Chrome gets its 8 seconds.';
+  else if(S.phase==='done') h=totals().closed.length?'Press Undo on the notification, or Restore in the panel.':'Nothing to undo. Step 1 starts over.';
+  else h='Reopening.';
+  document.getElementById('hint').textContent=h;
+}
+function reset(){
+  stopAll(); hideNote(); S=fresh(); ORDER.forEach(dockOn); setNums(T0.load,T0.mem); panelShow(true);
+}
+document.querySelectorAll('#walk .st').forEach(b=>b.onclick=()=>{
+  const s=b.dataset.s; reset();
+  if(s==='ready'){render()}
+  else if(s==='plan'){S.phase='plan';render()}
+  else if(s==='closing'){S.phase='plan';startClosing()}
+  else if(s==='done'){
+    S.apps.spotify.st='quit';S.apps.chrome.st='forced';S.apps.chrome.trimmed=true;
+    dockOff('spotify');dockOff('chrome');setNums(41,14.8);finish();
+  }
+});
+
+/* place the panel under the MinMacs icon, clear of the notification column */
+function place(){const c=miMM.offsetLeft+miMM.offsetWidth/2;panel.style.left=Math.round(Math.min(c-200,1280-12-352-16-360))+'px'}
+S=fresh(); place(); setNums(T0.load,T0.mem); panelShow(true); render(false);
+
+const stage=document.getElementById('stage');
+function fit(){const s=Math.min(innerWidth/1280,innerHeight/800);stage.style.transform=`translate(-50%,-50%) scale(${s})`}
+addEventListener('resize',fit);fit();
+</script>
+</body>
+</html>

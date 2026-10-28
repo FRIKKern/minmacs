@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Native Menu, ftop Card</title>
+<style>
+:root{color-scheme:dark;--label:rgba(255,255,255,.9);--sec:rgba(235,235,245,.54);--ter:rgba(235,235,245,.3);--sep:rgba(255,255,255,.1);--sel:#0b63d8;--blue:#5B9BFF;--teal:#3FD0B8;--green:#4CC96B;--amber:#F2B544;--violet:#B18CFF;--goes:#FF9F45;--ease:cubic-bezier(.2,.75,.25,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#17152c}
+body{font:13px/1.25 -apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--label);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;cursor:default;user-select:none}
+#screen{position:absolute;left:50%;top:50%;width:1280px;height:800px;margin:-400px 0 0 -640px;overflow:hidden;
+ background:
+  radial-gradient(760px 560px at 8% -4%,#4a3a9a 0%,transparent 62%),
+  radial-gradient(720px 520px at 88% 2%,#1f6088 0%,transparent 60%),
+  radial-gradient(860px 640px at 92% 104%,#93406b 0%,transparent 62%),
+  radial-gradient(700px 520px at 6% 100%,#2a2456 0%,transparent 70%),
+  linear-gradient(160deg,#2c2867 0%,#1d2242 52%,#3a2148 100%)}
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:28px;display:flex;align-items:center;padding:0 8px 0 14px;background:rgba(16,14,38,.26);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);color:rgba(255,255,255,.93);font-size:13px;z-index:1}
+.mb .l{display:flex;align-items:center;gap:19px}
+.mb .l b{font-weight:700}
+.mb .r{margin-left:auto;display:flex;align-items:center;gap:1px}
+.si{height:22px;min-width:30px;padding:0 7px;display:flex;align-items:center;justify-content:center;border-radius:6px;gap:5px;transition:background .12s}
+.si.on{background:rgba(255,255,255,.2)}
+.si.tap{cursor:pointer}
+.si svg{display:block}
+.clock{padding:0 6px 0 9px}
+/* menus */
+.menu{position:absolute;padding:5px 0;border-radius:12px;
+ background:rgba(38,37,46,.68);backdrop-filter:blur(36px) saturate(1.9);-webkit-backdrop-filter:blur(36px) saturate(1.9);
+ box-shadow:0 0 0 .5px rgba(0,0,0,.7),inset 0 0 0 .5px rgba(255,255,255,.17),0 14px 44px rgba(0,0,0,.42),0 2px 8px rgba(0,0,0,.25);
+ transition:opacity .18s ease;z-index:5}
+.menu.hide{opacity:0;pointer-events:none}
+.sub{z-index:6;opacity:0;pointer-events:none;transition:opacity .08s}
+.sub.show{opacity:1;pointer-events:auto}
+.mi{height:22px;margin:0 5px;padding:0 9px;border-radius:6px;display:flex;align-items:center;gap:6px;white-space:nowrap;position:relative}
+.mi .img{width:16px;height:16px;flex:none;display:flex;align-items:center;justify-content:center}
+.mi .img svg,.mi .img span{display:block}
+.mi .tt{flex:1;overflow:hidden;text-overflow:ellipsis;transition:opacity .2s}
+.mi .tail{color:var(--sec);margin-left:14px;transition:opacity .2s}
+.mi .key{color:var(--sec);min-width:24px;text-align:right;letter-spacing:.04em}
+.mi .chev{width:10px;flex:none;display:flex;justify-content:flex-end}
+.mi .chev svg{stroke:var(--sec)}
+.mi.hot{background:var(--sel);color:#fff}
+.mi.hot .tail,.mi.hot .key,.mi.hot .u,.mi.hot .own,.mi.hot .stt{color:rgba(255,255,255,.78)}
+.mi.hot .chev svg{stroke:#fff}
+.mi.dis{color:var(--ter)}
+.mi.dis .tail{color:var(--ter)}
+.mi.row{display:grid;grid-template-columns:16px minmax(0,1fr) 46px 62px 10px;column-gap:6px;transition:height .34s var(--ease),opacity .24s,transform .34s var(--ease)}
+.mi.row .nm{overflow:hidden;text-overflow:ellipsis}
+.num{text-align:right}
+.u{color:var(--sec);font-size:11px;margin-left:2px}
+.sep{height:1px;background:var(--sep);margin:5px 14px}
+.sh{height:22px;padding:0 14px;display:flex;align-items:center;font-size:11px;font-weight:700;color:var(--sec);letter-spacing:.01em}
+.sec{overflow:hidden;transition:height .36s var(--ease),opacity .26s}
+.sec.gone{opacity:0}
+.cv{padding:0 14px}
+/* header */
+.hdr{padding:7px 14px 8px}
+.h1{display:flex;align-items:center}
+.g{display:flex;align-items:center;margin-right:20px}
+.fig{display:inline-flex;align-items:baseline;margin-left:8px}
+.big{font-size:20px;font-weight:500;letter-spacing:-.01em;line-height:22px}
+.bu{font-size:12px;color:var(--sec);margin-left:4px}
+.pr{margin-left:auto;font-size:12px;color:var(--sec)}
+.mbar{position:relative;height:3px;border-radius:2px;background:rgba(255,255,255,.09);margin:9px 0 7px}
+.mbar i{position:absolute;top:0;bottom:0;left:0;border-radius:2px;background:var(--blue);transition:width .6s var(--ease),left .6s var(--ease)}
+.mbar i.c{background:#3b67b0;border-radius:0 2px 2px 0}
+.h2{display:flex;gap:16px;font-size:12px;color:var(--sec)}
+.h2 b{color:var(--label);font-weight:500}
+.sum{padding:3px 14px 4px;line-height:18px;transition:opacity .2s}
+.arc{transition:stroke-dasharray .6s var(--ease)}
+/* hover card */
+.card{padding:8px 14px 10px;width:100%}
+.ct{font-weight:600;font-size:13px}
+.cs{font-size:11.5px;color:var(--sec);margin-top:2px}
+.st{display:flex;gap:7px;margin-top:8px;font-size:12px;line-height:16px}
+.st .mk{flex:none;padding-top:2px}
+.st b{font-weight:600}
+.facts{margin-top:9px}
+.f{display:grid;grid-template-columns:22px 66px minmax(0,1fr);column-gap:8px;align-items:center;min-height:28px}
+.fl{font-size:12px;color:var(--sec)}
+.fv{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:baseline}
+.fv .n{font-size:15px;font-weight:500}
+.fv .u{font-size:11px;margin-left:3px}
+.fv .g2{color:var(--sec);margin-left:5px}
+.fx{grid-column:2/-1;padding:1px 0 5px}
+.tbar{position:relative;height:3px;border-radius:2px;background:rgba(255,255,255,.09)}
+.tbar i{position:absolute;top:0;bottom:0;border-radius:2px}
+.doms{display:flex;gap:12px;margin-top:6px;font-size:11.5px;color:var(--sec)}
+.doms b{color:var(--label);font-weight:500;margin-left:3px}
+.note{margin-top:8px;font-size:11.5px;line-height:15px;color:var(--sec)}
+.note .who{color:var(--label);font-weight:500;margin-right:3px}
+.f.link{cursor:pointer;border-radius:6px;margin:0 -6px;padding:0 6px}
+.f.link:hover{background:rgba(255,255,255,.07)}
+.hint{position:absolute;left:20px;bottom:16px;font-size:11.5px;color:rgba(255,255,255,.34)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0s!important}}
+</style>
+</head>
+<body>
+<div id="screen">
+ <div class="mb">
+  <div class="l">
+   <svg width="14" height="16" viewBox="0 0 16 16"><path fill="#fff" d="M11.2 8.6c0-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.2-1.4-2.7-1.5-1.1-.1-2.2.7-2.8.7-.6 0-1.5-.7-2.4-.6-1.3 0-2.4.7-3.1 1.9-1.3 2.3-.3 5.6.9 7.4.6.9 1.3 1.9 2.3 1.8.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6c1 0 1.6-.9 2.2-1.8.7-1 1-2 1-2.1 0 0-1.8-.7-1.8-2.9zM9.4 3c.5-.6.8-1.4.7-2.3-.7 0-1.6.5-2.1 1.1-.5.5-.9 1.4-.8 2.2.8.1 1.7-.4 2.2-1z"/></svg>
+   <b>cmux</b><span>Shell</span><span>Edit</span><span>View</span><span>Session</span><span>Window</span><span>Help</span>
+  </div>
+  <div class="r" id="bar"></div>
+ </div>
+ <div class="menu" id="menu" style="width:340px"></div>
+ <div class="menu sub" id="sub" style="width:316px"></div>
+ <div class="hint">A real NSMenu. Hover a row for its card, try MinMacs Now, click the gauge icon to reopen.</div>
+</div>
+<script>
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $=s=>document.querySelector(s);
+const R=9.75,CIRC=2*Math.PI*R;
+const COL={blue:'#5B9BFF',teal:'#3FD0B8',green:'#4CC96B',amber:'#F2B544',violet:'#B18CFF',goes:'#FF9F45',gray:'#A3A7B5'};
+const IC={
+ cpu:'<rect x="3" y="3" width="6" height="6" rx="1.2"/><path d="M5 1v2M7 1v2M5 9v2M7 9v2M1 5h2M1 7h2M9 5h2M9 7h2"/>',
+ mem:'<rect x="1.5" y="3" width="9" height="5" rx="1"/><path d="M3.8 8v2M6 8v2M8.2 8v2"/>',
+ bolt:'<path d="M6.9 1 3 6.6h3.1L5.1 11 9 5.4H5.9z" fill="currentColor" stroke="none"/>',
+ tab:'<path d="M1.5 4.2h9M1.5 9.5V3.2a.8.8 0 0 1 .8-.8h2.6l.9 1.8h4a.8.8 0 0 1 .7.8v4.5a.8.8 0 0 1-.8.8H2.3a.8.8 0 0 1-.8-.8z"/>',
+ clock:'<circle cx="6" cy="6" r="4.6"/><path d="M6 3.5V6l1.7 1.1"/>',
+ person:'<circle cx="6" cy="3.9" r="2"/><path d="M2.2 10.6a3.8 3.8 0 0 1 7.6 0"/>',
+ branch:'<circle cx="3.5" cy="2.6" r="1.3"/><circle cx="3.5" cy="9.4" r="1.3"/><circle cx="8.6" cy="4.1" r="1.3"/><path d="M3.5 3.9v4.2M8.6 5.4c0 2-5.1 1.3-5.1 2.7"/>',
+ server:'<rect x="1.8" y="2" width="8.4" height="3.3" rx=".9"/><rect x="1.8" y="6.7" width="8.4" height="3.3" rx=".9"/><path d="M4 3.65h.01M4 8.35h.01"/>',
+ kind:'<rect x="1.5" y="1.5" width="4" height="4" rx="1"/><rect x="6.5" y="1.5" width="4" height="4" rx="1"/><rect x="1.5" y="6.5" width="4" height="4" rx="1"/><rect x="6.5" y="6.5" width="4" height="4" rx="1"/>',
+ heat:'<path d="M5 7.2V2.5a1 1 0 0 1 2 0v4.7a2.1 2.1 0 1 1-2 0z"/>'
+};
+function badge(icon,color,frac,id){
+ let s=`<svg width="22" height="22" viewBox="0 0 22 22" style="flex:none;color:${color}"><circle cx="11" cy="11" r="10.6" fill="rgba(255,255,255,.075)"/>`;
+ if(frac!=null) s+=`<circle cx="11" cy="11" r="${R}" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="1.5"/><circle ${id?`id="${id}"`:''} class="arc" cx="11" cy="11" r="${R}" fill="none" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="${dash(frac)}" transform="rotate(-90 11 11)"/>`;
+ return s+`<g transform="translate(5 5)" fill="none" stroke="${color}" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${IC[icon]}</g></svg>`;
+}
+function dash(f){f=Math.max(f,.012);return `${(f*CIRC).toFixed(2)} ${CIRC.toFixed(2)}`}
+const MK={
+ goes:c=>`<svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.8 3h8.4L6 9.6z" fill="${c}"/></svg>`,
+ stay:c=>`<svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="${c}"/></svg>`,
+ wait:c=>`<svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="none" stroke="${c}" stroke-width="1.4"/><path d="M6 2a4 4 0 0 1 0 8z" fill="${c}"/></svg>`,
+ shield:c=>`<svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1.2 10.2 2.8v3.3c0 2.4-1.8 3.9-4.2 4.6-2.4-.7-4.2-2.2-4.2-4.6V2.8z" fill="${c}"/></svg>`
+};
+const CHEV='<svg width="7" height="11" viewBox="0 0 7 11"><path d="M1.2 1.2 5.6 5.5 1.2 9.8" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ARROW=`<svg width="9" height="9" viewBox="0 0 9 9" style="margin-left:5px;align-self:center"><path d="M2 7 7 2M3 2h4v4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+const APP={
+ chrome:`<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.4" fill="#34A853"/><path d="M8 8 1.6 4.3A7.4 7.4 0 0 1 14.4 4.3z" fill="#EA4335"/><path d="M8 8l6.4-3.7A7.4 7.4 0 0 1 8 15.4z" fill="#FBBC05"/><circle cx="8" cy="8" r="3.5" fill="#fff"/><circle cx="8" cy="8" r="2.6" fill="#4285F4"/></svg>`,
+ cft:`<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.4" fill="#8A8F98"/><path d="M8 8 1.6 4.3A7.4 7.4 0 0 1 14.4 4.3z" fill="#D9A520"/><path d="M8 8l6.4-3.7A7.4 7.4 0 0 1 8 15.4z" fill="#F0C94A"/><circle cx="8" cy="8" r="3.5" fill="#fff"/><circle cx="8" cy="8" r="2.6" fill="#5E6470"/></svg>`,
+ spotify:`<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.4" fill="#1ED760"/><path d="M4.2 6.1c2.6-.8 5.4-.5 7.6.8M4.7 8.3c2.1-.6 4.4-.4 6.1.6M5.2 10.4c1.6-.4 3.2-.3 4.6.5" stroke="#0b0b0b" stroke-width="1.25" fill="none" stroke-linecap="round"/></svg>`,
+ figma:`<svg width="16" height="16" viewBox="0 0 16 16"><rect x=".5" y=".5" width="15" height="15" rx="3.6" fill="#1e1e1e" stroke="rgba(255,255,255,.14)"/><circle cx="6.3" cy="4.4" r="1.75" fill="#F24E1E"/><circle cx="9.7" cy="4.4" r="1.75" fill="#FF7262"/><circle cx="6.3" cy="8" r="1.75" fill="#A259FF"/><circle cx="9.7" cy="8" r="1.75" fill="#1ABCFE"/><circle cx="6.3" cy="11.6" r="1.75" fill="#0ACF83"/></svg>`,
+ raycast:`<svg width="16" height="16" viewBox="0 0 16 16"><rect width="16" height="16" rx="3.6" fill="#FF6363"/><path d="M4.6 11.4 11.4 4.6M4.6 7.6 7.6 4.6M8.4 11.4l3-3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+ cmux:`<svg width="16" height="16" viewBox="0 0 16 16"><rect x=".5" y=".5" width="15" height="15" rx="3.6" fill="#15181e" stroke="rgba(255,255,255,.16)"/><path d="M4.3 5.6 6.6 8l-2.3 2.4" fill="none" stroke="#7FD1FF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.2 10.6h3.6" stroke="#CFD6E0" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+ cursor:`<svg width="16" height="16" viewBox="0 0 16 16"><rect x=".5" y=".5" width="15" height="15" rx="3.6" fill="#0d0d0f" stroke="rgba(255,255,255,.18)"/><path d="M8 3.4l4 2.3v4.6L8 12.6l-4-2.3V5.7zM4 5.7l4 2.3 4-2.3M8 8v4.6" fill="none" stroke="#E6E6E6" stroke-width=".9" stroke-linejoin="round"/></svg>`,
+ docker:`<svg width="16" height="16" viewBox="0 0 16 16"><rect width="16" height="16" rx="3.6" fill="#1D63ED"/><path d="M2.8 8.4h9.9c.4-.6.9-.8 1.4-.8-.2 2.6-2.4 4.3-5.6 4.3-2.6 0-4.5-1.3-5.7-3.5z" fill="#fff"/><path d="M4.4 6.4h1.6v1.5H4.4zM6.4 6.4H8v1.5H6.4zM8.4 6.4H10v1.5H8.4zM6.4 4.5H8V6H6.4z" fill="#fff"/></svg>`,
+ claude:`<svg width="16" height="16" viewBox="0 0 16 16"><rect width="16" height="16" rx="3.6" fill="#D97757"/><path d="M8 3.6v8.8M3.6 8h8.8M4.9 4.9l6.2 6.2M11.1 4.9l-6.2 6.2" stroke="#FFF5EE" stroke-width="1.35" stroke-linecap="round"/></svg>`,
+ finder:`<svg width="16" height="16" viewBox="0 0 16 16"><rect width="16" height="16" rx="3.6" fill="#9BD6FF"/><path d="M0 3.6A3.6 3.6 0 0 1 3.6 0H8.6C7.4 3 7 6 7.4 9.2H8.6c.2 2.4.6 4.6 1 6.8H3.6A3.6 3.6 0 0 1 0 12.4z" fill="#1E8CF6"/><path d="M5 5v1.5M11 5v1.5M4.3 11c2.2 1.4 5.2 1.4 7.4 0" stroke="#10325a" stroke-width="1.1" stroke-linecap="round" fill="none"/></svg>`
+};
+const n=(v,u,id)=>`<span class="n"${id?` id="${id}"`:''}>${v}</span><span class="u">${u}</span>`;
+const row=(id,img,name,cpu,mem,mu,card)=>({t:'row',id,img:APP[img],card,cells:[`<span class="nm">${name}</span>`,`<span class="num">${cpu==null?'':n(cpu,'%')}</span>`,`<span class="num">${mem==null?'':n(mem,mu)}</span>`]});
+
+/* ---------- fixture: MinMacs expert menu ---------- */
+const HEADER=`<div class="hdr">
+ <div class="h1">
+  <span class="g">${badge('cpu',COL.blue,.63,'cpuArc')}<span class="fig"><span class="big" id="cpuN">63</span><span class="bu">%</span></span></span>
+  <span class="g">${badge('mem',COL.blue,24.1/32,'memArc')}<span class="fig"><span class="big" id="memN">24.1</span><span class="bu">/ 32 GB</span></span></span>
+  <span class="pr">Normal</span>
+ </div>
+ <div class="mbar"><i id="mb1" style="width:64.7%"></i><i id="mb2" class="c" style="left:64.7%;width:10.6%"></i></div>
+ <div class="h2"><span>Compressed <b>3.4</b> GB</span><span>Swap <b>1.1</b> GB</span><span>Heat <b>normal</b></span></div>
+</div>`;
+const SUM0='Spotify sits unused and Chrome holds noise tabs. Work tabs and anything an agent uses stay open.';
+const SUM1='Spotify is closed and the noise tabs are trimmed. Undo brings them back where they were.';
+const MENU=[
+ {t:'view',html:HEADER},
+ {t:'sep'},
+ {t:'view',html:`<div class="sum" id="sum">${SUM0}</div>`},
+ {t:'sep'},
+ {t:'item',id:'now',act:'now',title:'MinMacs Now',tail:'22% CPU, 9.3 GB'},
+ {t:'item',id:'restore',act:'dismiss',title:'Restore Last Run',tail:'11:05'},
+ {t:'sec',id:'sec-close',items:[{t:'sep'},{t:'head',title:'Will Close'},
+   row('chrome','chrome','Google Chrome','21','8.7','GB','chrome'),
+   row('spotify','spotify','Spotify','1','578','MB','spotify')]},
+ {t:'sep'},{t:'head',title:'Unsorted'},
+ row('figma','figma','FigmaAgent','0','13','MB','figma'),
+ row('raycast','raycast','Raycast','0.4','210','MB','raycast'),
+ {t:'sep'},{t:'head',title:'Kept'},
+ row('cmux','cmux','cmux','44','6.8','GB','cmux'),
+ row('cursor','cursor','Cursor','12','3.1','GB','cursor'),
+ row('docker','docker','Docker','6','2.4','GB','docker'),
+ row('claude','claude','Claude','3','900','MB','claude'),
+ row('finder','finder','Finder',null,null),
+ {t:'sep'},{t:'head',title:'Spared'},
+ row('cft','cft','Chrome for Testing','9','1.2','GB','cft'),
+ {t:'sep'},
+ {t:'item',id:'more',title:'More',card:'more'},
+ {t:'sep'},
+ {t:'item',act:'dismiss',title:'Hide Icon'},
+ {t:'item',act:'dismiss',title:'Settings…',key:'⌘,'},
+ {t:'item',act:'dismiss',title:'Quit MinMacs',key:'⌘Q'}
+];
+const B=COL.blue;
+const fCPU=v=>({b:badge('cpu',B,v/100),l:'CPU',v:n(v,'%')});
+const fMem=(v,u,gb)=>({b:badge('mem',B,gb/32),l:'Memory',v:n(v,u)});
+const fEnergy=t=>({b:badge('bolt',B),l:'Energy',v:t});
+const CARDS={
+ chrome:{title:'Google Chrome',mark:MK.goes(COL.goes),sc:COL.goes,word:'Trims',status:'noise tabs on MinMacs Now. Work tabs stay; Restore brings them back.',
+  facts:[fCPU(21),fMem('8.7','GB',8.7),fEnergy('uses the second most energy'),
+   {b:badge('tab',B,14/45),l:'Noise tabs',v:n('14','/ 45'),
+    x:`<div class="tbar"><i style="left:0;width:68.9%;background:#3b67b0"></i><i style="left:68.9%;width:31.1%;background:${COL.goes}"></i></div><div class="doms"><span>youtube.com<b>6</b></span><span>x.com<b>5</b></span><span>reddit.com<b>3</b></span></div>`}],
+  note:'The trimmed tabs are video and feeds. No agent opened them.',
+  actions:['Trim Tabs Now','Keep All Tabs','Show Noise Tabs…','Never Trim Chrome']},
+ spotify:{title:'Spotify',mark:MK.goes(COL.goes),sc:COL.goes,word:'Closes',status:'on MinMacs Now. It is not playing, and Restore reopens it where it was.',
+  facts:[fCPU(1),fMem('578','MB',.578),fEnergy('uses little energy')],
+  actions:['Close Now','Keep Open','Always Keep Spotify']},
+ figma:{title:'FigmaAgent',sub:'Background helper, no window',mark:MK.wait(COL.gray),sc:'#C7CAD3',word:'Waits',status:'for you to sort it. MinMacs has not seen it used and will not close it alone.',
+  facts:[fCPU(0),fMem('13','MB',.013)],actions:['Close Now','Mark as Essential','Close When Idle']},
+ raycast:{title:'Raycast',sub:'Menu bar app, no window',mark:MK.wait(COL.gray),sc:'#C7CAD3',word:'Waits',status:'for you to sort it. It runs in the background and costs little.',
+  facts:[fCPU(0.4),fMem('210','MB',.21)],actions:['Close Now','Mark as Essential','Close When Idle']},
+ cmux:{title:'cmux',mark:MK.stay(COL.green),sc:COL.green,word:'Stays.',status:'It is essential, and Claude Code works in two of its tabs.',
+  facts:[fCPU(44),fMem('6.8','GB',6.8),fEnergy('uses the most energy'),{b:badge('person',B),l:'Agents',v:'speed-3 working<span class="g2">studio-parity idle</span>'}],
+  actions:['Remove From Essentials','Show Workstreams…']},
+ cursor:{title:'Cursor',mark:MK.stay(COL.green),sc:COL.green,word:'Stays.',status:'It is essential.',facts:[fCPU(12),fMem('3.1','GB',3.1)],actions:['Remove From Essentials']},
+ docker:{title:'Docker',mark:MK.stay(COL.green),sc:COL.green,word:'Stays.',status:'It is essential, and Postgres runs inside it.',
+  facts:[fCPU(6),fMem('2.4','GB',2.4),{b:badge('server',COL.teal),l:'Server',v:`<span style="color:${COL.teal}">:5432 postgres, kept</span>`}],actions:['Remove From Essentials']},
+ claude:{title:'Claude',mark:MK.stay(COL.green),sc:COL.green,word:'Stays.',status:'It is essential.',facts:[fCPU(3),fMem('900','MB',.9)],actions:['Remove From Essentials']},
+ cft:{title:'Chrome for Testing',mark:MK.shield(COL.violet),sc:COL.violet,word:'Stays',status:'while Playwright drives it. It goes when the speed-3 test run ends.',
+  facts:[fCPU(9),fMem('1.2','GB',1.2),{b:badge('person',B),l:'Owner',v:'Playwright<span class="g2">for speed-3</span>'}],actions:['Close Anyway','Always Spare']},
+ more:{list:[{title:'Recently Closed',act:'dismiss'},{title:'Review Now',tail:'9m ago',act:'dismiss'},{title:'Open Activity Monitor',act:'dismiss'}]}
+};
+
+/* ---------- engine ---------- */
+function itemHTML(it){
+ if(it.t==='sep')return '<div class="sep"></div>';
+ if(it.t==='head')return `<div class="sh">${it.title}</div>`;
+ if(it.t==='view')return it.html;
+ if(it.t==='sec')return `<div class="sec" id="${it.id}">${it.items.map(itemHTML).join('')}</div>`;
+ if(it.t==='row')return `<div class="mi row" data-id="${it.id}"${it.card?` data-card="${it.card}"`:''}><span class="img">${it.img||''}</span>${it.cells.join('')}<span class="chev">${it.card?CHEV:''}</span></div>`;
+ return `<div class="mi${it.dis?' dis':''}"${it.id?` id="mi-${it.id}"`:''}${it.act?` data-act="${it.act}"`:''}${it.card?` data-card="${it.card}"`:''}><span class="img"></span><span class="tt">${it.title}</span>${it.tail!=null?`<span class="tail">${it.tail}</span>`:''}${it.key?`<span class="key">${it.key}</span>`:''}${it.card?`<span class="chev">${CHEV}</span>`:''}</div>`;
+}
+function cardHTML(c){
+ if(c.list)return c.list.map(itemHTML).join('');
+ return `<div class="card"><div class="ct">${c.title}</div>${c.sub?`<div class="cs">${c.sub}</div>`:''}
+ <div class="st" style="color:${c.sc}"><span class="mk">${c.mark}</span><span><b>${c.word}</b> ${c.status}</span></div>
+ <div class="facts">${c.facts.map(f=>`<div class="f${f.link?' link':''}"${f.link?` data-link="${f.link}"`:''}>${f.b}<span class="fl">${f.l}</span><span class="fv">${f.v}</span>${f.x?`<div class="fx">${f.x}</div>`:''}</div>`).join('')}</div>
+ ${c.note?`<div class="note"><span class="who">Haiku</span>${c.note}</div>`:''}</div>
+ <div class="sep"></div>${c.actions.map(a=>itemHTML(typeof a==='string'?{title:a,act:'dismiss'}:a)).join('')}`;
+}
+const menu=$('#menu'),sub=$('#sub');
+menu.innerHTML=MENU.map(itemHTML).join('');
+let openId=null,closeT=null;
+function place(){
+ const icon=$('#si-minmacs');
+ const w=menu.offsetWidth;
+ menu.style.left=Math.min(icon.offsetLeft-2,1280-8-w)+'px';
+ menu.style.top='31px';
+}
+function setHot(mi){menu.querySelectorAll('.mi.hot').forEach(e=>e!==mi&&e.classList.remove('hot'));mi&&mi.classList.add('hot')}
+function openCard(id,rowEl){
+ clearTimeout(closeT);
+ if(openId!==id){sub.innerHTML=cardHTML(CARDS[id]);openId=id}
+ const top=menu.offsetTop+rowEl.offsetTop+(rowEl.offsetParent===menu?0:rowEl.offsetParent.offsetTop)-5;
+ sub.style.left=(menu.offsetLeft-sub.offsetWidth+4)+'px';
+ sub.style.top=Math.max(31,Math.min(top,800-8-sub.offsetHeight))+'px';
+ sub.classList.add('show');
+}
+function closeCard(){sub.classList.remove('show');openId=null}
+menu.addEventListener('mouseover',e=>{
+ const mi=e.target.closest('.mi');
+ if(!mi){return}
+ if(mi.classList.contains('dis')){setHot(null);closeT=setTimeout(closeCard,140);return}
+ setHot(mi);
+ if(mi.dataset.card)openCard(mi.dataset.card,mi);else{clearTimeout(closeT);closeT=setTimeout(closeCard,140)}
+});
+sub.addEventListener('mouseover',e=>{
+ clearTimeout(closeT);
+ sub.querySelectorAll('.mi.hot').forEach(x=>x.classList.remove('hot'));
+ const mi=e.target.closest('.mi');if(mi)mi.classList.add('hot');
+});
+sub.addEventListener('mouseleave',()=>sub.querySelectorAll('.mi.hot').forEach(x=>x.classList.remove('hot')));
+function flash(mi,cb){
+ if(RM){cb();return}
+ mi.classList.remove('hot');setTimeout(()=>mi.classList.add('hot'),70);setTimeout(cb,170);
+}
+function hideMenu(){menu.classList.add('hide');sub.classList.remove('show');openId=null;$('#si-minmacs').classList.remove('on');setTimeout(()=>{menu.querySelectorAll('.hot').forEach(x=>x.classList.remove('hot'))},200)}
+function showMenu(){menu.classList.remove('hide');$('#si-minmacs').classList.add('on')}
+document.addEventListener('click',e=>{
+ const mi=e.target.closest('.mi[data-act]');
+ if(mi&&!mi.classList.contains('dis')){
+  const a=mi.dataset.act;
+  flash(mi,()=>{if(a==='dismiss')hideMenu();else ACT[a]&&ACT[a]()});
+  return;
+ }
+ if(e.target.closest('#si-minmacs')){menu.classList.contains('hide')?showMenu():hideMenu();return}
+ if(!e.target.closest('.menu'))hideMenu();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hideMenu()});
+function tween(el,from,to,dec){
+ if(RM){el.textContent=to.toFixed(dec);return}
+ const t0=performance.now(),d=620;
+ (function f(t){const k=Math.min(1,(t-t0)/d),e=1-Math.pow(1-k,3);el.textContent=(from+(to-from)*e).toFixed(dec);if(k<1)requestAnimationFrame(f)})(t0);
+}
+function collapse(el){el.style.height=el.scrollHeight+'px';el.offsetHeight;el.style.height='0px';el.classList.add('gone')}
+function expand(el){el.classList.remove('gone');el.style.height=el.scrollHeight+'px';setTimeout(()=>{el.style.height=''},RM?0:380)}
+function swapText(el,txt){if(RM){el.innerHTML=txt;return}el.style.opacity=0;setTimeout(()=>{el.innerHTML=txt;el.style.opacity=1},200)}
+function setItem(id,title,tail,act,dis){
+ const mi=$('#mi-'+id);mi.querySelector('.tt').textContent=title;mi.querySelector('.tail').textContent=tail;
+ mi.dataset.act=act;mi.classList.toggle('dis',!!dis);if(dis)mi.classList.remove('hot');
+}
+const ACT={
+ now(){
+  if(openId==='chrome'||openId==='spotify'){closeCard();setHot(null)}
+  collapse($('#sec-close'));
+  tween($('#cpuN'),63,41,0);tween($('#memN'),24.1,14.8,1);
+  $('#cpuArc').setAttribute('stroke-dasharray',dash(.41));$('#memArc').setAttribute('stroke-dasharray',dash(14.8/32));
+  $('#mb1').style.width='35.6%';$('#mb2').style.left='35.6%';
+  swapText($('#sum'),SUM1);
+  setItem('now','MinMacs Now','nothing to close','now',true);
+  setItem('restore','Undo MinMacs Now','just now','undo');
+ },
+ undo(){
+  expand($('#sec-close'));
+  tween($('#cpuN'),41,63,0);tween($('#memN'),14.8,24.1,1);
+  $('#cpuArc').setAttribute('stroke-dasharray',dash(.63));$('#memArc').setAttribute('stroke-dasharray',dash(24.1/32));
+  $('#mb1').style.width='64.7%';$('#mb2').style.left='64.7%';
+  swapText($('#sum'),SUM0);
+  setItem('now','MinMacs Now','22% CPU, 9.3 GB','now');
+  setItem('restore','Restore Last Run','11:05','dismiss');
+ }
+};
+
+/* ---------- menu bar ---------- */
+const T='fill="none" stroke="#fff" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"';
+const GLYPH={
+ minmacs:`<svg width="16" height="16" viewBox="0 0 16 16" ${T}><path d="M2.2 11.6a5.8 5.8 0 0 1 11.6 0"/><path d="M8 11.6l2.7-3.3"/><circle cx="8" cy="11.6" r=".6" fill="#fff"/></svg>`,
+ locohost:`<svg width="16" height="16" viewBox="0 0 16 16" ${T}><rect x="2.5" y="2.6" width="11" height="4.4" rx="1.2"/><rect x="2.5" y="9" width="11" height="4.4" rx="1.2"/><path d="M5 4.8h.01M5 11.2h.01"/></svg>`,
+ workforest:`<svg width="16" height="16" viewBox="0 0 16 16" ${T}><circle cx="4.6" cy="3.4" r="1.6"/><circle cx="4.6" cy="12.6" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5v6M11.4 7c0 2.6-6.8 1.8-6.8 3.6"/></svg>`,
+ noonoo:`<svg width="16" height="16" viewBox="0 0 16 16" ${T}><path d="M8 2.2 9.3 6.7 13.8 8 9.3 9.3 8 13.8 6.7 9.3 2.2 8 6.7 6.7z"/></svg>`,
+ insomnia:`<svg width="16" height="16" viewBox="0 0 16 16" ${T}><path d="M1.6 8s2.4-4.6 6.4-4.6S14.4 8 14.4 8s-2.4 4.6-6.4 4.6S1.6 8 1.6 8z"/><circle cx="8" cy="8" r="2"/></svg>`
+};
+const SYS=`<span class="si"><svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.6" fill="none" stroke="rgba(255,255,255,.5)"/><rect x="2" y="2" width="12.8" height="9" rx="2.1" fill="#fff"/><path d="M25.2 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+<span class="si"><svg width="16" height="13" viewBox="0 0 16 13"><path d="M1 4.6a10 10 0 0 1 14 0M3.3 7a6.6 6.6 0 0 1 9.4 0M5.6 9.4a3.3 3.3 0 0 1 4.8 0" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="8" cy="11.6" r="1.1" fill="#fff"/></svg></span>
+<span class="si"><svg width="16" height="14" viewBox="0 0 16 14"><rect x="1" y="1.5" width="14" height="4.5" rx="2.25" fill="none" stroke="#fff" stroke-width="1.3"/><circle cx="12.6" cy="3.75" r="1.3" fill="#fff"/><rect x="1" y="8" width="14" height="4.5" rx="2.25" fill="none" stroke="#fff" stroke-width="1.3"/><circle cx="3.4" cy="10.25" r="1.3" fill="#fff"/></svg></span>
+<span class="clock">Tue 27 Oct&nbsp;&nbsp;16:42</span>`;
+$('#bar').innerHTML=['minmacs','locohost','workforest','noonoo','insomnia'].map(k=>`<span class="si${k==='minmacs'?' on tap':''}" id="si-${k}">${GLYPH[k]}</span>`).join('')+SYS;
+
+/* ---------- fit + first frame ---------- */
+function fit(){const s=Math.min(innerWidth/1280,innerHeight/800);$('#screen').style.transform=`scale(${s})`}
+addEventListener('resize',fit);fit();
+place();
+const first=menu.querySelector('[data-id="chrome"]');setHot(first);openCard('chrome',first);
+</script>
+</body>
+</html>

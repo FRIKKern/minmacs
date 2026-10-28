@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disk Lens</title>
+<style>
+:root{
+  --amber:#F2B544;
+  --glass:rgba(28,29,38,.86);
+  --line:rgba(255,255,255,.07);
+  --text:#F4F3F7;
+  --dim:rgba(235,235,245,.52);
+  --faint:rgba(235,235,245,.32);
+  --badge:rgba(255,255,255,.075);
+  --ease:cubic-bezier(.22,.8,.26,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;
+  color:var(--text);-webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+  background:#1b1838;
+}
+.desk{position:fixed;inset:0;background:
+  radial-gradient(1100px 700px at 12% 8%,#43348a 0%,transparent 60%),
+  radial-gradient(900px 640px at 88% 4%,#1f5a80 0%,transparent 62%),
+  radial-gradient(1000px 700px at 92% 98%,#93406a 0%,transparent 60%),
+  radial-gradient(900px 600px at 20% 100%,#2b2050 0%,transparent 70%),
+  #211c45;}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0}
+
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;
+  padding:0 10px 0 16px;font-size:13px;background:rgba(18,14,40,.32);
+  -webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);
+  color:rgba(255,255,255,.92)}
+.mb .l{display:flex;align-items:center;gap:19px}
+.mb .l b{font-weight:600}
+.mb .r{margin-left:auto;display:flex;align-items:center;gap:4px}
+.mbi{height:22px;padding:0 7px;border-radius:5px;display:flex;align-items:center;gap:5px;color:#fff}
+.mbi svg{width:15px;height:15px}
+.mbi.on{background:rgba(255,255,255,.2)}
+.mbi .rd{font-size:12.5px;font-weight:500}
+.mbi .rd i{font-style:normal;color:rgba(255,255,255,.55);font-size:11px;margin-left:1px}
+.clock{padding:0 6px 0 8px;font-size:13px}
+
+/* panel */
+.panel{position:absolute;top:33px;left:668px;width:436px;border-radius:22px;
+  background:var(--glass);border:1px solid rgba(255,255,255,.085);
+  -webkit-backdrop-filter:blur(40px) saturate(1.5);backdrop-filter:blur(40px) saturate(1.5);
+  box-shadow:0 24px 60px rgba(6,4,20,.45),0 2px 8px rgba(0,0,0,.25);
+  padding:18px 20px 16px}
+.hd{display:flex;align-items:center;height:32px}
+.badge{width:28px;height:28px;border-radius:50%;background:var(--badge);position:relative;
+  display:flex;align-items:center;justify-content:center;flex:none}
+.badge svg.g{width:15px;height:15px}
+.badge svg.arc{position:absolute;inset:0;width:28px;height:28px;transform:rotate(-90deg)}
+.big{font-size:25px;font-weight:500;letter-spacing:-.2px;margin-left:10px}
+.unit{font-size:13px;color:var(--dim);font-weight:400;margin-left:3px;letter-spacing:0}
+.hd .free{margin-left:auto;font-size:15px;font-weight:500}
+.iconbtn{width:26px;height:26px;border-radius:50%;background:var(--badge);border:0;color:var(--dim);
+  display:flex;align-items:center;justify-content:center;margin-left:12px;cursor:pointer;
+  transition:background .2s,color .2s}
+.iconbtn:hover{background:rgba(255,255,255,.13);color:#fff}
+.iconbtn svg{width:13px;height:13px}
+
+.disk{margin-top:14px;height:8px;border-radius:4px;background:rgba(255,255,255,.08);position:relative;overflow:hidden}
+.disk .u{position:absolute;left:0;top:0;bottom:0;background:#7d6131;border-radius:4px 0 0 4px}
+.disk .rc{position:absolute;top:0;bottom:0;background:var(--amber);transition:width .9s var(--ease)}
+.lens{display:block;width:100%;height:18px}
+.lens polygon{fill:rgba(242,181,68,.07)}
+.lens line{stroke:rgba(242,181,68,.28);stroke-width:1}
+
+.zoom{height:14px;border-radius:7px;background:rgba(255,255,255,.06);display:flex;overflow:hidden}
+.grp{display:flex;height:100%;padding-right:2px;overflow:hidden;transition:width .9s var(--ease),padding .9s var(--ease),opacity .3s}
+.grp:last-child{padding-right:0}
+.grp .s{height:100%;transition:width .9s var(--ease),opacity .25s}
+.grp .s.st{opacity:.85}
+.zoom.hl .grp{opacity:.32}
+.zoom.hl .grp.hot{opacity:1}
+.cap{display:flex;align-items:center;margin-top:9px;font-size:12px;color:var(--dim)}
+.cap b{color:var(--text);font-weight:500;font-size:13px}
+.cap .lg{margin-left:auto;display:flex;align-items:center;gap:12px}
+.sw{display:inline-block;width:14px;height:8px;border-radius:2px;vertical-align:-0px;margin-right:5px}
+.hatch{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.0) 0 2px,rgba(20,20,28,.55) 2px 3.5px)}
+
+/* rows */
+.rowsWrap{overflow:hidden;transition:max-height .5s var(--ease),opacity .35s;max-height:420px}
+.small .rowsWrap{max-height:0;opacity:0}
+.rows{margin-top:12px;border-top:1px solid var(--line)}
+.row{display:flex;align-items:center;height:47px;border-bottom:1px solid var(--line);
+  position:relative;cursor:default;transition:height .5s var(--ease),opacity .4s,background .2s;overflow:hidden}
+.row:last-child{border-bottom:0}
+.row.gone{height:0;opacity:0;border-bottom-width:0}
+.row:hover{background:linear-gradient(90deg,transparent,rgba(255,255,255,.025) 20%,rgba(255,255,255,.025) 80%,transparent)}
+.row .badge{width:26px;height:26px}
+.row .badge svg.g{width:14px;height:14px}
+.nm{margin-left:12px;flex:1;min-width:0;position:relative;height:34px}
+.nm .t{font-size:13.5px;font-weight:500;line-height:17px;white-space:nowrap}
+.nm .sub{position:absolute;left:0;right:6px;overflow:hidden;text-overflow:ellipsis;top:18px;font-size:11.5px;color:var(--dim);white-space:nowrap;transition:opacity .3s,transform .35s var(--ease)}
+.nm .sub.p{opacity:0;transform:translateY(4px)}
+.preview .nm .sub.n{opacity:0;transform:translateY(-4px)}
+.preview .nm .sub.p{opacity:1;transform:none}
+.preview .row.stays{opacity:.48}
+.meth{width:96px;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);flex:none}
+.meth svg{width:13px;height:13px;flex:none;opacity:.85}
+.mark{width:16px;display:flex;justify-content:center;flex:none}
+.mark svg{width:9px;height:9px}
+.sz{width:66px;text-align:right;font-size:15px;font-weight:500;flex:none;position:relative;height:20px}
+.sz > span{position:absolute;right:0;top:0;transition:opacity .3s,transform .35s var(--ease);white-space:nowrap}
+.sz .p{opacity:0;transform:translateY(4px);color:var(--amber)}
+.preview .sz .n{opacity:0;transform:translateY(-4px)}
+.preview .sz .p{opacity:1;transform:none}
+.sz .unit{font-size:11.5px}
+.sz .p .unit{color:rgba(242,181,68,.6)}
+
+/* footer */
+.ft{margin-top:14px;height:38px;position:relative}
+.ft > div{position:absolute;inset:0;display:flex;align-items:center;transition:opacity .3s,transform .4s var(--ease)}
+.ft > div.off{opacity:0;pointer-events:none;transform:translateY(6px)}
+.btn{height:34px;border-radius:17px;border:0;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  padding:0 18px;display:inline-flex;white-space:nowrap;align-items:center;gap:8px;transition:filter .2s,background .2s,transform .12s}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--amber);color:#2a1d05}
+.btn.pri:hover{filter:brightness(1.07)}
+.btn.pri .n{font-weight:500;opacity:.75}
+.btn.gh{background:rgba(255,255,255,.08);color:var(--text);font-weight:500}
+.btn.gh:hover{background:rgba(255,255,255,.13)}
+.btn.wide{width:100%;justify-content:center}
+.btn[disabled]{background:rgba(255,255,255,.06);color:var(--faint);cursor:default}
+.ft .note{font-size:11.5px;color:var(--dim);line-height:15px}
+.ft .note b{color:var(--text);font-weight:500}
+.ft .gap{margin-left:auto;display:flex;gap:8px}
+
+/* hover card */
+.card{position:absolute;width:300px;border-radius:16px;background:rgba(30,31,41,.9);
+  border:1px solid rgba(255,255,255,.09);
+  -webkit-backdrop-filter:blur(40px) saturate(1.5);backdrop-filter:blur(40px) saturate(1.5);
+  box-shadow:0 18px 44px rgba(6,4,20,.45);padding:14px 16px 14px;opacity:0;transform:translateX(6px);
+  pointer-events:none;transition:opacity .2s,transform .3s var(--ease)}
+.card.show{opacity:1;transform:none;pointer-events:auto}
+.card h4{font-size:13.5px;font-weight:600}
+.card .stt{font-size:12px;margin-top:3px;font-weight:500}
+.card dl{display:grid;grid-template-columns:78px 1fr;row-gap:6px;margin-top:11px;font-size:12px}
+.card dt{color:var(--dim)}
+.card dd{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card dd .u{color:var(--dim)}
+.card .acts{display:flex;gap:6px;margin-top:13px;flex-wrap:wrap}
+.card .acts button{height:24px;border-radius:12px;border:0;background:rgba(255,255,255,.08);color:var(--text);
+  font:inherit;font-size:11.5px;padding:0 10px;cursor:pointer}
+.card .acts button:hover{background:rgba(255,255,255,.14)}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01ms!important;transition-property:opacity!important}
+}
+</style>
+</head>
+<body>
+<div class="desk"></div>
+<div id="stage">
+  <div class="mb">
+    <div class="l">
+      <svg width="14" height="16" viewBox="0 0 14 17" fill="#fff"><path d="M11.6 9c0-2 1.6-3 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7s-1.6-.7-2.6-.7C3.4 4.5 2 5.3 1.3 6.6-.2 9.2.9 13 2.3 15c.7 1 1.5 2 2.5 2s1.4-.6 2.6-.6 1.5.6 2.6.6 1.7-1 2.4-2c.8-1.1 1.1-2.2 1.1-2.3 0 0-2-.8-1.9-3.7zM9.7 3.1c.5-.7.9-1.6.8-2.5-.8 0-1.7.5-2.3 1.2-.5.6-.9 1.5-.8 2.4.9.1 1.7-.4 2.3-1.1z"/></svg>
+      <b>Cursor</b><span>File</span><span>Edit</span><span>Selection</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="r">
+      <div class="mbi" title="MinMacs"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M2.3 11.5a5.7 5.7 0 1 1 11.4 0"/><path d="M8 11.5l2.6-3.2"/></svg></div>
+      <div class="mbi" title="LocoHost"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="4.5" rx="1.5"/><rect x="2" y="9" width="12" height="4.5" rx="1.5"/><circle cx="5" cy="4.75" r=".6" fill="#fff"/><circle cx="5" cy="11.25" r=".6" fill="#fff"/></svg></div>
+      <div class="mbi" title="WorkForest"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="5" r="1.6"/><path d="M4.5 5.1v5.8M11.5 6.6c0 2.6-7 1.8-7 4.3"/></svg></div>
+      <div class="mbi on" title="Noo-Noo"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><circle cx="6.5" cy="9.5" r="4.5"/><path d="M9.8 6.2l3.4-3.4M11.8 1.8l2.4 2.4"/><circle cx="6.5" cy="9.5" r="1.2" fill="#fff" stroke="none"/></svg><span class="rd" id="mbRead">38<i>GB</i></span></div>
+      <div class="mbi" title="Insomnia"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5h8v3.5a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z"/><path d="M10.5 7.5h1.2a1.6 1.6 0 0 1 0 3.2h-1.2M5.5 2.5v2M8 2.5v2"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M1.8 6.2a9 9 0 0 1 12.4 0M4 8.6a5.8 5.8 0 0 1 8 0M6.2 11a2.6 2.6 0 0 1 3.6 0"/><circle cx="8" cy="13.2" r=".7" fill="#fff"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 26 14" style="width:25px" fill="none"><rect x=".75" y=".75" width="21.5" height="12.5" rx="3.6" stroke="rgba(255,255,255,.5)" stroke-width="1.2"/><rect x="2.4" y="2.4" width="11.6" height="9.2" rx="2.2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linecap="round"/><path d="M12.3 2.8l-3.1 4.5h2.4l-1 3.9 3.2-4.6h-2.4z" fill="#211c45"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.4"><rect x="1.8" y="3" width="12.4" height="4" rx="2"/><rect x="1.8" y="9" width="12.4" height="4" rx="2"/><circle cx="11.8" cy="5" r="1" fill="#fff"/><circle cx="4.2" cy="11" r="1" fill="#fff"/></svg></div>
+      <div class="clock">Tue 27 Oct&nbsp; 16:42</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="hd">
+      <div class="badge">
+        <svg class="arc" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12.6" fill="none" stroke="rgba(242,181,68,.16)" stroke-width="1.8"/><circle id="diskArc" cx="14" cy="14" r="12.6" fill="none" stroke="#F2B544" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="0 100" pathLength="100"/></svg>
+        <svg class="g" viewBox="0 0 16 16" fill="none" stroke="#F2B544" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="4" width="12" height="8" rx="2.2"/><path d="M4.8 8h3.4"/><circle cx="11" cy="8" r=".8" fill="#F2B544" stroke="none"/></svg>
+      </div>
+      <span class="big"><span id="used">812</span><span class="unit">/ 994 GB</span></span>
+      <span class="free"><span id="free">182</span><span class="unit">GB free</span></span>
+      <button class="iconbtn" id="resize" title="Smaller"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5h4v4M12.5 1.5L8 6M5.5 12.5h-4v-4M1.5 12.5L6 8"/></svg></button>
+    </div>
+    <div class="disk" id="disk"><div class="u" id="dU"></div><div class="rc" id="dR"></div></div>
+    <svg class="lens" id="lens" viewBox="0 0 394 18" preserveAspectRatio="none"><polygon id="lensP" points="0,0 0,0 394,18 0,18"/><line id="lensL" x1="0" y1="0" x2="0" y2="18"/><line id="lensR" x1="0" y1="0" x2="394" y2="18"/></svg>
+    <div class="zoom" id="zoom"></div>
+    <div class="cap">
+      <span><b id="recl">38.4</b> GB reclaimable</span>
+      <span class="lg"><span><span class="sw" style="background:#F2B544"></span>Clean Safe takes</span><span><span class="sw hatch" style="background-color:#9a7a45"></span>Stays</span></span>
+    </div>
+    <div class="rowsWrap"><div class="rows" id="rows"></div></div>
+    <div class="ft">
+      <div id="fIdle"><button class="btn pri wide" id="cleanBtn">Clean Safe <span class="n" id="cleanAmt">30.1 GB</span></button></div>
+      <div id="fPrev" class="off">
+        <span class="note"><b>Dry run.</b> Nothing has moved.<br><span id="prevNote">npm cache can't be put back.</span></span>
+        <span class="gap"><button class="btn gh" id="cancelBtn">Cancel</button><button class="btn pri" id="goBtn">Clean <span id="goAmt">30.1 GB</span></button></span>
+      </div>
+      <div id="fDone" class="off">
+        <span class="note" id="doneNote"><b>30.1 GB cleaned.</b> 24.0 GB is in the Trash.</span>
+        <span class="gap"><button class="btn gh" id="undoBtn"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5L2 5l2.5 2.5"/><path d="M2 5h6.5a3.5 3.5 0 0 1 0 7H6"/></svg>Undo</button></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+(function(){
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SVG = {
+  hammer:'<path d="M2.8 13.2l6-6"/><path d="M6.9 5.1l3.2-3.2 4 4-3.2 3.2z"/>',
+  hex:'<path d="M8 1.8l5.3 3.1v6.2L8 14.2l-5.3-3.1V4.9z"/><path d="M8 5.6v4.8"/>',
+  box:'<path d="M2.5 5L8 2.2 13.5 5v6L8 13.8 2.5 11z"/><path d="M2.5 5L8 7.9 13.5 5M8 7.9v5.9"/>',
+  stack:'<rect x="1.8" y="8.2" width="3.6" height="3.6" rx=".6"/><rect x="6.2" y="8.2" width="3.6" height="3.6" rx=".6"/><rect x="10.6" y="8.2" width="3.6" height="3.6" rx=".6"/><rect x="6.2" y="3.8" width="3.6" height="3.6" rx=".6"/>',
+  win:'<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M1.8 6h12.4"/><circle cx="4" cy="4.4" r=".5" fill="currentColor"/>',
+  phone:'<rect x="4.6" y="1.6" width="6.8" height="12.8" rx="1.8"/><path d="M7 12h2"/>',
+  trash:'<path d="M2.8 4.3h10.4M6 4.3V2.8h4v1.5M4.3 4.3l.7 9h6l.7-9"/>',
+  term:'<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M4.8 6.4l2 1.6-2 1.6M8.6 10h2.6"/>',
+  eye:'<path d="M1.5 8S4 3.8 8 3.8 14.5 8 14.5 8 12 12.2 8 12.2 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.9"/>'
+};
+const ico = (k,c,cls) => `<svg class="${cls||''}" viewBox="0 0 16 16" fill="none" stroke="${c||'currentColor'}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${SVG[k]}</svg>`;
+
+const C = [
+ {id:'dd', name:'Xcode DerivedData', glyph:'hammer', color:'#F2B544', go:10.9, stay:3.3, m:'trash', ml:'Trash',
+  sub:'7 projects, 4 gone', psub:'4 gone projects go, 3 stay',
+  card:{st:'Partly goes', stc:'#F2B544', facts:[['Gone','4 projects · 10.9 GB'],['Stays','MinMacs, cmux, jarl-card'],['Why stays','built this week'],['Where','~/Library/Developer/Xcode'],['Undo','Put Back from Trash']], acts:['Show 7 projects','Reveal in Finder','Keep all']}},
+ {id:'nm', name:'node_modules', glyph:'hex', color:'#C98A2A', go:9.8, stay:0, m:'trash', ml:'Trash',
+  sub:'In 4 merged worktrees', psub:'All 4 go to Trash',
+  card:{st:'Goes to Trash', stc:'#F2B544', facts:[['lane-e-sort','3.6 GB · merged'],['auth-redirect','3.1 GB · squash-merged'],['sb-fieldsets','1.9 GB · merged'],['w19-fire','1.2 GB · merged'],['Undo','Put Back, then npm ci']], acts:['Reveal in Finder','Remove worktrees too','Keep']}},
+ {id:'npm', name:'npm cache', glyph:'box', color:'#F7CF7F', go:6.1, stay:0, m:'term', ml:'npm’s own',
+  sub:'npm owns it', psub:'npm cache clean --force',
+  card:{st:'Goes by npm’s own command', stc:'#F2B544', facts:[['Runs','<code>npm cache clean --force</code>'],['Where','~/.npm/_cacache'],['Undo','None. npm refills it on install'],['Last used','today, by speed-3']], acts:['Copy command','Keep']}},
+ {id:'dk', name:'Docker build cache', glyph:'stack', color:'#B98336', go:0, stay:4.2, m:'term', ml:'Docker’s own',
+  sub:'Docker owns it, asks first', psub:'Stays, Docker runs :5432',
+  card:{st:'Asks first', stc:'#E6CFA0', facts:[['Owner','Docker'],['Why asks','postgres :5432 runs in it'],['Runs','<code>docker builder prune</code>'],['Undo','None. Next build refills it']], acts:['Prune now','Always ask']}},
+ {id:'pw', name:'Playwright browsers', glyph:'win', color:'#EAA93F', go:3.3, stay:0, m:'trash', ml:'Trash',
+  sub:'3 old versions', psub:'3 old go, current stays',
+  card:{st:'Goes to Trash', stc:'#F2B544', facts:[['chromium-1140','1.4 GB'],['chromium-1134','1.2 GB'],['webkit-2035','0.7 GB'],['Stays','chromium-1148, Playwright drives it'],['Undo','Put Back from Trash']], acts:['Reveal in Finder','Keep']}},
+ {id:'sim', name:'Simulator runtimes', glyph:'phone', color:'#8E8A96', go:0, stay:0.8, m:'eye', ml:'Report only',
+  sub:'macOS owns it', psub:'Stays, report only',
+  card:{st:'Report only', stc:'#B9B6C2', facts:[['Runtime','iOS 17.5 · 0.8 GB'],['Owner','macOS, via Xcode'],['Why','Deleting by hand breaks Xcode'],['Remove with','<code>xcrun simctl runtime delete</code>']], acts:['Copy command']}}
+];
+const SCALE = 38.4, DISK = 994;
+let used = 812, mode = 'idle', lastTrash = 0, lastCleaned = 0, npmCleared = false;
+const state = C.map(c => ({go:c.go, stay:c.stay}));
+
+const $ = id => document.getElementById(id);
+const fmt = (v,d=1) => (Math.round(v*10)/10).toFixed(d);
+const fmtUsed = v => Math.abs(v-Math.round(v))<0.05 ? String(Math.round(v)) : fmt(v);
+
+function mark(c,s){
+  if (s.go>0 && s.stay===0) return '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#F2B544"/></svg>';
+  if (s.go>0 && s.stay>0) return '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.6" fill="none" stroke="#F2B544" stroke-width="1.3"/><path d="M5 1.4a3.6 3.6 0 0 1 0 7.2z" fill="#F2B544"/></svg>';
+  if (c.m==='eye') return '<svg viewBox="0 0 10 10"><rect x="1.5" y="4.2" width="7" height="1.6" rx=".8" fill="#8E8A96"/></svg>';
+  return '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.6" fill="none" stroke="#E6CFA0" stroke-width="1.3"/></svg>';
+}
+const gb = (v,cls) => `<span class="${cls}">${fmt(v)}<span class="unit">GB</span></span>`;
+
+// build zoom + rows
+const zoom = $('zoom'), rows = $('rows');
+C.forEach((c,i) => {
+  const g = document.createElement('div'); g.className='grp'; g.dataset.i=i;
+  g.innerHTML = `<div class="s go" style="background:${c.color}"></div><div class="s st hatch" style="background-color:${c.color}"></div>`;
+  zoom.appendChild(g);
+  const r = document.createElement('div'); r.className='row'+(c.go===0?' stays':''); r.dataset.i=i;
+  r.innerHTML = `<div class="badge">${ico(c.glyph,c.color,'g')}</div>
+    <div class="nm"><div class="t">${c.name}</div><div class="sub n">${c.sub}</div><div class="sub p">${c.psub}</div></div>
+    <div class="meth">${ico(c.m)}<span>${c.ml}</span></div>
+    <div class="mark"></div>
+    <div class="sz"><span class="n"></span><span class="p"></span></div>`;
+  rows.appendChild(r);
+});
+const grps = [...zoom.children], rowEls = [...rows.children];
+
+// tween helper
+const tweens = {};
+function tween(key, from, to, dur, fn){
+  cancelAnimationFrame(tweens[key]);
+  if (RM || dur===0){ fn(to); return; }
+  const t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1,(now-t0)/dur), e = 1-Math.pow(1-k,3);
+    fn(from+(to-from)*e);
+    if (k<1) tweens[key] = requestAnimationFrame(step);
+  };
+  tweens[key] = requestAnimationFrame(step);
+}
+let shownUsed = used;
+
+function recl(){ return state.reduce((a,s)=>a+s.go+s.stay,0); }
+function safe(){ return state.reduce((a,s)=>a+s.go,0); }
+
+function lens(R){
+  const W = 394, base = 812-38.4, x0 = base/DISK*W, x1 = (base+R)/DISK*W, xb = R/SCALE*W;
+  $('lensP').setAttribute('points',`${x0},0 ${x1},0 ${xb},18 0,18`);
+  $('lensL').setAttribute('x1',x0); $('lensL').setAttribute('x2',0);
+  $('lensR').setAttribute('x1',x1); $('lensR').setAttribute('x2',xb);
+}
+function render(anim){
+  const R = recl(), S = safe(), W = 394;
+  // disk
+  const base = 812 - 38.4;
+  $('dU').style.width = (base/DISK*100)+'%';
+  $('dR').style.left = (base/DISK*100)+'%';
+  $('dR').style.width = (R/DISK*100)+'%';
+  // zoom groups
+  C.forEach((c,i)=>{
+    const s = state[i], tot = s.go+s.stay, g = grps[i];
+    g.style.width = (tot/SCALE*100)+'%';
+    g.style.paddingRight = tot>0 && i<C.length-1 ? '2px' : '0';
+    g.children[0].style.width = tot ? (s.go/tot*100)+'%' : '0';
+    g.children[1].style.width = tot ? (s.stay/tot*100)+'%' : '0';
+    const r = rowEls[i];
+    r.classList.toggle('gone', tot<0.05);
+    r.classList.toggle('stays', s.go===0);
+    r.querySelector('.mark').innerHTML = mark(c,s);
+    r.querySelector('.sz .p').innerHTML = s.go>0 ? `${fmt(s.go)}<span class="unit">GB</span>` : '<span class="unit" style="color:var(--faint)">stays</span>';
+    if (c.id==='dd' && s.go===0 && s.stay>0) r.querySelector('.sub.n').textContent = '3 projects, built this week';
+    if (c.id==='dd' && s.go>0) r.querySelector('.sub.n').textContent = c.sub;
+    tween('row'+i, parseFloat(r.dataset.v||tot), tot, anim?900:0, v=>{ r.querySelector('.sz .n').innerHTML = `${fmt(v)}<span class="unit">GB</span>`; });
+    r.dataset.v = tot;
+  });
+  // numbers
+  tween('used', shownUsed, used, anim?900:0, v=>{ shownUsed=v; $('used').textContent = fmtUsed(v); $('free').textContent = fmtUsed(DISK-v); $('diskArc').setAttribute('stroke-dasharray',`${v/DISK*100} 100`); });
+  const rs = parseFloat($('recl').dataset.v||R);
+  tween('recl', rs, R, anim?900:0, v=>{ lens(v); $('recl').textContent = fmt(v); $('mbRead').innerHTML = Math.round(v)+'<i>GB</i>'; });
+  $('recl').dataset.v = R;
+  $('goAmt').textContent = fmt(S)+' GB';
+  const cb = $('cleanBtn');
+  if (S<0.05){ cb.disabled = true; cb.innerHTML = 'Nothing safe left to clean'; }
+  else { cb.disabled = false; cb.innerHTML = `Clean Safe <span class="n" id="cleanAmt">${fmt(S)} GB</span>`; }
+  $('prevNote').textContent = state[2].go>0 ? 'npm cache can’t be put back.' : 'All of it goes to the Trash.';
+}
+
+function setFoot(which){
+  ['fIdle','fPrev','fDone'].forEach(id => $(id).classList.toggle('off', id!==which));
+}
+const panel = $('panel');
+$('cleanBtn').onclick = () => { if (safe()<0.05) return; mode='preview'; panel.classList.add('preview'); panel.classList.remove('small'); setFoot('fPrev'); };
+$('cancelBtn').onclick = () => { mode='idle'; panel.classList.remove('preview'); setFoot('fIdle'); };
+$('goBtn').onclick = () => {
+  const S = safe();
+  lastTrash = 0;
+  C.forEach((c,i)=>{ if (state[i].go>0 && c.m==='trash') lastTrash += state[i].go; if (c.id==='npm' && state[i].go>0) npmCleared = true; state[i].prevGo = state[i].go; state[i].go = 0; });
+  lastCleaned = S; used -= S;
+  mode='done'; panel.classList.remove('preview');
+  $('doneNote').innerHTML = `<b>${fmt(S)} GB cleaned.</b> ${fmt(lastTrash)} GB is in the Trash.`;
+  $('undoBtn').style.display = lastTrash>0 ? '' : 'none';
+  setFoot('fDone'); render(true);
+};
+$('undoBtn').onclick = () => {
+  C.forEach((c,i)=>{ if (c.m==='trash' && state[i].prevGo) state[i].go = state[i].prevGo; state[i].prevGo = 0; });
+  used += lastTrash; render(true);
+  $('doneNote').innerHTML = `<b>Put back ${fmt(lastTrash)} GB.</b>` + (npmCleared ? ' npm cache stays cleared.' : '');
+  $('undoBtn').style.display='none';
+  setTimeout(()=>{ if (mode==='done'){ mode='idle'; setFoot('fIdle'); } }, 3200);
+};
+$('resize').onclick = () => { panel.classList.toggle('small'); hideCard(true); };
+
+// hover links
+const card = $('card'); let hoverT, hideT, curI=-1;
+function showCard(i){
+  const c = C[i], r = rowEls[i];
+  card.innerHTML = `<h4>${c.name}</h4><div class="stt" style="color:${state[i].go>0?c.card.stc:'#E6CFA0'}">${state[i].go>0||c.go===0?c.card.st:'Stays'}</div>
+    <dl>${c.card.facts.map(f=>`<dt>${f[0]}</dt><dd>${f[1]}</dd>`).join('')}</dl>
+    <div class="acts">${c.card.acts.map(a=>`<button>${a}</button>`).join('')}</div>`;
+  const st = document.getElementById('stage').getBoundingClientRect(), sc = st.width/1280;
+  const rr = r.getBoundingClientRect();
+  card.style.left = (panel.offsetLeft - 300 - 12)+'px';
+  card.style.top = Math.max(40,((rr.top-st.top)/sc) - 14)+'px';
+  card.classList.add('show'); curI=i;
+}
+function hideCard(now){ clearTimeout(hoverT); clearTimeout(hideT); if(now){card.classList.remove('show');curI=-1;return;} hideT=setTimeout(()=>{card.classList.remove('show');curI=-1;},160); }
+function hl(i){ zoom.classList.toggle('hl', i>=0); grps.forEach((g,j)=>g.classList.toggle('hot',j===i)); }
+rowEls.forEach((r,i)=>{
+  r.onmouseenter = () => { hl(i); clearTimeout(hideT); clearTimeout(hoverT); hoverT = setTimeout(()=>showCard(i), curI>=0?60:320); };
+  r.onmouseleave = () => { hl(-1); clearTimeout(hoverT); hideCard(); };
+});
+grps.forEach((g,i)=>{ g.onmouseenter=()=>{hl(i); rowEls[i].style.background='rgba(255,255,255,.035)';}; g.onmouseleave=()=>{hl(-1); rowEls[i].style.background='';}; });
+card.onmouseenter = () => clearTimeout(hideT);
+card.onmouseleave = () => hideCard();
+
+// fit
+function fit(){
+  const s = Math.min(innerWidth/1280, innerHeight/800);
+  const st = $('stage');
+  st.style.transform = `scale(${s})`;
+  st.style.left = Math.max(0,(innerWidth-1280*s)/2)+'px';
+  st.style.top = Math.max(0,(innerHeight-800*s)/2)+'px';
+  const ic = document.querySelector('.mbi.on');
+  const cx = ic.offsetLeft + ic.offsetParent.offsetLeft + ic.offsetWidth/2;
+  panel.style.left = Math.min(1280-436-10, Math.round(cx-218))+'px';
+}
+addEventListener('resize', fit); fit();
+render(false);
+if (location.hash==='#preview') $('cleanBtn').click();
+if (location.hash==='#done'){ $('cleanBtn').click(); $('goBtn').click(); }
+if (location.hash==='#card'){ showCard(0); hl(0); }
+})();
+</script>
+</body>
+</html>

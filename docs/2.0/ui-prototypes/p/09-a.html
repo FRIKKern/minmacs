@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workstream Cards</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.86);
+  --edge:rgba(255,255,255,.09);
+  --hair:rgba(255,255,255,.06);
+  --tx:#F2F3F7; --tx2:#A4A6B3; --tx3:#6E7080;
+  --mm:91,155,255; --loco:63,208,184; --forest:76,201,107; --noo:242,181,68; --ins:177,140,255;
+  --ease:cubic-bezier(.22,.8,.26,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);
+  background:#1d1a3c;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1;
+}
+.desk{position:fixed;inset:0;background:
+  radial-gradient(900px 600px at 12% 8%,#43348f 0%,transparent 60%),
+  radial-gradient(800px 600px at 88% 6%,#1f5a86 0%,transparent 60%),
+  radial-gradient(900px 700px at 90% 100%,#8b3b64 0%,transparent 62%),
+  radial-gradient(700px 600px at 20% 100%,#2a2350 0%,transparent 70%),
+  #211c45;}
+#stage{position:absolute;width:1280px;height:800px;transform-origin:0 0}
+
+/* menu bar */
+.mbar{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;
+  padding:0 10px 0 14px;font-size:13px;background:rgba(20,18,40,.38);
+  -webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);color:#fff}
+.mbar .l{display:flex;gap:18px;align-items:center}
+.mbar .l b{font-weight:700}
+.mbar .l span{opacity:.92}
+.mbar .r{margin-left:auto;display:flex;align-items:center;gap:4px}
+.mi{display:flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:5px;font-size:12.5px;font-weight:500}
+.mi svg{width:15px;height:15px}
+.mi.on{background:rgba(255,255,255,.2)}
+.mi .u{color:rgba(255,255,255,.55);font-size:11px;margin-left:-2px}
+.clock{padding:0 6px 0 8px;font-weight:500}
+
+/* glass panel */
+.panel{position:absolute;top:34px;right:76px;width:616px;
+  background:var(--glass);border:1px solid var(--edge);border-radius:22px;
+  -webkit-backdrop-filter:blur(30px) saturate(1.3);backdrop-filter:blur(30px) saturate(1.3);
+  box-shadow:0 30px 80px rgba(8,6,24,.45),0 2px 8px rgba(0,0,0,.2);padding:14px 12px 10px}
+.phead{display:flex;align-items:center;padding:2px 8px 12px 8px}
+.phead h1{font-size:15px;font-weight:600;letter-spacing:.1px}
+.phead .sub{color:var(--tx3);font-size:12.5px;margin-left:8px}
+.sizes{margin-left:auto;display:flex;gap:6px}
+.sz{width:26px;height:26px;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;
+  background:rgba(255,255,255,.07);color:var(--tx2);transition:background .2s var(--ease),color .2s}
+.sz svg{width:14px;height:14px}
+.sz.on{background:rgba(var(--mm),1);color:#12131a}
+
+/* badges */
+.b{--c:var(--mm);width:22px;height:22px;flex:0 0 22px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(var(--c),.24);color:rgb(var(--c));position:relative}
+.b svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.b.idle{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(var(--c),.6)}
+.b.goes{background:transparent;border:1.5px dashed rgba(var(--c),.8)}
+.b.off{background:rgba(255,255,255,.05);color:#5d5f6c}
+.b.arc{background:rgba(var(--c),.14)}
+.b.arc .ring{position:absolute;inset:-1px;width:24px;height:24px}
+.b.arc .ring circle{fill:none;stroke:rgb(var(--c));stroke-width:2;stroke-linecap:round;
+  stroke-dasharray:22 100;transform-origin:12px 12px;animation:spin 3.2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.c-mm{--c:var(--mm)}.c-loco{--c:var(--loco)}.c-forest{--c:var(--forest)}.c-noo{--c:var(--noo)}.c-ins{--c:var(--ins)}
+
+/* workstream cards */
+.list{display:flex;flex-direction:column;gap:8px}
+.card{background:rgba(255,255,255,.035);border:1px solid var(--hair);border-radius:16px;padding:13px 16px 12px;
+  overflow:hidden;transition:background .25s var(--ease),opacity .4s var(--ease),transform .4s var(--ease)}
+.card:hover{background:rgba(255,255,255,.05)}
+.top{display:flex;align-items:center;gap:11px}
+.agent{width:26px;height:26px;flex:0 0 26px}
+.who .n{white-space:nowrap;font-size:15px;font-weight:600;letter-spacing:.1px}
+.who .s{font-size:12px;color:var(--tx3);margin-top:1px}
+.state{white-space:nowrap;margin-left:auto;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500}
+.state .age{color:var(--tx3);font-weight:400}
+.mk{width:9px;height:9px;border-radius:50%;position:relative}
+.mk.work{background:var(--tx)}
+.mk.work::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);animation:pulse 2.4s var(--ease) infinite}
+@keyframes pulse{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.5);opacity:0}}
+.mk.idle{box-shadow:inset 0 0 0 1.5px var(--tx2)}
+.mk.plan{width:11px;height:11px;border:1.5px dashed var(--tx2)}
+.mk.done{width:14px;height:14px;background:rgba(255,255,255,.14);display:grid;place-items:center}
+.mk.done svg{width:9px;height:9px;stroke:var(--tx);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+.facts{display:grid;grid-template-columns:1fr 1fr;column-gap:24px;row-gap:2px;margin-top:12px;padding-left:2px}
+.f{display:flex;align-items:center;gap:10px;height:28px;font-size:13px;min-width:0;border-radius:8px;cursor:default}
+.f .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f .d{color:var(--tx3);font-size:12px;margin-left:5px}
+.f .v{margin-left:auto;white-space:nowrap;padding-left:6px}
+.f .v .u{color:var(--tx3);font-size:11.5px;margin-left:2px}
+.f .v.g{color:var(--tx3);font-size:12px}
+.f .verb{display:none;color:var(--tx2);font-size:12.5px;width:58px;flex:0 0 58px}
+.f.dim .nm{color:var(--tx3)}
+
+.foot{display:flex;align-items:center;gap:10px;margin-top:9px;padding-left:2px;min-height:30px}
+.foot .msg{font-size:12.5px;color:var(--tx2)}
+.foot .msg b{color:var(--tx);font-weight:500}
+.btn{white-space:nowrap;margin-left:auto;height:28px;padding:0 14px;border-radius:14px;border:0;cursor:pointer;
+  font:500 12.5px -apple-system,"SF Pro Text",system-ui;background:rgba(255,255,255,.1);color:var(--tx);
+  transition:background .2s var(--ease),transform .15s var(--ease)}
+.btn:hover{background:rgba(255,255,255,.16)}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:#F2F3F7;color:#15161d}
+.btn.pri:hover{background:#fff}
+.btn+.btn{margin-left:6px}
+
+/* plan mode */
+.card.plan .facts{grid-template-columns:1fr}
+.card.plan .f.noplan{display:none}
+.card.plan .f .verb{display:block}
+.f .pd{display:none}.card.plan .f .pd{display:inline}.card.plan .f .nd{display:none}
+.f .undo{display:none;color:var(--tx3);font-size:12px;margin-left:auto;padding-left:10px;white-space:nowrap}
+.card.plan .f .undo{display:block}
+.card.plan .f .v{display:none}
+.f .tick{width:16px;height:16px;flex:0 0 16px;margin-left:8px;opacity:0;transform:scale(.6);transition:opacity .25s,transform .3s var(--ease)}
+.f .tick svg{width:16px;height:16px;stroke:rgb(var(--forest));fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card.plan .f .tick{display:block}
+.f.doneStep .tick{opacity:1;transform:none}
+.f.doneStep .nm{color:var(--tx3)}
+.f .tick{display:none}
+
+/* wrapped row */
+.wrapped{display:flex;align-items:center;gap:11px;padding:11px 16px;border-radius:16px;
+  background:rgba(var(--forest),.07);border:1px solid rgba(var(--forest),.16);font-size:13px;
+  animation:slideIn .45s var(--ease)}
+.wrapped .mk.done{background:rgba(var(--forest),.25)}
+.wrapped .mk.done svg{stroke:rgb(var(--forest))}
+.wrapped .t2{color:var(--tx3);font-size:12px;margin-left:4px}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* strip mode */
+.strip{display:none;align-items:center;gap:6px;margin-left:14px}
+.panel.small .facts,.panel.small .foot.normal{display:none}
+.panel.small .strip{display:flex}
+.panel.small .card{padding:10px 14px}
+.panel.small .who .s{display:none}
+.panel.small .who{width:150px;flex:0 0 150px}
+.panel.small .strip{margin-left:0}
+.panel.small .btn.wrap-s{display:inline-block}
+.btn.wrap-s{display:none;height:24px;padding:0 11px;font-size:12px;margin-left:10px}
+.panel.small .state{margin-left:auto}
+
+/* orphan footer */
+.orph{display:flex;align-items:center;gap:10px;padding:12px 10px 4px;margin-top:6px;border-top:1px solid var(--hair);font-size:12.5px;color:var(--tx3)}
+.orph .it{display:flex;align-items:center;gap:8px;color:var(--tx2);cursor:default}
+.orph .it .g{color:var(--tx3)}
+.orph .lbl{margin-right:4px}
+
+/* hover card */
+.tip{position:absolute;width:300px;background:rgba(30,31,41,.94);border:1px solid var(--edge);border-radius:16px;
+  -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);padding:13px 14px 12px;
+  box-shadow:0 18px 50px rgba(6,5,20,.5);opacity:0;transform:translateY(4px) scale(.98);pointer-events:none;
+  transition:opacity .18s var(--ease),transform .22s var(--ease);z-index:20}
+.tip.show{opacity:1;transform:none;pointer-events:auto}
+.tip .tt{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600}
+.tip .st{font-size:12.5px;margin:7px 0 9px;color:var(--tx2)}
+.tip .st b{font-weight:600}
+.tip dl{display:grid;grid-template-columns:auto 1fr;column-gap:14px;row-gap:5px;font-size:12.5px;padding:9px 0 10px;border-top:1px solid var(--hair)}
+.tip dt{color:var(--tx3)}
+.tip dd{text-align:right;color:var(--tx)}
+.tip dt{white-space:nowrap}
+.tip .acts{display:flex;flex-wrap:wrap;gap:6px;padding-top:10px;border-top:1px solid var(--hair)}
+.tip .acts button{height:24px;padding:0 10px;border-radius:12px;border:0;background:rgba(255,255,255,.09);color:var(--tx);font:500 12px -apple-system,system-ui;cursor:pointer}
+.tip .acts button:hover{background:rgba(255,255,255,.16)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:opacity .2s linear!important}
+  .b.arc .ring circle{stroke-dasharray:22 100}
+}
+</style>
+</head>
+<body>
+<div class="desk"></div>
+<div id="stage">
+  <div class="mbar">
+    <div class="l">
+      <svg width="14" height="16" viewBox="0 0 14 17" fill="#fff"><path d="M11.6 9c0-2 1.6-2.9 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7C3.400 4.400 2.100 5.200 1.400 6.500c-1.500 2.600-.4 6.400 1 8.500.7 1 1.500 2.100 2.600 2.100 1 0 1.400-.7 2.600-.7s1.600.7 2.600.6c1.100 0 1.800-1 2.500-2 .8-1.100 1.100-2.200 1.100-2.300 0 0-2.200-.8-2.200-3.700zM9.700 3c.5-.7.9-1.600.8-2.500-.8 0-1.800.5-2.300 1.200-.5.600-.9 1.500-.8 2.400.9.1 1.800-.4 2.300-1.100z"/></svg>
+      <b>cmux</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="r">
+      <div class="mi on" data-tip="mbmm"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M2.8 11.5a5.2 5.2 0 1 1 10.4 0"/><path d="M8 11.5l2.6-3.2"/></svg>63<span class="u">%</span></div>
+      <div class="mi" data-tip="mbloco"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11v3"/></svg>6</div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="3.8" r="1.6"/><circle cx="5" cy="12.2" r="1.6"/><circle cx="11" cy="5.8" r="1.6"/><path d="M5 5.4v5.2M11 7.4c0 2.6-6 1.4-6 3.2"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3h11v2.4h-11zM3.5 5.4l.8 7.6h7.4l.8-7.6M6.5 8.4h3"/></svg></div>
+      <div class="mi" data-tip="ins"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 8s2.4-4.2 6.4-4.2S14.4 8 14.4 8 12 12.2 8 12.2 1.6 8 1.6 8z"/><circle cx="8" cy="8" r="1.9"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 18 14" fill="#fff"><path d="M9 2.2c2.700 0 5.100 1 6.900 2.700l1.100-1.100C14.900 1.800 12.100.6 9 .6S3.100 1.800 1 3.800l1.100 1.100C3.900 3.200 6.300 2.200 9 2.200zm0 3.200c1.800 0 3.400.7 4.600 1.800l1.100-1.100C13.200 4.700 11.200 3.800 9 3.800s-4.200.9-5.700 2.300l1.100 1.100C5.600 6.100 7.200 5.400 9 5.400zm0 3.200c.9 0 1.700.3 2.300.9L9 11.800 6.700 9.500c.6-.6 1.400-.9 2.300-.9z"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 27 13" width="24"><rect x=".5" y=".5" width="22" height="12" rx="3.5" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2.2" y="2.2" width="12.400" height="8.600" rx="2" fill="#fff"/><path d="M24.200 4.500v4a2 2 0 0 0 0-4z" fill="rgba(255,255,255,.55)"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="4" rx="2"/><rect x="1.5" y="9" width="13" height="4" rx="2"/><circle cx="4.500" cy="5" r=".9" fill="#fff"/><circle cx="11.500" cy="11" r=".9" fill="#fff"/></svg></div>
+      <div class="clock">Tue 27 Oct&nbsp; 16:42</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="phead">
+      <h1>Workstreams</h1><span class="sub">3 agents</span>
+      <div class="sizes">
+        <button class="sz on" id="szL" title="Cards" aria-label="Cards"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2.5" width="12" height="5" rx="1.6"/><rect x="2" y="9.5" width="12" height="4" rx="1.6"/></svg></button>
+        <button class="sz" id="szS" title="Strips" aria-label="Strips"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.500 4h11M2.500 8h11M2.500 12h11"/></svg></button>
+      </div>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="orph">
+      <span class="lbl">In no workstream</span>
+      <span class="it" data-tip="s6006"><span class="b goes c-loco">GLOCO</span>:6006 storybook <span class="g">idle 3d</span></span>
+      <span class="it" data-tip="orphwt"><span class="b goes c-forest">GFOREST</span>5 worktrees <span class="g">merged or stale</span></span>
+    </div>
+  </div>
+
+  <div class="tip" id="tip"></div>
+</div>
+
+<script>
+const G={
+  mm:'<svg viewBox="0 0 16 16"><path d="M2.8 11.5a5.2 5.2 0 1 1 10.4 0"/><path d="M8 11.5l2.6-3.2"/></svg>',
+  loco:'<svg viewBox="0 0 16 16"><path d="M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11v3"/></svg>',
+  forest:'<svg viewBox="0 0 16 16"><circle cx="5" cy="3.8" r="1.6"/><circle cx="5" cy="12.2" r="1.6"/><circle cx="11" cy="5.8" r="1.6"/><path d="M5 5.4v5.2M11 7.4c0 2.6-6 1.4-6 3.2"/></svg>',
+  noo:'<svg viewBox="0 0 16 16"><path d="M2.5 3h11v2.4h-11zM3.5 5.4l.8 7.6h7.4l.8-7.6M6.5 8.4h3"/></svg>',
+  ins:'<svg viewBox="0 0 16 16"><path d="M1.6 8s2.4-4.2 6.4-4.2S14.4 8 14.4 8 12 12.2 8 12.2 1.6 8 1.6 8z"/><circle cx="8" cy="8" r="1.9"/></svg>'
+};
+const RING='<svg class="ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5"/></svg>';
+const CHECK='<svg viewBox="0 0 10 10"><path d="M2 5.2l2 2 4-4.4"/></svg>';
+const TICK='<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.6" stroke-width="1.4"/><path d="M5.2 8.2l1.9 1.9 3.700-4"/></svg>';
+const AG={
+  claude:'<svg class="agent" viewBox="0 0 26 26"><rect width="26" height="26" rx="7.5" fill="#D97757"/><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M13 6.800v12.400M6.800 13h12.400M8.600 8.600l8.800 8.800M17.400 8.600l-8.800 8.800"/></g></svg>',
+  codex:'<svg class="agent" viewBox="0 0 26 26"><rect width="26" height="26" rx="7.5" fill="#ECECF1"/><g stroke="#17181f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M8 9.500l3.500 3.500L8 16.500"/><path d="M13.500 16.500h5"/></g></svg>'
+};
+function badge(k,s){return `<span class="b c-${k} ${s||''}">${G[k]}${s==='arc'?RING:''}</span>`}
+document.querySelectorAll('.orph .b').forEach(b=>{b.innerHTML=b.textContent==='GLOCO'?G.loco:G.forest});
+
+const WS=[
+ {id:'s3',agent:'claude',name:'speed-3',sub:'Claude Code · cmux tab',st:'work',stw:'Working',age:'2m',
+  facts:[
+   {k:'loco',s:'',n:':3000',d:'next dev',v:'412',u:'MB',tip:'s3000'},
+   {k:'loco',s:'',n:':5173',d:'vite',v:'188',u:'MB',tip:'s5173'},
+   {k:'forest',s:'',n:'speed-3-base',g:'in use',tip:'wspeed'},
+   {k:'noo',s:'',n:'.next cache',v:'640',u:'MB',tip:'cnext'},
+   {k:'mm',s:'',n:'Chrome for Testing',g:'spared',tip:'cft'},
+   {k:'ins',s:'arc',n:'Keeps Mac awake',tip:'ins'}],
+  foot:'Wrap Up opens when speed-3 finishes.'},
+ {id:'sp',agent:'claude',name:'studio-parity',sub:'Claude Code · cmux tab',st:'idle',stw:'Idle',age:'40m',
+  facts:[
+   {k:'loco',s:'idle',n:':3334',d:'sanity',v:'640',u:'MB',tip:'s3334'},
+   {k:'forest',s:'idle',n:'studio-parity',g:'open',tip:'wstudio'},
+   {k:'noo',s:'idle',n:'node_modules',v:'1.3',u:'GB',tip:'cstudio'},
+   {k:'ins',s:'off',n:'Sleep allowed',dim:1,tip:'insoff'}],
+  foot:'Stays. The agent may come back.'},
+ {id:'ar',agent:'codex',name:'fix auth redirect',sub:'Codex · thread',st:'done',stw:'Finished',age:'2h ago',wrap:1,
+  facts:[
+   {k:'loco',s:'goes',n:':4000',d:'phoenix',pd:'phoenix · 290 MB',v:'290',u:'MB',tip:'s4000',verb:'Stop',undo:'Undo restarts it'},
+   {k:'forest',s:'goes',n:'auth-redirect',d:'squash-merged',pd:'squash-merged · 1.8 GB',v:'1.8',u:'GB',tip:'wauth',verb:'Remove',undo:'Branch kept'},
+   {k:'noo',s:'goes',n:'node_modules',pd:'2.4 GB',v:'2.4',u:'GB',tip:'cauth',verb:'Trash',undo:'Back from Trash'},
+   {k:'ins',s:'off',n:'Sleep allowed',dim:1,noplan:1,tip:'insoff2'}]}
+];
+
+const TIPS={
+ s3000:{k:'loco',t:':3000 next dev',c:'loco',w:'Stays',s:'speed-3 uses it',f:[['Owner','Claude Code · speed-3'],['Worktree','speed-3-base'],['Memory','412 MB'],['State','In use']],a:['Open in Browser','Show Worktree']},
+ s5173:{k:'loco',t:':5173 vite',c:'loco',w:'Stays',s:'speed-3 uses it',f:[['Owner','Claude Code · speed-3'],['Worktree','speed-3-base'],['Memory','188 MB'],['State','In use']],a:['Open in Browser','Show Worktree']},
+ s3334:{k:'loco',t:':3334 sanity',c:'loco',w:'Stays',s:'idle 40m, its agent may resume',f:[['Owner','Claude Code · studio-parity'],['Worktree','studio-parity'],['Memory','640 MB'],['State','Idle 40m']],a:['Stop Now','Open in Browser']},
+ s4000:{k:'loco',t:':4000 phoenix',c:'rose',w:'Goes',s:'with Wrap Up, worktree merged',f:[['Owner','Codex · fix auth redirect'],['Worktree','auth-redirect, squash-merged'],['Memory','290 MB'],['State','Idle 2h']],a:['Stop Now','Open in Browser']},
+ s6006:{k:'loco',t:':6006 storybook',c:'rose',w:'Goes',s:'with Close Idle, nobody owns it',f:[['Owner','Nobody'],['Worktree','None found'],['Memory','520 MB'],['State','Idle 3d']],a:['Stop Now','Keep']},
+ wspeed:{k:'forest',t:'speed-3-base',c:'forest',w:'Stays',s:'speed-3 is working in it',f:[['Agent','Claude Code · speed-3'],['Servers',':3000, :5173'],['State','In use']],a:['Reveal in Finder','Open in Terminal']},
+ wstudio:{k:'forest',t:'studio-parity',c:'forest',w:'Stays',s:'its agent is idle, not finished',f:[['Agent','Claude Code · studio-parity'],['Server',':3334'],['State','Open, not merged']],a:['Reveal in Finder','Open in Terminal']},
+ wauth:{k:'forest',t:'auth-redirect',c:'rose',w:'Goes',s:'with Wrap Up',f:[['Agent','Codex · fix auth redirect'],['Branch','Squash-merged into main'],['Size','1.8 GB'],['Server',':4000']],a:['Remove Now','Reveal in Finder']},
+ orphwt:{k:'forest',t:'5 worktrees, no agent',c:'forest',w:'Waits',s:'in WorkForest',f:[['Merged','lane-e-sort, sb-fieldsets, w19-fire'],['Stale 34d','bp8-sweep-studio403'],['Stale 21d','bp7-studio-dogfood, 1 commit not in main']],a:['Open WorkForest']},
+ cnext:{k:'noo',t:'.next cache',c:'noo',w:'Stays',s:'speed-3 is building with it',f:[['Project','speed-3-base'],['Size','640 MB'],['Clean','After Wrap Up']],a:['Reveal in Finder']},
+ cstudio:{k:'noo',t:'node_modules',c:'noo',w:'Stays',s:'studio-parity is not merged',f:[['Project','studio-parity'],['Size','1.3 GB']],a:['Reveal in Finder']},
+ cauth:{k:'noo',t:'node_modules',c:'rose',w:'Goes',s:'to Trash with Wrap Up',f:[['Project','auth-redirect, squash-merged'],['Size','2.4 GB']],a:['Trash Now','Reveal in Finder']},
+ cft:{k:'mm',t:'Chrome for Testing',c:'mm',w:'Spared',s:'Playwright drives it',f:[['Agent','Claude Code · speed-3'],['CPU','9 %'],['Memory','1.2 GB']],a:['Show in MinMacs']},
+ ins:{k:'ins',t:'Insomnia',c:'ins',w:'Awake',s:'while speed-3 works',f:[['Sleeps when','speed-3 finishes'],['Battery','64 %, on adapter'],['Lid closed','Off'],['Ends on','Battery under 20 %, network lost, thermal serious']],a:['Let It Sleep','Lid-Closed Mode']},
+ insoff:{k:'ins',t:'Insomnia',c:'ins',w:'Not holding',s:'studio-parity is idle, Mac may sleep',f:[['Holding for','speed-3 only']],a:['Keep Awake for This']},
+ insoff2:{k:'ins',t:'Insomnia',c:'ins',w:'Not holding',s:'this agent is finished',f:[['Holding for','speed-3 only']],a:[]},
+ mbmm:{k:'mm',t:'MinMacs',c:'mm',w:'Normal',s:'system load 63 %',f:[['Memory','24.1 / 32 GB'],['Pressure','Normal'],['Thermal','Nominal']],a:['MinMacs Now']},
+ mbloco:{k:'loco',t:'LocoHost',c:'loco',w:'6 servers',s:'3 idle',f:[['In use',':3000, :5173'],['Kept',':5432 postgres, Docker'],['Idle',':3334, :4000, :6006']],a:['Close Idle']}
+};
+const COL={mm:'rgb(91,155,255)',loco:'rgb(63,208,184)',forest:'rgb(76,201,107)',noo:'rgb(242,181,68)',ins:'rgb(177,140,255)',rose:'#FF8E9E'};
+
+const list=document.getElementById('list');
+function factHTML(f){
+  const v=f.g?`<span class="v g">${f.g}</span>`:(f.v?`<span class="v">${f.v}<span class="u">${f.u}</span></span>`:'');
+  const d=(f.d?`<span class="d nd">${f.d}</span>`:'')+(f.pd?`<span class="d pd">${f.pd}</span>`:'');
+  return `<div class="f ${f.dim?'dim':''} ${f.noplan?'noplan':''}" data-tip="${f.tip}">${badge(f.k,f.s)}
+   <span class="verb">${f.verb||''}</span><span class="nm">${f.n}${d}</span>${v}<span class="undo">${f.undo||''}</span><span class="tick">${TICK}</span></div>`;
+}
+function mark(st){return st==='done'?`<span class="mk done">${CHECK}</span>`:`<span class="mk ${st}"></span>`}
+function cardHTML(w){
+  const strip=w.facts.map(f=>`<span data-tip="${f.tip}">${badge(f.k,f.s)}</span>`).join('');
+  return `<div class="card" id="c-${w.id}">
+   <div class="top">${AG[w.agent]}<div class="who"><div class="n">${w.name}</div><div class="s">${w.sub}</div></div>
+     <div class="strip">${strip}</div>
+     <div class="state">${mark(w.st)}<span class="sw">${w.stw}</span><span class="age">${w.age}</span></div>
+     ${w.wrap?'<button class="btn wrap-s" data-act="plan">Wrap Up</button>':''}
+   </div>
+   <div class="facts">${w.facts.map(factHTML).join('')}</div>
+   <div class="foot normal">${w.wrap?
+     `<span class="msg">Frees <b>4.2 GB</b> disk and <b>290 MB</b> memory</span><button class="btn pri" data-act="plan">Wrap Up</button>`:
+     `<span class="msg">${w.foot}</span>`}</div>
+  </div>`;
+}
+function render(){list.innerHTML=WS.map(cardHTML).join('');bindTips(list)}
+render();
+
+/* Wrap Up flow */
+let timers=[];
+list.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const card=document.getElementById('c-ar');
+  const act=b.dataset.act;
+  if(act==='plan'){
+    setSize(false);
+    card.classList.add('plan');
+    card.querySelector('.sw').textContent='Wrap Up plan';card.querySelector('.state .mk').outerHTML='<span class="mk plan"></span>';
+    card.querySelector('.age').textContent='';
+    card.querySelector('.foot').innerHTML=`<span class="msg">Only these three. Undo brings them back.</span><button class="btn" data-act="cancel">Cancel</button><button class="btn pri" data-act="go">Wrap Up</button>`;
+  }
+  if(act==='cancel'){render()}
+  if(act==='go'){
+    card.querySelector('.foot').innerHTML=`<span class="msg">Wrapping up…</span>`;
+    const steps=[...card.querySelectorAll('.f:not(.noplan)')];
+    const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    steps.forEach((s,i)=>timers.push(setTimeout(()=>s.classList.add('doneStep'),reduce?0:280+i*360)));
+    timers.push(setTimeout(()=>{
+      card.style.opacity='0';card.style.transform='translateY(-4px)';
+      setTimeout(()=>{
+        card.outerHTML=`<div class="wrapped" id="c-ar">${AG.codex}<span class="mk done">${CHECK}</span>
+         <span>fix auth redirect wrapped up</span><span class="t2">:4000 stopped · 4.2 GB in Trash · 16:42</span>
+         <button class="btn" data-act="undo">Undo</button></div>`;
+      },reduce?0:320);
+    },reduce?100:280+steps.length*360+300));
+  }
+  if(act==='undo'){timers.forEach(clearTimeout);render();
+    const c=document.getElementById('c-ar');c.style.animation='slideIn .45s var(--ease)';}
+});
+
+/* size toggle */
+const panel=document.getElementById('panel');
+function setSize(small){panel.classList.toggle('small',small);szS.classList.toggle('on',small);szL.classList.toggle('on',!small);hideTip(true)}
+szL.onclick=()=>setSize(false);szS.onclick=()=>setSize(true);
+
+/* hover cards */
+const stage=document.getElementById('stage'),tip=document.getElementById('tip');
+let scale=1,hideT;
+function showTip(el){
+  const d=TIPS[el.dataset.tip];if(!d)return;clearTimeout(hideT);
+  tip.innerHTML=`<div class="tt">${badge(d.k,'')}${d.t}</div>
+   <div class="st"><b style="color:${COL[d.c]}">${d.w}</b> · ${d.s}</div>
+   <dl>${d.f.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>
+   ${d.a.length?`<div class="acts">${d.a.map(a=>`<button>${a}</button>`).join('')}</div>`:''}`;
+  const r=el.getBoundingClientRect(),s=stage.getBoundingClientRect();
+  let x=(r.left-s.left)/scale, y=(r.bottom-s.top)/scale+8;
+  const pr=panel.getBoundingClientRect();
+  // place to the left of the panel, aligned with the row
+  if(el.closest('.panel')){x=(pr.left-s.left)/scale-300-12;y=(r.top-s.top)/scale-10}
+  else{x=Math.min(x,1280-280)}
+  tip.style.left=x+'px';tip.style.top=Math.min(y,800-tip.offsetHeight-12)+'px';
+  tip.classList.add('show');
+}
+function hideTip(now){clearTimeout(hideT);hideT=setTimeout(()=>tip.classList.remove('show'),now===true?0:140)}
+function bindTips(root){root.querySelectorAll('[data-tip]').forEach(el=>{el.onmouseenter=()=>showTip(el);el.onmouseleave=hideTip})}
+bindTips(document);
+tip.onmouseenter=()=>clearTimeout(hideT);tip.onmouseleave=hideTip;
+
+function fit(){scale=Math.min(innerWidth/1280,innerHeight/800);
+  stage.style.transform=`scale(${scale})`;
+  stage.style.left=(innerWidth-1280*scale)/2+'px';stage.style.top=(innerHeight-800*scale)/2+'px'}
+addEventListener('resize',fit);fit();
+if(location.hash==='#small')setSize(true);
+if(location.hash==='#plan')document.querySelector('#c-ar [data-act=plan]').click();
+if(location.hash==='#done'){document.querySelector('#c-ar [data-act=plan]').click();document.querySelector('#c-ar [data-act=go]').click()}
+if(location.hash==='#tip')showTip(document.querySelector('.f[data-tip=s4000]'));
+</script>
+</body>
+</html>

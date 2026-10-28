@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clutter Badges</title>
+<style>
+:root{
+  --amber:#F2B544;
+  --ink:#2a1d05;
+  --glass:rgba(28,29,38,.86);
+  --line:rgba(255,255,255,.07);
+  --text:#F4F3F7;
+  --dim:rgba(235,235,245,.52);
+  --faint:rgba(235,235,245,.3);
+  --badge:rgba(255,255,255,.08);
+  --ease:cubic-bezier(.22,.8,.26,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--text);
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;background:#1b1838}
+.desk{position:fixed;inset:0;background:
+  radial-gradient(1100px 700px at 12% 8%,#43348a 0%,transparent 60%),
+  radial-gradient(900px 640px at 88% 4%,#1f5a80 0%,transparent 62%),
+  radial-gradient(1000px 700px at 92% 98%,#93406a 0%,transparent 60%),
+  radial-gradient(900px 600px at 20% 100%,#2b2050 0%,transparent 70%),
+  #211c45;}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0}
+
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;
+  padding:0 10px 0 16px;font-size:13px;background:rgba(18,14,40,.32);
+  -webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);color:rgba(255,255,255,.92)}
+.mb .l{display:flex;align-items:center;gap:19px}
+.mb .l b{font-weight:600}
+.mb .r{margin-left:auto;display:flex;align-items:center;gap:4px}
+.mbi{height:22px;padding:0 7px;border-radius:5px;display:flex;align-items:center;gap:5px;color:#fff}
+.mbi svg{width:15px;height:15px}
+.mbi .rd{font-size:12.5px;font-weight:500}
+.mbi .rd i{font-style:normal;color:rgba(255,255,255,.55);font-size:11px;margin-left:1px}
+.clock{padding:0 6px 0 8px}
+
+.panel{position:absolute;top:58px;left:790px;width:452px;border-radius:22px;background:var(--glass);
+  border:1px solid rgba(255,255,255,.085);
+  -webkit-backdrop-filter:blur(40px) saturate(1.5);backdrop-filter:blur(40px) saturate(1.5);
+  box-shadow:0 24px 60px rgba(6,4,20,.45),0 2px 8px rgba(0,0,0,.25);padding:18px 20px 18px;
+  transition:width .45s var(--ease)}
+.hd{display:flex;align-items:center;height:30px}
+.sb{width:28px;height:28px;border-radius:50%;background:var(--badge);position:relative;display:flex;align-items:center;justify-content:center;flex:none}
+.sb svg.g{width:15px;height:15px}
+.sb svg.arc{position:absolute;inset:0;width:28px;height:28px;transform:rotate(-90deg)}
+.big{font-size:23px;font-weight:500;margin-left:10px;letter-spacing:-.2px;white-space:nowrap}
+.unit{font-size:12.5px;color:var(--dim);font-weight:400;margin-left:3px;letter-spacing:0}
+.hd .rc{margin-left:auto;display:flex;align-items:center}
+.iconbtn{width:26px;height:26px;border-radius:50%;background:var(--badge);border:0;color:var(--dim);display:flex;align-items:center;justify-content:center;margin-left:12px;cursor:pointer;transition:background .2s,color .2s;flex:none}
+.iconbtn:hover{background:rgba(255,255,255,.14);color:#fff}
+.iconbtn svg{width:13px;height:13px}
+
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);row-gap:6px;margin-top:16px}
+.cell{display:flex;flex-direction:column;align-items:center;padding:8px 0 10px;border-radius:16px;cursor:pointer;
+  border:0;background:transparent;color:inherit;font:inherit;transition:background .25s,opacity .3s}
+.cell:hover{background:rgba(255,255,255,.03)}
+.cell.sel{background:rgba(255,255,255,.055)}
+.ring{width:72px;height:72px;position:relative;transition:transform .15s}
+.cell:active .ring{transform:scale(.95)}
+.ring svg.arcs{position:absolute;inset:0;transform:rotate(-90deg)}
+.ring .face{position:absolute;left:12px;top:12px;width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;transition:background .5s,color .5s}
+.ring .face svg{width:21px;height:21px}
+.face.on{background:var(--amber);color:var(--ink)}
+.face.ask{background:var(--badge);color:var(--amber)}
+.face.rep{background:var(--badge);color:#9a97a3}
+.face.off{background:rgba(255,255,255,.05);color:rgba(235,235,245,.35)}
+.lbl{margin-top:5px;font-size:12.5px;color:var(--dim);white-space:nowrap;transition:color .2s}
+.cell.sel .lbl,.cell:hover .lbl{color:var(--text)}
+.val{margin-top:2px;font-size:15px;font-weight:500;white-space:nowrap}
+.val .unit{font-size:11.5px}
+.preview .cell.stays{opacity:.42}
+
+.compact .grid{grid-template-columns:repeat(6,1fr);margin-top:12px}
+.compact .lbl,.compact .val{display:none}
+.compact .cell{padding:4px 0}
+.compact .cell.sel{background:transparent}
+#dIn{padding-bottom:6px}
+.compact .ring{width:56px;height:56px}
+.compact .ring svg.arcs{width:56px;height:56px}
+.compact .ring .face{left:9px;top:9px;width:38px;height:38px}
+.compact .ring .face svg{width:17px;height:17px}
+.compact .detail{max-height:0!important;opacity:0}
+
+/* detail */
+.detail{overflow:hidden;max-height:0;opacity:0;transition:max-height .5s var(--ease),opacity .35s}
+.detail.open{opacity:1}
+.dhd{display:flex;align-items:baseline;margin-top:10px;padding:12px 2px 8px;border-top:1px solid var(--line)}
+.dhd h3{font-size:13.5px;font-weight:600}
+.dhd .s{font-size:12px;color:var(--dim);margin-left:8px}
+.dhd .m{margin-left:auto;font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.dhd .m svg{width:13px;height:13px}
+.it{display:flex;align-items:center;height:31px;padding:0 2px;border-radius:8px;transition:background .2s,opacity .35s,height .4s var(--ease)}
+.it.tog{cursor:pointer}
+.it.tog:hover{background:rgba(255,255,255,.035)}
+.it .mk{width:18px;flex:none;display:flex}
+.it .mk svg{width:9px;height:9px}
+.it .n{font-size:13px;width:150px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .o{font-size:11.5px;color:var(--dim);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.it .o b{font-weight:500;color:rgba(235,235,245,.78)}
+.it .z{font-size:13.5px;font-weight:500;width:62px;text-align:right;flex:none}
+.it .z .unit{font-size:11px}
+.it.keep .n,.it.keep .z{color:var(--dim)}
+.it.done{opacity:.35}
+.dnote{font-size:11.5px;color:var(--dim);padding:6px 2px 2px 20px}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;color:rgba(235,235,245,.7)}
+
+/* plan */
+.plan .pg{padding:10px 2px 4px}
+.plan .pg + .pg{border-top:1px solid var(--line)}
+.plan .ph{display:flex;align-items:center;font-size:13px;font-weight:600}
+.plan .ph svg{width:14px;height:14px;margin-right:8px;flex:none}
+.plan .ph .z{margin-left:auto;font-size:14px;font-weight:500}
+.plan .ph .z .unit{font-size:11px}
+.plan .pl{font-size:11.5px;color:var(--dim);margin:4px 0 6px 22px;line-height:16px}
+
+/* footer */
+.ft{margin-top:12px;height:36px;position:relative}
+.ft > div{position:absolute;inset:0;display:flex;align-items:center;transition:opacity .3s,transform .4s var(--ease)}
+.ft > div.off{opacity:0;pointer-events:none;transform:translateY(6px)}
+.btn{height:34px;border-radius:17px;border:0;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  padding:0 18px;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:filter .2s,background .2s,transform .12s}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--amber);color:var(--ink)}
+.btn.pri:hover{filter:brightness(1.07)}
+.btn.pri .n{font-weight:500;opacity:.72}
+.btn.gh{background:rgba(255,255,255,.08);color:var(--text);font-weight:500}
+.btn.gh:hover{background:rgba(255,255,255,.13)}
+.btn.wide{width:100%}
+.btn[disabled]{background:rgba(255,255,255,.06);color:var(--faint);cursor:default}
+.ft .note{font-size:11.5px;color:var(--dim);line-height:15px}
+.ft .note b{color:var(--text);font-weight:500}
+.ft .gap{margin-left:auto;display:flex;gap:8px}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01ms!important;transition-property:opacity!important}
+}
+</style>
+</head>
+<body>
+<div class="desk"></div>
+<div id="stage">
+  <div class="mb">
+    <div class="l">
+      <svg width="14" height="16" viewBox="0 0 14 17" fill="#fff"><path d="M11.6 9c0-2 1.6-3 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7s-1.6-.7-2.6-.7C3.4 4.5 2 5.3 1.3 6.6-.2 9.2.9 13 2.3 15c.7 1 1.5 2 2.5 2s1.4-.6 2.6-.6 1.5.6 2.6.6 1.7-1 2.4-2c.8-1.1 1.1-2.2 1.1-2.3 0 0-2-.8-1.9-3.7zM9.7 3.1c.5-.7.9-1.6.8-2.5-.8 0-1.7.5-2.3 1.2-.5.6-.9 1.5-.8 2.4.9.1 1.7-.4 2.3-1.1z"/></svg>
+      <b>cmux</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="r">
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M2.3 11.5a5.7 5.7 0 1 1 11.4 0"/><path d="M8 11.5l2.6-3.2"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="4.5" rx="1.5"/><rect x="2" y="9" width="12" height="4.5" rx="1.5"/><circle cx="5" cy="4.75" r=".6" fill="#fff"/><circle cx="5" cy="11.25" r=".6" fill="#fff"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="5" r="1.6"/><path d="M4.5 5.1v5.8M11.5 6.6c0 2.6-7 1.8-7 4.3"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><circle cx="6.5" cy="9.5" r="4.5"/><path d="M9.8 6.2l3.4-3.4M11.8 1.8l2.4 2.4"/><circle cx="6.5" cy="9.5" r="1.2" fill="#fff" stroke="none"/></svg><span class="rd" id="mbRead">38<i>GB</i></span></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5h8v3.5a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z"/><path d="M10.5 7.5h1.2a1.6 1.6 0 0 1 0 3.2h-1.2M5.5 2.5v2M8 2.5v2"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M1.8 6.2a9 9 0 0 1 12.4 0M4 8.6a5.8 5.8 0 0 1 8 0M6.2 11a2.6 2.6 0 0 1 3.6 0"/><circle cx="8" cy="13.2" r=".7" fill="#fff"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 26 14" style="width:25px" fill="none"><rect x=".75" y=".75" width="21.5" height="12.5" rx="3.6" stroke="rgba(255,255,255,.5)" stroke-width="1.2"/><rect x="2.4" y="2.4" width="11.6" height="9.2" rx="2.2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linecap="round"/><path d="M12.3 2.8l-3.1 4.5h2.4l-1 3.9 3.2-4.6h-2.4z" fill="#211c45"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.4"><rect x="1.8" y="3" width="12.4" height="4" rx="2"/><rect x="1.8" y="9" width="12.4" height="4" rx="2"/><circle cx="11.8" cy="5" r="1" fill="#fff"/><circle cx="4.2" cy="11" r="1" fill="#fff"/></svg></div>
+      <div class="clock">Tue 27 Oct&nbsp; 16:42</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="hd">
+      <div class="sb">
+        <svg class="arc" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12.6" fill="none" stroke="rgba(242,181,68,.16)" stroke-width="1.8"/><circle id="diskArc" cx="14" cy="14" r="12.6" fill="none" stroke="#F2B544" stroke-width="1.8" stroke-linecap="round" pathLength="100" stroke-dasharray="81.7 100"/></svg>
+        <svg class="g" viewBox="0 0 16 16" fill="none" stroke="#F2B544" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="4" width="12" height="8" rx="2.2"/><path d="M4.8 8h3.4"/><circle cx="11" cy="8" r=".8" fill="#F2B544" stroke="none"/></svg>
+      </div>
+      <span class="big"><span id="used">812</span><span class="unit">/ 994 GB</span></span>
+      <div class="rc">
+        <div class="sb"><svg class="g" viewBox="0 0 16 16" fill="none" stroke="#F2B544" stroke-width="1.5" stroke-linecap="round"><circle cx="6.5" cy="9.5" r="4.5"/><path d="M9.8 6.2l3.4-3.4M11.8 1.8l2.4 2.4"/><circle cx="6.5" cy="9.5" r="1.2" fill="#F2B544" stroke="none"/></svg></div>
+        <span class="big"><span id="recl">38.4</span><span class="unit">GB to reclaim</span></span>
+        <button class="iconbtn" id="resize" title="Smaller"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5h4v4M12.5 1.5L8 6M5.5 12.5h-4v-4M1.5 12.5L6 8"/></svg></button>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="detail" id="detail"><div id="dIn"></div></div>
+    <div class="ft">
+      <div id="fIdle"><button class="btn pri wide" id="cleanBtn">Clean Safe <span class="n">30.1 GB</span></button></div>
+      <div id="fPrev" class="off">
+        <span class="note"><b>Dry run.</b> Nothing has moved.<br>This is the whole plan.</span>
+        <span class="gap"><button class="btn gh" id="cancelBtn">Cancel</button><button class="btn pri" id="goBtn">Clean <span id="goAmt">30.1 GB</span></button></span>
+      </div>
+      <div id="fDone" class="off">
+        <span class="note" id="doneNote"></span>
+        <span class="gap"><button class="btn gh" id="undoBtn"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5L2 5l2.5 2.5"/><path d="M2 5h6.5a3.5 3.5 0 0 1 0 7H6"/></svg>Undo</button></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SVG = {
+  hammer:'<path d="M2.8 13.2l6-6"/><path d="M6.9 5.1l3.2-3.2 4 4-3.2 3.2z"/>',
+  hex:'<path d="M8 1.8l5.3 3.1v6.2L8 14.2l-5.3-3.1V4.9z"/><path d="M8 5.6v4.8"/>',
+  box:'<path d="M2.5 5L8 2.2 13.5 5v6L8 13.8 2.5 11z"/><path d="M2.5 5L8 7.9 13.5 5M8 7.9v5.9"/>',
+  stack:'<rect x="1.8" y="8.2" width="3.6" height="3.6" rx=".6"/><rect x="6.2" y="8.2" width="3.6" height="3.6" rx=".6"/><rect x="10.6" y="8.2" width="3.6" height="3.6" rx=".6"/><rect x="6.2" y="3.8" width="3.6" height="3.6" rx=".6"/>',
+  win:'<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M1.8 6h12.4"/><circle cx="4" cy="4.4" r=".5" fill="currentColor"/>',
+  phone:'<rect x="4.6" y="1.6" width="6.8" height="12.8" rx="1.8"/><path d="M7 12h2"/>',
+  trash:'<path d="M2.8 4.3h10.4M6 4.3V2.8h4v1.5M4.3 4.3l.7 9h6l.7-9"/>',
+  term:'<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M4.8 6.4l2 1.6-2 1.6M8.6 10h2.6"/>',
+  eye:'<path d="M1.5 8S4 3.8 8 3.8 14.5 8 14.5 8 12 12.2 8 12.2 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  pause:'<circle cx="8" cy="8" r="6"/><path d="M6.5 5.8v4.4M9.5 5.8v4.4"/>'
+};
+const ico = (k,sw) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="${sw||1.5}" stroke-linecap="round" stroke-linejoin="round">${SVG[k]}</svg>`;
+
+// kind: go (safe, may be kept), own (owner decides, not in Clean Safe), rep (report only), use (in use, not counted)
+const C = [
+ {id:'dd', lbl:'DerivedData', name:'Xcode DerivedData', glyph:'hammer', m:'trash', ml:'To Trash', items:[
+   ['NooNoo-proto','<b>Project gone</b>',3.6,'go'],['cmux-fork','<b>Project gone</b>',2.9,'go'],
+   ['jarl-remote-ios','<b>Project gone</b>',2.6,'go'],['WoWAddonPreview','<b>Project gone</b>',1.8,'go'],
+   ['MinMacs','Yours, built today',2.1,'keep'],['cmux','Yours, built 3 days ago',0.8,'keep'],['jarl-card','Yours, built 5 days ago',0.4,'keep']]},
+ {id:'nm', lbl:'node_modules', name:'node_modules', glyph:'hex', m:'trash', ml:'To Trash', items:[
+   ['lane-e-sort','WorkForest: <b>merged</b>',3.6,'go'],['auth-redirect','WorkForest: <b>squash-merged</b>',3.1,'go'],
+   ['sb-fieldsets','WorkForest: <b>merged</b>',1.9,'go'],['w19-fire','WorkForest: <b>merged</b>',1.2,'go']],
+   note:'The worktrees stay. WorkForest can remove them next.'},
+ {id:'npm', lbl:'npm cache', name:'npm cache', glyph:'box', m:'term', ml:'npm’s own command', items:[
+   ['~/.npm/_cacache','npm owns it',6.1,'go']],
+   note:'Runs <code>npm cache clean --force</code>. It can’t be put back; npm refills it on install.'},
+ {id:'dk', lbl:'Docker cache', name:'Docker build cache', glyph:'stack', m:'term', ml:'Docker’s own command', items:[
+   ['Build cache','Docker owns it, <b>asks first</b>',4.2,'own']],
+   note:'Docker runs postgres :5432, so Noo-Noo leaves it to you: <code>docker builder prune</code>'},
+ {id:'pw', lbl:'Playwright', name:'Playwright browsers', glyph:'win', m:'trash', ml:'To Trash', items:[
+   ['chromium-1140','<b>Old version</b>',1.4,'go'],['chromium-1134','<b>Old version</b>',1.2,'go'],['webkit-2035','<b>Old version</b>',0.7,'go'],
+   ['chromium-1148','<b>Playwright drives it</b>',0,'use']]},
+ {id:'sim', lbl:'Simulators', name:'Simulator runtimes', glyph:'phone', m:'eye', ml:'Report only', items:[
+   ['iOS 17.5 runtime','macOS owns it',0.8,'rep']],
+   note:'Deleting it by hand breaks Xcode. To remove: <code>xcrun simctl runtime delete</code>'}
+];
+const SCALE = 38.4, DISK = 994;
+let used = 812, mode = 'idle', sel = 0, last = null;
+C.forEach(c => c.items.forEach(it => { it.state = it[3]; it.cleaned = false; }));
+
+const $ = id => document.getElementById(id);
+const fmt = v => (Math.round(v*10)/10).toFixed(1);
+const fmtUsed = v => Math.abs(v-Math.round(v))<0.05 ? String(Math.round(v)) : fmt(v);
+const live = it => !it.cleaned && it[3]!=='use';
+const goOf = c => c.items.reduce((a,it)=> a + (live(it)&&it.state==='go' ? it[2] : 0), 0);
+const totOf = c => c.items.reduce((a,it)=> a + (live(it) ? it[2] : 0), 0);
+const safeAll = () => C.reduce((a,c)=>a+goOf(c),0);
+const reclAll = () => C.reduce((a,c)=>a+totOf(c),0);
+
+const MK = {
+  go:'<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#F2B544"/></svg>',
+  keep:'<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" fill="none" stroke="rgba(235,235,245,.55)" stroke-width="1.3"/></svg>',
+  own:'<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" fill="none" stroke="#E6CFA0" stroke-width="1.3"/></svg>',
+  use:'<svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" rx="1.6" fill="none" stroke="#9fd0ff" stroke-width="1.3"/></svg>',
+  rep:'<svg viewBox="0 0 10 10"><rect x="1.5" y="4.2" width="7" height="1.6" rx=".8" fill="#8E8A96"/></svg>'
+};
+
+// grid
+const grid = $('grid');
+const R = 33, CIRC = 100;
+C.forEach((c,i)=>{
+  const b = document.createElement('button'); b.className='cell'; b.dataset.i=i;
+  b.innerHTML = `<div class="ring"><svg class="arcs" viewBox="0 0 72 72" width="72" height="72">
+      <circle cx="36" cy="36" r="${R}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="3"/>
+      <circle class="aS" cx="36" cy="36" r="${R}" fill="none" stroke="rgba(242,181,68,.38)" stroke-width="3" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+      <circle class="aG" cx="36" cy="36" r="${R}" fill="none" stroke="#F2B544" stroke-width="3" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+    </svg><div class="face">${ico(c.glyph,1.6)}</div></div>
+    <div class="lbl">${c.lbl}</div><div class="val"></div>`;
+  b.onclick = () => select(i);
+  grid.appendChild(b);
+});
+const cells = [...grid.children];
+
+const tw = {};
+function tween(key, from, to, dur, fn){
+  cancelAnimationFrame(tw[key]);
+  if (RM || !dur || Math.abs(from-to)<1e-6){ fn(to); return; }
+  const t0 = performance.now();
+  const st = now => { const k=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-k,3); fn(from+(to-from)*e); if(k<1) tw[key]=requestAnimationFrame(st); };
+  tw[key] = requestAnimationFrame(st);
+}
+const shown = C.map(c=>({go:goOf(c), tot:totOf(c)}));
+let shownUsed = used, shownRecl = reclAll();
+
+function drawArc(cell, g, t){
+  const s = t-g, gap = (g>0.05 && s>0.05) ? 1.8 : 0;
+  const gp = g/SCALE*100, sp = s/SCALE*100;
+  const aG = cell.querySelector('.aG'), aS = cell.querySelector('.aS');
+  aG.setAttribute('stroke-dasharray', `${Math.max(0,gp-gap/2)} 100`); aG.style.opacity = gp>0.05?1:0;
+  aS.setAttribute('stroke-dasharray', `${Math.max(0,sp-gap/2)} 100`);
+  aS.setAttribute('stroke-dashoffset', -(gp+gap/2)); aS.style.opacity = sp>0.05?1:0;
+}
+function faceClass(c){
+  const g = goOf(c), t = totOf(c);
+  if (t<0.05) return 'off';
+  if (g>0) return 'on';
+  return c.id==='sim' ? 'rep' : (c.id==='dk' ? 'ask' : 'off');
+}
+
+function render(anim){
+  const d = anim?900:0;
+  C.forEach((c,i)=>{
+    const cell = cells[i], g = goOf(c), t = totOf(c);
+    cell.querySelector('.face').className = 'face '+faceClass(c);
+    cell.classList.toggle('stays', g<0.05);
+    const s0 = shown[i];
+    tween('c'+i, 0, 1, d, k=>{
+      const gv = s0.go+(g-s0.go)*k, tv = s0.tot+(t-s0.tot)*k;
+      drawArc(cell, gv, tv);
+      cell.querySelector('.val').innerHTML = (k===1 && t<0.05) ? '<span class="unit" style="margin:0;font-size:12px">Cleaned</span>' : `${fmt(tv)}<span class="unit">GB</span>`;
+      if (k===1){ s0.go=g; s0.tot=t; }
+    });
+  });
+  tween('u', shownUsed, used, d, v=>{ shownUsed=v; $('used').textContent = fmtUsed(v); $('diskArc').setAttribute('stroke-dasharray', `${v/DISK*100} 100`); });
+  const r = reclAll();
+  tween('r', shownRecl, r, d, v=>{ shownRecl=v; $('recl').textContent = fmt(v); $('mbRead').innerHTML = Math.round(v)+'<i>GB</i>'; });
+  const S = safeAll(), cb = $('cleanBtn');
+  if (S<0.05){ cb.disabled=true; cb.textContent='Nothing safe left to clean'; }
+  else { cb.disabled=false; cb.innerHTML = `Clean Safe <span class="n">${fmt(S)} GB</span>`; }
+  $('goAmt').textContent = fmt(S)+' GB';
+  if (mode==='preview') drawPlan(); else drawDetail();
+}
+
+function itemRow(it, ci, ii){
+  const tog = it[3]==='go' || it[3]==='keep';
+  const st = it.cleaned ? 'go' : it.state;
+  const z = it[3]==='use' ? '<span class="unit" style="margin:0">in use</span>' : `${fmt(it[2])}<span class="unit">GB</span>`;
+  const o = it.cleaned ? (C[ci].m==='trash' ? 'In the Trash' : 'Cleaned') : it[1];
+  return `<div class="it${tog&&!it.cleaned?' tog':''}${st==='keep'?' keep':''}${it.cleaned?' done':''}" data-c="${ci}" data-i="${ii}" title="${tog&&!it.cleaned?(st==='go'?'Press to keep':'Press to include'):''}">
+    <span class="mk">${MK[st]}</span><span class="n">${it[0]}</span><span class="o">${o}</span><span class="z">${z}</span></div>`;
+}
+function drawDetail(){
+  const det = $('detail'), din = $('dIn');
+  if (sel<0){ det.style.maxHeight='0'; det.classList.remove('open'); return; }
+  const c = C[sel], n = c.items.length;
+  const gone = c.id==='dd' ? `${n} projects, ${c.items.filter(x=>x[3]==='go').length} gone` : '';
+  din.className='';
+  din.innerHTML = `<div class="dhd"><h3>${c.name}</h3><span class="s">${gone}</span><span class="m">${ico(c.m)}${c.ml}</span></div>
+    ${c.items.map((it,ii)=>itemRow(it,sel,ii)).join('')}
+    ${c.note?`<div class="dnote">${c.note}</div>`:''}`;
+  din.querySelectorAll('.it.tog').forEach(el => el.onclick = () => {
+    const it = C[+el.dataset.c].items[+el.dataset.i];
+    it.state = it.state==='go' ? 'keep' : 'go'; render(true);
+  });
+  det.classList.add('open');
+  det.style.maxHeight = (din.scrollHeight+4)+'px';
+}
+function drawPlan(){
+  const det = $('detail'), din = $('dIn');
+  let trash=0, trashParts=[], cmd=0, stay=0, stayParts=[];
+  C.forEach(c=>{
+    const goItems = c.items.filter(it=>live(it)&&it.state==='go');
+    const g = goItems.reduce((a,it)=>a+it[2],0);
+    if (g>0){
+      if (c.m==='trash'){ trash+=g; trashParts.push(`${goItems.length} ${c.id==='dd'?'DerivedData projects':c.id==='nm'?'node_modules folders':'old Playwright browsers'}`); }
+      else cmd+=g;
+    }
+    const s = c.items.filter(it=>live(it)&&it.state!=='go');
+    if (s.length){
+      stay += s.reduce((a,it)=>a+it[2],0);
+      if (c.id==='dd') stayParts.push(`${s.length} DerivedData projects you built this week`);
+      else if (c.id==='dk') stayParts.push('Docker build cache, Docker owns it');
+      else if (c.id==='sim') stayParts.push('iOS 17.5 runtime, report only');
+      else stayParts.push(`${s.length} kept in ${c.name}`);
+    }
+  });
+  const unit = v => `${fmt(v)}<span class="unit">GB</span>`;
+  din.className='plan';
+  din.innerHTML = `<div class="dhd"><h3>Clean Safe, step by step</h3></div>
+    ${trash>0?`<div class="pg"><div class="ph" style="color:var(--text)"><span style="color:var(--amber)">${ico('trash')}</span>To the Trash<span class="z">${unit(trash)}</span></div><div class="pl">${trashParts.join(', ')}. Undo puts them back.</div></div>`:''}
+    ${cmd>0?`<div class="pg"><div class="ph"><span style="color:var(--amber)">${ico('term')}</span>npm cleans its own cache<span class="z">${unit(cmd)}</span></div><div class="pl"><code>npm cache clean --force</code>. Can’t be put back; npm refills it.</div></div>`:''}
+    ${stay>0?`<div class="pg"><div class="ph" style="color:var(--dim)"><span>${ico('pause')}</span>Stays<span class="z">${unit(stay)}</span></div><div class="pl">${stayParts.join('. ')}. Playwright’s current browser stays, Playwright drives it.</div></div>`:''}`;
+  det.classList.add('open');
+  det.style.maxHeight = (din.scrollHeight+4)+'px';
+}
+
+function select(i){
+  if (mode==='preview') return;
+  if (panel.classList.contains('compact')){ panel.classList.remove('compact'); sel=i; cells.forEach((c,j)=>c.classList.toggle('sel', j===sel)); drawDetail(); return; }
+  sel = (sel===i) ? -1 : i;
+  cells.forEach((c,j)=>c.classList.toggle('sel', j===sel));
+  drawDetail();
+}
+function setFoot(w){ ['fIdle','fPrev','fDone'].forEach(id=>$(id).classList.toggle('off', id!==w)); }
+const panel = $('panel');
+$('cleanBtn').onclick = () => { if (safeAll()<0.05) return; mode='preview'; panel.classList.add('preview'); panel.classList.remove('compact'); cells.forEach(c=>c.classList.remove('sel')); setFoot('fPrev'); drawPlan(); };
+$('cancelBtn').onclick = () => { mode='idle'; panel.classList.remove('preview'); setFoot('fIdle'); cells.forEach((c,j)=>c.classList.toggle('sel', j===sel)); drawDetail(); };
+$('goBtn').onclick = () => {
+  let S=0, T=0; last = [];
+  C.forEach(c=>c.items.forEach(it=>{ if (live(it)&&it.state==='go'){ it.cleaned=true; S+=it[2]; if (c.m==='trash'){ T+=it[2]; last.push(it); } } }));
+  used -= S; mode='done'; panel.classList.remove('preview');
+  cells.forEach((c,j)=>c.classList.toggle('sel', j===sel));
+  $('doneNote').innerHTML = `<b>${fmt(S)} GB cleaned.</b> ${fmt(T)} GB is in the Trash.`;
+  $('undoBtn').style.display = T>0?'':'none'; last.T = T;
+  setFoot('fDone'); render(true);
+};
+$('undoBtn').onclick = () => {
+  last.forEach(it=>it.cleaned=false); used += last.T;
+  $('doneNote').innerHTML = `<b>Put back ${fmt(last.T)} GB.</b> npm cache stays cleared.`;
+  $('undoBtn').style.display='none'; render(true);
+  setTimeout(()=>{ if (mode==='done'){ mode='idle'; setFoot('fIdle'); } }, 3200);
+};
+$('resize').onclick = () => { panel.classList.toggle('compact'); };
+
+function fit(){
+  const s = Math.min(innerWidth/1280, innerHeight/800), st = $('stage');
+  st.style.transform = `scale(${s})`;
+  st.style.left = Math.max(0,(innerWidth-1280*s)/2)+'px';
+  st.style.top = Math.max(0,(innerHeight-800*s)/2)+'px';
+}
+addEventListener('resize', fit); fit();
+cells[0].classList.add('sel');
+render(false);
+if (location.hash==='#preview') $('cleanBtn').click();
+if (location.hash==='#done'){ $('cleanBtn').click(); $('goBtn').click(); }
+if (location.hash==='#pw'){ select(4); }
+if (location.hash==='#compact'){ $('resize').click(); }
+})();
+</script>
+</body>
+</html>

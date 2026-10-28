@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workstream Hero Column</title>
+<!--
+  COMPOSITION: "Workstream Hero Column"  (42-a, from 36-a "Index Holds the Mode")
+
+  Workstreams round. A seventh Live Index entry, first in the list: Workstreams, its mini
+  graph is 8 short lanes, one per workstream, colored by stage (bright coral = ready to
+  wrap up, white = needs you, gray = working or idle). It opens first.
+  The Workstreams tab is composed in the same idea as every other tab: the mode lives in
+  the opened index entry ("Wraps up a workstream 1 h after its PR merges and its agents
+  finish"), the right side is pure right now. Hero column: the big number is what Wrap Up
+  frees (4.4 GB), the tall graph is one column per workstream whose height is what it holds
+  (servers + worktree + caches), so the two finished ones stand tallest and lit; the
+  section action Wrap Up Ready sits under the graph it acts on. The list is rich rows:
+  line 1 = name, tool, stage; line 2 = what it holds as section-colored marks (servers
+  teal, worktree green, PR, caches amber, headless browser, keep-awake violet). Hover
+  swaps line 2 for its actions, so the name and stage never move. A calm "No workstream"
+  group closes the list. Every item on the other tabs names its workstream and links to it.
+  Body grows 600 -> 620, index entries 70 -> 60.
+
+  Owner update (real time, plain words, Keep Awake as one check):
+  - Live: a 1 s clock drives everything. Ages and idle timers count up, load and memory
+    breathe, and a 48 s script makes things come and go: a speed-3 subagent spawns (row
+    slides in with a "New" tag), :5174 starts, media-scope's tests pass, the subagent
+    shows "Finished" and folds away, :5174 stops. Live / Paused pill in the header.
+  - Plain words at the point of choice: the open index entry says what the picked mode
+    does ("Auto stops servers nobody used for 2 h, then sends a notice with Undo");
+    hovering another mode previews it ("If you pick it: ..."). Under the values, a live
+    countdown to the next thing that happens on its own ("Auto stops :6006 and :4000 in
+    38 s"); when it reaches zero Auto really acts and sends a notice with Undo.
+  - Buttons say exactly what and to what ("Stop 3 Servers Now 1.45 GB"); hovering one
+    swaps the graph caption for its result (what goes, what stays) and lights the items.
+  - Keep Awake left the index and the tabs. It is one checkbox in the footer, "Keep
+    working with the lid closed", with "4 agents working · the lid can close" and the
+    gray note about 20 % battery, Wi-Fi and heat. No values.
+
+  Grid. Sheet 1040 wide, 32 px margins, 8 px spacing scale (8/16/24/32/40).
+  Two zones: the Live Index (320) | the stage (rest), split again 190 | 1fr like ftop's
+  own large layout: one tall graph on the left, the list on the right.
+
+  Where the setting lives, and why. The mode belongs to the section, not to the
+  content, so it moves INTO the section's own entry in the Live Index. The picked
+  entry opens into a quiet card: name, its mini graph, its number, and under it
+  Off / Ask / Auto, the rule in one sentence and the value words. The other
+  entries show their mode the way they always did (dot + verb), so the index reads
+  as six settings at a glance and one of them open. The setting is never a block
+  under the content, and its spot follows the tab you picked (it slides down the
+  index), so it is never "the same thing in the same place".
+
+  Focal point per tab. With the form gone from the right, the right side is pure
+  "right now": one sentence on top, then the hero column (a big ftop number and
+  one tall graph that says what it means), then the items. The section action sits
+  under the hero graph because it acts on exactly the colored part of that graph.
+
+  Reading path. Index name -> its mode (left, same row of the eye) -> sentence ->
+  big number -> graph -> rows. Left half is "what I decided", right half is
+  "what is happening".
+
+  Type. Three sizes: 24 (section names), 14 (text and rows), 11.5 (labels), plus
+  the big ftop number (48).
+-->
+<style>
+:root{
+  --glass:rgba(28,29,38,.88);
+  --line:rgba(255,255,255,.065);
+  --tx:rgba(255,255,255,.94);
+  --tx2:rgba(235,235,245,.62);
+  --tx3:rgba(235,235,245,.34);
+  --g1:rgba(255,255,255,.06);
+  --g2:rgba(255,255,255,.2);
+  --g3:rgba(255,255,255,.44);
+  --rowbg:#2b2b39;
+  --ease:cubic-bezier(.3,.7,.2,1);
+  --t1:24px; --t2:14px; --t3:11.5px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1a1636}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-size:var(--t2);cursor:default;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;text-align:left}
+b{font-weight:500;color:var(--tx)}
+:focus{outline:none}
+:focus-visible{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;border-radius:8px}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(760px 560px at 10% 6%,#4b3c9e 0%,rgba(75,60,158,0) 70%),
+   radial-gradient(700px 520px at 84% 2%,#22618f 0%,rgba(34,97,143,0) 70%),
+   radial-gradient(820px 620px at 88% 104%,#a0436f 0%,rgba(160,67,111,0) 70%),
+   radial-gradient(640px 520px at 18% 100%,#3a2463 0%,rgba(58,36,99,0) 75%),
+   #1d1a3c}
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;background:rgba(18,14,40,.32);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:13px;color:rgba(255,255,255,.92);z-index:5}
+.mb-l,.mb-r{display:flex;align-items:center;gap:18px}
+.mb-l b{font-weight:700}
+.mb-r{gap:14px}
+.icons{position:relative;display:flex;align-items:center;gap:12px}
+.hl{position:absolute;top:-3px;height:22px;width:28px;border-radius:6px;background:rgba(255,255,255,.2);transition:transform .45s var(--ease),opacity .3s;pointer-events:none}
+.mi{position:relative;display:flex;width:16px;overflow:hidden;cursor:pointer;transition:width .4s var(--ease),opacity .3s,margin .4s var(--ease)}
+.mi.off{width:0;opacity:0;margin-left:-12px}
+
+.sheet{position:absolute;top:34px;background:var(--glass);backdrop-filter:blur(36px) saturate(1.5);-webkit-backdrop-filter:blur(36px) saturate(1.5);border:1px solid rgba(255,255,255,.085);border-radius:22px;box-shadow:0 34px 100px rgba(6,4,24,.5),inset 0 1px 0 rgba(255,255,255,.035);animation:drop .6s var(--ease) both}
+@keyframes drop{from{opacity:0;transform:translateY(-10px)}}
+.nub{position:absolute;top:-8px;left:0;width:18px;height:8px;margin-left:-9px;transition:transform .45s var(--ease)}
+.nub svg{display:block}
+
+.head{display:flex;align-items:center;gap:12px;height:52px;padding:0 32px;white-space:nowrap}
+.head .lbl{font-size:var(--t3);color:var(--tx3)}
+.head .txt{font-size:13px;color:var(--tx2)}
+.head .undo{margin-left:auto;font-size:13px;font-weight:500;height:26px;padding:0 12px;border-radius:13px;background:rgba(255,255,255,.07);transition:background .2s}
+.head .undo:hover{background:rgba(255,255,255,.13)}
+
+.foot{display:flex;align-items:center;gap:28px;height:66px;padding:0 32px;border-top:1px solid var(--line)}
+.sw{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--tx2);transition:color .2s}
+.sw i{width:32px;height:19px;border-radius:10px;background:rgba(255,255,255,.14);position:relative;transition:background .25s;flex:none}
+.sw i::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
+.sw[aria-checked="true"]{color:var(--tx)}
+.sw[aria-checked="true"] i{background:#5B9BFF}
+.sw[aria-checked="true"] i::after{transform:translateX(13px)}
+.foot .hint{margin-left:auto;font-size:var(--t3);color:var(--tx3)}
+
+.toast{position:absolute;left:50%;bottom:66px;display:flex;align-items:center;gap:14px;height:40px;max-width:640px;padding:0 6px 0 16px;border-radius:20px;background:rgba(50,50,64,.97);border:1px solid rgba(255,255,255,.1);box-shadow:0 14px 40px rgba(0,0,0,.35);font-size:13px;color:var(--tx2);white-space:nowrap;opacity:0;transform:translate(-50%,10px);pointer-events:none;transition:opacity .3s,transform .4s var(--ease);z-index:6}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast.noundo{padding-right:16px}
+.toast .tt{overflow:hidden;text-overflow:ellipsis}
+.toast button{flex:none;height:28px;padding:0 13px;border-radius:14px;background:rgba(255,255,255,.1);font-weight:500;color:var(--tx);transition:background .2s}
+.toast button:hover{background:rgba(255,255,255,.18)}
+.toast.noundo button{display:none}
+
+/* live index basics */
+.it{position:relative;width:100%;border-radius:14px;cursor:pointer;transition:background .25s}
+.it .dot{flex:none;width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(235,235,245,.28);transition:background .35s,box-shadow .35s,transform .3s}
+.it .nm{flex:1;min-width:0;font-size:var(--t1);font-weight:600;letter-spacing:-.022em;color:rgba(235,235,245,.36);transition:color .3s;white-space:nowrap}
+.it:hover .nm{color:var(--tx2)}
+.it.sel .nm{color:var(--tx)}
+.mg{flex:none;position:relative;width:56px;height:24px;display:flex;align-items:flex-end;justify-content:space-between;transition:opacity .4s,filter .4s}
+.it.m0 .mg{opacity:.28;filter:grayscale(1)}
+.mg i{display:block;transition:height .55s var(--ease),width .55s var(--ease),left .55s var(--ease),background .35s,opacity .35s,box-shadow .35s}
+.mg .tr{position:absolute;left:0;right:0;top:9px;height:6px;border-radius:3px;background:var(--g1)}
+.mg .tr i{position:absolute;top:0;bottom:0;border-radius:3px}
+.mg .tr .tk{top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:#fff}
+.mg.mc i{flex:none;border-radius:2px}
+.mg.dots{flex-wrap:wrap;align-content:center;justify-content:space-between;row-gap:4px}
+.mg.dots i{width:6px;height:6px;border-radius:50%}
+.mg.ring{justify-content:flex-end;align-items:center}
+.nb{flex:none;width:78px;display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
+.nb .n{font-size:var(--t2);font-weight:500;line-height:18px;color:var(--tx2);transition:color .3s}
+.nb .n u{text-decoration:none;font-size:var(--t3);font-weight:400;color:var(--tx3);margin-left:3px}
+.nb .cp{font-size:var(--t3);line-height:15px;color:var(--tx3)}
+.it.sel .nb .n{color:var(--tx)}
+
+/* rows */
+.rw{position:relative;display:flex;align-items:center;gap:10px;height:40px;margin:0 -10px;padding:0 10px;border-radius:10px;white-space:nowrap;overflow:hidden;transition:height .42s var(--ease),opacity .32s,background .25s}
+.rw.gone{height:0;opacity:0;pointer-events:none}
+.rw:hover{background:var(--rowbg)}
+.rw.flash{animation:flash 1.8s var(--ease)}
+@keyframes flash{0%,40%{background:color-mix(in srgb,var(--c) 26%,transparent)}100%{background:transparent}}
+.rw .ic{flex:none;display:flex;width:18px;justify-content:center;transition:opacity .4s,filter .4s}
+.rw .tx{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.rw .nm{font-size:var(--t2);line-height:18px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;transition:color .25s}
+.rw .sub{font-size:var(--t3);line-height:15px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis}
+.rw.dim .nm{color:var(--tx2)}
+.rw .meta{flex:none;display:flex;align-items:center;gap:10px;transition:opacity .2s}
+.rw .v{flex:none;min-width:52px;text-align:right;color:var(--tx2)}
+.rw .st{flex:none;min-width:70px;text-align:right;color:var(--tx3);transition:color .35s}
+.rw.aff .st{color:var(--c)}
+.hold{display:flex;gap:6px}
+.hold span{display:flex;align-items:center;gap:2px;font-size:var(--t3);color:var(--tx3)}
+.lk{color:var(--tx2);cursor:pointer;border-bottom:1px solid rgba(255,255,255,.14);transition:color .2s,border-color .2s}
+.lk:hover{color:var(--tx);border-color:rgba(255,255,255,.5)}
+.acts{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;gap:4px;padding:0 8px 0 36px;background:linear-gradient(90deg,rgba(43,43,57,0),var(--rowbg) 30px);opacity:0;transform:translateX(8px);pointer-events:none;transition:opacity .2s,transform .3s var(--ease)}
+.rw:hover .acts,.rw:focus-within .acts{opacity:1;transform:none;pointer-events:auto}
+.rw:hover .meta,.rw:focus-within .meta{opacity:0}
+.ab{height:24px;padding:0 10px;border-radius:12px;background:rgba(255,255,255,.08);font-size:12px;font-weight:500;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:background .2s}
+.ab:hover{background:rgba(255,255,255,.17)}
+.ab .tl{font-weight:400;color:var(--tx3)}
+.ab.dis{background:none;color:var(--tx3);cursor:default;font-weight:400;padding:0 4px}
+.ab.dis .tl{color:rgba(235,235,245,.24)}
+.more{font-size:var(--t3);line-height:15px;color:var(--tx3);padding-top:8px;white-space:nowrap}
+
+/* section action */
+.sa{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 14px;border-radius:15px;background:rgba(255,255,255,.08);font-size:13px;font-weight:500;white-space:nowrap;transition:background .2s,opacity .3s}
+.sa:hover{background:rgba(255,255,255,.15)}
+.sa .tl{font-weight:400;font-size:12px;color:var(--tx3)}
+.sa.pri{background:color-mix(in srgb,var(--c) 26%,transparent)}
+.sa.pri:hover{background:color-mix(in srgb,var(--c) 38%,transparent)}
+.sa.pri .tl{color:rgba(255,255,255,.58)}
+.sa.dis{opacity:.4;pointer-events:none}
+
+/* highlight plan */
+.hlon [data-k]:not(.hit){opacity:.22}
+.hlon .rw[data-k]:not(.hit){opacity:.32}
+.hlon .hit{opacity:1}
+.hlon i.hit,.hlon .seg.hit,.hlon .col.hit{box-shadow:0 0 0 1px rgba(255,255,255,.75),0 0 12px var(--c)}
+.hlon .rw.hit{background:color-mix(in srgb,var(--c) 15%,transparent)}
+.peek .seg.hit,.peek .col.hit,.peek i.hit{box-shadow:0 0 0 1px rgba(255,255,255,.7)}
+
+/* graph primitives */
+.meter{position:relative;border-radius:6px;background:var(--g1)}
+.meter .seg{position:absolute;border-radius:5px;transition:height .6s var(--ease),bottom .6s var(--ease),width .6s var(--ease),left .6s var(--ease),background .35s,opacity .35s,box-shadow .3s}
+.meter .tk{position:absolute;background:#fff;border-radius:1px;transition:bottom .55s var(--ease),left .55s var(--ease),opacity .3s}
+.meter .tkl{position:absolute;font-size:var(--t3);color:var(--tx2);white-space:nowrap;transition:bottom .55s var(--ease),left .55s var(--ease),opacity .3s}
+.cols{display:flex;align-items:flex-end}
+.cols .col{position:relative;flex:1;height:100%;border-radius:5px;background:rgba(255,255,255,.035);transition:opacity .35s,box-shadow .3s}
+.cols .col i{position:absolute;left:0;right:0;bottom:0;border-radius:5px;transition:height .6s var(--ease),background .35s,box-shadow .35s,opacity .35s}
+.cols .col.gone i{height:0!important;opacity:0}
+.det.off .graph{filter:grayscale(1);opacity:.45}
+.graph{transition:filter .4s,opacity .4s}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important}
+}
+
+.sheet{left:210px;width:1040px}
+.body{display:grid;grid-template-columns:320px minmax(0,1fr);column-gap:40px;padding:0 32px 24px;height:620px}
+
+/* ---------- index ---------- */
+.idx{display:flex;flex-direction:column;min-height:0}
+.leg{font-size:var(--t3);color:var(--tx3);height:24px;line-height:15px;white-space:nowrap;display:flex;align-items:flex-start;justify-content:flex-end;gap:6px;padding-right:0}
+.leg i{display:inline-block;width:12px;height:5px;border-radius:3px;margin-top:5px;background:linear-gradient(90deg,#FF8A5C,#EE85B5 20%,#5B9BFF 40%,#3FD0B8 60%,#4CC96B 80%,#F2B544)}
+.it{margin:0 -14px;padding:0 14px;width:calc(100% + 28px);border-radius:16px}
+.it:hover{background:rgba(255,255,255,.025)}
+.it.sel{background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+.it .r1{display:flex;align-items:center;gap:11px;height:60px}
+.it.sel .dot{transform:scale(1.15)}
+.it .set{display:grid;grid-template-rows:0fr;transition:grid-template-rows .5s var(--ease)}
+.it.sel .set{grid-template-rows:1fr}
+.si{overflow:hidden;min-height:0;padding-left:21px;opacity:0;transition:opacity .3s}
+.it.sel .si{opacity:1;transition:opacity .4s .12s}
+.modes{position:relative;display:flex;gap:4px;height:28px;align-items:center;margin-left:-10px}
+.modes .pill{position:absolute;left:0;top:0;height:28px;border-radius:14px;background:color-mix(in srgb,var(--c) 24%,transparent);transition:transform .45s var(--ease),width .45s var(--ease),background .35s,opacity .3s}
+.modes button{position:relative;height:28px;padding:0 10px;font-size:var(--t2);font-weight:500;color:var(--tx3);transition:color .3s}
+.modes button:hover{color:var(--tx2)}
+.modes button[aria-checked="true"]{color:var(--tx)}
+.rule{margin-top:8px;font-size:var(--t2);line-height:20px;color:var(--tx2);transition:color .3s}
+.rule b{font-weight:500}
+.opts{display:flex;gap:16px;height:24px;margin-top:8px;padding-bottom:16px;box-sizing:content-box;align-items:flex-start;white-space:nowrap;transition:opacity .3s}
+.it.m0 .opts{opacity:.3;pointer-events:none}
+.opts button{position:relative;font-size:var(--t2);color:var(--tx3);line-height:20px;transition:color .25s}
+.opts button:hover{color:var(--tx2)}
+.opts button[aria-checked="true"]{color:var(--tx);font-weight:500}
+.opts button[aria-checked="true"]::after{content:"";position:absolute;left:50%;bottom:-4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--c)}
+
+/* ---------- stage (right) ---------- */
+.det{position:relative;min-width:0;padding-top:4px}
+.det .in{height:100%;display:flex;flex-direction:column;transition:opacity .22s,transform .35s var(--ease)}
+.det .in.swap{opacity:0;transform:translateY(6px)}
+.lab{display:flex;align-items:center;height:20px;font-size:var(--t3);color:var(--tx3);white-space:nowrap}
+.lab .key{margin-left:auto;display:flex;align-items:center;gap:6px}
+.lab .key i{width:7px;height:7px;border-radius:50%}
+.ins{margin-top:4px;font-size:var(--t2);line-height:21px;color:var(--tx2);min-height:42px;max-width:540px;text-wrap:pretty}
+.split{flex:1;min-height:0;display:grid;grid-template-columns:214px minmax(0,1fr);column-gap:32px;margin-top:24px}
+.hero{display:flex;flex-direction:column;min-height:0}
+.big{display:flex;align-items:baseline;gap:6px;height:52px;white-space:nowrap}
+.big .bn{font-size:48px;font-weight:500;letter-spacing:-.03em;line-height:52px}
+.big .bu{font-size:var(--t2);color:var(--tx3)}
+.graph{margin-top:16px;height:244px;position:relative}
+.cap{margin-top:12px;font-size:var(--t3);line-height:16px;color:var(--tx3);text-wrap:pretty}
+.cap b{color:var(--tx2);font-weight:500}
+.sas{margin-top:auto;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.list{min-width:0;overflow:hidden}
+.rw .mk{flex:none;width:7px;height:7px;margin-right:-2px;border-radius:50%;opacity:0;transition:opacity .35s,background .35s,box-shadow .35s}
+.rw.aff .mk{opacity:1}
+.m2 .rw.aff .mk{background:var(--c)}
+.m1 .rw.aff .mk{box-shadow:inset 0 0 0 1.5px var(--c)}
+.list .rw{height:48px}
+.list .rw.gone{height:0}
+.r-apps .v{min-width:40px}
+.r-awake .st{min-width:96px}
+.r-agents .st{min-width:84px}
+
+/* hero graph pieces */
+.vm{position:absolute;bottom:22px;top:0}
+.vm .seg{left:0;right:0}
+.vm .tk{left:-6px;right:-6px;height:2px;margin-bottom:-1px}
+.vlab{position:absolute;bottom:0;height:16px;font-size:var(--t3);color:var(--tx3);white-space:nowrap}
+.vlab b{color:var(--tx2);font-weight:500}
+.side{position:absolute;font-size:var(--t3);line-height:15px;color:var(--tx3);white-space:nowrap;transition:bottom .55s var(--ease),opacity .3s}
+.side b{color:var(--tx2);font-weight:500}
+.aring{position:absolute;left:23px;top:0}
+.aring circle{transition:stroke .35s,opacity .35s,stroke-width .3s}
+.rc{position:absolute;left:23px;top:0;width:168px;height:168px;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.rc .n{font-size:var(--t1);font-weight:600;line-height:28px}
+.rc .u{font-size:var(--t3);color:var(--tx3)}
+.rleg{position:absolute;left:0;right:0;top:186px;display:grid;grid-template-columns:1fr 1fr;row-gap:6px;font-size:var(--t3);color:var(--tx3);white-space:nowrap}
+.rleg span{display:flex;align-items:center;gap:6px}
+.rleg i{width:7px;height:7px;border-radius:50%}
+.rleg b{color:var(--tx2);font-weight:500}
+.hlon .aring circle[data-k]:not(.hit){opacity:.2}
+
+/* ---------- live + plain words ---------- */
+.head .live{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;border-radius:13px;font-size:12px;font-weight:500;color:var(--tx2);background:rgba(255,255,255,.04);margin-left:auto;transition:background .2s,color .2s}
+.head .live:hover{background:rgba(255,255,255,.1);color:var(--tx)}
+.head .live i{width:6px;height:6px;border-radius:50%;background:#4CC96B;box-shadow:0 0 0 0 rgba(76,201,107,.5);animation:beat 2s infinite}
+.head .live.paused i{background:var(--g3);animation:none}
+.head .undo{margin-left:8px}
+@keyframes beat{0%{box-shadow:0 0 0 0 rgba(76,201,107,.45)}70%{box-shadow:0 0 0 6px rgba(76,201,107,0)}100%{box-shadow:0 0 0 0 rgba(76,201,107,0)}}
+.rule.pv{color:var(--tx3)}
+.rule .if{color:var(--c)}
+.rule.pv b{color:var(--tx2)}
+.next{display:flex;align-items:flex-start;gap:7px;margin-top:-4px;padding-bottom:16px;font-size:var(--t3);line-height:16px;color:var(--tx2);text-wrap:pretty}
+.next svg{flex:none;margin-top:2px;color:var(--c)}
+.next b{font-weight:500;color:var(--tx)}
+.next .cd{font-variant-numeric:tabular-nums}
+.it .opts{padding-bottom:12px}
+.cap.res{color:var(--tx2)}
+.cap.res b{color:var(--tx)}
+.newtag{display:inline-block;margin-left:8px;padding:0 6px;height:16px;line-height:16px;border-radius:8px;font-size:10.5px;font-weight:600;letter-spacing:.02em;color:#fff;background:color-mix(in srgb,var(--c,#fff) 40%,transparent);vertical-align:1px;animation:tagfade 5s var(--ease) forwards}
+@keyframes tagfade{0%,70%{opacity:1}100%{opacity:0}}
+.rw.new{animation:arrive 2.4s var(--ease)}
+@keyframes arrive{0%{height:0;opacity:0;background:color-mix(in srgb,var(--c,#fff) 22%,transparent)}25%{opacity:1;background:color-mix(in srgb,var(--c,#fff) 22%,transparent)}100%{background:transparent}}
+.rw.fin .nm{color:var(--tx2)}
+.rw.fin .st{color:var(--tx)!important}
+.rw.ws.pulse{animation:pulse 2.4s var(--ease)}
+@keyframes pulse{0%,30%{background:color-mix(in srgb,var(--c,#fff) 13%,transparent)}100%{background:transparent}}
+.lid{display:grid;grid-template-columns:auto auto;column-gap:14px;row-gap:3px;align-items:center;margin-right:auto}
+.ck{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;color:var(--tx)}
+.ck i{flex:none;width:17px;height:17px;border-radius:5px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3);transition:background .25s,box-shadow .25s}
+.ck[aria-checked="true"] i{background:#5B9BFF;box-shadow:none}
+.lidlive{font-size:12px;color:var(--tx2);white-space:nowrap}
+.lidlive b{font-weight:500}
+.lidnote{grid-column:1/3;padding-left:27px;font-size:var(--t3);color:var(--tx3);white-space:nowrap}
+@media (prefers-reduced-motion: reduce){.rw.new,.rw.ws.pulse{animation:fadein .01s}.head .live i{animation:none}@keyframes fadein{from{opacity:.4}}}
+
+/* ---------- workstreams ---------- */
+.mg.lanes{align-items:stretch;justify-content:space-between;height:22px}
+.mg.lanes i{flex:none;width:4.5px;border-radius:2.25px}
+.r-ws .rw.ws{height:48px;align-items:center}
+.r-ws .rw.ws.gone{height:0}
+.r-ws .rw.ws .ic{align-self:flex-start;margin-top:7px}
+.r-ws .rw.ws .mk{align-self:flex-start;margin-top:12px}
+.wl1{display:flex;align-items:baseline;gap:8px;min-width:0;height:20px}
+.wl1 .nm{flex:none}
+.wl1 .tool{flex:1;min-width:0;font-size:var(--t3);color:var(--tx3);overflow:hidden;text-overflow:ellipsis}
+.wl1 .st{flex:none;margin-left:auto;font-size:var(--t2);color:var(--tx3);transition:color .35s}
+.rw.ws.aff .wl1 .st,.rw.ws.rdy .wl1 .st{color:var(--c)}
+.rw.ws.ndu .wl1 .st{color:var(--tx)}
+.wl2{display:flex;align-items:center;gap:10px;height:18px;font-size:var(--t3);color:var(--tx3);white-space:nowrap;overflow:hidden;transition:opacity .2s}
+.wl2 span{display:inline-flex;align-items:center;gap:4px;flex:none}
+.wl2 .q{color:var(--tx);font-weight:500}
+.wl2 .soft{color:var(--tx3)}
+.r-ws .rw.ws .acts{top:auto;bottom:4px;height:24px;left:36px;right:-2px;padding:0;gap:4px;justify-content:flex-start;background:var(--rowbg)}
+.r-ws .rw.ws .ab{padding:0 9px}
+.r-ws .rw.ws:hover .wl2,.r-ws .rw.ws:focus-within .wl2{opacity:0}
+.r-ws .rw.ws .meta{display:none}
+.grp{display:flex;align-items:center;gap:10px;height:26px;margin-top:6px;font-size:var(--t3);color:var(--tx3);white-space:nowrap}
+.grp::after{content:"";flex:1;height:1px;background:var(--line)}
+.r-ws .rw.cmp{height:28px}
+.r-ws .rw.cmp .st:empty{display:none}
+.r-ws .rw.cmp .sub{text-overflow:clip}
+.r-ws .rw.cmp.gone{height:0}
+.r-ws .rw.cmp .nm{font-size:13px;color:var(--tx2)}
+.r-ws .rw.cmp .tx{flex-direction:row;align-items:baseline;gap:8px}
+.r-ws .rw.cmp .sub{flex:1}
+.wsleg{position:absolute;left:0;right:0;top:214px;display:grid;grid-template-columns:1fr 1fr;row-gap:6px;font-size:var(--t3);color:var(--tx3);white-space:nowrap}
+.wsleg span{display:flex;align-items:center;gap:6px}
+.wsleg i{width:7px;height:7px;border-radius:50%}
+.wsleg b{color:var(--tx2);font-weight:500}
+.hlon .aring circle.hit,.peek .aring circle.hit{stroke:var(--c);stroke-width:10}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="mb-l">
+      <svg viewBox="0 0 17 20" width="13" height="16" aria-hidden="true"><path fill="#fff" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.7 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z"/></svg>
+      <b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="mb-r">
+      <div class="icons" id="icons"><i class="hl" id="hl"></i></div>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 6.3a8.6 8.6 0 0 1 12 0M4.2 8.6a5.4 5.4 0 0 1 7.6 0"/><circle cx="8" cy="11.6" r="1.3" fill="#fff" stroke="none"/></svg>
+      <svg viewBox="0 0 26 14" width="25" height="13" aria-hidden="true"><rect x=".7" y=".7" width="21.6" height="12.6" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/><rect x="2.6" y="2.6" width="11.6" height="8.8" rx="2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;<span id="clock">16:42</span></span>
+    </div>
+  </div>
+  <div class="sheet" id="sheet" role="dialog" aria-label="MinMacs">
+    <div class="nub" id="nub"><svg viewBox="0 0 18 8" width="18" height="8" aria-hidden="true"><path d="M0 8 C5 8 6.5 0 9 0 C11.5 0 13 8 18 8 Z" fill="rgba(36,36,48,.96)"/></svg></div>
+    <div class="head" id="today"></div>
+    <div class="body">
+      <div class="idx" id="idx" role="tablist" aria-orientation="vertical"></div>
+      <div class="det" id="det"><div class="in" id="in"></div></div>
+    </div>
+    <div class="foot">
+      <div class="lid" id="lid"></div>
+      <button class="sw" id="one" role="switch" aria-checked="false"><i></i>One icon in the menu bar</button>
+      <button class="sw" id="login" role="switch" aria-checked="true"><i></i>Open at login</button>
+    </div>
+    <div class="toast" id="toast" role="status"><span class="tt" id="tt"></span><button id="tbtn">Undo</button></div>
+  </div>
+</div>
+<script>
+'use strict';
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $=id=>document.getElementById(id);
+const SEC=['ws','agents','apps','servers','trees','disk'];
+const NAME={ws:'Workstreams',agents:'Agents',apps:'Apps',servers:'Servers',trees:'Worktrees',disk:'Disk',awake:'Keep Awake'};
+const C={ws:'#FF8A5C',agents:'#EE85B5',apps:'#5B9BFF',servers:'#3FD0B8',trees:'#4CC96B',disk:'#F2B544',awake:'#B18CFF'};
+const MODES=['Off','Ask','Auto'];
+const VALS={ws:['1 h','1 day','1 week'],agents:['1 min','5 min','15 min'],apps:['60 %','70 %','80 %','90 %'],servers:['30 min','1 h','2 h','4 h','1 day'],trees:['1 h','1 day','1 week'],disk:['daily','weekly','monthly'],awake:['10 %','20 %','30 %','never']};
+const VNUM={ws:[60,1440,10080],agents:[1,5,15],apps:[60,70,80,90],servers:[30,60,120,240,1440],trees:[60,1440,10080],disk:[0,0,0],awake:[10,20,30,0]};
+
+const GL={
+  ws:'<path d="M2.2 4h6.2M2.2 8h11.6M2.2 12h4.2"/><circle cx="11.6" cy="4" r="1.5"/><circle cx="9.6" cy="12" r="1.5"/>',
+  pr:'<circle cx="4.4" cy="3.8" r="1.5"/><circle cx="4.4" cy="12.2" r="1.5"/><circle cx="11.6" cy="12.2" r="1.5"/><path d="M4.4 5.3v5.4M11.6 10.7V6.6c0-1.1-.7-1.8-1.8-1.8H7.4M8.8 3.3L7.3 4.8l1.5 1.5"/>',
+  lid:'<path d="M3 4.2h10v6.6H3zM1.5 12.6h13"/>',
+  clock:'<circle cx="8" cy="8" r="5.8"/><path d="M8 5v3.2l2 1.3"/>',
+  web:'<rect x="2" y="3" width="12" height="10" rx="2.2"/><path d="M2 6.4h12"/>',
+  agents:'<circle cx="5.6" cy="5.8" r="2.2"/><circle cx="11" cy="5.8" r="2.2"/><path d="M1.8 13.2c.6-2.2 2-3.3 3.8-3.3s3.2 1.1 3.8 3.3M9.2 10.3c.6-.3 1.2-.4 1.8-.4 1.8 0 3.2 1.1 3.8 3.3"/>',
+  apps:'<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.6"/><path d="M6.6 1.8v2.4M9.4 1.8v2.4M6.6 11.8v2.4M9.4 11.8v2.4M1.8 6.6h2.4M1.8 9.4h2.4M11.8 6.6h2.4M11.8 9.4h2.4"/>',
+  servers:'<rect x="2.5" y="2.8" width="11" height="4.2" rx="1.4"/><rect x="2.5" y="9" width="11" height="4.2" rx="1.4"/><path d="M5.2 4.9h.01M5.2 11.1h.01" stroke-width="2.2"/>',
+  trees:'<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7c0 2.7-2.4 3.4-5.4 4.2"/>',
+  disk:'<ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  awake:'<path d="M1.8 8s2.3-4.3 6.2-4.3S14.2 8 14.2 8s-2.3 4.3-6.2 4.3S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  one:'<circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.6l2.4 1.4"/>',
+  folder:'<path d="M2 4.6c0-.7.5-1.2 1.2-1.2h3l1.4 1.5h5.2c.7 0 1.2.5 1.2 1.2v5.7c0 .7-.5 1.2-1.2 1.2H3.2c-.7 0-1.2-.5-1.2-1.2z"/>',
+  box:'<path d="M8 1.9l5.4 3v6.2L8 14.1l-5.4-3V4.9z"/><path d="M2.6 4.9L8 7.9l5.4-3M8 7.9v6.2"/>'
+};
+const gl=(k,c,s,w)=>`<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="${w||1.6}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GL[k]}</svg>`;
+const sq=(bg,fg,ch)=>`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="4.4" fill="${bg}"/><text x="9" y="12.6" text-anchor="middle" font-size="9.5" font-weight="700" font-family="-apple-system,system-ui" fill="${fg}">${ch}</text></svg>`;
+const ICON={
+  chrome:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><path d="M9 9L2.07 5A8 8 0 0 1 15.93 5Z" fill="#E8453C"/><path d="M9 9L15.93 5A8 8 0 0 1 9 17Z" fill="#F7BE2D"/><path d="M9 9L9 17A8 8 0 0 1 2.07 5Z" fill="#33A853"/><circle cx="9" cy="9" r="3.9" fill="#fff"/><circle cx="9" cy="9" r="3" fill="#4285F4"/></svg>`,
+  cft:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><path d="M9 9L2.07 5A8 8 0 0 1 15.93 5Z" fill="#8f97a6"/><path d="M9 9L15.93 5A8 8 0 0 1 9 17Z" fill="#b7bdc8"/><path d="M9 9L9 17A8 8 0 0 1 2.07 5Z" fill="#6d7584"/><circle cx="9" cy="9" r="3.9" fill="#fff"/><circle cx="9" cy="9" r="3" fill="#7c8698"/></svg>`,
+  spotify:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#1DB954"/><path d="M4.6 6.9c3-.9 6.1-.6 8.8.8M5.1 9.3c2.4-.7 4.9-.4 7 .7M5.6 11.6c1.9-.5 3.7-.3 5.3.5" fill="none" stroke="#0b1a10" stroke-width="1.25" stroke-linecap="round"/></svg>`,
+  raycast:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#FF6363"/><path d="M5 9.6l3.4 3.4M5 6.4l6.6 6.6M8.2 5l4.8 4.8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  figma:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#22232b"/><circle cx="7" cy="5.4" r="1.9" fill="#F24E1E"/><circle cx="11" cy="5.4" r="1.9" fill="#FF7262"/><circle cx="7" cy="9" r="1.9" fill="#A259FF"/><circle cx="11" cy="9" r="1.9" fill="#1ABCFE"/><circle cx="7" cy="12.6" r="1.9" fill="#0ACF83"/></svg>`,
+  cmux:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="4.2" fill="#2c2d3a"/><path d="M5 6.4l2.6 2.6L5 11.6M9.4 11.8h3.6" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  cc:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#3a2a26"/><path d="M9 4.3v9.4M4.9 6.6l8.2 4.8M4.9 11.4l8.2-4.8" stroke="#E5896B" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  cx:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#2b2d33"/><path d="M9 4.6l3.8 2.2v4.4L9 13.4l-3.8-2.2V6.8z" fill="none" stroke="#e9ebf0" stroke-width="1.4" stroke-linejoin="round"/></svg>`,
+  cu:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#26272e"/><path d="M5.4 4.9l7.6 3.4-3.3 1.1-1.1 3.4z" fill="#e9ebf0"/></svg>`,
+  next:sq('#0d0d10','#fff','N'), vite:sq('#2a2250','#BD9BFF','V'), sanity:sq('#3a1d22','#F36458','S'), phoenix:sq('#3a2418','#FD7E43','P'), story:sq('#3a1a2b','#FF4785','S'), pg:sq('#1b2b40','#6BA6E8','P'),
+  npm:sq('#3a1517','#E5534B','n'), docker:sq('#14283f','#3F9BEA','D'),
+  fold:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><path d="M2 5.2c0-.9.6-1.5 1.5-1.5h3.6l1.6 1.8h5.8c.9 0 1.5.6 1.5 1.5v6.3c0 .9-.6 1.5-1.5 1.5h-11c-.9 0-1.5-.6-1.5-1.5z" fill="#5c6a86"/><path d="M2 7.2h14" stroke="#7b8aa8" stroke-width="1"/></svg>`,
+  tree:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="4.4" fill="#1d2f22"/><g transform="translate(1 1)" fill="none" stroke="#6fd48a" stroke-width="1.4" stroke-linecap="round">${GL.trees}</g></svg>`
+};
+const TOOL={cc:'Claude Code',cx:'Codex',cu:'Cursor'};
+
+/* ---------- fixture ---------- */
+const AG=[
+  {id:'speed3',n:'speed-3',t:'cc',sub2:'Claude Code +2',w:'cmux tab',app:'cmux',st:'w',m0:2,srv:['s3000','s5173'],wt:'t-speed',awake:1},
+  {id:'lanec',n:'bp-lane-c',t:'cc',w:'cmux tab',app:'cmux',st:'w',m0:14,srv:['s4100'],wt:'t-lanec',awake:1},
+  {id:'media',n:'media-scope',t:'cx',w:'Codex app',app:'Codex',st:'w',m0:6,awake:1},
+  {id:'icons',n:'studio-icons',t:'cu',w:'barkpark-studio window',app:'Cursor',st:'w',m0:1,awake:1},
+  {id:'judge',n:'lexicon-judge',t:'cc',w:'tmux pane lexicon:1',app:'tmux',st:'n',m0:3},
+  {id:'parity',n:'studio-parity',t:'cc',w:'cmux tab',app:'cmux',st:'i',m0:40,srv:['s3334'],wt:'t-parity'},
+  {id:'far',n:'fix auth redirect',t:'cx',w:'Codex thread',app:'Codex',st:'f',m0:120,srv:['s4000'],wt:'t-auth'}
+];
+const IDLE5=5;
+const liveSubs=()=>AG.filter(a=>a.sub&&SIM.fin[a.id]==null);
+/* ---------- live simulation clock (not part of Undo) ---------- */
+const SIM={t:0,paused:0,born:{},fin:{},pulse:{},pass:{},delay:{},media:'running',lastAuto:null};
+const ageM=a=>a.m0+SIM.t/60;
+const fmtAge=m=>m<1?`${Math.floor(m*60)}s`:m<60?`${Math.floor(m)}m`:m<1440?`${Math.floor(m/60)}h`:`${Math.floor(m/1440)} day`;
+AG.forEach(a=>{Object.defineProperty(a,'tm',{get(){return fmtAge(ageM(a))}});Object.defineProperty(a,'wait',{get(){return a.st==='n'?ageM(a):0}})});
+const APPS=[
+  {id:'chrome',n:'Google Chrome',sh:'Chrome',ic:'chrome',cpu:21,mem:8.7,cls:'close',sub:'14 noise tabs of 45'},
+  {id:'spotify',n:'Spotify',sh:'Spotify',ic:'spotify',cpu:1,mem:.578,cls:'close',sub:'noise app, idle'},
+  {id:'raycast',n:'Raycast',sh:'Raycast',ic:'raycast',cpu:.4,mem:.21,cls:'unsorted',sub:'not sorted yet'},
+  {id:'figma',n:'FigmaAgent',sh:'FigmaAgent',ic:'figma',cpu:0,mem:.013,cls:'unsorted',sub:'not sorted yet'},
+  {id:'cft',n:'Chrome for Testing',sh:'Chrome for Testing',ic:'cft',cpu:9,mem:1.2,cls:'spared',ag:'speed3',sub:'spared, Playwright drives it'},
+  {id:'cmux',n:'cmux',sh:'cmux',ic:'cmux',cpu:44,mem:6.8,cls:'kept',sub:'essential'},
+  {id:'cursor',n:'Cursor',sh:'Cursor',ic:'cu',cpu:12,mem:3.1,cls:'kept',sub:'essential'}
+];
+/* display order: longest idle first, so a rule always touches a run of rows from the top */
+const SRV=[
+  {id:'s6006',p:':6006',k:'storybook',ic:'story',mb:520,idle:4320,o:'nobody'},
+  {id:'s4000',p:':4000',k:'phoenix',ic:'phoenix',mb:290,idle:120,ag:'far'},
+  {id:'s3334',p:':3334',k:'sanity',ic:'sanity',mb:640,idle:40,ag:'parity'},
+  {id:'s4100',p:':4100',k:'phoenix',ic:'phoenix',mb:260,ag:'lanec'},
+  {id:'s3000',p:':3000',k:'next dev',ic:'next',mb:412,ag:'speed3'},
+  {id:'s5173',p:':5173',k:'vite',ic:'vite',mb:188,ag:'speed3'},
+  {id:'s5432',p:':5432',k:'postgres',ic:'pg',mb:140,o:'Docker',fixed:1}
+];
+const WT=[
+  {id:'t-w19',n:'w19-fire',k:'m',age:12960,gb:.61,sub:'merged 9 days ago'},
+  {id:'t-sb',n:'sb-fieldsets',k:'m',age:7200,gb:.94,sub:'merged 5 days ago'},
+  {id:'t-lane',n:'lane-e-sort',k:'m',age:4320,gb:2.3,ws:'ws-lane',sub:'merged 3 days ago'},
+  {id:'t-auth',n:'auth-redirect',k:'m',age:120,gb:1.8,ag:'far',sub:'squash-merged 2 h ago'},
+  {id:'t-bp7',n:'bp7-studio-dogfood',k:'s',gb:3.2,sub:'1 commit not in main'},
+  {id:'t-bp8',n:'bp8-sweep-studio403',k:'s',gb:1.1,sub:'quiet 34 days, branch gone'},
+  {id:'t-speed',n:'speed-3-base',k:'u',gb:1.4,ag:'speed3'},
+  {id:'t-parity',n:'studio-parity',k:'u',gb:2.1,ag:'parity'},
+  {id:'t-lanec',n:'barkpark-lane-c',k:'u',gb:1.2,ag:'lanec'}
+];
+const WT_FINE=[.9,.7,.8,.6,1.1,.5,.9]; /* media-scope + lexicon-judge in use, 5 fine */
+/* node_modules in merged worktrees: which worktree holds how much */
+const NM={'t-auth':1.8,'t-lane':2.3,'t-sb':2.9,'t-w19':2.8};
+/* workstreams: the pieces of work. Sorted by stage: working, needs you, idle, ready */
+const WS=[
+  {id:'ws-speed',n:'speed-3',ag:'speed3',t:'cc',tool:'Claude Code + 2 subagents',app:'cmux',where:'cmux tab speed-3',stage:'w',tm:'2m',wt:'t-speed',br:'speed-3-base',ahead:3,pr:'#214',prs:'',srv:['s3000','s5173'],cache:1.3,cn:'node_modules',web:'Chrome for Testing',awake:1},
+  {id:'ws-lanec',n:'bp-lane-c',ag:'lanec',t:'cc',tool:'Claude Code',app:'cmux',where:'cmux tab bp-lane-c',stage:'w',tm:'14m',wt:'t-lanec',br:'barkpark-lane-c',srv:['s4100'],cache:.64,cn:'.next',awake:1},
+  {id:'ws-media',n:'media-scope',ag:'media',t:'cx',tool:'Codex',app:'Codex',where:'Codex app',stage:'w',tm:'6m',note:'tests running',br:'media-scope',awake:1},
+  {id:'ws-icons',n:'studio-icons',ag:'icons',t:'cu',tool:'Cursor',app:'Cursor',where:'barkpark-studio window',stage:'w',tm:'1m',br:'main checkout',awake:1},
+  {id:'ws-judge',n:'lexicon-judge',ag:'judge',t:'cc',tool:'Claude Code',app:'tmux',where:'tmux pane lexicon:1',stage:'n',tm:'3m',ask:'Allow npm run build?',br:'lexicon-judge'},
+  {id:'ws-parity',n:'studio-parity',ag:'parity',t:'cc',tool:'Claude Code',app:'cmux',where:'cmux tab studio-parity',stage:'i',tm:'40m',wt:'t-parity',br:'studio-parity',pr:'#209',prs:'checks pass',srv:['s3334']},
+  {id:'ws-far',n:'fix auth redirect',ag:'far',t:'cx',tool:'Codex',app:'Codex',where:'Codex thread',stage:'r',tm:'2h',ready:120,wt:'t-auth',br:'auth-redirect',pr:'#207',prs:'merged',srv:['s4000'],cache:1.8,cn:'node_modules'},
+  {id:'ws-lane',n:'lane-e-sort',t:'tree',tool:'agent ended',stage:'r',tm:'1 day',ready:1500,wt:'t-lane',br:'lane-e-sort',pr:'#201',prs:'merged',cache:2.3,cn:'node_modules'}
+];
+const wsOfAg=id=>WS.find(w=>w.ag===id);
+/* live getters: timers count up with the simulation clock */
+SRV.forEach(x=>{const i0=x.idle;delete x.idle;Object.defineProperty(x,'idle',{get(){return i0?i0+SIM.t/60:0}})});
+{const t=WT.find(w=>w.id==='t-auth');Object.defineProperty(t,'age',{get(){return 120+SIM.t/60}})}
+WS.forEach(w=>{const r0=w.ready;delete w.ready;Object.defineProperty(w,'ready',{get(){return r0?r0+SIM.t/60:0}});
+  if(w.ag){delete w.tm;Object.defineProperty(w,'tm',{get(){return agent(w.ag).tm}})}});
+const DK=[
+  {id:'d-dd',n:'Xcode DerivedData',ic:'fold',gb:14.2,safe:1,sub:'7 projects, 4 of them gone'},
+  {id:'d-nm',n:'node_modules',ic:'fold',gb:9.8,safe:1,nm:1,sub:'in 4 merged worktrees'},
+  {id:'d-npm',n:'npm cache',ic:'npm',gb:6.1,safe:1,sub:'cleared with npm cache clean'},
+  {id:'d-dock',n:'Docker build cache',ic:'docker',gb:4.2,sub:'cleared with docker builder prune'},
+  {id:'d-pw',n:'Playwright browsers',ic:'fold',gb:3.3,sub:'3 old versions'},
+  {id:'d-sim',n:'Simulator runtimes',ic:'fold',gb:.8,rep:1,sub:'report only'}
+];
+
+/* ---------- state + history ---------- */
+const S={sel:'ws',mode:{ws:1,agents:2,apps:2,servers:2,trees:1,disk:2,awake:2},val:{ws:0,agents:0,apps:1,servers:2,trees:1,disk:1,awake:1},
+  gone:[],kept:[],moved:[],sleep:[],plus:[],trim:0,today:1,one:0,login:1,lid:1,autoSrv:0};
+const H=[];
+const has=(l,id)=>S[l].includes(id);
+const g=id=>S.gone.includes(id)||(SIM.fin[id]!=null&&SIM.t-SIM.fin[id]>=3)||(id==='d-nm'&&Object.keys(NM).every(k=>S.gone.includes(k)));
+{const d=DK.find(x=>x.id==='d-nm');
+ Object.defineProperty(d,'gb',{get(){return Math.max(0,9.8-sum(Object.keys(NM).filter(k=>S.gone.includes(k)),k=>NM[k]))}});
+ Object.defineProperty(d,'sub',{get(){const n=Object.keys(NM).filter(k=>!S.gone.includes(k)).length;const w=['t-auth','t-lane'].filter(k=>!S.gone.includes(k)).length;return `in ${n} merged worktree${n===1?'':'s'}`+(w?` · <span class="lk" data-ws="${w===2?'ws-far':(S.gone.includes('t-auth')?'ws-lane':'ws-far')}">${w} workstream${w>1?'s':''}</span>`:'')}});}
+const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+const agent=id=>AG.find(a=>a.id===id);
+const VN=s=>VNUM[s][S.val[s]];
+const VS=s=>VALS[s][S.val[s]].replace(/ /g,'\u00a0');
+const MODE=s=>S.mode[s];
+
+/* ---------- formatting ---------- */
+const trimN=x=>String(+x.toFixed(2));
+const r1=x=>+x.toFixed(1), r2=x=>Math.abs(x-r1(x))<0.03?r1(x):+x.toFixed(2);
+function gbN(x){return x<1?Math.round(x*1000):x>=10?r1(x):r2(x)}
+function gbU(x){return x<1?'MB':'GB'}
+const fmt=x=>`${gbN(x)} ${gbU(x)}`;
+function fmtN(v,f){if(f==='i')return String(Math.round(v));if(f==='g')return v>=10?v.toFixed(1):String(r2(v));if(f==='m')return String(Math.round(v));return String(Math.round(v))}
+const N=(v,f)=>`<span class="num" data-v="${v}" data-f="${f}">${fmtN(v,f)}</span>`;
+function NG(x){return x<1?{n:N(Math.round(x*1000),'m'),u:'MB'}:{n:N(+x.toFixed(2),'g'),u:'GB'}}
+const andList=a=>a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+const mins=m=>m>=1440?`${Math.floor(m/1440)} day${m>=2880?'s':''}`:m>=60?`${Math.floor(m/60)} h`:`${Math.floor(m)} min`;
+
+/* ---------- derived ---------- */
+const cpuOf=a=>(a.id==='chrome'&&S.trim?15:a.cpu)+(a.id==='chrome'||a.id==='cmux'?Math.round(1.6*Math.sin(SIM.t/4+a.cpu)):0);
+const memOf=a=>a.id==='chrome'&&S.trim?6.6:a.mem;
+const JIT=()=>Math.round(2.6*Math.sin(SIM.t/6.3)+1.4*Math.sin(SIM.t/2.3));
+const LOAD=()=>63+JIT()-sum(APPS.filter(a=>g(a.id)),a=>a.cpu)-(S.trim&&!g('chrome')?6:0);
+const MEM=()=>24.1+Math.round(10*(.18*Math.sin(SIM.t/9)+.08*Math.sin(SIM.t/3.7)))/10-sum(APPS.filter(a=>g(a.id)),a=>a.mem)-(S.trim&&!g('chrome')?2.1:0);
+const closeList=()=>APPS.filter(a=>!g(a.id)&&!has('kept',a.id)&&(a.cls==='close'||has('moved',a.id)));
+const idleSrv=()=>SRV.filter(x=>!g(x.id)&&x.idle&&!has('kept',x.id));
+const mergedWT=()=>WT.filter(w=>!g(w.id)&&w.k==='m'&&!has('kept',w.id));
+const safeDK=()=>DK.filter(d=>!g(d.id)&&d.safe&&!has('kept',d.id));
+const reclaim=()=>sum(DK.filter(d=>!g(d.id)),d=>d.gb);
+const USED=()=>812-sum(DK.filter(d=>g(d.id)),d=>d.gb)-sum(WT.filter(w=>g(w.id)),w=>w.gb);
+const finished=()=>AG.filter(a=>a.st==='f'&&!g(a.id));
+const holding=()=>AG.filter(a=>!g(a.id)&&((a.awake&&!has('sleep',a.id))||has('plus',a.id)));
+const agHeld=a=>{const w=wsOfAg(a.id);return w?Math.round(10*wsHeld0(w))/10:Math.round(10*agHeld0(a))/10};
+/* workstreams */
+const wsSrv=w=>(w.srv||[]).filter(x=>!g(x));
+const wsWt=w=>w.wt&&!g(w.wt)?w.wt:null;
+const wsHeld0=w=>sum(SRV.filter(x=>wsSrv(w).includes(x.id)),x=>x.mb/1000)+(wsWt(w)?(w.stage==='r'?WT.find(t=>t.id===w.wt).gb:(w.cache||0)):0);
+const wsHeld=w=>Math.round(100*wsHeld0(w))/100;
+const wsLive=()=>WS.filter(w=>!g(w.id));
+const readyWS=()=>WS.filter(w=>!g(w.id)&&w.stage==='r'&&!has('kept',w.id));
+const wsReadyGB=()=>sum(readyWS(),wsHeld);
+const wsLink=id=>{const w=WS.find(x=>x.id===id);return w?`<span class="lk" data-ws="${id}">${w.n}</span>`:''};
+const agWsLink=agId=>{const w=wsOfAg(agId);return w?wsLink(w.id):agent(agId).n};
+const agHeld0=a=>sum(SRV.filter(x=>(a.srv||[]).includes(x.id)&&!g(x.id)),x=>x.mb/1000)+(a.wt&&!g(a.wt)&&WT.find(w=>w.id===a.wt).k==='m'?WT.find(w=>w.id===a.wt).gb:0);
+
+/* which items does the current mode act on */
+function aff(s){
+  const m=MODE(s); if(!m) return [];
+  if(s==='ws') return readyWS().filter(w=>w.ready>=VN('ws')).map(w=>w.id);
+  if(s==='agents') return AG.filter(a=>!g(a.id)&&a.st==='n'&&a.wait>=VN('agents')).map(a=>a.id);
+  if(s==='apps') return closeList().map(a=>a.id);
+  if(s==='servers') return idleSrv().filter(x=>x.idle>=VN('servers')).map(x=>x.id);
+  if(s==='trees') return mergedWT().filter(w=>w.age>=VN('trees')).map(w=>w.id);
+  if(s==='disk') return safeDK().map(d=>d.id);
+  if(s==='awake') return holding().map(a=>a.id);
+}
+
+/* ---------- words ---------- */
+/* plain words: what each mode does, said at the point of choice */
+function rule(s,mm){
+  const m=mm==null?MODE(s):mm, v=`<b>${VS(s)}</b>`;
+  const R={
+    ws:['<b>Off</b>: not watching workstreams. Nothing is shown or done.',`<b>Ask</b> shows a Wrap Up button ${v} after a PR merges and its agents finish. Nothing happens until you press it.`,`<b>Auto</b> wraps up a workstream ${v} after its PR merges and its agents finish, then sends a notice with Undo.`],
+    agents:['<b>Off</b>: not watching agents.',`<b>Ask</b> marks the menu bar icon when an agent has waited for you ${v}. Nothing else happens.`,`<b>Auto</b> sends a notification when an agent has waited for you ${v}.`],
+    apps:['<b>Off</b>: not watching apps. Nothing closes.',`<b>Ask</b> shows a Quit button when load passes ${v}. Nothing closes until you press it.`,`<b>Auto</b> quits noise apps when load passes ${v}, then sends a notice with Undo.`],
+    servers:['<b>Off</b>: not watching servers. Nothing stops.',`<b>Ask</b> shows a Stop button for servers nobody used for ${v}. Nothing stops until you press it.`,`<b>Auto</b> stops servers nobody used for ${v}, then sends a notice with Undo.`],
+    trees:['<b>Off</b>: not watching worktrees.',`<b>Ask</b> shows a Remove button ${v} after a worktree merges. Nothing goes until you press it.`,`<b>Auto</b> moves worktrees to the Trash ${v} after they merge, then sends a notice with Undo.`],
+    disk:['<b>Off</b>: not watching the disk.',`<b>Ask</b> shows a Clean button ${v}. Nothing goes until you press it.`,`<b>Auto</b> moves safe clutter to the Trash ${v}, then sends a notice with Undo.`]
+  };
+  return R[s][m];
+}
+/* the next thing that happens on its own, with a live countdown */
+const dur=sec=>{sec=Math.max(0,Math.round(sec));const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60),ss=sec%60;
+  return d?`${d} d ${h} h ${m} m`:h?`${h} h ${String(m).padStart(2,'0')} m ${String(ss).padStart(2,'0')} s`:m?`${m} m ${String(ss).padStart(2,'0')} s`:`${ss} s`};
+const T=x=>`<b class="cd">${dur(x).replace(/ /g,'\u00a0')}</b>`;
+const DISK_NEXT=[10*3600+18*60,4*86400+10*3600+18*60,4*86400+10*3600+18*60];
+function nextLine(s){
+  const m=MODE(s); if(!m) return 'Nothing happens on its own.';
+  const P=SIM.pass[s]!=null?SIM.pass[s]-SIM.t:null, A=aff(s), auto=m===2;
+  if(s==='servers'){
+    const nm=A.map(id=>SRV.find(x=>x.id===id).p), soon=idleSrv().filter(x=>!A.includes(x.id)).sort((a,b)=>b.idle-a.idle)[0];
+    if(auto&&A.length&&P!=null) return `Auto stops ${andList(nm)} in ${T(P)}`;
+    const tail=soon?`${auto?'Auto stops':'Ask shows'} ${soon.p} in ${T((VN('servers')-soon.idle)*60)}`:'';
+    if(!auto&&A.length) return `Stop buttons wait for you on ${andList(nm)}.`+(tail?` ${tail}`:'');
+    return tail||'No idle server is close to the line.';
+  }
+  if(s==='ws'){
+    const r=readyWS(), nm=A.map(id=>WS.find(w=>w.id===id).n), soon=r.filter(w=>!A.includes(w.id)).sort((a,b)=>b.ready-a.ready)[0];
+    if(auto&&A.length&&P!=null) return `Auto wraps up ${andList(nm)} in ${T(P)}`;
+    const tail=soon?`${auto?'Auto wraps up':'Ask shows'} ${soon.n} in ${T((VN('ws')-soon.ready)*60)}`:'';
+    if(!auto&&A.length) return `Wrap Up waits for you on ${andList(nm)}.`+(tail?` ${tail}`:'');
+    return tail||'Nothing is ready to wrap up.';
+  }
+  if(s==='trees'){
+    const nm=A.map(id=>WT.find(w=>w.id===id).n), soon=mergedWT().filter(w=>!A.includes(w.id)).sort((a,b)=>b.age-a.age)[0];
+    if(auto&&A.length&&P!=null) return `Auto removes ${A.length} worktree${A.length>1?'s':''} in ${T(P)}`;
+    const tail=soon?`${auto?'Auto removes':'Ask shows'} ${soon.n} in ${T((VN('trees')-soon.age)*60)}`:'';
+    if(!auto&&A.length) return `Remove waits for you on ${A.length} worktree${A.length>1?'s':''}.`+(tail?` ${tail}`:'');
+    return tail||'No merged worktree left.';
+  }
+  if(s==='apps'){
+    const cl=closeList(), L=Math.round(LOAD()), nm=andList(cl.map(a=>a.sh));
+    if(!cl.length) return 'Nothing on the close list.';
+    if(auto&&P!=null) return `Load is over the line. Auto quits ${nm} in ${T(P)}`;
+    return `${auto?'Auto quits':'Ask shows Quit for'} ${nm} when load passes ${VN('apps')} %. Load is <b class="cd">${N(L,'i')} %</b> now.`;
+  }
+  if(s==='disk'){
+    const sf=sum(safeDK(),d=>d.gb); if(!sf) return 'Nothing safe left to clean.';
+    return `${auto?`Auto moves <b>${fmt(sf)}</b> to the Trash`:`Ask shows Clean for <b>${fmt(sf)}</b>`} in ${T(DISK_NEXT[S.val.disk]-SIM.t)}`;
+  }
+  if(s==='agents'){
+    const w=AG.filter(a=>!g(a.id)&&a.st==='n');
+    if(!w.length) return 'No agent is waiting for you.';
+    const a=w[0], over=(a.wait-VN('agents'))*60;
+    if(over<0) return `${auto?'Auto notifies you':'Ask marks the icon'} about ${a.n} in ${T(-over)}`;
+    return auto?`Sent a notification about ${a.n} ${T(over)} ago.`:`The menu bar icon is marked for ${a.n}.`;
+  }
+  return '';
+}
+function insight(s){
+  const m=MODE(s);
+  if(s==='ws'){
+    const r=readyWS(), j=!g('ws-judge');
+    const a=r.length?`<b>${r.length} workstream${r.length>1?'s':''}</b> ${r.length>1?'are':'is'} done and still ${r.length>1?'hold':'holds'} <b>${fmt(wsReadyGB())}</b>.`:`Nothing is ready to wrap up.`;
+    return a+(j?` <b>lexicon-judge</b> asks <span style="white-space:nowrap">“Allow npm run build?”</span>`:` ${wsLive().filter(w=>w.stage==='w').length} are working.`);
+  }
+  if(s==='agents'){
+    const f=finished(), j=!g('judge');
+    const a=j?`<b>lexicon-judge</b> has waited for you for ${mins(agent('judge').wait)}. `:'';
+    return a+(f.length?`<b>fix auth redirect</b> finished 2 h ago, its workstream is ready to wrap up.`:`No finished agent holds anything now.`);
+  }
+  if(s==='apps'){
+    const cl=closeList(), L=LOAD(), T=VN('apps'), names=andList(cl.map(a=>a.sh));
+    if(!cl.length) return `Nothing on the close list. Load is <b>${Math.round(L)} %</b>, memory <b>${trimN(MEM())} GB</b>.`;
+    if(!m) return `${names} use <b>${fmt(sum(cl,memOf))}</b>. MinMacs is not watching apps.`;
+    if(L>=T) return `Load <b>${Math.round(L)} %</b> is over the ${T} % line, so ${m===2?'Auto closes':'Ask suggests closing'} ${names} next.`;
+    return `Load is under the ${T} % line, so nothing closes yet. Above it, ${names} ${cl.length>1?'go':'goes'} and free <b>${fmt(sum(cl,memOf))}</b>.`;
+  }
+  if(s==='servers'){
+    const i=idleSrv(); if(!i.length) return `No server is idle. ${SRV.filter(x=>!g(x.id)).length} run for agents and Docker.`;
+    return `<b>${i.length} server${i.length>1?'s':''}</b> idle, <b>${fmt(sum(i,x=>x.mb/1000))}</b> in all.`+(i.some(x=>x.id==='s6006')?` :6006 storybook has been idle 3 days and nobody owns it.`:'');
+  }
+  if(s==='trees'){
+    const mg=mergedWT();
+    return (mg.length?`<b>${mg.length} worktree${mg.length>1?'s':''}</b> merged into main. `:`No merged worktrees left. `)+(!g('t-bp7')?`<span style="white-space:nowrap">bp7-studio-dogfood</span> stays: 1 commit is not in main.`:'');
+  }
+  if(s==='disk'){
+    const sf=safeDK(), free=994-USED();
+    const lk=DK.filter(d=>!g(d.id)&&!d.safe&&!d.rep);
+    return `<b>${Math.round(free)} GB</b> free. `+(sf.length?`<b>${fmt(sum(sf,d=>d.gb))}</b> is safe to clean now${lk.length?', ':'.'}`:`The safe clutter is gone. `)+(lk.length?`<b>${fmt(sum(lk,d=>d.gb))}</b> more after a look.`:'');
+  }
+  if(s==='awake'){
+    const h=holding();
+    if(!m) return `The Mac sleeps as usual, even while ${h.length} agents work.`;
+    if(!h.length) return `Nothing holds the Mac awake. It sleeps as usual.`;
+    return `Awake because <b>${h.length} agent${h.length>1?'s':''}</b> ${h.length>1?'work':'works'}. It sleeps when the last one finishes${S.val.awake===3?'':`, or when the battery falls to ${VS('awake')}`}.`;
+  }
+}
+function idxNum(s){
+  const m=MODE(s);
+  if(!m) return {n:'Off',u:'',cp:s==='awake'?'sleeps as usual':'not watching'};
+  if(s==='ws') return {n:N(readyWS().length,'i'),u:'ready',cp:['','Ask suggests','Auto wraps up'][m]};
+  if(s==='agents'){const n=AG.filter(a=>!g(a.id)&&a.st==='n').length;return {n:N(n,'i'),u:'needs you',cp:['','Ask marks it','Auto tells you'][m]}}
+  if(s==='apps') return {n:N(Math.round(sum(closeList(),cpuOf)),'i'),u:'%',cp:['','Ask shows','Auto frees'][m]};
+  if(s==='servers') return {n:N(idleSrv().length,'i'),u:'idle',cp:['','Ask shows','Auto stops'][m]};
+  if(s==='trees'){const x=NG(sum(mergedWT(),w=>w.gb));return {n:x.n,u:x.u,cp:['','Ask shows','Auto removes'][m]}}
+  if(s==='disk'){const x=NG(sum(safeDK(),d=>d.gb));return {n:x.n,u:x.u,cp:['','Ask shows','Auto cleans'][m]}}
+  return {n:N(holding().length,'i'),u:'agents',cp:['','ask first','keep it awake'][m]};
+}
+
+/* ---------- mini graphs for the live index ---------- */
+const agColor=a=>g(a.id)?'transparent':a.st==='w'?(has('sleep',a.id)?'var(--g3)':C.agents):a.st==='n'?'#fff':a.st==='f'?'transparent':'var(--g2)';
+const agShadow=a=>!g(a.id)&&a.st==='f'?`inset 0 0 0 1.5px ${C.agents}`:'none';
+function arcSvg(p,col,sz,sw,k){
+  return `<svg viewBox="0 0 20 20" width="${sz}" height="${sz}" aria-hidden="true"${k?` data-k="${k}"`:''}><circle cx="10" cy="10" r="7.6" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sw}"/><circle cx="10" cy="10" r="7.6" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" pathLength="100" transform="rotate(-90 10 10)" style="stroke-dasharray:100;stroke-dashoffset:${100-Math.max(0,Math.min(100,p))};opacity:${p>0?1:0};transition:stroke-dashoffset .6s var(--ease),stroke .35s,opacity .35s"/></svg>`;
+}
+const wsCol=(w,A,m)=>g(w.id)?'var(--g1)':w.stage==='r'?(has('kept',w.id)?'var(--g2)':A.includes(w.id)?C.ws:`color-mix(in srgb,${C.ws} ${m?40:30}%,transparent)`):w.stage==='n'?'#fff':w.stage==='w'?'var(--g3)':'var(--g2)';
+function mini(s){
+  const c=C[s];
+  if(s==='ws'){const A=aff('ws'),m=MODE('ws');return `<span class="mg lanes">${WS.map(w=>`<i data-k="${w.id}" style="background:${wsCol(w,A,m)}"></i>`).join('')}</span>`}
+  if(s==='agents') return `<span class="mg dots">${AG.map(a=>`<i data-k="${a.id}" style="background:${agColor(a)};box-shadow:${agShadow(a)}"></i>`).join('')}${Array.from({length:IDLE5},()=>`<i style="background:var(--g2)"></i>`).join('')}</span>`;
+  if(s==='apps'){
+    const L=LOAD(), cl=closeList(), ns=sum(cl,cpuOf); let x=L-ns;
+    return `<span class="mg"><span class="tr"><i style="left:0;width:${L-ns}%;background:var(--g2)"></i>${APPS.map(a=>{const w=cl.includes(a)?cpuOf(a):0;const h=`<i data-k="${a.id}" style="left:${x}%;width:${w}%;background:${c}"></i>`;x+=w;return h}).join('')}<i class="tk" style="left:${VN('apps')}%"></i></span></span>`;
+  }
+  if(s==='servers'){const A=aff('servers');return `<span class="mg mc">${SRV.map(x=>`<i data-k="${x.id}" style="width:7px;height:${g(x.id)?2:Math.round(5+x.mb/640*19)}px;background:${g(x.id)?'var(--g1)':A.includes(x.id)?c:x.idle&&!has('kept',x.id)?`color-mix(in srgb,${c} 45%,transparent)`:'var(--g2)'}"></i>`).join('')}</span>`}
+  if(s==='trees'){const all=[...WT,...WT_FINE.map((gb,i)=>({id:'f'+i,k:'f',gb}))];return `<span class="mg mc">${all.map(w=>`<i data-k="${w.id}" style="width:2.6px;height:${g(w.id)?1:Math.round(4+w.gb/3.2*20)}px;background:${g(w.id)?'var(--g1)':w.k==='m'&&!has('kept',w.id)?c:w.k==='u'?'var(--g3)':'var(--g2)'}"></i>`).join('')}</span>`}
+  if(s==='disk') return `<span class="mg ring">${arcSvg(sum(safeDK(),d=>d.gb)/38.4*100,c,24,2.6,safeDK().map(d=>d.id).join(' '))}</span>`;
+  const h=holding();
+  return `<span class="mg dots">${AG.map(a=>`<i data-k="${a.id}" style="background:${h.includes(a)?c:g(a.id)?'transparent':'var(--g2)'}"></i>`).join('')}${Array.from({length:IDLE5},()=>`<i style="background:var(--g2)"></i>`).join('')}</span>`;
+}
+const dotStyle=s=>MODE(s)===2?`background:${C[s]};box-shadow:none`:MODE(s)===1?`background:transparent;box-shadow:inset 0 0 0 1.5px ${C[s]}`:'';
+
+/* ---------- rows ---------- */
+const ab=(label,code,tail)=>`<button class="ab" data-do="${code}">${label}${tail?`<span class="tl">${tail}</span>`:''}</button>`;
+const abDis=(label,why)=>`<span class="ab dis">${label}<span class="tl">${why}</span></span>`;
+const agLink=id=>agWsLink(id);
+const isNew=id=>SIM.born[id]!=null&&SIM.t-SIM.born[id]<5;
+const isFin=id=>SIM.fin[id]!=null;
+const newTag=id=>isNew(id)?`<span class="newtag">New</span>`:'';
+function row(o){
+  if(isFin(o.id)) o.st='Finished';
+  return `<div class="rw${o.gone?' gone':''}${o.aff?' aff':''}${o.dim?' dim':''}${S.sel==='ws'?' cmp':''}${isNew(o.id)?' new':''}${isFin(o.id)?' fin':''}" data-k="${o.k}" data-row="${o.id}"><i class="mk"></i><span class="ic">${o.ic}</span><span class="tx"><span class="nm">${o.nm}${newTag(o.id)}</span>${o.sub!=null?`<span class="sub">${o.sub}</span>`:''}</span><span class="meta">${o.extra||''}${o.v!=null?`<span class="v">${o.v}</span>`:''}<span class="st">${o.st}</span></span><span class="acts">${o.acts}</span></div>`;
+}
+function agSub(a){return a.id==='speed3'?`Claude Code +${2+liveSubs().length} · cmux tab`:a.sub?`subagent of speed-3`:`${TOOL[a.t]} · ${a.w}`}
+function agState(a){if(SIM.fin[a.id]!=null)return 'Finished';return a.st==='w'?`working ${a.tm}`:a.st==='n'?`needs you ${a.tm}`:a.st==='i'?`idle ${a.tm}`:`finished ${a.tm}`}
+function holds(a){
+  const sv=(a.srv||[]).filter(x=>!g(x)).length, wt=a.wt&&!g(a.wt), aw=S.lid&&a.st==='w'&&!g(a.id);
+  return `<span class="hold">${sv?`<span>${gl('servers',C.servers,12,1.7)}${sv}</span>`:''}${wt?`<span>${gl('trees',C.trees,12,1.7)}</span>`:''}${aw?`<span title="Keeps working with the lid closed">${gl('lid','rgba(235,235,245,.5)',12,1.6)}</span>`:''}</span>`;
+}
+const ICONX={tree:`<svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="none" stroke="rgba(235,235,245,.22)" stroke-width="1.2" stroke-dasharray="2.2 2.2"/></svg>`};
+function wsState(w){
+  if(has('kept',w.id)) return 'kept';
+  return w.stage==='w'?`working ${w.tm}`:w.stage==='n'?`needs you ${w.tm}`:w.stage==='i'?`idle ${w.tm}`:`ready · ${w.tm}`;
+}
+/* line 2: what the workstream holds, each mark in its section's color */
+function wsHolds(w){
+  const sv=wsSrv(w), wt=wsWt(w), out=[];
+  if(w.ask) out.push(`<span class="q">“${w.ask}”</span>`);
+  if(sv.length) out.push(`<span>${gl('servers',C.servers,12,1.7)}${sv.length>1?`${sv.length}`:SRV.find(x=>x.id===sv[0]).p}</span>`);
+  if(wt) out.push(`<span>${gl('trees',C.trees,12,1.7)}${w.br}${w.ahead?`<span class="soft">&nbsp;+${w.ahead}</span>`:''}${w.mg?`<span class="soft">&nbsp;${w.mg}</span>`:''}</span>`);
+  else if(!w.wt&&w.br) out.push(`<span>${gl('trees','rgba(235,235,245,.34)',12,1.7)}${w.br}</span>`);
+  if(w.pr) out.push(`<span>${gl('pr','rgba(235,235,245,.6)',12,1.6)}${w.pr}${w.prs?`<span class="soft">&nbsp;${w.prs}</span>`:''}</span>`);
+  if(w.cache&&wt) out.push(`<span>${gl('disk',C.disk,12,1.7)}${fmt(w.cache)}</span>`);
+  if(w.web&&!g(w.id)) out.push(`<span title="${w.web}, Playwright drives it">${gl('web','rgba(235,235,245,.6)',12,1.6)}</span>`);
+  if(S.lid&&w.stage==='w') out.push(`<span title="Keeps working with the lid closed">${gl('lid','rgba(235,235,245,.5)',12,1.6)}</span>`);
+  if(w.id==='ws-media') out.push(`<span class="${SIM.media==='passed'?'q':'soft'}">${SIM.media==='passed'?'tests passed':'tests running'}</span>`);
+  return out.join('');
+}
+function wsActs(w){
+  const a=[];
+  if(w.stage==='r'&&!has('kept',w.id)) a.push(ab('Wrap Up',`wrapws:${w.id}`,fmt(wsHeld(w))));
+  if(w.ag) a.push(ab('Go to Tab',`tab:${w.ag}`,w.stage==='n'?'answer':''));
+  if(w.pr) a.push(ab('Open PR',`pr:${w.id}`,w.id==='ws-speed'?'draft':''));
+  if(w.stage!=='r'&&wsSrv(w).length&&!w.ahead) a.push(ab(`Stop ${wsSrv(w).length>1?wsSrv(w).length+' Servers':SRV.find(x=>x.id===wsSrv(w)[0]).p}`,`stopws:${w.id}`));
+  if(w.stage==='r'&&!has('kept',w.id)) a.push(ab('Keep',`keep:${w.id}`));
+  if(w.stage==='w'&&w.ahead) a.push(abDis('Wrap Up…',`${w.ahead} commits not in main`));
+  else if(w.stage!=='r') a.push(ab('Open in Editor',`wsedit:${w.id}`));
+  return a.slice(0,4).join('');
+}
+function wsRow(w,A){
+  const cls=`rw ws${SIM.pulse[w.id]!=null&&SIM.t-SIM.pulse[w.id]<3?' pulse':''}${g(w.id)?' gone':''}${A.includes(w.id)?' aff':''}${w.stage==='r'&&!has('kept',w.id)?' rdy':''}${w.stage==='n'?' ndu':''}${w.stage==='i'||has('kept',w.id)?' dim':''}`;
+  return `<div class="${cls}" data-k="${w.id}" data-row="${w.id}"><i class="mk"></i><span class="ic">${w.t==='tree'?ICONX.tree:ICON[w.t]}</span><span class="tx"><span class="wl1"><span class="nm">${w.n}</span><span class="tool">${w.id==='ws-speed'?`Claude Code + ${2+liveSubs().length} subagents`:w.tool}</span><span class="st">${wsState(w)}</span></span><span class="wl2">${wsHolds(w)}</span></span><span class="meta"></span><span class="acts">${wsActs(w)}</span></div>`;
+}
+function rowsFor(s){
+  const A=aff(s);
+  if(s==='ws'){
+    const sb=SRV.find(x=>x.id==='s6006'), b8=WT.find(x=>x.id==='t-bp8');
+    const loose=[
+      row({id:'s6006',k:'s6006',gone:g('s6006'),ic:ICON.story,nm:':6006 storybook',sub:'idle 3 days, no owner',v:fmt(sb.mb/1000),st:'',acts:[ab('Stop','stop:s6006',fmt(sb.mb/1000)),ab('Open in Browser','open:s6006')].concat(has('kept','s6006')?[]:[ab('Keep','keep:s6006')]).join('')}),
+      row({id:'t-bp8',k:'t-bp8',gone:g('t-bp8'),ic:ICON.tree,nm:'bp8-sweep-studio403',sub:'stale 34 days',v:fmt(b8.gb),st:'',acts:[ab('Remove','remove:t-bp8',fmt(b8.gb)),ab('Show in Finder','finder:t-bp8')].concat(has('kept','t-bp8')?[]:[ab('Keep','keep:t-bp8')]).join('')}),
+      row({id:'d-dd',k:'d-dd',gone:g('d-dd'),ic:ICON.fold,nm:'Xcode DerivedData',sub:'4 gone projects',v:'',st:'',acts:[ab('Clean','clean:d-dd'),ab('Show in Finder','finder:d-dd')].join('')})
+    ].join('');
+    return WS.map(w=>wsRow(w,A)).join('')+`<p class="grp">No workstream</p>`+loose;
+  }
+  if(s==='agents') return AG.map(a=>{
+    const acts=[ab('Go to Tab',`tab:${a.id}`,a.app)];
+    if(a.st==='f') acts.unshift(ab('Wrap Up',`wrap:${a.id}`,fmt(agHeld(a))));
+    if(a.st!=='f'&&wsOfAg(a.id)) acts.push(ab('Workstream',`ws:${wsOfAg(a.id).id}`));
+    if((a.srv||[]).some(x=>!g(x))&&a.st!=='f') acts.push(ab('Stop Its Servers',`stopsrv:${a.id}`));
+    return row({id:a.id,k:a.id,gone:g(a.id),aff:A.includes(a.id),dim:a.st==='i',ic:ICON[a.t],nm:a.n,sub:agSub(a),extra:holds(a),st:agState(a),acts:acts.join('')});
+  }).join('')+`<p class="more">${IDLE5} more idle over 1 h, holding nothing</p>`;
+  if(s==='apps') return APPS.map(a=>{
+    const cl=closeList().includes(a);
+    let acts;
+    if(a.cls==='close'||has('moved',a.id)) acts=[ab('Quit',`quit:${a.id}`,fmt(memOf(a)))].concat(a.id==='chrome'&&!S.trim?[ab('Trim Tabs',`trim:chrome`,'14')]:[]).concat(has('kept',a.id)?[]:[ab('Keep',`keep:${a.id}`)]);
+    else if(a.cls==='unsorted') acts=[ab('Move to Close List',`move:${a.id}`),ab('Keep',`keep:${a.id}`)];
+    else if(a.cls==='spared') acts=[ab('Workstream',`ws:ws-speed`,'speed-3'),abDis('Quit','Playwright drives it')];
+    else acts=[abDis('Quit','essential')];
+    const st=has('kept',a.id)?'kept':cl?'close list':a.cls==='unsorted'?'unsorted':a.cls==='spared'?'spared':'kept';
+    const sub=a.id==='chrome'&&S.trim?'31 work tabs, noise tabs trimmed':a.ag?`${agLink(a.ag)} drives it, spared`:a.sub;
+    return row({id:a.id,k:a.id,gone:g(a.id),aff:A.includes(a.id),dim:!cl,ic:ICON[a.ic],nm:a.n,sub,v:`${trimN(cpuOf(a))} %`,extra:`<span class="v">${fmt(memOf(a))}</span>`,st,acts:acts.join('')});
+  }).join('')+`<p class="more">Docker, Claude and Finder are kept too</p>`;
+  if(s==='servers') return SRV.map(x=>{
+    const idle=x.idle&&!has('kept',x.id);
+    const acts=[ab('Stop',`stop:${x.id}`,fmt(x.mb/1000)),ab('Open in Browser',`open:${x.id}`)].concat(x.ag?[ab('Workstream',`ws:${wsOfAg(x.ag).id}`)]:[]).concat(idle?[ab('Keep',`keep:${x.id}`)]:[]);
+    const st=has('kept',x.id)?'kept':x.idle?`idle ${mins(x.idle)}`:x.fixed?'kept':'in use';
+    return row({id:x.id,k:x.id,gone:g(x.id),aff:A.includes(x.id),dim:!idle,ic:ICON[x.ic],nm:`${x.p} ${x.k}`,sub:x.ag?`${agLink(x.ag)}${x.id==='s4000'?', merged':''}`:x.o==='nobody'?'nobody owns it':`${x.o}`,v:fmt(x.mb/1000),st,acts:acts.join('')});
+  }).join('');
+  if(s==='trees') return WT.map(w=>{
+    let acts;
+    if(w.k==='m') acts=[ab('Remove',`remove:${w.id}`,fmt(w.gb)),ab('Show in Finder',`finder:${w.id}`)].concat(has('kept',w.id)?[]:[ab('Keep',`keep:${w.id}`)]);
+    else if(w.id==='t-bp7') acts=[abDis('Remove','1 commit not in main'),ab('Bundle and Remove',`bundle:${w.id}`),ab('Show Commit',`commit:${w.id}`)];
+    else if(w.k==='s') acts=[ab('Remove',`remove:${w.id}`,fmt(w.gb)),ab('Keep',`keep:${w.id}`)];
+    else acts=[abDis('Remove',`${agent(w.ag).n} works here`),ab('Open in Editor',`editor:${w.id}`)];
+    const st=has('kept',w.id)?'kept':w.k==='m'?'merged':w.k==='s'?'stale':'in use';
+    const sub=w.k==='u'?`in use by ${agLink(w.ag)}`:w.ag?`${agLink(w.ag)}, merged 2 h ago`:w.ws?`${w.sub} · <span class="lk" data-ws="${w.ws}">workstream</span>`:w.sub;
+    return row({id:w.id,k:w.id,gone:g(w.id),aff:A.includes(w.id),dim:w.k!=='m'||has('kept',w.id),ic:ICON.tree,nm:w.n,sub,v:fmt(w.gb),st,acts:acts.join('')});
+  }).join('')+`<p class="more">2 more in use, 5 fine · 5.7 GB</p>`;
+  if(s==='disk') return DK.map(d=>{
+    const acts=d.rep?[abDis('Clean','report only'),ab('Show in Finder',`finder:${d.id}`)]:[ab('Clean',`clean:${d.id}`,fmt(d.gb)),ab('Show in Finder',`finder:${d.id}`)].concat(has('kept',d.id)?[]:[ab('Keep',`keep:${d.id}`)]);
+    const st=has('kept',d.id)?'kept':d.safe?'safe':d.rep?'report only':'look first';
+    return row({id:d.id,k:d.id,gone:g(d.id),aff:A.includes(d.id),dim:!d.safe||has('kept',d.id),ic:ICON[d.ic],nm:d.n,sub:d.sub,v:fmt(d.gb),st,acts:acts.join('')});
+  }).join('');
+  if(s==='awake'){
+    const L=AG.filter(a=>a.st==='w'||a.st==='n'||a.st==='i');
+    return L.map(a=>{
+      const h=holding().includes(a);
+      const acts=[ab('Go to Tab',`tab:${a.id}`,a.app)].concat(h?[ab('Let It Sleep',`sleep:${a.id}`)]:[ab('Keep Awake 1 h',`plus:${a.id}`)]);
+      const st=h?(has('plus',a.id)?'awake to 17:42':'holds it awake'):has('sleep',a.id)?'may sleep':a.st==='n'?'needs you':'idle';
+      return row({id:a.id,k:a.id,gone:g(a.id),aff:A.includes(a.id),dim:!h,ic:ICON[a.t],nm:a.n,sub:`${TOOL[a.t]} · ${agState(a)}`,st,acts:acts.join('')});
+    }).join('')+`<p class="more">fix auth redirect finished and 5 idle agents hold nothing</p>`;
+  }
+}
+
+/* ---------- section actions ---------- */
+/* labels say exactly what happens and to what; res = the result shown on hover, before you press */
+const nw=x=>`<span style="white-space:nowrap">${x}</span>`;
+const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+function sectionActs(s){
+  const L={
+    ws:()=>{const r=readyWS(),gb=wsReadyGB(),stay=wsLive().filter(w=>!r.includes(w));return [{code:'wrapready',label:r.length===1?`Wrap Up ${r[0].n}`:`Wrap Up ${r.length} Now`,tail:r.length?fmt(gb):'none ready',t:r.flatMap(w=>[w.id,...wsSrv(w),w.wt,w.ag].filter(Boolean)),pri:1,dis:!r.length,
+      res:r.length?`<b>Goes:</b> ${[r.some(w=>wsSrv(w).length)?`${andList(r.flatMap(w=>wsSrv(w).map(id=>SRV.find(x=>x.id===id).p)))} stops`:'',r.some(w=>wsWt(w))?`${andList(r.filter(w=>wsWt(w)).map(w=>nw(w.br)))} go to the Trash with their node_modules`:''].filter(Boolean).join(', ')}. <b>Stays:</b> ${plural(stay.length,'workstream')} still working or idle.`:''}]},
+    agents:()=>{const w=AG.filter(a=>!g(a.id)&&a.st==='n')[0];return [{code:w?`tab:${w.id}`:'none',label:w?`Answer ${w.n}`:'Nobody waits',tail:w?w.app:'',t:w?[w.id]:[],pri:1,dis:!w,
+      res:w?`Opens ${w.w}, where it asks <b>“Allow npm run build?”</b> Nothing else changes.`:''}]},
+    apps:()=>{const cl=closeList();return [{code:'now',label:cl.length?`Quit ${plural(cl.length,'App')} Now`:'Nothing to Quit',tail:cl.length?fmt(sum(cl,memOf)):'',t:cl.map(a=>a.id),pri:1,dis:!cl.length,
+      res:`<b>Goes:</b> ${andList(cl.map(a=>a.sh))}. <b>Stays:</b> cmux, Cursor, Docker, Claude, and Chrome for Testing for speed-3.`},{code:'restore',label:'Reopen the 11:05 Run',tail:'2 apps',t:[],res:'Reopens Chrome with its 14 tabs and Spotify, as they were at 11:05.'}]},
+    servers:()=>{const i=idleSrv(),st=SRV.filter(x=>!g(x.id)&&!i.includes(x));return [{code:'closeidle',label:i.length?`Stop ${plural(i.length,'Server')} Now`:'No Idle Server',tail:i.length?fmt(sum(i,x=>x.mb/1000)):'',t:i.map(x=>x.id),pri:1,dis:!i.length,
+      res:`<b>Stops:</b> ${andList(i.map(x=>x.p))}. <b>Keeps:</b> ${andList(st.map(x=>x.p))}, in use.`}]},
+    trees:()=>{const m=mergedWT();return [{code:'rmmerged',label:m.length?`Remove ${m.length} Merged Now`:'None Merged',tail:m.length?fmt(sum(m,w=>w.gb)):'',t:m.map(w=>w.id),pri:1,dis:!m.length,
+      res:`<b>To the Trash:</b> ${andList(m.map(w=>w.n))}. <b>Stays:</b> bp7-studio-dogfood (1 commit not in main) and those in use.`}]},
+    disk:()=>{const sf=safeDK();return [{code:'cleansafe',label:sf.length?`Clean ${fmt(sum(sf,d=>d.gb))} Now`:'All Clean',tail:sf.length?'to the Trash':'',t:sf.map(d=>d.id),pri:1,dis:!sf.length,
+      res:`<b>To the Trash:</b> ${andList(sf.map(d=>d.n))}. <b>Stays:</b> Docker, Playwright and Simulator, they need a look first.`}]}
+  };
+  return L[s]();
+}
+function wrapItems(w){return [w.id,w.ag,...(w.srv||[]),w.wt].filter(Boolean)}
+function wrapWords(w){
+  const p=[];const sv=wsSrv(w);if(sv.length)p.push(`stopped ${sv.map(id=>SRV.find(x=>x.id===id).p).join(', ')}`);
+  if(wsWt(w))p.push(`removed ${w.br} and its ${w.cn}`);return p.join(', ');
+}
+const saBtn=a=>`<button class="sa${a.pri?' pri':''}${a.dis?' dis':''}" data-do="${a.code}" data-sa="${a.code}" data-t="${a.t.join(' ')}">${a.label}<span class="tl">${a.tail}</span></button>`;
+
+/* ---------- doing things ---------- */
+function snap(){return JSON.stringify(S)}
+function act(msg,fn){if(!/^<b>Auto<\/b>/.test(msg))SIM.lastAuto=null;H.push(snap());fn();render();toast(msg,true)}
+function undo(){if(!H.length)return;if(SIM.lastAuto){SIM.delay[SIM.lastAuto]=120;SIM.lastAuto=null}const sel=S.sel;Object.assign(S,JSON.parse(H.pop()));S.sel=sel;render();toast('Undone',false)}
+const push=(l,...ids)=>ids.forEach(id=>{if(id&&!S[l].includes(id))S[l].push(id)});
+function run(code){
+  const [v,id]=code.split(':');
+  const A=id&&agent(id), ap=id&&APPS.find(a=>a.id===id), sv=id&&SRV.find(x=>x.id===id), wt=id&&WT.find(w=>w.id===id), dk=id&&DK.find(d=>d.id===id);
+  const wsx=id&&WS.find(w=>w.id===id);
+  const name=(wsx&&wsx.n)||(ap&&ap.n)||(sv&&`${sv.p} ${sv.k}`)||(wt&&wt.n)||(dk&&dk.n)||(A&&A.n)||'';
+  switch(v){
+    case 'quit':return act(`Quit <b>${name}</b> · ${fmt(memOf(ap))} freed`,()=>push('gone',id));
+    case 'trim':return act(`Trimmed <b>14 tabs</b> in Chrome · 2.1 GB`,()=>{S.trim=1});
+    case 'keep':return act(`Keeping <b>${name}</b>, MinMacs leaves it alone`,()=>{push('kept',id);S.moved=S.moved.filter(x=>x!==id)});
+    case 'move':return act(`Moved <b>${name}</b> to the close list`,()=>push('moved',id));
+    case 'stop':return act(`Stopped <b>${name}</b> · ${fmt(sv.mb/1000)} freed`,()=>push('gone',id));
+    case 'remove':return act(`Moved <b>${name}</b> to the Trash · ${fmt(wt.gb)}`,()=>push('gone',id));
+    case 'bundle':return act(`Saved a git bundle, moved <b>${name}</b> to the Trash`,()=>push('gone',id));
+    case 'clean':return act(`Cleaned <b>${name}</b> · ${fmt(dk.gb)}`,()=>push('gone',id));
+    case 'wrap':{const w=wsOfAg(id);return act(`Wrapped up <b>${name}</b>: ${wrapWords(w)} · ${fmt(wsHeld(w))}`,()=>push('gone',...wrapItems(w)))}
+    case 'wrapws':{const w=WS.find(x=>x.id===id);return act(`Wrapped up <b>${w.n}</b>: ${wrapWords(w)} · ${fmt(wsHeld(w))}`,()=>push('gone',...wrapItems(w)))}
+    case 'wrapready':{const r=readyWS(),gb=wsReadyGB();return act(`Wrapped up <b>${andList(r.map(w=>w.n))}</b> · ${fmt(gb)} freed`,()=>r.forEach(w=>push('gone',...wrapItems(w))))}
+    case 'stopws':{const w=WS.find(x=>x.id===id),sv=wsSrv(w);return act(`Stopped ${sv.map(x=>SRV.find(y=>y.id===x).p).join(' and ')} of <b>${w.n}</b> · ${fmt(sum(sv,x=>SRV.find(y=>y.id===x).mb/1000))}`,()=>push('gone',...sv))}
+    case 'pr':{const w=WS.find(x=>x.id===id);return toast(`Opened <b>${w.pr}</b> ${w.n} on GitHub`,false)}
+    case 'wsedit':{const w=WS.find(x=>x.id===id);return toast(`Opened <b>${w.br}</b> in Cursor`,false)}
+    case 'ws':return gotoWS(id);
+    case 'stopsrv':return act(`Stopped the servers of <b>${name}</b>`,()=>push('gone',...(A.srv||[])));
+    case 'sleep':return act(`<b>${name}</b> no longer keeps the Mac awake`,()=>{push('sleep',id);S.plus=S.plus.filter(x=>x!==id)});
+    case 'plus':return act(`<b>${name}</b> keeps the Mac awake until 17:42`,()=>{push('plus',id);S.sleep=S.sleep.filter(x=>x!==id)});
+    case 'now':{const cl=closeList();return act(`Closed <b>${andList(cl.map(a=>a.sh))}</b> · ${fmt(sum(cl,memOf))} freed`,()=>push('gone',...cl.map(a=>a.id)))}
+    case 'closeidle':{const i=idleSrv();return act(`Stopped <b>${i.length} idle servers</b> · ${fmt(sum(i,x=>x.mb/1000))}`,()=>push('gone',...i.map(x=>x.id)))}
+    case 'rmmerged':{const m=mergedWT();return act(`Moved <b>${m.length} merged worktrees</b> to the Trash · ${fmt(sum(m,w=>w.gb))}`,()=>push('gone',...m.map(w=>w.id)))}
+    case 'cleansafe':{const sf=safeDK();return act(`Moved <b>${fmt(sum(sf,d=>d.gb))}</b> of safe clutter to the Trash`,()=>push('gone',...sf.map(d=>d.id)))}
+    case 'wrapfin':{const f=finished();return act(`Wrapped up <b>${andList(f.map(a=>a.n))}</b> · ${fmt(sum(f,agHeld))} freed`,()=>f.forEach(a=>push('gone',...wrapItems(wsOfAg(a.id)))))}
+    case 'sleepall':{const h=holding();return act(`The Mac may sleep now; <b>${h.length} agents</b> no longer hold it`,()=>{push('sleep',...h.map(a=>a.id));S.plus=[]})}
+    case 'restore':return toast(`Nothing to restore: the 11:05 run is already back`,false);
+    case 'tab':return toast(`Opened <b>${name}</b> in ${A.app}`,false);
+    case 'open':return toast(`Opened <b>localhost${sv.p}</b> in the browser`,false);
+    case 'finder':return toast(`Showed <b>${name}</b> in Finder`,false);
+    case 'editor':return toast(`Opened <b>${name}</b> in Cursor`,false);
+    case 'commit':return toast(`<b>a41c9e2</b> “studio dogfood: seed fixtures”, not in main`,false);
+    case 'goto':return gotoAgent(id);
+  }
+}
+function setMode(s,i){if(S.mode[s]===i)return;act(`<b>${NAME[s]}</b> set to ${MODES[i]}`,()=>{S.mode[s]=i})}
+function setVal(s,i){if(S.val[s]===i)return;act(`<b>${NAME[s]}</b>: ${VALS[s][i]}`,()=>{S.val[s]=i})}
+
+let tT;
+function toast(msg,undoable){const t=$('toast');$('tt').innerHTML=msg;t.classList.toggle('noundo',!undoable);t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),5200)}
+
+/* ---------- morph: patch the live DOM so things ease instead of jump ---------- */
+const TW=new WeakMap();
+function tween(el,from,to,f){
+  if(RM||isNaN(from)||isNaN(to)){el.textContent=fmtN(to,f);return}
+  const id=(TW.get(el)||0)+1;TW.set(el,id);const t0=performance.now(),d=620;
+  const step=t=>{if(TW.get(el)!==id)return;const p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3);el.textContent=fmtN(from+(to-from)*e,f);if(p<1)requestAnimationFrame(step)};
+  requestAnimationFrame(step);
+}
+const KEEP=['hit','flash'];
+function copyAttrs(a,b){for(const t of [...a.attributes])if(!b.hasAttribute(t.name))a.removeAttribute(t.name);for(const t of [...b.attributes]){let v=t.value;if(t.name==='class'&&a.classList){const k=KEEP.filter(c=>a.classList.contains(c));if(k.length)v=(v+' '+k.join(' ')).trim()}if(a.getAttribute(t.name)!==v)a.setAttribute(t.name,v)}}
+function morph(a,b){
+  if(a.nodeType!==b.nodeType||a.nodeName!==b.nodeName){a.replaceWith(b);return}
+  if(a.nodeType!==1){if(a.nodeValue!==b.nodeValue)a.nodeValue=b.nodeValue;return}
+  if(a.classList.contains('num')){const o=a.getAttribute('data-v'),n=b.getAttribute('data-v');copyAttrs(a,b);if(o!==n)tween(a,+o,+n,b.getAttribute('data-f'));return}
+  copyAttrs(a,b);
+  const ac=[...a.childNodes],bc=[...b.childNodes];
+  if(ac.length!==bc.length){a.replaceChildren(...bc);return}
+  for(let i=0;i<ac.length;i++)morph(ac[i],bc[i]);
+}
+function patch(el,html){
+  const t=document.createElement('div');t.innerHTML=html;
+  const ac=[...el.childNodes],bc=[...t.childNodes];
+  if(ac.length!==bc.length){el.replaceChildren(...bc);return}
+  for(let i=0;i<ac.length;i++)morph(ac[i],bc[i]);
+}
+
+/* ---------- menu bar + chrome ---------- */
+const clockNow=()=>{const m=16*60+42+Math.floor(SIM.t/60);return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`};
+function renderToday(){
+  patch($('today'),`<span class="lbl">Today</span><span class="txt">${S.today?`Auto closed <b>2 apps</b>, stopped <b>${N(3+S.autoSrv,'i')} servers</b>`:'Undone: <b>2 apps</b> reopened, <b>3 servers</b> started again'}</span><button class="live${SIM.paused?' paused':''}" id="live" aria-pressed="${!SIM.paused}"><i></i>${SIM.paused?'Paused':'Live'}</button><button class="undo" id="tundo">${S.today?'Undo':'Redo'}</button>`);
+  $('clock').textContent=clockNow();
+  const w=AG.filter(a=>!g(a.id)&&a.st==='w').length;
+  patch($('lid'),`<button class="ck" id="lidck" role="checkbox" aria-checked="${!!S.lid}"><i>${S.lid?'<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2.6 6.3l2.2 2.2 4.6-4.9" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</i>Keep working with the lid closed</button><span class="lidlive">${S.lid?`<b>${N(w,'i')} agents</b> working · the lid can close`:'Closing the lid sleeps the Mac and pauses agents'}</span><span class="lidnote">Stops at 20 % battery, if Wi-Fi drops, or if the Mac runs hot.</span>`);
+}
+function renderIcons(){
+  const box=$('icons');
+  if(!box.querySelector('.mi')) box.insertAdjacentHTML('beforeend',SEC.map(s=>`<span class="mi" id="mi-${s}" data-s="${s}" title="${NAME[s]}">${gl(s,'#fff',16)}</span>`).join('')+`<span class="mi off" id="mi-one" title="MinMacs">${gl('one','#fff',16)}</span>`);
+  SEC.forEach(s=>$('mi-'+s).classList.toggle('off',!!S.one||S.mode[s]===0));
+  $('mi-one').classList.toggle('off',!S.one);
+  $('one').setAttribute('aria-checked',String(!!S.one));$('login').setAttribute('aria-checked',String(!!S.login));
+  aim();setTimeout(aim,430);
+}
+function anchor(){if(S.one)return $('mi-one');if(S.mode[S.sel])return $('mi-'+S.sel);return [...document.querySelectorAll('.mi:not(.off)')][0]||null}
+function aim(){
+  const a=anchor(),hl=$('hl'),box=$('icons');
+  if(!a){hl.style.opacity=0;return}
+  const x=a.offsetLeft+8;hl.style.opacity=1;hl.style.transform=`translateX(${x-14}px)`;
+  const st=$('stage'),k=st.getBoundingClientRect().width/1280;
+  const bx=(box.getBoundingClientRect().left-st.getBoundingClientRect().left)/k;
+  $('nub').style.transform=`translateX(${bx+x-$('sheet').offsetLeft-1}px)`;
+}
+function fit(){const st=$('stage'),k=Math.min(innerWidth/1280,innerHeight/800);st.style.transform=`translate(${(innerWidth-1280*k)/2}px,${(innerHeight-800*k)/2}px) scale(${k})`;aim()}
+
+/* ---------- highlight: a section action lights what it touches first ---------- */
+let LIT=null;
+function light(root,keys,dim){LIT={keys,dim};
+  root.classList.toggle('hlon',!!dim);root.classList.toggle('peek',!dim);
+  root.querySelectorAll('[data-k]').forEach(el=>{const ks=(el.getAttribute('data-k')||'').split(' ');el.classList.toggle('hit',ks.some(k=>k&&keys.includes(k)))});
+}
+function unlight(root){LIT=null;root.classList.remove('hlon','peek');root.querySelectorAll('.hit').forEach(el=>el.classList.remove('hit'))}
+
+function gotoWS(id){
+  select('ws');
+  setTimeout(()=>{const r=document.querySelector(`.rw[data-row="${id}"]`);if(r){r.style.setProperty('--c',C.ws);r.classList.remove('flash');void r.offsetWidth;r.classList.add('flash')}},380);
+}
+function gotoAgent(id){
+  select('agents');
+  setTimeout(()=>{const r=document.querySelector(`.rw[data-row="${id}"]`);if(r){r.style.setProperty('--c',C.agents);r.classList.remove('flash');void r.offsetWidth;r.classList.add('flash')}},380);
+}
+
+/* ---------- shared wiring ---------- */
+function wire(){
+  document.addEventListener('click',e=>{
+    const t=e.target;
+    const d=t.closest('[data-do]');if(d){e.stopPropagation();unlight($('sheet'));run(d.getAttribute('data-do'));return}
+    const wl=t.closest('[data-ws]');if(wl){e.stopPropagation();gotoWS(wl.getAttribute('data-ws'));return}
+    const go=t.closest('[data-goto]');if(go){e.stopPropagation();gotoAgent(go.getAttribute('data-goto'));return}
+    const md=t.closest('[data-mode]');if(md){e.stopPropagation();const [s,i]=md.getAttribute('data-mode').split(':');setMode(s,+i);return}
+    const vl=t.closest('[data-val]');if(vl){e.stopPropagation();const [s,i]=vl.getAttribute('data-val').split(':');setVal(s,+i);return}
+    if(t.closest('#tundo')){act(S.today?'Reopened <b>2 apps</b>, started <b>3 servers</b> again':'Closed the <b>2 apps</b> and stopped the <b>3 servers</b> again',()=>{S.today=S.today?0:1});return}
+    if(t.closest('#tbtn')){undo();return}
+    if(t.closest('#live')){SIM.paused=SIM.paused?0:1;render();toast(SIM.paused?'Paused the live view':'Live again',false);return}
+    if(t.closest('#lidck')){act(S.lid?'Closing the lid will sleep the Mac and pause agents':'Agents keep working with the lid closed',()=>{S.lid=S.lid?0:1});return}
+    if(t.closest('#one')){act(S.one?'One icon per section in the menu bar':'One icon in the menu bar',()=>{S.one=S.one?0:1});return}
+    if(t.closest('#login')){act(S.login?'MinMacs will not open at login':'MinMacs opens at login',()=>{S.login=S.login?0:1});return}
+    const mi=t.closest('.mi[data-s]');if(mi){select(mi.getAttribute('data-s'));return}
+    const it=t.closest('[data-sec]');if(it){select(it.getAttribute('data-sec'));return}
+  });
+  document.addEventListener('keydown',e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();return}
+    const it=e.target.closest&&e.target.closest('[data-sec]');
+    if(it&&(e.key==='Enter'||e.key===' ')&&e.target===it){e.preventDefault();select(it.getAttribute('data-sec'))}
+    if(it&&(e.key==='ArrowDown'||e.key==='ArrowUp')){e.preventDefault();const i=SEC.indexOf(S.sel)+(e.key==='ArrowDown'?1:-1);const s=SEC[(i+SEC.length)%SEC.length];select(s);const n=document.querySelector(`[data-sec="${s}"]`);n&&n.focus()}
+  });
+  const sheet=$('sheet');
+  sheet.addEventListener('mouseover',e=>{
+    const md=e.target.closest('[data-mode]');
+    if(md){const [ms,mi]=md.getAttribute('data-mode').split(':');if(!HOV_MODE||HOV_MODE.s!==ms||HOV_MODE.i!==+mi){HOV_MODE={s:ms,i:+mi};render()}}
+    else if(HOV_MODE){HOV_MODE=null;render()}
+    const sb=e.target.closest('[data-sa]');
+    if(sb){if(HOV_SA!==sb.dataset.sa){HOV_SA=sb.dataset.sa;render()}}else if(HOV_SA){HOV_SA=null;render()}
+    const sa=e.target.closest('[data-t]');
+    if(sa){const k=sa.getAttribute('data-t').split(' ').filter(Boolean);if(k.length)light(sheet,k,true);return}
+    const r=e.target.closest('.rw[data-k]');
+    if(r&&!sheet.classList.contains('hlon')){light(sheet,[r.getAttribute('data-k')],false)}
+  });
+  sheet.addEventListener('mouseleave',()=>{if(HOV_MODE||HOV_SA){HOV_MODE=null;HOV_SA=null;render()}});
+  sheet.addEventListener('mouseout',e=>{
+    const sa=e.target.closest('[data-t]'),r=e.target.closest('.rw[data-k]');
+    const to=e.relatedTarget;
+    if(sa&&!(to&&sa.contains(to)))unlight(sheet);
+    else if(r&&!(to&&r.contains(to))&&!sheet.classList.contains('hlon'))unlight(sheet);
+  });
+  addEventListener('resize',fit);
+}
+
+/* ===== live simulation: every 5-10 s something arrives or leaves ===== */
+let subN=2;
+function spawnSub(){
+  subN++;const id='sub'+subN, at=AG.findIndex(a=>a.id==='speed3')+1+liveSubs().length;
+  const a={id,n:`speed-3 · helper ${subN}`,t:'cc',w:'cmux tab speed-3',app:'cmux',st:'w',m0:-SIM.t/60,sub:1,awake:1};
+  Object.defineProperty(a,'tm',{get(){return fmtAge(ageM(a))}});Object.defineProperty(a,'wait',{get(){return 0}});
+  AG.splice(at,0,a);SIM.born[id]=SIM.t;SIM.pulse['ws-speed']=SIM.t;
+}
+function finishSub(){const a=AG.find(x=>x.sub&&SIM.fin[x.id]==null);if(a){SIM.fin[a.id]=SIM.t;SIM.pulse['ws-speed']=SIM.t}}
+function startSrv(){
+  if(SRV.find(x=>x.id==='s5174'))return;
+  const x={id:'s5174',p:':5174',k:'vite',ic:'vite',mb:96,ag:'speed3'};Object.defineProperty(x,'idle',{get(){return 0}});
+  SRV.splice(SRV.findIndex(y=>y.id==='s5173')+1,0,x);WS[0].srv.push('s5174');AG[0].srv.push('s5174');
+  SIM.born.s5174=SIM.t;SIM.pulse['ws-speed']=SIM.t;
+}
+function stopSrv(){if(SRV.find(x=>x.id==='s5174')&&SIM.fin.s5174==null&&!S.gone.includes('s5174')){SIM.fin.s5174=SIM.t;SIM.pulse['ws-speed']=SIM.t}}
+function sweep(){ // fold away what finished: Finished for 3 s, then the row eases out, then it leaves the lists
+  for(const id in SIM.fin){if(SIM.t-SIM.fin[id]<5)continue;
+    const i=AG.findIndex(a=>a.id===id);if(i>=0)AG.splice(i,1);
+    const j=SRV.findIndex(x=>x.id===id);if(j>=0){SRV.splice(j,1);WS[0].srv=WS[0].srv.filter(x=>x!==id);AG[0].srv=AG[0].srv.filter(x=>x!==id);S.gone=S.gone.filter(x=>x!==id)}
+    delete SIM.fin[id];delete SIM.born[id];}
+}
+/* Auto passes: when Auto has something due, it waits a short grace time (shown as a countdown), then acts and sends a notice with Undo */
+function due(s){
+  if(MODE(s)!==2) return [];
+  if(s==='apps') return LOAD()>=VN('apps')?aff('apps'):[];
+  if(s==='ws'||s==='servers'||s==='trees') return aff(s);
+  return [];
+}
+function autoPasses(){
+  ['ws','servers','trees','apps'].forEach(s=>{
+    const d=due(s);
+    if(!d.length){delete SIM.pass[s];return}
+    if(SIM.pass[s]==null) SIM.pass[s]=SIM.t+(SIM.delay[s]||40);
+    if(SIM.t>=SIM.pass[s]){delete SIM.pass[s];SIM.delay[s]=40;autoRun(s,d)}
+  });
+}
+function autoRun(s,d){
+  SIM.lastAuto=s;
+  if(s==='servers'){const L=d.map(id=>SRV.find(x=>x.id===id));return act(`<b>Auto</b> stopped ${andList(L.map(x=>x.p))} · ${fmt(sum(L,x=>x.mb/1000))}, nobody used them for ${VALS.servers[S.val.servers]}`,()=>{push('gone',...d);S.autoSrv+=d.length})}
+  if(s==='ws'){const L=d.map(id=>WS.find(w=>w.id===id));return act(`<b>Auto</b> wrapped up ${andList(L.map(w=>w.n))} · ${fmt(sum(L,wsHeld))}`,()=>L.forEach(w=>push('gone',...wrapItems(w))))}
+  if(s==='trees'){const L=d.map(id=>WT.find(w=>w.id===id));return act(`<b>Auto</b> moved ${plural(L.length,'merged worktree')} to the Trash · ${fmt(sum(L,w=>w.gb))}`,()=>push('gone',...d))}
+  if(s==='apps'){const L=d.map(id=>APPS.find(a=>a.id===id));return act(`<b>Auto</b> quit ${andList(L.map(a=>a.sh))} · ${fmt(sum(L,memOf))}, load passed ${VN('apps')} %`,()=>push('gone',...d))}
+}
+const SCRIPT={6:spawnSub,13:startSrv,20:()=>{SIM.media='passed';SIM.pulse['ws-media']=SIM.t},27:finishSub,35:stopSrv,42:()=>{SIM.media='running';SIM.pulse['ws-media']=SIM.t}};
+function tick(){
+  if(SIM.paused) return;
+  SIM.t++;
+  const f=SCRIPT[SIM.t%48];if(f)f();
+  sweep();autoPasses();render();
+}
+
+/* ===== 36-a: the mode lives in the Live Index entry ===== */
+let HOV_MODE=null, HOV_SA=null;
+function setHTML(s){
+  const m=MODE(s), pv=HOV_MODE&&HOV_MODE.s===s&&HOV_MODE.i!==m?HOV_MODE.i:null;
+  return `<div class="set"><div class="si">
+    <div class="modes" role="radiogroup" aria-label="${NAME[s]} mode"><i class="pill"></i>${MODES.map((w,i)=>`<button role="radio" aria-checked="${m===i}" data-mode="${s}:${i}">${w}</button>`).join('')}</div>
+    <p class="rule${pv!=null?' pv':''}">${pv!=null?`<span class="if">If you pick it:</span> `:''}${rule(s,pv)}</p>
+    <div class="opts" role="radiogroup" aria-label="${NAME[s]} value">${VALS[s].map((v,i)=>`<button role="radio" aria-checked="${S.val[s]===i}" data-val="${s}:${i}">${v}</button>`).join('')}</div>
+    <p class="next">${gl('clock','currentColor',12,1.6)}<span>${nextLine(s)}</span></p>
+  </div></div>`;
+}
+function idxHTML(){
+  return `<div class="leg"><i></i>Colored part = what each one acts on</div>`+SEC.map(s=>{
+    const n=idxNum(s);
+    return `<div class="it${S.sel===s?' sel':''} m${MODE(s)}" role="tab" tabindex="0" aria-selected="${S.sel===s}" data-sec="${s}" style="--c:${C[s]}"><div class="r1"><i class="dot" style="${dotStyle(s)}"></i><span class="nm">${NAME[s]}</span>${mini(s)}<span class="nb"><span class="n">${n.n}<u>${n.u}</u></span><span class="cp">${n.cp}</span></span></div>${setHTML(s)}</div>`;
+  }).join('');
+}
+
+/* ----- hero graphs (tall, ftop columns) ----- */
+const pct=(v,max)=>Math.max(0,Math.min(100,v/max*100));
+function vstack(segs,max,cls){ // segs [{v,c,k}], bottom-up
+  let b=0;return segs.map(s=>{const h=pct(s.v,max);const o=`<i class="seg${cls||''}"${s.k!=null?` data-k="${s.k}"`:''} style="bottom:${b}%;height:${h>0?`calc(${h}% - 2px)`:'0%'};background:${s.c};opacity:${h>0?1:0}"></i>`;b+=h;return o}).join('');
+}
+function heroGraph(s){
+  const c=C[s], m=MODE(s), A=aff(s);
+  if(s==='ws'){
+    const cnt=k=>wsLive().filter(w=>w.stage===k&&!(k==='r'&&has('kept',w.id))).length;
+    return `<div class="cols" style="height:196px;gap:5px">${WS.map(w=>`<span class="col${g(w.id)?' gone':''}" data-k="${w.id}"><i style="height:${Math.max(4,pct(wsHeld0(w),2.4))}%;background:${wsCol(w,A,m)}"></i></span>`).join('')}</div>
+    <div class="wsleg"><span><i style="background:var(--g3)"></i><b>${N(cnt('w'),'i')}</b> working</span><span><i style="background:#fff"></i><b>${N(cnt('n'),'i')}</b> needs you</span><span><i style="background:var(--g2)"></i><b>${N(cnt('i')+WS.filter(w=>w.stage==='r'&&has('kept',w.id)&&!g(w.id)).length,'i')}</b> idle</span><span><i style="background:${c}"></i><b>${N(readyWS().length,'i')}</b> ready</span></div>`;
+  }
+  if(s==='agents'){
+    const L=[...AG.filter(a=>a.st==='w'),...AG.filter(a=>a.st==='n'),...AG.filter(a=>a.st==='f'),...AG.filter(a=>a.st==='i')];
+    const all=[...L.map(a=>({k:a.id,col:g(a.id)?'rgba(255,255,255,.05)':a.st==='w'?(has('sleep',a.id)?'var(--g3)':c):a.st==='n'?'#fff':a.st==='f'?`color-mix(in srgb,${c} 38%,transparent)`:'var(--g2)'})),...Array.from({length:IDLE5},()=>({k:null,col:'var(--g2)'}))];
+    const arcs=all.map((x,i)=>`<circle${x.k?` data-k="${x.k}"`:''} cx="84" cy="84" r="76" fill="none" stroke="${x.col}" stroke-width="8" stroke-linecap="round" pathLength="120" stroke-dasharray="${(120/all.length*.64).toFixed(2)} ${(120-120/all.length*.64).toFixed(2)}" transform="rotate(${(-90+i*360/all.length+360/all.length*.17).toFixed(2)} 84 84)"/>`).join('');
+    const live=AG.filter(a=>!g(a.id)).length+IDLE5, w=AG.filter(a=>a.st==='w'&&!g(a.id)).length, f=finished().length;
+    return `<svg class="aring" width="168" height="168" viewBox="0 0 168 168" aria-hidden="true">${arcs}</svg><div class="rc"><span class="n">${N(live,'i')}</span><span class="u">agents</span></div>
+    <div class="rleg"><span><i style="background:${c}"></i><b>${N(w,'i')}</b> working</span><span><i style="background:#fff"></i><b>${N(g('judge')?0:1,'i')}</b> needs you</span><span><i style="box-shadow:inset 0 0 0 1.5px ${c}"></i><b>${N(f,'i')}</b> finished</span><span><i style="background:var(--g2)"></i><b>${N(IDLE5+(g('parity')?0:1),'i')}</b> idle</span></div>`;
+  }
+  if(s==='apps'){
+    const cl=closeList(), L=LOAD(), M=MEM(), ns=sum(cl,cpuOf), nm=sum(cl,memOf), T=VN('apps');
+    const ld=[{v:L-ns,c:'var(--g2)'},...APPS.map(a=>({v:cl.includes(a)?cpuOf(a):0,c,k:a.id}))];
+    const mm=[{v:M-nm,c:'var(--g2)'},...APPS.map(a=>({v:cl.includes(a)?memOf(a):0,c,k:a.id}))];
+    return `<div class="meter vm" style="left:0;width:56px">${vstack(ld,100)}<i class="tk" style="bottom:${T}%"></i></div>
+      <span class="side" style="left:66px;bottom:calc(22px + ${T/100*222}px - 8px)"><b>${T} %</b></span>
+      <div class="meter vm" style="left:110px;width:56px">${vstack(mm,32)}</div>
+      <span class="vlab" style="left:0">Load</span><span class="vlab" style="left:110px">Memory</span>`;
+  }
+  if(s==='servers'){
+    return `<div class="cols" style="height:222px;gap:4px">${SRV.map(x=>{const idle=x.idle&&!has('kept',x.id);const col=A.includes(x.id)?c:idle&&m?`color-mix(in srgb,${c} 40%,transparent)`:x.idle&&!has('kept',x.id)?'var(--g3)':'var(--g2)';return `<span class="col${g(x.id)?' gone':''}" data-k="${x.id}"><i style="height:${pct(x.mb,700)}%;background:${col}"></i></span>`}).join('')}</div>
+      <div style="display:flex;gap:4px;margin-top:6px">${SRV.map(x=>`<span class="vlab" style="position:static;flex:1 1 0;min-width:0;text-align:center;letter-spacing:-.05em;opacity:${g(x.id)?.3:1}">${x.idle&&!has('kept',x.id)?x.p.slice(1):''}</span>`).join('')}</div>`;
+  }
+  if(s==='trees'){
+    const all=[...WT,...WT_FINE.map((gb,i)=>({id:'f'+i,k:'f',gb}))];
+    return `<div class="cols" style="height:244px;gap:4px">${all.map(w=>{const merged=w.k==='m'&&!has('kept',w.id);const col=A.includes(w.id)?c:merged?`color-mix(in srgb,${c} 40%,transparent)`:w.k==='u'?'var(--g3)':w.k==='s'?'var(--g2)':'rgba(255,255,255,.12)';return `<span class="col${g(w.id)?' gone':''}" data-k="${w.id}"><i style="height:${pct(w.gb,3.3)}%;background:${col}"></i></span>`}).join('')}</div>`;
+  }
+  if(s==='disk'){
+    const U=USED(), safe=DK.filter(d=>d.safe), rest=DK.filter(d=>!d.safe);
+    const segs=[...safe.map(d=>({v:g(d.id)?0:d.gb,c:has('kept',d.id)?'var(--g3)':c,k:d.id})),...rest.map(d=>({v:g(d.id)?0:d.gb,c:d.rep?'var(--g2)':`color-mix(in srgb,${c} 40%,transparent)`,k:d.id}))];
+    const sg=sum(safe.filter(d=>!g(d.id)),d=>d.gb), rg=sum(rest.filter(d=>!g(d.id)),d=>d.gb);
+    const H=188, sMid=pct(sg/2,38.4)/100*H, rMid=(pct(sg,38.4)+pct(rg/2,38.4))/100*H;
+    return `<span class="vlab" style="top:0;bottom:auto">Disk <b>${N(Math.round(U),'i')}</b> / 994 GB used</span>
+      <div class="meter" style="position:absolute;left:0;right:0;top:24px;height:6px">${(()=>{const r=reclaim();return `<i class="seg" style="left:0;top:0;bottom:0;width:calc(${pct(U-r,994)}% - 2px);background:var(--g2)"></i><i class="seg" data-k="${safeDK().map(d=>d.id).join(' ')}" style="left:${pct(U-r,994)}%;top:0;bottom:0;width:${pct(r,994)}%;background:${c}"></i>`})()}</div>
+      <div class="meter vm" style="left:0;width:56px;top:56px;bottom:0">${vstack(segs,38.4)}</div>
+      <span class="side" style="left:68px;bottom:${sMid-8}px;opacity:${sg?1:0}"><b>${NG(sg).n} ${NG(sg).u}</b> safe</span>
+      <span class="side" style="left:68px;bottom:${rMid-8}px;opacity:${rg?1:0}"><b>${NG(rg).n} ${NG(rg).u}</b> look first</span>`;
+  }
+  if(s==='awake'){
+    const T=VN('awake'), on=m&&holding().length, k=holding().map(a=>a.id).join(' ');
+    return `<div class="meter vm" style="left:0;width:64px">${vstack([{v:m?T:0,c:'var(--g3)'},{v:64-(m?T:0),c:on?c:'var(--g3)',k}],100)}<i class="tk" style="bottom:${T}%;opacity:${T&&m?1:0}"></i></div>
+      <span class="side" style="left:76px;bottom:calc(22px + ${T/100*222}px - 8px);opacity:${T&&m?1:0}">sleeps at <b>${T||20} %</b></span>
+      <span class="vlab" style="left:0">Battery</span>`;
+  }
+}
+function bigOf(s){
+  if(s==='ws'){const x=NG(wsReadyGB());return [x.n,`${x.u} to wrap up`]}
+  if(s==='agents') return [N(AG.filter(a=>a.st==='w'&&!g(a.id)).length,'i'),'working'];
+  if(s==='apps') return [N(Math.round(LOAD()),'i'),'% load'];
+  if(s==='servers') return [N(idleSrv().length,'i'),'idle'];
+  if(s==='trees'){const x=NG(sum(mergedWT(),w=>w.gb));return [x.n,`${x.u} merged`]}
+  if(s==='disk'){const x=NG(sum(safeDK(),d=>d.gb));return [x.n,`${x.u} safe`]}
+  return [N(64,'i'),'% battery'];
+}
+function capOf(s){
+  const m=MODE(s), who=m===2?(s==='servers'?'Auto stops':'Auto removes'):'Ask shows';
+  return {
+    ws:`One column per workstream, height is what it holds: servers, worktree, caches.${m?` ${m===2?'Bright: Auto wraps it up now.':'Bright: Ask suggests Wrap Up.'}`:''}`,
+    agents:`One arc per agent. Hollow pink: finished, still holding servers or a worktree.`,
+    apps:`Colored: what ${m?MODES[m]:'Auto'} frees, <b>${Math.round(sum(closeList(),cpuOf))} %</b> load and <b>${fmt(sum(closeList(),memOf))}</b>. The line is the ${VS('apps')} rule.`,
+    servers:`One column per server, height is memory.${m?` Bright: ${who} it now. Pale: idle less than ${VS('servers')}.`:''}`,
+    trees:`One column per worktree, height is size.${m?` Bright: ${who} it now. Pale: merged less than ${VS('trees')} ago.`:''}`,
+    disk:`Amber is what can go. Clean Safe takes the solid part, the rest needs a look first.`,
+    awake:`${MODE('awake')&&VN('awake')?`Purple: the battery agents may use before it sleeps. `:''}On the power adapter. Also ends if the network drops or the Mac runs hot.`
+  }[s];
+}
+function resOf(s){if(!HOV_SA)return '';const a=sectionActs(s).find(x=>x.code===HOV_SA);return a&&a.res?a.res:''}
+function detHTML(){
+  const s=S.sel, m=MODE(s), b=bigOf(s);
+  const key=m?`<span class="key"><i style="${m===2?`background:${C[s]}`:`box-shadow:inset 0 0 0 1.5px ${C[s]}`}"></i>${m===2?'Auto acts on these':'Ask shows these'}</span>`:`<span class="key">${NAME[s]} is off</span>`;
+  return `<div class="lab">Right now${key}</div>
+  <p class="ins">${insight(s)}</p>
+  <div class="split">
+    <div class="hero">
+      <div class="big"><span class="bn">${b[0]}</span><span class="bu">${b[1]}</span></div>
+      <div class="graph">${heroGraph(s)}</div>
+      <p class="cap${resOf(s)?' res':''}">${resOf(s)||capOf(s)}</p>
+      <div class="sas">${sectionActs(s).map(saBtn).join('')}</div>
+    </div>
+    <div class="list r-${s}">${rowsFor(s)}</div>
+  </div>`;
+}
+function inClass(){const s=S.sel;return `in m${MODE(s)}`}
+function pills(){
+  document.querySelectorAll('.modes').forEach(md=>{
+    const on=md.querySelector('[aria-checked="true"]'),p=md.querySelector('.pill');
+    if(on&&p){p.style.width=on.offsetWidth+'px';p.style.transform=`translateX(${on.offsetLeft}px)`}
+  });
+}
+function render(){
+  patch($('idx'),idxHTML());
+  const inEl=$('in');inEl.className=inClass()+(inEl.classList.contains('swap')?' swap':'');
+  inEl.style.setProperty('--c',C[S.sel]);
+  $('det').classList.toggle('off',!MODE(S.sel));
+  if(!inEl.classList.contains('swap')) patch(inEl,detHTML());
+  pills();renderToday();renderIcons();
+  if(LIT){const l=LIT;light($('sheet'),l.keys,l.dim)}
+}
+let swapT;
+function select(s){
+  if(S.sel===s)return;
+  S.sel=s;unlight($('sheet'));
+  const inEl=$('in');inEl.classList.add('swap');
+  clearTimeout(swapT);
+  swapT=setTimeout(()=>{inEl.innerHTML=detHTML();inEl.classList.remove('swap');render()},RM?0:200);
+  patch($('idx'),idxHTML());pills();renderIcons();
+}
+function init(){
+  wire();
+  $('in').innerHTML=detHTML();
+  autoPasses();render();fit();
+  setTimeout(()=>{pills();aim()},60);
+  setInterval(tick,1000);
+}
+init();
+
+</script>
+</body>
+</html>

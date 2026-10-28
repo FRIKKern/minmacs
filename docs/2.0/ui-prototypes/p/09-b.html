@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workstream Lanes</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.86);
+  --edge:rgba(255,255,255,.09);
+  --hair:rgba(255,255,255,.06);
+  --tx:#F2F3F7; --tx2:#A4A6B3; --tx3:#6E7080;
+  --mm:91,155,255; --loco:63,208,184; --forest:76,201,107; --noo:242,181,68; --ins:177,140,255;
+  --rose:#FF8E9E;
+  --ease:cubic-bezier(.22,.8,.26,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);background:#1d1a3c;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
+.desk{position:fixed;inset:0;background:
+  radial-gradient(900px 600px at 12% 8%,#43348f 0%,transparent 60%),
+  radial-gradient(800px 600px at 88% 6%,#1f5a86 0%,transparent 60%),
+  radial-gradient(900px 700px at 90% 100%,#8b3b64 0%,transparent 62%),
+  radial-gradient(700px 600px at 20% 100%,#2a2350 0%,transparent 70%),
+  #211c45}
+#stage{position:absolute;width:1280px;height:800px;transform-origin:0 0}
+
+.mbar{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;padding:0 10px 0 14px;font-size:13px;
+  background:rgba(20,18,40,.38);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);color:#fff}
+.mbar .l{display:flex;gap:18px;align-items:center}
+.mbar .l b{font-weight:700}
+.mbar .r{margin-left:auto;display:flex;align-items:center;gap:4px}
+.mi{display:flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:5px;font-size:12.5px;font-weight:500}
+.mi svg{width:15px;height:15px}
+.mi.on{background:rgba(255,255,255,.2)}
+.mi .u{color:rgba(255,255,255,.55);font-size:11px;margin-left:-2px}
+.clock{padding:0 6px 0 8px;font-weight:500}
+
+.panel{position:absolute;top:34px;left:56px;width:1168px;background:var(--glass);border:1px solid var(--edge);border-radius:22px;
+  -webkit-backdrop-filter:blur(30px) saturate(1.3);backdrop-filter:blur(30px) saturate(1.3);
+  box-shadow:0 30px 80px rgba(8,6,24,.45),0 2px 8px rgba(0,0,0,.2);padding:16px 14px 12px}
+
+/* grid */
+.row{display:grid;grid-template-columns:190px 1fr 1fr 1.32fr 1fr .86fr 80px;align-items:stretch;border-radius:14px;position:relative;
+  transition:background .25s var(--ease)}
+.row>div{padding:12px 10px;min-width:0}
+.hdr>div{padding:2px 10px 12px}
+.lane{border-top:1px solid var(--hair)}
+.lane:hover,.lane.plan{background:rgba(255,255,255,.035)}
+.lane:hover+.lane,.lane.plan+.lane{border-top-color:transparent}
+.lane:hover,.lane.plan{border-top-color:transparent}
+.grid.col1 .row>div:nth-child(2),.grid.col2 .row>div:nth-child(3),.grid.col3 .row>div:nth-child(4),
+.grid.col4 .row>div:nth-child(5),.grid.col5 .row>div:nth-child(6){background:rgba(255,255,255,.035)}
+.grid.col1 .hdr>div:nth-child(2),.grid.col2 .hdr>div:nth-child(3),.grid.col3 .hdr>div:nth-child(4),
+.grid.col4 .hdr>div:nth-child(5),.grid.col5 .hdr>div:nth-child(6){border-radius:12px 12px 0 0}
+
+.hdr .ttl{display:flex;flex-direction:column;justify-content:flex-end}
+.hdr h1{font-size:15px;font-weight:600}
+.hdr .sub{font-size:12px;color:var(--tx3);margin-top:2px}
+.ex{display:flex;align-items:center;gap:9px;cursor:default}
+.ex .xb{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgb(var(--c));color:#14151c;flex:0 0 30px}
+.ex .xb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ex .xn{font-size:13px;font-weight:500}
+.ex .xf{font-size:11.5px;color:var(--tx3);margin-top:1px}
+
+/* lane label */
+.who{display:flex;gap:11px;align-items:flex-start}
+.agent{width:26px;height:26px;flex:0 0 26px}
+.who .n{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .s{font-size:12px;color:var(--tx3);margin-top:2px;white-space:nowrap}
+.st{display:flex;align-items:center;gap:6px;font-size:12px;margin-top:5px;color:var(--tx);white-space:nowrap}
+.st .age{color:var(--tx3)}
+.mk{width:8px;height:8px;border-radius:50%;position:relative;flex:0 0 8px}
+.mk.work{background:var(--tx)}
+.mk.work::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);animation:pulse 2.4s var(--ease) infinite}
+@keyframes pulse{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.5);opacity:0}}
+.mk.idle{box-shadow:inset 0 0 0 1.5px var(--tx2)}
+.mk.done,.mk.ok{width:13px;height:13px;flex:0 0 13px;background:rgba(255,255,255,.14);display:grid;place-items:center}
+.mk.ok{background:rgba(var(--forest),.28)}
+.mk.done svg,.mk.ok svg{width:8px;height:8px;stroke:var(--tx);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.mk.ok svg{stroke:rgb(var(--forest))}
+.mk.orph{width:10px;height:10px;flex:0 0 10px;border:1.5px dashed var(--tx2)}
+.nobody-ic{width:26px;height:26px;border-radius:8px;border:1.5px dashed rgba(255,255,255,.28);flex:0 0 26px}
+
+/* cells */
+.cell{display:flex;flex-direction:column;gap:7px}
+.chip{display:flex;align-items:flex-start;gap:9px;min-width:0;cursor:default;
+  transition:opacity .45s var(--ease),transform .45s var(--ease),max-height .45s var(--ease);max-height:52px}
+.chip .tx{min-width:0;line-height:1.25;padding-top:2px}
+.chip .a{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .z{font-size:11.5px;color:var(--tx3);margin-top:1px}
+.chip .z .p{display:none}
+.lane.plan .chip .z .p{display:inline;color:var(--rose)}
+.lane.plan .chip.keep .z .p{color:rgb(var(--forest))}
+.lane.plan .chip .z .q{display:none}
+.chip.gone{opacity:0;transform:translateX(6px);max-height:0;pointer-events:none}
+.empty{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.12);margin:9px 0 0 9px}
+
+.b{--c:var(--mm);width:22px;height:22px;flex:0 0 22px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(var(--c),.26);color:rgb(var(--c));position:relative}
+.b svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.b.idle{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(var(--c),.6)}
+.b.goes{background:transparent;border:1.5px dashed rgba(var(--c),.85)}
+.b.arc{background:rgba(var(--c),.14)}
+.b.arc .ring{position:absolute;inset:-1px;width:24px;height:24px}
+.b.arc .ring circle{fill:none;stroke:rgb(var(--c));stroke-width:2;stroke-linecap:round;stroke-dasharray:22 100;transform-origin:12px 12px;animation:spin 3.2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.c-mm{--c:var(--mm)}.c-loco{--c:var(--loco)}.c-forest{--c:var(--forest)}.c-noo{--c:var(--noo)}.c-ins{--c:var(--ins)}
+
+.act{display:flex;align-items:flex-start;justify-content:flex-end}
+.btn{white-space:nowrap;height:26px;padding:0 12px;border-radius:13px;border:0;cursor:pointer;font:500 12px -apple-system,"SF Pro Text",system-ui;
+  background:rgba(255,255,255,.1);color:var(--tx);transition:background .2s var(--ease),transform .15s var(--ease)}
+.btn:hover{background:rgba(255,255,255,.17)}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:#F2F3F7;color:#15161d}
+.btn.pri:hover{background:#fff}
+
+/* plan bar */
+.planbar{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:0 10px 12px 47px!important;font-size:12.5px;color:var(--tx2);
+  animation:drop .35s var(--ease)}
+.planbar b{color:var(--tx);font-weight:500}
+.planbar .sp{margin-left:auto}
+@keyframes drop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+/* foot */
+.foot{display:flex;align-items:center;gap:18px;padding:12px 10px 2px;border-top:1px solid var(--hair);font-size:12px;color:var(--tx3)}
+.lg{display:flex;align-items:center;gap:7px}
+.lg .b{width:16px;height:16px;flex:0 0 16px;--c:200,202,214;background:rgba(var(--c),.2)}
+.lg .b.idle,.lg .b.goes{background:transparent}
+.lg .b.arc .ring{width:18px;height:18px}
+.lg .b.arc .ring circle{stroke-dasharray:16 100;transform-origin:9px 9px}
+.sizes{margin-left:auto;display:flex;gap:6px;align-items:center}
+.sizes .lbl{margin-right:4px}
+.sz{width:26px;height:26px;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;background:rgba(255,255,255,.07);color:var(--tx2);transition:background .2s,color .2s}
+.sz svg{width:14px;height:14px}
+.sz.on{background:rgb(var(--mm));color:#12131a}
+
+/* glance mode: the matrix becomes badges only */
+.glance .chip .tx,.glance .who .s,.glance .ex .xf{display:none}
+.glance .cell{flex-direction:row;flex-wrap:wrap;gap:6px}
+.glance .row>div{padding-top:10px;padding-bottom:10px}
+.glance .st{margin-top:3px}
+.glance .who .n{font-size:13.5px}
+
+/* hover card */
+.tip{position:absolute;width:290px;background:rgba(30,31,41,.95);border:1px solid var(--edge);border-radius:16px;
+  -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);padding:13px 14px 12px;box-shadow:0 18px 50px rgba(6,5,20,.5);
+  opacity:0;transform:translateY(4px) scale(.98);pointer-events:none;transition:opacity .18s var(--ease),transform .22s var(--ease);z-index:20}
+.tip.show{opacity:1;transform:none;pointer-events:auto}
+.tip .tt{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600}
+.tip .stt{font-size:12.5px;margin:7px 0 9px;color:var(--tx2)}
+.tip .stt b{font-weight:600}
+.tip dl{display:grid;grid-template-columns:auto 1fr;column-gap:14px;row-gap:5px;font-size:12.5px;padding:9px 0 10px;border-top:1px solid var(--hair)}
+.tip dt{color:var(--tx3);white-space:nowrap}
+.tip dd{text-align:right}
+.tip .acts{display:flex;flex-wrap:wrap;gap:6px;padding-top:10px;border-top:1px solid var(--hair)}
+.tip .acts button{height:24px;padding:0 10px;border-radius:12px;border:0;background:rgba(255,255,255,.09);color:var(--tx);font:500 12px -apple-system,system-ui;cursor:pointer}
+.tip .acts button:hover{background:rgba(255,255,255,.16)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:opacity .2s linear!important}
+}
+</style>
+</head>
+<body>
+<div class="desk"></div>
+<div id="stage">
+  <div class="mbar">
+    <div class="l">
+      <svg width="14" height="16" viewBox="0 0 14 17" fill="#fff"><path d="M11.6 9c0-2 1.6-2.9 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7C3.4 4.4 2.1 5.2 1.4 6.5c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.6-.7s1.6.7 2.6.6c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.2-.8-2.2-3.7zM9.7 3c.5-.7.9-1.6.8-2.5-.8 0-1.8.5-2.3 1.2-.5.6-.9 1.5-.8 2.4.9.1 1.8-.4 2.3-1.1z"/></svg>
+      <b>cmux</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="r">
+      <div class="mi on"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M2.8 11.5a5.2 5.2 0 1 1 10.4 0"/><path d="M8 11.5l2.6-3.2"/></svg>63<span class="u">%</span></div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11v3"/></svg>6</div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="3.8" r="1.6"/><circle cx="5" cy="12.2" r="1.6"/><circle cx="11" cy="5.8" r="1.6"/><path d="M5 5.4v5.2M11 7.4c0 2.6-6 1.4-6 3.2"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3h11v2.4h-11zM3.5 5.4l.8 7.6h7.4l.8-7.6M6.5 8.4h3"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 8s2.4-4.2 6.4-4.2S14.4 8 14.4 8 12 12.2 8 12.2 1.6 8 1.6 8z"/><circle cx="8" cy="8" r="1.9"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 18 14" fill="#fff"><path d="M9 2.2c2.7 0 5.1 1 6.9 2.7l1.1-1.1C14.9 1.8 12.1.6 9 .6S3.1 1.8 1 3.8l1.1 1.1C3.9 3.2 6.3 2.2 9 2.2zm0 3.2c1.8 0 3.4.7 4.6 1.8l1.1-1.1C13.2 4.7 11.2 3.8 9 3.8s-4.2.9-5.7 2.3l1.1 1.1C5.6 6.1 7.2 5.4 9 5.4zm0 3.2c.9 0 1.7.3 2.3.9L9 11.8 6.7 9.5c.6-.6 1.4-.9 2.3-.9z"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 27 13" width="24"><rect x=".5" y=".5" width="22" height="12" rx="3.5" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2.2" y="2.2" width="12.4" height="8.6" rx="2" fill="#fff"/><path d="M24.2 4.5v4a2 2 0 0 0 0-4z" fill="rgba(255,255,255,.55)"/></svg></div>
+      <div class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="4" rx="2"/><rect x="1.5" y="9" width="13" height="4" rx="2"/><circle cx="4.5" cy="5" r=".9" fill="#fff"/><circle cx="11.5" cy="11" r=".9" fill="#fff"/></svg></div>
+      <div class="clock">Tue 27 Oct&nbsp; 16:42</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="grid" id="grid"></div>
+    <div class="foot">
+      <span class="lg"><span class="b">G</span>In use</span>
+      <span class="lg"><span class="b idle">G</span>Idle, stays</span>
+      <span class="lg"><span class="b goes">G</span>Goes with Wrap Up</span>
+      <span class="lg"><span class="b arc">G</span>Keeps Mac awake</span>
+      <div class="sizes"><span class="lbl" id="szl">Detail</span>
+        <button class="sz on" id="szL" aria-label="Detail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2.5" width="12" height="5" rx="1.6"/><rect x="2" y="9.5" width="12" height="4" rx="1.6"/></svg></button>
+        <button class="sz" id="szS" aria-label="Glance"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="4" cy="4" r="1.6"/><circle cx="8" cy="4" r="1.6"/><circle cx="12" cy="4" r="1.6"/><circle cx="4" cy="8" r="1.6"/><circle cx="8" cy="8" r="1.6"/><circle cx="12" cy="8" r="1.6"/><circle cx="4" cy="12" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <div class="tip" id="tip"></div>
+</div>
+
+<script>
+const G={
+  mm:'<svg viewBox="0 0 16 16"><path d="M2.8 11.5a5.2 5.2 0 1 1 10.4 0"/><path d="M8 11.5l2.6-3.2"/></svg>',
+  loco:'<svg viewBox="0 0 16 16"><path d="M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11v3"/></svg>',
+  forest:'<svg viewBox="0 0 16 16"><circle cx="5" cy="3.8" r="1.6"/><circle cx="5" cy="12.2" r="1.6"/><circle cx="11" cy="5.8" r="1.6"/><path d="M5 5.4v5.2M11 7.4c0 2.6-6 1.4-6 3.2"/></svg>',
+  noo:'<svg viewBox="0 0 16 16"><path d="M2.5 3h11v2.4h-11zM3.5 5.4l.8 7.6h7.4l.8-7.6M6.5 8.4h3"/></svg>',
+  ins:'<svg viewBox="0 0 16 16"><path d="M1.6 8s2.4-4.2 6.4-4.2S14.4 8 14.4 8 12 12.2 8 12.2 1.6 8 1.6 8z"/><circle cx="8" cy="8" r="1.9"/></svg>'
+};
+const RING='<svg class="ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5"/></svg>';
+const RINGS='<svg class="ring" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7.8"/></svg>';
+const CHECK='<svg viewBox="0 0 10 10"><path d="M2 5.2l2 2 4-4.4"/></svg>';
+const AG={
+  claude:'<svg class="agent" viewBox="0 0 26 26"><rect width="26" height="26" rx="7.5" fill="#D97757"/><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M13 6.8v12.4M6.8 13h12.4M8.6 8.6l8.8 8.8M17.4 8.6l-8.8 8.8"/></g></svg>',
+  codex:'<svg class="agent" viewBox="0 0 26 26"><rect width="26" height="26" rx="7.5" fill="#ECECF1"/><g stroke="#17181f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M8 9.5l3.5 3.5L8 16.5"/><path d="M13.5 16.5h5"/></g></svg>',
+  nobody:'<span class="nobody-ic"></span>'
+};
+const EX=[
+  {k:'mm',n:'MinMacs',f:'apps, browsers'},
+  {k:'loco',n:'LocoHost',f:'servers'},
+  {k:'forest',n:'WorkForest',f:'worktrees'},
+  {k:'noo',n:'Noo-Noo',f:'caches'},
+  {k:'ins',n:'Insomnia',f:'keep awake'}];
+const COL={mm:'rgb(91,155,255)',loco:'rgb(63,208,184)',forest:'rgb(76,201,107)',noo:'rgb(242,181,68)',ins:'rgb(177,140,255)',rose:'#FF8E9E'};
+function badge(k,s){return `<span class="b c-${k} ${s||''}">${G[k]}${s==='arc'?RING:''}</span>`}
+document.querySelectorAll('.lg .b').forEach(b=>{b.innerHTML=G.loco.replace('viewBox','width="10" height="10" viewBox')+(b.classList.contains('arc')?RINGS:'')});
+
+/* chip: k expert, s shape, a label, z detail, p plan text (shown in plan mode), keep = stays in plan */
+const LANES=[
+ {id:'s3',agent:'claude',name:'speed-3',sub:'Claude Code · cmux',st:'work',stw:'Working',age:'2m',
+  cells:{
+   mm:[{s:'',a:'Chrome for Testing',z:'Spared · Playwright',tip:'cft'}],
+   loco:[{s:'',a:':3000 next dev',z:'412 MB',tip:'s3000'},{s:'',a:':5173 vite',z:'188 MB',tip:'s5173'}],
+   forest:[{s:'',a:'speed-3-base',z:'In use',tip:'wspeed'}],
+   noo:[{s:'',a:'.next cache',z:'640 MB · kept',tip:'cnext'}],
+   ins:[{s:'arc',a:'Awake',z:'For this agent',tip:'ins'}]}},
+ {id:'sp',agent:'claude',name:'studio-parity',sub:'Claude Code · cmux',st:'idle',stw:'Idle',age:'40m',
+  cells:{
+   loco:[{s:'idle',a:':3334 sanity',z:'640 MB',tip:'s3334'}],
+   forest:[{s:'idle',a:'studio-parity',z:'Open, not merged',tip:'wstudio'}],
+   noo:[{s:'idle',a:'node_modules',z:'1.3 GB',tip:'cstudio'}]}},
+ {id:'ar',agent:'codex',name:'fix auth redirect',sub:'Codex · thread',st:'done',stw:'Finished',age:'2h ago',btn:'Wrap Up',
+  plan:'Stops <b>:4000</b>, removes <b>auth-redirect</b>, trashes its <b>node_modules</b>. Frees <b>4.2 GB</b> disk and <b>290 MB</b> memory. Undo brings it all back.',
+  doneTxt:'Wrapped up',doneSub:':4000 stopped · 4.2 GB in Trash',
+  cells:{
+   loco:[{s:'goes',a:':4000 phoenix',z:'Idle 2h · 290 MB',p:'Stop',tip:'s4000'}],
+   forest:[{s:'goes',a:'auth-redirect',z:'Squash-merged · 1.8 GB',p:'Remove, branch kept',tip:'wauth'}],
+   noo:[{s:'goes',a:'node_modules',z:'2.4 GB',p:'To Trash',tip:'cauth'}]}},
+ {id:'nb',agent:'nobody',name:'Nobody',sub:'No agent owns these',st:'orph',stw:'Left behind',age:'',btn:'Tidy',
+  plan:'Stops <b>:6006</b>, removes <b>4 worktrees</b>, trashes <b>DerivedData</b> of 4 gone projects. Frees <b>4.95 GB</b> disk and <b>520 MB</b> memory. Undo brings it all back.',
+  doneTxt:'Tidied',doneSub:':6006 stopped · 4.95 GB in Trash',
+  cells:{
+   mm:[{s:'idle',a:'FigmaAgent',z:'Unsorted · 13 MB',p:'Stays, you decide',keep:1,tip:'figma'}],
+   loco:[{s:'goes',a:':6006 storybook',z:'Idle 3d · 520 MB',p:'Stop',tip:'s6006'}],
+   forest:[
+     {s:'goes',a:'3 merged',z:'No agent · 3.85 GB',p:'Remove',tip:'wmerged'},
+     {s:'goes',a:'bp8-sweep-studio403',z:'Stale 34d · remote branch deleted',p:'Remove, 1.1 GB',tip:'wbp8'},
+     {s:'idle',a:'bp7-studio-dogfood',z:'Stale 21d · 1 commit not in main',p:'Stays · 1 commit not in main',keep:1,tip:'wbp7'}],
+   noo:[{s:'goes',a:'DerivedData',z:'4 projects gone',p:'To Trash',tip:'cdd'}]}}
+];
+
+const TIPS={
+ s3000:{k:'loco',t:':3000 next dev',c:'loco',w:'Stays',s:'speed-3 uses it',f:[['Owner','Claude Code · speed-3'],['Worktree','speed-3-base'],['Memory','412 MB'],['State','In use']],a:['Open in Browser','Show Worktree']},
+ s5173:{k:'loco',t:':5173 vite',c:'loco',w:'Stays',s:'speed-3 uses it',f:[['Owner','Claude Code · speed-3'],['Worktree','speed-3-base'],['Memory','188 MB'],['State','In use']],a:['Open in Browser','Show Worktree']},
+ s3334:{k:'loco',t:':3334 sanity',c:'loco',w:'Stays',s:'its agent may resume',f:[['Owner','Claude Code · studio-parity'],['Worktree','studio-parity'],['Memory','640 MB'],['State','Idle 40m']],a:['Stop Now','Open in Browser']},
+ s4000:{k:'loco',t:':4000 phoenix',c:'rose',w:'Goes',s:'with Wrap Up, worktree merged',f:[['Owner','Codex · fix auth redirect'],['Worktree','auth-redirect, squash-merged'],['Memory','290 MB'],['State','Idle 2h']],a:['Stop Now','Open in Browser']},
+ s6006:{k:'loco',t:':6006 storybook',c:'rose',w:'Goes',s:'with Tidy, nobody owns it',f:[['Owner','Nobody'],['Worktree','None found'],['Memory','520 MB'],['State','Idle 3d']],a:['Stop Now','Keep']},
+ wspeed:{k:'forest',t:'speed-3-base',c:'forest',w:'Stays',s:'speed-3 is working in it',f:[['Agent','Claude Code · speed-3'],['Servers',':3000, :5173'],['State','In use']],a:['Reveal in Finder','Open in Terminal']},
+ wstudio:{k:'forest',t:'studio-parity',c:'forest',w:'Stays',s:'its agent is idle, not finished',f:[['Agent','Claude Code · studio-parity'],['Server',':3334'],['Branch','Not merged']],a:['Reveal in Finder','Open in Terminal']},
+ wauth:{k:'forest',t:'auth-redirect',c:'rose',w:'Goes',s:'with Wrap Up',f:[['Agent','Codex · fix auth redirect'],['Branch','Squash-merged into main'],['Size','1.8 GB'],['Server',':4000']],a:['Remove Now','Reveal in Finder']},
+ wmerged:{k:'forest',t:'3 merged worktrees',c:'rose',w:'Goes',s:'with Tidy, no agent left',f:[['lane-e-sort','2.3 GB'],['sb-fieldsets','940 MB'],['w19-fire','610 MB']],a:['Remove Now','Open WorkForest']},
+ wbp8:{k:'forest',t:'bp8-sweep-studio403',c:'rose',w:'Goes',s:'with Tidy',f:[['Last commit','34 days ago'],['Branch','Remote branch deleted'],['Size','1.1 GB']],a:['Remove Now','Reveal in Finder']},
+ wbp7:{k:'forest',t:'bp7-studio-dogfood',c:'forest',w:'Stays',s:'1 commit not in main',f:[['Last commit','21 days ago'],['Size','3.2 GB'],['Agent','None']],a:['Show Commit','Reveal in Finder']},
+ cnext:{k:'noo',t:'.next cache',c:'noo',w:'Stays',s:'speed-3 is building with it',f:[['Project','speed-3-base'],['Size','640 MB'],['Clean','After Wrap Up']],a:['Reveal in Finder']},
+ cstudio:{k:'noo',t:'node_modules',c:'noo',w:'Stays',s:'studio-parity is not merged',f:[['Project','studio-parity'],['Size','1.3 GB']],a:['Reveal in Finder']},
+ cauth:{k:'noo',t:'node_modules',c:'rose',w:'Goes',s:'to Trash with Wrap Up',f:[['Project','auth-redirect, squash-merged'],['Size','2.4 GB']],a:['Trash Now','Reveal in Finder']},
+ cdd:{k:'noo',t:'Xcode DerivedData',c:'rose',w:'Goes',s:'to Trash with Tidy, for gone projects only',f:[['Projects','7, of which 4 are gone'],['All of it','14.2 GB'],['Kept','3 live projects']],a:['Open Noo-Noo']},
+ cft:{k:'mm',t:'Chrome for Testing',c:'mm',w:'Spared',s:'Playwright drives it',f:[['Agent','Claude Code · speed-3'],['CPU','9 %'],['Memory','1.2 GB']],a:['Show in MinMacs']},
+ figma:{k:'mm',t:'FigmaAgent',c:'mm',w:'Stays',s:'unsorted, you decide',f:[['CPU','0 %'],['Memory','13 MB'],['Agent','None']],a:['Keep Always','Close Always']},
+ ins:{k:'ins',t:'Insomnia',c:'ins',w:'Awake',s:'while speed-3 works',f:[['Sleeps when','speed-3 finishes'],['Battery','64 %, on adapter'],['Lid closed','Off'],['Ends on','Battery under 20 %, network lost, thermal serious']],a:['Let It Sleep','Lid-Closed Mode']},
+ ex_mm:{k:'mm',t:'MinMacs',c:'mm',w:'Normal',s:'system load 63 %',f:[['Memory','24.1 / 32 GB'],['Pressure','Normal'],['Thermal','Nominal']],a:['MinMacs Now']},
+ ex_loco:{k:'loco',t:'LocoHost',c:'loco',w:'6 servers',s:'3 idle',f:[['In use',':3000, :5173'],['Kept',':5432 postgres, Docker'],['Idle',':3334, :4000, :6006']],a:['Close Idle']},
+ ex_forest:{k:'forest',t:'WorkForest',c:'forest',w:'14 worktrees',s:'3 in use',f:[['Merged','4'],['Stale','2'],['Fine','5']],a:['Remove Merged']},
+ ex_noo:{k:'noo',t:'Noo-Noo',c:'noo',w:'38.4 GB',s:'reclaimable',f:[['Disk','812 / 994 GB'],['Free','182 GB']],a:['Clean Safe']},
+ ex_ins:{k:'ins',t:'Insomnia',c:'ins',w:'On',s:'for speed-3',f:[['Battery','64 %, on adapter'],['Lid mode','Off']],a:['Let It Sleep']}
+};
+
+const grid=document.getElementById('grid');
+function chipHTML(k,c,i){
+  return `<div class="chip ${c.keep?'keep':''}" data-tip="${c.tip}" data-k="${k}">${badge(k,c.s)}
+    <div class="tx"><div class="a">${c.a}</div><div class="z"><span class="q">${c.z}</span><span class="p">${c.p||c.z}</span></div></div></div>`;
+}
+function mark(st){
+  if(st==='done')return `<span class="mk done">${CHECK}</span>`;
+  if(st==='ok')return `<span class="mk ok">${CHECK}</span>`;
+  return `<span class="mk ${st}"></span>`;
+}
+function laneHTML(L){
+  const cells=EX.map(e=>{const cs=L.cells[e.k];return `<div class="cell">${cs?cs.map(c=>chipHTML(e.k,c)).join(''):'<span class="empty"></span>'}</div>`}).join('');
+  return `<div class="row lane" id="l-${L.id}">
+    <div><div class="who">${AG[L.agent]}<div style="min-width:0"><div class="n">${L.name}</div><div class="s">${L.sub}</div>
+      <div class="st">${mark(L.st)}<span class="sw">${L.stw}</span><span class="age">${L.age}</span></div></div></div></div>
+    ${cells}
+    <div class="act">${L.btn?`<button class="btn" data-act="plan" data-l="${L.id}">${L.btn}</button>`:''}</div>
+  </div>`;
+}
+function hdrHTML(){
+  return `<div class="row hdr"><div class="ttl"><h1>Workstreams</h1><div class="sub">Who owns what</div></div>
+   ${EX.map((e,i)=>`<div><div class="ex" data-col="${i+1}" data-tip="ex_${e.k}"><span class="xb c-${e.k}">${G[e.k]}</span><div><div class="xn">${e.n}</div><div class="xf">${e.f}</div></div></div></div>`).join('')}
+   <div></div></div>`;
+}
+function render(){grid.innerHTML=hdrHTML()+LANES.map(laneHTML).join('');bind(grid)}
+render();
+
+/* column highlight from the header, row highlight is CSS :hover */
+grid.addEventListener('mouseover',e=>{
+  const x=e.target.closest('[data-col]');
+  grid.className='grid'+(x?' col'+x.dataset.col:'');
+});
+grid.addEventListener('mouseleave',()=>grid.className='grid');
+
+/* Wrap Up / Tidy */
+const reduce=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+grid.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const L=LANES.find(l=>l.id===b.dataset.l), row=document.getElementById('l-'+L.id);
+  const act=b.dataset.act;
+  if(act==='plan'){
+    setGlance(false);
+    row.classList.add('plan');
+    row.querySelector('.sw').textContent=L.btn+' plan';row.querySelector('.age').textContent='';
+    row.querySelector('.act').innerHTML='';
+    row.insertAdjacentHTML('beforeend',`<div class="planbar"><span>${L.plan}</span><span class="sp"></span>
+      <button class="btn" data-act="cancel" data-l="${L.id}">Cancel</button><button class="btn pri" data-act="go" data-l="${L.id}">${L.btn}</button></div>`);
+  }
+  if(act==='cancel'){row.outerHTML=laneHTML(L);bind(grid)}
+  if(act==='go'){
+    row.querySelector('.planbar').remove();
+    const goes=[...row.querySelectorAll('.chip:not(.keep)')];
+    goes.forEach((c,i)=>setTimeout(()=>c.classList.add('gone'),reduce()?0:120+i*150));
+    setTimeout(()=>{
+      row.classList.remove('plan');
+      row.querySelectorAll('.cell').forEach(cell=>{if(!cell.querySelector('.chip:not(.gone)')){cell.innerHTML='<span class="empty"></span>'}});
+      row.querySelector('.who .s').textContent=L.doneSub;row.querySelector('.st').innerHTML=`${mark('ok')}<span>${L.doneTxt}</span><span class="age">16:42</span>`;
+      row.querySelector('.act').innerHTML=`<button class="btn" data-act="undo" data-l="${L.id}">Undo</button>`;
+    },reduce()?50:120+goes.length*150+380);
+  }
+  if(act==='undo'){row.outerHTML=laneHTML(L);bind(grid)}
+});
+
+/* detail / glance */
+const panel=document.getElementById('panel');
+function setGlance(g){panel.classList.toggle('glance',g);szS.classList.toggle('on',g);szL.classList.toggle('on',!g);szl.textContent=g?'Glance':'Detail';hideTip(true)}
+szL.onclick=()=>setGlance(false);szS.onclick=()=>setGlance(true);
+
+/* hover cards */
+const stage=document.getElementById('stage'),tip=document.getElementById('tip');
+let scale=1,hideT;
+function showTip(el){
+  const d=TIPS[el.dataset.tip];if(!d)return;clearTimeout(hideT);
+  tip.innerHTML=`<div class="tt">${badge(d.k,'')}${d.t}</div>
+   <div class="stt"><b style="color:${COL[d.c]}">${d.w}</b> · ${d.s}</div>
+   <dl>${d.f.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>
+   ${d.a.length?`<div class="acts">${d.a.map(a=>`<button>${a}</button>`).join('')}</div>`:''}`;
+  const r=el.getBoundingClientRect(),s=stage.getBoundingClientRect();
+  let x=(r.left-s.left)/scale-4, y=(r.bottom-s.top)/scale+8;
+  if(x+290>1268)x=1268-290;
+  const h=tip.offsetHeight;
+  if(y+h>790)y=(r.top-s.top)/scale-h-8;
+  tip.style.left=x+'px';tip.style.top=y+'px';tip.classList.add('show');
+}
+function hideTip(now){clearTimeout(hideT);hideT=setTimeout(()=>tip.classList.remove('show'),now===true?0:140)}
+function bind(root){root.querySelectorAll('[data-tip]').forEach(el=>{el.onmouseenter=()=>showTip(el);el.onmouseleave=hideTip})}
+tip.onmouseenter=()=>clearTimeout(hideT);tip.onmouseleave=hideTip;
+
+function fit(){scale=Math.min(innerWidth/1280,innerHeight/800);stage.style.transform=`scale(${scale})`;
+  stage.style.left=(innerWidth-1280*scale)/2+'px';stage.style.top=(innerHeight-800*scale)/2+'px'}
+addEventListener('resize',fit);fit();
+if(location.hash==='#glance')setGlance(true);
+if(location.hash==='#plan')document.querySelector('[data-act=plan][data-l=ar]').click();
+if(location.hash==='#tidy')document.querySelector('[data-act=plan][data-l=nb]').click();
+if(location.hash==='#tip'){grid.className='grid col3';showTip(document.querySelector('[data-tip=wbp7]'))}
+if(location.hash==='#done'){document.querySelector('[data-act=plan][data-l=ar]').click();document.querySelector('[data-act=go][data-l=ar]').click()}
+</script>
+</body>
+</html>

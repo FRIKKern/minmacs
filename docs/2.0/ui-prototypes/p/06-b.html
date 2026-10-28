@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worktree List</title>
+<style>
+:root{
+  --green:#4CC96B; --teal:#3FD0B8; --amber:#F2B544; --blue:#5B9BFF; --violet:#B18CFF; --sage:#93A99A;
+  --panel:rgba(28,29,38,.86); --hair:rgba(255,255,255,.06);
+  --text:#F2F3F7; --dim:rgba(235,236,245,.52); --faint:rgba(235,236,245,.30);
+  --ease:cubic-bezier(.22,.8,.24,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#17142e}
+body{font:13px/1.3 -apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(900px 600px at 12% 8%,#47379a 0%,transparent 60%),
+   radial-gradient(800px 560px at 88% 4%,#1f5a83 0%,transparent 62%),
+   radial-gradient(900px 700px at 92% 100%,#93406c 0%,transparent 60%),
+   radial-gradient(700px 600px at 20% 100%,#2b2357 0%,transparent 70%),
+   #221d45;}
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;padding:0 12px;z-index:3;
+  background:rgba(18,16,36,.38);backdrop-filter:blur(30px) saturate(1.4);-webkit-backdrop-filter:blur(30px) saturate(1.4);font-size:13px;color:rgba(255,255,255,.92)}
+.mb .l{display:flex;gap:18px;align-items:center}
+.mb .l b{font-weight:600}
+.mb .r{margin-left:auto;display:flex;align-items:center;gap:4px}
+.mbi{display:flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:5px;color:rgba(255,255,255,.9);transition:background .25s}
+.mbi svg{width:15px;height:15px}
+.mbi.on{background:rgba(255,255,255,.18)}
+.mbi.ping{background:rgba(255,255,255,.12)}
+.mbi .n{font-size:12.5px;font-weight:500}
+.mbi .n i{font-style:normal;color:rgba(255,255,255,.45);font-size:11px;margin-left:1px}
+.clock{margin-left:8px;font-weight:500}
+
+.panel{position:absolute;top:36px;right:104px;width:452px;padding:20px 22px 18px;border-radius:22px;
+  background:var(--panel);backdrop-filter:blur(40px) saturate(1.3);-webkit-backdrop-filter:blur(40px) saturate(1.3);
+  box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 24px 60px rgba(8,6,24,.45)}
+.badge{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);flex:none;position:relative}
+.badge svg{width:9px;height:9px}
+.badge svg.g{width:14px;height:14px}
+.hdr{display:flex;align-items:center;height:28px}
+.big{font-size:24px;font-weight:500;margin-left:10px}
+.unit{font-size:14px;color:var(--dim);margin-left:5px}
+.hdr .sp{flex:1}
+.hdr .rt{font-size:12.5px;color:var(--dim)}
+.bar{display:flex;gap:3px;height:6px;margin-top:14px}
+.bar span{height:6px;border-radius:3px;transition:flex-grow .7s var(--ease),opacity .4s}
+.s-use{background:var(--green)}
+.s-fine{background:rgba(76,201,107,.40)}
+.s-stale{background:repeating-linear-gradient(135deg,rgba(147,169,154,.7) 0 2px,rgba(147,169,154,.22) 2px 4px)}
+.s-merged{background:rgba(76,201,107,.12);box-shadow:inset 0 0 0 1.2px var(--green)}
+
+#groups{max-height:586px;overflow-y:auto;scrollbar-width:none;margin:4px -8px 0;padding:0 8px 2px;-webkit-mask-image:linear-gradient(transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
+.grp:first-child{margin-top:12px!important}
+#groups::-webkit-scrollbar{display:none}
+.grp{margin-top:16px}
+.gh{display:flex;align-items:center;gap:8px;height:22px;font-size:12px;color:var(--dim)}
+.gh svg{width:9px;height:9px}
+.gh .sp{flex:1}
+.gh .note{color:var(--faint);font-size:11.5px}
+.rows{margin-top:2px}
+.row{display:flex;align-items:center;height:36px;padding:0 8px;margin:0 -8px;border-radius:10px;overflow:hidden;cursor:default;
+  transition:background .2s,height .45s var(--ease),opacity .35s,transform .45s var(--ease)}
+.row:hover,.row.sel{background:rgba(255,255,255,.055)}
+.row:active{transform:scale(.99)}
+.row .nm{margin-left:12px;font-size:14px;white-space:nowrap}
+.row .st{margin-left:10px;font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sp{flex:1;min-width:8px}
+.row .sz{font-size:14px;font-weight:500;text-align:right;min-width:62px;white-space:nowrap}
+.row .sz i{font-style:normal;color:var(--dim);font-size:11.5px;margin-left:3px;font-weight:400}
+.row.out{height:0;opacity:0;transform:translateX(20px)}
+.row.plan .badge{box-shadow:0 0 0 1.5px var(--green)}
+.row.plan .nm{text-decoration:line-through;text-decoration-color:rgba(76,201,107,.7);text-decoration-thickness:1.5px}
+.pulse{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 0 rgba(76,201,107,.5);animation:pl 2.4s ease-out infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 rgba(76,201,107,.45)}70%,100%{box-shadow:0 0 0 7px rgba(76,201,107,0)}}
+.more{color:var(--dim)}
+.more .nm{color:var(--dim)}
+.chev{width:10px;height:10px;margin-left:8px;transition:transform .3s var(--ease);color:var(--faint)}
+.more.open .chev{transform:rotate(90deg)}
+.fold{overflow:hidden;transition:height .45s var(--ease),opacity .3s}
+.empty{display:flex;align-items:center;font-size:12.5px;color:var(--faint);height:0;opacity:0;overflow:hidden;transition:height .4s var(--ease),opacity .3s}
+.empty.on{height:36px;opacity:1}
+
+.foot{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--hair);min-height:46px}
+.foot .txt{flex:1;font-size:12.5px;color:var(--dim);line-height:1.35}
+.foot .txt b{color:var(--text);font-weight:500}
+.btn{all:unset;cursor:default;height:28px;padding:0 13px;border-radius:14px;font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:background .2s,transform .15s}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--green);color:#0d2214}
+.btn.pri:hover{background:#5ad679}
+.btn.gh2{background:rgba(255,255,255,.08);color:var(--text)}
+.btn.gh2:hover{background:rgba(255,255,255,.13)}
+.swap{transition:opacity .25s}
+
+.toast{position:absolute;display:flex;align-items:center;gap:12px;height:44px;padding:0 8px 0 16px;border-radius:22px;white-space:nowrap;font-size:13px;
+  background:rgba(28,29,38,.9);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 12px 30px rgba(8,6,24,.4);
+  opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .3s,transform .4s var(--ease)}
+.toast.on{opacity:1;transform:none;pointer-events:auto}
+.toast .d{color:var(--dim)}
+
+.card{position:absolute;width:312px;padding:15px 16px 14px;border-radius:16px;background:rgba(32,33,44,.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
+  box-shadow:0 0 0 1px rgba(255,255,255,.09) inset,0 18px 40px rgba(8,6,24,.5);opacity:0;transform:translateX(6px);transition:opacity .2s,transform .25s var(--ease),top .25s var(--ease);pointer-events:none;z-index:5}
+.card.on{opacity:1;transform:none;pointer-events:auto}
+.card h3{font-size:14px;font-weight:600}
+.card .stat{display:flex;align-items:center;gap:7px;margin-top:4px;font-size:12.5px}
+.card .stat svg{width:9px;height:9px}
+.card dl{display:grid;grid-template-columns:100px 1fr;row-gap:6px;margin-top:12px;font-size:12.5px;align-items:center}
+.card dt{color:var(--dim)}
+.card dd{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .acts{display:flex;gap:6px;margin-top:13px}
+.card .acts .btn{height:24px;padding:0 10px;font-size:12px}
+.xl{all:unset;cursor:default;display:inline-flex;align-items:center;gap:6px;max-width:100%;border-radius:6px;padding:1px 5px;margin:-1px -5px;transition:background .2s}
+.xl:hover{background:rgba(255,255,255,.07)}
+.xl .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.xl .to{color:var(--faint);font-size:11.5px}
+.xl:hover .to{color:var(--dim)}
+
+.peek{position:absolute;top:34px;width:300px;padding:13px 16px 12px;border-radius:16px;background:rgba(32,33,44,.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
+  box-shadow:0 0 0 1px rgba(255,255,255,.09) inset,0 18px 40px rgba(8,6,24,.5);opacity:0;transform:translateY(-4px);transition:opacity .2s,transform .25s var(--ease);pointer-events:none;z-index:6}
+.peek.on{opacity:1;transform:none;pointer-events:auto}
+.peek .ph{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);white-space:nowrap}
+.peek .ph .badge{width:20px;height:20px}
+.peek .ph .badge svg{width:12px;height:12px}
+.peek .pr{display:flex;align-items:center;height:30px;font-size:13px}
+.peek .pr .k{width:52px;font-weight:500}
+.peek .pr .m{color:var(--dim);flex:1;white-space:nowrap}
+.peek .pr .v{font-weight:500}
+.peek .pr .v i{font-style:normal;color:var(--dim);font-size:11px;margin-left:3px;font-weight:400}
+.peek .pn{font-size:12px;color:var(--faint);margin-top:4px}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;transition-delay:0s!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="l">
+      <svg width="14" height="16" viewBox="0 0 14 17" fill="currentColor" aria-hidden="true"><path d="M11.6 9c0-2 1.6-2.9 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7s-1.6-.7-2.6-.7C3.4 4.4 2 5.2 1.3 6.5c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.6.7c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.2-.8-2.2-3.8zM9.6 3c.6-.7 1-1.6.8-2.6-.8 0-1.8.5-2.4 1.2-.5.6-1 1.6-.9 2.5.9.1 1.9-.4 2.5-1.1z"/></svg>
+      <b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span>
+    </div>
+    <div class="r">
+      <div class="mbi" title="MinMacs"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0"/><path d="M8 11.5l2.6-3.4"/></svg><span class="n">63<i>%</i></span></div>
+      <div class="mbi" id="mbLoco" title="LocoHost"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="4.5" rx="1.5"/><rect x="2.5" y="9" width="11" height="4.5" rx="1.5"/><circle cx="5.2" cy="4.75" r=".6" fill="currentColor"/><circle cx="5.2" cy="11.25" r=".6" fill="currentColor"/></svg><span class="n" id="mbLocoN">6</span></div>
+      <div class="mbi on" title="WorkForest"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="5" cy="3.5" r="1.6"/><circle cx="5" cy="12.5" r="1.6"/><circle cx="11.5" cy="5.5" r="1.6"/><path d="M5 5.1v5.8M11.5 7.1c0 2.6-6.5 1.6-6.5 3.8"/></svg><span class="n" id="mbN">4</span></div>
+      <div class="mbi" id="mbNoo" title="Noo-Noo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 5.5h11l-1 8h-9z"/><path d="M5.5 5.5V3.2h5v2.3"/></svg><span class="n">38<i>GB</i></span></div>
+      <div class="mbi" title="Insomnia"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h8v4.5a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="M11 7.2h1a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M5.5 2v2M8.5 2v2"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.6l1.5-1.6a2.2 2.2 0 0 0-3 0z"/><path d="M3.9 8.3l1.1 1.1a4.3 4.3 0 0 1 6 0l1.1-1.1a5.8 5.8 0 0 0-8.2 0z"/><path d="M1.6 6l1.1 1.1a7.5 7.5 0 0 1 10.6 0L14.4 6a9 9 0 0 0-12.8 0z"/></svg></div>
+      <div class="mbi"><svg viewBox="0 0 26 16" style="width:25px"><rect x="1" y="3.5" width="21" height="9" rx="2.6" fill="none" stroke="currentColor" stroke-opacity=".55"/><rect x="2.8" y="5.3" width="11.3" height="5.4" rx="1.3" fill="currentColor"/><rect x="23" y="6.3" width="1.6" height="3.4" rx=".8" fill="currentColor" fill-opacity=".55"/></svg></div>
+      <span class="clock">Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="hdr">
+      <div class="badge"><svg class="g" viewBox="0 0 16 16" fill="none" stroke="#4CC96B" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="3.5" r="1.6"/><circle cx="5" cy="12.5" r="1.6"/><circle cx="11.5" cy="5.5" r="1.6"/><path d="M5 5.1v5.8M11.5 7.1c0 2.6-6.5 1.6-6.5 3.8"/></svg></div>
+      <span class="big" id="tot">20.0</span><span class="unit">GB in <span id="cnt">14</span> worktrees</span>
+    </div>
+    <div class="bar" id="bar"><span class="s-use" data-k="use"></span><span class="s-fine" data-k="fine"></span><span class="s-stale" data-k="stale"></span><span class="s-merged" data-k="merged"></span></div>
+    <div id="groups"></div>
+    <div class="foot" id="foot"></div>
+  </div>
+  <div class="toast" id="toast"><span id="tMsg"></span><span class="d" id="tSub"></span><button class="btn gh2" id="restore">Restore</button></div>
+  <div class="card" id="card"></div>
+  <div class="peek" id="peek"></div>
+</div>
+
+<script>
+const SRV={
+ ':3000':{k:':3000',m:'next dev · in use',v:'412 MB'},
+ ':5173':{k:':5173',m:'vite · in use',v:'188 MB'},
+ ':3334':{k:':3334',m:'sanity · idle 40m',v:'640 MB'},
+ ':4000':{k:':4000',m:'phoenix · idle 2h',v:'290 MB'},
+};
+const W=[
+ {id:'auth-redirect',st:'merged',gb:1.8,words:'Squash-merged',branch:'fix/auth-redirect',srv:[':4000'],nm:'1.1 GB',unc:0,ag:'Codex, finished 2h ago',when:'2h ago'},
+ {id:'lane-e-sort',st:'merged',gb:2.3,words:'Merged 6 days ago',branch:'lane-e-sort',srv:[],nm:'1.5 GB',unc:0},
+ {id:'sb-fieldsets',st:'merged',gb:.94,words:'Merged 9 days ago',branch:'sb-fieldsets',srv:[],nm:'620 MB',unc:0},
+ {id:'w19-fire',st:'merged',gb:.61,words:'Merged 12 days ago',branch:'w19-fire',srv:[],nm:'380 MB',unc:0},
+ {id:'bp7-studio-dogfood',st:'stale',gb:3.2,words:'1 commit not in main',branch:'bp7-studio-dogfood',srv:[],nm:'2.1 GB',unc:0,days:21,c:1},
+ {id:'bp8-sweep-studio403',st:'stale',gb:1.1,words:'Remote branch deleted',branch:'bp8-sweep-studio403',srv:[],nm:'700 MB',unc:0,days:34,c:0},
+ {id:'speed-3-base',st:'use',gb:2.9,words:'Claude Code works in it',branch:'speed-3-base',srv:[':3000',':5173'],nm:'1.2 GB',unc:12,ag:'Claude Code in “speed-3”',c:3,working:true},
+ {id:'studio-parity',st:'use',gb:2.1,words:'Claude Code, idle 40m',branch:'studio-parity',srv:[':3334'],nm:'980 MB',unc:4,ag:'Claude Code, idle 40m',c:5},
+ {id:'sb-signoff',st:'use',gb:1.4,words:'Open in Cursor, 7 files changed',branch:'sb-signoff',srv:[],nm:'610 MB',unc:7,ag:'None, open in Cursor',c:2},
+ {id:'finish-keys',st:'fine',gb:.72,words:'1 commit not in main',branch:'finish-keys',srv:[],nm:'410 MB',unc:0,c:1,pr:'PR open'},
+ {id:'wt-icons',st:'fine',gb:.48,words:'4 commits not in main',branch:'wt-icons',srv:[],nm:'300 MB',unc:0,c:4,pr:'PR open'},
+ {id:'dayref',st:'fine',gb:1.2,words:'2 commits not in main',branch:'dayref',srv:[],nm:'760 MB',unc:0,c:2,pr:'PR open'},
+ {id:'collab',st:'fine',gb:.86,words:'6 commits not in main',branch:'collab',srv:[],nm:'520 MB',unc:0,c:6,pr:'Draft PR'},
+ {id:'fb-now',st:'fine',gb:.35,words:'1 commit not in main',branch:'fb-now',srv:[],nm:'210 MB',unc:0,c:1,pr:'No PR yet'},
+];
+const SHAPE={
+ use:`<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#4CC96B"/></svg>`,
+ fine:`<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.6" fill="none" stroke="#4CC96B" stroke-width="1.6"/></svg>`,
+ stale:`<svg viewBox="0 0 10 10"><path d="M5 1l4 4-4 4-4-4z" fill="none" stroke="#93A99A" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
+ merged:`<svg viewBox="0 0 10 10" fill="none" stroke="#4CC96B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 5.2l2.4 2.4 4.6-5"/></svg>`
+};
+const GLYPH={
+ loco:`<svg viewBox="0 0 16 16" fill="none" stroke="#3FD0B8" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="4.5" rx="1.5"/><rect x="2.5" y="9" width="11" height="4.5" rx="1.5"/></svg>`,
+ noo:`<svg viewBox="0 0 16 16" fill="none" stroke="#F2B544" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 5.5h11l-1 8h-9z"/><path d="M5.5 5.5V3.2h5v2.3"/></svg>`
+};
+const GROUPS=[
+ {k:'merged',label:'Merged',note:'Goes with Remove Merged'},
+ {k:'stale',label:'Stale',note:'No commits for 21 days or more'},
+ {k:'use',label:'In use',note:'Stays'},
+];
+const $=s=>document.querySelector(s);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const removed=new Set();
+const size=v=>v<1?`${Math.round(v*1000)}<i>MB</i>`:`${v.toFixed(1)}<i>GB</i>`;
+const sizeT=v=>v<1?`${Math.round(v*1000)} MB`:`${v.toFixed(2)} GB`;
+
+function rowEl(w){
+  const r=document.createElement('div');r.className='row';r.dataset.id=w.id;
+  r.innerHTML=`<div class="badge">${SHAPE[w.st]}${w.working?'<i class="pulse"></i>':''}</div><span class="nm">${w.id}</span><span class="st">${w.words}</span><span class="sp"></span><span class="sz">${size(w.gb)}</span>`;
+  r.addEventListener('mouseenter',()=>showCard(w,r));
+  r.addEventListener('mouseleave',hideSoon);
+  return r;
+}
+const groups=$('#groups');
+GROUPS.forEach(g=>{
+  const el=document.createElement('div');el.className='grp';el.dataset.k=g.k;
+  el.innerHTML=`<div class="gh">${SHAPE[g.k]}<span>${g.label}</span><span class="sp"></span><span class="note">${g.note}</span></div><div class="rows"></div>
+   ${g.k==='merged'?`<div class="empty" id="emptyM"><span>Nothing merged is left.</span><span style="flex:1"></span><button class="btn gh2" id="restore2" style="height:24px;font-size:12px">Restore 4</button></div>`:''}`;
+  const rows=el.querySelector('.rows');
+  W.filter(w=>w.st===g.k).forEach(w=>rows.appendChild(rowEl(w)));
+  if(g.k==='use'){
+    const fine=W.filter(w=>w.st==='fine');
+    const more=document.createElement('div');more.className='row more';
+    more.innerHTML=`<div class="badge">${SHAPE.fine}</div><span class="nm">5 more are fine</span><span class="st">nobody in them</span><span class="sp"></span><span class="sz">${size(fine.reduce((a,w)=>a+w.gb,0))}</span><svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 2l3 3-3 3"/></svg>`;
+    const fold=document.createElement('div');fold.className='fold';fold.style.height='0px';fold.style.opacity=0;
+    fine.forEach(w=>fold.appendChild(rowEl(w)));
+    more.onclick=()=>{
+      const open=!more.classList.contains('open');more.classList.toggle('open',open);
+      const h=fold.scrollHeight;
+      if(open){fold.style.height=h+'px';fold.style.opacity=1;setTimeout(()=>groups.scrollTo({top:groups.scrollHeight,behavior:reduce?'auto':'smooth'}),reduce?0:300)}
+      else{fold.style.height=h+'px';fold.offsetHeight;fold.style.height='0px';fold.style.opacity=0}
+    };
+    el.appendChild(more);el.appendChild(fold);
+  }
+  groups.appendChild(el);
+});
+
+/* bar */
+function setBar(){
+  const left=W.filter(w=>!removed.has(w.id));
+  document.querySelectorAll('#bar span').forEach(s=>{
+    const v=left.filter(w=>w.st===s.dataset.k).reduce((a,w)=>a+w.gb,0);
+    s.style.flexGrow=v;s.style.flexBasis='0';s.style.opacity=v?1:0;s.style.display=v?'':'none';
+  });
+}
+
+/* footer states */
+const foot=$('#foot');
+function footIdle(){
+  const m=W.filter(w=>w.st==='merged'&&!removed.has(w.id));
+  if(!m.length){foot.innerHTML=`<div class="txt">Merged worktrees are gone. 2 stale ones wait for you.</div>`;return}
+  const gb=m.reduce((a,w)=>a+w.gb,0);
+  foot.innerHTML=`<div class="txt"><b>${m.length} worktrees, ${sizeT(gb)}</b><br>Branches stay, so each can come back.</div><button class="btn pri" id="rmBtn">Remove Merged</button>`;
+  $('#rmBtn').onclick=footConfirm;
+}
+function footConfirm(){
+  const m=W.filter(w=>w.st==='merged'&&!removed.has(w.id));
+  m.forEach(w=>document.querySelector(`.row[data-id="${w.id}"]`).classList.add('plan'));
+  groups.scrollTo({top:0,behavior:reduce?'auto':'smooth'});
+  const srv=m.some(w=>w.srv.length);
+  foot.innerHTML=`<div class="txt">${srv?'Stops <b>:4000 phoenix</b> (idle 2h), then removes':'Removes'} the <b>${m.length}</b> struck through.</div><button class="btn gh2" id="cnl">Cancel</button><button class="btn pri" id="go">Remove</button>`;
+  $('#cnl').onclick=()=>{document.querySelectorAll('.row.plan').forEach(r=>r.classList.remove('plan'));footIdle()};
+  $('#go').onclick=()=>{document.querySelectorAll('.row.plan').forEach(r=>r.classList.remove('plan'));removeIds(m.map(w=>w.id))};
+}
+
+/* remove + restore */
+let lastBatch=[],toastT;
+function ease(el,to,dec,dur=650){
+  const from=parseFloat(el.textContent);if(reduce){el.textContent=to.toFixed(dec);return}
+  const t0=performance.now();
+  (function f(t){const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);el.textContent=(from+(to-from)*e).toFixed(dec);if(k<1)requestAnimationFrame(f)})(t0);
+}
+function refresh(){
+  const left=W.filter(w=>!removed.has(w.id));
+  ease($('#tot'),left.reduce((a,w)=>a+w.gb,0),1);
+  $('#cnt').textContent=left.length;
+  W.forEach(w=>document.querySelector(`.row[data-id="${w.id}"]`).classList.toggle('out',removed.has(w.id)));
+  const m=left.filter(w=>w.st==='merged').length;
+  $('#mbN').textContent=m||'';
+  $('#emptyM').classList.toggle('on',m===0);
+  $('#mbLocoN').textContent=removed.has('auth-redirect')?5:6;
+  setBar();footIdle();
+}
+function removeIds(ids){
+  ids.forEach(i=>removed.add(i));lastBatch=ids;refresh();
+  const gb=ids.reduce((a,i)=>a+W.find(w=>w.id===i).gb,0);
+  $('#tMsg').textContent=ids.length>1?`Removed ${ids.length} worktrees`:`Removed ${ids[0]}`;
+  $('#tSub').textContent=sizeT(gb)+(ids.includes('auth-redirect')?' · :4000 stopped':'');
+  placeToast();$('#toast').classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>$('#toast').classList.remove('on'),9000);
+}
+function restore(ids){ids.forEach(i=>removed.delete(i));refresh();$('#toast').classList.remove('on')}
+$('#restore').onclick=()=>restore(lastBatch);
+groups.addEventListener('click',e=>{if(e.target.id==='restore2')restore(W.filter(w=>w.st==='merged').map(w=>w.id))});
+function placeToast(){
+  const p=$('#panel');const t=$('#toast');
+  t.style.top=(p.offsetTop+p.offsetHeight+14)+'px';
+  t.style.left=(p.offsetLeft+p.offsetWidth/2)+'px';t.style.marginLeft=(-t.offsetWidth/2)+'px';
+}
+
+/* hover card */
+const card=$('#card');let hideT;
+function status(w){
+  if(w.st==='merged') return ['#4CC96B',SHAPE.merged,'Goes with Remove Merged'];
+  if(w.st==='stale') return ['#93A99A',SHAPE.stale,w.c?`Waits · its 1 commit is not in main`:`Waits · quiet for ${w.days} days`];
+  if(w.st==='fine') return ['rgba(76,201,107,.9)',SHAPE.fine,`Stays · ${w.pr}`];
+  return ['#4CC96B',SHAPE.use,w.working?'Stays · Claude Code is working, 2m':(w.id==='sb-signoff'?'Stays · 7 files not committed':'Stays · its cmux tab is still open')];
+}
+function link(kind,label,arg){
+  const c=kind==='loco'?'#3FD0B8':'#F2B544';const n=kind==='loco'?'LocoHost':'Noo-Noo';
+  return `<button class="xl" data-x="${kind}" data-arg="${arg}"><i class="dot" style="background:${c}"></i><span>${label}</span><span class="to">${n} ›</span></button>`;
+}
+function facts(w){
+  const f=[];
+  if(w.ag) f.push(['Agent',w.ag]);
+  else f.push(['Branch',w.branch]);
+  f.push(['Servers',w.srv.length?link('loco',w.srv.join(' · '),w.id):'<span style="color:var(--dim)">None</span>']);
+  f.push(['node_modules',link('noo',w.nm,w.id)]);
+  f.push(['Uncommitted',w.unc?`${w.unc} files`:'<span style="color:var(--dim)">None</span>']);
+  if(w.st==='merged') f.push(['Merged',w.when?`${w.when}, squash`:w.words.replace('Merged ','')]);
+  else if(w.st==='stale') f.push(['Remote',w.c?'On origin':'Branch deleted']);
+  else f.push(['Not in main',`${w.c} commit${w.c>1?'s':''}`]);
+  return f;
+}
+function acts(w){
+  return (w.st==='merged'||w.st==='stale')?['Remove','Open in Terminal','Keep']:['Open in Terminal','Reveal in Finder'];
+}
+function showCard(w,row){
+  if(removed.has(w.id))return;
+  clearTimeout(hideT);
+  const [col,shape,txt]=status(w);
+  card.innerHTML=`<h3>${w.id}</h3><div class="stat" style="color:${col}">${shape}${txt}</div>
+   <dl>${facts(w).map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>
+   <div class="acts">${acts(w).map((a,i)=>`<button class="btn ${a==='Remove'?'pri':'gh2'}" data-a="${a}" data-id="${w.id}">${a}</button>`).join('')}</div>`;
+  const p=$('#panel');
+  const st=$('#stage').getBoundingClientRect(),sc=st.width/1280;
+  const y=(row.getBoundingClientRect().top-st.top)/sc-18;
+  card.style.left=(p.offsetLeft-312-12)+'px';
+  card.style.top=Math.min(Math.max(36,y),800-card.offsetHeight-16)+'px';
+  card.classList.add('on');
+  document.querySelectorAll('.row.sel').forEach(e=>e.classList.remove('sel'));row.classList.add('sel');
+}
+function hideSoon(){clearTimeout(hideT);hideT=setTimeout(()=>{card.classList.remove('on');document.querySelectorAll('.row.sel').forEach(e=>e.classList.remove('sel'))},240)}
+card.addEventListener('mouseenter',()=>clearTimeout(hideT));
+card.addEventListener('mouseleave',hideSoon);
+card.addEventListener('click',e=>{
+  const x=e.target.closest('.xl');if(x){showPeek(x.dataset.x,x.dataset.arg);return}
+  const b=e.target.closest('[data-a]');if(!b)return;
+  card.classList.remove('on');
+  if(b.dataset.a==='Remove') removeIds([b.dataset.id]);
+});
+
+/* cross-link peek, opens under the other expert's menu bar icon */
+const peek=$('#peek');let peekT;
+function showPeek(kind,id){
+  const w=W.find(x=>x.id===id);
+  const icon=kind==='loco'?$('#mbLoco'):$('#mbNoo');
+  document.querySelectorAll('.mbi.ping').forEach(e=>e.classList.remove('ping'));icon.classList.add('ping');
+  if(kind==='loco'){
+    peek.innerHTML=`<div class="ph"><div class="badge">${GLYPH.loco}</div>LocoHost · ${w.id}</div>
+     ${w.srv.map(s=>`<div class="pr"><span class="k">${SRV[s].k}</span><span class="m">${SRV[s].m}</span><span class="v">${SRV[s].v.replace(' MB','<i>MB</i>')}</span></div>`).join('')}
+     <div class="pn">${w.st==='merged'?'Stops when this worktree is removed.':'Stays while the agent works.'}</div>`;
+  } else {
+    peek.innerHTML=`<div class="ph"><div class="badge">${GLYPH.noo}</div>Noo-Noo · ${w.id}</div>
+     <div class="pr"><span class="k" style="width:auto;margin-right:10px">node_modules</span><span class="m"></span><span class="v">${w.nm.replace(/ (GB|MB)/,'<i>$1</i>')}</span></div>
+     <div class="pn">${w.st==='merged'?'Goes with the worktree. Noo-Noo does not count it twice.':w.st==='stale'?'Noo-Noo can clean just this, and keep the worktree.':'Spared: the worktree is in use.'}</div>`;
+  }
+  const st=$('#stage').getBoundingClientRect(),s=st.width/1280,r=icon.getBoundingClientRect();
+  peek.style.left=Math.min(1280-300,((r.left-st.left)/s+r.width/s/2-150))+'px';
+  peek.classList.add('on');clearTimeout(peekT);peekT=setTimeout(hidePeek,6000);
+}
+function hidePeek(){peek.classList.remove('on');document.querySelectorAll('.mbi.ping').forEach(e=>e.classList.remove('ping'))}
+document.addEventListener('mousedown',e=>{if(!e.target.closest('.peek,.xl'))hidePeek()});
+
+/* first frame */
+document.querySelectorAll('#bar span').forEach(s=>s.style.transition='none');
+setBar();footIdle();
+document.querySelector('#bar').offsetHeight;
+document.querySelectorAll('#bar span').forEach(s=>s.style.transition='');
+
+function fit(){const s=Math.min(innerWidth/1280,innerHeight/800);const st=$('#stage');st.style.transform=`scale(${s})`;st.style.left=(innerWidth-1280*s)/2+'px';st.style.top=(innerHeight-800*s)/2+'px'}
+addEventListener('resize',fit);fit();
+</script>
+</body>
+</html>

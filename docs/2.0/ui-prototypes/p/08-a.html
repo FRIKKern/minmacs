@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Awake Arc</title>
+<style>
+:root{
+  --glass: rgba(28,29,38,.84);
+  --line: rgba(255,255,255,.07);
+  --edge: rgba(255,255,255,.09);
+  --text: #f3f3f6;
+  --dim: rgba(235,235,245,.55);
+  --dim2: rgba(235,235,245,.34);
+  --vio: #B18CFF;
+  --vio-hi: #E2D5FF;
+  --rest: #8C8F9C;
+  --ease: cubic-bezier(.22,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#15132a}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+    radial-gradient(900px 600px at 12% 8%, #4a3a9c 0%, transparent 60%),
+    radial-gradient(800px 560px at 88% 4%, #1f5f8f 0%, transparent 58%),
+    radial-gradient(900px 640px at 92% 100%, #93406f 0%, transparent 60%),
+    radial-gradient(700px 500px at 20% 100%, #3a2a6a 0%, transparent 60%),
+    linear-gradient(160deg,#2a2462 0%,#1c1d44 50%,#3a2350 100%);}
+/* menu bar */
+.mb{position:absolute;left:0;top:0;right:0;height:26px;display:flex;align-items:center;padding:0 10px 0 14px;
+  background:rgba(18,16,36,.38);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);font-size:13px;color:rgba(255,255,255,.92)}
+.mb .l{display:flex;gap:18px;align-items:center}
+.mb .l b{font-weight:700}
+.mb .r{margin-left:auto;display:flex;align-items:center;gap:4px}
+.mbi{height:22px;min-width:26px;padding:0 6px;border-radius:5px;display:flex;align-items:center;justify-content:center;gap:4px}
+.mbi svg{width:16px;height:16px;display:block}
+.mbi.on{background:rgba(255,255,255,.18)}
+.mbi .n{font-size:12.5px}
+.mbi .n i{font-style:normal;color:rgba(255,255,255,.5)}
+.clock{padding:0 6px 0 8px}
+/* panel */
+.panel{position:absolute;top:34px;right:122px;width:392px;border-radius:22px;background:var(--glass);
+  border:1px solid var(--edge);backdrop-filter:blur(34px) saturate(1.5);-webkit-backdrop-filter:blur(34px) saturate(1.5);
+  box-shadow:0 24px 60px rgba(8,6,24,.45),0 2px 6px rgba(8,6,24,.3);padding:22px 22px 18px}
+.head{display:flex;align-items:center;gap:20px}
+.big{width:116px;height:116px;flex:none;position:relative;cursor:default}
+.big svg{width:116px;height:116px;display:block}
+.big .g{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.big .g svg{width:40px;height:40px;position:absolute;transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.arc{transition:stroke-dashoffset 1.6s var(--ease),stroke .9s var(--ease),opacity .2s}
+.rest .arc{transition:stroke-dashoffset 1.6s var(--ease),stroke .9s var(--ease),opacity .5s var(--ease) 1.3s}
+.disc{transition:fill .9s var(--ease)}
+.sweep{animation:sweep 9s linear infinite;transition:opacity .6s}
+@keyframes sweep{to{stroke-dashoffset:-345.6}}
+.state{min-width:0}
+.state .t{font-size:24px;font-weight:600;letter-spacing:-.2px;line-height:1.1}
+.state .s{margin-top:6px;font-size:13px;color:var(--text);line-height:1.35}
+.state .m{margin-top:3px;font-size:12px;color:var(--dim)}
+.hair{height:1px;background:var(--line);margin:18px 0 16px}
+.guards{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;transition:opacity .8s var(--ease)}
+.guard{display:flex;flex-direction:column;align-items:center;text-align:center;border-radius:12px;padding:4px 0 6px;cursor:default}
+.guard:hover{background:rgba(255,255,255,.035)}
+.gb{width:40px;height:40px}
+.gb svg{display:block}
+.gv{margin-top:8px;font-size:15px;font-weight:500;line-height:1}
+.gv i{font-style:normal;font-size:11px;color:var(--dim);margin-left:2px;font-weight:400}
+.gt{margin-top:5px;font-size:11px;color:var(--dim2);line-height:1.25;white-space:nowrap}
+.guard.need .gt{color:var(--vio)}
+.rest .guards{opacity:.42}
+.row{display:flex;align-items:center;gap:14px}
+.lid{cursor:pointer;border-radius:14px;margin:0 -8px;padding:6px 8px}
+.lid:focus{outline:none}.lid:focus-visible{box-shadow:0 0 0 2px rgba(177,140,255,.45)}
+.lid:hover{background:rgba(255,255,255,.035)}
+.rb{width:36px;height:36px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.09);color:rgba(235,235,245,.6);transition:background .35s var(--ease),color .35s var(--ease)}
+.rb svg{width:19px;height:19px}
+.lid.on .rb{background:var(--vio);color:#1d1730}
+.rt{font-size:13.5px;font-weight:500}
+.rs{font-size:12px;color:var(--dim);margin-top:2px}
+.sw{margin-left:auto;width:32px;height:19px;border-radius:10px;background:rgba(255,255,255,.12);position:relative;transition:background .3s var(--ease);flex:none}
+.sw:after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#e9e9ef;transition:transform .3s var(--ease)}
+.lid.on .sw{background:var(--vio)}
+.lid.on .sw:after{transform:translateX(13px)}
+.foot{display:flex;align-items:center;gap:12px}
+.fb{width:28px;height:28px;flex:none}
+.ft{font-size:13px;flex:1;min-width:0}
+.btn{font:inherit;font-size:12.5px;color:var(--text);background:rgba(255,255,255,.09);border:0;border-radius:999px;padding:6px 12px;cursor:pointer;transition:background .2s,transform .15s}
+.btn:hover{background:rgba(255,255,255,.15)}
+.btn:active{transform:scale(.96)}
+.btn.vio{background:rgba(177,140,255,.2);color:var(--vio-hi)}
+.btn.vio:hover{background:rgba(177,140,255,.3)}
+/* hover card */
+.card{position:absolute;width:262px;border-radius:16px;background:rgba(30,31,41,.92);border:1px solid var(--edge);
+  backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);box-shadow:0 18px 44px rgba(8,6,24,.45);padding:14px 16px 14px;
+  opacity:0;transform:translateX(6px);pointer-events:none;transition:opacity .18s var(--ease),transform .22s var(--ease),top .22s var(--ease)}
+.card.show{opacity:1;transform:none;pointer-events:auto}
+.card h4{font-size:14px;font-weight:600}
+.card .st{font-size:12.5px;margin-top:3px;color:var(--vio)}
+.card .st.r{color:var(--rest)}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0 12px;font-size:12px}
+.card dt{color:var(--dim)}
+.card dd{text-align:right}
+.card .acts{display:flex;gap:6px;flex-wrap:wrap}
+/* prototype control */
+.proto{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px;border-radius:999px;
+  background:rgba(28,29,38,.6);border:1px solid var(--edge);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:12px;color:var(--dim)}
+@media (prefers-reduced-motion: reduce){
+  *{transition-duration:.01s!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="l"><b>cmux</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span></div>
+    <div class="r">
+      <div class="mbi" title="MinMacs"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 13l3.5-4"/></svg><span class="n">63<i>%</i></span></div>
+      <div class="mbi" title="LocoHost"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="6.5" rx="2"/><rect x="4" y="13.5" width="16" height="6.5" rx="2"/><path d="M8 7.25h.01M8 16.75h.01"/></svg></div>
+      <div class="mbi" title="WorkForest"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="5.5" r="2"/><circle cx="7" cy="18.5" r="2"/><circle cx="17" cy="8.5" r="2"/><path d="M7 7.5v9M17 10.5c0 4-10 2.5-10 6"/></svg></div>
+      <div class="mbi" title="Noo-Noo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11a1.5 1.5 0 0 1-1.5 1.3H7.7a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M3.5 8h17M9.5 4.5h5"/></svg></div>
+      <div class="mbi on" id="mbIns" title="Insomnia"></div>
+      <div class="mbi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.6 12.4a9.5 9.5 0 0 1 12.8 0M8.7 15.7a5 5 0 0 1 6.6 0"/><circle cx="12" cy="19" r=".6" fill="#fff"/></svg></div>
+      <div class="mbi"><span class="n">64<i>%</i></span><svg viewBox="0 0 28 24" style="width:22px" fill="none" stroke="#fff" stroke-width="1.4"><rect x="2" y="7" width="21" height="10" rx="3" opacity=".55"/><rect x="3.8" y="8.8" width="11.2" height="6.4" rx="1.6" fill="#fff" stroke="none"/><path d="M25 10.5v3" stroke-linecap="round" opacity=".55"/><path d="M12.5 7.5l-2.4 4.6h3.2l-2.2 4.4" stroke="#1c1a33" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+      <div class="clock">Tue 27 Oct&nbsp; 16:42</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="head">
+      <div class="big" data-card="hold" id="big">
+        <svg viewBox="0 0 116 116">
+          <circle class="disc" id="disc" cx="58" cy="58" r="49" fill="rgba(177,140,255,.11)"/>
+          <circle cx="58" cy="58" r="55" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="5"/>
+          <circle class="arc" id="arc" cx="58" cy="58" r="55" fill="none" stroke="#B18CFF" stroke-width="5" stroke-linecap="round"
+            stroke-dasharray="345.6 420" stroke-dashoffset="0" transform="rotate(-90 58 58)"/>
+          <circle class="sweep" id="sweep" cx="58" cy="58" r="55" fill="none" stroke="#E2D5FF" stroke-width="5" stroke-linecap="round"
+            stroke-dasharray="22 323.6" stroke-dashoffset="0" transform="rotate(-90 58 58)" opacity=".55"/>
+        </svg>
+        <div class="g">
+          <svg id="gEye" viewBox="0 0 24 24" fill="none" stroke="#B18CFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.8" fill="#B18CFF" stroke="none"/></svg>
+          <svg id="gMoon" viewBox="0 0 24 24" fill="none" stroke="#9A9DAA" stroke-width="1.8" stroke-linejoin="round" style="opacity:0;transform:scale(.85)"><path d="M19.5 14.6A8 8 0 1 1 9.4 4.5a6.3 6.3 0 0 0 10.1 10.1z"/></svg>
+        </div>
+      </div>
+      <div class="state">
+        <div class="t" id="tTitle">Awake</div>
+        <div class="s" id="tSub">Claude Code works in speed-3</div>
+        <div class="m" id="tMeta">cmux tab · working 2 m</div>
+      </div>
+    </div>
+
+    <div class="hair"></div>
+
+    <div class="guards" id="guards">
+      <div class="guard" data-card="battery">
+        <div class="gb" id="gbBat"></div>
+        <div class="gv">64<i>%</i></div>
+        <div class="gt">ends below 20 %</div>
+      </div>
+      <div class="guard" data-card="power" id="gPower">
+        <div class="gb" id="gbPow"></div>
+        <div class="gv">Adapter</div>
+        <div class="gt" id="powT">charging</div>
+      </div>
+      <div class="guard" data-card="network">
+        <div class="gb" id="gbNet"></div>
+        <div class="gv">Wi-Fi</div>
+        <div class="gt">ends if lost</div>
+      </div>
+      <div class="guard" data-card="thermal">
+        <div class="gb" id="gbTh"></div>
+        <div class="gv">Nominal</div>
+        <div class="gt">ends at serious</div>
+      </div>
+    </div>
+
+    <div class="hair"></div>
+
+    <div class="row lid" id="lid" role="switch" aria-checked="false" tabindex="0">
+      <div class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14.5h18v1.8a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 16.3z"/><path d="M6 11.5l1.4-1.4M12 10V8M18 11.5l-1.4-1.4"/></svg></div>
+      <div><div class="rt">Lid mode</div><div class="rs" id="lidS">Lid closed means sleep</div></div>
+      <div class="sw"></div>
+    </div>
+
+    <div class="hair" style="margin:14px 0 14px"></div>
+
+    <div class="foot">
+      <div class="fb" id="fbMoon"></div>
+      <div class="ft" id="fText">Sleeps when speed-3 finishes</div>
+      <button class="btn" id="fBtn">Sleep now</button>
+    </div>
+  </div>
+
+  <div class="card" id="card"></div>
+
+  <div class="proto"><span>Prototype</span><button class="btn vio" id="sim">speed-3 finishes</button></div>
+</div>
+
+<script>
+(function(){
+  const stage=document.getElementById('stage');
+  function fit(){const s=Math.min(innerWidth/1280,innerHeight/800);stage.style.transform='scale('+s+')';stage.style.left=Math.max(0,(innerWidth-1280*s)/2)+'px';stage.style.top=Math.max(0,(innerHeight-800*s)/2)+'px';stage.dataset.s=s}
+  addEventListener('resize',fit);fit();
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const V='#B18CFF';
+
+  const G={
+    battery:'<rect x="4" y="8.5" width="14" height="7" rx="2"/><path d="M20 11v2"/><rect x="6" y="10.5" width="6.2" height="3" rx=".8" fill="currentColor" stroke="none"/>',
+    power:'<path d="M9 3.5v4.5M15 3.5v4.5"/><path d="M7 8h10v3.2a5 5 0 0 1-10 0z"/><path d="M12 16.2v4.3"/>',
+    network:'<path d="M3.5 9.6a12.5 12.5 0 0 1 17 0M6.3 12.7a8.4 8.4 0 0 1 11.4 0M9.1 15.8a4.3 4.3 0 0 1 5.8 0"/><circle cx="12" cy="18.8" r=".9" fill="currentColor" stroke="none"/>',
+    thermal:'<path d="M10 5a2 2 0 0 1 4 0v9.3a3.8 3.8 0 1 1-4 0z"/><path d="M12 11v5.2"/>',
+    moon:'<path d="M18.5 14.4A7 7 0 1 1 9.6 5.5a5.5 5.5 0 0 0 8.9 8.9z"/>'
+  };
+  // small round badge: arc = fill, tick = threshold (ftop: fill + white tick)
+  function badge(size,glyph,frac,tick,color){
+    const r=size/2-1.6,c=2*Math.PI*r,cx=size/2;
+    let s='<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="color:'+color+'">';
+    s+='<circle cx="'+cx+'" cy="'+cx+'" r="'+(r-1)+'" fill="rgba(255,255,255,.08)"/>';
+    if(frac!=null){
+      s+='<circle cx="'+cx+'" cy="'+cx+'" r="'+r+'" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="2.4"/>';
+      s+='<circle cx="'+cx+'" cy="'+cx+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+(c*(1-frac))+'" transform="rotate(-90 '+cx+' '+cx+')"/>';
+    }
+    if(tick!=null){
+      const a=tick*2*Math.PI-Math.PI/2,x1=cx+(r-2.6)*Math.cos(a),y1=cx+(r-2.6)*Math.sin(a),x2=cx+(r+1.6)*Math.cos(a),y2=cx+(r+1.6)*Math.sin(a);
+      s+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>';
+    }
+    const gs=size*.5,o=(size-gs)/2;
+    s+='<svg x="'+o+'" y="'+o+'" width="'+gs+'" height="'+gs+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+glyph+'</svg></svg>';
+    return s;
+  }
+  document.getElementById('gbBat').innerHTML=badge(40,G.battery,.64,.20,V);
+  document.getElementById('gbPow').innerHTML=badge(40,G.power,1,null,V);
+  document.getElementById('gbNet').innerHTML=badge(40,G.network,1,null,V);
+  document.getElementById('gbTh').innerHTML=badge(40,G.thermal,.22,.75,V);
+
+  const MB={
+    eye:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6" fill="#fff" stroke="none"/></svg>',
+    lid:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14.5h18v1.8a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 16.3z"/><circle cx="12" cy="9" r="2.4" fill="#fff" stroke="none"/></svg>',
+    moon:'<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linejoin="round"><path d="M19 14.6A7.6 7.6 0 1 1 9.4 5a6 6 0 0 0 9.6 9.6z"/></svg>'
+  };
+
+  const st={working:true,manual:false,lid:false};
+  const $=id=>document.getElementById(id);
+  const panel=$('panel');
+  function swap(el,txt){
+    if(el.textContent===txt)return;
+    el.textContent=txt;
+    if(!reduced&&el.animate)el.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'none'}],{duration:320,easing:'cubic-bezier(.22,.7,.2,1)'});
+  }
+  function awake(){return st.working&&!st.manual}
+  function render(){
+    const a=awake();
+    panel.classList.toggle('rest',!a);
+    $('arc').setAttribute('stroke-dashoffset',a?0:345.6);
+    $('arc').setAttribute('stroke',a?V:'#6c6f7c');$('arc').style.opacity=a?1:0;
+    $('disc').setAttribute('fill',a?'rgba(177,140,255,.11)':'rgba(255,255,255,.06)');
+    $('sweep').style.opacity=a?.55:0;
+    $('gEye').style.opacity=a?1:0;$('gEye').style.transform=a?'none':'scale(.85)';
+    $('gMoon').style.opacity=a?0:1;$('gMoon').style.transform=a?'scale(.85)':'none';
+    if(a){
+      swap($('tTitle'),'Awake');swap($('tSub'),'Claude Code works in speed-3');swap($('tMeta'),'cmux tab · working 2 m');
+    }else if(st.manual){
+      swap($('tTitle'),'Sleep allowed');swap($('tSub'),'You let it sleep');swap($('tMeta'),'speed-3 still works');
+    }else{
+      swap($('tTitle'),'Sleep allowed');swap($('tSub'),'speed-3 finished at 16:42');swap($('tMeta'),'No other agent works');
+    }
+    $('tTitle').style.color=a?'var(--text)':'rgba(235,235,245,.82)';
+    // footer
+    $('fbMoon').innerHTML=badge(28,G.moon,null,null,a?V:'#9A9DAA');
+    if(a){swap($('fText'),'Sleeps when speed-3 finishes');$('fBtn').textContent='Sleep now';$('fBtn').style.display='';}
+    else if(st.manual){swap($('fText'),'Mac sleeps on its normal schedule');$('fBtn').textContent='Undo';$('fBtn').style.display='';}
+    else{swap($('fText'),'Holds again when an agent works');$('fBtn').style.display='none';}
+    // lid
+    $('lid').classList.toggle('on',st.lid);$('lid').setAttribute('aria-checked',st.lid);
+    swap($('lidS'),st.lid?'Stays awake with the lid closed':'Lid closed means sleep');
+    $('gPower').classList.toggle('need',st.lid);
+    swap($('powT'),st.lid?'lid mode needs it':'charging');
+    // menu bar
+    $('mbIns').innerHTML=!a?MB.moon:(st.lid?MB.lid:MB.eye);
+    $('sim').textContent=st.working?'speed-3 finishes':'speed-3 works again';
+  }
+  render();
+
+  $('sim').onclick=()=>{st.working=!st.working;st.manual=false;render();hide(true)};
+  $('fBtn').onclick=()=>{st.manual=!st.manual;render()};
+  const lid=$('lid');
+  lid.onclick=()=>{st.lid=!st.lid;render()};
+  lid.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();st.lid=!st.lid;render()}};
+
+  // hover cards
+  const card=$('card');
+  function cards(k){
+    const a=awake();
+    const C={
+      hold: a?{h:'speed-3',s:'Holds awake while it works',f:[['Agent','Claude Code'],['Tab','cmux · speed-3'],['Worktree','speed-3-base'],['Servers',':3000  :5173'],['Not holding','studio-parity, idle 40 m']],x:['Show in cmux','Stop holding']}
+              :{h:'speed-3',s:st.manual?'Still works, you let it sleep':'Finished at 16:42',r:1,f:[['Agent','Claude Code'],['Tab','cmux · speed-3'],['Worktree','speed-3-base'],['Servers',':3000  :5173']],x:['Show in cmux']},
+      battery:{h:'Battery',s:'Holds, ends below 20 %',f:[['Charge','64 %'],['Source','Power adapter'],['Ends at','below 20 %']],x:['Change threshold']},
+      power:{h:'Power adapter',s:st.lid?'Holds, lid mode needs it':'Holds, charging',f:[['Source','Power adapter'],['Lid mode','needs it'],['Unplugged','battery guard decides']],x:[]},
+      network:{h:'Network',s:'Holds, ends if lost',f:[['Connection','Wi-Fi'],['Ends','after 2 m offline']],x:['Turn off guard']},
+      thermal:{h:'Thermal',s:'Holds, ends at serious',f:[['State','Nominal'],['Ends at','Serious'],['Fans','quiet']],x:['Turn off guard']}
+    };
+    return C[k];
+  }
+  let hideT=null,cur=null;
+  function show(el){
+    clearTimeout(hideT);
+    const k=el.dataset.card,d=cards(k);cur=el;
+    card.innerHTML='<h4>'+d.h+'</h4><div class="st'+((d.r||(!awake()&&k!=='hold'))?' r':'')+'">'+(!awake()&&k!=='hold'?'Rests, nothing to guard':d.s)+'</div><dl>'+d.f.map(f=>'<dt>'+f[0]+'</dt><dd>'+f[1]+'</dd>').join('')+'</dl>'+(d.x.length?'<div class="acts">'+d.x.map(x=>'<button class="btn" data-a="'+x+'">'+x+'</button>').join('')+'</div>':'');
+    if(!d.x.length)card.querySelector('dl').style.marginBottom='0';
+    const s=+stage.dataset.s,sr=stage.getBoundingClientRect(),r=el.getBoundingClientRect(),pr=panel.getBoundingClientRect();
+    card.style.left=((pr.left-sr.left)/s-262-12)+'px';
+    card.style.top=Math.max(34,(r.top-sr.top)/s-4)+'px';
+    card.classList.add('show');
+    card.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{if(b.dataset.a==='Stop holding'){st.manual=true;render();hide(true)}});
+  }
+  function hide(now){clearTimeout(hideT);hideT=setTimeout(()=>{card.classList.remove('show');cur=null},now===true?0:160)}
+  document.querySelectorAll('[data-card]').forEach(el=>{el.addEventListener('mouseenter',()=>show(el));el.addEventListener('mouseleave',hide)});
+  card.addEventListener('mouseenter',()=>clearTimeout(hideT));card.addEventListener('mouseleave',hide);
+  if(location.hash==='#done'){st.working=false;render()}
+  if(location.hash==='#lid'){st.lid=true;render();show(document.querySelector('[data-card=power]'))}
+  if(location.hash==='#card'){show($('big'))}
+})();
+</script>
+</body>
+</html>

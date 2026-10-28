@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mixing Desk</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.86);
+  --line:rgba(255,255,255,.06);
+  --tx:rgba(255,255,255,.94);
+  --tx2:rgba(235,235,245,.55);
+  --tx3:rgba(235,235,245,.3);
+  --ease:cubic-bezier(.3,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1a1636}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-size:13px;cursor:default;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+:focus{outline:none}
+:focus-visible{outline:2px solid rgba(255,255,255,.55);outline-offset:3px;border-radius:8px}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(760px 560px at 10% 6%,#4b3c9e 0%,rgba(75,60,158,0) 70%),
+   radial-gradient(700px 520px at 84% 2%,#22618f 0%,rgba(34,97,143,0) 70%),
+   radial-gradient(820px 620px at 88% 104%,#a0436f 0%,rgba(160,67,111,0) 70%),
+   radial-gradient(640px 520px at 18% 100%,#3a2463 0%,rgba(58,36,99,0) 75%),
+   #1d1a3c}
+
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;background:rgba(18,14,40,.32);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:13px;color:rgba(255,255,255,.92);z-index:5}
+.mb-l,.mb-r{display:flex;align-items:center;gap:18px}
+.mb-l b{font-weight:700}
+.mb-r{gap:14px}
+.icons{display:flex;align-items:center;gap:12px}
+.mi{display:flex;width:16px;overflow:hidden;transition:width .4s var(--ease),opacity .3s,margin .4s var(--ease),transform .3s var(--ease)}
+.mi.off{width:0;opacity:0;margin-left:-12px}
+.mi.ping{transform:scale(1.25)}
+
+/* window */
+.win{position:absolute;left:50%;top:92px;width:648px;transform:translateX(-50%);background:var(--glass);backdrop-filter:blur(36px) saturate(1.5);-webkit-backdrop-filter:blur(36px) saturate(1.5);border:1px solid rgba(255,255,255,.085);border-radius:22px;box-shadow:0 34px 100px rgba(6,4,24,.5),inset 0 1px 0 rgba(255,255,255,.035)}
+.tb{height:50px;display:flex;align-items:center;padding:0 20px;position:relative}
+.lights{display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.tb h1{position:absolute;left:0;right:0;text-align:center;font-size:13px;font-weight:600;color:var(--tx2);pointer-events:none}
+
+/* today */
+.today{display:flex;align-items:baseline;gap:12px;padding:6px 32px 0;height:32px;white-space:nowrap}
+.today .lbl{font-size:12px;color:var(--tx3)}
+.today .txt{font-size:13px;color:var(--tx2);transition:opacity .3s}
+.today .txt b{font-weight:500;color:var(--tx)}
+.today .undo{margin-left:auto;font-size:13px;font-weight:500;color:var(--tx);padding:4px 12px;border-radius:12px;background:rgba(255,255,255,.07);transition:background .2s}
+.today .undo:hover{background:rgba(255,255,255,.13)}
+
+/* desk */
+.desk{position:relative;display:grid;grid-template-columns:48px repeat(5,minmax(0,1fr));padding:30px 32px 0 24px}
+.scale{position:relative}
+.ch{display:flex;flex-direction:column;align-items:center;border-radius:16px;padding-bottom:6px;transition:background .3s}
+.ch.focus{background:rgba(255,255,255,.028)}
+.bdg{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.07);transition:background .35s var(--ease)}
+.bdg svg{transition:stroke .35s}
+.nm{margin-top:10px;font-size:13px;font-weight:500;color:var(--tx);transition:color .3s;white-space:nowrap}
+.ch.off .nm{color:var(--tx2)}
+
+.fader{position:relative;margin-top:22px;width:100%;height:152px;cursor:ns-resize;touch-action:none}
+.track{position:absolute;left:50%;top:10px;bottom:10px;width:4px;margin-left:-2px;border-radius:2px;background:rgba(255,255,255,.08)}
+.fill{position:absolute;left:50%;bottom:10px;width:4px;margin-left:-2px;border-radius:2px;background:var(--c);transition:height .45s var(--ease),opacity .35s}
+.tick{position:absolute;left:50%;width:22px;margin-left:-11px;height:1px;background:rgba(255,255,255,.1)}
+.cap{position:absolute;left:50%;top:0;width:40px;height:20px;margin-left:-20px;border-radius:10px;background:linear-gradient(#f4f4f8,#d9dae2);box-shadow:0 4px 12px rgba(0,0,0,.35),0 0 0 .5px rgba(0,0,0,.25);transition:transform .45s var(--ease)}
+.cap::after{content:"";position:absolute;left:12px;right:12px;top:9.5px;height:1px;background:rgba(20,20,30,.28)}
+.fader:hover .cap{box-shadow:0 5px 16px rgba(0,0,0,.42),0 0 0 .5px rgba(0,0,0,.25)}
+
+.guide{position:absolute;left:72px;right:32px;height:1px;background:rgba(255,255,255,.035);pointer-events:none}
+.slab{position:absolute;left:24px;font-size:11px;color:var(--tx3);transform:translateY(-50%);transition:color .3s}
+
+.read{margin-top:22px;height:30px;display:flex;align-items:baseline;gap:4px;white-space:nowrap}
+.read .n{font-size:26px;font-weight:500;letter-spacing:-.01em;transition:color .3s}
+.read .u{font-size:12px;color:var(--tx2)}
+.ch.off .read .n{color:var(--tx3)}
+.sub{margin-top:2px;font-size:11px;color:var(--tx3);white-space:nowrap;height:14px}
+
+.val{margin-top:16px;height:26px;padding:0 11px;border-radius:13px;background:rgba(255,255,255,.06);display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;transition:background .2s,opacity .3s}
+.val:hover{background:rgba(255,255,255,.12)}
+.val b{font-weight:500;color:var(--tx)}
+.val span{color:var(--tx2)}
+.ch.off .val{opacity:.35}
+.val.bump b{animation:bump .35s var(--ease)}
+@keyframes bump{40%{color:var(--c)}}
+
+/* caption */
+.cap-line{margin:14px 32px 6px;height:48px;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.cap-line .who{font-size:13px;font-weight:600;color:var(--tx)}
+.cap-line .md{font-size:12px;font-weight:500;padding:2px 8px;border-radius:9px;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c)}
+.cap-line .md.off{background:rgba(255,255,255,.07);color:var(--tx2)}
+.cap-line .rule{font-size:13px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cap-line .rule b{font-weight:500;color:var(--tx)}
+.cap-line .rule.peek{color:var(--tx3)}
+.cap-line > *{transition:opacity .2s}
+
+/* footer */
+.foot{display:flex;align-items:center;gap:28px;padding:0 32px;height:58px;border-top:1px solid var(--line)}
+.sw{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--tx2);transition:color .2s}
+.sw i{width:32px;height:19px;border-radius:10px;background:rgba(255,255,255,.14);position:relative;transition:background .25s;flex:none}
+.sw i::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
+.sw[aria-checked="true"]{color:var(--tx)}
+.sw[aria-checked="true"] i{background:#5B9BFF}
+.sw[aria-checked="true"] i::after{transform:translateX(13px)}
+.foot .hint{margin-left:auto;font-size:11px;color:var(--tx3)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="mb-l">
+      <svg viewBox="0 0 17 20" width="13" height="16" aria-hidden="true"><path fill="#fff" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.7 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z"/></svg>
+      <b>MinMacs</b><span>Edit</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="mb-r">
+      <div class="icons" id="icons"></div>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 6.3a8.6 8.6 0 0 1 12 0M4.2 8.6a5.4 5.4 0 0 1 7.6 0"/><circle cx="8" cy="11.6" r="1.3" fill="#fff" stroke="none"/></svg>
+      <svg viewBox="0 0 26 14" width="25" height="13" aria-hidden="true"><rect x=".7" y=".7" width="21.6" height="12.6" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/><rect x="2.6" y="2.6" width="11.6" height="8.8" rx="2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="win" role="dialog" aria-label="Settings">
+    <div class="tb"><div class="lights"><i></i><i></i><i></i></div><h1>Settings</h1></div>
+    <div class="today" id="today"></div>
+    <div class="desk" id="desk"></div>
+    <div class="cap-line" id="cap"></div>
+    <div class="foot">
+      <button class="sw" id="one" role="switch" aria-checked="false"><i></i>One icon in the menu bar</button>
+      <button class="sw" id="login" role="switch" aria-checked="true"><i></i>Open at login</button>
+      <span class="hint">Drag a fader, or click a value</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const G = {
+  apps:'<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.6"/><path d="M6.6 1.8v2.4M9.4 1.8v2.4M6.6 11.8v2.4M9.4 11.8v2.4M1.8 6.6h2.4M1.8 9.4h2.4M11.8 6.6h2.4M11.8 9.4h2.4"/>',
+  servers:'<rect x="2.5" y="2.8" width="11" height="4.2" rx="1.4"/><rect x="2.5" y="9" width="11" height="4.2" rx="1.4"/><path d="M5.2 4.9h.01M5.2 11.1h.01" stroke-width="2.2"/>',
+  trees:'<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7c0 2.7-2.4 3.4-5.4 4.2"/>',
+  disk:'<ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  awake:'<path d="M1.8 8s2.3-4.3 6.2-4.3S14.2 8 14.2 8s-2.3 4.3-6.2 4.3S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  one:'<circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.6l2.4 1.4"/>'
+};
+const gl=(k,c,s)=>`<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[k]}</svg>`;
+const MODES=['Off','Ask','Auto'];
+const DET=66; // px between detents
+const V=s=>`<b>${s.vals[s.v]}</b>`;
+const S=[
+  {id:'apps',name:'Apps',c:'#5B9BFF',mode:2,vals:['60 %','70 %','80 %','90 %'],v:1,unit:'load',
+   rule:[()=>'Not watching apps.',s=>`Shows noise apps to close once load passes ${V(s)}.`,s=>`Closes noise apps when the Mac is busy, above ${V(s)} load.`],
+   read:[['–','',"not watching"],['2','noise','ready to close'],['2','closed','today']]},
+  {id:'servers',name:'Servers',c:'#3FD0B8',mode:2,vals:['30 min','1 h','2 h','4 h','1 day'],v:2,unit:'idle',
+   rule:[()=>'Not watching servers.',s=>`Shows localhost servers idle for ${V(s)}.`,s=>`Stops servers nobody used for ${V(s)}.`],
+   read:[['–','',"not watching"],['3','idle','waiting for you'],['3','idle','3 stopped today']]},
+  {id:'trees',name:'Worktrees',c:'#4CC96B',mode:1,vals:['1 h','1 day','1 week'],v:1,unit:'after merge',
+   rule:[()=>'Not watching worktrees.',s=>`Shows git worktrees ${V(s)} after they merge.`,s=>`Removes merged worktrees after ${V(s)}. Undo brings them back.`],
+   read:[['–','',"not watching"],['4','merged','5.7 GB'],['4','merged','5.7 GB to free']]},
+  {id:'disk',name:'Disk',c:'#F2B544',mode:2,vals:['daily','weekly','monthly'],v:1,unit:'',
+   rule:[()=>'Not watching the disk.',s=>`Shows caches and build output safe to clean, ${V(s)}.`,s=>`Moves safe clutter to the Trash ${V(s)}, next ${['tonight','on Sunday','on 1 Nov'][s.v]}.`],
+   read:[['–','',"not watching"],['30','GB','safe to clean'],['30','GB','next '+'on Sunday']]},
+  {id:'awake',name:'Keep Awake',c:'#B18CFF',mode:2,vals:['10 %','20 %','30 %','never'],v:1,unit:'battery',
+   rule:[()=>'The Mac sleeps as usual.',s=>`Asks when an agent starts working.`,s=>s.v===3?`Awake while agents work, then sleeps. Ignores battery.`:`Awake while agents work, then sleeps. Stops at ${V(s)} battery.`],
+   read:[['–','',"sleeps as usual"],['4','agents','will ask first'],['4','agents','working now']]}
+];
+const valLabel=s=>s.id==='awake'?(s.v===3?['never','ends']:[s.vals[s.v],'battery']):s.id==='disk'?[s.vals[s.v],'']:[s.vals[s.v],s.unit];
+
+let focus='apps', undone=false;
+
+function badge(s){
+  const el=document.getElementById('bd-'+s.id);
+  el.style.background = s.mode===2 ? s.c : s.mode===1 ? `color-mix(in srgb, ${s.c} 22%, transparent)` : 'rgba(255,255,255,.07)';
+  el.innerHTML = gl(s.id, s.mode===2 ? '#14141c' : s.mode===1 ? s.c : 'rgba(235,235,245,.42)', 18);
+}
+function chHTML(s){
+  return `<div class="ch" id="ch-${s.id}" style="--c:${s.c}">
+    <span class="bdg" id="bd-${s.id}"></span>
+    <span class="nm">${s.name}</span>
+    <div class="fader" id="fd-${s.id}" role="slider" tabindex="0" aria-label="${s.name} mode" aria-valuemin="0" aria-valuemax="2" data-s="${s.id}">
+      <i class="track"></i>
+      <i class="tick" style="top:10px"></i><i class="tick" style="top:${10+DET}px"></i><i class="tick" style="top:${10+2*DET}px"></i>
+      <i class="fill" id="fl-${s.id}"></i>
+      <i class="cap" id="cp-${s.id}"></i>
+    </div>
+    <div class="read" id="rd-${s.id}"></div>
+    <div class="sub" id="sb-${s.id}"></div>
+    <button class="val" id="vl-${s.id}" data-s="${s.id}" title="Click to change"></button>
+  </div>`;
+}
+function paint(s){
+  const ch=document.getElementById('ch-'+s.id);
+  ch.classList.toggle('off',!s.mode);
+  document.getElementById('cp-'+s.id).style.transform=`translateY(${(2-s.mode)*DET}px)`;
+  const fl=document.getElementById('fl-'+s.id);
+  fl.style.height=(s.mode*DET)+'px'; fl.style.opacity=s.mode===2?1:.5;
+  const f=document.getElementById('fd-'+s.id);
+  f.setAttribute('aria-valuenow',s.mode); f.setAttribute('aria-valuetext',MODES[s.mode]);
+  const r=s.read[s.mode];
+  let sub=r[2]; if(s.id==='disk'&&s.mode===2) sub='next '+['tonight','on Sunday','on 1 Nov'][s.v];
+  document.getElementById('rd-'+s.id).innerHTML=`<span class="n">${r[0]}</span>${r[1]?`<span class="u">${r[1]}</span>`:''}`;
+  document.getElementById('sb-'+s.id).textContent=sub;
+  const [a,b]=valLabel(s);
+  document.getElementById('vl-'+s.id).innerHTML=s.id==='trees'?`<span>after</span><b>${a}</b>`:`<b>${a}</b>${b?`<span>${b}</span>`:''}`;
+  badge(s);
+}
+function caption(id,peekMode){
+  const s=S.find(x=>x.id===id), m=peekMode==null?s.mode:peekMode;
+  const c=document.getElementById('cap');
+  c.style.setProperty('--c',s.c);
+  c.innerHTML=`<span class="who">${s.name}</span><span class="md${m?'':' off'}">${MODES[m]}</span><span class="rule${peekMode!=null&&peekMode!==s.mode?' peek':''}">${s.rule[m](s)}</span>`;
+  document.querySelectorAll('.ch').forEach(e=>e.classList.toggle('focus',e.id==='ch-'+id));
+}
+function renderToday(){
+  const t=document.getElementById('today');
+  t.innerHTML = undone
+   ? `<span class="lbl">Today</span><span class="txt">Reopened 2 apps and started 3 servers again</span><button class="undo" id="redo">Redo</button>`
+   : `<span class="lbl">Today</span><span class="txt">Closed <b>2 apps</b>, stopped <b>3 servers</b></span><button class="undo" id="undo">Undo</button>`;
+}
+function renderIcons(ping){
+  const one=document.getElementById('one').getAttribute('aria-checked')==='true';
+  const box=document.getElementById('icons');
+  if(!box.children.length) box.innerHTML=S.map(s=>`<span class="mi" id="mi-${s.id}" title="${s.name}">${gl(s.id,'#fff',16)}</span>`).join('')+`<span class="mi off" id="mi-one" title="MinMacs">${gl('one','#fff',16)}</span>`;
+  S.forEach(s=>document.getElementById('mi-'+s.id).classList.toggle('off',one||s.mode===0));
+  document.getElementById('mi-one').classList.toggle('off',!one);
+  const target = one ? 'one' : ping;
+  if(target){ const e=document.getElementById('mi-'+target); if(e&&!e.classList.contains('off')){ e.classList.add('ping'); setTimeout(()=>e.classList.remove('ping'),260) } }
+}
+function setMode(id,m){
+  const s=S.find(x=>x.id===id); if(s.mode===m) return;
+  s.mode=m; paint(s); caption(id); renderIcons(id);
+}
+function build(){
+  const d=document.getElementById('desk');
+  d.innerHTML=`<div class="scale"></div>`+S.map(chHTML).join('');
+  // guides + labels at detent heights, measured from the first fader
+  const f=document.getElementById('fd-apps'), dr=d.getBoundingClientRect(), fr=f.getBoundingClientRect();
+  const k=dr.width/d.offsetWidth, top=(fr.top-dr.top)/k;
+  ['Auto','Ask','Off'].forEach((l,i)=>{
+    const y=top+10+i*DET;
+    d.insertAdjacentHTML('beforeend',`<i class="guide" style="top:${y}px"></i><span class="slab" style="top:${y}px">${l}</span>`);
+  });
+  S.forEach(paint); caption(focus); renderToday(); renderIcons();
+}
+
+// fader dragging
+let drag=null;
+document.addEventListener('pointerdown',e=>{
+  const f=e.target.closest('.fader'); if(!f) return;
+  drag=f; f.setPointerCapture(e.pointerId); focus=f.dataset.s; caption(focus); move(e);
+});
+function move(e){
+  if(!drag) return;
+  const r=drag.getBoundingClientRect(), k=r.height/152;
+  const y=(e.clientY-r.top)/k-10;
+  const m=Math.max(0,Math.min(2,2-Math.round(y/DET)));
+  setMode(drag.dataset.s,m);
+}
+document.addEventListener('pointermove',move);
+document.addEventListener('pointerup',()=>{drag=null});
+document.addEventListener('keydown',e=>{
+  const f=e.target.closest&&e.target.closest('.fader'); if(!f) return;
+  const s=S.find(x=>x.id===f.dataset.s);
+  if(e.key==='ArrowUp'||e.key==='ArrowRight'){setMode(s.id,Math.min(2,s.mode+1));e.preventDefault()}
+  if(e.key==='ArrowDown'||e.key==='ArrowLeft'){setMode(s.id,Math.max(0,s.mode-1));e.preventDefault()}
+});
+document.addEventListener('focusin',e=>{const c=e.target.closest&&e.target.closest('.ch'); if(c){focus=c.id.slice(3); caption(focus)}});
+
+document.addEventListener('click',e=>{
+  const v=e.target.closest('.val'); if(v){
+    const s=S.find(x=>x.id===v.dataset.s); s.v=(s.v+1)%s.vals.length; focus=s.id;
+    paint(s); caption(s.id); const b=document.getElementById('vl-'+s.id); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); return }
+  if(e.target.closest('#undo')){undone=true; renderToday(); return}
+  if(e.target.closest('#redo')){undone=false; renderToday(); return}
+  const mi=e.target.closest('.mi'); if(mi&&mi.id!=='mi-one'){ focus=mi.id.slice(3); caption(focus); return }
+  const sw=e.target.closest('.sw'); if(sw){ sw.setAttribute('aria-checked',String(sw.getAttribute('aria-checked')!=='true')); renderIcons(); }
+});
+// hover a channel: caption follows; hover high/low on a fader previews that mode
+document.addEventListener('mouseover',e=>{
+  const c=e.target.closest('.ch'); if(!c||drag) return;
+  const id=c.id.slice(3); if(id!==focus){focus=id; caption(id)}
+});
+
+function fit(){const st=document.getElementById('stage'),k=Math.min(innerWidth/1280,innerHeight/800);st.style.transform=`translate(${(innerWidth-1280*k)/2}px,${(innerHeight-800*k)/2}px) scale(${k})`}
+addEventListener('resize',fit);
+fit(); build();
+</script>
+</body>
+</html>

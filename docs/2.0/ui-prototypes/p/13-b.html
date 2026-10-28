@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three Round Rows</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.86);
+  --tx:rgba(255,255,255,.93);
+  --tx2:rgba(235,235,245,.55);
+  --tx3:rgba(235,235,245,.32);
+  --gray:rgba(255,255,255,.085);
+  --ease:cubic-bezier(.3,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1a1636}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-size:13px;cursor:default;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;border-radius:10px}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(760px 560px at 10% 6%,#4b3c9e 0%,rgba(75,60,158,0) 70%),
+   radial-gradient(700px 520px at 84% 2%,#22618f 0%,rgba(34,97,143,0) 70%),
+   radial-gradient(820px 620px at 88% 104%,#a0436f 0%,rgba(160,67,111,0) 70%),
+   radial-gradient(640px 520px at 18% 100%,#3a2463 0%,rgba(58,36,99,0) 75%),
+   #1d1a3c}
+
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;background:rgba(18,14,40,.32);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:13px;color:rgba(255,255,255,.92)}
+.mb-l,.mb-r{display:flex;align-items:center;gap:18px}
+.mb-l b{font-weight:700}
+.mb-r{gap:14px}
+.icons{display:flex;align-items:center;gap:12px}
+.mi{display:flex;width:16px;overflow:hidden;color:#fff;transition:width .35s var(--ease),opacity .3s,margin .35s var(--ease)}
+.mi.off{width:0;opacity:0;margin-left:-12px}
+
+/* window */
+.win{position:absolute;left:50%;top:66px;width:464px;transform:translateX(-50%);background:var(--glass);backdrop-filter:blur(34px) saturate(1.5);-webkit-backdrop-filter:blur(34px) saturate(1.5);border:1px solid rgba(255,255,255,.085);border-radius:24px;box-shadow:0 30px 90px rgba(6,4,24,.5),inset 0 1px 0 rgba(255,255,255,.035);padding:26px 32px 24px}
+
+/* ftop grid */
+.grid{display:grid;grid-template-columns:repeat(5,1fr);row-gap:20px}
+.b{display:flex;flex-direction:column;align-items:center;padding:2px 0;border-radius:12px;min-width:0}
+.o{position:relative;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--gray);color:rgba(235,235,245,.42);
+  transition:background .35s var(--ease),color .35s var(--ease),box-shadow .35s var(--ease),transform .25s var(--ease),opacity .3s}
+.o::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid rgba(255,255,255,.9);opacity:0;transform:scale(.88);transition:opacity .3s var(--ease),transform .35s var(--ease)}
+.b:hover .o{transform:scale(1.05)}
+.b:active .o{transform:scale(.95)}
+.l{margin-top:10px;font-size:13.5px;line-height:17px;color:var(--tx2);white-space:nowrap;transition:color .3s}
+/* sections: fill = mode */
+.sec[data-m="1"] .o{background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c);box-shadow:inset 0 0 0 1.75px var(--c)}
+.sec[data-m="2"] .o{background:var(--c);color:#17161f}
+.sec:not([data-m="0"]) .l{color:var(--tx)}
+.sec.sel .o::after{opacity:1;transform:scale(1)}
+/* modes row */
+.mode.on .o{background:var(--c);color:#17161f}
+.mode.on .l{color:var(--tx)}
+.val .o{color:var(--tx)}
+.val .l{color:var(--tx)}
+.now .o{color:var(--tx);font-size:15px;font-weight:600;letter-spacing:-.01em}
+.dim .o{opacity:.45}
+.dim .l{color:var(--tx3)}
+.bump .o{animation:bump .4s var(--ease)}
+@keyframes bump{40%{background:color-mix(in srgb,var(--c) 40%,transparent)}}
+/* app row */
+.app.on .o{background:rgba(255,255,255,.86);color:#17161f}
+.app.on .l{color:var(--tx)}
+.app.act .o{color:var(--tx)}
+.app.act .l{color:var(--tx)}
+.more .o svg{transition:transform .4s var(--ease)}
+.more.open .o svg{transform:rotate(180deg)}
+
+/* caption: the smart line */
+.cap{grid-column:1 / -1;height:62px;margin:-2px 0 2px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 8px;transition:opacity .2s var(--ease)}
+.cap .c1{font-size:14px;line-height:19px;color:var(--tx);transition:color .2s}
+.cap .c2{margin-top:3px;font-size:12.5px;line-height:17px;color:var(--tx2)}
+.cap .c2 b{color:var(--tx);font-weight:500}
+.cap.peek .c1{color:var(--tx2)}
+.cap.fade{opacity:0}
+
+/* More: plain value rows */
+.rows{overflow:hidden;max-height:0;opacity:0;transition:max-height .5s var(--ease),opacity .35s var(--ease),margin .5s var(--ease)}
+.rows.open{max-height:360px;opacity:1;margin-top:14px}
+.r{display:flex;align-items:center;width:100%;height:44px;padding:0 4px;font-size:15px;text-align:left;border-radius:10px;gap:16px;white-space:nowrap;transition:background .15s}
+.r:hover{background:rgba(255,255,255,.04)}
+.r .k{color:var(--tx);flex:none}
+.r .v{margin-left:auto;color:var(--tx2);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.r .ch{color:var(--tx3);flex:none;margin-left:-6px;display:flex;align-items:center}
+.r.static .v{margin-right:23px}
+.r.static{cursor:default}
+.r.static:hover{background:none}
+.r .v.bump{animation:bumpv .4s var(--ease)}
+@keyframes bumpv{40%{color:var(--tx)}}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="mb-l">
+      <svg viewBox="0 0 17 20" width="13" height="16" aria-hidden="true"><path fill="#fff" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.7 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z"/></svg>
+      <b>MinMacs</b><span>Edit</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="mb-r">
+      <div class="icons" id="icons"></div>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 6.3a8.6 8.6 0 0 1 12 0M4.2 8.6a5.4 5.4 0 0 1 7.6 0"/><circle cx="8" cy="11.6" r="1.3" fill="#fff" stroke="none"/></svg>
+      <svg viewBox="0 0 26 14" width="25" height="13" aria-hidden="true"><rect x=".7" y=".7" width="21.6" height="12.6" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/><rect x="2.6" y="2.6" width="11.6" height="8.8" rx="2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="win" id="win" role="dialog" aria-label="Settings">
+    <div class="grid" id="grid"></div>
+    <div class="rows" id="rows"></div>
+  </div>
+</div>
+
+<script>
+const G = {
+  apps:'<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.6"/><path d="M6.6 1.8v2.4M9.4 1.8v2.4M6.6 11.8v2.4M9.4 11.8v2.4M1.8 6.6h2.4M1.8 9.4h2.4M11.8 6.6h2.4M11.8 9.4h2.4"/>',
+  servers:'<rect x="2.5" y="2.8" width="11" height="4.2" rx="1.4"/><rect x="2.5" y="9" width="11" height="4.2" rx="1.4"/><path d="M5.2 4.9h.01M5.2 11.1h.01" stroke-width="2.2"/>',
+  trees:'<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7c0 2.7-2.4 3.4-5.4 4.2"/>',
+  disk:'<ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  awake:'<path d="M1.8 8s2.3-4.3 6.2-4.3S14.2 8 14.2 8s-2.3 4.3-6.2 4.3S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  one:'<circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.6l2.4 1.4"/>',
+  off:'<path d="M8 2.2v5"/><path d="M4.7 4.3a5.1 5.1 0 1 0 6.6 0"/>',
+  ask:'<path d="M5.7 6a2.35 2.35 0 1 1 3.4 2.1c-.7.35-1.1.9-1.1 1.6v.4"/><path d="M8 12.7h.01" stroke-width="2.1"/>',
+  auto:'<path d="M9.1 1.9 3.9 9h3.7l-.8 5.1L12.1 7H8.5z" fill="currentColor"/>',
+  gauge:'<path d="M2.7 11.6a5.5 5.5 0 1 1 10.6 0"/><path d="M8 9.6l2.5-3"/>',
+  clock:'<circle cx="8" cy="8" r="5.6"/><path d="M8 5v3.2l2.2 1.3"/>',
+  cal:'<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.9h11M5.5 2v2.6M10.5 2v2.6"/>',
+  batt:'<rect x="1.8" y="4.9" width="11.2" height="6.4" rx="1.7"/><path d="M14.6 7v2.2"/><path d="M4.2 7.3v1.6M6.4 7.3v1.6" stroke-width="1.9"/>',
+  menubar:'<rect x="2" y="3" width="12" height="10" rx="2.2"/><path d="M2 6.3h12"/>',
+  login:'<path d="M9.6 2.6h1.9a1.5 1.5 0 0 1 1.5 1.5v7.8a1.5 1.5 0 0 1-1.5 1.5H9.6"/><path d="M2.6 8h7M7.1 5.3 9.8 8l-2.7 2.7"/>',
+  undo:'<path d="M5.6 3.4 2.8 6.2 5.6 9"/><path d="M2.8 6.2h6.4a3.5 3.5 0 0 1 0 7H6.8"/>',
+  quit:'<path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8"/>',
+  chev:'<path d="M4.2 6.2 8 10l3.8-3.8"/>'
+};
+const gl=(k,s,w)=>`<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w||1.6}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[k]}</svg>`;
+const MODES=['Off','Ask','Auto'];
+let undone=false, sel=0, moreOpen=false;
+const S=[
+  {id:'apps',name:'Apps',c:'#5B9BFF',mode:2,vals:['60 %','70 %','80 %','90 %'],v:1,vi:'gauge',key:'Apps close above',
+   say:[()=>'Not watching apps.',v=>`Shows noise apps to close when load is above ${v}.`,v=>`Closes noise apps when the Mac is busy, above ${v} load.`],
+   now:m=>m===2?(undone?['0','closed']:['2','closed']):['2','to close'],
+   sees:m=>m===2?(undone?'<b>0</b> closed today, 2 put back':'<b>2</b> closed today'):'<b>2</b> noise apps open now'},
+  {id:'servers',name:'Servers',c:'#3FD0B8',mode:2,vals:['30 min','1 h','2 h','4 h','1 day'],v:2,vi:'clock',key:'Servers stop when idle for',
+   say:[()=>'Not watching servers.',v=>`Shows localhost servers idle for ${v}.`,v=>`Stops servers nobody used for ${v}.`],
+   now:()=>undone?['6','idle']:['3','idle'],
+   sees:m=>m===2?(undone?'<b>6</b> idle now, 3 started again':'<b>3</b> idle now, <b>3</b> stopped today'):'<b>3</b> idle now'},
+  {id:'trees',name:'Worktrees',c:'#4CC96B',mode:1,vals:['1 h','1 day','1 week'],v:1,vi:'clock',key:'Worktrees go after merge',
+   say:[()=>'Not watching worktrees.',v=>`Shows merged git worktrees after ${v}.`,v=>`Removes merged worktrees after ${v}. Undo brings them back.`],
+   now:()=>['4','merged'],
+   sees:()=>'<b>4</b> merged, <b>5.7 GB</b>'},
+  {id:'disk',name:'Disk',c:'#F2B544',mode:2,vals:['Daily','Weekly','Monthly'],v:1,vi:'cal',key:'Disk cleans',
+   say:[()=>'Not watching caches.',v=>`Shows caches and build output safe to clean, ${v.toLowerCase()}.`,v=>`Moves safe clutter to the Trash, ${v.toLowerCase()}.`],
+   now:()=>['30','GB safe'],
+   sees:(m,s)=>m===2?`<b>30 GB</b> safe to clean, next ${['tonight','on Sunday','on 1 Nov'][s.v]}`:'<b>30 GB</b> safe to clean'},
+  {id:'awake',name:'Keep Awake',c:'#B18CFF',mode:2,vals:['10 %','20 %','30 %','Never'],v:1,vi:'batt',key:'Keep Awake ends at battery',
+   say:[()=>'The Mac sleeps as usual.',()=>'Asks when an agent starts working.',()=>'Keeps the Mac awake while agents work, then sleeps.'],
+   now:()=>['4','agents'],
+   sees:(m,s)=>`<b>4</b> agents working now, ends at ${s.vals[s.v]==='Never'?'no battery level':'<b>'+s.vals[s.v]+'</b> battery'}`}
+];
+const $=id=>document.getElementById(id);
+const one=()=>$('b-one').classList.contains('on');
+
+function cell(id,cls,icon,label,extra){return `<button class="b ${cls}" id="${id}" ${extra||''}><span class="o">${icon}</span><span class="l">${label}</span></button>`}
+function build(){
+  $('grid').innerHTML =
+    S.map((s,i)=>cell('s-'+s.id,'sec',gl(s.id,22,1.5),s.name,`data-i="${i}" style="--c:${s.c}" data-cap="sec:${i}"`)).join('') +
+    MODES.map((m,i)=>cell('m-'+i,'mode',gl(['off','ask','auto'][i],20,1.6),m,`data-m="${i}" data-cap="mode:${i}"`)).join('') +
+    cell('b-val','val','', '', 'data-cap="val"') +
+    cell('b-now','now','', '', 'data-cap="now"') +
+    `<div class="cap" id="cap" aria-live="polite"><span class="c1"></span><span class="c2"></span></div>` +
+    cell('b-one','app',gl('menubar',20,1.5),'One Icon','role="switch" data-cap="one"') +
+    cell('b-login','app on',gl('login',20,1.5),'At Login','role="switch" data-cap="login"') +
+    cell('b-undo','app act',gl('undo',20,1.6),'Undo','data-cap="undo"') +
+    cell('b-quit','app',gl('quit',18,1.6),'Quit','data-cap="quit"') +
+    cell('b-more','app more',gl('chev',20,1.7),'More','aria-expanded="false" data-cap="more"');
+}
+function paint(){
+  const s=S[sel], g=$('grid');
+  S.forEach((x,i)=>{const b=$('s-'+x.id); b.dataset.m=x.mode; b.classList.toggle('sel',i===sel); b.setAttribute('aria-pressed',i===sel)});
+  g.style.setProperty('--c',s.c);
+  [0,1,2].forEach(i=>{$('m-'+i).classList.toggle('on',i===s.mode); $('m-'+i).setAttribute('aria-pressed',i===s.mode)});
+  const vb=$('b-val'); vb.querySelector('.o').innerHTML=gl(s.vi,20,1.6); vb.querySelector('.l').textContent=s.vals[s.v]; vb.classList.toggle('dim',!s.mode);
+  const n=s.now(s.mode), nb=$('b-now'); nb.querySelector('.o').textContent=n[0]; nb.querySelector('.l').textContent=n[1]; nb.classList.toggle('dim',!s.mode);
+  $('b-one').setAttribute('aria-checked',one()); $('b-login').setAttribute('aria-checked',$('b-login').classList.contains('on'));
+  const u=$('b-undo'); u.querySelector('.l').textContent=undone?'Redo':'Undo'; u.querySelector('svg').style.transform=undone?'scaleX(-1)':'';
+  renderIcons(); renderRows(); setCap(null);
+}
+/* caption text for anything hovered; default = selected section */
+function capFor(k){
+  const s=S[sel];
+  if(!k||k.startsWith('sec:')){const t=k?S[+k.split(':')[1]]:s; return [t.say[t.mode](t.vals[t.v]), t.mode?t.sees(t.mode,t):`Press ${t.name} again for Ask`, false]}
+  if(k.startsWith('mode:')){const m=+k.split(':')[1]; return [s.say[m](s.vals[s.v]), m?s.sees(m,s):'Nothing is watched', m!==s.mode]}
+  if(k==='val') return [`${s.key} ${s.vals[s.v]}`, 'Press to change: '+s.vals.join(' · '), false];
+  if(k==='now') return [s.mode?s.sees(s.mode,s).replace(/<\/?b>/g,''):'Off, so nothing is counted', 'What '+s.name+' sees right now', false];
+  if(k==='one') return [one()?'One icon in the menu bar':'One icon per section in the menu bar', one()?'Press for one icon per section':'Press to fold them into one', false];
+  if(k==='login') return ['Open at login: '+($('b-login').classList.contains('on')?'on':'off'), 'MinMacs starts when you log in', false];
+  if(k==='undo') return undone?['Put back 2 apps and 3 servers','Press Redo to close them again',false]:['Today: closed <b>2 apps</b>, stopped <b>3 servers</b>','Undo puts them all back',false];
+  if(k==='quit') return ['Quit MinMacs','Nothing is watched until it opens again',false];
+  if(k==='more') return [moreOpen?'Fewer settings':'Every value as a plain row', 'And what Auto did today', false];
+  return capFor(null);
+}
+let capKey=null;
+function setCap(k){
+  capKey=k; const [a,b,peek]=capFor(k), c=$('cap');
+  c.querySelector('.c1').innerHTML=a; c.querySelector('.c2').innerHTML=b; c.classList.toggle('peek',!!peek);
+}
+function renderRows(){
+  const r=S.map((s,i)=>`<button class="r" data-row="${i}"><span class="k">${s.key}</span><span class="v" id="rv-${i}">${s.vals[s.v]}</span><span class="ch">${gl('chev',13,1.7).replace('<svg','<svg style="transform:rotate(-90deg)"')}</span></button>`).join('')
+   + `<div class="r static"><span class="k">Today</span><span class="v">${undone?'Put back 2 apps, 3 servers':'Closed 2 apps, stopped 3 servers'}</span></div>`;
+  $('rows').innerHTML=r;
+}
+function renderIcons(){
+  const box=$('icons');
+  if(!box.children.length) box.innerHTML=S.map(s=>`<span class="mi" id="mi-${s.id}">${gl(s.id,16)}</span>`).join('')+`<span class="mi off" id="mi-one">${gl('one',16)}</span>`;
+  S.forEach(s=>$('mi-'+s.id).classList.toggle('off',one()||s.mode===0));
+  $('mi-one').classList.toggle('off',!one());
+}
+function bump(el){el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump')}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.classList.contains('sec')){const i=+b.dataset.i; if(i===sel) S[i].mode=(S[i].mode+1)%3; else sel=i; paint(); setCap('sec:'+i); return}
+  if(b.classList.contains('mode')){S[sel].mode=+b.dataset.m; paint(); setCap('mode:'+b.dataset.m); return}
+  if(b.id==='b-val'){const s=S[sel]; s.v=(s.v+1)%s.vals.length; paint(); setCap('val'); bump(b); return}
+  if(b.id==='b-one'||b.id==='b-login'){b.classList.toggle('on'); paint(); setCap(b.id==='b-one'?'one':'login'); return}
+  if(b.id==='b-undo'){undone=!undone; paint(); setCap('undo'); return}
+  if(b.id==='b-quit'){setCap('quit'); return}
+  if(b.id==='b-more'){moreOpen=!moreOpen; b.classList.toggle('open',moreOpen); b.setAttribute('aria-expanded',moreOpen); b.querySelector('.l').textContent=moreOpen?'Less':'More'; $('rows').classList.toggle('open',moreOpen); setCap('more'); return}
+  if(b.dataset.row!=null){const i=+b.dataset.row, s=S[i]; s.v=(s.v+1)%s.vals.length; paint(); bump($('rv-'+i)); return}
+});
+document.addEventListener('mouseover',e=>{const b=e.target.closest('[data-cap]'); if(b && b.dataset.cap!==capKey) setCap(b.dataset.cap)});
+document.addEventListener('mouseout',e=>{const g=$('grid'); if(e.target.closest('[data-cap]') && !(e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('[data-cap]'))) setCap(null)});
+function fit(){const st=$('stage'),k=Math.min(innerWidth/1280,innerHeight/800);st.style.transform=`translate(${(innerWidth-1280*k)/2}px,${(innerHeight-800*k)/2}px) scale(${k})`}
+addEventListener('resize',fit);
+build(); paint(); fit();
+</script>
+</body>
+</html>

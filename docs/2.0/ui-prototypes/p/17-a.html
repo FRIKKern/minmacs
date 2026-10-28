@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Five Rings</title>
+<style>
+:root{
+  --glass:rgba(28,29,38,.86);
+  --tx:rgba(255,255,255,.94);
+  --tx2:rgba(235,235,245,.56);
+  --tx3:rgba(235,235,245,.32);
+  --track:rgba(255,255,255,.075);
+  --ease:cubic-bezier(.3,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1a1636}
+body{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-size:13px;cursor:default;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible{outline:2px solid rgba(255,255,255,.55);outline-offset:3px;border-radius:8px}
+#stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;
+  background:
+   radial-gradient(760px 560px at 10% 6%,#4b3c9e 0%,rgba(75,60,158,0) 70%),
+   radial-gradient(700px 520px at 84% 2%,#22618f 0%,rgba(34,97,143,0) 70%),
+   radial-gradient(820px 620px at 88% 104%,#a0436f 0%,rgba(160,67,111,0) 70%),
+   radial-gradient(640px 520px at 18% 100%,#3a2463 0%,rgba(58,36,99,0) 75%),
+   #1d1a3c}
+
+/* menu bar */
+.mb{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;background:rgba(18,14,40,.32);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);font-size:13px;color:rgba(255,255,255,.92)}
+.mb-l,.mb-r{display:flex;align-items:center;gap:18px}
+.mb-l b{font-weight:700}
+.mb-r{gap:14px}
+.icons{display:flex;align-items:center;gap:12px}
+.mi{display:flex;width:16px;overflow:hidden;transition:width .4s var(--ease),opacity .3s,margin .4s var(--ease)}
+.mi.off{width:0;opacity:0;margin-left:-12px}
+
+/* window */
+.win{position:absolute;left:50%;top:150px;width:640px;transform:translateX(-50%);background:var(--glass);backdrop-filter:blur(36px) saturate(1.5);-webkit-backdrop-filter:blur(36px) saturate(1.5);border:1px solid rgba(255,255,255,.085);border-radius:22px;box-shadow:0 40px 110px rgba(6,4,24,.5),inset 0 1px 0 rgba(255,255,255,.035);padding:0 40px 30px}
+.tb{height:46px;display:flex;align-items:center;position:relative;margin:0 -22px}
+.lights{display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.tb h1{position:absolute;left:0;right:0;text-align:center;font-size:13px;font-weight:600;color:var(--tx2);pointer-events:none}
+
+/* today */
+.today{height:22px;display:flex;justify-content:center;align-items:center;gap:10px;font-size:12.5px;color:var(--tx2);white-space:nowrap;margin-top:6px}
+.today .lbl{color:var(--tx3)}
+.today b{font-weight:500;color:var(--tx)}
+.today .undo{color:var(--tx);font-weight:500;padding:2px 9px;border-radius:11px;background:rgba(255,255,255,.07);transition:background .2s}
+.today .undo:hover{background:rgba(255,255,255,.13)}
+.today .fade{transition:opacity .25s}
+
+/* rings */
+.rings{display:grid;grid-template-columns:repeat(5,1fr);margin-top:40px}
+.ring{display:flex;flex-direction:column;align-items:center;gap:0;padding:4px 0 6px;border-radius:14px}
+.ring:focus-visible{outline-offset:0}
+.dial{position:relative;width:84px;height:84px;transition:transform .35s var(--ease)}
+.ring:hover .dial{transform:scale(1.035)}
+.ring:active .dial{transform:scale(.97)}
+.dial svg.arc{position:absolute;inset:0;transform:rotate(-90deg)}
+.dial .tr{fill:none;stroke:var(--track);stroke-width:3;transition:stroke .3s}
+.ring:hover .tr{stroke:rgba(255,255,255,.12)}
+.dial .ar{fill:none;stroke:var(--c);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset .7s var(--ease),opacity .35s}
+.dial .disc{position:absolute;inset:13px;border-radius:50%;background:color-mix(in srgb,var(--c) 0%,transparent);transition:background .5s var(--ease)}
+.ring[data-m="1"] .disc{background:color-mix(in srgb,var(--c) 5%,transparent)}
+.ring[data-m="2"] .disc{background:color-mix(in srgb,var(--c) 9%,transparent)}
+.dial .gl{position:absolute;inset:0;display:grid;place-items:center;color:rgba(235,235,245,.34);transition:color .4s}
+.ring:not([data-m="0"]) .gl{color:rgba(255,255,255,.92)}
+.nm{margin-top:16px;font-size:13.5px;font-weight:500;color:var(--tx2);transition:color .25s}
+.ring.cur .nm{color:var(--tx)}
+.md{margin-top:3px;font-size:12px;color:var(--tx3);height:16px;transition:color .25s}
+.ring.cur .md{color:var(--tx2)}
+
+/* caption */
+.cap{margin-top:34px;height:118px;text-align:center;position:relative}
+.cap-in{transition:opacity .16s ease,transform .3s var(--ease)}
+.cap-in.out{opacity:0;transform:translateY(3px)}
+.eye{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);display:flex;justify-content:center;gap:8px;align-items:center}
+.eye .dot{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.eye .mw{color:var(--c)}
+.eye.off .dot{background:rgba(235,235,245,.25)}
+.eye.off .mw{color:var(--tx3)}
+.rule{margin-top:12px;font-size:16px;line-height:22px;color:var(--tx2);white-space:nowrap}
+.val{color:var(--tx);cursor:pointer;padding:0 1px;border-radius:3px;text-decoration:underline;text-decoration-color:rgba(255,255,255,.28);text-underline-offset:4px;text-decoration-thickness:1px;transition:text-decoration-color .2s,background .2s}
+.val:hover{text-decoration-color:var(--c)}
+.val.bump{animation:bump .45s var(--ease)}
+@keyframes bump{35%{background:color-mix(in srgb,var(--c) 30%,transparent)}}
+.sees{margin-top:16px;display:flex;justify-content:center;align-items:baseline;gap:30px;white-space:nowrap;height:40px}
+.sees .it{display:flex;align-items:baseline;gap:6px}
+.sees .n{font-size:32px;font-weight:300;letter-spacing:-.01em;color:var(--tx)}
+.sees .u{font-size:13px;color:var(--tx2)}
+.sees .hint{font-size:13px;color:var(--tx3);align-self:center}
+
+/* footer */
+.foot{display:flex;justify-content:center;gap:34px;margin-top:22px}
+.sw{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--tx2);transition:color .2s}
+.sw i{width:28px;height:16px;border-radius:8px;background:rgba(255,255,255,.12);position:relative;transition:background .25s;flex:none}
+.sw i::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .3s var(--ease)}
+.sw[aria-checked="true"]{color:var(--tx)}
+.sw[aria-checked="true"] i{background:rgba(255,255,255,.42)}
+.sw[aria-checked="true"] i::after{transform:translateX(12px)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="mb">
+    <div class="mb-l">
+      <svg viewBox="0 0 17 20" width="13" height="16" aria-hidden="true"><path fill="#fff" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.7 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z"/></svg>
+      <b>MinMacs</b><span>Edit</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="mb-r">
+      <div class="icons" id="icons"></div>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 6.3a8.6 8.6 0 0 1 12 0M4.2 8.6a5.4 5.4 0 0 1 7.6 0"/><circle cx="8" cy="11.6" r="1.3" fill="#fff" stroke="none"/></svg>
+      <svg viewBox="0 0 26 14" width="25" height="13" aria-hidden="true"><rect x=".7" y=".7" width="21.6" height="12.6" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/><rect x="2.6" y="2.6" width="11.6" height="8.8" rx="2" fill="#fff"/><path d="M24 5v4" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span>Tue 27 Oct&nbsp;&nbsp;16:42</span>
+    </div>
+  </div>
+
+  <div class="win" role="dialog" aria-label="Settings">
+    <div class="tb"><div class="lights"><i></i><i></i><i></i></div><h1>Settings</h1></div>
+    <div class="today" id="today"></div>
+    <div class="rings" id="rings"></div>
+    <div class="cap" aria-live="polite"><div class="cap-in" id="cap"></div></div>
+    <div class="foot">
+      <button class="sw" id="one" role="switch" aria-checked="false"><i></i>One icon in the menu bar</button>
+      <button class="sw" id="login" role="switch" aria-checked="true"><i></i>Open at login</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const G = {
+  apps:'<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.6"/><path d="M6.6 1.8v2.4M9.4 1.8v2.4M6.6 11.8v2.4M9.4 11.8v2.4M1.8 6.6h2.4M1.8 9.4h2.4M11.8 6.6h2.4M11.8 9.4h2.4"/>',
+  servers:'<rect x="2.5" y="2.8" width="11" height="4.2" rx="1.4"/><rect x="2.5" y="9" width="11" height="4.2" rx="1.4"/><path d="M5.2 4.9h.01M5.2 11.1h.01" stroke-width="2.2"/>',
+  trees:'<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.4" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7c0 2.7-2.4 3.4-5.4 4.2"/>',
+  disk:'<ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  awake:'<path d="M1.8 8s2.3-4.3 6.2-4.3S14.2 8 14.2 8s-2.3 4.3-6.2 4.3S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  one:'<circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.6l2.4 1.4"/>'
+};
+const gl=(k,s,c='currentColor')=>`<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[k]}</svg>`;
+const MODES=['Off','Ask','Auto'];
+let undone=false;
+const NEXT={daily:'next tonight',weekly:'next on Sunday',monthly:'next on 1 Nov'};
+const S=[
+  {id:'apps',name:'Apps',c:'#5B9BFF',mode:2,vals:['60 %','70 %','80 %','90 %'],v:1,
+   rule:['Not watching apps.','Shows noise apps to close when load passes {v}.','Closes noise apps when load passes {v}.'],
+   sees:m=>m===1?[[2,'noise apps now']]:undone?[[2,'open again']]:[[2,'closed today']]},
+  {id:'servers',name:'Servers',c:'#3FD0B8',mode:2,vals:['30 min','1 h','2 h','4 h','1 day'],v:2,
+   rule:['Not watching servers.','Shows localhost servers idle for {v}.','Stops servers nobody used for {v}.'],
+   sees:m=>m===1?[[undone?6:3,'idle now']]:undone?[[6,'idle now'],[0,'stopped today']]:[[3,'idle now'],[3,'stopped today']]},
+  {id:'trees',name:'Worktrees',c:'#4CC96B',mode:1,vals:['1 h','1 day','1 week'],v:1,
+   rule:['Not watching worktrees.','Shows git worktrees {v} after they merge.','Removes merged worktrees after {v}. Undo brings them back.'],
+   sees:m=>[[4,'merged'],['5.7','GB']]},
+  {id:'disk',name:'Disk',c:'#F2B544',mode:2,vals:['daily','weekly','monthly'],v:1,
+   rule:['Not watching caches.','Shows caches and build output safe to clean, {v}.','Moves safe clutter to the Trash, {v}.'],
+   sees:function(){return [['30','GB safe to clean'],['',NEXT[this.vals[this.v]]]]}},
+  {id:'awake',name:'Keep Awake',c:'#B18CFF',mode:2,vals:['10 %','20 %','30 %','never'],v:1,
+   rule:['The Mac sleeps as usual.','Asks when an agent starts working.','Keeps the Mac awake while agents work. Ends at battery {v}.'],
+   sees:m=>[[4,'agents working now']]}
+];
+let cur='apps';
+const R=36, C=2*Math.PI*R;
+const frac=m=>[0,.5,1][m];
+
+function ringHTML(s){
+  return `<button class="ring${s.id===cur?' cur':''}" id="ring-${s.id}" data-id="${s.id}" data-m="${s.mode}" style="--c:${s.c}" aria-label="${s.name}: ${MODES[s.mode]}. Click to change.">
+    <span class="dial">
+      <span class="disc"></span>
+      <svg class="arc" viewBox="0 0 84 84" width="84" height="84" aria-hidden="true">
+        <circle class="tr" cx="42" cy="42" r="${R}"/>
+        <circle class="ar" cx="42" cy="42" r="${R}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-frac(s.mode))}" style="opacity:${s.mode?1:0}"/>
+      </svg>
+      <span class="gl">${gl(s.id,26)}</span>
+    </span>
+    <span class="nm">${s.name}</span>
+    <span class="md">${MODES[s.mode]}</span>
+  </button>`;
+}
+function ruleHTML(s){
+  return s.rule[s.mode].replace('{v}',`<span class="val" role="button" tabindex="0" data-v="${s.id}" title="Click to change">${s.vals[s.v]}</span>`);
+}
+function seesHTML(s){
+  if(!s.mode) return `<span class="hint">Click the ring once to Ask, twice for Auto</span>`;
+  return s.sees.call(s,s.mode).map(([n,u])=>`<span class="it">${n!==''?`<span class="n">${n}</span>`:''}<span class="u">${u}</span></span>`).join('');
+}
+function capHTML(s){
+  return `<div class="eye${s.mode?'':' off'}" style="--c:${s.c}"><span class="dot"></span><span>${s.name}</span><span class="mw">${MODES[s.mode]}</span></div>
+  <div class="rule" style="--c:${s.c}">${ruleHTML(s)}</div>
+  <div class="sees">${seesHTML(s)}</div>`;
+}
+let capT;
+function showCap(id,animate=true){
+  const el=document.getElementById('cap'), s=S.find(x=>x.id===id);
+  if(!animate){ el.innerHTML=capHTML(s); return }
+  el.classList.add('out'); clearTimeout(capT);
+  capT=setTimeout(()=>{ el.innerHTML=capHTML(s); el.classList.remove('out'); }, matchMedia('(prefers-reduced-motion:reduce)').matches?0:150);
+}
+function setCur(id){
+  if(cur===id) return;
+  document.getElementById('ring-'+cur).classList.remove('cur');
+  cur=id; document.getElementById('ring-'+id).classList.add('cur');
+  showCap(id);
+}
+function step(id){
+  const s=S.find(x=>x.id===id); s.mode=(s.mode+1)%3;
+  const r=document.getElementById('ring-'+id);
+  r.dataset.m=s.mode;
+  r.setAttribute('aria-label',`${s.name}: ${MODES[s.mode]}. Click to change.`);
+  const ar=r.querySelector('.ar');
+  ar.style.strokeDashoffset=C*(1-frac(s.mode));
+  ar.style.opacity=s.mode?1:0;
+  r.querySelector('.md').textContent=MODES[s.mode];
+  if(cur!==id){ setCur(id) } else showCap(id,false);
+  renderIcons();
+}
+function renderToday(){
+  const t=document.getElementById('today');
+  t.innerHTML = undone
+    ? `<span class="lbl">Today</span><span>Reopened <b>2 apps</b> and restarted <b>3 servers</b></span><button class="undo" id="redo">Redo</button>`
+    : `<span class="lbl">Today</span><span>Closed <b>2 apps</b>, stopped <b>3 servers</b></span><button class="undo" id="undo">Undo</button>`;
+}
+function renderIcons(){
+  const one=document.getElementById('one').getAttribute('aria-checked')==='true';
+  const box=document.getElementById('icons');
+  if(!box.children.length) box.innerHTML=S.map(s=>`<span class="mi" id="mi-${s.id}">${gl(s.id,16,'#fff')}</span>`).join('')+`<span class="mi off" id="mi-one">${gl('one',16,'#fff')}</span>`;
+  S.forEach(s=>document.getElementById('mi-'+s.id).classList.toggle('off',one||s.mode===0));
+  document.getElementById('mi-one').classList.toggle('off',!one);
+}
+function bumpVal(id){
+  const s=S.find(x=>x.id===id); s.v=(s.v+1)%s.vals.length;
+  showCap(id,false);
+  const v=document.querySelector('#cap .val'); v&&v.classList.add('bump');
+}
+document.getElementById('rings').innerHTML=S.map(ringHTML).join('');
+renderToday(); renderIcons(); showCap(cur,false);
+
+document.addEventListener('click',e=>{
+  const r=e.target.closest('.ring'); if(r){ step(r.dataset.id); return }
+  const v=e.target.closest('.val'); if(v){ bumpVal(v.dataset.v); return }
+  if(e.target.closest('#undo')||e.target.closest('#redo')){ undone=!undone; renderToday(); showCap(cur,false); return }
+  const sw=e.target.closest('.sw'); if(sw){ sw.setAttribute('aria-checked',String(sw.getAttribute('aria-checked')!=='true')); renderIcons(); }
+});
+document.addEventListener('keydown',e=>{
+  const v=e.target.closest&&e.target.closest('.val');
+  if(v&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); bumpVal(v.dataset.v); }
+  const r=e.target.closest&&e.target.closest('.ring');
+  if(r&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){
+    const i=S.findIndex(s=>s.id===r.dataset.id), j=(i+(e.key==='ArrowRight'?1:4))%5;
+    document.getElementById('ring-'+S[j].id).focus();
+  }
+});
+document.getElementById('rings').addEventListener('mouseover',e=>{const r=e.target.closest('.ring'); if(r) setCur(r.dataset.id)});
+document.getElementById('rings').addEventListener('focusin',e=>{const r=e.target.closest('.ring'); if(r) setCur(r.dataset.id)});
+
+function fit(){const st=document.getElementById('stage'),k=Math.min(innerWidth/1280,innerHeight/800);st.style.transform=`translate(${(innerWidth-1280*k)/2}px,${(innerHeight-800*k)/2}px) scale(${k})`}
+addEventListener('resize',fit); fit();
+</script>
+</body>
+</html>
