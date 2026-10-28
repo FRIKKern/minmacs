@@ -53,7 +53,7 @@
   - Each card shows what its rule did today, from the undo records, with an Undo for each record.
   - The two Performance columns are panels that reach the bottom of the sheet.
   - Close apps on Auto now quits the close list when pressure reaches its value. It never trims tabs, as MinMacs's
-    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names Insomnia's battery guards.
+    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names MinMacs' battery guards.
 -->
 <style>
 :root{
@@ -2124,13 +2124,13 @@ function bNet(lv){
   }
   const wk=working().length,lh=live(SRV).filter(s=>srvState(s)!=='idle').length;
   if(lv==='s')return `<div class="pl1"><b>Offline</b> since ${hhmm(NET.since)}</div><div class="pl2">Localhost still works</div>`;
-  const R=[['Keep Awake',lid?'paused, Insomnia stops off Wi-Fi':'off already'],['Remote checks','wait, WorkForest checks again when back'],['Agents',`${cnt(wk,'agent')} working, they may stall`],['Localhost',`${cnt(lh,'server')} still serve the browsers`]];
+  const R=[['Keep Awake',lid?'paused, MinMacs stops off Wi-Fi':'off already'],['Remote checks','wait, MinMacs checks again when back'],['Agents',`${cnt(wk,'agent')} working, they may stall`],['Localhost',`${cnt(lh,'server')} still serve the browsers`]];
   return `<div class="ofl">No route out since ${hhmm(NET.since)}. Localhost still works.</div><div style="margin-top:8px">${R.map(([a,b],i)=>`<div class="tr2 orow" data-k="of-${i}"><span class="n">${a}</span><span class="w">${b}</span></div>`).join('')}</div><div class="pf"><span class="cap">Back online, each resumes</span><button class="ab pri" data-act2="netset" style="--c:#C7C9D6">Open Network Settings…</button></div>`;
 }
 function bKeep(lv){
   const n=working().length,xs=lv==='xs';
   const t1=xs?'Keep Awake':'Keep working with the lid closed';
-  const t2=!online()&&lid?'<b>Paused</b> while offline.':lid?(xs?`Lid can close. ${cnt(n,'agent')} ${n===1?'works':'work'}.`:`Insomnia keeps the Mac awake while ${cnt(n,'agent')} ${n===1?'works':'work'}. On battery it stops at 20 %, off Wi-Fi or when hot.`):(xs?'Closing the lid sleeps the Mac.':`Closing the lid sleeps the Mac, and ${cnt(n,'working agent')} ${n===1?'pauses':'pause'} with it.`);
+  const t2=!online()&&lid?'<b>Paused</b> while offline.':lid?(xs?`Lid can close. ${cnt(n,'agent')} ${n===1?'works':'work'}.`:`MinMacs keeps the Mac awake while ${cnt(n,'agent')} ${n===1?'works':'work'}. On battery it stops at 20 %, off Wi-Fi or when hot.`):(xs?'Closing the lid sleeps the Mac.':`Closing the lid sleeps the Mac, and ${cnt(n,'working agent')} ${n===1?'pauses':'pause'} with it.`);
   return `<button class="kpb" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span style="min-width:0"><span class="t1">${t1}</span><span class="t2">${nb(t2)}</span></span></button>`;
 }
 function pBody(k,lv,W,cw){
@@ -2302,7 +2302,7 @@ function fSet(){
     <div class="st-r">
       <div class="scard">
         <span class="cap">This Mac</span>
-        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">Insomnia keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
+        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">MinMacs keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
         <button class="tog" role="switch" aria-checked="${one}" data-sw="one" style="margin-top:6px"><span>One icon in the menu bar</span><i class="sw"></i></button>
         <span class="tg2">${one?`Off gives ${and(icons)} an icon each.`:`${and(icons)} each have an icon now.`}</span>
         <button class="tog" role="switch" aria-checked="${login}" data-sw="login"><span>Open at login</span><i class="sw"></i></button>

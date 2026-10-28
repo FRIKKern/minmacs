@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-129 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+141 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -29,6 +29,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 59 | Faithful map as a bento grid | 58-a with tiles sized by what each workstream holds, and in 59-b also by what it needs from you |
 | 60 | Room to breathe | 59-b with padding, gaps and label room set as rules, leftovers as one line under the grid, and either a bigger sheet or fewer full tiles |
 | 70–75 | Performance as the Mac's panel | 60-a kept, its Performance tab made "a very improved version of" 01-a: one live insight line, CPU and memory, apps by fate, storage with the leftovers, network and servers. Each page lists in the manifest the facts it uses that the code does not have yet |
+| 76–81 | Lift the Advanced tabs | 71-a kept, its Agents, Servers, Worktrees and Disk tabs brought to its Performance tab's level, and "utilize the space better": no flat full-width rows, no scroll when the items fit in columns. Six layouts: 71-a's own, list and detail, one big graph, columns by fate, workstream blocks, ftop tiles |
 
 ## Direction so far
 
@@ -38,6 +39,6 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 - Keep Awake is one checkbox, "Keep working with the lid closed", with a short note on when it stops.
 - Every graph says in words what it means. Every button says exactly what it does. Off, Ask and Auto are explained where you choose them.
 - The UI is live: numbers tick and agents come and go.
-- Favorites so far: 41-b Corner Drawer Spotlight, 18-b Hanging Sheet, 20-a Live Index, 09-a Workstream Cards, 03-b One Icon ftop Lines.
+- Favorites so far: 71-a Worth Doing First, 60-a A bigger sheet, 41-b Corner Drawer Spotlight, 18-b Hanging Sheet, 20-a Live Index, 09-a Workstream Cards, 03-b One Icon ftop Lines.
 
 These are design explorations. They break [DESIGN.md](../../DESIGN.md) in places on purpose, most of all its rule that the menu is a native NSMenu, and the rules there change only by decision.

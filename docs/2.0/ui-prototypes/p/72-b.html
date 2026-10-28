@@ -58,7 +58,7 @@
   - Each card shows what its rule did today, from the undo records, with an Undo for each record.
   - The two Performance columns are panels that reach the bottom of the sheet.
   - Close apps on Auto now quits the close list when pressure reaches its value. It never trims tabs, as MinMacs's
-    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names Insomnia's battery guards.
+    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names MinMacs' battery guards.
 -->
 <style>
 :root{
@@ -2369,7 +2369,7 @@ function fSet(){
     <div class="st-r">
       <div class="scard">
         <span class="cap">This Mac</span>
-        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">Insomnia keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
+        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">MinMacs keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
         <button class="tog" role="switch" aria-checked="${one}" data-sw="one" style="margin-top:6px"><span>One icon in the menu bar</span><i class="sw"></i></button>
         <span class="tg2">${one?`Off gives ${and(icons)} an icon each.`:`${and(icons)} each have an icon now.`}</span>
         <button class="tog" role="switch" aria-checked="${login}" data-sw="login"><span>Open at login</span><i class="sw"></i></button>

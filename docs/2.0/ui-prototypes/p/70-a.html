@@ -15,11 +15,11 @@
   - Under it an even 3 x 2 grid of 318 x 270 blocks with 14 px gaps: CPU and memory, Apps, Agents on the top row;
     Storage and leftovers, Servers, Network under them. Each block has a badge (a ring with its glyph), one big number,
     four to six rows and one action at its foot. The reading path is left to right, top to bottom, the 01-a order.
-  - Keep Awake is one checkbox in a 40 px line under the grid, with Insomnia's guards as its note.
+  - Keep Awake is one checkbox in a 40 px line under the grid, with MinMacs' guards as its note.
   - CPU and memory: the colored end of each bar is exactly what MinMacs Now frees. Pressure and heat in words.
   - Storage: disk used and free, then the reclaimable part by kind, each with its owner and whether it is gone, and
     Clean Up Leftovers, whose preview splits what goes to the Trash from what a tool's own command cleans.
-  - Network: online state, the servers with connections now and the apps connected, and what Insomnia pauses offline.
+  - Network: online state, the servers with connections now and the apps connected, and what MinMacs pauses offline.
     The download and upload totals are proposed (interface counters) and carry a "new" tag.
 
   Changes outside the Performance tab, because this change needs them:
@@ -63,7 +63,7 @@
   - Each card shows what its rule did today, from the undo records, with an Undo for each record.
   - The two Performance columns are panels that reach the bottom of the sheet.
   - Close apps on Auto now quits the close list when pressure reaches its value. It never trims tabs, as MinMacs's
-    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names Insomnia's battery guards.
+    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names MinMacs' battery guards.
 -->
 <style>
 :root{
@@ -906,7 +906,7 @@ b{font-weight:500;color:var(--tx)}
         <li>A line holds for 7 s, and a new one must score 30 % more. Offline always wins.</li>
         <li>The block the line names gets a ring in its color. Every block keeps its place.</li>
         <li>Clean Up shows first what goes to the Trash and what a tool's own command cleans. Undo brings back the Trash part.</li>
-        <li>Network shows only what LocoHost and the default route know. Bytes per app are not known, so no row shows them.</li>
+        <li>Network shows only what MinMacs and the default route know. Bytes per app are not known, so no row shows them.</li>
         <li>Wi-Fi drops for 2 sim minutes every 13, so the offline state shows.</li>
       </ul>
     </div>
@@ -1943,7 +1943,7 @@ function cleanedGB(){
   return g;
 }
 const diskUsed=()=>812+DGROW-cleanedGB();
-/* the reclaimable part, by kind. how: trash (Noo-Noo or WorkForest moves it to the Trash), tool (the owner's own
+/* the reclaimable part, by kind. how: trash (MinMacs moves it to the Trash), tool (the owner's own
    command cleans it), report (shown only), stay (blocked) */
 function storItems(){
   const out=[];
@@ -2032,7 +2032,7 @@ function pickInsight(){
 const pbtn=(k,label,tail,pri)=>{const a=SA[k],on=a.on();return `<button class="btn${pri?' pri':''}" data-sa="${k}" style="--c:${C[a.c]}" ${on?'':'disabled'}><span class="bl">${on?label:'Nothing to do'}</span>${on&&tail?`<span class="tl">${nb(tail)}</span>`:''}</button>`};
 function insightHTML(t){
   let lead,tail,btn='',c=t.k==='calm'?'rgba(235,235,245,.5)':B[t.b].c;
-  if(t.k==='net'){lead=`The Mac has been offline for ${coarse(T-NET.since)}.`;tail='Servers still answer on localhost. On battery, Insomnia lets a lid-closed Mac sleep after 15 min offline.';btn=`<button class="btn pri" data-pf="wifi" style="--c:${c}">Open Wi-Fi Settings…</button>`}
+  if(t.k==='net'){lead=`The Mac has been offline for ${coarse(T-NET.since)}.`;tail='Servers still answer on localhost. On battery, MinMacs lets a lid-closed Mac sleep after 15 min offline.';btn=`<button class="btn pri" data-pf="wifi" style="--c:${c}">Open Wi-Fi Settings…</button>`}
   else if(t.k==='disk'){const top=storItems().filter(i=>i.ids.length).sort((a,b)=>b.gbGo-a.gbGo)[0];lead=`Leftovers hold ${fmt(cleanGB())} of disk that nothing needs.`;tail=`${top.kind} is ${fmt(top.gbGo)} of it: ${top.who.charAt(0).toLowerCase()+top.who.slice(1)}.`;btn=pbtn('clean','Clean Up Leftovers',fmt(cleanGB())+' disk',1)}
   else if(t.k==='mem'){const ch=APPS.find(a=>a.id==='chrome'),q=closeApps();lead=noiseN()?`Chrome holds ${fmt(appMem(ch))}, ${noiseN()} of its tabs are noise.`:`${and(q.map(a=>a.n))} ${q.length>1?'are':'is'} on your close list.`;tail=`MinMacs Now frees ${fmt(nowFrees())} memory${noiseN()&&q.length?', and quits '+and(q.map(a=>a.n)):''}. Memory pressure ${PW[pressure()]}.`;btn=pbtn('now',nowLabel(),fmt(nowFrees())+' memory',1)}
   else if(t.k==='srv'){const i=idleSrv().slice().sort((a,b)=>idleOf(b)-idleOf(a)),x=i[0];lead=`${cnt(i.length,'server')} ${i.length===1?'sits':'sit'} idle and hold${i.length===1?'s':''} ${mb(sum(i,s=>s.mem))} memory.`;tail=`:${x.p} ${x.fw} has had no new connection for ${dur(idleOf(x))}${x.ws?'':', and no workstream holds it'}.`;btn=pbtn('idle',`Stop ${cnt(i.length,'Idle Server')}`,mb(sum(i,s=>s.mem))+' memory',1)}
@@ -2142,7 +2142,7 @@ const connRow=(x,sz)=>prow({k:'nc-'+x.id,mk:'fill',mc:C.servers,a:`:${x.p} ${x.f
 function bNet(sz,r){
   const on=NET.on,S_=connSrv(),tc=sum(S_,x=>x.conns);
   const h=bh('net',on?1:0,on?'Online':'Offline',on?'over '+NET.kind:'for '+coarse(T-NET.since),on?cnt(tc,'connection'):'Wi-Fi dropped',on?'':C.ws);
-  const note=`<div class="pnote">${on?'<b>If it goes offline,</b> servers still answer on localhost. On battery, Insomnia lets a lid-closed Mac sleep after 15 min offline.':`<b>Insomnia's offline clock</b> started at ${hhmm(NET.since)}. It counts only on battery, so on the power adapter the Mac stays awake.`}</div>`;
+  const note=`<div class="pnote">${on?'<b>If it goes offline,</b> servers still answer on localhost. On battery, MinMacs lets a lid-closed Mac sleep after 15 min offline.':`<b>MinMacs' offline clock</b> started at ${hhmm(NET.since)}. It counts only on battery, so on the power adapter the Mac stays awake.`}</div>`;
   const act=`<div class="pa">${on?`<button class="btn" data-pf="conns"><span class="bl">Show Connections</span><span class="tl">${tc} now</span></button>`:`<button class="btn pri" data-pf="wifi" style="--c:${C.net}"><span class="bl">Open Wi-Fi Settings…</span></button>`}</div>`;
   const n=sz==='S'?(on?2:1):sz==='M'?3:6,show=S_.slice(0,sz==='S'||S_.length<=n?n:n-1),rest=sz==='S'?[]:S_.slice(show.length);
   const rows=`<div class="prs"${sz==='S'?' style="margin-top:8px"':''}>${show.map(x=>connRow(x,sz)).join('')}${more('nc-more',rest.length,vu(sum(rest,x=>x.conns)+' now'))}</div>`;
@@ -2173,7 +2173,7 @@ function blockHTML(r,on){
 }
 function pfoot(){
   const w=working().length;
-  return `<div class="pfoot"><button class="kaw" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span>Keep working with the lid closed</span></button><span class="pfn">${lid?`Insomnia keeps the Mac awake while ${cnt(w,'agent')} ${w===1?'works':'work'}. On battery it stops at 20 %, 15 min offline or when hot.`:'Closing the lid sleeps the Mac, and the agents pause with it.'}</span><span class="pfw">On power · 84 %</span></div>`;
+  return `<div class="pfoot"><button class="kaw" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span>Keep working with the lid closed</span></button><span class="pfn">${lid?`MinMacs keeps the Mac awake while ${cnt(w,'agent')} ${w===1?'works':'work'}. On battery it stops at 20 %, 15 min offline or when hot.`:'Closing the lid sleeps the Mac, and the agents pause with it.'}</span><span class="pfw">On power · 84 %</span></div>`;
 }
 function fPerf(){
   const t=pickInsight(),focus=t.k==='calm'?(VAR==='b'?(INS.lastB||'cpu'):null):t.b;
@@ -2187,7 +2187,7 @@ let NOPEN=false;
 function ncardHTML(){
   const L=connSrv();
   return `<div class="lh"><b>Connections now</b><span class="cap">${sum(L,x=>x.conns)} on ${cnt(L.length,'server')}</span></div>
-    <div class="lsub">LocoHost reads each server's connections and the apps connected now from the socket table, every 5 s. Bytes per app are not known, so no row shows them.</div>
+    <div class="lsub">MinMacs reads each server's connections and the apps connected now from the socket table, every 5 s. Bytes per app are not known, so no row shows them.</div>
     <div class="lsc">${L.map(x=>prow({k:'ncr-'+x.id,mk:'fill',mc:C.servers,a:`:${x.p} ${x.fw}`,x:`${x.ws?byId[x.ws].n:x.prot?'protected':'no workstream'} · ${clientsW(x)||'no app named'}`,v:vu(x.conns+' now')})).join('')}</div>`;
 }
 function openN(btn){NOPEN=true;const c=$('ncard');put(c,ncardHTML());const r=rel(btn);c.style.left=Math.max(12,Math.min(SW-482,r.x+r.w-470))+'px';const h=c.offsetHeight||300;c.style.top=Math.max(12,r.y-h-8)+'px';c.classList.add('show')}

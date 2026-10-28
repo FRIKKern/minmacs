@@ -12,7 +12,7 @@
   - Left, the focal point: a small live diagram of the network. The Internet and the route out on the left, this
     Mac in the middle, the local servers with connections on the right as pills, and the apps connected to them
     beyond. Dots run along the route at a rate that follows the live total (proposed), and a dot runs from an app
-    to its server for each new connection in a sample, the fact LocoHost has. Under it, what changes offline and
+    to its server for each new connection in a sample, the fact MinMacs has. Under it, what changes offline and
     the Keep Awake check. Below the diagram, apps by fate in two columns.
   - Right, the meters stacked (CPU and memory, the blue end is what MinMacs Now frees) and Storage with the
     leftovers by kind and Clean Up Leftovers.
@@ -52,7 +52,7 @@
   - Each card shows what its rule did today, from the undo records, with an Undo for each record.
   - The two Performance columns are panels that reach the bottom of the sheet.
   - Close apps on Auto now quits the close list when pressure reaches its value. It never trims tabs, as MinMacs's
-    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names Insomnia's battery guards.
+    README says, so Chrome's noise tabs stay with MinMacs Now. The lid note names MinMacs' battery guards.
 -->
 <style>
 :root{
@@ -916,7 +916,7 @@ b{font-weight:500;color:var(--tx)}
       <div class="scn-h">This Mac</div>
       <div><div class="scnseg" role="radiogroup" aria-label="Network"><button role="radio" data-net="on" aria-checked="true">Online</button><button role="radio" data-net="off" aria-checked="false">Offline</button></div></div>
       <div><div class="scnseg" role="radiogroup" aria-label="Power"><button role="radio" data-pwr="bat" aria-checked="true">Battery</button><button role="radio" data-pwr="ac" aria-checked="false">Charger</button></div></div>
-      <div class="cap2">Go offline to see the route, the live total and the offline notes change. Insomnia's guard counts down on battery only.</div>
+      <div class="cap2">Go offline to see the route, the live total and the offline notes change. MinMacs' guard counts down on battery only.</div>
     </div>
     <div class="scn-g" id="scng">
       <div class="t">What the grid gives up at Peak</div>
@@ -937,7 +937,7 @@ b{font-weight:500;color:var(--tx)}
         <li>Online, from MMPower's default route. The route's kind, Wi-Fi, Ethernet or tethering, is in the same sysctl, but MMPower keeps only online<span class="tagn pr">proposed</span></li>
         <li>The live total down and up, from the interface counters<span class="tagn pr">proposed</span> Bytes per app are not known, so nothing draws them.</li>
         <li>Each server's connections now and the apps connected, from MMLHHost clients. Memory, idle state and its workstream.</li>
-        <li>Offline time from Insomnia's offlineAt. On battery its guard stops Keep Awake after 15 min offline.</li>
+        <li>Offline time from MinMacs' offlineAt. On battery its guard stops Keep Awake after 15 min offline.</li>
         <li>Model reviews wait while offline, rules still act<span class="tagn pr">proposed</span></li>
         <li>Heat from the thermal state, pressure from memoryPressure, free disk from diskFree.</li>
         <li>Leftovers from MMClutter by kind, disk sizes with clones counted once, each with its owner and whether it is gone. A tool's own command has no Undo.</li>
@@ -1949,7 +1949,7 @@ function syncHelpers(){const a=APPS.find(x=>x.id==='cft');if(!a)return;const h=l
 /* ---------- 73: the Mac's facts that Performance adds ----------
    MMPower.online says a default route exists. The route's kind and the live total down and up are proposed:
    MMPower keeps only the BOOL, and the total would come from the interface counters, which are cheap. Per-app
-   bytes are not known, so nothing draws them. Insomnia's offlineAt and its 15 min offline guard are real. */
+   bytes are not known, so nothing draws them. MinMacs' offlineAt and its 15 min offline guard are real. */
 const NET={online:true,route:'Wi-Fi',offAt:0,dn:[],up:[],d:1.4,u:.12};
 const PWR={ac:false};
 const DISK_T=994,DISK_U=812,OFFMIN=15,THERM='Nominal';
@@ -2317,7 +2317,7 @@ function fSet(){
     <div class="st-r">
       <div class="scard">
         <span class="cap">This Mac</span>
-        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">Insomnia keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
+        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">MinMacs keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
         <button class="tog" role="switch" aria-checked="${one}" data-sw="one" style="margin-top:6px"><span>One icon in the menu bar</span><i class="sw"></i></button>
         <span class="tg2">${one?`Off gives ${and(icons)} an icon each.`:`${and(icons)} each have an icon now.`}</span>
         <button class="tog" role="switch" aria-checked="${login}" data-sw="login"><span>Open at login</span><i class="sw"></i></button>

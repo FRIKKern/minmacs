@@ -2056,7 +2056,7 @@ function srvR(s){
 }
 const srvSorted=()=>live(SRV).slice().sort((a,b)=>({active:0,prot:1,recent:2,idle:3}[srvSt(a)]-{active:0,prot:1,recent:2,idle:3}[srvSt(b)])||b.mem-a.mem||a.p-b.p);
 function offLine(){
-  if(!NET.on)return lid?`Offline ${coarse(offMin())}. On battery, Insomnia stops holding the lid after 15 min offline${15-offMin()>0?', in '+coarse(15-offMin()):', now'}. Nothing else pauses.`:`Offline ${coarse(offMin())}. Lid mode is off, so nothing pauses.`;
+  if(!NET.on)return lid?`Offline ${coarse(offMin())}. On battery, MinMacs stops holding the lid after 15 min offline${15-offMin()>0?', in '+coarse(15-offMin()):', now'}. Nothing else pauses.`:`Offline ${coarse(offMin())}. Lid mode is off, so nothing pauses.`;
   return `If the network drops, only the lid hold pauses, after 15 min on battery.`;
 }
 const lidBox=()=>`<button class="lid l71" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">Stops at 20 % battery, 15 min offline, or when hot.${lid?' Battery '+BAT()+' %.':''}</span></span></button>`;
@@ -2280,7 +2280,7 @@ function fSet(){
     <div class="st-r">
       <div class="scard">
         <span class="cap">This Mac</span>
-        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">Insomnia keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
+        <button class="lid" role="checkbox" aria-checked="${lid}" data-lid="1"><span class="cb">${CHECK}</span><span><span class="ln1">Keep working with the lid closed</span><span class="ln2" style="display:block">MinMacs keeps the Mac awake while ${lid?cnt(working().length,'agent')+(working().length===1?' works':' work'):'agents work'}.</span><span class="ln3" style="display:block">${lid?'On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.':'Closing the lid sleeps the Mac.'}</span></span></button>
         <button class="tog" role="switch" aria-checked="${one}" data-sw="one" style="margin-top:6px"><span>One icon in the menu bar</span><i class="sw"></i></button>
         <span class="tg2">${one?`Off gives ${and(icons)} an icon each.`:`${and(icons)} each have an icon now.`}</span>
         <button class="tog" role="switch" aria-checked="${login}" data-sw="login"><span>Open at login</span><i class="sw"></i></button>
