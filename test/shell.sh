@@ -207,7 +207,8 @@ check "no row declares a signal the detectors ignore" none "$sh_unread"
 echo "  -- menus drawn from specs"
 BUILD_DIR="$sh_dir/render-build" tools/render.sh "$sh_dir/render" >"$sh_dir/render.log" 2>&1
 check "the render tool draws the shell's subjects" 0 "$?"
-check "every shell PNG is there, in four appearances" 36 "$(ls "$sh_dir/render/shell/"*.png 2>/dev/null | wc -l | tr -d ' ')"
+# Eleven PNGs in each appearance, with the menu whose cards build on hover and the card whose finding went away, issue #53.
+check "every shell PNG is there, in four appearances" 44 "$(ls "$sh_dir/render/shell/"*.png 2>/dev/null | wc -l | tr -d ' ')"
 check "the shell's DESIGN.md checks all pass" 0 "$(grep '^FAIL' "$sh_dir/render/checks.txt" 2>/dev/null | grep -c 'shell')"
 check "the shell's checks ran" yes "$([ "$(grep -c 'shell' "$sh_dir/render/checks.txt" 2>/dev/null)" -ge 15 ] && echo yes || echo no)"
 export MINMACS_HOME="$sh_top"

@@ -11,6 +11,8 @@
 
 /// The card spec for a row's finding, or nil when the row has no card.
 typedef MMCardSpec *(^MMCardProvider)(NSString *findingID);
+/// YES when a row's finding has a card, said without building it, so the menu can give the row its submenu arrow.
+typedef BOOL (^MMCardCheck)(NSString *findingID);
 
 /// An action spec as a menu item: dimmed with its reason when it cannot run, else one that calls its block.
 NSMenuItem *MMItemFromAction(MMActionSpec *action);
@@ -23,12 +25,25 @@ MMCard *MMCardFromSpec(MMCardSpec *spec);
 /// An expert's main menu: the header, the summary, an optional notice line, at most two actions, the sections
 /// with a card under each row that has one, the More item and the footer. footerTarget gets hideIcon: and showSettings:.
 NSMenu *MMMenuFromSpec(MMMenuSpec *spec, MMCardProvider cards, NSString *notice, id footerTarget);
+/// The same menu, item for item, with each card built only when its row's submenu opens, on hover or from the
+/// keyboard. has says which rows get a card, and cards runs on main when the submenu opens. Issue #53: the menu opens
+/// without building a card, so its time no longer grows with the rows. The app's menus use this one.
+NSMenu *MMMenuFromSpecOnHover(MMMenuSpec *spec, MMCardCheck has, MMCardProvider cards, NSString *notice, id footerTarget);
+/// Builds every card this menu and its submenus still wait for, as hovering each row would. For the render tool,
+/// the render checks and the tests, so they see the cards the person sees. MMRenderMenu and MMMenuProblems call it.
+void MMLoadCards(NSMenu *menu);
+/// YES when this submenu is a card that waits for its first hover.
+BOOL MMCardWaits(NSMenu *submenu);
+/// How many cards a hover has built in this process, for the checks that a menu opens with none built.
+NSUInteger MMCardsBuiltOnHover(void);
 
 /// One expert as the One Icon menu shows it, DESIGN.md menu bar rule 4.
 @interface MMOneIconPart : NSObject
 @property (copy) NSString *name;
 @property (strong) MMMenuSpec *spec;
 @property (copy) MMCardProvider cards;
+/// Set by the app: the cards are then built on hover, as in MMMenuFromSpecOnHover. nil builds them with the menu.
+@property (copy) MMCardCheck has;
 @end
 
 /// The rows each expert shows in the One Icon menu, so five experts still fit one screen.

@@ -11,7 +11,11 @@
     {"key": "cardHoverP95Ms", "max": 16, "ceiling": 32, "unit": "ms", "what": "card hover at p95, worst expert"},
     {"key": "warmScan300Seconds", "max": 2, "unit": "s", "what": "warm scan of 300 worktrees", "measured": false,
      "why": "WorkForest is not merged yet, so there is no scan to time"},
-    {"key": "iconsAfterLaunchMs", "max": 300, "unit": "ms", "what": "icons after launch", "measured": false,
-     "why": "the bench runs without status items and never launches the app"}
+    {"key": "iconsAfterLaunchMs", "max": 300, "ceiling": 300, "unit": "ms", "what": "icons after launch, headless", "input": "startup",
+     "from": "bench startup: MMMain's start to every item made, without the status bar's own cost, the slower of a first and a later launch"},
+    {"key": "summariesAfterLaunchMs", "max": 5000, "ceiling": 5000, "unit": "ms", "what": "every summary after launch, headless", "input": "startup",
+     "from": "bench startup: MMMain's start to the first summary line of every expert"},
+    {"key": "mainStalls", "max": 0, "ceiling": 0, "unit": "stalls", "what": "main-thread stalls over 50 ms in menu opens and card hovers", "input": "hangs",
+     "from": "bench hangs: every expert's menu and cards under the watchdog, with Core running"}
   ]
 }

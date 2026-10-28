@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The regression gate: reads an idle and a menus result from tools/bench/bench and checks them against budgets.json.
 
-Usage: gate.py [--strict] budgets.json idle.json menus.json
+Usage: gate.py [--strict] budgets.json idle.json menus.json [startup.json ...] [hangs.json]
+A startup or hangs result is known by its kind. A budget whose input is not given is skipped.
 Prints one line per budget, tab separated: a word, the budget's what, the value, the phase 6 budget, the ceiling.
   ok     within the phase 6 budget
   over   over the phase 6 budget and within today's ceiling, which phase 6 tuning is to close
@@ -21,7 +22,7 @@ def tick_cpu(idle):
     return (round(w["passCPUms"]["median"] + w["rebuildCPUms"]["median"], 3), "")
 
 
-def values(idle, menus):
+def values(idle, menus, startups=(), hangs=None):
     """The number each budget key reads. A per-expert budget gives its worst expert."""
     v = {
         "idleCPUPercent": (idle["cpuPercent"], ""),
@@ -39,6 +40,14 @@ def values(idle, menus):
             if p is not None and (worst is None or p > worst[0]):
                 worst = (p, eid)
         v[key] = worst if worst else (None, "")
+    # The slowest of the startup runs given, a first launch and a later one.
+    for key, field in (("iconsAfterLaunchMs", "items"), ("summariesAfterLaunchMs", "summaries")):
+        got = [(r["times"].get(field), "first launch" if r.get("firstLaunch") else "later launch") for r in startups]
+        got = [g for g in got if g[0] is not None]
+        if startups:
+            v[key] = max(got) if len(got) == len(startups) else (None, "")
+    if hangs is not None:
+        v["mainStalls"] = (len(hangs["stalls"]) if hangs.get("finished") else None, "")
     return v
 
 
@@ -49,12 +58,19 @@ def main():
     budgets = json.load(open(args[0]))["budgets"]
     idle = json.load(open(args[1]))
     menus = json.load(open(args[2]))
-    v = values(idle, menus)
+    extra = [json.load(open(a)) for a in args[3:]]
+    startups = [x for x in extra if x.get("kind") == "startup"]
+    hangs = next((x for x in extra if x.get("kind") == "hangs"), None)
+    given = {"startup": bool(startups), "hangs": hangs is not None}
+    v = values(idle, menus, startups, hangs)
     failed = 0
     for b in budgets:
         what = b["what"]
         if b.get("measured", True) is False:
             print("skip\t%s\tnot measured: %s\tbudget %s %s\t-" % (what, b["why"], b["max"], b["unit"]))
+            continue
+        if "input" in b and not given.get(b["input"]):
+            print("skip\t%s\tno %s run given\tbudget %s %s\t-" % (what, b["input"], b["max"], b["unit"]))
             continue
         got, where = v.get(b["key"], (None, ""))
         if got is None:

@@ -1,5 +1,6 @@
 #import "MMRender.h"
 #import "MMMenuKit.h"
+#import "MMSpecMenu.h"
 
 @interface MMRenderFlipped : NSView @end
 @implementation MMRenderFlipped - (BOOL)isFlipped { return YES; } @end
@@ -107,6 +108,7 @@ static NSView *Stack(NSArray<NSMenuItem *> *items, NSMutableArray *cut) {
 }
 
 NSArray<NSString *> *MMRenderMenu(NSMenu *menu, NSString *path, NSAppearance *ap) {
+    MMLoadCards(menu);   // a card built on hover is drawn as the person sees it
     NSMutableArray *cut = [NSMutableArray new];
     BOOL ok = MMRenderView(Stack(menu.itemArray, cut), path, ap);
     // The views were borrowed for the drawing. Taken out again, they belong to their items alone, so the menu still opens.
@@ -134,6 +136,7 @@ static NSString *Visible(NSMenuItem *i) {
 }
 
 NSArray<NSString *> *MMMenuProblems(NSMenu *menu) {
+    MMLoadCards(menu);
     NSMutableArray *p = [NSMutableArray new];
     NSArray<NSMenuItem *> *items = menu.itemArray;
     NSMutableArray *images = [NSMutableArray new], *parens = [NSMutableArray new];

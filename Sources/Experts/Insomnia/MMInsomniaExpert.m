@@ -395,11 +395,18 @@ static NSString *PrefKey(NSString *what) {
 
 #pragma mark Menu
 
+/// Before the first pass: what it would decide, with nothing applied. Made on the graph queue once per snapshot.
+- (id)prepareFor:(MMSnapshot *)s { return self.state ? nil : [self firstLook:s]; }
+
+- (MMINState *)firstLook:(MMSnapshot *)s {
+    return MMINDecide([self inputFor:s.facts], s.facts.power, [MMINPrefs defaults], [MMINClocks new], nil, nil, s.awakeHolds, s, NSDate.date);
+}
+
 - (MMINState *)stateFor:(MMSnapshot *)s {
     MMINState *st = self.state;
     if (st) return st;
-    // Before the first pass: what it would decide, with nothing applied.
-    return MMINDecide([self inputFor:s.facts], s.facts.power, [MMINPrefs defaults], [MMINClocks new], nil, nil, s.awakeHolds, s, NSDate.date);
+    MMINState *p = NSThread.isMainThread ? [s preparedFor:kExpert] : nil;
+    return [p isKindOfClass:MMINState.class] ? p : [self firstLook:s];
 }
 
 - (MMINView *)viewFor:(MMSnapshot *)s {

@@ -182,6 +182,11 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 - (MMReview *)reviewFor:(NSString *)expert;             // the last saved review, nil before the first
 /// P33. The pids Insomnia holds the Mac awake for, as "pid:start" to the reason. A pid that exited is gone.
 @property (readonly) NSDictionary<NSString *, NSString *> *awakeHolds;
+/// What each expert's -prepareFor: made for this snapshot, or nil. Main reads it, so a menu never waits on disk.
+- (id)preparedFor:(NSString *)expert;
+/// Calls -prepareFor: of each expert that has it, once, on the calling queue. The graph queue calls it before it
+/// publishes the snapshot. A test, the bench or the render tool that builds a snapshot by hand calls it off main.
+- (void)prepareFor:(NSArray<id<MMExpert>> *)experts;
 /// Builds one snapshot from facts, on the calling thread. The graph queue calls it on every rebuild.
 /// Pure: the same facts and experts give the same snapshot, owners included. reviews and holds may be nil.
 + (MMSnapshot *)snapshotFrom:(MMFacts *)facts experts:(NSArray<id<MMExpert>> *)experts
