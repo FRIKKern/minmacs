@@ -193,6 +193,8 @@ BOOL MMIconVisible(NSString *expert) { return MMPrefBool(MMIconVisibleKey(expert
 /// Every set: in this process, by any instance, so another instance's cache is checked again at once.
 static _Atomic uint64_t gRulesWrites;
 
+void MMRulesCheckNow(void) { atomic_fetch_add(&gRulesWrites, 1); }
+
 @implementation MMRules {
     MMStateFile *_file;
     NSDictionary *_defaults;

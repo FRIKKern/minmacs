@@ -66,9 +66,12 @@ typedef struct {
 @end
 
 /// Issue #52. What a sample carries over from the one before, for a process with the same pid, start time and name:
-/// its args, its responsible pid and the app lookups below. Its cwd carries over while it used no CPU time,
-/// for at most 30 seconds. Its sockets carry over while it used no CPU time, for at most 60 seconds, since a process
-/// that did not run cannot have opened, accepted or closed a socket. An app launch or quit drops the app lookups.
+/// its args, its responsible pid and the app lookups below. Its cwd carries over to a pass in which it used
+/// no CPU time, and otherwise for 30 seconds from when it was read. Its sockets carry over while it used no CPU time, for at most 60 seconds, since a process
+/// that did not run cannot have opened, accepted or closed a socket. One that ran but holds the same socket fd numbers
+/// has only the fds that were TCP read again, so a TCP socket opened on the number of a closed non-TCP socket is seen
+/// at the next full read, within 60 seconds. An ESTABLISHED socket whose peer closed shows until then too.
+/// An app launch or quit drops the app lookups.
 /// The pass counts what it read and what it carried, for the bench.
 typedef struct {
     uint64_t passes, pids, argsCarried, cwdsCarried, socketPidsScanned, socketPidsCarried;
@@ -78,8 +81,8 @@ typedef struct {
     uint64_t tableNs, procsNs, socketsNs, carryNs, powerNs;
 } MMSensesCounts;
 
-/// One running app as NSWorkspace lists it. The list is read again after an app launches or quits, and at most
-/// once a minute otherwise, so a rebuild never asks LaunchServices about every app. policy is an
+/// One running app as NSWorkspace lists it. The list is read again after an app launches or quits, and
+/// every 5 minutes otherwise, so a rebuild never asks LaunchServices about every app. policy is an
 /// NSApplicationActivationPolicy.
 @interface MMApp : NSObject
 @property (readonly) pid_t pid;

@@ -94,12 +94,19 @@ check "idle: a new transcript is noticed and read" "True True True" "$(ij '"%s %
 check "idle: a line added to a transcript moves its last activity" "True True" "$(ij '"%s %s" % (j["noted2"], j["lastActiveMoved"])')"
 check "idle: a file outside the session folders asks for nothing" "0 True" "$(ij '"%d %s" % (j["otherNotes"], j["noReadWithoutChange"])')"
 check "idle: refreshAll always reads" True "$(ij 'j["refreshAllReads"]')"
+# A missing folder right under the home folder is never watched from the home folder, which would wake the app for
+# every change there. The folder named here is never made; the tool only stats it.
+id_out=$(CLAUDE_CONFIG_DIR="$id_cl" CODEX_HOME="$id_dir/codex" PI_CODING_AGENT_SESSION_DIR="$HOME/.w4idle-missing-$$/sessions" it homewatch "$id_cl")
+check "idle: a missing folder under home is not watched from home" "False 1" "$(ij '"%s %d" % (j["fromHome"], j["unwatched"])')"
+check "idle: the other folders are watched and stay quiet" "yes True" "$(ij '("yes" if j["roots"] >= 1 else j["roots"]) + " " + str(j["quietSkips"])')"
 
 # App lookups are kept, and the log's stamp moves only on a write.
 id_out=$(it apps)
 check "idle: the app list is kept between calls" True "$(ij 'j["sameList"]')"
 check "idle: the owning app and responsible pid are kept in a sample" "True True" "$(ij '"%s %s" % (j["sameOwner"], j["sameResponsible"])')"
 check "idle: and carried to the next sample" "True True" "$(ij '"%s %s" % (j["responsibleCarried"], j["ownerCarried"])')"
+id_out=$(it rules)
+check "idle: an outside rules edit waits out the cache, then an action reads it" "False True False True" "$(ij '"%s %s %s %s" % (j["before"], j["wrote"], j["cached"], j["after"])')"
 id_out=$(it stamp)
 check "idle: the log's stamp moves on a write and holds after" "True True" "$(ij '"%s %s" % (j["moved"], j["steady"])')"
 

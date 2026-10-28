@@ -254,6 +254,8 @@ MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMRevi
         else if (!review) problem = @"kept: no review yet";
         else if (f.proposal.needsForce) problem = @"kept: a mode never makes a second request";
     }
+    // The rules files are read from disk for this check, never from the last second's cache, issue #52.
+    if (!problem) MMRulesCheckNow();
     if (!problem) {
         NSString *r = [action recheck];
         if (r.length) problem = [@"cannot run now: " stringByAppendingString:r];

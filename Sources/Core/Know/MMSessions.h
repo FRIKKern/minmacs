@@ -34,6 +34,8 @@
 /// Reads every folder and database now, for fresh facts.
 - (void)refreshAll;
 /// One FSEvents stream over Claude Code's, Codex's and pi's folders. A change posts MMSessionsDidChangeNotification.
+/// A missing folder is watched from the nearest folder above it, but never from the home folder or above.
+/// Such a folder costs a stat on each refresh, and the watch starts again once it exists.
 - (void)startWatching;
 - (void)stopWatching;
 /// How many refresh calls read the folders, and how many found nothing new and returned at once.

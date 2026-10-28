@@ -45,6 +45,11 @@ extern NSString *const MMOneIconKey;                    // @"core.oneIcon": one 
 - (NSArray *)entries:(NSString *)list;
 @end
 
+/// Issue #52. A rules file is checked at most once a second. After this call the next read of every rules file
+/// checks the file on disk, so an action sees a protect entry another process added a moment ago.
+/// MMRunAction calls it before its fresh check.
+void MMRulesCheckNow(void);
+
 /// P37. One JSON state file, <expert>/<name>.json, shared by the app and the CLI.
 /// Starts from SaveActivity in LH Ports.m:376: flock, read, change, write to a temp file and rename.
 @interface MMStateFile : NSObject

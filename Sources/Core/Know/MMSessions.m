@@ -312,6 +312,8 @@ static const NSTimeInterval kFullReadEvery = 600;    // and every folder is list
     dispatch_queue_t _watchQ;
     NSArray<NSString *> *_watchRoots, *_watchDirs;
     NSMutableSet<NSString *> *_missingDirs;              // watched folders that did not exist when the watch began
+    NSArray<NSString *> *_unwatched;     // under @synchronized (self): missing folders with no folder to watch from
+    BOOL _wantWatch;                     // under @synchronized (self): startWatching ran and stopWatching did not
     _Atomic bool _dirty;
     NSDate *_readAt;                     // under @synchronized (self): when the folders were last read
     NSDictionary<NSNumber *, NSNumber *> *_liveStarts;   // under @synchronized (self): live status file pid to start
@@ -415,8 +417,11 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
 
 - (void)startWatching {
     @synchronized (self) {
+        _wantWatch = YES;
         if (_stream) return;
         NSMutableArray *roots = [NSMutableArray new];
+        NSMutableArray *unwatched = [NSMutableArray new];
+        NSString *home = Plain(NSHomeDirectory().stringByStandardizingPath);
         NSString *claude = ClaudeDir().stringByStandardizingPath;
         NSArray *paths = @[[claude stringByAppendingPathComponent:@"projects"], [claude stringByAppendingPathComponent:@"sessions"],
                            CodexDir().stringByStandardizingPath, PiSessionsDir().stringByStandardizingPath];
@@ -428,8 +433,16 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
             NSString *d = r;
             if (![NSFileManager.defaultManager fileExistsAtPath:d]) [missing addObject:Plain(r)];
             while (d.length > 1 && ![NSFileManager.defaultManager fileExistsAtPath:d]) d = d.stringByDeletingLastPathComponent;
-            if (d.length > 1 && ![roots containsObject:d]) [roots addObject:d];
+            // Never from the home folder or above it: FSEvents would wake this process for every change under it.
+            // Such a folder is checked with a stat on each refresh, and the watch starts again once it exists.
+            NSString *pd = Plain(d);
+            if (d.length <= 1 || [home isEqualToString:pd] || [home hasPrefix:[pd stringByAppendingString:@"/"]]) {
+                [unwatched addObject:Plain(r)];
+                continue;
+            }
+            if (![roots containsObject:d]) [roots addObject:d];
         }
+        _unwatched = [unwatched copy];
         if (!roots.count) return;
         _watchQ = MMQueue(@"core", @"sessions.watch", QOS_CLASS_UTILITY);
         FSEventStreamContext ctx = { .info = (__bridge void *)self };
@@ -445,7 +458,7 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
 
 - (void)stopWatching {
     FSEventStreamRef s;
-    @synchronized (self) { s = _stream; _stream = NULL; _watchRoots = nil; _watchDirs = nil; _missingDirs = nil; }
+    @synchronized (self) { s = _stream; _stream = NULL; _watchRoots = nil; _watchDirs = nil; _missingDirs = nil; _unwatched = nil; _wantWatch = NO; }
     if (!s) return;
     FSEventStreamStop(s);
     FSEventStreamInvalidate(s);
@@ -488,7 +501,21 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
     return [_facts valueFor:path fingerprint:fp orCompute:^NSDictionary *{ return reader(path); } wait:YES];
 }
 
+/// YES when a folder that startWatching could not watch from above now exists, so the watch must start again.
+- (BOOL)unwatchedAppeared {
+    NSArray<NSString *> *unwatched;
+    @synchronized (self) { if (!_wantWatch) return NO; unwatched = _unwatched; }
+    struct stat st;
+    for (NSString *d in unwatched) if (stat(d.fileSystemRepresentation, &st) == 0) return YES;
+    return NO;
+}
+
 - (void)refresh {
+    if ([self unwatchedAppeared]) {
+        [self stopWatching];
+        [self startWatching];
+        @synchronized (self) { _allDirty = YES; }   // the new folder has never been listed
+    }
     if ([self stillFresh]) { @synchronized (self) { _skips++; } return; }
     [self read:NO];
 }

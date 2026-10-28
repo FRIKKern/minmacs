@@ -26,7 +26,10 @@
 #include <net/route.h>
 #include <net/if.h>
 
-static const NSTimeInterval kPassEvery = 5, kPassLeeway = 1;
+static const NSTimeInterval kPassEvery = 5;
+// The timer's leeway is a fifth of the interval: 1 second at 5 seconds, as before issue #52, and in proportion for
+// the backoff and for the short MINMACS_TICK of a test.
+static const double kLeewayShare = 0.2;
 static const NSTimeInterval kPassBudget = 0.25;   // wall time; an overrun skips the next turn
 // Issue #52: the pass backs off on battery and while the person is away from the keyboard and pointer.
 static const NSTimeInterval kAwayAfter = 300;
@@ -725,7 +728,7 @@ static void *kSensesQueueKey = &kSensesQueueKey;
     os_unfair_lock_unlock(&_lock);
     if (moved && _timer)
         dispatch_source_set_timer(_timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(want * NSEC_PER_SEC)),
-                                  (uint64_t)(want * NSEC_PER_SEC), (uint64_t)(MAX(kPassLeeway, want / 5) * NSEC_PER_SEC));
+                                  (uint64_t)(want * NSEC_PER_SEC), (uint64_t)(want * kLeewayShare * NSEC_PER_SEC));
 }
 
 - (MMSample *)latest { os_unfair_lock_lock(&_lock); MMSample *s = _latest; os_unfair_lock_unlock(&_lock); return s; }
@@ -744,7 +747,7 @@ static void *kSensesQueueKey = &kSensesQueueKey;
         self->_started = YES;
         [self startPushedSources];
         __weak MMSenses *weak = self;
-        self->_timer = MMTimer(self->_q, self->_base, MAX(kPassLeeway, self->_base / 5), ^{ [weak scheduledPass]; });
+        self->_timer = MMTimer(self->_q, self->_base, self->_base * kLeewayShare, ^{ [weak scheduledPass]; });
         [self scheduledPass];
     });
     // App, sleep and power state notifications. They arrive on the posting thread, main for NSWorkspace,

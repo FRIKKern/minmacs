@@ -9,6 +9,8 @@
 //   cadence             the timer's gaps at the base interval, then on battery
 //   graph               the facts digest and the findings an expert hands back when its inputs did not change
 //   sessions <dir>      the FSEvents watch over Claude Code's folders in dir, set by CLAUDE_CONFIG_DIR
+//   homewatch <dir>     a missing session folder right under the home folder is not watched from the home folder
+//   rules               a rules file another process wrote is read at once after MMRulesCheckNow
 //   apps                the app list and the owning app, kept between calls
 //   stamp               the log's stamp before and after a write
 #import <Foundation/Foundation.h>
@@ -377,6 +379,40 @@ static int Sessions(NSString *dir) {
     return 0;
 }
 
+/// A missing folder whose nearest existing folder is the home folder is not watched from there.
+/// PI_CODING_AGENT_SESSION_DIR names such a folder, which this never creates.
+static int HomeWatch(NSString *dir) {
+    MMSessions *x = MMSessions.shared;
+    [x startWatching];
+    NSArray<NSString *> *roots = [x valueForKey:@"_watchRoots"], *unwatched = [x valueForKey:@"_unwatched"];
+    NSString *home = NSHomeDirectory().stringByStandardizingPath;
+    BOOL fromHome = NO;
+    for (NSString *r in roots) if ([home isEqualToString:r] || [home hasPrefix:[r stringByAppendingString:@"/"]] || r.length <= 1) fromHome = YES;
+    [x refresh];
+    [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.5]];   // let FSEvents settle
+    NSUInteger r0 = x.readCount, k0 = x.skipCount;
+    [x refresh]; [x refresh];
+    NSUInteger r1 = x.readCount, k1 = x.skipCount;
+    [x stopWatching];
+    Print(@{@"fromHome": @(fromHome), @"roots": @(roots.count), @"unwatched": @(unwatched.count),
+            @"quietSkips": @(r1 == r0 && k1 == k0 + 2)});
+    return 0;
+}
+
+/// A rules file written by another process is seen at once after MMRulesCheckNow, which MMRunAction calls.
+static int RulesNow(void) {
+    MMRules *r = [MMRules rulesFor:@"w4idle" defaults:@{}];
+    BOOL before = [r list:@"protect" key:nil matches:@"/w4idle/kept"];
+    NSString *path = [MMStateFile fileNamed:@"rules" expert:@"w4idle"].path;
+    NSData *d = [NSJSONSerialization dataWithJSONObject:@{@"protect": @[@"/w4idle/kept"]} options:0 error:nil];
+    BOOL wrote = [d writeToFile:path atomically:YES];
+    BOOL cached = [r list:@"protect" key:nil matches:@"/w4idle/kept"];
+    MMRulesCheckNow();
+    BOOL after = [r list:@"protect" key:nil matches:@"/w4idle/kept"];
+    Print(@{@"before": @(before), @"wrote": @(wrote), @"cached": @(cached), @"after": @(after)});
+    return 0;
+}
+
 #pragma mark - Apps and the log
 
 static int Apps(void) {
@@ -409,9 +445,11 @@ int main(int argc, const char *argv[]) {
         if ([cmd isEqualToString:@"cadence"]) return Cadence();
         if ([cmd isEqualToString:@"graph"]) return Graph();
         if ([cmd isEqualToString:@"sessions"] && argc > 2) return Sessions(@(argv[2]));
+        if ([cmd isEqualToString:@"homewatch"] && argc > 2) return HomeWatch(@(argv[2]));
+        if ([cmd isEqualToString:@"rules"]) return RulesNow();
         if ([cmd isEqualToString:@"apps"]) return Apps();
         if ([cmd isEqualToString:@"stamp"]) return Stamp();
-        fprintf(stderr, "usage: idletool carry|exec|without|pace|cadence|graph|sessions|apps|stamp\n");
+        fprintf(stderr, "usage: idletool carry|exec|without|pace|cadence|graph|sessions|homewatch|rules|apps|stamp\n");
         return 2;
     }
 }
