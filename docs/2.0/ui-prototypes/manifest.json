@@ -1408,5 +1408,125 @@
   "surface": "menubar",
   "groupId": "81",
   "direction": "Lift: a grid of ftop tiles, pure ftop"
+ },
+ {
+  "file": "82-a.html",
+  "name": "Ring and Gauges",
+  "idea": "On the left, one large split ring with one slice per item, its big number in the middle and a legend of states beside it. On the right, the focal sentence and its button, then four small round gauges, each with a plain line under it: Agents shows CPU, memory, subagents a minute and where they run; Servers shows memory, connections, new connections a minute and the idle rule's countdown; Worktrees shows disk, dirty, unpushed and the rule's countdown; Disk shows what may go, what fills it, what was written this hour and the Clean up countdown.",
+  "good": "Hover a slice, state or gauge and the list lights what it means. Click it and the list shows only those, with Show all to undo. Hover a row and the hero marks its slice and says its share on each gauge in words. Click the rule's gauge and the detail opens the rule, with Off / Ask / Auto in words, on the item the rule takes next.",
+  "tradeoff": "The 220 px hero leaves about 440 px for the list and detail, so Busy and Peak lists scroll. The detail shows four facts beside two panels that fold into one. When the focal line wraps to four lines, it sits close to the gauges. Proposed facts: An hour of disk used (the Written gauge). Also kept from 77-a: an hour of CPU and memory per agent, and 30 days of size per cache.",
+  "surface": "menubar",
+  "groupId": "82",
+  "direction": "Hero: ftop gauges"
+ },
+ {
+  "file": "82-b.html",
+  "name": "Even Gauge Row",
+  "idea": "The focal sentence and its button span the top. Under them sit five round gauges of the same size in an even row: the split ring of the tab by state, then the same four gauges as 82-a. A thin live strip under them shows the last hour, one bar a minute: agents working and asking, new connections, sessions in worktrees, or disk used.",
+  "good": "It reads as one calm ftop row, the same on all four tabs. The strip shows how the tab changes, and bars slide left as minutes pass. Hover a minute and the strip says that minute in words and lights in the list what was active then.",
+  "tradeoff": "The hero is 238 px tall, so the detail graphs are shorter than in 82-a. At this ring size the Disk ring shows only the caches by fate, and the strip says disk used and free instead of an outer disk ring. Proposed facts: A per-minute history of agent states for the agent and worktree strips (built from 77-a's proposed hour of agent CPU), and an hour of disk used (the Written gauge and the Disk strip). Also kept from 77-a: 30 days of size per cache. Server connections per minute are a real fact.",
+  "surface": "menubar",
+  "groupId": "82",
+  "direction": "Hero: ftop gauges"
+ },
+ {
+  "file": "83-a.html",
+  "name": "Panorama Overlay",
+  "idea": "A 212 px glass band with one full-width graph per tab: Agents as a stacked area by state over the last hour, with arrivals and departures riding its top edge and subagent starts as a rug underneath; Servers as memory stacked per server over the last hour plus the next 40 min, with a pulse of new connections and the idle rule's line; Worktrees as each tree a band colored by its fate over 30 days, with merge dots and a bracket for what the rules take; Disk as the whole disk zoomed by a wedge into the caches, with what may go lifted out. Three big numbers sit over the graph's top left, and each band ends in a direct label at the now edge.",
+  "good": "You see the whole section and how it changed in one glance. Hovering a band, mark, label or block lights its items in the list and scrolls to them, clicking filters the list or picks the item, and hovering a row lights its band or mark.",
+  "tradeoff": "The list and detail get 446 px, so rows drop to 21-22 px and the detail's graph and panels share one fold area switched by chips; Busy Servers scrolls by 2 rows until Auto stops the idle ones, and Peak scrolls the list. Proposed facts: an hour of agent states kept in memory (built from started and last active), an hour of server memory, 30 days of worktree disk with a first commit time, plus the existing proposed per-agent CPU and memory hour and 30 days of cache size.",
+  "surface": "menubar",
+  "groupId": "83",
+  "direction": "Hero: one panorama graph"
+ },
+ {
+  "file": "83-b.html",
+  "name": "Panorama Side Numbers",
+  "idea": "The same panorama graphs, with a 190 px numbers column on the left: three big numbers, each with a gray unit and one plain line under it. The graph runs to the right, its 'what it says' line sits over the graph's top left, and the focal sentence and button float in its top-right corner.",
+  "good": "Each number gets its own line, so the numbers read like a calm ftop meter stack and never compete with the graph or the focal card.",
+  "tradeoff": "The graph is about 230 px narrower, so the time axis is denser and the disk blocks are thinner; it has the same list and fold tradeoffs as 83-a. Proposed facts: the same as 83-a: the hour of agent states, the hour of server memory, 30 days of worktree disk with a first commit time, and the existing per-agent hour and 30 days of cache size.",
+  "surface": "menubar",
+  "groupId": "83",
+  "direction": "Hero: one panorama graph"
+ },
+ {
+  "file": "84-a.html",
+  "name": "Workstream Constellation",
+  "idea": "Every agent, server, worktree or cache is one dot sized by what it costs (memory or disk), packed in a soft glowing group per workstream and colored by state, and things nobody holds get their own group; beside the map sit the focal sentence, its button and three ftop numbers.",
+  "good": "The whole section reads as one calm picture: you see at a glance which workstream is heavy, what asks you (white, breathing) and what the rule takes next (orange ring), and the dots move live: they ping on subagent starts and new connections, pop in and fade out, while hovering a group, a state or a dot lights the list and a click filters or picks.",
+  "tradeoff": "Names take room, so at Peak the dots shrink and the names move beside their groups; sizes still compare, but small dots get hard to tell apart.",
+  "surface": "menubar",
+  "groupId": "84",
+  "direction": "Hero: a map of everything"
+ },
+ {
+  "file": "84-b.html",
+  "name": "Workstream Mosaic",
+  "idea": "Every item is one cell in a waffle with its inner square sized by what it costs, in one block per workstream laid out in reading order and colored by state, and things nobody holds get their own block; beside the mosaic sit the focal sentence, its button and three ftop numbers.",
+  "good": "The grid stays aligned and steady because no cell moves when a size ticks, an empty workstream shows as an empty slot, and it has the same hover, filter, pick, ping and orange-ring links to the list as 84-a.",
+  "tradeoff": "At Peak the cells get small (about 9 to 13 px) and long workstream names are shortened with an ellipsis so all 21 blocks fit in the band.",
+  "surface": "menubar",
+  "groupId": "84",
+  "direction": "Hero: a map of everything"
+ },
+ {
+  "file": "85-a.html",
+  "name": "Sentence Graph",
+  "idea": "Each Advanced tab opens with one big sentence of up to three lines that says the whole section in plain words; its live numbers and names carry tiny graphics (a dot row with one dot per item, a sparkline after a count, a mini bar after a size, a ring after a share, ticks for subagent starts), and the button sits at the end of the sentence, with a quiet line under it for the rule and its countdown in plain words and a caption saying what each graphic means.",
+  "good": "You read the whole tab as one calm sentence; every phrase is a set you can hover to light its rows or click to show only those, and hovering a row lights its dot and the phrases that hold it, so words, graphics and list read as one picture.",
+  "tradeoff": "The words change length with the scenario, so the sentence sets itself smaller (27 px down to 23 px in Peak) to stay at three lines; the graphics are small, so exact shares need the caption or the list, and in Busy and Peak the list scrolls under the 190 px hero. Proposed facts: An hour of summed agent CPU for the inline sparkline (built from the per-agent CPU history 77-a already marks proposed, and marked proposed on the page).",
+  "surface": "menubar",
+  "groupId": "85",
+  "direction": "Hero: the sentence is the graph"
+ },
+ {
+  "file": "85-b.html",
+  "name": "Word Tiles",
+  "idea": "A short headline sentence with its button at the right end and a quiet rule line under it, then a row of four quiet word tiles, each with a big number, a gray unit, a small graph and one plain line: for Agents every agent, CPU, memory and where they run; for Servers every server, connections, memory and the idle rule with its countdown ring; for Worktrees every tree, disk, unsaved work and what the rule takes; for Disk free space, what may go, what goes with a Wrap Up, and what fills the disk most.",
+  "good": "It is closest to the 71-a meter row the owner likes, scans in one glance, keeps the same rhythm on all four tabs, and each tile is a hover and click target that lights or filters the list.",
+  "tradeoff": "Less of the picture is said in words than in 85-a; each tile gets one short line, so some details (protected and stale counts, places past the first three) move into tile labels or drop to a count. Proposed facts: An hour of summed agent CPU for the CPU tile sparkline and its peak line (built from the per-agent CPU history 77-a already marks proposed, and marked proposed on the page).",
+  "surface": "menubar",
+  "groupId": "85",
+  "direction": "Hero: the sentence is the graph"
+ },
+ {
+  "file": "86-a.html",
+  "name": "Strata Bands",
+  "idea": "A 226 px hero sits on top of each tab. On the left: a ring with an arc, big numbers, the focal sentence with its button, and Off / Ask / Auto in plain words with the countdown (on Agents, a row of chips for the agents that ask you). On the right: four thin bars that split every item by state, workstream or owner, tool, repo, memory or disk, with a label above each part and a line under them that says in words what is lit.",
+  "good": "You see the whole section and its mix at a glance. Hovering a part lights the same items in the other three bars and in the list, and the line under the bars says where they are (for example: Asks you, 3 agents, then their workstreams, then Claude Code in cmux, then 1.6 GB memory). Clicking a part filters the list, and the picked row gets a white mark in each bar.",
+  "tradeoff": "Small parts such as one-agent workstreams show only a count or no label, so their names appear only on hover. The list and detail are shorter, so the detail's lower left panel folds its facts behind a tab and the rule panel drops its value chips on Worktrees and Disk.",
+  "surface": "menubar",
+  "groupId": "86",
+  "direction": "Hero: strata bars"
+ },
+ {
+  "file": "86-b.html",
+  "name": "Strata Flows",
+  "idea": "The same hero, but the bars are thicker glass bands with the labels inside, and a soft ribbon joins each item from one bar to the next, like a gentle sankey.",
+  "good": "The ribbons show the links themselves: hover Asks you and white ribbons run down to the workstreams the asking agents belong to, then to their tool and place, then to their memory. On Servers, hovering Chrome traces which owners and memory those servers have.",
+  "tradeoff": "At Peak (28 agents, 34 servers) the resting ribbons weave into a dense, faint mesh that only reads well once you hover a part, and the labels inside the bands need a darker fill, so the bars look heavier than in 86-a.",
+  "surface": "menubar",
+  "groupId": "86",
+  "direction": "Hero: strata bars"
+ },
+ {
+  "file": "87-a.html",
+  "name": "Fixed Bento",
+  "idea": "Every Advanced tab uses the same bento shape: a 440 px focal tile with the main graph, one wide tile and four small ones, and the tile whose number needs you most (an ask, a countdown under 20 min, a ready worktree, low disk) moves into the wide slot, where it glows and names its items as pills.",
+  "good": "The four tabs read as one family with the same places for the same kinds of facts, and hover and click link both ways: a tile, legend entry or segment lights and filters the list, a hero mark previews or picks its item, and a list row lights its mark.",
+  "tradeoff": "The shape cannot show two urgent things at once, so a second need stays small, and the list and detail drop to 438 px, so Busy and Peak scroll and the detail folds its lower panels into tabs (Facts shows under the open panel only when it fits). Proposed facts: As in 77-a: an hour of CPU and memory per agent, kept in memory (it drives the agents' CPU area and the Load tile), and 30 days of size per cache. Both are marked proposed on the page.",
+  "surface": "menubar",
+  "groupId": "87",
+  "direction": "Hero: a small bento"
+ },
+ {
+  "file": "87-b.html",
+  "name": "Bento by Need",
+  "idea": "The bento shape on a 12-column grid follows what matters on each tab right now: when calm, a wide focal tile and two medium tiles; when one thing needs you, it stands tall beside the focal tile with its graph and up to four items; when two or more need you, they take the top row. The shape reflows live as the numbers change.",
+  "good": "What needs you is the biggest tile on the sheet, so each tab has its own shape: Agents shows asks standing tall, Servers puts the Auto countdown and idle servers on top, Worktrees puts ready and blocked first, Disk leads with what may go.",
+  "tradeoff": "Tiles move and change size during a session, so a number is not always in the same place, and the focal tile narrows to 403 px when something needs you, which trims the why line by its last sentence. Proposed facts: As in 77-a: an hour of CPU and memory per agent, kept in memory, and 30 days of size per cache, both marked proposed on the page.",
+  "surface": "menubar",
+  "groupId": "87",
+  "direction": "Hero: a small bento"
  }
 ]
