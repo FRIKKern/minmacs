@@ -1,0 +1,31 @@
+# The Homebrew cask for FRIKKern/homebrew-tap, Casks/minmacs.rb.
+# release.sh fills @VERSION@ and @SHA256@ and writes the result next to the zip as minmacs.rb.
+# Copy that file into the tap by hand. Nothing here touches the tap.
+cask "minmacs" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/FRIKKern/minmacs/releases/download/v#{version}/MinMacs-#{version}.zip"
+  name "MinMacs"
+  desc "Menu bar app for Macs that run agents: apps, servers, worktrees, clutter and sleep"
+  homepage "https://github.com/FRIKKern/minmacs"
+
+  depends_on macos: ">= :sonoma"
+
+  app "MinMacs.app"
+  binary "#{appdir}/MinMacs.app/Contents/MacOS/MinMacs", target: "minmacs"
+  binary "#{appdir}/MinMacs.app/Contents/MacOS/MinMacs", target: "locohost"
+
+  uninstall quit: "no.guerrilla.minmacs"
+
+  # The person's data stays on uninstall. brew uninstall --zap moves it to the Trash.
+  zap trash: [
+    "~/Library/Application Support/MinMacs",
+    "~/Library/Preferences/no.guerrilla.minmacs.plist",
+  ]
+
+  caveats <<~EOS
+    @SIGNING_CAVEAT@
+    The locohost command is MinMacs's binary under LocoHost's name, so LocoHost 1.x commands keep working.
+  EOS
+end
