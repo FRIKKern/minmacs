@@ -2,7 +2,8 @@
 # tools/soak/run.sh runs Core headless with every built-in expert, every mode Idle, the watchdog on and every menu
 # opened on the live snapshot, beside fixture churn: worktrees made and removed in a fixture repo, Python servers on
 # high ports, fake agents with session files and transcripts. It samples the process with procstat and leaks(1).
-# Here it runs 24 seconds, a sample every 8, a churn step every 2 and one of each fixture alive at once, with its home under this run's MINMACS_HOME.
+# Here it runs 30 seconds, a sample every 8, a churn step every 5 and two of each fixture alive at once, with its home under this run's MINMACS_HOME.
+# So each server and agent lives about 10 seconds, two Senses passes, and the graph holds it when the soak reads it.
 # Every fixture carries a tag unique to the run, and run.sh stops each by its pid after ps shows that tag.
 # The 24-hour run and the week of real use are in docs/2.0/BENCH.md, section Soak.
 
@@ -43,12 +44,12 @@ check "soak: run.sh signals only pids it checked" 0 "$(grep -n 'kill ' tools/soa
 
 # The short run.
 sk_start=$(date +%s)
-TMPDIR="$sk/tmp" SOAK_DIR="$sk_dir" SOAK_MENUS_EVERY=5 SOAK_KEEP=1 tools/soak/run.sh 24 8 2 "$sk/run" >"$sk/run.out" 2>"$sk/run.err"
+TMPDIR="$sk/tmp" SOAK_DIR="$sk_dir" SOAK_MENUS_EVERY=5 SOAK_KEEP=2 tools/soak/run.sh 30 8 5 "$sk/run" >"$sk/run.out" 2>"$sk/run.err"
 sk_r=$?
 sk_secs=$(( $(date +%s) - sk_start ))
 check "soak: the short run passes its own report" 0 "$sk_r"
 [ "$sk_r" = 0 ] || { grep -E 'FAIL|ended|carry' "$sk/run.out"; tail -5 "$sk/run.err"; }
-check "soak: the short run takes under 45 seconds" yes "$([ "$sk_secs" -lt 45 ] && echo yes || echo "$sk_secs s")"
+check "soak: the short run takes under 60 seconds" yes "$([ "$sk_secs" -lt 60 ] && echo yes || echo "$sk_secs s")"
 ss() { python3 -c "import json,sys; j=[json.loads(l) for l in open(sys.argv[1]) if l.strip()]; print($1)" "$sk/run/samples.jsonl" 2>/dev/null; }
 sm() { json "$1" <"$sk/run/summary.json" 2>/dev/null; }
 sc() { json "$1" <"$sk/run/churn.json" 2>/dev/null; }

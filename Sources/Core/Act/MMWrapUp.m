@@ -83,12 +83,14 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
     NSString *key = [NSString stringWithFormat:@"%@|%@|%ld", path, head ?: @"-", (long)untracked];
     NSNumber *have;
     @synchronized (ConfigAnswers()) { have = ConfigAnswers()[key]; }
-    if (have) return have.integerValue < 0 ? nil : have;
+    if (have && have.integerValue >= 0) return have;
+    // A caller that waits checks now, even while a check queued by one that does not wait is still running.
     if (wait && !NSThread.isMainThread) {
         NSNumber *n = ConfigCheck(path);
         if (n) @synchronized (ConfigAnswers()) { ConfigAnswers()[key] = n; }
         return n;
     }
+    if (have) return nil;                // asked, not answered yet
     @synchronized (ConfigAnswers()) {
         if (ConfigAnswers().count > 256) [ConfigAnswers() removeAllObjects];
         ConfigAnswers()[key] = @(-1);   // asked, not answered yet

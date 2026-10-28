@@ -212,7 +212,8 @@ NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, cach
 /// Whether every untracked file in the worktree at path is a config file that the config part may move, from a
 /// check through MMWorktreeUntrackedFiles on MMQueue(@"core", @"wrapup"), kept per path, HEAD and untracked count.
 /// wait NO never blocks: it returns the kept answer, or nil and queues a check that asks the graph for a rebuild when
-/// it ends. A menu calls it that way. wait YES checks now when nothing is kept, never on main.
+/// it ends. A menu calls it that way. wait YES checks now when no answer is kept, even while a queued check runs,
+/// and never on main.
 NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked, BOOL wait);
 
 /// Builds the plan for the worktree at path from the snapshot: the subject, then each registered expert's parts
