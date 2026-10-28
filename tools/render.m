@@ -175,6 +175,8 @@ static Subject *WorkForestLike(void) {
     promo.merged = @"squash"; promo.upstream = @"gone"; promo.notInDefault = 2;
     MMWFTree *docs = Tree(@"acme-web", @"acme-web-docs-refresh", @"docs/refresh", 540, 380, 13 * 86400);
     docs.merged = @"ancestor";
+    promo.session = @{@"agent": @"Claude Code", @"title": @"Promo banner", @"lastActiveAt": @(NSDate.date.timeIntervalSince1970 - 6 * 86400 - 3 * 3600)};
+    docs.session = @{@"agent": @"Claude Code", @"title": @"Refresh the docs", @"lastActiveAt": @(NSDate.date.timeIntervalSince1970 - 13 * 86400)};
     MMWFTree *checkout = Tree(@"acme-web", @"acme-web-checkout-flow", @"feat/checkout-flow", 905, 610, 3 * 3600);
     checkout.processes = @[@"node", @"zsh"]; checkout.notInDefault = 4;
     checkout.session = @{@"agent": @"Claude Code", @"title": @"Checkout flow", @"lastActiveAt": @(NSDate.date.timeIntervalSince1970 - 20 * 60), @"live": @YES};
@@ -224,9 +226,14 @@ static Subject *WorkForestLike(void) {
                limits.findingID: @{@"remove": @NO, @"why": @"evidence: the branch name says the work is parked"}};
     v.candidates = @[promo.findingID, docs.findingID];
     v.links = @{checkout.findingID: @[@{@"label": @"Server", @"value": @":3000 Vite, in use", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/acme-web.worktrees/checkout-flow#dev"}],
-                hooks.findingID: @[@{@"label": @"Server", @"value": @":4000 Next.js", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/orbit-api#dev"}]};
+                hooks.findingID: @[@{@"label": @"Server", @"value": @":4000 Next.js", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/orbit-api#dev"}],
+                docs.findingID: @[@{@"label": @"Server", @"value": @":4100 Vite, quiet 13 days", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/acme-web.worktrees/docs-refresh#dev"}]};
     v.removed = @[@{@"rid": @"r1", @"path": @"/Users/dev/code/acme-web.worktrees/acme-web-old-landing", @"branch": @"feat/old-landing",
                     @"at": @(NSDate.date.timeIntervalSince1970 - 3 * 86400), @"by": @"proactive", @"saved": @[@".env.local"]}];
+    // Wrap Up, issue #27: the promo banner and docs refresh branches are merged and their agent sessions ended.
+    // The docs refresh worktree still runs its dev server, which Wrap Up stops first.
+    v.wrapUps = @{promo.findingID: @{@"tail": MMBytes(promo.freedBytes), @"parts": @3},
+                  docs.findingID: @{@"tail": [@"1 server, " stringByAppendingString:MMBytes(docs.freedBytes)], @"parts": @4}};
     v.act = ^(NSString *what, NSString *key, BOOL option) {};
 
     MMMenuSpec *spec = MMWFMenu(v);
@@ -237,11 +244,15 @@ static Subject *WorkForestLike(void) {
         BOOL ok = [titles(MMWFCard(docs, pv)) containsObject:@"Unprotect"] && [titles(MMWFCard(promo, pv)) containsObject:@"Protect"] &&
                   ![titles(MMWFCard(dev, pv)) containsObject:@"Protect"] && ![titles(MMWFCard(dev, pv)) containsObject:@"Unprotect"];
         Check(ok, @"workforest: Protect follows the protect list, and a long-lived branch has none", [titles(MMWFCard(docs, pv)) componentsJoinedByString:@", "]);
+        NSArray *first = [titles(MMWFCard(docs, v)) subarrayWithRange:NSMakeRange(0, 4)];
+        BOOL wrap = [first containsObject:@"Wrap Up…"] && ![titles(MMWFCard(checkout, v)) containsObject:@"Wrap Up…"] &&
+                    ![titles(MMWFCard(docs, pv)) containsObject:@"Wrap Up…"];
+        Check(wrap, @"workforest: Wrap Up shows in the first four actions of a finished worktree's card only", [first componentsJoinedByString:@", "]);
     }
     Check([spec.headerUnit isEqualToString:@"in worktrees"] && spec.sections.count == 4,
           @"workforest: the menu is MMWFMenu's spec, with four sections", [NSString stringWithFormat:@"%lu sections", (unsigned long)spec.sections.count]);
-    NSDictionary *cardKeys = @{promo.findingID: @"promo", checkout.findingID: @"checkout", search.findingID: @"search", hooks.findingID: @"hooks",
-                               limits.findingID: @"limits"};
+    NSDictionary *cardKeys = @{promo.findingID: @"promo", docs.findingID: @"docs", checkout.findingID: @"checkout", search.findingID: @"search",
+                               hooks.findingID: @"hooks", limits.findingID: @"limits"};
     MMWFTree *(^treeFor)(NSString *) = ^MMWFTree *(NSString *fid) {
         for (MMWFTree *t in trees) if ([t.findingID isEqualToString:fid]) return t;
         return nil;

@@ -287,6 +287,21 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
     return i ? [MMClutterAction actionFor:f item:i catalog:self.catalog] : nil;
 }
 
+/// Wrap Up, issue #27: one part per cache or build folder the worktree owns, by back-link or by place, that goes to
+/// the Trash. A tool's own cleanup is for the whole Mac, not one workstream, so it is never a part.
+- (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {
+    NSMutableArray *parts = [NSMutableArray new];
+    for (MMFinding *f in [s findingsFor:kExpert]) {
+        if (!f.proposal || f.proposal.reversibility != MMReversibleTrash) continue;
+        if (![subject holds:f.ownerPath] && ![subject holds:f.path]) continue;
+        id<MMAction> a = [self actionFor:f step:MMStopTerm];
+        NSString *title = [NSString stringWithFormat:@"Move %@ to the Trash", f.facts[@"name"] ?: f.title];
+        MMWrapUpPart *p = a ? [MMWrapUpPart step:MMWrapUpCaches expert:kExpert title:title action:a policy:self.policy] : nil;
+        if (p) [parts addObject:p];
+    }
+    return parts;
+}
+
 /// Runs block off main and waits. On main the run loop keeps turning, so AppKit callbacks still arrive.
 static void RunOffMain(dispatch_block_t block) {
     if (!NSThread.isMainThread) { block(); return; }

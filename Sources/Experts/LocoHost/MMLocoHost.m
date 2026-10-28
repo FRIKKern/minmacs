@@ -149,6 +149,25 @@ id<MMExpertPolicy> MMLHManualPolicy(void) {
     return p;
 }
 
+/// For a Wrap Up, issue #27: still the same server, and not on the protect list. The person asked for the whole step.
+@interface MMLHWrapKeeps : NSObject <MMExpertPolicy>
+@end
+@implementation MMLHWrapKeeps
+- (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts {
+    MMLHHost *h = FreshHost(f, facts);
+    if (!h) return @"cannot verify: it restarted or stopped since it was listed";
+    if (h.isProtected) return @"protected";
+    return nil;
+}
+- (NSString *)reviewKeeps:(MMFinding *)f review:(MMReview *)r { return nil; }
+@end
+
+static id<MMExpertPolicy> WrapPolicy(void) {
+    static MMLHWrapKeeps *p; static dispatch_once_t once;
+    dispatch_once(&once, ^{ p = [MMLHWrapKeeps new]; });
+    return p;
+}
+
 #pragma mark - Stopping
 
 @interface MMLHStop : NSObject <MMAction>
@@ -423,6 +442,21 @@ static NSArray<NSDictionary *> *StoppedRecords(void) {
 - (id<MMExpertPolicy>)policy { return MMLHModePolicy(); }
 
 - (id<MMAction>)actionFor:(MMFinding *)f step:(MMStopStep)step { return f.proposal ? MMLHStopAction(f, step) : nil; }
+
+/// Wrap Up, issue #27: one part per dev server that runs in the worktree. Its record keeps the restart command,
+/// so restore starts it again in the worktree that the later parts bring back first.
+- (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {
+    NSMutableArray *parts = [NSMutableArray new];
+    for (MMFinding *f in [s findingsFor:kExpert]) {
+        MMLHHost *h = HostOf(f);
+        if (!h.isDev || !f.proposal) continue;
+        if (![subject holds:h.restartDir] && ![subject holds:h.cwd] && ![subject holds:f.owner.path]) continue;
+        NSString *title = [NSString stringWithFormat:@"Stop :%ld %@", (long)h.port, h.framework.length ? h.framework : @"server"];
+        MMWrapUpPart *p = [MMWrapUpPart step:MMWrapUpServers expert:kExpert title:title action:MMLHStopAction(f, MMStopTerm) policy:WrapPolicy()];
+        if (p) [parts addObject:p];
+    }
+    return parts;
+}
 
 - (NSDictionary *)reviewFactsFor:(MMFinding *)f { return ReviewFacts(f); }
 

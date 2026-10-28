@@ -63,3 +63,27 @@ BOOL MMWorktreePrune(NSString *repo, NSString **output) {
     if (!repo.length) return NO;
     return Git(repo, @[@"worktree", @"prune", @"--verbose"], 30, output) == 0;
 }
+
+NSArray<NSString *> *MMWorktreeUntrackedFiles(NSString *worktree) {
+    if (!worktree.length) return nil;
+    NSString *out = nil;
+    if (Git(worktree, @[@"ls-files", @"--others", @"--exclude-standard"], 30, &out) != 0) return nil;
+    NSMutableArray *files = [NSMutableArray new];
+    for (NSString *rel in [out componentsSeparatedByString:@"\n"]) if (rel.length) [files addObject:rel];
+    return files;
+}
+
+BOOL MMWorktreeIsConfigFile(NSString *rel) {
+    if (!rel.length || [rel hasPrefix:@"/"] || [rel.pathComponents containsObject:@".."]) return NO;
+    NSString *name = rel.lastPathComponent;
+    static NSSet *names;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        names = [NSSet setWithArray:@[@".env", @".envrc", @".npmrc", @".yarnrc", @".yarnrc.yml", @".tool-versions", @".nvmrc",
+                                      @".node-version", @".python-version", @".ruby-version", @".secrets", @".mise.toml"]];
+    });
+    if ([names containsObject:name] || [name hasPrefix:@".env."]) return YES;
+    // A local override beside a shared file: settings.local.json, docker-compose.local.yml, config.local.ts.
+    for (NSString *part in [name componentsSeparatedByString:@"."]) if ([part isEqualToString:@"local"]) return YES;
+    return NO;
+}

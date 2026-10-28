@@ -141,3 +141,88 @@ void MMNotify(NSString *expert, NSString *title, NSString *body, NSString *undoR
 - (void)post:(NSString *)title body:(NSString *)body undoRid:(NSString *)undoRid passive:(BOOL)passive expert:(NSString *)expert;
 @end
 void MMUseNotifier(id<MMNotifier> notifier);           // nil goes back to the system notifier
+
+#pragma mark - Wrap Up
+
+/// P51 and P52 for one finished workstream, PLAN.md section 6. Issue #27.
+/// MMRunAction for one part of a multi-part action: the same steps, with the record written as a part of parentRid.
+/// index is the part's place in the run, kept in the record's payload as "part", so restore takes the parts back
+/// in reverse order. Blocks. Never on main.
+MMUndoRecord *MMRunActionPart(id<MMAction> action, id<MMExpertPolicy> policy, NSString *by, NSString *why,
+                              NSString *parentRid, NSInteger index, NSString **error);
+
+/// The steps of a Wrap Up, in the order they run. Restore runs them backwards.
+/// Caches go before the worktree, so a cache inside it comes back from the Trash after git recreates the folder.
+typedef NS_ENUM(NSInteger, MMWrapUpStep) {
+    MMWrapUpServers = 1,     // LocoHost stops the servers that run in it
+    MMWrapUpHelpers = 2,     // MinMacs stops the helpers left in it, such as a headless browser whose parent exited
+    MMWrapUpCaches = 3,      // Noo-Noo moves its caches and build output to the Trash
+    MMWrapUpConfig = 4,      // WorkForest moves its untracked config files, such as .env.local, to the Trash
+    MMWrapUpWorktree = 5,    // WorkForest saves its ignored files such as .env and removes the worktree
+};
+NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, caches, config, worktree
+
+/// A finished workstream: a linked worktree whose branch is merged and whose agent sessions all ended.
+/// The graph keeps no workstream for an ended session, so the subject is the worktree, read from facts.
+@interface MMWrapUpSubject : NSObject
+@property (readonly, copy) NSString *path;              // the worktree, as the kernel names it
+@property (readonly) MMWorktree *worktree;
+@property (readonly) MMGitFacts *git;
+@property (readonly) NSArray<MMSession *> *sessions;    // every session that ran in it, newest first
+/// Every finding the worktree holds, from every expert: its owner, back-link, path or first process is inside.
+@property (readonly) NSArray<MMFinding *> *findings;
+/// Why it is not a finished workstream, or nil when it is.
+@property (readonly, copy) NSString *whyNot;
+/// The processes the server and helper parts end, so the worktree part's check does not count them as work.
+@property (readonly) NSArray<NSValue *> *stopped;
+/// YES when the plan has a config part, so untracked files are that part's to check and move.
+@property (readonly) BOOL configPart;
+/// YES when path is the worktree or inside it, as given or as the kernel names it.
+- (BOOL)holds:(NSString *)path;
+/// The subject at path in these facts. s may be nil, and findings are then empty.
++ (instancetype)subjectAt:(NSString *)path facts:(MMFacts *)facts snapshot:(MMSnapshot *)s;
+@end
+
+/// One part: one action with the policy its expert checks it with.
+@interface MMWrapUpPart : NSObject
+@property (readonly) MMWrapUpStep step;
+@property (readonly, copy) NSString *expert, *title;    // "locohost", "Stop :3000 Python http.server"
+@property (readonly) id<MMAction> action;
+@property (readonly) id<MMExpertPolicy> policy;
+/// Why this part cannot run, from the last check, or nil.
+@property (readonly, copy) NSString *whyNot;
++ (instancetype)step:(MMWrapUpStep)step expert:(NSString *)expert title:(NSString *)title
+              action:(id<MMAction>)action policy:(id<MMExpertPolicy>)policy;
+@end
+
+/// What Wrap Up does to one workstream: the subject and its parts, in the order they run.
+@interface MMWrapUpPlan : NSObject
+@property (readonly) MMWrapUpSubject *subject;
+@property (readonly) NSArray<MMWrapUpPart *> *parts;
+/// Why it cannot run now: the subject's reason, or the first part whose check failed, named. nil when it may run.
+@property (readonly, copy) NSString *whyNot;
+@property (readonly) uint64_t freedBytes;               // what the parts' findings say deleting frees
+@property (readonly) NSUInteger servers;                // server parts
+/// {path, ready, whyNot, freedBytes, parts: [{step, expert, title, findingID, whyNot, dryRun}]}, for --json.
+- (NSDictionary *)json:(BOOL)dryRuns;
+@end
+
+/// Whether every untracked file in the worktree at path is a config file that the config part may move, from a
+/// check through MMWorktreeUntrackedFiles on MMQueue(@"core", @"wrapup"), kept per path, HEAD and untracked count.
+/// wait NO never blocks: it returns the kept answer, or nil and queues a check that asks the graph for a rebuild when
+/// it ends. A menu calls it that way. wait YES checks now when nothing is kept, never on main.
+NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked, BOOL wait);
+
+/// Builds the plan for the worktree at path from the snapshot: the subject, then each registered expert's parts
+/// through -[MMExpert wrapUpParts:snapshot:], then MustKeep of every part on the snapshot's facts. A part whose
+/// processes an earlier part already ends is left out. Reads only the snapshot, so a menu may call it on main.
+MMWrapUpPlan *MMWrapUpPlanFor(NSString *path, MMSnapshot *s);
+/// Checks the plan on fresh facts: the subject again, then each part's recheck and MustKeep on fresh facts for its
+/// finding. Returns nil when every part passes, else why not, and the plan's whyNot says the same. Never on main.
+NSString *MMWrapUpCheck(MMWrapUpPlan *plan);
+/// Runs the plan as one undoable step. It checks every part fresh first and starts nothing when one fails. Then it
+/// writes one record of kind "wrapup" and runs each part through MMRunActionPart, so each part checks fresh right
+/// before it runs. A part that fails stops the rest, and the record fails with the part named in its error and in
+/// its payload's "failedPart". -[MMUndo restore:] of the record takes back each part that ran, newest first.
+/// by is "manual" or "cli". Returns the finished record, or nil with *error when nothing started. Never on main.
+MMUndoRecord *MMRunWrapUp(MMWrapUpPlan *plan, NSString *by, NSString **error);

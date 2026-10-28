@@ -354,10 +354,20 @@ static NSString *Tail(NSString *s, NSUInteger max) {
     return problem;
 }
 
+/// The parts of a Wrap Up record, newest first: by the "part" index each was run with, else as the log returns them.
 - (NSArray<MMUndoRecord *> *)partsOf:(NSString *)rid {
     NSMutableArray *parts = [NSMutableArray new];
     for (NSDictionary *b in LogLatest(nil)) if ([b[@"parentRid"] isEqual:rid]) [parts addObject:[MMUndoRecord fromBody:b]];
-    return parts;   // newest first, as LogLatest returns them
+    NSMutableArray *indexed = [NSMutableArray new];
+    for (NSUInteger i = 0; i < parts.count; i++) [indexed addObject:@[parts[i], @(i)]];
+    [indexed sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSArray *a, NSArray *b) {
+        id x = [a[0] payload][@"part"], y = [b[0] payload][@"part"];
+        if ([x isKindOfClass:NSNumber.class] && [y isKindOfClass:NSNumber.class] && ![x isEqual:y]) return [y compare:x];
+        return [a[1] compare:b[1]];
+    }];
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSArray *x in indexed) [out addObject:x[0]];
+    return out;
 }
 
 /// The rids a restore runs on now. The notification's Undo and the menu's Undo can ask at once,
@@ -388,10 +398,19 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if (!r.canRestore) return r.state == MMUndoFailed ? @"the action failed and changed nothing, so there is nothing to restore"
                                                       : @"the record holds nothing to restore";
     NSMutableArray *problems = [NSMutableArray new];
-    for (MMUndoRecord *part in [self partsOf:rid]) {
+    // A Wrap Up comes back in reverse order, and a part that cannot come back stops the rest, since each earlier part
+    // may need it, as a server needs its worktree. Parts already restored are skipped, so a second restore goes on.
+    NSArray<MMUndoRecord *> *parts = [self partsOf:rid];
+    for (NSUInteger i = 0; i < parts.count; i++) {
+        MMUndoRecord *part = parts[i];
         if (part.state == MMUndoRestored || !part.canRestore) continue;
         NSString *p = [self restore:part.rid];
-        if (p) [problems addObject:[NSString stringWithFormat:@"%@: %@", part.subject ?: part.rid, p]];
+        if (!p) continue;
+        NSUInteger left = 0;
+        for (NSUInteger j = i + 1; j < parts.count; j++) if (parts[j].state != MMUndoRestored && parts[j].canRestore) left++;
+        [problems addObject:[NSString stringWithFormat:@"%@: %@%@", part.subject ?: part.rid, p,
+                             left ? [NSString stringWithFormat:@". Restore stopped there, and %lu earlier part%@ did not come back", (unsigned long)left, left == 1 ? @"" : @"s"] : @""]];
+        break;
     }
     NSDictionary *p = r.payload;
     NSMutableDictionary *done = [NSMutableDictionary new];

@@ -34,6 +34,10 @@ The fingerprint holds HEAD, the merge state, the upstream, the dirty, untracked 
 
 `-[MMUndo restore:]` recreates the worktree at its commit, from the bundle when the repo lost it, then copies the saved files back without writing over anything. WorkForest 0.1's `removed.json` is imported into the undo log once per record, with its saved files left where 0.1 put them, so `restore <0.1 id>` still works. The 0.1 files are never changed.
 
+## Wrap Up
+
+A merged worktree whose agent sessions ended gets Wrap Up… on its card, after Open in Terminal, when every part passes its keeps. The gray tail is the servers it stops and what it frees. WorkForest owns two of its parts: untracked config files such as `.env.local` go to the Trash, and the worktree goes the way Remove takes it. Its keeps are Remove's work keeps on the tree read again, with three changes: the processes the server and helper parts end do not count, the day of quiet after the last change and the last session is waived, and untracked files are the config part's, which refuses any file that is not a config file. Recently Removed restores a worktree that went in a Wrap Up together with the rest of it. `Sources/Core/README.md` describes the run and the record.
+
 ## What the review gets
 
 The routine schema in WorkForest's words: `active`, `stale` and `unsure`. Per worktree: repo, folder, branch, locked, detached, protected, who made it, the default branch, dirty, untracked, stashes, unpushed, commits not in the default branch, merged, upstream, whether HEAD is on a remote, the last commit's age, created, newest file and quiet days, disk, freed and cache sizes, the file count, process names, LocoHost's servers inside, and the agent session's agent, title, ages and whether it works now. No file contents, no `.env`, no first prompt, no transcript path and no environment. Core's `MMCompactFacts` redacts and clips every string again.

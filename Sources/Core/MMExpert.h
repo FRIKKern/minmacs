@@ -133,6 +133,9 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 @property (readonly, copy) NSString *legacyName;
 /// P62. Handles a URL of the legacy scheme. The router owns login and quit, so an expert never sees those.
 - (BOOL)openURL:(NSURL *)url;
+/// Wrap Up, PLAN.md section 6, in MMAct.h. The parts of one finished workstream that this expert owns, such as
+/// LocoHost's servers in it. Reads the subject and the snapshot only, so it may run on main.
+- (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s;
 @end
 
 /// Registers an expert with the graph, the broker and the CLI. Called once per expert at launch.

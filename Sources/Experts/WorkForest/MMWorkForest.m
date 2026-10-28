@@ -184,7 +184,8 @@ static NSString *Fingerprint(MMWFTree *t) {
             t.lastWork ? Bucket(t.quiet) : @"-", t.isProtected, t.locked];
 }
 
-static MMFinding *FindingFor(MMWFTree *t) {
+/// keeps NO leaves the work keeps out of the finding, for a Wrap Up part whose own policy reads them on fresh facts.
+static MMFinding *FindingWith(MMWFTree *t, BOOL keeps) {
     return [MMFinding expert:kExpert kind:@"worktree" stableKey:t.path build:^(MMFindingBuilder *b) {
         b.instanceKey = t.head.length ? t.head : t.path;
         b.title = t.isMain ? t.repoName : [NSString stringWithFormat:@"%@/%@", t.repoName, t.name];
@@ -196,12 +197,14 @@ static MMFinding *FindingFor(MMWFTree *t) {
         if (!t.isMain && !t.missing)
             b.proposal = [MMProposal verb:@"remove" title:@"Remove Worktree"
                             reversibility:t.gitKnown && !t.onRemote ? MMReversibleBundle : MMReversibleRestart];
-        NSString *keep = t.isMain ? nil : MMWFWorkKeeps(t);
+        NSString *keep = t.isMain || !keeps ? nil : MMWFWorkKeeps(t);
         if (keep) b.keepReasons = @[keep];
         b.facts = t.json;
         b.fingerprint = Fingerprint(t);
     }];
 }
+
+static MMFinding *FindingFor(MMWFTree *t) { return FindingWith(t, YES); }
 
 #pragma mark - Policies
 
@@ -340,6 +343,105 @@ id<MMAction> MMWFRemoveAction(MMFinding *f) {
     a.finding = f;
     return a;
 }
+
+#pragma mark - Wrap Up
+
+/// The keys of the processes with a working directory inside path, as ProcessesIn picks them.
+static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
+    NSMutableArray *out = [NSMutableArray new];
+    uid_t me = getuid(); pid_t self = getpid();
+    for (NSNumber *n in s.procs) {
+        MMProc *p = s.procs[n];
+        if (p.pid <= 1 || p.pid == self || p.uid != me || p.ppid == self || [p.name isEqualToString:@"git"]) continue;
+        if (Within([s cwdOf:p.pid], path)) [out addObject:p];
+    }
+    return out;
+}
+
+/// Wrap Up's keeps for the worktree, issue #27. The same work keeps as Remove, on the tree read again, with three
+/// changes that the finished workstream allows. The processes the server and helper parts end do not count. The day
+/// of quiet after the last file change and the last session is waived, since the session ended and the branch is
+/// merged. Untracked files are the config part's, whose recheck refuses any that is not a config file.
+/// Uncommitted changes, commits only here, a lock, a protected branch and any other process still keep it.
+@interface MMWFWrapKeeps : NSObject <MMExpertPolicy>
+@property (strong) MMWrapUpSubject *subject;
+@end
+@implementation MMWFWrapKeeps
+- (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts {
+    MMWFTree *t = TreeFor(f, facts);
+    if (!t) return @"cannot verify: the worktree is gone or moved since it was listed";
+    MMWFTree *was = MMWFTreeOf(f);
+    if (was.head.length && t.head.length && ![was.head isEqualToString:t.head]) return @"cannot verify: its HEAD moved since it was listed";
+    if (!t.merged.length) return t.gitKnown ? @"its branch is not merged" : @"cannot verify: its git facts are not known yet";
+    NSMutableSet *ended = [NSMutableSet new];
+    for (NSValue *v in self.subject.stopped) { MMProcKey k; [v getValue:&k size:sizeof k]; [ended addObject:MMProcKeyString(k)]; }
+    NSMutableArray *names = [NSMutableArray new];
+    for (MMProc *p in ProcsInside(t.path, facts.sample))
+        if (![ended containsObject:MMProcKeyString(p.key)] && ![names containsObject:p.name ?: @"?"]) [names addObject:p.name ?: @"?"];
+    t.processes = names;
+    if (![t.session[@"live"] boolValue]) t.session = nil;
+    t.touched = nil; t.created = nil;
+    // Off main the config part's recheck lists the files with git. A menu on main reads Core's last check of them.
+    if (self.subject.configPart && t.untracked != 0) {
+        NSNumber *only = NSThread.isMainThread ? MMWrapUpConfigOnly(t.path, t.head, t.untracked, NO) : @YES;
+        if (!only) return @"cannot verify yet: its untracked files are being read";
+        if (only.boolValue) t.untracked = 0;
+    }
+    return MMWFWorkKeeps(t);
+}
+- (NSString *)reviewKeeps:(MMFinding *)f review:(MMReview *)r { return nil; }
+@end
+
+/// Moves the worktree's untracked config files to the Trash, so git worktree remove runs with no --force.
+/// Restore moves them back once the worktree is there again.
+@interface MMWFConfigMove : NSObject <MMAction>
+@property (strong) MMFinding *finding;
+@property (copy) NSArray<NSString *> *files;
+@end
+@implementation MMWFConfigMove
+- (NSString *)kind { return @"trash"; }
+- (NSString *)path { return MMWFTreeOf(self.finding).path; }
+/// The untracked files, or nil with *why when one is not a config file or git could not list them.
+- (NSArray<NSString *> *)list:(NSString **)why {
+    NSArray *files = MMWorktreeUntrackedFiles(self.path);
+    if (!files) { *why = @"git could not list its untracked files"; return nil; }
+    NSMutableArray *work = [NSMutableArray new];
+    for (NSString *rel in files) if (!MMWorktreeIsConfigFile(rel)) [work addObject:rel];
+    if (work.count) {
+        *why = [NSString stringWithFormat:@"%@ not committed: %@", MMPlural(work.count, @"untracked file"), MMCut([work componentsJoinedByString:@", "], 60)];
+        return nil;
+    }
+    return files;
+}
+- (NSString *)recheck {
+    if (NSThread.isMainThread) return @"cannot verify on the main thread";
+    if (![NSFileManager.defaultManager fileExistsAtPath:[self.path stringByAppendingPathComponent:@".git"]]) return @"the worktree is already gone";
+    NSString *why = nil;
+    self.files = [self list:&why];
+    return why;
+}
+- (NSString *)dryRun {
+    NSArray *files = self.files;
+    if (!files && !NSThread.isMainThread) { NSString *why = nil; files = [self list:&why]; if (why) return [@"would keep the worktree: " stringByAppendingString:why]; }
+    return files.count ? [NSString stringWithFormat:@"would move %@ to the Trash: %@. Restore moves them back.", MMPlural(files.count, @"untracked config file"),
+                          MMCut([files componentsJoinedByString:@", "], 80)]
+                       : @"would move the untracked config files to the Trash. Restore moves them back.";
+}
+- (BOOL)perform:(MMUndoRecord *)record error:(NSString **)error {
+    NSString *why = nil;
+    NSArray *files = [self list:&why];
+    if (!files) { if (error) *error = why; return NO; }
+    [MMUndo.shared note:record payload:@{@"config": files, @"configRoot": self.path ?: @""}];
+    for (NSString *rel in files) {
+        NSError *e = nil;
+        if (![MMUndo.shared trash:[NSURL fileURLWithPath:[self.path stringByAppendingPathComponent:rel]] record:record error:&e]) {
+            if (error) *error = [NSString stringWithFormat:@"%@ could not go to the Trash: %@", rel, e.localizedDescription ?: @"unknown"];
+            return NO;
+        }
+    }
+    return YES;
+}
+@end
 
 #pragma mark - Review
 
@@ -562,6 +664,8 @@ NSArray<NSDictionary *> *MMWFRemoved(NSUInteger limit) {
                                     @"bundle": p[@"bundle"] ? @YES : @NO, @"error": r.error ?: NSNull.null,
                                     @"taken": @(path.length && [NSFileManager.defaultManager fileExistsAtPath:path])} mutableCopy];
         if (Str(p[@"legacyID"])) j[@"legacyID"] = p[@"legacyID"];
+        // A worktree that went in a Wrap Up comes back with the rest of it: Restore takes back the whole record.
+        if (r.parentRid.length) { j[@"rid"] = r.parentRid; j[@"wrapUp"] = @YES; }
         [out addObject:j];
         if (limit && out.count >= limit) break;
     }
@@ -654,6 +758,29 @@ static NSString *ModelWords(MMReview *r) {
 
 - (id<MMAction>)actionFor:(MMFinding *)f step:(MMStopStep)step { return f.proposal ? MMWFRemoveAction(f) : nil; }
 
+/// Wrap Up, issue #27: the untracked config files to the Trash when there are any, then the worktree itself,
+/// with its ignored files such as .env saved and its merged branch deleted with git branch -d.
+- (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {
+    MMFinding *f = [s finding:[NSString stringWithFormat:@"%@:worktree:%@", kExpert, subject.path]];
+    if (!f) for (MMFinding *g in [s findingsFor:kExpert]) if ([Real(g.path) isEqualToString:subject.path]) f = g;
+    MMWFTree *t = MMWFTreeOf(f);
+    if (!f.proposal || !t || t.isMain) return @[];
+    MMFinding *w = FindingWith(t, NO);
+    MMWFWrapKeeps *policy = [MMWFWrapKeeps new];
+    policy.subject = subject;
+    NSMutableArray *parts = [NSMutableArray new];
+    if (t.untracked != 0) {
+        MMWFConfigMove *c = [MMWFConfigMove new];
+        c.finding = w;
+        MMWrapUpPart *p = [MMWrapUpPart step:MMWrapUpConfig expert:kExpert title:@"Move untracked config files to the Trash" action:c policy:policy];
+        if (p) [parts addObject:p];
+    }
+    MMWrapUpPart *p = [MMWrapUpPart step:MMWrapUpWorktree expert:kExpert title:[@"Remove the worktree " stringByAppendingString:t.name]
+                                  action:MMWFRemoveAction(w) policy:policy];
+    if (p) [parts addObject:p];
+    return parts;
+}
+
 - (NSDictionary *)reviewFactsFor:(MMFinding *)f { return ReviewFacts(f, nil); }
 
 - (NSArray<id<MMRule>> *)rules {
@@ -712,6 +839,19 @@ static NSString *ModelWords(MMReview *r) {
     for (MMFinding *f in findings) if ([MMKeep isProtected:f.stableKey expert:kExpert] || [MMKeep isProtected:f.path expert:kExpert]) [protectedPaths addObject:f.findingID];
     v.protectedPaths = protectedPaths;
     v.links = ServersIn(s, findings);
+    // Wrap Up shows on a merged worktree's card only when every part passes MustKeep on the snapshot's facts.
+    // Running it checks every part on fresh facts first, and each part again right before it runs.
+    NSMutableDictionary *wraps = [NSMutableDictionary new];
+    for (MMFinding *f in findings) {
+        MMWFTree *t = MMWFTreeOf(f);
+        if (!f.proposal || !t.merged.length || t.isMain || t.missing) continue;
+        MMWrapUpPlan *plan = MMWrapUpPlanFor(t.path, s);
+        if (plan.whyNot) continue;
+        NSUInteger n = plan.servers;
+        wraps[f.findingID] = @{@"tail": n ? [NSString stringWithFormat:@"%@, %@", MMPlural(n, @"server"), MMBytes(plan.freedBytes)] : MMBytes(plan.freedBytes),
+                               @"parts": @(plan.parts.count)};
+    }
+    v.wrapUps = wraps;
     v.removed = MMWFRemoved(6);
     v.watchingLeft = MMWatchingLeft(kExpert);
     __weak MMWorkForestExpert *weak = self;
@@ -814,6 +954,23 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         if (Confirm([NSString stringWithFormat:@"Remove the Worktree %@?", t.name],
                     @"It is checked again first. The branch stays unless it is merged, ignored files such as .env are saved, "
                     @"and Recently Removed can restore it.", @"Remove")) [self remove:@[f] why:@"removed from the menu"];
+    } else if ([what isEqualToString:@"wrap-up"]) {
+        MMWrapUpPlan *plan = MMWrapUpPlanFor(t.path, s);
+        if (plan.whyNot) { Alert(@"Cannot Wrap Up", MMSentence(plan.whyNot)); return; }
+        NSMutableString *list = [NSMutableString new];
+        for (MMWrapUpPart *p in plan.parts) [list appendFormat:@"%@\n", p.title];
+        [list appendString:@"\nEach part is checked again first, and again right before it runs. A part that fails stops the rest. "
+                           @"Recently Removed restores it all in one step."];
+        if (!Confirm([NSString stringWithFormat:@"Wrap Up %@?", t.name], list, @"Wrap Up")) return;
+        _removing = YES;
+        dispatch_async(ActQueue(), ^{
+            NSString *err = nil;
+            MMUndoRecord *r = MMRunWrapUp(plan, @"manual", &err);
+            if (!r || r.state != MMUndoDone) Alert(@"Wrap Up Stopped", MMSentence(err ?: r.error ?: @"it did not run"));
+            dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
+            [MMRepoIndex.shared refresh:nil];
+            [MMGraph.shared rebuild:@"workforest wrap up"];
+        });
     } else if ([what isEqualToString:@"reveal"]) {
         [NSWorkspace.sharedWorkspace selectFile:nil inFileViewerRootedAtPath:t.path];
     } else if ([what isEqualToString:@"terminal"]) {
