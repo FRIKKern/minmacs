@@ -248,6 +248,7 @@ The worker child closes 27.4 to 29.9 seconds after its last request, as its 30-s
 - Each warm walk reads every fingerprint again, about 10 small files per worktree. FSEvents already names what changed, so the walk could skip a worktree whose git dir it saw no change in.
 - The clutter rows were measured once each way, at load averages of 22 to 48, before free space fell under 50 GB.
 - `./test.sh bench` at 13:50 local time, at load averages of 99 to 131: cold 24.9 s, the later launch's warm median 1.79 s, under its 2 s ceiling with little to spare. That later launch ran 63 git children, where calmer runs ran none, since git answers from the first launch that failed are asked again. The check allows a tenth of the cold scan's git runs.
+- The next `./test.sh bench`, at 14:00 local time with load averages up to 148, failed the warm gate: the later launch's median was 2.57 s, its max 9.62 s, with 120 git children. The same run had one main-thread stall over 50 ms in the menu checks. The warm walk's wall time follows the load, while its CPU stays near 0.15 to 0.35 s.
 - The idle CPU budget failed in some `./test.sh bench` runs today, at 0.652 to 0.875 %, against a 0.6 % ceiling. `main` at 8533429 does the same: two 30-second idle runs of each, one after the other at load averages of 11 to 16, gave 0.403 and 0.874 % for `main` and 0.682 and 0.408 % for this branch.
 
 ## Rerun
