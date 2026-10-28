@@ -510,7 +510,7 @@ static NSString *const kJudge =
 
 static id DaysAgo(NSDate *d) { return d ? @(round(-d.timeIntervalSinceNow / 8640) / 10) : nil; }
 
-/// What the review sends about one worktree, redacted by Core. docs/REVIEW.md lists each field.
+/// What the review sends about one worktree, redacted by Core. docs/PRIVACY.md lists each field.
 /// No file contents, no .env, no first prompt, no transcript path and no environment.
 static NSDictionary *ReviewFacts(MMFinding *f, NSArray<NSString *> *servers) {
     MMWFTree *t = MMWFTreeOf(f);

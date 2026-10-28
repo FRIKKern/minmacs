@@ -62,7 +62,7 @@ A notification is sent only after an expert acted without being asked, one per r
 
 ## Checked, not assumed
 
-After any change to a menu, run the render tool from Core. It renders every expert's header, menu and hover cards from fixture subjects to PNG, in light, dark and Increase Contrast. CI runs it and keeps the PNGs. Look at them and check that:
+After any change to a menu, run `tools/render.sh`. It draws every expert's status item, header, menu and hover cards, the shell's One Icon menu and the Settings panes from the fixture subjects in `tools/render.m`, with the same kit the app uses, to PNG in `build/render/`, in light, dark and Increase Contrast. It also runs its own checks of this standard, writes them to `checks.txt`, and exits 1 when one fails. CI keeps the PNGs. The README's pictures in `docs/img/` are copies of some of them, and `./test.sh docs` reports when they differ from a new render. Look at the PNGs and check that:
 
 - titles and the first fact on each line are not cut off
 - the fact columns line up from card to card

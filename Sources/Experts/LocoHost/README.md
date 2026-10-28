@@ -39,7 +39,7 @@ A server's card names its worktree and whether it is merged, such as "checkout-f
 
 The routine schema in LocoHost's words: `in_use`, `idle` and `unsure`. Per server: ports, bind, kind, framework, the command line redacted and cut at 400 characters, the project, branch and worktree, the launcher, the agent, whether its parent exited, uptime, CPU now, memory, process count, connections and new connections, clients, busy, minutes since activity, minutes watched, minutes since the repo was touched, protected, duplicates, the quiet threshold, waste as CPU minutes, an energy rank and memory held, and for dev servers the project files and the agent session.
 
-The project files are the package.json name, description and script, the README's first heading and paragraph, the mix.exs app, and the names of config files. The session is the agent, the title, when it started and was last active, and how it matched. The first prompt, the transcript path, `.env` files, other file contents and the environment are never read or sent. Core's `MMCompactFacts` redacts and clips every string again. docs/REVIEW.md does not exist yet, so this list stands in for LocoHost's part of it.
+The project files are the package.json name, description and script, the README's first heading and paragraph, the mix.exs app, and the names of config files. The session is the agent, the title, when it started and was last active, and how it matched. The first prompt, the transcript path, `.env` files, other file contents and the environment are never read or sent. Core's `MMCompactFacts` redacts and clips every string again. docs/PRIVACY.md lists each field, and `./test.sh docs` checks that list against the code.
 
 Two rules decide before the model: `locohost.not-a-dev-server` keeps services and high-port listeners, and `locohost.in-use-now` keeps a server with a new request or real CPU work right now.
 
@@ -59,7 +59,6 @@ A verb reads `MMArgs.snapshot`, or `MMArgs.settledSnapshot` when it reports CPU 
 
 ## Left open
 
-- `docs/REVIEW.md` does not exist. The list above is LocoHost's part.
 - The project files are read by LocoHost through Core's fact cache, from an allowlist. They belong in Know.
 - The HTTP title probe of 0.1 is gone, so page titles are not shown or sent. A probe would belong in Senses.
 - Energy is a rank, as DESIGN.md asks. `idleEnergyWh` is gone from `--json`, and `energyRank` is there in its place.

@@ -66,7 +66,6 @@ WorkForest 0.1's syntax works under the `workforest` name through the shim in `S
 - `viewFor:` reads the undo log, the keeps and the rules on main when the snapshot changes, as LocoHost's does.
 - Sessions that only named a worktree in a parent folder's log, WorkForest 0.1's "a session named this folder", are not matched. Know's session index matches by working folder only.
 - `fetch` is gone: MinMacs never fetches. The merged pull request check through `gh` is gone too.
-- docs/REVIEW.md does not exist yet, so the list above stands in for WorkForest's part of it.
 
 ## Investigate, issue #35
 

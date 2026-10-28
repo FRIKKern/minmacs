@@ -53,4 +53,3 @@ The header is what deleting frees, then finished projects, what the Trash holds 
 - pnpm's `.modules.yaml` `storeDir` is not read yet, so an unused store layout is not marked.
 - Docker, Colima, OrbStack and Homebrew rows only report, since their commands change data in place that a recovery copy cannot bring back.
 - The Trash frees nothing until the person empties it. The header says what it holds.
-- docs/REVIEW.md does not exist. The review gets the row, class, section, state, owner state, members, freed MB, idle days and the reason.

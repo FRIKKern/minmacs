@@ -139,7 +139,7 @@ extern NSString *const MMWorkKeepsRuleID;               // "core.work-keeps"
 /// about, reason and keep_evidence. The broker wraps it as {items, summary}.
 @property NSDictionary *schema;
 @property MMVerdictWords *words;
-@property (copy) NSDictionary *(^factsFor)(MMFinding *f);   // what is sent per finding, redacted; docs/REVIEW.md lists it
+@property (copy) NSDictionary *(^factsFor)(MMFinding *f);   // what is sent per finding, redacted; docs/PRIVACY.md lists it
 /// Keys of factsFor that belong to the workstream, such as agent_session and branch. Where every finding of one block
 /// has the same value, the broker sends it once in the block's ws. Facts every finding of a call shares go in all.
 @property (copy) NSArray<NSString *> *sharedKeys;

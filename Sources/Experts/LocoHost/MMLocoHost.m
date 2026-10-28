@@ -283,7 +283,7 @@ static id Minutes(id seconds1970) {
     return @((long)round((NSDate.date.timeIntervalSince1970 - [seconds1970 doubleValue]) / 60));
 }
 
-/// What the review sends about one server, redacted. docs/REVIEW.md lists each field.
+/// What the review sends about one server, redacted. docs/PRIVACY.md lists each field.
 /// Only these, as in LocoHost 0.1: no .env file, no other file contents, no environment, no page body, no log path.
 static NSDictionary *ReviewFacts(MMFinding *f) {
     MMLHHost *h = HostOf(f);

@@ -123,7 +123,7 @@ typedef NS_ENUM(NSInteger, MMRowMark) {
 /// step is MMStopKill for the Option alternate or a second request.
 - (id<MMAction>)actionFor:(MMFinding *)f step:(MMStopStep)step;
 
-/// Review facts. What the review sends about f, redacted. docs/REVIEW.md lists each field.
+/// Review facts. What the review sends about f, redacted. docs/PRIVACY.md lists each field.
 - (NSDictionary *)reviewFactsFor:(MMFinding *)f;
 /// P47. The rules that decide before the model. May be empty.
 - (NSArray<id<MMRule>> *)rules;
