@@ -443,7 +443,9 @@ int main(int argc, char **argv) {
             Check(@"the source never runs on main", @NO, @(src.onMain));
             Check(@"observers run on main", @0, @(offMain));
             Check(@"current is the latest after publish", @"yes", g.current && g.current == g.latest ? @"yes" : @"no");
-            Check(@"the generation is the graph's count", @(src.calls), @(g.current.generation));
+            // Since issue #52 a call to the source can end in a skipped build, so the source's count can run ahead.
+            // The generation counts the snapshots the graph published.
+            Check(@"the generation is the graph's count", @(published), @(g.current.generation));
             Check(@"freshFactsFor never runs on main", @"nil", [g freshFactsFor:[g.current.findings firstObject]] ? @"facts" : @"nil");
             __block BOOL freshOff = NO;
             dispatch_semaphore_t sem = dispatch_semaphore_create(0);
