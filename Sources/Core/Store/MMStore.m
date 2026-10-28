@@ -219,9 +219,22 @@ void MMRulesCheckNow(void) { atomic_fetch_add(&gRulesWrites, 1); }
 }
 
 + (instancetype)rulesFor:(NSString *)expert defaults:(NSDictionary<NSString *, NSArray *> *)defaults {
+    MMStateFile *file = [MMStateFile fileNamed:@"rules" expert:expert];
+    NSDictionary *wanted = [defaults copy] ?: @{};
+    // Issue #54: the same rules again, while the file is the one the last call merged into. WorkForest asks for
+    // its protect list once per worktree on each build, and each call took the file's lock and parsed it,
+    // 300 times a build with 300 worktrees. A changed or missing file merges its defaults again, as before.
+    static NSMutableDictionary<NSString *, NSArray *> *made;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ made = [NSMutableDictionary new]; });
+    id stamp = FileStamp(file.path) ?: NSNull.null;
+    @synchronized (made) {
+        NSArray *hit = made[file.path];
+        if (hit && [hit[0] isEqual:wanted] && [hit[2] isEqual:stamp]) return hit[1];
+    }
     MMRules *r = [self new];
-    r->_file = [MMStateFile fileNamed:@"rules" expert:expert];
-    r->_defaults = [defaults copy] ?: @{};
+    r->_file = file;
+    r->_defaults = wanted;
     // Writes only when a default is new or the file is missing, so a read-only start leaves the file alone.
     [r->_file update:^id(id disk) {
         BOOL changed = ![disk isKindOfClass:NSDictionary.class];
@@ -229,6 +242,11 @@ void MMRulesCheckNow(void) { atomic_fetch_add(&gRulesWrites, 1); }
         if (changed) atomic_fetch_add(&gRulesWrites, 1);
         return changed ? j : nil;
     }];
+    id after = FileStamp(file.path);
+    @synchronized (made) {
+        if (made.count > 64) [made removeAllObjects];
+        if (after) made[file.path] = @[wanted, r, after]; else [made removeObjectForKey:file.path];
+    }
     return r;
 }
 

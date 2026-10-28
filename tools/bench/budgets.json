@@ -1,6 +1,6 @@
 {
   "source": "docs/2.0/PLAN.md section 9, phase 6: with five experts on, on this Mac",
-  "note": "max is the phase 6 budget. ceiling is where today's code fails the gate. Issue #52 tightened the idle ceilings to about twice what the 30-minute run reached, since a 30-second window under other builds moves with how many processes start and end. The CPU a tick is the mean of the whole process's CPU from one sample to the next. Its ceiling went from 30 to 40 ms when the menus' prepare step joined each tick: a 30-second window under load read 30.27 ms, while the 30-minute run read 14.5 ms. MM_BENCH_STRICT=1 gates on max. docs/2.0/BENCH.md has the numbers behind the idle ceilings, docs/2.0/MEASUREMENTS.md those behind the menu ceilings.",
+  "note": "max is the phase 6 budget. ceiling is where today's code fails the gate. Issue #52 tightened the idle ceilings to about twice what the 30-minute run reached, since a 30-second window under other builds moves with how many processes start and end. The CPU a tick is the mean of the whole process's CPU from one sample to the next. Its ceiling went from 30 to 40 ms when the menus' prepare step joined each tick: a 30-second window under load read 30.27 ms, while the 30-minute run read 14.5 ms. The cold scan's ceiling is twice its 30-second budget, since one run at a load average of 81 took 74 seconds. MM_BENCH_STRICT=1 gates on max. docs/2.0/BENCH.md has the numbers behind the idle ceilings, docs/2.0/MEASUREMENTS.md those behind the menu ceilings.",
   "budgets": [
     {"key": "idleCPUPercent", "max": 0.3, "ceiling": 0.6, "unit": "%", "what": "idle CPU"},
     {"key": "tickCPUms", "max": 15, "ceiling": 40, "unit": "ms", "what": "CPU a tick, the mean from one sample to the next",
@@ -9,8 +9,12 @@
     {"key": "wakeupsPerSecond", "max": 1, "ceiling": 0.5, "unit": "/s", "what": "wakeups a second", "below": true},
     {"key": "menuOpenP95Ms", "max": 30, "ceiling": 60, "unit": "ms", "what": "menu open at p95, worst expert"},
     {"key": "cardHoverP95Ms", "max": 16, "ceiling": 32, "unit": "ms", "what": "card hover at p95, worst expert"},
-    {"key": "warmScan300Seconds", "max": 2, "unit": "s", "what": "warm scan of 300 worktrees", "measured": false,
-     "why": "WorkForest is not merged yet, so there is no scan to time"},
+    {"key": "warmScan300Seconds", "max": 2, "ceiling": 2, "unit": "s", "what": "warm scan of 300 worktrees", "input": "scale",
+     "from": "bench scale, issue #54: the full walk with every fingerprint read again and no git run, the median of the later launch's runs"},
+    {"key": "coldScan300Seconds", "max": 30, "ceiling": 60, "unit": "s", "what": "cold scan of 300 worktrees", "input": "scale",
+     "from": "bench scale, issue #54: MMCoreStart with no caches until a snapshot holds the git facts of every checkout"},
+    {"key": "workerPeakMB", "max": 300, "ceiling": 300, "unit": "MB", "what": "worker child peak memory", "input": "scale",
+     "from": "bench scale, issue #54: the walk child's footprint and lifetime peak, read every 20 ms in every phase"},
     {"key": "iconsAfterLaunchMs", "max": 300, "ceiling": 300, "unit": "ms", "what": "icons after launch, headless", "input": "startup",
      "from": "bench startup: MMMain's start to every item made, without the status bar's own cost, the slower of a first and a later launch"},
     {"key": "summariesAfterLaunchMs", "max": 5000, "ceiling": 5000, "unit": "ms", "what": "every summary after launch, headless", "input": "startup",

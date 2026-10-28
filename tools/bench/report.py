@@ -2,6 +2,7 @@
 """Turns one bench run into Markdown tables: 2.0 against the old apps over the same window, the tick, and the menus.
 
 Usage: report.py idle.json menus.json [host.txt] [startup.json ...] [hangs.json]
+       report.py --scale scale.json ...     the runs of tools/bench/scale.sh, issue #54
 """
 import json
 import sys
@@ -12,7 +13,50 @@ def fmt(x, places=2):
     return ("%%.%df" % places) % x if isinstance(x, (int, float)) else str(x)
 
 
+def scale(paths):
+    """Issue #54: what bench scale measured, one column per run."""
+    runs = [json.load(open(p)) for p in paths]
+    name = lambda r: "later launch, caches saved" if r.get("cachesAtLaunch") else "first launch, no caches"
+    out = ["Scans and review at scale. %d checkouts. Times are wall seconds unless they say CPU." % runs[0]["expect"], ""]
+    out.append("| Measure | " + " | ".join(name(r) for r in runs) + " |")
+    out.append("|---|" + "---|" * len(runs))
+
+    def row(label, get):
+        cells = []
+        for r in runs:
+            try:
+                cells.append(str(get(r)))
+            except (KeyError, TypeError):
+                cells.append("")
+        out.append("| %s | %s |" % (label, " | ".join(cells)))
+    row("Launch: until every checkout has git facts", lambda r: r["launch"]["factsSeconds"])
+    row("Launch: until a snapshot holds them", lambda r: r["launch"]["snapshotSeconds"])
+    row("Launch: CPU s, this process / git children", lambda r: "%s / %s" % (r["launch"]["cpuSeconds"], r["launch"]["childCPUSeconds"]))
+    row("Launch: git runs, patch ids, squash checks", lambda r: "%s, %s, %s" % (r["launch"]["gitRuns"], r["launch"]["patchIdsComputed"], r["launch"]["squashChecks"]))
+    row("Warm walk: median, max", lambda r: "%s, %s" % (r["warm"]["seconds"]["median"], r["warm"]["seconds"]["max"]))
+    row("Warm walk: CPU s at the median", lambda r: r["warm"]["cpuSeconds"]["median"])
+    row("Warm walk: git runs, fingerprints read", lambda r: "%s, %s" % (r["warm"]["gitRuns"], r["warm"]["fingerprintReads"]))
+    row("Rebuild over every checkout, ms at the median", lambda r: r["warm"]["rebuildMs"]["median"])
+    row("Rebuild CPU ms: snapshot, WorkForest's findings", lambda r: "%s, %s" % (
+        r["warm"]["graph"]["perBuildCPUms"]["snapshot"], r["warm"]["graph"]["perBuildCPUms"]["findings.workforest"]))
+    row("Clutter scan: first, again", lambda r: "%s, %s" % (r["clutter"]["firstSeconds"], r["clutter"]["againSeconds"]))
+    row("Clutter: items, files, GB du sees, GB deleting frees", lambda r: "%s, %s, %s, %s" % (
+        r["clutter"]["items"], r["clutter"]["files"], r["clutter"]["allocatedGB"], r["clutter"]["freedIfDeletedGB"]))
+    row("Review: findings sent, calls, wall s", lambda r: "%s, %s, %s" % (r["review"]["first"]["sent"], r["review"]["first"]["calls"], r["review"]["first"]["seconds"]))
+    row("Review: uncached tokens, per finding", lambda r: "%s, %s" % (r["review"]["first"]["uncachedTokens"], r["review"]["first"]["uncachedPerFinding"]))
+    row("Review again, nothing moved: sent, calls, wall s", lambda r: "%s, %s, %s" % (r["review"]["cached"]["sent"], r["review"]["cached"]["calls"], r["review"]["cached"]["seconds"]))
+    for phase in ("launch", "warm", "clutter", "review", "after"):
+        row("Peak MB in %s: Core / worker" % phase, lambda r, p=phase: "%s / %s" % (r["memory"][p]["corePeakMB"], r["memory"][p]["workerPeakMB"]))
+    row("After: worker closed after s", lambda r: r["idleAfter"]["workerGoneSeconds"])
+    row("After: CPU % over the quiet window", lambda r: "%s over %s s" % (r["idleAfter"]["cpuPercent"], r["idleAfter"]["windowSeconds"]))
+    row("After: footprint MB, at launch, at the end", lambda r: "%s, %s" % (r["idleAfter"]["footprintAtLaunchMB"], r["idleAfter"]["footprintMB"]))
+    print("\n".join(out))
+
+
 def main():
+    if sys.argv[1:2] == ["--scale"]:
+        scale(sys.argv[2:])
+        return
     idle = json.load(open(sys.argv[1]))
     menus = json.load(open(sys.argv[2]))
     host, startups, hangs = [], [], None

@@ -13,7 +13,7 @@
             reply:(void (^)(NSDictionary<NSString *, NSDictionary *> *sizes, NSError *error))reply;
 /// The exact tier of the Sizer: the bytes deleting all roots together frees, with clone extents counted once.
 - (void)exactSize:(NSArray<NSString *> *)roots reply:(void (^)(uint64_t freed, NSError *error))reply;
-/// Repo and worktree discovery under roots, P25. Each entry holds path, repo, branch and locked.
+/// Repo and worktree discovery under roots, P25. Each entry holds path, repo, branch, locked, gitDir and common.
 - (void)findWorktrees:(NSArray<NSString *> *)roots skip:(NSArray<NSString *> *)names
                 reply:(void (^)(NSArray<NSDictionary *> *worktrees, NSError *error))reply;
 @end

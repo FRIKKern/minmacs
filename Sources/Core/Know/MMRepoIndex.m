@@ -13,6 +13,8 @@
 #import "Core/Runtime/MMWorker.h"
 #import "Core/Senses/MMFolders.h"
 #import "Core/Store/MMStore.h"
+#include <stdatomic.h>
+#include <sys/stat.h>
 
 // MMGitFacts.m
 NSDictionary<NSString *, NSString *> *MMGitDirsOf(NSString *path);
@@ -43,6 +45,19 @@ static NSArray<NSString *> *SkipNames(void) {
 static BOOL PathIn(NSString *path, NSString *folder) {
     if (!path.length || !folder.length) return NO;
     return [path isEqualToString:folder] || [path hasPrefix:[folder hasSuffix:@"/"] ? folder : [folder stringByAppendingString:@"/"]];
+}
+
+/// With MINMACS_HOME set, as in a test or the bench, git and size walks never run in the person's home folder,
+/// unless the path lies inside MINMACS_HOME or one of the index's roots. Fixtures live under TMPDIR or in the test
+/// home. Issue #54 found the bench's real process table led the index to run git in the person's repos.
+static BOOL ReadableAt(NSString *path, NSArray<NSString *> *roots) {
+    NSString *home = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
+    if (!home.length) return YES;
+    NSString *p = path.stringByStandardizingPath, *mine = NSHomeDirectory().stringByStandardizingPath;
+    if (!PathIn(p, mine)) return YES;
+    if (PathIn(p, home.stringByStandardizingPath)) return YES;
+    for (NSString *r in roots) if (PathIn(p, r.stringByStandardizingPath)) return YES;
+    return NO;
 }
 
 #pragma mark - Worktrees
@@ -76,10 +91,8 @@ static MMWorktreeMaker MakerOf(NSString *path) {
 
 @end
 
-static NSString *ReadLine(NSString *path) {
-    NSString *s = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
-    return [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-}
+NSString *MMReadLine(NSString *path);   // MMGitFacts.m: a small file's text, trimmed, read with open and read
+static NSString *ReadLine(NSString *path) { return MMReadLine(path); }
 
 static NSString *BranchIn(NSString *gitDir) {
     NSString *head = ReadLine([gitDir stringByAppendingPathComponent:@"HEAD"]);
@@ -89,9 +102,9 @@ static NSString *BranchIn(NSString *gitDir) {
 /// The checkout at dir, read from its .git, or nil when dir holds no .git.
 static MMWorktree *CheckoutAt(NSString *dir) {
     NSString *dotgit = [dir stringByAppendingPathComponent:@".git"];
-    BOOL isDir = NO;
-    if (![NSFileManager.defaultManager fileExistsAtPath:dotgit isDirectory:&isDir]) return nil;
-    if (isDir) return [MMWorktree path:dir repo:dir branch:BranchIn(dotgit) locked:NO];
+    struct stat st;   // stat, not NSFileManager, issue #54: once per worktree on every update pass
+    if (stat(dotgit.fileSystemRepresentation, &st) != 0) return nil;
+    if (S_ISDIR(st.st_mode)) return [MMWorktree path:dir repo:dir branch:BranchIn(dotgit) locked:NO];
     NSString *line = ReadLine(dotgit);
     if (![line hasPrefix:@"gitdir: "]) return nil;
     NSString *gitDir = [line substringFromIndex:8];
@@ -102,7 +115,7 @@ static MMWorktree *CheckoutAt(NSString *dir) {
     if (!common.isAbsolutePath) common = [gitDir stringByAppendingPathComponent:common];
     common = common.stringByStandardizingPath;
     NSString *repo = [common.lastPathComponent isEqualToString:@".git"] ? common.stringByDeletingLastPathComponent : common;
-    BOOL locked = [NSFileManager.defaultManager fileExistsAtPath:[gitDir stringByAppendingPathComponent:@"locked"]];
+    BOOL locked = stat([gitDir stringByAppendingPathComponent:@"locked"].fileSystemRepresentation, &st) == 0;
     return [MMWorktree path:dir repo:repo branch:BranchIn(gitDir) locked:locked];
 }
 
@@ -289,24 +302,30 @@ static NSArray<NSString *> *DefaultRoots(void) {
             return;
         }
         NSMutableArray *trees = [NSMutableArray new];
+        NSMutableDictionary *dirs = [NSMutableDictionary new];
         for (NSDictionary *e in found) {
             if (![e isKindOfClass:NSDictionary.class] || ![e[@"path"] isKindOfClass:NSString.class]) continue;
             [trees addObject:[MMWorktree path:e[@"path"] repo:e[@"repo"] ?: e[@"path"]
                                        branch:[e[@"branch"] isKindOfClass:NSString.class] ? e[@"branch"] : nil
                                        locked:[e[@"locked"] boolValue]]];
+            if ([e[@"gitDir"] isKindOfClass:NSString.class] && [e[@"common"] isKindOfClass:NSString.class])
+                dirs[e[@"path"]] = @{@"gitDir": e[@"gitDir"], @"common": e[@"common"]};
         }
-        [self finish:trees];
+        [self finish:trees dirs:dirs];
     }];
 }
 
-- (void)finish:(NSArray<MMWorktree *> *)trees {
+- (void)finish:(NSArray<MMWorktree *> *)trees { [self finish:trees dirs:@{}]; }
+
+/// known holds the git dirs the worker read on its walk. The others are read here.
+- (void)finish:(NSArray<MMWorktree *> *)trees dirs:(NSDictionary<NSString *, NSDictionary *> *)known {
     NSArray *sorted = [trees sortedArrayUsingComparator:^NSComparisonResult(MMWorktree *a, MMWorktree *b) {
         if (a.path.length != b.path.length) return a.path.length > b.path.length ? NSOrderedAscending : NSOrderedDescending;
         return [a.path compare:b.path];
     }];
     // The git dirs of every worktree, so a change in one maps to its worktrees with no disk read.
     NSMutableDictionary *dirs = [NSMutableDictionary new];
-    for (MMWorktree *w in sorted) { NSDictionary *d = MMGitDirsOf(w.path); if (d) dirs[w.path] = d; }
+    for (MMWorktree *w in sorted) { NSDictionary *d = known[w.path] ?: MMGitDirsOf(w.path); if (d) dirs[w.path] = d; }
     NSSet *live = [NSSet setWithArray:[sorted valueForKey:@"path"]];
     BOOL again, changed;
     NSArray<NSArray *> *early;
@@ -412,23 +431,32 @@ static NSArray<NSString *> *DefaultRoots(void) {
 /// A change in a known git dir starts no walk, so a branch switch or `git worktree lock` lands here instead.
 /// The checkout is read again from its .git files, with no spawn, and replaces the walked one when its branch
 /// or its lock moved.
-- (void)recheckTree:(NSString *)path {
-    MMWorktree *now = CheckoutAt(path);
-    if (!now) return;
-    BOOL moved = NO;
+- (void)recheckTree:(NSString *)path dirs:(NSDictionary *)dirs files:(NSDictionary *)files {
+    // Issue #54: from what updateOne already read, the branch from HEAD in files and the lock with one stat,
+    // where CheckoutAt read .git, commondir and HEAD again for every worktree on every pass.
+    NSString *gitDir = dirs[@"gitDir"], *common = dirs[@"common"];
+    BOOL isMain = [gitDir isEqualToString:common];
+    struct stat st;
+    BOOL locked = !isMain && stat([gitDir stringByAppendingPathComponent:@"locked"].fileSystemRepresentation, &st) == 0;
+    NSString *branch = files[@"branch"];
+    MMWorktree *now = nil;
     @synchronized (self) {
-        NSMutableArray *trees = [_trees mutableCopy];
-        for (NSUInteger i = 0; i < trees.count; i++) {
-            MMWorktree *x = trees[i];
-            if (![x.path isEqualToString:path]) continue;
-            BOOL sameBranch = x.branch == now.branch || [x.branch isEqualToString:now.branch];
-            if (sameBranch && x.locked == now.locked) break;
-            trees[i] = now; moved = YES;
-            break;
+        NSUInteger i = 0;
+        for (MMWorktree *x in _trees) {
+            if ([x.path isEqualToString:path]) {
+                BOOL sameBranch = x.branch == branch || [x.branch isEqualToString:branch];
+                if (sameBranch && x.locked == locked) return;
+                NSString *repo = isMain ? path : [common.lastPathComponent isEqualToString:@".git"] ? common.stringByDeletingLastPathComponent : common;
+                now = [MMWorktree path:path repo:repo branch:branch locked:locked];
+                NSMutableArray *trees = [_trees mutableCopy];
+                trees[i] = now;
+                _trees = trees;
+                break;
+            }
+            i++;
         }
-        if (moved) _trees = trees;
     }
-    if (moved) [NSNotificationCenter.defaultCenter postNotificationName:MMRepoIndexDidChangeNotification object:self];
+    if (now) [NSNotificationCenter.defaultCenter postNotificationName:MMRepoIndexDidChangeNotification object:self];
 }
 
 /// Reads one worktree's fingerprints and runs git where one moved. Returns the facts, or nil when the path holds
@@ -441,15 +469,16 @@ static NSArray<NSString *> *DefaultRoots(void) {
         dirs = _dirs[path];
         if ([_dropped containsObject:path]) { force = YES; [_dropped removeObject:path]; }
     }
-    if (!dirs) dirs = MMGitDirsOf(path);
-    if (!dirs) {
+    BOOL readable = ReadableAt(path, self.roots);
+    if (!dirs && readable) dirs = MMGitDirsOf(path);
+    if (!dirs || !readable) {
         @synchronized (self) { *changed = _facts[path] && _facts[path] != NSNull.null; _facts[path] = NSNull.null; }
         [_git drop:path];
         return nil;
     }
     [self count:@"fingerprintReads" by:1];
-    [self recheckTree:path];
     NSDictionary *files = MMGitReadFiles(dirs[@"gitDir"], dirs[@"common"]);
+    [self recheckTree:path dirs:dirs files:files];
     NSDictionary *old = [_git peek:path];
     if (![old isKindOfClass:NSDictionary.class]) old = nil;
     NSString *sfp = MMGitStatusFingerprint(files), *hfp = MMGitHistoryFingerprint(files, w.isMain);
@@ -481,6 +510,12 @@ static NSArray<NSString *> *DefaultRoots(void) {
     dispatch_async(GitQueue(), ^{ [self runUpdates]; });
 }
 
+/// How many repos an update pass works on at once: half the cores, at most 4, so git children never crowd the Mac.
+static size_t UpdateWidth(void) {
+    NSUInteger cores = NSProcessInfo.processInfo.activeProcessorCount;
+    return (size_t)MAX(1, MIN(4, cores / 2));
+}
+
 /// Passes on the git queue until no worktree is marked. A done block runs after the pass that started after it.
 - (void)runUpdates {
     [self loadCaches];
@@ -493,14 +528,35 @@ static NSArray<NSString *> *DefaultRoots(void) {
             _updateAgain = NO;
         }
         NSDate *t0 = NSDate.date;
-        NSUInteger ran = 0;
-        BOOL anyChanged = NO;
-        for (NSString *p in marked) @autoreleasepool {
-            BOOL r = NO, c = NO;
-            [self updateOne:marked[p] force:NO ran:&r changed:&c];
-            if (r) ran++;
-            anyChanged |= c;
+        __block _Atomic NSUInteger ran = 0;
+        __block _Atomic BOOL anyChanged = NO;
+        // Issue #54: the repos in parallel, a few at a time, and each repo's worktrees in turn, so one repo's
+        // patch ids are computed once. A cold pass over 300 worktrees in 30 repos ran 2,181 git children one by one.
+        NSMutableDictionary<NSString *, NSMutableArray<MMWorktree *> *> *byRepo = [NSMutableDictionary new];
+        for (NSString *p in marked) {
+            MMWorktree *w = marked[p];
+            NSString *repo = w.repo.length ? w.repo : p;
+            if (!byRepo[repo]) byRepo[repo] = [NSMutableArray new];
+            [byRepo[repo] addObject:w];
         }
+        NSArray<NSArray<MMWorktree *> *> *groups = [byRepo.allValues sortedArrayUsingComparator:^NSComparisonResult(NSArray *a, NSArray *b) {
+            return a.count > b.count ? NSOrderedAscending : a.count < b.count ? NSOrderedDescending : NSOrderedSame;   // largest first
+        }];
+        // Each lane is a labeled serial queue of its own, core.git.1 to core.git.4. This queue waits for them.
+        __block _Atomic NSUInteger next = 0;
+        size_t width = MIN(groups.count, UpdateWidth());
+        dispatch_group_t lanes = dispatch_group_create();
+        for (size_t lane = 1; lane <= width; lane++)
+            dispatch_group_async(lanes, MMQueue(@"core", [NSString stringWithFormat:@"git.%zu", lane], QOS_CLASS_UTILITY), ^{
+                for (NSUInteger i; (i = atomic_fetch_add(&next, 1)) < groups.count;)
+                    for (MMWorktree *w in groups[i]) @autoreleasepool {
+                        BOOL r = NO, c = NO;
+                        [self updateOne:w force:NO ran:&r changed:&c];
+                        if (r) atomic_fetch_add(&ran, 1);
+                        if (c) anyChanged = YES;
+                    }
+            });
+        dispatch_group_wait(lanes, DISPATCH_TIME_FOREVER);
         @synchronized (_counts) {
             _counts[@"lastUpdateMs"] = @((NSInteger)llround(-t0.timeIntervalSinceNow * 1000));
             _counts[@"lastUpdateRan"] = @(ran);
@@ -550,7 +606,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
 
 - (NSDictionary *)sizeFor:(MMWorktree *)w wait:(BOOL)wait {
     NSString *path = w.path;
-    if (!path.length || (wait && NSThread.isMainThread)) return nil;
+    if (!path.length || (wait && NSThread.isMainThread) || !ReadableAt(path, self.roots)) return nil;
     if (![self loadCaches]) return nil;   // on main before the caches were read
     NSDictionary *have = [_sizes peek:path];
     BOOL stale = [_sizes changed:path fingerprint:@"ok"];

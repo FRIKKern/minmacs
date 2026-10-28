@@ -7,6 +7,8 @@
 #import "Core/Act/MMWorktreeAct.h"
 #import "Core/Runtime/MMRuntime.h"
 #include <stdlib.h>
+#include <os/lock.h>
+#include <time.h>
 
 static NSString *Real(NSString *path) {
     if (!path.length) return path;
@@ -14,9 +16,34 @@ static NSString *Real(NSString *path) {
     return realpath(path.fileSystemRepresentation, buf) ? @(buf) : path.stringByStandardizingPath;
 }
 
+/// Issue #54. Real for a subject made from a snapshot, read once per path for that snapshot and for at most 2 seconds.
+/// WorkForest plans every merged worktree on each build, and each plan resolved every worktree and finding path,
+/// 155,000 realpath calls a build with 300 worktrees. The check before an action passes no snapshot, so it reads
+/// realpath every time.
+static NSString *RealFor(NSString *path, MMSnapshot *s) {
+    if (!s || !path.length) return Real(path);
+    static NSMutableDictionary<NSString *, NSString *> *memo;
+    static __weak MMSnapshot *memoFor;
+    static uint64_t memoAt;
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    NSString *hit;
+    os_unfair_lock_lock(&lock);
+    if (memoFor != s || now - memoAt > 2 * NSEC_PER_SEC || memo.count > 20000) { memo = [NSMutableDictionary new]; memoFor = s; memoAt = now; }
+    hit = memo[path];
+    os_unfair_lock_unlock(&lock);
+    if (hit) return hit;
+    NSString *r = Real(path);
+    os_unfair_lock_lock(&lock);
+    if (memoFor == s) memo[path] = r;
+    os_unfair_lock_unlock(&lock);
+    return r;
+}
+
+/// path is folder or inside it. No string is made, since a build asks this about 400,000 times with 300 worktrees.
 static BOOL PathIn(NSString *path, NSString *folder) {
-    if (!path.length || !folder.length) return NO;
-    return [path isEqualToString:folder] || [path hasPrefix:[folder stringByAppendingString:@"/"]];
+    if (!path.length || !folder.length || ![path hasPrefix:folder]) return NO;
+    return path.length == folder.length || [path characterAtIndex:folder.length] == '/';
 }
 
 NSString *MMWrapUpStepName(MMWrapUpStep step) {
@@ -84,6 +111,7 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
 @property (readwrite) NSArray<MMFinding *> *findings;
 @property (readwrite) NSArray<NSValue *> *stopped;
 @property (readwrite) BOOL configPart;
+@property (weak) MMSnapshot *made;              // the snapshot it was made from, nil for a check on fresh facts
 @end
 
 @implementation MMWrapUpSubject
@@ -91,17 +119,18 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
 - (BOOL)holds:(NSString *)path {
     if (!path.length) return NO;
     if (PathIn(path, self.path) || PathIn(path, self.given) || PathIn(path, self.worktree.path)) return YES;
-    return PathIn(Real(path), self.path);
+    return PathIn(RealFor(path, self.made), self.path);
 }
 
 + (instancetype)subjectAt:(NSString *)path facts:(MMFacts *)facts snapshot:(MMSnapshot *)s {
     MMWrapUpSubject *x = [MMWrapUpSubject new];
+    x.made = s;
     x.given = path.stringByStandardizingPath;
-    x.path = Real(x.given);
+    x.path = RealFor(x.given, s);
     x.stopped = @[];
     for (MMWorktree *w in facts.worktrees) {
         if (!w.path.length) continue;
-        if ([w.path isEqualToString:x.given] || [w.path isEqualToString:x.path] || [Real(w.path) isEqualToString:x.path]) { x.worktree = w; break; }
+        if ([w.path isEqualToString:x.given] || [w.path isEqualToString:x.path] || [RealFor(w.path, s) isEqualToString:x.path]) { x.worktree = w; break; }
     }
     x.git = x.worktree ? [facts gitFor:x.worktree] : nil;
     NSMutableArray<MMSession *> *sessions = [NSMutableArray new];
@@ -112,10 +141,13 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
         return p ? NSOrderedAscending : q ? NSOrderedDescending : NSOrderedSame;
     }];
     x.sessions = sessions;
-    NSMutableArray<MMFinding *> *held = [NSMutableArray new];
-    for (MMFinding *f in s.findings) if ([x holds:f.owner.path] || [x holds:f.ownerPath] || [x holds:f.path]) [held addObject:f];
-    x.findings = held;
     x.whyNot = [x reasonIn:facts];
+    // Issue #54: the findings only for a finished workstream, the one a plan asks the experts about. A build plans
+    // every merged worktree, and scanning every finding for each one took most of the build with 300 worktrees.
+    NSMutableArray<MMFinding *> *held = [NSMutableArray new];
+    if (!x.whyNot)
+        for (MMFinding *f in s.findings) if ([x holds:f.owner.path] || [x holds:f.ownerPath] || [x holds:f.path]) [held addObject:f];
+    x.findings = held;
     return x;
 }
 
@@ -123,7 +155,7 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
 - (NSString *)reasonIn:(MMFacts *)facts {
     MMWorktree *w = self.worktree;
     if (!w) return [NSString stringWithFormat:@"no worktree at %@ in the last scan", self.given.stringByAbbreviatingWithTildeInPath];
-    if (w.isMain || [Real(w.repo) isEqualToString:self.path]) return @"a main checkout is never wrapped up";
+    if (w.isMain || [RealFor(w.repo, self.made) isEqualToString:self.path]) return @"a main checkout is never wrapped up";
     if (w.missing) return @"its folder is gone";
     if (!self.git) return @"cannot verify: its git facts are not known yet";
     if (self.git.merged == MMMergedNone) return @"its branch is not merged";

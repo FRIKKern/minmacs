@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""The regression gate: reads an idle and a menus result from tools/bench/bench and checks them against budgets.json.
+"""The regression gate: reads results from tools/bench/bench and checks them against budgets.json.
 
-Usage: gate.py [--strict] budgets.json idle.json menus.json [startup.json ...] [hangs.json]
-A startup or hangs result is known by its kind. A budget whose input is not given is skipped.
+Usage: gate.py [--strict] budgets.json result.json ...
+Each result is known by its kind: idle, menus, startup, hangs or scale. A budget whose input is not given is skipped.
+A budget with no input reads the idle and menus runs. tools/bench/run.sh gives idle, menus, two startups and hangs.
+tools/bench/scale.sh gives two scale runs, a launch with no caches and a later one, issue #54.
 Prints one line per budget, tab separated: a word, the budget's what, the value, the phase 6 budget, the ceiling.
   ok     within the phase 6 budget
   over   over the phase 6 budget and within today's ceiling, which phase 6 tuning is to close
@@ -22,9 +24,31 @@ def tick_cpu(idle):
     return (round(w["passCPUms"]["median"] + w["rebuildCPUms"]["median"], 3), "")
 
 
-def values(idle, menus, startups=(), hangs=None):
+def scale_values(scales):
+    """Issue #54. The cold scan is the launch with no caches, from MMCoreStart until a snapshot holds every
+    checkout's git facts. The warm scan is the full walk with every fingerprint read again: the median of the
+    later launch's runs. The worker's peak is the highest of any phase of any run."""
+    v = {}
+    cold = [s for s in scales if not s.get("cachesAtLaunch")]
+    if cold:
+        v["coldScan300Seconds"] = (max(s["launch"]["snapshotSeconds"] for s in cold), "a launch with no caches")
+    # The later launch when one is given: the walk the 10-minute timer runs in an app whose launch work is done.
+    # The first launch's warm walks share the Mac with its 300 disk walks, and are reported, not gated.
+    later = [s for s in scales if s.get("cachesAtLaunch")] or scales
+    warm = [(s["warm"]["seconds"]["median"], s) for s in later if s.get("warm", {}).get("seconds", {}).get("n")]
+    if warm:
+        got, s = max(warm, key=lambda x: x[0])
+        v["warmScan300Seconds"] = (got, "the %s, median of %d runs" % (
+            "later launch" if s.get("cachesAtLaunch") else "first launch", s["warm"]["seconds"]["n"]))
+    peaks = [(p["workerPeakMB"], "the %s phase" % k) for s in scales for k, p in s.get("memory", {}).items() if isinstance(p, dict) and "workerPeakMB" in p]
+    if peaks:
+        v["workerPeakMB"] = max(peaks)
+    return v
+
+
+def values(idle, menus, startups=(), hangs=None, scales=()):
     """The number each budget key reads. A per-expert budget gives its worst expert."""
-    v = {
+    v = {} if idle is None else {
         "idleCPUPercent": (idle["cpuPercent"], ""),
         "idleFootprintMB": (idle["footprintMB"], ""),
         # The mean tick: the whole process's CPU from one sample signal to the next, issue #52. A tick whose rebuild
@@ -34,6 +58,8 @@ def values(idle, menus, startups=(), hangs=None):
         "wakeupsPerSecond": (idle["interruptWakeupsPerSecond"], ""),
     }
     for key, field in (("menuOpenP95Ms", "menuOpenMs"), ("cardHoverP95Ms", "cardHoverMs")):
+        if menus is None:
+            break
         worst = None
         for eid, e in sorted(menus["experts"].items()):
             p = e[field].get("p95")
@@ -48,6 +74,7 @@ def values(idle, menus, startups=(), hangs=None):
             v[key] = max(got) if len(got) == len(startups) else (None, "")
     if hangs is not None:
         v["mainStalls"] = (len(hangs["stalls"]) if hangs.get("finished") else None, "")
+    v.update(scale_values(scales))
     return v
 
 
@@ -56,21 +83,23 @@ def main():
     strict = "--strict" in args
     args = [a for a in args if a != "--strict"]
     budgets = json.load(open(args[0]))["budgets"]
-    idle = json.load(open(args[1]))
-    menus = json.load(open(args[2]))
-    extra = [json.load(open(a)) for a in args[3:]]
-    startups = [x for x in extra if x.get("kind") == "startup"]
-    hangs = next((x for x in extra if x.get("kind") == "hangs"), None)
-    given = {"startup": bool(startups), "hangs": hangs is not None}
-    v = values(idle, menus, startups, hangs)
+    results = [json.load(open(a)) for a in args[1:]]
+    idle = next((x for x in results if x.get("kind") == "idle"), None)
+    menus = next((x for x in results if x.get("kind") == "menus"), None)
+    startups = [x for x in results if x.get("kind") == "startup"]
+    hangs = next((x for x in results if x.get("kind") == "hangs"), None)
+    scales = [x for x in results if x.get("kind") == "scale"]
+    given = {"startup": bool(startups), "hangs": hangs is not None, "scale": bool(scales),
+             "": idle is not None and menus is not None}
+    v = values(idle, menus, startups, hangs, scales)
     failed = 0
     for b in budgets:
         what = b["what"]
         if b.get("measured", True) is False:
             print("skip\t%s\tnot measured: %s\tbudget %s %s\t-" % (what, b["why"], b["max"], b["unit"]))
             continue
-        if "input" in b and not given.get(b["input"]):
-            print("skip\t%s\tno %s run given\tbudget %s %s\t-" % (what, b["input"], b["max"], b["unit"]))
+        if not given.get(b.get("input", "")):
+            print("skip\t%s\tno %s run given\tbudget %s %s\t-" % (what, b.get("input", "idle and menus"), b["max"], b["unit"]))
             continue
         got, where = v.get(b["key"], (None, ""))
         if got is None:
