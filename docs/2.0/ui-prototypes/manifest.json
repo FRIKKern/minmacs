@@ -1528,5 +1528,65 @@
   "surface": "menubar",
   "groupId": "87",
   "direction": "Hero: a small bento"
+ },
+ {
+  "file": "88-a.html",
+  "name": "Breathing Pill",
+  "idea": "The focal bar leaves the hero. A glass pill centered under the ring shows a state dot, a short phrase with its size (\"4 idle · 1 GB\") and one action word. When there is something to do it breathes in the section color and the slices it means glow on the ring. After an action, yours or Auto's, it becomes the reward for 20 s (\"1 GB back\", counting up through MB, with one shimmer and Undo), then settles into a calm phrase (\"4 busy, nothing idle\").",
+  "good": "It reads at a glance, never shows a dead button, and gives the gauges the room. Hover or Tab-focus opens the full story in the detail: the sentence and why, the exact items it touches (lit in the list and on the ring), Off / Ask / Auto with the countdown, what the button does before you press it, and what the rule did today. Click or Enter keeps it there.",
+  "tradeoff": "During the 20 s reward the pill shows what came back, not what is still left (the story still shows it), and a slow breath on every tab with work may feel busy at Peak, where all four pills breathe.",
+  "surface": "menubar",
+  "groupId": "88",
+  "direction": "Notice: a pill under the ring"
+ },
+ {
+  "file": "88-b.html",
+  "name": "Arc to the Pill",
+  "idea": "Same pill and story, but it does not breathe. A thin arc on the ring's outer edge covers the slices the notice means, runs the short way round the ring to its bottom, and drops a short line into the pill, so ring and notice read as one. The action word appears only on hover or keyboard focus, in the pill and in the detail. Undo stays visible.",
+  "good": "It is calmer than 88-a and points to the exact slices without dimming anything, so the ring explains the notice even before you hover.",
+  "tradeoff": "With no action word showing, the pill looks less pressable, and when the slices sit at the top of the ring the leader arc runs halfway round and can read as decoration.",
+  "surface": "menubar",
+  "groupId": "88",
+  "direction": "Notice: a pill under the ring"
+ },
+ {
+  "file": "89-a.html",
+  "name": "Ring Is the Notice",
+  "idea": "There is no notice block: the slices the notice means lift out of the ring and glow, and the center says '4 idle' / '1 GB to free', with a Stop pill on hover. Hovering the center or a lifted slice fills the inspect view with the full story, and after an action the slices fly out, the gap closes and the center counts up '1 GB memory back' with Undo before it settles back to the total.",
+  "good": "The gauges get the whole right side and the notice sits where the eye already goes. The toast is gone on the four Advanced tabs: small results say one word in the center, and Auto acting in another tab lights that tab's name. When calm, the center says '19 servers / nothing idle' in color, with no dead button.",
+  "tradeoff": "The center holds only two short lines, so the full sentence, why, items, rule and countdown appear only in the inspect view. The story stays 900 ms while the pointer crosses the list to reach it, and clicking the center keeps it there.",
+  "surface": "menubar",
+  "groupId": "89",
+  "direction": "Notice: the ring is the notice"
+ },
+ {
+  "file": "89-b.html",
+  "name": "Ring and Reward Trail",
+  "idea": "The same ring notice, plus a reward trail: the last three things done in this tab, by you (white dot) or Auto (colored dot), shown as small chips curving along the ring's lower edge. The oldest sits on the left and is dimmest, each chip has Undo on hover, and its full sentence shows in the inspect view.",
+  "good": "What Auto did keeps its Undo after the center settles, so a run of Auto actions stays visible and is easy to take back.",
+  "tradeoff": "The ring shrinks to 172 px to make room, and the chips show only the amount (for example '520 MB'), so you have to hover to learn which server or cache it was.",
+  "surface": "menubar",
+  "groupId": "89",
+  "direction": "Notice: the ring is the notice"
+ },
+ {
+  "file": "90-a.html",
+  "name": "Badge and Next Card",
+  "idea": "The notice becomes a small badge under a smaller ring: a count in the section color and one word (\"4 to stop\", \"2 ask\", \"1 to wrap up\", \"6 may go\"), or \"All calm\" with a hollow dot. It glows softly and thin arcs inside the ring mark the slices it means. Hovering or focusing the badge slides a Next card onto the top of the inspect view with the sentence, item chips, Off / Ask / Auto in words, the countdown and the action button with its preview. Clicking the badge keeps the card. After an action, yours or Auto's, the ring glows once, the freed amount counts up (\"1.5 GB disk back\") with a shimmer and Undo, then the card folds to one line that keeps Undo for 45 s.",
+  "good": "The gauges get the whole right side at a larger size, there is no dead button, and every reward and Undo lands in the badge and the inspect view instead of a toast over the list.",
+  "tradeoff": "The story stays hidden until you hover, so a first look gives only a number and a word, and while the card is open the detail's facts and panels are hidden.",
+  "surface": "menubar",
+  "groupId": "90",
+  "direction": "Notice: a quiet sign, the story in the inspect view"
+ },
+ {
+  "file": "90-b.html",
+  "name": "Dots and Next Line",
+  "idea": "The mark is a row of small dots under the ring, one per thing to do (up to 8), with the count and word beside them. A dot pops in when its item arrives and bursts out in the section color when it is done. The inspect view always starts with one quiet Next line that grows into the full Next card on hover, focus or click, with the same count-up, Undo and fold to one line after an action.",
+  "good": "Progress reads at a glance and feels alive, since each dot that bursts out is one thing done, and the story is always one line away in the inspect view.",
+  "tradeoff": "The always-on line takes about 40 px from the detail, and past 8 items no new dots appear, so only the number shows how many there are.",
+  "surface": "menubar",
+  "groupId": "90",
+  "direction": "Notice: a quiet sign, the story in the inspect view"
  }
 ]
