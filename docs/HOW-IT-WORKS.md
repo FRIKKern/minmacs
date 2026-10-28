@@ -7,7 +7,7 @@ MinMacs is one app with two halves. Core finds out what is on the Mac. Five expe
 ## What happens every 5 seconds
 
 1. **Senses** takes one sample of the Mac: every process with its CPU time, memory, arguments and folder, the open sockets, power, battery, heat, memory pressure and the lid. One sample cost 3.4 ms of CPU at the median when timed alone, and 6.2 ms on average inside the 30 minute bench of [BENCH.md](2.0/BENCH.md), on a Mac with about 865 processes.
-2. **The graph** gathers that sample with what Know holds, and asks each expert for its findings. A finding is one thing an expert has an opinion about, such as one dev server or one worktree. Each finding names its owner: the worktree, the agent session or the app it belongs to. The graph then publishes one snapshot that holds every finding. The snapshot does not change after that, so the menus can read it at any time.
+2. **The graph** gathers that sample with what Know holds, and asks each expert for its findings. A finding is one thing an expert has an opinion about, such as one dev server or one worktree. Each finding names its owner. An owner is a workstream, which is one agent session with its worktree, or a session, a worktree, a project folder or an app. The graph then publishes one snapshot that holds every finding. The snapshot does not change after that, so the menus can read it at any time.
 3. **The menus** draw from the last snapshot. They never wait for the disk, a process or the log.
 
 A process that exits, an app that starts and a charger that comes or goes push a new build at once, without waiting for the 5 seconds. The sample backs off to 10 seconds on battery, 15 seconds when nobody has touched the keyboard or pointer for 5 minutes, and 30 seconds for both.
