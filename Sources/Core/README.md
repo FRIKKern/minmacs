@@ -110,6 +110,23 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - `Sources/Shell/MMShell.m` is the app: it calls `MMCoreStart`, adds the `cli` and `reopen` verbs to core.sock with `MMCoreServe`, makes one status item per expert and opens Settings. `Sources/main.m` registers each class named in `MMBuiltInExpertClasses` that is linked in: `MMMinMacsExpert`, `MMLocoHost`, `MMWorkForestExpert`, `MMNooNooExpert` and `MMInsomniaExpert`. An expert lands by adding its class, with no change to the shell.
 - `Sources/CLI` holds the verb registry, Core's verbs, `MMArgs` and the URL router. A verb prints through `MMArgs`, never with printf, so its output reaches the terminal from the app too.
 
+## The idle tick, issue #52
+
+[docs/2.0/BENCH.md](../../docs/2.0/BENCH.md) has the numbers and how they were taken.
+
+- A sample carries over from the one before, for a process with the same pid, start time, parent and name: its args, its responsible pid, its owning app and its app object. Its cwd carries over while it used no CPU time, for at most 30 seconds. An exec changes the name, so the args are read again.
+- A process that used no CPU time since the last pass keeps its sockets, for 45 to 60 seconds. One that ran but holds the same socket fds has only its TCP fds read again, and none when it had no TCP socket. `-[MMSample unchanged:]` says which processes did not run.
+- Another user's process with the same pid, start, parent and name keeps its whole `MMProc`, since Senses reads nothing more about it. So does an idle process of ours whose footprint did not move.
+- `MMRunningApps()` reads each app from LaunchServices once. An app launch or quit walks the list again and reads only the new app. Every 5 minutes each app is read again.
+- An exit drops the process from the last sample with `-[MMSenses sampleWithout:]`, which copies and reads nothing. The rebuild for an exit waits 0.3 seconds to gather the rest of a burst, and leaves it to the next pass when that is due within half a second after.
+- The pass backs off to 10 seconds on battery, 15 once no key or pointer moved for 5 minutes, and 30 for both. The first pass after the person comes back or plugs in returns to 5 seconds. `MINMACS_NO_BACKOFF=1` keeps 5 seconds, and the bench sets it.
+- The graph skips a build after a new sample when the facts digest matches the last build's: every one of our processes with its start, parent, name, a CPU band and its memory in 16 MB steps, the socket table, power, each agent's state and the identity of every session, worktree, git fact and clutter item. It builds at least every 30 seconds, and always for any reason but a new sample.
+- An expert may answer `inputDigestFrom:`, an optional method of `MMExpert`. When its digest matches and only a new sample asked for the build, the graph hands back its last findings, for at most 30 seconds. LocoHost answers it.
+- The session index watches Claude Code's project and status folders, Codex's home and pi's sessions with one FSEvents stream. A refresh reads only the folders FSEvents named, and returns at once when none changed, no live status file's process ended, and the last read is under a minute old. Every 10 minutes it lists every folder again. Fresh facts always read everything.
+- `MMLogStamp()` changes with any write to the log, from any process. MinMacs and LocoHost read their undo records again only when it moved.
+- Store stats the support folder before it makes it, checks a rules file at most once a second unless this process wrote one, and parses the test prefs and the keeps file again only when their inode, change time or size moved.
+- `-[MMGraph costs]` and `-[MMSenses counts]` hold thread CPU time by part and by expert. Signposts in subsystem `no.guerrilla.minmacs`, category `tick`, mark the pass, each rebuild and each expert's findings.
+
 ## How the parts meet
 
 1. Senses takes one sample every 5 seconds and pushes exits, app events and power changes.

@@ -369,10 +369,12 @@ static int Idle(NSArray<NSString *> *args) {
     // Issue #52: what each part of the tick cost in the window, in CPU ms a build, from the graph's own counters,
     // and what the Senses passes read and carried.
     double builds = MAX(1, [costB[@"builds"] doubleValue] - [costA[@"builds"] doubleValue]);
-    NSMutableDictionary *perBuild = [NSMutableDictionary new];
+    NSMutableDictionary *perBuild = [NSMutableDictionary new], *reused = [NSMutableDictionary new];
     for (NSString *k in costB) {
         if ([k isEqualToString:@"builds"] || [k isEqualToString:@"skipped"]) continue;
-        perBuild[k] = R3(([costB[k] doubleValue] - [costA[k] doubleValue]) / 1e6 / builds);
+        double d = [costB[k] doubleValue] - [costA[k] doubleValue];
+        if ([k hasPrefix:@"reused."]) { reused[[k substringFromIndex:7]] = @((uint64_t)d); continue; }   // a count
+        perBuild[k] = R3(d / 1e6 / builds);
     }
     double passes = MAX(1, (double)(sensesB.passes - sensesA.passes));
     NSDictionary *senses = @{@"passes": @(sensesB.passes - sensesA.passes),
@@ -389,7 +391,7 @@ static int Idle(NSArray<NSString *> *args) {
                                               @"power": R3((sensesB.powerNs - sensesA.powerNs) / 1e6 / passes)}};
     NSDictionary *graph = @{@"builds": @((NSUInteger)builds),
                             @"skipped": @([costB[@"skipped"] unsignedLongLongValue] - [costA[@"skipped"] unsignedLongLongValue]),
-                            @"perBuildCPUms": perBuild,
+                            @"perBuildCPUms": perBuild, @"reusedFindings": reused,
                             @"sessionReads": @(readsB - readsA), @"sessionSkips": @(skipsB - skipsA)};
     double window = (b.wallNs - a.wallNs) / 1e9;
     NSArray *old = OldAppsOver(apps, appStart, psStart, window);

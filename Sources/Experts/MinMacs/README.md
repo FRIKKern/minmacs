@@ -12,7 +12,7 @@ Performance: apps, agents, RAM, CPU, energy and heat. Issue #21. Ported from Min
 
 ## What it reads
 
-- Apps come from `NSWorkspace.runningApplications`, with helpers rolled up from `facts.sample` by responsible pid, then by parent, at most 12 hops.
+- Apps come from Core's `MMRunningApps()`, which reads `NSWorkspace.runningApplications` once per app launch or quit, with helpers rolled up from `facts.sample` by responsible pid, then by parent, at most 12 hops. Issue #52: the app each process rolls up into is kept while its start and parent hold and the app list is the same, and the undo records are read again only when `MMLogStamp()` moved.
 - Loopback listeners come from the sample's socket table. Remote debugging comes from the sample's arguments.
 - A working agent spares every app in its process tree. Agents come from `facts.agents`, hosted agents included, and from `facts.sessions` whose `stillWorking` is set. Waiting on the person counts as working.
 

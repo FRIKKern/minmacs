@@ -1,6 +1,6 @@
 # Bench
 
-Issues #23 and #51. docs/2.0/MEASUREMENTS.md has the method and the numbers.
+Issues #23, #51 and #52. docs/2.0/MEASUREMENTS.md has the method and the numbers of #23 and #51, and docs/2.0/BENCH.md those of the idle tick, #52.
 
 | File | What it does |
 |---|---|
@@ -14,3 +14,5 @@ Issues #23 and #51. docs/2.0/MEASUREMENTS.md has the method and the numbers.
 The bench refuses to run unless `MINMACS_HOME`, `MINMACS_CLAUDE`, `MINMACS_CODEX`, `MINMACS_CMUX` and `MINMACS_TMUX` are set. `run.sh` and `test/bench.sh` set them to a fresh folder and `/usr/bin/false`. It sets every mode to Idle, reads the old apps with `proc_pid_rusage` and `ps`, and never signals a process.
 
 A new expert needs no change here. `bench menus` gives an expert with no fixture of its own the shared fixture facts in `FixtureFacts`. Add a fixture in `FixtureSource` when that gives it no rows.
+
+Issue #52 added to `bench idle`: the whole process's CPU from one sample to the next (`inWindow.tickCPUms`), what each pass read and carried and its CPU by part (`senses`), each build's CPU by part and by expert, the skipped builds and the reused findings (`graph`), and the pushed signals by kind (`signals`). `run.sh` and `test/bench.sh` set `MINMACS_NO_BACKOFF=1`, so the pass keeps 5 seconds on battery and while the person is away. `MM_BENCH_BACKOFF=1` lets `run.sh` back off as the app does.
