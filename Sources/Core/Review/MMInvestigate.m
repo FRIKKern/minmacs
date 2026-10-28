@@ -412,8 +412,53 @@ static BOOL Binary(NSData *d) {
     return memchr(d.bytes, 0, MIN(d.length, (NSUInteger)8192)) != NULL;
 }
 
+/// Hard links. A file with more than one link is one file under several names, and a name inside the folders may be
+/// the same file as a name outside them, such as a key linked in with ln. F_GETPATH names only one of the names, and
+/// macOS keeps no list of the others, so the only way to know that every name lies inside is to find them all there.
+/// One walk per tool call counts the names inside the folders of each file with more than one link. A file whose
+/// link count is higher than the names found inside has a name outside, and is refused. The walk does not skip .git
+/// or node_modules. When it stops at its limit it cannot count, and every file with more than one link is refused.
+@interface MMInvestigateLinks : NSObject
+- (instancetype)initWithFolders:(NSArray<NSString *> *)folders;
+/// YES when every one of the st_nlink names of this file lies inside the folders.
+- (BOOL)allInside:(const struct stat *)st;
+@end
+@implementation MMInvestigateLinks {
+    NSArray<NSString *> *_folders;
+    NSMutableDictionary<NSString *, NSNumber *> *_names;   // "dev:ino" of each file with more than one link
+    BOOL _complete;
+}
+- (instancetype)initWithFolders:(NSArray<NSString *> *)folders { if ((self = [super init])) _folders = [folders copy]; return self; }
+- (void)count {
+    _names = [NSMutableDictionary new];
+    _complete = YES;
+    NSUInteger seen = 0;
+    for (NSString *f in _folders) {
+        char *roots[] = {(char *)f.fileSystemRepresentation, NULL};
+        FTS *fts = fts_open(roots, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL);
+        if (!fts) { _complete = NO; continue; }
+        FTSENT *e;
+        while ((e = fts_read(fts))) {
+            if (++seen > kMaxWalk * 4) { _complete = NO; break; }
+            if (e->fts_info != FTS_F || e->fts_statp->st_nlink < 2) continue;
+            NSString *k = [NSString stringWithFormat:@"%d:%llu", e->fts_statp->st_dev, (unsigned long long)e->fts_statp->st_ino];
+            _names[k] = @(_names[k].integerValue + 1);
+        }
+        fts_close(fts);
+    }
+}
+- (BOOL)allInside:(const struct stat *)st {
+    if (st->st_nlink < 2) return YES;
+    if (!_names) [self count];
+    if (!_complete) return NO;
+    NSString *k = [NSString stringWithFormat:@"%d:%llu", st->st_dev, (unsigned long long)st->st_ino];
+    return _names[k].integerValue >= (NSInteger)st->st_nlink;
+}
+@end
+
 /// Opens a real path for reading and checks the file it got, so a swap after the check cannot lead out.
-static NSData *ReadScoped(NSArray *folders, NSString *real, NSUInteger max, NSString **reason) {
+/// A file with more than one hard link is read only when links finds every one of its names inside the folders.
+static NSData *ReadScoped(NSArray *folders, MMInvestigateLinks *links, NSString *real, NSUInteger max, NSString **reason) {
     // O_NONBLOCK, so a named pipe or a device in the folder never holds the tool server. A regular file reads as before.
     int fd = open(real.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
     if (fd < 0) { *reason = [NSString stringWithFormat:@"%@ could not be opened", Tilde(real)]; return nil; }
@@ -422,6 +467,11 @@ static NSData *ReadScoped(NSArray *folders, NSString *real, NSUInteger max, NSSt
     BOOL ok = fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && fcntl(fd, F_GETPATH, got) == 0;
     if (ok) { ok = NO; for (NSString *f in folders) if (Inside(@(got), f)) ok = YES; }
     if (!ok) { close(fd); *reason = [NSString stringWithFormat:@"%@ is not a file inside the folders", Tilde(real)]; return nil; }
+    if (![links allInside:&st]) {
+        close(fd);
+        *reason = [NSString stringWithFormat:@"%@ has a hard link outside the folders, so it is not read", Tilde(real)];
+        return nil;
+    }
     NSMutableData *d = [NSMutableData dataWithLength:MIN((NSUInteger)st.st_size, max)];
     ssize_t n = d.length ? read(fd, d.mutableBytes, d.length) : 0;
     close(fd);
@@ -502,6 +552,7 @@ static NSArray *ToolList(void) {
 /// One tool call. Returns the text for the model, or nil with *refused.
 static NSString *CallTool(NSArray *folders, NSString *name, NSDictionary *args, NSString **subject, NSString **refused) {
     NSString *reason = nil;
+    MMInvestigateLinks *links = [[MMInvestigateLinks alloc] initWithFolders:folders];   // walks only when a file has two links
     if ([name isEqualToString:@"Read"]) {
         NSString *path = Str(args[@"file_path"]);
         *subject = path;
@@ -509,7 +560,7 @@ static NSString *CallTool(NSArray *folders, NSString *name, NSDictionary *args, 
         NSString *real = MMInvestigateScoped(folders, path, &reason);
         if (!real) { *refused = reason; return nil; }
         if (SecretName(real.lastPathComponent)) { *refused = [NSString stringWithFormat:@"%@ may hold secrets and is not read", Tilde(real)]; return nil; }
-        NSData *d = ReadScoped(folders, real, kMaxReadBytes, &reason);
+        NSData *d = ReadScoped(folders, links, real, kMaxReadBytes, &reason);
         if (!d) { *refused = reason; return nil; }
         if (Binary(d)) { *refused = [NSString stringWithFormat:@"%@ is not a text file", Tilde(real)]; return nil; }
         NSString *text = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding];
@@ -568,7 +619,7 @@ static NSString *CallTool(NSArray *folders, NSString *name, NSDictionary *args, 
                 }
                 if (SecretName(p.lastPathComponent) || size > (off_t)kMaxFileForGrep) return YES;
                 NSString *why = nil;
-                NSData *d = ReadScoped(folders, p, kMaxFileForGrep, &why);
+                NSData *d = ReadScoped(folders, links, p, kMaxFileForGrep, &why);
                 if (!d || Binary(d)) return YES;
                 NSString *text = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding];
                 if (!text || !Matches(whole, text)) return YES;

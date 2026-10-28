@@ -88,6 +88,7 @@ int main(int argc, const char *argv[]) {
         if (!strcmp(argv[1], "card")) {
             NSString *path = @(argv[2]).stringByStandardizingPath;
             __block MMSnapshot *s = nil;
+            // As the graph queue does in the app: the snapshot, then what each menu reads from it, off main.
             OffMain(^{ s = MMCLISnapshot(NO); });
             MMFinding *f = nil;
             for (MMFinding *x in [s findingsFor:@"workforest"]) {
@@ -98,7 +99,7 @@ int main(int argc, const char *argv[]) {
             if (!f) { fprintf(stderr, "tool: no worktree finding at %s\n", argv[2]); return 1; }
             // In the app the menu queues this check and shows the card again after it. Here it runs first.
             MMWFTree *t = MMWFTreeOf(f);
-            OffMain(^{ (void)MMWrapUpConfigOnly(t.path, t.head, t.untracked, YES); });
+            OffMain(^{ (void)MMWrapUpConfigOnly(t.path, t.head, t.untracked, YES); [s prepareFor:MMExperts()]; });
             MMCardSpec *card = [MMWorkForestExpert.shared cardFor:f snapshot:s];
             NSMutableArray *actions = [NSMutableArray new];
             for (MMActionSpec *a in card.actions) [actions addObject:@{@"title": a.title ?: @"", @"tail": a.tail ?: @"", @"disabled": a.disabledReason ?: @""}];

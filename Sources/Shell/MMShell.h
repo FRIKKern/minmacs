@@ -65,6 +65,18 @@ void MMShellStopHeadless(id shell);
 /// Every link row of every card opens through this, so no expert wires its own jump. Main thread.
 NSMenu *MMLinkMenu(NSString *expertID, NSString *findingID, MMSnapshot *s, BOOL oneIcon, id footerTarget);
 
+/// The link a status item's menu opens on next. Main thread. -set:finding:click: sets it and runs click, which
+/// opens the menu. The menu calls -opened as it builds and -closed as it closes. When no menu opened within
+/// MMLinkFocusWait seconds of the click, the focus clears, so the next plain click on the icon opens the plain menu.
+/// A nil click only sets it.
+@interface MMLinkFocus : NSObject
+@property (readonly, copy) NSString *expert, *findingID;
+- (void)set:(NSString *)expert finding:(NSString *)findingID click:(void (^)(void))click;
+- (void)opened;
+- (void)closed;
+@end
+static const double MMLinkFocusWait = 0.3;
+
 /// The app delegate. One per process, made by MMMain.
 @interface MMShell : NSObject <NSApplicationDelegate>
 @end

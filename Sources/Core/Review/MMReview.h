@@ -68,6 +68,9 @@ typedef NS_ENUM(NSInteger, MMVerdictKind) { MMVerdictUnsure = 0, MMVerdictKeep =
 @property (copy) NSString *context;
 @property (copy) NSString *about, *reason, *keepEvidence;
 @property (copy) NSString *decidedBy;                   // a rule id of P47, "model" or "judge"
+/// When the model or the judge made it, by the broker's clock. A carried verdict keeps it, so its age counts from
+/// the call that made it. nil for a verdict saved before this field, which then counts from its review.
+@property (strong) NSDate *madeAt;
 @end
 
 /// P41. One finished review of one expert. Saved to the log of P38, so history and the CLI share it.
@@ -179,7 +182,17 @@ extern NSString *const MMWorkKeepsRuleID;               // "core.work-keeps"
                     usage:(MMUsage **)usage error:(NSString **)error;
 /// How many findings each rule decided, since launch. Keyed by ruleID, plus "model" and "judge".
 - (NSDictionary<NSString *, NSNumber *> *)decidedCounts:(NSString *)expert;
+/// The broker's clock for a verdict's age. nil means now. The day replay of test/review sets it to each tick.
+@property (copy) NSDate *(^clock)(void);
 @end
+
+/// Research F 3.4: the cache sends a finding again only when its fingerprint moved, and assumes each changing
+/// finding moves about twice a day. A verdict on a finding that never moves would otherwise hold forever, while the
+/// time it was made in drifts away from its reason, such as "quiet for 3 days". So a carried verdict holds at most
+/// this long after the model made it, and the finding is asked again. The pref review.verdictMaxHours changes it.
+extern const NSTimeInterval MMVerdictMaxAge;            // 24 hours
+/// MMVerdictMaxAge, or the review.verdictMaxHours pref when it is set above 0.
+NSTimeInterval MMVerdictMaxAgeNow(void);
 
 extern const double MMMinConfidence;                    // 0.6: below it a verdict counts as unsure
 extern const double MMSureConfidence;                   // 0.8: at or above it a mode may act on its own

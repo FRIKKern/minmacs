@@ -20,6 +20,7 @@ Performance: apps, agents, RAM, CPU, energy and heat. Issue #21. Ported from Min
 
 - Quit and Force Quit run through `MMRunAction` and `MMQuitApps`. Force Quit is refused until this app instance was asked to quit once. The undo record holds `relaunch` with the bundle path, bundle id, pid and step, so `MMUndo restore` opens the app again.
 - Trim reads tabs at action time, records only the tabs that closed, and keeps a tab whose URL moved on. Restore reopens those tabs through the bridge, then restores the record.
+- The card's Always Keep, Quit on MinMacs, Leave Unsorted, Close Even When Serving and Spare When Serving write `minmacs/rules.json` on `no.guerrilla.minmacs.minmacs.act`, then ask for a rebuild, so main never waits on the file.
 - Proactive never quits an app. Eager quits a close-list app only while memory pressure is warn or worse, or heat is serious or worse. No mode trims tabs.
 - Verbs: `apps`, and its parts of `status` and `restore`. Each takes `--json` and `--dry-run`.
 

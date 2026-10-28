@@ -106,6 +106,8 @@ NSString *MMLHModeLabel(NSString *mode);
 /// By findingID: the last Investigate run as -[MMInvestigation json], read from memory. Issue #35.
 @property (copy) NSDictionary<NSString *, NSDictionary *> *investigations;
 @property NSTimeInterval idleSeconds, watchingLeft;
+/// The locohost.reviewMinutes pref, read on the graph queue, so the app's watch on main reads no pref.
+@property NSInteger reviewMinutes;
 @property NSInteger otherCount;                          // listeners of macOS and apps, never shown as rows
 /// What an action asks for: stop, go, open, reveal, keep, copy-url, copy-restart, protect, restart, close-idle, review.
 /// key is a findingID or, for restart, a record id. option is the Option alternate.

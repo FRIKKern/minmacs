@@ -422,6 +422,8 @@ NSArray<MMVerbSpec *> *MMWFVerbs(void) {
         verbs = @[[MMVerbSpec verb:@"trees" usage:kUsage mutates:NO run:^int(MMArgs *a) { return Trees(a); }],
                   [MMVerbSpec verb:@"worktrees" usage:[@"worktrees" stringByAppendingString:[kUsage substringFromIndex:5]] mutates:NO
                                run:^int(MMArgs *a) { return Trees(a); }]];
+        // The forms that change a worktree or the rules run in the app. Each also says so itself through needsApp.
+        for (MMVerbSpec *v in verbs) v.mutatingForms = @[@"auto", @"clean-up", @"remove", @"restore", @"keep", @"protect", @"prune"];
     });
     return verbs;
 }

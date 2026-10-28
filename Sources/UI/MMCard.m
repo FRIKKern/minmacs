@@ -3,6 +3,7 @@
 
 static const CGFloat kPad = 16, kTextSize = 12.5, kFactSize = 12, kLabelSize = 11.5;
 static const CGFloat kItemText = 24;   // where a native menu item's title text starts, past the state column
+static const CGFloat kItemTitleTop = 3; // how far below a native item's top its title's line starts
 
 #pragma mark Links
 
@@ -42,6 +43,29 @@ NSDictionary<NSString *, NSString *> *MMLinkOfItem(NSMenuItem *item) {
 }
 
 static CGFloat Inner(void) { return MMMenuWidth - 2 * kPad; }
+
+/// The height of one native menu item that holds a link row, measured once from a menu of one such item and one of
+/// two, so it follows the system's menu metrics rather than a number written here.
+static CGFloat ItemPitch(void) {
+    static CGFloat pitch;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSAttributedString *t = [[NSAttributedString alloc] initWithString:@"\tLabel\tValue" attributes:@{NSFontAttributeName: [NSFont systemFontOfSize:kFactSize]}];
+        NSMenu *one = [NSMenu new], *two = [NSMenu new];
+        for (NSMenu *m in @[one, two, two]) { NSMenuItem *i = [[NSMenuItem alloc] initWithTitle:@"x" action:NULL keyEquivalent:@""]; i.attributedTitle = t; [m addItem:i]; }
+        pitch = two.size.height - one.size.height;
+        if (pitch < 16 || pitch > 40) pitch = 22;
+    });
+    return pitch;
+}
+
+/// The height of one fact row: the value's line, which is taller than the label's.
+static CGFloat FactLine(void) {
+    static CGFloat h;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ NSTextField *x = [NSTextField labelWithString:@"Xg"]; x.font = [NSFont systemFontOfSize:kFactSize]; h = x.fittingSize.height; });
+    return h;
+}
 static CGFloat ValueWidth(void) { return Inner() - MMLabelColumn - 10; }
 
 - (void)fact:(NSString *)label value:(NSString *)value {
@@ -138,7 +162,11 @@ static CGFloat ValueWidth(void) { return Inner() - MMLabelColumn - 10; }
     CGFloat inner = Inner();
     NSStackView *s = [NSStackView new];
     s.orientation = NSUserInterfaceLayoutOrientationVertical; s.alignment = NSLayoutAttributeLeading; s.spacing = 8;
-    s.edgeInsets = NSEdgeInsetsMake(10, kPad, _links.count ? 2 : 10, kPad);   // link rows follow as items of their own
+    // Link rows follow as native items of their own. With links, the fact rows are spaced at the native item's
+    // height, and the card ends where the first link row's title then starts one pitch below the last fact.
+    // A menu draws an item's title kItemTitleTop below the item's top.
+    CGFloat gap = MAX(4, ItemPitch() - FactLine());
+    s.edgeInsets = NSEdgeInsetsMake(10, kPad, _links.count ? MAX(2, ItemPitch() - FactLine() - kItemTitleTop) : 10, kPad);
 
     [s addArrangedSubview:MMPara(MMCapitalized(self.title), [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold], NSColor.labelColor, inner, MMMaxCardTitleLines)];
     [s addArrangedSubview:MMParaRich([self statusString], inner, MMMaxCardStatusLines)];
@@ -157,7 +185,7 @@ static CGFloat ValueWidth(void) { return Inner() - MMLabelColumn - 10; }
             [rows addObject:@[l, x]];
         }
         NSGridView *g = [NSGridView gridViewWithViews:rows];
-        g.rowSpacing = 4; g.columnSpacing = 10;
+        g.rowSpacing = _links.count ? gap : 4; g.columnSpacing = 10;
         [g columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing; [g columnAtIndex:0].width = MMLabelColumn;
         [g columnAtIndex:1].xPlacement = NSGridCellPlacementLeading;
         g.rowAlignment = NSGridRowAlignmentFirstBaseline;

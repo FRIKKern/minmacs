@@ -1,7 +1,8 @@
 // The day replay of issue #36. test/review.sh builds it with every source but main.m and the shell, and runs it
 // against the fake claude of test/review, which counts tokens from the bytes of each call with fakecount.py.
-//   rvday broker <day.json> <out.json> [--fresh] [--plain]   every expert's review through the broker, hourly as in 2.0;
-//                                                      --fresh skips the fingerprint cache, --plain sends no ws blocks
+//   rvday broker <day.json> <out.json> [--fresh] [--plain] [--max-hours n]   every expert's review through the broker,
+//        hourly as in 2.0; --fresh skips the fingerprint cache, --plain sends no ws blocks, and --max-hours sets how long
+//        a carried verdict holds after the model made it. The broker's clock is each tick's time.
 //   rvday legacy <day.json> <legacy.json> <out.json>   the 1.x baseline: LocoHost and WorkForest as their 0.1 apps asked
 // day.json comes from dayfix.py: the findings the graph holds at each hourly tick. Both modes build each expert's
 // request with the expert's own code, so the facts per finding are the same. The broker mode then runs it through
@@ -142,7 +143,8 @@ static MMReviewRequest *RequestFor(id<MMExpert> e, RDSnapshot *s) {
 #pragma mark - Totals
 
 @interface RDTotal : NSObject
-@property NSInteger reviews, calls, findings, sent, noRequest, byContext;
+@property NSInteger reviews, calls, findings, sent, noRequest, byContext, byAge;
+@property double maxCarriedHours;                          // the oldest verdict the cache carried, from its making
 @property NSInteger input, cacheWrite, cacheRead, output, thinking;
 @property double cost;
 @property NSMutableDictionary<NSString *, NSNumber *> *decided;
@@ -157,7 +159,8 @@ static MMReviewRequest *RequestFor(id<MMExpert> e, RDSnapshot *s) {
 - (NSDictionary *)json {
     NSInteger uncached = self.input + self.cacheWrite + self.output;
     return @{@"reviews": @(self.reviews), @"calls": @(self.calls), @"findings": @(self.findings), @"sent": @(self.sent),
-             @"no_request": @(self.noRequest), @"sent_by_context": @(self.byContext), @"decided": self.decided, @"input": @(self.input), @"cache_write": @(self.cacheWrite),
+             @"no_request": @(self.noRequest), @"sent_by_context": @(self.byContext), @"sent_by_age": @(self.byAge),
+             @"max_carried_hours": @(round(self.maxCarriedHours * 100) / 100), @"decided": self.decided, @"input": @(self.input), @"cache_write": @(self.cacheWrite),
              @"cache_read": @(self.cacheRead), @"output": @(self.output), @"thinking": @(self.thinking), @"uncached": @(uncached),
              @"as_counted_before": @(uncached + self.cacheRead), @"list_cost_usd": @(round(self.cost * 1e6) / 1e6)};
 }
@@ -168,20 +171,30 @@ static void Write(id obj, NSString *path) {
     [d writeToFile:path atomically:YES];
 }
 
-static void SetClock(double at) { setenv("RV_TEST_CLOCK", [NSString stringWithFormat:@"%.0f", at].UTF8String, 1); }
+static double gClock;    // the tick's time, for the broker's clock; the replay's day starts at this run's launch
+static void SetClock(double at) {
+    setenv("RV_TEST_CLOCK", [NSString stringWithFormat:@"%.0f", at].UTF8String, 1);
+    static double base; if (!base) base = NSDate.date.timeIntervalSince1970;
+    gClock = base + at;
+}
 
 #pragma mark - Broker mode
 
 /// fresh sends every finding past the fingerprint cache, and plain sends no ws, so each effect is measured alone.
-static int Broker(NSDictionary *day, NSString *outPath, BOOL fresh, BOOL plain) {
+static int Broker(NSDictionary *day, NSString *outPath, BOOL fresh, BOOL plain, double maxHours) {
     MMReviewBroker *b = MMReviewBroker.shared;
+    // The broker's clock is the tick's. Set by key, so this replay also builds against a broker without a clock.
+    if ([b respondsToSelector:NSSelectorFromString(@"setClock:")])
+        [b setValue:^NSDate *{ return [NSDate dateWithTimeIntervalSince1970:gClock]; } forKey:@"clock"];
+    if (maxHours > 0) MMSetPref(@"review.verdictMaxHours", @(maxHours));
     MMBudget.shared.dailyUncached = 0;   // the replay measures the day, so no scheduled review waits on the budget
     for (id<MMExpert> e in Experts()) [b registerRules:[e rules] ?: @[] expert:e.expertID];
     NSDictionary *every = day[@"schedule"][@"broker"];
     NSMutableDictionary<NSString *, RDTotal *> *totals = [NSMutableDictionary new];
     NSMutableDictionary *verdicts = [NSMutableDictionary new];
     NSMutableDictionary<NSString *, NSString *> *last = [NSMutableDictionary new], *lastOwn = [NSMutableDictionary new];
-    NSMutableDictionary<NSString *, NSNumber *> *lastWasModel = [NSMutableDictionary new];
+    NSMutableDictionary<NSString *, NSNumber *> *lastWasModel = [NSMutableDictionary new], *madeAt = [NSMutableDictionary new];
+    NSString *idsPath = [NSProcessInfo.processInfo.environment[@"RV_TEST_SENT"] stringByAppendingString:@".ids"];
     NSInteger k = 0;
     for (NSDictionary *tick in day[@"ticks"]) {
         double at = [tick[@"at"] doubleValue], now = NSDate.date.timeIntervalSince1970;
@@ -205,15 +218,30 @@ static int Broker(NSDictionary *day, NSString *outPath, BOOL fresh, BOOL plain) 
             t.noRequest += mine.count - q.findings.count;
             for (NSString *key in r.decided) t.decided[key] = @(t.decided[key].integerValue + r.decided[key].integerValue);
             for (MMUsage *u in r.calls) [t add:u];
+            // What the fake claude got in this review, from its own log, so a fresh verdict is told from a carried one
+            // by what was sent, whatever the broker records.
+            NSMutableSet *sentNow = [NSMutableSet new];
+            for (NSString *line in [[NSString stringWithContentsOfFile:idsPath encoding:NSUTF8StringEncoding error:nil] ?: @"" componentsSeparatedByString:@"\n"]) {
+                NSDictionary *j = line.length ? Dict([NSJSONSerialization JSONObjectWithData:[line dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil]) : nil;
+                if (j && fabs([j[@"clock"] doubleValue] - at) < 1) [sentNow addObjectsFromArray:j[@"ids"] ?: @[]];
+            }
             for (MMFinding *f in q.findings) {
                 MMVerdict *v = r.verdicts[f.findingID];
                 // A carried verdict keeps the model as its maker. It is the cache's when the last review held the same keys.
                 NSString *keys = [NSString stringWithFormat:@"%@|%@|%@", v.fingerprint, v.context, v.instanceKey];
                 NSString *by = v.decidedBy ?: @"none";
-                if (([by isEqualToString:@"model"] || [by isEqualToString:@"judge"]) && [last[f.findingID] isEqualToString:keys]) by = @"cache";
+                BOOL same = [last[f.findingID] isEqualToString:keys], made = [by isEqualToString:@"model"] || [by isEqualToString:@"judge"];
+                BOOL sent = [sentNow containsObject:f.findingID];
+                if (made && same && !sent) {
+                    by = @"cache";
+                    if (madeAt[f.findingID]) t.maxCarriedHours = MAX(t.maxCarriedHours, (at - madeAt[f.findingID].doubleValue) / 3600);
+                }
+                // Sent again on the same keys: the carried verdict reached its maximum age.
+                else if (made && same && sent && lastWasModel[f.findingID].boolValue) t.byAge++;
+                if (made && sent) madeAt[f.findingID] = @(at);
                 // Sent again although the expert's fingerprint and the instance held: Core's context moved.
                 NSString *own = [NSString stringWithFormat:@"%@|%@", v.fingerprint, v.instanceKey];
-                if ([by isEqualToString:@"model"] && [lastOwn[f.findingID] isEqualToString:own] && lastWasModel[f.findingID].boolValue) t.byContext++;
+                if ([by isEqualToString:@"model"] && !same && [lastOwn[f.findingID] isEqualToString:own] && lastWasModel[f.findingID].boolValue) t.byContext++;
                 last[f.findingID] = keys; lastOwn[f.findingID] = own;
                 lastWasModel[f.findingID] = @([v.decidedBy isEqualToString:@"model"] || [v.decidedBy isEqualToString:@"judge"]);
                 verdicts[[NSString stringWithFormat:@"%ld|%@", (long)k, f.findingID]] = @{@"word": v.word ?: @"none", @"by": by};
@@ -333,8 +361,13 @@ int main(int argc, const char *argv[]) { @autoreleasepool {
     if (!day) { fprintf(stderr, "rvday: bad day fixture\n"); return 2; }
     if (!strcmp(argv[1], "broker")) {
         BOOL fresh = NO, plain = NO;
-        for (int i = 4; i < argc; i++) { if (!strcmp(argv[i], "--fresh")) fresh = YES; else if (!strcmp(argv[i], "--plain")) plain = YES; }
-        return Broker(day, @(argv[3]), fresh, plain);
+        double maxHours = 0;
+        for (int i = 4; i < argc; i++) {
+            if (!strcmp(argv[i], "--fresh")) fresh = YES;
+            else if (!strcmp(argv[i], "--plain")) plain = YES;
+            else if (!strcmp(argv[i], "--max-hours") && i + 1 < argc) maxHours = atof(argv[++i]);
+        }
+        return Broker(day, @(argv[3]), fresh, plain, maxHours);
     }
     if (!strcmp(argv[1], "legacy") && argc >= 5) {
         NSDictionary *old = Dict([NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:@(argv[3])] ?: NSData.data options:0 error:nil]);

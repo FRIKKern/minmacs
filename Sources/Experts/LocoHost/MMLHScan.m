@@ -246,6 +246,7 @@ NSDictionary *MMLHGitOf(NSString *raw, MMFacts *facts, MMLHRead read) {
         NSString *p = MMLHCanon(w.path);
         if (p.length && ([folder isEqualToString:p] || [folder hasPrefix:[p stringByAppendingString:@"/"]]) && p.length > MMLHCanon(wt.path).length) wt = w;
     }
+    BOOL walked = wt != nil;
     if (!wt) {
         id x = [TreeCache() valueFor:folder fingerprint:@"" orCompute:^id{ return [MMRepoIndex.shared worktreeAt:folder] ?: NSNull.null; }
                                 wait:read == MMLHReadNow];
@@ -257,8 +258,12 @@ NSDictionary *MMLHGitOf(NSString *raw, MMFacts *facts, MMLHRead read) {
     NSString *root = MMLHCanon(wt.path);
     g[@"subdir"] = [folder hasPrefix:[root stringByAppendingString:@"/"]] ? [folder substringFromIndex:root.length + 1] : @"";
     if (!wt.isMain) g[@"worktree"] = wt.path.lastPathComponent;
-    // The git facts the index holds, from memory. A worktree it has not read yet has a branch and no facts.
-    MMGitFacts *gf = [facts gitFor:wt] ?: [MMRepoIndex.shared factsFor:wt wait:NO];
+    // The git facts the index holds, from memory, for a worktree under the roots. A worktree it has not read yet has
+    // a branch and no facts. A checkout outside the roots has only what its .git files say: asking the index for its
+    // facts would run seven git commands for each such server's checkout, at launch and for each new one, and
+    // WorkForest lists no card for it to link to. Issue #58's bench saw those runs as wakeups.
+    MMGitFacts *gf = [facts gitFor:wt];
+    if (!gf && walked) gf = [MMRepoIndex.shared factsFor:wt wait:NO];
     NSString *branch = wt.branch ?: gf.branch;
     if (branch) g[@"branch"] = branch;
     else if (gf.head.length >= 7) g[@"branch"] = [@"detached " stringByAppendingString:[gf.head substringToIndex:7]];

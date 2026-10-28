@@ -56,14 +56,14 @@ WorkForest 0.1's syntax works under the `workforest` name through the shim in `S
 
 ## In the app
 
-`main.m` registers `MMWorkForestExpert.shared` through `MMBuiltInExpertClasses`. In the app the git facts come from Core's repo index through `MMFacts`. A cold `minmacs trees list` walks the roots and reads the facts through the same index, in `MMColdFacts` in `Sources/CLI`. `test/workforest.sh` uses that cold source on its fixture repos, with no git facts handed over by hand. After the first findings, WorkForest observes snapshots on main. A review wakes every two hours by default, `workforest.reviewMinutes`, and for a new worktree, a worktree whose quiet time passes a week, a month or three months, and low disk, at most every 30 minutes. After a new review the mode's plan runs through `MMRunAction` on `no.guerrilla.minmacs.workforest.act`, and one `MMNotify` says what went. A finished background disk walk asks the graph for a rebuild.
+`main.m` registers `MMWorkForestExpert.shared` through `MMBuiltInExpertClasses`. In the app the git facts come from Core's repo index through `MMFacts`. A cold `minmacs trees list` walks the roots and reads the facts through the same index, in `MMColdFacts` in `Sources/CLI`. `test/workforest.sh` uses that cold source on its fixture repos, with no git facts handed over by hand. After the first findings, WorkForest observes snapshots on main. The watch reads the mode and `workforest.reviewMinutes` from the view `prepareFor:` made, so main reads no pref, and a snapshot with nothing prepared wakes nothing. Wrap Up's plan is made on the act queue, and main only asks the person. A review wakes every two hours by default, `workforest.reviewMinutes`, and for a new worktree, a worktree whose quiet time passes a week, a month or three months, and low disk, at most every 30 minutes. After a new review the mode's plan runs through `MMRunAction` on `no.guerrilla.minmacs.workforest.act`, and one `MMNotify` says what went. A finished background disk walk asks the graph for a rebuild.
 
 ## Left open
 
 - `MMGitFacts` has no last commit subject, so the subject is neither shown nor sent. WorkForest 0.1's check that a secret in the subject is redacted is run on the session title instead.
 - The disk walk of `MMTreeDisk` runs in process on `no.guerrilla.minmacs.core.disk`, with an autorelease pool per walk. It belongs in the worker of P4, next to `sizeTrees:`.
 - Process folders come from `-[MMSample cwdOf:]` for every process of the person's uid on each rebuild. A rebuild with a thousand processes reads a thousand folders.
-- `viewFor:` reads the undo log, the keeps and the rules on main when the snapshot changes, as LocoHost's does.
+- On a snapshot made by hand, with nothing prepared, `viewFor:` on main reads the undo log, the keeps and the rules, as LocoHost's does. It leaves out the Wrap Up tails and the server links, which only `prepareFor:` on the graph queue makes.
 - Sessions that only named a worktree in a parent folder's log, WorkForest 0.1's "a session named this folder", are not matched. Know's session index matches by working folder only.
 - `fetch` is gone: MinMacs never fetches. The merged pull request check through `gh` is gone too.
 

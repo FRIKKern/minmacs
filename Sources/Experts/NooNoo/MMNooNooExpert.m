@@ -390,11 +390,16 @@ static void RunOffMain(dispatch_block_t block) {
 
 /// Main thread, once per snapshot. A new review: the mode's plan runs on fresh facts, through MMRunAction,
 /// and one notification says what it did.
+/// The mode comes from what the graph queue prepared for the snapshot, so main reads no pref. A snapshot with
+/// nothing prepared, which only a test makes, acts on nothing.
 - (void)watch:(MMSnapshot *)s {
+    MMNNView *prepared = [s preparedFor:kExpert];
+    if (![prepared isKindOfClass:MMNNView.class]) return;
     MMReview *r = [s reviewFor:kExpert];
     if (!r.at || (_actedOn && [r.at compare:_actedOn] != NSOrderedDescending)) return;
     _actedOn = r.at;
-    MMMode mode = MMModeFor(kExpert);
+    NSInteger m = MMModeFrom(prepared.modeName.lowercaseString);
+    MMMode mode = m < 0 ? MMModeIdle : (MMMode)m;
     if (mode == MMModeIdle || r.error.length) return;
     NSArray *findings = [s findingsFor:kExpert];
     MMFacts *facts = s.facts;

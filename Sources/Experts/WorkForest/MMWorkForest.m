@@ -14,6 +14,9 @@ static NSString *const kExpert = @"workforest";
 static const NSTimeInterval kEventGap = 30 * 60;   // reviews woken by events are at least this far apart
 
 _Thread_local BOOL MMWFReadNow = NO;
+/// YES while the graph queue makes the Wrap Up tails for the menu, so the keeps read Core's last check of the
+/// untracked files, as main does, and never assume the config part will sort them out.
+static _Thread_local BOOL gWrapUpForMenu = NO;
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] ? v : nil; }
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
@@ -382,9 +385,10 @@ static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
     t.processes = names;
     if (![t.session[@"live"] boolValue]) t.session = nil;
     t.touched = nil; t.created = nil;
-    // Off main the config part's recheck lists the files with git. A menu on main reads Core's last check of them.
+    // When it runs, the config part's recheck lists the files with git. A menu, on main or made on the graph queue,
+    // reads Core's last check of them, which queues a check and a rebuild when there is none yet.
     if (self.subject.configPart && t.untracked != 0) {
-        NSNumber *only = NSThread.isMainThread ? MMWrapUpConfigOnly(t.path, t.head, t.untracked, NO) : @YES;
+        NSNumber *only = NSThread.isMainThread || gWrapUpForMenu ? MMWrapUpConfigOnly(t.path, t.head, t.untracked, NO) : @YES;
         if (!only) return @"cannot verify yet: its untracked files are being read";
         if (only.boolValue) t.untracked = 0;
     }
@@ -824,8 +828,9 @@ static NSString *ModelWords(MMReview *r) {
 /// from the undo log, so main reads none of them. The review is the one the snapshot carries.
 - (id)prepareFor:(MMSnapshot *)s { return [self makeView:s review:[s reviewFor:kExpert]]; }
 
-/// On main, what the graph queue prepared. A snapshot made by hand, as in a test, has none, and then main builds it.
-/// Any other queue, such as the CLI's, builds it and reads the log for the review.
+/// On main, what the graph queue prepared. A snapshot made by hand, as in a test, has none, and then main builds a
+/// view without the parts that read disk: no Wrap Up plan and no server links, since both run off main only.
+/// Any other queue, such as the CLI's, builds the whole view and reads the log for the review.
 - (MMWFView *)viewFor:(MMSnapshot *)s {
     if (NSThread.isMainThread) {
         MMWFView *p = [s preparedFor:kExpert];
@@ -836,6 +841,25 @@ static NSString *ModelWords(MMReview *r) {
         return v;
     }
     return [self makeView:s review:[s reviewFor:kExpert] ?: MMWFLastReview()];
+}
+
+/// The Wrap Up tails of the merged worktrees, by findingID. Each plan reads every expert's parts and their keeps,
+/// and the server links resolve each server's folder with realpath, so neither runs on main.
+static NSDictionary *WrapUpsIn(MMSnapshot *s, NSArray<MMFinding *> *findings) {
+    if (NSThread.isMainThread) return @{};
+    NSMutableDictionary *wraps = [NSMutableDictionary new];
+    gWrapUpForMenu = YES;
+    for (MMFinding *f in findings) {
+        MMWFTree *t = MMWFTreeOf(f);
+        if (!f.proposal || !t.merged.length || t.isMain || t.missing) continue;
+        MMWrapUpPlan *plan = MMWrapUpPlanFor(t.path, s);
+        if (plan.whyNot) continue;
+        NSUInteger n = plan.servers;
+        wraps[f.findingID] = @{@"tail": n ? [NSString stringWithFormat:@"%@, %@", MMPlural(n, @"server"), MMBytes(plan.freedBytes)] : MMBytes(plan.freedBytes),
+                               @"parts": @(plan.parts.count)};
+    }
+    gWrapUpForMenu = NO;
+    return wraps;
 }
 
 - (MMWFView *)makeView:(MMSnapshot *)s review:(MMReview *)r {
@@ -863,20 +887,12 @@ static NSString *ModelWords(MMReview *r) {
     NSMutableSet *protectedPaths = [NSMutableSet new];
     for (MMFinding *f in findings) if ([MMKeep isProtected:f.stableKey expert:kExpert] || [MMKeep isProtected:f.path expert:kExpert]) [protectedPaths addObject:f.findingID];
     v.protectedPaths = protectedPaths;
-    v.links = ServersIn(s, findings);
+    // Both read disk, so they are made on the graph queue in prepareFor:, and on main they stay empty.
+    v.links = NSThread.isMainThread ? @{} : ServersIn(s, findings);
     // Wrap Up shows on a merged worktree's card only when every part passes MustKeep on the snapshot's facts.
     // Running it checks every part on fresh facts first, and each part again right before it runs.
-    NSMutableDictionary *wraps = [NSMutableDictionary new];
-    for (MMFinding *f in findings) {
-        MMWFTree *t = MMWFTreeOf(f);
-        if (!f.proposal || !t.merged.length || t.isMain || t.missing) continue;
-        MMWrapUpPlan *plan = MMWrapUpPlanFor(t.path, s);
-        if (plan.whyNot) continue;
-        NSUInteger n = plan.servers;
-        wraps[f.findingID] = @{@"tail": n ? [NSString stringWithFormat:@"%@, %@", MMPlural(n, @"server"), MMBytes(plan.freedBytes)] : MMBytes(plan.freedBytes),
-                               @"parts": @(plan.parts.count)};
-    }
-    v.wrapUps = wraps;
+    v.wrapUps = WrapUpsIn(s, findings);
+    v.reviewMinutes = MMPrefInt(@"workforest.reviewMinutes", 120);
     v.removed = MMWFRemoved(6);
     v.watchingLeft = MMWatchingLeft(kExpert);
     __weak MMWorkForestExpert *weak = self;
@@ -989,21 +1005,27 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
                     @"It is checked again first. The branch stays unless it is merged, ignored files such as .env are saved, "
                     @"and Recently Removed can restore it.", @"Remove")) [self remove:@[f] why:@"removed from the menu"];
     } else if ([what isEqualToString:@"wrap-up"]) {
-        MMWrapUpPlan *plan = MMWrapUpPlanFor(t.path, s);
-        if (plan.whyNot) { Alert(@"Cannot Wrap Up", MMSentence(plan.whyNot)); return; }
-        NSMutableString *list = [NSMutableString new];
-        for (MMWrapUpPart *p in plan.parts) [list appendFormat:@"%@\n", p.title];
-        [list appendString:@"\nEach part is checked again first, and again right before it runs. A part that fails stops the rest. "
-                           @"Recently Removed restores it all in one step."];
-        if (!Confirm([NSString stringWithFormat:@"Wrap Up %@?", t.name], list, @"Wrap Up")) return;
-        _removing = YES;
+        // The plan reads every expert's parts and their keeps, so it is made on the act queue. Main only asks.
+        NSString *path = t.path, *name = t.name;
         dispatch_async(ActQueue(), ^{
-            NSString *err = nil;
-            MMUndoRecord *r = MMRunWrapUp(plan, @"manual", &err);
-            if (!r || r.state != MMUndoDone) Alert(@"Wrap Up Stopped", MMSentence(err ?: r.error ?: @"it did not run"));
-            dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
-            [MMRepoIndex.shared refresh:nil];
-            [MMGraph.shared rebuild:@"workforest wrap up"];
+            MMWrapUpPlan *plan = MMWrapUpPlanFor(path, s);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (plan.whyNot) { Alert(@"Cannot Wrap Up", MMSentence(plan.whyNot)); return; }
+                NSMutableString *list = [NSMutableString new];
+                for (MMWrapUpPart *p in plan.parts) [list appendFormat:@"%@\n", p.title];
+                [list appendString:@"\nEach part is checked again first, and again right before it runs. A part that fails stops the rest. "
+                                   @"Recently Removed restores it all in one step."];
+                if (self->_removing || !Confirm([NSString stringWithFormat:@"Wrap Up %@?", name], list, @"Wrap Up")) return;
+                self->_removing = YES;
+                dispatch_async(ActQueue(), ^{
+                    NSString *err = nil;
+                    MMUndoRecord *r = MMRunWrapUp(plan, @"manual", &err);
+                    if (!r || r.state != MMUndoDone) Alert(@"Wrap Up Stopped", MMSentence(err ?: r.error ?: @"it did not run"));
+                    dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
+                    [MMRepoIndex.shared refresh:nil];
+                    [MMGraph.shared rebuild:@"workforest wrap up"];
+                });
+            });
         });
     } else if ([what isEqualToString:@"reveal"]) {
         [NSWorkspace.sharedWorkspace selectFile:nil inFileViewerRootedAtPath:t.path];
@@ -1050,7 +1072,11 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
 /// Ported from watchEvents and decide in WorkForest 0.1's main.m. Main thread, once per snapshot.
 /// A worktree not seen before and a worktree whose quiet time passes a week, a month or three months wake a review,
 /// at most every 30 minutes, and the schedule wakes one every two hours.
+/// The mode and the review interval come from what the graph queue prepared for the snapshot, so main reads no pref.
+/// A snapshot with nothing prepared, which only a test makes, wakes nothing and acts on nothing.
 - (void)watch:(MMSnapshot *)s {
+    MMWFView *prepared = [s preparedFor:kExpert];
+    if (![prepared isKindOfClass:MMWFView.class]) return;
     NSArray<MMFinding *> *findings = MMWFReviewable([s findingsFor:kExpert]);
     MMReview *r = [s reviewFor:kExpert];
     if (_reviewing && r.at && -r.at.timeIntervalSinceNow < 60) { _reviewing = NO; _view = nil; }
@@ -1072,7 +1098,7 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     }
     if (s.facts.power.diskFree > 0 && s.facts.power.diskFree < 15ull * 1000 * 1000 * 1000)
         _pending = [NSString stringWithFormat:@"low disk: %@ free", MMBytes(s.facts.power.diskFree)];
-    NSInteger every = MMPrefInt(@"workforest.reviewMinutes", 120);
+    NSInteger every = prepared.reviewMinutes;
     if (every > 0 && findings.count && !_reviewing && !_removing) {
         if (!r || -r.at.timeIntervalSinceNow >= every * 60) [MMReviewBroker.shared wake:@"schedule" expert:kExpert];
         else if (_pending && (!_lastEvent || -_lastEvent.timeIntervalSinceNow >= kEventGap)) {
@@ -1084,17 +1110,16 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     // A new review: the mode acts on fresh facts, through MMRunAction, and one notification says what it did.
     if (r.at && (!_actedOn || [r.at compare:_actedOn] == NSOrderedDescending)) {
         _actedOn = r.at;
-        MMMode mode = MMModeFor(kExpert);
+        NSInteger m = MMModeFrom(prepared.mode);
+        MMMode mode = m < 0 ? MMModeIdle : (MMMode)m;
         if (mode == MMModeIdle || r.error.length || _removing) return;
+        // The plan the graph queue made for this snapshot, under the mode it read, so main never runs MMPlan.
+        // MMRunAction checks the mode again before each removal.
         NSMutableArray *todo = [NSMutableArray new];
-        // The plan the graph queue made for this snapshot, so main never runs MMPlan.
-        MMWFView *prepared = [s preparedFor:kExpert];
-        if ([prepared isKindOfClass:MMWFView.class] && [prepared.mode isEqualToString:MMModeName(mode)]) {
-            for (MMFinding *f in findings) {
-                NSDictionary *e = prepared.plan[f.findingID];
-                if ([e[@"remove"] boolValue]) [todo addObject:@[f, e[@"why"] ?: @""]];
-            }
-        } else for (MMPlanEntry *e in MMPlan(findings, s.facts, r, mode, MMWFModePolicy())) if (e.act) [todo addObject:@[e.finding, e.why ?: @""]];
+        for (MMFinding *f in findings) {
+            NSDictionary *e = prepared.plan[f.findingID];
+            if ([e[@"remove"] boolValue]) [todo addObject:@[f, e[@"why"] ?: @""]];
+        }
         if (!todo.count) return;
         _removing = YES;
         dispatch_async(ActQueue(), ^{ [self autoRemove:todo review:r mode:mode]; });

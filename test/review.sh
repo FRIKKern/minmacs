@@ -235,6 +235,7 @@ rd_run() {
 rd_run legacy legacy "$rd/day.json" test/review/legacy.json "$rd/legacy.json"; check "the 1.x replay runs" 0 "$?"
 rd_run broker broker "$rd/day.json" "$rd/broker.json";                          check "the broker replay runs" 0 "$?"
 rd_run fresh broker "$rd/day.json" "$rd/fresh.json" --fresh;                     check "the replay past the cache runs" 0 "$?"
+rd_run aged broker "$rd/day.json" "$rd/aged.json" --max-hours 6;                 check "the replay with a 6-hour verdict age runs" 0 "$?"
 check "no replay reports an error" 0 "$(cat "$rd"/*.err | wc -l | tr -d ' ')"
 python3 -I test/review/daycompare.py "$rd/legacy.json" "$rd/broker.json" >"$rd/compare.json"
 python3 -I test/review/daycompare.py "$rd/legacy.json" "$rd/fresh.json" >"$rd/compare-fresh.json"
@@ -259,6 +260,15 @@ import json, sys
 v = json.load(open('$rd/broker.json'))['verdicts']
 sent = [json.loads(l) for l in open('$rd/broker/sent.json.ids')]
 print(all(v['%d|%s' % ((c['clock'] - 60) // 3600, i)]['by'] == 'model' for c in sent for i in c['ids']) and len(sent) > 0)")"
+# A carried verdict holds at most MMVerdictMaxAge after the model made it, 24 hours by default. The day is 24 hourly
+# ticks, so the default carries a verdict at most 23 hours. With 6 hours set, none is carried past 6 hours, and the
+# findings whose keys held are asked again once their verdict is 6 hours old.
+check "the cache carries no verdict past a day" True "$(rd_run_get broker "all(e['max_carried_hours'] <= 24 for e in j['experts'].values())")"
+check "with a 6-hour age, no verdict is carried past 6 hours" True \
+  "$(rd_run_get aged "all(e['max_carried_hours'] <= 6 for e in j['experts'].values()) and j['experts']['workforest']['max_carried_hours'] > 0")"
+check "and the model is asked again for verdicts that aged out" True "$(rd_run_get aged "j['experts']['workforest']['sent_by_age'] > 0")"
+check "the default age asks nothing again within the day" 0 "$(rd_run_get broker "sum(e['sent_by_age'] for e in j['experts'].values())")"
+printf '  info  %s\n' "$(rd_run_get aged "'with a 6-hour age: %d WorkForest and %d LocoHost findings asked again for age, oldest carried %.1f h' % (j['experts']['workforest']['sent_by_age'], j['experts']['locohost']['sent_by_age'], max(e['max_carried_hours'] for e in j['experts'].values()))")"
 check "a restarted server is asked again, not carried" model \
   "$(rd_run_get broker "[x['by'] for k, x in j['verdicts'].items() if k.startswith('10|') and k.endswith('#express')][0]")"
 check "the day costs a fifth of the 1.x replay or less" True "$(rd_get "j['ratio'] <= 0.2")"

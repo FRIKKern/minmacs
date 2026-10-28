@@ -150,7 +150,8 @@ static int Help(MMArgs *a) {
     if (a.json) {
         NSMutableArray *v = [NSMutableArray new];
         for (NSArray *sec in sections) for (MMVerbSpec *s in sec[1])
-            [v addObject:@{@"verb": s.verb, @"usage": s.usage ?: s.verb, @"mutates": @(s.mutates), @"section": [sec[0] length] ? sec[0] : @"MinMacs"}];
+            [v addObject:@{@"verb": s.verb, @"usage": s.usage ?: s.verb, @"mutates": @((BOOL)(s.mutates || s.mutatingForms.count > 0)),
+                           @"mutatingForms": s.mutates ? @[] : s.mutatingForms ?: @[], @"section": [sec[0] length] ? sec[0] : @"MinMacs"}];
         [a printJSON:@{@"program": program, @"verbs": v}];
         return 0;
     }
@@ -505,23 +506,33 @@ static int Mode(MMArgs *a) {
     return 0;
 }
 
+/// The spec with what a cold run reads and the forms that change things.
+static MMVerbSpec *Reads(MMVerbSpec *v, MMVerbReads reads, NSArray<NSString *> *forms) { v.reads = reads; v.mutatingForms = forms; return v; }
+
 NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
     static NSArray *verbs;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         verbs = @[
-            [MMVerbSpec verb:@"status" usage:@"status [--json]   what each expert sees, as its menu header says it" mutates:NO run:^(MMArgs *a) { return Status(a); }],
-            [MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json] | work wrap-up <id> [--dry-run] [--json]   each workstream, or Wrap Up of a finished one" mutates:NO run:^(MMArgs *a) { return Work(a); }],
-            [MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--json]   the last review, or a new one with --now" mutates:NO run:^(MMArgs *a) { return Review(a); }],
+            Reads([MMVerbSpec verb:@"status" usage:@"status [--json]   what each expert sees, as its menu header says it" mutates:NO run:^(MMArgs *a) { return Status(a); }],
+                  MMVerbReadsCachedGit, nil),
+            Reads([MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json] | work wrap-up <id> [--dry-run] [--json]   each workstream, or Wrap Up of a finished one" mutates:NO run:^(MMArgs *a) { return Work(a); }],
+                  MMVerbReadsAll, @[@"wrap-up"]),
+            Reads([MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--json]   the last review, or a new one with --now" mutates:NO run:^(MMArgs *a) { return Review(a); }],
+                  MMVerbReadsCachedGit, @[@"--now"]),
             [MMVerbSpec verb:@"investigate" usage:@"investigate <finding|workstream|path> [question] [--yes] [--json]   look deeper into one, after you confirm its cost" mutates:NO run:^(MMArgs *a) { return MMInvestigateVerb(a); }],
             [MMVerbSpec verb:@"tidy" usage:@"tidy [expert] [--dry-run] [--mode <mode>] [--json]   what each mode would act on, and act on it" mutates:YES run:^(MMArgs *a) { return Tidy(a); }],
-            [MMVerbSpec verb:@"where" usage:@"where <pid> | where --port <port> [--go] [--json]   the terminal tab, pane or app it runs in" mutates:NO run:^(MMArgs *a) { return Where(a); }],
-            [MMVerbSpec verb:@"restore" usage:@"restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]   undo the last run, or one record" mutates:NO run:^(MMArgs *a) { return Restore(a); }],
-            [MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
-            [MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }],
-            [MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }],
-            [MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }],
-            [MMVerbSpec verb:@"_investigate-tools" usage:@"_investigate-tools --folder <path> --audit <file>" mutates:NO run:^(MMArgs *a) { return MMInvestigateToolsVerb(a); }],
+            Reads([MMVerbSpec verb:@"where" usage:@"where <pid> | where --port <port> [--go] [--json]   the terminal tab, pane or app it runs in" mutates:NO run:^(MMArgs *a) { return Where(a); }],
+                  MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"restore" usage:@"restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]   undo the last run, or one record" mutates:NO run:^(MMArgs *a) { return Restore(a); }],
+                  MMVerbReadsNoWorktrees, @[@"!--list"]),
+            Reads([MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
+                  MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }], MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }], MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"_investigate-tools" usage:@"_investigate-tools --folder <path> --audit <file>" mutates:NO run:^(MMArgs *a) { return MMInvestigateToolsVerb(a); }],
+                  MMVerbReadsNoWorktrees, nil),
         ];
     });
     return verbs;

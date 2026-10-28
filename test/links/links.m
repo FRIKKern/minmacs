@@ -65,6 +65,11 @@ int main(int argc, const char *argv[]) {
         NSString *tree = @(argv[1]), *out = @(argv[3]);
         NSInteger port = atoi(argv[2]);
         MMSnapshot *s = MMCLISettledSnapshot(NO);
+        // What the graph queue prepares for each snapshot in the app: the menus and cards read it on main, and main
+        // builds no Wrap Up plan and resolves no server folder.
+        dispatch_semaphore_t prepared = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ [s prepareFor:MMExperts()]; dispatch_semaphore_signal(prepared); });
+        dispatch_semaphore_wait(prepared, DISPATCH_TIME_FOREVER);
         NSMutableArray<NSMenu *> *keep = [NSMutableArray new];
         NSMutableDictionary *r = [NSMutableDictionary new];
 
