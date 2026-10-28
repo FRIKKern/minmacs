@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSStatusItem Visible Item-0</key><false/>
+	<key>insomnia.lid</key><true/>
+	<key>insomnia.awake</key><false/>
+	<key>insomnia.lid.minBattery</key><integer>30</integer>
+	<key>insomnia.lid.screenOff</key><false/>
+	<key>insomnia.debug.lid</key><string>closed</string>
+	<key>insomnia.unpluggedAt</key><date>2026-10-01T10:00:00Z</date>
+	<key>insomnia.updateCheckedAt</key><date>2026-10-01T10:00:00Z</date>
+</dict>
+</plist>

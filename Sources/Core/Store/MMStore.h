@@ -63,16 +63,5 @@ void MMRulesCheckNow(void);
 - (void)update:(id (^)(id disk))change;
 @end
 
-/// PLAN.md section 8. What MinMacs 1.2 and LocoHost leave today, read and never changed, so 2.0 can import it.
-/// home is the home folder to read from, nil for the person's own. Tests pass a copy inside MINMACS_HOME.
-/// It reads <home>/Library/Application Support/{MinMacs,LocoHost} and the prefs domains no.guerrilla.minmacs
-/// and no.guerrilla.locohost, from <home>/Library/Preferences/<domain>.plist, or through CFPreferences for the
-/// person's own home. The plan is a dictionary:
-///   prefs   key to value, in 2.0 keys, only keys 2.0 does not hold yet
-///   files   published path under the support folder to the JSON it gets
-///   rows    log rows as dictionaries with table, expert, subject, state and body
-///   sources the files and domains it read
-NSDictionary *MMLegacyPlan(NSString *home);
-/// Applies MMLegacyPlan once per source and records that in the core.migrated pref. A file that already exists
-/// in 2.0 is left as it is. Returns the plan it applied, with nothing in it on a second run.
-NSDictionary *MMImportLegacy(NSString *home);
+/// PLAN.md section 8. The migration from the old apps, MMLegacyPlan and MMImportLegacy, is in MMMigrate.h.
+#import "Core/Store/MMMigrate.h"

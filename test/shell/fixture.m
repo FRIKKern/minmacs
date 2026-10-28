@@ -281,7 +281,7 @@ static int SelfTest(MMArgs *a) {
     C(a, @"router: minmacs://run-now runs tidy", @"expert minmacs minmacs://run-now [tidy minmacs]", RouteWords(@"minmacs://run-now"));
     C(a, @"router: minmacs://run asks first, so no CLI fallback", @"expert minmacs minmacs://run", RouteWords(@"minmacs://run"));
     C(a, @"router: another scheme is not ours", @"none", RouteWords(@"https://quit"));
-    C(a, @"router: Info.plist schemes", @"minmacs,locohost", [MMURLSchemes() componentsJoinedByString:@","]);
+    C(a, @"router: Info.plist schemes", @"minmacs,locohost,insomnia", [MMURLSchemes() componentsJoinedByString:@","]);
 
     C(a, @"program: a locohost symlink is locohost", @"locohost", MMProgramName("/x/bin/locohost"));
     C(a, @"program: the bundle binary is minmacs", @"minmacs", MMProgramName("/x/MinMacs.app/Contents/MacOS/MinMacs"));

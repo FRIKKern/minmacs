@@ -10,7 +10,7 @@
 @implementation MMRoute
 @end
 
-NSArray<NSString *> *MMURLSchemes(void) { return @[@"minmacs", @"locohost"]; }
+NSArray<NSString *> *MMURLSchemes(void) { return @[@"minmacs", @"locohost", @"insomnia"]; }
 
 static MMRoute *Route(MMRouteKind kind, NSString *expert, NSURL *url, NSArray *words) {
     MMRoute *r = [MMRoute new];

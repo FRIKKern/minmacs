@@ -16,6 +16,7 @@ static NSString *const kLoginNoticeKey = @"core.loginNoticeUntil";   // seconds 
 static NSString *const kOneIconExpert = @"minmacs";               // One Icon stands in for MinMacs's item in Settings
 NSString *const MMOneIconAutosaveName = @"minmacs.oneicon";
 static NSString *const kOneIconSymbol = @"gauge.with.dots.needle.33percent";
+static const NSTimeInterval kMigrateDelay = 20;                    // the migration's follow-up waits for the menu bar
 
 NSArray<NSString *> *MMBuiltInExpertClasses(void) {
     return @[@"MMMinMacsExpert", @"MMLocoHost", @"MMWorkForestExpert", @"MMNooNooExpert", @"MMInsomniaExpert"];
@@ -169,6 +170,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 - (void)showSettings:(id)sender;
 - (void)rebuildItems;
 - (void)launch;
+- (void)followUpMigration;
 @end
 
 @implementation MMExpertItem
@@ -306,6 +308,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     }
     [self rebuildItems];
     MMSetPref(kLaunchedKey, @YES);
+    // Issue #37. The import ran in MMCoreStart. What follows it may ask the person, so it waits for the menu bar.
+    if (!self.headless && MMMigrateWanted(NSProcessInfo.processInfo.environment)) [self followUpMigration];
     __weak MMShell *weak = self;
     // Every card's link rows open through here, whichever expert drew the card.
     MMSetLinkOpener(^(NSString *expert, NSString *key) { [weak openLink:expert finding:key]; });
@@ -317,6 +321,39 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         for (MMExpertItem *i in me.items) { [i update:s]; if (i.expert && !i.summarized) all = NO; }
         if (gTraceSummaries && all) Mark(@"summaries");
     }];
+}
+
+/// PLAN.md section 8, once: a lid override the old Insomnia left on goes off, then one confirm for Noo-Noo's
+/// LaunchAgent and one for the old apps. It runs on its own queue. Each confirm is an alert on main, and main
+/// waits only on the person there. What failed goes in one alert, DESIGN.md "Notifications".
+- (void)followUpMigration {
+    dispatch_queue_t q = MMQueue(@"core", @"migrate", QOS_CLASS_UTILITY);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kMigrateDelay * NSEC_PER_SEC)), q, ^{
+        NSDictionary *done = MMMigrateFollowUp(nil, ^BOOL(NSString *title, NSString *body, NSString *yes, NSString *no) {
+            __block BOOL answer = NO;
+            dispatch_sync(dispatch_get_main_queue(), ^{
+                NSAlert *a = [NSAlert new];
+                a.messageText = title; a.informativeText = body ?: @"";
+                [a addButtonWithTitle:yes]; [a addButtonWithTitle:no];
+                [NSApp activateIgnoringOtherApps:YES];
+                answer = [a runModal] == NSAlertFirstButtonReturn;
+            });
+            return answer;
+        });
+        NSMutableArray *failed = [NSMutableArray new];
+        NSDictionary *agent = done[@"noonoo.agent"];
+        if ([agent[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"Noo-Noo's agent: %@.", agent[@"why"]]];
+        for (NSDictionary *app in done[@"apps"])
+            if ([app[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"%@: %@.", app[@"name"], app[@"why"]]];
+        if (!failed.count) return;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSAlert *a = [NSAlert new];
+            a.messageText = @"Some Old Apps Stayed";
+            a.informativeText = [failed componentsJoinedByString:@"\n"];
+            [NSApp activateIgnoringOtherApps:YES];
+            [a runModal];
+        });
+    });
 }
 
 - (void)applicationWillTerminate:(NSNotification *)note {

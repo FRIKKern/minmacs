@@ -1,7 +1,7 @@
 // The app shell, pattern P56: one binary, one app, one status item per registered expert.
 // main.m registers the experts, then calls MMMain. With a verb in argv it runs the CLI and exits.
 // Without one it runs the menu bar app: MMCoreStart, core.sock, the status items, Settings, the URL router
-// and the login item on first launch.
+// and the login item on first launch. Once after the import, the migration's follow-up of MMMigrate.h.
 #import <Cocoa/Cocoa.h>
 
 @protocol MMExpert;
