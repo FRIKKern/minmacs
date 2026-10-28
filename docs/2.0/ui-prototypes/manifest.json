@@ -1148,5 +1148,25 @@
   "surface": "menubar",
   "groupId": "59",
   "direction": "Faithful map as a bento grid"
+ },
+ {
+  "file": "60-a.html",
+  "name": "A bigger sheet",
+  "idea": "59-b's bento grid on a 1040 x 760 sheet. The grid has five columns of 183 x 94 cells, 16 px gaps and 16 px tile padding. Node labels are 11 px and tile text is 12 px. The scenario switch and the stage caption sit in a strip to the left, so the sheet still hangs from its icon. The Leftovers column is gone. Leftovers are one line under the grid, and its card lists every leftover.",
+  "good": "Every label keeps 6 px to its node, to the next label and to the tile edge. Session titles and questions get their own line and are not cut. A tile keeps the size its holdings and need ask for, and legend tiles fill the cells left free. The leftovers line keeps disk and memory as two numbers, and its card gives each leftover its why, its size and its own action.",
+  "tradeoff": "Fewer tiles fit in view. Busy shows 7 of 12 tiles, Peak about 7 of 20, and the field scrolls. A tall tile names a server by its port and counts its tabs. Five columns leave empty cells that legend tiles fill, sometimes three or more. The stage strip is narrow, so its Peak notes scroll.",
+  "surface": "menubar",
+  "groupId": "60",
+  "direction": "The bento grid with room to breathe"
+ },
+ {
+  "file": "60-b.html",
+  "name": "Show less per tile",
+  "idea": "59-b on the same 760 x 760 sheet, with three columns and fewer tiles in full. Each cell is 224 x 104 px, tiles have 16 px padding and the gaps are 14 px. Only an island that asks you, one that is ready to wrap up, and the one or two that hold the most get a 2 x 2 tile. A full tile shows the name and state, the question or session title on its own line, the node field with labels in fixed columns 21 px apart, and the worktree facts with Wrap Up or Answer in Tab. Every other island is a 1 x 1 summary with a name, a state and one line of counts. Hovering a summary, or clicking any tile, opens a card with the whole island and its Wrap Up plan in order. The Leftovers column is gone. Leftovers are one line under the grid, with chips for the biggest items, a count for the rest, Clean Up at the right end, and a card that lists every leftover with its why, size and action.",
+  "good": "Nothing in a tile is cramped. In headless Chrome at Quiet, Busy and Peak, no label came within 6 px of another label or a node, and no node left its tile. Every session title and question fit on one line. Text in a tile is 12 px, captions and node labels 11 px. The grid had no holes and took the full width. In two minutes of Peak the frames held at 61 per second, with 17 ms as the longest frame. An ask that opens or closes a tile moves about four other tiles, and the opening tile stays near its old row. Both Auto wrap ups fired in the first minute. The Wrap Up card lists Servers, Helpers, the new Tabs line, Caches, Config and Worktree in order, and Undo restarts the stopped servers and leaves helpers stopped.",
+  "tradeoff": "Most islands show no nodes, so you see their lines and browser tabs only in the card. About four rows show at once, so the grid scrolls at Busy too, and an island that asks can sit below the fold until the fold note and the header point to it. Tiles still open and close as agents ask and get answered, so the grid moves every few seconds at Peak. A full-width tile with only one or two holdings has a lot of empty space. To fill holes, a summary can grow to 2 x 1 or 1 x 2, and a tall summary shows its counts at the bottom with nothing above them.",
+  "surface": "menubar",
+  "groupId": "60",
+  "direction": "The bento grid with room to breathe"
  }
 ]

@@ -132,3 +132,26 @@ Start from a copy of `p/58-a.html`. Keep its look, its islands, lines, browser n
 - **59-b: Bento by holdings and need.** As 59-a, but an island that asks you something, or is ready to wrap up, gets one size step bigger, so what needs you is the largest thing on the sheet.
 
 At Peak, both say on the page what they give up, as 58-a does.
+
+## Round 60: the bento grid with room to breathe
+
+The owner looked at 59-b and said: "far too tight - need more space". Their screenshot is `briefs/59-b-too-tight.png`. In it, tiles are 126 px cells with 8 px gaps, nodes sit on top of their labels, server labels and tab counts collide, and the session titles are cut at every tile edge.
+
+Start from a copy of `p/59-b.html`. Keep its rules: tiles sized by holdings, one size step bigger for what asks you or is ready, ready first, stable order, no holes, the facts, the browser nodes and the Quiet, Busy and Peak switch.
+
+**Room rules for both pages:**
+- Tile padding is at least 16 px. Gaps between tiles are at least 14 px.
+- A node never touches its label, and a label never touches another label or the tile edge. Leave at least 6 px around every label.
+- Body text in a tile is at least 12 px, and captions at least 11 px.
+- A session title or question gets its own full line and is not cut on a 2 x 1 or 2 x 2 tile.
+- The scroll is fine. Readability wins over fitting everything in one view.
+
+**Two directions:**
+- **60-a: A bigger sheet.** The sheet grows to about 1040 x 760. Cells grow to about 170 x 88, in four or five columns. Move the stage caption and the scenario switch so the sheet still hangs from its menu bar icon on the 1280 x 800 stage.
+- **60-b: Show less per tile.** The sheet stays about 760 x 760. Fewer tiles get full detail. Only what asks you, what is ready, and the one or two busiest islands get node fields. The rest are 1 x 1 summary tiles with a name, a state and one line of counts. Hover or pick opens the full island as a card. Use three columns, so each cell is wider.
+
+**Leftovers move off the right side.** The owner said: "I dont think we should have leftovers on the right side like that". The right-hand Leftovers column is gone in both pages, and the grid takes the full width.
+- Leftovers are one calm line pinned to the bottom of the Workstreams body, below the grid. For example: "Leftovers · 10 things nobody holds · 19 GB disk · 1.3 GB memory", with the Clean Up button at its right end.
+- The line shows a few small chips for the biggest items, such as "DerivedData 14.2 GB", and a count for the rest.
+- Pressing the line, or hovering it, opens a card that lists every leftover with its why, its size and its own action.
+- Leftovers never look like a workstream tile, because nobody owns them.
