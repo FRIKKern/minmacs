@@ -1,0 +1,17 @@
+#!/bin/sh
+# An example of the signing hook release.sh calls, for issue #40. Not run by anything.
+# Copy it to packaging/sign.sh, fill in the identity and the notary profile, and pass it as MINMACS_SIGN_HOOK.
+#   MINMACS_SIGN_IDENTITY   "Developer ID Application: <name> (<team id>)"
+#   MINMACS_NOTARY_PROFILE  a keychain profile made once with: xcrun notarytool store-credentials
+set -eu
+case "${1:-}" in
+  sign)
+    codesign --force --options runtime --timestamp --sign "$MINMACS_SIGN_IDENTITY" "$2"
+    ;;
+  notarize)
+    xcrun notarytool submit "$2" --keychain-profile "$MINMACS_NOTARY_PROFILE" --wait
+    xcrun stapler staple "$3"
+    spctl --assess --type execute "$3"
+    ;;
+  *) echo "usage: sign <app> | notarize <zip> <app>" >&2; exit 2 ;;
+esac
