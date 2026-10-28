@@ -46,6 +46,9 @@ python3 -I test/docs/privacy.py "$dc_fx" >"$dc_dir/privacy-fx2.txt" 2>&1
 check "docs: privacy.py fails on a merged dictionary" 1 "$?"
 check "docs: privacy.py names the merge" 1 "$(grep -c 'WorkForest: every key in .* found addEntriesFromDictionary' "$dc_dir/privacy-fx2.txt")"
 
+# The field list lives in PRIVACY.md, so no comment or README in Sources sends the reader elsewhere for it.
+check "docs: Sources points to PRIVACY.md for the review fields" 0 "$(grep -rlE 'REVIEW\.md (does not exist|lists)' Sources | grep -c .)"
+
 # The README's pictures are renders of tools/render.sh.
 dc_missing=""
 for f in $(grep -o 'docs/img/[a-z0-9-]*\.png' README.md | sort -u); do [ -f "$f" ] || dc_missing="$dc_missing $f"; done
