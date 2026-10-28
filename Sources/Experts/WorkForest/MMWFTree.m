@@ -399,17 +399,27 @@ MMCardSpec *MMWFCard(MMWFTree *t, MMWFView *v) {
     [facts addObject:[MMCardFact label:@"Last work" value:last]];
     [facts addObject:[MMCardFact label:@"Disk" value:DiskWords(t)]];
     [facts addObject:[MMCardFact label:@"Git" value:MMWFStateWords(t)]];
+    // Each server inside links to its LocoHost card. Five facts fit, so up to three servers show, and Last work,
+    // then Disk, give way to them: a running server already says the worktree is in use, and the row shows its size.
     NSArray *links = v.links[t.findingID];
-    if (links.count) {
-        NSDictionary *l = links.firstObject;
-        MMCardFact *f = [MMCardFact label:Str(l[@"label"]) ?: @"Server" value:Str(l[@"value"]) ?: @""];
+    NSMutableArray *servers = [NSMutableArray new];
+    for (NSDictionary *l in links) {
+        if (servers.count >= 3) break;
+        // One label over the list, so the word is not said again on every row.
+        NSString *label = servers.count ? @"" : links.count > 1 ? @"Servers" : Str(l[@"label"]) ?: @"Server";
+        MMCardFact *f = [MMCardFact label:label value:Str(l[@"value"]) ?: @""];
         f.linkExpert = Str(l[@"expert"]); f.linkFindingID = Str(l[@"findingID"]);
-        [facts addObject:f];
-    } else if (t.processes.count) {
-        [facts addObject:[MMCardFact label:@"Running" value:[[NSOrderedSet orderedSetWithArray:t.processes].array componentsJoinedByString:@", "]]];
+        if (f.value.length) [servers addObject:f];
     }
+    if (!servers.count && t.processes.count)
+        [facts addObject:[MMCardFact label:@"Running" value:[[NSOrderedSet orderedSetWithArray:t.processes].array componentsJoinedByString:@", "]]];
     NSMutableArray *shown = [NSMutableArray new];
     for (MMCardFact *f in facts) if (f.value.length) [shown addObject:f];
+    for (NSString *gives in @[@"Last work", @"Disk"]) {
+        if (shown.count + servers.count <= 5) break;
+        for (MMCardFact *f in shown) if ([f.label isEqualToString:gives]) { [shown removeObject:f]; break; }
+    }
+    [shown addObjectsFromArray:servers];
     c.facts = shown;
 
     NSString *reason = Str(verdict[@"reason"]);

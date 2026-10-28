@@ -64,6 +64,7 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
 @property (strong) NSStatusItem *item;
 @property (strong) NSMenu *menu;
 @property (weak) MMShell *shell;
+@property (copy) NSString *focusExpert, *focusID;       // the link that opens the menu next, cleared when it closes
 @end
 
 @interface MMShell ()
@@ -75,14 +76,53 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
 - (void)rebuildItems;
 @end
 
-@implementation MMExpertItem
-
-- (MMCardProvider)cardsFor:(id<MMExpert>)e snapshot:(MMSnapshot *)s {
+static MMCardProvider CardsFor(id<MMExpert> e, MMSnapshot *s) {
     return ^MMCardSpec *(NSString *fid) {
         MMFinding *f = [s finding:fid];
         return f ? [e cardFor:f snapshot:s] : nil;
     };
 }
+
+/// The finding a link names, as the snapshot holds it. An expert may name a path as the repo index keeps it, such as
+/// /var/folders/x, where WorkForest keeps the kernel's /private/var/folders/x, so both spellings are tried.
+static NSString *LinkedFinding(MMSnapshot *s, NSString *fid) {
+    if (!fid.length || [s finding:fid]) return fid;
+    for (NSString *dir in @[@"/var/", @"/tmp/"]) {
+        NSString *bare = [@":" stringByAppendingString:dir], *priv = [@":/private" stringByAppendingString:dir];
+        NSString *alt = [fid containsString:priv] ? [fid stringByReplacingOccurrencesOfString:priv withString:bare]
+                      : [fid containsString:bare] ? [fid stringByReplacingOccurrencesOfString:bare withString:priv] : nil;
+        if (alt && [s finding:alt]) return alt;
+    }
+    return fid;
+}
+
+/// One expert's menu, or with expert nil the One Icon menu. focusID names the finding a link opened, in focusExpert.
+static NSMenu *BuildMenu(id<MMExpert> expert, MMSnapshot *s, NSString *notice, id footer, NSString *focusExpert, NSString *focusID) {
+    focusID = LinkedFinding(s, focusID);
+    if (expert) {
+        NSString *focus = [expert.expertID isEqualToString:focusExpert] ? focusID : nil;
+        return MMMenuFromSpecFocused([expert menuFor:s], CardsFor(expert, s), notice, footer, focus);
+    }
+    NSMutableArray *parts = [NSMutableArray new];
+    for (id<MMExpert> e in MMExperts()) {
+        BOOL linked = [e.expertID isEqualToString:focusExpert];
+        // A link names a finding, so its expert shows even when the person hid its section.
+        if (!linked && !MMOneIconShows(e.expertID, [e fieldEmptyIn:s], MMIconVisible(e.expertID))) continue;
+        MMOneIconPart *p = [MMOneIconPart new];
+        p.name = e.name; p.spec = [e menuFor:s]; p.cards = CardsFor(e, s);
+        if (linked) p.focusID = focusID;
+        [parts addObject:p];
+    }
+    return MMOneIconMenu(parts, notice, footer);
+}
+
+NSMenu *MMLinkMenu(NSString *expertID, NSString *findingID, MMSnapshot *s, BOOL oneIcon, id footerTarget) {
+    id<MMExpert> e = MMExpertNamed(expertID);
+    if (!e || !s) return nil;
+    return BuildMenu(oneIcon ? nil : e, s, nil, footerTarget, expertID, findingID);
+}
+
+@implementation MMExpertItem
 
 - (NSMenu *)build {
     MMSnapshot *s = MMGraph.shared.current;
@@ -93,15 +133,7 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
         MMAddFooter(m, self);
         return m;
     }
-    if (self.expert) return MMMenuFromSpec([self.expert menuFor:s], [self cardsFor:self.expert snapshot:s], notice, self);
-    NSMutableArray *parts = [NSMutableArray new];
-    for (id<MMExpert> e in MMExperts()) {
-        if (!MMOneIconShows(e.expertID, [e fieldEmptyIn:s], MMIconVisible(e.expertID))) continue;
-        MMOneIconPart *p = [MMOneIconPart new];
-        p.name = e.name; p.spec = [e menuFor:s]; p.cards = [self cardsFor:e snapshot:s];
-        [parts addObject:p];
-    }
-    return MMOneIconMenu(parts, notice, self);
+    return BuildMenu(self.expert, s, notice, self, self.focusExpert, self.focusID);
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
@@ -111,6 +143,8 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
     [menu removeAllItems];
     for (NSMenuItem *i in items) [menu addItem:i];
 }
+
+- (void)menuDidClose:(NSMenu *)menu { self.focusExpert = nil; self.focusID = nil; }
 
 - (void)hideIcon:(id)sender { self.item.visible = NO; }
 - (void)showSettings:(id)sender { [self.shell showSettings:sender]; }
@@ -168,6 +202,8 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
     [self rebuildItems];
     MMSetPref(kLaunchedKey, @YES);
     __weak MMShell *weak = self;
+    // Every card's link rows open through here, whichever expert drew the card.
+    MMSetLinkOpener(^(NSString *expert, NSString *key) { [weak openLink:expert finding:key]; });
     self.graphToken = [MMGraph.shared observe:^(MMSnapshot *s) { for (MMExpertItem *i in weak.items) [i update:s]; }];
 }
 
@@ -216,6 +252,26 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
     // In One Icon mode the one icon stands in for MinMacs's own item, under its own autosave name.
     if ([expert isEqualToString:kOneIconExpert]) for (MMExpertItem *i in self.items) if (!i.expert) return i;
     return nil;
+}
+
+/// A link row was picked. Its menu is closing, so the linked expert's menu opens on the next turn of the run loop,
+/// with the linked card as its first row. In One Icon mode the one icon opens. An item the system hides, or one the
+/// person hid, cannot open, so the same menu pops up at the pointer instead.
+- (void)openLink:(NSString *)expert finding:(NSString *)findingID {
+    MMExpertItem *i = MMPrefBool(MMOneIconKey, NO) ? nil : [self itemFor:expert];
+    if (!i) for (MMExpertItem *x in self.items) if (!x.expert) i = x;
+    if (!i) return;
+    i.focusExpert = expert; i.focusID = findingID;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSStatusBarButton *b = i.item.button;
+        if (i.item.visible && (b.window.occlusionState & NSWindowOcclusionStateVisible)) {
+            [b performClick:nil];
+            return;
+        }
+        NSMenu *m = [i build];
+        i.focusExpert = nil; i.focusID = nil;
+        [m popUpMenuPositioningItem:nil atLocation:NSEvent.mouseLocation inView:nil];
+    });
 }
 
 - (BOOL)loginEnabled { return SMAppService.mainAppService.status == SMAppServiceStatusEnabled; }

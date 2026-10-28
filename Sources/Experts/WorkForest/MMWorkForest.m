@@ -450,7 +450,10 @@ static NSDictionary<NSString *, NSArray<NSDictionary *> *> *ServersIn(MMSnapshot
         for (MMFinding *t in sorted) {
             if (!Within(cwd, t.path)) continue;
             NSArray *ports = List(h.facts[@"ports"]);
-            NSString *value = [NSString stringWithFormat:@":%@ %@", ports.firstObject ?: @"?", Str(h.facts[@"framework"]) ?: @"server"];
+            NSString *framework = Str(h.facts[@"framework"]);
+            NSString *value = [NSString stringWithFormat:@":%@ %@", ports.firstObject ?: @"?", framework.length ? framework : @"server"];
+            NSString *state = @{@"active": @"in use", @"recent": @"used recently", @"idle": @"idle"}[Str(h.facts[@"state"]) ?: @""];
+            if (state) value = [value stringByAppendingFormat:@", %@", state];
             NSMutableArray *l = out[t.findingID] ?: (out[t.findingID] = [NSMutableArray new]);
             [l addObject:@{@"label": @"Server", @"value": value, @"expert": @"locohost", @"findingID": h.findingID ?: @""}];
             break;

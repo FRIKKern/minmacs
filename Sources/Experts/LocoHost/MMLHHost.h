@@ -24,7 +24,8 @@ typedef NS_ENUM(NSInteger, MMLHState) { MMLHActive = 0, MMLHRecent = 1, MMLHIdle
 @property (copy) NSString *kind;                     // dev, service or other
 @property (copy) NSString *framework;
 @property (copy) NSString *repo, *repoRoot, *subdir, *branch, *worktree;
-@property (strong) NSDate *repoTouched;
+@property (strong) NSDate *repoTouched;              // the last commit of its checkout
+@property (copy) NSString *merged;                   // its worktree in words: merged, squash-merged, not merged; nil for a main checkout
 @property double cpuPercent, energyRank;             // the tree's CPU now, and its energy rank in this sample
 @property uint64_t memory;                           // the tree's footprint
 @property NSInteger processCount;
@@ -108,6 +109,10 @@ NSString *MMLHModeLabel(NSString *mode);
 /// key is a findingID or, for restart, a record id. option is the Option alternate.
 @property (copy) void (^act)(NSString *what, NSString *key, BOOL option);
 @end
+
+/// The worktree a server runs in and whether it is merged: "checkout-flow, merged", "acme-web, main checkout".
+/// The value of the card's link to WorkForest.
+NSString *MMLHWorktreeWords(MMLHHost *h);
 
 /// The main menu, to DESIGN.md: header, summary, Close Idle and Review Now, the sections, and More.
 MMMenuSpec *MMLHMenu(MMLHView *v);

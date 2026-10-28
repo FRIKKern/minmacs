@@ -178,7 +178,8 @@ NSArray<NSString *> *MMMenuProblems(NSMenu *menu) {
         // A menu with no sections ends its actions at More or the footer, which are not actions.
         if (i.isSectionHeader || [i.title isEqualToString:@"More"] || [i.title isEqualToString:@"Hide Icon"]) break;
         if (i.view) { started = YES; continue; }
-        if (started && !i.isSeparatorItem && !i.isAlternate) actions++;
+        // The row a link opened sits right below the header with its card, and is not an action.
+        if (started && !i.isSeparatorItem && !i.isAlternate && ![i.identifier isEqualToString:@"minmacs.focused"]) actions++;
     }
     if (actions > MMMaxMenuActions) [p addObject:[NSString stringWithFormat:@"%ld actions, at most two", (long)actions]];
     return p;

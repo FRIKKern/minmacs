@@ -5,7 +5,7 @@ Localhost servers on the shared core, issue #22. LocoHost lists every server, sa
 | File | What it holds | Ported from LocoHost 0.1 |
 |---|---|---|
 | `MMLHHost.h/.m` | The host model, its words, and the menu, card, badge and accessibility state as specs. Pure, so `tools/render.m` draws it from fixture hosts | `LHHost` in `Ports.h`, the menu and card code in `main.m` |
-| `MMLHScan.h/.m` | Hosts from the facts: listeners, the process tree, launchers, clients, connections, activity, rules, git's own files and the allowlisted project files | `-[LHScanner sample]` in `Ports.m`, `Rules.m`, `Project` in `Intel.m` |
+| `MMLHScan.h/.m` | Hosts from the facts: listeners, the process tree, launchers, clients, connections, activity, rules, the repo index's worktrees and git facts, and the allowlisted project files | `-[LHScanner sample]` in `Ports.m`, `Rules.m`, `Project` in `Intel.m` |
 | `MMLocoHost.h/.m` | The `MMExpert`: findings, the mode and manual keep checks, the stop action, rules, the review request, the menu view, and what wakes a review in the app | `Candidates`, `MustKeep`, `Plan`, `AutoStop` and `watchEvents` in `main.m` |
 | `MMLHCLI.m` | The verbs | `RunCLI` in `main.m` |
 
@@ -22,6 +22,12 @@ One finding per listening process, kind `server`, id `locohost:server:<stableKey
 - **Manual.** An action the person asks for only checks that it is still the same server.
 
 SIGTERM goes first. `MMStopKill` reaches only what got SIGTERM on an earlier request, which Core records in `core/term-sent.json`. The stop record holds the command, the folder, the port and the framework, so `restore` and `restart` start it again through `MMUndo`.
+
+## Git and the worktree card
+
+`MMLHGitOf` in `MMLHScan.m` finds a server's checkout in `MMFacts.worktrees`, else through `-[MMRepoIndex worktreeAt:]`, and its git facts through `-[MMFacts gitFor:]`, else `-[MMRepoIndex factsFor:wait:NO]`. LocoHost reads no git file and runs no git. A folder no walk covered is looked up in the background, so a rebuild never waits on its `.git` read. The host keeps the repo, root, subdir, branch, worktree, the last commit's time and whether the worktree is merged.
+
+A server's card names its worktree and whether it is merged, such as "checkout-flow, merged" or "acme-web, main checkout". When WorkForest has a finding for that checkout, the fact is a link row that opens WorkForest's card of it. The kit and the shell do the opening, as for every expert. Without WorkForest the card shows the same words as a plain Git fact.
 
 ## What the review gets
 
@@ -48,7 +54,6 @@ A verb reads `MMArgs.snapshot`, or `MMArgs.settledSnapshot` when it reports CPU 
 ## Left open
 
 - `docs/REVIEW.md` does not exist. The list above is LocoHost's part.
-- Git facts come from `MMFacts.worktrees` when Know has them, else from git's own files through Core's fact cache, with no git spawn. Both sit in one function, `MMLHGitOf` in `MMLHScan.m`, declared in `MMLHScan.h`. The git work replaces its body with `MMGitFacts`. Commit, dirty and upstream facts wait for that.
 - The project files are read by LocoHost through Core's fact cache, from an allowlist. They belong in Know.
 - The HTTP title probe of 0.1 is gone, so page titles are not shown or sent. A probe would belong in Senses.
 - Energy is a rank, as DESIGN.md asks. `idleEnergyWh` is gone from `--json`, and `energyRank` is there in its place.

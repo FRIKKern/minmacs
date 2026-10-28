@@ -57,6 +57,9 @@ static CGFloat ValueColumn(NSMenuItem *cardItem) {
 @end
 @implementation Subject @end
 
+/// The menus a cross-link opens, from the LocoHost and WorkForest subjects.
+static NSMenu *gLocoHostLinked, *gWorkForestLinked;
+
 static NSMenuItem *Act(NSString *title) { return MMActionItem(title, nil, @selector(copy:), nil); }
 
 static MMCard *Card(NSString *title, MMMark mark, NSString *word, NSString *text) {
@@ -89,6 +92,7 @@ static Subject *LocoHostLike(void) {
     Subject *s = [Subject new]; s.name = @"locohost"; s.cards = [NSMutableDictionary new]; s.cardMenus = [NSMutableDictionary new]; s.order = [NSMutableArray new];
     MMLHHost *checkout = Server(@"~/code/acme-web.worktrees/checkout-flow#dev", @"acme-web.worktrees/checkout-flow", 3000, @"Vite", 905, MMLHActive, 3 * 3600 + 12 * 60);
     checkout.repo = @"acme-web"; checkout.worktree = @"checkout-flow"; checkout.branch = @"feat/checkout-flow"; checkout.repoRoot = checkout.cwd;
+    checkout.merged = @"not merged";
     checkout.clients = @[@"Safari"]; checkout.connections = 2; checkout.newConnections = 1; checkout.cpuPercent = 4;
     checkout.placeLabel = @"cmux, checkout"; checkout.placeTab = @"checkout"; checkout.placeApp = @"cmux";
     MMLHHost *orbit = Server(@"~/code/orbit-api#dev", @"orbit-api", 4000, @"Next.js", 640, MMLHRecent, 2 * 3600);
@@ -100,7 +104,7 @@ static Subject *LocoHostLike(void) {
     MMLHHost *search = Server(@"~/code/acme-web.worktrees/search#dev", @"acme-web.worktrees/acme-web-really-long-feature-branch-name-for-search", 5173, @"Vite", 410, MMLHActive, 40 * 60);
     search.repo = @"acme-web"; search.worktree = @"acme-web-really-long-feature-branch-name-for-search";
     MMLHHost *docs = Server(@"~/code/acme-web/docs#docs", @"acme-web/docs", 3001, @"Vite", 512, MMLHIdle, 26 * 3600);
-    docs.repo = @"acme-web"; docs.subdir = @"docs"; docs.branch = @"main"; docs.lastActive = [NSDate dateWithTimeIntervalSinceNow:-3 * 3600];
+    docs.repo = @"acme-web"; docs.subdir = @"docs"; docs.branch = @"main"; docs.repoRoot = @"/Users/dev/code/acme-web"; docs.lastActive = [NSDate dateWithTimeIntervalSinceNow:-3 * 3600];
     docs.launcher = @"pnpm docs · cmux"; docs.placeLabel = @"cmux, acme-web"; docs.placeApp = @"cmux";
     MMLHHost *admin = Server(@"~/code/acme-admin#dev", @"acme-admin", 3002, @"Vite", 700, MMLHIdle, 5 * 3600);
     admin.repo = @"acme-admin"; admin.lastActive = [NSDate dateWithTimeIntervalSinceNow:-3 * 3600];
@@ -125,7 +129,11 @@ static Subject *LocoHostLike(void) {
                docs.findingID: @{@"stop": @YES, @"why": @"quiet 3h, and no agent uses it"},
                admin.findingID: @{@"stop": @NO, @"why": @"the review is not sure"}};
     v.candidates = @[docs.findingID, admin.findingID];
-    v.links = @{checkout.findingID: @{@"label": @"Worktree", @"value": @"checkout-flow, in use", @"expert": @"workforest", @"findingID": @"workforest:tree:checkout-flow"}};
+    // The worktree each server runs in and whether it is merged, as MMLHWorktreeWords says it from the repo index.
+    v.links = @{checkout.findingID: @{@"label": @"Worktree", @"value": MMLHWorktreeWords(checkout), @"expert": @"workforest",
+                                      @"findingID": @"workforest:worktree:/Users/dev/code/acme-web.worktrees/acme-web-checkout-flow"},
+                docs.findingID: @{@"label": @"Worktree", @"value": MMLHWorktreeWords(docs), @"expert": @"workforest",
+                                  @"findingID": @"workforest:worktree:/Users/dev/code/acme-web"}};
     v.stopped = @[@{@"rid": @"r1", @"port": @3004, @"framework": @"Vite", @"at": @(NSDate.date.timeIntervalSince1970 - 2 * 3600), @"by": @"eager"}];
     v.idleSeconds = 30 * 60;
     v.act = ^(NSString *what, NSString *key, BOOL option) {};
@@ -150,6 +158,11 @@ static Subject *LocoHostLike(void) {
         }
     }
     s.menu = m;
+    // The menu a link from WorkForest's checkout-flow card opens: the server's card first below the header.
+    gLocoHostLinked = MMMenuFromSpecFocused(MMLHMenu(v), ^MMCardSpec *(NSString *findingID) {
+        for (MMLHHost *h in v.hosts) if ([h.findingID isEqualToString:findingID]) return MMLHCard(h, v);
+        return nil;
+    }, nil, nil, checkout.findingID);
     return s;
 }
 
@@ -223,8 +236,10 @@ static Subject *WorkForestLike(void) {
                hooks.findingID: @{@"remove": @NO, @"why": @"node running inside"},
                limits.findingID: @{@"remove": @NO, @"why": @"evidence: the branch name says the work is parked"}};
     v.candidates = @[promo.findingID, docs.findingID];
-    v.links = @{checkout.findingID: @[@{@"label": @"Server", @"value": @":3000 Vite, in use", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/acme-web.worktrees/checkout-flow#dev"}],
-                hooks.findingID: @[@{@"label": @"Server", @"value": @":4000 Next.js", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/orbit-api#dev"}]};
+    // The servers LocoHost finds inside each worktree, each a link row to its card. checkout-flow runs two.
+    v.links = @{checkout.findingID: @[@{@"label": @"Server", @"value": @":3000 Vite, in use", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/acme-web.worktrees/checkout-flow#dev"},
+                                      @{@"label": @"Server", @"value": @":6007 Storybook, used recently", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/acme-web.worktrees/checkout-flow#storybook"}],
+                hooks.findingID: @[@{@"label": @"Server", @"value": @":4000 Next.js, idle", @"expert": @"locohost", @"findingID": @"locohost:server:~/code/orbit-api#dev"}]};
     v.removed = @[@{@"rid": @"r1", @"path": @"/Users/dev/code/acme-web.worktrees/acme-web-old-landing", @"branch": @"feat/old-landing",
                     @"at": @(NSDate.date.timeIntervalSince1970 - 3 * 86400), @"by": @"proactive", @"saved": @[@".env.local"]}];
     v.act = ^(NSString *what, NSString *key, BOOL option) {};
@@ -263,6 +278,11 @@ static Subject *WorkForestLike(void) {
         [s.order addObject:k];
     }
     s.menu = m;
+    // The menu a link from LocoHost's checkout card opens: the worktree's card first below the header.
+    gWorkForestLinked = MMMenuFromSpecFocused(spec, ^MMCardSpec *(NSString *findingID) {
+        MMWFTree *t = treeFor(findingID);
+        return t ? MMWFCard(t, v) : nil;
+    }, nil, nil, checkout.findingID);
     return s;
 }
 
@@ -701,6 +721,27 @@ int main(int argc, char **argv) { @autoreleasepool {
         Check([p isEqualToArray:@[@"6 facts given, five shown"]], @"the card check reports a sixth fact", [p componentsJoinedByString:@"; "]);
     }
 
+    // A link opens the other expert's menu with the linked card as the first row below the header, TESTS.md question 5.
+    NSArray *linked = @[@[@"locohost", gLocoHostLinked ?: NSNull.null, @"locohost:server:~/code/acme-web.worktrees/checkout-flow#dev"],
+                        @[@"workforest", gWorkForestLinked ?: NSNull.null, @"workforest:worktree:/Users/dev/code/acme-web.worktrees/acme-web-checkout-flow"]];
+    for (NSArray *l in linked) {
+        NSMenu *m = l[1] == NSNull.null ? nil : l[1];
+        NSMenuItem *row = MMFocusedRow(m);
+        Check(row && [m indexOfItem:row] == 2 && row.submenu.itemArray.firstObject.view,
+              [l[0] stringByAppendingString:@"-linked: the linked card is the first row below the header"], row ? row.title : @"no focused row");
+        if (m) CheckMenu(m, [l[0] stringByAppendingString:@"-linked"]);
+    }
+    // Every link row in every card opens through MMOpenLink, with the expert and the finding it names.
+    {
+        __block NSString *opened = nil;
+        MMSetLinkOpener(^(NSString *expert, NSString *key) { opened = [NSString stringWithFormat:@"%@ %@", expert, key]; });
+        NSMenu *cm = subjects[1].cardMenus[@"checkout"];
+        NSMutableArray *got = [NSMutableArray new];
+        for (NSInteger i = 0; i < cm.numberOfItems; i++) if (MMLinkOfItem([cm itemAtIndex:i])) { opened = nil; [cm performActionForItemAtIndex:i]; [got addObject:opened ?: @"nothing"]; }
+        Check(got.count == 2 && [got[0] hasPrefix:@"locohost locohost:server:"], @"workforest card checkout: each server row opens LocoHost's card", [got componentsJoinedByString:@", "]);
+        MMSetLinkOpener(nil);
+    }
+
     for (Subject *s in subjects) {
         CheckMenu(s.menu, s.name);
         CGFloat column = -1; NSMutableArray *off = [NSMutableArray new];
@@ -742,6 +783,12 @@ int main(int argc, char **argv) { @autoreleasepool {
                 if (!cut) [unwritten addObject:path.lastPathComponent];
                 if (first) Check(cut.count == 0, [NSString stringWithFormat:@"%@ card %@: no item is cut off", s.name, k], [cut componentsJoinedByString:@", "]);
             }
+        }
+        for (NSArray *l in linked) {
+            NSMenu *m = l[1] == NSNull.null ? nil : l[1];
+            if (!m) continue;
+            NSString *lp = [out stringByAppendingFormat:@"/%@-linked-menu-%@.png", l[0], mode];
+            if (!MMRenderMenu(m, lp, ap)) [unwritten addObject:lp.lastPathComponent];
         }
         NSString *path = [out stringByAppendingFormat:@"/status-%@.png", mode];
         if (!MMRenderView(StatusStrip(experts), path, ap)) [unwritten addObject:path.lastPathComponent];

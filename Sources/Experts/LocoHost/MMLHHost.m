@@ -70,7 +70,7 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
              @"started": Time(self.started), @"ports": self.ports ?: @[], @"port": @(self.port), @"bind": self.bind ?: @"",
              @"url": self.url, @"kind": self.kind ?: @"other", @"framework": self.framework ?: @"",
              @"project": self.project, @"repo": Or(self.repo), @"repoRoot": Or(self.repoRoot), @"subdir": Or(self.subdir),
-             @"branch": Or(self.branch), @"worktree": Or(self.worktree), @"repoTouched": Time(self.repoTouched),
+             @"branch": Or(self.branch), @"worktree": Or(self.worktree), @"repoTouched": Time(self.repoTouched), @"merged": Or(self.merged),
              @"cpu": @(round(self.cpuPercent * 10) / 10), @"energyRank": @(round(self.energyRank * 100) / 100),
              @"memoryBytes": @(self.memory), @"processes": @(self.processCount),
              @"treePids": self.treePids ?: @[], @"treeStarts": self.treeStarts ?: @[],
@@ -98,7 +98,7 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
     h.started = Date(j[@"started"]); h.ports = List(j[@"ports"]); h.bind = Str(j[@"bind"]);
     h.kind = Str(j[@"kind"]); h.framework = Str(j[@"framework"]);
     h.repo = Str(j[@"repo"]); h.repoRoot = Str(j[@"repoRoot"]); h.subdir = Str(j[@"subdir"]);
-    h.branch = Str(j[@"branch"]); h.worktree = Str(j[@"worktree"]); h.repoTouched = Date(j[@"repoTouched"]);
+    h.branch = Str(j[@"branch"]); h.worktree = Str(j[@"worktree"]); h.repoTouched = Date(j[@"repoTouched"]); h.merged = Str(j[@"merged"]);
     h.cpuPercent = [j[@"cpu"] doubleValue]; h.energyRank = [j[@"energyRank"] doubleValue];
     h.memory = [j[@"memoryBytes"] unsignedLongLongValue]; h.processCount = [j[@"processes"] integerValue];
     h.treePids = List(j[@"treePids"]); h.treeStarts = List(j[@"treeStarts"]);
@@ -394,6 +394,12 @@ static void Status(MMLHHost *h, MMLHView *v, MMCardSpec *c) {
     c.statusText = [MMSentence(MMCut(why, 160)) stringByAppendingString:next];
 }
 
+NSString *MMLHWorktreeWords(MMLHHost *h) {
+    NSString *name = h.worktree.length ? h.worktree : h.repoRoot.lastPathComponent ?: h.repo ?: @"";
+    NSString *state = h.worktree.length ? h.merged : @"main checkout";
+    return state.length ? [NSString stringWithFormat:@"%@, %@", name, state] : name;
+}
+
 MMCardSpec *MMLHCard(MMLHHost *h, MMLHView *v) {
     MMCardSpec *c = [MMCardSpec new];
     NSDictionary *verdict = v.verdicts[h.findingID];
@@ -421,7 +427,7 @@ MMCardSpec *MMLHCard(MMLHHost *h, MMLHView *v) {
         NSString *branch = [h.branch hasPrefix:@"detached"] ? nil : h.branch;   // a detached commit's hash says nothing here
         NSMutableArray *g = [NSMutableArray new];
         if (branch.length) [g addObject:branch];
-        if (h.worktree.length) [g addObject:[@"worktree " stringByAppendingString:h.worktree]];
+        if (h.worktree.length) [g addObject:[@"worktree " stringByAppendingString:h.merged.length ? [NSString stringWithFormat:@"%@, %@", h.worktree, h.merged] : h.worktree]];
         [facts addObject:[MMCardFact label:@"Git" value:[g componentsJoinedByString:@" · "]]];
     }
     if (h.isDev) {

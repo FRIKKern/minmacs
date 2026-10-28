@@ -4,6 +4,8 @@
 // and the login item on first launch.
 #import <Cocoa/Cocoa.h>
 
+@class MMSnapshot;
+
 /// The class names of the five experts, in menu bar order. main.m registers each one that is linked in, so an
 /// expert lands by adding its class under Sources/Experts and nothing else. Each class implements MMExpert.
 NSArray<NSString *> *MMBuiltInExpertClasses(void);
@@ -32,6 +34,12 @@ extern NSString *const MMOneIconAutosaveName;
 
 /// The line the menu shows for a day after first launch, decision 18.
 extern NSString *const MMLoginNotice;
+
+/// The menu a cross-link opens, from the snapshot. With five icons it is the linked expert's own menu, with the
+/// linked finding's card as the first row below the header, TESTS.md question 5. In One Icon mode it is the one menu,
+/// with the linked expert's part first and the card first in it. nil when no such expert is registered.
+/// Every link row of every card opens through this, so no expert wires its own jump. Main thread.
+NSMenu *MMLinkMenu(NSString *expertID, NSString *findingID, MMSnapshot *s, BOOL oneIcon, id footerTarget);
 
 /// The app delegate. One per process, made by MMMain.
 @interface MMShell : NSObject <NSApplicationDelegate>

@@ -134,19 +134,65 @@ BOOL MMWantsCLI(int argc, const char *argv[]) {
 static id<MMFactSource> gCLISource;
 void MMSetCLIFactSource(id<MMFactSource> source) { gCLISource = source; }
 
-/// One sample of Senses and Know, for a CLI run with no app. Worktrees and clutter come with phases 2 and 3.
+/// One sample of Senses and Know, for a CLI run with no app, with the repo index and its git facts.
+/// No FSEvents ran since the last launch, so the index cannot know what changed. The first read walks the roots,
+/// drops every worktree's status layer and brings the facts up to date on the index's git queue: git status runs
+/// for each worktree, and history only where a fingerprint moved. Later reads in the same run use what that read.
+/// A fresh read for one finding brings that worktree's facts up to date again.
 @interface MMColdFacts : NSObject <MMFactSource>
 @end
 @implementation MMColdFacts
-- (MMFacts *)factsFor:(uint64_t)generation {
-    MMSample *s = [MMSenses.shared sampleNow];
+
+/// Waits for the index's update pass that starts after this call, at most a minute.
+static void WaitForGit(void) {
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    [MMRepoIndex.shared updateFacts:^(NSUInteger ran) { dispatch_semaphore_signal(done); }];
+    dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 60 * NSEC_PER_SEC));
+}
+
+/// One walk of the roots, waited for, then every worktree's facts.
+static void ColdIndex(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        MMRepoIndex *index = MMRepoIndex.shared;
+        if (!index.roots.count) return;
+        NSInteger before = [index.stats[@"walksDone"] integerValue];
+        [index refresh:nil];
+        NSDate *until = [NSDate dateWithTimeIntervalSinceNow:30];
+        while ([index.stats[@"walksDone"] integerValue] <= before && until.timeIntervalSinceNow > 0) usleep(10000);
+        if (!index.worktrees.count) return;
+        [index invalidate:nil subtrees:NO];
+        WaitForGit();
+    });
+}
+
+static MMFacts *ColdFacts(uint64_t generation, MMSample *s) {
     MMPower *p = [MMSenses.shared power];
     NSArray *agents = s ? [MMRegistry.shared agentsIn:s power:p] : @[];
     [MMSessions.shared refresh];
+    ColdIndex();
+    NSArray<MMWorktree *> *trees = MMRepoIndex.shared.worktrees;
+    NSMutableDictionary<NSString *, MMGitFacts *> *git = [NSMutableDictionary new];
+    for (MMWorktree *w in trees) {
+        MMGitFacts *g = w.path ? [MMRepoIndex.shared factsFor:w wait:NO] : nil;
+        if (g) git[w.path] = g;
+    }
     return [MMFacts generation:generation sample:s power:p agents:agents ?: @[] sessions:[MMSessions.shared all] ?: @[]
-                     worktrees:@[] clutter:@[] git:@{}];
+                     worktrees:trees clutter:@[] git:git];
 }
-- (MMFacts *)freshFactsFor:(MMFinding *)finding { return [self factsFor:0]; }
+
+- (MMFacts *)factsFor:(uint64_t)generation { return ColdFacts(generation, [MMSenses.shared sampleNow]); }
+
+/// Principle 5, as the app's source does it: a new sample, and the finding's worktree read again from git.
+- (MMFacts *)freshFactsFor:(MMFinding *)finding {
+    MMWorktree *w = finding.path.length ? [MMRepoIndex.shared worktreeAt:finding.path] : nil;
+    if (w.path.length) {
+        ColdIndex();
+        [MMRepoIndex.shared invalidate:[NSSet setWithObject:w.path] subtrees:NO];
+        WaitForGit();
+    }
+    return ColdFacts(0, [MMSenses.shared sampleNow]);
+}
 @end
 
 /// The source a cold run reads: the one a test set, else the graph's, else one MMColdFacts the graph gets too.

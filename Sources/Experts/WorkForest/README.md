@@ -40,6 +40,10 @@ The routine schema in WorkForest's words: `active`, `stale` and `unsure`. Per wo
 
 Two rules decide before the model: `workforest.holds-work` keeps a worktree with uncommitted work, commits on no remote, a process inside or a working session, and `workforest.locked-or-protected` keeps a locked one or a protected branch. Eager's judge gets WorkForest's own judge prompt.
 
+## Servers inside
+
+A worktree's card lists the servers LocoHost finds inside it, such as ":3000 Vite, in use", up to three. Each is a link row that opens LocoHost's card of that server. Last work, then Disk, give way when the five facts are full. The links come from the snapshot's LocoHost findings, with no spawn.
+
 ## Verbs
 
 `trees` and its other name `worktrees`, registered through `MMExpert`: `list [--all]`, `explain <path>`, `review [--model] [--mode] [--fresh] [--path]`, `plan`, `auto [--mode] [--path] [--review]`, `clean-up [--yes]`, `remove <path> --yes`, `restore <id|path>`, `removed`, `keep <path> [--days n] [--off]`, `protect <path> [--off]`, `prune <path>` and `rules`. Every command takes `--json` and `--dry-run`. A command that changes things needs the app, unless it is given `--dry-run`. `--fresh` sends every worktree to the model past the fingerprint cache.
@@ -48,11 +52,10 @@ WorkForest 0.1's syntax works under the `workforest` name through the shim in `S
 
 ## In the app
 
-`main.m` registers `MMWorkForestExpert.shared` through `MMBuiltInExpertClasses`. After the first findings, WorkForest observes snapshots on main. A review wakes every two hours by default, `workforest.reviewMinutes`, and for a new worktree, a worktree whose quiet time passes a week, a month or three months, and low disk, at most every 30 minutes. After a new review the mode's plan runs through `MMRunAction` on `no.guerrilla.minmacs.workforest.act`, and one `MMNotify` says what went. A finished background disk walk asks the graph for a rebuild.
+`main.m` registers `MMWorkForestExpert.shared` through `MMBuiltInExpertClasses`. In the app the git facts come from Core's repo index through `MMFacts`. A cold `minmacs trees list` walks the roots and reads the facts through the same index, in `MMColdFacts` in `Sources/CLI`. `test/workforest.sh` uses that cold source on its fixture repos, with no git facts handed over by hand. After the first findings, WorkForest observes snapshots on main. A review wakes every two hours by default, `workforest.reviewMinutes`, and for a new worktree, a worktree whose quiet time passes a week, a month or three months, and low disk, at most every 30 minutes. After a new review the mode's plan runs through `MMRunAction` on `no.guerrilla.minmacs.workforest.act`, and one `MMNotify` says what went. A finished background disk walk asks the graph for a rebuild.
 
 ## Left open
 
-- Git facts come from `MMRepoIndex factsFor:wait:`, which another branch fills. Until it lands, `test/workforest.sh` feeds fixture git facts from `test/workforest/gitfacts.py` through `test/workforest/wfcli.m`.
 - `MMGitFacts` has no last commit subject, so the subject is neither shown nor sent. WorkForest 0.1's check that a secret in the subject is redacted is run on the session title instead.
 - The disk walk of `MMTreeDisk` runs in process on `no.guerrilla.minmacs.core.disk`, with an autorelease pool per walk. It belongs in the worker of P4, next to `sizeTrees:`.
 - Process folders come from `-[MMSample cwdOf:]` for every process of the person's uid on each rebuild. A rebuild with a thousand processes reads a thousand folders.
