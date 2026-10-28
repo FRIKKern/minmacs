@@ -115,6 +115,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property BOOL summarized;
 @property (strong) NSMenu *menu;
 @property (weak) MMShell *shell;
+- (void)label:(MMSnapshot *)s;
 @end
 
 @interface MMShell ()
@@ -181,6 +182,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 - (void)hideIcon:(id)sender { [self setVisible:NO]; }
 - (void)showSettings:(id)sender { [self.shell showSettings:sender]; }
 
+/// The expert item's label, state and badge from this snapshot. Headless, only the label is made.
+- (void)label:(MMSnapshot *)s {
+    id<MMExpert> e = self.expert;
+    NSString *state = [e accessibilityStateFor:s], *badge = [e badgeFor:s];
+    if (self.item) MMUpdateStatusItem(self.item, e.name, e.symbol, state, badge);
+    else (void)MMStatusLabel(e.name, state);
+}
+
 - (void)update:(MMSnapshot *)s {
     if (!self.expert) {
         NSInteger acts = 0;
@@ -205,9 +214,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         self.seen = YES;
         MMSetPref(SeenKey(e.expertID), @YES);
     }
-    NSString *state = [e accessibilityStateFor:s], *badge = [e badgeFor:s];
-    if (self.item) MMUpdateStatusItem(self.item, e.name, e.symbol, state, badge);
-    else (void)MMStatusLabel(e.name, state);
+    [self label:s];
     if (self.seen) return;
     NSNumber *v = MMIconVisibleFor(empty, NO, MMPref(self.visibleKey) == nil || !MMPrefBool(kLaunchedKey, NO));
     if (v) {
@@ -357,6 +364,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         st.onIcon = ^(NSString *expert, BOOL visible) {
             MMExpertItem *i = [weak itemFor:expert];
             if (i) [i setVisible:visible]; else MMSetPref(MMIconVisibleKey(expert), @(visible));
+            // An item made just now shows its state and badge from the current snapshot, not only at the next one.
+            if (visible && i.item && i.expert && MMGraph.shared.current) [i label:MMGraph.shared.current];
         };
         st.onMode = ^(NSString *expert, NSString *mode) { NSInteger m = MMModeFrom(mode); if (m >= 0) MMSetMode(expert, (MMMode)m); };
         st.onModel = ^(NSString *model) { MMSetPref(MMReviewModelKey, model); };
@@ -364,7 +373,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         st.onOpenAtLogin = ^(BOOL on) { [weak setLogin:on]; };
         st.onOpenMenu = ^(NSString *expert, NSView *from) {
             MMExpertItem *i = [weak itemFor:expert];
-            if (!i.item) for (MMExpertItem *x in weak.items) if (x.item.visible) { i = x; break; }
+            // In One Icon mode the expert has no item, so the one icon's menu opens. An item left for later stays shut.
+            if (!i) for (MMExpertItem *x in weak.items) if (x.item.visible) { i = x; break; }
             [i.item.button performClick:nil];
         };
         self.settings = st;

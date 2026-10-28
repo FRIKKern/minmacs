@@ -87,7 +87,8 @@ check "bench: the first launch makes every expert's item" "True $bn_linked" "$(b
 bn_empty=$(bsf '",".join(sorted(k for k, v in j["fieldEmpty"].items() if v))')
 check "bench: the later launch leaves the experts with an empty field for later" "False $bn_empty" \
   "$(bsl '"%s %s" % (j["firstLaunch"], ",".join(sorted(j["times"]["deferred"])))')"
-check "bench: the later launch makes every other item" "$bn_linked" "$(bsl 'len(j["times"]["made"]) + len(j["times"]["deferred"])')"
+bn_full=$(bsf '",".join(sorted(k for k, v in j["fieldEmpty"].items() if not v))')
+check "bench: the later launch makes every item whose field was full" "$bn_full" "$(bsl '",".join(sorted(j["times"]["made"]))')"
 check "bench: every expert has a summary line on both launches" "$bn_linked $bn_linked" \
   "$(bsf 'sum(1 for k in j["experts"] if "summary." + k in j["times"])') $(bsl 'sum(1 for k in j["experts"] if "summary." + k in j["times"])')"
 check "bench: items within 300 ms and summaries within 5 s, both launches" yes \
