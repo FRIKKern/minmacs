@@ -1,5 +1,6 @@
 // The review broker: one place that asks the model, for every expert. Patterns P39 to P47 of SYNTHESIS.md section 1.6.
-// It runs on the person's own claude or codex login, with no API keys. Only Investigate gets tools: Read, Grep and Glob.
+// It runs on the person's own claude or codex login, with no API keys. Only Investigate gets tools: MinMacs's own
+// Read, Grep and Glob over MCP, scoped to the subject's folders, Review/MMInvestigate.h.
 // Rules decide first, the fingerprint cache sends only findings whose facts moved, and batches go out in parallel.
 #import <Foundation/Foundation.h>
 #import "Core/Graph/MMGraph.h"
@@ -171,7 +172,8 @@ extern NSString *const MMWorkKeepsRuleID;               // "core.work-keeps"
 /// P45. Starts from WF Review.m:457. The counts come from code and the model only adds words around them.
 - (NSString *)summarize:(MMReview *)review counts:(NSDictionary<NSString *, NSNumber *> *)counts request:(MMReviewRequest *)request;
 /// PLAN.md section 4 and research F9. Investigate, only when the person asks: one call with a custom system prompt
-/// and only the Read, Grep and Glob tools, scoped to the workstream's folder. It counts against MMBudget like a review.
+/// and only MinMacs's own Read, Grep and Glob, scoped to the workstream's folders. It counts against MMBudget like
+/// a review. MMInvestigations in Review/MMInvestigate.h runs it, for findings too, and saves it.
 /// Returns the answer in words, or nil with *error. Blocks. Never on main.
 - (NSString *)investigate:(MMWorkstream *)workstream question:(NSString *)question
                     usage:(MMUsage **)usage error:(NSString **)error;

@@ -11,7 +11,7 @@ build.sh compiles every `.m` under this folder into one binary. Core symbols use
 | `Core/Know` | The agent registry, sessions, Where, git, the Sizer and the clutter catalog. |
 | `Core/Graph` | The immutable snapshot of every finding and its owner, and the one builder that makes it. |
 | `Core/Store` | The support folder, the prefs domain and the SQLite log for undo, history and trends. |
-| `Core/Review` | The review broker: rules, the fingerprint cache, batches, the judge and the summary. |
+| `Core/Review` | The review broker: rules, the fingerprint cache, batches, the judge and the summary. Investigate and its scoped tool server. |
 | `Core/Act` | Modes, MustKeep, plans, actions, undo and the one notifier. |
 | `Experts/MinMacs` | Performance: apps, agents, RAM, CPU, energy and heat. |
 | `Experts/LocoHost` | Localhost servers: what runs, where, who uses it and what it costs. |

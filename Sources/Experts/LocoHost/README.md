@@ -71,3 +71,7 @@ A verb reads `MMArgs.snapshot`, or `MMArgs.settledSnapshot` when it reports CPU 
 | 46 | CI did not run the tests on fixtures | `test/locohost.sh` runs in `./test.sh`, with fake claude, codex, tmux and cmux, and skips no check |
 | 47 | The README did not match the code | This file lists the verbs and facts from the code |
 | 48 | Registry rows declared `socket_activity`, which no detector reads | The same change on main: the rows and the schema drop it. LocoHost decides socket activity from Senses' sockets |
+
+## Investigate, issue #35
+
+The card of a dev server with a folder offers "Investigate…" after its main actions, so it often sits under More. The view carries each finding's last run from `MMInvestigations`, read from memory, and the card's note shows its answer. The action goes to `-[MMInvestigations ask:snapshot:confirm:failed:]`, which shows the cost and the model before anything runs. `Sources/Core/README.md` says how the run is scoped.

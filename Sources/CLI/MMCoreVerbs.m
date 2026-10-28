@@ -1,9 +1,13 @@
-// Core's own verbs: version, help, status, work, review, tidy, where, restore and mode.
+// Core's own verbs: version, help, status, work, review, investigate, tidy, where, restore and mode.
 // Each reads the snapshot and the Store through Core. None samples, scans or asks the model on its own.
 // Experts add hosts, apps and their other verbs through -[MMExpert verbs].
 #import "CLI/MMCLI.h"
 #import "Core/MMCore.h"
 #import "Core/Runtime/MMWorker.h"
+
+// From MMInvestigateCLI.m.
+int MMInvestigateVerb(MMArgs *a);
+int MMInvestigateToolsVerb(MMArgs *a);
 
 #pragma mark - Words
 
@@ -434,6 +438,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
             [MMVerbSpec verb:@"status" usage:@"status [--json]   what each expert sees, as its menu header says it" mutates:NO run:^(MMArgs *a) { return Status(a); }],
             [MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json]   each workstream: a session with its worktree, servers and caches" mutates:NO run:^(MMArgs *a) { return Work(a); }],
             [MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--json]   the last review, or a new one with --now" mutates:NO run:^(MMArgs *a) { return Review(a); }],
+            [MMVerbSpec verb:@"investigate" usage:@"investigate <finding|workstream|path> [question] [--yes] [--json]   look deeper into one, after you confirm its cost" mutates:NO run:^(MMArgs *a) { return MMInvestigateVerb(a); }],
             [MMVerbSpec verb:@"tidy" usage:@"tidy [expert] [--dry-run] [--mode <mode>] [--json]   what each mode would act on, and act on it" mutates:YES run:^(MMArgs *a) { return Tidy(a); }],
             [MMVerbSpec verb:@"where" usage:@"where <pid> | where --port <port> [--go] [--json]   the terminal tab, pane or app it runs in" mutates:NO run:^(MMArgs *a) { return Where(a); }],
             [MMVerbSpec verb:@"restore" usage:@"restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]   undo the last run, or one record" mutates:NO run:^(MMArgs *a) { return Restore(a); }],
@@ -441,6 +446,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
             [MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }],
             [MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }],
             [MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }],
+            [MMVerbSpec verb:@"_investigate-tools" usage:@"_investigate-tools --folder <path> --audit <file>" mutates:NO run:^(MMArgs *a) { return MMInvestigateToolsVerb(a); }],
         ];
     });
     return verbs;

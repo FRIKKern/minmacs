@@ -2,6 +2,7 @@
 // Ported from WorkForest's Review.m: batches in parallel, the judge through the same batches, and the summary
 // with totals from code. New here: rules first, the fingerprint cache, one block per workstream and the budget.
 #import "Core/Review/MMReview.h"
+#import "Core/Review/MMInvestigate.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Runtime/MMRuntime.h"
 
@@ -15,7 +16,6 @@ NSData *MMReviewJSON(id obj);
 @interface MMModel (MMBroker)
 + (MMAnswer *)ask:(NSString *)model system:(NSString *)system schema:(NSDictionary *)schema
             input:(NSDictionary *)input effort:(NSString *)effort ttl:(NSString *)ttl;
-+ (MMAnswer *)investigate:(NSString *)question system:(NSString *)system folder:(NSString *)folder;
 @end
 
 @interface MMUsage (MMBroker)
@@ -821,24 +821,13 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
 
 #pragma mark Investigate
 
-static NSString *const kInvestigate =
-    @"You look into one piece of work on a developer's Mac for MinMacs, a menu bar app. You may read files in the current folder "
-    @"with Read, Grep and Glob, and nothing else. Never print secrets, keys or the contents of .env files. "
-    @"Answer the question in at most five plain sentences, and name the files and facts you used.";
-
+/// The older entry, kept for its callers: one workstream through MMInvestigations, which MMInvestigate.h describes.
 - (NSString *)investigate:(MMWorkstream *)workstream question:(NSString *)question usage:(MMUsage **)usage error:(NSString **)error {
-    NSString *folder = workstream.worktree.path ?: workstream.owner.path;
-    BOOL dir = NO;
-    if (!folder.length || ![NSFileManager.defaultManager fileExistsAtPath:folder isDirectory:&dir] || !dir) {
-        if (error) *error = @"the workstream has no folder to look in";
-        return nil;
-    }
-    MMAnswer *a = [MMModel investigate:question ?: @"" system:kInvestigate folder:folder];
-    [MMBudget.shared record:a.usage expert:@"investigate"];
-    if (usage) *usage = a.usage;
-    NSString *text = Str(a.json[@"text"]);
-    if (!text && error) *error = a.error ?: @"the model did not answer";
-    return text;
+    MMInvestigateSubject *subject = [MMInvestigateSubject workstream:workstream];
+    if (!subject) { if (error) *error = @"the workstream has no folder to look in"; return nil; }
+    MMInvestigation *r = [MMInvestigations.shared run:subject question:question error:error];
+    if (usage) *usage = r.usage;
+    return r.answer;
 }
 
 @end

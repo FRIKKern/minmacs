@@ -1,6 +1,7 @@
 // WorkForest's model, words, keeps, menu and cards. See MMWFTree.h. Pure: no git, no disk, no processes.
 #import "Experts/WorkForest/MMWFTree.h"
 #import "UI/MMFormat.h"
+#import "UI/MMInvestigateUI.h"
 
 static id Or(id v) { return v ?: NSNull.null; }
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] ? v : nil; }
@@ -418,6 +419,8 @@ MMCardSpec *MMWFCard(MMWFTree *t, MMWFView *v) {
                     [verdict[@"judged"] boolValue] ? @" after the judge" : @""];
         c.note = MMSentence(reason);
     }
+    NSString *by = nil, *note = nil;   // what the person asked for wins over the review's note
+    if (MMInvestigateNote(v.investigations[t.findingID], &by, &note)) { c.noteBy = by; c.note = note; }
 
     NSMutableArray *actions = [NSMutableArray new];
     [actions addObject:Action(v, @"Open in Finder", nil, @"reveal", t.findingID)];
@@ -430,6 +433,12 @@ MMCardSpec *MMWFCard(MMWFTree *t, MMWFView *v) {
         NSString *keep = MMWFWorkKeeps(t);
         if (keep) rm.disabledReason = MMCut(keep, 40);
         [actions addObject:rm];
+    }
+    if (!t.missing) {
+        NSDictionary *run = v.investigations[t.findingID];
+        MMActionSpec *inv = Action(v, @"Investigate…", MMInvestigateTail(run), @"investigate", t.findingID);
+        inv.disabledReason = MMInvestigateDisabledReason(run);
+        [actions addObject:inv];
     }
     [actions addObject:Action(v, @"Copy Path", nil, @"copy-path", t.findingID)];
     // Protect toggles the path on the protect list. A long-lived branch is kept by protect.branches instead.

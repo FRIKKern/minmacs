@@ -7,6 +7,7 @@
 #import "Core/Know/MMTreeDisk.h"
 #import "Core/Act/MMWorktreeAct.h"
 #import "UI/MMFormat.h"
+#import "UI/MMInvestigateUI.h"
 #include <stdlib.h>
 
 static NSString *const kExpert = @"workforest";
@@ -726,6 +727,9 @@ static NSString *ModelWords(MMReview *r) {
     NSMutableDictionary *kept = [NSMutableDictionary new];
     for (MMFinding *f in findings) { NSDate *d = [MMKeep keptUntil:f.stableKey expert:kExpert]; if (d) kept[f.findingID] = d; }
     v.keptUntil = kept;
+    NSMutableDictionary *runs = [NSMutableDictionary new];
+    for (MMFinding *f in findings) { MMInvestigation *x = [MMInvestigations.shared latestFor:f.findingID]; if (x) runs[f.findingID] = x.json; }
+    v.investigations = runs;   // memory only, so the menu never reads the log on main
     NSMutableSet *protectedPaths = [NSMutableSet new];
     for (MMFinding *f in findings) if ([MMKeep isProtected:f.stableKey expert:kExpert] || [MMKeep isProtected:f.path expert:kExpert]) [protectedPaths addObject:f.findingID];
     v.protectedPaths = protectedPaths;
@@ -798,6 +802,13 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
 
 /// Main thread. Anything that changes a worktree runs on the act queue, through MMRunAction or MMUndo.
 - (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s {
+    if ([what isEqualToString:@"investigate"] && key) {
+        // Issue #35. The cost and the model show first, and only a confirmed run starts.
+        [MMInvestigations.shared ask:key snapshot:s confirm:^NSString *(NSString *title, NSString *text, NSString *placeholder) {
+            return MMInvestigateConfirm(title, text, placeholder);
+        } failed:^(NSString *error) { MMInvestigateFailed(error); }];
+        return;
+    }
     MMFinding *f = key ? [s finding:key] : nil;
     MMWFTree *t = f ? MMWFTreeOf(f) : nil;
     if ([what isEqualToString:@"review"]) {

@@ -198,15 +198,7 @@ check "a missing CLI fails, and nothing else is tried" True "$(rv_get "j['error'
 "$RV" review "$rv_dir/fail.json" --model haiku >"$rv_dir/out.json"
 check "a failed review is not carried over" 5 "$(rv_get "j['decided'].get('model')")"
 
-echo "  -- Investigate"
-rv_fresh
-"$RV" investigate "$rv_app" "What is this folder for?" >"$rv_dir/out.json"
-check "Investigate answers" 0 "$?"
-check "it runs in the workstream's folder with only Read, Grep and Glob" "fixture-app Read,Grep,Glob" \
-  "$(python3 -c "import json,os,sys; c=json.loads(open(sys.argv[1]).readline()); print(os.path.basename(c['cwd']), c['tools'])" "$RV_TEST_SENT.calls")"
-check "and counts against the budget" "360 360" "$(rv_get "str(j['uncached']) + ' ' + str(j['investigate_today'])")"
-"$RV" investigate "$rv_dir/no-such-folder" "Anything?" >"$rv_dir/out.json"
-check "Investigate needs a folder" 1 "$?"
+# Investigate has its own section, test/investigate.sh.
 
 echo "  -- the wake queue"
 "$RV" wake >"$rv_dir/wake.out" 2>&1

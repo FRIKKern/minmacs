@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Stands in for the claude CLI in test/review.sh. Ported from LocoHost's tools/fakeclaude.py.
-# Answers like `claude -p --output-format json --json-schema` with fakeanswer.py, and like Investigate when no schema is given.
+# Answers like `claude -p --output-format json --json-schema` with fakeanswer.py. Investigate has its own fake in test/investigate.
 # It fails when tools are on for a review, when an API key reaches it, or when the effort flag is missing.
 # With $RV_TEST_CLAUDE_LIMIT set it answers like an account that is out of usage, and with $RV_TEST_JUDGE_FAIL a judge call fails.
 # Every call appends its folder, cache TTL and model to $RV_TEST_SENT.calls.
@@ -22,12 +22,7 @@ if "--effort" not in args: fail("fixture: no --effort")
 usage = {"input_tokens": 10, "cache_creation_input_tokens": 300, "cache_read_input_tokens": 1000, "output_tokens": 50,
          "cache_creation": {"ephemeral_5m_input_tokens": 100, "ephemeral_1h_input_tokens": 200},
          "output_tokens_details": {"thinking_tokens": 30}}
-if "--json-schema" not in args:
-    if args[args.index("--tools") + 1] != "Read,Grep,Glob": fail("fixture: Investigate gets only Read, Grep and Glob")
-    open(sent + ".investigate", "w").write(data)
-    print(json.dumps({"type": "result", "is_error": False, "result": "Fixture investigation in %s: %s" % (os.path.basename(os.getcwd()), data),
-                      "total_cost_usd": 0.0001, "usage": usage}))
-    sys.exit(0)
+if "--json-schema" not in args: fail("fixture: Investigate has its own fake, test/investigate/fakeclaude.py")
 if args[args.index("--tools") + 1] != "": fail("fixture: tools are not off")
 schema = args[args.index("--json-schema") + 1]
 if os.environ.get("RV_TEST_JUDGE_FAIL") and '"decision"' in schema: fail("fixture: the judge fails")
