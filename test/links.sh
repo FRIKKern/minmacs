@@ -41,6 +41,7 @@ check "and wip's commit on no remote is counted" 1 "$r"
 
 # The servers: two in done, one in wip. Detached, so no shell is above them, and each writes its pid file.
 LN_PY='import http.server, os, sys
+os.setsid()   # a session of its own, so nothing aimed at it can reach the test run, and nothing aimed at the run reaches it
 open(os.path.join(sys.argv[2], "pid-%d" % os.getpid()), "w").close()
 http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), http.server.SimpleHTTPRequestHandler).serve_forever()'
 ln_serve() { ( ( cd "$1" && exec python3 -c "$LN_PY" "$2" "$ln/pids" "links-fixture-$$" ) >/dev/null 2>&1 & ); }
@@ -49,6 +50,7 @@ ln_free() { p=$1; while nc -z 127.0.0.1 "$p" >/dev/null 2>&1; do p=$((p + 1)); d
 P1=$(ln_free $((41000 + $$ % 3000))); P2=$(ln_free $((P1 + 1))); P3=$(ln_free $((P2 + 1)))
 ln_serve "$W/done" "$P1"; ln_serve "$W/done" "$P2"; ln_serve "$W/wip" "$P3"
 for p in $P1 $P2 $P3; do i=0; while ! nc -z 127.0.0.1 "$p" >/dev/null 2>&1 && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done; done
+ln_procs_before="$procs"
 for f in "$ln"/pids/pid-*; do [ -e "$f" ] && procs="$procs ${f##*pid-}"; done
 
 echo "== a server's card links to its worktree, and back"
@@ -87,5 +89,6 @@ check "the shell sets the one link opener" 1 "$(grep -c 'MMSetLinkOpener(' Sourc
 check "Noo-Noo runs git through MMGit on its own queue" "1 0" "$(grep -c 'MMQueue(@"core", @"clutter.git"' Sources/Core/Know/MMClutter.m) $(grep -c 'CommandLineTools/usr/bin/git' Sources/Core/Know/MMClutter.m)"
 check "WorkForest's tests hand over no git facts" 0 "$( { ls test/workforest/gitfacts.py 2>/dev/null; grep -l WF_GIT_FACTS test/workforest.sh test/workforest/wfcli.m; } | grep -c .)"
 ln_stop
+procs="$ln_procs_before"   # stopped, so the harness never signals those pids again once the system reuses them
 unset MINMACS_ROOTS GIT_CONFIG_NOSYSTEM
 export MINMACS_HOME="$ln_top"
