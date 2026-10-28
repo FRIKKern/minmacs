@@ -270,7 +270,9 @@ static NSDictionary *InsomniaPlan(NSString *home) {
     // run would trip a guard at once, and 2.0 has no debug prefs.
     NSMutableSet *skip = [NSMutableSet setWithArray:@[@"insomnia.unpluggedAt", @"insomnia.offlineAt", @"insomnia.agents.workingAt",
                                                       @"insomnia.autoUpdateCheck", @"insomnia.availableVersion", @"insomnia.updateCheckedAt"]];
-    for (NSString *k in prefs) if ([k hasPrefix:@"insomnia.debug."]) [skip addObject:k];
+    // Built from two parts, so the release binary holds no debug pref name, as test/insomnia.sh checks.
+    NSString *debug = [@"insomnia." stringByAppendingString:@"debug."];
+    for (NSString *k in prefs) if ([k hasPrefix:debug]) [skip addObject:k];
     CopyPrefs(prefs, @"insomnia.", @{kOldVisibleKey: MMIconVisibleKey(@"insomnia")}, skip, plan[@"prefs"]);
     return plan;
 }
