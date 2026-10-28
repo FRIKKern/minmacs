@@ -9,15 +9,17 @@
   - The notice is a small glass pill under the ring: a state dot and a short phrase with its size ("4 idle · 1 GB").
     A thin arc on the ring's outer edge covers the slices it means and runs round the ring down to the pill, so the
     ring and the notice read as one. Its action word shows only on hover or keyboard focus, in the pill and in the
-    detail. After an action, yours or Auto's, it shows what came back for 20 s ("1 GB back", counting up) with Undo.
+    detail. After an action, yours or Auto's, it shows what came back for under 4 s ("1 GB back", counting up), then fades back.
   - The focal bar and its big button are gone from the hero's top right, so the four gauges get the room and grow.
     There is no dead "Nothing to do" button: a calm notice says how things stand in words.
   - Hover the notice (or focus it with Tab): its full story fills the detail at the bottom right: the sentence and why,
     exactly what the action touches (lit in the list and on the ring), Off / Ask / Auto in words with the countdown,
     the button and what it does before you press. Leave it and the picked item comes back. Click it, or press Enter,
     and the story stays in the detail until you click it again or pick a row.
-  - The toast no longer covers the list on these four tabs. The reward and its Undo live in the notice and in the
-    detail. Auto acting on another of the four tabs lights a small dot on that tab. Workstreams, Apps and Settings keep the toast.
+  - The toast no longer covers the list on these four tabs. Nothing stays parked: Undo shows in the reward moment only
+    for what can really come back (a stopped server, which starts again with its launch command, and a quit app). Every
+    delete is for good: worktrees, caches and Wrap Up's parts have no Undo, and the preview before you press is the
+    safety. Going somewhere (Answer in Tab, Open) and rule changes get no reward; Keep gets no Undo. The story lists what was done today, with Undo beside the ones that still can. Auto acting on another of the four tabs lights a small dot on that tab. Workstreams, Apps and Settings keep the toast.
 
   Below, 82-a's own notes.
   82-a, Ring and Gauges. A copy of 77-a, List and Detail. Workstreams, Apps (Performance) and Settings stay as they are.
@@ -47,8 +49,8 @@
     subagent starts as dots, and its share of its workstream's load. Server detail: heartbeat of new connections per
     minute with the idle stretch and the rule's mark drawn on the time axis, connected apps and the tabs that show
     it, and the idle rule with Off / Ask / Auto. Worktree detail: counts, a timeline to the rule, disk split, and
-    what Wrap Up or Remove takes, in plan order. Disk detail: size over 30 days, its share of the disk, and whether
-    it goes to the Trash, by its own command, with a Wrap Up, or stays.
+    what Wrap Up or Delete takes, in plan order. Disk detail: size over 30 days, its share of the disk, and whether
+    it is deleted for good, by its own command, with a Wrap Up, or stays.
   - Every button says what it does before you press it, in the line at the foot of the detail.
   - Live: agents start in a workstream and leave when an idle session ends; subagent dots arrive; the countdowns run.
   - Proposed facts: an hour of CPU and memory samples per agent, kept in memory as MinMacs keeps connections;
@@ -68,7 +70,7 @@
     free, and the network (online and over what, down and up). Like 04-a, the colored end of a bar is what the list
     frees, and while you hover an item, exactly what that item frees.
   - Three panels that explain: Apps by fate (Will close, Unsorted, Kept with agents' load per workstream, Spared),
-    Storage (every leftover on disk, what goes to the Trash, what a tool's own command cleans, what stays, and what
+    Storage (every leftover on disk, what is deleted for good, what a tool's own command cleans, what stays, and what
     goes with Wrap Up), and Network and servers (each server's connections now, the apps connected, memory, idle
     marks, what MinMacs pauses offline, and Keep working with the lid closed as one checkbox).
   - Hover a row in the list: the panels dim everything it does not touch. Hover its button: the preview card says
@@ -1233,6 +1235,14 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var
 .nq.done .ntd{width:15px;height:15px;color:#15151c}
 .nq.done .nta{background:rgba(255,255,255,.12)}.nq.done .nta:hover{background:rgba(255,255,255,.2)}
 .nq.undone .ntd{background:rgba(235,235,245,.5)}
+.nq>*{animation:ntIn .45s var(--ease)}
+@keyframes ntIn{from{opacity:0}}
+.nq.fo>*{opacity:0;transition:opacity .5s}
+.nq.fo{background:rgba(255,255,255,.065);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),0 4px 14px rgba(0,0,0,.25)}
+.ntrw{transition:opacity .5s}.ntrw.fo{opacity:0}
+.ntpv .ntdn{color:var(--tx2)}
+.ntpv .ntdn span{color:var(--tx3)}
+.ntpv .ntdn .lk{font-size:12px;margin-left:4px}
 .nq.sh::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.28) 50%,transparent 70%);background-size:240% 100%;background-position:130% 0;animation:ntSh 1.3s var(--ease) .15s 1 forwards}
 @keyframes ntSh{to{background-position:-130% 0}}
 .v-a.nq.todo{animation:ntBr 3.6s ease-in-out infinite}
@@ -1287,7 +1297,7 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var
 .ntpv p{margin:0 0 4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ntpv p[hidden]{display:none}
 .ntpv b{color:var(--tx);font-weight:500}
-@media (prefers-reduced-motion:reduce){.nq,.nq .ntd,.ntgl{animation:none!important}.ntgl{opacity:.22}.nq.sh::after,.ntrw.sh::after{display:none}.v-a.nq.todo{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--nc) 62%,transparent),0 0 14px color-mix(in srgb,var(--nc) 26%,transparent)}.nta,.ntd,.ntarc{transition:none}}
+@media (prefers-reduced-motion:reduce){.nq,.nq .ntd,.ntgl,.nq>*{animation:none!important}.nq.fo>*,.ntrw{transition:none}.ntgl{opacity:.22}.nq.sh::after,.ntrw.sh::after{display:none}.v-a.nq.todo{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--nc) 62%,transparent),0 0 14px color-mix(in srgb,var(--nc) 26%,transparent)}.nta,.ntd,.ntarc{transition:none}}
 </style>
 </head>
 <body>
@@ -1548,6 +1558,8 @@ function build(k){
   spec.ws.forEach(addWS);addLeft(spec.left);
   APPS=mkApps();
   byId={};[...AG,...SRV,...WT,...WS,...CA,...TABS,...HELP,...APPS].forEach(o=>byId[o.id]=o);
+  /* 88: deletes are for good, so a merged worktree nobody owns goes only when nothing is left in it */
+  WT.forEach(t=>{if(t.merged&&!t.ws&&!t.block){const w=[t.dirty?cnt(t.dirty,'changed file'):'',t.untr?cnt(t.untr,'untracked file'):'',t.unp?t.unp+' unpushed':'',t.stash?cnt(t.stash,'stash'):''].filter(Boolean);if(w.length)t.block=w.join(', ')+' left in it'}});
   SRV.forEach(s=>{HIST[s.id]=Array.from({length:60},()=>s.rate&&Math.random()<s.rate*.8?1+Math.floor(Math.random()*Math.random()*6):0)});
   STATS.subs=[];STATS.conns=[];STATS.asks=[];
   BASEN=AG.length;seedHist();
@@ -1560,7 +1572,7 @@ const S={
   apps:{id:'apps',name:'Close apps',mode:1,lab:'when memory pressure',vals:['warns','is critical'],num:[2,4],v:0},
   left:{id:'left',name:'Clean up leftovers',mode:1,lab:'',vals:['every night','every Sunday','monthly'],num:[0,0,0],v:1},
   servers:{id:'servers',name:'Stop idle servers',mode:2,lab:'idle for',vals:['30 min','1 h','2 h','4 h'],num:[30,60,120,240],v:2},
-  trees:{id:'trees',name:'Remove merged worktrees',mode:1,lab:'after merge',vals:['1 h','1 day','1 week'],num:[60,1440,10080],v:1}
+  trees:{id:'trees',name:'Delete merged worktrees',mode:1,lab:'after merge',vals:['1 h','1 day','1 week'],num:[60,1440,10080],v:1}
 };
 const SC={ws:C.ws,apps:C.apps,left:C.disk,servers:C.servers,trees:C.trees};
 Object.values(S).forEach(s=>s.c=SC[s.id]);
@@ -1628,13 +1640,13 @@ function plan(w){
   let cache=0;
   if(t){
     const cs=wsCaches(w);cache=sum(cs,c=>c.gb);
-    if(cs.length)parts.push({sn:'Caches',ex:'Noo-Noo',title:`Move ${and([...new Set(cs.map(c=>c.kind))])} to the Trash`,gb:cache,ids:cs.map(c=>c.id)});
-    if(w.cfg.length)parts.push({sn:'Config',ex:'WorkForest',title:`Move ${and(w.cfg)} to the Trash`});
+    if(cs.length)parts.push({sn:'Caches',ex:'Noo-Noo',title:`Delete ${and([...new Set(cs.map(c=>c.kind))])} for good`,gb:cache,ids:cs.map(c=>c.id)});
+    if(w.cfg.length)parts.push({sn:'Config',ex:'WorkForest',title:`Delete ${and(w.cfg)} for good`});
     let wn=null;
     if(!t.merged)wn=t.nid>0?cnt(t.nid,'commit')+' not in main':'not merged';
     else if(t.unp>0)wn='unpushed changes';
     else if(t.dirty>0)wn=cnt(t.dirty,'changed file');
-    parts.push({sn:'Worktree',ex:'WorkForest',title:(w.saved.length?`Save ${and(w.saved)}, then remove `:'Remove ')+t.n,gb:Math.max(.01,t.freed-cache),why:wn,ids:[t.id]});
+    parts.push({sn:'Worktree',ex:'WorkForest',title:'Delete '+t.n+' for good',gb:Math.max(.01,t.freed-cache),why:wn,ids:[t.id]});
   }
   let why=null;const ags=wsAgs(w);
   if(w.main)why='a main checkout is never wrapped up';
@@ -1691,11 +1703,11 @@ const cacheMay=c=>c.left?leftMay(c):isReady(byId[c.ws])&&!plan(byId[c.ws]).why;
 
 /* ---------- plain words for each mode ---------- */
 const AUTOW={
-  ws:v=>`Runs the plan ${v} after the merge, once its sessions end, then sends a notice with Undo.`,
+  ws:v=>`Runs the plan ${v} after the merge, once its sessions end. Its deletes are for good.`,
   apps:v=>`Closes the apps on your close list when memory pressure ${v}, then sends a notice with Restore.`,
-  left:v=>`Cleans what may go ${v}, then sends a notice with Undo.`,
+  left:v=>`Deletes what may go ${v}, for good.`,
   servers:v=>`Stops a server after ${v} idle, then sends a notice with Undo.`,
-  trees:v=>`Removes a worktree no workstream owns ${v} after merge, then sends a notice with Undo.`
+  trees:v=>`Deletes a merged worktree nobody owns, with nothing left in it, ${v} after merge. For good.`
 };
 function modeText(s,i){if(i===0)return 'Not watching. Nothing is shown, nothing happens.';if(i===1)return 'Shows a button. Nothing happens until you press it.';return AUTOW[s.id](s.vals[s.v])}
 const idleSrv=()=>SRV.filter(s=>!gone(s.id)&&!kept(s.id)&&!s.prot&&srvState(s)==='idle');
@@ -1704,7 +1716,7 @@ function nextAuto(s){
   const t=thr(s);
   if(s.id==='ws'){const c=readyGo().filter(w=>!has(w.id,'spared')).map(w=>({o:w,m:t-mergedAgo(w)})).sort((a,b)=>a.m-b.m);return c[0]?{l:'wraps up '+c[0].o.n,m:Math.max(0,c[0].m),o:c[0].o}:null}
   if(s.id==='servers'){const c=idleSrv().filter(x=>!has(x.id,'spared')).map(x=>({o:x,m:t-idleOf(x)})).sort((a,b)=>a.m-b.m);return c[0]?{l:'stops :'+c[0].o.p,m:Math.max(0,c[0].m),o:c[0].o}:null}
-  if(s.id==='trees'){const c=mergedLeft().filter(w=>!has(w.id,'spared')).map(w=>({o:w,m:t-(w.mm+T)})).sort((a,b)=>a.m-b.m);return c[0]?{l:'removes '+c[0].o.n,m:Math.max(0,c[0].m),o:c[0].o}:null}
+  if(s.id==='trees'){const c=mergedLeft().filter(w=>!has(w.id,'spared')).map(w=>({o:w,m:t-(w.mm+T)})).sort((a,b)=>a.m-b.m);return c[0]?{l:'deletes '+c[0].o.n,m:Math.max(0,c[0].m),o:c[0].o}:null}
   if(s.id==='left'){const g=leftGo().length;const m=s.v===0?toNight():toSunday();return g?{l:'cleans up '+cnt(g,'leftover'),m}:null}
   return null;
 }
@@ -1753,8 +1765,8 @@ function acts(kind,o){
   }
   if(kind==='wt'){
     if(o.ws)return [A('gows','Workstream','',0,o.ws),A('finder','Show in Finder'),A('editor','Open in Editor')];
-    if(o.block)return [A('','Remove',o.block,1),A('editor','Open in Editor')];
-    const r=[A('rmtree','Remove',fmt(o.freed)),A('finder','Show in Finder')];
+    if(o.block)return [A('','Delete',o.block,1),A('editor','Open in Editor')];
+    const r=[A('rmtree','Delete',fmt(o.freed)),A('finder','Show in Finder')];
     if(!kept(o.id))r.push(A('keep','Keep'));
     return r;
   }
@@ -1775,10 +1787,10 @@ function wrapSay(w){
   const sv=p.parts.filter(x=>x.sn==='Servers').map(x=>':'+byId[x.ids[0]].p);if(sv.length)bits.push('stopped '+and(sv));
   const hp=p.parts.filter(x=>x.sn==='Helpers');if(hp.length)bits.push('stopped '+cnt(hp.length,'headless helper'));
   p.parts.filter(x=>x.sn==='Tabs').forEach(x=>bits.push(x.title.replace('Close','closed')));
-  if(p.parts.some(x=>x.sn==='Caches'))bits.push('trashed its caches');
-  const cf=p.parts.find(x=>x.sn==='Config');if(cf)bits.push('trashed '+and(w.cfg));
+  if(p.parts.some(x=>x.sn==='Caches'))bits.push('deleted its caches');
+  const cf=p.parts.find(x=>x.sn==='Config');if(cf)bits.push('deleted '+and(w.cfg));
   if(wsTree(w))bits.push('removed '+wsTree(w).n+(w.saved.length?' after saving '+and(w.saved):''));
-  return `Wrapped up <b>${w.n}</b>. It ${and(bits)}. ${frees(p)} back.${hp.length?' Undo restarts its servers. Helpers stay stopped.':''}`;
+  return `Wrapped up <b>${w.n}</b>. It ${and(bits)}. ${frees(p)} back.`;
 }
 function runAct(a,id){
   const o=byId[id];
@@ -1791,8 +1803,8 @@ function runAct(a,id){
     keep:()=>[`<b>${nm(o)}</b> stays. MinMacs leaves it alone.`,()=>{fl(id).keep=1},[]],
     list:()=>[`<b>${o.n}</b> is on your close list now.`,()=>{o.cls='close'},[]],
     stop:()=>[`Stopped <b>:${o.p} ${o.fw}</b>, ${mb(o.mem)} memory back. Undo starts it again with the command it recorded.`,()=>{fl(id).gone=1},[id]],
-    rmtree:()=>[`Moved <b>${o.n}</b> to the Trash, ${fmt(o.freed)} disk back.`,()=>{fl(id).gone=1},[id]],
-    clean:()=>[o.cmd?`Ran <b>${o.cmd}</b>, ${fmt(o.gb)} disk back. ${o.tool} fetches again what it needs, so there is no Undo.`:`Moved <b>${o.kind}</b> to the Trash, ${fmt(o.gb)} disk back.`,()=>{fl(id).gone=1},[id]],
+    rmtree:()=>[`Deleted <b>${o.n}</b> for good, ${fmt(o.freed)} disk back.`,()=>{fl(id).gone=1},[id]],
+    clean:()=>[o.cmd?`Ran <b>${o.cmd}</b>, ${fmt(o.gb)} disk back. ${o.tool} fetches again what it needs, so there is no Undo.`:`Deleted <b>${o.kind}</b> for good, ${fmt(o.gb)} disk back.`,()=>{fl(id).gone=1},[id]],
     wrapws:()=>[wrapSay(o),()=>wrapWs(id),wsLeave(o)],
     stopws:()=>{const s=wsSrv(o);return [`Stopped ${s.map(x=>'<b>:'+x.p+'</b>').join(' and ')} for ${o.n}, ${mb(sum(s,x=>x.mem))} memory back.`,()=>s.forEach(x=>fl(x.id).gone=1),s.map(x=>x.id)]}
   };
@@ -1804,10 +1816,10 @@ function runAct(a,id){
 const SA={
   wrapready:{c:'ws',l:()=>{const r=readyGo();return r.length===1?`Wrap Up ${r[0].n}`:`Wrap Up ${r.length} Workstreams`},tl:()=>fmt(sum(readyGo(),w=>plan(w).disk))+' disk',
     t:()=>readyGo().map(w=>w.id),
-    res:()=>{const r=readyGo();return [`<b>Runs.</b> ${r.map(w=>'<br>'+w.n+': '+plan(w).parts.map(p=>p.title).join(', ')).join('')}`,`<b>Frees.</b> ${fmt(sum(r,w=>plan(w).disk))} disk · ${mb(sum(r,w=>plan(w).mem))} memory.`,`<b>Stays.</b> The ${going().length} workstreams still going, and every blocked one. One Undo brings it all back.`]},
+    res:()=>{const r=readyGo();return [`<b>Runs.</b> ${r.map(w=>'<br>'+w.n+': '+plan(w).parts.map(p=>p.title).join(', ')).join('')}`,`<b>Frees.</b> ${fmt(sum(r,w=>plan(w).disk))} disk · ${mb(sum(r,w=>plan(w).mem))} memory.`,`<b>Stays.</b> The ${going().length} workstreams still going, and every blocked one. Its deletes are for good, so there is no Undo.`]},
     run:()=>{const r=readyGo();return [`Wrapped up <b>${r.map(w=>w.n).join('</b> and <b>')}</b>. ${fmt(sum(r,w=>plan(w).disk))} disk · ${mb(sum(r,w=>plan(w).mem))} memory back.`,()=>r.forEach(w=>wrapWs(w.id))]},on:()=>readyGo().length},
   left:{c:'disk',l:()=>`Clean Up ${cnt(leftGo().length,'Leftover')}`,tl:()=>'',t:()=>leftGo().map(o=>o.id),
-    res:()=>{const L=leftGo(),b=LEFT().filter(o=>!leftMay(o));return [`<b>Goes.</b> ${and([L.filter(o=>o.p).length?'stops '+and(L.filter(o=>o.p).map(o=>':'+o.p)):'',L.filter(o=>o.br).length?'removes '+cnt(L.filter(o=>o.br).length,'worktree'):'',L.filter(o=>o.kind).length?'trashes '+cnt(L.filter(o=>o.kind).length,'cache'):''].filter(Boolean))}.`,`<b>Frees.</b> ${leftFrees()}.`,b.length?`<b>Stays.</b> ${b.map(o=>leftName(o)).join(', ')}, blocked or kept.`:'One Undo brings it all back.']},
+    res:()=>{const L=leftGo(),b=LEFT().filter(o=>!leftMay(o));return [`<b>Goes.</b> ${and([L.filter(o=>o.p).length?'stops '+and(L.filter(o=>o.p).map(o=>':'+o.p)):'',L.filter(o=>o.br).length?'removes '+cnt(L.filter(o=>o.br).length,'worktree'):'',L.filter(o=>o.kind).length?'deletes '+cnt(L.filter(o=>o.kind).length,'cache'):''].filter(Boolean))}.`,`<b>Frees.</b> ${leftFrees()}.`,b.length?`<b>Stays.</b> ${b.map(o=>leftName(o)).join(', ')}, blocked or kept.`:'Its deletes are for good, so there is no Undo.']},
     run:()=>{const L=leftGo();return [`Cleaned up <b>${cnt(L.length,'leftover')}</b>. ${leftFrees()} back.`,()=>L.forEach(o=>fl(o.id).gone=1)]},on:()=>leftGo().length},
   now:{c:'apps',l:()=>!noise()?'Quit Spotify':`Quit Spotify, Close ${noise()} Noise Tabs`,tl:()=>fmt(sum(closeApps(),a=>a.mem)+noiseMem())+' memory',
     t:()=>closeApps().map(a=>a.id).concat(!noise()?[]:['chrome']),
@@ -1818,9 +1830,9 @@ const SA={
   idle:{c:'servers',l:()=>`Stop ${cnt(idleSrv().length,'Idle Server')}`,tl:()=>mb(sum(idleSrv(),x=>x.mem))+' memory',t:()=>idleSrv().map(x=>x.id),
     res:()=>[`<b>Goes.</b> ${and(idleSrv().map(x=>':'+x.p))}, all idle.`,'<b>Stays.</b> Every active or recent server, and the protected ones.','Undo starts each again with the command its stop recorded.'],
     run:()=>{const i=idleSrv();return [`Stopped <b>${cnt(i.length,'idle server')}</b>, ${mb(sum(i,x=>x.mem))} memory back.`,()=>i.forEach(x=>fl(x.id).gone=1)]},on:()=>idleSrv().length},
-  merged:{c:'trees',l:()=>`Remove ${cnt(mergedLeft().length,'Merged Worktree')}`,tl:()=>fmt(sum(mergedLeft(),w=>w.freed))+' disk',t:()=>mergedLeft().map(w=>w.id),
-    res:()=>[`<b>Goes to the Trash.</b> ${and(mergedLeft().map(w=>w.n))}. Their ignored files are saved first.`,'<b>Stays.</b> Every worktree a workstream holds, and the blocked ones.','Undo restores each at its commit.'],
-    run:()=>{const m=mergedLeft();return [`Removed <b>${cnt(m.length,'merged worktree')}</b>, ${fmt(sum(m,w=>w.freed))} disk back.`,()=>m.forEach(w=>fl(w.id).gone=1)]},on:()=>mergedLeft().length},
+  merged:{c:'trees',l:()=>`Delete ${cnt(mergedLeft().length,'Merged Worktree')}`,tl:()=>fmt(sum(mergedLeft(),w=>w.freed))+' disk',t:()=>mergedLeft().map(w=>w.id),
+    res:()=>[`<b>Deletes for good.</b> ${and(mergedLeft().map(w=>w.n+' '+fmt(w.freed)))}. Each is merged with nothing left in it: no changed files, no unpushed commits, no stashes, no session.`,'<b>Stays.</b> Every worktree a workstream holds, and the ones with work left in them.','No Undo: this list is exactly what goes.'],
+    run:()=>{const m=mergedLeft();return [`Deleted <b>${cnt(m.length,'merged worktree')}</b> for good, ${fmt(sum(m,w=>w.freed))} disk back.`,()=>m.forEach(w=>fl(w.id).gone=1)]},on:()=>mergedLeft().length},
   safe:{c:'disk',l:()=>{const s=CA.filter(c=>c.left&&!gone(c.id)&&leftMay(c));return `Clean ${cnt(s.length,'Cache')}`},tl:()=>fmt(sum(CA.filter(c=>c.left&&!gone(c.id)&&leftMay(c)),c=>c.gb))+' disk',
     t:()=>CA.filter(c=>c.left&&!gone(c.id)&&leftMay(c)).map(c=>c.id),
     res:()=>[`<b>Goes.</b> ${and(CA.filter(c=>c.left&&!gone(c.id)&&leftMay(c)).map(c=>c.kind+' '+fmt(c.gb)))}.`,'<b>Stays.</b> Every cache a workstream holds. Wrap Up takes those.'],
@@ -1847,17 +1859,19 @@ function commit(msg,fn,leave,spare,rule,noUndo){
   const doit=()=>{const was=JSON.stringify(F);fn();
     const w0=JSON.parse(was),set=[];Object.keys(F).forEach(id=>Object.keys(F[id]).forEach(k=>{if(F[id][k]&&!(w0[id]&&w0[id][k]))set.push([id,k])}));
     const rec=rule?{r:rule,say:recSay(msg),at:hhmm(T),set,t0:performance.now()}:null;
-    const ent={s:pre,spare:spare||[],rec,set};if(!noUndo)UNDO.push(ent);NTU=noUndo?null:ent;NTR=rule||null;LEAVE.clear();busy=0;refresh();toast(msg,noUndo?false:undefined)};
+    /* 88: every delete is for good. Only a quit app (Restore) and a stopped server (it starts again with its command) undo */
+    const und=set.length>0&&set.every(([id,k])=>k==='trimN'||k==='spared'||k==='gone'&&(SRV.some(x=>x.id===id)||APPS.some(x=>x.id===id)));
+    const ent={s:pre,spare:spare||[],rec,set,nu:!und};if(!noUndo)UNDO.push(ent);NTU=noUndo||!und?null:ent;NTR=rule||null;LEAVE.clear();busy=0;refresh();toast(msg,noUndo||!und?false:undefined)};
   hidePv();
   if(leave&&leave.length&&!RM){busy=1;leave.forEach(id=>LEAVE.add(id));refresh();setTimeout(doit,420)}else doit();
 }
 /* helpers whose parent exited, and caches a tool's own command cleaned, have no restart: they stay gone after Undo */
 const noBack=()=>HELP.filter(h=>gone(h.id)).map(h=>h.id).concat(CA.filter(c=>c.cmd&&gone(c.id)).map(c=>c.id));
-$('tbtn').onclick=()=>{const u=UNDO.pop();if(!u)return;const hg=noBack();restoreSnap(u.s);hg.forEach(id=>fl(id).gone=1);u.spare.forEach(id=>fl(id).spared=1);refresh();hideToast()};
+$('tbtn').onclick=()=>{const u=UNDO[UNDO.length-1];if(!u||u.nu)return;UNDO.pop();const hg=noBack();restoreSnap(u.s);hg.forEach(id=>fl(id).gone=1);u.spare.forEach(id=>fl(id).spared=1);refresh();hideToast()};
 /* undo one record from a Settings card. Helpers stay stopped, because a helper whose parent exited has no restart.
    Later snapshots forget the flags too, so the notice's Undo cannot bring them back */
 function undoRec(i){
-  const u=UNDO[i];if(!u||!u.rec)return;
+  const u=UNDO[i];if(!u||!u.rec||u.nu)return;
   const set=u.rec.set.filter(([id])=>!HELP.some(h=>h.id===id)&&!CA.some(c=>c.cmd&&c.id===id));
   set.forEach(([id,k])=>{if(F[id])delete F[id][k]});(u.spare||[]).forEach(id=>fl(id).spared=1);
   for(let j=i+1;j<UNDO.length;j++){const o=JSON.parse(UNDO[j].s);set.forEach(([id,k])=>{if(o.F[id])delete o.F[id][k]});UNDO[j].s=JSON.stringify(o)}
@@ -1900,7 +1914,7 @@ function modeBlock(s,title){
     <div class="mr">${lab}${vals(s)}</div>
     <div class="mn"><i></i><span>${nb(nextLine(s))}</span></div></div>`;
 }
-const AUTOS={servers:v=>`Stops it after ${v} idle, with Undo.`,trees:v=>`Removes it ${v} after merge, with Undo.`,left:v=>`Cleans what may go ${v}, with Undo.`};
+const AUTOS={servers:v=>`Stops it after ${v} idle, with Undo.`,trees:v=>`Deletes it for good ${v} after merge.`,left:v=>`Deletes what may go ${v}, for good.`};
 function shortMode(s,i){return i===0?'Not watching.':i===1?'Shows a button. Waits for your press.':AUTOS[s.id](s.vals[s.v])}
 function modeLine(s){
   const mx=mxText(s);
@@ -2303,7 +2317,7 @@ function lcardHTML(){
   if(!LF.length)return `<div class="lh"><b>Leftovers</b></div><div class="lsub">Nothing is left over.</div>`;
   const lnext=ls.mode===2&&LG.length?`Auto cleans them ${ls.v===0?'tonight':ls.v===1?'on Sunday':'on 1 Nov'}, in ${durC(ls.v===0?toNight():toSunday())}.`:ls.mode===1?'Waits for your press.':'The Leftovers rule is off.';
   return `<div class="lh"><b>Leftovers</b><span class="cap">${cnt(LF.length,'thing')} nobody holds</span></div>
-    <div class="lsub">No workstream owns these, so no tile draws them. Each one has its own action, and Undo brings it back.</div>
+    <div class="lsub">No workstream owns these, so no tile draws them. Each one has its own action. A stopped server can start again; a delete is for good.</div>
     <div class="lsc">
       ${D.length?`<div class="gh"><b>On disk ${D.length}</b><span>${nb(fmt(sum(D,leftDisk)))} disk, clones counted once</span></div>`+D.map(leftRow).join(''):''}
       ${SV.length?`<div class="gh"><b>Servers ${SV.length}</b><span>${nb(mb(sum(SV,o=>o.mem)))} memory, orphaned</span></div>`+SV.map(leftRow).join(''):''}
@@ -2362,7 +2376,7 @@ const cap1=s=>s.charAt(0).toUpperCase()+s.slice(1);
 const tabsBr=b=>TABS.filter(t=>t.br===b&&!gone(t.id)).length;
 const offMin=()=>NET.on?0:T-NET.offAt;
 
-/* the leftovers on disk: what goes to the Trash, what a tool's own command cleans, and what stays */
+/* the leftovers on disk: what is deleted for good, what a tool's own command cleans, and what stays */
 const dleft=()=>LEFT().filter(o=>leftKind(o)!=='srv');
 const dGo=()=>dleft().filter(leftMay);
 const dTrash=()=>dGo().filter(o=>!o.cmd);
@@ -2380,11 +2394,11 @@ Object.assign(SA,{
     run:()=>[`Closed <b>${cnt(noise(),'noise tab')}</b> in Chrome, ${fmt(noiseMem())} memory back. Its localhost tabs stay.`,()=>{fl('chrome').trimN=NOISE}],on:()=>!gone('chrome')&&noise()>0},
   clean:{c:'disk',l:()=>'Clean Up Leftovers',tl:()=>fmt(sum(dGo(),leftDisk))+' disk',t:()=>dGo().map(o=>o.id),nu:()=>!dTrash().length,
     res:()=>{const a=dTrash(),b=dCmd(),c=dStay(),[tw,pl]=tools(b);return [
-      a.length?`<b>To the Trash, with Undo.</b> ${and(a.map(o=>leftName(o)+' '+fmt(leftDisk(o))))}.`:'',
+      a.length?`<b>Deletes for good.</b> ${and(a.map(o=>leftName(o)+' '+fmt(leftDisk(o))))}.`:'',
       b.length?`<b>By its own command, no Undo.</b> ${and(b.map(o=>`<code>${o.cmd}</code> ${fmt(o.gb)}`))}. ${tw} ${pl?'fetch':'fetches'} again what ${pl?'they need':'it needs'}.`:'',
       c.length?`<b>Stays.</b> ${and(c.map(o=>leftName(o)+', '+(o.state==='report'?'report only':o.block?'not merged':'kept')))}.`:'',
       `<b>Frees.</b> ${fmt(sum(dGo(),leftDisk))} disk.`].filter(Boolean)},
-    run:()=>{const g=dGo(),a=dTrash(),b=dCmd(),[tw]=tools(b);return [`Cleaned up <b>${cnt(g.length,'leftover')}</b>, ${fmt(sum(g,leftDisk))} disk back.${a.length?' '+cnt(a.length,'item')+' went to the Trash, and Undo brings '+(a.length>1?'them':'it')+' back.':''}${b.length?' '+tw+' cleaned '+(b.length>1?'their':'its')+' own cache.':''}`,()=>g.forEach(o=>fl(o.id).gone=1)]},on:()=>dGo().length},
+    run:()=>{const g=dGo(),a=dTrash(),b=dCmd(),[tw]=tools(b);return [`Cleaned up <b>${cnt(g.length,'leftover')}</b>, ${fmt(sum(g,leftDisk))} disk back.${a.length?' '+cnt(a.length,'item')+' deleted for good.':''}${b.length?' '+tw+' cleaned '+(b.length>1?'their':'its')+' own cache.':''}`,()=>g.forEach(o=>fl(o.id).gone=1)]},on:()=>dGo().length},
   orph:{c:'servers',l:()=>{const o=orph();return o.length===1?`Stop :${o[0].p}`:`Stop ${o.length} Servers`},tl:()=>mb(sum(orph(),s=>s.mem))+' memory',t:()=>orph().map(s=>s.id),
     res:()=>{const o=orph(),p=SRV.filter(s=>s.prot&&!gone(s.id));return [`<b>Stops.</b> ${and(o.map(s=>`:${s.p} ${s.fw}, idle ${coarse(idleOf(s))}`))}. No workstream holds ${o.length>1?'them':'it'}.`,`<b>Stays.</b> Every server a workstream holds${p.length?', and '+and(p.map(s=>s.fw))+', which Docker runs':''}.`,`<b>Frees.</b> ${mb(sum(o,s=>s.mem))} memory. Undo starts each again with the command its stop recorded.`]},
     run:()=>{const o=orph();return [`Stopped ${and(o.map(s=>'<b>:'+s.p+'</b>'))}, ${mb(sum(o,s=>s.mem))} memory back. Undo starts ${o.length>1?'them':'it'} again.`,()=>o.forEach(s=>fl(s.id).gone=1)]},on:()=>orph().length},
@@ -2477,7 +2491,7 @@ const stHow=o=>o.state==='report'?'report':o.cmd?'cmd':leftMay(o)?'trash':'stay'
 function stR(o){
   const k=leftKind(o),h=stHow(o);
   const sub=o.br?(o.block?`not merged · ${o.block==='not merged'?UPW[o.up]:o.block}`:`${MERGEW[o.merged]} ${coarse(o.mm+T)} ago · no session`):`${o.why}${o.ogone&&!/gone/.test(o.why)?' · owner gone':''}`;
-  const tag=h==='cmd'?'own command':h==='report'?'report only':h==='trash'?'to the Trash':kept(o.id)?'kept':'stays';
+  const tag=h==='cmd'?'own command':h==='report'?'report only':h==='trash'?'deleted for good':kept(o.id)?'kept':'stays';
   return `<div class="rw2 hov${h==='stay'||h==='report'?' dim':''}${tcls(o.id)}${LEAVE.has(o.id)?' leave':''}" data-k="${o.id}" data-t="${o.id}" style="--c:${C.disk}"><span class="ic"><i class="sq" style="background:${STC[h]}"></i></span>
     <span class="tx"><span>${leftName(o)}</span><span class="s" title="${o.owner||''}">${h==='cmd'?`<code>${o.cmd}</code>`:nb(sub)}</span></span>
     <span class="rt"><span>${nb(fmt(leftDisk(o)))}</span><span class="s">${tag}</span></span>${actsHTML(k==='tree'?'wt':'dk',o,2)}</div>`;
@@ -2489,7 +2503,7 @@ function storBody(){
   const g=dleft().slice().sort((a,b)=>(leftMay(b)-leftMay(a))||leftDisk(b)-leftDisk(a)),r=readyGo(),go=g.filter(leftMay),st=g.filter(o=>!leftMay(o));
   const stack=[...go,...r.map(w=>({id:w.id,ws:1,gb:plan(w).disk})),...st].map(o=>`<i class="${tcls(o.id).trim()}" data-t="${o.id}" style="flex-grow:${o.ws?o.gb:leftDisk(o)};background:${o.ws?STC.wrap:STC[stHow(o)]};--c:${C.disk}"></i>`).join('');
   return `<div class="stack s71">${stack}</div>
-    <div class="dstrip d71"><span><i style="background:${STC.trash}"></i>Trash</span><span><i style="background:${STC.cmd}"></i>own command</span><span><i style="background:${STC.wrap}"></i>Wrap Up</span><span><i style="background:${STC.report}"></i>stays</span></div>
+    <div class="dstrip d71"><span><i style="background:${STC.trash}"></i>deleted</span><span><i style="background:${STC.cmd}"></i>own command</span><span><i style="background:${STC.wrap}"></i>Wrap Up</span><span><i style="background:${STC.report}"></i>stays</span></div>
     ${go.length?`<div class="gh" data-k="g-dgo"><b>May go ${go.length}</b><span>nobody holds them</span></div>`+go.map(stR).join(''):''}
     ${r.length?`<div class="gh" data-k="g-dws"><b>With Wrap Up ${r.length}</b><span>a workstream holds it</span></div>`+r.map(wrapStR).join(''):''}
     ${st.length?`<div class="gh" data-k="g-dst"><b>Stays ${st.length}</b><span>report only or not merged</span></div>`+st.map(stR).join(''):''}`;
@@ -2518,7 +2532,7 @@ const PERF_GUIDE=`<div class="t">How Performance ranks</div><ul>
   <li>Memory weighs 1.5 times disk, and more as pressure rises. Disk weighs 3 times once under 100 GB is free.</li>
   <li>The list changes as you watch: Chrome opens new noise tabs, an idle server crosses an hour, a merge ends its sessions.</li>
   <li>Hover an item, and the colored end of each bar is exactly what it frees. The rows it touches light up below.</li>
-  <li>A tool's own command, such as npm cache clean, has no Undo. The page says so before you press.</li>
+  <li>Every delete is for good, so it has no Undo: the preview before you press says exactly what goes and its size. Only a stopped server (it starts again with its command) and a quit app (Restore) come back.</li>
 </ul>`;
 /* ---------- 71-a: the ranked list on top, a compact meter row, then the three lists ---------- */
 function detHover(){}
@@ -2542,7 +2556,7 @@ function fPerf(){
     <div class="pcols">
       <div class="p71" data-k="p-apps"><div class="ph"><b>Apps</b><span class="cap">by fate · memory and CPU</span></div><div class="psc">${appsBody(2)}</div>
         <div class="pf"><span class="cap">Close apps <span style="color:var(--tx2)">${MODES[as.mode]}</span> · <button class="lk" data-tab="set">change</button></span>${!(today&2)?`<button class="lk" data-sa="restore">Restore 11:05</button>`:''}</div></div>
-      <div class="p71" data-k="p-disk"><div class="ph"><b>Storage</b><span class="cap">${[a.length?nb(fmt(sum(a,leftDisk)))+' Trash':'',b.length?nb(fmt(sum(b,leftDisk)))+' own command':''].filter(Boolean).join(' · ')||'nothing may go'}</span></div><div class="psc">${storBody()}</div>
+      <div class="p71" data-k="p-disk"><div class="ph"><b>Storage</b><span class="cap">${[a.length?nb(fmt(sum(a,leftDisk)))+' to delete':'',b.length?nb(fmt(sum(b,leftDisk)))+' own command':''].filter(Boolean).join(' · ')||'nothing may go'}</span></div><div class="psc">${storBody()}</div>
         <div class="pf">${saBtn('clean',0)}</div></div>
       <div class="p71" data-k="p-net"><div class="ph"><b>Network and servers</b><span class="cap">${nb(mb(sum(sv,s=>s.mem)))} in ${sv.length}${idle?' · '+idle+' idle':''}</span></div>
         <div class="psc"><div class="note${NET.on?'':' off'}" data-k="netnote">${nb(offLine())}</div>${srvSorted().map(srvR).join('')}</div>
@@ -2616,9 +2630,9 @@ function sayText(k){
   if(a==='stop')return `Stops <b>:${o.p} ${o.fw}</b>. ${mb(o.mem)} memory back. ${o.ws?'Its workstream, worktree and tabs stay.':'Nothing else changes.'} Undo starts it again with <code>${o.launcher.split(' · ')[0]}</code>.`;
   if(a==='open')return `Opens <b>localhost:${o.p}</b> in your browser.`;
   if(a==='keep')return `MinMacs leaves <b>${nm(o)}</b> alone. The rule skips it until you undo.`;
-  if(a==='rmtree')return `Saves its ignored files, then moves <b>${o.n}</b> to the Trash. ${fmt(o.freed)} disk back. Undo restores it at ${o.head}.`;
-  if(a==='clean')return o.cmd?`Runs <code>${o.cmd}</code>. ${fmt(o.gb)} disk back. No Undo: ${o.tool} fetches again what it needs.`:`Moves <b>${o.kind}</b> to the Trash. ${fmt(o.gb)} disk back. Undo puts it back.`;
-  if(a==='wrapws'){const p=plan(o);return `Runs its ${cnt(p.parts.length,'step')} below, in order. ${frees(p)} back. One Undo brings it all back.`}
+  if(a==='rmtree')return `Deletes <b>${o.n}</b> for good: ${fmt(o.freed)} of disk. Nothing is left in it: no changed files, no unpushed commits, no stashes. No Undo.`;
+  if(a==='clean')return o.cmd?`Runs <code>${o.cmd}</code>. ${fmt(o.gb)} disk back. No Undo: ${o.tool} fetches again what it needs.`:`Deletes <b>${o.kind}</b> for good: ${fmt(o.gb)} of disk. No Undo.`;
+  if(a==='wrapws'){const p=plan(o);return `Runs its ${cnt(p.parts.length,'step')} below, in order. ${frees(p)} back. Its deletes are for good, so there is no Undo.`}
   if(a==='stopws')return `Stops ${and(wsSrv(o).map(s=>':'+s.p))}. The sessions and worktree stay.`;
   if(a==='finder')return `Shows <b>${nm(o)}</b> in Finder. Nothing changes.`;
   if(a==='editor')return `Opens <b>${o.n}</b> in Cursor. Nothing changes.`;
@@ -2735,7 +2749,7 @@ function dServer(s,lay){
   const tabsB=byB.map(([b,L])=>{const sh=L.slice(0,Math.max(0,left));left-=sh.length;return sh.map(q=>`<div class="qmini" data-k="tb-${q.id}"><span class="ic">${ICON[BRI[b]]}</span><span class="n">${q.url.replace('localhost:'+s.p,'')||'/'} <span class="x">· ${q.title}</span></span><span class="v">${b}</span></div>`).join('')}).join('');
   const conB=`<div class="qchs">${cl||`<span class="cap">${st==='prot'?'Docker ×2':'nothing connected right now'}</span>`}</div>
     ${tabsB}${tb.length>mxT?`<div class="ps">${tb.length-mxT} more tabs</div>`:''}${!tb.length?`<div class="ps">No browser tab shows a page from :${s.p}.</div>`:''}
-    ${lay!=='b'&&(st==='idle'||st==='recent')?`<div class="ps">Nothing is connected now, so stopping it breaks no page. ${mb(s.mem)} memory back.</div>`:''}<div class="ps">${tb.length?`Wrap Up closes ${tb.length>1?'these tabs':'this tab'}. Undo reopens ${tb.length>1?'them':'it'}.`:''}</div>`;
+    ${lay!=='b'&&(st==='idle'||st==='recent')?`<div class="ps">Nothing is connected now, so stopping it breaks no page. ${mb(s.mem)} memory back.</div>`:''}<div class="ps">${tb.length?`Wrap Up closes ${tb.length>1?'these tabs':'this tab'}.`:''}</div>`;
   const leg=`<div class="qlg"><span><i style="background:${C.servers}"></i>new connections per minute</span><span><i style="background:rgba(235,235,245,.42)"></i>idle time</span><span><i class="mk"></i>the rule's mark</span><span class="r">last hour, kept in memory</span></div>`;
   return {head,ac,F,leg,graph:W=>gServer(s,W),gsay:srvSay(s),
     panels:[['Connections',st==='active'?s.conns+' open':tb.length?cnt(tb.length,'tab'):'',conB],['Idle rule','for every server',ruleBlk(S.servers,'Stop idle')]],
@@ -2759,7 +2773,7 @@ function gTree(t,W){
   if(t.merged)ev.push(['Merged',coarse(t.mm+T)+' ago',MERGEW[t.merged]]);
   ev.push(['Now',hhmm(T),w&&wsAgs(w).length?cnt(wsAgs(w).length,'session'):'no session']);
   const k=treeGrp(t);
-  if(k==='m'){const R=S.trees,rem=thr(R)-(t.mm+T);ev.push([R.mode===2?'Auto removes it':R.mode===1?'Remove shows':'Rule off',R.mode?(rem<=0?'now':'in '+durC(rem)):'not watching',R.mode?hhmm(T+Math.max(0,rem)):'',1])}
+  if(k==='m'){const R=S.trees,rem=thr(R)-(t.mm+T);ev.push([R.mode===2?'Auto deletes it':R.mode===1?'Delete shows':'Rule off',R.mode?(rem<=0?'now':'in '+durC(rem)):'not watching',R.mode?hhmm(T+Math.max(0,rem)):'',1])}
   if(k==='r'){const R=S.ws,rem=thr(R)-(t.mm+T);ev.push([R.mode===2?'Auto wraps it up':R.mode===1?'Wrap Up waits':'Rule off',R.mode===2?(rem<=0?'now':'in '+durC(rem)):R.mode?'for your press':'not watching',R.mode===2?hhmm(T+Math.max(0,rem)):'',1])}
   if(k==='b')ev.push(['Blocked',plan(w).why,'',2]);
   return `<div class="qcn">${N.map(([l,v])=>`<div class="${v?'on':''}"><span class="v">${v}</span><span class="k">${l}</span></div>`).join('')}</div>
@@ -2778,12 +2792,12 @@ function dTree(t,lay){
   let planB,ph;
   if(w){const p=plan(w);ph=k==='r'||k==='b'?'What Wrap Up removes':'What Wrap Up will remove';
     const PP=lay==='b'?p.parts.slice(0,3):p.parts;planB=PP.map((x,i)=>`<div class="qpt" data-k="pt-${i}"><span class="ix">${i+1}</span><span class="tt">${x.title}${x.nw?'<span class="tagn">new</span>':''}</span><span class="fz">${x.why?`<span class="wn">blocked · ${x.why}</span>`:x.gb?nb(fmt(x.gb))+' disk':x.mem?nb(mb(x.mem)):''}</span></div>`).join('')+
-      (PP.length<p.parts.length?`<div class="ps">and ${cnt(p.parts.length-PP.length,'more step')}, in order</div>`:'')+(lay==='b'&&!p.why?'':`<div class="ps">${p.why?`Wrap Up waits: <span style="color:var(--ws)">${p.why}</span>.`:`Frees ${nb(frees(p))}. One Undo brings it all back.`}</div>`)}
-  else{ph='What Remove does';
+      (PP.length<p.parts.length?`<div class="ps">and ${cnt(p.parts.length-PP.length,'more step')}, in order</div>`:'')+(lay==='b'&&!p.why?'':`<div class="ps">${p.why?`Wrap Up waits: <span style="color:var(--ws)">${p.why}</span>.`:`Frees ${nb(frees(p))}. Its deletes are for good, so there is no Undo.`}</div>`)}
+  else{ph='What Delete does';
     planB=`<div class="qpt"><span class="ix">1</span><span class="tt">Save its ignored files, such as .env</span><span class="fz"></span></div>
-      <div class="qpt"><span class="ix">2</span><span class="tt">Move ${t.n} to the Trash</span><span class="fz">${t.block?`<span class="wn">blocked · ${t.block}</span>`:nb(fmt(t.freed))+' disk'}</span></div>
-      <div class="ps">${t.block?'Remove waits until it merges. Nothing else touches it.':`Undo restores it at ${t.head}, with its saved files.`}</div>`}
-  const rb=w?ruleBlk(S.ws,'Wrap Up'):ruleBlk(S.trees,'Remove merged');
+      <div class="qpt"><span class="ix">2</span><span class="tt">Delete ${t.n} for good</span><span class="fz">${t.block?`<span class="wn">blocked · ${t.block}</span>`:nb(fmt(t.freed))+' disk'}</span></div>
+      <div class="ps">${t.block?'Delete waits until it merges and nothing is left in it.':'Deleted for good, no Undo. This is exactly what goes.'}</div>`}
+  const rb=w?ruleBlk(S.ws,'Wrap Up'):ruleBlk(S.trees,'Delete merged');
   return {head,ac,F,leg:'',graph:W=>gTree(t,W),gsay:'',
     panels:[[ph,w?cnt(plan(w).parts.length,'step'):'',planB],[w?'Its rule':'The rule',w?'the workstream goes as one':'only trees nobody owns',rb]],
     say:w?'A worktree in a workstream goes with its Wrap Up.':'Hover a button to see what it does first.'};
@@ -2815,16 +2829,16 @@ function dDisk(c,lay){
   const stw={go:'May go · nobody holds it · '+c.why,cmd:'May go · '+c.why,ws:'Its workstream holds it · goes with its Wrap Up',stay:(c.state==='report'?'Report only · ':'Stays · ')+c.why}[g];
   const head=`<div class="qh"><span class="qic">${gl('disk',g==='stay'?'rgba(235,235,245,.5)':C.disk,22,1.5)}</span><div class="t"><div class="nm">${c.kind} <span class="x">· ${nb(fmt(c.gb))}</span></div><div class="sb2">${w?'in '+lk(w.id):c.owner}</div><div class="sb" style="color:${col}">${nb(stw)}</div></div></div>`;
   const ac=acts('dk',c).filter(x=>x.a!=='gows').map((x,i)=>dB(x,c.id,i===0&&(g==='go'||g==='cmd'),C.disk)).join('');
-  const F=[['Owner',c.left?c.owner:`${w.repo} / ${w.n}`],['Owner state',c.left?(c.ogone?'gone':'still there'):'live workstream'],['Last used',coarse(c.used+T)+' ago'],['Size','clones counted once'],['Kind',c.kind],['Cleans by',c.cmd?`<code>${c.cmd}</code>`:g==='stay'?'nothing':g==='ws'?'Wrap Up':'the Trash']];
+  const F=[['Owner',c.left?c.owner:`${w.repo} / ${w.n}`],['Owner state',c.left?(c.ogone?'gone':'still there'):'live workstream'],['Last used',coarse(c.used+T)+' ago'],['Size','clones counted once'],['Kind',c.kind],['Cleans by',c.cmd?`<code>${c.cmd}</code>`:g==='stay'?'nothing':g==='ws'?'Wrap Up':'deleting it']];
   let how;
-  if(g==='go')how=`<div class="qhow t"><b>To the Trash, with Undo.</b> MinMacs moves it to the Trash. ${fmt(c.gb)} disk back, and Undo puts it back where it was.</div>`;
+  if(g==='go')how=`<div class="qhow t"><b>Deleted for good.</b> MinMacs deletes it: ${fmt(c.gb)} of disk. No Undo, so the line above is exactly what goes.</div>`;
   else if(g==='cmd')how=`<div class="qhow c"><b>By its own command, no Undo.</b> <code>${c.cmd}</code> cleans it. ${c.tool} fetches again what it needs, so there is nothing to undo.</div>`;
-  else if(g==='ws'){const p=plan(w),i=p.parts.findIndex(x=>x.sn==='Caches');how=`<div class="qhow w"><b>With the Wrap Up of ${lk(w.id)}.</b> Step ${i+1} of ${p.parts.length}: ${i>=0?p.parts[i].title:'Move its caches to the Trash'}.</div><div class="ps">${p.why?`Wrap Up waits: <span style="color:var(--ws)">${p.why}</span>.`:`Wrap Up frees ${nb(frees(p))} in all.`}</div>`}
+  else if(g==='ws'){const p=plan(w),i=p.parts.findIndex(x=>x.sn==='Caches');how=`<div class="qhow w"><b>With the Wrap Up of ${lk(w.id)}.</b> Step ${i+1} of ${p.parts.length}: ${i>=0?p.parts[i].title:'Delete its caches for good'}.</div><div class="ps">${p.why?`Wrap Up waits: <span style="color:var(--ws)">${p.why}</span>.`:`Wrap Up frees ${nb(frees(p))} in all.`}</div>`}
   else how=`<div class="qhow s"><b>${c.state==='report'?'Report only.':'It stays.'}</b> ${c.state==='report'?'Xcode manages simulators. MinMacs shows their size and never deletes them.':'You kept it, so no rule touches it.'}</div>`;
   const rb=g==='ws'?ruleBlk(S.ws,'Wrap Up'):ruleBlk(S.left,'Clean up');
   const leg=`<div class="qlg"><span><i style="background:${C.disk}"></i>size on disk</span><span class="r">daily, last 30 days ${PROP}</span></div>`;
   return {head,ac,F,leg,graph:W=>gDisk(c,W),gsay:dkSay(c),
-    panels:[['How it goes',g==='go'?'Trash':g==='cmd'?'own command':g==='ws'?'Wrap Up':'',how],['The rule',g==='ws'?'its workstream':'things nobody holds',rb]],
+    panels:[['How it goes',g==='go'?'deleted':g==='cmd'?'own command':g==='ws'?'Wrap Up':'',how],['The rule',g==='ws'?'its workstream':'things nobody holds',rb]],
     say:'Disk sizes only. Memory is never added in.'};
 }
 
@@ -2863,7 +2877,7 @@ const QK={
       if(m.length){const R=S.trees,n=nextAuto(R);return {c:C.trees,t:`${cnt(m.length,'merged worktree')} nobody owns, ${fmt(sum(m,t=>t.freed))} disk`,w:R.mode===2&&n?`Auto ${n.l} ${n.m<=0?'now':'in '+durC(n.m)}. Their ignored files are saved first.`:R.mode===1?`The rule is on Ask. ${and(m.map(t=>t.n))} wait for your press.`:'The rule is off. Not watching.',b:saBtn('merged',1),st}}
       if(r.length)return {c:C.ws,t:`${r.length===1?r[0].n+' is':cnt(r.length,'workstream')+' are'} ready to wrap up`,w:'Merged and its sessions ended. Wrap Up stops its servers, cleans its caches, then removes its worktree.',b:saBtn('wrapready',1),st};
       return {c:C.trees,t:'Nothing to remove',w:'Every worktree has a session in it, or is not merged yet.',b:'',st}}},
-  disk:{c:C.disk,g:'disk',groups:[['go','May go','nobody holds it · to the Trash'],['cmd','Own command','its tool cleans it'],['ws','With its workstream','goes with its Wrap Up'],['stay','Stays','report only or kept']],
+  disk:{c:C.disk,g:'disk',groups:[['go','May go','nobody holds it · deleted for good'],['cmd','Own command','its tool cleans it'],['ws','With its workstream','goes with its Wrap Up'],['stay','Stays','report only or kept']],
     items:()=>{const o={go:0,cmd:1,ws:2,stay:3};return cacheLive().slice().sort((a,b)=>o[dkG(a)]-o[dkG(b)]||b.gb-a.gb)},
     grp:dkG,urgent:L=>L.find(c=>dkG(c)==='go')||L.find(c=>dkG(c)==='cmd')||L[0],
     row:c=>{const g=dkG(c),w=c.ws&&byId[c.ws];return {ic:`<i class="sq ${g}"></i>`,n:c.kind,s:w?w.n:c.owner.replace(/^~\/Library\/(Developer|Caches)\//,''),s2:`${w?w.n:c.owner} · used ${coarse(c.used+T)} ago`,cls:g,
@@ -2871,7 +2885,7 @@ const QK={
     detail:dDisk,
     focal:L=>{const g=dGo(),a=dTrash(),b=dCmd(),U=DISKU();
       const st=`<span class="qs wide"><span class="k">Disk ${Math.round(U)} of 994 GB · ${Math.round(DISK_T-U)} GB free</span><span class="qmb">${bars([[(U-sum(g,leftDisk))/DISK_T*100,GRAY],[sum(g,leftDisk)/DISK_T*100,C.disk,'end']])}</span></span>`;
-      return {c:C.disk,t:g.length?`${fmt(sum(g,leftDisk))} of disk may go now`:'Nothing may go now',w:g.length?`${a.length?fmt(sum(a,leftDisk))+' to the Trash with Undo':''}${a.length&&b.length?', ':''}${b.length?fmt(sum(b,leftDisk))+' by a tool\'s own command':''}.`:'Every cache belongs to a workstream or stays.',b:saBtn('clean',1),st}}}
+      return {c:C.disk,t:g.length?`${fmt(sum(g,leftDisk))} of disk may go now`:'Nothing may go now',w:g.length?`${a.length?fmt(sum(a,leftDisk))+' deleted for good':''}${a.length&&b.length?', ':''}${b.length?fmt(sum(b,leftDisk))+' by a tool\'s own command':''}.`:'Every cache belongs to a workstream or stays.',b:saBtn('clean',1),st}}}
 };
 
 /* ---------- one renderer, two layouts ---------- */
@@ -2899,7 +2913,7 @@ function sumRows(k,L,free,side){
   if(k==='trees'){const G=QK.trees.groups;S.push(['Disk by state','trees · disk',bar(G.map(([g,t])=>{const x=L.filter(o=>treeGrp(o)===g);return {n:t,c:x.length,m:sum(x,o=>o.disk)}}).filter(x=>x.c),x=>x.m,x=>String(x.c),x=>fmt(x.m),C.trees)]);
     S.push(['By maker','trees · unpushed',bar(grp(L,t=>MAKER[t.maker],t=>t.disk),x=>x.c,x=>String(x.c),x=>String(sum(L.filter(t=>MAKER[t.maker]===x.n),t=>t.unp)),'rgba(76,201,107,.55)')])}
   if(k==='disk'){S.push(['Disk by kind','items · disk',bar(grp(L,c=>c.kind,c=>c.gb),x=>x.m,x=>String(x.c),x=>fmt(x.m),C.disk)]);
-    const W={go:'To the Trash',cmd:'Own command',ws:'With Wrap Up',stay:'Stays'};S.push(['By how it goes','items · disk',bar(grp(L,c=>W[dkG(c)],c=>c.gb),x=>x.m,x=>String(x.c),x=>fmt(x.m),'rgba(242,181,68,.55)')])}
+    const W={go:'Deleted for good',cmd:'Own command',ws:'With Wrap Up',stay:'Stays'};S.push(['By how it goes','items · disk',bar(grp(L,c=>W[dkG(c)],c=>c.gb),x=>x.m,x=>String(x.c),x=>fmt(x.m),'rgba(242,181,68,.55)')])}
   let out='',left=free;
   for(const [h,u,R] of S){const n=Math.min(R.length,8,Math.floor((left-40)/26));if(n<2&&R.length>1||n<1)break;if(!side)left-=40+n*26;
     out+=`<div class="qsum" data-k="sum-${h}"><div class="qg"><b>${h}</b><span>${u}</span></div>${R.slice(0,n).map(([nn,f,a,b,c])=>`<div class="qsr" data-k="sr-${nn}"><span class="n">${nn}</span><span class="qbar"><i style="width:${Math.max(1.5,Math.min(100,f*100)).toFixed(1)}%;background:${c}"></i></span><span class="a">${a}</span><span class="b">${nb(b)}</span></div>`).join('')}</div>`}
@@ -3065,7 +3079,7 @@ trees:L=>{
     return {g,lab:t,short:{r:'ready',b:'blocked',w:'in use',m:'merged',s:'stale'}[g],n:x.length,c:TRC[g],v:x.length?fmt(sum(x,o=>o.disk)):''}});
   const Dt=L.filter(t=>t.dirty>0||t.untr>0),Up=L.filter(t=>t.unp>0),nv=L.filter(t=>t.up==='none').length,st=sum(L,t=>t.stash);
   let rule;
-  if(mergedLeft().length||!readyGo().length){const R=S.trees;rule=ruleG(R,{nm:'Remove merged',n:nextAuto(R),span:thr(R),ask:x=>`${x.o.n} · ${x.m<=0?'button shows now':'button at '+hhmm(T+x.m)}`,none:'Nothing merged without an owner',id:x=>x.o.id})}
+  if(mergedLeft().length||!readyGo().length){const R=S.trees;rule=ruleG(R,{nm:'Delete merged',n:nextAuto(R),span:thr(R),ask:x=>`${x.o.n} · ${x.m<=0?'button shows now':'button at '+hhmm(T+x.m)}`,none:'Nothing merged without an owner',id:x=>x.o.id})}
   else{const R=S.ws;rule=ruleG(R,{nm:'Wrap Up',n:nextAuto(R),span:thr(R),ask:x=>`${x.o.n} waits for you`,waits:1,none:'Nothing is ready',id:x=>x.o.wt})}
   const dk=vu(fmt(td));
   const gauges=[
@@ -3092,7 +3106,7 @@ disk:L=>{
   const R=S.left,when=R.v===0?'tonight at 3:00':R.v===1?'on Sunday at 9:00':'on 1 Nov at 9:00',top=L.filter(c=>dkG(c)==='go'||dkG(c)==='cmd').sort((x,y)=>y.gb-x.gb)[0];
   const q1=vu(fmt(gw)),q2=KD.length?vu(fmt(KD[0][2])):{v:0,u:''},q3=vu(fmt(gr));
   const gauges=[
-    {k:'go',name:'May go now',v:q1.v,u:q1.u,frac:gw/den,line:[a.length?fmt(sum(a,leftDisk))+' to the Trash':'',b.length?fmt(sum(b,leftDisk))+' by command':''].filter(Boolean).join(' · ')||'nothing may go',ids:g.map(o=>o.id),hi:o=>[o.left&&leftMay(o)?o.gb/den:0,`${o.kind} · ${fmt(o.gb)}`]},
+    {k:'go',name:'May go now',v:q1.v,u:q1.u,frac:gw/den,line:[a.length?fmt(sum(a,leftDisk))+' to delete':'',b.length?fmt(sum(b,leftDisk))+' by command':''].filter(Boolean).join(' · ')||'nothing may go',ids:g.map(o=>o.id),hi:o=>[o.left&&leftMay(o)?o.gb/den:0,`${o.kind} · ${fmt(o.gb)}`]},
     {k:'kd',name:'What fills it',v:q2.v,u:q2.u,parts:KD.slice(0,4).map(([k2,A,s],i)=>[s,KDC[i]]).concat(KD.length>4?[[sum(KD.slice(4),x=>x[2]),'rgba(255,255,255,.16)']]:[]),
       line:KD.slice(0,2).map(([k2,A,s],i)=>hw('kd:'+k2,i?k2:`<b>${k2}</b> most`)).join(' · ')||'nothing yet',ids:KD.length?KD[0][1].map(c=>c.id):[],hi:o=>[0,`${o.kind} · ${fmt(o.gb)}`]},
     {k:'gr',name:'Written',prop:1,v:q3.v,u:q3.u+' / hour',frac:Math.min(1,gr/5),line:`while ${cnt(working().length,'agent')} work`,ids:wcs.map(c=>c.id),hi:o=>[0,`${o.kind} · ${fmt(o.gb)}`]},
@@ -3203,18 +3217,20 @@ function setHov(id){clearTimeout(HOVT);if(HOV!==id){HOV=id;refresh()}}
 function dropHov(){clearTimeout(HOVT);if(HOV)HOVT=setTimeout(()=>{HOV=null;refresh()},260)}
 function stepSel(d){const L=QK[tab].items(),i=L.findIndex(o=>o.id===SEL[tab]),n=L[Math.max(0,Math.min(L.length-1,i+d))];if(n){SEL[tab]=n.id;HOV=null;refresh();const el=$('pin').querySelector(`[data-pick="${n.id}"]`);if(el){el.focus({preventScroll:true});el.scrollIntoView({block:'nearest'})}}}
 
-const Q_GUIDE=`<div class="t">How these tabs work</div><ul><li>On top, a hero shows the whole tab: one ring split by state, one slice per item, and round gauges, each with a plain line under it.</li><li>Hover a slice, a state or a gauge: the list lights what it means. Click it to show only those. Show all brings the rest back.</li><li>Hover a row: its slice is marked on the ring, and each gauge shows its share in white.</li><li>The rule's gauge counts down to its next action. Click it to open the rule in the detail, with Off / Ask / Auto in words.</li><li>Under the ring, the notice says in a few words what to do, or that all is well. Hover it: its story, what it touches and the rule fill the detail. Click it to keep it there. After an action it shows what came back, with Undo, for 20 s.</li><li>The detail folds its lower part: Facts and two panels, one at a time.</li><li><span class="tagn">proposed</span> An hour of CPU and memory per agent, 30 days of size per cache, and an hour of disk used.</li></ul>`;
+const Q_GUIDE=`<div class="t">How these tabs work</div><ul><li>On top, a hero shows the whole tab: one ring split by state, one slice per item, and round gauges, each with a plain line under it.</li><li>Hover a slice, a state or a gauge: the list lights what it means. Click it to show only those. Show all brings the rest back.</li><li>Hover a row: its slice is marked on the ring, and each gauge shows its share in white.</li><li>The rule's gauge counts down to its next action. Click it to open the rule in the detail, with Off / Ask / Auto in words.</li><li>Under the ring, the notice says in a few words what to do, or that all is well. Hover it: its story, what it touches and the rule fill the detail. Click it to keep it there. After an action it shows what came back for a moment, then lets go. The story lists what was done today, with Undo where it still works.</li><li>The detail folds its lower part: Facts and two panels, one at a time.</li><li><span class="tagn">proposed</span> An hour of CPU and memory per agent, 30 days of size per cache, and an hour of disk used.</li></ul>`;
 function qFit(){const l=$('pin').querySelector('.psc');if(!l)return '';const n=l.querySelectorAll('[data-pick]').length,v=[...l.querySelectorAll('[data-pick]')].filter(e=>e.offsetTop+e.offsetHeight<=l.scrollTop+l.clientHeight+1).length;return v>=n?`all ${n} in view, no scroll`:`${v} of ${n} in view, the rest scroll`}
 
 /* ---------- 88: the notice is a small glass pill under the ring ----------
    One short phrase and its size, with a tiny action word. Something to do: 88-a breathes in the section color and
    the slices it means glow; 88-b draws a thin arc on the ring's edge from those slices down to the pill, and shows its
-   action word on hover. After an action, yours or Auto's, it turns into the reward for 20 s: what came back counts
-   up with Undo, then it settles. Hover it: its story fills the detail. Click it: the story stays there. */
+   action word on hover. After an action, yours or Auto's, the reward is a moment, not a state: for under 4 s what
+   came back counts up, with Undo only when the action can really be reversed, then it fades back to the normal
+   phrase. Going somewhere (Answer in Tab, Open) and changing a rule get no reward at all. Hover it: its story fills
+   the detail, with what was done today and Undo beside the ones that still can. Click it: the story stays there. */
 const NTV='b';
-const NT_HOLD=20000,NT_RS={servers:'servers',trees:'trees',ws:'trees',left:'disk'};
+const NT_HOLD=3600,NT_FADE=550,NT_RS={servers:'servers',trees:'trees',ws:'trees',left:'disk'};
 const NT_CHK='<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2 5.3l2 2 4.2-4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-let NHOV=0,NHT=0,NTU=null,NTR=null,NTN=null,NTRAF=0;const NPIN={},REW={};
+let NHOV=0,NHT=0,NTU=null,NTR=null,NTN=null,NTRAF=0;const NPIN={},REW={},DONE={};
 const ntEase=x=>1-Math.pow(1-Math.min(1,Math.max(0,x)),3);
 const ntTxt=h=>String(h).replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ');
 function ntAmt(msg){const m=ntTxt(msg).match(/([\d.]+) (MB|GB) (memory|disk)/);return m?{v:+m[1],d:(m[1].split('.')[1]||'').length,u:m[2],w:m[3]}:null}
@@ -3223,9 +3239,16 @@ const ntNum=(a,f)=>f>=1?a.v.toFixed(a.d)+'\u00a0'+a.u:mb((a.u==='GB'?a.v*1000:a.
 const ntF=r=>RM?1:ntEase((performance.now()-r.t0)/1400);
 function ntShort(msg){const t=ntTxt(msg);let m=t.match(/is (Off|Ask|Auto) now/);if(m)return 'Rule is '+m[1]+' now';
   m=t.match(/acts (.+?) now, was/);if(m)return 'Rule acts '+m[1];return t.split(/\.(\s|$)/)[0]}
-/* a reward lives 20 s in its tab's notice; an undone one says so for 4 s */
-function ntLive(k){const r=REW[k];if(r&&performance.now()-r.t0>(r.undone?4000:NT_HOLD))delete REW[k];return REW[k]||null}
-function ntReward(k,msg,u){REW[k]={msg,u,a:ntAmt(msg),t0:performance.now()};refresh();ntLoop()}
+/* a reward is a moment: it lives under 4 s in its tab's notice, fades for its last half second, then lets go */
+const ntHold=r=>r.undone?2200:NT_HOLD;
+function ntLive(k){const r=REW[k];if(r&&performance.now()-r.t0>ntHold(r))delete REW[k];return REW[k]||null}
+const ntFo=r=>performance.now()-r.t0>ntHold(r)-NT_FADE;
+function ntMoment(k){const r=REW[k];setTimeout(()=>{if(REW[k]===r)refresh()},ntHold(r)-NT_FADE);setTimeout(()=>{if(REW[k]===r){delete REW[k];refresh()}},ntHold(r)+20)}
+/* what kind of thing a message reports. Going somewhere and changing a rule are not rewards; Keep has no Undo,
+   because the item's own toggle undoes it */
+function ntKind(msg){const t=ntTxt(msg);if(/^(Switched to |Opened |Showing )/.test(t))return 'go';if(/is (Off|Ask|Auto) now|acts .+ now, was /.test(t))return 'set';if(/ stays\. MinMacs leaves it alone/.test(t))return 'keep';return 'act'}
+function ntSay(msg,a){const t=ntTxt(msg).split(/\.(\s|$)/)[0];return a&&!/ back$/.test(t)?`${t}, ${ntNum(a,1)} ${a.w} back`:t}
+function ntReward(k,msg,u){const a=ntAmt(msg);REW[k]={msg,u,a,t0:performance.now()};(DONE[k]=DONE[k]||[]).push({say:ntSay(msg,a),at:hhmm(T),u});ntMoment(k);refresh();ntLoop()}
 /* the count runs on its own frames, so it eases between the one-second ticks */
 function ntLoop(){cancelAnimationFrame(NTRAF);const f=()=>{let any=0;
   document.querySelectorAll('#pin .ntv[data-sec]').forEach(el=>{const r=REW[el.dataset.sec];if(!r||!r.a)return;if(ntF(r)<1)any=1;const v=ntNum(r.a,ntF(r));if(el.textContent!==v)el.textContent=v});
@@ -3233,19 +3256,21 @@ function ntLoop(){cancelAnimationFrame(NTRAF);const f=()=>{let any=0;
 /* on the four tabs the toast's message goes to the notice instead. Auto acting elsewhere also lights that tab */
 function toast(msg,undo){
   const au=String(msg).includes('class="au"'),u=undo===false?null:NTU,r=NTR;NTU=null;NTR=null;
+  const kd=ntKind(msg),uu=kd==='act'?u:null;
   let k=null;if(ADV){if(au)k=NT_RS[r]||null;else if(ADVT())k=tab}
-  if(k){ntReward(k,msg,u);if(au&&!ADVT())toast0(msg,undo);return}
-  toast0(msg,undo);
+  if(k&&(kd==='go'||kd==='set'))return;
+  if(k){ntReward(k,msg,uu);if(au&&!ADVT())toast0(msg,uu?undo:false);return}
+  toast0(msg,kd==='act'?undo:false);
 }
 /* Undo from the notice: the newest record restores its snapshot, an older one clears only the flags it set */
-function ntUndo(k){
-  const r=REW[k];if(!r||!r.u)return;const u=r.u,i=UNDO.indexOf(u);
+function ntUndo(k,j){
+  const r=REW[k],d=j!=null&&DONE[k]&&DONE[k][j],u=d?d.u:r&&r.u;if(!u)return;const i=UNDO.indexOf(u);if(i<0){refresh();return}if(d)d.undone=1;else(DONE[k]||[]).forEach(x=>{if(x.u===u)x.undone=1});
   if(i===UNDO.length-1&&i>=0){UNDO.pop();const hg=noBack();restoreSnap(u.s);hg.forEach(id=>fl(id).gone=1);u.spare.forEach(id=>fl(id).spared=1)}
   else if(i>=0){const set=(u.set||[]).filter(([id])=>!HELP.some(h=>h.id===id)&&!CA.some(c=>c.cmd&&c.id===id));
     set.forEach(([id,f])=>{if(F[id])delete F[id][f]});u.spare.forEach(id=>fl(id).spared=1);
     for(let j=i+1;j<UNDO.length;j++){const o=JSON.parse(UNDO[j].s);set.forEach(([id,f])=>{if(o.F[id])delete o.F[id][f]});UNDO[j].s=JSON.stringify(o)}
     UNDO.splice(i,1)}
-  REW[k]={undone:1,msg:'Undone. Everything it touched is back.',t0:performance.now()};hideToast();refresh();
+  REW[k]={undone:1,msg:'Undone. Everything it touched is back.',t0:performance.now()};ntMoment(k);hideToast();refresh();
 }
 /* what the notice says now, from the same facts as 82-a's focal line */
 function ntState(k,L){
@@ -3257,7 +3282,7 @@ function ntState(k,L){
     if(i.length){o.st='todo';o.ph=`${i.length} idle · ${mb(sum(i,s=>s.mem))}`;o.word='Stop'}
     else o.ph=act.length===np?`All ${act.length} busy, nothing idle`:`${act.length} busy, nothing idle`}
   if(k==='trees'){const m=mergedLeft(),r=readyGo();o.rule=S.trees;o.sa='merged';
-    if(m.length){o.st='todo';o.ph=`${m.length} merged · ${fmt(sum(m,t=>t.freed))}`;o.word='Remove'}
+    if(m.length){o.st='todo';o.ph=`${m.length} merged · ${fmt(sum(m,t=>t.freed))}`;o.word='Delete'}
     else if(r.length){o.st='todo';o.sa='wrapready';o.rule=S.ws;o.c=C.ws;o.ph=`${r.length} ready · ${fmt(sum(r,w=>plan(w).disk))}`;o.word='Wrap Up'}
     else o.ph=`${cnt(L.length,'tree')}, none to remove`}
   if(k==='disk'){const g=dGo();o.rule=S.left;o.sa='clean';
@@ -3270,7 +3295,8 @@ function ntState(k,L){
 function ntPill(N,k){
   const r=N.rw,lit=NHOV||NPIN[k];let cls='nq v-'+NTV,body,lab;
   if(r&&r.undone){cls+=' undone';lab='Undone, all back';body=`<i class="ntd" data-k="d"></i><span class="ntt" data-k="t">${lab}</span>`}
-  else if(r){cls+=' done'+(performance.now()-r.t0<1700&&!RM?' sh':'');lab=r.a?ntNum(r.a,1)+' back':ntShort(r.msg);
+  if(r&&ntFo(r))cls+=' fo';
+  if(r&&r.undone){}else if(r){cls+=' done'+(performance.now()-r.t0<1700&&!RM?' sh':'');lab=r.a?ntNum(r.a,1)+' back':ntShort(r.msg);
     body=`<i class="ntd" data-k="c">${NT_CHK}</i><span class="ntt" data-k="r">${r.a?`<b class="ntv" data-sec="${k}">${ntNum(r.a,ntF(r))}</b> back`:nb(ntShort(r.msg))}</span>${r.u?`<button class="nta" data-ntu="${k}" data-k="u">Undo</button>`:''}`}
   else{cls+=' '+N.st;lab=ntTxt(N.ph);body=`<i class="ntd" data-k="d"></i><span class="ntt" data-k="t">${nb(N.ph)}</span>${N.word?`<button class="nta ac" ${N.act} data-k="a">${N.word}</button>`:''}`}
   return `<div class="${cls}${lit?' on':''}${NPIN[k]?' pin':''}" data-nt="1" data-k="nt" tabindex="0" role="button" aria-pressed="${!!NPIN[k]}" aria-label="Notice: ${lab}. Its story shows in the detail." style="--nc:${N.c}">${body}</div>`;
@@ -3293,21 +3319,21 @@ function ntDetail(N,K,k,L,H){
   const r=N.rw,R=N.rule,todo=N.st==='todo',ids=new Set(N.ids),hit=L.filter(o=>ids.has(o.id));
   const nm=o=>k==='servers'?`:${o.p} ${o.fw}`:k==='trees'?`${o.repo} · ${o.n}`:k==='disk'?o.kind:byId[o.ws].n;
   const sub=o=>k==='servers'?(o.ws&&byId[o.ws]?byId[o.ws].n:'nobody holds it'):k==='trees'?MAKER[o.maker]:k==='disk'?(o.ws&&byId[o.ws]?byId[o.ws].n:o.owner.replace(/^~\/Library\/(Developer|Caches)\//,'')):`“${o.q||'for you'}”`;
-  const val=o=>k==='servers'?`idle ${coarse(idleOf(o))} · ${mb(o.mem)}`:k==='trees'?'frees '+fmt(o.freed||o.disk):k==='disk'?fmt(leftDisk(o)):'waits '+coarse(T-o.la);
+  const val=o=>k==='servers'?`idle ${coarse(idleOf(o))} · ${mb(o.mem)}`:k==='trees'?'deletes '+fmt(o.freed||o.disk):k==='disk'?fmt(leftDisk(o)):'waits '+coarse(T-o.la);
   const room=r&&!r.undone?4:6;
   const rows=todo&&hit.length?`<div class="h">What it touches · lit in the list and on the ring</div>${hit.slice(0,room).map(o=>`<div class="ntr" data-k="r-${o.id}"><i></i><span class="n">${nb(nm(o))}<span>${nb(sub(o))}</span></span><span class="v">${nb(val(o))}</span></div>`).join('')}${hit.length>room?`<div class="ntmore">and ${hit.length-room} more</div>`:''}`
     :todo&&N.sa==='wrapready'?`<div class="h">What it touches</div>${readyGo().slice(0,room).map(w=>`<div class="ntr" data-k="r-${w.id}"><i></i><span class="n">${w.n}<span>${cnt(plan(w).parts.length,'part')}</span></span><span class="v">${nb(fmt(plan(w).disk))}</span></div>`).join('')}`
     :`<div class="h">How they stand · nothing to press</div>${H.legend.map(s=>`<div class="ntr z" data-k="r-${s.g}"><i style="background:${s.c}"></i><span class="n">${s.n} ${s.lab}</span><span class="v">${nb(s.v)}</span></div>`).join('')}`;
   const leg=`${H.legend.map(s=>`<div class="ntr z" data-k="r-${s.g}"><i style="background:${s.c}"></i><span class="n">${s.n} ${s.lab}</span><span class="v">${nb(s.v)}</span></div>`).join('')}`;
   const rows2=rows+(todo&&k==='agents'&&hit.length<=3?`<div class="h" style="margin-top:12px">How they all stand</div>${leg}`:'');
-  const recs=R?UNDO.filter(u=>u.rec&&u.rec.r===R.id).slice(-4).reverse():[];
+  const D_=(DONE[k]||[]).map((x,i)=>[x,i]).reverse().slice(0,4);
+  const done=D_.length?`<div class="h"${todo?' style="margin-top:8px"':''}>Done today</div>${D_.map(([x,i])=>`<p class="ntdn">${nb(x.say)} at ${x.at}.${x.undone?' <span>Undone.</span>':x.u&&!x.u.nu&&UNDO.includes(x.u)?` <button class="lk" data-ntu="${k}" data-ntj="${i}">Undo</button>`:''}</p>`).join('')}`:'';
   const rule=R?modeBlock(R,R.name):`<div class="h">No rule</div><div class="ntno">Agents have no rule. MinMacs never answers for you. It shows who asks and since when, and takes you to the tab where the agent waits, in cmux, tmux, Terminal or the IDE.</div>`;
-  const left=r&&!r.undone?Math.max(0,Math.ceil((NT_HOLD-(performance.now()-r.t0))/1000)):0;
-  const band=r&&!r.undone?`<div class="ntrw${performance.now()-r.t0<1700&&!RM?' sh':''}" data-k="rw">${r.a?`<span class="big"><b class="ntv" data-sec="${k}">${ntNum(r.a,ntF(r))}</b><u>${r.a.w} back</u></span>`:''}<span class="m">${nb(r.msg)} ${r.u?`Undo here ${left} s more.`:''}</span>${r.u?`<button class="btn pri" data-ntu="${k}" style="--c:${N.c}">Undo</button>`:''}</div>`
-    :r&&r.undone?`<div class="ntrw" data-k="rw"><span class="m">${r.msg}</span></div>`:'';
-  const pv=todo&&N.sa&&SA[N.sa].on()?`<div class="ntpv" data-k="pv"><div class="h">${nb(SA[N.sa].l())} does this, before you press</div>${SA[N.sa].res().filter(Boolean).map(x=>`<p>${nb(x)}</p>`).join('')}</div>`
-    :todo&&k==='agents'?`<div class="ntpv" data-k="pv"><div class="h">Answer in Tab does this</div><p>Brings the tab forward where ${byId[asking()[0].ws].n} asks. MinMacs does not answer for you.</p></div>`
-    :recs.length?`<div class="ntpv" data-k="pv"><div class="h">What ${R.name.charAt(0).toLowerCase()+R.name.slice(1)} did today · each undoes in Settings</div>${recs.map(u=>`<p>${nb(u.rec.say)} at ${u.rec.at}.</p>`).join('')}</div>`:'';
+  const band=r&&!r.undone?`<div class="ntrw${performance.now()-r.t0<1700&&!RM?' sh':''}${ntFo(r)?' fo':''}" data-k="rw">${r.a?`<span class="big"><b class="ntv" data-sec="${k}">${ntNum(r.a,ntF(r))}</b><u>${r.a.w} back</u></span>`:''}<span class="m">${nb(r.msg)}</span>${r.u?`<button class="btn pri" data-ntu="${k}" style="--c:${N.c}">Undo</button>`:''}</div>`
+    :r&&r.undone?`<div class="ntrw${ntFo(r)?' fo':''}" data-k="rw"><span class="m">${r.msg}</span></div>`:'';
+  const pv0=todo&&N.sa&&SA[N.sa].on()?`<div class="h">${nb(SA[N.sa].l())} does this, before you press</div>${SA[N.sa].res().filter(Boolean).map(x=>`<p>${nb(x)}</p>`).join('')}`
+    :todo&&k==='agents'?`<div class="h">Answer in Tab does this</div><p>Brings the tab forward where ${byId[asking()[0].ws].n} asks. MinMacs does not answer for you.</p>`:'';
+  const pv=pv0||done?`<div class="ntpv" data-k="pv">${pv0}${done}</div>`:'';
   return `<div class="qd qdh qnt qd-${k}" data-k="dt" style="--c:${K.c};--nc:${N.c}">
     <div class="ntk" data-k="k"><b>Notice</b><span>${NPIN[k]?'Kept here · click the notice to let go':'Click the notice to keep this here'}</span></div>
     <div class="nth" data-k="h"><div class="tx"><div class="nm">${nb(N.t)}</div><div class="wy">${nb(N.w)}</div></div><div class="qac">${todo?N.btn:''}</div></div>
@@ -3346,7 +3372,7 @@ function seeList(s){
     return {h:'Merged, no workstream owns it',n:r.length,rows:r.map(w=>[w.repo+' · '+w.n,'merged '+coarse(w.mm+T)+' ago · '+fmt(w.freed),''])}}
 }
 function todayRecs(s){
-  const r=[];UNDO.forEach((u,i)=>{if(u.rec&&u.rec.r===s.id)r.push({say:u.rec.say,at:u.rec.at,i,nw:performance.now()-u.rec.t0<1600})});
+  const r=[];UNDO.forEach((u,i)=>{if(u.rec&&u.rec.r===s.id)r.push({say:u.rec.say,at:u.rec.at,i,nu:u.nu,nw:performance.now()-u.rec.t0<1600})});
   r.reverse();
   if(s.id==='apps'&&!(today&2))r.push({say:'You quit <b>Music</b> and <b>Preview</b>',at:'11:05',sa:'restore'});
   return r;
@@ -3361,7 +3387,7 @@ function ruleCard(s,cls,cap){
   let pl=ADV||rn||L&&L.n>2?1:2;const hd=([n,v])=>`<div class="h hs"><span>${n}</span><span>${v}</span></div>`;
   const row=([n,v,c,w])=>c==='hd'?hd([n,v]):`<div class="rsr${c?' '+c:''}"><span class="n">${n}</span><span class="v">${nb(v)}</span></div>`+(w&&pl-->0?plan(w).parts.map((x,k)=>`<div class="rpt"><span class="ix">${k+1}</span><span>${x.title}${x.nw?'<span class="tagn">new</span>':''}</span>${x.why?`<span class="wn">blocked · ${x.why}</span>`:''}</div>`).join(''):'');
   const see=L&&(L.rows.length||L.ft)?`<div class="rsee">${L.n?`<div class="h"><span>${L.h}</span><span>${L.n}</span></div>`:''}${shown.map(row).join('')}${L.rows.length>shown.length?`<div class="rsr more"><span class="n">${L.rows.length-shown.length} more</span></div>`:''}${L.ft?`<div class="ft">${L.ft}</div>`:''}</div>`:'';
-  const td=rn?`<div class="rtd"><div class="h"><span>Today</span>${rec.length>rn?`<span>${rec.length-rn} earlier</span>`:''}</div>${rec.slice(0,rn).map(x=>`<div class="rtr${x.nw?' nw':''}" data-k="rec-${x.sa||x.i}" style="--c:${s.c}"><span class="t">${nb(x.say)} at ${x.at}</span>${x.sa?`<button class="lk" data-sa="${x.sa}">Restore</button>`:`<button class="lk" data-ru="${x.i}">${s.id==='apps'?'Restore':'Undo'}</button>`}</div>`).join('')}</div>`:'';
+  const td=rn?`<div class="rtd"><div class="h"><span>Today</span>${rec.length>rn?`<span>${rec.length-rn} earlier</span>`:''}</div>${rec.slice(0,rn).map(x=>`<div class="rtr${x.nw?' nw':''}" data-k="rec-${x.sa||x.i}" style="--c:${s.c}"><span class="t">${nb(x.say)} at ${x.at}</span>${x.sa?`<button class="lk" data-sa="${x.sa}">Restore</button>`:x.nu?'':`<button class="lk" data-ru="${x.i}">${s.id==='apps'?'Restore':'Undo'}</button>`}</div>`).join('')}</div>`:'';
   return `<div class="rc mode ${['off','ask','auto'][s.mode]}${cls?' '+cls:''}${lit}" data-k="rc-${s.id}" style="--c:${s.c}">
     <div class="rcl"><div class="mh"><span class="mt">${gl(RGL[s.id],s.c,15,1.6)}${s.name}</span>${seg3(s,1)}</div>
     <div class="mx${mx.pv?' pv':''}">${nb(mx.t)}</div>
@@ -3372,7 +3398,7 @@ function ruleCard(s,cls,cap){
 }
 function fSet(){
   const lit=performance.now()-LIT<2400;
-  const D={agents:['Agents',`All ${agentsLive().length} agents, with their state, CPU and memory.`],servers:['Servers',`All ${live(SRV).length} servers, with their ports, and the Stop idle servers rule.`],trees:['Worktrees',`All ${live(WT).length} worktrees, merged or not, and the Remove merged worktrees rule.`],disk:['Disk',`${cacheLive().length} caches and build folders, ${fmt(sum(cacheLive(),d=>d.gb))} disk, and what may go.`]};
+  const D={agents:['Agents',`All ${agentsLive().length} agents, with their state, CPU and memory.`],servers:['Servers',`All ${live(SRV).length} servers, with their ports, and the Stop idle servers rule.`],trees:['Worktrees',`All ${live(WT).length} worktrees, merged or not, and the Delete merged worktrees rule.`],disk:['Disk',`${cacheLive().length} caches and build folders, ${fmt(sum(cacheLive(),d=>d.gb))} disk, and what may go.`]};
   const items=ADVTABS.map(k=>{const tag=ADV?'button':'div';return `<${tag} class="ai${lit&&ADV?' lit':''}"${ADV?` data-tab="${k}"`:''} data-k="ai-${k}" style="--c:${TABS_[k].c};animation-delay:${140+ADVTABS.indexOf(k)*150}ms"><span class="g">${gl(TABS_[k].g,TABS_[k].c,14,1.5)}</span><span class="n">${D[k][0]}</span><span class="d">${D[k][1]}</span></${tag}>`}).join('');
   const icons=tabList().filter(t=>t!=='set').map(tabName);
   /* Advanced on: the small cards drop their lists, because the Apps, Servers, Worktrees and Disk tabs hold them */
@@ -3541,7 +3567,7 @@ function autoCheck(){
   if(auto('apps')&&pressHit()){const n=closeApps().filter(a=>!has(a.id,'spared'));if(n.length){lastAuto=performance.now();commit(`<span class="au">Auto</span> quit <b>${and(n.map(a=>a.n))}</b>. Memory pressure ${PW[pressure()]}, so ${fmt(sum(n,a=>appMem(a)))} memory back. Restore brings it back.`,()=>n.forEach(a=>fl(a.id).gone=1),n.map(a=>a.id),n.map(a=>a.id),'apps');return}}
   if(!ADV)return;
   if(auto('servers')){const x=idleSrv().find(x=>idleOf(x)>=thr(S.servers)&&!has(x.id,'spared'));if(x){lastAuto=performance.now();commit(`<span class="au">Auto</span> stopped <b>:${x.p} ${x.fw}</b>, idle ${dur(idleOf(x))}. ${mb(x.mem)} memory back.`,()=>{fl(x.id).gone=1},[x.id],[x.id],'servers');return}}
-  if(auto('trees')){const w=mergedLeft().find(w=>w.mm+T>=thr(S.trees)&&!has(w.id,'spared'));if(w){lastAuto=performance.now();commit(`<span class="au">Auto</span> removed <b>${w.n}</b>, merged ${dur(w.mm+T)} ago. ${fmt(w.freed)} disk back.`,()=>{fl(w.id).gone=1},[w.id],[w.id],'trees');return}}
+  if(auto('trees')){const w=mergedLeft().find(w=>w.mm+T>=thr(S.trees)&&!has(w.id,'spared'));if(w){lastAuto=performance.now();commit(`<span class="au">Auto</span> deleted <b>${w.n}</b> for good, merged ${dur(w.mm+T)} ago. ${fmt(w.freed)} disk back.`,()=>{fl(w.id).gone=1},[w.id],[w.id],'trees');return}}
 }
 
 /* ---------- simulation: rates per scenario ---------- */
@@ -3592,7 +3618,7 @@ function scnLive(){
 }
 function setScn(k){
   if(k===SCN)return;
-  SCN=k;build(k);F={};NOISE=14;J2.disk=0;PREVK=null;NET.on=true;netSeed();markNet();PACK={key:'',res:null};UNDO=[];NEW.clear();for(const x in FLT)delete FLT[x];HP=null;HPIDS=null;LEAVE.clear();T=0;lastAuto=-1e9;busy=0;for(const x in REW)delete REW[x];for(const x in NPIN)delete NPIN[x];NHOV=0;
+  SCN=k;build(k);F={};NOISE=14;J2.disk=0;PREVK=null;NET.on=true;netSeed();markNet();PACK={key:'',res:null};UNDO=[];NEW.clear();for(const x in FLT)delete FLT[x];HP=null;HPIDS=null;LEAVE.clear();T=0;lastAuto=-1e9;busy=0;for(const x in REW)delete REW[x];for(const x in DONE)delete DONE[x];for(const x in NPIN)delete NPIN[x];NHOV=0;
   hideCard();hidePv();setRP(false);hideToast();closeL();
   S.ws.mode=k==='peak'?2:1;S.ws.v=k==='peak'?1:0;
   document.querySelectorAll('[data-scn]').forEach(b=>b.setAttribute('aria-checked',b.dataset.scn===k));
@@ -3616,7 +3642,7 @@ document.addEventListener('click',e=>{
   if(t.closest('[data-lid]')){commit(lid?'Closing the lid sleeps the Mac again. Agents pause with it.':'<b>Your agents keep working</b> with the lid closed.',()=>{lid=!lid});return}
   const gw=t.closest('[data-gows]');if(gw){hideCard();goWs(gw.dataset.gows);return}
   const ru=t.closest('[data-ru]');if(ru){undoRec(+ru.dataset.ru);return}
-  const ntu=t.closest('[data-ntu]');if(ntu){ntUndo(ntu.dataset.ntu);return}
+  const ntu=t.closest('[data-ntu]');if(ntu){ntUndo(ntu.dataset.ntu,ntu.dataset.ntj!=null?+ntu.dataset.ntj:null);return}
   const sa=t.closest('[data-sa]');if(sa){const a=SA[sa.dataset.sa];if(!a.on())return;const nu=a.nu&&a.nu();const [msg,fn]=a.run();const tg=a.t().concat(['ins@'+sa.dataset.sa]);PV=null;$('pv').classList.remove('show');commit(msg,fn,tg,null,SA_RULE[sa.dataset.sa],nu);return}
   const ac=t.closest('[data-act]');if(ac){SAY=null;runAct(ac.dataset.act,ac.dataset.id);return}
   const ntp=t.closest('[data-nt]');if(ntp&&ADVT()){NPIN[tab]=!NPIN[tab];refresh();return}
