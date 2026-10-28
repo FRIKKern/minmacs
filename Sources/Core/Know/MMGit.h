@@ -23,6 +23,9 @@ MMRunResult MMRunTask(NSTask *task, NSData *input, NSTimeInterval timeout, NSDat
 NSString *MMGit(NSString *dir, NSArray<NSString *> *args, NSTimeInterval timeout, int *status);
 /// nil when no real git is installed, so the Xcode stub never prompts. $MINMACS_GIT names another git.
 NSString *MMGitPath(void);
+/// What every git child gets on top of MMRun's clean environment: LC_ALL=C, GIT_OPTIONAL_LOCKS=0, no prompts,
+/// no pager, and GIT_CONFIG_GLOBAL and GIT_CONFIG_NOSYSTEM from ours. For a caller that runs git through MMRun itself.
+NSDictionary<NSString *, NSString *> *MMGitEnvironment(void);
 
 /// P25. Who made a worktree. Decision 6: MinMacs acts on Claude Code's agent worktrees once their session ended,
 /// and only shows Cursor's and Conductor's.

@@ -299,3 +299,44 @@ MMCardSpec *MMINCard(MMINView *v, NSString *findingID) {
     for (MMINHolder *h in v.state.holders) if ([h.findingID isEqualToString:findingID]) return HolderCard(v, h);
     return nil;
 }
+
+#pragma mark - The Settings pane
+
+/// A choice of minutes or percents, with the value now kept as a choice when the CLI set one the list lacks.
+static MMPrefSpec *Choice(NSString *key, NSString *title, NSArray<NSNumber *> *values, NSInteger now,
+                          NSString *(^name)(NSInteger), NSString *note) {
+    NSMutableArray *v = [values mutableCopy];
+    if (![v containsObject:@(now)]) {
+        [v addObject:@(now)];
+        // Never, 0, stays last. The rest keep their order by size.
+        [v sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+            if (a.integerValue == 0 || b.integerValue == 0) return a.integerValue == 0 ? (b.integerValue == 0 ? NSOrderedSame : NSOrderedDescending) : NSOrderedAscending;
+            return [a compare:b];
+        }];
+    }
+    NSMutableArray *titles = [NSMutableArray new];
+    for (NSNumber *n in v) [titles addObject:MMCapitalized(name(n.integerValue))];
+    MMPrefSpec *p = [MMPrefSpec choice:key title:title values:v titles:titles value:@(now)];
+    p.note = note;
+    return p;
+}
+
+NSArray<MMPrefSpec *> *MMINPrefSpecs(MMINPrefs *prefs) {
+    MMINPrefs *p = prefs ?: [MMINPrefs defaults];
+    NSString *(^percent)(NSInteger) = ^NSString *(NSInteger n) { return [NSString stringWithFormat:@"%ld%%", (long)n]; };
+    NSString *(^minutes)(NSInteger) = ^NSString *(NSInteger n) { return Minutes(n); };
+    NSString *guards = @"Lid override guards";
+    MMPrefSpec *battery = Choice(@"battery", @"Low battery", @[@10, @15, @20, @25, @30, @40, @50], p.minBattery, percent,
+                                 @"On battery, the lid override pauses at this charge.");
+    MMPrefSpec *unplugged = Choice(@"unplugged", @"Unplugged", @[@30, @60, @120, @240, @480, @0], p.graceMinutes, minutes,
+                                   @"It pauses once the charger has been out this long.");
+    MMPrefSpec *offline = Choice(@"offline", @"Offline", @[@5, @15, @30, @60, @0], p.offlineMinutes, minutes,
+                                 @"It pauses once the network has been gone this long.");
+    MMPrefSpec *heat = [MMPrefSpec toggle:@"heat" title:@"Heat" switchTitle:@"Pause When Hot" on:p.thermalGuard];
+    heat.note = @"With the lid closed on battery, it pauses when the Mac runs hot, until the lid opens or the charger returns.";
+    for (MMPrefSpec *x in @[battery, unplugged, offline, heat]) x.section = guards;
+    MMPrefSpec *quiet = Choice(@"quiet", @"Quiet period", @[@5, @10, @20, @30, @60], p.quietMinutes, minutes,
+                               @"An agent that stops keeps the Mac awake this long, unless it exits first.");
+    quiet.section = @"Agents";
+    return @[battery, unplugged, offline, heat, quiet];
+}

@@ -7,6 +7,9 @@
 NSString *MMSupportDir(void);
 /// P34. <support folder>/<expert>, such as .../MinMacs/locohost. Made on first use.
 NSString *MMExpertDir(NSString *expert);
+/// Removes the support folder's files that an older build wrote and nothing reads now: repos.eventid, which one
+/// event id per root replaced. MMCoreStart calls it once, off main. Returns the names it removed.
+NSArray<NSString *> *MMRemoveStaleFiles(void);
 
 /// P35. The one prefs domain. The old apps' domains are read once by the migration in PLAN.md section 8.
 extern NSString *const MMPrefsDomain;                   // @"no.guerrilla.minmacs"

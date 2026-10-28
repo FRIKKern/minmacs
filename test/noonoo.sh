@@ -3,8 +3,9 @@
 # Fixtures only, all inside $MINMACS_HOME/nn<pid>: a stand-in for / under root/, with a home, /private/tmp and $TMPDIR,
 # a git repo with a worktree, caches, a simulator Devices folder, agent scratch, temp families and transcripts.
 # The tool runs with its own MINMACS_HOME, the nn folder, and MINMACS_CLUTTER_ROOT inside it, so it never reads the
-# person's files. Tool commands run only the fake xcrun in $MINMACS_TOOLS. Items go to the real Trash and every check
-# that moves one restores it, so the Trash ends as it began. Cleanup stops only the pid this section started.
+# person's files. Tool commands run only the fake xcrun in $MINMACS_TOOLS. With MINMACS_HOME set, MMUndo moves items
+# into $nn/Trash, never the person's Trash, and every check that moves one restores it. Cleanup stops only the pid
+# this section started.
 
 nn=$(cd "$MINMACS_HOME" && pwd -P)/nn$$
 nnr="$nn/root"; nnh="$nnr/home"
@@ -114,7 +115,7 @@ nn_item() { nnt verb clutter list --json 2>/dev/null | python3 -c "
 import json,sys; j=json.load(sys.stdin)
 m=[i for i in j['items'] if i['path']==sys.argv[1]]
 print(m[0].get(sys.argv[2],'') if m else 'absent')" "$1" "$2"; }
-nn_undo() { nnt undo | python3 -c "import json,sys; j=json.load(sys.stdin); print($1)"; }
+nn_undo() { nnt undo | python3 -c "import json,sys; j=json.load(sys.stdin); print($1)" "${2:-}"; }
 
 if [ "$nn_r" = 0 ]; then
   echo "-- no root, no scan"
@@ -216,6 +217,8 @@ if [ "$nn_r" = 0 ]; then
   check "noonoo: what came back is the same files" "$nn_sum" "$(cd "$nn_wt/node_modules" && find . -type f -exec md5 -q {} + | sort | md5 -q)"
   check "noonoo: the record is a trash record with an audit before and after" "trash True False" \
     "$(nn_undo '"%s %s %s" % (j[0]["kind"], j[0]["payload"]["audit"]["before"][0]["exists"], j[0]["payload"]["audit"]["after"][0]["exists"])')"
+  check "noonoo: the item went to the test home's Trash, not the person's" "$nn/Trash" \
+    "$(nn_undo '__import__("os").path.dirname(j[0]["payload"]["trashed"][0]["to"])')"
   check "noonoo: the record notes where the Trash put it, and it left the Trash" "restored no" \
     "$(nn_undo 'j[0]["state"]') $([ -e "$(nn_undo 'j[0]["payload"]["trashed"][0]["to"]')" ] && echo yes || echo no)"
   check "noonoo: the record holds the statfs delta as a number" int "$(nn_undo 'type(j[0]["freedBytes"]).__name__')"
@@ -246,6 +249,8 @@ if [ "$nn_r" = 0 ]; then
   mv "$nn/tools/xcrun.off" "$nn/tools/xcrun"
   check "noonoo: every clean in this section ended restored" yes \
     "$(nn_undo '"yes" if j and all(r["state"] == "restored" for r in j) else [r["state"] for r in j]')"
+  check "noonoo: every item of this section went to the test home's Trash" 0 \
+    "$(nn_undo 'sum(not t["to"].startswith(sys.argv[1] + "/") for r in j for t in r["payload"].get("trashed", []))' "$nn/Trash")"
   check "noonoo: the Trash holds none of this run's fixtures" 0 \
     "$(nn_undo 'sum(__import__("os").path.exists(t["to"]) for r in j for t in r["payload"].get("trashed", []))')"
 

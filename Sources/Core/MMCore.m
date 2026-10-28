@@ -229,8 +229,13 @@ void MMCoreStart(void) {
     SetUpTables();
     gWatchedExits = [NSMutableSet new];
 
-    // 1. Store: the support folder, what the last run left, and the one migration from the old apps.
+    // 1. Store: the log, opened off main, the support folder, what the last run left, and the one migration from
+    // the old apps. Opening the log may wait 15 seconds for a lock, so main never does it.
+    MMLogOpenOffMain();
     NSString *dir = MMSupportDir();
+    dispatch_async(MMQueue(@"core", @"store", QOS_CLASS_UTILITY), ^{
+        for (NSString *name in MMRemoveStaleFiles()) os_log(CoreLog(), "removed the old %{public}@", name);
+    });
     NSString *crashed = MMBreadcrumbLeftOver();
     if (crashed) os_log(CoreLog(), "the last run ended inside %{public}@", crashed);
     // A test home never reads the person's old apps.
@@ -280,6 +285,8 @@ void MMCoreStop(void) {
     if (!NSThread.isMainThread) { dispatch_sync(dispatch_get_main_queue(), ^{ MMCoreStop(); }); return; }
     if (!gStarted) return;
     gStarted = NO;
+    // The graph first: a build that a sample or a notification started a moment ago publishes nothing after this.
+    [MMGraph.shared stop];
     [gSocket stop]; gSocket = nil;
     if (gReviewTimer) { dispatch_source_cancel(gReviewTimer); gReviewTimer = nil; }
     if (gReposTimer) { dispatch_source_cancel(gReposTimer); gReposTimer = nil; }

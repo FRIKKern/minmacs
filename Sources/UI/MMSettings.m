@@ -1,4 +1,5 @@
 #import "MMSettings.h"
+#import "Core/MMExpert.h"   // the MMPrefSpec data class only; this file draws it and never needs the rest of Core
 
 const CGFloat MMSettingsWidth = 540;
 static const CGFloat kInset = 24;
@@ -89,6 +90,7 @@ static NSBox *Line(void) {
 @implementation MMSettings {
     NSWindow *_window;
     MMSettingsPane _pane;
+    NSString *_expertPane;
 }
 
 - (instancetype)init {
@@ -98,6 +100,7 @@ static NSBox *Line(void) {
 
 - (NSWindow *)window { return _window; }
 - (MMSettingsPane)pane { return _pane; }
+- (NSString *)expertPane { return _expertPane; }
 
 - (MMSettingsExpert *)expertNamed:(NSString *)id {
     for (MMSettingsExpert *e in _experts) if ([e.expert isEqualToString:id]) return e;
@@ -218,6 +221,110 @@ static NSBox *Line(void) {
     if (self.onMode) self.onMode(p.identifier, m);
 }
 
+#pragma mark An expert's own pane
+
+/// The control of one pref: a menu of its choices, or a checkbox for a switch. Its identifier is "<expert>:<key>".
+- (NSView *)controlFor:(MMPrefSpec *)p expert:(MMSettingsExpert *)e {
+    NSString *ident = [NSString stringWithFormat:@"%@:%@", e.expert, p.key];
+    if (!p.values) {
+        NSButton *b = [NSButton checkboxWithTitle:p.switchTitle ?: p.title ?: @"" target:self action:@selector(prefToggled:)];
+        b.state = p.value.boolValue ? NSControlStateValueOn : NSControlStateValueOff;
+        b.identifier = ident; b.enabled = self.onPref != nil;
+        b.accessibilityLabel = p.title;
+        return b;
+    }
+    NSPopUpButton *m = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    for (NSUInteger i = 0; i < p.values.count; i++)
+        [m addItemWithTitle:i < p.valueTitles.count ? p.valueTitles[i] : p.values[i].stringValue];
+    NSUInteger at = p.value ? [p.values indexOfObject:p.value] : NSNotFound;
+    // A value the CLI set that the choices do not hold is shown as it is, so the menu never claims another one.
+    if (at == NSNotFound && p.value) { [m addItemWithTitle:p.value.stringValue]; at = (NSUInteger)m.numberOfItems - 1; }
+    [m selectItemAtIndex:at == NSNotFound ? 0 : (NSInteger)at];
+    m.identifier = ident; m.target = self; m.action = @selector(prefChosen:);
+    m.enabled = self.onPref != nil;
+    m.accessibilityLabel = p.title;
+    m.translatesAutoresizingMaskIntoConstraints = NO;
+    [m.widthAnchor constraintEqualToConstant:150].active = YES;
+    return m;
+}
+
+/// One pref as a grid of its own: the label right-aligned in a 150-point column, the control and its note beside it.
+/// A grid per pref keeps every gap the same; one grid for a whole group let NSGridView stretch a row.
+- (NSGridView *)gridFor:(MMPrefSpec *)p expert:(MMSettingsExpert *)e {
+    CGFloat noteWidth = MMSettingsWidth - 2 * kInset - 150 - 12;
+    NSMutableArray *rows = [NSMutableArray arrayWithObject:@[Label([(p.title ?: @"") stringByAppendingString:@":"], Body(), NSColor.labelColor),
+                                                             [self controlFor:p expert:e]]];
+    if (p.note.length) [rows addObject:@[[NSGridCell emptyContentView], Note(p.note, noteWidth)]];
+    NSGridView *g = [NSGridView gridViewWithViews:rows];
+    g.rowSpacing = 6; g.columnSpacing = 12;
+    [g columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
+    [g columnAtIndex:0].width = 150;
+    g.rowAlignment = NSGridRowAlignmentFirstBaseline;
+    // A grid hugs its rows, so the stack never stretches one of them to fill its own height.
+    [g setContentHuggingPriority:NSLayoutPriorityDefaultHigh forOrientation:NSLayoutConstraintOrientationVertical];
+    return g;
+}
+
+/// One group: its title, then each pref, 12 points apart.
+- (NSStackView *)groupFor:(NSArray<MMPrefSpec *> *)prefs title:(NSString *)title expert:(MMSettingsExpert *)e {
+    NSMutableArray *views = [NSMutableArray new];
+    for (MMPrefSpec *p in prefs) [views addObject:[self gridFor:p expert:e]];
+    NSStackView *s = [NSStackView stackViewWithViews:views];
+    s.orientation = NSUserInterfaceLayoutOrientationVertical;
+    s.alignment = NSLayoutAttributeLeading;
+    s.spacing = 12;
+    if (title.length) {
+        [s insertView:Label(title, [NSFont boldSystemFontOfSize:NSFont.systemFontSize], NSColor.labelColor) atIndex:0 inGravity:NSStackViewGravityTop];
+        [s setCustomSpacing:14 afterView:s.views.firstObject];
+    }
+    return s;
+}
+
+- (NSView *)prefsPane:(MMSettingsExpert *)e {
+    NSMutableArray *views = [NSMutableArray new];
+    NSMutableArray<MMPrefSpec *> *group = [NSMutableArray new];
+    __block NSString *title = nil;
+    void (^flush)(void) = ^{
+        if (!group.count) return;
+        if (views.count) [views addObject:Line()];
+        [views addObject:[self groupFor:[group copy] title:title expert:e]];
+        [group removeAllObjects];
+    };
+    for (MMPrefSpec *p in e.prefs) {
+        if (p.section.length && ![p.section isEqualToString:title ?: @""]) { flush(); title = p.section; }
+        [group addObject:p];
+    }
+    flush();
+    return Pane(views);
+}
+
+- (MMPrefSpec *)prefFor:(NSString *)ident expert:(MMSettingsExpert **)expert {
+    NSRange r = [ident rangeOfString:@":"];
+    if (r.location == NSNotFound) return nil;
+    MMSettingsExpert *e = [self expertNamed:[ident substringToIndex:r.location]];
+    NSString *key = [ident substringFromIndex:NSMaxRange(r)];
+    if (expert) *expert = e;
+    for (MMPrefSpec *p in e.prefs) if ([p.key isEqualToString:key]) return p;
+    return nil;
+}
+
+- (void)prefChosen:(NSPopUpButton *)m {
+    MMSettingsExpert *e = nil;
+    MMPrefSpec *p = [self prefFor:m.identifier expert:&e];
+    NSInteger i = m.indexOfSelectedItem;
+    if (!p || i < 0 || (NSUInteger)i >= p.values.count) return;   // the item that shows a value set elsewhere
+    p.value = p.values[(NSUInteger)i];
+    if (self.onPref) self.onPref(e.expert, p.key, p.value);
+}
+
+- (void)prefToggled:(NSButton *)b {
+    MMSettingsExpert *e = nil;
+    MMPrefSpec *p = [self prefFor:b.identifier expert:&e];
+    if (!p) return;
+    p.value = @(b.state == NSControlStateValueOn);
+    if (self.onPref) self.onPref(e.expert, p.key, p.value);
+}
+
 #pragma mark General
 
 - (NSView *)general {
@@ -262,8 +369,14 @@ static NSBox *Line(void) {
 
 #pragma mark Panes and the window
 
-- (NSView *)viewFor:(MMSettingsPane)pane {
-    NSView *v = pane == MMSettingsOverview ? [self overview] : pane == MMSettingsExperts ? [self expertsPane] : [self general];
+/// The experts with a pane of their own, in the order of the Overview.
+- (NSArray<MMSettingsExpert *> *)prefExperts {
+    NSMutableArray *out = [NSMutableArray new];
+    for (MMSettingsExpert *e in _experts) if (e.prefs.count) [out addObject:e];
+    return out;
+}
+
+- (NSView *)sized:(NSView *)v {
     [v layoutSubtreeIfNeeded];
     NSSize s = v.fittingSize;
     v.translatesAutoresizingMaskIntoConstraints = YES;
@@ -271,59 +384,108 @@ static NSBox *Line(void) {
     return v;
 }
 
+- (NSView *)viewForExpert:(NSString *)expert {
+    MMSettingsExpert *e = [self expertNamed:expert];
+    return e.prefs.count ? [self sized:[self prefsPane:e]] : nil;
+}
+
+- (NSView *)viewFor:(MMSettingsPane)pane {
+    NSView *v = pane == MMSettingsOverview ? [self overview] : pane == MMSettingsExperts ? [self expertsPane] : [self general];
+    return [self sized:v];
+}
+
+- (void)makeWindow {
+    if (_window) return;
+    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, MMSettingsWidth, 300)
+                                          styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                                            backing:NSBackingStoreBuffered defer:YES];
+    _window.releasedWhenClosed = NO;
+    _window.delegate = self;
+    _window.toolbarStyle = NSWindowToolbarStylePreference;
+    [_window center];
+}
+
+/// A new toolbar when the panes changed, such as an expert that gained prefs.
+- (void)syncToolbar {
+    NSArray *ids = [self paneTitles];
+    if ([[_window.toolbar.items valueForKey:@"itemIdentifier"] isEqualToArray:ids]) return;
+    NSToolbar *t = [[NSToolbar alloc] initWithIdentifier:@"minmacs.settings"];
+    t.delegate = self;
+    t.displayMode = NSToolbarDisplayModeIconAndLabel;
+    _window.toolbar = t;
+}
+
 - (void)show:(MMSettingsPane)pane {
-    if (!_window) {
-        _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, MMSettingsWidth, 300)
-                                              styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-                                                backing:NSBackingStoreBuffered defer:YES];
-        _window.releasedWhenClosed = NO;
-        _window.delegate = self;
-        _window.toolbarStyle = NSWindowToolbarStylePreference;
-        NSToolbar *t = [[NSToolbar alloc] initWithIdentifier:@"minmacs.settings"];
-        t.delegate = self;
-        t.displayMode = NSToolbarDisplayModeIconAndLabel;
-        _window.toolbar = t;
-        [_window center];
-    }
-    [self select:pane];
+    [self makeWindow];
+    [self syncToolbar];
+    [self select:pane expert:nil];
     [NSApp activateIgnoringOtherApps:YES];
     [_window makeKeyAndOrderFront:nil];
 }
 
-- (void)reload { if (_window) [self select:_pane]; }
+- (void)showExpert:(NSString *)expert {
+    [self makeWindow];
+    [self syncToolbar];
+    if ([self expertNamed:expert].prefs.count) [self select:MMSettingsExperts expert:expert];
+    else [self select:MMSettingsExperts expert:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+    [_window makeKeyAndOrderFront:nil];
+}
 
-- (void)select:(MMSettingsPane)pane {
-    _pane = pane;
-    NSView *v = [self viewFor:pane];
+- (void)reload {
+    if (!_window) return;
+    [self syncToolbar];
+    // An expert that lost its prefs takes the window back to the Experts pane.
+    [self select:_pane expert:[self expertNamed:_expertPane].prefs.count ? _expertPane : nil];
+}
+
+- (void)select:(MMSettingsPane)pane expert:(NSString *)expert {
+    _pane = pane; _expertPane = [expert copy];
+    MMSettingsExpert *e = expert ? [self expertNamed:expert] : nil;
+    NSView *v = e ? [self viewForExpert:expert] : [self viewFor:pane];
+    NSString *title = e ? e.name : MMSettingsPaneTitle(pane);
     NSRect old = _window.frame;
     NSRect content = [_window frameRectForContentRect:NSMakeRect(0, 0, MMSettingsWidth, v.frame.size.height)];
     // The window grows and shrinks from its top edge, as a settings window does.
     content.origin = NSMakePoint(old.origin.x, NSMaxY(old) - content.size.height);
     _window.contentView = v;
     [_window setFrame:content display:YES animate:_window.isVisible];
-    _window.title = MMSettingsPaneTitle(pane);
-    _window.toolbar.selectedItemIdentifier = MMSettingsPaneTitle(pane);
+    _window.title = title;
+    _window.toolbar.selectedItemIdentifier = title;
 }
 
-- (NSArray<NSToolbarItemIdentifier> *)paneIDs {
-    return @[MMSettingsPaneTitle(MMSettingsOverview), MMSettingsPaneTitle(MMSettingsExperts), MMSettingsPaneTitle(MMSettingsGeneral)];
+- (NSArray<NSString *> *)paneTitles {
+    NSMutableArray *ids = [NSMutableArray arrayWithObjects:MMSettingsPaneTitle(MMSettingsOverview), MMSettingsPaneTitle(MMSettingsExperts), nil];
+    for (MMSettingsExpert *e in [self prefExperts]) [ids addObject:e.name];
+    [ids addObject:MMSettingsPaneTitle(MMSettingsGeneral)];
+    return ids;
 }
-- (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)t { return [self paneIDs]; }
-- (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)t { return [self paneIDs]; }
-- (NSArray<NSToolbarItemIdentifier> *)toolbarSelectableItemIdentifiers:(NSToolbar *)t { return [self paneIDs]; }
+- (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)t { return [self paneTitles]; }
+- (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)t { return [self paneTitles]; }
+- (NSArray<NSToolbarItemIdentifier> *)toolbarSelectableItemIdentifiers:(NSToolbar *)t { return [self paneTitles]; }
+
+/// The expert whose pane has this title, or nil for the fixed panes.
+- (MMSettingsExpert *)expertTitled:(NSString *)title {
+    for (MMSettingsExpert *e in [self prefExperts]) if ([e.name isEqualToString:title]) return e;
+    return nil;
+}
 
 - (NSToolbarItem *)toolbar:(NSToolbar *)t itemForItemIdentifier:(NSToolbarItemIdentifier)ident willBeInsertedIntoToolbar:(BOOL)flag {
-    MMSettingsPane pane = (MMSettingsPane)[[self paneIDs] indexOfObject:ident];
+    MMSettingsExpert *e = [self expertTitled:ident];
+    NSString *symbol = e ? (e.symbol ?: @"circle") : PaneSymbol((MMSettingsPane)[@[MMSettingsPaneTitle(MMSettingsOverview),
+        MMSettingsPaneTitle(MMSettingsExperts), MMSettingsPaneTitle(MMSettingsGeneral)] indexOfObject:ident]);
     NSToolbarItem *i = [[NSToolbarItem alloc] initWithItemIdentifier:ident];
     i.label = ident;
-    i.image = [NSImage imageWithSystemSymbolName:PaneSymbol(pane) accessibilityDescription:ident];
+    i.image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:ident];
     i.target = self; i.action = @selector(paneClicked:);
     return i;
 }
 
 - (void)paneClicked:(NSToolbarItem *)i {
-    NSUInteger p = [[self paneIDs] indexOfObject:i.itemIdentifier];
-    if (p != NSNotFound) [self select:(MMSettingsPane)p];
+    MMSettingsExpert *e = [self expertTitled:i.itemIdentifier];
+    if (e) { [self select:MMSettingsExperts expert:e.expert]; return; }
+    for (MMSettingsPane p = MMSettingsOverview; p <= MMSettingsGeneral; p++)
+        if ([MMSettingsPaneTitle(p) isEqualToString:i.itemIdentifier]) [self select:p expert:nil];
 }
 
 @end

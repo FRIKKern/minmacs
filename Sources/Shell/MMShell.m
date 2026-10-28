@@ -243,6 +243,8 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
         MMExpertItem *i = [self itemFor:e.expertID];
         x.iconVisible = i ? i.item.visible : MMIconVisible(e.expertID);
         x.mode = MMModeName(MMModeFor(e.expertID));
+        // An expert's own prefs get a pane of their own. The expert reads what it holds, never disk.
+        if ([e respondsToSelector:@selector(prefSpecs)]) x.prefs = [e prefSpecs];
         [rows addObject:x];
     }
     self.settings.experts = rows;
@@ -264,6 +266,10 @@ static NSString *SeenKey(NSString *expert) { return [NSString stringWithFormat:@
         st.onModel = ^(NSString *model) { MMSetPref(MMReviewModelKey, model); };
         st.onOneIcon = ^(BOOL on) { MMSetPref(MMOneIconKey, @(on)); [weak rebuildItems]; };
         st.onOpenAtLogin = ^(BOOL on) { [weak setLogin:on]; };
+        st.onPref = ^(NSString *expert, NSString *key, NSNumber *value) {
+            id<MMExpert> e = MMExpertNamed(expert);
+            if ([e respondsToSelector:@selector(setPref:value:)]) [e setPref:key value:value];
+        };
         st.onOpenMenu = ^(NSString *expert, NSView *from) {
             MMExpertItem *i = [weak itemFor:expert] ?: weak.items.firstObject;
             [i.item.button performClick:nil];

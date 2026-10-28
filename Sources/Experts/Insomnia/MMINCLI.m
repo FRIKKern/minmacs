@@ -64,8 +64,9 @@ static int Change(MMArgs *a) {
         if (!p) { [a error:@"no process with pid %@", w[1]]; return MMExitFailed; }
         NSString *why = w.count > 2 ? [[w subarrayWithRange:NSMakeRange(2, w.count - 2)] componentsJoinedByString:@" "] : @"held by request";
         if (a.dryRun) { [a print:@"would keep the Mac awake until pid %d exits: %@", pid, why]; return MMExitOK; }
-        [MMGraph.shared holdAwake:why pid:p.key];
-        if (a.json) [a printJSON:@{@"held": MMProcKeyString(p.key), @"reason": why}];
+        NSString *rid = nil, *problem = [e hold:p.key reason:why by:@"cli" rid:&rid];
+        if (problem) { [a error:@"insomnia: %@", problem]; return MMExitFailed; }
+        if (a.json) [a printJSON:@{@"held": MMProcKeyString(p.key), @"reason": why, @"rid": rid ?: @""}];
         else [a print:@"Keeps the Mac awake until pid %d exits.", pid];
         return MMExitOK;
     }

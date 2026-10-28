@@ -31,7 +31,7 @@ With `MINMACS_HOME` set, the commands run only through `MINMACS_INSOMNIA_CMD`, a
 
 ## Every change has a record
 
-Each lid write and each change of a setting runs through `MMRunAction`, so it is checked fresh and leaves an undo record of kind `lid` or `setting`. A lid write is checked on fresh power facts: one that would turn the override on while a guard pauses it is kept, and no write runs, either way, once a fresh sample shows Insomnia.app. Automatic writes have `by` set to `guard`. Neither kind is restored by Undo, since a lid write follows the state and a setting is changed back by setting it again.
+Each lid write, each change of a setting and each hold a script asks for runs through `MMRunAction`, so it is checked fresh and leaves an undo record of kind `lid`, `setting` or `hold`. A lid write is checked on fresh power facts: one that would turn the override on while a guard pauses it is kept, and no write runs, either way, once a fresh sample shows Insomnia.app. Automatic writes have `by` set to `guard`, which `MMAct.h` lists for an expert's own rule that follows the state. `insomnia hold <pid>` is checked on a fresh sample: the pid must still be the same process by its start time. Its record holds the pid, its start time and the reason. No kind is restored by Undo: a lid write follows the state, a setting is changed back by setting it again, and a hold ends on its own when that process exits.
 
 ## Prefs
 
@@ -39,13 +39,15 @@ Each lid write and each change of a setting runs through `MMRunAction`, so it is
 |---|---|---|
 | `insomnia.awake` | off | Keep Mac Awake, `insomnia on` |
 | `insomnia.agents` | on | More, `insomnia agents on` |
-| `insomnia.agents.quietMinutes` | 10 | `insomnia set quiet 20` |
+| `insomnia.agents.quietMinutes` | 10 | the Settings pane, `insomnia set quiet 20` |
 | `insomnia.lid` | off | Keep Awake With Lid Closed…, `insomnia lid on` |
 | `insomnia.lid.screenOff` | on | the lid card, `insomnia screen off` |
-| `insomnia.lid.thermalGuard` | on | the lid card, `insomnia heat off` |
-| `insomnia.lid.minBattery` | 20 | `insomnia set battery 30` |
-| `insomnia.lid.graceMinutes` | 120 | `insomnia set unplugged never` |
-| `insomnia.lid.offlineMinutes` | 15 | `insomnia set offline 30` |
+| `insomnia.lid.thermalGuard` | on | the lid card, the Settings pane, `insomnia heat off` |
+| `insomnia.lid.minBattery` | 20 | the Settings pane, `insomnia set battery 30` |
+| `insomnia.lid.graceMinutes` | 120 | the Settings pane, `insomnia set unplugged never` |
+| `insomnia.lid.offlineMinutes` | 15 | the Settings pane, `insomnia set offline 30` |
+
+Settings has a pane for Insomnia, between Experts and General. It shows the battery, unplugged and offline guards, the heat guard and the quiet period, from the last pass's prefs, so main never reads them. `MMINPrefSpecs` in `MMINMenu.m` builds it as `MMPrefSpec` values, and a value the CLI set that the menu lacks is shown as it is. A change goes through `-setPref:value:` to `-set:value:by:` on the act queue with `by` set to `manual`, so it has a setting record like a change from the menu.
 
 ## Verbs
 
@@ -59,7 +61,6 @@ Each lid write and each change of a setting runs through `MMRunAction`, so it is
 
 ## Left open
 
-- The guard numbers have no menu: the CLI sets them. They belong in a per-expert pane of the Settings window, which the shell owns.
 - `insomnia://` is not in Info.plist yet. While the standalone Insomnia.app is installed it owns that scheme. `minmacs://insomnia/<command>` works now. Phase 5 adds the scheme with the migration.
 - The migration of Insomnia's `no.guerrilla.insomnia` prefs, its hidden icon and a still-live override is phase 5's, PLAN.md section 8.
 - C8's offer to turn keep-awake off on battery is not in the menu.

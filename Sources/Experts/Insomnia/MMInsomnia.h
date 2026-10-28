@@ -126,6 +126,9 @@ MMMenuSpec *MMINMenu(MMINView *v);
 MMCardSpec *MMINCard(MMINView *v, NSString *findingID);   // a holder's card or the lid card, insomnia:lid
 NSString *MMINAccessibilityState(MMINState *st);
 NSString *MMINHeadline(MMINState *st);
+/// Insomnia's pane in the Settings window: the lid override guards and the quiet period, from prefs. Pure.
+/// Each key is a word -[MMInsomniaExpert set:value:by:] takes: battery, unplugged, offline, heat, quiet.
+NSArray<MMPrefSpec *> *MMINPrefSpecs(MMINPrefs *prefs);
 extern NSString *const MMINLidFindingID;
 
 #pragma mark The expert
@@ -146,6 +149,10 @@ extern NSString *const MMINLidFindingID;
 /// battery, unplugged, offline, quiet. Runs through MMRunAction with by, so it has an undo record. Never on main.
 /// Returns nil, or why it did not change.
 - (NSString *)set:(NSString *)what value:(id)value by:(NSString *)by;
+/// Holds the Mac awake until the process key names exits, for `insomnia hold <pid>`. Runs through MMRunAction with by,
+/// so the hold has an undo record of kind hold, which cannot be restored since the hold ends on that exit.
+/// Never on main. Returns nil and the record's id in rid, or why it did not hold.
+- (NSString *)hold:(MMProcKey)key reason:(NSString *)why by:(NSString *)by rid:(NSString **)rid;
 /// The pids the menu let sleep, until each exits.
 - (void)skip:(NSString *)keyString;
 /// Starts watching the graph, Senses and the minute clock. The app calls it once, through the first build.

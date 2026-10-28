@@ -60,6 +60,24 @@ static MMFinding *Subject(NSString *kind, NSString *key, NSString *title, NSDict
 }
 @end
 
+/// Holds the Mac awake until one process exits, for `insomnia hold <pid>`. The hold ends on that exit, so the
+/// record cannot be restored: it holds the pid, its start time and the reason, for the history.
+@interface MMINHoldAction : NSObject <MMAction>
+@property (strong) MMFinding *finding;
+@property MMProcKey key;
+@property (copy) NSString *why;
+@end
+@implementation MMINHoldAction
+- (NSString *)kind { return @"hold"; }
+- (NSString *)recheck { return self.key.pid > 1 ? nil : @"no process"; }
+- (NSString *)dryRun { return [NSString stringWithFormat:@"keeps the Mac awake until pid %d exits: %@", self.key.pid, self.why]; }
+- (BOOL)perform:(MMUndoRecord *)record error:(NSString **)error {
+    [MMUndo.shared note:record payload:@{@"pid": @(self.key.pid), @"process": MMProcKeyString(self.key), @"reason": self.why ?: @""}];
+    [MMGraph.shared holdAwake:self.why pid:self.key];
+    return YES;
+}
+@end
+
 /// Changes one pref, the person's own switch or number.
 @interface MMINSetting : NSObject <MMAction>
 @property (strong) MMFinding *finding;
@@ -92,6 +110,12 @@ static MMFinding *Subject(NSString *kind, NSString *key, NSString *title, NSDict
 
 @implementation MMINPolicy
 - (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts {
+    if ([f.kind isEqualToString:@"hold"]) {
+        // The pid must still be the same process, by its start time, in a sample taken now.
+        if (!facts.sample) return @"cannot verify the process";
+        MMProc *p = [facts.sample proc:(pid_t)[f.facts[@"pid"] intValue]];
+        return p && [MMProcKeyString(p.key) isEqualToString:f.facts[@"process"]] ? nil : @"that process has exited";
+    }
     if (![f.kind isEqualToString:@"lid"]) return nil;
     MMInsomniaExpert *e = self.expert;
     // The standalone app may have started since the pass. It owns the override then, both ways.
@@ -335,6 +359,20 @@ static NSString *PrefKey(NSString *what) {
     return problem;
 }
 
+- (NSString *)hold:(MMProcKey)key reason:(NSString *)why by:(NSString *)by rid:(NSString **)rid {
+    if (rid) *rid = nil;
+    if (NSThread.isMainThread) return @"it never runs on the main thread";
+    NSString *ks = MMProcKeyString(key);
+    MMINHoldAction *a = [MMINHoldAction new];
+    a.key = key; a.why = why.length ? why : @"held by request";
+    a.finding = Subject(@"hold", ks, [NSString stringWithFormat:@"Awake until pid %d exits", key.pid], @{@"pid": @(key.pid), @"process": ks});
+    NSString *err = nil;
+    MMUndoRecord *r = MMRunAction(a, _policy, nil, by, a.why, &err);
+    if (!r || r.state != MMUndoDone) return err ?: r.error ?: @"it did not hold";
+    if (rid) *rid = r.rid;
+    return nil;
+}
+
 #pragma mark The app
 
 - (void)start {
@@ -418,6 +456,18 @@ static void Alert(NSString *title, NSString *text) {
     }
     dispatch_async(ActQueue(), ^{
         NSString *problem = [self set:what value:@(to) by:@"manual"];
+        if (problem) Alert(@"Could Not Change Insomnia", MMSentence(problem));
+    });
+}
+
+/// The Settings pane, from the last pass's prefs, so main never reads the prefs itself.
+- (NSArray<MMPrefSpec *> *)prefSpecs { return MMINPrefSpecs(self.state.prefs ?: [MMINPrefs defaults]); }
+
+/// A change from the Settings pane, on main. It runs on the act queue through -set:value:by:, so it has a record.
+- (void)setPref:(NSString *)key value:(NSNumber *)value {
+    if (![@[@"battery", @"unplugged", @"offline", @"heat", @"quiet"] containsObject:key ?: @""] || !value) return;
+    dispatch_async(ActQueue(), ^{
+        NSString *problem = [self set:key value:value by:@"manual"];
         if (problem) Alert(@"Could Not Change Insomnia", MMSentence(problem));
     });
 }

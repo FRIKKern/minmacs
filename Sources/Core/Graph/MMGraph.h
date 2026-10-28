@@ -196,6 +196,9 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 /// Experts register once at launch, before -start. The builder asks each for findings on every rebuild.
 - (void)addExpert:(id<MMExpert>)expert;
 - (void)start;
+/// Ends publishing. After it returns no build sets -latest or reaches an observer, a build that was running included,
+/// and -rebuild: does nothing until the next -start. MMCoreStop calls it.
+- (void)stop;
 /// Asks for a rebuild. Calls are coalesced, so many signals in one tick give one rebuild.
 - (void)rebuild:(NSString *)why;
 @property (readonly) MMSnapshot *current;               // main thread only, never nil after the first build

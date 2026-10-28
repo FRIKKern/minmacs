@@ -32,6 +32,7 @@ static BOOL Spin(double seconds, BOOL (^done)(void)) {
 @interface WireExpert : NSObject <MMExpert>
 @property (atomic) pid_t watched;
 @property (atomic) NSInteger calls;
+@property (atomic) BOOL slow;          // each build takes half a second, as one does on a loaded Mac
 @end
 
 @implementation WireExpert
@@ -41,6 +42,7 @@ static BOOL Spin(double seconds, BOOL (^done)(void)) {
 - (MMVerdictWords *)words { return [MMVerdictWords keep:@"keep" go:@"go" unsure:@"unsure"]; }
 - (NSArray<MMFinding *> *)findingsFrom:(MMFacts *)facts {
     self.calls++;
+    if (self.slow) usleep(500000);
     pid_t pid = self.watched;
     MMProc *p = pid > 0 ? [facts.sample proc:pid] : nil;
     if (!p) return @[];
@@ -175,12 +177,22 @@ static int Start(NSString *sleepCopy, NSString *repoArg, NSString *outsideArg) {
     out[@"freshOffMain"] = @(fresh.sample != nil && [fresh.sample.at compare:s.facts.sample.at] == NSOrderedDescending);
     out[@"published"] = @(published > 1);
     [MMGraph.shared stopObserving:token];
+    // A build is running when Core stops, as the 5-second pass's build may be on a loaded Mac. It must not land after.
+    e.slow = YES;
+    NSInteger callsBefore = e.calls;
+    [MMGraph.shared rebuild:@"wire: in flight at stop"];
+    Spin(2, ^BOOL { return e.calls > callsBefore; });   // the slow build has started and sleeps in findingsFrom:
+    out[@"buildInFlightAtStop"] = @(e.calls > callsBefore);
     MMCoreStop();
+    NSDate *sampledAt = MMSenses.shared.latest.at;
     out[@"pingAfterStop"] = [MMCoreSocket ask:@{@"verb": @"ping"} timeout:0.3] ? @"answered" : @"none";
     out[@"socketFileAfterStop"] = @([NSFileManager.defaultManager fileExistsAtPath:MMCoreSocketPath()]);
     uint64_t gen = MMGraph.shared.latest.generation;
     Spin(6, ^BOOL { return NO; });
     out[@"stillBuildingAfterStop"] = @(MMGraph.shared.latest.generation != gen);
+    out[@"stillSamplingAfterStop"] = @(![MMSenses.shared.latest.at isEqualToDate:sampledAt]);
+    MMSnapshot *after = MMGraph.shared.current;
+    out[@"publishedAfterStop"] = @(after.generation > gen);
     Print(out);
     return 0;
 }
