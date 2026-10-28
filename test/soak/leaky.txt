@@ -1,0 +1,26 @@
+leaks Report Version: 4.0
+Process 95046: 23148 nodes malloced for 3134 KB
+Process 95046: 1888 leaks for 171024 total leaked bytes.
+
+    1875 (164K) << TOTAL >>
+
+      736 (73.9K) ROOT CYCLE: <MMLHView 0x77c9047700> [160]
+         614 (63.2K) __strong _act --> ROOT CYCLE: <__NSMallocBlock__ 0x77c90ef7e0> [48]  mmsoak9262156  __38-[MMLocoHost makeView:review:stopped:]_block_invoke  0x1027eab58
+            613 (63.2K) __strong [capture] --> ROOT CYCLE: <MMSnapshot 0x77c94b2b80> [96]
+               10 (704 bytes) __strong _prepared --> ROOT CYCLE: <NSDictionary 0x77c9483200> [32]
+                  8 (656 bytes) ROOT CYCLE: <NSDictionary (Storage) 0x77c9026ed0> [112]
+                     CYCLE BACK TO <MMLHView 0x77c9047700> [160]
+                     2 (208 bytes) ROOT CYCLE: <MMWFView 0x77c90477a0> [160]
+                        1 (48 bytes) __strong _act --> ROOT CYCLE: <__NSMallocBlock__ 0x77c90ef7b0> [48]  mmsoak9262156  __38-[MMWorkForestExpert makeView:review:]_block_invoke  0x10282759c
+                     3 (192 bytes) <MMINState 0x77c8dccc40> [112]
+                        1 (48 bytes) __strong _prefs --> <MMINPrefs 0x77c922e4c0> [48]
+                        1 (32 bytes) __strong _clocks --> <MMINClocks 0x77c94833e0> [32]
+                     1 (80 bytes) <MMNNView 0x77c88769e0> [80]
+      139 (6.52K) ROOT CYCLE: <NSXPCConnection 0x77c9046620> [160]  Protocol: LNDaemonApplicationInterface  Connection: <couldn't read name> [no process]
+         6 (752 bytes) _connection --> ROOT CYCLE: <xpc_connection_t 0x77c9404a00> [320]  <couldn't read name> [no process]
+            4 (384 bytes) ROOT CYCLE: <dispatch_mach_t 0x77c90466c0> [160]
+               1 (64 bytes) ROOT CYCLE: 0x77c9156040 [64]
+               1 (128 bytes) 0x77c910c200 [128]
+               1 (32 bytes) 0x719e0040e0 [32]
+            1 (48 bytes) ROOT CYCLE: <__NSMallocBlock__ 0x77c90ed920> [48]  Foundation  __51-[NSXPCConnection initWithMachServiceName:options:]_block_invoke  0x18b256b54
+               __strong [capture] --> CYCLE BACK TO <NSXPCConnection 0x77c9046620> [160]  Protocol: LNDaemonApplicationInterface  Connection: <couldn't read name> [no process]
