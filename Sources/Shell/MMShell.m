@@ -200,9 +200,6 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     else MMSetPref(self.visibleKey, @(on));
 }
 
-
-@implementation MMExpertItem
-
 - (NSMenu *)build {
     MMSnapshot *s = MMGraph.shared.current;
     NSString *notice = [self.shell notice];
