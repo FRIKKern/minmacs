@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-111 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+113 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -25,6 +25,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 43–48 | Minimal | Continue 41-b, a much smaller sheet, a very minimal sidebar, a Servers tab with a real graph |
 | 49–54 | More space and three tabs | Roomier sheets, and a simple mode of Workstreams, Performance and Settings with an Advanced mode that brings every tab back |
 | 55–57 | Row Poster with real facts | 53-b kept to its intent but drawn only from facts the 2.0 code has, with each page checked against the sources |
+| 58 | Holdings Map with real facts | 54-b with its browser nodes drawn from real localhost tabs, and a Quiet, Busy and Peak switch to test the map at 20 workstreams |
 
 ## Direction so far
 

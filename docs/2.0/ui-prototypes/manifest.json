@@ -1108,5 +1108,25 @@
   "surface": "menubar",
   "groupId": "57",
   "direction": "Row Poster with real facts"
+ },
+ {
+  "file": "58-a.html",
+  "name": "Faithful map",
+  "idea": "54-b Holdings Map with only the facts the code has. Each workstream is an island. A line is drawn only where a field links two things: an agent's cwd, a server's worktree or repoRoot, a cache's ownerPath, or a localhost tab on the server's port. A switch on the stage loads Quiet, Busy or Peak, and the stage panel shows live counts and says what the map gives up at Peak.",
+  "good": "Browser nodes stay and show more. Chrome and Safari tabs sit on the server line for their port and glow while that browser is connected, and a headless helper is its own node. At Busy all 12 islands fit without scrolling. At Peak, over two minutes in headless Chrome, labels did not overlap, nodes stayed on their islands and frames held near 60 per second. The Wrap Up card lists the plan parts in order with each whyNot, and disk and memory are two separate numbers.",
+  "tradeoff": "Peak does not fit in one view. The field scrolls past four rows, each island draws four holdings at most, servers merge into one node with a count, and each agent draws six subagent dots at most. Session titles are cut with an ellipsis at island width, and the full title is in the hover card. The tab-closing Wrap Up line is new, because no plan part closes tabs yet.",
+  "surface": "menubar",
+  "groupId": "58",
+  "direction": "Holdings Map with real facts, Quiet to Peak"
+ },
+ {
+  "file": "58-b.html",
+  "name": "Map at peak",
+  "idea": "The holdings map built for Peak first. Islands pack into four bands by what they need from you: Asks you, Working, Ready and Blocked. The picked island and the ones that fit stay full size, and the rest shrink to rings with a count. Hovering a ring shows the island full size with its agents, servers, browser nodes, caches and helpers. Leftovers stay at the edge and merge into one bubble past six. A switch outside the sheet runs Quiet, Busy and Peak.",
+  "good": "Peak stays readable at 60 fps with 20 workstreams, 28 agents, 35 servers, 60 localhost tabs and 25 leftovers. Labels do not overlap and no node sits off its island. Each server gets one browser node with an icon for each browser, and each icon glows while LocoHost lists that browser as a client. Wrap Up shows the plan parts in the code's order, with each whyNot and with disk and memory as two numbers.",
+  "tradeoff": "At Peak only one island is full size, so ports, tabs and sizes need a hover. Ring names cut short at about eight letters. Islands move between bands as agents change state. Advanced lists scroll instead of fitting on one screen.",
+  "surface": "menubar",
+  "groupId": "58",
+  "direction": "Holdings Map with real facts, Quiet to Peak"
  }
 ]
