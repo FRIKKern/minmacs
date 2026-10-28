@@ -168,6 +168,8 @@ static NSString *StateWord(MMAgentState s) {
     NSMutableDictionary<NSNumber *, NSNumber *> *_lastSignal;         // pid: the signal that fired then
     NSMutableDictionary<NSNumber *, MMAgentEvent *> *_lastEvent;      // agent pid: its newest event
     id _eventToken;
+    NSArray<NSNumber *> *_absent;        // under @synchronized (self): absentFlags and when it was read
+    NSDate *_absentAt;
 }
 
 + (instancetype)shared {
@@ -228,10 +230,18 @@ static NSString *StateWord(MMAgentState s) {
 
 #pragma mark Matching
 
+/// Which rows' presence paths are all missing. Each path is a glob, so this is read at most every 30 seconds,
+/// issue #52: a rebuild asks it once for the registry and once for each process above every server.
 - (NSArray<NSNumber *> *)absentFlags {
+    static const NSTimeInterval kAbsentEvery = 30;
+    @synchronized (self) {
+        if (_absent && -_absentAt.timeIntervalSinceNow < kAbsentEvery) return _absent;
+    }
     NSMutableArray *a = [NSMutableArray new];
     for (MMAgentRow *r in _rows) { NSArray *pr = Strings(r.json[@"presence"]); [a addObject:@(pr.count && !AnyPathExists(pr))]; }
-    return a;
+    NSArray *out = [a copy];
+    @synchronized (self) { _absent = out; _absentAt = NSDate.date; }
+    return out;
 }
 
 - (MMAgentCand *)bestFor:(NSArray<NSString *> *)argv absent:(NSArray<NSNumber *> *)absent {
@@ -259,7 +269,7 @@ static NSString *StateWord(MMAgentState s) {
 
     // 1. The most specific row and surface for every process.
     NSMutableDictionary<NSNumber *, MMAgentCand *> *best = [NSMutableDictionary new];
-    for (MMProc *p in procs.allValues) {
+    for (MMProc *p in procs.objectEnumerator) {
         if (p.pid == me || p.pid <= 1) continue;
         MMAgentCand *c = [self bestFor:[s argsOf:p.pid] absent:absent];
         if (c) { c.pid = p.pid; best[@(p.pid)] = c; }

@@ -9,6 +9,10 @@
 #import <sqlite3.h>
 #import <sys/sysctl.h>
 #import <time.h>
+#import <dirent.h>
+#import <sys/stat.h>
+#import <CoreServices/CoreServices.h>
+#import <stdatomic.h>
 
 
 static const NSTimeInterval kSessionWindow = 30 * 86400;   // older transcripts are left out, as WorkForest does
@@ -130,24 +134,34 @@ static BOOL SameStart(uint64_t running, NSString *procStart) {
     return NO;
 }
 
-static NSString *FileFingerprint(NSString *path, NSDate **mtime) {
-    NSDictionary *a = [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil];
-    if (mtime) *mtime = a.fileModificationDate;
-    return a ? [NSString stringWithFormat:@"%.0f:%llu", a.fileModificationDate.timeIntervalSince1970, a.fileSize] : nil;
+/// The modification time and size of path from one stat, with no extended attributes read. NO when it is missing.
+static BOOL StatOf(NSString *path, NSTimeInterval *mtime, unsigned long long *size) {
+    struct stat st;
+    if (stat(path.fileSystemRepresentation, &st) != 0) return NO;
+    if (mtime) *mtime = st.st_mtimespec.tv_sec + st.st_mtimespec.tv_nsec / 1e9;
+    if (size) *size = (unsigned long long)st.st_size;
+    return YES;
 }
 
-static NSArray<NSString *> *JSONLFiles(NSString *dir, NSDate *since) {
+static NSString *FileFingerprint(NSString *path, NSDate **mtime) {
+    NSTimeInterval m; unsigned long long size;
+    if (!StatOf(path, &m, &size)) return nil;
+    if (mtime) *mtime = [NSDate dateWithTimeIntervalSince1970:m];
+    return [NSString stringWithFormat:@"%.0f:%llu", m, size];
+}
+
+/// The names in one folder, with readdir. Hidden names are left out, as contentsOfDirectoryAtPath leaves none.
+static NSArray<NSString *> *Names(NSString *dir) {
+    DIR *d = opendir(dir.fileSystemRepresentation);
+    if (!d) return @[];
     NSMutableArray *out = [NSMutableArray new];
-    NSFileManager *fm = NSFileManager.defaultManager;
-    for (NSString *sub in [fm contentsOfDirectoryAtPath:dir error:nil]) {
-        NSString *d = [dir stringByAppendingPathComponent:sub];
-        for (NSString *f in [fm contentsOfDirectoryAtPath:d error:nil]) {
-            if (![f hasSuffix:@".jsonl"]) continue;
-            NSString *p = [d stringByAppendingPathComponent:f];
-            NSDate *m = [fm attributesOfItemAtPath:p error:nil].fileModificationDate;
-            if (m && [m compare:since] == NSOrderedDescending) [out addObject:p];
-        }
+    struct dirent *e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        NSString *n = [NSFileManager.defaultManager stringWithFileSystemRepresentation:e->d_name length:strlen(e->d_name)];
+        if (n) [out addObject:n];
     }
+    closedir(d);
     return out;
 }
 
@@ -281,11 +295,174 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
 
 #pragma mark The index
 
+NSNotificationName const MMSessionsDidChangeNotification = @"MMSessionsDidChangeNotification";
+
+static NSString *Plain(NSString *p);
+
+static const NSTimeInterval kSessionsMaxAge = 60;    // a watched index is read again at least this often
+static const NSTimeInterval kFullReadEvery = 600;    // and every folder is listed again at least this often
+
 @implementation MMSessions {
     NSArray<MMSession *> *_all;          // replaced whole on each refresh, so a read never sees half of one
     NSDictionary<NSNumber *, MMSession *> *_byPid;
     NSDictionary<NSString *, MMSession *> *_byID;
     MMFactCache<NSDictionary *> *_facts;
+    // Issue #52. The watch: set up and torn down under @synchronized (self); _dirty is set by the stream.
+    FSEventStreamRef _stream;
+    dispatch_queue_t _watchQ;
+    NSArray<NSString *> *_watchRoots, *_watchDirs;
+    NSMutableSet<NSString *> *_missingDirs;              // watched folders that did not exist when the watch began
+    _Atomic bool _dirty;
+    NSDate *_readAt;                     // under @synchronized (self): when the folders were last read
+    NSDictionary<NSNumber *, NSNumber *> *_liveStarts;   // under @synchronized (self): live status file pid to start
+    NSUInteger _reads, _skips;
+    // Issue #52. What each session folder held when it was last listed, so a change lists only its own folder.
+    // Keys are Plain paths. Touched only inside a read, which runs on one queue at a time under _readLock.
+    NSMutableSet<NSString *> *_dirtyDirs;                // under @synchronized (self): folders FSEvents named
+    BOOL _allDirty;                                      // under @synchronized (self)
+    NSMutableDictionary<NSString *, NSArray<NSString *> *> *_subdirs;      // a root to its folder names
+    NSMutableDictionary<NSString *, NSArray<NSArray *> *> *_listing;       // a folder to [[path, mtime], ...]
+    NSDate *_fullAt;
+    NSLock *_readLock;
+}
+
+/// The .jsonl files in dir's folders written after since. A folder FSEvents did not name keeps its last listing,
+/// unless all is YES. Each file is one stat, never an attributes call.
+- (NSArray<NSString *> *)jsonlIn:(NSString *)dir since:(NSDate *)since all:(BOOL)all dirty:(NSSet<NSString *> *)dirty {
+    NSString *root = Plain(dir.stringByStandardizingPath);
+    NSArray<NSString *> *subs = _subdirs[root];
+    if (all || !subs || [dirty containsObject:root]) { subs = Names(dir); _subdirs[root] = subs; }
+    NSMutableArray *out = [NSMutableArray new];
+    NSTimeInterval after = since.timeIntervalSince1970;
+    for (NSString *sub in subs) {
+        NSString *d = [dir stringByAppendingPathComponent:sub];
+        NSString *key = [root stringByAppendingPathComponent:sub];
+        NSArray<NSArray *> *files = _listing[key];
+        if (all || !files || [dirty containsObject:key]) {
+            NSMutableArray *list = [NSMutableArray new];
+            for (NSString *f in Names(d)) {
+                if (![f hasSuffix:@".jsonl"]) continue;
+                NSString *p = [d stringByAppendingPathComponent:f];
+                NSTimeInterval m;
+                if (StatOf(p, &m, NULL)) [list addObject:@[p, @(m)]];
+            }
+            files = list;
+            _listing[key] = files;
+        }
+        for (NSArray *e in files) if ([e[1] doubleValue] > after) [out addObject:e[0]];
+    }
+    // Folders that are gone leave the listing.
+    NSSet *now = [NSSet setWithArray:subs];
+    for (NSString *k in _listing.allKeys)
+        if ([k.stringByDeletingLastPathComponent isEqualToString:root] && ![now containsObject:k.lastPathComponent]) [_listing removeObjectForKey:k];
+    return out;
+}
+
+- (NSUInteger)readCount { @synchronized (self) { return _reads; } }
+- (NSUInteger)skipCount { @synchronized (self) { return _skips; } }
+
+static void SessionsChanged(ConstFSEventStreamRef stream, void *info, size_t n, void *paths,
+                            const FSEventStreamEventFlags flags[], const FSEventStreamEventId ids[]) {
+    [(__bridge MMSessions *)info noteChanges:n paths:(char **)paths flags:flags];
+}
+
+/// FSEvents names /var and /tmp by their real paths under /private. Both sides drop that, so they compare.
+static NSString *Plain(NSString *p) {
+    if ([p hasPrefix:@"/private/var/"] || [p hasPrefix:@"/private/tmp/"]) p = [p substringFromIndex:8];
+    return [p hasSuffix:@"/"] && p.length > 1 ? [p substringToIndex:p.length - 1] : p;
+}
+
+/// YES when a change at path can move the index: Claude Code's project or status folders, Codex's databases in its
+/// home folder itself, or a pi session folder. Codex's rollout folders and the rest of ~/.claude are left out.
+/// dirs holds those four folders as startWatching found them. A folder that was missing then counts once it exists.
+static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSString *> *missing) {
+    NSString *p = Plain(path);
+    for (NSUInteger i = 0; i < dirs.count; i++) {
+        NSString *d = dirs[i];
+        if ([p isEqualToString:d]) return YES;
+        if (i != 2 && [p hasPrefix:[d stringByAppendingString:@"/"]]) return YES;   // inside, except under Codex's home
+    }
+    for (NSString *d in missing.allObjects)
+        if ([d hasPrefix:[p stringByAppendingString:@"/"]] && [NSFileManager.defaultManager fileExistsAtPath:d]) {
+            [missing removeObject:d];
+            return YES;
+        }
+    return NO;
+}
+
+- (void)noteChanges:(size_t)n paths:(char **)paths flags:(const FSEventStreamEventFlags *)flags {
+    NSArray<NSString *> *dirs;
+    NSMutableSet<NSString *> *missing;
+    @synchronized (self) { dirs = _watchDirs; missing = _missingDirs; }
+    if (dirs.count != 4) return;
+    BOOL any = NO;
+    for (size_t i = 0; i < n && !any; i++) {
+        if (flags[i] & (kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagRootChanged |
+                        kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped)) { any = YES; break; }
+        any = Matters(@(paths[i]), dirs, missing);   // the watch queue is serial, so missing needs no lock
+    }
+    if (!any) return;
+    @synchronized (self) {
+        for (size_t i = 0; i < n; i++) {
+            if (flags[i] & (kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagRootChanged |
+                            kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped)) _allDirty = YES;
+            [_dirtyDirs addObject:Plain(@(paths[i]))];
+        }
+    }
+    atomic_store(&_dirty, true);
+    [NSNotificationCenter.defaultCenter postNotificationName:MMSessionsDidChangeNotification object:self];
+}
+
+- (void)startWatching {
+    @synchronized (self) {
+        if (_stream) return;
+        NSMutableArray *roots = [NSMutableArray new];
+        NSString *claude = ClaudeDir().stringByStandardizingPath;
+        NSArray *paths = @[[claude stringByAppendingPathComponent:@"projects"], [claude stringByAppendingPathComponent:@"sessions"],
+                           CodexDir().stringByStandardizingPath, PiSessionsDir().stringByStandardizingPath];
+        NSMutableArray *dirs = [NSMutableArray new];
+        NSMutableSet *missing = [NSMutableSet new];
+        for (NSString *r in paths) {
+            [dirs addObject:Plain(r)];
+            // A folder that does not exist yet is watched from the nearest folder above it that does.
+            NSString *d = r;
+            if (![NSFileManager.defaultManager fileExistsAtPath:d]) [missing addObject:Plain(r)];
+            while (d.length > 1 && ![NSFileManager.defaultManager fileExistsAtPath:d]) d = d.stringByDeletingLastPathComponent;
+            if (d.length > 1 && ![roots containsObject:d]) [roots addObject:d];
+        }
+        if (!roots.count) return;
+        _watchQ = MMQueue(@"core", @"sessions.watch", QOS_CLASS_UTILITY);
+        FSEventStreamContext ctx = { .info = (__bridge void *)self };
+        _stream = FSEventStreamCreate(NULL, SessionsChanged, &ctx, (__bridge CFArrayRef)roots, kFSEventStreamEventIdSinceNow,
+                                      1.0, kFSEventStreamCreateFlagNoDefer);
+        if (!_stream) return;
+        FSEventStreamSetDispatchQueue(_stream, _watchQ);
+        if (!FSEventStreamStart(_stream)) { FSEventStreamInvalidate(_stream); FSEventStreamRelease(_stream); _stream = NULL; return; }
+        _watchRoots = roots; _watchDirs = [dirs copy]; _missingDirs = missing;
+        atomic_store(&_dirty, true);   // the first refresh reads everything
+    }
+}
+
+- (void)stopWatching {
+    FSEventStreamRef s;
+    @synchronized (self) { s = _stream; _stream = NULL; _watchRoots = nil; _watchDirs = nil; _missingDirs = nil; }
+    if (!s) return;
+    FSEventStreamStop(s);
+    FSEventStreamInvalidate(s);
+    dispatch_sync(_watchQ, ^{ FSEventStreamRelease(s); });   // no callback runs once this returns
+}
+
+/// YES when the last read still holds: the watch runs, no change came, every live status file's process runs with
+/// the start time it had, and the read is less than a minute old.
+- (BOOL)stillFresh {
+    NSDictionary<NSNumber *, NSNumber *> *live;
+    @synchronized (self) {
+        if (!_stream || !_readAt || -_readAt.timeIntervalSinceNow >= kSessionsMaxAge) return NO;
+        live = _liveStarts;
+    }
+    if (atomic_load(&_dirty)) return NO;
+    for (NSNumber *pid in live) if (StartSec(pid.intValue) != live[pid].unsignedLongLongValue) return NO;
+    return YES;
 }
 
 + (instancetype)shared {
@@ -298,6 +475,9 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
     if ((self = [super init])) {
         _all = @[]; _byPid = @{}; _byID = @{};
         _facts = [[MMFactCache alloc] initWithName:@"sessions" maxAge:0 persist:YES];
+        _dirtyDirs = [NSMutableSet new]; _allDirty = YES;
+        _subdirs = [NSMutableDictionary new]; _listing = [NSMutableDictionary new];
+        _readLock = [NSLock new];
     }
     return self;
 }
@@ -309,7 +489,31 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
 }
 
 - (void)refresh {
+    if ([self stillFresh]) { @synchronized (self) { _skips++; } return; }
+    [self read:NO];
+}
+
+- (void)refreshAll { [self read:YES]; }
+
+/// One read. all lists every folder again. Otherwise, while the watch runs, only the folders FSEvents named are.
+- (void)read:(BOOL)wantAll {
+    [_readLock lock];
+    @try { [self readLocked:wantAll]; } @finally { [_readLock unlock]; }
+}
+
+- (void)readLocked:(BOOL)wantAll {
+    atomic_store(&_dirty, false);   // a change from now on asks for another read
+    NSSet<NSString *> *dirty;
+    BOOL everything;
+    @synchronized (self) {
+        everything = wantAll || _allDirty || !_stream || !_fullAt || -_fullAt.timeIntervalSinceNow >= kFullReadEvery;
+        dirty = [_dirtyDirs copy];
+        [_dirtyDirs removeAllObjects];
+        _allDirty = NO;
+    }
+    if (everything) _fullAt = NSDate.date;
     NSDate *since = [NSDate dateWithTimeIntervalSinceNow:-kSessionWindow];
+    NSMutableDictionary<NSNumber *, NSNumber *> *liveStarts = [NSMutableDictionary new];
     NSMutableDictionary<NSString *, MMSession *> *byID = [NSMutableDictionary new];
     NSMutableDictionary<NSNumber *, MMSession *> *byPid = [NSMutableDictionary new];
     NSMutableSet<NSString *> *live = [NSMutableSet new];
@@ -317,7 +521,7 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
 
     // P19. Claude Code transcripts: <config>/projects/<folder>/<session>.jsonl.
     NSString *claude = ClaudeDir();
-    for (NSString *f in JSONLFiles([claude stringByAppendingPathComponent:@"projects"], since)) {
+    for (NSString *f in [self jsonlIn:[claude stringByAppendingPathComponent:@"projects"] since:since all:everything dirty:dirty]) {
         NSDate *m = nil;
         NSDictionary *facts = [self factsFor:f reader:^NSDictionary *(NSString *p) { return ClaudeTranscriptFacts(p); } mtime:&m];
         if (!facts[@"id"]) continue;
@@ -334,7 +538,7 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
     // P20. Live status files: <config>/sessions/<pid>.json. A file counts for its pid only while that pid runs
     // with the start time the file names, so a file left by a crash, or a reused pid, is never read as live.
     NSString *sdir = [claude stringByAppendingPathComponent:@"sessions"];
-    for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:sdir error:nil]) {
+    for (NSString *name in Names(sdir)) {
         if (![name.pathExtension isEqualToString:@"json"]) continue;
         NSData *d = [NSData dataWithContentsOfFile:[sdir stringByAppendingPathComponent:name]];
         NSDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
@@ -342,7 +546,9 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
         pid_t pid = [j[@"pid"] isKindOfClass:NSNumber.class] ? [j[@"pid"] intValue] : name.stringByDeletingPathExtension.intValue;
         NSString *sid = Str(j[@"sessionId"]);
         if (!sid) continue;
-        BOOL alive = SameStart(StartSec(pid), Str(j[@"procStart"]));
+        uint64_t running = StartSec(pid);
+        BOOL alive = SameStart(running, Str(j[@"procStart"]));
+        if (alive) liveStarts[@(pid)] = @(running);
         MMSession *s = byID[sid] ?: [MMSession new];
         s.agent = @"claude-code"; s.sessionID = sid;
         s.cwd = Str(j[@"cwd"]) ?: s.cwd;
@@ -365,7 +571,7 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
     for (MMSession *s in CodexSessions(NULL)) byID[s.sessionID] = s;
 
     // pi: <sessions>/--<folder>--/<time>_<id>.jsonl.
-    for (NSString *f in JSONLFiles(PiSessionsDir(), since)) {
+    for (NSString *f in [self jsonlIn:PiSessionsDir() since:since all:everything dirty:dirty]) {
         NSDate *m = nil;
         NSDictionary *facts = [self factsFor:f reader:^NSDictionary *(NSString *p) { return PiFacts(p); } mtime:&m];
         if (!facts[@"id"]) continue;
@@ -382,7 +588,7 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
         NSComparisonResult r = [b.lastActive ?: NSDate.distantPast compare:a.lastActive ?: NSDate.distantPast];
         return r != NSOrderedSame ? r : [a.sessionID compare:b.sessionID];
     }];
-    @synchronized (self) { _all = all; _byPid = byPid; _byID = byID; }
+    @synchronized (self) { _all = all; _byPid = byPid; _byID = byID; _liveStarts = liveStarts; _readAt = NSDate.date; _reads++; }
 }
 
 - (NSArray<MMSession *> *)all { @synchronized (self) { return _all; } }

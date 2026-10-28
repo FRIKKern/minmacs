@@ -39,3 +39,5 @@ NSDictionary *MMLHGitOf(NSString *folder, MMFacts *facts, MMLHRead read);
 
 /// Where the host runs, from Know's Where. wait YES asks cmux and tmux now, for the CLI.
 void MMLHFillWhere(MMLHHost *h, MMSample *s, BOOL wait);
+/// How many servers wait for their first answer from Know's Where. While any does, LocoHost's findings are built anew.
+uint64_t MMLHPlacesPending(void);

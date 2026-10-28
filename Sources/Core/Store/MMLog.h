@@ -39,3 +39,6 @@ typedef struct { NSTimeInterval at; double value; } MMTrendPoint;
 /// How many queries this process ran on the main thread. A menu reads what the graph already holds, so the checks
 /// hold menus and cards to zero.
 NSUInteger MMLogMainThreadQueries(void);
+/// Issue #52. A short string that changes whenever any process writes to the shared log: the size and change time
+/// of minmacs.sqlite and its WAL file. Two stats and no query, so a rebuild can keep what it read until this moves.
+NSString *MMLogStamp(void);

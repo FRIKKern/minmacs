@@ -1,6 +1,7 @@
 // Act: modes, the day of watching, keeps, MustKeep, plans, MMRunAction, stopping, quitting, keep-awake and the notifier.
 // Modes, WFMustKeep, WFPlan and WFKeptUntil come from WorkForest's Forest.m. Stopping and the notifier come from
 // LocoHost's StopHostsBy and notify. Quitting comes from QuitApps in MinMacs 1.2. Keep-awake uses Insomnia's assertion pair.
+#import <sys/stat.h>
 #import <AppKit/AppKit.h>
 #import <IOKit/pwr_mgt/IOPMLib.h>
 #import <UserNotifications/UserNotifications.h>
@@ -79,13 +80,30 @@ static NSMutableDictionary<NSString *, NSDictionary *> *KeepCache(void) {
     dispatch_once(&once, ^{ c = [NSMutableDictionary new]; });
     return c;
 }
+static NSMutableDictionary *ReadKeeps(NSString *path);
 static NSMutableDictionary *KeepsAll(NSString *expert) {
     if (NSThread.isMainThread) gKeepMainReads++;
-    NSData *d = [NSData dataWithContentsOfFile:KeepsPath(expert)];
-    id j = d ? [NSJSONSerialization JSONObjectWithData:d options:NSJSONReadingMutableContainers error:nil] : nil;
-    NSMutableDictionary *all = [j isKindOfClass:NSMutableDictionary.class] ? j : [NSMutableDictionary new];
-    @synchronized (KeepCache()) { KeepCache()[expert] = [all copy]; }
+    // The file is parsed again only when it changed, issue #52. A rebuild asks once per finding.
+    static NSMutableDictionary<NSString *, NSArray *> *parsed;   // expert to [stamp, keeps]
+    NSString *path = KeepsPath(expert);
+    struct stat st;
+    NSString *stamp = stat(path.fileSystemRepresentation, &st) == 0
+        ? [NSString stringWithFormat:@"%llu:%ld.%ld:%lld", (unsigned long long)st.st_ino, (long)st.st_mtimespec.tv_sec,
+                                     st.st_mtimespec.tv_nsec, (long long)st.st_size] : @"-";
+    @synchronized (KeepCache()) {
+        if (!parsed) parsed = [NSMutableDictionary new];
+        NSArray *p = parsed[expert];
+        if ([p.firstObject isEqualToString:stamp]) return [p.lastObject mutableCopy];
+    }
+    NSMutableDictionary *all = ReadKeeps(path);
+    @synchronized (KeepCache()) { KeepCache()[expert] = [all copy]; parsed[expert] = @[stamp, [all copy]]; }
     return all;
+}
+
+static NSMutableDictionary *ReadKeeps(NSString *path) {
+    NSData *d = [NSData dataWithContentsOfFile:path];
+    id j = d ? [NSJSONSerialization JSONObjectWithData:d options:NSJSONReadingMutableContainers error:nil] : nil;
+    return [j isKindOfClass:NSMutableDictionary.class] ? j : [NSMutableDictionary new];
 }
 
 /// The protect list in the expert's rules file, through MMRules. MMRules does not expand ~ in an entry,

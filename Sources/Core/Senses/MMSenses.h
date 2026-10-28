@@ -61,14 +61,45 @@ typedef struct {
 /// The socket table of this sample. The pointer lives as long as the sample.
 - (const MMSocket *)sockets:(NSUInteger *)count;
 - (NSArray<NSValue *> *)socketsOf:(pid_t)pid;            // MMSocket values in NSValue
+/// YES when the process used no CPU time since the last pass. Its file table cannot have changed since.
+- (BOOL)unchanged:(pid_t)pid;
+@end
+
+/// Issue #52. What a sample carries over from the one before, for a process with the same pid, start time and name:
+/// its args, its responsible pid and the app lookups below. Its cwd carries over while it used no CPU time,
+/// for at most 30 seconds. Its sockets carry over while it used no CPU time, for at most 60 seconds, since a process
+/// that did not run cannot have opened, accepted or closed a socket. An app launch or quit drops the app lookups.
+/// The pass counts what it read and what it carried, for the bench.
+typedef struct {
+    uint64_t passes, pids, argsCarried, cwdsCarried, socketPidsScanned, socketPidsCarried;
+    uint64_t cpuNs;                                     // thread CPU time spent in passes
+    // The same time by part: the process table, each process's rusage and its object, the sockets,
+    // what the sample took from the last one, and the power facts.
+    uint64_t tableNs, procsNs, socketsNs, carryNs, powerNs;
+} MMSensesCounts;
+
+/// One running app as NSWorkspace lists it. The list is read again after an app launches or quits, and at most
+/// once a minute otherwise, so a rebuild never asks LaunchServices about every app. policy is an
+/// NSApplicationActivationPolicy.
+@interface MMApp : NSObject
+@property (readonly) pid_t pid;
+@property (readonly, copy) NSString *bundleID, *name, *bundlePath;
+@property (readonly) NSInteger policy;
+@property (readonly) NSRunningApplication *app;
 @end
 
 /// P9. The app macOS holds responsible for pid, through responsibility_get_pid_responsible_for_pid.
 /// Starts from Responsible in LH Ports.m:63. Returns pid itself when the answer is unknown.
 pid_t MMResponsiblePid(pid_t pid);
 /// P9. The running app that owns pid: itself, its responsible pid or the nearest ancestor that is an app.
-/// Starts from AppOf in LH Where.m:62. nil when no app owns it.
+/// Starts from AppOf in LH Where.m:62. nil when no app owns it. Kept per process across samples, as above.
 NSRunningApplication *MMOwningApp(MMSample *s, pid_t pid);
+/// MMResponsiblePid, kept per process across samples. Any object that answers MMSample's messages works.
+pid_t MMResponsiblePidIn(MMSample *s, pid_t pid);
+/// The running app whose own pid is pid, or nil, kept per process across samples.
+NSRunningApplication *MMAppWithPid(MMSample *s, pid_t pid);
+/// The running apps, from the list described at MMApp.
+NSArray<MMApp *> *MMRunningApps(void);
 
 /// P13 and P14. The power and pressure facts. Every field is read from IOKit, sysctl or NSProcessInfo in microseconds.
 /// Starts from LH main.m:856 and IN main.m:259-291. The lid override comes from IOPMrootDomain SleepDisabled,
@@ -104,9 +135,20 @@ typedef NS_OPTIONS(NSUInteger, MMSignal) {
 
 /// P6, P11 and P12. The one owner of every sample and signal. An expert never samples on its own.
 /// The pass runs on MMQueue(@"core", @"senses") with an MMTimer every 5 seconds.
+/// Issue #52: it backs off to 10 seconds on battery, 15 seconds once no key or pointer moved for 5 minutes,
+/// and 30 seconds for both. The first pass after the person comes back or plugs in returns to 5 seconds.
+/// MINMACS_TICK sets the base interval in seconds for tests. MINMACS_NO_BACKOFF=1 keeps the base interval.
+/// In a build with MM_TESTS, MINMACS_AWAY_SECONDS stands in for the time since the last key press.
 @interface MMSenses : NSObject
 + (instancetype)shared;
 - (void)start;
+/// The seconds between passes now, and why: "base", "battery", "away" or "battery, away".
+@property (readonly) NSTimeInterval interval;
+@property (readonly, copy) NSString *intervalReason;
+/// Seconds until the timer's next pass is due, from the last pass and the interval. 0 when it is due or not started.
+@property (readonly) NSTimeInterval untilNextPass;
+/// What the passes did so far. Safe from any queue.
+- (MMSensesCounts)counts;
 /// Ends the timer, the pushed sources and the notification observers that start added. Main thread.
 /// The last sample stays readable. start may be called again.
 - (void)stop;
@@ -114,6 +156,10 @@ typedef NS_OPTIONS(NSUInteger, MMSignal) {
 - (MMPower *)power;                                     // never blocks
 /// Takes a sample now and waits for it. For the CLI when it runs Core cold, never on main in the app.
 - (MMSample *)sampleNow;
+/// Issue #52. The latest sample without the processes these MMProcKey values name, for the rebuild right after they
+/// exited. It copies the last pass and reads nothing, so an exit costs no pass. The result becomes the latest sample,
+/// with a new generation and the old time. With no latest sample it takes one.
+- (MMSample *)sampleWithout:(NSArray<NSValue *> *)keys;
 /// P11. Registers kqueue NOTE_EXIT for each key. New code: costs 0.47 us a pid and nothing while idle.
 /// An exit fires MMSignalExit. A key whose process already ended fires at once.
 - (void)watchExits:(NSArray<NSValue *> *)keys;

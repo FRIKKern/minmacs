@@ -8,6 +8,7 @@
 #   BUILD_DIR   where the bench binary is built, default build. Give each parallel run its own.
 #   BENCH_BIN   a bench binary built already, to skip the build
 #   MM_BENCH_STRICT=1   the gate fails on the phase 6 budgets themselves, not only on today's ceilings
+#   MM_BENCH_BACKOFF=1  the pass backs off on battery and while the person is away, as in the app
 # Every support file lands in a fresh MINMACS_HOME under TMPDIR, removed at the end. Every mode is Idle there.
 # The model, cmux and tmux CLIs are /usr/bin/false, and Claude Code's and Codex's folders point into that home,
 # so the bench reads the real process table and power facts, and nothing else of the person's.
@@ -22,8 +23,13 @@ BIN=${BENCH_BIN:-$(tools/bench/build.sh)}
 mkdir -p "$OUT"
 HOME_DIR=$(mktemp -d "${TMPDIR:-/tmp}/minmacs-bench.XXXXXX")
 trap 'rm -rf "$HOME_DIR"' EXIT
+# The pass keeps its 5 seconds on battery and while the person is away, so the numbers are those of a Mac in use.
+# MM_BENCH_BACKOFF=1 lets it back off, as the app does.
+NOBACK=1
+[ "${MM_BENCH_BACKOFF:-}" = 1 ] && NOBACK=
 run() {
   env MINMACS_HOME="$HOME_DIR" CLAUDE_CONFIG_DIR="$HOME_DIR/claude" CODEX_HOME="$HOME_DIR/codex" GIT_CONFIG_GLOBAL=/dev/null \
+    PI_CODING_AGENT_SESSION_DIR="$HOME_DIR/pi" ${NOBACK:+MINMACS_NO_BACKOFF=1} \
     MINMACS_CLAUDE=/usr/bin/false MINMACS_CODEX=/usr/bin/false MINMACS_CMUX=/usr/bin/false MINMACS_TMUX=/usr/bin/false \
     "$BIN" "$@"
 }

@@ -55,8 +55,11 @@ id<MMExpert> MMExpertNamed(NSString *expertID) {
 #pragma mark - The fact source
 
 @interface MMCoreFactSource : NSObject <MMFactSource>
-/// Set when a watched process exited. The next rebuild takes a fresh sample, so the process is gone from it.
+/// Set when a watched process exited. The next rebuild drops it from the last sample, so the process is gone.
 @property (atomic) BOOL wantsFreshSample;
+/// The keys that exited since the last rebuild. Main adds, the graph queue takes, under @synchronized (self).
+@property (strong) NSMutableArray<NSValue *> *exited;
+- (void)noteExit:(NSValue *)key;
 @end
 
 @implementation MMCoreFactSource
@@ -64,9 +67,10 @@ id<MMExpert> MMExpertNamed(NSString *expertID) {
 /// Everything but the sample and power, which the caller picks. Git facts come from the index's memory with
 /// wait NO, so a rebuild never reads git's files or runs git. A worktree a change marked is brought up to date
 /// on the git queue, which asks for another rebuild when its facts moved.
-static MMFacts *FactsFrom(uint64_t generation, MMSample *sample, MMPower *power) {
+static MMFacts *FactsFrom(uint64_t generation, MMSample *sample, MMPower *power, BOOL fresh) {
     if (!sample) return nil;
-    [MMSessions.shared refresh];
+    // The session index reads its folders only when FSEvents saw a change, issue #52. Fresh facts read them now.
+    if (fresh) [MMSessions.shared refreshAll]; else [MMSessions.shared refresh];
     NSArray<MMAgent *> *agents = [MMRegistry.shared agentsIn:sample power:power] ?: @[];
     NSArray<MMWorktree *> *trees = MMRepoIndex.shared.worktrees;
     NSMutableDictionary<NSString *, MMGitFacts *> *git = [NSMutableDictionary new];
@@ -79,14 +83,23 @@ static MMFacts *FactsFrom(uint64_t generation, MMSample *sample, MMPower *power)
                      worktrees:trees clutter:MMClutterCatalog.shared.items git:git];
 }
 
+- (void)noteExit:(NSValue *)key {
+    @synchronized (self) { if (!_exited) _exited = [NSMutableArray new]; if (key) [_exited addObject:key]; }
+}
+
 - (MMFacts *)factsFor:(uint64_t)generation {
     MMSenses *senses = MMSenses.shared;
     MMSample *s = senses.latest;
     if (!s || self.wantsFreshSample) {
         self.wantsFreshSample = NO;
-        s = [senses sampleNow];   // the graph queue may wait on the Senses queue; Senses never waits on the graph
+        NSArray *gone;
+        @synchronized (self) { gone = [_exited copy]; [_exited removeAllObjects]; }
+        // Issue #52: the last sample without the processes that exited, which costs a copy, not a pass.
+        // An exit with no key, or no sample yet, takes a pass. The graph queue may wait on the Senses queue;
+        // Senses never waits on the graph.
+        s = s && gone.count ? [senses sampleWithout:gone] : [senses sampleNow];
     }
-    return FactsFrom(generation, s, senses.power);
+    return FactsFrom(generation, s, senses.power, NO);
 }
 
 /// Principle 5: a new sample, the sessions read again, and the git facts of the finding's worktree with wait YES.
@@ -94,7 +107,7 @@ static MMFacts *FactsFrom(uint64_t generation, MMSample *sample, MMPower *power)
     if (NSThread.isMainThread) return nil;
     MMSenses *senses = MMSenses.shared;
     MMSample *s = [senses sampleNow];
-    MMFacts *f = FactsFrom(MMGraph.shared.latest.generation, s, senses.power);
+    MMFacts *f = FactsFrom(MMGraph.shared.latest.generation, s, senses.power, YES);
     if (!f) return nil;
     MMWorktree *w = finding.path.length ? [MMRepoIndex.shared worktreeAt:finding.path] : nil;
     MMGitFacts *g = w ? [MMRepoIndex.shared factsFor:w wait:YES] : nil;
@@ -152,10 +165,13 @@ static void ServeCoreVerbs(void) {
 #pragma mark - Start and stop
 
 static BOOL gStarted;
-static id gSensesToken, gGraphToken, gReposToken, gGitToken, gClutterToken;
+static id gSensesToken, gGraphToken, gReposToken, gGitToken, gClutterToken, gSessionsToken;
 static dispatch_source_t gReposTimer, gReviewTimer;
 static MMCoreSocket *gSocket;
 static NSMutableSet<NSString *> *gWatchedExits;   // main only: the pid:start keys handed to watchExits
+static BOOL gExitRebuildQueued;                    // main only: a rebuild for exits waits to gather more
+static const NSTimeInterval kExitGather = 0.3;     // how long an exit's rebuild waits for more exits
+static const NSTimeInterval kExitPassNear = 0.5;   // a pass due sooner than this after that rebuilds for them
 
 static const NSTimeInterval kReposEvery = 600;    // a full walk every 10 minutes, besides FSEvents
 static const NSTimeInterval kReviewEvery = 3600;  // a scheduled review wake per expert every hour
@@ -248,15 +264,34 @@ void MMCoreStart(void) {
             if ([detail isKindOfClass:NSValue.class]) {
                 MMProcKey k; [(NSValue *)detail getValue:&k size:sizeof k];
                 [gWatchedExits removeObject:MMProcKeyString(k)];
+                [source noteExit:detail];
             }
             source.wantsFreshSample = YES;
+            // Issue #52. Exits come in bursts, such as a server and its workers, so one rebuild waits a moment for
+            // the rest. When the next pass is due by then, its rebuild drops them. Either way within a second.
+            if (changed == MMSignalExit) {
+                if (gExitRebuildQueued) return;
+                gExitRebuildQueued = YES;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kExitGather * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    gExitRebuildQueued = NO;
+                    if (!gStarted) return;
+                    NSTimeInterval next = MMSenses.shared.untilNextPass;
+                    if (next > 0.05 && next < kExitPassNear) return;   // the pass about to run rebuilds without it
+                    [MMGraph.shared rebuild:@"exit"];
+                });
+                return;
+            }
         }
         [MMGraph.shared rebuild:(changed & MMSignalSample) ? @"sample" : @"signal"];
     }];
     [senses start];
 
-    // 3. Know: agent events behind their flag, the repo index with its FSEvents watch, and the clutter scans.
+    // 3. Know: agent events behind their flag, the session folders' FSEvents watch, the repo index with its own,
+    // and the clutter scans.
     [MMAgentEvents.shared start];
+    [MMSessions.shared startWatching];
+    gSessionsToken = [NSNotificationCenter.defaultCenter addObserverForName:MMSessionsDidChangeNotification object:MMSessions.shared
+                                                                    queue:nil usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"sessions"]; }];
     StartRepos();
     StartClutter();
 
@@ -292,6 +327,8 @@ void MMCoreStop(void) {
     [MMSenses.shared stopObserving:gSensesToken]; gSensesToken = nil;
     [MMSenses.shared stop];
     [MMAgentEvents.shared stop];
+    [MMSessions.shared stopWatching];
+    if (gSessionsToken) { [NSNotificationCenter.defaultCenter removeObserver:gSessionsToken]; gSessionsToken = nil; }
     [gWatchedExits removeAllObjects];
     os_log(CoreLog(), "Core stopped");
 }

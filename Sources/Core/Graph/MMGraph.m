@@ -23,8 +23,32 @@
 #import "Core/MMExpert.h"
 #import "Core/Runtime/MMRuntime.h"
 #import <stdatomic.h>
+#import <objc/runtime.h>
+#import <os/lock.h>
+#import <os/signpost.h>
+#import <time.h>
 
 static const NSUInteger kAncestorHops = 20;
+static const uint64_t kHeartbeatNs = 30ull * NSEC_PER_SEC;   // a new sample builds at least this often
+
+#pragma mark - Costs, issue #52
+
+/// The tick's signposts, in the same subsystem and category as the Senses pass.
+static os_log_t TickLog(void) {
+    static os_log_t log; static dispatch_once_t once;
+    dispatch_once(&once, ^{ log = os_log_create("no.guerrilla.minmacs", "tick"); });
+    return log;
+}
+static uint64_t ThreadNs(void) { return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID); }
+
+static os_unfair_lock gCostLock = OS_UNFAIR_LOCK_INIT;
+static NSMutableDictionary<NSString *, NSNumber *> *gCosts;
+static void AddCost(NSString *key, uint64_t value) {
+    os_unfair_lock_lock(&gCostLock);
+    if (!gCosts) gCosts = [NSMutableDictionary new];
+    gCosts[key] = @([gCosts[key] unsignedLongLongValue] + value);
+    os_unfair_lock_unlock(&gCostLock);
+}
 
 static NSString *ProcKeyString(MMProcKey k) { return [NSString stringWithFormat:@"%d:%llu", k.pid, (unsigned long long)k.startSec]; }
 
@@ -41,6 +65,146 @@ static MMProc *LiveProc(MMSample *s, MMProcKey k) {
     MMProc *p = [s proc:k.pid];
     return p && (k.startSec == 0 || p.startSec == k.startSec) ? p : nil;
 }
+
+#pragma mark - The facts digest, issue #52
+
+/// A 64-bit mix, so a sum of mixed values does not depend on the order things are listed in.
+static uint64_t Mix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t MixObj(id o) { return Mix((uint64_t)(uintptr_t)(__bridge void *)o); }
+static uint64_t MixAll(NSArray *a) { uint64_t h = a.count; for (id o in a) h += Mix(MixObj(o) ^ 0x2545f491); return h; }
+static uint64_t MixStr(NSString *s) { return s ? Mix(s.hash ^ ((uint64_t)s.length << 40)) : 0x5bd1e995ull; }
+
+/// CPU in the bands a reader can tell apart: idle, a little, some, busy, very busy. A process that moves inside a
+/// band does not move the digest.
+static uint64_t CPUBand(double cpu) {
+    if (cpu < 0) return 7;
+    return cpu < 1 ? 0 : cpu < 5 ? 1 : cpu < 15 ? 2 : cpu < 40 ? 3 : cpu < 100 ? 4 : 5;
+}
+/// Memory in steps of 16 MB.
+static uint64_t MemBand(uint64_t bytes) { return bytes >> 24; }
+
+/// What the experts and the owner rules read from one set of facts, at the precision a menu shows it.
+/// The sample: every process's pid, start, parent, name, CPU band and memory band, and the socket table.
+/// Power and pressure, every agent's state, and the identity of the session, worktree, git and clutter
+/// objects, which Know replaces only when they changed. Two facts with the same digest give the same findings,
+/// except for CPU and memory inside a band and for ages, which the heartbeat rebuild catches.
+/// Facts built by hand in a test may hold objects that answer only some messages, so each class is asked once.
+typedef struct { Class cls; BOOL ok; } MMDigestClass;
+static BOOL Answers(id o, SEL const *sels, size_t n, MMDigestClass *seen) {
+    Class c = object_getClass(o);
+    if (c == seen->cls) return seen->ok;
+    BOOL ok = YES;
+    for (size_t i = 0; i < n && ok; i++) ok = [o respondsToSelector:sels[i]];
+    seen->cls = c; seen->ok = ok;
+    return ok;
+}
+
+static uint64_t FactsDigest(MMFacts *f) {
+    uint64_t h = 0, i = 1;
+    MMSample *s = f.sample;
+    uid_t me = getuid();
+    static SEL procSels[7];
+    static SEL agentSels[8];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        SEL ps[7] = { @selector(pid), @selector(ppid), @selector(uid), @selector(startSec), @selector(name),
+                      @selector(cpuPercent), @selector(footprint) };
+        SEL as[8] = { @selector(key), @selector(state), @selector(signal), @selector(sessionID), @selector(cwd),
+                      @selector(treeCPU), @selector(treeFootprint), @selector(hosted) };
+        memcpy(procSels, ps, sizeof ps); memcpy(agentSels, as, sizeof as);
+    });
+    MMDigestClass pc = { Nil, NO }, ac = { Nil, NO };
+    for (MMProc *p in s.procs.objectEnumerator) {
+        if (!Answers(p, procSels, 7, &pc)) { h += Mix(MixObj(p)); continue; }
+        if (p.uid != me && p.pid != 1) continue;   // no expert reads another user's processes, which Senses cannot measure
+        h += Mix(((uint64_t)p.pid << 32) ^ (uint64_t)p.ppid ^ Mix(p.startSec) ^ MixStr(p.name) ^
+                 (CPUBand(p.cpuPercent) << 56) ^ Mix(MemBand(p.footprint) + 0x9e37));
+    }
+    if ([(NSObject *)s respondsToSelector:@selector(sockets:)]) {
+        NSUInteger n = 0;
+        const MMSocket *sv = [s sockets:&n];
+        for (NSUInteger k = 0; sv && k < n; k++) {
+            const uint8_t *b = (const uint8_t *)(const void *)&sv[k];
+            uint64_t x = 0xcbf29ce484222325ull;                 // FNV-1a over the socket's bytes
+            for (size_t j = 0; j < sizeof(MMSocket); j++) { x ^= b[j]; x *= 0x100000001b3ull; }
+            h += Mix(x);
+        }
+    }
+    MMPower *pw = f.power;
+    static SEL powerSels[11];
+    static dispatch_once_t powerOnce;
+    dispatch_once(&powerOnce, ^{
+        SEL ws[11] = { @selector(onAC), @selector(lidClosed), @selector(lowPowerMode), @selector(lidOverride), @selector(online),
+                       @selector(batteryPercent), @selector(thermal), @selector(memoryPressure), @selector(diskFree),
+                       @selector(assertionsByPid), @selector(at) };
+        memcpy(powerSels, ws, sizeof ws);
+    });
+    MMDigestClass wc = { Nil, NO };
+    if (pw && Answers(pw, powerSels, 11, &wc)) {
+        h ^= Mix(++i * ((uint64_t)pw.onAC | (uint64_t)pw.lidClosed << 1 | (uint64_t)pw.lowPowerMode << 2 |
+                        (uint64_t)pw.lidOverride << 3 | (uint64_t)pw.online << 4 | (uint64_t)(pw.batteryPercent + 1) << 8 |
+                        (uint64_t)pw.thermal << 16 | (uint64_t)pw.memoryPressure << 24 | (pw.diskFree >> 30) << 32));
+        uint64_t a = 0;
+        for (NSNumber *pid in pw.assertionsByPid)
+            for (NSDictionary *x in pw.assertionsByPid[pid])
+                a += Mix(pid.unsignedLongLongValue ^ MixStr([x isKindOfClass:NSDictionary.class] ? [x[@"AssertName"] description] : nil));
+        h ^= Mix(a + ++i);
+    } else if (pw) {
+        h ^= Mix(MixObj(pw) + ++i);
+    }
+    uint64_t ag = 0;
+    for (MMAgent *a in f.agents) {
+        if (!Answers(a, agentSels, 8, &ac)) { ag += Mix(MixObj(a)); continue; }
+        uint64_t x = Mix(((uint64_t)a.key.pid << 32) ^ a.key.startSec) ^ Mix((uint64_t)a.state << 8 | (uint64_t)a.signal) ^
+                     MixStr(a.sessionID) ^ MixStr(a.cwd) ^ Mix(CPUBand(a.treeCPU) << 20 | MemBand(a.treeFootprint) << 24);
+        for (MMAgent *o in a.hosted) x ^= Mix(MixObj(o));
+        ag += Mix(x);
+    }
+    h ^= Mix(ag + ++i);
+    // Know replaces a session, worktree, git fact or clutter item with a new object when it changes, and its arrays
+    // may be copied on the way, so each element's identity is summed in its place.
+    h ^= Mix(MixAll(f.sessions) + ++i);
+    h ^= Mix(MixAll(f.worktrees) + ++i);
+    h ^= Mix(MixAll(f.clutter) + ++i);
+    uint64_t g = 0;
+    for (MMWorktree *w in f.worktrees) g += MixObj([f gitFor:w]);
+    h ^= Mix(g + ++i);
+    return h;
+}
+
+#pragma mark - Reused findings, issue #52
+
+/// Stands in for one expert in a build. It hands out the findings it was given, or asks the expert and keeps what
+/// came back. Every other message goes to the expert.
+@interface MMFindingsReuse : NSProxy
+@property (strong) id<MMExpert> expert;
+@property (strong) NSArray<MMFinding *> *findings;      // set to reuse, filled after a call otherwise
+@property BOOL reused;
+@end
+
+@implementation MMFindingsReuse
+- (NSString *)expertID { return self.expert.expertID; }
+- (NSArray<MMFinding *> *)findingsFrom:(MMFacts *)facts {
+    if (self.reused) return self.findings;
+    self.findings = [self.expert findingsFrom:facts] ?: @[];
+    return self.findings;
+}
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel { return [(NSObject *)self.expert methodSignatureForSelector:sel]; }
+- (void)forwardInvocation:(NSInvocation *)inv { [inv invokeWithTarget:self.expert]; }
+- (BOOL)respondsToSelector:(SEL)sel { return [self.expert respondsToSelector:sel]; }
+- (BOOL)conformsToProtocol:(Protocol *)p { return [self.expert conformsToProtocol:p]; }
+@end
+
+/// What the graph kept of one expert's last findings.
+@interface MMKeptFindings : NSObject
+@property uint64_t digest, atNs;
+@property (strong) NSArray<MMFinding *> *findings;
+@end
+@implementation MMKeptFindings
+@end
 
 #pragma mark - Workstream
 
@@ -297,8 +461,15 @@ static NSString *SizeBucket(uint64_t bytes) {
     NSMutableDictionary<NSString *, NSMutableArray *> *byExpert = [NSMutableDictionary new];
     for (id<MMExpert> e in experts) {
         NSMutableArray *mine = [NSMutableArray new];
-        byExpert[e.expertID ?: @""] = mine;
-        for (MMFinding *raw in [e findingsFrom:facts]) {
+        NSString *eid = e.expertID ?: @"";
+        byExpert[eid] = mine;
+        os_signpost_id_t sp = os_signpost_id_generate(TickLog());
+        os_signpost_interval_begin(TickLog(), sp, "findings", "%{public}@", eid);
+        uint64_t c0 = ThreadNs();
+        NSArray<MMFinding *> *raws = [e findingsFrom:facts];
+        AddCost([@"findings." stringByAppendingString:eid], ThreadNs() - c0);
+        os_signpost_interval_end(TickLog(), sp, "findings", "%{public}@ %lu", eid, (unsigned long)raws.count);
+        for (MMFinding *raw in raws) {
             if (byID[raw.findingID]) continue;
             MMFinding *f = [raw withOwner:[self ownerOf:raw build:b]];
             byID[f.findingID] = f;
@@ -378,6 +549,10 @@ static NSString *SizeBucket(uint64_t bytes) {
 @implementation MMGraph {
     dispatch_queue_t _queue;
     atomic_bool _pending;                               // a rebuild is queued and has not started
+    atomic_bool _forced;                                // a rebuild asked for a reason other than a new sample
+    uint64_t _lastDigest;                               // graph queue only: the digest of the last build's facts
+    uint64_t _lastBuiltNs;                              // graph queue only
+    NSMutableDictionary<NSString *, MMKeptFindings *> *_kept;   // graph queue only: each expert's last findings
     NSArray<id<MMExpert>> *_experts;                    // set on main before -start, read on the graph queue
     uint64_t _generation;                               // graph queue only
     NSMutableDictionary<NSString *, NSString *> *_holds;        // graph queue only
@@ -403,7 +578,9 @@ static NSString *SizeBucket(uint64_t bytes) {
         _holdSince = [NSMutableDictionary new];
         _reviews = [NSMutableDictionary new];
         _observers = [NSMutableDictionary new];
+        _kept = [NSMutableDictionary new];
         atomic_init(&_pending, false);
+        atomic_init(&_forced, true);
     }
     return self;
 }
@@ -418,6 +595,9 @@ static NSString *SizeBucket(uint64_t bytes) {
 - (void)start { [self rebuild:@"start"]; }
 
 - (void)rebuild:(NSString *)why {
+    // Only a new sample may find nothing changed. Every other reason, an exit, an app, a power change, Know or an
+    // action, always builds.
+    if (![why isEqualToString:@"sample"]) atomic_store(&_forced, true);
     if (atomic_exchange(&_pending, true)) return;       // one is queued already; it will see these facts too
     dispatch_async(_queue, ^{
         atomic_store(&self->_pending, false);           // a signal from now on asks for one more build
@@ -429,13 +609,59 @@ static NSString *SizeBucket(uint64_t bytes) {
 - (void)buildNow {
     id<MMFactSource> source = self.source;
     if (!source) return;
-    uint64_t gen = ++_generation;
+    os_signpost_id_t sp = os_signpost_id_generate(TickLog());
+    os_signpost_interval_begin(TickLog(), sp, "rebuild");
+    uint64_t c0 = ThreadNs();
+    BOOL forced = atomic_exchange(&_forced, false);
+    uint64_t gen = _generation + 1;
     MMFacts *facts = [source factsFor:gen];
-    if (!facts) return;
+    uint64_t c1 = ThreadNs();
+    AddCost(@"facts", c1 - c0);
+    if (!facts) { os_signpost_interval_end(TickLog(), sp, "rebuild", "no facts"); return; }
+    // Issue #52. A new sample whose facts match the last build's, at the precision the menus show, keeps the last
+    // snapshot. A build at least every heartbeat moves ages and the CPU and memory inside a band.
+    uint64_t digest = FactsDigest(facts), nowNs = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    BOOL same = !forced && self.latest && digest == _lastDigest && nowNs - _lastBuiltNs < kHeartbeatNs;
+    AddCost(@"digest", ThreadNs() - c1);
+    if (same) {
+        AddCost(@"skipped", 1);
+        os_signpost_interval_end(TickLog(), sp, "rebuild", "skipped: the facts did not change");
+        return;
+    }
+    _lastDigest = digest; _lastBuiltNs = nowNs;
+    _generation = gen;
+    c1 = ThreadNs();
     if (facts.generation != gen)                        // the generation is the graph's count, never the source's
         facts = [MMFacts generation:gen sample:facts.sample power:facts.power agents:facts.agents sessions:facts.sessions
                           worktrees:facts.worktrees clutter:facts.clutter git:[self gitOf:facts]];
-    MMSnapshot *snap = [MMSnapshot snapshotFrom:facts experts:self.experts reviews:_reviews holds:_holds];
+    // Each expert whose inputs did not change hands back its last findings. A forced build asks every expert.
+    NSMutableArray *experts = [NSMutableArray new];
+    NSMutableDictionary<NSString *, NSNumber *> *digests = [NSMutableDictionary new];
+    for (id<MMExpert> e in self.experts) {
+        NSString *eid = e.expertID ?: @"";
+        MMFindingsReuse *r = [MMFindingsReuse alloc];
+        r.expert = e;
+        if ([e respondsToSelector:@selector(inputDigestFrom:)]) {
+            uint64_t d0 = ThreadNs();
+            uint64_t d = [e inputDigestFrom:facts];
+            AddCost([@"digest." stringByAppendingString:eid], ThreadNs() - d0);
+            digests[eid] = @(d);
+            MMKeptFindings *k = _kept[eid];
+            if (!forced && k.findings && k.digest == d && nowNs - k.atNs < kHeartbeatNs) {
+                r.findings = k.findings; r.reused = YES;
+                AddCost([@"reused." stringByAppendingString:eid], 1);
+            }
+        }
+        [experts addObject:r];
+    }
+    MMSnapshot *snap = [MMSnapshot snapshotFrom:facts experts:(NSArray<id<MMExpert>> *)experts reviews:_reviews holds:_holds];
+    for (MMFindingsReuse *r in experts) {
+        NSString *eid = r.expertID ?: @"";
+        if (r.reused || !digests[eid]) { if (!digests[eid]) [_kept removeObjectForKey:eid]; continue; }
+        MMKeptFindings *k = [MMKeptFindings new];
+        k.digest = digests[eid].unsignedLongLongValue; k.atNs = nowNs; k.findings = r.findings;
+        _kept[eid] = k;
+    }
     // A hold whose process the sample lacks is dropped only when the sample was taken after the hold.
     // An older sample cannot know a process that started a moment ago.
     NSDate *sampledAt = facts.sample.at;
@@ -446,7 +672,21 @@ static NSString *SizeBucket(uint64_t bytes) {
     [_holds setDictionary:kept];
     for (NSString *k in _holdSince.allKeys) if (!kept[k]) [_holdSince removeObjectForKey:k];
     self.latest = snap;
-    dispatch_async(dispatch_get_main_queue(), ^{ [self publish:snap]; });
+    AddCost(@"snapshot", ThreadNs() - c1);
+    AddCost(@"builds", 1);
+    os_signpost_interval_end(TickLog(), sp, "rebuild", "generation %llu, %lu findings", gen, (unsigned long)snap.findings.count);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        uint64_t m0 = ThreadNs();
+        [self publish:snap];
+        AddCost(@"publish", ThreadNs() - m0);
+    });
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)costs {
+    os_unfair_lock_lock(&gCostLock);
+    NSDictionary *c = [gCosts copy] ?: @{};
+    os_unfair_lock_unlock(&gCostLock);
+    return c;
 }
 
 - (NSDictionary *)gitOf:(MMFacts *)facts {

@@ -13,13 +13,22 @@ import json
 import sys
 
 
+def tick_cpu(idle):
+    w = idle["inWindow"]
+    t = w.get("tickCPUms", {})
+    if t.get("n"):
+        return (t["mean"], "mean")
+    return (round(w["passCPUms"]["median"] + w["rebuildCPUms"]["median"], 3), "")
+
+
 def values(idle, menus):
     """The number each budget key reads. A per-expert budget gives its worst expert."""
     v = {
         "idleCPUPercent": (idle["cpuPercent"], ""),
         "idleFootprintMB": (idle["footprintMB"], ""),
-        # The median tick: from the last snapshot to the sample signal, then the rebuild to the next snapshot.
-        "tickCPUms": (round(idle["inWindow"]["passCPUms"]["median"] + idle["inWindow"]["rebuildCPUms"]["median"], 3), ""),
+        # The mean tick: the whole process's CPU from one sample signal to the next, issue #52. A tick whose rebuild
+        # found nothing changed makes no snapshot, so a sum of pass and rebuild medians would miss it.
+        "tickCPUms": tick_cpu(idle),
         # Every wakeup counts, the ones that woke the package from idle among them.
         "wakeupsPerSecond": (idle["interruptWakeupsPerSecond"], ""),
     }

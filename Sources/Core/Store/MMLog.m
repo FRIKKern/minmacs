@@ -5,6 +5,7 @@
 #import "Core/Store/MMStore.h"
 #import "Core/Runtime/MMRuntime.h"
 #import <sqlite3.h>
+#import <sys/stat.h>
 
 @interface MMLogEntry ()
 @property (readwrite) int64_t row;
@@ -209,3 +210,14 @@ NSUInteger MMLogMainThreadQueries(void) { return gMainQueries; }
 }
 
 @end
+
+NSString *MMLogStamp(void) {
+    NSString *base = [MMSupportDir() stringByAppendingPathComponent:@"minmacs.sqlite"];
+    NSMutableString *out = [NSMutableString new];
+    for (NSString *p in @[base, [base stringByAppendingString:@"-wal"]]) {
+        struct stat st;
+        if (stat(p.fileSystemRepresentation, &st) != 0) { [out appendString:@"-|"]; continue; }
+        [out appendFormat:@"%lld.%ld:%lld|", (long long)st.st_ctimespec.tv_sec, st.st_ctimespec.tv_nsec, (long long)st.st_size];
+    }
+    return out;
+}
