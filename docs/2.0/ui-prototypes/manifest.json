@@ -1168,5 +1168,125 @@
   "surface": "menubar",
   "groupId": "60",
   "direction": "The bento grid with room to breathe"
+ },
+ {
+  "file": "70-a.html",
+  "name": "Mac Panel, Even",
+  "idea": "An even 3 \u00d7 2 grid of six blocks (CPU and memory, Apps, Agents, Storage and leftovers, Servers, Network), each with a ring badge, a big number, five or six rows and one action, under a live insight line that names the biggest thing worth doing now with its button; the block it names gets a ring in its color, and Keep Awake is one checkbox line under the grid.",
+  "good": "It reads like 01-a: the whole Mac on one calm sheet in the same place every time, and the line on top changes live (Clean Up Leftovers, then MinMacs Now, then Stop Idle Servers, then Offline).",
+  "tradeoff": "Every block has the same size, so the block with the most to say shows only five rows plus 'N more'. Proposed facts: Down/up totals from interface counters; interface kind (Wi-Fi); volume size (994 GB), since MMPower has diskFree only.",
+  "surface": "menubar",
+  "groupId": "70",
+  "direction": "Performance: 01-a reborn"
+ },
+ {
+  "file": "70-b.html",
+  "name": "Mac Panel, Weighted",
+  "idea": "The same six blocks and insight line on a 3 \u00d7 3 grid: the block the line points at takes the top-left 2 \u00d7 2 with all its rows, a second column of detail and a note; the other five stay compact in fixed order, and blocks glide to new cells when the biggest issue changes (with a 7 s hold and a margin so it doesn't shuffle).",
+  "good": "What matters most is also the largest thing on the sheet, with full detail where you act.",
+  "tradeoff": "The compact blocks show only two rows each, and any change of focus moves the layout. Proposed facts: Down/up totals from interface counters; interface kind (Wi-Fi); volume size (994 GB).",
+  "surface": "menubar",
+  "groupId": "70",
+  "direction": "Performance: 01-a reborn"
+ },
+ {
+  "file": "71-a.html",
+  "name": "Worth Doing First",
+  "idea": "A ranked list of up to six actions leads the Performance tab, item 1 as the larger insight line with the primary button; a compact ftop meter row sits below (CPU with the agents' share and heat, memory with pressure, disk used and free, network), then three panels: Apps by fate, Storage and leftovers, Network and servers. Hovering an item dims the panels to the rows it touches and makes each bar's colored end exactly what it frees.",
+  "good": "The page opens on a sentence and a button, and every number below it can be checked: hover an item and the meters and lists show exactly what it touches before you press.",
+  "tradeoff": "The ranked list and meters take about half the sheet, so the three panels are short and scroll. Proposed facts: Interface down/up totals; route kind (Wi-Fi); a noise-tab rule and per-tab memory; npm/Docker/Simulators leftover fixtures.",
+  "surface": "menubar",
+  "groupId": "71",
+  "direction": "Performance: Insight first"
+ },
+ {
+  "file": "71-b.html",
+  "name": "Ranked With Detail",
+  "idea": "The left column holds the ranked list and five This Mac rows (CPU, memory, disk, network, servers), with the lid checkbox at the foot; the right column becomes the detail of the row you hover: its bar, the rows it touches, its plan in run order with any reason a part is blocked, and its one button.",
+  "good": "Each item gets a whole column to explain itself, including what Undo can and cannot bring back, and after an action the detail moves to the item that took its place.",
+  "tradeoff": "One detail at a time, so comparing apps, storage and servers side by side takes several hovers. Proposed facts: Interface down/up totals; route kind (Wi-Fi); a noise-tab rule and per-tab memory; npm/Docker/Simulators leftover fixtures.",
+  "surface": "menubar",
+  "groupId": "71",
+  "direction": "Performance: Insight first"
+ },
+ {
+  "file": "72-a.html",
+  "name": "Zoomed disk bar",
+  "idea": "Storage fills most of Performance: used and free as big numbers, the whole disk as one bar whose reclaimable end zooms out to full width, split By Kind or By Owner with gone owners ringed; each row opens to its items with Clean, Keep and Show in Finder, and Clean Up Leftovers previews the Trash part and the tool-command part. CPU, memory, apps by fate, network, servers and the lid checkbox sit in a quiet six-cell band whose cells open their detail above it.",
+  "good": "It reads in one pass from 'how full is my disk' down to the exact items that can go and who left them, and it is honest that a Trash clean frees disk only when the Trash is emptied, while a tool's prune frees it at once with no Undo.",
+  "tradeoff": "About five kinds show before scrolling, and CPU, memory, apps and servers are one hover away instead of on the page. Proposed facts: Disk total size from statfs (994 GB); whole-Mac down/up from interface counters. No per-app traffic.",
+  "surface": "menubar",
+  "groupId": "72",
+  "direction": "Performance: Storage is the hero"
+ },
+ {
+  "file": "72-b.html",
+  "name": "Disk map",
+  "idea": "A treemap of every disk item MinMacs knows: blocks sized by GB with clones counted once, grouped by kind, each labeled with its owner; gone owners ringed, running workstreams' caches as one dim group, the Trash as one block, report-only items hatched; Kind or Owner recolors the same layout, Clean Up Leftovers sits at the map's foot, and a quiet column on the right holds CPU, memory, apps, network, servers and the lid.",
+  "good": "Who holds the disk shows at a glance, and cleaning reflows the map: what goes to the Trash visibly moves into the Trash block.",
+  "tradeoff": "Small blocks lose their labels, so some need their hover card, and the map hides unsorted files behind one thin bar. Proposed facts: Disk total size from statfs (994 GB); whole-Mac down/up from interface counters. No per-app traffic.",
+  "surface": "menubar",
+  "groupId": "72",
+  "direction": "Performance: Storage is the hero"
+ },
+ {
+  "file": "73-a.html",
+  "name": "Network as a band",
+  "idea": "Top to bottom: a live insight line with its button, CPU and memory bars whose blue end is what MinMacs Now frees, a full-width network band (route and live total, local servers with connections now, the connected apps, memory and workstream, Stop Idle Servers, and what changes offline with the Keep Awake check), then apps by fate beside Storage with leftovers by kind and Clean Up Leftovers.",
+  "good": "Network sits in the middle of the reading path and explains what the Mac is doing online (Safari and Chrome on :3000, Chrome for Testing on :5173); going offline changes the band, the insight and the keep-awake countdown live.",
+  "tradeoff": "Four stacked rows fill the body, so the Kept apps scroll under a fade, and the band shows only the four busiest servers. Proposed facts: Live total down/up from interface counters; route kind (Wi-Fi); model reviews waiting while offline.",
+  "surface": "menubar",
+  "groupId": "73",
+  "direction": "Performance: Network you can understand"
+ },
+ {
+  "file": "73-b.html",
+  "name": "Network drawn live",
+  "idea": "A small live diagram is the focal point: the Internet and the route out on the left, this Mac in the middle, servers with connections now as pills, the connected apps on the right; dots run along the route at a rate that follows the live total, and a dot runs from an app to its server for each new connection. Apps by fate sit below, meters and Storage in the right column.",
+  "good": "You see the network as a picture of who talks to whom, every line backed by a fact, and it stays readable at Peak with 35 servers.",
+  "tradeoff": "The diagram draws only the five busiest servers, and the narrow right column cuts Storage sub-lines short. Proposed facts: Live total down/up from interface counters (also sets the route dot speed); route kind (Wi-Fi); model reviews waiting while offline.",
+  "surface": "menubar",
+  "groupId": "73",
+  "direction": "Performance: Network you can understand"
+ },
+ {
+  "file": "74-a.html",
+  "name": "Bento by need",
+  "idea": "Performance in 60-a's own bento language: tiles for CPU and memory, Apps, Agents, Storage and leftovers, Network, Servers and Keep Awake; each has a base size from what it holds, a tile with something worth doing grows one step and gets a tinted edge, the order stays put, and one insight line on the sheet head names the biggest thing worth doing, with its button.",
+  "good": "Performance looks like the same product as Workstreams and tiles stay in place; when a tile is dealt with it shrinks while the insight line moves on to the next thing.",
+  "tradeoff": "Because the order is stable, the most urgent tile can end up low in the grid, so the head line has to say what matters most. Proposed facts: Live down/up from interface counters; WorkForest pausing remote checks while offline; npm/Docker cache rows as tool rows and Simulators report-only.",
+  "surface": "menubar",
+  "groupId": "74",
+  "direction": "Performance: bento in 60-a's language"
+ },
+ {
+  "file": "74-b.html",
+  "name": "Ranked bento",
+  "idea": "The tiles re-rank live by what is worth doing: the top tile spans the full width and carries the insight line and its button, the rest follow by rank, and the change is calm (only when another tile beats it by an eighth, never twice within 4 s, with a 0.95 s glide).",
+  "good": "What matters most is always the biggest thing at the top-left: going offline puts Network on top, a full disk puts Storage on top, and MinMacs Now hands the top to Servers.",
+  "tradeoff": "Tiles move whenever the top pick changes, so you have to find a tile again. Proposed facts: Live down/up from interface counters; WorkForest pausing remote checks while offline; npm/Docker cache rows as tool rows and Simulators report-only.",
+  "surface": "menubar",
+  "groupId": "74",
+  "direction": "Performance: bento in 60-a's language"
+ },
+ {
+  "file": "75-a.html",
+  "name": "Now and After",
+  "idea": "A five-row ledger (CPU, Memory, Disk, Servers, Network) shows the Mac now, an arrow, the Mac after the ticked steps, and one sentence on what changes; MinMacs Now and Clean Up Leftovers are ticked by default, Wrap Up Ready and Stop Idle can be added; below, three panels (Apps by fate, Storage and leftovers, Network and servers) say what happens to each row: quits, to the Trash, runs its command, report only, with Wrap Up, or stays.",
+  "good": "Every number has its after value: hovering a step lights what it touches, ticking a step moves the after column, and one button with a preview and one Undo runs the ticked steps.",
+  "tradeoff": "The ledger takes about 40 % of the height, so the panels are short and scroll, and the steps row adds a choice to understand first. Proposed facts: Route kind (Wi-Fi); down/up rate from interface counters with a 60-sample sparkline; running a clutter row's cleanup command from Clean Up (MMClutterKind has cleanup and dryRun, no action runs them yet).",
+  "surface": "menubar",
+  "groupId": "75",
+  "direction": "Performance: now and after, or every size"
+ },
+ {
+  "file": "75-b.html",
+  "name": "Every size",
+  "idea": "One ftop panel with ftop's own Compact, Medium and Large switch, and the sheet height follows (322, 600, 760 px): Compact is a strip of six ring meters under the insight line; Medium is 01-a's calm grid of six blocks, each with a badge ring, a big number, three rows and one action; Large keeps every block in place and lets each list everything (storage rows with owner, how it goes, the command and the trend; servers with workstream, connections and apps; agents' load; most memory per app).",
+  "good": "The 1/117 panel made literal and smarter: the same blocks at three depths, the colored end of each bar is what MinMacs Now or Clean Up frees, and the insight line with its button stays on top at every size.",
+  "tradeoff": "Large is Medium with more rows, not a new composition, and at Medium Storage hides most of its kinds. Proposed facts: Route kind (Wi-Fi); down/up rate from interface counters with a sparkline; a 60-sample CPU history in memory; running clutter cleanup commands.",
+  "surface": "menubar",
+  "groupId": "75",
+  "direction": "Performance: now and after, or every size"
  }
 ]
