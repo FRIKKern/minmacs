@@ -477,7 +477,8 @@ static NSString *GitLsFiles(NSString *dir, NSString *name, int *status) {
     // dispatch_sync would run the block on the caller's thread, which may be the CLI's main, where MMGit refuses.
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     dispatch_async(q, ^{ out = MMGit(dir, @[@"ls-files", @"--", name], 10, &st); dispatch_semaphore_signal(done); });
-    dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC));
+    // A pass that has not finished keeps the folder, and its block may still write out and st, so neither is read.
+    if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) return nil;
     *status = out ? st : -1;
     return out;
 }
