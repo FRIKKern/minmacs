@@ -1078,5 +1078,35 @@
   "surface": "menubar",
   "groupId": "54",
   "direction": "Three tabs: timeline or live map"
+ },
+ {
+  "file": "55-a.html",
+  "name": "Faithful Poster",
+  "idea": "53-b Row Poster as drawn, corrected to the facts the 2.0 code has. A 300 px list of 14 workstreams on atlas, lexicon, studio and speed sits in Ready, Going and Leftovers. Each row has a Next sentence from facts, such as \"Asks you \u00b7 Allow npm run build?\" or \"Merged 2 h ago \u00b7 Auto in 21 h\". The picked row becomes a poster. Its big number is the disk Wrap Up frees, with memory as its own number. Below that come a disk bar, a memory bar, and the Session, Servers, Worktree and Caches blocks. The footer is the Wrap Up plan in run order: Servers, Helpers, Caches, Config, Worktree. Each part shows its title and size, and a blocked part shows its whyNot. The Advanced tabs use the same list and poster. They show agents with their why, servers with connections and a heartbeat of new connections, worktrees with git counts, and a disk map that counts APFS clones once.",
+  "good": "The poster answers what the workstream is doing, what it holds and what Wrap Up takes, with no invented facts. Disk and memory are never added together. The plan lists every part in the order it runs, and Undo says it brings back the worktree and saved files and restarts its servers. Fifteen workstreams still read in the list.",
+  "tradeoff": "The workstream poster is taller than the panel. On fix-auth-redirect the last plan parts and the Wrap Up button show only after you scroll, and a fade at the bottom edge is the only hint. Row Next sentences use short durations, and long session titles are cut with an ellipsis.",
+  "surface": "menubar",
+  "groupId": "55",
+  "direction": "Row Poster with real facts"
+ },
+ {
+  "file": "56-a.html",
+  "name": "Plan first",
+  "idea": "The poster leads with the Wrap Up plan as a checklist. Each part has its real title, the expert that runs it, and what it frees. A blocked part shows its whyNot with a lock. One live Next line above the plan says what the workstream is doing. The list holds 16 workstreams in Ready, Blocked, Going and Leftovers.",
+  "good": "You see exactly what Wrap Up will take and what stops it before you press it. Disk and memory are two numbers, and the bar is disk only. The keep reasons follow MMWFWrapKeeps and MMWFWorkKeeps, so the Blocked group shows what the code would really say.",
+  "tradeoff": "The plan pushes the agent and server facts below the fold, so a working workstream shows its checklist first. For an unmerged worktree the config and worktree parts both say \"its branch is not merged\", which is true to the code but less useful.",
+  "surface": "menubar",
+  "groupId": "56",
+  "direction": "Row Poster with real facts"
+ },
+ {
+  "file": "57-a.html",
+  "name": "Twelve at once",
+  "idea": "Row Poster at the scale the owner works at, with 15 workstreams across seven repos. The list groups rows by what each one needs from you: Asks you, Working, Ready to wrap up and Blocked, with Leftovers last. Each row is one 23 px line with a small live state. That state is the hook's question, the working time, the merge age or the whyNot, and next to it sits CPU for a working agent or the disk Wrap Up frees. The poster shows the session title and one Next sentence with its Go button. Below that are four fact lines (Agent, Servers, Worktree, Caches) and the five Wrap Up parts in plan order, each with its own unit and whyNot.",
+  "good": "All 16 rows fit without scrolling, and the hook's question, the merge age and the whyNot read in full on the row. Every poster fits with no scroll, speed-3 with three servers included. Disk and memory always stay two numbers, and the plan shows Config even when it is empty. Undo restores the worktree and its saved files but never claims to restart a server.",
+  "tradeoff": "The rows are dense. Waiting rows drop their CPU value to make room for the question, and subagents show only as dots on the row. The poster drops the per-block totals and the duplicate-server note to fit, so those live in the Servers and Worktrees tabs. Small blocks in the disk map cut their labels, and the full name sits in the hover card.",
+  "surface": "menubar",
+  "groupId": "57",
+  "direction": "Row Poster with real facts"
  }
 ]
