@@ -32,8 +32,9 @@ mkdir -p "$OUT" && OUT=$(cd "$OUT" && pwd -P)
 B=${SOAK_DIR:-$(tools/soak/build.sh)} || { echo "soak: the build failed" >&2; exit 1; }
 B=$(cd "$B" && pwd -P)
 
-# A tag unique to this run: the pid and a random byte. Process names stay under 16 characters.
-TAG="$$$(od -An -N1 -tu1 /dev/urandom | tr -d ' ')"
+# A tag unique to this run: the pid in 5 digits and a random byte in 3, so two runs never share one while both live.
+# Unpadded, pid 1234 with byte 56 and pid 12345 with byte 6 gave the same tag. Process names stay under 16 characters.
+TAG=$(printf '%05d%03d' "$$" "$(od -An -N1 -tu1 /dev/urandom | tr -d ' ')")
 SOAK="mmsoak$TAG"; AGENT="mmsa$TAG"; MARK="mms(oak-?|a)$TAG( |$)"
 H=$(mktemp -d "${TMPDIR:-/tmp}/minmacs-soak.XXXXXX") && H=$(cd "$H" && pwd -P)
 mkdir -p "$H/bin" "$H/code" "$H/claude/sessions" "$H/claude/projects" "$H/codex" "$H/pi" \

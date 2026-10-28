@@ -155,7 +155,10 @@ int main(int argc, const char *argv[]) {
 
         gSteps = [NSMutableArray new];
         __block NSUInteger menuRounds = 0, menusOpened = 0, cardsHovered = 0;
-        NSMutableDictionary<NSString *, NSNumber *> *peak = [NSMutableDictionary new];
+        NSMutableDictionary<NSString *, NSNumber *> *peak = [NSMutableDictionary new], *peakFixture = [NSMutableDictionary new];
+        // A finding about a folder inside MINMACS_HOME is the churn's. LocoHost also lists this Mac's own servers, read
+        // only, so its count alone does not show that the fixture servers were seen.
+        NSString *home = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
         __block NSUInteger peakAgents = 0, peakSessions = 0, peakHolds = 0;
         MMSoakFooter *footer = [MMSoakFooter new];
         NSDate *started = NSDate.date;
@@ -191,6 +194,10 @@ int main(int argc, const char *argv[]) {
                 NSUInteger n = [live findingsFor:e.expertID].count;
                 findings[e.expertID] = @(n);
                 if (n > peak[e.expertID].unsignedIntegerValue) peak[e.expertID] = @(n);
+                NSUInteger fx = 0;
+                for (MMFinding *f in [live findingsFor:e.expertID])
+                    if ((f.path && Inside(f.path, home)) || (f.ownerPath && Inside(f.ownerPath, home))) fx++;
+                if (fx > peakFixture[e.expertID].unsignedIntegerValue) peakFixture[e.expertID] = @(fx);
             }
             NSUInteger holds = MMAwake.held.count;
             peakAgents = MAX(peakAgents, live.facts.agents.count);
@@ -227,7 +234,7 @@ int main(int argc, const char *argv[]) {
             @"experts": @(experts), @"expertIDs": [MMExperts() valueForKey:@"expertID"],
             @"notIdle": modes, @"undoRecords": @(records), @"snapshots": @(snapshots),
             @"menuRounds": @(menuRounds), @"menusOpened": @(menusOpened), @"cardsHovered": @(cardsHovered),
-            @"peakFindings": peak, @"peakAgents": @(peakAgents), @"peakSessions": @(peakSessions), @"peakAwakeHolds": @(peakHolds),
+            @"peakFindings": peak, @"peakFixtureFindings": peakFixture, @"peakAgents": @(peakAgents), @"peakSessions": @(peakSessions), @"peakAwakeHolds": @(peakHolds),
             @"watchdogPasses": @(MMWatchdogPasses()), @"stalls": stalls,
             @"logQueriesOnMain": @(MMLogMainThreadQueries()), @"keepReadsOnMain": @(MMKeepMainThreadReads()),
         } options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];

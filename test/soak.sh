@@ -65,7 +65,7 @@ check "soak: every server and agent started was stopped" yes \
   "$(sc '"yes" if j["serversStarted"] >= 2 and j["serversStarted"] == j["serversStopped"] and j["agentsStarted"] >= 2 and j["agentsStarted"] == j["agentsStopped"] else j')"
 check "soak: no process of the run is left" 0 "$(sc 'j["fixturesLeft"]')"
 check "soak: the graph saw the fixture servers, worktrees, agents and sessions" yes \
-  "$(sm '"yes" if j["peakFindings"].get("locohost", 0) >= 1 and j["peakFindings"].get("workforest", 0) >= 1 and j["peakAgents"] >= 1 and j["peakSessions"] >= 1 else (j["peakFindings"], j["peakAgents"], j["peakSessions"])')"
+  "$(sm '"yes" if j["peakFixtureFindings"].get("locohost", 0) >= 1 and j["peakFixtureFindings"].get("workforest", 0) >= 1 and j["peakAgents"] >= 1 and j["peakSessions"] >= 1 else (j["peakFixtureFindings"], j["peakAgents"], j["peakSessions"])')"
 check "soak: the home of the run is removed" 0 "$(ls "$sk/tmp" | grep -c .)"
 
 # The report fails a run with a MinMacs leak, a stall outside a leaks window, a crash report or a fixture left.
