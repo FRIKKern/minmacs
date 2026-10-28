@@ -246,7 +246,7 @@ int main(int argc, const char *argv[]) {
             MMProcKey k = KeyFor(pid);
             MMPlace *w = MMWhereIs(k, nil, YES);
             BOOL before = MMWhereCached(k);
-            kill(pid, SIGTERM);   // the fixture know.sh started for this check
+            if (pid > 1) kill(pid, SIGTERM);   // the fixture know.sh started for this check; never 0, our process group
             for (int i = 0; i < 40 && MMProcAlive(k); i++) usleep(50000);
             MMWhereIs(KeyFor(getpid()), nil, YES);   // any later call prunes
             Print(@{ @"kind": w ? PlaceJSON(w)[@"kind"] : @"none", @"cachedBefore": @(before), @"cachedAfter": @(MMWhereCached(k)) });

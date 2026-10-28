@@ -90,7 +90,8 @@ wait "$wi_srv" 2>/dev/null
 
 echo "-- MMCoreStart and MMCoreStop"
 wi_sleep="$wi_dir/mmwire-sleep-$$"
-cp /bin/sleep "$wi_sleep"
+# Built here, not copied from /bin: macOS may kill a copy of a system binary when it starts.
+clang -O1 test/insomnia/sleeper.c -o "$wi_sleep" >>"$wi_dir/clang.log" 2>&1
 wi_repo="$wi_dir/roots/fixture-repo"
 mkdir -p "$wi_repo/sub/dir"
 git -c init.defaultBranch=main init -q "$wi_repo" >/dev/null 2>&1

@@ -160,11 +160,11 @@ static int Start(NSString *sleepCopy, NSString *repoArg, NSString *outsideArg) {
     out[@"watchedBeforeKill"] = @(watchedOK);
     usleep(300000);   // the snapshot observer has handed the key to kqueue
     NSDate *killed = NSDate.date;
-    kill(kid, SIGTERM);   // the fixture this tool started
+    if (kid > 1) kill(kid, SIGTERM);   // the fixture this tool started; never 0, which is our whole process group
     BOOL gone = Spin(4, ^BOOL { return [MMGraph.shared.current findingsFor:@"wiretest"].count == 0; });
     out[@"exitRebuild"] = @(watchedOK && gone);
     out[@"exitMs"] = @((int)(-killed.timeIntervalSinceNow * 1000));
-    int st; waitpid(kid, &st, 0);
+    int st; if (kid > 1) waitpid(kid, &st, 0);
     // A fresh read for one finding blocks, so it never runs on main.
     out[@"freshOnMain"] = [MMGraph.shared freshFactsFor:[MMFinding expert:@"wiretest" kind:@"x" stableKey:@"y" build:nil]] ? @"facts" : @"nil";
     __block MMFacts *fresh = nil;
