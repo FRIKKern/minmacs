@@ -7,6 +7,7 @@
 # Cleanup stops only the pids this section started or restored, read from its own pid files and its own port.
 
 wu=$(cd "$MINMACS_HOME" && pwd -P)/wu$$
+wu_procs_before="$procs"                     # cleanup puts procs back to this once it stopped its own
 mkdir -p "$wu/bin" "$wu/pids" "$wu/claude/projects" "$wu/codex" "$wu/root/home"
 wu_top="$MINMACS_HOME"; wu_saved_claude="$CLAUDE_CONFIG_DIR"; wu_saved_codex="$CODEX_HOME"
 # A support folder of its own, so this section's undo rows never reach another section's counts.
@@ -201,8 +202,17 @@ check "wrapup: no part deletes for good or forces git" 0 \
   "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|--force|emptyTrash' Sources/Core/Act/MMWrapUp.m Sources/Experts/MinMacs/MMMinMacsWrapUp.m | grep -c .)"
 check "wrapup: Core runs every part through MMRunActionPart" 1 "$(grep -c 'MMRunActionPart(p.action' Sources/Core/Act/MMWrapUp.m)"
 
-# Stop what this section started or restored, by pid, and nothing else.
-for f in "$wu"/pids/*; do x=$(cat "$f" 2>/dev/null); [ -n "$x" ] && kill -9 "$x" 2>/dev/null; done
-x=$(wu_listener "$P"); [ -n "$x" ] && kill "$x" 2>/dev/null
+# Stop what this section started or restored, and nothing else. Wrap Up stopped some of these pids minutes ago,
+# and the Mac may have given a pid to another process since, so each pid is signaled only while it still runs a
+# fixture command: the helper under its run-unique name, or the http.server on this section's port.
+wu_ours() {
+  c=$(ps -o command= -p "$1" 2>/dev/null)
+  case "$c" in "$wu/bin/$WH "*|*"http.server $P --bind 127.0.0.1"*) return 0 ;; esac
+  return 1
+}
+check "wrapup: a pid that runs no fixture command is never ours" no "$(wu_ours $$ && echo yes || echo no)"
+for x in $(cat "$wu"/pids/* 2>/dev/null) $(wu_listener "$P"); do wu_ours "$x" && kill -9 "$x" 2>/dev/null; done
+# The pids this section added to procs are stopped or gone, so the harness's cleanup never signals a reused one.
+procs="$wu_procs_before"
 unset MINMACS_ROOTS MINMACS_CLUTTER_ROOT MINMACS_CLUTTER_ROWS MINMACS_CLAUDE MINMACS_CODEX RV_TEST_SENT GIT_CONFIG_NOSYSTEM
 export CLAUDE_CONFIG_DIR="$wu_saved_claude" CODEX_HOME="$wu_saved_codex" MINMACS_HOME="$wu_top"
