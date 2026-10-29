@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-185 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+191 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -37,6 +37,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 97–99 | Performance ranked by impact, and Fix Everything | "start with fixing full workstreams ... continuing with less and less important". On 94-a, the Performance hero is a list of 7 fixes, biggest move first, each with its memory back and disk back, and a Fix Everything run whose steps and pace fit each kind of action: an impact ladder or two waterfalls, now and after rings or a timed plan, a live run beside one ring or a stack of cards |
 | 100 | What got better lately | "177 is nice. When nothing left to fix, show a summary of what how much we have improved lately". On 99-b, the calm Performance view looks back over today and the week: memory back and disk back as two numbers, a 7-day chart and counts by kind, or the deck turned into done cards, newest first |
 | 101–103 | More ways to show what got better lately | "I want more variations of this screen". The calm view on 100-a, opening already calm: the week as two rings or the Mac then and now as gauges, a day strip hour by hour or the week as sentences, split by who did it or by workstream |
+| 104–106 | New layouts for Performance, the parts and the whole | "using left to see all processes and stuff - and right for the overall things - just as an example". On 100-a: every running part on the left by kind or by owner with the Mac and the fix deck on the right, three columns or the whole above a sortable table, or a right side that follows what you pick and a list sorted by the ring you point at |
 
 ## Direction so far
 
