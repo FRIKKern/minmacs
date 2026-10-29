@@ -1708,5 +1708,65 @@
   "surface": "menubar",
   "groupId": "96",
   "direction": "Performance overview: one picture of everything"
+ },
+ {
+  "file": "97-a.html",
+  "name": "Impact Ladder",
+  "idea": "Seven tall rows ranked biggest first. Each row has two thin bars (memory back, disk back), each scaled to the biggest row, plus small words for CPU, servers, tabs and attention, and a line saying why it sits where it does. On the right are the four ftop rings with a ghost after-state (all 7, or the hovered fix) above the Fix Everything panel. While the run plays, each row expands in place: Wrap Up ticks through its five steps, tabs count down, servers stop one per beat with port free then memory back, and caches count down in GB.",
+  "good": "You can see every fix's impact and the whole Mac's now-to-after state at once. The run is easy to follow: the done rows shrink, the current row opens, and the rings and the 'back so far' numbers move with each step.",
+  "tradeoff": "Seven rows plus four rings make a dense sheet. Proposed facts: A Close localhost tabs step inside Wrap Up (the code can close tabs, but no plan part does yet). Per-step timing of a real run: stop events per server, app save and quit, and cache delete progress in bytes. The whole fix order is ranked on the page from shown weights; the code ranks only INS sections.",
+  "surface": "menubar",
+  "groupId": "97",
+  "direction": "Impact: the ranked ladder"
+ },
+ {
+  "file": "97-b.html",
+  "name": "Impact Waterfall",
+  "idea": "The same 7 fixes drawn as two waterfalls from Now to After all 7, one for memory and one for disk, never one number. Each drop is one fix you can hover, and it lights its numbered row in a compact list with buttons on the right. Fix Everything plays the waterfall live: the Now bar falls, each drop shrinks as its fix runs, and a run line names the current step and its live count.",
+  "good": "It shows at a glance which fixes matter for memory and which for disk, and how far the Mac drops. The live shrinking drops make the run feel physical.",
+  "tradeoff": "The axes are cut so small drops still read, so bar heights are not comparable to zero; no rings stay on screen while there are fixes (CPU and connections are only words in the panel); and the list rows are short, so the why text shows only on the top row. Proposed facts: Same as 97-a: a Close localhost tabs step in Wrap Up, per-step run timing and progress events, and the page's own ranking weights across all fix kinds.",
+  "surface": "menubar",
+  "groupId": "97",
+  "direction": "Impact: the ranked ladder"
+ },
+ {
+  "file": "98-a.html",
+  "name": "Now and After",
+  "idea": "Three rings (Memory, Disk, CPU) and a Running cell (servers, tabs, worktrees, apps) each show now → after: gray is what stays and the colored arc is what the 7 give back, cut into one share per fix with the biggest at the now end. Under them sit the ranked 7 with a memory bar and a disk bar on each row, a Needs you row at the top, and Fix Everything in the band between.",
+  "good": "The impact is the first thing you see. Hovering a row lights only its share of each ring with \"65 % → 63 %\" in words. During Fix Everything the rings and numbers move with each step: a server's memory comes back a beat after it stops, a cache counts down as its files go, and the active row shows its live sub-step with tick marks.",
+  "tradeoff": "Disk gains are small next to 994 GB (31 GB is about 3 % of the ring), so the disk arc is thin and the caption and arrow number carry that meaning. The rank weights (memory, disk ÷ 10, CPU, things, a whole workstream = 2) are a proposal. Under memory pressure a big server row can still outrank a Wrap Up, as it does at Peak. Proposed facts: How long each step takes (Wrap Up check 0.9 s, server stop 0.5 s, tab 0.1 to 0.16 s, app quit 1.3 s, cache 0.6 s + 0.11 s per GB, merged worktree 0.9 s) is modeled, not measured. The rank weights. Closing a workstream's localhost tabs as a Wrap Up step (already marked new). Orphan servers are tied to the Stop idle servers rule for the Off check.",
+  "surface": "menubar",
+  "groupId": "98",
+  "direction": "Impact: now and after"
+ },
+ {
+  "file": "98-b.html",
+  "name": "Fix Plan Timeline",
+  "idea": "The 7 fixes as a planned track from left to right. Each segment is as long as its planned steps take, with its sub-step ticks inside it and memory and disk under it, on a seconds axis. Fix Everything moves a white playhead along the track in real time, and a Mac band of four now → after bars (Memory, Disk, CPU, Servers) moves with it. The ranked rows below show how long each fix takes.",
+  "good": "You see in advance how long Fix Everything will take and which fix is slow (Wrap Up, big caches) or quick (tabs, Quit). The playhead, the fill in each segment and the live sub-step line make the run feel real, and hovering a segment or a row lights the same fix in the track, the Mac band and the list.",
+  "tradeoff": "The track has a 92 px floor so short fixes stay readable, so their widths are not quite to scale. At Peak the list rows get tight (about 33 px) under the track and the Mac band. When Wrap Up rows repeat, the name of the workstream shows only when the segment is wide enough. Proposed facts: The same modeled step times and rank weights as 98-a, also used for the time scale of the plan and the \"About N s\" line. Closing localhost tabs as a Wrap Up step (already marked new).",
+  "surface": "menubar",
+  "groupId": "98",
+  "direction": "Impact: now and after"
+ },
+ {
+  "file": "99-a.html",
+  "name": "Ranked Run",
+  "idea": "Seven ranked rows (each says why it sits there, with two separate bars for memory back and disk back, and Needs you on top) sit beside one big 89-a ring: memory by holder inside, disk as an outer track, and colored ends for what the fixes give back. Fix Everything turns the right side into a live run: slices fly out per step, the center counts memory back and disk back, and a calm step line reads 'Stopping :4000 Phoenix... port free', 'Closing tab 9 of 14', 'Deleting DerivedData, 7.1 GB left'.",
+  "good": "The whole run reads at a glance: the current row glows with a progress line, done rows settle with what came back, the rest wait dimmed, and now -> after all 7 sits under the ring the whole time. Hovering a row ghosts its after-state in the ring center and names what it touches.",
+  "tradeoff": "The ring is honest at the 64 GB and 994 GB scale, so one fix's slice is only a few degrees (fix slices are drawn thicker, and fly-outs are at least about 3 degrees). So the character of each kind lives mostly in the step line, not the ring. Proposed facts: Rank weights are a proposal: memory 8 per GB (x1.5 at Warning, x2.5 at Critical), disk 0.5 per GB (x3 under 100 GB free), each server 1.5, each tab 0.15, each worktree 1, a whole workstream 8 more. Step timings are modeled: Wrap Up check 0.95 s, each server 0.54 s with memory falling a beat later, each localhost tab 0.18 s, worktree delete 1.3 to 2.7 s by size; noise tabs 0.095 s each; app save-and-quit 1.25 s; merged worktree 0.95 s; cache 1.5 to 4 s by size. Own-command cleans (npm, Docker) are a separate fix from caches deleted for good.",
+  "surface": "menubar",
+  "groupId": "99",
+  "direction": "Impact: the run"
+ },
+ {
+  "file": "99-b.html",
+  "name": "Fix Cards Stack",
+  "idea": "The fixes are a deck of cards, biggest on top and largest, each one a little narrower going down, with skipped cards (Needs you, Blocked with its reason) at the bottom. Fix Everything plays each kind inside the top card: Wrap Up as five step pills (Check, Servers, Tabs, Worktree, Done), tabs as chips leaving one by one, servers as port dots going dark, apps saving then quitting, caches as a size bar draining part by part. Then the card folds away and the next one rises and grows.",
+  "good": "Each kind of action looks and paces differently, so the run feels like the Mac really working. The right side shows back-so-far counts, now -> after bars for memory, disk, CPU and server dots, and a run-order list with each fix's seconds and pace ('five steps, slower', 'one by one, fast').",
+  "tradeoff": "No single picture of the whole Mac like 99-a's ring. The picture is spread over bars and the deck, and cards 4 to 7 are one-line cards that show their numbers but not their reason until they rise. Proposed facts: Same as 99-a: rank weights (memory 8 per GB with pressure multiplier, disk 0.5 per GB, server 1.5, tab 0.15, worktree 1, whole workstream 8) and the modeled step timings. Own-command cleans are their own fix.",
+  "surface": "menubar",
+  "groupId": "99",
+  "direction": "Impact: the run"
  }
 ]
