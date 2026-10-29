@@ -1788,5 +1788,65 @@
   "surface": "menubar",
   "groupId": "100",
   "direction": "Calm: what got better lately"
+ },
+ {
+  "file": "101-a.html",
+  "name": "Week in Rings",
+  "idea": "When calm, the deck is two large ftop rings side by side, memory back and disk back this week. Each ring is cut into 7 day parts, Thursday at the top round to today (the bright, glowing part). The week total is big in the center with today's number small under it. Hover a part and the center names its day and amount. Under the rings sit six round badges with counts by kind, and above them one plain sentence.",
+  "good": "It answers 'how much better, and from what' at a glance. Memory and disk are two rings that are never summed, and a fix that lands grows today's part and pulses its badge in place. With one or two fixes back on top, the rings shrink into a compact strip beside the sentence.",
+  "tradeoff": "Day amounts only show on hover, a day with nothing back has no part to hover, and the right column keeps 100-a's 'now vs a week ago' bars. Proposed facts: none beyond 100-a's seeded week and P100AGO",
+  "surface": "menubar",
+  "groupId": "101",
+  "direction": "Calm: rings and the Mac itself"
+ },
+ {
+  "file": "101-b.html",
+  "name": "Mac Then and Now",
+  "idea": "When calm, the deck shows 'A week ago, Wed 21 Oct' and 'Now' side by side as two matching 2x2 sets of ftop gauges: disk free, time at memory pressure Warning or worse, servers running on average, tabs open on average. The then set is gray and the now set is in color, with each pair's difference in words under the now gauge ('63 GB more free', '5 h 30 min less', '2.9 fewer on average'). Under the gauges, what made the difference, ranked by kind, memory and disk apart, each with a share bar.",
+  "good": "It shows the Mac itself getting better, not just a tally. A landed fix moves the disk and tabs gauges and flashes its kind's row as it reranks. The right column holds today and this week, memory back and disk back as two numbers each, plus the newest fix.",
+  "tradeoff": "Two of the four gauges (servers and tabs on average) rest on a proposed fixture. While calm the right column also drops the CPU bar and rank note to make room. Proposed facts: P101AVG per scenario: servers running and tabs open on average for the week before and for the 6 days before today (today is live). Gauge scales: disk of 994 GB, Warning time rounded up to whole hours, servers of all servers, tabs rounded up to tens.",
+  "surface": "menubar",
+  "groupId": "101",
+  "direction": "Calm: rings and the Mac itself"
+ },
+ {
+  "file": "102-a.html",
+  "name": "Day Strip",
+  "idea": "Today is a wide strip from midnight to now. Each fix is a mark at its time, memory back above the line and disk back below, each on its own scale, colored by kind. Fixes within 14 minutes (a Fix Everything run) stack into one mark, a segment per fix. Hovering a mark shows who did it, when, and what each fix gave back. Under it, the six days before are thinner strips on the same hours and scales. Totals sit at the right end of every strip, and the right column shows this week by who did it (Fix Everything, You, Auto), memory and disk apart.",
+  "good": "The week reads as a calm pattern at a glance: Auto near 03:00 and in the morning, the Fix Everything run in the afternoon. A fix that lands live grows into its mark with a soft ring, and a sentence says in words what came back this week and when each helper works.",
+  "tradeoff": "The thin earlier-day marks are small, so the detail lives in the hover. A run stacked into one mark shows the moment more than the single fixes. Proposed facts: The six earlier days split into events with times and who did them (Auto deletes caches near 03:00 and stops idle servers in the morning, you quit apps before noon, Fix Everything runs once in the afternoon, late morning on weekends), plus workstream and app names on those days. Totals match P100's seeded week.",
+  "surface": "menubar",
+  "groupId": "102",
+  "direction": "Calm: the week in time"
+ },
+ {
+  "file": "102-b.html",
+  "name": "Week Story",
+  "idea": "Editorial, big type. One large headline for the week ('This week MinMacs gave back 28.2 GB of memory and 77.1 GB of disk, most of both from Fix Everything.'), then one short sentence per day, newest first. Each sentence names who did the biggest fix and the fix that gave back most of the other kind, e.g. 'Today: Fix Everything wrapped up fix-auth-redirect and deleted 2 caches for good. 5.5 GB memory and 31.1 GB disk back.' Each day has a tiny two-bar graph (memory, disk, each on its own scale). The right column has two ftop rings, memory and disk this week, each split by kind, with 'mostly from ...' in words.",
+  "good": "It answers 'how much better, and from what' in plain words a person can read aloud. When a new fix appears, the story shrinks under its card to the headline and the newest days, and comes back with today's sentence rewritten when the fix is done.",
+  "tradeoff": "Sentences are fitted to two lines by trimming (a second helper, or 'and N more'), so some days drop a detail. Words take longer to scan than a chart. Proposed facts: The same seeded earlier-day events as 102-a (who did what, workstream and app names). Day sentences are built from them.",
+  "surface": "menubar",
+  "groupId": "102",
+  "direction": "Calm: the week in time"
+ },
+ {
+  "file": "103-a.html",
+  "name": "Who Helped",
+  "idea": "The calm deck splits the week into three tall columns: You, Fix Everything and Auto. Each column has a two-arc ring (its share of memory back on the outside, disk back on the inside, its fix count in the middle), memory back and disk back as two numbers, today's line, its top kinds, a 7-day memory and disk bar strip, and its latest fix. One sentence on top says what Auto did while you worked. The right column lists each rule (Off / Ask / Auto) and what it could do if turned up.",
+  "good": "You see at a glance who did the work, and the rule lines turn the summary into a quiet nudge ('7 waited for your press. Auto: 1 h after merge'). Each rule line opens Settings, and a fix that lands live lights its column with 'Just now'.",
+  "tradeoff": "It is three columns of numbers, so the whole week's total sits only in the header line, and the Quiet Auto column is sparse. While calm, the right column drops 100-a's CPU bar, the Rank note and the 'now vs a week ago' bars to make room for the rules, and the short end-of-run reward is not shown while calm; the glowing column carries it instead. Proposed facts: Who did each fix on the 6 earlier days: 100's seeded fixture split by a fixed share per kind, with Auto taking a share only of kinds whose rule is on Auto by default (servers; Wrap Up in Peak). Today uses the log's real 'by' field. Fix counts for earlier days are estimated: Auto counts one fix per item, a run or a press counts one fix per kind per day.",
+  "surface": "menubar",
+  "groupId": "103",
+  "direction": "Calm: where it came from"
+ },
+ {
+  "file": "103-b.html",
+  "name": "By Workstream",
+  "idea": "The calm deck reads the week by workstream. On top: one sentence ('wrapped up 7 workstreams, 1 of them today, and cleaned 4 more; most came from first-paint, 1.94 GB memory and 3.8 GB disk') and four week totals (memory back, disk back, servers stopped, tabs closed). Below: the 5 biggest workstream rows, each with what it left behind (its worktree, servers, helper, tabs, caches), memory back and disk back with thin bars, and server and tab counts. Wrapped rows carry a green check and 'Done'. Then 'and N more', then pinned rows for Nobody's (leftovers no workstream owned) and Apps and tabs. On the right, two rings split memory back and disk back by owner.",
+  "good": "It ties what came back to the work it came from, which matches how the owner thinks in workstreams. Every row links to the Workstreams tab, and a fix that lands live lights its row.",
+  "tradeoff": "Only 5 workstream rows fit next to the Needs you card, so smaller ones fold into one line. The end-of-run reward is not shown while calm, and the right column drops the CPU bar and Rank note as in 103-a. Proposed facts: A kept log that keeps, for each gone thing, which workstream owned it (built here from each server's, tab's, worktree's and cache's ws link). The 6 earlier days are a fixture of named wrapped and cleaned workstreams, plus Nobody's and Apps-and-tabs counts scaled per scenario. Peak adds 6 more wrapped workstreams.",
+  "surface": "menubar",
+  "groupId": "103",
+  "direction": "Calm: where it came from"
  }
 ]
