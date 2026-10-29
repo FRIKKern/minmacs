@@ -1768,5 +1768,25 @@
   "surface": "menubar",
   "groupId": "99",
   "direction": "Impact: the run"
+ },
+ {
+  "file": "100-a.html",
+  "name": "Week in Review",
+  "idea": "When nothing is left to fix, the deck becomes a quiet look back. One sentence ('This week MinMacs gave back 28.2 GB memory, mostly from closed tabs, and 77.1 GB disk, mostly from deleted caches.'), today and this week as two numbers each (memory back, disk back), a 7-day chart with memory and disk as two separate series on their own scales and today in full color, and counts by kind (7 workstreams wrapped, 104 tabs closed, 28 servers stopped...). The right column adds the Mac now vs a week ago: disk free, and time at memory pressure Warning or worse this week vs the week before.",
+  "good": "It reads as a proud, calm review, not a pop. Every fix counts, from Fix Everything, a single fix, any tab's button or Auto, and joins the numbers live. When a new fix appears its card rises on top and the review steps aside under it: numbers and chart with 1 or 2 cards, only the sentence and numbers with 3, gone with 4 or more.",
+  "tradeoff": "It shows totals and trends, not single events, so you see how much came back but not exactly what or when. The 6-day history is a fixture until MinMacs keeps a real log. Proposed facts: A kept log of what came back (memory and disk apart, counts by kind, who did it: You, Fix Everything or Auto). The 6 days before today are seeded fixture history, proposed. Two entries earlier today (11:05 You quit Music and Preview, 09:40 Auto stopped idle servers) are proposed. What agents wrote to disk this week and minutes per week at memory pressure Warning or worse are proposed. A noise-tab fix now shows from 3 tabs up, so one stray tab does not end the calm view.",
+  "surface": "menubar",
+  "groupId": "100",
+  "direction": "Calm: what got better lately"
+ },
+ {
+  "file": "100-b.html",
+  "name": "Done Cards",
+  "idea": "When nothing is left to fix, the deck becomes the stack of what was done: today's fixes newest first, each card with what it gave back (memory and disk apart), who did it (You, Fix Everything, Auto) and when, then 'and 9 more earlier today' with their totals, then earlier this week as one card per day with memory, disk and what kinds. On top, a small Mac now vs a week ago: disk free now vs then, and time at memory pressure Warning or worse. The right column holds today and this week as two numbers each, plus counts by kind.",
+  "good": "It is the same deck language as 99-b turned around, so a fix that lands while you look just slides in as the new top card. When a new fix appears, it rises on top and the done cards step aside, staying as a shorter list under it.",
+  "tradeoff": "There is no chart. The week shows as six day cards, and 'mostly from caches' is left to you to read from the cards and counts. Proposed facts: Same as 100-a: the kept log of what came back, the seeded 6-day history, the two entries earlier today, what agents wrote this week, and minutes at memory pressure Warning or worse per week. A noise-tab fix shows from 3 tabs up.",
+  "surface": "menubar",
+  "groupId": "100",
+  "direction": "Calm: what got better lately"
  }
 ]

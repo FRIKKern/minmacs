@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-177 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+179 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -35,6 +35,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 91–93 | Performance in 89-a's language | 89-a kept (the favorite: the ring is the notice, press, pop, next, far less Undo, deletes are permanent). Its Performance tab gets the same hero and one chain button for the best next thing on the whole Mac: a memory ring like the other tabs, the queue as the ring, or four ftop rings for CPU, memory, disk and network |
 | 94–96 | Performance as a clear view of everything | "Apps and performance is different". 89-a's Apps tab kept as it is, and a new Performance tab (after Workstreams; in the simple mode it is the overview) shows the whole Mac and every section in short, with the one next action: four rings over six section cards, one ring with a live index, or one picture of everything |
 | 97–99 | Performance ranked by impact, and Fix Everything | "start with fixing full workstreams ... continuing with less and less important". On 94-a, the Performance hero is a list of 7 fixes, biggest move first, each with its memory back and disk back, and a Fix Everything run whose steps and pace fit each kind of action: an impact ladder or two waterfalls, now and after rings or a timed plan, a live run beside one ring or a stack of cards |
+| 100 | What got better lately | "177 is nice. When nothing left to fix, show a summary of what how much we have improved lately". On 99-b, the calm Performance view looks back over today and the week: memory back and disk back as two numbers, a 7-day chart and counts by kind, or the deck turned into done cards, newest first |
 
 ## Direction so far
 
