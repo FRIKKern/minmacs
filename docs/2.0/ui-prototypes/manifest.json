@@ -1648,5 +1648,65 @@
   "surface": "menubar",
   "groupId": "93",
   "direction": "Performance: the Mac at a glance, ftop pure"
+ },
+ {
+  "file": "94-a.html",
+  "name": "Rings and Section Cards",
+  "idea": "Four equal ftop rings (CPU, Memory, Disk, Network) sit on top. The whole-Mac next action is an always-visible button inside the ring it frees most. Under the rings, six even cards in a 3 x 2 grid (Workstreams, Agents, Apps, Servers, Worktrees, Disk). Each card is a small version of its tab's hero: a split ring by state, its one number, its state in words, a legend with counts, and the one thing it needs with its button. A foot row holds Keep Awake and the queue in rank order.",
+  "good": "One look answers both questions: the rings say whether the Mac is fine, the cards say where to go. Hovering a card lights that section's share in all four rings, in its own color, with the amount under each ring. Hovering a ring part lights the cards that hold it. Clicking a card opens its tab.",
+  "tradeoff": "Six equal cards give a calm section the same weight as one that needs you, and Workstreams and Agents can both show the same asking agent. Proposed facts: interface totals (down and up) and the route's kind (Wi-Fi), as in 93-a; nothing new.",
+  "surface": "menubar",
+  "groupId": "94",
+  "direction": "Performance overview: the Mac on top, every section under it"
+ },
+ {
+  "file": "94-b.html",
+  "name": "Cards Sized by Need",
+  "idea": "The same rings and chain as 94-a. The cards are sized by what needs you: sections with something to do are large and ranked, so the one that asks or frees most is first and biggest, with its sentence, why and button. Calm sections shrink into a small column, each one line with its mini ring and counts. When nothing needs you, one quiet line says 'Everything is fine. Nothing needs you.' with the Mac's numbers, and the six cards stand in one even row.",
+  "good": "The eye goes straight to what needs you, and the calm state is unmistakable: one line, six small even cards, no buttons.",
+  "tradeoff": "The layout changes as needs come and go: 1 to 5 large cards, each with its own grid. When all six need you (often at Peak), it looks the same as 94-a. Proposed facts: interface totals (down and up) and the route's kind (Wi-Fi), as in 93-a; nothing new.",
+  "surface": "menubar",
+  "groupId": "94",
+  "direction": "Performance overview: the Mac on top, every section under it"
+ },
+ {
+  "file": "95-a.html",
+  "name": "One Ring, Live Index",
+  "idea": "On the left, one large ring: memory as the thick middle track split by who holds it (agents, servers, apps, macOS, free), disk as a thin outer track (worktrees, caches nobody holds, the rest, free) and CPU as a thin inner track (agents in pink). Its center gives the verdict in words, what the next thing frees and the whole Mac's always-visible chain button. On the right, a 20-a style live index: Workstreams, Agents, Apps, Servers, Worktrees, Disk and Network, each with a big name, a 40 s live graph, its number and its state in words.",
+  "good": "One look answers both questions: the verdict and the button sit in the ring's center, and hovering a row lights exactly its share in the ring and says it in words under the ring, so the Mac and the sections read as one picture.",
+  "tradeoff": "Three tracks in one ring need the key and the four cells under it (inner, middle, outer ring) to be read right, and small pieces such as 1.4 GB of 64 GB lift only a thin arc when the button is hovered. Proposed facts: interface totals down and up, and the route's kind (Wi-Fi), as in 71-a; the 40 s per-section graphs are samples the page keeps while it is open.",
+  "surface": "menubar",
+  "groupId": "95",
+  "direction": "Performance overview: one ring, a live index"
+ },
+ {
+  "file": "95-b.html",
+  "name": "Index Is the Hero",
+  "idea": "The index is the hero across the full width: seven big rows, each with its own small ring split by state, its state in words, a wide live graph and its number. On top is a thin ftop meter band (CPU, Memory, Disk, Network split by who holds them) with the chain cell at its right: the verdict, what the next thing frees, and the button.",
+  "good": "Every section gets room for a full sentence and a wide graph with no truncation. Hovering the button lifts the freed piece of its meter bar, lights the sections it touches and lifts the slice it takes in their small rings.",
+  "tradeoff": "The Mac itself is only a thin band, so memory pressure and disk free carry less weight than a hero ring, and the chain button sits in a corner instead of at the center of the eye. Proposed facts: interface totals down and up, and the route's kind (Wi-Fi); the 40 s per-section graphs are samples the page keeps while it is open.",
+  "surface": "menubar",
+  "groupId": "95",
+  "direction": "Performance overview: one ring, a live index"
+ },
+ {
+  "file": "96-a.html",
+  "name": "Mac at the Center",
+  "idea": "A radial hub: the Mac card sits in the middle with four ftop rings (CPU with the agents' share, memory with its pressure, disk used and free, network) and the next-thing button, and the six sections sit around it on an arc (Workstreams, Agents and Apps on the left; Servers, Worktrees and Disk on the right), each with its one number, its state in words, one mark per thing and a live graph, joined by thin curves to the ring it uses.",
+  "good": "One look answers 'is my Mac fine' from the verdict line on top of the center card, and hovering the always-visible button lights the exact marks, the curve and the ring it frees; the picture fills the 1040 × 760 sheet with no empty middle in Quiet, Busy and Peak.",
+  "tradeoff": "The marks have no labels, so at Peak (35 servers, 28 agents) you read them by color and count and need the hover card for names, and the curves only say which resource a section uses, not how much. Proposed facts: The network's live down and up rate, and the minute of history in each section's graph (the only history the code keeps is the servers' connections per sample).",
+  "surface": "menubar",
+  "groupId": "96",
+  "direction": "Performance overview: one picture of everything"
+ },
+ {
+  "file": "96-b.html",
+  "name": "Flow to the Mac",
+  "idea": "A calm left-to-right flow: each workstream is a row that sends thin lines into what it holds (Agents, Servers, Worktrees), then ribbons sized by each section's share of CPU, memory, disk and network flow into the Mac's four meters, with the totals at the right edge, while Disk leftovers and Apps sit under a 'Nobody holds these' line and flow straight to the Mac.",
+  "good": "Ownership and cost show in one picture: you see which workstreams hold the servers that use memory, and that leftovers are most of the disk you can get back; the room under the rows shows the Wrap Up plan for the first ready workstream, in order.",
+  "tradeoff": "At Peak the 20 workstream rows shrink to 29 px and the 60 lines between columns get dense, and a ribbon's width is its share within one resource, so you cannot compare memory with disk, on purpose, since they are never one number. Proposed facts: The network's live down and up rate, and the minute of history in the small graphs (the only history the code keeps is the servers' connections per sample).",
+  "surface": "menubar",
+  "groupId": "96",
+  "direction": "Performance overview: one picture of everything"
  }
 ]
