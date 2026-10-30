@@ -2029,6 +2029,16 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var
 .p113k.zs:hover .t,.p113k.zs.hv .t{color:var(--tx)}
 .p113k.zs:hover .btn,.p113k.zs.hv .btn,.p113k.zs.cur .btn,.p113k.zs:focus-within .btn{opacity:1}
 .p113k.zs:hover .am b,.p113k.zs.hv .am b{color:#fff!important}
+
+/* 132: a quiet run. A small Stop, no plan lines, and one card: its title, its progress and one line. */
+.p113pl:has(.p1:empty){display:none}
+.p113k .w:empty{display:none}
+.p99go.stop{width:auto;min-width:96px;height:28px;padding:0 16px;margin:0 auto;font-size:12px;border-radius:14px}
+.p113dk{padding-top:10px}
+.p113k.z0.cur{gap:6px}
+.p113k.cur .pn{font-size:11.5px;color:var(--tx3)}
+.p113k.cur .pn b{color:var(--tx2);font-weight:500}
+.p113k.cur .say{padding-left:24px;font-size:11.5px;line-height:15px;color:var(--tx3)}
 </style>
 </head>
 <body>
@@ -5385,7 +5395,7 @@ function p113Go(V){
 }
 function p113Plan(V){
   const R=V.R,E=P99END,pl=p99Plan(V);
-  if(R)return [`Fix ${Math.min(R.i+1,R.list.length)} of ${R.list.length} runs. Stop finishes this step, then stops.`,'Nothing here needs you while it runs.'];
+  if(R)return ['',''];
   if(E)return [`${E.stop?'Stopped after '+p99Fx(E.n):p99Fx(E.n)+' done'}: <b class="m">${nb(fmt(E.mem))}</b> memory and <b class="d">${nb(fmt(E.disk))}</b> disk back.`,E.skip.length?`Skipped ${and(E.skip.map(f=>f.t+', '+f.skip))}.`:'Nothing was skipped.'];
   if(!V.rows.length){const A=p99Asks().length,B=p99Blocked().length;return [A?`${cnt(A,'agent')} ${A===1?'asks':'ask'} you. Only you answer.`:'Nothing needs you.',`${B?B+' blocked stay, they say why. ':''}New fixes show up at their rank.`]}
   const bits=[V.fm>.0005?`<b class="m">${nb(fmt(V.fm))}</b> memory`:'',V.fd>.0005?`<b class="d">${nb(fmt(V.fd))}</b> disk`:''].filter(Boolean);
@@ -5411,7 +5421,7 @@ function p113Play(f,V){
   else if(f.kind==='orph'||f.kind==='idlews'||f.kind==='quit')st=`<div class="pp">${f.ids.map(id=>{const o=byId[id],g=gone(id),c=s&&(s.port===id||s.app===id);
     return `<span class="${g?'off':''}${c?' cu':''}" data-k="pp-${id}"><i></i>${o.p?':'+o.p:nb(o.n)}<small>${g?(o.p?'free':'quit'):c?(o.p?'stopping':'saving'):'waits'}</small></span>`}).join('')}</div>`;
   else{const tot=Math.max(.001,f.d0);st=`<div class="pb">${f.ids.map(id=>{const o=byId[id],gb=o.br?o.freed:o.gb,c=s&&s.seg===id&&!s.dn&&!s.md,left=gone(id)?0:c?gb-P99P.disk:gb;
-    return `<i style="width:${(gb/tot*100).toFixed(2)}%"><b style="width:${Math.max(0,left/gb*100).toFixed(1)}%"></b></i>`}).join('')}</div><div class="pn"><b>${nb(fmt(p99Amt(f).disk))}</b> left of ${nb(fmt(f.d0))}</div>`}
+    return `<i style="width:${(gb/tot*100).toFixed(2)}%"><b style="width:${Math.max(0,left/gb*100).toFixed(1)}%"></b></i>`}).join('')}</div><div class="pn"><b>${nb(fmt(p99Amt(f).disk))}</b> left</div>`;return st}
   return st+say;
 }
 function p113Card(f,z,i,V,hv,gw){
@@ -5420,7 +5430,7 @@ function p113Card(f,z,i,V,hv,gw){
   const cls=`p113k z${zz}${zz!=='f'&&zz>0?' zs':''}${cur?' cur':''}${hv===f.id&&!R?' hv':''}${gw?' gw':''}${p99In(f.id)?' in':''}`;
   if(zz===0){
     const t=p113Fit(p113Nh(f.t),14.5,300,500)===p113Nh(f.t)?f.t:p113Short(f,true);
-    const why=cur?`<b>Fix ${R.i+1} of ${R.list.length}</b> · ${P99PACE[f.kind]}`:hv===f.id&&!R?`Touches ${and(f.items.slice(0,3).map(x=>`<span class="it">${nb(x)}</span>`))}${f.items.length>3?` and ${f.items.length-3} more`:''}`:p113Why(f,i,V.rows);
+    const why=cur?'':hv===f.id&&!R?`Touches ${and(f.items.slice(0,3).map(x=>`<span class="it">${nb(x)}</span>`))}${f.items.length>3?` and ${f.items.length-3} more`:''}`:p113Why(f,i,V.rows);
     return `<div class="${cls}" data-k="k-${f.id}" data-p99h="${f.id}" style="--c:${f.c}"><div class="h"><span class="rk">${i+1}</span><span class="t">${nb(p113Nh(t))}</span></div><div class="w">${why}</div>${cur?p113Play(f,V):`<div class="a">${p113Amt(a)}${btn}</div>`}</div>`}
   const am=p113Amt1(a,f),bw=R?0:p113W(f.btn,11.5,500)+20+8,aw=p113W(am,11.5,500)+6,W=340-zz*4-20-16-16-aw-bw-4;
   const t=zz==='f'?P99SH[f.kind](f):[P99SH[f.kind](f),p113Short(f,false),f.kind==='idlews'||f.kind==='orph'?`Stop ${f.ids.length}`:''].filter(Boolean).find(x=>p113W(p113Nh(x),12.5,500)<=W)||p113Short(f,false);
