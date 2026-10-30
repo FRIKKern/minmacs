@@ -88,7 +88,7 @@ LIFE=$((CHURN * 12 + 120))
 PORT=$((40000 + $$ % 8000))
 free_port() { while nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; do PORT=$((PORT + 1)); [ "$PORT" -gt 49900 ] && PORT=40000; done; }
 
-made=0; removed=0; started_servers=0; stopped_servers=0; started_agents=0; stopped_agents=0; i=0
+made=0; removed=0; listening_servers=0; started_servers=0; stopped_servers=0; started_agents=0; stopped_agents=0; i=0
 oldest() { ls -tr "$1" 2>/dev/null | head -1; }
 count() { ls "$1" 2>/dev/null | grep -c .; }
 
@@ -108,7 +108,11 @@ churn() {
   done
   # A server in the newest worktree, and the oldest past SOAK_KEEP stopped. Its pid file may come a step later.
   free_port
-  ( ( cd "$W/wt$i" && exec python3 -c "$PY" "$PORT" "$H/pids/servers" "$LIFE" "mmsoak-$TAG" ) >/dev/null 2>&1 & )
+  mkdir -p "$OUT/logs"
+  ( ( cd "$W/wt$i" && exec python3 -c "$PY" "$PORT" "$H/pids/servers" "$LIFE" "mmsoak-$TAG" ) >/dev/null 2>"$OUT/logs/server-$i.err" & )
+  # Counted as listening once nc reaches its port within two seconds, so a server that never listened shows in the summary.
+  j=0; while ! nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1 && [ $j -lt 20 ]; do sleep 0.1; j=$((j + 1)); done
+  nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1 && listening_servers=$((listening_servers + 1))
   PORT=$((PORT + 1)); started_servers=$((started_servers + 1))
   while [ "$(count "$H/pids/servers")" -gt "${SOAK_KEEP:-3}" ]; do
     f=$(oldest "$H/pids/servers"); stop_pid "$f"; rm -f "$H/pids/servers/$f"; stopped_servers=$((stopped_servers + 1))
@@ -192,7 +196,7 @@ done
 python3 - "$OUT" >"$OUT/churn.json" <<PYEOF
 import json
 print(json.dumps({"steps": $i, "worktreesMade": $made, "worktreesRemoved": $removed,
-  "serversStarted": $started_servers, "serversStopped": $stopped_servers,
+  "serversStarted": $started_servers, "serversListening": $listening_servers, "serversStopped": $stopped_servers,
   "agentsStarted": $started_agents, "agentsStopped": $stopped_agents,
   "fixturesLeft": $left, "soakExit": int("${sexit:-1}"), "died": "$died", "seconds": $SECS,
   "sampleEvery": $EVERY, "churnEvery": $CHURN, "tag": "$TAG"}, sort_keys=True))

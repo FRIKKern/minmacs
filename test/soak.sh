@@ -72,6 +72,7 @@ if [ "$(sm '"yes" if j["peakFixtureFindings"].get("locohost", 0) >= 1 and j["pea
   tail -3 "$sk/run/status.jsonl" 2>/dev/null | cut -c1-400 | sed 's/^/    status /'
   cut -c1-400 "$sk/run/churn.json" 2>/dev/null | sed 's/^/    churn /'
   tail -5 "$sk/run.err" "$sk/run/soak.err" 2>/dev/null | cut -c1-300 | sed 's/^/    err /'
+  for e in "$sk"/run/logs/server-*.err; do [ -s "$e" ] && tail -3 "$e" | cut -c1-300 | sed "s|^|    server ${e##*/} |"; done
 fi
 check "soak: the home of the run is removed" 0 "$(ls "$sk/tmp" | grep -c .)"
 
