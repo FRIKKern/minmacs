@@ -132,6 +132,8 @@ check "bench: the watchdog run ran no log query on main" 0 "$(bh 'j["logQueriesO
 check "bench: DEBUG=1 ./build.sh defines MM_DEBUG, which turns the watchdog on" "1 1 1" \
   "$(grep -c 'DEBUG:-}" = 1 ] && OPT="-O0 -g -DMM_DEBUG"' build.sh) $(grep -c '#ifdef MM_DEBUG' Sources/Shell/MMWatchdog.m) $(grep -c 'MMWatchdogWanted(NSProcessInfo' Sources/Shell/MMShell.m)"
 printf '    idle: %s\n' "$(bi '"%.3f %% CPU, %.2f MB footprint, %.2f MB resident, %.3f wakeups/s, %s pids; rebuild %.1f ms CPU median" % (j["cpuPercent"], j["footprintMB"], j["residentMB"], j["interruptWakeupsPerSecond"], j["pids"], j["inWindow"]["rebuildCPUms"]["median"])')"
+printf '    pass: %s\n' "$(bi '"%.3f ms CPU a pass; " % j["senses"]["passCPUms"] + ", ".join("%s %.3f ms" % (k, v) for k, v in sorted(j["senses"]["partsCPUms"].items()))')"
+check "bench: the pass times the network apart" yes "$(bi '"yes" if 0 < j["senses"]["partsCPUms"]["net"] < 2 else j["senses"]["partsCPUms"]')"
 printf '    menus: %s\n' "$(bm '", ".join("%s open p95 %.1f ms, hover p95 %.1f ms" % (k, e["menuOpenMs"]["p95"], e["cardHoverMs"]["p95"]) for k, e in sorted(j["experts"].items()))')"
 
 # Scale, issue #54: 300 fixture checkouts in 30 repos from test/git/benchfix.py, and a 20 GB clutter tree of APFS
