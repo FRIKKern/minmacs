@@ -41,6 +41,20 @@ static NSDictionary *LogLatestOf(NSString *rid) {
     return rid ? [MMLog.shared history:rid].lastObject.body : nil;
 }
 
+#pragma mark - Restores an expert does
+
+static NSMutableDictionary<NSString *, NSString *(^)(id)> *Restorers(void) {
+    static NSMutableDictionary *d; static dispatch_once_t once;
+    dispatch_once(&once, ^{ d = [NSMutableDictionary new]; });
+    return d;
+}
+void MMUndoRestoreKey(NSString *key, NSString *(^restore)(id value)) {
+    if (!key.length) return;
+    @synchronized (Restorers()) { Restorers()[key] = [restore copy]; }
+}
+static NSArray<NSString *> *RestorerKeys(void) { @synchronized (Restorers()) { return Restorers().allKeys; } }
+static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers()) { return Restorers()[key]; } }
+
 #pragma mark - Records
 
 @interface MMUndoRecord ()
@@ -80,7 +94,9 @@ static NSDictionary *LogLatestOf(NSString *rid) {
     // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit
     // left its server or app running, so its restart or relaunch would start a second copy: it restores nothing.
     if (self.state == MMUndoFailed) return self.hasParts || [p[@"trashed"] count] || p[@"bundle"] || p[@"recovery"];
-    return self.hasParts || [p[@"trashed"] count] || p[@"restart"] || p[@"bundle"] || p[@"worktree"] || p[@"recovery"] || p[@"relaunch"];
+    if (self.hasParts || [p[@"trashed"] count] || p[@"restart"] || p[@"bundle"] || p[@"worktree"] || p[@"recovery"] || p[@"relaunch"]) return YES;
+    for (NSString *k in RestorerKeys()) if (p[k]) return YES;
+    return NO;
 }
 @end
 
@@ -396,8 +412,10 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
         if ([x isKindOfClass:NSNumber.class] && [y isKindOfClass:NSNumber.class] && ![x isEqual:y]) return [y compare:x];
         return [a[1] compare:b[1]];
     }];
-    NSMutableArray *out = [NSMutableArray new];
-    for (NSArray *x in indexed) [out addObject:x[0]];
+    // A part that asks to come back last, such as tabs that need their servers, goes after the others.
+    NSMutableArray *out = [NSMutableArray new], *last = [NSMutableArray new];
+    for (NSArray *x in indexed) [([[x[0] payload][@"restoreLast"] boolValue] ? last : out) addObject:x[0]];
+    [out addObjectsFromArray:last];
     return out;
 }
 
@@ -459,6 +477,12 @@ static NSMutableSet<NSString *> *Restoring(void) {
     else if (!problem && !failed && [p[@"worktree"] isKindOfClass:NSDictionary.class]) problem = [self unbundle:p[@"worktree"]];
     if (!problem && p[@"recovery"]) problem = [self unrecover:p[@"recovery"]];
     if (!problem && p[@"relaunch"] && !failed) problem = [self relaunch:p[@"relaunch"]];
+    // What an expert registered with MMUndoRestoreKey, such as MinMacs's reopen of closed tabs. Never for a failed record.
+    for (NSString *k in [RestorerKeys() sortedArrayUsingSelector:@selector(compare:)]) {
+        if (problem || failed || !p[k]) continue;
+        NSString *(^restore)(id) = RestorerFor(k);
+        problem = restore ? restore(p[k]) : [NSString stringWithFormat:@"nothing here can restore %@", k];
+    }
     if (problem) [problems addObject:problem];
     if (problems.count) return [problems componentsJoinedByString:@"; "];
     done[@"restoredAt"] = @(NSDate.date.timeIntervalSince1970);

@@ -42,6 +42,8 @@ NSInteger MMMinMacsVerdictFrom(NSString *name);       // -1 when unknown
 @property (copy) NSString *url, *title, *host;
 @property (copy) NSString *verdict;                     // noise, work or other, from the rules
 @property NSInteger windowID, tabID;                    // tabID is the tab's id in Chromium, its index in Safari
+/// YES for a tab of a private window. A bridge skips those windows, and the expert drops any such tab it is handed.
+@property BOOL privateWindow;
 @end
 
 /// Reads, closes and reopens tabs, always aimed at one process id, so a second browser instance is never touched.
@@ -53,11 +55,19 @@ NSInteger MMMinMacsVerdictFrom(NSString *name);       // -1 when unknown
 - (NSArray<MMMinMacsTab *> *)close:(NSArray<MMMinMacsTab *> *)tabs pid:(pid_t)pid bundleID:(NSString *)bundleID;
 /// Opens the URLs again in the browser at appPath. nil on success, else the problem in words.
 - (NSString *)open:(NSArray<NSString *> *)urls bundleID:(NSString *)bundleID appPath:(NSString *)appPath;
+@optional
+/// YES when the tabs can be read with no prompt, as when the person already allowed it. The Wrap Up plan reads
+/// tabs in the background only then. A bridge without it is never read in the background.
+- (BOOL)mayReadWithoutAsking:(pid_t)pid bundleID:(NSString *)bundleID;
 @end
 void MMMinMacsUseTabBridge(id<MMMinMacsTabBridge> bridge);   // nil goes back to Apple events
 id<MMMinMacsTabBridge> MMMinMacsTabBridgeNow(void);
 BOOL MMMinMacsIsBrowser(NSString *bundleID);            // a browser MinMacs knows
 BOOL MMMinMacsCanTrim(NSString *bundleID);              // one whose tabs it can read
+/// YES for localhost, 127.0.0.1 and ::1, the hosts whose tabs Wrap Up closes when a server part stops their port.
+BOOL MMMinMacsIsLocalHost(NSString *host);
+/// The TCP port of url: the one it names, else 80 for http and 443 for https. 0 for any other scheme.
+NSInteger MMMinMacsPortOf(NSString *url);
 #ifdef MM_TESTS
 /// Treats a fixture app as a Chromium browser, so a test never needs a real browser's bundle id.
 void MMMinMacsAddTestBrowser(NSString *bundleID);
@@ -119,4 +129,18 @@ void MMMinMacsAddTestBrowser(NSString *bundleID);
 - (NSArray<NSDictionary *> *)restore:(NSString *)rid dryRun:(BOOL)dryRun;
 /// YES when this app instance was asked to quit before, so Force Quit is a second request.
 - (BOOL)quitAskedFor:(MMFinding *)f;
+@end
+
+#pragma mark Wrap Up
+
+/// Wrap Up, issue #27. Helpers: the processes a finished workstream left behind. Tabs: for each running browser
+/// whose tabs MinMacs reads, one part that closes its tabs on localhost, 127.0.0.1 or ::1 at a port a server part
+/// stops, titled "Close 3 localhost tabs in Google Chrome". A browser off the close list, one a working agent
+/// started, and private windows are never touched. No browser is quit. The record keeps what closed, and the
+/// Wrap Up's restore opens those URLs again in the same browser once every other part, the servers too, is back.
+/// Registers the "reopen" restore with MMUndoRestoreKey. The expert's init calls it, so a restore in any process
+/// that links the expert opens the tabs again.
+void MMMinMacsRegisterTabRestore(void);
+@interface MMMinMacsExpert (MMWrapUp) <MMWrapUpLateParts>
+- (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s;
 @end

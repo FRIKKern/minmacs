@@ -54,6 +54,13 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 - (MMUndoRecord *)record:(NSString *)rid;
 @end
 
+/// A payload key whose restore an expert does, such as MinMacs's "reopen", which opens closed tabs again through its
+/// tab bridge. -[MMUndo restore:] of a done record that holds key calls the block with the value, after its own steps,
+/// and a record that holds only such a key can be restored. The block runs on the restoring queue, never on main, and
+/// returns nil or the problem in words. A part whose payload has "restoreLast" set comes back after the other parts
+/// of its Wrap Up, so tabs reopen once their servers run again.
+void MMUndoRestoreKey(NSString *key, NSString *(^)(id value));
+
 /// The Trash of a test run: <MINMACS_HOME>/Trash when MINMACS_HOME is set, else nil for the real Trash.
 /// -[MMUndo trash:record:error:] moves items there, and restore moves them back from there.
 NSString *MMTrashFolder(void);

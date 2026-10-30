@@ -34,6 +34,25 @@ static BOOL IsChromium(NSString *b) { return [Chromium() containsObject:b] || Is
 BOOL MMMinMacsCanTrim(NSString *b) { return b.length && (IsChromium(b) || [b isEqualToString:@"com.apple.Safari"]); }
 BOOL MMMinMacsIsBrowser(NSString *b) { return MMMinMacsCanTrim(b) || [Untrimmable() containsObject:b]; }
 
+BOOL MMMinMacsIsLocalHost(NSString *host) {
+    NSString *h = host.lowercaseString;
+    if ([h hasPrefix:@"["] && [h hasSuffix:@"]"] && h.length > 2) h = [h substringWithRange:NSMakeRange(1, h.length - 2)];
+    return [h isEqualToString:@"localhost"] || [h isEqualToString:@"127.0.0.1"] || [h isEqualToString:@"::1"];
+}
+
+NSInteger MMMinMacsPortOf(NSString *url) {
+    NSURL *u = [NSURL URLWithString:url ?: @""];
+    NSString *scheme = u.scheme.lowercaseString;
+    if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) return 0;
+    if (u.port) return u.port.integerValue;
+    return [scheme isEqualToString:@"https"] ? 443 : 80;
+}
+
+/// A test home never sends an Apple event to a real browser. Tests use a fake bridge.
+static NSString *TestHomeRefuses(void) {
+    return NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length ? @"a test home never reads a real browser" : nil;
+}
+
 #pragma mark Apple events
 
 // The ScriptingBridge calls this file makes, declared here so nothing links the framework.
@@ -88,7 +107,18 @@ static NSString *HostOf(NSString *url) {
     return a;
 }
 
+/// Asks macOS whether Apple events to pid may run, with askUserIfNeeded off, so no prompt shows.
+- (BOOL)mayReadWithoutAsking:(pid_t)pid bundleID:(NSString *)bid {
+    if (TestHomeRefuses() || !MMMinMacsCanTrim(bid) || pid <= 0) return NO;
+    AEAddressDesc target = { typeNull, NULL };
+    if (AECreateDesc(typeKernelProcessID, &pid, sizeof pid, &target) != noErr) return NO;
+    OSStatus st = AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, false);
+    AEDisposeDesc(&target);
+    return st == noErr;
+}
+
 - (NSArray<MMMinMacsTab *> *)tabsOf:(pid_t)pid bundleID:(NSString *)bid error:(NSString **)error {
+    if (TestHomeRefuses()) { if (error) *error = TestHomeRefuses(); return nil; }
     if (!MMMinMacsCanTrim(bid)) { if (error) *error = @"MinMacs cannot read this browser's tabs"; return nil; }
     id app = [self appFor:pid];
     if (!app) { if (error) *error = @"Apple events are not available"; return nil; }
@@ -125,7 +155,7 @@ static NSString *HostOf(NSString *url) {
 
 - (NSArray<MMMinMacsTab *> *)close:(NSArray<MMMinMacsTab *> *)tabs pid:(pid_t)pid bundleID:(NSString *)bid {
     NSMutableArray<MMMinMacsTab *> *closed = [NSMutableArray new];
-    if (!tabs.count || !MMMinMacsCanTrim(bid)) return closed;
+    if (TestHomeRefuses() || !tabs.count || !MMMinMacsCanTrim(bid)) return closed;
     id app = [self appFor:pid];
     if (!app) return closed;
     BOOL chromium = IsChromium(bid);
@@ -153,6 +183,7 @@ static NSString *HostOf(NSString *url) {
 }
 
 - (NSString *)open:(NSArray<NSString *> *)urls bundleID:(NSString *)bid appPath:(NSString *)path {
+    if (TestHomeRefuses()) return TestHomeRefuses();
     NSMutableArray<NSURL *> *list = [NSMutableArray new];
     for (NSString *u in urls) { NSURL *x = [NSURL URLWithString:u]; if (x) [list addObject:x]; }
     if (!list.count) return nil;

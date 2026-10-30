@@ -44,7 +44,7 @@ An expert is one class that reads the snapshot. It gives Core four things: its f
 - **Noo-Noo** lists caches, build output and the leftovers of agents and tools, with who owns each. Build output of a finished project goes first. Most items go to the Trash. A cache that belongs to a tool is cleaned with the tool's own command, after a copy into a recovery folder.
 - **Insomnia** keeps the Mac awake while an agent works and lets it sleep 10 minutes after the last one stops. With lid mode on, it can also keep the Mac awake with the lid closed. On battery, guards pause that for a low battery, heat, a long time unplugged or a long time offline.
 
-Findings of different experts meet through their owners. A dev server and a worktree that share a folder have the same owner, so WorkForest's card shows LocoHost's server, and the link opens LocoHost's card. **Wrap Up** uses the same link. For a worktree whose branch is merged and whose agent sessions all ended, it stops its dev servers, ends the helpers left in it, moves its caches to the Trash and removes the worktree, as one step with one undo record.
+Findings of different experts meet through their owners. A dev server and a worktree that share a folder have the same owner, so WorkForest's card shows LocoHost's server, and the link opens LocoHost's card. **Wrap Up** uses the same link. For a worktree whose branch is merged and whose agent sessions all ended, it stops its dev servers, ends the helpers left in it, closes the browser tabs on those servers' localhost ports, moves its caches to the Trash and removes the worktree, as one step with one undo record. Undo reopens the tabs in the same browser once the servers run again.
 
 ## Acting
 

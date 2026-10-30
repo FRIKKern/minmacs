@@ -50,6 +50,7 @@ NSString *MMWrapUpStepName(MMWrapUpStep step) {
     switch (step) {
         case MMWrapUpServers: return @"servers";
         case MMWrapUpHelpers: return @"helpers";
+        case MMWrapUpTabs: return @"tabs";
         case MMWrapUpCaches: return @"caches";
         case MMWrapUpConfig: return @"config";
         case MMWrapUpWorktree: return @"worktree";
@@ -113,6 +114,7 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
 @property (readwrite) NSArray<MMFinding *> *findings;
 @property (readwrite) NSArray<NSValue *> *stopped;
 @property (readwrite) BOOL configPart;
+@property (readwrite) NSArray<NSNumber *> *serverPorts;
 @property (weak) MMSnapshot *made;              // the snapshot it was made from, nil for a check on fresh facts
 @end
 
@@ -130,6 +132,7 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
     x.given = path.stringByStandardizingPath;
     x.path = RealFor(x.given, s);
     x.stopped = @[];
+    x.serverPorts = @[];
     for (MMWorktree *w in facts.worktrees) {
         if (!w.path.length) continue;
         if ([w.path isEqualToString:x.given] || [w.path isEqualToString:x.path] || [RealFor(w.path, s) isEqualToString:x.path]) { x.worktree = w; break; }
@@ -245,6 +248,30 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
 
 static NSString *KeyString(NSValue *v) { MMProcKey k; [v getValue:&k size:sizeof k]; return MMProcKeyString(k); }
 
+/// The ports the server parts stop: every listen socket of their processes in the sample, ascending.
+static NSArray<NSNumber *> *ServerPorts(NSArray<MMWrapUpPart *> *parts, MMSample *sample) {
+    NSMutableSet<NSNumber *> *ports = [NSMutableSet new];
+    for (MMWrapUpPart *p in parts) {
+        if (p.step != MMWrapUpServers) continue;
+        for (NSValue *v in p.action.finding.procs) {
+            MMProcKey k; [v getValue:&k size:sizeof k];
+            MMProc *proc = [sample proc:k.pid];
+            if (!proc || proc.startSec != k.startSec) continue;
+            for (NSValue *sv in [sample socketsOf:k.pid]) {
+                MMSocket so; [sv getValue:&so size:sizeof so];
+                if (so.state == MMSocketListen && so.localPort) [ports addObject:@(so.localPort)];
+            }
+        }
+    }
+    return [ports.allObjects sortedArrayUsingSelector:@selector(compare:)];
+}
+
+static void SortBySteps(NSMutableArray<MMWrapUpPart *> *all) {
+    [all sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(MMWrapUpPart *a, MMWrapUpPart *b) {
+        return a.step < b.step ? NSOrderedAscending : a.step > b.step ? NSOrderedDescending : NSOrderedSame;
+    }];
+}
+
 MMWrapUpPlan *MMWrapUpPlanFor(NSString *path, MMSnapshot *s) {
     MMWrapUpPlan *plan = [MMWrapUpPlan new];
     plan.subject = [MMWrapUpSubject subjectAt:path facts:s.facts snapshot:s];
@@ -256,9 +283,16 @@ MMWrapUpPlan *MMWrapUpPlanFor(NSString *path, MMSnapshot *s) {
         for (MMWrapUpPart *p in [e wrapUpParts:plan.subject snapshot:s] ?: @[]) if ([p isKindOfClass:MMWrapUpPart.class]) [all addObject:p];
     }
     // In step order, and within a step in the order the experts gave them.
-    [all sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(MMWrapUpPart *a, MMWrapUpPart *b) {
-        return a.step < b.step ? NSOrderedAscending : a.step > b.step ? NSOrderedDescending : NSOrderedSame;
-    }];
+    SortBySteps(all);
+    // The late parts see the ports the server parts stop and every part so far.
+    plan.subject.serverPorts = ServerPorts(all, s.facts.sample);
+    NSArray<MMWrapUpPart *> *earlier = [all copy];
+    for (id<MMExpert> e in MMExperts()) {
+        if (![e respondsToSelector:@selector(wrapUpPartsAfter:subject:snapshot:)]) continue;
+        NSArray *late = [(id<MMWrapUpLateParts>)e wrapUpPartsAfter:earlier subject:plan.subject snapshot:s];
+        for (MMWrapUpPart *p in late ?: @[]) if ([p isKindOfClass:MMWrapUpPart.class]) [all addObject:p];
+    }
+    if (all.count > earlier.count) SortBySteps(all);
     // A part whose processes an earlier part already ends would only fail its recheck, so it is left out.
     NSMutableSet<NSString *> *ended = [NSMutableSet new];
     NSMutableArray<NSValue *> *stopped = [NSMutableArray new];

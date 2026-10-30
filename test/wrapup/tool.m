@@ -3,11 +3,15 @@
 // core.sock, off main, so a verb that changes things runs too.
 //   tool verb <words...>     one verb, as `minmacs <words...>` runs it in the app
 //   tool card <path>         the WorkForest card of that worktree, as JSON: its title, status and actions
+//   tool plan <path> <n>     the plan built on main n times, a second apart, as a menu builds it: step and title each
 //   tool _walk               the worker child of P4, which the repo index starts from this same binary
 // Facts are real and fixture-scoped: the Senses sample, Know's sessions under $CLAUDE_CONFIG_DIR, the repo index
 // under $MINMACS_ROOTS with git facts read now, and the clutter catalog scanned under $MINMACS_CLUTTER_ROOT.
 // It refuses to run unless MINMACS_HOME, MINMACS_ROOTS and MINMACS_CLUTTER_ROOT are set and the last two sit inside
 // the first, so it never reads or acts on anything outside the test's own folder.
+// MinMacs sees one app only: the fixture browser WU_BROWSER, a bundle id unique to the run, at the pid in
+// WU_BROWSER_PID. Its tabs live in the JSON file WU_TABS, read and changed by a fake tab bridge, so no Apple event
+// ever reaches a real browser. With no WU_BROWSER_PID, MinMacs sees no app at all.
 #import <Cocoa/Cocoa.h>
 #import "Core/MMCore.h"
 #import "CLI/MMCLI.h"
@@ -17,6 +21,79 @@
 #import "Experts/MinMacs/MMMinMacs.h"
 
 static NSString *Env(NSString *k) { return NSProcessInfo.processInfo.environment[k]; }
+
+/// The fake tab bridge: {"tabs": [{pid, window, id, url, title, mode}], "closed": [], "opened": [], "denied": false}.
+/// A tab with mode incognito is a private window: it is handed over marked, so the check is the expert's own.
+/// WU_MOVE_URL makes the tab on that URL navigate away right before it would close, as a person might.
+/// "denied" true answers that reading would prompt, so a background read never happens.
+@interface WUBridge : NSObject <MMMinMacsTabBridge>
+@property (copy) NSString *path, *moveURL;
+@end
+@implementation WUBridge
+- (NSMutableDictionary *)load {
+    NSData *d = [NSData dataWithContentsOfFile:self.path];
+    NSMutableDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:NSJSONReadingMutableContainers error:nil] : nil;
+    if (![j isKindOfClass:NSMutableDictionary.class]) j = [NSMutableDictionary new];
+    for (NSString *k in @[@"tabs", @"closed", @"opened", @"reads"]) if (![j[k] isKindOfClass:NSMutableArray.class]) j[k] = [NSMutableArray new];
+    return j;
+}
+- (void)save:(NSDictionary *)j {
+    [[NSJSONSerialization dataWithJSONObject:j options:NSJSONWritingPrettyPrinted error:nil] writeToFile:self.path atomically:YES];
+}
+- (BOOL)mayReadWithoutAsking:(pid_t)pid bundleID:(NSString *)bundleID { return ![[self load][@"denied"] boolValue]; }
+- (NSArray<MMMinMacsTab *> *)tabsOf:(pid_t)pid bundleID:(NSString *)bundleID error:(NSString **)error {
+    NSMutableDictionary *j = [self load];
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSDictionary *t in j[@"tabs"]) {
+        if ([t[@"pid"] intValue] != pid) continue;
+        MMMinMacsTab *x = [MMMinMacsTab new];
+        x.url = t[@"url"]; x.title = t[@"title"] ?: t[@"url"]; x.host = [NSURL URLWithString:x.url].host.lowercaseString ?: @"";
+        x.windowID = [t[@"window"] integerValue]; x.tabID = [t[@"id"] integerValue];
+        x.privateWindow = [t[@"mode"] isEqual:@"incognito"];
+        [out addObject:x];
+    }
+    [j[@"reads"] addObject:@(pid)];
+    [self save:j];
+    return out;
+}
+- (NSArray<MMMinMacsTab *> *)close:(NSArray<MMMinMacsTab *> *)tabs pid:(pid_t)pid bundleID:(NSString *)bundleID {
+    NSMutableDictionary *j = [self load];
+    NSMutableArray *closed = [NSMutableArray new];
+    for (MMMinMacsTab *t in tabs) {
+        for (NSMutableDictionary *e in [j[@"tabs"] copy]) {
+            if ([e[@"pid"] intValue] != pid || [e[@"window"] integerValue] != t.windowID || [e[@"id"] integerValue] != t.tabID) continue;
+            if (self.moveURL && [e[@"url"] isEqualToString:self.moveURL]) e[@"url"] = @"https://moved.example.org/";
+            if (![e[@"url"] isEqualToString:t.url]) continue;
+            [j[@"tabs"] removeObject:e];
+            [j[@"closed"] addObject:t.url];
+            [closed addObject:t];
+        }
+    }
+    [self save:j];
+    return closed;
+}
+- (NSString *)open:(NSArray<NSString *> *)urls bundleID:(NSString *)bundleID appPath:(NSString *)appPath {
+    NSMutableDictionary *j = [self load];
+    for (NSString *u in urls) [j[@"opened"] addObject:@{@"url": u, @"bundleID": bundleID ?: @"", @"at": @(NSDate.date.timeIntervalSince1970)}];
+    [self save:j];
+    return nil;
+}
+@end
+
+/// The one app MinMacs sees: the fixture browser, or none.
+static MMMinMacsInput *FixtureApps(MMFacts *facts) {
+    MMMinMacsInput *in = [MMMinMacsInput new];
+    in.memoryPressure = 1; in.thermal = NSProcessInfoThermalStateNominal;
+    pid_t pid = (pid_t)Env(@"WU_BROWSER_PID").intValue;
+    MMProc *p = pid > 1 ? [facts.sample proc:pid] : nil;
+    if (!p || !Env(@"WU_BROWSER").length) { in.apps = @[]; return in; }
+    MMMinMacsApp *a = [MMMinMacsApp new];
+    a.pid = pid; a.startSec = p.startSec; a.bundleID = Env(@"WU_BROWSER"); a.name = @"Fixture Browser";
+    a.bundlePath = [Env(@"MINMACS_HOME") stringByAppendingPathComponent:@"FixtureBrowser.app"];
+    a.pids = @[@(pid)]; a.processCount = 1; a.memory = 1 << 20;
+    in.apps = @[a];
+    return in;
+}
 
 @interface WUSource : NSObject <MMFactSource>
 @end
@@ -75,6 +152,13 @@ int main(int argc, const char *argv[]) {
         MMRegisterExpert(MMMinMacsExpert.shared);
         MMRegisterExpert(MMNooNooExpert.shared);
         MMRegisterExpert(MMWorkForestExpert.shared);
+        MMMinMacsExpert.shared.inputFrom = ^MMMinMacsInput *(MMFacts *f) { return FixtureApps(f); };
+        if (Env(@"WU_TABS").length) {
+            WUBridge *bridge = [WUBridge new];
+            bridge.path = Env(@"WU_TABS"); bridge.moveURL = Env(@"WU_MOVE_URL");
+            MMMinMacsUseTabBridge(bridge);
+        }
+        if (Env(@"WU_BROWSER").length) MMMinMacsAddTestBrowser(Env(@"WU_BROWSER"));
         WUSource *src = [WUSource new];
         MMSetCLIFactSource(src);
         MMGraph.shared.source = src;
@@ -104,6 +188,23 @@ int main(int argc, const char *argv[]) {
             NSMutableArray *actions = [NSMutableArray new];
             for (MMActionSpec *a in card.actions) [actions addObject:@{@"title": a.title ?: @"", @"tail": a.tail ?: @"", @"disabled": a.disabledReason ?: @""}];
             PrintJSON(@{@"title": card.title ?: @"", @"status": [NSString stringWithFormat:@"%@ %@", card.statusWord, card.statusText], @"actions": actions});
+            return 0;
+        }
+        if (!strcmp(argv[1], "plan") && argc > 3) {
+            // On main, where the tabs part never waits: it uses the last read, or queues one in the background.
+            NSString *path = @(argv[2]).stringByStandardizingPath;
+            int n = atoi(argv[3]);
+            NSMutableArray *rounds = [NSMutableArray new];
+            for (int i = 0; i < n; i++) {
+                __block MMSnapshot *s = nil;
+                OffMain(^{ s = MMCLISnapshot(NO); });
+                MMWrapUpPlan *plan = MMWrapUpPlanFor(path, s);
+                NSMutableArray *parts = [NSMutableArray new];
+                for (MMWrapUpPart *p in plan.parts) [parts addObject:[NSString stringWithFormat:@"%@ %@", MMWrapUpStepName(p.step), p.title]];
+                [rounds addObject:parts];
+                if (i + 1 < n) [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1]];
+            }
+            PrintJSON(rounds);
             return 0;
         }
         if (strcmp(argv[1], "verb")) { fprintf(stderr, "tool: unknown command %s\n", argv[1]); return 2; }
