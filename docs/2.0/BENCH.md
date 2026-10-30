@@ -87,6 +87,23 @@ The first profile, five experts on `main` at f04a47b, 60 seconds, 1.064 % CPU: 1
 - The skip and the reuse rarely fire on this Mac, because other agents start and end processes and fixture servers every few seconds. On a calm Mac they would carry most ticks. That was not measured here.
 - The pass is now the larger half. 3.35 ms of it is `proc_pid_rusage` for about 650 of our processes and the objects for 865. `RUSAGE_INFO_V2` costs about 60 % of V6 but has no energy, so the energy rank keeps V6.
 - The bench is headless. The app's footprint with status items and menus is higher than 10.7 MB and is not measured here.
+
+### Again after wave 7
+
+`tools/bench/run.sh 1800 30 200` on main at ca2ec8d, from 21:24 UTC on 2026-10-30, at a load average from 8.28 to 4.66, read 0.367 % idle CPU and 18.326 ms CPU a tick. Both are over budget and under their ceilings. The footprint was 13.55 MB, the wakeups 0.204 a second, and all the other gates passed.
+
+To part wave 7's cost from the Mac's, the bench binaries of 04d5b1c, before wave 7, and of ca2ec8d ran in turn for 120 seconds each, four rounds, each in a fresh home:
+
+| Round | Before, idle CPU | After, idle CPU | Before, CPU a tick | After, CPU a tick | Load average after |
+|---|---|---|---|---|---|
+| 1 | 0.339 % | 0.366 % | 16.942 ms | 18.181 ms | 36.89 |
+| 2 | 0.345 % | 0.455 % | 16.999 ms | 22.579 ms | 27.88 |
+| 3 | 0.387 % | 0.414 % | 19.593 ms | 20.417 ms | 7.85 |
+| 4 | 0.352 % | 0.366 % | 17.672 ms | 18.853 ms | 5.75 |
+
+Wave 7 adds about 1 ms a tick and 0.01 to 0.03 points of idle CPU, round 2 aside, where the load rose to 28 during the after run. The network part of the pass is 0.13 ms and a history fill at its caps 69 us. The rest of the gap from the 0.291 % of 2026-10-28 was there before wave 7.
+
+That rest comes from LocoHost. Its findings took 4.9 ms a build against 2.4 ms on 2026-10-28, and the graph reused them in 2 of 26 builds. A probe that logged each part of `-[MMLocoHost inputDigestFrom:]` found the sockets part changed in every build. The connections came from servers running on this Mac: a Phoenix server's database pool to postgres, and node, opening new connections with new ports every few seconds. LocoHost counts a new connection as a request, which marks the server active and moves its last active time, so the findings do change and the reuse is right to miss. On one thread, LocoHost's findings take 4.37 ms on a new sample and 1.28 ms again on the same sample. No single call dominates. The largest are `MMLHProtects` with its rule matches and home folder lookups, about 9 %, `-[MMLHHost command]`, built three times a host a build, about 9 %, and `MMLHDetect`'s string search, about 6 %.
 ## Menus, the main thread and startup
 
 Issues #53 and #55. What a menu open and a card hover cost on main, whether main ever stalls, and how long the app takes from `MMMain` to its icons and summaries. Every number here comes from `tools/bench/bench` on the research Mac, a MacBookPro18,1 with 10 cores on macOS 27.0.1. Other agents built and tested in other worktrees during every run. [MEASUREMENTS.md](MEASUREMENTS.md) has the idle cost and the tick.
