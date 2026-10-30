@@ -5,7 +5,13 @@
 
 #pragma mark - Host
 
-@implementation MMLHHost
+static NSString *CommandOf(NSArray<NSString *> *args, NSArray<NSString *> *wrapperArgs, NSString *name);
+
+@implementation MMLHHost {
+    NSString *_command;                                  // -command, made from these three
+    NSArray<NSString *> *_commandArgs, *_commandWrapperArgs;
+    NSString *_commandName;
+}
 
 - (NSInteger)port {
     for (NSNumber *p in self.ports) if (p.integerValue < 49152) return p.integerValue;
@@ -32,14 +38,27 @@
     return [NSString stringWithFormat:@"http://%@:%ld", h, (long)self.port];
 }
 
+// A build asks for the command up to three times a host: the scan, -json and -restartCommand. The properties copy,
+// so a set gives a new object, and the same three objects give the same command.
 - (NSString *)command {
-    NSArray<NSString *> *a = self.wrapperArgs.count ? self.wrapperArgs : self.args;
-    if (!a.count) return self.name ?: @"";
+    NSArray<NSString *> *args = self.args, *wrapperArgs = self.wrapperArgs;
+    NSString *name = self.name;
+    @synchronized (self) {
+        if (_command && _commandArgs == args && _commandWrapperArgs == wrapperArgs && _commandName == name) return _command;
+    }
+    NSString *c = CommandOf(args, wrapperArgs, name);
+    @synchronized (self) { _command = c; _commandArgs = args; _commandWrapperArgs = wrapperArgs; _commandName = name; }
+    return c;
+}
+
+static NSString *CommandOf(NSArray<NSString *> *args, NSArray<NSString *> *wrapperArgs, NSString *name) {
+    NSArray<NSString *> *a = wrapperArgs.count ? wrapperArgs : args;
+    if (!a.count) return name ?: @"";
     // npm and others rewrite their process title into argv[0] and blank the rest.
     if ([a[0] containsString:@" "] && [[a subarrayWithRange:NSMakeRange(1, a.count - 1)] indexOfObjectPassingTest:^BOOL(NSString *x, NSUInteger i, BOOL *stop) { return x.length > 0; }] == NSNotFound)
         return a[0];
     NSUInteger extra = [a indexOfObject:@"-extra"];                // BEAM: what follows -extra is what was run
-    if (!self.wrapperArgs.count && [self.name isEqualToString:@"beam.smp"] && extra != NSNotFound && extra + 1 < a.count)
+    if (!wrapperArgs.count && [name isEqualToString:@"beam.smp"] && extra != NSNotFound && extra + 1 < a.count)
         a = [a subarrayWithRange:NSMakeRange(extra + 1, a.count - extra - 1)];
     if (a.count > 1 && [@[@"node", @"bun"] containsObject:a[0].lastPathComponent] &&
         [@[@"npm", @"pnpm", @"yarn", @"npx", @"pnpx", @"bun"] containsObject:[a[1].lastPathComponent stringByDeletingPathExtension]])
