@@ -71,6 +71,7 @@ MMNetKind MMNetKindFrom(NSString *bsdName, NSString *scType, NSString *displayNa
 @property (readwrite) double inPerSecond, outPerSecond;
 @property (readwrite) BOOL reset;
 @property double baud;      // link speed in bits a second, 0 when unknown
+@property unsigned bits;    // the counters' width, 32 or 64
 @end
 @implementation MMNetInterface
 - (NSDictionary *)json {
@@ -110,13 +111,16 @@ static id Rate(double r) { return r < 0 ? NSNull.null : @(llround(r)); }
 
 #pragma mark - The step
 
-/// Bytes a second from one counter's two readings, never negative. A counter that went back is a 32-bit wrap
-/// when it was in the top quarter of 32 bits and the step it gives is one the link could carry. Otherwise the
-/// interface was reset, as when it went away and came back, and the step counts 0.
-static double Step(uint64_t was, uint64_t now, double dt, double maxPerSecond, BOOL *reset) {
+/// Bytes a second from one counter's two readings, never negative. A counter that went back is a wrap when it was
+/// in the top quarter of its own width, 32 or 64 bits, and the step it gives is one the link could carry. Otherwise
+/// the interface was reset, as when it went away and came back, and the step counts 0. The width matters: the
+/// system reader's counters are 64 bits, so one that drops from 3.5 GB to 0 was reset, and a 32-bit rule would
+/// read it as a wrap of 800 MB.
+static double Step(uint64_t was, uint64_t now, unsigned bits, double dt, double maxPerSecond, BOOL *reset) {
+    uint64_t top = bits == 32 ? UINT32_MAX : UINT64_MAX;
     uint64_t d;
     if (now >= was) d = now - was;
-    else if (was <= UINT32_MAX && was >= (3ull << 30) && now <= UINT32_MAX) d = (UINT32_MAX - was) + now + 1;
+    else if (was <= top && was >= top - (top >> 2) && now <= top) d = (top - was) + now + 1;
     else { *reset = YES; return 0; }
     double r = (double)d / dt;
     if (r > maxPerSecond) { *reset = YES; return 0; }
@@ -142,6 +146,7 @@ MMNet *MMNetNext(MMNet *prev, NSArray<NSDictionary *> *counters, NSDictionary *r
         i.bytesIn = [c[@"in"] unsignedLongLongValue];
         i.bytesOut = [c[@"out"] unsignedLongLongValue];
         i.baud = [c[@"baud"] doubleValue];
+        i.bits = [c[@"bits"] unsignedIntValue] == 32 ? 32 : 64;
         i.inPerSecond = i.outPerSecond = -1;
         MMNetInterface *was = rated ? prev.byName[name] : nil;
         if (rated) {
@@ -150,8 +155,8 @@ MMNet *MMNetNext(MMNet *prev, NSArray<NSDictionary *> *counters, NSDictionary *r
                 // A link that says its speed bounds its step at one and a half times that. The rest at 100 Gbit/s.
                 double max = i.baud > 0 ? MIN(MMNetMaxBytesPerSecond, i.baud / 8 * 1.5) : MMNetMaxBytesPerSecond;
                 BOOL reset = NO;
-                double a = Step(was.bytesIn, i.bytesIn, dt, max, &reset);
-                double b = Step(was.bytesOut, i.bytesOut, dt, max, &reset);
+                double a = Step(was.bytesIn, i.bytesIn, i.bits, dt, max, &reset);
+                double b = Step(was.bytesOut, i.bytesOut, i.bits, dt, max, &reset);
                 // One counter reset means the interface was, so neither direction's step is trusted.
                 if (reset) a = b = 0;
                 i.inPerSecond = a; i.outPerSecond = b; i.reset = reset;
@@ -185,7 +190,8 @@ MMNet *MMNetNext(MMNet *prev, NSArray<NSDictionary *> *counters, NSDictionary *r
 #pragma mark - The system reader
 
 /// Every interface's counters, one IFMIB_IFDATA sysctl per interface index, about 3 us each.
-/// IFMIB_IFCOUNT is the highest index, not the number of interfaces: 27 beside 23 names on this Mac, so a gap is skipped.
+/// IFMIB_IFCOUNT is at least the highest index, not the number of interfaces: 27 beside 23 names and a top index
+/// of 26 on this Mac. The loop runs to it and skips a gap.
 /// getifaddrs has 32-bit counters. NET_RT_IFLIST2 has 64-bit fields, but on macOS 27 it handed this process
 /// en0's bytes cut to 32 bits and rounded to 1 KB: 83,474,432, where the interface MIB and netstat -ib said
 /// 597,083,929,253.
@@ -202,7 +208,7 @@ static NSArray<NSDictionary *> *ReadCounters(void) {
         NSString *name = nl ? [[NSString alloc] initWithBytes:d.ifmd_name length:nl encoding:NSASCIIStringEncoding] : nil;
         if (!name) continue;
         [out addObject:@{@"name": name, @"in": @(d.ifmd_data.ifi_ibytes), @"out": @(d.ifmd_data.ifi_obytes),
-                         @"baud": @(d.ifmd_data.ifi_baudrate), @"loopback": @((d.ifmd_flags & IFF_LOOPBACK) != 0)}];
+                         @"baud": @(d.ifmd_data.ifi_baudrate), @"bits": @64, @"loopback": @((d.ifmd_flags & IFF_LOOPBACK) != 0)}];
     }
     return out;
 }

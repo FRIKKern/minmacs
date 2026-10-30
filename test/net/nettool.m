@@ -29,14 +29,23 @@ static NSDictionary *Steps(void) {
     o[@"step"] = @{@"in": J(b.inPerSecond), @"out": J(b.outPerSecond), @"tunnelIn": J(b.tunnelInPerSecond), @"seconds": @(b.rateSeconds),
                    @"ifs": Ifs(b)};
     // A 32-bit counter wraps: 4294967000 to 1000 over 5 seconds is 1296 bytes.
-    MMNet *w0 = MMNetNext(nil, @[C(@"en0", 4294967000ull, 10)], Wifi(), 0);
-    MMNet *w1 = MMNetNext(w0, @[C(@"en0", 1000, 10)], Wifi(), 5);
+    MMNet *w0 = MMNetNext(nil, @[@{@"name": @"en0", @"in": @4294967000ull, @"out": @10, @"bits": @32}], Wifi(), 0);
+    MMNet *w1 = MMNetNext(w0, @[@{@"name": @"en0", @"in": @1000, @"out": @10, @"bits": @32}], Wifi(), 5);
     o[@"wrap"] = @{@"in": J(w1.inPerSecond), @"reset": @([w1.interfaces.firstObject reset])};
+    // The same drop on a 64-bit counter, the system reader's width, is a reset. Read as a 32-bit wrap it would be
+    // 794,967,396 bytes in 5 seconds, 1.27 Gbit/s, under the 1.5 Gbit/s bound of a 1 Gbit/s link.
+    MMNet *x0 = MMNetNext(nil, @[@{@"name": @"en0", @"in": @3500000000ull, @"out": @10, @"baud": @1e9}], Wifi(), 0);
+    MMNet *x1 = MMNetNext(x0, @[@{@"name": @"en0", @"in": @100, @"out": @10, @"baud": @1e9}], Wifi(), 5);
+    o[@"wide"] = @{@"in": J(x1.inPerSecond), @"reset": @([x1.interfaces.firstObject reset])};
+    // A 64-bit counter wraps at 64 bits: UINT64_MAX - 999 to 1000 over 5 seconds is 2000 bytes.
+    MMNet *y0 = MMNetNext(nil, @[C(@"en0", UINT64_MAX - 999, 10)], Wifi(), 0);
+    MMNet *y1 = MMNetNext(y0, @[C(@"en0", 1000, 10)], Wifi(), 5);
+    o[@"wrap64"] = @{@"in": J(y1.inPerSecond), @"reset": @([y1.interfaces.firstObject reset])};
     // A 64-bit counter that goes back means the interface was reset, so the step is 0, never negative or huge.
     MMNet *r0 = MMNetNext(nil, @[C(@"en0", 10000000000ull, 5000000000ull)], Wifi(), 0);
     MMNet *r1 = MMNetNext(r0, @[C(@"en0", 100, 5000000100ull)], Wifi(), 5);
     o[@"back"] = @{@"in": J(r1.inPerSecond), @"out": J(r1.outPerSecond), @"reset": @([r1.interfaces.firstObject reset])};
-    // A counter low in 32 bits that goes back is a reset too, not a wrap.
+    // A counter low in 32 bits that goes back is a reset too, not a wrap, at either width.
     MMNet *l0 = MMNetNext(nil, @[C(@"en0", 1000000000ull, 0)], Wifi(), 0);
     MMNet *l1 = MMNetNext(l0, @[C(@"en0", 100, 0)], Wifi(), 5);
     o[@"lowBack"] = @{@"in": J(l1.inPerSecond), @"reset": @([l1.interfaces.firstObject reset])};

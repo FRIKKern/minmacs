@@ -44,7 +44,7 @@ extern const double MMNetMaxBytesPerSecond;
 /// Bytes a second since the reading before. 0 when the interface is new, came back, or its counter went
 /// back or jumped past MMNetMaxBytesPerSecond. -1 when there is no reading before.
 @property (readonly) double inPerSecond, outPerSecond;
-/// YES when this reading counted a reset: a counter went back, a 32-bit wrap or a step too large to be real.
+/// YES when this reading counted a reset: a counter went back with no wrap at its width, or a step too large to be real.
 @property (readonly) BOOL reset;
 @end
 
@@ -73,6 +73,7 @@ extern const double MMNetMaxBytesPerSecond;
 
 /// The next reading from the one before, pure, so tests can step it.
 /// counters: one dictionary per interface with "name", "in" and "out", and "loopback" YES to leave it out.
+/// "bits" is the counters' width, 32 or 64, and 64 when left out. A counter wraps only at its own width.
 /// route: "interface" and "kind", an MMNetKind as a number, or empty for no primary route.
 /// clock: seconds on a clock that only goes forward. prev may be nil.
 MMNet *MMNetNext(MMNet *prev, NSArray<NSDictionary *> *counters, NSDictionary *route, double clock);
