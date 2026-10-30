@@ -4,9 +4,11 @@
 #import "Core/Act/MMClutterAct.h"
 #import "Core/Act/MMUndo.h"
 #import "Core/Store/MMStore.h"
+#import "Core/Know/MMGit.h"
 #include <fts.h>
 #include <sys/clonefile.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 NSArray<NSDictionary *> *MMClutterAudit(NSArray<NSString *> *paths) {
     NSMutableArray *out = [NSMutableArray new];
@@ -152,6 +154,230 @@ static NSArray<NSString *> *Vanished(NSString *dir, NSString *copy) {
     [MMUndo.shared note:record payload:@{@"recovery": @{@"dir": dir, @"root": @"/", @"saved": saved, @"skipped": @[]}}];
     if (!ok && error) *error = err ?: @"the tool failed";
     return ok;
+}
+
+@end
+
+#pragma mark - A row's own cleanup command, for good
+
+int64_t MMClutterFreedFromOutput(NSString *output) {
+    if (!output.length) return -1;
+    static NSRegularExpression *size, *words;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        size = [NSRegularExpression regularExpressionWithPattern:@"([0-9]+(?:\\.[0-9]+)?)\\s?([kKMGT]i?B|B|bytes)(?![A-Za-z])" options:0 error:nil];
+        words = [NSRegularExpression regularExpressionWithPattern:@"free|reclaim|remov|delet|total|would" options:NSRegularExpressionCaseInsensitive error:nil];
+    });
+    int64_t found = -1;
+    for (NSString *line in [output componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
+        NSRange all = NSMakeRange(0, line.length);
+        if (![words firstMatchInString:line options:0 range:all]) continue;
+        NSTextCheckingResult *m = [size matchesInString:line options:0 range:all].lastObject;
+        if (!m) continue;
+        double n = [line substringWithRange:[m rangeAtIndex:1]].doubleValue;
+        NSString *u = [line substringWithRange:[m rangeAtIndex:2]];
+        double scale = 1;
+        if (u.length >= 2 && ![u isEqualToString:@"bytes"]) {
+            NSUInteger power = [@"KMGT" rangeOfString:[u substringToIndex:1].uppercaseString].location + 1;
+            scale = pow([u characterAtIndex:1] == 'i' ? 1024.0 : 1000.0, (double)power);
+        }
+        found = (int64_t)llround(n * scale);
+    }
+    return found;
+}
+
+NSString *MMClutterCommandTitle(MMClutterKind *k) {
+    return k.cleanup.length ? [NSString stringWithFormat:@"Run %@, Cannot Be Undone", k.cleanup] : nil;
+}
+
+static MMClutterAppsProvider gRunningApps;
+void MMClutterUseRunningApps(MMClutterAppsProvider provider) { gRunningApps = [provider copy]; }
+
+NSArray<NSString *> *MMClutterRunningQuitFirst(MMClutterKind *k) {
+    if (!k.quitFirst.count) return @[];
+    NSMutableSet *running = [NSMutableSet new];
+    MMClutterAppsProvider p = gRunningApps;
+    if (p) [running addObjectsFromArray:p() ?: @[]];
+    else for (MMApp *a in MMRunningApps()) if (a.bundleID) [running addObject:a.bundleID];
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSString *b in k.quitFirst) if ([running containsObject:b]) [out addObject:b];
+    return out;
+}
+
+/// The last dry run of each row, in <noonoo>/commands.json, kept in memory and read again when the file changed,
+/// so a dry run the CLI ran reaches the app.
+static NSMutableDictionary *gDryRuns;
+static struct timespec gDryRunsMtime;
+static NSObject *DryRunLock(void) { static NSObject *o; static dispatch_once_t once; dispatch_once(&once, ^{ o = [NSObject new]; }); return o; }
+static NSString *DryRunPath(void) { return [MMExpertDir(@"noonoo") stringByAppendingPathComponent:@"commands.json"]; }
+static NSMutableDictionary *DryRuns(void) {
+    struct stat st;
+    struct timespec m = stat(DryRunPath().fileSystemRepresentation, &st) == 0 ? st.st_mtimespec : (struct timespec){0, 0};
+    if (m.tv_sec != gDryRunsMtime.tv_sec || m.tv_nsec != gDryRunsMtime.tv_nsec) { gDryRuns = nil; gDryRunsMtime = m; }
+    if (!gDryRuns) {
+        NSData *d = [NSData dataWithContentsOfFile:DryRunPath()];
+        id j = d ? [NSJSONSerialization JSONObjectWithData:d options:NSJSONReadingMutableContainers error:nil] : nil;
+        gDryRuns = [j isKindOfClass:NSMutableDictionary.class] ? j : [NSMutableDictionary new];
+    }
+    return gDryRuns;
+}
+NSDictionary *MMClutterLastDryRun(NSString *kindID) {
+    if (!kindID) return nil;
+    @synchronized (DryRunLock()) { return [DryRuns()[kindID] copy]; }
+}
+static void KeepDryRun(NSDictionary *run) {
+    @synchronized (DryRunLock()) {
+        DryRuns()[run[@"kindID"]] = run;
+        [[NSJSONSerialization dataWithJSONObject:gDryRuns options:NSJSONWritingSortedKeys error:nil] writeToFile:DryRunPath() atomically:YES];
+        struct stat st;
+        if (stat(DryRunPath().fileSystemRepresentation, &st) == 0) gDryRunsMtime = st.st_mtimespec;
+    }
+}
+
+static NSString *TailOf(NSString *s, NSUInteger n) { return s.length > n ? [s substringFromIndex:s.length - n] : (s ?: @""); }
+
+/// One run of the tool through MMRunTask: {exit, timedOut, didRun, output}. Only the child started here is signaled.
+static NSDictionary *RunCommand(NSString *path, NSArray<NSString *> *args, NSTimeInterval timeout) {
+    NSTask *t = [NSTask new];
+    t.executableURL = [NSURL fileURLWithPath:path];
+    t.arguments = args;
+    NSData *o = nil, *x = nil;
+    MMRunResult r = MMRunTask(t, nil, timeout, &o, &x);
+    NSMutableData *all = [o ?: NSData.data mutableCopy];
+    [all appendData:x ?: NSData.data];
+    NSString *out = [[NSString alloc] initWithData:all encoding:NSUTF8StringEncoding] ?: @"";
+    return @{@"exit": @(r.didRun && !r.timedOut ? r.status : -1), @"timedOut": @(r.timedOut), @"didRun": @(r.didRun),
+             @"output": TailOf(out, 64 << 10)};
+}
+
+static NSString *RunProblem(NSString *what, NSDictionary *run, NSTimeInterval limit) {
+    if (![run[@"didRun"] boolValue]) return [what stringByAppendingString:@" would not start"];
+    if ([run[@"timedOut"] boolValue]) return [NSString stringWithFormat:@"%@ ran past its limit of %.0f seconds and was stopped", what, limit];
+    int st = [run[@"exit"] intValue];
+    return st == 0 ? nil : [NSString stringWithFormat:@"%@ exited %d: %@", what, st, TailOf([run[@"output"] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet], 300)];
+}
+
+static uint64_t Allocated(NSArray<NSDictionary *> *audit) {
+    uint64_t n = 0;
+    for (NSDictionary *a in audit) n += [a[@"allocated"] unsignedLongLongValue];
+    return n;
+}
+
+@interface MMClutterCommandAction ()
+@property (readwrite) MMClutterItem *item;
+@property (readwrite, copy) NSString *by, *toolPath;
+@property (readwrite) NSDictionary *lastDryRun;
+@property (strong) MMFinding *finding;
+@property (strong) MMClutterCatalog *catalog;
+@property (strong) MMClutterItem *fresh;
+@end
+
+@implementation MMClutterCommandAction
+
++ (instancetype)actionFor:(MMFinding *)finding item:(MMClutterItem *)item catalog:(MMClutterCatalog *)catalog by:(NSString *)by {
+    if (!finding || !item.kind.cleanupArgs.count) return nil;
+    MMClutterCommandAction *a = [MMClutterCommandAction new];
+    a.finding = finding; a.item = item; a.catalog = catalog ?: MMClutterCatalog.shared; a.by = by;
+    a.toolPath = MMClutterToolPath(item.kind.cleanupArgs.firstObject);
+    a.timeout = 300; a.dryRunTimeout = 120;
+    return a;
+}
+
+- (NSString *)kind { return @"tool"; }
+- (NSString *)title { return MMClutterCommandTitle(self.item.kind); }
+
+/// The command's arguments after the binary, and the dry run's when it names the same binary.
+- (NSArray<NSString *> *)args { NSArray *a = self.item.kind.cleanupArgs; return [a subarrayWithRange:NSMakeRange(1, a.count - 1)]; }
+- (NSArray<NSString *> *)dryArgs {
+    NSArray *d = self.item.kind.dryRunArgs;
+    return d.count && [d.firstObject isEqualToString:self.item.kind.cleanupArgs.firstObject] ? [d subarrayWithRange:NSMakeRange(1, d.count - 1)] : nil;
+}
+
+- (NSString *)recheck {
+    MMClutterKind *k = self.item.kind;
+    if (![self.by isEqualToString:@"manual"] && ![self.by isEqualToString:@"cli"])
+        return @"a tool's own cleanup runs only when you press it";
+    if (!k.cleanupArgs.count) return @"its row names no command";
+    if (k.reportOnly) return k.ownerSetting ?: @"its row only reports it";
+    NSString *name = k.cleanupArgs.firstObject;
+    // The dry run must come first when the row has one. A dry run of another program would be skipped, so it refuses.
+    if (k.dryRunArgs.count && !self.dryArgs)
+        return [NSString stringWithFormat:@"its dry run runs %@, not %@", k.dryRunArgs.firstObject, name];
+    NSString *now = MMClutterToolPath(name);
+    if (!self.toolPath || !now) return [NSString stringWithFormat:@"%@ is not installed", name];
+    if (![now isEqualToString:self.toolPath]) return [NSString stringWithFormat:@"%@ moved since this was asked, to %@", name, now.stringByAbbreviatingWithTildeInPath];
+    struct stat st;
+    if (stat(now.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode) || access(now.fileSystemRepresentation, X_OK) != 0)
+        return [NSString stringWithFormat:@"%@ at %@ is not a program MinMacs can run", name, now.stringByAbbreviatingWithTildeInPath];
+    NSArray *running = MMClutterRunningQuitFirst(k);
+    if (running.count) return [NSString stringWithFormat:@"quit %@ first", [running componentsJoinedByString:@" and "]];
+    MMClutterItem *i = [self.catalog inspect:self.item];
+    if (!i) return @"it is gone";
+    if (i.state != MMClutterFree) return i.why ?: @"it is in use";
+    for (NSString *m in i.members) {
+        NSString *w = [self.catalog whyNot:m kind:k];
+        if (w) return w;
+    }
+    self.fresh = i;
+    return nil;
+}
+
+- (NSString *)dryRun {
+    MMClutterItem *i = self.fresh ?: self.item;
+    MMClutterKind *k = i.kind;
+    NSString *never = [NSString stringWithFormat:@"It cannot be undone. %@", k.rebuild.length ? [k.rebuild stringByAppendingString:@"."] : @"The tool fetches what it needs again."];
+    NSArray *dry = self.dryArgs;
+    if (!dry || !self.toolPath) {
+        return [NSString stringWithFormat:@"would run %@ on %@, about %@ by the last scan. %@", k.cleanup,
+                i.path.stringByAbbreviatingWithTildeInPath, [NSByteCountFormatter stringFromByteCount:(long long)i.size.freedIfDeleted countStyle:NSByteCountFormatterCountStyleFile], never];
+    }
+    NSDictionary *run = RunCommand(self.toolPath, dry, self.dryRunTimeout);
+    int64_t would = MMClutterFreedFromOutput(run[@"output"]);
+    NSMutableDictionary *kept = [run mutableCopy];
+    [kept removeObjectForKey:@"didRun"];
+    kept[@"kindID"] = k.kindID; kept[@"command"] = k.dryRun; kept[@"at"] = @(NSDate.date.timeIntervalSince1970);
+    kept[@"wouldFree"] = @(would);
+    kept[@"output"] = TailOf(run[@"output"], 4096);
+    self.lastDryRun = kept;
+    KeepDryRun(kept);
+    NSString *problem = RunProblem([@"the dry run " stringByAppendingString:k.dryRun], run, self.dryRunTimeout);
+    if (problem) return [NSString stringWithFormat:@"would not run %@: %@", k.cleanup, problem];
+    NSString *size = would >= 0 ? [NSString stringWithFormat:@"%@, by its dry run", [NSByteCountFormatter stringFromByteCount:would countStyle:NSByteCountFormatterCountStyleFile]]
+                                : @"a size its dry run does not name";
+    return [NSString stringWithFormat:@"would run %@ to free %@. %@", k.cleanup, size, never];
+}
+
+- (BOOL)perform:(MMUndoRecord *)record error:(NSString **)error {
+    MMClutterItem *i = self.fresh ?: [self.catalog inspect:self.item];
+    if (!i) { if (error) *error = @"it is gone"; return NO; }
+    MMClutterKind *k = i.kind;
+    NSArray *paths = i.members;
+    NSArray *before = MMClutterAudit(paths);
+    NSString *undo = [NSString stringWithFormat:@"%@ removes it for good, so this cannot be undone.%@", k.cleanup,
+                      k.rebuild.length ? [NSString stringWithFormat:@" %@.", k.rebuild] : @""];
+    [MMUndo.shared note:record payload:@{@"kindID": k.kindID, @"paths": paths, @"tool": k.kindID, @"toolPath": self.toolPath ?: @"",
+                                         @"command": k.cleanup, @"undo": undo, @"audit": @{@"before": before},
+                                         @"sizeBefore": @(Allocated(before))}];
+    NSArray *dry = self.dryArgs;
+    if (dry) {
+        NSDictionary *run = RunCommand(self.toolPath, dry, self.dryRunTimeout);
+        int64_t would = MMClutterFreedFromOutput(run[@"output"]);
+        [MMUndo.shared note:record payload:@{@"dryRun": run[@"output"], @"dryRunExit": run[@"exit"], @"dryRunTimedOut": run[@"timedOut"],
+                                             @"wouldFree": @(would)}];
+        NSString *problem = RunProblem([@"the dry run " stringByAppendingString:k.dryRun], run, self.dryRunTimeout);
+        if (problem) { if (error) *error = [problem stringByAppendingString:@". MinMacs did not run the command."]; return NO; }
+    } else {
+        [MMUndo.shared note:record payload:@{@"dryRun": [@"no dry-run form; ran " stringByAppendingString:k.cleanup]}];
+    }
+    NSDictionary *run = RunCommand(self.toolPath, self.args, self.timeout);
+    NSArray *after = MMClutterAudit(paths);
+    uint64_t was = Allocated(before), now = Allocated(after);
+    [MMUndo.shared note:record payload:@{@"output": run[@"output"], @"exit": run[@"exit"], @"timedOut": run[@"timedOut"],
+                                         @"audit": @{@"before": before, @"after": after}, @"sizeAfter": @(now),
+                                         @"sizeFreed": @(was > now ? was - now : 0)}];
+    NSString *problem = RunProblem(k.cleanup, run, self.timeout);
+    if (problem && error) *error = problem;
+    return problem == nil;
 }
 
 @end

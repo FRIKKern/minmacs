@@ -23,11 +23,15 @@ Developer clutter on the shared core, issues #28, #29 and #30. Noo-Noo lists cac
   - Cache, build and leak rows go to the Trash through `MMUndo`. Undo moves them back.
   - Tool rows first take an APFS clone of the row's folder into `<noonoo>/recovery/<rid>`, then run the tool's dry run and command through `MMToolCommand`. What the tool removed is listed as the record's recovery files, so undo copies it back. The `minmacs-recovery` row sends the copy to the Trash after 7 days.
   - Every record holds an audit of the paths before and after, and the statfs delta.
+  - Designs 74 and 75: `MMClutterCommandAction` runs a tool row's own command for good, with no recovery copy, only when the person presses it. Its fresh check: `by` is `manual` or `cli`, the binary is still the executable file `MMClutterToolPath` named, no app in the row's `quitFirst` runs, the item is free and passes the walls. It runs the dry-run form first when the row has one and stops when that fails, then the command, each through `MMRunTask` with a time limit, 120 and 300 seconds. The record, kind `tool`, keeps both outputs and exit statuses, whether a run passed its limit, the size before and after read again with `MMSizer`, and `undo`, why it cannot be undone. `-[MMUndo restore:]` refuses it.
+  - `MMClutterFreedFromOutput` reads what a tool's output says it frees, such as Docker's `Total reclaimed space`. `MMClutterLastDryRun` keeps each row's last dry run in `<noonoo>/commands.json`.
 - **Trends.** Each scan adds one point a day per row to the log, `noonoo.disk.<row>`. `MMClutterTrendOf` is NN's day bucket and least-squares fit, plus the 7-day ratio of `cache_velocity.go`.
 
 ## Findings and order
 
 One finding per item, `noonoo:clutter:<row>:<path>`. Finished projects come first: build output whose worktree is merged, squash-merged, lost its remote branch, is gone, or whose Claude Code session ended. Then leftovers, then caches and build output of active projects, then what stays. Within a section the order is what deleting frees.
+
+A tool row's finding holds `command` in its facts: the command line, the button title `MMClutterCommandTitle` gives, such as "Run pnpm store prune, Cannot Be Undone", `undo` false, `askOnly` true, the dry-run form, `quitFirst`, and `lastDryRun` with what it would free. No menu or card shows it yet.
 
 The rule `noonoo.owner-state` decides every finding, so the model is never asked about clutter. Proactive cleans finished projects and leftovers. Eager adds caches. After a new review the app's watch on main takes the mode from the view `prepareFor:` made on the graph queue, so main reads no pref. A tool's own cleanup runs only when the person asks. An agent working in the project keeps its build output in every mode.
 
@@ -39,6 +43,7 @@ The header is what deleting frees, then finished projects, what the Trash holds 
 
 - `clutter [list | show <id|path> | trends | check <path> | scan] [--json] [--dry-run]` reads.
 - `clean <id|path|row> ... | --finished | --leftovers | --undo [rid] [--json] [--dry-run]` changes things, so it runs in the app. A member of a temp family names the family.
+- `clean <id|path|row> --command [--dry-run] [--json]` runs the row's own command for good. With `--dry-run` it runs only the dry-run form, in the CLI, and says what it would free. No mode, plan, Tidy or Wrap Up runs it, since `actionFor:step:` never returns it.
 
 `legacyName` is `noo-noo`.
 
@@ -51,5 +56,6 @@ The header is what deleting frees, then finished projects, what the Trash holds 
 - The test still hands squash-merged facts over by hand. In the app they come from Core's repo index through `MMFacts`.
 - The Chrome clone signature checks open files and executables, not NN's launch causality for hard-linked launchers. A clone a live Chrome holds through a hard link stays.
 - pnpm's `.modules.yaml` `storeDir` is not read yet, so an unused store layout is not marked.
-- Docker, Colima, OrbStack and Homebrew rows only report, since their commands change data in place that a recovery copy cannot bring back.
+- Docker, Colima, OrbStack and Homebrew rows only report, since their commands change data in place that a recovery copy cannot bring back. The command action could run their commands once their rows become tool rows, which is a registry change.
+- `quitFirst` is not in `registry/clutter-schema.json`, so only fixture rows carry it so far.
 - The Trash frees nothing until the person empties it. The header says what it holds.

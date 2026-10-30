@@ -245,6 +245,17 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (i.lastUsed) fx[@"lastUsed"] = @(i.lastUsed.timeIntervalSince1970);
         if (k.rebuild) fx[@"rebuild"] = k.rebuild;
         if (k.cleanup) fx[@"cleanup"] = k.cleanup;
+        if (k.cleanupArgs.count && !k.reportOnly) {
+            // Designs 74 and 75: the row's own command, run for good when the person presses it. The last dry run is
+            // Core's, kept in the store, so this reads no tool.
+            NSMutableDictionary *cmd = [@{@"line": k.cleanup, @"title": MMClutterCommandTitle(k), @"undo": @NO,
+                                          @"askOnly": @YES, @"hasDryRun": @((BOOL)(k.dryRunArgs.count > 0))} mutableCopy];
+            if (k.dryRun) cmd[@"dryRun"] = k.dryRun;
+            if (k.quitFirst.count) cmd[@"quitFirst"] = k.quitFirst;
+            NSDictionary *last = MMClutterLastDryRun(k.kindID);
+            if (last) cmd[@"lastDryRun"] = @{@"at": last[@"at"] ?: @0, @"exit": last[@"exit"] ?: @-1, @"wouldFree": last[@"wouldFree"] ?: @-1};
+            fx[@"command"] = cmd;
+        }
         if (k.ownerSetting) fx[@"ownerSetting"] = k.ownerSetting;
         if (i.sessionID) fx[@"sessionID"] = i.sessionID;
         [out addObject:[MMFinding expert:kExpert kind:kKind stableKey:i.key build:^(MMFindingBuilder *b) {
@@ -317,6 +328,23 @@ static void RunOffMain(dispatch_block_t block) {
     __block MMUndoRecord *r = nil;
     __block NSString *err = nil;
     RunOffMain(^{ r = MMRunAction(a, self.policy, nil, by, [@"asked from the " stringByAppendingString:[by isEqualToString:@"cli"] ? @"CLI" : @"menu"], &err); });
+    [self forgetUndo];
+    if (error) *error = err ?: (r.state == MMUndoFailed ? r.error : nil);
+    return r;
+}
+
+- (MMClutterCommandAction *)commandFor:(MMFinding *)f by:(NSString *)by {
+    if (![f.expert isEqualToString:kExpert]) return nil;
+    MMClutterItem *i = [self itemFor:f facts:nil];
+    return i ? [MMClutterCommandAction actionFor:f item:i catalog:self.catalog by:by] : nil;
+}
+
+- (MMUndoRecord *)runCommand:(MMFinding *)f by:(NSString *)by error:(NSString **)error {
+    MMClutterCommandAction *a = [self commandFor:f by:by];
+    if (!a) { if (error) *error = f.facts[@"command"] ? @"it is gone from the last scan" : @"its row names no command of its own"; return nil; }
+    __block MMUndoRecord *r = nil;
+    __block NSString *err = nil;
+    RunOffMain(^{ r = MMRunAction(a, self.policy, nil, by, [@"pressed in the " stringByAppendingString:[by isEqualToString:@"cli"] ? @"CLI" : @"menu"], &err); });
     [self forgetUndo];
     if (error) *error = err ?: (r.state == MMUndoFailed ? r.error : nil);
     return r;
@@ -573,7 +601,7 @@ static void RunOffMain(dispatch_block_t block) {
 
 static NSDictionary *ItemJSON(MMFinding *f) {
     NSMutableDictionary *j = [NSMutableDictionary new];
-    for (NSString *k in @[@"kindID", @"class", @"section", @"state", @"path", @"owner", @"ownerState", @"why", @"keep", @"members", @"allocated", @"freed", @"lastUsed", @"trend"])
+    for (NSString *k in @[@"kindID", @"class", @"section", @"state", @"path", @"owner", @"ownerState", @"why", @"keep", @"members", @"allocated", @"freed", @"lastUsed", @"trend", @"command"])
         if (f.facts[k]) j[k] = f.facts[k];
     j[@"id"] = f.findingID; j[@"title"] = f.title ?: @"";
     if (f.proposal) j[@"action"] = f.proposal.title;
@@ -676,6 +704,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
         if (a.json) [a printJSON:@{@"rid": r.rid, @"restored": @YES}]; else [a print:@"Noo-Noo put back %@", r.subject];
         return MMExitOK;
     }
+    if ([a has:@"--command"]) return [self commandVerb:a];
     MMSnapshot *s = [self snapshotNow];
     NSArray<MMFinding *> *ts = [self targets:a.words args:a in:s];
     if (!ts.count) {
@@ -717,12 +746,57 @@ static NSDictionary *ItemJSON(MMFinding *f) {
     return bad ? MMExitFailed : MMExitOK;
 }
 
+/// clean <id|path|row> --command: the row's own cleanup command, for good. --dry-run runs only its dry-run form and
+/// says what it would free. Without it the command runs in the app, by "cli", after the dry run.
+- (int)commandVerb:(MMArgs *)a {
+    MMSnapshot *s = [self snapshotNow];
+    NSArray<MMFinding *> *ts = [self targets:a.words args:a in:s];
+    if (!ts.count) { [a error:@"noonoo: nothing matches %@", [a word:0] ?: @""]; return MMExitFailed; }
+    NSMutableArray *j = [NSMutableArray new];
+    NSInteger bad = 0;
+    if (a.dryRun) {
+        for (MMFinding *f in ts) {
+            MMClutterCommandAction *act = [self commandFor:f by:@"cli"];
+            __block NSString *why = nil, *line = nil;
+            RunOffMain(^{ why = act ? [act recheck] : @"its row names no command of its own"; if (!why) line = [act dryRun]; });
+            NSDictionary *last = act.lastDryRun;
+            NSString *text = why ? [NSString stringWithFormat:@"keeps %@: %@", f.title, why] : line;
+            BOOL ok = why == nil && (!last || [last[@"exit"] intValue] == 0);
+            bad += !ok;
+            NSMutableDictionary *x = [@{@"id": f.findingID, @"would": text, @"ok": @(ok), @"undo": @NO, @"title": act.title ?: @""} mutableCopy];
+            if (last) { x[@"wouldFree"] = last[@"wouldFree"]; x[@"dryRunExit"] = last[@"exit"]; x[@"dryRunOutput"] = last[@"output"]; }
+            [j addObject:x];
+            if (!a.json) [a print:@"%@", text];
+        }
+        if (a.json) [a printJSON:j];
+        return bad ? MMExitFailed : MMExitOK;
+    }
+    int need = [a needsApp];
+    if (need) return need;
+    for (MMFinding *f in ts) {
+        NSString *err = nil;
+        MMUndoRecord *r = [self runCommand:f by:@"cli" error:&err];
+        BOOL ok = r && r.state == MMUndoDone;
+        bad += !ok;
+        NSDictionary *p = r.payload ?: @{};
+        [j addObject:@{@"id": f.findingID, @"ok": @(ok), @"rid": r.rid ?: @"", @"problem": err ?: @"", @"freedBytes": @(r.freedBytes),
+                       @"exit": p[@"exit"] ?: @-1, @"sizeBefore": p[@"sizeBefore"] ?: @0, @"sizeAfter": p[@"sizeAfter"] ?: @0,
+                       @"undo": @NO, @"undoWords": p[@"undo"] ?: @""}];
+        if (!a.json) [a print:@"%@", ok ? [NSString stringWithFormat:@"ran %@ for %@, now %@. It cannot be undone.", f.facts[@"cleanup"], f.title,
+                                                    MMBytes([p[@"sizeAfter"] unsignedLongLongValue])]
+                                        : [NSString stringWithFormat:@"%@: %@", f.title, err ?: @"it failed"]];
+    }
+    if (a.json) [a printJSON:j];
+    [MMGraph.shared rebuild:@"noonoo.cli"];
+    return bad ? MMExitFailed : MMExitOK;
+}
+
 - (NSArray<MMVerbSpec *> *)verbs {
     __weak MMNooNooExpert *me = self;
     return @[
         [MMVerbSpec verb:@"clutter" usage:@"clutter [list | show <id|path> | trends | check <path> | scan] [--json] [--dry-run]" mutates:NO
                      run:^int(MMArgs *a) { return [me clutter:a]; }],
-        [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... | --finished | --leftovers | --undo [rid] [--json] [--dry-run]" mutates:YES
+        [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]   moves clutter to the Trash with undo, or with --command runs the row's own cleanup, which cannot be undone" mutates:YES
                      run:^int(MMArgs *a) { return [me cleanVerb:a]; }],
     ];
 }

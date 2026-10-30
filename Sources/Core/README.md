@@ -40,7 +40,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | New | `Store/MMGains.h` | The kept log of what came back: memory and disk back per finished action, 30 days, `minmacs gains` |
 | P39 to P47 | `Review/MMReview.h` | `MMUsage`, `MMModel`, `MMVerdictWords`, `MMVerdict`, `MMReview`, `MMRule`, `MMBudget`, `MMReviewRequest`, `MMReviewBroker` |
 | none | `Review/MMInvestigate.h` | Investigate, issue #35: `MMInvestigateScoped`, `MMInvestigateFolders`, `MMInvestigation`, `MMInvestigateEstimate`, `MMInvestigateSubject`, `MMInvestigations` and the tool server |
-| P51 to P53 | `Act/MMClutterAct.h` | `MMClutterAction`: clutter to the Trash, or a tool's command after an APFS recovery copy, with an audit |
+| P51 to P53 | `Act/MMClutterAct.h` | `MMClutterAction`: clutter to the Trash, or a tool's command after an APFS recovery copy, with an audit. `MMClutterCommandAction`: a row's own command for good, only when pressed, with no undo |
 | P52, P53 | `Act/MMUndo.h` | `MMUndoRecord`, `MMUndo` with the Trash, git bundles and Wrap Up records, `MMToolCommand` with its dry run |
 | P52 | `Act/MMWorktreeAct.h` | `MMWorktreeIgnoredFiles`, `MMWorktreeRemove` with no `--force` and `git branch -d`, and `MMWorktreePrune` |
 | P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMLidOverride`, `MMNotify`, and Wrap Up: `MMWrapUpPlan`, `MMRunWrapUp` and `MMRunActionPart` |

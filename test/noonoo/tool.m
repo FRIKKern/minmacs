@@ -10,6 +10,10 @@
 //   tool modes                                    each actionable finding: row, section, and whether Proactive and Eager take it
 //   tool undo                                     Noo-Noo's undo records as JSON
 //   tool render <folder>                          the menu and cards to PNG in four appearances, plus checks.txt
+//   tool ask <path> <by>                          the row's own command for the item at path, through MMRunAction as by asks;
+//                                                 NN_CMD_TIMEOUT sets its time limit. Prints the record as JSON, or the refusal
+//   tool freed <text>                             what MMClutterFreedFromOutput reads from text
+// NN_RUNNING_APPS names the bundle ids that count as running, comma separated, for the rows' quitFirst.
 // NN_PROJECTS names the checkouts, colon separated. NN_MERGED names the worktree whose git facts say squash-merged.
 #import <Cocoa/Cocoa.h>
 #import "Core/MMCore.h"
@@ -128,6 +132,10 @@ int main(int argc, const char *argv[]) {
         MMNooNooExpert *e = MMNooNooExpert.shared;
         MMGraph.shared.source = [TSource new];
         MMStartWatching();
+        if (Env(@"NN_RUNNING_APPS")) {
+            NSArray *apps = [Env(@"NN_RUNNING_APPS") componentsSeparatedByString:@","];
+            MMClutterUseRunningApps(^NSArray<NSString *> *{ return apps; });
+        }
 
         if ([cmd isEqualToString:@"render"]) return args.count > 1 ? Render(args[1]) : 2;
         if ([cmd isEqualToString:@"verb"] && args.count > 1) {
@@ -176,6 +184,28 @@ int main(int argc, const char *argv[]) {
                        [pol modeKeeps:f mode:MMModeProactive review:nil] ? "keep" : "go", [pol modeKeeps:f mode:MMModeEager review:nil] ? "keep" : "go");
             }
             return 0;
+        }
+        if ([cmd isEqualToString:@"freed"] && args.count > 1) {
+            printf("%lld\n", (long long)MMClutterFreedFromOutput([[args subarrayWithRange:NSMakeRange(1, args.count - 1)] componentsJoinedByString:@" "]));
+            return 0;
+        }
+        if ([cmd isEqualToString:@"ask"] && args.count > 2) {
+            MMFinding *f = nil;
+            for (MMFinding *x in [[e snapshotNow] findingsFor:@"noonoo"]) if ([x.facts[@"path"] isEqual:args[1]]) f = x;
+            MMClutterCommandAction *act = f ? [e commandFor:f by:args[2]] : nil;
+            if (!act) { fprintf(stderr, "tool: no command for %s\n", args[1].UTF8String); return 1; }
+            if (Env(@"NN_CMD_TIMEOUT")) act.timeout = Env(@"NN_CMD_TIMEOUT").doubleValue;
+            __block MMUndoRecord *r = nil;
+            __block NSString *err = nil;
+            dispatch_group_t g = dispatch_group_create();
+            dispatch_group_async(g, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                r = MMRunAction(act, MMNNPolicy(), nil, args[2], @"asked by the test", &err);
+            });
+            dispatch_group_wait(g, DISPATCH_TIME_FOREVER);
+            if (!r) { printf("refused: %s\n", err.UTF8String); return 1; }
+            PrintJSON(@{@"rid": r.rid, @"kind": r.kind ?: @"", @"state": @[@"pending", @"done", @"failed", @"restored"][r.state],
+                        @"error": r.error ?: @"", @"canRestore": @(r.canRestore), @"payload": r.payload ?: @{}});
+            return r.state == MMUndoDone ? 0 : 1;
         }
         if ([cmd isEqualToString:@"undo"]) {
             NSMutableArray *out = [NSMutableArray new];
