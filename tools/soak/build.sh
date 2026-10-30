@@ -31,6 +31,8 @@ if ! clang -fobjc-arc -arch "$(uname -m)" -mmacosx-version-min=14.0 "$OUT"/obj/*
     -o "$OUT/soak" >>"$LOG" 2>&1; then
   cat "$LOG" >&2; echo "soak link failed" >&2; exit 1
 fi
+# Signed as build.sh signs the app, so the soak reads other processes' sockets as the app does.
+codesign --force --sign - "$OUT/soak" >>"$LOG" 2>&1 || { cat "$LOG" >&2; echo "soak sign failed" >&2; exit 1; }
 for t in procstat agent; do
   clang -O1 -Wall -mmacosx-version-min=14.0 "tools/soak/$t.c" -o "$OUT/$t" >>"$LOG" 2>&1 || { cat "$LOG" >&2; echo "$t build failed" >&2; exit 1; }
 done
