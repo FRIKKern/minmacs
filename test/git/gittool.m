@@ -237,7 +237,17 @@ static int RestartA(NSString *root) {
     ix.roots = @[root.stringByStandardizingPath];
     [ix startWatching];
     Scan();
-    usleep(1000000);
+    // Issue #60: every event the earlier steps made must reach this stream before it stops and saves its id.
+    // One that comes later is replayed in restart-b as a batch apart and drops the worktree's status a second
+    // time. Each delivery reads fingerprints, so 2 seconds with no read, four stream latencies, means none is left.
+    double t0 = Now(), quiet = Now();
+    NSInteger reads = Stat(@"fingerprintReads");
+    while (Now() - quiet < 2 && Now() - t0 < 10) {
+        usleep(100000);
+        NSInteger r = Stat(@"fingerprintReads");
+        if (r != reads) { reads = r; quiet = Now(); }
+    }
+    Settle();
     [ix stopWatching];
     Drain();
     Print(@{@"worktrees": @(ix.worktrees.count), @"stats": ix.stats});
