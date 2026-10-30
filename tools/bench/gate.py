@@ -76,7 +76,7 @@ def values(idle, menus, startups=(), hangs=None, scales=(), history=None):
         v["mainStalls"] = (len(hangs["stalls"]) if hangs.get("finished") else None, "")
     v.update(scale_values(scales))
     if history is not None:
-        v["historyKB"] = (history["footprintGrowthKB"], "%d rings, store %s KB and a copy %s KB" % (history["rings"], history["storeKB"], history["copyKB"]))
+        v["historyKB"] = (history["footprintGrowthKB"], "%d rings, store %s KB and %d copies of %s KB" % (history["rings"], history["storeKB"], history.get("copiesHeld", 1), history["copyKB"]))
     return v
 
 

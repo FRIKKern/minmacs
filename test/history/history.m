@@ -166,8 +166,9 @@ static void Rings(void) {
     Check(@"the store is under 1 MB at the caps", @"yes", v.storeBytes < 1048576 ? @"yes" : @(v.storeBytes));
     Check(@"  and so is a copy of it", @"yes", v.copyBytes < 1048576 ? @"yes" : @(v.copyBytes));
     uint64_t f1 = Footprint();
-    Check(@"  the footprint grew under 1 MB with the full store and a copy", @"yes", f1 - f0 < 1048576 ? @"yes" : @(f1 - f0));
-    printf("info\tstore %lu bytes, copy %lu bytes, footprint +%llu bytes\n", (unsigned long)v.storeBytes, (unsigned long)v.copyBytes, f1 - f0);
+    int64_t grew = (int64_t)f1 - (int64_t)f0;        // signed, so a footprint that shrank reads as growth below 0
+    Check(@"  the footprint grew under 1 MB with the full store and a copy", @"yes", grew < 1048576 ? @"yes" : @(grew));
+    printf("info\tstore %lu bytes, copy %lu bytes, footprint %+lld bytes\n", (unsigned long)v.storeBytes, (unsigned long)v.copyBytes, grew);
     // When a tree goes, the next new one takes its ring, so live trees are never pushed out.
     [many removeObjectsInRange:NSMakeRange(198, many.count - 198)];   // the 198 trees the store holds
     [many removeObjectAtIndex:0];
@@ -257,12 +258,23 @@ static TAgent *Agent(pid_t pid, uint64_t start, MMAgentState st, double cpu, uin
     return a;
 }
 
-/// One build through the shared graph, waited for on main.
-static MMSnapshot *Build(MMGraph *g) {
+/// One build through the shared graph, waited for on main until main's snapshot shows what the check set up.
+/// A build that was already running when the world changed can land first, so a new generation alone is not
+/// enough. 30 seconds, since five agents build on this Mac at once.
+static MMSnapshot *Build(MMGraph *g, BOOL (^ready)(MMSnapshot *s)) {
     uint64_t before = g.latest.generation;
     [g rebuild:@"history test"];
-    Spin(5, ^BOOL { return g.current.generation > before; });
+    Spin(30, ^BOOL { return g.current.generation > before && ready(g.current); });
     return g.current;
+}
+
+/// A JSON value read with no exception when a level is missing or null.
+static id Dig(id j, NSArray *path) {
+    for (id k in path) {
+        if ([k isKindOfClass:NSNumber.class]) j = [j isKindOfClass:NSArray.class] && [j count] > [k unsignedIntegerValue] ? j[[k unsignedIntegerValue]] : nil;
+        else j = [j isKindOfClass:NSDictionary.class] ? j[k] : nil;
+    }
+    return j;
 }
 
 static void Graph(void) {
@@ -274,7 +286,7 @@ static void Graph(void) {
     MMGraph *g = MMGraph.shared;
     g.source = gWorld;
     [g start];
-    MMSnapshot *s1 = Build(g);
+    MMSnapshot *s1 = Build(g, ^BOOL(MMSnapshot *s) { return [s.history treeFor:(MMProcKey){ 901, 91 }] != nil; });
     Check(@"a graph build hands its snapshot a copy of the hour", @"yes", s1.history ? @"yes" : @"no");
     Check(@"  the build filled the agent's and the server's rings", @"agent server",
           [[s1.history.trees valueForKey:@"kind"] count] == 2 ? [NSString stringWithFormat:@"%@ %@", MMHistoryKindName(s1.history.trees[0].kind), MMHistoryKindName(s1.history.trees[1].kind)] : @(s1.history.trees.count));
@@ -288,7 +300,9 @@ static void Graph(void) {
     gWorld.agents = @[Agent(900, 90, MMAgentIdle, 1, 210)];
     gWorld.servers = @[@{@"pid": @901, @"start": @92, @"cpu": @4, @"mb": @90}];
     [NSThread sleepForTimeInterval:0.3];              // the host counts CPU in ticks of 10 ms
-    MMSnapshot *s2 = Build(g);
+    MMSnapshot *s2 = Build(g, ^BOOL(MMSnapshot *s) {
+        return [s.history treeFor:(MMProcKey){ 901, 92 }] != nil && [s.history.mac minuteAt:59].passes > 0;
+    });
     MMHistoryMinute mac = [s2.history.mac minuteAt:59];
     Check(@"a second build fills the Mac ring with CPU and memory used", @"yes",
           mac.passes >= 1 && mac.cpuPercent >= 0 && mac.cpuPercent <= 100 && mac.megabytes > 100 ? @"yes" : [NSString stringWithFormat:@"%u %g %g", mac.passes, mac.cpuPercent, mac.megabytes]);
@@ -304,9 +318,9 @@ static void Graph(void) {
     NSDictionary *r = MMCLIReply(@{@"cli": @[@"history", @"--json"]});
     NSDictionary *j = [NSJSONSerialization JSONObjectWithData:[r[@"out"] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
     Check(@"minmacs history --json in the app reads the snapshot's copy", @"0 1 1 2 1", [NSString stringWithFormat:@"%@ %@ %lu %lu %@",
-          r[@"status"], j[@"app"], (unsigned long)[j[@"agents"] count], (unsigned long)[j[@"servers"] count], j[@"agents"][0][@"pid"] ? @1 : @0]);
+          r[@"status"], j[@"app"], (unsigned long)[j[@"agents"] count], (unsigned long)[j[@"servers"] count], Dig(j, @[@"agents", @0, @"pid"]) ? @1 : @0]);
     Check(@"  with 60 minutes per ring and the caps", @"60 60 200 600", [NSString stringWithFormat:@"%lu %lu %@ %@",
-          (unsigned long)[j[@"mac"][@"cpuPercent"] count], (unsigned long)[j[@"agents"][0][@"footprintMB"] count], j[@"maxRings"], j[@"goneKeepSeconds"]]);
+          (unsigned long)[Dig(j, @[@"mac", @"cpuPercent"]) count], (unsigned long)[Dig(j, @[@"agents", @0, @"footprintMB"]) count], j[@"maxRings"], j[@"goneKeepSeconds"]]);
     r = MMCLIReply(@{@"cli": @[@"history"]});
     Check(@"minmacs history in the app says what it holds", @"yes", [r[@"out"] hasPrefix:@"The last hour: "] ? @"yes" : r[@"out"]);
     [g stop];

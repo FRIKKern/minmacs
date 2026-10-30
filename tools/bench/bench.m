@@ -1458,12 +1458,13 @@ static int Scale(NSArray<NSString *> *args) {
 #pragma mark - History
 
 /// The last hour at its caps, Graph/MMHistory.h: 250 trees for 60 minutes, so 198 tree rings plus the Mac and the
-/// disk, every state slot and every subagent slot full, then one copy as a build makes it. The footprint is read
-/// before and after, with the copy held, so the number is what the store and one snapshot's copy cost together.
+/// disk, every state slot and every subagent slot full, then copies as builds make them. The footprint is read
+/// before and after with the last two copies held, since the graph's latest snapshot and main's current one can be
+/// one build apart. So the number is what the store, two copies and the store's spare buffer cost together.
 /// The fill and the copy are timed at the caps too, since a build makes both.
 static int History(NSArray<NSString *> *args) {
     if (!SafeEnvironment()) return 2;
-    int trees = Option(args, @"--trees", @"250").intValue, copies = MAX(1, Option(args, @"--copies", @"20").intValue);
+    int trees = Option(args, @"--trees", @"250").intValue, copies = MAX(2, Option(args, @"--copies", @"20").intValue);
     NSMutableArray<MMHistoryTreeSample *> *many = [NSMutableArray new];
     for (int i = 0; i < trees; i++) {
         MMHistoryTreeSample *x = [MMHistoryTreeSample new];
@@ -1477,7 +1478,7 @@ static int History(NSArray<NSString *> *args) {
     MMBenchSelf a = ReadSelf();
     MMHistory *h = [MMHistory new];
     NSMutableArray *fillUs = [NSMutableArray new], *copyUs = [NSMutableArray new];
-    MMHistoryView *v = nil;
+    MMHistoryView *v = nil, *before = nil;
     for (int m = 0; m < 60; m++) @autoreleasepool {
         NSTimeInterval t = t0 + m * 60;
         uint64_t c0 = ThreadCPUNs();
@@ -1499,16 +1500,17 @@ static int History(NSArray<NSString *> *args) {
         uint64_t c0 = ThreadCPUNs();
         MMHistoryView *x = [h viewAt:t0 + 3599];
         [copyUs addObject:@((ThreadCPUNs() - c0) / 1e3)];
+        if (i == copies - 2) before = x;
         if (i == copies - 1) v = x;
     }
     MMBenchSelf raw = ReadSelf();
     // Freed copies the allocator keeps on its free lists count in the raw number. The pressure relief hands those
-    // pages back, as the system asks for under memory pressure, so the gated number is what the store and one copy hold.
+    // pages back, as the system asks for under memory pressure, so the gated number is what the store and the copies hold.
     malloc_zone_pressure_relief(NULL, 0);
     MMBenchSelf b = ReadSelf();
     int64_t grew = (int64_t)b.footprint - (int64_t)a.footprint, grewRaw = (int64_t)raw.footprint - (int64_t)a.footprint;
     PrintJSON(@{@"kind": @"history", @"trees": @(trees), @"rings": @(v.rings), @"treeRings": @(v.trees.count), @"refused": @(v.refused),
-                @"subagentStarts": @(v.subagentStarts.count), @"storeKB": R2(v.storeBytes / 1024.0), @"copyKB": R2(v.copyBytes / 1024.0),
+                @"subagentStarts": @(v.subagentStarts.count), @"storeKB": R2(v.storeBytes / 1024.0), @"copyKB": R2(v.copyBytes / 1024.0), @"copiesHeld": @(before ? 2 : 1),
                 @"footprintGrowthKB": R2(grew / 1024.0), @"footprintGrowthRawKB": R2(grewRaw / 1024.0),
                 @"footprintAfterFillKB": R2(((int64_t)filled.footprint - (int64_t)a.footprint) / 1024.0), @"fillUs": Stats(fillUs), @"copyUs": Stats(copyUs),
                 @"jsonBytes": @([NSJSONSerialization dataWithJSONObject:v.json options:0 error:nil].length)});

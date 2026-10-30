@@ -81,7 +81,8 @@ typedef struct { NSTimeInterval at; MMAgentState state; } MMHistoryStateChange;
 /// Subagent starts within the hour, oldest first: {"at", "agent", "session"}.
 @property (readonly) NSArray<NSDictionary *> *subagentStarts;
 @property (readonly) NSUInteger rings;               // every ring held, the Mac and the disk included
-@property (readonly) NSUInteger refused;             // trees not kept since launch, because 200 rings were live
+@property (readonly) NSUInteger refused;             // tree samples not kept since launch, because 200 rings were live;
+                                                     // a tree refused by 10 passes counts 10
 @property (readonly) NSUInteger dropped;             // rings of gone trees dropped since launch
 @property (readonly) NSUInteger fills;               // passes that filled the store since launch
 @property (readonly) NSUInteger storeBytes;          // the store's fixed arrays, as allocated
