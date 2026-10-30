@@ -8,6 +8,7 @@
 #import <sys/mount.h>
 #import <sys/sysctl.h>
 #import "Core/Act/MMAct.h"
+#import "Core/Store/MMGains.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
 
@@ -261,10 +262,13 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
         NSString *r = [action recheck];
         if (r.length) problem = [@"cannot run now: " stringByAppendingString:r];
     }
+    uint64_t memoryBefore = 0;
     if (!problem) {
         MMFacts *fresh = [MMGraph.shared freshFactsFor:f];
         NSString *keep = MMMustKeep(f, fresh, review, policy);
         if (keep) problem = [@"kept: " stringByAppendingString:keep];
+        // What a stop or a quit gives back is the footprint it ends, read on the same fresh facts, before it runs.
+        else memoryBefore = MMGainsMemoryBefore(action, f, fresh);
     }
     if (problem) {
         if (error) *error = problem;
@@ -281,6 +285,8 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
     int64_t freed = after > before ? (int64_t)(after - before) : 0;
     [MMUndo.shared finish:record ok:ok freed:freed error:ok ? nil : (err ?: @"the action failed")];
     if (!ok && error) *error = err ?: @"the action failed";
+    // A finished action writes what came back. A failed one records nothing there.
+    if (ok) MMGainsRecordAction(action, record, f, memoryBefore);
     return [MMUndo.shared record:record.rid] ?: record;
 }
 

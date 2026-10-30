@@ -1,4 +1,4 @@
-// Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore, history and mode.
+// Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore, history, gains and mode.
 // Each reads the snapshot and the Store through Core. None samples, scans or asks the model on its own.
 // Experts add hosts, apps and their other verbs through -[MMExpert verbs].
 #import "CLI/MMCLI.h"
@@ -10,6 +10,8 @@ int MMInvestigateVerb(MMArgs *a);
 int MMInvestigateToolsVerb(MMArgs *a);
 // From MMHistoryCLI.m.
 int MMHistoryVerb(MMArgs *a);
+// From MMGainsCLI.m.
+int MMGainsVerb(MMArgs *a);
 
 #pragma mark - Words
 
@@ -590,6 +592,8 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
             Reads([MMVerbSpec verb:@"restore" usage:@"restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]   undo the last run, or one record" mutates:NO run:^(MMArgs *a) { return Restore(a); }],
                   MMVerbReadsNoWorktrees, @[@"!--list"]),
             Reads([MMVerbSpec verb:@"history" usage:@"history [--json]   the last hour in memory: Mac, disk, agent and server rings, one value a minute" mutates:NO run:^(MMArgs *a) { return MMHistoryVerb(a); }],
+                  MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"gains" usage:@"gains [--days <n>] [--json]   what came back: memory and disk by day, by kind and by who did it" mutates:NO run:^(MMArgs *a) { return MMGainsVerb(a); }],
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
                   MMVerbReadsNoWorktrees, nil),

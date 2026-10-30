@@ -37,6 +37,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | none | `Graph/MMHistory.h` | The last hour in memory: `MMHistory`, its fixed rings and the read-only `MMHistoryView` each snapshot carries |
 | P34 to P37 | `Store/MMStore.h` | The support folder, prefs on `no.guerrilla.minmacs`, `MMRules`, `MMStateFile` |
 | P38 | `Store/MMLog.h` | The SQLite log for undo, restore, review history and trends, per decision 5 |
+| New | `Store/MMGains.h` | The kept log of what came back: memory and disk back per finished action, 30 days, `minmacs gains` |
 | P39 to P47 | `Review/MMReview.h` | `MMUsage`, `MMModel`, `MMVerdictWords`, `MMVerdict`, `MMReview`, `MMRule`, `MMBudget`, `MMReviewRequest`, `MMReviewBroker` |
 | none | `Review/MMInvestigate.h` | Investigate, issue #35: `MMInvestigateScoped`, `MMInvestigateFolders`, `MMInvestigation`, `MMInvestigateEstimate`, `MMInvestigateSubject`, `MMInvestigations` and the tool server |
 | P51 to P53 | `Act/MMClutterAct.h` | `MMClutterAction`: clutter to the Trash, or a tool's command after an APFS recovery copy, with an audit |
@@ -135,6 +136,7 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - Opening a new log sets WAL mode and makes the tables in an IMMEDIATE transaction, retrying a lock SQLite refused without waiting, for up to 10 seconds. Two processes that open a new file at once both keep every row. An append retries the same way.
 - `MMLogMainThreadQueries` and `MMKeepMainThreadReads` count reads on the main thread, so the checks hold menus to zero. On main, `+[MMKeep keptUntil:expert:]` answers from the last read and reads the file only when nothing was read yet, as in a CLI.
 - A failed undo record restores only what it moved aside, such as trashed files. A failed stop or quit restores nothing, since its server or app still runs.
+- `MMGains` has its own connection to `minmacs.sqlite` on `no.guerrilla.minmacs.core.gains`. `MMRunAction` reads memory back on the fresh facts of its check and writes one row once the action finished. A restore marks the row undone. Store/README.md says what each number means.
 
 ## Core as one whole
 

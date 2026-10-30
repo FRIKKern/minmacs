@@ -127,6 +127,16 @@ history [--json]
 
 Flags: `--json`.
 
+#### `gains`
+
+What came back: memory and disk by day, by kind and by who did it.
+
+```
+gains [--days <n>] [--json]
+```
+
+Flags: `--days`, `--json`.
+
 #### `mode`
 
 Show or set an expert's mode.
