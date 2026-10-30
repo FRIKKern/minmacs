@@ -54,4 +54,19 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 - The UI is live: numbers tick and agents come and go.
 - Favorites so far: 89-a Ring Is the Notice, 82-a Ring and Gauges, 77-a List and Detail, 71-a Worth Doing First, 60-a A bigger sheet, 41-b Corner Drawer Spotlight, 18-b Hanging Sheet, 20-a Live Index, 09-a Workstream Cards, 03-b One Icon ftop Lines.
 
+### Performance, latest
+
+The owner's picks on 2026-10-30, newest last:
+
+- 113-b Split Ring, gallery 205, is the base. 113-a, gallery 204, has the best ring: one gauge with memory by holder inside and disk as the outer track.
+- 130-a and 130-b cut from 113-b only what the owner named: the side headings "Memory, the left half" and "Disk, the right half", the lid footer, and a busy fix deck.
+- 131 puts Servers at the top left and Worktrees at the top right. They are the most important groups, they show many rows, and the two sides stay balanced.
+- 132-a and 132-b are 131 with 204's ring. They are the current favorite. The run view is quiet, and the look-back shows only small numbers: memory and disk this week and today.
+- "Keep working with the lid closed" lives only in Settings, in the This Mac card. It is never on Performance or another tab.
+- The copy never claims a result. No "The Mac is clean", "Everything is fine" or "Nothing needs you". A line of text shows only when something needs the person, such as "1 agent asks you".
+- When the owner points at specific elements, change exactly those on that page. Do not start a new layout.
+- "Deletes are permanent" from 89-a changes the Trash-first behavior and needs the owner's decision before any code.
+
+Wave 6, the sheet UI, waits for the owner's final pick. Sources/Core/MMSheet.h on main still describes 54-a.
+
 These are design explorations. They break [DESIGN.md](../../DESIGN.md) in places on purpose, most of all its rule that the menu is a native NSMenu, and the rules there change only by decision.
