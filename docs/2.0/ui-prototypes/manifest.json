@@ -2378,5 +2378,25 @@
   "surface": "menubar",
   "groupId": "131",
   "direction": "Split Ring, servers and worktrees first"
+ },
+ {
+  "file": "132-a.html",
+  "name": "Mac at Center, servers first",
+  "idea": "131 with 113-a's ring, the owner's favorite: one ftop gauge open at the bottom, memory by holder inside and disk as the outer track, Fix Everything in its open bottom. Servers lead the left side and Worktrees the right, no side headings, no lid footer, and both sides end level at Busy. The deck is the first fix as a card and the rest as quiet rows.",
+  "good": "The ring the owner liked best, with the balance and the calm deck from 130 and 131.",
+  "tradeoff": "The quiet rows under the first fix make the center column the tallest thing on the page.",
+  "surface": "menubar",
+  "groupId": "132",
+  "direction": "204's ring, servers and worktrees first"
+ },
+ {
+  "file": "132-b.html",
+  "name": "Mac at Center, servers first, one fix",
+  "idea": "131 with 113-a's ring, the owner's favorite: one ftop gauge open at the bottom, memory by holder inside and disk as the outer track, Fix Everything in its open bottom. Servers lead the left side and Worktrees the right, no side headings, no lid footer, and both sides end level at Busy. The deck is the first fix and one line for the rest.",
+  "good": "The calmest of the set: the gauge, one fix and two balanced lists.",
+  "tradeoff": "The other fixes need a hover, and the center column is shorter than the sides.",
+  "surface": "menubar",
+  "groupId": "132",
+  "direction": "204's ring, servers and worktrees first"
  }
 ]
