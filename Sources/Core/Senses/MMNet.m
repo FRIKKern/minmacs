@@ -185,6 +185,7 @@ MMNet *MMNetNext(MMNet *prev, NSArray<NSDictionary *> *counters, NSDictionary *r
 #pragma mark - The system reader
 
 /// Every interface's counters, one IFMIB_IFDATA sysctl per interface index, about 3 us each.
+/// IFMIB_IFCOUNT is the highest index, not the number of interfaces: 27 beside 23 names on this Mac, so a gap is skipped.
 /// getifaddrs has 32-bit counters. NET_RT_IFLIST2 has 64-bit fields, but on macOS 27 it handed this process
 /// en0's bytes cut to 32 bits and rounded to 1 KB: 83,474,432, where the interface MIB and netstat -ib said
 /// 597,083,929,253.
