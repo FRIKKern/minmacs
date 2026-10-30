@@ -107,6 +107,16 @@ Flags: `--list`, `--expert`, `--limit`, `--dry-run`, `--json`.
 
 It changes things, so it runs only through the running app, unless `--dry-run` is given.
 
+#### `gains`
+
+What came back: memory and disk by day, by kind and by who did it.
+
+```
+gains [--days <n>] [--json]
+```
+
+Flags: `--days`, `--json`.
+
 #### `mode`
 
 Show or set an expert's mode.

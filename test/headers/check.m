@@ -18,6 +18,7 @@
 #import "Core/Graph/MMGraph.h"
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
+#import "Core/Store/MMGains.h"
 #import "Core/Store/MMMigrate.h"
 #import "Core/Review/MMReview.h"
 #import "Core/Review/MMInvestigate.h"

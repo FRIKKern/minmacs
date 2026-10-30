@@ -5,6 +5,7 @@
 #import "Core/Act/MMUndo.h"
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
+#import "Core/Store/MMGains.h"
 #import "Core/Know/MMGit.h"
 
 static const uint64_t kRecoverFileMax = 20ull << 20, kRecoverTotalMax = 100ull << 20;   // as WorkForest's SaveIgnored
@@ -469,6 +470,8 @@ static NSMutableSet<NSString *> *Restoring(void) {
         r.state = MMUndoRestored;
         [self write:r];
     }
+    // An undone action takes its gain back, MMGains.h.
+    [MMGains.shared takeBack:rid];
     return nil;
 }
 

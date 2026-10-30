@@ -1,11 +1,12 @@
 # Store
 
-The support folder, the prefs domain, rules files, state files, the SQLite log and the migration from the five old apps. Issues #19 and #37. The headers are `MMStore.h`, `MMLog.h` and `MMMigrate.h`.
+The support folder, the prefs domain, rules files, state files, the SQLite log and the migration from the five old apps. Issues #19 and #37. The headers are `MMStore.h`, `MMLog.h`, `MMGains.h` and `MMMigrate.h`.
 
 | File | What it holds | Ported from |
 |---|---|---|
 | `MMStore.m` | `MMSupportDir`, `MMExpertDir`, prefs on `no.guerrilla.minmacs`, `MMStateFile`, `MMRules` | LocoHost `LHSupportDir` and `SaveActivity`, WorkForest `WFRules`, MinMacs 1.2 `Match` |
 | `MMLog.m` | The append-only log in `minmacs.sqlite`, and trend points | Noo-Noo `audit.go`, in SQLite per decision 5 |
+| `MMGains.m` | The kept log of what came back, table `gains` in `minmacs.sqlite`, for designs 100 to 103 | New code |
 | `MMMigrate.m` | `MMLegacyPlan`, `MMImportLegacy` and `MMMigrateFollowUp` | The file and pref shapes of LocoHost, WorkForest, Insomnia, Noo-Noo and MinMacs 1.2 |
 
 ## Where things live
@@ -17,6 +18,17 @@ The support folder, the prefs domain, rules files, state files, the SQLite log a
 - The log is one table of rows. Triggers refuse `UPDATE` and `DELETE`. A new state of a record is a new row with the same `rid`. Trend points sit in their own table, one per bucket.
 - Opening the log may wait up to 15 seconds for another process's lock: the 5-second busy timeout, then 10 seconds of retries. So `MMCoreStart` calls `MMLogOpenOffMain` first. From then on `+[MMLog shared]` on main never opens the log: it returns the log once the `core.log.open` queue has opened it, and nil before. `MMLogMainThreadOpens` counts opens on main, and `test/fixes.sh` holds the app to zero. A CLI run never calls `MMLogOpenOffMain`, so its main thread opens the log as before. The legacy import hands its rows to that queue through `MMLogWhenOpen` and marks a source done after its rows are in.
 - `MMRemoveStaleFiles` removes what an older build wrote and nothing reads. Today that is `repos.eventid`, the one event id of the first repo watch. Each root's stream keeps `repos.<hash>.eventid` now. `MMCoreStart` runs it once, on `core.store`, and it removes only a plain file of that name.
+
+## What came back
+
+`MMGains` keeps one row per finished action in the table `gains` of `minmacs.sqlite`, for 30 days. Act writes it in `MMRunAction` through `MMGainsRecordAction` in `Act/MMGainsAct.m`, and `-[MMUndo restore:]` marks it undone. `minmacs gains [--days N] [--json]` reads it.
+
+- Memory back is the footprint of the process trees a stop or a quit ended, read from the fresh sample right before it ran, with a pid counted once. Other actions end no process and give no memory back.
+- Disk back is what MMSizer said deleting frees. A move to the Trash waits as "in the Trash" and counts only once every item it moved is gone from the Trash. An item at its old path again with the inode it had in the Trash was put back by hand and never counts. Each read settles the waiting rows.
+- Memory and disk are two numbers and are never summed.
+- The kind is server, app, tab, helper, cache or worktree. A Wrap Up's parts are kind workstream, each with its own kind in `part`, and count as one action. Who did it is you for a menu or the CLI, auto for a mode or an expert's own rule, and run for a part of a Wrap Up.
+- A failed action, the lid override, a keep-awake hold, a setting and the migration's own moves write nothing.
+- The table is not append-only, unlike the log's rows. Rows older than 30 days are deleted on each write and read. Opening an older `minmacs.sqlite` adds the table and `gains_schema` with version 1, and leaves the log's tables as they are.
 
 ## The migration
 
