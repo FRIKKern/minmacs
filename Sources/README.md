@@ -7,7 +7,7 @@ build.sh compiles every `.m` under this folder into one binary. Core symbols use
 | `main.m` | The entry point. It registers the experts linked in, then hands over to the shell. |
 | `Shell` | The app delegate: MMCoreStart, core.sock, one status item per expert, One Icon, Settings with a pane for each expert that offers `prefSpecs`, the login item and URLs. The main-thread watchdog of `MMWatchdog.h`, and the startup marks the bench reads. |
 | `Core/Runtime` | Labeled serial queues, dispatch timers, jobs with deadlines, the out-of-process worker and crash breadcrumbs. |
-| `Core/Senses` | The one 5-second pass over processes, sockets, power, thermal, memory and lid, plus kqueue exits and FSEvents. |
+| `Core/Senses` | The one 5-second pass over processes, sockets, power, thermal, memory, lid, the whole Mac's network and the home volume's size, plus kqueue exits and FSEvents. |
 | `Core/Know` | The agent registry, sessions, Where, git, the Sizer and the clutter catalog. |
 | `Core/Graph` | The immutable snapshot of every finding and its owner, and the one builder that makes it. |
 | `Core/Store` | The support folder, the prefs domain and the SQLite log for undo, history and trends. |

@@ -1,4 +1,4 @@
-// Core's own verbs: version, help, status, work, review, investigate, tidy, where, restore and mode.
+// Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore and mode.
 // Each reads the snapshot and the Store through Core. None samples, scans or asks the model on its own.
 // Experts add hosts, apps and their other verbs through -[MMExpert verbs].
 #import "CLI/MMCLI.h"
@@ -177,13 +177,24 @@ static NSDictionary *ExpertStatus(id<MMExpert> e, MMSnapshot *s) {
              @"findings": @([s findingsFor:e.expertID].count)};
 }
 
+/// The whole Mac's network and the home volume from one power sheet, for status --json and net --json.
+static NSDictionary *MacNet(MMPower *p) {
+    return @{@"net": p.net ? [p.net json] : NSNull.null,
+             @"volume": @{@"freeBytes": @(p.diskFree), @"totalBytes": @(p.diskTotal)}};
+}
+
 static int Status(MMArgs *a) {
     MMSnapshot *s = a.snapshot;
     NSMutableArray *experts = [NSMutableArray new];
     for (id<MMExpert> e in MMExperts()) [experts addObject:ExpertStatus(e, s)];
     NSDictionary *j = @{@"version": @MM_VERSION, @"app": @(a.inApp), @"generation": @(s.generation),
                         @"workingAgents": @([s workingAgents]), @"workstreams": @(s.workstreams.count), @"experts": experts};
-    if (a.json) { [a printJSON:j]; return 0; }
+    if (a.json) {
+        NSMutableDictionary *full = [j mutableCopy];
+        [full addEntriesFromDictionary:MacNet(s.facts.power)];
+        [a printJSON:full];
+        return 0;
+    }
     [a print:@"MinMacs %s, %@", MM_VERSION, a.inApp ? @"app running" : @"no app running, read cold"];
     if (!experts.count) [a print:@"No experts are registered."];
     for (NSDictionary *x in experts) {
@@ -218,6 +229,54 @@ static NSString *WrapUpPath(NSString *key, MMArgs *a, MMSnapshot *s) {
 }
 
 static NSString *Bytes(uint64_t n) { return [NSByteCountFormatter stringFromByteCount:(long long)n countStyle:NSByteCountFormatterCountStyleFile]; }
+
+#pragma mark - Net
+
+/// Bytes in figures, so nothing reads "Zero KB".
+static NSString *Figures(uint64_t n) {
+    NSByteCountFormatter *f = [NSByteCountFormatter new];
+    f.countStyle = NSByteCountFormatterCountStyleFile;
+    f.allowsNonnumericFormatting = NO;
+    return [f stringFromByteCount:(long long)n];
+}
+
+static NSString *PerSecond(double r) { return r < 0 ? @"unknown" : [Figures((uint64_t)llround(r)) stringByAppendingString:@"/s"]; }
+
+static NSString *KindWord(MMNetKind k) {
+    switch (k) {
+        case MMNetKindWiFi: return @"Wi-Fi";
+        case MMNetKindEthernet: return @"Ethernet";
+        case MMNetKindPhone: return @"a phone";
+        case MMNetKindTunnel: return @"a VPN tunnel";
+        default: return @"another interface";
+    }
+}
+
+/// The whole Mac's network and the home volume, from the last Senses pass, which may be newer than the snapshot's.
+/// A cold run has one pass, so it takes a second one a second later for the rate.
+static int Net(MMArgs *a) {
+    MMPower *p = MMSenses.shared.power ?: a.snapshot.facts.power;
+    if (!a.inApp && p.net.inPerSecond < 0) {
+        usleep(1000 * 1000);
+        (void)[MMSenses.shared sampleNow];
+        p = MMSenses.shared.power ?: p;
+    }
+    if (a.json) { [a printJSON:MacNet(p)]; return 0; }
+    MMNet *n = p.net;
+    if (!n) [a print:@"No network reading yet."];
+    else {
+        if (n.online) [a print:@"Online over %@, %@", KindWord(n.kind), n.primaryInterface];
+        else [a print:@"Offline: no primary route"];
+        [a print:@"Down %@, up %@%@", PerSecond(n.inPerSecond), PerSecond(n.outPerSecond),
+                 n.rateSeconds > 0 ? [NSString stringWithFormat:@" over %.1f s", n.rateSeconds] : @""];
+        [a print:@"Since boot %@ in, %@ out", Figures(n.bytesIn), Figures(n.bytesOut)];
+        if (n.tunnelBytesIn || n.tunnelBytesOut)
+            [a print:@"Tunnels, counted apart: %@ in, %@ out, down %@, up %@", Figures(n.tunnelBytesIn), Figures(n.tunnelBytesOut),
+                     PerSecond(n.tunnelInPerSecond), PerSecond(n.tunnelOutPerSecond)];
+    }
+    if (p.diskTotal) [a print:@"Home volume %@ free of %@", Figures(p.diskFree), Figures(p.diskTotal)];
+    return 0;
+}
 
 static int WrapUp(MMArgs *a) {
     NSString *key = [a word:1];
@@ -516,6 +575,8 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
         verbs = @[
             Reads([MMVerbSpec verb:@"status" usage:@"status [--json]   what each expert sees, as its menu header says it" mutates:NO run:^(MMArgs *a) { return Status(a); }],
                   MMVerbReadsCachedGit, nil),
+            Reads([MMVerbSpec verb:@"net" usage:@"net [--json]   the whole Mac's network: the route out, bytes and rates, and the home volume's size" mutates:NO run:^(MMArgs *a) { return Net(a); }],
+                  MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json] | work wrap-up <id> [--dry-run] [--json]   each workstream, or Wrap Up of a finished one" mutates:NO run:^(MMArgs *a) { return Work(a); }],
                   MMVerbReadsAll, @[@"wrap-up"]),
             Reads([MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--json]   the last review, or a new one with --now" mutates:NO run:^(MMArgs *a) { return Review(a); }],

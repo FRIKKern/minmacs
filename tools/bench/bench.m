@@ -402,7 +402,8 @@ static int Idle(NSArray<NSString *> *args) {
                                               @"procs": R3((sensesB.procsNs - sensesA.procsNs) / 1e6 / passes),
                                               @"sockets": R3((sensesB.socketsNs - sensesA.socketsNs) / 1e6 / passes),
                                               @"carry": R3((sensesB.carryNs - sensesA.carryNs) / 1e6 / passes),
-                                              @"power": R3((sensesB.powerNs - sensesA.powerNs) / 1e6 / passes)}};
+                                              @"power": R3((sensesB.powerNs - sensesA.powerNs) / 1e6 / passes),
+                                              @"net": R3((sensesB.netNs - sensesA.netNs) / 1e6 / passes)}};
     NSDictionary *graph = @{@"builds": @((NSUInteger)builds),
                             @"skipped": @([costB[@"skipped"] unsignedLongLongValue] - [costA[@"skipped"] unsignedLongLongValue]),
                             @"perBuildCPUms": perBuild, @"reusedFindings": reused,

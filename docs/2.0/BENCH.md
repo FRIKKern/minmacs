@@ -48,6 +48,8 @@ All four targets are met. The idle CPU is 0.291 %, or 5.238 seconds of CPU in 18
 | Build: the snapshot, findings and owners included | 4.689 |
 | Main: publish | 0.349 |
 
+Wave 7 reads the whole Mac's network in the pass, after the power facts, and times it apart as `partsCPUms.net`. A 60-second `bench idle` run had 12 passes at 0.179 ms CPU for the network, 0.382 ms for the power facts and 7.436 ms for the whole pass. The load average was 77.58 while other agents built, so the whole pass reads high. `test/bench.sh` checks that the network part is above 0 and under 2 ms.
+
 Each pass carried the args of 815 processes and the cwd of 27. It read the sockets of 125 processes and carried those of 501. The session index read its folders 28 times, once a minute, and skipped 366 refreshes. The graph skipped 2 builds whose facts did not change. LocoHost never handed back its last findings in this window, since the fixture servers of other agents' tests started and ended in almost every tick.
 
 Alone, on one thread after the window, 20 runs each, the pass took 3.417 ms at the median and a build 4.03 ms: 0.497 for the facts and 3.537 for the snapshot. The window costs more than that because the pass runs at utility QoS, often on the efficiency cores, under the load of other builds.

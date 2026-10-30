@@ -7,6 +7,7 @@
 #import "Core/Runtime/MMCoreSocket.h"
 #import "Core/Senses/MMSenses.h"
 #import "Core/Senses/MMFolders.h"
+#import "Core/Senses/MMNet.h"
 #import "Core/Know/MMRegistry.h"
 #import "Core/Know/MMSessions.h"
 #import "Core/Know/MMWhere.h"
