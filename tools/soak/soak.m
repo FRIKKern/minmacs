@@ -200,6 +200,11 @@ int main(int argc, const char *argv[]) {
                 if (fx > peakFixture[e.expertID].unsignedIntegerValue) peakFixture[e.expertID] = @(fx);
             }
             NSUInteger holds = MMAwake.held.count;
+            // Listening sockets in the latest sample, so a run where LocoHost sees no server shows whether Senses read any.
+            NSUInteger listeners = 0, nsock = 0;
+            MMSample *smp = live.facts.sample;
+            const MMSocket *sv = [(NSObject *)smp respondsToSelector:@selector(sockets:)] ? [smp sockets:&nsock] : NULL;
+            for (NSUInteger i = 0; sv && i < nsock; i++) if (sv[i].state == MMSocketListen) listeners++;
             peakAgents = MAX(peakAgents, live.facts.agents.count);
             peakSessions = MAX(peakSessions, live.facts.sessions.count);
             peakHolds = MAX(peakHolds, holds);
@@ -207,7 +212,7 @@ int main(int argc, const char *argv[]) {
             [status writeData:JSONLine(@{@"at": Stamp(), @"uptime": @(round(-started.timeIntervalSinceNow)),
                                          @"generation": @(live.generation), @"snapshots": @(snapshots),
                                          @"findings": findings, @"agents": @(live.facts.agents.count),
-                                         @"sessions": @(live.facts.sessions.count), @"awakeHolds": @(holds),
+                                         @"sessions": @(live.facts.sessions.count), @"awakeHolds": @(holds), @"listeners": @(listeners), @"sockets": @(nsock),
                                          @"menuRounds": @(menuRounds), @"cardsHovered": @(cardsHovered),
                                          @"stalls": @(MMWatchdogStalls().count)})];
         };

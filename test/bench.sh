@@ -89,7 +89,10 @@ check "bench: each menu with hovered cards is the menu with every card built" "$
 check "bench: menus and cards run no log query on main" 0 "$(bm 'j["logQueriesOnMain"]')"
 check "bench: menus and cards read no keeps file on main" 0 "$(bm 'j["keepReadsOnMain"]')"
 check "bench: menu open under 30 ms at p95 for every expert" yes "$(bm '"yes" if all(e["menuOpenMs"]["p95"] < 30 for e in j["experts"].values()) else {k: e["menuOpenMs"]["p95"] for k, e in j["experts"].items()}')"
-check "bench: card hover under 16 ms at p95 for every expert" yes "$(bm '"yes" if all(e["cardHoverMs"]["p95"] < 16 for e in j["experts"].values()) else {k: e["cardHoverMs"]["p95"] for k, e in j["experts"].items()}')"
+# One frame, 16 ms, on a Mac. A shared CI runner is two to three times slower, so there the ceiling is twice the budget,
+# as the other timing gates have.
+bn_hover_max=16; [ -n "${CI:-}" ] && bn_hover_max=32
+check "bench: card hover under $bn_hover_max ms at p95 for every expert" yes "$(bm '"yes" if all(e["cardHoverMs"]["p95"] < '"$bn_hover_max"' for e in j["experts"].values()) else {k: e["cardHoverMs"]["p95"] for k, e in j["experts"].items()}')"
 
 # Startup, issue #55: the app's launch headless, twice in one home. The first is a first launch. In the second, an
 # expert whose field was empty in the first starts with no item, and every other one is made at launch.
