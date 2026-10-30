@@ -16,10 +16,16 @@ uint64_t MMGainsMemoryBefore(id<MMAction> action, MMFinding *f, MMFacts *fresh) 
         MMProc *p = [s proc:k.pid];
         // A pid whose start time moved is another process now, and it is not the one the action stops.
         if (!p || (k.startSec && p.startSec != k.startSec)) continue;
-        for (NSNumber *pid in [s treeOf:k.pid limit:500]) {
+        // The tree by childrenOf:, at most 500 pids as treeOf:limit: caps it. Fact sources in tests give samples
+        // that answer proc: and childrenOf: only.
+        NSMutableArray<NSNumber *> *todo = [NSMutableArray arrayWithObject:@(k.pid)];
+        while (todo.count && seen.count < 500) {
+            NSNumber *pid = todo.lastObject;
+            [todo removeLastObject];
             if ([seen containsObject:pid]) continue;
             [seen addObject:pid];
             sum += [s proc:pid.intValue].footprint;
+            [todo addObjectsFromArray:[s childrenOf:pid.intValue]];
         }
     }
     return sum;
