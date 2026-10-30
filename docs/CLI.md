@@ -187,11 +187,13 @@ Flags: `--json`, `--dry-run`.
 
 #### `clean`
 
+Moves clutter to the Trash with undo, or with --command runs the row's own cleanup, which cannot be undone.
+
 ```
-clean <id|path|row> ... | --finished | --leftovers | --undo [rid] [--json] [--dry-run]
+clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]
 ```
 
-Flags: `--finished`, `--leftovers`, `--undo`, `--json`, `--dry-run`.
+Flags: `--command`, `--finished`, `--leftovers`, `--undo`, `--json`, `--dry-run`.
 
 It changes things, so it runs only through the running app, unless `--dry-run` is given.
 

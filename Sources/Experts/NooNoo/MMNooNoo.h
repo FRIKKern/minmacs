@@ -20,6 +20,12 @@
 - (MMSnapshot *)snapshotNow;
 /// One action the person asked for, by menu or CLI, through MMRunAction off main. Returns the record or nil with *error.
 - (MMUndoRecord *)clean:(MMFinding *)f by:(NSString *)by error:(NSString **)error;
+/// Designs 74 and 75: runs the row's own cleanup command for good, through MMRunAction and MMClutterCommandAction,
+/// off main. Only for a press: by must be "manual" or "cli". The record cannot be restored and says why.
+/// nil with *error when the finding's row has no command or the action did not start.
+- (MMUndoRecord *)runCommand:(MMFinding *)f by:(NSString *)by error:(NSString **)error;
+/// The command action for a finding, for its dry run and its check, or nil when the row names no command.
+- (MMClutterCommandAction *)commandFor:(MMFinding *)f by:(NSString *)by;
 @end
 
 /// The keep checks of every action: the item on fresh facts must still be free, and no agent may work in its project.

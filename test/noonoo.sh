@@ -107,7 +107,7 @@ mkdir -p "$nn_clone/Contents"; printf 'bin\n' >"$nn_clone/Contents/Chrome"
 mkdir -p "$nnr/System/Library/Caches"; printf 'sys\n' >"$nnr/System/Library/Caches/x"
 mkdir -p "$nnr/Library/Caches/shared"; printf 'lib\n' >"$nnr/Library/Caches/shared/x"
 
-nn_env() { MINMACS_HOME="$nn" MINMACS_CLUTTER_ROOT="$nnr" MINMACS_CLUTTER_ROWS="$ROOT/registry/clutter" MINMACS_TOOLS="$nn/tools" \
+nn_env() { MINMACS_HOME="$nn" MINMACS_CLUTTER_ROOT="$nnr" MINMACS_CLUTTER_ROWS="${nn_rowdirs:-$ROOT/registry/clutter}" MINMACS_TOOLS="$nn/tools" \
            CLAUDE_CONFIG_DIR="$nn/claude" CODEX_HOME="$nn/codex" NN_PROJECTS="$nn_main:$nn_wt" NN_MERGED="$nn_wt" "$@"; }
 nnt() { nn_env "$nn/tool" "$@"; }
 # One field of the item at a path in `clutter list --json`, or absent.
@@ -301,4 +301,114 @@ PY
     "$(grep -q '^TEXT fact finished | Owner | feat$' "$nn_out/checks.txt" && echo yes || echo no)"
   check "noonoo: four appearances of the menu and of a card per section" yes \
     "$([ "$(ls "$nn_out"/noonoo-menu-*.png 2>/dev/null | wc -l | tr -d ' ')" = 4 ] && [ "$(ls "$nn_out"/noonoo-card-*.png 2>/dev/null | wc -l | tr -d ' ')" -ge 12 ] && echo yes || echo no)"
+
+  echo "-- a row's own cleanup command, for good, only when pressed: designs 74 and 75"
+  # Fixture rows in $nn/rows name a fake tool unique to this run. The section runs last, since its rows add items.
+  nnx_tool="nnfake$$"; nnx_app="no.example.nnfake$$"; nnx_dir="$nnh/.nnfake"
+  mkdir -p "$nn/rows" "$nnx_dir/cache/blobs" "$nnx_dir/nodry"
+  cp test/noonoo/fake-cache-tool.sh "$nn/tools/$nnx_tool" && chmod +x "$nn/tools/$nnx_tool"
+  cat >"$nn/rows/nn-fake-cache.json" <<NNROW
+{"id": "nn-fake-cache", "title": "Fake cache", "group": "js", "class": "tool", "paths": ["~/.nnfake/cache"],
+ "cleanup": ["$nnx_tool", "cache", "clean"], "dryRun": ["$nnx_tool", "cache", "clean", "--dry-run"],
+ "quitFirst": ["$nnx_app"], "rebuild": "The fake tool downloads it again", "every": 600}
+NNROW
+  cat >"$nn/rows/nn-fake-nodry.json" <<NNROW
+{"id": "nn-fake-nodry", "title": "Fake store", "group": "js", "class": "tool", "paths": ["~/.nnfake/nodry"],
+ "cleanup": ["$nnx_tool", "prune"], "dryRun": null, "every": 600}
+NNROW
+  nnx_fill() {
+    dd if=/dev/urandom of="$nnx_dir/cache/blobs/a.bin" bs=1024 count=2048 2>/dev/null
+    printf 'idx\n' >"$nnx_dir/cache/index"
+    dd if=/dev/urandom of="$nnx_dir/nodry/b.bin" bs=1024 count=256 2>/dev/null
+  }
+  nnx_fill
+  nnx_files() { find "$nnx_dir/$1" -type f | wc -l | tr -d ' '; }
+  nn_rowdirs="$ROOT/registry/clutter:$nn/rows"
+  nnx() { NN_FAKE_DIR="$nnx_dir" nn_env "$nn/tool" "$@"; }
+  nnx_show() { nnx verb clutter show "$1" --json 2>/dev/null | python3 -c "import json,sys; j=json.load(sys.stdin)[0]; print($2)"; }
+  nnx_last() { nnx undo | python3 -c "import json,sys; j=[r for r in json.load(sys.stdin) if r['kind']=='tool']; print($1)"; }
+  nnx scan >/dev/null 2>&1
+  nnx_c="$nnx_dir/cache"; nnx_n="$nnx_dir/nodry"
+  check "noonoo: the fixture tool row is a tool item" "tool caches" "$(nnx_show "$nnx_c" 'j["class"], j["section"]' | tr -d "(),'")"
+  check "noonoo: the item's facts name the command and that it cannot be undone" \
+    "Run $nnx_tool cache clean, Cannot Be Undone|False|True|True|$nnx_app" \
+    "$(nnx_show "$nnx_c" '"|".join(str(x) for x in (j["command"]["title"], j["command"]["undo"], j["command"]["askOnly"], j["command"]["hasDryRun"], ",".join(j["command"]["quitFirst"])))')"
+  check "noonoo: the menu's action stays the recovery-copy clean" "Clean with $nnx_tool" "$(nnx_show "$nnx_c" 'j["action"]')"
+  check "noonoo: no mode runs the row's command" "keep keep" "$(nnx modes 2>/dev/null | awk '$1=="nn-fake-cache" {print $3" "$4; exit}')"
+  check "noonoo: only commandFor builds the command action, and actionFor never does" "1 0" \
+    "$(grep -c 'MMClutterCommandAction actionFor' Sources/Experts/NooNoo/MMNooNooExpert.m) $(sed -n '/^- (id<MMAction>)actionFor:/,/^}/p' Sources/Experts/NooNoo/MMNooNooExpert.m | grep -c 'Command')"
+
+  echo "-- its fresh check"
+  check "noonoo: a running quitFirst app refuses the dry run" "1 yes" \
+    "$(NN_RUNNING_APPS="com.apple.finder,$nnx_app" nnx verb clean "$nnx_c" --command --dry-run >"$nn/q.txt" 2>&1; echo $?) $(grep -q "quit $nnx_app first" "$nn/q.txt" && echo yes || echo no)"
+  check "noonoo: a running quitFirst app refuses the command, which leaves every file" "1 2" \
+    "$(NN_RUNNING_APPS="$nnx_app" nnx verb clean "$nnx_c" --command >/dev/null 2>&1; echo $?) $(nnx_files cache)"
+  check "noonoo: an app of another bundle id does not hold it" 0 \
+    "$(NN_RUNNING_APPS="com.apple.finder" nnx verb clean "$nnx_c" --command --dry-run >/dev/null 2>&1; echo $?)"
+  mv "$nn/tools/$nnx_tool" "$nn/tools/$nnx_tool.off"
+  check "noonoo: with the tool gone from its path the command is refused" "1 yes 2" \
+    "$(nnx verb clean "$nnx_c" --command >"$nn/q.txt" 2>&1; echo $?) $(grep -q "$nnx_tool is not installed" "$nn/q.txt" && echo yes || echo no) $(nnx_files cache)"
+  mv "$nn/tools/$nnx_tool.off" "$nn/tools/$nnx_tool"
+  check "noonoo: Proactive asking for the command is refused" "1 yes" \
+    "$(nnx ask "$nnx_c" proactive >"$nn/q.txt" 2>&1; echo $?) $(grep -q '^refused: ' "$nn/q.txt" && echo yes || echo no)"
+  check "noonoo: an expert's own guard asking for it is refused by the action itself" "1 yes" \
+    "$(nnx ask "$nnx_c" guard >"$nn/q.txt" 2>&1; echo $?) $(grep -q 'runs only when you press it' "$nn/q.txt" && echo yes || echo no)"
+  check "noonoo: no refused command wrote a record" 0 "$(nnx_last 'len(j)')"
+
+  echo "-- the dry run first"
+  nnx_kb=$(du -sk "$nnx_c" | awk '{print $1}')
+  nnx verb clean "$nnx_c" --command --dry-run --json >"$nn/dry.json" 2>&1
+  check "noonoo: the dry run runs the row's dry-run form" 0 "$?"
+  check "noonoo: the dry run reads what it would free from the tool's output" "$((nnx_kb * 1000))" \
+    "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[0]["wouldFree"])' "$nn/dry.json")"
+  check "noonoo: the dry run says it cannot be undone" yes \
+    "$(python3 -c 'import json,sys; w=json.load(open(sys.argv[1]))[0]["would"]; print("yes" if "would run" in w and "It cannot be undone." in w else w)' "$nn/dry.json")"
+  check "noonoo: the dry run leaves every file" 2 "$(nnx_files cache)"
+  check "noonoo: the last dry run is a fact of the item" "$((nnx_kb * 1000)) 0" "$(nnx_show "$nnx_c" 'j["command"]["lastDryRun"]["wouldFree"], j["command"]["lastDryRun"]["exit"]' | tr -d '(),')"
+  check "noonoo: what the tool output says is read in bytes" "1500000000 356515840 12000 -1" \
+    "$(nnx freed 'Total reclaimed space: 1.5GB') $(nnx freed 'This operation would free approximately 340MiB of disk space.') $(nnx freed 'Deleted 12 kB') $(nnx freed 'Removed 3 packages')"
+  check "noonoo: a row with no dry-run form says the last scan's size and runs nothing" "yes 1" \
+    "$(nnx verb clean "$nnx_n" --command --dry-run 2>/dev/null | grep -q "would run $nnx_tool prune on .*by the last scan. It cannot be undone." && echo yes || echo no) $(nnx_files nodry)"
+
+  echo "-- the command, for good"
+  nnx verb clean "$nnx_c" --command --json >"$nn/run.json" 2>&1
+  check "noonoo: the command runs when pressed" 0 "$?"
+  check "noonoo: the tool removed the cache's files" 0 "$(nnx_files cache)"
+  check "noonoo: the record is a tool record that cannot be restored" "tool done False" \
+    "$(nnx_last '"%s %s %s" % (j[0]["kind"], j[0]["state"], j[0]["canRestore"])')"
+  check "noonoo: the record keeps the dry run, its exit status and what it would free" "0 $((nnx_kb * 1000)) yes" \
+    "$(nnx_last '"%s %s %s" % (j[0]["payload"]["dryRunExit"], j[0]["payload"]["wouldFree"], "yes" if "Total reclaimed" in j[0]["payload"]["dryRun"] else "no")')"
+  check "noonoo: the record keeps the command's output and exit status" "0 Total reclaimed space: ${nnx_kb}kB" \
+    "$(nnx_last '"%s %s" % (j[0]["payload"]["exit"], j[0]["payload"]["output"].strip())')"
+  check "noonoo: the size is read again after the run" yes \
+    "$(nnx_last '"yes" if j[0]["payload"]["sizeBefore"] >= 2048*1024 and j[0]["payload"]["sizeAfter"] < 64*1024 and j[0]["payload"]["sizeFreed"] > 0 else j[0]["payload"]')"
+  check "noonoo: the record says why it cannot be undone" yes \
+    "$(nnx_last '"yes" if "cannot be undone" in j[0]["payload"]["undo"] else j[0]["payload"]["undo"]')"
+  check "noonoo: the CLI says it cannot be undone and gives the sizes" "True False" \
+    "$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1]))[0]; print(r["ok"], r["undo"])' "$nn/run.json")"
+  check "noonoo: undo of the command is refused with its reason" "1 yes tool done" \
+    "$(nnx verb clean --undo "$(nnx_last 'j[0]["rid"]')" >"$nn/q.txt" 2>&1; echo $?) $(grep -q 'cannot be undone' "$nn/q.txt" && echo yes || echo no) $(nnx_last '"%s %s" % (j[0]["kind"], j[0]["state"])')"
+  nnx verb clean "$nnx_n" --command >/dev/null 2>&1
+  check "noonoo: a row with no dry-run form runs its command and says so" "0 yes" \
+    "$(nnx_files nodry) $(nnx_last '"yes" if j[0]["payload"]["dryRun"].startswith("no dry-run form") else j[0]["payload"]["dryRun"]')"
+
+  echo "-- a failed dry run and the time limit"
+  nnx_fill; nnx scan >/dev/null 2>&1
+  check "noonoo: a failed dry run stops before the command" "1 2 failed 4" \
+    "$(NN_FAKE_MODE=dryfail nnx verb clean "$nnx_c" --command >/dev/null 2>&1; echo $?) $(nnx_files cache) $(nnx_last '"%s %s" % (j[0]["state"], j[0]["payload"]["dryRunExit"])')"
+  check "noonoo: its error says the command did not run" yes \
+    "$(nnx_last '"yes" if "did not run the command" in j[0]["error"] else j[0]["error"]')"
+  nnx_t0=$(date +%s)
+  NN_FAKE_MODE=slow NN_CMD_TIMEOUT=2 nnx ask "$nnx_c" cli >"$nn/slow.json" 2>&1
+  nnx_rc=$?; nnx_t=$(( $(date +%s) - nnx_t0 ))
+  check "noonoo: a command past its time limit fails and is stopped in time" "1 yes" "$nnx_rc $([ "$nnx_t" -lt 12 ] && echo yes || echo no)"
+  check "noonoo: the record says it ran past its limit" "failed True -1 yes" \
+    "$(nnx_last '"%s %s %s %s" % (j[0]["state"], j[0]["payload"]["timedOut"], j[0]["payload"]["exit"], "yes" if "ran past its limit" in j[0]["error"] else "no")')"
+  nnx_slow=$(cat "$nnx_dir/slow.pid" 2>/dev/null)
+  # The pid the fake wrote is checked to be a number above 1 before kill -0, and is stopped only if it still runs.
+  nnx_alive() { case "$1" in ''|*[!0-9]*) echo nopid; return ;; esac; [ "$1" -gt 1 ] && kill -0 "$1" 2>/dev/null && echo alive || echo gone; }
+  check "noonoo: the stopped tool is gone" gone "$(nnx_alive "$nnx_slow")"
+  [ "$(nnx_alive "$nnx_slow")" = alive ] && kill "$nnx_slow" 2>/dev/null
+  nn_rowdirs=""
+  check "noonoo: the files the slow tool never reached stay" 2 "$(nnx_files cache)"
 fi
