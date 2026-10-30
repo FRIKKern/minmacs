@@ -331,15 +331,15 @@ It passes on the same rules: no leak in MinMacs code, footprint growth under 5 M
 
 `bench history` fills `Graph/MMHistory.h` to its caps: 250 trees for 60 minutes, so 198 tree rings plus the Mac and the disk, with every state slot and all 256 subagent slots full. Then it makes 20 copies, as 20 builds would, and holds the last one. The budget `historyKB` in `tools/bench/budgets.json` is 1 MB of footprint growth.
 
-On this Mac at a load average near 40, three runs read:
+On this Mac at a load average near 40, three runs alone and one in `./test.sh bench` read:
 
 | What | Value |
 |---|---|
 | The store's fixed arrays | 199 KB |
 | One copy at the caps | 198 KB |
-| Footprint growth with the store and one copy held | 496 to 544 KB |
-| A fill of 250 trees, CPU at the median | 68 to 70 us |
-| A copy, CPU at the median, after the first | 4 to 6 us |
+| Footprint growth with the store and one copy held | 496 to 576 KB |
+| A fill of 250 trees, CPU at the median | 66 to 70 us |
+| A copy, CPU at the median of 2 to 100 copies | 3.7 to 5.9 us |
 
 A first version made each copy in a new buffer. Its footprint grew with the number of copies, to 1,280 KB after 100, since the allocator kept the freed buffers. Each copy now goes back to the store when no view reads it, and the store keeps two for the next copies.
 
