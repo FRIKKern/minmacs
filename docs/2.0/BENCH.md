@@ -327,6 +327,10 @@ The soak runs fixtures only. The week of real use runs the app on the person's M
 
 It passes on the same rules: no leak in MinMacs code, footprint growth under 5 MB a day by least squares over the daily reads, no crash report, and no stall that is not a `leaks(1)` read or main waiting for a core.
 
+### On the GitHub runner
+
+On the macos-26-arm64 runner the short soak's Senses holds each fixture server's process, with the soak's own uid, and reads no socket for it. The status line on 44c994d read `"inSample":1,"uid":501,"me":501,"sockets":0`, and no sample held a listener. On the same runner the minmacs CLI reads those servers in the locohost section, and on a Mac the soak reads them. Signing the soak binary with codesign did not change it. The cause is not found. On CI the check prints LocoHost's peak fixture findings and does not gate on them; on a Mac it gates.
+
 ## Rerun
 
 ```sh

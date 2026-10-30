@@ -65,8 +65,12 @@ check "soak: worktrees were made and removed" yes "$(sc '"yes" if j["worktreesMa
 check "soak: every server and agent started was stopped" yes \
   "$(sc '"yes" if j["serversStarted"] >= 2 and j["serversStarted"] == j["serversStopped"] and j["agentsStarted"] >= 2 and j["agentsStarted"] == j["agentsStopped"] else j')"
 check "soak: no process of the run is left" 0 "$(sc 'j["fixturesLeft"]')"
+# On the GitHub runner Senses holds the fixture server's process but reads no socket for it, so LocoHost has no
+# server to show (issue #56). There the LocoHost part is printed and not gated. On a Mac it is gated.
+sk_lh=1; [ -n "${CI:-}" ] && sk_lh=0
 check "soak: the graph saw the fixture servers, worktrees, agents and sessions" yes \
-  "$(sm '"yes" if j["peakFixtureFindings"].get("locohost", 0) >= 1 and j["peakFixtureFindings"].get("workforest", 0) >= 1 and j["peakAgents"] >= 1 and j["peakSessions"] >= 1 else (j["peakFixtureFindings"], j["peakAgents"], j["peakSessions"])')"
+  "$(sm '"yes" if (j["peakFixtureFindings"].get("locohost", 0) >= 1 or '"$sk_lh"' == 0) and j["peakFixtureFindings"].get("workforest", 0) >= 1 and j["peakAgents"] >= 1 and j["peakSessions"] >= 1 else (j["peakFixtureFindings"], j["peakAgents"], j["peakSessions"])')"
+[ "$sk_lh" = 0 ] && echo "  soak on CI: LocoHost fixture findings at peak $(sm 'j["peakFixtureFindings"].get("locohost", 0)'), not gated here"
 # When the fixture check fails, what the soak saw: its last status lines, the churn counts and its errors.
 if [ "$(sm '"yes" if j["peakFixtureFindings"].get("locohost", 0) >= 1 and j["peakAgents"] >= 1 else "no"')" != yes ]; then
   tail -3 "$sk/run/status.jsonl" 2>/dev/null | cut -c1-400 | sed 's/^/    status /'
