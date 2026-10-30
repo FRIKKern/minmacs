@@ -205,6 +205,20 @@ int main(int argc, const char *argv[]) {
             MMSample *smp = live.facts.sample;
             const MMSocket *sv = [(NSObject *)smp respondsToSelector:@selector(sockets:)] ? [smp sockets:&nsock] : NULL;
             for (NSUInteger i = 0; sv && i < nsock; i++) if (sv[i].state == MMSocketListen) listeners++;
+            // Each live fixture server as Senses holds it: in the sample or not, its uid against ours, its sockets.
+            NSMutableArray *fixtures = [NSMutableArray new];
+            NSString *pidDir = [home stringByAppendingPathComponent:@"pids/servers"];
+            for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:pidDir error:nil] ?: @[]) {
+                pid_t fp = (pid_t)name.intValue;
+                if (fp <= 0) continue;
+                MMProc *pr = [smp proc:fp];
+                NSUInteger fl = 0;
+                NSArray<NSValue *> *fs = pr ? [smp socketsOf:fp] : @[];
+                for (NSValue *v in fs) { MMSocket so; [v getValue:&so size:sizeof so]; if (so.state == MMSocketListen) fl++; }
+                [fixtures addObject:@{@"pid": @(fp), @"inSample": @(pr != nil), @"uid": @(pr ? pr.uid : (uid_t)-1), @"me": @(getuid()),
+                                      @"sockets": @(fs.count), @"listen": @(fl)}];
+                if (fixtures.count >= 4) break;
+            }
             peakAgents = MAX(peakAgents, live.facts.agents.count);
             peakSessions = MAX(peakSessions, live.facts.sessions.count);
             peakHolds = MAX(peakHolds, holds);
@@ -212,7 +226,7 @@ int main(int argc, const char *argv[]) {
             [status writeData:JSONLine(@{@"at": Stamp(), @"uptime": @(round(-started.timeIntervalSinceNow)),
                                          @"generation": @(live.generation), @"snapshots": @(snapshots),
                                          @"findings": findings, @"agents": @(live.facts.agents.count),
-                                         @"sessions": @(live.facts.sessions.count), @"awakeHolds": @(holds), @"listeners": @(listeners), @"sockets": @(nsock),
+                                         @"sessions": @(live.facts.sessions.count), @"awakeHolds": @(holds), @"listeners": @(listeners), @"sockets": @(nsock), @"fixtureServers": fixtures,
                                          @"menuRounds": @(menuRounds), @"cardsHovered": @(cardsHovered),
                                          @"stalls": @(MMWatchdogStalls().count)})];
         };
