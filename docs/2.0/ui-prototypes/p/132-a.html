@@ -2039,6 +2039,18 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var
 .p113k.cur .pn{font-size:11.5px;color:var(--tx3)}
 .p113k.cur .pn b{color:var(--tx2);font-weight:500}
 .p113k.cur .say{padding-left:24px;font-size:11.5px;line-height:15px;color:var(--tx3)}
+
+/* 132: the look back is two quiet lines of numbers, memory and disk apart, with no box and no claim. */
+.p113calm.q{display:flex;flex-direction:column;gap:4px;padding:14px 8px 0;background:none;box-shadow:none;border:0}
+.p113calm.q .r{display:grid;grid-template-columns:1fr auto auto;column-gap:18px;align-items:baseline}
+.p113calm.q .l{font-size:11.5px;color:var(--tx3)}
+.p113calm.q .v{font-size:15px;font-weight:500;color:var(--tx2);text-align:right;min-width:64px}
+.p113calm.q .v small{font-size:11px;font-weight:400;color:var(--tx3);margin-left:3px}
+.p113calm.q .v.m{color:color-mix(in srgb,#5B9BFF 45%,#fff)}
+.p113calm.q .v.d{color:color-mix(in srgb,#F2B544 55%,#fff)}
+.p113calm.q .r.t .v{font-size:12.5px;color:var(--tx3)}
+.p113calm.q .r.t .v.m,.p113calm.q .r.t .v.d{color:var(--tx3)}
+.p113calm.q .r.h .c{font-size:10.5px;color:var(--tx3);text-align:right;min-width:64px}
 </style>
 </head>
 <body>
@@ -4669,7 +4681,7 @@ function p94Over(){
 /* 94-b: the cards that need you are large, by rank; the calm ones are small */
 function p94Layout(X,litS){
   const N=X.filter(x=>x.need).sort((a,b)=>b.need.score-a.need.score),Cm=X.filter(x=>!x.need),dim=litS?' dim':'',L=x=>litS&&litS.has(x.k);
-  if(!N.length)return `<div class="p94fine" data-k="fine"><span><i></i><b>Everything is fine.</b></span><span>Nothing needs you. CPU ${CPU()} %, memory ${MEM().toFixed(1)} of 64 GB, ${Math.round(DISK_T-DISKU())} GB free, ${NET.on?'online over '+NET.kind:'offline'}.${lid?' Agents keep working with the lid closed.':''}</span></div>
+  if(!N.length)return `<div class="p94fine" data-k="fine"><span>CPU ${CPU()} %, memory ${MEM().toFixed(1)} of 64 GB, ${Math.round(DISK_T-DISKU())} GB free, ${NET.on?'online over '+NET.kind:'offline'}.${lid?' Agents keep working with the lid closed.':''}</span></div>
     <div class="p94grid${dim}" style="grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:minmax(0,1fr);margin-top:6px">${X.map(x=>p94Card(x,'c',L(x),4,'nar')).join('')}</div>`;
   if(!Cm.length)return `<div class="p94grid${dim}">${N.map(x=>p94Card(x,'m',L(x))).join('')}</div>`;
   const n=N.length,cell=(x,st,sz,ex)=>`<div style="min-width:0;min-height:0;display:flex;${st}">${p94Card(x,sz,L(x),5,ex)}</div>`;
@@ -4900,7 +4912,7 @@ function p99NowAfter(V,hv){
 function p99GoBtn(V){
   const R=V.R;
   if(R)return `<button class="btn p99go stop" data-p99stop="1" ${R.stop?'disabled':''}>${R.stop?'Stopping after this step':'Stop'}</button>`;
-  if(!V.rows.length)return `<div class="p100clean" data-k="clean"><i></i><span>The Mac is clean</span></div>`;
+  if(!V.rows.length)return '';
   return `<button class="btn p99go" data-p99all="1" data-p99h="all" data-k="go">Fix Everything</button>`;
 }
 function p99Foot(){
@@ -4990,7 +5002,7 @@ function p99Rest(V){
 }
 function p99Calm(V){
   const A=p99Asks().length,n=V.rows.length;
-  if(!n)return `<div class="p99calm" data-k="calm"><span class="d"><i></i></span><span class="t">${A?'Nothing left to fix.':'Everything is fine. Nothing needs you.'}</span><span class="s">CPU ${CPU()} %, memory ${MEM().toFixed(1)} of 64 GB, ${Math.round(DISKF())} GB disk free.${A?` ${cnt(A,'agent')} ${A===1?'asks':'ask'} you, and only you can answer.`:' New things show up here at their rank.'}</span></div>`;
+  if(!n)return `<div class="p99calm" data-k="calm"><span class="d"><i></i></span><span class="s">CPU ${CPU()} %, memory ${MEM().toFixed(1)} of 64 GB, ${Math.round(DISKF())} GB disk free.${A?` ${cnt(A,'agent')} ${A===1?'asks':'ask'} you.`:''}</span></div>`;
   return `<div class="p99calm${n>=5?' mid':''}" data-k="calm">${n>=5?'':'<span class="d"><i></i></span>'}<span class="t">${n===1?'Only 1 thing left.':`Only ${NUMW(n).toLowerCase()} things left.`} The Mac is nearly clean.</span>${n>=6?'':`<span class="s">CPU ${CPU()} %, memory ${MEM().toFixed(1)} of 64 GB, ${Math.round(DISKF())} GB disk free.${A?` ${cnt(A,'agent')} ${A===1?'asks':'ask'} you, and only you can answer.`:''} New things show up here at their rank.</span>`}</div>`;
 }
 function p99OverA(){
@@ -5390,14 +5402,14 @@ function p113CenterB(V,lit,FX){
 }
 function p113Go(V){
   const R=V.R;if(R)return `<button class="btn p99go p113go stop" data-p99stop="1" data-k="go-s" ${R.stop?'disabled':''}>${R.stop?'Stopping':'Stop'}</button>`;
-  if(!V.rows.length)return `<div class="p100clean p113go ok" data-k="clean"><i></i><span>The Mac is clean</span></div>`;
+  if(!V.rows.length)return '';
   return `<button class="btn p99go p113go" data-p99all="1" data-p99h="all" data-k="go">Fix Everything</button>`;
 }
 function p113Plan(V){
   const R=V.R,E=P99END,pl=p99Plan(V);
   if(R)return ['',''];
-  if(E)return [`${E.stop?'Stopped after '+p99Fx(E.n):p99Fx(E.n)+' done'}: <b class="m">${nb(fmt(E.mem))}</b> memory and <b class="d">${nb(fmt(E.disk))}</b> disk back.`,E.skip.length?`Skipped ${and(E.skip.map(f=>f.t+', '+f.skip))}.`:'Nothing was skipped.'];
-  if(!V.rows.length){const A=p99Asks().length,B=p99Blocked().length;return [A?`${cnt(A,'agent')} ${A===1?'asks':'ask'} you. Only you answer.`:'Nothing needs you.',`${B?B+' blocked stay, they say why. ':''}New fixes show up at their rank.`]}
+  if(E)return [`<b class="m">${nb(fmt(E.mem))}</b> memory, <b class="d">${nb(fmt(E.disk))}</b> disk back`,E.skip.length?`${E.skip.length} skipped`:''];
+  if(!V.rows.length){const A=p99Asks().length;return [A?`${cnt(A,'agent')} ${A===1?'asks':'ask'} you`:'','']}
   const bits=[V.fm>.0005?`<b class="m">${nb(fmt(V.fm))}</b> memory`:'',V.fd>.0005?`<b class="d">${nb(fmt(V.fd))}</b> disk`:''].filter(Boolean);
   return [`${p99Fx(V.rows.length)}: ${bits.length?bits.join(', ')+' back':'small things'}${P113V==='a'?` · about ${p99Secs(V.rows)}&nbsp;s`:''}`,(pl.l2||'').replace(/ that asks? you/,' asking')];
 }
@@ -5439,11 +5451,9 @@ function p113Card(f,z,i,V,hv,gw){
 
 /* the calm look back, sized for the center: today and the week, memory and disk apart, a day chart each */
 function p113Calm(full){
-  const D=p100Week(),W=p100Tot(D),T_=D[6],cell=(v,l,c)=>{const q=vu(fmt(v));return `<span class="p113cn ${c}"><span class="v">${q.v}<small>${q.u}</small></span><em>${l}</em></span>`};
-  const ch=(k,c,l)=>{const mx=Math.max(.05,...D.map(d=>d[k]));return `<div class="p113cc"><div class="p113ch"><span>${l}</span><span>most ${nb(fmt(Math.max(...D.map(d=>d[k]))))}</span></div><div class="p113cbar">${D.map(d=>`<i class="${d.today?'td':''}"><b style="height:${Math.max(d[k]>.0005?8:3,d[k]/mx*100).toFixed(1)}%;background:${c}"></b></i>`).join('')}</div></div>`};
-  return `<div class="p113calm${full?' full':''}" data-k="calm"><span class="gl">${full?'Today and the last 7 days':'Lately'}</span><div class="say">${p100Say(W)}</div>
-    <div class="p113cns">${cell(T_.mem,'memory today','m')}${cell(T_.disk,'disk today','d')}${cell(W.mem,'memory this week','m')}${cell(W.disk,'disk this week','d')}</div>
-    ${full?`${ch('mem',P99MC,'Memory back each day')}${ch('disk',P99DC,'Disk back each day, own scale')}<div class="p113cdl">${D.map(d=>`<span class="${d.today?'td':''}">${d.today?'Today':d.lab}</span>`).join('')}</div>`:''}</div>`;
+  const D=p100Week(),W=p100Tot(D),T_=D[6],q=v=>{const x=vu(fmt(v));return `${x.v}<small>${x.u}</small>`};
+  return `<div class="p113calm q" data-k="calm"><div class="r h"><span></span><span class="c">memory</span><span class="c">disk</span></div><div class="r"><span class="l">This week</span><span class="v m">${q(W.mem)}</span><span class="v d">${q(W.disk)}</span></div>
+    <div class="r t"><span class="l">Today</span><span class="v m">${q(T_.mem)}</span><span class="v d">${q(T_.disk)}</span></div></div>`;
 }
 
 /* ---------- the sides: groups of rows, the story of one part ---------- */
@@ -5580,7 +5590,7 @@ const P113_GUIDE=`<div class="t">How Performance works</div><ul>
   <li>Click a part: its story opens in the center, with its fix or its tab. Back to fixes closes it.</li>
   <li>Fix Everything runs the deck top to bottom at 99-b's pace. Each part leaves its side and its slice flies out at its kind's pace: a tab at once, a server one port at a time, an app after it saves, disk as it deletes. It skips agents that ask, anything blocked and rules set to Off, and says why. Deletes are for good.</li>
   <li>Groups fold. Each shows its biggest few and always what a fix touches; the rest sit under "and N more".</li>
-  <li>When nothing is left to fix, the center says the Mac is clean and looks back over today and the week.</li></ul>`;
+  <li>When nothing is left to fix, the center shows what came back this week and today, memory and disk apart.</li></ul>`;
 {const o=guide;guide=function(){o();if(tab==='over'&&$('scng-p')._g!==P113_GUIDE){$('scng-p').innerHTML=P113_GUIDE;$('scng-p')._g=P113_GUIDE}}}
 {const o=go;go=function(id){if(id==='over'&&tab!=='over'){P113H=null;P113OPEN=null;P113FIRST=true;P113FLY.clear()}o(id)}}
 {const o=setScn;setScn=function(k){if(k!==SCN){P113FIRST=true;P113SEEN.clear();P113LAST.clear();P113OUT.clear();P113FLY.clear();P113PREV.clear();P113OPEN=null;P113H=null;P113EXP.clear();P113FOLD.clear()}o(k)}}
