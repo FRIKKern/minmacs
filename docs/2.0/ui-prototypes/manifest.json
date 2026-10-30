@@ -1908,5 +1908,405 @@
   "surface": "menubar",
   "groupId": "106",
   "direction": "Layout: the whole follows you"
+ },
+ {
+  "file": "107-a.html",
+  "name": "Live Index Left",
+  "idea": "A left column of six big kind names (Agents, Servers, Apps, Tabs, Worktrees, Leftovers), in 20-a's style, each with its count, its cost and a small live graph that says what it draws; pick one and its parts open in the middle as a grouped rich list, with the whole on the right: four rings in a row, a line that says the lit share in words, Fix Everything and the 99-b deck, or the calm look back.",
+  "good": "You read the Mac kind by kind at a glance, then go into one without losing the rings or the deck; numbered circles on each kind show which fixes touch it, and while Fix Everything runs the list follows the running fix to its kind.",
+  "tradeoff": "Only one kind's parts show at a time, so a fix that touches three kinds lights the other two only as '2 lit' in the index; and with the deck at 352 px the top card is shorter than in 99-b. Proposed facts: Four minutes of history per kind for the index graphs (agents' CPU, server connections, apps' memory, tabs open, worktree and leftover disk), seeded from now when the page opens; helper CPU is a flat estimate, as in 104.",
+  "surface": "menubar",
+  "groupId": "107",
+  "direction": "Layout: a live index of kinds"
+ },
+ {
+  "file": "107-b.html",
+  "name": "Index and Drawer",
+  "idea": "The whole fills the sheet (the deck with its skips in the middle; Fix Everything, four big rings, the share line and the run plan on the right), the kind index runs down the left edge, and picking a kind slides a drawer of its parts in over the left half while the rings stay in view and light the drawer's share.",
+  "good": "The rings, the button and the run plan never move or hide, the top card names what it touches and how it runs (deletes are for good), and the parts are one click away without a permanent list taking space.",
+  "tradeoff": "The open drawer covers the deck, so you hover parts or fixes, not both at once; and with few fixes (Quiet) the deck and the right column leave some space at the bottom. Proposed facts: Four minutes of history per kind for the index graphs, seeded from now when the page opens; helper CPU is a flat estimate, as in 104.",
+  "surface": "menubar",
+  "groupId": "107",
+  "direction": "Layout: a live index of kinds"
+ },
+ {
+  "file": "108-a.html",
+  "name": "Memory Treemap",
+  "idea": "The left two thirds is one calm memory treemap where every part MinMacs sees is a tile sized by its memory and grouped by kind, with macOS and the rest as one gray tile and a thin disk strip under it on its own scale; the right holds four rings with a sentence that says them in words, then Fix Everything and the 99-b deck, or the calm look back.",
+  "good": "You see at a glance what is heavy: the tiles a fix would free carry an outline in the fix's color with its rank, hovering a fix lights its tiles, hovering a tile lifts its share in the rings and makes its fix card glow, and during a run the map keeps its scale so tiles shrink away, Coming back shows memory still falling, and Back so far grows as its own tile.",
+  "tradeoff": "Small parts such as most agents and servers are too small for a label, so you learn their names from the hover line or the story, and disk parts get only a thin strip.",
+  "surface": "menubar",
+  "groupId": "108",
+  "direction": "Layout: treemaps"
+ },
+ {
+  "file": "108-b.html",
+  "name": "Two Treemaps",
+  "idea": "Memory and disk are two treemaps side by side, each on its own scale and grouped by owner (each workstream, then Nobody's and Apps), with tiles colored by kind; four small rings sit above them and the fix deck runs as a band under them: Fix Everything and Needs you, the top or running fix with 99-b's steps, and the rest two by two.",
+  "good": "A workstream's cost shows in both maps at once: hovering one of its parts lights the rest of it in memory and on disk, and the line under the maps gives both numbers; a run shrinks tiles in both maps, and the calm band lays the week's look back across the full width.",
+  "tradeoff": "The two maps and the band split the height, so each map is shorter than 108-a's and more tiles go unlabeled, and the deck becomes a grid rather than a stack.",
+  "surface": "menubar",
+  "groupId": "108",
+  "direction": "Layout: treemaps"
+ },
+ {
+  "file": "109-a.html",
+  "name": "Owner Rings",
+  "idea": "Every workstream is a small ftop ring in a calm grid, sorted by memory, then Nobody's and Apps. In each ring, the arc is memory with one slice per part (agents, servers, helpers), all on one scale stated in words. A thin outer line is disk (worktree, leftovers) on its own scale, dots in the bottom gap are localhost tabs, ring size is memory, and a number badge shows the fix that touches it. On the right sit the Mac's four rings, Fix Everything and 99-b's deck.",
+  "good": "You see at a glance which workstream holds what, and what each fix touches: hover a slice or ring and its share lights in the Mac rings and its fix card glows; hover a fix and its rings light while the rest dim (a Wrap Up lights its whole ring). Fix Everything closes rings one by one: slices shrink to nothing and a wrapped-up ring fades closed.",
+  "tradeoff": "Part names show only on hover, in the readout line, or in the story opened by a click, not on the grid itself. Disk arcs in workstreams are thin next to Nobody's leftovers, because they are drawn true to scale.",
+  "surface": "menubar",
+  "groupId": "109",
+  "direction": "Layout: work first, by owner"
+ },
+ {
+  "file": "109-b.html",
+  "name": "Workstream Lanes",
+  "idea": "Each owner is a horizontal lane, ranked by cost the way the fixes rank (memory 8 per GB, disk 0.5 per GB), with its parts as chips on a butterfly cost axis. Memory is left of a center spine, disk right of it, each on its own log scale and never summed, with the two totals at either end of the lane. Localhost tabs are marks on the spine. The Mac's rings sit in a slim band on top, with the deck on the right.",
+  "good": "Twenty-plus lanes still fit and scroll calmly, and memory and disk stay visibly apart for every workstream. Hover a chip or a lane and it links to the band rings and the fix cards. During Fix Everything the lanes scroll to the running fix, chips fade as parts go, and a wrapped-up lane folds away.",
+  "tradeoff": "Log scales spread small parts out but make large gaps look smaller than they are, and in Peak the lanes scroll, so not every owner shows at once.",
+  "surface": "menubar",
+  "groupId": "109",
+  "direction": "Layout: work first, by owner"
+ },
+ {
+  "file": "110-a.html",
+  "name": "Live Feed",
+  "idea": "Left, on top, is a live feed with the newest line first: a subagent starts in lane-c, :5175 goes quiet, Chrome opens 2 tabs, the agents write 200 MB to disk, Fix Everything stops 9 servers. When the same change happens again within a minute, it joins one line with a count and dots instead of adding new lines. Under the feed, Running now shows every part as a chip by kind, with its cost. Right is 104's whole: the four rings, Fix Everything and 99-b's deck, or the calm look back.",
+  "good": "You see what is changing, not only what exists. Each line lights its parts in the rings and chips, glows the fix that touches them and opens the part's story. Fix Everything, Auto and your own clicks tell each step in the feed with the memory or disk they gave back, so the run reads as a story.",
+  "tradeoff": "Busy and Peak produce several lines a minute even when folded, and the burst lines keep moving. Parts that never change only appear in Running now, which has to scroll at Peak. Proposed facts: The feed itself: MinMacs sees these changes between two samples but keeps no log today. The Earlier today lines are rebuilt from agent start times, subagent times, last connections and merge times.",
+  "surface": "menubar",
+  "groupId": "110",
+  "direction": "Layout: live activity"
+ },
+ {
+  "file": "110-b.html",
+  "name": "Process Strips",
+  "idea": "Left, every part is one thin strip of its last 4 minutes, with a column every 6 s, grouped by kind under sticky headers, like a calm Activity Monitor. Brighter means more CPU and thicker means more memory. Disk does not move, so it is one flat amber bar. A tab is a hairline. Each kind's header has a strip that adds its parts up. A line above the strips says in words what the hovered strip did. Right is the same whole and deck.",
+  "good": "You see at a glance which agent woke, which server went quiet and what just started, because a strip begins late or fades out. Hovering a fix lights its strips, dims the rest and scrolls to the first one. During Fix Everything its strips leave as it goes.",
+  "tradeoff": "Most agents have similar memory and CPU, so many strips look alike. The words line and the numbers carry the detail. Peak is a long list that scrolls, with Tabs folded by default. Proposed facts: A 4-minute history of CPU and memory per part. Agents' first strips are seeded from the hour per agent that MinMacs would keep. Servers' brightness also follows new connections.",
+  "surface": "menubar",
+  "groupId": "110",
+  "direction": "Layout: live activity"
+ },
+ {
+  "file": "111-a.html",
+  "name": "Search the Mac",
+  "idea": "One calm search field sits on top of the parts side (\"Search 87 parts\"), with ready searches as chips (idle servers, nobody's, over 1 GB, asks you, in a fix) and a \"Try typing\" line that types a search for you (chrome, a live port, a workstream, cache); results arrive as you type, grouped by kind with the found words marked, and the parts not found stay below them, faded, under \"Not found, biggest first\"; the four rings on the right draw the results' share in white and say it in words (\"502 MB of 40.9 GB, these 4\"), and the fix cards that touch the results glow.",
+  "good": "Any part is a few keystrokes away even at Peak with 130+ parts, and one line says what the results hold, with memory and disk always as two numbers.",
+  "tradeoff": "With no query it looks much like a list grouped by kind, so the idea only shows once the owner types or picks a chip, and the deck stays the full deck rather than following the search.",
+  "surface": "menubar",
+  "groupId": "111",
+  "direction": "Layout: find anything"
+ },
+ {
+  "file": "111-b.html",
+  "name": "Filter Chips",
+  "idea": "Three rows of chips (Kind, Owner, Fate with In a fix) sit over a flat parts list, biggest first; any chip in a row counts and the rows together keep only parts that are all of them, each chip counts what it would show, and rows that do not fit fold into \"N more\"; the line under the chips says \"These 9 hold 3.1 GB memory and 22.4 GB disk\", four small rings in a row draw the chosen share in white, and the deck shows only the fixes that touch the chosen parts at their own rank, with \"Fix These N\" running just those at 99-b's pace and the rest waiting under \"Outside these parts\".",
+  "good": "Filters, the whole and the fixes stay in step, so \"clean up nobody's leftovers\" is two chips and one button, and it stays honest about which fixes run.",
+  "tradeoff": "Three rows of chips cost about 120 px of list height, the Owner and Fate rows often hide chips behind \"N more\", and a filter with no fix in it falls back to the full deck under a plain note. Proposed facts: Fix These N: Fix Everything run over only the fixes that touch the filtered parts (the code runs either all fixes or one)",
+  "surface": "menubar",
+  "groupId": "111",
+  "direction": "Layout: find anything"
+ },
+ {
+  "file": "112-a.html",
+  "name": "Bento of Kinds",
+  "idea": "The two biggest tiles are the Mac's four rings (top left) and the fix deck (right, full height). Under the Mac, each kind of part is a tile sized by what it costs (memory 8 per GB, disk 0.5 per GB, the way fixes are ranked). Each tile shows its big number, its biggest parts with their fix number, and 'and N more'. Hover a tile: it lifts and its share lights in the rings. Click it: it fills the grid with every part, and the Mac shrinks to a strip of small rings.",
+  "good": "You see the whole Mac and every kind of part at once, sized honestly. One click opens a kind's full list with owner, CPU, memory, disk, fate and each part's story, and the rings and fix cards stay connected the whole time.",
+  "tradeoff": "Narrow tiles show only part names, not their numbers. Tiles slide and resize as costs change, which feels lively but is less steady than a fixed list.",
+  "surface": "menubar",
+  "groupId": "112",
+  "direction": "Layout: bento tiles"
+ },
+ {
+  "file": "112-b.html",
+  "name": "Bento by Need",
+  "idea": "Tiles are sized by need. In the left column the fix deck grows with the fixes and Needs you grows with what asks or is blocked (it says why and has Answer in Tab). A thin Lately strip shows while there is work, and the look back takes the big tile when calm. On the right sit the Mac's rings and the kind tiles, sized by what each kind could give back. Each kind tile shows memory back and disk back as two numbers and lists the parts in fixes first.",
+  "good": "The page reshapes itself around the work. When busy the deck and Needs you are big; when calm the look back is big and the kinds are even, so the eye always lands on what matters.",
+  "tradeoff": "Tiles move whenever the work changes (they stay in place while Fix Everything runs), so the layout looks different from one visit to the next. A kind that nothing can fix stays small even when it costs a lot.",
+  "surface": "menubar",
+  "groupId": "112",
+  "direction": "Layout: bento tiles"
+ },
+ {
+  "file": "113-a.html",
+  "name": "Mac at Center",
+  "idea": "One large ftop gauge in the center column, with memory by holder inside and disk as the outer track, Fix Everything in its open bottom and 99-b's deck under it; every part that holds memory is listed on the left and every part that holds disk on the right, in the ring's own order, and hovering a row ties it to its slice with a faint line that runs around the ring.",
+  "good": "The parts and the whole read as one picture: each row has a visible home on the ring, the center says its share, its fix card glows, and hovering a fix lights its parts on both sides while the center shows the Mac after it.",
+  "tradeoff": "The center column is 340 px, so the deck uses compact cards and a part's story replaces the deck while it is open, and the side lists scroll in Busy and Peak (each group shows its biggest few and what a fix touches; the rest fold under 'and N more').",
+  "surface": "menubar",
+  "groupId": "113",
+  "direction": "Layout: the Mac in the middle"
+ },
+ {
+  "file": "113-b.html",
+  "name": "Split Ring",
+  "idea": "One ring split in two halves, memory down the left half (64 GB) and disk down the right half (994 GB), each holder's list on its own side top to bottom in the order of its half, with the center split the same way (memory left, disk right) and Fix Everything under both.",
+  "good": "During a run the slices leave from both halves at the pace of each kind (a tab at once, a server one port at a time, an app after it saves, disk shrinking as it deletes), and the halved center counts memory back and disk back apart, so the two are never one number.",
+  "tradeoff": "Each half of the center has only about 95 px, so part names shorten there and the pressure word drops on fix hover; the ring is a little smaller than 113-a's to leave room for the deck.",
+  "surface": "menubar",
+  "groupId": "113",
+  "direction": "Layout: the Mac in the middle"
+ },
+ {
+  "file": "114-a.html",
+  "name": "Fate Board",
+  "idea": "Every running part is a small card with its cost, owner and reason, sorted into four columns: Will go, Needs you, Stays and Nobody's. A slim band on top holds the four rings and Fix Everything, and Will go is the ranked fixes, each with its own button and parts. During a run each part's card flies into a Gone pile at the top of the column, and when calm that pile becomes the look back.",
+  "good": "You can see the fate of every part at a glance, and Fix Everything reads as cards leaving Will go and landing in Gone with what came back. Hovering a card, column, fix or ring lights the same share everywhere.",
+  "tradeoff": "With 92 parts in Peak, Stays has to fold each kind to its biggest six and scroll. The deck becomes a column of fix groups rather than 99-b's stacked cards.",
+  "surface": "menubar",
+  "groupId": "114",
+  "direction": "Layout: by fate"
+ },
+ {
+  "file": "114-b.html",
+  "name": "Fate Rows",
+  "idea": "The same fates become rows across the sheet, each a strip of part cards with what the row holds in memory and disk at its end. The rings and Fix Everything sit at the right edge. A Gone row opens on top during a run, and when calm it takes the room as the look back with two 7-day charts.",
+  "good": "Each fate's total memory and disk lines up in one column at the right, and hovering a row's name lights exactly that fate's share in all four rings.",
+  "tradeoff": "The rows grow with how many parts they hold, so in Busy and Peak the Will go and Stays strips scroll inside a fairly short height. Each fix is a smaller segment than a 99-b card.",
+  "surface": "menubar",
+  "groupId": "114",
+  "direction": "Layout: by fate"
+ },
+ {
+  "file": "115-a.html",
+  "name": "Three Panes",
+  "idea": "Like Mail: a strip on top always holds the whole (four small rings, the next fix with its button, Fix Everything), and under it a narrow pane of mailboxes (Fixes, then each kind, then each owner), a middle pane with the picked mailbox's fixes or parts, and a wide right pane with the picked fix's or part's full story.",
+  "good": "Every part is two clicks away and always in context: hover a part and its share lights in the rings, its fix glows and its kind and owner mailboxes say how many they hold, while the right pane follows the running fix during Fix Everything and shows the week's look back when the Mac is clean.",
+  "tradeoff": "You see one mailbox at a time, so a scan across kinds means clicking through the left pane, and the strip's rings are small, so the big picture is a glance rather than a hero.",
+  "surface": "menubar",
+  "groupId": "115",
+  "direction": "Layout: drill down"
+ },
+ {
+  "file": "115-b.html",
+  "name": "Zoom In Place",
+  "idea": "The whole fills the sheet as four big rings whose slices are holders in their kind's color; click a slice and the sheet zooms (calm scale and fade from where you clicked) into that holder's own ring and list of parts, click a part and it zooms into its story, with a breadcrumb (Mac › Memory › Servers › :3000 Next.js), Esc and sideways chips to walk back, and the 99-b fix deck docked at the side.",
+  "good": "The whole stays the hero and each step down keeps one question in view (what uses memory, which servers, this one server), and the docked deck and the rings light each other at every level, including mid-run when the running fix lights its parts.",
+  "tradeoff": "Parts only show after a click into a ring, so you cannot see everything running at once, and parts with no share in a ring (idle tabs, a 0 % CPU agent) are only reachable through a ring where they do cost something.",
+  "surface": "menubar",
+  "groupId": "115",
+  "direction": "Layout: drill down"
+ },
+ {
+  "file": "116-a.html",
+  "name": "Quiet Sentence",
+  "idea": "One big sentence leads (\"Your Mac is fine. 7 fixes could give back 3.2 GB memory and 31.1 GB disk.\") with a quiet line under it that says what you point at. Under the sentence sits 99-b's deck with Fix Everything. To its right, everything running is written as short paragraphs by owner, each part a chip (\"fix-auth-redirect holds Chrome for Testing, 1 tab on :4000 and its worktree\"), grouped as In a fix, Waiting on you, At work and Quiet. Four small quiet rings sit at the right of the sentence.",
+  "good": "It reads like a note from the Mac. Hover a chip and a card shows its CPU, memory and disk as three separate numbers, the rings draw its share and its fix glows. A small number on each chip is the fix that takes it. Hover a fix and its chips light. During a run the sentence counts what came back so far, and a Done so far list fills the room the folded cards leave.",
+  "tradeoff": "You read prose, not a table, so comparing sizes across owners takes longer. With 12+ workstreams the paragraphs scroll. The skipped-fixes box shows only the first skipped item (one that needs you, else one that is blocked) plus a count of the rest.",
+  "surface": "menubar",
+  "groupId": "116",
+  "direction": "Layout: calm and typographic"
+ },
+ {
+  "file": "116-b.html",
+  "name": "Numbers Wall",
+  "idea": "A 4 x 2 wall of huge ftop numbers: CPU, memory in use, disk free, open connections, servers, tabs, agents and leftovers. Each has a line in words, a split bar and a legend, and each is a door. Hover one and its three biggest parts show. Click one and its full list opens in place while the other seven step aside into a rail that keeps counting. The fix deck runs along the bottom: Fix Everything with what it skips, the top card playing its run, and the next six as small cards beside it.",
+  "good": "You see the whole Mac at a glance, at the size ftop uses. Hover a fix and every number says what it becomes (\"→ 41.2 GB, after fix-auth-redirect\"). Hover a part and every number shows its share. During a run each number says what the running fix frees, and the calm band shows the week's look back with memory and disk as two separate charts.",
+  "tradeoff": "The parts stay hidden until you hover or open a number, so you never see every process at once. The bottom band is only 194 px tall, so the top card and the small cards use shorter titles and buttons.",
+  "surface": "menubar",
+  "groupId": "116",
+  "direction": "Layout: calm and typographic"
+ },
+ {
+  "file": "117-a.html",
+  "name": "Constellation",
+  "idea": "Every part MinMacs knows is a calm star whose size is memory, whose glow is CPU and whose gold ring is disk; each workstream is its own constellation in a fixed slot, with Apps and Nobody's along the bottom, and the whole sits on the right: four rings in a row with one plain sentence, then Fix Everything and the deck.",
+  "good": "You can read 12 to 20 workstreams at a glance as quiet shapes, and the links work both ways: hover a star and its share lights in the rings and its fix card glows; hover a fix and its stars brighten while the rest dim; during a run they flare and fade out one by one, emptied slots stay dark until the run ends, and a strip under the sky gives the key, a star's numbers or its full story with its fix or tab.",
+  "tradeoff": "Names only appear on hover or click, so finding one exact process takes a hover sweep rather than a scan down a list, and tiny parts such as localhost tabs and worktrees show as dim dots.",
+  "surface": "menubar",
+  "groupId": "117",
+  "direction": "Layout: spatial pictures"
+ },
+ {
+  "file": "117-b.html",
+  "name": "Mac Floor Plan",
+  "idea": "The Mac drawn as a floor plan with four walled rooms (Memory, Disk, CPU, Network); each room is filled by what holds it, one block per part sized by its share and grouped in an outline for its owner, with macOS as a gray block and free floor left empty, and the fix deck docks at the side.",
+  "good": "Memory, disk, CPU and network are never mixed: a part has one block in each room it uses and lights in all of them at once, each room's header says its share in words, and as fixes land the blocks flare and leave while the free floor visibly grows, ending with '31 GB freed here' in Disk and the calm look back beside it.",
+  "tradeoff": "Small parts become small blocks with no name until you hover them, and the Disk and Network floors use a working scale rather than the whole disk or a fixed connection count, so the room heads have to carry the absolute numbers. Proposed facts: Disk's floor is what MinMacs sees on disk (the full 994 GB is in the room's header) and Network's floor is the most connections seen this session, so both rooms can empty as fixes land",
+  "surface": "menubar",
+  "groupId": "117",
+  "direction": "Layout: spatial pictures"
+ },
+ {
+  "file": "118-a.html",
+  "name": "Where Memory Goes",
+  "idea": "On the left are two separate Sankeys. Memory runs from who holds it (each workstream a slice, then Nobody's, Apps, macOS), through kind (agents, helpers, servers, tabs, apps, system), into the Mac's 64 GB, with lines at Warning (52 GB) and Critical (60 GB). Disk runs on its own scale into the disk, where what MinMacs sees is to scale and the rest is drawn short. On the right are CPU with heat, the network, and 99-b's deck.",
+  "good": "Hover a band, node or label and a card lists its parts with their share of the Mac, the caption says it in words, the band lights all the way to the Mac, and the fix that touches it glows. Hover a fix and every band it touches lights in both flows. Click a band to keep its card open, then click a part for its story, its fix button and its tab. During Fix Everything the bands thin as each part lets go, and the Mac briefly shows what came back.",
+  "tradeoff": "The parts are reached through bands and hover cards, not a full list, so with 12+ workstreams each one is only a thin slice until you hover it. The pinned card covers part of the flows.",
+  "surface": "menubar",
+  "groupId": "118",
+  "direction": "Layout: flows"
+ },
+ {
+  "file": "118-b.html",
+  "name": "Flow Back",
+  "idea": "The same two Sankeys, plus a return band for each fix. It leaves the Mac from the exact parts the fix frees and lands on that fix's card: blue for memory back, amber for disk back, as wide as what comes back.",
+  "good": "You can see at a glance what each card gives back and from where. Hovering a fix, its band, or any part it touches brightens that band. Fix Everything thins the flows and the return bands at each kind's pace (servers one port at a time, tabs fast, apps after they save, caches as they drain). It ends on the Mac's after-state: blue and amber 'back' on the Mac nodes and 'from' numbers in the titles.",
+  "tradeoff": "In Peak many return bands cross the gap to the deck and pass under the disk title. Very small memory fixes draw hairline bands. The Mac's labels move to the right, so 'in use' is shown only in the title.",
+  "surface": "menubar",
+  "groupId": "118",
+  "direction": "Layout: flows"
+ },
+ {
+  "file": "119-a.html",
+  "name": "Memory and Disk Stacks",
+  "idea": "Two tall stacked bars sit side by side: 64 GB of memory (free, tabs, servers, agents, apps, macOS) and 994 GB of disk (free, worktrees, unused caches, macOS and files). Curved wires join each layer's slice to a readable column of its parts, and the tracked disk is drawn again 17x taller with a label saying so. The fix deck is on the right, and each fix hatches the slice of the layer it would free, with its number.",
+  "good": "You can see at a glance where memory and disk go and which slice each fix gives back. Hover a fix, part or layer and both stacks, their captions, the CPU and network rings and the deck all answer in words. During Fix Everything the layers shrink and free grows.",
+  "tradeoff": "Each layer shows only its biggest parts plus whatever is lit, with 'and N more'. You click a layer to see all its parts, and the other layers fold to one line. CPU and network are small rings, not stacks.",
+  "surface": "menubar",
+  "groupId": "119",
+  "direction": "Layout: stacks"
+ },
+ {
+  "file": "119-b.html",
+  "name": "Layers Unfold",
+  "idea": "One wide stack at a time, picked with a quiet Memory / Disk / CPU toggle. Each toggle button also shows the live number and its state (pressure, used, heat). Layers are bands, and inside each band a thin strip shows its parts to scale. Click a band and it unfolds in place into rows (part, owner, bar, value, fate or fix), while the other bands slide to make room. It opens on the memory layer the fixes free most.",
+  "good": "The parts get full rows and real width without leaving the stack, and CPU becomes a stack too. A fix that frees nothing in the shown stack says so in words and puts a dot on the toggle that it does touch.",
+  "tradeoff": "Only one resource shows at a time. Bands have a minimum height so they stay readable, which means only the thin strip at the left is truly to scale.",
+  "surface": "menubar",
+  "groupId": "119",
+  "direction": "Layout: stacks"
+ },
+ {
+  "file": "120-a.html",
+  "name": "Kind Pages",
+  "idea": "The parts side is six horizontal pages (Agents, Servers, Apps, Tabs, Worktrees, Leftovers) under a dot rail that shows each kind's count and cost. Each page has a big count, its costs, a bar by state or fate in words, then every part by group with its owner, CPU or age, memory or disk, and its fix. Pages turn with the arrow keys, the rail, the side arrows or a sideways swipe. The rings, Fix Everything and the 99-b deck stay fixed on the right. Hovering a fix or a ring part slides the pages to where its parts live and lights them, and during Fix Everything the pages follow each fix.",
+  "good": "Each kind gets a roomy, calm page that does not crowd even at Peak, and a fix hover shows exactly where its parts are while the rail counts the lit parts on the other pages.",
+  "tradeoff": "Only one kind shows at a time, so a Wrap Up that spans servers, tabs and a worktree lands on the page that holds most of its parts and shows the rest only as rail counts.",
+  "surface": "menubar",
+  "groupId": "120",
+  "direction": "Layout: one kind at a time"
+ },
+ {
+  "file": "120-b.html",
+  "name": "Segment Bar",
+  "idea": "A segmented control with a sliding pill tops the parts side (All, Agents 16, Servers 19, ...). Each segment shows its cost under its name, memory in blue and disk in amber. The list below morphs between kinds: rows that stay slide to their new place and the rest fade in. All shows the top three of each kind. The rings light the picked kind's share, and the fixes that touch it glow.",
+  "good": "One list and one control: picking a kind shows right away in the rings what that kind costs the Mac, and a fix hover marks every segment that holds its parts.",
+  "tradeoff": "All shows only the top three per kind, so some of a fix's lit parts can sit behind a '2 more lit' link until you pick their kind.",
+  "surface": "menubar",
+  "groupId": "120",
+  "direction": "Layout: one kind at a time"
+ },
+ {
+  "file": "121-a.html",
+  "name": "Top Holders",
+  "idea": "Every part, across all kinds, sits in one ranked list, heaviest first by Memory, Disk or CPU (picked with chips or by clicking a ring). The top three are larger, ranks 4 to 10 are plain rows, and the long tail is quieter and folds past 20. Each row shows its kind, its owner and its fix. The four rings, Fix Everything and 99-b's deck sit on the right.",
+  "good": "It shows at a glance what is heaviest on the Mac right now, across agents, apps, servers, tabs, worktrees and caches. A faint bar behind each row shows its size next to number 1.",
+  "tradeoff": "It ranks one measure at a time, so a disk fix lights nothing in the memory ranking. When that happens, the closing 'hold no memory' line lights up, names the lit parts with their disk size, and the Disk chip glows.",
+  "surface": "menubar",
+  "groupId": "121",
+  "direction": "Layout: rankings"
+ },
+ {
+  "file": "121-b.html",
+  "name": "Two Leaderboards",
+  "idea": "Memory and disk are two leaderboards side by side. Each has its ring and a plain sentence on top, then its top 10 (the first three larger), then one 'the rest' line that opens. The boards rank holders: a workstream counts its agents, servers, helpers, worktree and caches. The fix deck is a band under the boards, and the running card grows and names its step.",
+  "good": "A holder on both boards lights on both, so one hover shows that fix-auth-redirect is 4th on disk and 12th on memory. Lit holders from the folded tail move up under the top 10. A board with few holders shows what the rest of its ring is made of, so it never ends in an empty middle.",
+  "tradeoff": "Ranking by holder folds a workstream's parts into one row, and you click the row to see them part by part. CPU and the network shrink to two small chips at the top.",
+  "surface": "menubar",
+  "groupId": "121",
+  "direction": "Layout: rankings"
+ },
+ {
+  "file": "122-a.html",
+  "name": "Age Rings",
+  "idea": "Left: every part is a dot on one of four rings by age (Just now in the middle, then This hour, Today, and Older on the rim). A filled dot holds memory and a ring holds disk, each sized on its own scale. Each band is described in words in its corner, every fix has a numbered badge on the rim next to what it touches, and the right side holds the Mac's four gauges, Fix Everything, 99-b's deck and a short list of what is skipped and why.",
+  "good": "You see at once that the old outer ring is where the fixes live (for example \"4 of 7 fixes touch it\"). Hovering a dot, a badge, a corner or a card lights the rest of the page: a label next to the dot, gauges that show its share or the Mac after the fix, the glowing fix, and dimmed rings.",
+  "tradeoff": "Dots show names only on hover or click, so you can't read names across 60 or more busy dots at a glance, and the dense middle disc tells you how many there are more than what each one is. Proposed facts: when each app was last in front (app age); a helper's age, taken from its workstream's last activity; when localhost and noise tabs were last viewed (shown with a proposed tag in the story and the hover label)",
+  "surface": "menubar",
+  "groupId": "122",
+  "direction": "Layout: by age"
+ },
+ {
+  "file": "122-b.html",
+  "name": "Age Columns",
+  "idea": "The Mac's four rings sit above (memory with pressure, disk free, CPU with heat, network) with Fix Everything beside them. Below are four columns: Just now, This hour, Today and Older. Every part is a row with its idle time and cost, grouped by kind and folding to its biggest few. The Older column carries the fix cards inline, each with its old parts under it.",
+  "good": "Every part is a readable row with its age and cost, and the Older column reads as one list of fixes. A fix that also touches a newer part marks that row with its number, and the card says how many of its parts live in newer columns.",
+  "tradeoff": "Narrow young columns shorten long agent titles to their first words (for example \"Import\"), and when the Mac is clean the look-back has to fit in the Older column's 330 px, so it is a compact version instead of 100-a's full charts. Proposed facts: when each app was last in front (app age); a helper's age, taken from its workstream's last activity; when localhost and noise tabs were last viewed",
+  "surface": "menubar",
+  "groupId": "122",
+  "direction": "Layout: by age"
+ },
+ {
+  "file": "123-a.html",
+  "name": "Pro Table",
+  "idea": "One dense table of every part with two-line 38 px rows. A Kind/Owner switch changes the grouping. Each row has a CPU sparkline and a memory sparkline for the last 30 s, with the disk and the fate. Click a column head to sort, and each group header sums its rows with a sparkline of the sum. The keyboard moves a cursor that lights the whole. The right column holds three rings one inside the other (CPU, memory, disk) with lines in words and the network, then 99-b's deck.",
+  "good": "A pro reads every part's cost and trend at a glance, compares groups by their sums, and moves through 140 parts by keyboard while the rings and the fix cards follow the cursor.",
+  "tradeoff": "It is the most numeric view: dense rows and two sparklines per row ask for reading rather than glancing, and part names are trimmed to whole words to fit the column (the full name is in the story). Proposed facts: Per-part CPU and memory over the last 30 s (MinMacs samples now and keeps no history per part).",
+  "surface": "menubar",
+  "groupId": "123",
+  "direction": "Layout: pro view"
+ },
+ {
+  "file": "123-b.html",
+  "name": "Pivot Grid",
+  "idea": "A pivot with owners down (each workstream, then Nobody, You and agent hosts) and kinds across. Each cell shows that owner's memory and disk in that kind, tinted by memory, with totals per owner on the right and per kind at the foot. Click a cell to open its parts under the row, then click a part for its story. The deck marks every cell it touches with its fix number and lights them on hover.",
+  "good": "It answers 'who holds what kind of cost' in one grid, and fixes become visible places on the grid instead of a list.",
+  "tradeoff": "CPU and single parts are one click deeper (in the cell drawer), and a cell sums several parts, so you must open it to see which one holds the most. Proposed facts: Per-part CPU and memory over the last 30 s (shown only in a cell's parts and in the story).",
+  "surface": "menubar",
+  "groupId": "123",
+  "direction": "Layout: pro view"
+ },
+ {
+  "file": "124-a.html",
+  "name": "Explains",
+  "idea": "The left is the Mac written out as six short live paragraphs (memory, CPU, the work, nobody's, disk, network) built from the facts, with the parts inline as chips ('Google Chrome holds 4.8 GB', '16 agents hold 8 GB'); a row of four rings with one line in words, then Fix Everything and the 99-b deck, sit on the right.",
+  "good": "Hover a chip and its share lights in the rings, the line says it in words (memory and disk kept apart), and the fix cards that touch it glow. Hover a fix or a ring part and the chips it touches light in the text, and during Fix Everything the running fix lights its chips while the numbers in the text tick down. Click a chip and its parts open under the paragraph as rows; click a row for its story.",
+  "tradeoff": "Reading takes longer than scanning a table, and in Peak the last paragraphs scroll below the fold. Every single part is only one click away (inside a chip), not on screen all at once.",
+  "surface": "menubar",
+  "groupId": "124",
+  "direction": "Layout: MinMacs explains"
+ },
+ {
+  "file": "124-b.html",
+  "name": "Questions",
+  "idea": "A rail of six questions on the left (What uses memory? What can go? What is nobody's? What do my agents cost? What changed in the last hour? What fills the disk?), each with its short answer live, and the Mac's four small rings under them. The middle answers the chosen question with the view that fits it, and the deck is always on the right.",
+  "good": "Each answer gets its own view: a ring with a legend and every part (memory, disk), each fix with the parts it touches plus what stays and why (can go), three big numbers and a list (nobody's), workstream bars that open to their agents, and a timeline of the hour. Hover any part, ring part or question: the cards glow, the rail rings show its share, and a fixed line says what it costs.",
+  "tradeoff": "Only one question shows at a time, so the owner must pick a question before seeing the full list of parts. The middle column is narrow, so names and gray lines wrap to two lines. Proposed facts: an hour of memory per agent (the agents' memory now vs an hour ago in What changed in the last hour); the hour timeline only holds seeded starts, merges and asks, plus what came and went since the page opened",
+  "surface": "menubar",
+  "groupId": "124",
+  "direction": "Layout: MinMacs explains"
+ },
+ {
+  "file": "125-a.html",
+  "name": "Hot Spots",
+  "idea": "The parts that press on the Mac rise to the top as up to five ranked hot spots. Each names its resource (CPU, Memory, Disk or Connections) and carries a Hot, Warm or Mild word, a small share ring with a big number and unit, a line saying why in words, its owner and the fixes that take it. Every other part rests quietly below as small chips grouped by kind, and the whole sits on the right.",
+  "good": "You see at once what is straining the Mac and why. Memory, disk, CPU and connections each keep their own unit. Quiet shows only 3 spots, so the calm parts get the room, and Peak fills all five. Hovering a fix lights the spots and chips it touches.",
+  "tradeoff": "Crowds like '16 agents' or '9 other leftovers' are each one spot, so you click one to see its parts. With five spots the quiet list gets about 170 px and scrolls in Busy and Peak.",
+  "surface": "menubar",
+  "groupId": "125",
+  "direction": "Layout: pressure and what runs out"
+ },
+ {
+  "file": "125-b.html",
+  "name": "Before It Runs Out",
+  "idea": "Four forecast cards, soonest first: Battery, Memory, Disk free and CPU heat. Each says when it runs out at the current pace ('38 days until full, falls about 4.8 GB a day', 'Memory: 16 h until Warning. At Peak (28 agents) about 59 GB: Warning likely') with a chart that is solid for the past and dashed to the limit line. Under each: the parts driving it, and the fixes that push the date back, with how much time each one buys.",
+  "good": "It answers 'what runs out first' directly: Battery in Busy, Memory (Critical in about 1 h) in Peak. Hovering a fix draws its own line on the chart and shows the new date.",
+  "tradeoff": "The paces are estimates the code does not measure yet. The parts only show as drivers, and a click opens their list over the forecasts. Proposed facts: Disk pace: 0.35 GB a day per working agent plus 2 % a day per cache nobody owns. Memory pace: 45 MB an hour per working agent plus 80 MB an hour of Chrome tabs. The past part of each chart is rebuilt from that pace, and the 'at Peak load' lines use this page's Peak scenario numbers. Battery uses the code's own model of 1 % every 9 minutes, and the minutes the fixes save on battery are an estimate.",
+  "surface": "menubar",
+  "groupId": "125",
+  "direction": "Layout: pressure and what runs out"
+ },
+ {
+  "file": "126-a.html",
+  "name": "Glance and Detail",
+  "idea": "The tab opens on a big, calm glance: memory and disk as two large rings with their parts named in a legend, CPU and network as small rings, 99-b's deck with Fix Everything, and a row of tiles, one per kind of part, with its count and cost. One quiet switch, \"Show every part\", slides the glance to the right as a narrow column (four small rings, one line that puts the lit share in words, the deck) and opens the full grouped parts list on the left; clicking a kind tile dives straight to that group.",
+  "good": "The first look is calm and spacious and says what it means in plain words. The parts are still there at a glance as kind tiles that light the rings and the fixes. One switch takes you to every part, where hovering a part, a fix or a ring lights the others, the list follows the running fix, and clicking a part opens its story.",
+  "tradeoff": "In the glance you see the parts only as kind totals, and you must flip the switch to see them one by one. In the narrow column the smaller fix cards name only what they act on (\"2 worktrees\"), and their buttons say the verb.",
+  "surface": "menubar",
+  "groupId": "126",
+  "direction": "Layout: glance and dive"
+ },
+ {
+  "file": "126-b.html",
+  "name": "Hover Lens",
+  "idea": "The whole Mac fills the sheet: four big rings with legends, plus the deck and the Needs-you card. Moving over a ring segment, a legend line or a fix opens a soft lens beside the pointer that lists the parts under that spot, biggest first, with costs and bars. A click pins it as a panel on the left, and the rings re-stack as rows to make room.",
+  "good": "The overview stays whole and uncluttered, and every spot on it answers the question \"what is this made of\" right where you point. The pinned panel connects back: hovering a part lights its share in all four rings and makes its fix glow. During Fix Everything the panel shows the running fix's parts, which leave as they go.",
+  "tradeoff": "You never see every part at once: you look at one ring segment or one fix at a time. The lens can cover nearby rings or cards while it is open.",
+  "surface": "menubar",
+  "groupId": "126",
+  "direction": "Layout: glance and dive"
  }
 ]

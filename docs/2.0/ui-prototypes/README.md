@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-191 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+231 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -38,6 +38,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 100 | What got better lately | "177 is nice. When nothing left to fix, show a summary of what how much we have improved lately". On 99-b, the calm Performance view looks back over today and the week: memory back and disk back as two numbers, a 7-day chart and counts by kind, or the deck turned into done cards, newest first |
 | 101–103 | More ways to show what got better lately | "I want more variations of this screen". The calm view on 100-a, opening already calm: the week as two rings or the Mac then and now as gauges, a day strip hour by hour or the week as sentences, split by who did it or by workstream |
 | 104–106 | New layouts for Performance, the parts and the whole | "using left to see all processes and stuff - and right for the overall things - just as an example". On 100-a: every running part on the left by kind or by owner with the Mac and the fix deck on the right, three columns or the whole above a sortable table, or a right side that follows what you pick and a list sorted by the ring you point at |
+| 107–126 | Forty more layouts for Performance | "Give me 20 more", then "More". On 100-a, each pair a different way to hold the parts and the whole: a live index, treemaps, owner rings and lanes, a live feed and process strips, search and filters, bento, the Mac in the middle, fate columns, drill down, sentences and huge numbers, constellations and a floor plan, Sankey flows, stacks, kind pages, rankings, age, a pro table and pivot, explanations and questions, hot spots and forecasts, glance and lens |
 
 ## Direction so far
 

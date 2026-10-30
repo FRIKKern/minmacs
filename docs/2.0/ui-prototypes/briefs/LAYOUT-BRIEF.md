@@ -2,6 +2,8 @@
 
 You are one of 3 design agents. Each makes **2 variants**. IDs 104 to 106 are reserved for this round.
 
+**Round 107 to 116 (second pass):** the owner saw 104 to 106 and said "Give me 20 more". Ten agents, IDs 107 to 116, two variants each, same brief. Then "More": ten more agents, IDs 117 to 126, the same note applies to them. Read `p/104-a.html`, `p/105-a.html` and `p/106-b.html` too, and do something clearly different from them and from each other. **No cut lines, ever:** last round every agent shipped many "..." and had to redo them. Before you reply, run an overflow scan in Quiet, Busy and Peak, at rest, hovered, mid-run and calm: no text element with `scrollWidth > clientWidth`, no ellipsis, no text clipped by its parent. Fit text by shorter words, dropping a gray second label, wider columns or wrapping. **Shared tools:** many agents share one Chrome and one scratchpad. Pass your own pageId on every chrome-devtools call, never close or select a page you did not open, and keep your scripts and screenshots in a scratchpad subfolder named by your ID.
+
 ## What the owner said
 
 After the calm views of round 101 to 103: "Like overall - think about for example using left to see all processes and stuff - and right for the overall things - just as an example - think around about ways we can do this"
