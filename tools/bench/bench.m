@@ -981,9 +981,14 @@ static int Hangs(NSArray<NSString *> *args) {
     MMBenchFooter *footer = [MMBenchFooter new];
     MMWatchdogStart(limit);
 
-    // The watchdog itself: a pass that sleeps 120 ms on purpose is caught, with this function in its stack.
-    dispatch_async(dispatch_get_main_queue(), ^{ MMBenchStallOnPurpose(120); fflush(stderr); });
-    RunUntil(^BOOL { return MMWatchdogStalls().count > 0; }, 5);
+    // The watchdog itself: a pass that sleeps 120 ms on purpose is caught, with this function in its stack. Up to
+    // three tries, since the first block on main can run before the run loop's observer marks a pass begun.
+    int tries = 0;
+    while (tries < 3 && !MMWatchdogStalls().count) {
+        tries++;
+        dispatch_async(dispatch_get_main_queue(), ^{ MMBenchStallOnPurpose(120); fflush(stderr); });
+        RunUntil(^BOOL { return MMWatchdogStalls().count > 0; }, 5);
+    }
     NSDictionary *caught = MMWatchdogStalls().firstObject ?: @{};
     MMWatchdogReset();
 
@@ -1052,7 +1057,7 @@ static int Hangs(NSArray<NSString *> *args) {
     PrintJSON(@{@"kind": @"hangs", @"rounds": @(rounds), @"limitMs": @(limit), @"finished": @(finished),
                 @"opens": @(opens), @"liveOpens": @(liveOpens), @"hovers": @(hovers), @"opensBy": opensBy, @"hoversBy": hoversBy,
                 @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls, @"startStalls": startStalls,
-                @"selfCheck": @{@"ms": caught[@"ms"] ?: @0, @"state": caught[@"state"] ?: @"", @"what": caught[@"what"] ?: @"",
+                @"selfCheck": @{@"tries": @(tries), @"ms": caught[@"ms"] ?: @0, @"state": caught[@"state"] ?: @"", @"what": caught[@"what"] ?: @"",
                                 @"named": @([[caught[@"stack"] componentsJoinedByString:@"\n"] containsString:@"MMBenchStallOnPurpose"])},
                 @"logQueriesOnMain": @(MMLogMainThreadQueries()), @"keepReadsOnMain": @(MMKeepMainThreadReads())});
     return 0;
