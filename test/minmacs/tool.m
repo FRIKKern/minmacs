@@ -5,6 +5,7 @@
 //   tool stale <bundle-id> <seconds>              snapshot, wait, then quit with the old snapshot's finding
 //   tool plan <mode>                              MMPlan over the fixture apps, with a review the list rule made
 //   tool list <list> | verdict <id> | serving <id> | undo | render <folder>
+//   tool localtab <url>                           yes or no for a localhost host, then the URL's port
 // Safety: a verb that quits or trims runs only on a bundle id that starts with $MMM_ONLY, and never with --all.
 // MMM_ROWS names the registry rows. MMM_TABS names the fake tab bridge's file, and MMM_BROWSER the fixture browser.
 #import <Cocoa/Cocoa.h>
@@ -223,6 +224,10 @@ int main(int argc, const char *argv[]) {
         NSString *cmd = args[0];
         MMMinMacsExpert *e = MMMinMacsExpert.shared;
         if ([cmd isEqualToString:@"render"]) return args.count > 1 ? Render(args[1]) : 2;
+        if ([cmd isEqualToString:@"localtab"] && args.count > 1) {
+            printf("%s %ld\n", MMMinMacsIsLocalHost([NSURL URLWithString:args[1]].host) ? "yes" : "no", (long)MMMinMacsPortOf(args[1]));
+            return 0;
+        }
 
         TSource *src = [TSource new];
         if (Env(@"MMM_ROWS").length) src.registry = [[MMRegistry alloc] initWithRowDirectories:@[Env(@"MMM_ROWS")]];

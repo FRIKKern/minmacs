@@ -145,6 +145,7 @@ typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
         MMMinMacsPolicy *p = [MMMinMacsPolicy new];
         p.expert = self;
         _policyObject = p;
+        MMMinMacsRegisterTabRestore();
     }
     return self;
 }

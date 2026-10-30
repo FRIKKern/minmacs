@@ -152,16 +152,19 @@ void MMUseNotifier(id<MMNotifier> notifier);           // nil goes back to the s
 MMUndoRecord *MMRunActionPart(id<MMAction> action, id<MMExpertPolicy> policy, NSString *by, NSString *why,
                               NSString *parentRid, NSInteger index, NSString **error);
 
-/// The steps of a Wrap Up, in the order they run. Restore runs them backwards.
+/// The steps of a Wrap Up, in the order they run. Restore runs them backwards, except a part whose record says
+/// restoreLast, such as the tabs part, which comes back after every other part.
 /// Caches go before the worktree, so a cache inside it comes back from the Trash after git recreates the folder.
+/// The numbers are not stored. Records keep the step's name.
 typedef NS_ENUM(NSInteger, MMWrapUpStep) {
     MMWrapUpServers = 1,     // LocoHost stops the servers that run in it
     MMWrapUpHelpers = 2,     // MinMacs stops the helpers left in it, such as a headless browser whose parent exited
-    MMWrapUpCaches = 3,      // Noo-Noo moves its caches and build output to the Trash
-    MMWrapUpConfig = 4,      // WorkForest moves its untracked config files, such as .env.local, to the Trash
-    MMWrapUpWorktree = 5,    // WorkForest saves its ignored files such as .env and removes the worktree
+    MMWrapUpTabs = 3,        // MinMacs closes the browser tabs on localhost ports that the server parts stop
+    MMWrapUpCaches = 4,      // Noo-Noo moves its caches and build output to the Trash
+    MMWrapUpConfig = 5,      // WorkForest moves its untracked config files, such as .env.local, to the Trash
+    MMWrapUpWorktree = 6,    // WorkForest saves its ignored files such as .env and removes the worktree
 };
-NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, caches, config, worktree
+NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, tabs, caches, config, worktree
 
 /// A finished workstream: a linked worktree whose branch is merged and whose agent sessions all ended.
 /// The graph keeps no workstream for an ended session, so the subject is the worktree, read from facts.
@@ -179,6 +182,9 @@ NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, cach
 @property (readonly) NSArray<NSValue *> *stopped;
 /// YES when the plan has a config part, so untracked files are that part's to check and move.
 @property (readonly) BOOL configPart;
+/// The TCP ports the plan's server parts stop: each listen socket of their processes in the snapshot's sample,
+/// ascending. Set once every expert gave its wrapUpParts:snapshot:, before the late parts are asked. Empty before.
+@property (readonly) NSArray<NSNumber *> *serverPorts;
 /// YES when path is the worktree or inside it, as given or as the kernel names it.
 - (BOOL)holds:(NSString *)path;
 /// The subject at path in these facts. s may be nil, and findings are then empty.
@@ -195,6 +201,15 @@ NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, cach
 @property (readonly, copy) NSString *whyNot;
 + (instancetype)step:(MMWrapUpStep)step expert:(NSString *)expert title:(NSString *)title
               action:(id<MMAction>)action policy:(id<MMExpertPolicy>)policy;
+@end
+
+/// An expert with a part that depends on the parts of the others, such as MinMacs's tabs part, which closes the
+/// tabs on the ports the server parts stop. MMWrapUpPlanFor asks it once every expert gave its
+/// -[MMExpert wrapUpParts:snapshot:], with subject.serverPorts set and the earlier parts in step order.
+/// Reads the snapshot and what the expert already keeps. It never waits on main or on the graph queue.
+@protocol MMWrapUpLateParts <NSObject>
+- (NSArray<MMWrapUpPart *> *)wrapUpPartsAfter:(NSArray<MMWrapUpPart *> *)earlier subject:(MMWrapUpSubject *)subject
+                                     snapshot:(MMSnapshot *)s;
 @end
 
 /// What Wrap Up does to one workstream: the subject and its parts, in the order they run.
@@ -217,7 +232,8 @@ NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, cach
 NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked, BOOL wait);
 
 /// Builds the plan for the worktree at path from the snapshot: the subject, then each registered expert's parts
-/// through -[MMExpert wrapUpParts:snapshot:], then MustKeep of every part on the snapshot's facts. A part whose
+/// through -[MMExpert wrapUpParts:snapshot:], then the server ports and the late parts of MMWrapUpLateParts,
+/// then MustKeep of every part on the snapshot's facts. A part whose
 /// processes an earlier part already ends is left out. Reads only the snapshot, so a menu may call it on main.
 MMWrapUpPlan *MMWrapUpPlanFor(NSString *path, MMSnapshot *s);
 /// Checks the plan on fresh facts: the subject again, then each part's recheck and MustKeep on fresh facts for its

@@ -146,6 +146,12 @@ PY
   check "minmacs: a subdomain of a noise host"     noise "$(mxt verb apps classify music.youtube.com)"
   check "minmacs: localhost with a port is work"   work "$(mxt verb apps classify http://localhost:4000/studio)"
   check "minmacs: an unknown host is left alone"   other "$(mxt verb apps classify https://example.org/)"
+  # The tabs Wrap Up closes: localhost, 127.0.0.1 and ::1, at the URL's port or the scheme's.
+  check "minmacs: localhost names its port"         "yes 3000" "$(mxt localtab http://localhost:3000/app)"
+  check "minmacs: 127.0.0.1 with no port is 80"     "yes 80" "$(mxt localtab http://127.0.0.1/)"
+  check "minmacs: ::1 in brackets is localhost"     "yes 8443" "$(mxt localtab 'https://[::1]:8443/x')"
+  check "minmacs: a host that starts with localhost is not" "no 443" "$(mxt localtab https://localhost.example.com/)"
+  check "minmacs: a file URL has no port"           "no 0" "$(mxt localtab file:///tmp/x.html)"
   check "minmacs: work wins when both match"       work "$(mxt verb apps classify https://aws.amazon.com/console)"
   # The fixtures go on the close list. Everything else keeps the defaults.
   for b in "$mx_pid_polite" "$mx_pid_stub" "$mx_pid_browse" "$mx_pid_spare"; do mxt verb apps close "$b" >/dev/null; done
@@ -287,6 +293,9 @@ EOF
   check "minmacs: the trim record holds only the closed tab" "trim done https://www.youtube.com/watch?v=fixture" \
     "$(mx_undo "j[0]['kind'], j[0]['state'], ' '.join(t['url'] for t in j[0]['payload']['tabs'])")"
   check "minmacs: a second trim finds no noise tab"   1 "$(mxt verb apps trim "$mx_pid_browse" >/dev/null 2>&1; echo $?)"
+  # With no fake bridge, the Apple events bridge refuses in a test home before any event is sent.
+  mx_real=$(MINMACS_HOME="$mxh" MMM_ONLY="$mx_only" MMM_BROWSER="$mx_pid_browse" "$mx/tool" verb apps trim "$mx_pid_browse" 2>&1)
+  check "minmacs: a test home never reads a real browser" yes "$(echo "$mx_real" | grep -q 'a test home never reads a real browser' && echo yes || echo no)"
   # By its rid, so the force quit records above are not relaunched here.
   mxt verb restore "$(mx_undo "j[0]['rid']")" >/dev/null
   check "minmacs: restore reopens the closed tab"     "https://www.youtube.com/watch?v=fixture" "$(mx_tabs "' '.join(j['opened'])")"

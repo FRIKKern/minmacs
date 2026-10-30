@@ -1,7 +1,9 @@
 # Wrap Up of a finished workstream, issue #27. Sourced by test.sh after core.
 # Fixtures only, all inside $MINMACS_HOME/wu<pid>: a repo with a bare origin, a worktree whose branch is merged and whose
 # Claude Code session ended, a Python http.server on a high port this section picks, a helper left behind under a
-# name unique to the run, an ignored .env, an untracked .env.local and a node_modules folder. MINMACS_ROOTS and
+# name unique to the run, an ignored .env, an untracked .env.local and a node_modules folder. A fixture browser is a
+# process under a name unique to the run with a bundle id unique to the run, and its tabs live in a JSON file that the
+# tool's fake tab bridge reads and changes, so no Apple event reaches a real browser. MINMACS_ROOTS and
 # MINMACS_CLUTTER_ROOT point inside the fixture, so no real worktree, server or cache is read or touched.
 # Items go to the real Trash, and every check that moves one restores it, so the Trash ends as it began.
 # Cleanup stops only the pids this section started or restored, read from its own pid files and its own port.
@@ -17,7 +19,7 @@ export MINMACS_CLAUDE="$ROOT/test/review/fakeclaude.py" MINMACS_CODEX="$ROOT/tes
 
 wu_src=$(find Sources -name '*.m' ! -path 'Sources/main.m' ! -path 'Sources/Shell/*' | LC_ALL=C sort)
 # shellcheck disable=SC2086
-clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources -DMM_VERSION='"2.0.0"' \
+clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources -DMM_VERSION='"2.0.0"' -DMM_TESTS \
   -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3 \
   $wu_src test/wrapup/tool.m -o "$wu/bin/tool" >"$wu/clang.log" 2>&1
 check "wrapup: test/wrapup/tool.m builds" 0 "$?"
@@ -25,6 +27,9 @@ check "wrapup: Core and the experts have no warnings" 0 "$(grep -c 'warning:' "$
 WH="wuh$$"                                   # the helper's name, unique to this run
 clang -Wall -mmacosx-version-min=14.0 test/wrapup/helper.c -o "$wu/bin/$WH" >"$wu/helper.log" 2>&1
 check "wrapup: the helper fixture builds" 0 "$?"
+WB="wub$$"                                   # the fixture browser's process name, unique to this run
+clang -Wall -mmacosx-version-min=14.0 test/wrapup/helper.c -o "$wu/bin/$WB" >>"$wu/helper.log" 2>&1
+check "wrapup: the fixture browser builds" 0 "$?"
 T="$wu/bin/tool"
 wu_has() { [ -e "$1" ] && echo yes || echo no; }
 wu_listening() { nc -z 127.0.0.1 "$1" >/dev/null 2>&1 && echo yes || echo no; }
@@ -76,18 +81,50 @@ procs="$procs $(cat "$wu/pids/server-1") $(cat "$wu/pids/helper-1")"
 wu_wait '[ "$(wu_listening "$P")" = yes ]'
 check "wrapup: the fixture server listens on :$P" yes "$(wu_listening "$P")"
 WU_SERVER=$(cat "$wu/pids/server-1"); WU_HELPER=$(cat "$wu/pids/helper-1")
+# The fixture browser runs outside the worktree, so it is no helper of it. Q is a port no part stops.
+( cd "$wu" && exec "$wu/bin/$WB" "$wu/pids/browser" >/dev/null 2>&1 & ); wu_wait "[ -s '$wu/pids/browser' ]"
+WU_BROWSER_PID=$(cat "$wu/pids/browser"); procs="$procs $WU_BROWSER_PID"
+Q=$((P + 1)); while [ "$(wu_listening "$Q")" = yes ]; do Q=$((Q+1)); done
+export WU_BROWSER="no.guerrilla.minmacs.wub$$.browser" WU_BROWSER_PID WU_TABS="$wu/tabs.json"
+wu_tabs_file() {
+  cat >"$WU_TABS" <<EOF
+{"tabs": [
+ {"pid": $WU_BROWSER_PID, "window": 1, "id": 11, "url": "http://localhost:$P/", "title": "App"},
+ {"pid": $WU_BROWSER_PID, "window": 1, "id": 12, "url": "http://127.0.0.1:$P/docs", "title": "Docs"},
+ {"pid": $WU_BROWSER_PID, "window": 1, "id": 13, "url": "http://[::1]:$P/admin", "title": "Admin"},
+ {"pid": $WU_BROWSER_PID, "window": 1, "id": 14, "url": "http://localhost:$Q/", "title": "Another server"},
+ {"pid": $WU_BROWSER_PID, "window": 1, "id": 15, "url": "https://example.org/", "title": "Elsewhere"},
+ {"pid": $WU_BROWSER_PID, "window": 2, "id": 21, "url": "http://localhost:$P/private", "title": "Private", "mode": "incognito"}
+], "closed": [], "opened": [], "reads": [], "denied": $1}
+EOF
+}
+wu_tabs_file false
+wu_tab() { python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print($1)" "$WU_TABS"; }
 
 echo "-- what Wrap Up would do"
 [ -n "${WU_DEBUG:-}" ] && "$T" verb clutter list --json | head -60
 J=$("$T" verb work wrap-up "$F" --dry-run --json); r=$?
 check "wrapup: the dry run exits 0" 0 "$r"
 check "wrapup: a merged worktree whose session ended is ready" True "$(echo "$J" | json "j['ready']")"
-check "wrapup: the parts run servers, helpers, caches, config, worktree" "servers helpers caches config worktree" \
+check "wrapup: a browser on no list in the rules gets no tabs part" "servers helpers caches config worktree" \
   "$(echo "$J" | json "' '.join(p['step'] for p in j['parts'])")"
-check "wrapup: each expert owns its part" "locohost minmacs noonoo workforest workforest" "$(echo "$J" | json "' '.join(p['expert'] for p in j['parts'])")"
+"$T" verb apps keep "$WU_BROWSER" >/dev/null 2>&1
+check "wrapup: a browser on the keep list gets no tabs part" "servers helpers caches config worktree" \
+  "$("$T" verb work wrap-up "$F" --dry-run --json | json "' '.join(p['step'] for p in j['parts'])")"
+"$T" verb apps close "$WU_BROWSER" >/dev/null 2>&1
+check "wrapup: the fixture browser is on the close list now" close \
+  "$(python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print('close' if sys.argv[2] in j['close'] else 'not')" "$wu/minmacs/rules.json" "$WU_BROWSER")"
+J=$("$T" verb work wrap-up "$F" --dry-run --json)
+check "wrapup: the parts run servers, helpers, tabs, caches, config, worktree" "servers helpers tabs caches config worktree" \
+  "$(echo "$J" | json "' '.join(p['step'] for p in j['parts'])")"
+check "wrapup: each expert owns its part" "locohost minmacs minmacs noonoo workforest workforest" "$(echo "$J" | json "' '.join(p['expert'] for p in j['parts'])")"
+check "wrapup: the tabs part names the count and the browser" "Close 3 localhost tabs in Fixture Browser" "$(echo "$J" | json "j['parts'][2]['title']")"
+check "wrapup: its dry run names the port and keeps the browser running" yes \
+  "$(echo "$J" | json "'yes' if ':$P' in j['parts'][2]['dryRun'] and 'keep Fixture Browser running' in j['parts'][2]['dryRun'] else j['parts'][2]['dryRun']")"
+check "wrapup: the dry run closes no tab" "6 0" "$(wu_tab "len(j['tabs']), len(j['closed'])" | tr -d '(),')"
 check "wrapup: the server part names the fixture port" yes "$(echo "$J" | json "'yes' if ':$P' in j['parts'][0]['title'] else j['parts'][0]['title']")"
 check "wrapup: the helper part is the fixture helper" yes "$(echo "$J" | json "'yes' if '$WH' in j['parts'][1]['title'] else j['parts'][1]['title']")"
-check "wrapup: the config part names .env.local" yes "$(echo "$J" | json "'yes' if '.env.local' in j['parts'][3]['dryRun'] else j['parts'][3]['dryRun']")"
+check "wrapup: the config part names .env.local" yes "$(echo "$J" | json "'yes' if '.env.local' in j['parts'][4]['dryRun'] else j['parts'][4]['dryRun']")"
 check "wrapup: every part says what it would do" 0 "$(echo "$J" | json "sum(1 for p in j['parts'] if not p['dryRun'])")"
 check "wrapup: the dry run changes nothing" "yes yes yes yes" \
   "$(wu_listening "$P") $(wu_alive "$WU_HELPER") $(wu_has "$F/node_modules") $(wu_has "$F/.env.local")"
@@ -113,16 +150,34 @@ check "wrapup: Wrap Up sits among the card's first four actions" yes "$(echo "$C
 check "wrapup: no Wrap Up when an untracked file is work" no "$("$T" card "$W/notes" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 check "wrapup: no Wrap Up on an unmerged branch" no "$("$T" card "$W/open" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 
+echo "-- the tabs part on main, as a menu builds the plan"
+wu_tabs_file true
+J=$("$T" plan "$F" 3)
+check "wrapup: on main with no read kept, the plan has no tabs part" no "$(echo "$J" | json "'yes' if any(p.startswith('tabs') for p in j[0]) else 'no'")"
+check "wrapup: a browser that would prompt is never read in the background" "no 0" \
+  "$(echo "$J" | json "'yes' if any(p.startswith('tabs') for p in j[2]) else 'no'") $(wu_tab "len(j['reads'])")"
+wu_tabs_file false
+J=$("$T" plan "$F" 3)
+check "wrapup: one the person allowed is read in the background, and the next plan shows it" yes \
+  "$(echo "$J" | json "'yes' if 'tabs Close 3 localhost tabs in Fixture Browser' in j[2] else j")"
+
 echo "-- Wrap Up runs as one step"
-J=$("$T" verb work wrap-up "$F" --json); r=$?
+WU_MOVE_URL="http://[::1]:$P/admin" "$T" verb work wrap-up "$F" --json >"$wu/run.json"; r=$?
+J=$(cat "$wu/run.json")
 check "wrapup: it exits 0" 0 "$r"
 check "wrapup: the record is done" done "$(echo "$J" | json "j['state']")"
 RID=$(echo "$J" | json "j['rid']")
-check "wrapup: one part record per part, all done" "5 done done done done done" \
+check "wrapup: one part record per part, all done" "6 done done done done done done" \
   "$(echo "$J" | json "' '.join([str(len(j['records']))] + [x['state'] for x in j['records']])")"
 check "wrapup: the server stopped" no "$(wu_listening "$P")"
 check "wrapup: the helper stopped" no "$(wu_alive "$WU_HELPER")"
 check "wrapup: the worktree is gone" no "$(wu_has "$F")"
+check "wrapup: the two localhost tabs on :$P closed" "http://localhost:$P/ http://127.0.0.1:$P/docs" "$(wu_tab "' '.join(j['closed'])")"
+check "wrapup: a tab that moved on since the read stays open" yes "$(wu_tab "'yes' if any(t['id'] == 13 and 'moved' in t['url'] for t in j['tabs']) else j['tabs']")"
+check "wrapup: a tab on a port no part stops stays open" yes "$(wu_tab "'yes' if any(t['id'] == 14 for t in j['tabs']) else 'no'")"
+check "wrapup: a tab on another host stays open" yes "$(wu_tab "'yes' if any(t['id'] == 15 for t in j['tabs']) else 'no'")"
+check "wrapup: a private window's tab is never closed" yes "$(wu_tab "'yes' if any(t['id'] == 21 for t in j['tabs']) and not any('private' in u for u in j['closed']) else 'no'")"
+check "wrapup: the browser still runs" yes "$(wu_alive "$WU_BROWSER_PID")"
 G -C "$A" rev-parse --verify -q feat >/dev/null; check "wrapup: the merged branch is deleted with -d" 1 "$?"
 check "wrapup: git no longer lists it" no "$(G -C "$A" worktree list | grep -q "$F" && echo yes || echo no)"
 U=$(python3 - "$wu/minmacs.sqlite" "$RID" <<'PY'
@@ -136,12 +191,16 @@ out = {'parent': latest[sys.argv[2]], 'parts': parts}
 print(json.dumps(out))
 PY
 )
-check "wrapup: the parts are numbered in the order they ran" "0 1 2 3 4" "$(echo "$U" | json "' '.join(str(p['payload']['part']) for p in j['parts'])")"
+check "wrapup: the parts are numbered in the order they ran" "0 1 2 3 4 5" "$(echo "$U" | json "' '.join(str(p['payload']['part']) for p in j['parts'])")"
 check "wrapup: the server part keeps its restart command" yes "$(echo "$U" | json "'yes' if 'http.server' in j['parts'][0]['payload']['restart']['command'] else j['parts'][0]['payload']")"
-check "wrapup: node_modules went to the Trash" yes "$(echo "$U" | json "'yes' if any(t['from'].endswith('/feat/node_modules') for t in j['parts'][2]['payload'].get('trashed', [])) else j['parts'][2]['payload']")"
-check "wrapup: .env.local went to the Trash" yes "$(echo "$U" | json "'yes' if any(t['from'].endswith('/feat/.env.local') for t in j['parts'][3]['payload'].get('trashed', [])) else j['parts'][3]['payload']")"
-check "wrapup: .env was saved before the worktree went" True "$(echo "$U" | json "'.env' in j['parts'][4]['payload']['recovery']['saved']")"
-check "wrapup: the record lists its parts" 5 "$(echo "$U" | json "len(j['parent']['payload']['parts'])")"
+check "wrapup: the tabs record is kind tabs and keeps the two closed URLs to reopen" "tabs http://localhost:$P/ http://127.0.0.1:$P/docs" \
+  "$(echo "$U" | json "' '.join([j['parts'][2]['kind']] + j['parts'][2]['payload']['reopen']['urls'])")"
+check "wrapup: it reopens in the browser it came from, after the other parts" "$WU_BROWSER True" \
+  "$(echo "$U" | json "j['parts'][2]['payload']['reopen']['bundleID'] + ' ' + str(j['parts'][2]['payload']['restoreLast'])")"
+check "wrapup: node_modules went to the Trash" yes "$(echo "$U" | json "'yes' if any(t['from'].endswith('/feat/node_modules') for t in j['parts'][3]['payload'].get('trashed', [])) else j['parts'][3]['payload']")"
+check "wrapup: .env.local went to the Trash" yes "$(echo "$U" | json "'yes' if any(t['from'].endswith('/feat/.env.local') for t in j['parts'][4]['payload'].get('trashed', [])) else j['parts'][4]['payload']")"
+check "wrapup: .env was saved before the worktree went" True "$(echo "$U" | json "'.env' in j['parts'][5]['payload']['recovery']['saved']")"
+check "wrapup: the record lists its parts" 6 "$(echo "$U" | json "len(j['parent']['payload']['parts'])")"
 check "wrapup: the restore list shows one record for the whole step" "$RID" \
   "$("$T" verb restore --list --json | json "[r['rid'] for r in j['records'] if r['kind'] == 'wrapup'][0]")"
 
@@ -169,13 +228,21 @@ for (b,) in c.execute("select body from rows where tbl='undo' order by rowid"):
     b = json.loads(b); latest[b['rid']] = b
 parts = sorted([b for b in latest.values() if b.get('parentRid') == sys.argv[2]], key=lambda b: b['payload']['part'])
 print(' '.join([latest[sys.argv[2]]['state']] + [b['state'] for b in parts]))
-# The order restore ran in: the time each part was marked restored, newest part first.
-at = [b['payload']['restored']['restoredAt'] for b in parts]
-print('reverse' if at == sorted(at, reverse=True) else 'not reverse')
+# The order restore ran in: the time each part was marked restored, newest part first, and the tabs part last.
+rest = [b for b in parts if b['kind'] != 'tabs']; tabs = [b for b in parts if b['kind'] == 'tabs']
+at = [b['payload']['restored']['restoredAt'] for b in rest]
+last = bool(tabs) and tabs[0]['payload']['restored']['restoredAt'] >= max(at)
+print('reverse' if at == sorted(at, reverse=True) else 'not reverse', 'last' if last else 'not last')
+print(min(at))
 PY
 )
-check "wrapup: the record and every part say restored" "restored restored restored restored restored restored" "$(echo "$R" | head -1)"
-check "wrapup: the parts came back newest first" reverse "$(echo "$R" | tail -1)"
+check "wrapup: the record and every part say restored" "restored restored restored restored restored restored restored" "$(echo "$R" | head -1)"
+check "wrapup: the parts came back newest first, the tabs after the servers" "reverse last" "$(echo "$R" | sed -n 2p)"
+check "wrapup: the closed tabs reopened in their browser" "http://localhost:$P/ http://127.0.0.1:$P/docs|$WU_BROWSER" \
+  "$(wu_tab "' '.join(o['url'] for o in j['opened']) + '|' + ' '.join(sorted(set(o['bundleID'] for o in j['opened'])))")"
+check "wrapup: they reopened once the server part was back" yes \
+  "$(wu_tab "'yes' if j['opened'] and min(o['at'] for o in j['opened']) >= $(echo "$R" | sed -n 3p) else j['opened']")"
+check "wrapup: and the server listened when they opened" yes "$(wu_listening "$P")"
 "$T" verb restore "$RID" >/dev/null 2>&1; check "wrapup: a second restore is refused, exit 1" 1 "$?"
 
 echo "-- a part that fails stops the rest, and the record says which"
@@ -207,12 +274,13 @@ check "wrapup: Core runs every part through MMRunActionPart" 1 "$(grep -c 'MMRun
 # fixture command: the helper under its run-unique name, or the http.server on this section's port.
 wu_ours() {
   c=$(ps -o command= -p "$1" 2>/dev/null)
-  case "$c" in "$wu/bin/$WH "*|*"http.server $P --bind 127.0.0.1"*) return 0 ;; esac
+  case "$c" in "$wu/bin/$WH "*|"$wu/bin/$WB "*|*"http.server $P --bind 127.0.0.1"*) return 0 ;; esac
   return 1
 }
 check "wrapup: a pid that runs no fixture command is never ours" no "$(wu_ours $$ && echo yes || echo no)"
 for x in $(cat "$wu"/pids/* 2>/dev/null) $(wu_listener "$P"); do wu_ours "$x" && kill -9 "$x" 2>/dev/null; done
 # The pids this section added to procs are stopped or gone, so the harness's cleanup never signals a reused one.
 procs="$wu_procs_before"
-unset MINMACS_ROOTS MINMACS_CLUTTER_ROOT MINMACS_CLUTTER_ROWS MINMACS_CLAUDE MINMACS_CODEX RV_TEST_SENT GIT_CONFIG_NOSYSTEM
+unset MINMACS_ROOTS MINMACS_CLUTTER_ROOT MINMACS_CLUTTER_ROWS MINMACS_CLAUDE MINMACS_CODEX RV_TEST_SENT GIT_CONFIG_NOSYSTEM \
+  WU_BROWSER WU_BROWSER_PID WU_TABS
 export CLAUDE_CONFIG_DIR="$wu_saved_claude" CODEX_HOME="$wu_saved_codex" MINMACS_HOME="$wu_top"
