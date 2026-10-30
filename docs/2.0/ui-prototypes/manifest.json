@@ -2358,5 +2358,25 @@
   "surface": "menubar",
   "groupId": "130",
   "direction": "Split Ring, the owner's cuts"
+ },
+ {
+  "file": "131-a.html",
+  "name": "Servers first, calm deck",
+  "idea": "Servers lead the left side and Worktrees the right, the two groups that usually hold the most. Servers shows up to 6 rows and Worktrees up to 12. Agents and Apps show their first rows, and Browser tabs and Helpers fold to one line with their total until you point at them, even when a fix touches them. Leftovers shows up to 10. At Busy the two sides end within about 25 px of each other. The deck is 130-a's: the first fix as a card and the rest as quiet rows.",
+  "good": "The sides weigh the same, and the two groups you check most are at the top of each side.",
+  "tradeoff": "Browser tabs and Helpers show only a total at rest, so a fix that touches them lights their line, not their rows, until you point at it.",
+  "surface": "menubar",
+  "groupId": "131",
+  "direction": "Split Ring, servers and worktrees first"
+ },
+ {
+  "file": "131-b.html",
+  "name": "Servers first, one fix",
+  "idea": "Servers lead the left side and Worktrees the right, the two groups that usually hold the most. Servers shows up to 6 rows and Worktrees up to 12. Agents and Apps show their first rows, and Browser tabs and Helpers fold to one line with their total until you point at them, even when a fix touches them. Leftovers shows up to 10. At Busy the two sides end within about 25 px of each other. The deck is 130-b's: the first fix and one line for the rest.",
+  "good": "The sides weigh the same, and the center holds one fix, so the page reads as servers, the Mac and worktrees.",
+  "tradeoff": "Browser tabs and Helpers show only a total at rest, and the other fixes need a hover.",
+  "surface": "menubar",
+  "groupId": "131",
+  "direction": "Split Ring, servers and worktrees first"
  }
 ]
