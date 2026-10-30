@@ -233,7 +233,8 @@ rest = [b for b in parts if b['kind'] != 'tabs']; tabs = [b for b in parts if b[
 at = [b['payload']['restored']['restoredAt'] for b in rest]
 last = bool(tabs) and tabs[0]['payload']['restored']['restoredAt'] >= max(at)
 print('reverse' if at == sorted(at, reverse=True) else 'not reverse', 'last' if last else 'not last')
-print(min(at))
+# When the server part came back: part 0 is the servers.
+print(parts[0]['payload']['restored']['restoredAt'] if parts and parts[0]['kind'] != 'tabs' else 1e18)
 PY
 )
 check "wrapup: the record and every part say restored" "restored restored restored restored restored restored restored" "$(echo "$R" | head -1)"

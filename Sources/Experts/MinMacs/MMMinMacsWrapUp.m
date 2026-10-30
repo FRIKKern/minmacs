@@ -422,7 +422,7 @@ void MMMinMacsRegisterTabRestore(void) {
             b.instanceKey = app.instanceKey;
             b.title = name;
             b.facts = facts;
-            b.proposal = [MMProposal verb:@"close-tabs" title:@"Close Tabs" reversibility:MMReversibleNotNeeded];
+            b.proposal = [MMProposal verb:@"close-tabs" title:@"Close Tabs" reversibility:MMReversibleRelaunch];
         }];
         MMMMTabsClose *a = [MMMMTabsClose new];
         a.finding = f;
