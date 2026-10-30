@@ -296,6 +296,7 @@ void MMCoreStart(void) {
     // 3. Know: agent events behind their flag, the session folders' FSEvents watch, the repo index with its own,
     // and the clutter scans.
     [MMAgentEvents.shared start];
+    [MMHistory.shared start];   // subagent starts from the events above; each graph build fills the rest
     [MMSessions.shared startWatching];
     gSessionsToken = [NSNotificationCenter.defaultCenter addObserverForName:MMSessionsDidChangeNotification object:MMSessions.shared
                                                                     queue:nil usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"sessions"]; }];
@@ -335,6 +336,7 @@ void MMCoreStop(void) {
     [MMGraph.shared stopObserving:gGraphToken]; gGraphToken = nil;
     [MMSenses.shared stopObserving:gSensesToken]; gSensesToken = nil;
     [MMSenses.shared stop];
+    [MMHistory.shared stop];
     [MMAgentEvents.shared stop];
     [MMSessions.shared stopWatching];
     if (gSessionsToken) { [NSNotificationCenter.defaultCenter removeObserver:gSessionsToken]; gSessionsToken = nil; }

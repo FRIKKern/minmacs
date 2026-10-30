@@ -216,10 +216,18 @@ echo "  info  review $(bsa '"%d findings in %s s, %d calls, %d uncached tokens, 
 echo "  info  memory $(bsa '"; ".join("%s: Core %s MB, worker %s MB" % (k, v["corePeakMB"], v["workerPeakMB"]) for k, v in j["memory"].items() if isinstance(v, dict))')"
 echo "  info  after $(bsa '"worker gone in %s s, then %s %% CPU over %s s, footprint %s MB, %s MB at launch" % (j["idleAfter"]["workerGoneSeconds"], j["idleAfter"]["cpuPercent"], j["idleAfter"]["windowSeconds"], j["idleAfter"]["footprintMB"], j["idleAfter"]["footprintAtLaunchMB"])')"
 
+# The last hour in memory at its caps, Graph/MMHistory.h: 250 trees for 60 minutes, so 200 rings, every slot full.
+bn_env "$bn_bin" history >"$bn/history.json" 2>"$bn/history.err"
+check "bench: the history run exits 0" 0 "$?"
+bhs() { json "$1" <"$bn/history.json" 2>/dev/null; }
+check "bench history: 250 trees give 200 rings, the rest refused" "200 198 yes" \
+  "$(bhs '"%d %d %s" % (j["rings"], j["treeRings"], "yes" if j["refused"] > 0 else j["refused"])')"
+echo "  info  history $(bhs '"store %s KB, a copy %s KB, footprint +%s KB; a fill of 250 trees %s us CPU at the median, a copy %s us, its JSON %d bytes" % (j["storeKB"], j["copyKB"], j["footprintGrowthKB"], j["fillUs"]["median"], j["copyUs"]["median"], j["jsonBytes"])')"
+
 # The gate. A budget over the phase 6 number but under today's ceiling prints as over and passes.
 bn_strict=""; [ "${MM_BENCH_STRICT:-}" = 1 ] && bn_strict=--strict
 python3 tools/bench/gate.py $bn_strict tools/bench/budgets.json "$bn/idle.json" "$bn/menus.json" \
-  "$bn/startup-first.json" "$bn/startup-later.json" "$bn/hangs.json" "$bs/first.json" "$bs/later.json" >"$bn/gate.txt"
+  "$bn/startup-first.json" "$bn/startup-later.json" "$bn/hangs.json" "$bs/first.json" "$bs/later.json" "$bn/history.json" >"$bn/gate.txt"
 bn_gate=$?
 bn_tab=$(printf '\t')
 while IFS="$bn_tab" read -r word what value budget ceiling; do

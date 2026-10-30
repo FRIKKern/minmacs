@@ -333,6 +333,22 @@ It passes on the same rules: no leak in MinMacs code, footprint growth under 5 M
 
 On the macos-26-arm64 runner the short soak's Senses holds each fixture server's process, with the soak's own uid, and reads no socket for it. The status line on 44c994d read `"inSample":1,"uid":501,"me":501,"sockets":0`, and no sample held a listener. On the same runner the minmacs CLI reads those servers in the locohost section, and on a Mac the soak reads them. Signing the soak binary with codesign did not change it. The cause is not found. On CI the check prints LocoHost's peak fixture findings and does not gate on them; on a Mac it gates.
 
+## The last hour in memory
+
+`bench history` fills `Graph/MMHistory.h` to its caps: 250 trees for 60 minutes, so 198 tree rings plus the Mac and the disk, with every state slot and all 256 subagent slots full. Then it makes 20 copies, as 20 builds would, and holds the last two. The app holds two as well: the graph's latest snapshot and main's current one, one build apart. The budget `historyKB` in `tools/bench/budgets.json` is 1 MB of footprint growth.
+
+On this Mac at a load average near 45, three runs of `bench history` alone read:
+
+| What | Value |
+|---|---|
+| The store's fixed arrays | 199 KB |
+| One copy at the caps | 199 KB |
+| Footprint growth with the store and two copies held | 736 to 752 KB |
+| A fill of 250 trees, CPU at the median | 69 us |
+| A copy, CPU at the median of 20 copies | 4.1 to 4.2 us |
+
+Each copy goes back to the store when no view reads it, and the store keeps two for the next copies, so 20 copies cost no more than two.
+
 ## Rerun
 
 ```sh

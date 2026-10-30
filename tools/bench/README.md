@@ -4,7 +4,7 @@ Issues #23, #51, #52, #53, #54 and #55. docs/2.0/MEASUREMENTS.md has the method 
 
 | File | What it does |
 |---|---|
-| `bench.m` | `idle`, `menus`, `hangs`, `startup`, `scale` and `apps`. Each prints one JSON object. `_walk` is the worker child. |
+| `bench.m` | `idle`, `menus`, `hangs`, `startup`, `scale`, `history` and `apps`. Each prints one JSON object. `_walk` is the worker child. |
 | `build.sh` | Builds `bench` from every `.m` under `Sources` except `main.m`, at -O2, eight files at a time. |
 | `run.sh` | A full run: idle with the old apps over the same window, menus, startup twice, the watchdog run, the gate and `report.md`. |
 | `scale.sh` | Issue #54: 300 fixture checkouts, a 20 GB clutter tree, two `scale` launches, the gate and `report.md`. |

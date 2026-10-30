@@ -34,6 +34,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P27 | `Know/MMFactCache.h` | `MMFactCache` for git facts, sizes and review fingerprints |
 | P28 to P30 | `Know/MMClutter.h` | `MMClutterKind`, `MMClutterItem`, `MMClutterCatalog`, `MMCachePathOf` |
 | P31 to P33 | `Graph/MMGraph.h` | `MMOwner`, `MMCost`, `MMEvidence`, `MMProposal`, `MMFinding`, `MMFacts`, `MMWorkstream`, `MMSnapshot`, `MMGraph` and its fresh facts |
+| none | `Graph/MMHistory.h` | The last hour in memory: `MMHistory`, its fixed rings and the read-only `MMHistoryView` each snapshot carries |
 | P34 to P37 | `Store/MMStore.h` | The support folder, prefs on `no.guerrilla.minmacs`, `MMRules`, `MMStateFile` |
 | P38 | `Store/MMLog.h` | The SQLite log for undo, restore, review history and trends, per decision 5 |
 | P39 to P47 | `Review/MMReview.h` | `MMUsage`, `MMModel`, `MMVerdictWords`, `MMVerdict`, `MMReview`, `MMRule`, `MMBudget`, `MMReviewRequest`, `MMReviewBroker` |
@@ -173,6 +174,14 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - `MMLogStamp()` changes with any write to the log, from any process. MinMacs and LocoHost read their undo records again only when it moved.
 - Store stats the support folder before it makes it, checks a rules file at most once a second unless this process wrote one, and parses the test prefs and the keeps file again only when their inode, change time or size moved.
 - `-[MMGraph costs]` and `-[MMSenses counts]` hold thread CPU time by part and by expert. Signposts in subsystem `no.guerrilla.minmacs`, category `tick`, mark the pass, each rebuild and each expert's findings.
+
+## The last hour, wave 6
+
+- `MMHistory` keeps one value a minute for 60 minutes in memory, never on disk: whole-Mac CPU percent and memory used, free disk, and the tree CPU and footprint of each live agent and each LocoHost server. A tree's ring is keyed by `MMProcKey`, so a pid used again starts a new ring. Each agent ring keeps its last 32 state changes with times, and the store keeps the last 256 subagent starts from `SubagentStart` events.
+- It has no timer. `-[MMGraph buildNow]` calls `-fillFrom:` once per build, before it publishes, and the snapshot carries the copy as `history`. The fill reads the host's CPU ticks and VM counters with two `host_statistics` calls. A build the graph skips adds nothing, and the graph builds at least every 30 seconds.
+- The caps are fixed arrays: 200 rings, the Mac and the disk among them, at 928 bytes a ring. A ring whose process is gone is dropped 10 minutes after it went, or sooner when a new tree needs its room. Each pass that finds 200 live rings for a new tree counts it as refused.
+- A copy is one memcpy into a buffer with room for the caps. The store keeps two such buffers that no view reads any more, so a build every 5 seconds reuses the same memory. `bench history` measures the footprint at the caps, with the store and two copies held, against the `historyKB` budget of 1 MB.
+- `minmacs history [--json]` prints the copy. A cold CLI has none, since nothing is kept on disk.
 
 ## How the parts meet
 

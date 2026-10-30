@@ -117,6 +117,16 @@ Flags: `--list`, `--expert`, `--limit`, `--dry-run`, `--json`.
 
 It changes things, so it runs only through the running app, unless `--dry-run` is given.
 
+#### `history`
+
+The last hour in memory: Mac, disk, agent and server rings, one value a minute.
+
+```
+history [--json]
+```
+
+Flags: `--json`.
+
 #### `mode`
 
 Show or set an expert's mode.
