@@ -300,6 +300,9 @@ static uint64_t Allocated(NSArray<NSDictionary *> *audit) {
     if (!k.cleanupArgs.count) return @"its row names no command";
     if (k.reportOnly) return k.ownerSetting ?: @"its row only reports it";
     NSString *name = k.cleanupArgs.firstObject;
+    // The dry run must come first when the row has one. A dry run of another program would be skipped, so it refuses.
+    if (k.dryRunArgs.count && !self.dryArgs)
+        return [NSString stringWithFormat:@"its dry run runs %@, not %@", k.dryRunArgs.firstObject, name];
     NSString *now = MMClutterToolPath(name);
     if (!self.toolPath || !now) return [NSString stringWithFormat:@"%@ is not installed", name];
     if (![now isEqualToString:self.toolPath]) return [NSString stringWithFormat:@"%@ moved since this was asked, to %@", name, now.stringByAbbreviatingWithTildeInPath];

@@ -316,6 +316,11 @@ NNROW
 {"id": "nn-fake-nodry", "title": "Fake store", "group": "js", "class": "tool", "paths": ["~/.nnfake/nodry"],
  "cleanup": ["$nnx_tool", "prune"], "dryRun": null, "every": 600}
 NNROW
+  cat >"$nn/rows/nn-fake-otherdry.json" <<NNROW
+{"id": "nn-fake-otherdry", "title": "Fake other", "group": "js", "class": "tool", "paths": ["~/.nnfake/otherdry"],
+ "cleanup": ["$nnx_tool", "prune"], "dryRun": ["nnother$$", "--dry-run"], "every": 600}
+NNROW
+  mkdir -p "$nnx_dir/otherdry"; printf 'o\n' >"$nnx_dir/otherdry/o.bin"
   nnx_fill() {
     dd if=/dev/urandom of="$nnx_dir/cache/blobs/a.bin" bs=1024 count=2048 2>/dev/null
     printf 'idx\n' >"$nnx_dir/cache/index"
@@ -343,10 +348,12 @@ NNROW
   echo "-- its fresh check"
   check "noonoo: a running quitFirst app refuses the dry run" "1 yes" \
     "$(NN_RUNNING_APPS="com.apple.finder,$nnx_app" nnx verb clean "$nnx_c" --command --dry-run >"$nn/q.txt" 2>&1; echo $?) $(grep -q "quit $nnx_app first" "$nn/q.txt" && echo yes || echo no)"
-  check "noonoo: a running quitFirst app refuses the command, which leaves every file" "1 2" \
-    "$(NN_RUNNING_APPS="$nnx_app" nnx verb clean "$nnx_c" --command >/dev/null 2>&1; echo $?) $(nnx_files cache)"
+  check "noonoo: a running quitFirst app refuses the command, which leaves every file" "1 yes 2" \
+    "$(NN_RUNNING_APPS="$nnx_app" nnx verb clean "$nnx_c" --command >"$nn/q.txt" 2>&1; echo $?) $(grep -q "quit $nnx_app first" "$nn/q.txt" && echo yes || echo no) $(nnx_files cache)"
   check "noonoo: an app of another bundle id does not hold it" 0 \
     "$(NN_RUNNING_APPS="com.apple.finder" nnx verb clean "$nnx_c" --command --dry-run >/dev/null 2>&1; echo $?)"
+  check "noonoo: a dry run that names another program refuses the command, which leaves its file" "1 yes 1" \
+    "$(nnx verb clean "$nnx_dir/otherdry" --command >"$nn/q.txt" 2>&1; echo $?) $(grep -q "its dry run runs nnother$$, not $nnx_tool" "$nn/q.txt" && echo yes || echo no) $(nnx_files otherdry)"
   mv "$nn/tools/$nnx_tool" "$nn/tools/$nnx_tool.off"
   check "noonoo: with the tool gone from its path the command is refused" "1 yes 2" \
     "$(nnx verb clean "$nnx_c" --command >"$nn/q.txt" 2>&1; echo $?) $(grep -q "$nnx_tool is not installed" "$nn/q.txt" && echo yes || echo no) $(nnx_files cache)"

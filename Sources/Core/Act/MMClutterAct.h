@@ -28,7 +28,8 @@ NSArray<NSDictionary *> *MMClutterAudit(NSArray<NSString *> *paths);
 /// -[MMUndo restore:] refuses.
 /// Only a person asks for it: by must be "manual" or "cli", and recheck refuses anything else. No expert hands it to a
 /// mode, a plan, Tidy or Wrap Up, since -[MMExpert actionFor:step:] never returns it.
-/// recheck, right before it runs: the row still names the command and is not report only, the tool's binary is still
+/// recheck, right before it runs: the row still names the command and is not report only, a dry-run form names the
+/// same binary as the command, the tool's binary is still
 /// the executable file MMClutterToolPath named when the action was made, no app the row's quitFirst names is running,
 /// the item is still there and free, and every path passes the walls.
 /// perform, through MMRunTask with a time limit each: the dry-run form first when the row has one, and nothing more
