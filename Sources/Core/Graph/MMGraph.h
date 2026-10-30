@@ -8,7 +8,7 @@
 #import "Core/Know/MMGit.h"
 #import "Core/Know/MMClutter.h"
 
-@class MMReview;
+@class MMReview, MMHistoryView;
 @protocol MMExpert;
 
 /// The kinds of owner a finding can have.
@@ -184,6 +184,8 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 @property (readonly) NSDictionary<NSString *, NSString *> *awakeHolds;
 /// What each expert's -prepareFor: made for this snapshot, or nil. Main reads it, so a menu never waits on disk.
 - (id)preparedFor:(NSString *)expert;
+/// The last hour as of this build, a read-only copy from Graph/MMHistory.h. nil for a snapshot built by hand.
+@property (readonly) MMHistoryView *history;
 /// Calls -prepareFor: of each expert that has it, once, on the calling queue. The graph queue calls it before it
 /// publishes the snapshot. A test, the bench or the render tool that builds a snapshot by hand calls it off main.
 - (void)prepareFor:(NSArray<id<MMExpert>> *)experts;

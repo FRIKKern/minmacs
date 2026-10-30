@@ -20,6 +20,8 @@
     {"key": "summariesAfterLaunchMs", "max": 5000, "ceiling": 5000, "unit": "ms", "what": "every summary after launch, headless", "input": "startup",
      "from": "bench startup: MMMain's start to the first summary line of every expert"},
     {"key": "mainStalls", "max": 0, "ceiling": 0, "unit": "stalls", "what": "main-thread stalls over 50 ms in menu opens and card hovers", "input": "hangs",
-     "from": "bench hangs: every expert's menu and cards under the watchdog, with Core running"}
+     "from": "bench hangs: every expert's menu and cards under the watchdog, with Core running"},
+    {"key": "historyKB", "max": 1024, "ceiling": 1024, "unit": "KB", "what": "the last hour in memory at its caps", "input": "history",
+     "from": "bench history: 200 rings of 60 minutes with every state and subagent slot full, the footprint growth with the store and one copy held"}
   ]
 }

@@ -20,6 +20,7 @@
 // Like MMFinding.m, this file sends messages to Senses and Know objects and never names their classes,
 // so tests can hand it facts built from objects of their own.
 #import "Core/Graph/MMGraph.h"
+#import "Core/Graph/MMHistory.h"
 #import "Core/MMExpert.h"
 #import "Core/Runtime/MMRuntime.h"
 #import <stdatomic.h>
@@ -244,6 +245,7 @@ static uint64_t FactsDigest(MMFacts *f) {
 @property NSDictionary<NSString *, MMReview *> *reviews;
 @property NSInteger working;
 @property NSDictionary<NSString *, id> *prepared;
+@property (readwrite) MMHistoryView *history;
 @end
 
 /// One live agent session while a build runs: a session, an agent, or both.
@@ -734,6 +736,8 @@ static NSString *SizeBucket(uint64_t bytes) {
     snap.awakeHolds = [kept copy];
     [_holds setDictionary:kept];
     for (NSString *k in _holdSince.allKeys) if (!kept[k]) [_holdSince removeObjectForKey:k];
+    // The last hour, filled by this build and copied into the snapshot, Graph/MMHistory.h.
+    snap.history = [MMHistory.shared fillFrom:snap];
     // What each menu reads, made here so main never reads the keeps, rules, prefs or undo log.
     [snap prepareFor:self.experts];
     // A build that was running when -stop came publishes nothing. The check and the store share -stop's lock,

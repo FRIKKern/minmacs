@@ -15,6 +15,7 @@
 #import "Core/Know/MMClutter.h"
 #import "Core/Know/MMTreeDisk.h"
 #import "Core/Graph/MMGraph.h"
+#import "Core/Graph/MMHistory.h"
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Review/MMReview.h"

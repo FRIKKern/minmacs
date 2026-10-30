@@ -11,6 +11,7 @@
 //   bench startup [--wait N]              the app's launch headless: Core, the items without the status bar, and
 //                                         each expert's first summary line, timed from where MMMain starts
 //   bench apps                            the old apps that run now, read once with proc_pid_rusage
+//   bench history [--trees N]             the last hour of Graph/MMHistory.h at its caps: footprint, fill and copy
 //
 // Each prints one JSON object on stdout. It reads itself with getrusage, task_info and proc_pid_rusage,
 // and the old apps with proc_pid_rusage and ps. It never signals a process.
@@ -20,6 +21,7 @@
 #import <mach/mach.h>
 #import <mach/mach_time.h>
 #import <libproc.h>
+#import <malloc/malloc.h>
 #import <pthread/qos.h>
 #import <sys/resource.h>
 #import <sys/sysctl.h>
@@ -1453,6 +1455,66 @@ static int Scale(NSArray<NSString *> *args) {
     return 0;
 }
 
+#pragma mark - History
+
+/// The last hour at its caps, Graph/MMHistory.h: 250 trees for 60 minutes, so 198 tree rings plus the Mac and the
+/// disk, every state slot and every subagent slot full, then one copy as a build makes it. The footprint is read
+/// before and after, with the copy held, so the number is what the store and one snapshot's copy cost together.
+/// The fill and the copy are timed at the caps too, since a build makes both.
+static int History(NSArray<NSString *> *args) {
+    if (!SafeEnvironment()) return 2;
+    int trees = Option(args, @"--trees", @"250").intValue, copies = MAX(1, Option(args, @"--copies", @"20").intValue);
+    NSMutableArray<MMHistoryTreeSample *> *many = [NSMutableArray new];
+    for (int i = 0; i < trees; i++) {
+        MMHistoryTreeSample *x = [MMHistoryTreeSample new];
+        x.kind = i % 2 ? MMHistoryServer : MMHistoryAgent; x.key = (MMProcKey){ 20000 + i, 1 };
+        x.cpuPercent = 1; x.footprint = 64ull << 20; x.state = MMAgentWorking;
+        x.label = @"claude-code"; x.ident = [NSString stringWithFormat:@"locohost:server:/bench/fixture/%d#dev", i];
+        [many addObject:x];
+    }
+    NSTimeInterval t0 = floor(NSDate.date.timeIntervalSince1970 / 60) * 60 - 3600;
+    malloc_zone_pressure_relief(NULL, 0);
+    MMBenchSelf a = ReadSelf();
+    MMHistory *h = [MMHistory new];
+    NSMutableArray *fillUs = [NSMutableArray new], *copyUs = [NSMutableArray new];
+    MMHistoryView *v = nil;
+    for (int m = 0; m < 60; m++) @autoreleasepool {
+        NSTimeInterval t = t0 + m * 60;
+        uint64_t c0 = ThreadCPUNs();
+        [h noteMacCPU:m memoryUsed:8ull << 30 diskFree:100ull << 30 at:t];
+        [h noteTrees:many at:t];
+        uint64_t c1 = ThreadCPUNs();
+        for (int k = 0; k < 5; k++) [h noteSubagentStart:@"claude-code" session:[NSString stringWithFormat:@"bench-%d-%d", m, k] at:t + k];
+        [fillUs addObject:@((c1 - c0) / 1e3)];
+    }
+    for (int i = 0; i < MMHistoryMaxStates + 8; i++) @autoreleasepool {
+        for (MMHistoryTreeSample *x in many) x.state = i % 2 ? MMAgentIdle : MMAgentWorking;
+        uint64_t c0 = ThreadCPUNs();
+        [h noteTrees:many at:t0 + 3540 + i];
+        [fillUs addObject:@((ThreadCPUNs() - c0) / 1e3)];
+    }
+    malloc_zone_pressure_relief(NULL, 0);
+    MMBenchSelf filled = ReadSelf();
+    for (int i = 0; i < copies; i++) @autoreleasepool {
+        uint64_t c0 = ThreadCPUNs();
+        MMHistoryView *x = [h viewAt:t0 + 3599];
+        [copyUs addObject:@((ThreadCPUNs() - c0) / 1e3)];
+        if (i == copies - 1) v = x;
+    }
+    MMBenchSelf raw = ReadSelf();
+    // Freed copies the allocator keeps on its free lists count in the raw number. The pressure relief hands those
+    // pages back, as the system asks for under memory pressure, so the gated number is what the store and one copy hold.
+    malloc_zone_pressure_relief(NULL, 0);
+    MMBenchSelf b = ReadSelf();
+    int64_t grew = (int64_t)b.footprint - (int64_t)a.footprint, grewRaw = (int64_t)raw.footprint - (int64_t)a.footprint;
+    PrintJSON(@{@"kind": @"history", @"trees": @(trees), @"rings": @(v.rings), @"treeRings": @(v.trees.count), @"refused": @(v.refused),
+                @"subagentStarts": @(v.subagentStarts.count), @"storeKB": R2(v.storeBytes / 1024.0), @"copyKB": R2(v.copyBytes / 1024.0),
+                @"footprintGrowthKB": R2(grew / 1024.0), @"footprintGrowthRawKB": R2(grewRaw / 1024.0),
+                @"footprintAfterFillKB": R2(((int64_t)filled.footprint - (int64_t)a.footprint) / 1024.0), @"fillUs": Stats(fillUs), @"copyUs": Stats(copyUs),
+                @"jsonBytes": @([NSJSONSerialization dataWithJSONObject:v.json options:0 error:nil].length)});
+    return 0;
+}
+
 #pragma mark - Apps
 
 static int Apps(void) {
@@ -1485,8 +1547,9 @@ int main(int argc, const char *argv[]) {
         if ([mode isEqualToString:@"startup"]) return Startup(args);
         if ([mode isEqualToString:@"apps"]) return Apps();
         if ([mode isEqualToString:@"scale"]) return Scale(args);
+        if ([mode isEqualToString:@"history"]) return History(args);
         fprintf(stderr, "usage: bench idle --seconds N [--warmup N] | menus [--iterations N] | hangs [--rounds N] | startup [--wait N] | apps\n"
-                        "       bench scale [--expect N] [--warm N] [--clutter] [--review N] [--idle S]\n");
+                        "       bench scale [--expect N] [--warm N] [--clutter] [--review N] [--idle S] | history [--trees N]\n");
         return 2;
     }
 }

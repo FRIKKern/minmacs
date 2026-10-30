@@ -46,10 +46,11 @@ run startup >"$OUT/startup-first.json"
 run startup >"$OUT/startup-later.json"
 HOME_DIR=$HOME_DIR_KEEP
 run hangs --rounds 10 >"$OUT/hangs.json" 2>"$OUT/hangs.err"
+run history >"$OUT/history.json"
 strict=""
 [ "${MM_BENCH_STRICT:-}" = 1 ] && strict=--strict
 python3 tools/bench/gate.py $strict tools/bench/budgets.json "$OUT/idle.json" "$OUT/menus.json" \
-  "$OUT/startup-first.json" "$OUT/startup-later.json" "$OUT/hangs.json" >"$OUT/gate.txt" && r=0 || r=$?
+  "$OUT/startup-first.json" "$OUT/startup-later.json" "$OUT/hangs.json" "$OUT/history.json" >"$OUT/gate.txt" && r=0 || r=$?
 python3 tools/bench/report.py "$OUT/idle.json" "$OUT/menus.json" "$OUT/host.txt" \
   "$OUT/startup-first.json" "$OUT/startup-later.json" "$OUT/hangs.json" >"$OUT/report.md"
 cat "$OUT/report.md" "$OUT/gate.txt"

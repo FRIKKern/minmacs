@@ -2,7 +2,7 @@
 """The regression gate: reads results from tools/bench/bench and checks them against budgets.json.
 
 Usage: gate.py [--strict] budgets.json result.json ...
-Each result is known by its kind: idle, menus, startup, hangs or scale. A budget whose input is not given is skipped.
+Each result is known by its kind: idle, menus, startup, hangs, scale or history. A budget whose input is not given is skipped.
 A budget with no input reads the idle and menus runs. tools/bench/run.sh gives idle, menus, two startups and hangs.
 tools/bench/scale.sh gives two scale runs, a launch with no caches and a later one, issue #54.
 Prints one line per budget, tab separated: a word, the budget's what, the value, the phase 6 budget, the ceiling.
@@ -46,7 +46,7 @@ def scale_values(scales):
     return v
 
 
-def values(idle, menus, startups=(), hangs=None, scales=()):
+def values(idle, menus, startups=(), hangs=None, scales=(), history=None):
     """The number each budget key reads. A per-expert budget gives its worst expert."""
     v = {} if idle is None else {
         "idleCPUPercent": (idle["cpuPercent"], ""),
@@ -75,6 +75,8 @@ def values(idle, menus, startups=(), hangs=None, scales=()):
     if hangs is not None:
         v["mainStalls"] = (len(hangs["stalls"]) if hangs.get("finished") else None, "")
     v.update(scale_values(scales))
+    if history is not None:
+        v["historyKB"] = (history["footprintGrowthKB"], "%d rings, store %s KB and a copy %s KB" % (history["rings"], history["storeKB"], history["copyKB"]))
     return v
 
 
@@ -89,9 +91,10 @@ def main():
     startups = [x for x in results if x.get("kind") == "startup"]
     hangs = next((x for x in results if x.get("kind") == "hangs"), None)
     scales = [x for x in results if x.get("kind") == "scale"]
-    given = {"startup": bool(startups), "hangs": hangs is not None, "scale": bool(scales),
+    history = next((x for x in results if x.get("kind") == "history"), None)
+    given = {"startup": bool(startups), "hangs": hangs is not None, "scale": bool(scales), "history": history is not None,
              "": idle is not None and menus is not None}
-    v = values(idle, menus, startups, hangs, scales)
+    v = values(idle, menus, startups, hangs, scales, history)
     failed = 0
     for b in budgets:
         what = b["what"]
