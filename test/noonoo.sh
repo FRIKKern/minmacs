@@ -324,7 +324,9 @@ NNROW
   nnx_fill
   nnx_files() { find "$nnx_dir/$1" -type f | wc -l | tr -d ' '; }
   nn_rowdirs="$ROOT/registry/clutter:$nn/rows"
-  nnx() { NN_FAKE_DIR="$nnx_dir" nn_env "$nn/tool" "$@"; }
+  nnx_sleeper="$nn/nnsleep$$"
+  clang -O1 test/insomnia/sleeper.c -o "$nnx_sleeper" 2>"$nn/sleeper.log"
+  nnx() { NN_FAKE_DIR="$nnx_dir" NN_FAKE_SLEEPER="$nnx_sleeper" nn_env "$nn/tool" "$@"; }
   nnx_show() { nnx verb clutter show "$1" --json 2>/dev/null | python3 -c "import json,sys; j=json.load(sys.stdin)[0]; print($2)"; }
   nnx_last() { nnx undo | python3 -c "import json,sys; j=[r for r in json.load(sys.stdin) if r['kind']=='tool']; print($1)"; }
   nnx scan >/dev/null 2>&1
@@ -409,6 +411,7 @@ NNROW
   nnx_alive() { case "$1" in ''|*[!0-9]*) echo nopid; return ;; esac; [ "$1" -gt 1 ] && kill -0 "$1" 2>/dev/null && echo alive || echo gone; }
   check "noonoo: the stopped tool is gone" gone "$(nnx_alive "$nnx_slow")"
   [ "$(nnx_alive "$nnx_slow")" = alive ] && kill "$nnx_slow" 2>/dev/null
+  check "noonoo: no fixture sleeper of this run is left" 0 "$(pgrep -f "$nnx_sleeper" | grep -c .)"
   nn_rowdirs=""
   check "noonoo: the files the slow tool never reached stay" 2 "$(nnx_files cache)"
 fi
