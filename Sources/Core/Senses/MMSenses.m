@@ -415,7 +415,8 @@ NSRunningApplication *MMOwningApp(MMSample *s, pid_t pid) {
 @property (readwrite) int batteryPercent;
 @property (readwrite) NSProcessInfoThermalState thermal;
 @property (readwrite) NSInteger memoryPressure;
-@property (readwrite) uint64_t diskFree;
+@property (readwrite) uint64_t diskFree, diskTotal;
+@property (readwrite) MMNet *net;
 @property (readwrite) NSDictionary<NSNumber *, NSArray<NSDictionary *> *> *assertionsByPid;
 @end
 
@@ -493,7 +494,10 @@ static MMPower *ReadPowerFromSystem(void) {
     if (sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &len, NULL, 0) != 0) level = 1;
     p.memoryPressure = level;
     struct statfs fs;
-    if (statfs(NSHomeDirectory().fileSystemRepresentation, &fs) == 0) p.diskFree = (uint64_t)fs.f_bavail * fs.f_bsize;
+    if (statfs(NSHomeDirectory().fileSystemRepresentation, &fs) == 0) {
+        p.diskFree = (uint64_t)fs.f_bavail * fs.f_bsize;
+        p.diskTotal = (uint64_t)fs.f_blocks * fs.f_bsize;
+    }
     CFDictionaryRef byPid = NULL;
     if (IOPMCopyAssertionsByProcess(&byPid) == kIOReturnSuccess && byPid) {
         NSDictionary *d = CFBridgingRelease(byPid);
@@ -1028,13 +1032,17 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     uint64_t cpuCarry = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
     MMPower *p = ReadPower();
     MMPower *old = self.power;
+    // The network after the power facts, with its own time, so bench idle shows what it costs.
+    uint64_t cpuPower = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
+    p.net = MMNetRead(old.net);
     uint64_t cpu = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu0;
     os_unfair_lock_lock(&_lock);
     _latest = s; _power = p;
     _counts.passes++; _counts.pids += s.procs.count; _counts.argsCarried += argsCarried; _counts.cwdsCarried += cwdsCarried;
     _counts.socketPidsScanned += scanned; _counts.socketPidsCarried += carried; _counts.cpuNs += cpu;
     _counts.tableNs += cpuTable - cpu0; _counts.procsNs += cpuProcs - cpuTable; _counts.socketsNs += cpuSockets - cpuProcs;
-    _counts.carryNs += cpuCarry - cpuSockets; _counts.powerNs += cpu0 + cpu - cpuCarry;
+    _counts.carryNs += cpuCarry - cpuSockets; _counts.powerNs += cpuPower - cpuCarry;
+    _counts.netNs += cpu0 + cpu - cpuPower;
     os_unfair_lock_unlock(&_lock);
     os_signpost_interval_end(MMTickLog(), sp, "pass", "%zu pids, %llu socket reads, %llu carried", s.procs.count, scanned, carried);
     [self pace:p];
@@ -1059,6 +1067,8 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     MMPower *p = ReadPower();
     os_unfair_lock_lock(&_lock);
     MMPower *old = _power; _power = p;
+    // The network is read once a pass, so its rates keep one step each. A pushed change keeps the pass's reading.
+    if (!p.net) p.net = old.net;
     os_unfair_lock_unlock(&_lock);
     MMSignal c = [self changesFrom:old to:p];
     if (c & MMSignalPower) [self pace:p];   // plugging in returns to the base interval at once

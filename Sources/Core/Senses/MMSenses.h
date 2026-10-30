@@ -3,6 +3,7 @@
 // Never in a tick: lsof, nettop, ps or pmset. One KERN_PROC_ALL sysctl covers every pid.
 #import <Foundation/Foundation.h>
 #import <sys/types.h>
+#import "Core/Senses/MMNet.h"
 
 @class NSRunningApplication;
 
@@ -77,8 +78,8 @@ typedef struct {
     uint64_t passes, pids, argsCarried, cwdsCarried, socketPidsScanned, socketPidsCarried;
     uint64_t cpuNs;                                     // thread CPU time spent in passes
     // The same time by part: the process table, each process's rusage and its object, the sockets,
-    // what the sample took from the last one, and the power facts.
-    uint64_t tableNs, procsNs, socketsNs, carryNs, powerNs;
+    // what the sample took from the last one, the power facts, and the network of MMNet.h.
+    uint64_t tableNs, procsNs, socketsNs, carryNs, powerNs, netNs;
 } MMSensesCounts;
 
 /// One running app as NSWorkspace lists it. The list is read again after an app launches or quits, and
@@ -118,6 +119,10 @@ NSArray<MMApp *> *MMRunningApps(void);
 @property (readonly) NSProcessInfoThermalState thermal;
 @property (readonly) NSInteger memoryPressure;          // 1 normal, 2 warn, 4 critical, as DISPATCH_MEMORYPRESSURE_*
 @property (readonly) uint64_t diskFree;                 // bytes free on the home volume
+@property (readonly) uint64_t diskTotal;                // the home volume's size, from the same statfs
+/// The whole Mac's network, read in the same pass. A pushed power change keeps the pass's reading.
+/// nil before the first pass, and in a sheet a test built with MMPowerFrom unless it names one.
+@property (readonly) MMNet *net;
 /// IOPMCopyAssertionsByProcess: the power assertions each pid holds, such as a caffeinate child of an agent.
 @property (readonly) NSDictionary<NSNumber *, NSArray<NSDictionary *> *> *assertionsByPid;
 @end

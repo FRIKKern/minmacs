@@ -39,6 +39,16 @@ status [--json]
 
 Flags: `--json`.
 
+#### `net`
+
+The whole Mac's network: the route out, bytes and rates, and the home volume's size.
+
+```
+net [--json]
+```
+
+Flags: `--json`.
+
 #### `work`
 
 Each workstream, or Wrap Up of a finished one.

@@ -24,6 +24,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P63 | `Runtime/MMCoreSocket.h` | `core.sock`, the instance lock and the same-uid check. The CLI side lives in `Sources/CLI` |
 | P6 to P14, P66 | `Senses/MMSenses.h` | `MMProcKey`, `MMProc`, `MMSample`, `MMSocket`, `MMPower`, `MMSignal`, `MMSenses`, the test `MMPowerSource` |
 | P15 | `Senses/MMFolders.h` | `MMFolderWatch` on FSEvents |
+| P13 | `Senses/MMNet.h` | `MMNet` and `MMNetInterface`: the whole Mac's bytes and rates, and the route out with its kind. `MMPower.net` holds the latest |
 | P16 | `Know/MMSizer.h` | `MMSize` and `MMSizer`, three tiers. PLAN.md lists the Sizer under Know |
 | P16 | `Know/MMTreeDisk.h` | `MMTreeDisk`: one walk per checkout for its size, freed bytes, caches and newest change, from WorkForest's WalkDisk |
 | P17, P18 | `Know/MMRegistry.h` | `MMAgentRow`, `MMAgent`, `MMRegistry` and the ranked working signal |
@@ -51,6 +52,20 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 - A zombie, a process that exited and waits for its parent to reap it, is left out of the sample, and `MMProcAlive` says it is gone. Every array a sample hands out is immutable.
 - `-[MMSenses stop]` ends the timer, the pushed sources and the notification observers. `MMCoreStop` calls it.
 - `MMPower.online` says a default route exists, from one `NET_RT_FLAGS` sysctl per address family. It stands in for Insomnia's reachability check, and a change fires `MMSignalPower`. Issue #31 added it for Insomnia's offline guard.
+
+### The network and the volume, wave 7
+
+The 2.0 designs ask for the whole Mac's down and up rates, the route out and the disk's size. `Senses/MMNet.h` reads them in the pass, after the power facts, and `MMPower.net` holds the reading. `MMPower.diskTotal` comes from the same statfs as `diskFree`.
+
+- The counters come from one `IFMIB_IFDATA` sysctl per interface index, 64 bits wide. On this Mac `NET_RT_IFLIST2` handed the same process en0's bytes cut to 32 bits and rounded to 1 KB, and getifaddrs has 32-bit counters, so neither is used.
+- Loopback is left out. A tunnel such as utun, ipsec or ppp is summed apart, since a VPN's traffic also crosses en0. A bridge, vlan or bond is listed with its rate and is in no sum, since it adds up its members.
+- A rate is the step between two passes over `CLOCK_MONOTONIC_RAW`. A counter that goes back is a 32-bit wrap only when it was in the top quarter of 32 bits and the step fits the link. Otherwise the interface was reset and its step counts 0. A step past one and a half times the link's own speed, or past 100 Gbit/s, counts 0 too. An interface that went away leaves the list and the sums, and one that comes back counts 0 in its first pass. The first reading has no rate, which JSON prints as null.
+- The route is `PrimaryInterface` of `State:/Network/Global/IPv4`, or IPv6 when IPv4 has none, from one `SCDynamicStoreCopyMultiple` on a store made once. Its kind is wifi, ethernet, phone, tunnel, other or none, from the `SCNetworkInterface` type and display name. An Ethernet interface named iPhone, iPad, RNDIS or Android, Bluetooth PAN and WWAN count as a phone. `SCNetworkInterfaceCopyAll` costs about 9 ms, so it runs once per new interface name, and at most once a minute for a name it does not list. `MMNet.online` is YES when a primary route exists.
+- `MMNet.m` links SystemConfiguration with a `.linker_option` in its object file, so no link line had to change.
+- A pushed power change between passes keeps the pass's reading, so each rate covers one step of the pass. `MMSensesCounts.netNs` times the read apart from `powerNs`, and bench idle prints it as `partsCPUms.net`.
+- With `-DMM_TESTS`, `MMUseNetSource` stands in for the sysctl and SystemConfiguration. `test/net.sh` steps `MMNetNext` through wraps, resets, a gone interface, a VPN and offline, and reads the real counters once through `minmacs net --json`.
+- `-[MMSenses power].net` never blocks, so main may read it for a live rate. The snapshot's `facts.power.net` is as old as the snapshot's build. The graph skips a build whose facts digest did not move, and the rates are not in the digest, so that copy can be up to 30 seconds old. `MMNet.online` is not in the digest either. `MMPower.online` is, and a change fires `MMSignalPower`.
+- `minmacs net [--json]` prints the reading and the volume. `status --json` carries the same `net` and `volume` keys. A cold run has one pass, so `net` takes a second pass a second later for the rate, and `status --json` prints null rates.
 
 ## Know in phase 1
 
