@@ -2338,5 +2338,25 @@
   "surface": "menubar",
   "groupId": "129",
   "direction": "Mac at Center, calm"
+ },
+ {
+  "file": "130-a.html",
+  "name": "Split Ring, calm deck",
+  "idea": "113-b Split Ring as it was, with three cuts. The Memory and Disk headings over the two sides are gone, since the ring already names both. The lid checkbox and the two lines of rule text at the foot are gone, and the lid setting lives only in Settings. The first fix keeps its card, and its why line shows on hover. The other fixes are plain rows on hairlines in one column, with no box, no rank and the amount in gray. A row shows its button when you point at it.",
+  "good": "The sides start with their first group, and the deck reads as one card and a short list instead of seven boxes with seven buttons.",
+  "tradeoff": "The later fixes need a hover to show their button, and their kind color shows only in the ring.",
+  "surface": "menubar",
+  "groupId": "130",
+  "direction": "Split Ring, the owner's cuts"
+ },
+ {
+  "file": "130-b.html",
+  "name": "Split Ring, one fix",
+  "idea": "The same cuts as 130-a. At rest the deck shows only the first fix, and one line under it, \"and 6 more fixes \u00b7 2.74 GB memory, 29.3 GB disk\". Pointing at the deck opens the other fixes as 130-a's quiet rows.",
+  "good": "The center column holds the ring, Fix Everything and one fix, so the eye goes to the one thing worth doing first.",
+  "tradeoff": "You see the other fixes only on hover, and the deck grows when it opens.",
+  "surface": "menubar",
+  "groupId": "130",
+  "direction": "Split Ring, the owner's cuts"
  }
 ]

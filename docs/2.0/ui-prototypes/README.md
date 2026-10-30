@@ -40,6 +40,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 104–106 | New layouts for Performance, the parts and the whole | "using left to see all processes and stuff - and right for the overall things - just as an example". On 100-a: every running part on the left by kind or by owner with the Mac and the fix deck on the right, three columns or the whole above a sortable table, or a right side that follows what you pick and a list sorted by the ring you point at |
 | 107–126 | Forty more layouts for Performance | "Give me 20 more", then "More". On 100-a, each pair a different way to hold the parts and the whole: a live index, treemaps, owner rings and lanes, a live feed and process strips, search and filters, bento, the Mac in the middle, fate columns, drill down, sentences and huge numbers, constellations and a floor plan, Sankey flows, stacks, kind pages, rankings, age, a pro table and pivot, explanations and questions, hot spots and forecasts, glance and lens |
 | 127–129 | Mac at Center, calm | 113-a was liked but "very busy": at most 15 points at rest, details on pointing, and the lid setting only in Settings |
+| 130 | Split Ring, the owner's cuts | "205 is still better": 113-b without the side headings and the lid footer, and a calmer fix deck, as a quiet list or one fix and a line |
 
 ## Direction so far
 
