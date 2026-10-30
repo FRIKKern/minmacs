@@ -213,7 +213,8 @@ static void Actions(void) {
     MMUndoRecord *rk = Run(Act(@"trash", CacheFinding(MakeFile(@"cache-k"), 9000000, @{@"keep": @YES})), @"manual", &err);
     T(@"gains: a kept action does not start", @"yes", YN(rk == nil && [err hasPrefix:@"kept:"]));
     MMUndoRecord *rl = Run(Act(@"lid", CacheFinding(Path(@"lid"), 0, nil)), @"guard", &err);
-    T(@"gains: the lid override is not a gain", @"no", YN(rl && [g gain:rl.rid] != nil));
+    T(@"gains: the lid override finished", @"yes", YN(rl && rl.state == MMUndoDone));
+    T(@"gains: the lid override is not a gain", @"no", YN(!rl || [g gain:rl.rid] != nil));
 
     // A Wrap Up: each part is a row of kind workstream by a run, counted as one action.
     NSString *wt = Path(@"wt");
