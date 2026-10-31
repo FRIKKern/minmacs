@@ -106,6 +106,25 @@ Wave 7 adds about 1 ms a tick and 0.01 to 0.03 points of idle CPU, round 2 aside
 That rest comes from LocoHost. Its findings took 4.9 ms a build against 2.4 ms on 2026-10-28, and the graph reused them in 2 of 26 builds. A probe that logged each part of `-[MMLocoHost inputDigestFrom:]` found the sockets part changed in every build. The connections came from servers running on this Mac: a Phoenix server's database pool to postgres, and node, opening new connections with new ports every few seconds. LocoHost counts a new connection as a request, which marks the server active and moves its last active time, so the findings do change and the reuse is right to miss. On one thread, LocoHost's findings take 4.37 ms on a new sample and 1.28 ms again on the same sample. No single call dominates. The largest are `MMLHProtects` with its rule matches and home folder lookups, about 9 %, `-[MMLHHost command]`, built three times a host a build, about 9 %, and `MMLHDetect`'s string search, about 6 %.
 
 `-[MMLHHost command]` now keeps what it made from the host's args, wrapper args and name, and makes it again only when one of the three is a new object. In two rounds of 60 timed runs each, run in turn with the build before it, LocoHost's findings fell from 4.267 and 4.248 ms to 3.989 and 3.955 ms on a new sample, and from 1.254 and 1.239 ms to 0.939 and 0.942 ms again on the same sample. The scanner then keeps `MMLHDetect`'s framework and kind with each server's tracker, and detects again only when the args or ports differ. The same comparison, with the command change on both sides, read 3.987 and 3.935 ms before and 3.632 and 3.570 ms after on a new sample.
+### Again on 2026-10-31, with 600 processes
+
+`bench idle --seconds 900 --warmup 30 --tick-runs 20` on main at 79198d8, from 06:45 to 07:01 local time, at load averages from 9.96 to 6.67, read 0.592 % idle CPU and a median of 27.4 ms CPU a tick. The footprint was 11.86 MB. The Mac ran 825 processes, 602 of them the person's own, which the pass reads one by one. The run on 2026-10-30 is not given with a process count, so the two cannot be set side by side.
+
+| Part | CPU a pass or build |
+| --- | --- |
+| The pass, all of it | 15.49 ms |
+| Each own process's rusage and its object | 9.09 ms |
+| Sockets | 2.54 ms |
+| The process table | 1.81 ms |
+| Args and cwds carried from the last sample | 1.26 ms |
+| Power | 0.51 ms |
+| Network | 0.29 ms |
+| LocoHost findings | 3.44 ms |
+| MinMacs findings | 2.76 ms |
+| The facts | 1.29 ms |
+
+LocoHost's findings were reused in 13 of 181 builds. A `sample` of 60 seconds held 97 samples on the senses queue: 36 in `proc_pid_rusage`, 8 in `proc_pidinfo` for the socket fds, 7 in the process table's `sysctl`, 13 in the power read, 9 of them in `IOPSCopyPowerSourcesByType`, and the rest in Foundation's dictionaries and boxed values. The largest part is one syscall for each own process, so on this Mac the tick grows with the number of agent sessions and their children. Reading a process that has been idle for several passes only every other pass would save about half of those syscalls, but a process that wakes would then be seen up to 5 seconds later, and LocoHost's two busy samples in a row would take up to 15 seconds. That trade is not made.
+
 ## Menus, the main thread and startup
 
 Issues #53 and #55. What a menu open and a card hover cost on main, whether main ever stalls, and how long the app takes from `MMMain` to its icons and summaries. Every number here comes from `tools/bench/bench` on the research Mac, a MacBookPro18,1 with 10 cores on macOS 27.0.1. Other agents built and tested in other worktrees during every run. [MEASUREMENTS.md](MEASUREMENTS.md) has the idle cost and the tick.
