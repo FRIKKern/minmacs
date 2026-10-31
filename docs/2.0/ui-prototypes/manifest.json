@@ -3218,5 +3218,25 @@
   "surface": "menu",
   "groupId": "173",
   "direction": "Skyline: two wild ideas on the 1040 px skyline menu. a scrubs the Mac's last hour, b makes each skyline the scrollbar for its lists"
+ },
+ {
+  "file": "174-a.html",
+  "name": "Hour Over Each Half",
+  "idea": "The memory skyline becomes the full-width \"Memory in use · the last hour · up 7.6 GB\" graph and the disk skyline the \"Disk free · the last hour · down 6.1 GB\" graph, in the skylines' height, and the ring stands alone in its row at 212 px.",
+  "good": "Each half opens with one plain trend that says what it means (higher means more of the 64 GB in use, lower means less room on the 994 GB disk) and names the number an hour ago and now, and the graphs drop live during Fix Everything.",
+  "tradeoff": "The per-process bars are gone from the top, so seeing every holder at a glance now means scrolling the groups. Proposed facts: Nothing beyond 164-a (framework marks, app icons, page pictures, the CPU of apps and helpers, the time a fix takes).",
+  "surface": "menu",
+  "groupId": "174",
+  "direction": "Hour: the last-hour graphs replace the skyline bars"
+ },
+ {
+  "file": "174-b.html",
+  "name": "Hour Answers the Pointer",
+  "idea": "Same change as 174-a, and the graphs answer the pointer: a pointed row draws its share as a dense band under the memory line or over the disk free line, and a pointed fix or Fix Everything draws a dashed \"after this fix\" line with its number on both graphs.",
+  "good": "The hour graphs tie straight to the rows and fixes, so you see how big a holder is and where a fix would land against the last hour, without leaving the menu.",
+  "tradeoff": "The graph rescales to fit a big band or a big after line, so the line shape moves on hover, and a small holder's band is only a few pixels thick. Proposed facts: A holder's own last hour: MinMacs keeps the Mac's hour, not one per process, so the band's shape is a seeded stand-in that ends at what it holds now (it starts at the session start for an agent that began this hour), marked proposed.",
+  "surface": "menu",
+  "groupId": "174",
+  "direction": "Hour: the last-hour graphs replace the skyline bars"
  }
 ]
