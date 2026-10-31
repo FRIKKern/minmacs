@@ -2398,5 +2398,205 @@
   "surface": "menubar",
   "groupId": "132",
   "direction": "204's ring, servers and worktrees first"
+ },
+ {
+  "file": "133-a.html",
+  "name": "Native Menu, Two Gauges",
+  "idea": "The DESIGN.md menu drawn strictly. It has a two-line header with two small ftop gauges (memory in use, disk free), a line only when agents ask, then two actions: the biggest fix in full and Fix Everything with 'and 6 more fixes'. Below come Servers, Worktrees and Leftovers with what a fix takes first, then More and the footer of three. At rest at Busy it shows 15 points.",
+  "good": "It reads like a real NSMenu. Pointing at a row lights its share on its gauge and opens a card that starts with a word ('Goes with fix 1', 'Stays.'), and the card's links light the matching row. Pointing at a fix lights every row it takes and turns the gauges to the after-state. Fix Everything plays inside the menu at each kind's pace while rows fold away.",
+  "tradeoff": "Rows show only a shape mark, a name and one number, so owner and state wait for the card. Section titles stay plain native headers with no ftop number. The menu stays open while a fix runs, which bends NSMenu, where a click closes the menu. Proposed facts: the time a fix takes and its live step text, memory per noise tab (the Close Noise Tabs fix), the memory a stopped server still holds for a beat.",
+  "surface": "menu",
+  "groupId": "133",
+  "direction": "Menu: Native, by the book"
+ },
+ {
+  "file": "133-b.html",
+  "name": "Native Menu, Split Ring",
+  "idea": "The same native menu, with 132-a's split ring made small as the header. Memory by holder is inside and disk is the outer track, with its two numbers beside it. The summary is the one thing that needs you: the agent that has waited longest and its question. At rest at Busy it shows 15 points.",
+  "good": "Every row has a home on the ring. Pointing at a row lifts its slice and dots it, pointing at a slice lights its row and opens its card, and a fix lights all its slices while the numbers show the Mac after it. The ask reads in full without opening anything.",
+  "tradeoff": "The ring header is about 92 px tall, taller than DESIGN.md's two lines. Small slices are given a minimum length when lit so they can be seen. Other agents that ask wait in the card, so the menu names only one. Proposed facts: the time a fix takes and its live step text, memory per noise tab (the Close Noise Tabs fix), the memory a stopped server still holds for a beat.",
+  "surface": "menu",
+  "groupId": "133",
+  "direction": "Menu: Native, by the book"
+ },
+ {
+  "file": "134-a.html",
+  "name": "The Ring on Top",
+  "idea": "132-a's gauge, a little smaller and centered, is the menu's header view with Fix Everything in its gap; below it sit the ask line, the first fix in full, 'and 6 more fixes' as a submenu, then Servers (4 rows) and Worktrees (3 rows), and each row has a home on the ring. At rest at Busy it shows 14 points.",
+  "good": "Point at a row and you get the native highlight, its slice lifts, and the center gives its share. A card opens beside the menu. Its linked facts (Worktree, Server, Fix) light the matching row and slice, and the center shows the Mac after a fix.",
+  "tradeoff": "This bends the native menu on purpose. The header is a custom view with a real button in the gauge gap, Fix Everything plays inside the menu, and the menu stays open while it runs, though a native menu closes on a choice. At 384 px wide the menu is tall, about 680 px at Busy. Proposed facts: the time a fix takes (about 24 s), memory per noise tab.",
+  "surface": "menu",
+  "groupId": "134",
+  "direction": "Menu: the ring on top"
+ },
+ {
+  "file": "134-b.html",
+  "name": "Ring and First Fix",
+  "idea": "The gauge sits on the left of a 476 px header with disk free in its gap, and the first fix in full sits to its right with its two numbers and button, then 'and 6 more fixes' and Fix Everything; below come the ask line, Servers, Worktrees and More. At rest at Busy it shows 14 points.",
+  "good": "The first fix and the gauge read together in one glance, so the menu is about 150 px shorter than a. The run plays in the right half next to the ring while the center counts memory back and disk back apart.",
+  "tradeoff": "The ring is smaller (164 px), so the center holds only memory and a short label, and disk free moves into the gap below. The wider header makes this the least native of the two. Proposed facts: the time a fix takes (about 24 s), memory per noise tab.",
+  "surface": "menu",
+  "groupId": "134",
+  "direction": "Menu: the ring on top"
+ },
+ {
+  "file": "135-a.html",
+  "name": "First Fix Open",
+  "idea": "The menu opens on the first fix in full: a small 132-a ring with the fix's parts lit, its title, why it ranks first, memory back and disk back kept apart, and its button. Under it, \"and 6 more fixes\" opens the rest beside the menu, and Fix Everything plays inside the menu rows. Servers and Worktrees follow as ftop lines, each with three rows, and the rows a fix touches come first. At rest at Busy it shows 15 points.",
+  "good": "What to do comes first. Fix Everything plays where you are looking: the running row fills at its kind's pace with its step in one line, done rows say what came back, skipped rows say why, and server and worktree rows leave below as the run takes them.",
+  "tradeoff": "This bends DESIGN.md's two-line header. The top is the first fix and its ring, not the Mac's state, so the Mac's memory and disk totals show only in the hover cards and the ring. At true scale one part's slice is tiny on a 76 px ring, so a lit part is drawn a few degrees wide with a white dot. Proposed facts: the time a fix takes (about N s), a fix's live progress and step lines, the state marks on rows, the memory of noise tabs (about 100 MB each).",
+  "surface": "menu",
+  "groupId": "135",
+  "direction": "Menu: Fix first, the menu opens on what to do"
+ },
+ {
+  "file": "135-b.html",
+  "name": "Fixes as Sections",
+  "idea": "The sections are the fixes, in Workstreams, Servers, Worktrees and disk, and Apps and tabs. Each fix is one row with its rank and memory back and disk back in two columns, and the Mac's state is one thin line on top: a 30 px ring, memory in use, disk free and the pressure word. At rest at Busy it shows 12 points.",
+  "good": "The whole plan reads in one glance with its order, and memory and disk are never summed. Fix Everything plays in the same rows: the numbers count down, the step shows under the running row, then one short line says what came back and lets go.",
+  "tradeoff": "This bends DESIGN.md: each fix row carries two numbers, and the sections are fixed by kind, so the rank numerals jump between sections. Servers and worktrees show only as the parts a fix touches, in its card and on the ring, so a Servers section with no fix disappears. That happens at Busy once Auto stops the idle servers. Proposed facts: the time a fix takes (about N s), a fix's live progress and step lines, the memory of noise tabs (about 100 MB each).",
+  "surface": "menu",
+  "groupId": "135",
+  "direction": "Menu: Fix first, the menu opens on what to do"
+ },
+ {
+  "file": "136-a.html",
+  "name": "Workstream ftop Lines",
+  "idea": "Each workstream is one ftop line: an arc badge for its share of memory, what it holds as marks (a server glyph per server, a branch for the worktree, a dot per agent), and one number. A finished workstream carries Wrap Up, and the first fix shows in full with both numbers. Leftovers comes last, and 'and 6 more fixes' with Fix Everything sits at the foot. The header is 132-a's ring, small, with one slice per workstream. At rest at Busy it shows 13 points.",
+  "good": "You read the Mac as your own work: every server, worktree and agent sits with the workstream that owns it. The ring slices are those same workstreams, so hovering a row, a card fact or a fix lights its slice and the rows it touches.",
+  "tradeoff": "Servers and worktrees lose their own sections and show only as marks on their workstream's line. Pills and buttons sit inside menu rows, which bends DESIGN.md's native NSMenu rule. Wrap Up shows only on finished workstreams. For the rest, the card says when Wrap Up comes instead of showing a dead button. Proposed facts: none new; as on 132-a, the time a fix takes, its live steps and the memory of Chrome's noise tabs (marked proposed on the page).",
+  "surface": "menu",
+  "groupId": "136",
+  "direction": "Menu: by workstream, not by kind"
+ },
+ {
+  "file": "136-b.html",
+  "name": "Four Workstreams Open",
+  "idea": "The first fix shows in full on two lines, then 'and N more fixes' with Fix Everything. Under them only the four heaviest workstreams are open. Each is a two-line item, like an NSMenuItem with a subtitle, that names its servers and worktree with a dot per agent, and every part has its own card. The rest are one line each, then More. At rest at Busy it shows 14 points.",
+  "good": "The heavy workstreams show what they are made of without a hover, a single port or worktree is one point away, and finished workstreams keep Wrap Up on their one line.",
+  "tradeoff": "Under the 15-point cap only about four one-line workstreams fit at Busy and Peak, so More holds the rest and Leftovers. Subtitles shorten to bare ports when names do not fit. Buttons inside rows bend the native menu rule as in a. Proposed facts: none new; as on 132-a, the time a fix takes, its live steps and the memory of Chrome's noise tabs (marked proposed on the page).",
+  "surface": "menu",
+  "groupId": "136",
+  "direction": "Menu: by workstream, not by kind"
+ },
+ {
+  "file": "137-a.html",
+  "name": "Card Beside",
+  "idea": "A very short menu holds only the Mac's two numbers, the first fix, Fix Everything and one line per part. Pointing at any line opens a card beside the menu with 132-a's ring lit for that line, a big number, a status that starts with a word, rows with owner, size and a state mark, links and buttons. At rest at Busy it shows 9 points.",
+  "good": "At rest the menu stays very calm, and every detail the owner loves is one point away: card rows lift their slice, links light the matching menu line, and Fix Everything plays step by step in the card.",
+  "tradeoff": "The card opens on the left of the menu, the side with room, as 03-b actually draws it, not on the right. Cards are taller than DESIGN.md's five-fact card, because they hold up to 7 rows plus links. Hover tints use each part's color instead of the system blue. Proposed facts: how long a fix takes (about 24 s), memory per noise tab, the network line in The Mac card.",
+  "surface": "menu",
+  "groupId": "137",
+  "direction": "Menu: the card carries it"
+ },
+ {
+  "file": "137-b.html",
+  "name": "Card in Place",
+  "idea": "The same short menu, but pointing at a line for a moment swaps the middle of the menu for that line's card. The header and footer stay, a strip of the other lines sits on top for moving across, and the lines come back when you leave. At rest at Busy it shows 9 points.",
+  "good": "Everything stays in one surface hanging from the icon, never spreading across the screen, and the header's small ring keeps lighting what the card is about.",
+  "tradeoff": "The menu grows wider and taller (about 430 to 530 px) while a card is open, and during Fix Everything the run card takes the place of the menu lines until it lets go. That breaks the native fixed-menu feel on purpose. Proposed facts: how long a fix takes (about 24 s), memory per noise tab, the network line in The Mac card.",
+  "surface": "menu",
+  "groupId": "137",
+  "direction": "Menu: the card carries it"
+ },
+ {
+  "file": "138-a.html",
+  "name": "Two Halves, Ring Between",
+  "idea": "A 720 px MinMacs menu that drops from the icon. Servers and memory are on the left and Worktrees and disk on the right, each with its 4 biggest rows (what a fix touches comes first) and a More submenu. 132-a's ring sits between the halves, memory by holder inside and disk outside, with the Mac's two numbers in its center. Below come the first fix in full and Fix Everything with its totals. At rest at Busy it shows 15 points.",
+  "good": "Every row has its own slice in the ring. Pointing at a row lifts that slice, lights its workstream's part in the other half and opens a hover card beside the menu. Links in the card light their row. Pointing at a fix or Fix Everything lights what it touches in both halves and the ring center shows the Mac after it. The run plays in the two action rows: the current step with a progress line, then Stop, then a short Done line that lets go and a Skipped line that says why.",
+  "tradeoff": "This bends the DESIGN.md menu on purpose. It is 720 px wide, two columns sit side by side (rows are 30 px tall so the halves line up with the ring), Left and Right arrows switch halves, the menu stays open while Fix Everything plays, and the hover card for Fix Everything lists all 7 fixes, which is more than the five-fact card limit. Proposed facts: the time a fix takes, its live steps, and the memory a stopped server still holds for a beat.",
+  "surface": "menu",
+  "groupId": "138",
+  "direction": "Menu: Balanced wide menu, two halves that end level, with Servers and memory on the left and Worktrees and disk on the right"
+ },
+ {
+  "file": "138-b.html",
+  "name": "Two Halves, Two Arcs",
+  "idea": "The same balanced 660 px menu with no ring. Each half opens with its own ftop arc gauge: a badge whose arc is split by holder, a big number with a gray unit (41.2 / 64 GB memory, 182 GB free disk) and one plain line saying what the number means. At rest at Busy it shows 15 points.",
+  "good": "Each half stands on its own and reads like 03-b's ftop lines. The rows are wide enough to show the owner. Pointing at a row lights its share of that half's arc and the line says '520 MB is :6006 Storybook'. A fix shows 'after: 40.5 GB in use' and '184 GB free', and during a run the line counts what came back so far.",
+  "tradeoff": "Without the shared ring, the link between the halves is only the card's cross-links and the lit rows, and the 58 px arcs show each holder's share less clearly than 132-a's big gauge. The same menu-standard bends as in a apply: a wide two-column menu that stays open during the run. Proposed facts: the time a fix takes, its live steps, and the memory a stopped server still holds for a beat.",
+  "surface": "menu",
+  "groupId": "138",
+  "direction": "Menu: Balanced wide menu, two halves that end level, with Servers and memory on the left and Worktrees and disk on the right"
+ },
+ {
+  "file": "139-a.html",
+  "name": "Lines Open in Place",
+  "idea": "At rest each section is one ftop line (badge with an arc, big number, gray unit) under 132-a's ring made small. Pointing at a line opens its rows in place and the other lines shrink. While Fix Everything runs, the line it is working in opens by itself and its rows leave at the pace of each kind. At rest at Busy it shows 14 points.",
+  "good": "The menu stays short and calm at rest. Every line, row and fix lights its own slice of the ring, and the header says how much. A card's linked fact opens the other line in place and lights the matching row.",
+  "tradeoff": "Opening in place moves the lines below, so a short lock stops the menu jumping under a resting pointer. The menu stays open while Fix Everything runs, and the 'needs you' line and the fixes line also open in place, which bends DESIGN.md's native NSMenu. Proposed facts: memory per noise tab (about 100 MB each), the time a fix takes and its live step text, the state words on rows.",
+  "surface": "menu",
+  "groupId": "139",
+  "direction": "Menu: Lines that open"
+ },
+ {
+  "file": "139-b.html",
+  "name": "Lines Open to the Side",
+  "idea": "The same at-rest menu of ftop lines and a small ring. Each line has a chevron and opens its rows as a submenu to the side, like a native menu. A row's card sits beside the submenu. At rest at Busy it shows 14 points.",
+  "good": "It behaves like a real NSMenu: nothing moves while you point, the arrow keys move in and out of submenus, and the line being worked on during Fix Everything pulses while its number ticks down.",
+  "tradeoff": "A row's card sits two levels deep, which breaks DESIGN.md's flat One Icon rule. Pointing at a linked fact lights only the other line, not its row; you have to click to go there. The menu stays open while Fix Everything runs. Proposed facts: memory per noise tab (about 100 MB each), the time a fix takes and its live step text, the state words on rows.",
+  "surface": "menu",
+  "groupId": "139",
+  "direction": "Menu: Lines that open"
+ },
+ {
+  "file": "140-a.html",
+  "name": "Sections With Their Hour",
+  "idea": "03-b's flat menu where each section line (Servers, Worktrees, Agents) is an ftop mini header with a small labeled graph of its last hour (\"memory, last hour\", \"on disk, last hour\", \"working, last hour\" with subagent dots), under a header of two ftop gauges and the fixes: Fix Everything, the first fix in full, and \"and 6 more fixes\" as a submenu. At rest at Busy it shows 15 points.",
+  "good": "Each section shows which way it moved this hour at a glance. Pointing at a row lifts its own hour out of its section's graph, puts its share in white on the header gauge, lights its workstream's rows and the fix that takes it, and opens a card with its own hour. Pointing at a section line opens a submenu with a bigger graph that states its range in words, plus every row.",
+  "tradeoff": "Each section line has to be 46 px tall to fit a graph and its label. That leaves Servers and Worktrees 3 rows each, and puts Apps, Helpers and Leftovers under More. Submenus open to the left because the menu sits at the screen edge, so a card for a submenu row can cover part of the stage's scenario panel. Proposed facts: A worktree's size on disk per minute for the hour, and its made time. Everything else comes from MMHistory: Mac memory, the disk ring, server and agent tree rings, agent states and subagent starts.",
+  "surface": "menu",
+  "groupId": "140",
+  "direction": "Menu: The last hour"
+ },
+ {
+  "file": "140-b.html",
+  "name": "One Hour, Two Strips",
+  "idea": "The header itself is the last hour: memory in use and disk free, each on its own labeled strip and scale with the big number at its end, over the fixes and plain native sections (Servers 4 rows, Worktrees 3, the agent that asks). At rest at Busy it shows 13 points.",
+  "good": "Pointing at a row draws a white line where it started on the hour (\"started 16:17\", or \"before this hour\"), shades the stretch since then, and lifts its own share out of the line. Pointing at a fix steps both strips to the Mac after it with a dashed line, and during Fix Everything the strips fall live as each kind lets go.",
+  "tradeoff": "The two strips take about 170 px at the top, so sections are text-only headers, and a row's own history appears only on the shared strip, not as a separate graph. The y scale is zoomed to the hour, so each strip prints its low and high values in GB. Proposed facts: A worktree's made time, which places its start mark, and its size per minute. Memory, disk free, and server and agent start times come from MMHistory and process start times.",
+  "surface": "menu",
+  "groupId": "140",
+  "direction": "Menu: The last hour"
+ },
+ {
+  "file": "141-a.html",
+  "name": "Picture, Then Find",
+  "idea": "A Help-menu field tops a 520 px NSMenu whose rest view is 132-a small (Servers on the memory side, the split ring, Worktrees on the disk side, then the first fix, 'and 6 more fixes', Fix Everything and More), and typing turns everything below into one ranked list of every part, each with its fix button and a 'Run Their N Fixes' item above. At rest at Busy it shows 14 points.",
+  "good": "You can find anything by name, workstream, port, kind, state (idle, merged, asks) or verb (stop, delete). Matches light in the ring. Card links light their rows and a click finds them. Arrow keys, Enter and Esc work like a real menu.",
+  "tradeoff": "The two side columns have room for only three rows each, so a long server name drops its framework and keeps its port. Agents, Apps, tabs, helpers and leftovers sit behind More, or appear when you type. Proposed facts: As 132-a: memory of noise tabs, about 100 MB each; how long a fix takes and its live steps; the week look-back (6 seeded days). New in the menu: none.",
+  "surface": "menu",
+  "groupId": "141",
+  "direction": "Menu: Type to find"
+ },
+ {
+  "file": "141-b.html",
+  "name": "Only Ring and Field",
+  "idea": "A narrow 380 px menu that at rest holds only the field and 132-a's ring, with Fix Everything in its open bottom and one line of what the fixes give back; typing, or the down arrow with an empty field, brings the parts in as one list (fixes first, then Servers, Worktrees, Agents, Apps, tabs, helpers, leftovers) while the ring shrinks to a head. At rest at Busy it shows 5 points.",
+  "good": "It is the calmest rest view possible, about 5 points. Pointing at any ring slice opens that part's card beside the menu, and Up past the first row puts the parts away again.",
+  "tradeoff": "Nothing is named at rest, so you must type, press the down arrow or point at the ring to see what holds memory. This bends DESIGN.md's sections with header lines on purpose. With every part listed the menu grows to about 770 px and scrolls inside. Proposed facts: As 132-a: memory of noise tabs, about 100 MB each; how long a fix takes and its live steps; the week look-back (6 seeded days).",
+  "surface": "menu",
+  "groupId": "141",
+  "direction": "Menu: Type to find"
+ },
+ {
+  "file": "142-a.html",
+  "name": "Ring Icon",
+  "idea": "The menu bar icon is a tiny ring (memory inside, disk outside) with a number beside it only while an agent asks you. The menu under it is short: two numbers, what needs you, the first fix in full, the rest as one line, Fix Everything, three servers, two worktrees and More. Pointing at anything opens 132-a's big ring beside the menu, with that item's card under the ring. At rest at Busy it shows 12 points.",
+  "good": "At rest it stays calm at 12 points, yet every row, fix and link lights its slice in the big ring as soon as you point. Fix Everything plays inside the menu at each kind's pace, and rows leave as their parts go.",
+  "tradeoff": "The big ring and card make a panel up to about 680 px tall beside a native-looking menu, which is more than an NSMenu custom view would usually carry. Several Busy servers are stopped by Auto in the first seconds, so the server rows change soon after the page opens. Proposed facts: how long a fix takes and its live step progress (132-a's pacing, marked proposed on the page); memory of noise tabs (132-a's).",
+  "surface": "menu",
+  "groupId": "142",
+  "direction": "Menu: the icon and the bar"
+ },
+ {
+  "file": "142-b.html",
+  "name": "An Icon per Section",
+  "idea": "Five menu bar icons (MinMacs ring, Agents, Servers, Worktrees, Disk), each with its own short menu. Each menu opens on an ftop mini header: a badge whose arc has one slice per part, a big number and a gray unit. Then the section's first fix in full, Fix Everything, up to six rows and More. The stage opens Servers, Worktrees and MinMacs in turn until you point. At rest at Busy it shows 11 points.",
+  "good": "Each icon answers one question in one glance. Pointing at a row lifts its slice in the header arc, opens its card beside the row, and lights the bar icons of the other sections it touches. A card link opens that section's menu on the row, and Left and Right move along the bar like a real menu bar.",
+  "tradeoff": "Five icons take a lot of menu bar width, which DESIGN.md warns the system may hide. Seeing the whole Mac means opening the MinMacs icon, and the One icon setting folds the bar back to that single ring. Proposed facts: how long a fix takes and its live step progress (132-a's pacing, marked proposed on the page); memory of noise tabs (132-a's).",
+  "surface": "menu",
+  "groupId": "142",
+  "direction": "Menu: the icon and the bar"
  }
 ]

@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-240 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+260 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -43,6 +43,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 130 | Split Ring, the owner's cuts | "205 is still better": 113-b without the side headings and the lid footer, and a calmer fix deck, as a quiet list or one fix and a line |
 | 131 | Servers and worktrees first | "Servers top left, Worktrees top right ... they should show a lot usually. We should feel balance on left and right side": 130 with Servers leading the left, more rows for both, fewer for the rest, and both sides ending level |
 | 132 | 204's ring | "204 had the best ring in my opinion": 131 with 113-a's gauge, memory inside and disk as the outer track |
+| 133–142 | The menu again, 03-b with what we learned | "20 new versions inspired by the 6/240 and what we learned so far". Gallery 6 is 03-b, One Icon ftop Lines: one flat menu from the MinMacs icon. On 132-a's data, at most 15 points at rest: the strict native menu with gauges or a small split ring, the ring on top, fix first, by workstream, a short menu with a rich card, a wide menu with servers left and worktrees right, ftop lines that open, the last hour, type to find, and the menu bar icon itself |
 
 ## Direction so far
 
