@@ -336,6 +336,8 @@ static NSString *LocalAddr(const MMSocket *s) {
 @property NSInteger streak;
 @property double cpuSeconds;                    // tree CPU time seen since LocoHost first saw it
 @property (strong) NSDate *lastAt, *since;
+@property (strong) NSArray *detectArgs, *detectPorts;   // what MMLHDetect read, and what it said
+@property (copy) NSString *framework, *kind;
 @end
 @implementation MMLHTrack
 @end
@@ -481,7 +483,14 @@ static NSString *LocalAddr(const MMSocket *s) {
         h.started = [NSDate dateWithTimeIntervalSince1970:p.startSec];
         h.args = args; h.cwd = [s cwdOf:pid]; h.ports = ports;
         h.bind = listen[pidN][@(h.port)];
-        NSString *fw, *kind; MMLHDetect(p.name, args, ports, &fw, &kind); h.framework = fw; h.kind = kind;
+        // The framework comes from the args and ports, which stay put while the process lives, and a sample
+        // carries the args object from the last one. MMLHDetect lowercases and searches the whole command line.
+        MMLHTrack *known = _track[h.key];
+        if (known.framework && (known.detectArgs == args || [known.detectArgs isEqual:args]) && [known.detectPorts isEqual:ports]) {
+            h.framework = known.framework; h.kind = known.kind;
+        } else {
+            NSString *fw, *kind; MMLHDetect(p.name, args, ports, &fw, &kind); h.framework = fw; h.kind = kind;
+        }
 
         // The tree: the listener and everything below it.
         NSArray<NSNumber *> *tree = [s treeOf:pid limit:500];
@@ -536,14 +545,14 @@ static NSString *LocalAddr(const MMSocket *s) {
         // launchd adopts a process whose parent exits. One an app or a terminal started, which macOS still names
         // as responsible, that has no shell, agent or app above it now, lost its parent. A brew service is responsible
         // for itself.
-        h.orphaned = !owned && resp != pid && ![kind isEqualToString:@"service"];
+        h.orphaned = !owned && resp != pid && ![h.kind isEqualToString:@"service"];
         if (h.orphaned) [via addObject:@"parent exited"];
         else if (!owned) [via addObject:@"launchd"];
         h.launcher = [via componentsJoinedByString:@" · "];
 
         // Git, through the one function that knows where git facts come from.
         NSString *gitDir = h.wrapperCwd.length ? h.wrapperCwd : h.cwd;
-        if (![kind isEqualToString:@"service"] && gitDir.length) {   // a brew service's data folder sits inside Homebrew's own repo
+        if (![h.kind isEqualToString:@"service"] && gitDir.length) {   // a brew service's data folder sits inside Homebrew's own repo
             NSDictionary *g = MMLHGitOf(gitDir, facts, read);
             h.repo = Str(g[@"repo"]); h.repoRoot = Str(g[@"root"]); h.subdir = Str(g[@"subdir"]);
             h.branch = Str(g[@"branch"]); h.worktree = Str(g[@"worktree"]);
@@ -585,6 +594,7 @@ static NSString *LocalAddr(const MMSocket *s) {
         MMLHTrack *t = _track[h.key];
         BOOL firstLook = !t;
         if (!t) { t = [MMLHTrack new]; t.since = date; _track[h.key] = t; }
+        t.detectArgs = h.args; t.detectPorts = h.ports; t.framework = h.framework; t.kind = h.kind;
         NSMutableSet *fresh = [connNow mutableCopy];
         if (firstLook) [fresh removeAllObjects]; else [fresh minusSet:t.conns ?: [NSSet set]];   // the first look has nothing to compare with
         if (!advance) [fresh removeAllObjects];
