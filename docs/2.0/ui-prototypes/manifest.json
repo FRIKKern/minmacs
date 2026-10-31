@@ -3018,5 +3018,205 @@
   "surface": "menu",
   "groupId": "163",
   "direction": "Center: a 380 px center column that holds the ring, the Mac's CPU and its last hour, what came back, and the two fixes, and becomes the full story of any row you point at, while every group scrolls in its own height"
+ },
+ {
+  "file": "164-a.html",
+  "name": "Hour Beside the Ring",
+  "idea": "162-b's skylines and read lines over each half, with every group under them scrolling on its own (Servers, Agents, Apps and helpers; Worktrees, Caches). Its header stays still and counts what waits below, and a fade marks the edge. The 380 px center is the Mac at rest: 158-b's memory-in-use last hour left of the ring and disk-free last hour right of it, at the ring's height. Under that come CPU now with heat, CPU over the last hour, and the five busiest, then the first fix, Fix Everything and what it skips. The menu is 1020 px wide.",
+  "good": "Every point in the brief is there in its plainest form. Pointing at a row, a skyline bar or a slice (or reaching it with the arrow keys) swaps the center for that thing's story: its icon, big memory, CPU and disk numbers, its lit slice in a small ring, its facts, its actions, and either a picture of its page (servers) or who it lives with and where it ranks. A fix keeps the ring, which shows the Mac after it. The halves always end level, because a short side gives its rows a second line and its whole-number total.",
+  "tradeoff": "Each hour line beside the ring is only about 86 px wide, so it reads as a trend, not as values. A small app or cache story still leaves some quiet space above the fixes. Proposed facts: A picture of a server's page (made-up stand-in pages), framework marks and cache-kind marks, app icons in the model, the CPU of apps and helpers (marked with a star in Busiest now and 'proposed' in the story), a fix's running time. The Mac's memory, disk and CPU over the last hour are real (minmacs history).",
+  "surface": "menu",
+  "groupId": "164",
+  "direction": "Skyline: straight merge"
+ },
+ {
+  "file": "164-b.html",
+  "name": "Hour Arcs Round Ring",
+  "idea": "The same merge, but the two last hours wrap the ring as arcs of their own. Memory in use hugs the ring's left side and disk free its right, each a filled line from 'an hour ago' at the bottom to 'now' at the top, with their names and changes in the top corners. CPU, the four busiest and the two fixes sit below.",
+  "good": "Now and the hour read as one shape: the ring is what memory and disk hold now, and the band around it is how they got there. The whole center hangs on one object, and the lines are longer than in a.",
+  "tradeoff": "The arcs make the ring row about 60 px taller, so there is one less busiest row. Under the ring, Fix Everything's list shows six fixes and counts the rest. A polar line is harder to read exactly than a flat one. Proposed facts: A picture of a server's page (made-up stand-in pages), framework marks and cache-kind marks, app icons in the model, the CPU of apps and helpers, a fix's running time. The Mac's memory, disk and CPU over the last hour are real (minmacs history).",
+  "surface": "menu",
+  "groupId": "164",
+  "direction": "Skyline: straight merge"
+ },
+ {
+  "file": "165-a.html",
+  "name": "Skyline Halves",
+  "idea": "A tall skyline over each half (132 px), where each bar grows wider as well as taller with what it holds and its whole column answers the pointer, so sliding along it reads every holder in turn; memory-in-use and disk-free last-hour lines sit left and right of the ring, and under each skyline are short lists for Servers, Agents, Apps and helpers, Worktrees and Caches, each scrolling on its own.",
+  "good": "Pointing at any bar, row or Most-CPU entry puts its full story in the 380 px center (icon, name, memory/CPU/connections or disk/changed/commits, status, facts, actions, and a stand-in page with its URL for servers), lights its slice and scrolls its row into view; Left/Right walk the bars and Down drops into the list.",
+  "tradeoff": "At Peak the smallest of the 77 memory bars are about 2 px wide, so they are reachable mainly by sliding along the skyline or with the keys, and the 1020 px menu reaches y 762 of the 800 px stage. Proposed facts: Server page screenshots (drawn as made-up stand-ins), framework marks and cache-kind icons, app icons in the model, CPU of apps and helpers; the Mac's memory, disk and CPU last hour come from minmacs history.",
+  "surface": "menu",
+  "groupId": "165",
+  "direction": "Skyline: the skyline is the list"
+ },
+ {
+  "file": "165-b.html",
+  "name": "Skyline Across",
+  "idea": "One long skyline runs across the top of the menu, split at the ring (about 400 px a side, so bars are wider); the memory and disk last-hour lines run under each side next to the ring, CPU now sits under the ring, and the center below holds the CPU last hour, Most CPU now, or the pointed thing's story, plus the two fixes.",
+  "good": "The skyline reads as one view of everything on the Mac, with roomier bars than in a and wide last-hour lines that are easy to read beside the ring.",
+  "tradeoff": "The band takes about 240 px of height, so the scrolling lists are shorter (400 px) and the story panel is tighter (about 300 px), and the menu reaches y 768. Proposed facts: Server page screenshots (drawn as made-up stand-ins), framework marks and cache-kind icons, app icons in the model, CPU of apps and helpers; the Mac's memory, disk and CPU last hour come from minmacs history.",
+  "surface": "menu",
+  "groupId": "165",
+  "direction": "Skyline: the skyline is the list"
+ },
+ {
+  "file": "166-a.html",
+  "name": "Three Graphs Stacked",
+  "idea": "Each 320 px half of a 1000 px menu stacks three graphs: the skyline of every holder, then the last hour (memory in use on the left, disk free on the right), then the groups (Servers, Agents, Apps and helpers / Worktrees, Caches). Each group scrolls on its own, with a still header and a soft fade, and every row starts with an icon and shows CPU. The 360 px center holds the ring, the Mac's CPU now with heat and its last hour, what uses CPU now, and the first fix and Fix Everything. Pointing at a row, a bar or a slice (or using the arrow keys) swaps the center for that thing's story: icon, name, big numbers, a mini ring with its slice lit, facts, chip actions, its workstream mates, and a stand-in page picture with its URL for a server.",
+  "good": "Each half reads top to bottom as now, the last hour, then every holder. The last-hour graph grows into space the lists leave, so the halves end level with no hole, and pointing at a bar scrolls its row into view.",
+  "tradeoff": "The ring gives way to the story on hover, so the Mac's own numbers leave the center until the pointer leaves. In Quiet the disk-free graph grows very tall, which can make a small change look dramatic. Proposed facts: Stand-in pictures of server pages, framework marks and app icons in the model, CPU of apps and helpers (shown as 'CPU, proposed' in the story), and the time a fix takes (from 138).",
+  "surface": "menu",
+  "groupId": "166",
+  "direction": "Skyline: three graphs a side"
+ },
+ {
+  "file": "166-b.html",
+  "name": "Hours Beside Ring",
+  "idea": "Each half opens with its last hour at the ring's height, so memory in use, the ring and disk free read as one band. The skyline and the scrolling groups sit under it. The CPU line and a 'Most CPU now' list run under the smaller ring, with the two fixes at the bottom. On hover the story fills the space under the ring while the ring stays and lights the slice.",
+  "good": "The three last-hour lines (memory, disk, CPU) sit around the ring as one time band, and the real ring keeps showing the pointed slice and its numbers. A short side grows its skyline taller instead of leaving a hole.",
+  "tradeoff": "The story has about 370 px under the ring, so a server's story drops its status line and shows only two facts beside its page picture, and the ring is smaller (176 px). Proposed facts: Stand-in pictures of server pages, framework marks and app icons in the model, CPU of apps and helpers (in the rows and in Most CPU now), and the time a fix takes (from 138).",
+  "surface": "menu",
+  "groupId": "166",
+  "direction": "Skyline: three graphs a side"
+ },
+ {
+  "file": "167-a.html",
+  "name": "Hour Behind Skyline",
+  "idea": "Behind each 162-b skyline runs a faint filled line of its last hour: memory in use on the left, disk free on the right, from an hour ago to a now dot at its edge. Both sit beside the 1000 px menu's 372 px center (ring, CPU now with heat and its last hour, the first fix and Fix Everything with memory back and disk back). Under the skylines, Servers, Agents, Apps and helpers, Worktrees and Caches each scroll on their own.",
+  "good": "Now and the hour read in one glance, and pointing at a bar dims the bars so the line comes through. Every row and bar gets its icon and its own story in the center (a server shows its page stand-in and URL), and the halves end level at all three scenarios.",
+  "tradeoff": "Tall bars cover parts of the line at rest, so the hour reads best for the low bars and while something is pointed at, and the line's scale is its own (it says up or down in words but has no y axis). Proposed facts: Server page screenshots (drawn stand-ins), framework marks and cache-kind icons, app icons in the model, CPU of apps and helpers (tagged proposed in their stories), time a fix takes. Mac memory, disk free and CPU over the last hour are real (minmacs history).",
+  "surface": "menu",
+  "groupId": "167",
+  "direction": "Skyline: the hour behind the skyline"
+ },
+ {
+  "file": "167-b.html",
+  "name": "Skyline Hour Bars",
+  "idea": "At rest each skyline is itself the last hour, 60 bars a minute each (memory in use left, disk free right, the now bar bright). When the pointer enters a side, or the keyboard selects a row there, or a fix is pointed at or running, that side's bars glide into its processes, one bar each.",
+  "good": "The rest view is calm and shows the trend plainly, and the processes come only where you look. The center, the scrolling groups, the icons and the CPU are the same as in a.",
+  "tradeoff": "You cannot see the hour and the processes on the same side at the same time, the bars change meaning (the key line under them says which one they are), and the morph is motion the eye has to follow. Proposed facts: Same as a: server page screenshots (stand-ins), framework marks, cache-kind icons, app icons, CPU of apps and helpers, fix duration. The hour bars use the real minmacs history series for memory in use and disk free.",
+  "surface": "menu",
+  "groupId": "167",
+  "direction": "Skyline: the hour behind the skyline"
+ },
+ {
+  "file": "168-a.html",
+  "name": "CPU Under the Ring",
+  "idea": "A 1000 px menu built on 162-b. Each half keeps its memory or disk skyline, then lists every server, agent, app, worktree and cache as an icon row in its own scrolling group, with CPU and memory side by side on process rows. The 380 px center puts memory in use and disk free over the last hour on either side of the ring. Under the ring are the Mac's CPU now (big number, small gray unit, heat) and its last hour, then a third skyline with one bar per process by CPU, a per-kind CPU legend, and the two fixes. Settings and Quit are icons in the bottom strip.",
+  "good": "Memory, disk and CPU each get their own skyline and their own hour line. Pointing at a row or a bar shows its full story in the center: icon, big numbers, a small ring with its slice lit, its facts and actions, the rest of its workstream, and a server's page with its URL. Pointing along the CPU bars changes only the ring row, so the bars stay under the pointer. A bar pointed at scrolls its row into view.",
+  "tradeoff": "A process now shows up in three places (memory bar, CPU bar, row), so the menu is busy. The center is tall enough that at Quiet the disk half has empty rows at its bottom, because the halves must end level. Proposed facts: Page screenshots of localhost servers (drawn as made-up stand-ins); framework, cache-kind and branch icons; app icons in the model; CPU of apps and helpers. Mac CPU, memory and disk over the last hour are real (minmacs history), and server and agent-tree CPU are real.",
+  "surface": "menu",
+  "groupId": "168",
+  "direction": "Skyline: a third skyline for CPU, under the ring, with the Mac's CPU and its last hour beside it"
+ },
+ {
+  "file": "168-b.html",
+  "name": "Red CPU Tops",
+  "idea": "The same 1000 px menu, rows, scrolling groups, hour lines beside the ring and center stories. Here the CPU skyline is folded into the memory skyline: each memory bar carries a red cap on top, as tall as that process's CPU now. The center under the ring shows the Mac's CPU now, a larger CPU last-hour line, and the four busiest processes by CPU as bars you can point at.",
+  "good": "Memory and CPU read together on one bar, so a heavy but idle app and a small but busy agent stand apart at a glance. The center stays calmer, with a short top-four CPU list in place of a third chart.",
+  "tradeoff": "With 50 or more bars, the red caps are small and easy to read as part of the memory height. Only four processes are ranked by CPU in the center, so the rest have to be read from the caps or the CPU column in the rows. Proposed facts: Page screenshots of localhost servers (drawn as made-up stand-ins); framework, cache-kind and branch icons; app icons in the model; CPU of apps and helpers. Mac CPU, memory and disk over the last hour are real (minmacs history), and server and agent-tree CPU are real.",
+  "surface": "menu",
+  "groupId": "168",
+  "direction": "Skyline: a third skyline for CPU, under the ring, with the Mac's CPU and its last hour beside it"
+ },
+ {
+  "file": "169-a.html",
+  "name": "Stage Under the Ring",
+  "idea": "A 1040 px menu keeps 162-b's skylines over each half, and every group under them scrolls on its own. The ring sits small at the top of a 400 px center, with memory in use over the last hour on its left and disk free on its right. Under the ring, a stage always shows one thing large: the Mac at rest (CPU now with heat, its last hour, what uses the most CPU now, what came back), the story of a pointed row or skyline bar (a server shows its page screenshot and URL), a fix with what it takes and the Mac after it, or the Fix Everything run with each fix and how it went.",
+  "good": "The ring and the two last-hour lines never leave the top, so the Mac's memory, disk and their hour stay in sight while the stage changes underneath, and every row and bar opens its full story in one fixed place.",
+  "tradeoff": "The small ring (146 px) can only light a slice and show four short lines, so the stage below has to carry all the detail, and on wide servers the screenshot leaves little room for facts. Proposed facts: Screenshots of a server's page, framework marks and app icons in the model, CPU of apps and helpers, the time a fix takes (as in 162-b). The Mac's memory, disk and CPU over the last hour are real (minmacs history).",
+  "surface": "menu",
+  "groupId": "169",
+  "direction": "Skyline: Center as a stage"
+ },
+ {
+  "file": "169-b.html",
+  "name": "Ring Frames the Stage",
+  "idea": "The ring becomes a rounded frame around the 400 px stage: memory fills its left side by holder from the top down, disk fills its right side, and a pointed row lifts its piece of the frame in white. At rest, memory in use and disk free over the last hour sit inside the frame, each on its own side, above the Mac's CPU. A row's story, a fix, or the run then takes the whole space inside the frame.",
+  "good": "The stage gets the most room of any variant (about 352 x 506 px), and the frame's two sides line up with the menu's two halves, so the memory side and the disk side read as one picture from edge to center.",
+  "tradeoff": "A frame filled by holders is harder to read than a ring because slices along straight edges look alike. Disk is mostly system, so its side looks almost full. While a story shows, the two last-hour lines are hidden. Proposed facts: Screenshots of a server's page, framework marks and app icons in the model, CPU of apps and helpers, the time a fix takes (as in 162-b). The Mac's memory, disk and CPU over the last hour are real (minmacs history).",
+  "surface": "menu",
+  "groupId": "169",
+  "direction": "Skyline: Center as a stage"
+ },
+ {
+  "file": "170-a.html",
+  "name": "Icons at Bar Feet",
+  "idea": "Each skyline bar is as wide as it holds, with a minimum and maximum width. The biggest holders carry their icon at the foot of their bar, as many as fit (about 18 to 20 for memory, 9 to 11 for disk). Every group row starts with its icon. The story in the center shows the icon at 60 px.",
+  "good": "You can spot Chrome, cmux, Docker, the agents and DerivedData in the skyline by their mark, without reading a label. The bars also act as a way in: hover one to see it in the center, click it to scroll to its row.",
+  "tradeoff": "Bar width now means size too, and small processes shrink to thin lines that are hard to point at. Proposed facts: page screenshots, framework marks, app icons in the model, CPU of apps and helpers.",
+  "surface": "menu",
+  "groupId": "170",
+  "direction": "Skyline: icons first"
+ },
+ {
+  "file": "170-b.html",
+  "name": "Icon Strip Way In",
+  "idea": "162-b's thin skyline stays as it is. Under it, each half gets a strip of its 12 biggest holders as 20 px icons, biggest first, each with its state mark (fix triangle, ask diamond).",
+  "good": "The biggest things on each side are one easy target away. Hover an icon for its story, with the screenshot for a server, or click it to scroll to its row.",
+  "tradeoff": "The strip repeats what the rows already show and takes about 30 px from the scrolling groups. The skyline bars themselves still carry no icons. Proposed facts: page screenshots, framework marks, app icons in the model, CPU of apps and helpers.",
+  "surface": "menu",
+  "groupId": "170",
+  "direction": "Skyline: icons first"
+ },
+ {
+  "file": "171-a.html",
+  "name": "Server Page Cards",
+  "idea": "In the memory half, Servers are a sideways strip of small cards, each one a screenshot of the server's page with its port, memory, framework and CPU. Under the strip, Agents and Apps scroll on their own, and every app, helper and tab row starts with a picture of its window. The skylines and 158-b's last hour sit beside the ring.",
+  "good": "You see each server first by its page and only then by its port, and pointing at a card, row or skyline bar shows that page or window large in the center.",
+  "tradeoff": "The card strip shows about two and a half servers at a time, so you scroll sideways to see the rest, and a card cut at the edge fades out instead of showing whole. Proposed facts: Page screenshots of localhost servers, pictures of app and agent-host windows, framework marks and app icons in the model, CPU of apps and helpers (the Mac's memory, disk and CPU over the last hour are real, from minmacs history).",
+  "surface": "menu",
+  "groupId": "171",
+  "direction": "Skyline: screenshots everywhere"
+ },
+ {
+  "file": "171-b.html",
+  "name": "Page Strip Under Ring",
+  "idea": "Servers stay rows with their framework mark. In the center, a strip under the ring shows every server's page in a row. Pointing at a page tells its story in the center, and pointing at a server row lights its page in the strip and scrolls the strip to it. App rows show a picture of their window, and the last-hour lines sit left and right of the ring.",
+  "good": "The left half keeps the plain rows the keyboard needs, and all the pages sit in one place where you can scan and compare them.",
+  "tradeoff": "The strip takes about 100 px of the center, which leaves less room for a story: a story shows a smaller picture and fewer facts, and pages in the strip can be reached only by pointing (the arrow keys go through the rows). Proposed facts: Page screenshots of localhost servers, pictures of app and agent-host windows, framework marks and app icons in the model, CPU of apps and helpers (the Mac's memory, disk and CPU over the last hour are real, from minmacs history).",
+  "surface": "menu",
+  "groupId": "171",
+  "direction": "Skyline: screenshots everywhere"
+ },
+ {
+  "file": "172-a.html",
+  "name": "Rows Slide Down",
+  "idea": "At rest the 1000 px menu shows only the two tall skylines, the memory-in-use and disk-free last hours beside a 228 px ring, the Mac's CPU now with its last hour over the ring, and the first fix and Fix Everything under it; pointing into a side folds its skyline to a strip and slides its scrolling groups down under it, and they go back a beat after the pointer leaves.",
+  "good": "The resting menu is four big, plainly labeled graphs and two fixes with nothing else, and a fix draws an orange 'after this fix' line on both last-hour graphs while the center says what it does and what comes back.",
+  "tradeoff": "Rows are hidden until you point into a side, so reading one server's numbers takes a move first, and the side's last hour is covered while its rows are open. Proposed facts: Page screenshots of localhost servers, framework marks and app icons in the model, the CPU of apps and helpers, Fix Everything timing; the Mac's memory, disk free and CPU over the last hour are real (minmacs history).",
+  "surface": "menu",
+  "groupId": "172",
+  "direction": "Skyline: calm at rest"
+ },
+ {
+  "file": "172-b.html",
+  "name": "Skyline Grows Into Rows",
+  "idea": "The same calm rest, but pointing into a side makes each skyline bar fly down and land as its row's bar, a thicker bar under each name, and the bars fly back up into the skyline when the pointer leaves.",
+  "good": "The motion shows that a bar and a row are the same holder, so you find the tall bar you saw at rest as a row under your pointer.",
+  "tradeoff": "The flight lasts about half a second each time a side opens or closes, and only rows in view fly, so on a long group the rest just appear. Proposed facts: Page screenshots of localhost servers, framework marks and app icons in the model, the CPU of apps and helpers, Fix Everything timing; the Mac's memory, disk free and CPU over the last hour are real (minmacs history).",
+  "surface": "menu",
+  "groupId": "172",
+  "direction": "Skyline: calm at rest"
+ },
+ {
+  "file": "173-a.html",
+  "name": "Scrub the Hour",
+  "idea": "Memory in use (left of the ring), disk free (right of the ring) and the CPU line under it all scrub together: point at any minute and one hairline runs through all three, white ticks on the ring mark where memory and disk stood, and the ring's center reads that minute (\"35 minutes ago, 40.0 / 64 GB, 183 GB disk free\").",
+  "good": "The last hour becomes something you can read minute by minute, not just a shape. Memory and disk stay two numbers at every minute, and a story keeps the halves' sides: its memory on the left of the ring, its disk on the right, and its share of the Mac in the center.",
+  "tradeoff": "Only the Mac has a past, so the skylines and rows stay at now while you scrub, and scrubbing only works with a pointer, not the keyboard. Proposed facts: Page screenshots of localhost servers, framework marks and app icons in the model, CPU of apps and helpers, the time a fix takes and its live steps (the Mac's memory, disk and CPU over the last hour are real, from minmacs history).",
+  "surface": "menu",
+  "groupId": "173",
+  "direction": "Skyline: two wild ideas on the 1040 px skyline menu. a scrubs the Mac's last hour, b makes each skyline the scrollbar for its lists"
+ },
+ {
+  "file": "173-b.html",
+  "name": "Skyline as Scrollbar",
+  "idea": "Each skyline doubles as the scrollbar for the scrolling lists under it: a light band with a white underline marks the bars whose rows are in view and slides as a group scrolls, and pointing at any bar scrolls its row into view, lights it, and tells its story in the center.",
+  "good": "The skyline gets a job beyond looking nice: it shows where you are in Servers, Agents, Apps, Worktrees and Caches at once, and gets you to any holder in one move without a More row.",
+  "tradeoff": "The band adds one more layer to read on top of busy versus resting bars, and at Peak (116 bars) each bar is thin, so a precise point takes care. Proposed facts: Page screenshots of localhost servers, framework marks and app icons in the model, CPU of apps and helpers, the time a fix takes and its live steps (the Mac's memory, disk and CPU over the last hour are real, from minmacs history).",
+  "surface": "menu",
+  "groupId": "173",
+  "direction": "Skyline: two wild ideas on the 1040 px skyline menu. a scrubs the Mac's last hour, b makes each skyline the scrollbar for its lists"
  }
 ]
