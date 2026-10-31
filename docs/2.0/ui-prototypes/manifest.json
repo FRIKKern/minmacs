@@ -2998,5 +2998,25 @@
   "surface": "menu",
   "groupId": "162",
   "direction": "Processes: every process drawn at once, as type or as a skyline"
+ },
+ {
+  "file": "163-a.html",
+  "name": "CPU Beside Memory",
+  "idea": "Each process row starts with its own icon and shows CPU as a second number, as plain as memory, and a server row also starts with a 40 x 26 screenshot of its page; while a row's story shows, the ring moves to the corner of the center so the big numbers, a 352 x 150 page screenshot, the facts and the actions all fit.",
+  "good": "You can read CPU on every row at a glance, a server row shows which page it is before you point at it, and the 1040 px menu reaches all 122 Peak rows without a More row.",
+  "tradeoff": "The thumbnails and the second number leave less room for names, so long agent titles drop their last words (no ellipsis) and the full name shows only in the story, and the eye has to follow the ring as it moves to the corner. Proposed facts: Screenshots of a server's page, framework marks and app icons in the model, and the CPU of apps and helpers, which also feeds the Most CPU now list. The time a fix takes stays proposed, as in 149-a. The Mac's CPU and its last hour (minmacs history) and the CPU of servers and agent trees are real.",
+  "surface": "menu",
+  "groupId": "163",
+  "direction": "Center: a 380 px center column that holds the ring, the Mac's CPU and its last hour, what came back, and the two fixes, and becomes the full story of any row you point at, while every group scrolls in its own height"
+ },
+ {
+  "file": "163-b.html",
+  "name": "CPU as Live Meters",
+  "idea": "CPU is a short live meter beside memory on each process row, full for the busiest process now, with its number when you point at the row; the ring stays where it is and its center gives the row's memory and CPU, while the story under it shows a large screenshot of the server's page, a CPU bar, the facts and the actions.",
+  "good": "Rows stay calm and narrow in a 1000 px menu, the ring never moves, and CPU numbers appear only in the center, so the halves read as two simple lists.",
+  "tradeoff": "A row's CPU is only a shape until you point at it, the meter's scale moves with the busiest process, and the story under the fixed ring has room for fewer facts, so a server shows one or two. Proposed facts: Screenshots of a server's page, framework marks and app icons in the model, and the CPU of apps and helpers, shown in the meters and the Most CPU now list. The time a fix takes stays proposed, as in 149-a. The Mac's CPU and its last hour (minmacs history) and the CPU of servers and agent trees are real.",
+  "surface": "menu",
+  "groupId": "163",
+  "direction": "Center: a 380 px center column that holds the ring, the Mac's CPU and its last hour, what came back, and the two fixes, and becomes the full story of any row you point at, while every group scrolls in its own height"
  }
 ]
