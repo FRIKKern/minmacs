@@ -378,6 +378,8 @@ On this Mac at a load average near 6, three runs read 0.552 to 0.557 ms CPU a bu
 
 Four runs on this Mac at load averages of 4 to 7, at 2026-10-31 06:05 local time, with no clutter tree and no review, read a median of 11.5 to 12.0 ms CPU a build. Of that, 7.5 to 7.7 ms is `MMWrapUpPlanFor` for the 120 merged worktrees, about 64 µs each. WorkForest's `prepareFor:` makes the same plans for each merged finding with a proposal, but keeps only their tails, so the model cannot reuse them yet. The sheet should build the model once per snapshot generation while the tab is open, never per draw.
 
+On the CI runner, run 41171369826 at 6b4e977, the later launch of `test/bench.sh` read 24.3 ms a build, 7.0 ms of it Wrap Up plans. The other 17 ms against 4 ms on this Mac is not broken down yet.
+
 ## Rerun
 
 ```sh
