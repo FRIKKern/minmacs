@@ -69,6 +69,8 @@ NSString *MMProcKeyString(MMProcKey key) { return [NSString stringWithFormat:@"%
     pid_t _pid, _ppid; uid_t _uid; uint64_t _startSec;
     double _cpuPercent, _energyRank, _energyDelta; uint64_t _footprint;
     NSString *_name;
+    char _comm[MAXCOMLEN + 1];            // p_comm as the pass read it, so the next pass compares bytes, not strings
+    uint8_t _commLen;
     BOOL _idle;                           // our own process, same start, and no CPU time used since the last pass
 }
 @end
@@ -878,6 +880,17 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
     return out;
 }
 
+/// A process object from its kinfo_proc, with the last pass's name when it is the same process.
+static MMProc *MakeProc(const struct kinfo_proc *k, size_t commLen, NSString *name) {
+    MMProc *p = [MMProc new];
+    p->_pid = k->kp_proc.p_pid; p->_ppid = k->kp_eproc.e_ppid; p->_uid = k->kp_eproc.e_ucred.cr_uid;
+    p->_startSec = (uint64_t)k->kp_proc.p_starttime.tv_sec;
+    p->_name = name ?: [[NSString alloc] initWithBytes:k->kp_proc.p_comm length:commLen encoding:NSUTF8StringEncoding] ?: @"?";
+    memcpy(p->_comm, k->kp_proc.p_comm, commLen); p->_comm[commLen] = 0; p->_commLen = (uint8_t)commLen;
+    p->_cpuPercent = -1;
+    return p;
+}
+
 /// The one pass. Runs on _q only.
 - (void)pass {
     os_signpost_id_t sp = os_signpost_id_generate(MMTickLog());
@@ -922,38 +935,43 @@ static void RootDomainMessage(void *ctx, io_service_t service, natural_t type, v
         MMProc *was = before[@(pid)];
         size_t commLen = strnlen(k->kp_proc.p_comm, MAXCOMLEN);
         BOOL same = was && was->_startSec == start && was->_ppid == k->kp_eproc.e_ppid && was->_uid == uid &&
-                    strlen(was->_name.UTF8String ?: "") == commLen && !strncmp(was->_name.UTF8String ?: "", k->kp_proc.p_comm, commLen);
+                    was->_commLen == commLen && !memcmp(was->_comm, k->kp_proc.p_comm, commLen);
         if (same && uid != me) {
             procs[@(pid)] = was;
             NSMutableArray *siblings = kids[@(was->_ppid)] ?: (kids[@(was->_ppid)] = [NSMutableArray new]);
             if (pid != was->_ppid) [siblings addObject:@(pid)];
             continue;
         }
-        MMProc *p = [MMProc new];
-        p->_pid = pid; p->_ppid = k->kp_eproc.e_ppid; p->_uid = uid;
-        p->_startSec = start;
-        p->_name = same ? was->_name : [[NSString alloc] initWithBytes:k->kp_proc.p_comm length:commLen encoding:NSUTF8StringEncoding] ?: @"?";
-        p->_cpuPercent = -1;
-        if (p->_uid == me && pid > 0) {
+        MMProc *p = nil;
+        if (uid == me && pid > 0) {
             struct rusage_info_v6 ru;
             if (proc_pid_rusage(pid, RUSAGE_INFO_V6, (rusage_info_t *)&ru) == 0) {
                 double cpuNs = (double)(ru.ri_user_time + ru.ri_system_time) * _tbScale;
-                p->_footprint = ru.ri_phys_footprint;
-                MMPrevUse now = { p->_startSec, cpuNs, (double)ru.ri_energy_nj }, prev;
+                MMPrevUse now = { start, cpuNs, (double)ru.ri_energy_nj }, prev;
                 NSValue *pv = _prevUse[@(pid)];
                 BOOL had = NO;
-                if (pv) { [pv getValue:&prev size:sizeof prev]; had = prev.start == p->_startSec; }
-                p->_cpuPercent = had && wallDelta > 0 ? MAX(0, (cpuNs - prev.cpuNs) / wallDelta * 100.0) : 0;
-                p->_energyDelta = had ? MAX(0, now.energyNj - prev.energyNj) : 0;
-                p->_idle = had && cpuNs == prev.cpuNs;
-                // Idle in this pass and the one before, with the same footprint: the last object says it all.
-                if (same && p->_idle && was->_idle && was->_cpuPercent == 0 && was->_footprint == p->_footprint &&
-                    was->_energyDelta == 0 && was->_energyRank == 0)
+                if (pv) { [pv getValue:&prev size:sizeof prev]; had = prev.start == start; }
+                BOOL idle = had && cpuNs == prev.cpuNs;
+                // Idle in this pass and the one before, with the same footprint: the last object says it all,
+                // so no new one is made.
+                if (same && idle && was->_idle && was->_cpuPercent == 0 && was->_footprint == ru.ri_phys_footprint &&
+                    was->_energyDelta == 0 && was->_energyRank == 0) {
                     p = was;
+                } else {
+                    p = MakeProc(k, commLen, same ? was->_name : nil);
+                    p->_footprint = ru.ri_phys_footprint;
+                    p->_cpuPercent = had && wallDelta > 0 ? MAX(0, (cpuNs - prev.cpuNs) / wallDelta * 100.0) : 0;
+                    p->_energyDelta = had ? MAX(0, now.energyNj - prev.energyNj) : 0;
+                    p->_idle = idle;
+                }
                 if (p->_energyDelta > maxEnergy) maxEnergy = p->_energyDelta;
                 use[@(pid)] = [NSValue valueWithBytes:&now objCType:@encode(MMPrevUse)];
+            } else {
+                p = MakeProc(k, commLen, same ? was->_name : nil);
             }
             mine[mineCount++] = p;
+        } else {
+            p = MakeProc(k, commLen, same ? was->_name : nil);
         }
         procs[@(pid)] = p;
         NSMutableArray *siblings = kids[@(p->_ppid)] ?: (kids[@(p->_ppid)] = [NSMutableArray new]);
