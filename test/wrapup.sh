@@ -32,7 +32,7 @@ clang -Wall -mmacosx-version-min=14.0 test/wrapup/helper.c -o "$wu/bin/$WB" >>"$
 check "wrapup: the fixture browser builds" 0 "$?"
 T="$wu/bin/tool"
 wu_has() { [ -e "$1" ] && echo yes || echo no; }
-wu_listening() { nc -z 127.0.0.1 "$1" >/dev/null 2>&1 && echo yes || echo no; }
+wu_listening() { "$PORT" listening "$1" && echo yes || echo no; }
 wu_alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null && echo yes || echo no; }
 # Only our fixture port: its listener is the server this section started or restored.
 wu_listener() { lsof -nP -t -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -1; }

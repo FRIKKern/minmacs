@@ -46,10 +46,10 @@ open(os.path.join(sys.argv[2], "pid-%d" % os.getpid()), "w").close()
 http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), http.server.SimpleHTTPRequestHandler).serve_forever()'
 ln_serve() { ( ( cd "$1" && exec python3 -c "$LN_PY" "$2" "$ln/pids" "links-fixture-$$" ) >/dev/null 2>&1 & ); }
 ln_stop() { for f in "$ln"/pids/pid-*; do [ -e "$f" ] && kill "${f##*pid-}" 2>/dev/null; rm -f "$f"; done; }
-ln_free() { p=$1; while nc -z 127.0.0.1 "$p" >/dev/null 2>&1; do p=$((p + 1)); done; echo "$p"; }
+ln_free() { "$PORT" free "$1"; }
 P1=$(ln_free $((41000 + $$ % 3000))); P2=$(ln_free $((P1 + 1))); P3=$(ln_free $((P2 + 1)))
 ln_serve "$W/done" "$P1"; ln_serve "$W/done" "$P2"; ln_serve "$W/wip" "$P3"
-for p in $P1 $P2 $P3; do i=0; while ! nc -z 127.0.0.1 "$p" >/dev/null 2>&1 && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done; done
+for p in $P1 $P2 $P3; do "$PORT" wait "$p"; done
 ln_procs_before="$procs"
 for f in "$ln"/pids/pid-*; do [ -e "$f" ] && procs="$procs ${f##*pid-}"; done
 

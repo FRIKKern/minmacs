@@ -60,10 +60,10 @@ check "  another process sees the instance lock" True "$(wi another | json 'j["a
 wi_out=$(wi serve 1 </dev/null)
 check "  a second server is refused by the lock" "another MinMacs holds the instance lock" "$(wj 'j["error"]')"
 check "  and the first one still answers" 7 "$(wi ask '{"verb":"echo","n":7}' | json 'j["reply"]["echo"]')"
-printf 'not json\n' | nc -U -w 2 "$MINMACS_HOME/core.sock" >"$wi_dir/bad.out" 2>/dev/null
+printf 'not json\n' | "$PORT" unix "$MINMACS_HOME/core.sock" >"$wi_dir/bad.out" 2>/dev/null
 check "  a request that is not JSON gets an error" "the request is not a JSON object" "$(json 'j["error"]' <"$wi_dir/bad.out")"
 # A peer that connects and sends nothing must not hold up the next request past the CLI's 0.2 seconds.
-(sleep 3 | nc -U "$MINMACS_HOME/core.sock" >/dev/null 2>&1) & wi_quiet=$!
+"$PORT" unix "$MINMACS_HOME/core.sock" 3 >/dev/null 2>&1 & wi_quiet=$!
 procs="$procs $wi_quiet"
 sleep 0.3
 check "  a silent peer does not hold up the next request" 5 "$(wi ask '{"verb":"echo","n":5}' | json 'j["reply"]["echo"] if j["reply"] != "none" else "none"')"

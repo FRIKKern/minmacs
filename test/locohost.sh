@@ -34,7 +34,7 @@ export MINMACS_TMUX="$lh/tmux" MINMACS_CMUX="$ROOT/test/locohost/fake-cmux.sh"
 cp test/locohost/fake-tmux.sh "$lh/tmux"
 unset RV_TEST_GO RV_TEST_UNSURE RV_TEST_KEEP RV_TEST_CLAUDE_LIMIT RV_TEST_CODEX_UNSUPPORTED LOCOHOST_IDLE_MINUTES LOCOHOST_MIN_UPTIME_MINUTES LOCOHOST_PROACTIVE_MINUTES
 
-lh_listening() { nc -z 127.0.0.1 "$1" >/dev/null 2>&1 && echo yes || echo no; }
+lh_listening() { "$PORT" listening "$1" && echo yes || echo no; }
 # The fixture server. It writes its pid file into $lh/pids, and the command line carries a fake key and a URL password,
 # so the review shows what is redacted. Detached, so it has no shell or agent above it.
 LH_PY='import http.server, os, signal, sys

@@ -86,7 +86,10 @@ threading.Timer(float(sys.argv[3]), lambda: os._exit(0)).start()   # ends by its
 http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), http.server.SimpleHTTPRequestHandler).serve_forever()'
 LIFE=$((CHURN * 12 + 120))
 PORT=$((40000 + $$ % 8000))
-free_port() { while nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; do PORT=$((PORT + 1)); [ "$PORT" -gt 49900 ] && PORT=40000; done; }
+# Issue #58: the port probe of test/port.c, in place of nc, which an endpoint security agent reads as a reverse shell.
+PROBE="$OUT/port"
+clang -O1 -Wall -mmacosx-version-min=14.0 test/port.c -o "$PROBE" || { echo "soak: test/port.c does not build" >&2; exit 1; }
+free_port() { while "$PROBE" listening "$PORT"; do PORT=$((PORT + 1)); [ "$PORT" -gt 49900 ] && PORT=40000; done; }
 
 made=0; removed=0; started_servers=0; stopped_servers=0; started_agents=0; stopped_agents=0; i=0
 oldest() { ls -tr "$1" 2>/dev/null | head -1; }

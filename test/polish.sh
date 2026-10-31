@@ -49,11 +49,11 @@ PL_PY='import http.server, os, sys
 os.setsid()
 open(os.path.join(sys.argv[2], "server-%d" % os.getpid()), "w").close()
 http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), http.server.SimpleHTTPRequestHandler).serve_forever()'
-P=$((43000 + $$ % 6000)); while nc -z 127.0.0.1 "$P" >/dev/null 2>&1; do P=$((P + 1)); done
+P=$("$PORT" free $((43000 + $$ % 6000)))
 ( ( cd "$F/srv" && exec python3 -c "$PL_PY" "$P" "$pl/pids" "polish-fixture-$$" ) >/dev/null 2>&1 & )
-i=0; while ! nc -z 127.0.0.1 "$P" >/dev/null 2>&1 && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+"$PORT" wait "$P"
 for f in "$pl"/pids/server-*; do [ -e "$f" ] && procs="$procs ${f##*server-}"; done
-check "polish: the fixture server listens on :$P" yes "$(nc -z 127.0.0.1 "$P" >/dev/null 2>&1 && echo yes || echo no)"
+check "polish: the fixture server listens on :$P" yes "$("$PORT" listening "$P" && echo yes || echo no)"
 # Every mode Idle and no scheduled review, so no watch below wakes a review or acts.
 for e in locohost workforest noonoo minmacs; do MINMACS_COLD=1 "$BIN" mode "$e" idle >/dev/null 2>&1; done
 python3 - "$pl/Preferences/no.guerrilla.minmacs.plist" <<'PY'
@@ -176,7 +176,7 @@ for f in "$pl"/pids/server-*; do
   x=${f##*server-}
   case "$(ps -o command= -p "$x" 2>/dev/null)" in *"polish-fixture-$$"*) kill "$x" 2>/dev/null ;; esac
 done
-i=0; while nc -z 127.0.0.1 "$P" >/dev/null 2>&1 && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+"$PORT" gone "$P" 50
 procs="$pl_procs_before"
 unset MINMACS_ROOTS MINMACS_CLAUDE MINMACS_CODEX MINMACS_CMUX MINMACS_TMUX GIT_CONFIG_NOSYSTEM
 export CLAUDE_CONFIG_DIR="$pl_saved_claude" CODEX_HOME="$pl_saved_codex" MINMACS_HOME="$pl_top"
