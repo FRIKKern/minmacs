@@ -14,7 +14,7 @@
 #                 that many of each, so a short run removes and stops some too
 #
 # Each churn step, inside a fresh MINMACS_HOME under TMPDIR: a fixture worktree is made in the fixture repo, with a
-# commit, and the oldest past four is removed. A Python HTTP server starts in the newest worktree on a free high port,
+# commit, and the oldest past four is removed. A fixture HTTP server, tools/soak/server.c, starts in the newest worktree on a free high port,
 # and the oldest past three stops. A fake agent starts with a Claude Code session file and a transcript, and the
 # oldest past three stops, its files removed. Every live transcript gets a line.
 # Every fixture name carries this run's tag. A fixture is stopped by its pid only, after ps shows the tag in its
@@ -39,7 +39,7 @@ SOAK="mmsoak$TAG"; AGENT="mmsa$TAG"; MARK="mms(oak-?|a)$TAG( |$)"
 H=$(mktemp -d "${TMPDIR:-/tmp}/minmacs-soak.XXXXXX") && H=$(cd "$H" && pwd -P)
 mkdir -p "$H/bin" "$H/code" "$H/claude/sessions" "$H/claude/projects" "$H/codex" "$H/pi" \
   "$H/pids/servers" "$H/pids/agents" "$H/registry/agents"
-cp "$B/soak" "$H/bin/$SOAK" && cp "$B/agent" "$H/bin/$AGENT"
+cp "$B/soak" "$H/bin/$SOAK" && cp "$B/agent" "$H/bin/$AGENT" && cp "$B/server" "$H/bin/mmsoak-srv"
 PROCSTAT="$B/procstat"
 
 # The pid is this run's own: alive, above 1, and ps shows the tag in its command line.
@@ -79,11 +79,6 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-PY='import http.server, os, sys, threading
-os.setsid()   # a session of its own, test rule 5
-open(os.path.join(sys.argv[2], str(os.getpid())), "w").write(os.getcwd())
-threading.Timer(float(sys.argv[3]), lambda: os._exit(0)).start()   # ends by itself if the soak script dies
-http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), http.server.SimpleHTTPRequestHandler).serve_forever()'
 LIFE=$((CHURN * 12 + 120))
 PORT=$((40000 + $$ % 8000))
 # Issue #58: the port probe of test/port.c, in place of nc, which an endpoint security agent reads as a reverse shell.
@@ -112,7 +107,7 @@ churn() {
   # A server in the newest worktree, and the oldest past SOAK_KEEP stopped. Its pid file may come a step later.
   free_port
   mkdir -p "$OUT/logs"
-  ( ( cd "$W/wt$i" && exec python3 -c "$PY" "$PORT" "$H/pids/servers" "$LIFE" "mmsoak-$TAG" ) >/dev/null 2>"$OUT/logs/server-$i.err" & )
+  ( ( cd "$W/wt$i" && exec "$H/bin/mmsoak-srv" "$PORT" "$H/pids/servers" "$LIFE" "mmsoak-$TAG" ) >/dev/null 2>"$OUT/logs/server-$i.err" & )
   PORT=$((PORT + 1)); started_servers=$((started_servers + 1))
   while [ "$(count "$H/pids/servers")" -gt "${SOAK_KEEP:-3}" ]; do
     f=$(oldest "$H/pids/servers"); stop_pid "$f"; rm -f "$H/pids/servers/$f"; stopped_servers=$((stopped_servers + 1))

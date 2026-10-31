@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the soak subject from every .m under Sources except main.m, plus tools/soak/soak.m, with build.sh's flags
-# for this Mac's architecture and -g, so leaks(1) names lines too. Then procstat and the fake agent.
+# for this Mac's architecture and -g, so leaks(1) names lines too. Then procstat, the fake agent and the fixture server.
 # Each file compiles on its own, eight at a time, then one link.
 # Usage: tools/soak/build.sh     BUILD_DIR=dir puts it in dir/soak, default build/soak. Prints the folder.
 #        SOAK_OBJS=dir           links the Sources objects in dir in place of compiling them
@@ -33,7 +33,7 @@ if ! clang -fobjc-arc -arch "$(uname -m)" -mmacosx-version-min=14.0 "$OUT"/obj/*
 fi
 # Signed as build.sh signs the app, so the soak reads other processes' sockets as the app does.
 codesign --force --sign - "$OUT/soak" >>"$LOG" 2>&1 || { cat "$LOG" >&2; echo "soak sign failed" >&2; exit 1; }
-for t in procstat agent; do
+for t in procstat agent server; do
   clang -O1 -Wall -mmacosx-version-min=14.0 "tools/soak/$t.c" -o "$OUT/$t" >>"$LOG" 2>&1 || { cat "$LOG" >&2; echo "$t build failed" >&2; exit 1; }
 done
 if grep -q "warning:" "$LOG"; then cat "$LOG" >&2; echo "soak build has warnings; fix them" >&2; exit 1; fi
