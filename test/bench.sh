@@ -180,6 +180,11 @@ check "bench scale: the first launch has git facts for all 300" "False 300 300" 
 check "bench scale: merge kinds across the 300" "ancestor=60 none=180 patch=30 squash=30" \
   "$(bsa '" ".join("%s=%d" % kv for kv in sorted(j["merged"].items()))')"
 check "bench scale: a snapshot holds them all" 300 "$(bsa 'j["findings"]["workforest"]')"
+# The Performance model over that snapshot. It read 11.5 to 12 ms on the research Mac, 7.6 ms of it the Wrap Up plans
+# of the 120 merged worktrees. The ceiling leaves room for a busy runner.
+check "bench scale: the Performance model has a row for each of the 300 and builds under 60 ms" "yes yes" \
+  "$(bsb '"%s %s" % ("yes" if j["performance"]["rows"] >= 300 else j["performance"]["rows"], "yes" if j["performance"]["cpuMs"]["median"] < 60 else j["performance"]["cpuMs"])')"
+echo "  info  the Performance model: $(bsb '"%s ms CPU a build, %s ms of it Wrap Up plans" % (j["performance"]["cpuMs"]["median"], j["performance"]["wrapUpPlansCPUMs"]["median"])')"
 # The first launch's warm walks may run git for a worktree FSEvents marked, such as one the fixture wrote a moment
 # before the launch. The later launch's walks run none, checked below.
 check "bench scale: a warm walk reads every fingerprint" yes \

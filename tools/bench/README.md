@@ -28,6 +28,7 @@ Issue #54 added `bench scale`. It runs `MMCoreStart` with every built-in expert 
 - `--warm N` full walks, as the 10-minute timer runs them, each with every fingerprint read again, and a rebuild after each.
 - `--clutter`: two scans of every clutter row under `MINMACS_CLUTTER_ROOT`, sized through the worker.
 - `--review N`: WorkForest's review request for N worktrees through the fake CLI, once past the fingerprint cache and once with it. The copies carry no work keeps, since every fixture worktree is new and its rules would keep them all. A day over budget holds the scheduled reviews, so no finding from the real process table reaches the fake CLI.
+- the Performance tab's model, built 25 times over the snapshot after the warm walks, with the Wrap Up plans of the merged worktrees timed apart.
 - `--idle S`: waits for the worker child to close, then a quiet window of S seconds. 0 skips it.
 
 A thread reads this process's footprint and the worker child's footprint and lifetime peak every 20 ms, per phase. The worker child is a child of the bench that runs the bench's own binary as `_walk`.

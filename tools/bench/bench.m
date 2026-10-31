@@ -1374,6 +1374,32 @@ static int Scale(NSArray<NSString *> *args) {
     out[@"findings"] = findings;
     out[@"workstreams"] = @(snap.workstreams.count);
 
+    // The Performance tab's model over the same snapshot: thread CPU of one build, off main as the app builds it.
+    {
+        NSMutableArray *cpu = [NSMutableArray new];
+        __block MMPerformance *p = nil;
+        TimedOffMain(off, ^{
+            for (int i = 0; i < 25; i++) {
+                uint64_t c = ThreadCPUNs();
+                p = [MMPerformance from:snap history:nil lookBack:nil];
+                if (i >= 5) [cpu addObject:@((ThreadCPUNs() - c) / 1e6)];
+            }
+        }, 120);
+        // Of that, the Wrap Up plans of the merged worktrees alone.
+        NSMutableArray *plans = [NSMutableArray new];
+        TimedOffMain(off, ^{
+            for (int i = 0; i < 10; i++) {
+                uint64_t c = ThreadCPUNs();
+                for (MMWorktree *w in snap.facts.worktrees)
+                    if (!w.isMain && !w.missing && w.path.length && [snap.facts gitFor:w].merged != MMMergedNone) MMWrapUpPlanFor(w.path, snap);
+                [plans addObject:@((ThreadCPUNs() - c) / 1e6)];
+            }
+        }, 120);
+        NSUInteger rows = 0;
+        for (MMPerformanceGroup *g in [p.memoryGroups arrayByAddingObjectsFromArray:p.diskGroups]) rows += g.rows.count;
+        out[@"performance"] = @{@"cpuMs": Stats(cpu), @"rows": @(rows), @"fixes": @(p.fixes.count), @"wrapUpPlansCPUMs": Stats(plans)};
+    }
+
     // The clutter tree: every row scanned through the worker, then again.
     if (clutter) {
         [mem phase:@"clutter"];
