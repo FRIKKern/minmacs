@@ -14,7 +14,7 @@ Issue #50, run on 2026-10-27. Each question from [PLAN.md](PLAN.md) section 9 ha
 |---|---|---|---|
 | 1 | Notification permission for an ad-hoc app on macOS 27 | Needs the owner at the screen | None until the result |
 | 2 | `SMAppService` from an ad-hoc bundle | Needs the owner at the screen | None until the result |
-| 3 | Embedded XPC service from an ad-hoc bundle on macOS 14 | Works on macOS 27 with a macOS 14 target. Not run on macOS 14 | Run the check on a `macos-14` CI runner |
+| 3 | Embedded XPC service from an ad-hoc bundle on macOS 14 | Yes, on macOS 14.8.9 and on macOS 27, also through a symlink | The XPC kind of `MMWorker` may be built. The `_walk` child stays until it is |
 | 4 | Menu bar toggle hides all five icons | Needs the owner at the screen | None until the result |
 | 5 | One status item opens another's menu at a row | Needs the owner at the screen | None until the result |
 | 6 | `.ips` reports name the dispatch queue | Yes, for the crashed thread and the others | The queue label is the breadcrumb's first source |
@@ -70,9 +70,23 @@ fresh bundle, first run via symlink: cold start and first reply: 21.0 ms, 0.058 
 ```
 After `invalidate` the service process was gone. Through a symlink `NSBundle.mainBundle` reports the symlink's folder, and the service is still found.
 
-**Conclusion.** An ad-hoc bundle launches its embedded XPC service on macOS 27, also through the CLI symlink. This Mac cannot run macOS 14, so the macOS 14 part is open.
+**On macOS 14.** GitHub's `macos-14` runner, macOS 14.8.9 build 23J631, ran the same four checks on 2026-10-31 in run 41150194088, from a workflow that was removed again because that runner image is retired on 2 November 2026:
+```
+built and verified .../MMXPCProbe.app
+cold start and first reply: 6.2 ms, service pid 9283
+100 warm calls: 0.045 ms per call
+walk of .../fixture in the service: 1 files, 4096 bytes, pid 9283
+PASS
+cold start and first reply: 5.4 ms, service pid 9288
+100 warm calls: 0.044 ms per call
+walk of .../fixture in the service: 1 files, 4096 bytes, pid 9288
+PASS
+```
+The second run is the one through a symlink.
 
-**PLAN.md.** Keep the XPC choice in section 3 conditional, and name the way to settle it. CI runs `./test.sh settling/section` on a `macos-14` runner, whose XPC checks are the four that name the XPC probe. Track B's 13.9 ms cold start holds, at 13.5 to 21.0 ms here.
+**Conclusion.** An ad-hoc bundle launches its embedded XPC service on macOS 14 and on macOS 27, also through the CLI symlink.
+
+**PLAN.md.** Section 3's condition is met: heavy walks may run in an XPC service on every macOS 2.0 supports. 2.0 still walks in the `minmacs _walk` child, and a move to XPC is its own change. Track B's 13.9 ms cold start holds, at 13.5 to 21.0 ms on macOS 27 and 5.4 to 6.2 ms on the runner.
 
 ## 4. Menu bar toggle hides all five icons of one app
 
@@ -365,7 +379,6 @@ WorkForest scanned twice in the window. Its RSS went from 93 MB to 3,006 MB at 1
 ## Left open
 
 - Questions 1, 2, 4, 5 and 12 need the owner, with the steps in `test/settling/owner/README.md`.
-- Question 3 needs a run on macOS 14, best on a `macos-14` CI runner.
 - Question 10 needs one Codex turn with `codex-turns/watch.sh` running.
 - Question 13's fixture is checked from 31 October for its files and its empty folder, and again later for `full/deep` and `full`. A second fixture outside `claude-501` would rule out the unknown reader.
 - What keeps reading the files under `/private/tmp/claude-501` was not traced.

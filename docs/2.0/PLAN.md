@@ -109,7 +109,7 @@ The catalog of 66 shared patterns in [SYNTHESIS.md](research/SYNTHESIS.md) secti
 - **Tool-owned caches** are cleaned with the tool's own command. It runs first in dry-run form, and its output is kept in the undo record.
 - **Keeps.** Work keeps and review keeps are separate, and timed keeps use a stable key.
 - **Stopping.** SIGTERM first, and SIGKILL only on a second request. Pid and start time are checked before both.
-- **Heavy walks** run out of process behind one `MMWorker` protocol. It is an XPC service if phase 0's test passes on macOS 14, and a `minmacs _walk` child if not.
+- **Heavy walks** run out of process behind one `MMWorker` protocol. It is an XPC service if phase 0's test passes on macOS 14, and a `minmacs _walk` child if not. The test passed on macOS 14.8.9 on 2026-10-31, docs/2.0/TESTS.md question 3. 2.0 runs the child today, and a move to XPC is a change of its own.
 - **One notifier,** for actions the person did not ask for. It sends one notification per review, with an Undo action.
 
 ## 4. The review: cover more, pay less

@@ -49,7 +49,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 
 ## Runtime and Senses, issue #14
 
-- The worker of P4 is a `minmacs _walk` child of the same binary. The XPC kind waits for the settling check on macOS 14. The child calls `+[MMSizer quick:]` and `+exact:` directly, and both walk in process. It finds worktrees itself by reading `.git` files, with no git spawn. A test tool that uses the worker answers `_walk` itself, as `test/wire/wire.m` does.
+- The worker of P4 is a `minmacs _walk` child of the same binary. The XPC kind passed the settling check on macOS 14, docs/2.0/TESTS.md question 3, and is not built yet. The child calls `+[MMSizer quick:]` and `+exact:` directly, and both walk in process. It finds worktrees itself by reading `.git` files, with no git spawn. A test tool that uses the worker answers `_walk` itself, as `test/wire/wire.m` does.
 - One pass measured 6.1 to 7.5 ms CPU median and 6.6 to 9.4 ms p95 on the research Mac, over 60 to 100 passes with 836 to 929 pids. The spread follows the load from other builds. `test/senses.sh` fails above 12 ms median or 25 ms p95.
 - A zombie, a process that exited and waits for its parent to reap it, is left out of the sample, and `MMProcAlive` says it is gone. Every array a sample hands out is immutable.
 - `-[MMSenses stop]` ends the timer, the pushed sources and the notification observers. `MMCoreStop` calls it.
