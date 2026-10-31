@@ -28,6 +28,7 @@
 #import "Core/Act/MMClutterAct.h"
 #import "Core/MMExpert.h"
 #import "Core/MMSheet.h"
+#import "Core/MMPerformance.h"
 #import "Core/Store/MMDayLog.h"
 
 NS_ASSUME_NONNULL_BEGIN

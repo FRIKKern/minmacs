@@ -368,6 +368,12 @@ On this Mac at a load average near 45, three runs of `bench history` alone read:
 
 Each copy goes back to the store when no view reads it, and the store keeps two for the next copies, so 20 copies cost no more than two.
 
+## The Performance model
+
+`Core/MMPerformance.h` builds the Performance tab of design 132-a on demand from one snapshot. `./test.sh performance` times it on its fixture: 18 findings from five fake experts, four worktrees of which two are merged, one finished workstream with five Wrap Up parts, and six fixes. The test binary is built with `-O2`, as build.sh builds the app, and the number is the mean thread CPU time of 400 builds after 20 that warm up.
+
+On this Mac at a load average near 6, three runs read 0.552 to 0.557 ms CPU a build, more than the 0.2 ms that needs a line here. About 0.37 ms of it is `MMMustKeep` for each fix's finding, a stat of the keeps file and a match on the protect list each time, and about 0.24 ms is `MMWrapUpPlanFor` for the two merged worktrees. Neither is new code: WorkForest's `prepareFor:` builds the same plans, and every action checks MustKeep. The model is not part of the graph build, so the idle tick does not pay it. The section fails above 6 ms. A `bench performance` mode at 300 worktrees is not written yet.
+
 ## Rerun
 
 ```sh
@@ -376,6 +382,7 @@ MM_BENCH_BACKOFF=1 tools/bench/run.sh   # with the backoff the app uses
 ./test.sh idle                          # the checks of issue #52
 tools/bench/scale.sh                    # 300 worktrees, the clutter tree and a review of 100, issue #54
 ./test.sh bench                         # the short run and the gate
+./test.sh performance                   # the Performance model, one build at fixture scale
 tools/bench/run.sh 60 10 200          # one minute of idle, then menus, startup twice, the watchdog run and the gate
 DEBUG=1 BUILD_DIR=build/debug ./build.sh   # a build whose main-thread watchdog is on
 tools/soak/run.sh 3600 600 20           # one hour of soak, a sample every 10 minutes

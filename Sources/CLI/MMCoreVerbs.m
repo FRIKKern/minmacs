@@ -12,6 +12,8 @@ int MMInvestigateToolsVerb(MMArgs *a);
 int MMHistoryVerb(MMArgs *a);
 // From MMGainsCLI.m.
 int MMGainsVerb(MMArgs *a);
+// From MMPerformanceCLI.m.
+int MMPerformanceVerb(MMArgs *a);
 
 #pragma mark - Words
 
@@ -595,6 +597,8 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"gains" usage:@"gains [--days <n>] [--json]   what came back: memory and disk by day, by kind and by who did it" mutates:NO run:^(MMArgs *a) { return MMGainsVerb(a); }],
                   MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"performance" usage:@"performance [--json]   the Performance tab: memory and disk by holder, the fixes ranked, and what came back" mutates:NO run:^(MMArgs *a) { return MMPerformanceVerb(a); }],
+                  MMVerbReadsCachedGit, nil),
             Reads([MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),

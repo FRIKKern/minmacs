@@ -31,6 +31,7 @@
 #import "Core/MMExpert.h"
 #import "Core/MMCore.h"
 #import "Core/MMSheet.h"
+#import "Core/MMPerformance.h"
 #import "Core/Store/MMDayLog.h"
 
 // Calls one thing from each part, as an expert or the app would. Never called; it only has to compile.
@@ -61,6 +62,10 @@ __attribute__((unused)) static void MMCheckUse(id<MMExpert> e, MMSnapshot *s, MM
     (void)[MMLog.shared latest:@"undo" expert:nil subject:nil since:nil limit:10];
     (void)MMPrefBool(@"check.on", NO);
     MMNotify(e.expertID, @"Checked", @"Nothing happened.", nil);
+    MMPerformance *perf = [MMPerformance from:s history:s.history lookBack:[MMPerformanceLookBack fromSummary:@{}]];
+    (void)perf.memory.parts[MMPerformanceOther];
+    (void)perf.fixes.firstObject.memoryBack;
+    (void)MMPerformanceFold(MMPerformanceServers);
 #ifdef MM_TESTS
     MMUsePowerSource(nil);
 #endif

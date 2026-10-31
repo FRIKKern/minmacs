@@ -137,6 +137,16 @@ gains [--days <n>] [--json]
 
 Flags: `--days`, `--json`.
 
+#### `performance`
+
+The Performance tab: memory and disk by holder, the fixes ranked, and what came back.
+
+```
+performance [--json]
+```
+
+Flags: `--json`.
+
 #### `mode`
 
 Show or set an expert's mode.

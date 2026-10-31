@@ -44,6 +44,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P52, P53 | `Act/MMUndo.h` | `MMUndoRecord`, `MMUndo` with the Trash, git bundles and Wrap Up records, `MMToolCommand` with its dry run |
 | P52 | `Act/MMWorktreeAct.h` | `MMWorktreeIgnoredFiles`, `MMWorktreeRemove` with no `--force` and `git branch -d`, and `MMWorktreePrune` |
 | P48 to P51, P54, P55 | `Act/MMAct.h` | Modes, `MMExpertPolicy`, `MMMustKeep`, `MMPlan`, `MMKeep`, `MMAction`, `MMStop`, `MMAwake`, `MMLidOverride`, `MMNotify`, and Wrap Up: `MMWrapUpPlan`, `MMRunWrapUp` and `MMRunActionPart` |
+| none | `MMPerformance.h` | The Performance tab of design 132-a as a model: the ring, the two sides, the fixes and the look-back, built on demand from one snapshot |
 | P56 to P62 | `MMExpert.h` | The `MMExpert` protocol, `MMRowMark`, and the menu, card and verb specs it returns. The kit, render tool, formatters, verb registry and URL router themselves live in `Sources/UI` and `Sources/CLI` |
 | P65 | none | build.sh, test.sh and the CI workflow. `MMCore.h` notes it |
 
@@ -184,6 +185,14 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - The caps are fixed arrays: 200 rings, the Mac and the disk among them, at 928 bytes a ring. A ring whose process is gone is dropped 10 minutes after it went, or sooner when a new tree needs its room. Each pass that finds 200 live rings for a new tree counts it as refused.
 - A copy is one memcpy into a buffer with room for the caps. The store keeps two such buffers that no view reads any more, so a build every 5 seconds reuses the same memory. `bench history` measures the footprint at the caps, with the store and two copies held, against the `historyKB` budget of 1 MB.
 - `minmacs history [--json]` prints the copy. A cold CLI has none, since nothing is kept on disk.
+
+## The Performance model, wave 8
+
+- `+[MMPerformance from:history:lookBack:]` builds the tab of design 132-a from one snapshot, off main. It is not part of the graph build, so the idle tick does not pay for it. The sheet UI that comes later only draws it. `MMSheet.h` still describes 54-a.
+- The memory ring reads `NSProcessInfo.physicalMemory` and the Mac ring of `MMHistory`, or `MMReadHostLoad` when the snapshot has no filled minute. The disk ring reads `MMPower.diskTotal` and `diskFree`. A process counts once, for servers, then agents, helpers and apps, and a cache inside a worktree counts in caches and clutter only.
+- Rows come from findings: LocoHost's servers, MinMacs's agents and apps, WorkForest's worktrees and Noo-Noo's clutter, plus the helpers and localhost tabs of finished workstreams' Wrap Up plans. Each has one number and its finding id.
+- A fix is a Wrap Up plan with no whyNot, or every finding of one kind of action that passes `MMMustKeep`: stop, quit, remove for merged worktrees, trash and clean. A tool's own cleanup needs the person. The order is the larger share of memory or disk it gives back, so the two are never summed.
+- The look-back is the gains log's 7-day summary: this week and today. The model holds no sentence. `minmacs performance [--json]` prints it, and `test/performance.sh` checks it on fixture facts.
 
 ## How the parts meet
 
