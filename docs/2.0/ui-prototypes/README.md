@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-260 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+300 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -44,6 +44,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 131 | Servers and worktrees first | "Servers top left, Worktrees top right ... they should show a lot usually. We should feel balance on left and right side": 130 with Servers leading the left, more rows for both, fewer for the rest, and both sides ending level |
 | 132 | 204's ring | "204 had the best ring in my opinion": 131 with 113-a's gauge, memory inside and disk as the outer track |
 | 133–142 | The menu again, 03-b with what we learned | "20 new versions inspired by the 6/240 and what we learned so far". Gallery 6 is 03-b, One Icon ftop Lines: one flat menu from the MinMacs icon. On 132-a's data, at most 15 points at rest: the strict native menu with gauges or a small split ring, the ring on top, fix first, by workstream, a short menu with a rich card, a wide menu with servers left and worktrees right, ftop lines that open, the last hour, type to find, and the menu bar icon itself |
+| 143–162 | 251 with more processes and a footer of icons | "more inspired by 251 - but for example, i would like to see more of the processes", and Hide Icon, Settings and Quit "could become icons and take less space ... boil the ocean". On 138-a, each pair a way to show many more processes, with the footer as three small icons: more rows, process trees, a place for agents, an Activity Monitor list, three columns, tiles and a treemap, bars in rows, live arrivals, halves that scroll, a switch per half, callouts around the ring, CPU beside memory, a port grid, by workstream, a small ring, a tall menu, rows that open, idle heat, who started it, and a wall of words or a skyline |
 
 ## Direction so far
 

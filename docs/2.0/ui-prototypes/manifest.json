@@ -2598,5 +2598,405 @@
   "surface": "menu",
   "groupId": "142",
   "direction": "Menu: the icon and the bar"
+ },
+ {
+  "file": "143-a.html",
+  "name": "Fuller Halves",
+  "idea": "138-a's layout with 10 rows a side: the left half is one list of servers, agents, apps and helpers mixed by memory (each kind has a quota, and what a fix touches comes first), the right half is worktrees and caches by disk, and the mark's color is the kind while its shape is the state. At Busy it shows 20 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac's numbers; the name and shortcut show below on hover.",
+  "good": "It reads like 138-a, only fuller: one list a side ranked by size, and agents show their subagent count in gray, so many kinds fit with no new structure.",
+  "tradeoff": "With kinds mixed, the kind comes only from the mark's color and the second fact, and a long agent title gives up words to make room for its subagent count.",
+  "surface": "menu",
+  "groupId": "143",
+  "direction": "Processes: more rows, 22 px each, tight but calm"
+ },
+ {
+  "file": "143-b.html",
+  "name": "Halves by Kind",
+  "idea": "Each half is grouped by kind under thin headers that carry the count and size (Servers, Agents, Apps and Helpers left; Worktrees and Caches right), each group shows its biggest rows with what a fix touches first, and an unused quota spills to the other groups. At Busy it shows 23 process rows. The footer is three icons: at the end of the Fix Everything row (it stays the last action row during a run and at its end); the name and shortcut show above on hover.",
+  "good": "You can see at a glance how many of each kind run and what they hold, and 23 rows still scan calmly because the headers do the sorting.",
+  "tradeoff": "The menu grows to about 566 px tall, and the headers cost rows, so each group shows only its top 2 to 8.",
+  "surface": "menu",
+  "groupId": "143",
+  "direction": "Processes: more rows, 22 px each, tight but calm"
+ },
+ {
+  "file": "144-a.html",
+  "name": "Biggest Trees Open",
+  "idea": "Each half lists processes by kind (Servers, Agents, Apps and Helpers on the left; Worktrees and Leftovers on the right) under thin headers that say how many are shown, such as '4 of 15'. The kinds take turns filling a fixed height, the biggest server, the biggest agent and the two biggest worktrees are open at rest with tree lines, and an open row splits its ring slice into one piece per child. At Busy it shows 19 process rows. The footer is three icons: in the ring's open bottom gap, three 24 px icons (hide, settings gear, quit power); the name and shortcut show in a tooltip on hover or when the arrow keys reach them, Left and Right move between the icons, and Cmd+, and Cmd+Q also work.",
+  "good": "You see the shape of what is running at a glance, such as :6006 Storybook as node storybook plus esbuild, or an agent as claude, MCP servers and its subagents. Click or Return opens or folds any row, and the hover card always shows the full tree.",
+  "tradeoff": "Open trees cost rows, so at Busy only 4 servers and 4 agents show at the top level. The rest go to More, and a row's place depends on what is open. Proposed facts: the names of the child processes inside a server (by framework), an agent (claude or codex, MCP servers, shell) and an app (renderers, GPU, extension host), and how a parent's memory splits between its children; Core knows the process count, the agent's tree memory, subagent starts and each app with its helpers rolled up. A worktree's caches are real facts.",
+  "surface": "menu",
+  "groupId": "144",
+  "direction": "Processes: process trees, where a server, agent or app row opens to its child processes indented under it and a worktree opens to the caches inside it"
+ },
+ {
+  "file": "144-b.html",
+  "name": "Folded Trees",
+  "idea": "Every tree is folded to one line with a small branch mark and its child count in gray. Rest on a row for 260 ms and it opens in place: the children slide in under it, the rows below move down, and the last rows fold into More. At most two stay open, rows above the newest open row never move, and leaving the half folds everything back. At Busy it shows 18 process rows. The footer is three icons: at the end of the Fix Everything row (it stays there as the Stop row while a run plays and the Skipped row after it), behind a thin divider; the tooltip opens just below the menu so it covers no row, and the same keys work as in a.",
+  "good": "18 processes show at the top level at Busy, the most in this round's direction. The tree is there whenever you rest on a row and costs nothing at rest.",
+  "tradeoff": "Opening on hover moves the rows below the pointer, and long agent titles get shortened to fit the count. When too few words are left, the row shows the workstream name instead. Proposed facts: the same as a: child process names and their memory split for servers, agents and apps; the child count for servers is the real process count.",
+  "surface": "menu",
+  "groupId": "144",
+  "direction": "Processes: process trees, where a server, agent or app row opens to its child processes indented under it and a worktree opens to the caches inside it"
+ },
+ {
+  "file": "145-a.html",
+  "name": "Agents on a Shelf",
+  "idea": "138-a's halves fill out to 7 rows each, and under the ring a full-width shelf of agent chips (3 across, up to 18) shows each agent's state mark, session title, tool, subagent starts as dots and its memory. At Busy it shows 23 process rows. The footer is three icons: in the ring's open bottom gap, between the arc ends, above the 'memory inside, disk outside' caption; the tip shows below the icon.",
+  "good": "Every agent at Busy shows at once with its full title, and pointing at a chip lifts its slice in the ring and lights its workstream's server and worktree.",
+  "tradeoff": "The shelf makes the menu about 600 px tall at Busy and Peak, and the working agents' breathing marks add slow motion to a menu that was still.",
+  "surface": "menu",
+  "groupId": "145",
+  "direction": "Processes: agents get a place of their own, a third zone beside servers and worktrees"
+ },
+ {
+  "file": "145-b.html",
+  "name": "Servers Beside Agents",
+  "idea": "A 940 px menu where the memory half splits into a Servers column and an Agents column side by side, each with 12 rows of 24 px and its own More row, then the ring, then 12 worktrees. At Busy it shows 24 process rows. The footer is three icons: at the end of the Fix Everything row, after a faint divider, aligned with the second action row; the tip shows above the icon.",
+  "good": "It reads like a calm table: three ranked lists ending level, with agents as plain rows (state mark, title, subagent dots, memory), and the menu is shorter than a (about 440 px).",
+  "tradeoff": "At 940 px the hover card sits near the stage's left edge, the server column loses its gray owner names, and long agent titles shorten to whole words, such as 'Score answers'.",
+  "surface": "menu",
+  "groupId": "145",
+  "direction": "Processes: agents get a place of their own, a third zone beside servers and worktrees"
+ },
+ {
+  "file": "146-a.html",
+  "name": "Ranked Like Activity Monitor",
+  "idea": "The left half is one list of every process (apps, agents, servers, helpers, noise tabs), 16 rows ranked by memory under a 'Processes 47 / Memory' column header, faint zebra rows and a small kind mark per row (square app, diamond agent, dot server, ring helper, folder tabs) that turns orange when a fix takes it. The right half ranks worktrees and caches by disk the same way, and a legend of the marks with counts sits under the ring. At Busy it shows 32 process rows. The footer is three icons: at the end of the Fix Everything row, after a thin divider: hide (eye with a slash), settings (gear), quit (power). Each shows its name and shortcut in a tip under it, can be reached with the arrow keys, and ⌘, opens Settings.",
+  "good": "It reads like a tool people already know, shows 2x to 4x more processes than 138-a, and live runs re-rank the rows in place as memory comes back. Pointing at a legend kind lights every row and slice of that kind.",
+  "tradeoff": "A strict memory rank lets apps and agents fill the top 16, so small servers (about 0.2 to 0.5 GB) mostly sink under More at Busy and Peak. They show only at Quiet or when you open More (ranks 17 to 30). Proposed facts: a helper ranked in the main list outside its Wrap Up.",
+  "surface": "menu",
+  "groupId": "146",
+  "direction": "Processes: Activity Monitor, one ranked list of every process with its kind as a small mark"
+ },
+ {
+  "file": "146-b.html",
+  "name": "Memory or CPU Switch",
+  "idea": "Same ranked lists, plus a small Memory | CPU segmented switch in the left list's header. In CPU order the number is CPU % and the gray fact becomes the memory, so the ring (always memory) still reads. At Busy it shows 32 process rows. The footer is three icons: at the top left, beside the line that asks (like Activity Monitor's toolbar), split from it by a thin divider. The tips show under the icons.",
+  "good": "CPU order brings busy agents and their trees to the top next to cmux and Chrome, which answers 'what is working right now' in one click. The switch is reachable with the arrow keys and Return like any menu row.",
+  "tradeoff": "In CPU order the gray fact is the memory, so the workstream moves to the hover card. Rows re-rank as CPU moves in the live simulation, and servers still sit low because their CPU is small. Proposed facts: CPU of apps and helpers (Core reads CPU only for servers and agent trees); a helper ranked outside its Wrap Up.",
+  "surface": "menu",
+  "groupId": "146",
+  "direction": "Processes: Activity Monitor, one ranked list of every process with its kind as a small mark"
+ },
+ {
+  "file": "147-a.html",
+  "name": "Three Equal Columns",
+  "idea": "A 750 px menu in three equal 250 px columns: Servers and Helpers on the left, 132-a's ring in the middle with up to 4 agents and 3 apps under it, Worktrees and Leftovers on the right, each list filling with 24 px rows to the middle column's height. At Busy it shows 40 process rows. The footer is three icons: in the ring's open bottom gap, three 26 px icons with a dark name-and-shortcut tip below the hovered one.",
+  "good": "You see servers, agents, apps and worktrees side by side, and pointing at any row lifts its slice and lights the rest of its workstream in the other two columns (server, agent, worktree).",
+  "tradeoff": "At 250 px the gray second fact (owner, state) often drops on server rows, and long agent titles wrap to two lines, so the agent list is uneven.",
+  "surface": "menu",
+  "groupId": "147",
+  "direction": "Processes: three columns, Servers | ring with Agents and Apps under it | Worktrees, with the middle column setting the height and the two lists filling to it so all three end level"
+ },
+ {
+  "file": "147-b.html",
+  "name": "Narrow Ring, Wide Lists",
+  "idea": "An 820 px menu where the ring column shrinks to 184 px and the two lists widen to about 317 px, so every server shows its workstream or nobody, every worktree its state, and the lists run to about 20 rows each; agents and apps under the ring become two-line cells (name, then gray fact and number). At Busy it shows 49 process rows. The footer is three icons: a slim 28 px icon strip at the bottom left, with the hovered icon's name and shortcut written beside it in gray.",
+  "good": "The most processes of any layout here, with every row's owner always visible, and Helpers and Leftovers get their own groups in the lists.",
+  "tradeoff": "The tall middle column sets the height, so in Quiet the short side lists leave empty space, and the narrow middle shortens its More row to a count such as 12 more agents.",
+  "surface": "menu",
+  "groupId": "147",
+  "direction": "Processes: three columns, Servers | ring with Agents and Apps under it | Worktrees, with the middle column setting the height and the two lists filling to it so all three end level"
+ },
+ {
+  "file": "148-a.html",
+  "name": "Tiles in Both Halves",
+  "idea": "Each half becomes a grid of tiles, two to a row, up to 22 a side: one tile per process on the left (servers, agents, apps, helpers, noise tabs) and one per worktree or cache on the right. Each tile has its kind's hue, a tone set by its size, one number, and its workstream or fate in gray when the whole word fits; a key under the ring explains all this. At Busy it shows 22 process rows. The footer is three icons: at the end of the Fix Everything row, after a thin divider; the tooltip opens above.",
+  "good": "Shows 5 times as many processes as 138-a (22 instead of 4) while every tile keeps a readable name and one number. Agents that ask and parts a fix touches always get a place. Pointing at a tile lifts its slice, dims the other tiles and opens the card.",
+  "tradeoff": "Ranking by memory lets big apps and agents fill the grid, so at Peak no server makes the cut (all 24 sit under More). Long agent titles lose their last words, so 'Import the glossary CSV' shows as 'Import'.",
+  "surface": "menu",
+  "groupId": "148",
+  "direction": "Processes: tiles in a grid, sized or toned by memory"
+ },
+ {
+  "file": "148-b.html",
+  "name": "Process Map, Worktree Rows",
+  "idea": "The wild one. The left half is a squarified treemap of every process that holds memory: a box each, its area its memory, grouped by kind and hued by kind, orange when a fix touches it, with a white edge when the agent asks. The right half keeps 12 worktree rows. At Busy it shows 49 process rows. The footer is three icons: top-right corner, sharing the top row with the agents-ask line (alone in a slim row when nobody asks); the tooltip opens below.",
+  "good": "The whole process load is visible at once (about 49 boxes at Busy, 77 at Peak, nothing hidden except zero-memory localhost tab groups), and the boxes glide shut around the gap as Fix Everything removes parts.",
+  "tradeoff": "Small boxes (most servers, many agents) carry no label until you point at them. Showing every process takes a 290 x 360 px map, and the ring repeats the same memory picture.",
+  "surface": "menu",
+  "groupId": "148",
+  "direction": "Processes: tiles in a grid, sized or toned by memory"
+ },
+ {
+  "file": "149-a.html",
+  "name": "Bars Under Names",
+  "idea": "Each half holds up to 15 process rows grouped by kind under thin headers (Servers, Agents, Apps and helpers on the left; Worktrees, Caches and leftovers on the right), and each row has a 2 px bar under its name in the ring's own colour, orange when a fix touches it, with the longest bar for the biggest of its kind. At Busy it shows 30 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac's two numbers.",
+  "good": "Thirty rows at Busy stay calm, with one number per row, a small gray second fact or pink subagent dots, and bars that let you rank a group at a glance and match the ring's slices; a group that runs short gives its spare rows to the other group on its side.",
+  "tradeoff": "The bar scale resets for each kind, so a server bar and an app bar of the same length are not the same size; the ring and the numbers carry the true comparison.",
+  "surface": "menu",
+  "groupId": "149",
+  "direction": "Processes: bars in rows, so each row in a long, grouped list shows its size at a glance"
+ },
+ {
+  "file": "149-b.html",
+  "name": "Bars Behind Rows",
+  "idea": "A wider 820 px menu with 22 px rows, where each row's background is a faint bar of its size on one scale for the whole half, so the list reads as a quiet bar chart with 19 rows a side. At Busy it shows 38 process rows. The footer is three icons: at the end of the Fix Everything row, right of its totals, with tooltips opening upward and aligned right.",
+  "good": "It shows the most processes (38 at Busy) and tells the truth across kinds: Chrome and cmux fill their rows while servers are thin slivers, and the disk bars rescale live as a big cache is deleted.",
+  "tradeoff": "On one scale the small kinds (servers, most agents) get bars too short to compare with each other, and the tinted backgrounds are busier than a's thin lines.",
+  "surface": "menu",
+  "groupId": "149",
+  "direction": "Processes: bars in rows, so each row in a long, grouped list shows its size at a glance"
+ },
+ {
+  "file": "150-a.html",
+  "name": "Arrivals Feed",
+  "idea": "The left half holds Servers, Agents and Apps in groups (4, 4 and 3 rows of 22 px), and a small \"Came and went\" feed of the last five arrivals and departures sits under the ring. At Busy it shows 16 process rows. The footer is three icons: at the end of the Fix Everything row (it also sits beside the Stop or Skipped row). Three 24 px icons: hide, gear, power. On hover each shows a tooltip under the icon with its name and shortcut (Settings ⌘, and Quit MinMacs ⌘Q). Arrow keys reach them, and ⌘, works.",
+  "good": "You can see the Mac's activity at a glance: a new agent slides into its group with \"new\" in gray, and in the feed a stopped server or ended agent shows a hollow ring and its verb (stopped, ended, quit). During Fix Everything the feed fills with what the run stopped.",
+  "tradeoff": "The feed shows one line per event, so fewer process rows fit, and a long name wraps to two lines under the ring. Proposed facts: Arrival time for servers, apps and helpers, taken from when MinMacs first sees the process (Core keeps no start time; agent start comes from the fixture). The page and the hover card mark it proposed. The demo also starts and ends agent sessions a little faster than the base sim.",
+  "surface": "menu",
+  "groupId": "150",
+  "direction": "Processes: live arrivals, so a new process slides in with \"new\" in gray and a stopped one fades out of its row"
+ },
+ {
+  "file": "150-b.html",
+  "name": "Arrival Times",
+  "idea": "Every process row shows when it arrived as its second fact, in an \"arrived\" column next to memory (5 servers, 5 agents, 4 apps). Under the ring is a last-hour strip with ticks up for arrivals and down for departures. At Busy it shows 14 process rows. The footer is three icons: in the ring's open bottom gap, between the center numbers and the caption. Three 24 px icons: hide, gear, power. On hover each shows a tooltip under the icon with its name and shortcut. Arrow keys reach them, and ⌘, opens Settings.",
+  "good": "Fresh processes stand out among long-lived ones (\"new\", 13 min, 2 d) without a separate feed, and the strip shows in plain words when things came and went over the last hour.",
+  "tradeoff": "The worktree owner word moves into the hover card for servers. The menu grows to 780 px wide so names keep their words next to the arrival column. Proposed facts: Arrival time per process, taken from when MinMacs first sees it (Core keeps no start time; agent start comes from the fixture). Departure times on the strip come from MinMacs watching processes leave. The page and the hover card mark it proposed.",
+  "surface": "menu",
+  "groupId": "150",
+  "direction": "Processes: live arrivals, so a new process slides in with \"new\" in gray and a stopped one fades out of its row"
+ },
+ {
+  "file": "151-a.html",
+  "name": "Halves That Scroll",
+  "idea": "Each half holds every process on its side (memory left: Servers, Agents, Apps, Browser tabs, Helpers; disk right: Worktrees, Leftovers), in the ring's order with the biggest first in each group, and scrolls inside a fixed 358 px under a sticky group header. A gray line under each half counts the rows below and any lit rows out of view, and a fix, Fix Everything, a ring slice or the running fix scrolls each half once to its first lit row. At Busy it shows 28 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac's two numbers (hide, gear, power; each shows its name and shortcut on hover, works with the arrow keys and Return, and ⌘, opens Settings).",
+  "good": "Nothing is hidden behind More: all 87 processes at Busy (146 at Peak) are one calm scroll away, each with one number and at most one gray fact, while the header, ring and the two fix rows stay as calm as 138-a.",
+  "tradeoff": "Most rows sit below the fold, so for a long group like Agents or Tabs you have to scroll or trust the 'N more below · N lit below' line, and the first screen at Busy shows mostly servers and worktrees.",
+  "surface": "menu",
+  "groupId": "151",
+  "direction": "Processes: halves that scroll"
+ },
+ {
+  "file": "151-b.html",
+  "name": "Halves That Fold",
+  "idea": "The same scrolling halves, but each group folds to its biggest few (rows a fix touches come first), sized so every group fits its half at rest. The header reads, for example, 'Servers 2 of 19 · 4.4 GB'; click it or press Return to open the whole group in place, and the half then scrolls. At Busy it shows 23 process rows. The footer is three icons: at the end of the Fix Everything row, behind a thin divider; they stay there while it changes to Stop, Skipped or Back This Week, and their tooltips open below the menu.",
+  "good": "Every kind of process (servers, agents, apps, tabs, helpers, worktrees, leftovers) shows at rest with its count and size, and a folded header says '3 lit inside' when a fix touches rows it hides.",
+  "tradeoff": "At rest it shows fewer rows than a, and seeing all of a group takes a click, so the two-state header (some of / all) is one more thing to learn.",
+  "surface": "menu",
+  "groupId": "151",
+  "direction": "Processes: halves that scroll"
+ },
+ {
+  "file": "152-a.html",
+  "name": "Words Switch Per Half",
+  "idea": "Each half has a small segmented switch of words (Servers / Agents / Apps / Helpers left, Worktrees / Caches right) that picks the kind its ten 24 px rows show. The chosen part carries its count, Agents gets a white dot when an agent asks, and pointing at a part lights that kind in the ring with its total in the center. At Busy it shows 10 process rows. The footer is three icons: at the end of the Fix Everything row, behind a thin divider, tooltips below.",
+  "good": "Every kind reaches a ten-row list behind one click, so 66 processes at Busy are two steps away, and the menu never changes height when you switch. While Fix Everything runs, each half follows the kind the running fix touches, then goes back to Servers / Worktrees.",
+  "tradeoff": "Only one kind shows per half at a time, so an agent and the server it started are never side by side, and kinds with few rows (Helpers 2, Caches 4, Quiet) leave empty space under them.",
+  "surface": "menu",
+  "groupId": "152",
+  "direction": "Processes: a switch per half"
+ },
+ {
+  "file": "152-b.html",
+  "name": "Icon Switch Per Half",
+  "idea": "The same switch drawn as icons (server rack, sparkle, window, linked circles; branch, box) with the chosen kind's name and count beside them. At rest the ring dims the kinds the switches do not show, so the ring and the lists say the same thing. At Busy it shows 10 process rows. The footer is three icons: in the ring's open bottom gap, under the center numbers, tooltips below.",
+  "good": "The switch takes about 110 px, so the half's header still names the chosen kind and its count. The dimmed ring shows at a glance how much of memory the visible list explains.",
+  "tradeoff": "Icons need a hover (name and count tooltip) to be learned, and the ring dimming means that at rest you can only read the chosen kind's slices clearly.",
+  "surface": "menu",
+  "groupId": "152",
+  "direction": "Processes: a switch per half"
+ },
+ {
+  "file": "153-a.html",
+  "name": "Callouts Round the Ring",
+  "idea": "The 270 degree ring now fills upward from both ends of its gap. Servers and agents rise on the left, apps and helpers on the right, and free memory stays open at the top. The 6 biggest processes of each side sit beside the ring as two-line callouts, each with a thin line to its slice. Under the ring, the next 6 processes and the worktrees sit in two lists that end level. At Busy it shows 18 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac numbers.",
+  "good": "Each big process is pinned to its own slice, so the ring reads as a labelled chart. Because the wings rise from the gap, the callouts sit level with their slices and the short lines do not cross.",
+  "tradeoff": "Only 12 processes get a callout and 6 more get rows, so at Peak most of the 76 are still behind More. The ring also no longer fills from one end like a plain gauge.",
+  "surface": "menu",
+  "groupId": "153",
+  "direction": "Processes: around the ring, each process a callout at its own slice with a line to it"
+ },
+ {
+  "file": "153-b.html",
+  "name": "Every Process on the Ring",
+  "idea": "An 880 px menu with no lists. One ring is split down the middle: memory fills the left half from the top, disk the right half. Every process sits around the ring in blocks by kind: Servers, Agents, and Apps and helpers on the left, Worktrees and Leftovers on the right. Each kind has a bracket on the ring and one line to its block, and the row you point at draws its own line to its slice, which lifts. At Busy it shows 49 process rows. The footer is three icons: top right corner of the header, beside the asks line.",
+  "good": "At Busy every process shows at once (49 of 49 at first load) in 17 px rows with one number each. Only 5 lines show at rest, which keeps the menu calm.",
+  "tradeoff": "The menu is wide and runs to the bottom of the stage. At Peak the smallest of each kind fold into one 'and N smaller' line, so 51 of 76 show and the card lists the rest. Disk holders are thin slivers on a half circle scaled to 994 GB.",
+  "surface": "menu",
+  "groupId": "153",
+  "direction": "Processes: around the ring, each process a callout at its own slice with a line to it"
+ },
+ {
+  "file": "154-a.html",
+  "name": "CPU Beside Memory",
+  "idea": "The left half lists processes by kind (Servers, Agents, Apps, Helpers, each with a thin 'n of N' label) in aligned columns: CPU as a small gray number, then memory as the main number. A 'CPU, last hour' line with 'N % now' runs across the top of the menu. At Busy it shows 13 process rows. The footer is three icons: header's top-right corner, after the CPU line; each icon shows its name and shortcut in a tooltip on hover; arrow keys reach them last, Left/Right move between them, Cmd+, opens Settings and Cmd+Q quits.",
+  "good": "CPU and memory read together in two aligned columns, so the costly processes show without a second view, and the header says how busy the Mac has been this hour.",
+  "tradeoff": "The CPU column takes about 40 px of the name, so long agent titles drop to their first words (for example 'Write lane C'), and the right half ends short at Quiet. Proposed facts: CPU for apps and helpers (Core rolls up their memory, not their CPU).",
+  "surface": "menu",
+  "groupId": "154",
+  "direction": "Processes: CPU and memory side by side for every process, with the Mac's CPU over the last hour as a line in the header"
+ },
+ {
+  "file": "154-b.html",
+  "name": "Heat Dots, Memory Numbers",
+  "idea": "Memory stays the one number on each row. CPU becomes a white dot that grows and brightens with load and is hollow when idle. Pointing at an agent turns the header line into that agent's own CPU over the hour, with 'now' and 'peak'. At Busy it shows 17 process rows. The footer is three icons: in the ring's open bottom gap, centered under the Mac numbers; tooltips with name and shortcut on hover, same keys as a.",
+  "good": "The dot leaves room for full names and the owner in gray, so 17 process rows fit calmly, and the busy ones stand out at a glance without more numbers.",
+  "tradeoff": "A dot gives no exact CPU (the card and the header give the number), and the menu is taller (637 px at Busy). Proposed facts: CPU for apps and helpers; one agent's own CPU over the last hour (the header shows it when you point at an agent).",
+  "surface": "menu",
+  "groupId": "154",
+  "direction": "Processes: CPU and memory side by side for every process, with the Mac's CPU over the last hour as a line in the header"
+ },
+ {
+  "file": "155-a.html",
+  "name": "Ports Beside Worktrees",
+  "idea": "Every server is a cell in a 3-column grid on the left. Each cell shows its port and, under it, its framework. The cell's brightness shows memory, a hollow cell is idle, orange means a fix takes it, and a shield marks Docker's. Worktrees on the right show as many rows as it takes to end level with the grid, and 138-a's ring stays between them. At Busy it shows 20 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac numbers; name and shortcut show in a tooltip on hover; arrow keys, Return, Cmd+comma and Cmd+Q work.",
+  "good": "Every server shows at once and reads like a patch panel: 20 ports at Busy and 35 at Peak, with no number per cell. Pointing at a cell still lifts its slice in the ring, lights its worktree and opens its card.",
+  "tradeoff": "Memory shows only as brightness until you point at a cell, and the cells sort by port, not by size. Agents, apps and helpers stay under More.",
+  "surface": "menu",
+  "groupId": "155",
+  "direction": "Processes: Ports"
+ },
+ {
+  "file": "155-b.html",
+  "name": "Ports and Agents Grid",
+  "idea": "A 920 px menu whose left side holds two grids: every server as a port cell in 6 columns, and every agent as a cell in 4 columns. An agent cell shows its workstream, its tool, dots for subagent starts, and a white edge with a diamond when it asks you. The ring sits between the grids and the worktree list. At Busy it shows 36 process rows. The footer is three icons: top right of a header strip, on the same line as the asks-you line; tooltip right-aligned under the icon; arrow keys, Return, Cmd+comma and Cmd+Q work.",
+  "good": "The menu shows what is running and who runs it: 36 cells at Busy and 63 at Peak, still within the stage. Agents that ask stand out among many, and each agent card gives session, memory, subagents and the Answer action.",
+  "tradeoff": "It is 200 px wider than 138-a, so the hover card covers part of the scenario panel. Agents from one workstream repeat its name and differ only by tool. Proposed facts: each subagent's own memory (the card shows subagent starts as a count only).",
+  "surface": "menu",
+  "groupId": "155",
+  "direction": "Processes: Ports"
+ },
+ {
+  "file": "156-a.html",
+  "name": "Workstream Table",
+  "idea": "A band at the top puts the ring between what no workstream holds: apps and other processes on the left (memory), leftovers on the right (disk). Under it is one table with a thin label per workstream (for example \"queue-retry · 1 of 2 agents asks you, 1 server\"), its servers, agents and helpers on the left and its worktree on the right, on the same line. At Busy it shows 17 process rows. The footer is three icons: in the ring's open bottom gap, tooltips below.",
+  "good": "Each line shows which work holds which processes and which worktree, and pointing at a label lights that whole workstream in both halves and the ring, and opens a workstream card.",
+  "tradeoff": "Each workstream has one worktree, so the right column has empty space under each worktree row (filled only by a gray repo and merged note), and at most 5 workstreams and 4 processes each fit, so the rest go under More. Proposed facts: A helper under a workstream that is still working (Core finds a helper only for a Wrap Up subject). Live step text and fix timing are inherited from 138-a. No per-process child lists or per-tab memory are used.",
+  "surface": "menu",
+  "groupId": "156",
+  "direction": "Processes: by workstream"
+ },
+ {
+  "file": "156-b.html",
+  "name": "One Color Per Workstream",
+  "idea": "138-a's two halves with up to 22 rows a side, grouped by workstream in the same order on both sides. Each workstream has one color that its rows carry as a thin bar, that colors its slices on both ring tracks, and that the key under the ring names. Gray means no workstream. At Busy it shows 22 process rows. The footer is three icons: right end of the top line, beside the asks-you line (alone there when nobody asks).",
+  "good": "The longest lists of the round's pattern still read as clear blocks, and pointing at a name in the key lights that workstream's processes, worktree and ring slices in its own color.",
+  "tradeoff": "Twelve colors run out at Peak (20 workstreams), so later workstreams fall back to gray. Long agent session titles lose whole words, and the gray state word drops when there is no room. Proposed facts: A helper under a workstream that is still working (Core finds a helper only for a Wrap Up subject). A color per workstream is view state only and is not in Core.",
+  "surface": "menu",
+  "groupId": "156",
+  "direction": "Processes: by workstream"
+ },
+ {
+  "file": "157-a.html",
+  "name": "Ring in the Header",
+  "idea": "The ring is now 90 px in a header strip, with the Mac's two numbers and a line that says what the ring means beside it. Each half lists every kind it holds under thin kind headers, up to 22 lines a half: Servers, Agents with subagent counts, Apps, Browser Tabs and Helpers on the left, Worktrees and Leftovers on the right. At Busy it shows 35 process rows. The footer is three icons: the header's top-right corner, beside the ring strip. Each shows a tip with its name and shortcut on hover and is reachable with the arrow keys.",
+  "good": "About 35 process rows instead of 8. Every part still has a slice that lifts on hover, and the header words change to the pointed part, the fix's after-state or what came back.",
+  "tradeoff": "The ring is too small to read slice by slice, so the header words carry the detail. Live memory changes can reorder rows under the pointer.",
+  "surface": "menu",
+  "groupId": "157",
+  "direction": "Processes: the ring shrinks to a header strip or a split bar, and its room goes to grouped process lists"
+ },
+ {
+  "file": "157-b.html",
+  "name": "Split Bar, Big Lists",
+  "idea": "No ring. A thin split bar tops each half: the left bar is the 64 GB of memory by holder, the right bar is the disk by holder, each with its own big number. The freed height takes 22 px rows, up to 26 lines a half. At Busy it shows 41 process rows. The footer is three icons: at the end of the Fix Everything row (and of the Stop row during a run), with the tip opening below the menu.",
+  "good": "The most processes of the pair: about 41 rows at Busy and 44 at Peak. Memory and disk stay two bars with two numbers, and pointing at a row lifts its segment.",
+  "tradeoff": "Bars show small holders as thin slivers, and the left half stays much busier than the right, which ends with space below Leftovers at Busy.",
+  "surface": "menu",
+  "groupId": "157",
+  "direction": "Processes: the ring shrinks to a header strip or a split bar, and its room goes to grouped process lists"
+ },
+ {
+  "file": "158-a.html",
+  "name": "Tall Two Halves",
+  "idea": "The 720 px menu runs to the bottom of the screen, and each half fills its height with rows grouped by kind under thin count headers (Servers, Agents, Apps, Helpers on the left; Worktrees, Leftovers on the right), showing what a fix touches first, with a More row for the rest and a key under the ring that names each kind's color and total and lights that kind's rows on hover. At Busy it shows 41 process rows. The footer is three icons: in the ring's open bottom gap: hide, gear and power icons, each with a tooltip giving its name and key (Settings ⌘, and Quit ⌘Q); the arrow keys reach them last, Left and Right move between them, and ⌘, and ⌘Q also work.",
+  "good": "About 20 processes and 21 worktrees and leftovers show at a glance in the same calm two-halves layout, one number per row, and the halves still end level.",
+  "tradeoff": "The menu is now as tall as the screen. The middle column under the ring key holds the last hour of memory in use and disk free as two lines, so it is a little busier than 138-a.",
+  "surface": "menu",
+  "groupId": "158",
+  "direction": "Processes: Tall menu"
+ },
+ {
+  "file": "158-b.html",
+  "name": "Tall Three Columns",
+  "idea": "An 880 px menu that runs to the bottom of the screen with three columns of rows (Servers; Agents, Apps and Helpers; then, past a slightly smaller ring, Worktrees and Leftovers), so memory stays left of the ring and disk stays right of it. At Busy it shows 61 process rows. The footer is three icons: top right, on the line of the agent that asks: hide, gear and power icons, each with a tooltip below it giving its name and key; the arrow keys reach them last, Left and Right move between them, and ⌘, and ⌘Q also work.",
+  "good": "At Busy nearly everything that runs shows at once (all servers, most agents and apps, every worktree), and More rows hold only the overflow.",
+  "tradeoff": "It is wide and dense, and long agent session titles are shortened by whole words in the narrow columns, so the full title shows only in the card and the ring center.",
+  "surface": "menu",
+  "groupId": "158",
+  "direction": "Processes: Tall menu"
+ },
+ {
+  "file": "159-a.html",
+  "name": "One Row Opens",
+  "idea": "Each half lists more rows, grouped by kind under thin headers: about 10 processes on the left (servers, agents, apps, helpers) and worktrees and leftovers on the right. Clicking a row or pressing Return on it opens it inline, one at a time. The open row shows its owner, launcher, port, CPU, connections and tabs, plus its processes as a small tree, and the biggest server is open at rest. The rows below move down, and the other half fills the freed room with its next rows, so the halves still end level. At Busy it shows 10 process rows. The footer is three icons: a slim strip at the right end of the two action rows (first fix and Fix Everything), after a thin divider; each icon shows its name and shortcut in a tooltip above it, the arrow keys reach it, and ⌘, opens Settings.",
+  "good": "You can read the full detail of one process without leaving the menu, and the opened space is never wasted, because the other half fills it with more rows.",
+  "tradeoff": "An open row pushes the left half's lower rows into More, and in Quiet the right half runs out of rows, so its last group is pinned to the bottom with a gap above it. Proposed facts: the names of the processes inside a server, agent or app, and each one's share of the memory (the count of processes and the rolled-up memory are known).",
+  "surface": "menu",
+  "groupId": "159",
+  "direction": "Processes: rows open in place"
+ },
+ {
+  "file": "159-b.html",
+  "name": "First Fix Opened",
+  "idea": "At rest, the rows the first fix touches are already open, each one starting with an orange line that says what happens to that row ('Goes first. Stops with its Wrap Up, and its port frees.'). A row you open stays open. While Fix Everything runs, the running fix opens its own rows with 'Going now.' At Busy it shows 7 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac's two numbers, with each tooltip below its icon.",
+  "good": "Before you press anything you see exactly which processes and worktrees the first fix will stop or delete for good, and during the run the rows being worked on open up on their own.",
+  "tradeoff": "Several open rows take a lot of height, so fewer plain process rows fit. Rows a fix opened by itself close again, last first, when the menu would run past the bottom of the screen. Proposed facts: the names of the processes inside a server, agent or app, and each one's share of the memory; the line saying what a fix does to each single row.",
+  "surface": "menu",
+  "groupId": "159",
+  "direction": "Processes: rows open in place"
+ },
+ {
+  "file": "160-a.html",
+  "name": "Idle Heat Numbers",
+  "idea": "138-a's halves and ring at 760 px, now grouped (Servers 6, Agents 3, Apps 3, Helpers 1 on the left; Worktrees 8, Caches 6 on the right); each row's one number is toned by idle time on five steps from white for now, through pale and gold, to orange at 6 h and red at 2 d, and the time is in small gray words ('idle 2 h', 'quiet 5 d', 'unused 41 d', 'working', and 'asks you' in white); a legend under the ring explains the tones. At Busy it shows 13 process rows. The footer is three icons: a slim icon strip at the bottom left under Fix Everything (hide, gear, power); the hovered icon's name and shortcut show beside it (Settings ⌘,, Quit MinMacs ⌘Q); arrow keys reach them last, and ⌘, opens Settings.",
+  "good": "Among 26 rows the warm numbers find the idle servers and long-quiet worktrees at a glance, and rows that sat idle 6 h or more are pulled into view ahead of bigger busy ones, so nothing worth stopping hides under More.",
+  "tradeoff": "Color on the number competes with the orange fix triangle, and the disk side goes mostly red because leftovers are quiet for days by nature, so the heat there says less than on the memory side. Proposed facts: an app's last use (when it was last in front) and a helper's idle time, both behind their tone; the card marks them proposed.",
+  "surface": "menu",
+  "groupId": "160",
+  "direction": "Processes: idle heat, where every row is toned by how long its holder sat idle, so the ones to stop stand out among many"
+ },
+ {
+  "file": "160-b.html",
+  "name": "Idle Clock Bars",
+  "idea": "The same grouped halves at 800 px, with numbers left neutral; each row has a small 26 px idle clock bar plus a short gray time ('2 h', '21 d', 'now'); the bar fills on a log scale from 5 min to a full week and warms the same way, and a gradient legend with ticks (now, 1 h, 1 d, 7 d) sits under the ring. At Busy it shows 13 process rows. The footer is three icons: in the ring's open bottom gap under the Mac's numbers; the hovered icon's name and shortcut replace the ring caption, and the icons come last in arrow-key order.",
+  "good": "The bars line up in one column, so a long list reads like a chart: empty bars are busy and long warm bars are the ones to stop, while the memory numbers stay calm and plain.",
+  "tradeoff": "The bar column takes 68 px from the names, so agent session titles shorten to their first words ('Measure the size') and the menu has to grow to 800 px. Proposed facts: an app's last use and a helper's idle time behind their bars; the card marks them proposed.",
+  "surface": "menu",
+  "groupId": "160",
+  "direction": "Processes: idle heat, where every row is toned by how long its holder sat idle, so the ones to stop stand out among many"
+ },
+ {
+  "file": "161-a.html",
+  "name": "Started By, Grouped",
+  "idea": "Each half groups its rows by who started them (memory: You, Claude Code, launchd, Codex, Cursor; disk: Build tools, Claude Code, You, Conductor, Cursor). Each group has a header with an icon, a count by kind and a total, then its biggest rows. Hovering a header lights that starter's slices and opens a submenu with the rest. Under the ring, a 'Who started it' list shows memory and disk apart, and every card has a 'Started by' link that lights all of that starter's rows on both halves. At Busy it shows 20 process rows. The footer is three icons: top right corner, on the 'agents ask you' line (the line holds only the icons when nobody asks); each icon shows its name and shortcut in a tooltip on hover or keyboard focus, and ⌘, and ⌘Q work.",
+  "good": "You can see at a glance which tool is holding what: Claude Code's 11 agents and servers sit in one group, apart from the apps you opened yourself and from what launchd adopted, and both halves end level with 20 rows each at Busy.",
+  "tradeoff": "Five headers use rows that could have been processes, and when a group has many fix-touched rows (You at Peak) it only shows 3 of its others, so the rest wait in the submenu. Proposed facts: who opened an app (you versus a login item counted as launchd); helpers whose parent exited shown as adopted by launchd; the build tool behind a cache, read from its kind (DerivedData is Xcode); per-group subagent totals in the card.",
+  "surface": "menu",
+  "groupId": "161",
+  "direction": "Processes: who started it"
+ },
+ {
+  "file": "161-b.html",
+  "name": "Owner Marks",
+  "idea": "Each half is one flat list ranked by size, 25 rows a side, and each row's mark is a small monochrome icon for who started it (Claude Code, Codex, Cursor, you, launchd, Conductor, build tool). The mark turns orange when a fix takes that row. The list under the ring is the key for the icons and shows memory and disk apart, and hovering a key row lights that starter's rows and slices. At Busy it shows 25 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac's numbers; each icon shows a tooltip with its name and shortcut, and ⌘, and ⌘Q work.",
+  "good": "It shows the most processes (25 rows a side) with no headers, and the size order is kept, so the biggest holders are always on top whoever started them.",
+  "tradeoff": "You have to learn the icon shapes from the key, and one starter's processes are spread through the list instead of sitting together. Proposed facts: who opened an app (you versus a login item counted as launchd); helpers whose parent exited shown as adopted by launchd; the build tool behind a cache, read from its kind.",
+  "surface": "menu",
+  "groupId": "161",
+  "direction": "Processes: who started it"
+ },
+ {
+  "file": "162-a.html",
+  "name": "Type Wall",
+  "idea": "Each half is a wall of words: every server, agent, app, helper and noise tab on the left and every checkout and cache on the right, grouped by kind. A word's type size shows how much it holds, white means working and gray means resting, and pink dots after an agent count the subagents it started this turn. At Busy it shows 71 process rows. The footer is three icons: in the ring's open bottom gap, under the Mac numbers.",
+  "good": "All 71 holders at Busy and 117 at Peak can be read and pointed at in one glance with no More rows, and each word is a menu item that lifts its slice in the ring and opens its card (agents now get their own card with tool, state, CPU and subagents).",
+  "tradeoff": "The menu is 900 px wide and much taller (about 625 px at Busy, 695 px at Peak with tighter lines). The disk wall only grows to a set limit, so after a Fix Everything run the right half's words end above the left half's, and the hover card lands over the stage caption.",
+  "surface": "menu",
+  "groupId": "162",
+  "direction": "Processes: every process drawn at once, as type or as a skyline"
+ },
+ {
+  "file": "162-b.html",
+  "name": "Process Skyline",
+  "idea": "A skyline over each half draws every holder as one thin bar, grouped by kind, where taller holds more. Pink dots stack over an agent for its subagents and a white diamond marks one that asks. A legend line and a readout line name the bars, and 138-a's rows stay under it, six a side, with More. At Busy it shows 83 process rows. The footer is three icons: at the end of the Fix Everything row, right-aligned.",
+  "good": "The menu stays 760 px wide and the same height in Quiet, Busy and Peak while still showing every process. Pointing at a bar lifts its slice and opens its card, and the rows keep everything reachable by keyboard.",
+  "tradeoff": "At Peak the bars are about 3 px wide, so a single process is named only on hover. Memory and disk use two height scales (6 GB and 16 GB), so bar heights can't be compared across the halves.",
+  "surface": "menu",
+  "groupId": "162",
+  "direction": "Processes: every process drawn at once, as type or as a skyline"
  }
 ]
