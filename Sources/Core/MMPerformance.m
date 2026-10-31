@@ -180,8 +180,23 @@ static uint64_t Claim(MMSample *sample, MMFinding *f, NSMutableSet<NSNumber *> *
     return seen ? n : f.cost.ramBytes;
 }
 
-/// An app's memory holds every process it is responsible for. Those an earlier group claimed come off: held maps a
-/// responsible pid to the footprint of the claimed processes it is responsible for.
+/// The app a process rolls up into, as MinMacs rolls it: its responsible app, or else the first app among itself and
+/// its parents, 12 hops at most. 0 when no app row holds it.
+static pid_t AppOwner(MMSample *sample, pid_t pid, NSSet<NSNumber *> *apps) {
+    pid_t r = MMResponsiblePidIn(sample, pid);
+    if ([apps containsObject:@(r)]) return r;
+    pid_t cur = pid;
+    for (int hops = 0; hops < 12 && cur > 1; hops++) {
+        if ([apps containsObject:@(cur)]) return cur;
+        MMProc *parent = [sample proc:cur];
+        if (!parent) break;
+        cur = parent.ppid;
+    }
+    return 0;
+}
+
+/// An app's memory holds every process that rolls up into it. Those an earlier group claimed come off: held maps an
+/// app's pid to the footprint of the claimed processes that roll up into it.
 static uint64_t AppClaim(MMSample *sample, MMFinding *f, NSDictionary<NSNumber *, NSNumber *> *held) {
     if (!sample || !f.procs.count) return f.cost.ramBytes;
     MMProcKey k = KeyOf(f.procs.firstObject);
@@ -372,10 +387,13 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
         mem[g] = @(n);
     }
     NSMutableDictionary<NSNumber *, NSNumber *> *held = [NSMutableDictionary new];
-    if (sample && groups[MMPerformanceApps].count)
+    NSMutableSet<NSNumber *> *appPids = [NSMutableSet new];
+    for (MMPerformanceRow *r in groups[MMPerformanceApps])
+        if (r.finding.procs.count) [appPids addObject:@(KeyOf(r.finding.procs.firstObject).pid)];
+    if (sample && appPids.count)
         for (NSNumber *t in claimed) {
-            NSNumber *rp = @(MMResponsiblePidIn(sample, t.intValue));
-            held[rp] = @([held[rp] unsignedLongLongValue] + [sample proc:t.intValue].footprint);
+            pid_t owner = AppOwner(sample, t.intValue, appPids);
+            if (owner > 0) held[@(owner)] = @([held[@(owner)] unsignedLongLongValue] + [sample proc:t.intValue].footprint);
         }
     uint64_t an = 0;
     for (MMPerformanceRow *r in groups[MMPerformanceApps]) an += AppClaim(sample, r.finding, held);

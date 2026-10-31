@@ -222,6 +222,7 @@ static void Busy(void) {
     Proc(70001, 300 * MB); Proc(70002, 512 * MB); Proc(70003, 100 * MB);
     Proc(70010, 388 * MB); Proc(70011, 200 * MB); Proc(70020, 1536 * MB); Proc(70021, 3 * GB); Proc(70030, 64 * MB);
     gChildren[@70010] = @[@70002];   // the waiting agent started the server on :3001
+    gProcs[@70003].ppid = 70021;     // the editor started postgres, so the editor's 3 GB holds it, as MinMacs rolls up by parent
     Agent(70010, MMAgentWaiting, 900 * MB); Agent(70011, MMAgentWorking, 200 * MB);
     gFindings[@"locohost"] = @[
         Finding(@"locohost", @"server", @"w1#dev", @":3000 vite w1", w1, 70001, 300 * MB, 0, P(@"stop", MMReversibleRestart), nil),
@@ -298,7 +299,7 @@ static void Model(void) {
     T(@"performance: a process counts once: the server an agent started counts in servers only", @"912 588",
       [NSString stringWithFormat:@"%llu %llu", [p.memory.parts[MMPerformanceServers] unsignedLongLongValue] / MB,
        [p.memory.parts[MMPerformanceAgents] unsignedLongLongValue] / MB]);
-    T(@"performance: helpers and apps by their processes", @"64 4608",
+    T(@"performance: helpers and apps by their processes, a server the editor started counted once", @"64 4508",
       [NSString stringWithFormat:@"%llu %llu", [p.memory.parts[MMPerformanceHelpers] unsignedLongLongValue] / MB,
        [p.memory.parts[MMPerformanceApps] unsignedLongLongValue] / MB]);
     T(@"performance: a cache inside a worktree counts in clutter, not twice", @"16 24",

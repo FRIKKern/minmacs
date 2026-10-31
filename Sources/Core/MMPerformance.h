@@ -65,8 +65,9 @@ NSInteger MMPerformanceFold(NSString *group);
 /// Disk: total and free from MMPower.diskTotal and diskFree, so used is total less free.
 /// The parts count each thing once. In memory a process counts for the first group that holds it, in the order
 /// servers, agents, helpers, then apps, when the snapshot has a sample: an agent's tree holds the servers it started,
-/// and an app's memory holds the processes it is responsible for. In disk a cache inside a worktree row counts in
-/// caches and clutter only, so the worktree's part is its own bytes less those.
+/// and an app's memory holds the processes that roll up into it, by responsible pid or by parent as MinMacs rolls
+/// them. In disk a cache inside a worktree row counts in caches and clutter only, so the worktree's part is its own
+/// bytes less those.
 /// A footprint holds compressed memory too, so the parts can pass memory used. Then the last parts are cut to fit, and
 /// cut holds the bytes taken off. The parts and other always add up to used.
 @interface MMPerformanceSideRing : NSObject
