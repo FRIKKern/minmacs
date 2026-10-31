@@ -49,6 +49,18 @@ check "performance: the model imports no AppKit" 0 "$(cat Sources/Core/MMPerform
 check "performance: MMCore.h imports it" 1 "$(grep -c '^#import "Core/MMPerformance.h"' Sources/Core/MMCore.h)"
 check "performance: nothing in the model or the verb names the lid" 0 \
   "$(grep -ciwE 'lid|lidOverride|lidClosed' Sources/Core/MMPerformance.h Sources/Core/MMPerformance.m Sources/CLI/MMPerformanceCLI.m | awk -F: '{s+=$2} END {print s+0}')"
+# The model reads finding kinds and proposal verbs as strings, so a rename in an expert would drop a row or a fix
+# with no error. Each string it reads must still be in the expert that gives it. One word per string: 1 found, 0 not.
+pf_has() { # file string...
+  pf_f=$1; shift
+  for pf_s in "$@"; do grep -qF -- "$pf_s" "Sources/Experts/$pf_f" && printf '1 ' || printf '0 '; done
+}
+pf_strings="$(pf_has LocoHost/MMLocoHost.m 'kExpert = @"locohost"' 'kind:@"server"' 'verb:@"stop"'
+  pf_has MinMacs/MMMinMacsExpert.m 'kExpert = @"minmacs"' 'kind:@"agent"' 'kind:@"app"' 'verb:@"quit"'
+  pf_has MinMacs/MMMinMacsWrapUp.m 'kind:@"helper"' 'kind:@"tabs"' '@"urls": urls'
+  pf_has WorkForest/MMWorkForest.m 'kExpert = @"workforest"' 'kind:@"worktree"' 'verb:@"remove"'
+  pf_has NooNoo/MMNooNooExpert.m 'kExpert = @"noonoo"' 'kKind = @"clutter"' 'verb:@"clean"' 'verb:@"remove"')"
+check "performance: the experts still give the kinds and verbs the model reads" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${pf_strings% }"
 check "performance: the model claims no result in words" 0 \
   "$(grep -ciE 'is clean|everything is fine|nothing needs you|all good' Sources/Core/MMPerformance.m Sources/CLI/MMPerformanceCLI.m | awk -F: '{s+=$2} END {print s+0}')"
 
