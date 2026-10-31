@@ -3238,5 +3238,205 @@
   "surface": "menu",
   "groupId": "174",
   "direction": "Hour: the last-hour graphs replace the skyline bars"
+ },
+ {
+  "file": "175-a.html",
+  "name": "Hour With a Scale",
+  "idea": "The memory and disk last-hour graphs grow from 71 to 121 px tall and get two or three faint dashed GB lines labelled in a narrow left gutter (the step is picked so there are never more than three), and the hour's lowest and highest minutes are ringed with 'lowest 34.8 GB' and 'highest 42.5 GB'; CPU's hour grows into the empty room under Busiest now and gets faint 25, 50 and 75 % lines.",
+  "good": "You can read how big a change was without doing math, because 'up 7.6 GB' now sits against real GB lines and named peaks, and the center no longer has an empty gap.",
+  "tradeoff": "The gutter and the min/max labels add six or so small numbers to each graph, and when the lowest or highest is an end of the hour its label repeats the 'an hour ago' or 'now' number under the graph.",
+  "surface": "menu",
+  "groupId": "175",
+  "direction": "Hour: taller hours with a scale"
+ },
+ {
+  "file": "175-b.html",
+  "name": "Hour Read by Pointer",
+  "idea": "The same taller graphs with no gridlines: moving the pointer along memory, disk or CPU's hour draws a hairline, a dot and a label like '16:21, 40.4 GB', the other two graphs read the same minute in a darker label, and the line over each graph says '16:21, 22 min ago: 1.14 GB less in use than now'.",
+  "good": "The graphs stay clean at rest but any minute is exact on demand, and one pointer reads memory, disk and CPU at the same moment, so you can see what moved together.",
+  "tradeoff": "Nothing is on the scale until you point, so a glance gives only the shape and the two end numbers, and the reading is pointer-only with no keyboard path yet.",
+  "surface": "menu",
+  "groupId": "175",
+  "direction": "Hour: taller hours with a scale"
+ },
+ {
+  "file": "176-a.html",
+  "name": "Hour Dots on the Line",
+  "idea": "Events from the last hour show as small dots on each graph's line, each at the minute it happened: an agent started, ended or asked, a server started or stopped, Auto acted, or you or Fix Everything ran a fix. Dots that land close together stack on a thin stem. Pointing at a dot puts a word beside it and the full sentence with its time in the line above the graph.",
+  "good": "The line explains itself: a rise lines up with agents and servers starting, a drop lines up with Auto or a fix, and each Fix Everything step lands live on both graphs.",
+  "tradeoff": "At Busy and Peak the memory line carries 25 to 40 dots, so the right end, where asks and fixes crowd, turns into tall stacks that hide the line's last minutes.",
+  "surface": "menu",
+  "groupId": "176",
+  "direction": "Hour: events on the hour"
+ },
+ {
+  "file": "176-b.html",
+  "name": "Hour Event Strip",
+  "idea": "A thin strip under each graph holds the hour's events as marks by kind: agents round and pink, asks a white diamond, servers square and teal, Auto lilac, your fixes white. Subagent starts are fine pink ticks along the strip's foot. Pointing at a mark runs a dashed guide up to the line, with the number at that minute.",
+  "good": "The line stays clean, the line above the graph works as the key at rest, and the guide ties each event to the exact value it moved.",
+  "tradeoff": "Marks that touch are spread sideways, so in a busy minute a mark can sit a few pixels off its true time, and only hover draws a short stroke back to the true time.",
+  "surface": "menu",
+  "groupId": "176",
+  "direction": "Hour: events on the hour"
+ },
+ {
+  "file": "177-a.html",
+  "name": "One Range Switch",
+  "idea": "A single segmented switch at the top of the center, 'The graphs show 1 h / 6 h / Today', sets the range for memory in use, disk free and CPU at once. In 6 h and today the kept hour is drawn solid and the time before it dashed, with a faint mark where the kept hour starts and 'asleep until 08:05' over the flat night stretch.",
+  "good": "One control with one meaning: every graph in the menu looks back the same distance. The switch sits between the two graphs it sets, and every header, axis label ('6 hours ago', 'midnight') and change ('up 15.3 GB') follows it.",
+  "tradeoff": "A row's story fills the whole center, so the switch hides while a row is pointed at. It stays for the Mac view and for fixes. You also can't show memory for today next to disk for this hour. Proposed facts: Any history past the last hour (6 h and today for memory, disk and CPU), and when the Mac slept. The earlier part is a seeded walk that ends where the real hour starts.",
+  "surface": "menu",
+  "groupId": "177",
+  "direction": "Hour: a time range switch for the graphs, 1 h, 6 h, today"
+ },
+ {
+  "file": "177-b.html",
+  "name": "A Switch per Graph",
+  "idea": "Each graph has its own small 1 h / 6 h / Today switch in its title line, where 'the last hour' used to be (memory, disk and CPU). So memory can show today while disk stays on the hour. The time before the kept hour is dashed, the same as in a.",
+  "good": "Each switch is always next to the graph it changes, even while a row's story fills the center. Mixed ranges answer questions like 'when did memory climb today' without losing disk's hour.",
+  "tradeoff": "Three switches add more controls to the menu. The two graphs side by side can show different ranges, which is easy to misread at a glance. Proposed facts: Any history past the last hour (6 h and today for memory, disk and CPU), and when the Mac slept. The earlier part is a seeded walk that ends where the real hour starts.",
+  "surface": "menu",
+  "groupId": "177",
+  "direction": "Hour: a time range switch for the graphs, 1 h, 6 h, today"
+ },
+ {
+  "file": "178-a.html",
+  "name": "Kinds Stacked Over the Hour",
+  "idea": "Memory in use is stacked from zero by kind (servers, agents, apps with helpers and tabs, the rest of the Mac), and disk free keeps its line with a dashed 'an hour ago' level; the room between the two is split into bands for what took it (worktrees, caches, the rest). A two-column legend under each graph gives each kind's number now, and pointing at a row lights its kind's band and legend entry and dims the others.",
+  "good": "You can see who makes up the memory total and who ate the disk this hour without leaving the graphs, and pointing at a row ties it to its band.",
+  "tradeoff": "A zero-based stack makes the hour's 7 GB rise look small next to the 23 GB apps band, and the taller graph block (152 px, was 124 px) takes about 28 px from the scrolling groups. Proposed facts: The apps' own last hour, which also sets the line between apps and the rest. How much worktrees, caches and the rest each took of the disk this hour. Memory in use, disk free, and the agent and server hours are real in minmacs history.",
+  "surface": "menu",
+  "groupId": "178",
+  "direction": "Hour: by kind over the hour"
+ },
+ {
+  "file": "178-b.html",
+  "name": "Kinds as Lines",
+  "idea": "Memory in use draws one line per kind from zero (servers, agents, apps, the rest), with the total as a white top line. Disk free keeps its line, and from the dashed 'an hour ago' level a green line and a clay line show how far worktrees and caches each pulled free room down. Pointing at a row thickens its kind's line and fades the rest.",
+  "good": "Each kind's own trend reads on its own (agents growing, servers flat), and the disk lines show at a glance which kind pulled free room down more.",
+  "tradeoff": "The three small memory kinds (about 4 to 8 GB each) bunch together near the bottom of a 70 px graph, and the worktree and cache lines often run close together, so you need the legend or a pointed row to tell them apart. Proposed facts: The apps' own last hour, so also the rest. The worktree and cache disk lines, and the remainder shown in the legend. Memory in use, disk free, and the agent and server hours are real in minmacs history.",
+  "surface": "menu",
+  "groupId": "178",
+  "direction": "Hour: by kind over the hour"
+ },
+ {
+  "file": "179-a.html",
+  "name": "CPU Hour Underneath",
+  "idea": "CPU's last hour runs as a full-width strip across the bottom of the menu, under both halves and the center. It has its own scale on the right (0 to the hour's top, rounded up to 25 %, and the head says which), its busiest minute is marked (\"busiest minute, 46 %, 54 min ago\"), and pointing at a process makes the head say \"Write lane C fixtures uses 1.5 % of it now\".",
+  "good": "CPU gets a graph as wide as the whole menu, so its hour reads at a glance, and the center keeps CPU now as one big number while Busiest now gets the room the small graph used to take.",
+  "tradeoff": "The halves shrink to 512-562 px to make room for the strip (menu bottom at 782 of 800), so a long story in the center sheds lines, in this order: peers, what it lives with, the bottom of a page picture, its last facts, the tail of the Fix Everything list (counted as \"and N more\").",
+  "surface": "menu",
+  "groupId": "179",
+  "direction": "Hour: CPU's hour too, with the same weight as memory and disk"
+ },
+ {
+  "file": "179-b.html",
+  "name": "CPU Line Over Memory",
+  "idea": "The memory graph grows to 80 px and carries a thin green CPU line over the same hour, with its own 0/50/100 % scale on the right. A key under the title says \"in use, of 64 GB · CPU, up 9 points\", and the ends read \"an hour ago, 34.8 GB, 28 %\" and \"now, 42.4 GB, 37 %\".",
+  "good": "Memory and CPU sit in one picture over the same hour, so you can see whether they rose together, and the menu keeps 174's full height.",
+  "tradeoff": "Two units share one graph: the GB line and the % line can cross, and the reader has to use the key and the right scale to keep them apart. CPU also sits only over the memory half, not in the middle.",
+  "surface": "menu",
+  "groupId": "179",
+  "direction": "Hour: CPU's hour too, with the same weight as memory and disk"
+ },
+ {
+  "file": "180-a.html",
+  "name": "Nows Meet the Ring",
+  "idea": "The disk graph runs mirrored so both graphs have now by the ring, and each now dot reaches into the ring with a thin join in its own color: memory into the inner track, disk onto the outer track, under a ring titled \"The Mac, now\".",
+  "good": "The ring reads as the present and each graph is tied to its own track, so memory stays inside and disk stays outside, and the joins follow live changes, fix previews and Fix Everything.",
+  "tradeoff": "Disk now reads right to left, which is a small cost to read, and the joins go away when a row's story takes the ring's place.",
+  "surface": "menu",
+  "groupId": "180",
+  "direction": "Hour: now meets the ring"
+ },
+ {
+  "file": "180-b.html",
+  "name": "Ring Sits on Now",
+  "idea": "The two graphs grow taller (96 px) and run as one band across the menu, an hour ago at both outer edges, and they pass behind the ring where both nows meet, so the ring sits on now.",
+  "good": "It is the boldest form of 'the ring is the present': one band across the menu with the time running toward the ring, and the graphs get about a third more width and height to read.",
+  "tradeoff": "When a row's story replaces the ring, the band goes back to the halves (the line rescales), and the taller graphs give each half's lists about 25 px less.",
+  "surface": "menu",
+  "groupId": "180",
+  "direction": "Hour: now meets the ring"
+ },
+ {
+  "file": "181-a.html",
+  "name": "Two Roads Ahead",
+  "idea": "Each last-hour graph runs half an hour past now, with two dashed lines leaving the now point: 'at this pace' in the side's color and 'after Fix Everything' in white (its drop, then the same pace), each ending in its number and the time it reaches; pointing at a fix turns the white line into that fix.",
+  "good": "The gap between the two lines shows what Fix Everything gives back against where the Mac is heading, on the same minute scale as the hour, so 'now' reads as a fork instead of an end.",
+  "tradeoff": "A big disk fix (31 GB) stretches the scale and flattens the hour's own line, and a pace carried on for 30 minutes is a guess that looks as firm as the measured line. Proposed facts: A forecast: the pace (the middle step of the last 15 minutes, carried on 30 minutes), and 'the same pace after a fix'. minmacs history keeps the last hour, not what comes next.",
+  "surface": "menu",
+  "groupId": "181",
+  "direction": "Hour: what comes next"
+ },
+ {
+  "file": "181-b.html",
+  "name": "Where the Fix Lands",
+  "idea": "After now, each graph gets a small strip with its own clock in seconds, set a gap apart; a white dashed line steps fix by fix at each fix's pace to where Fix Everything lands, with a landing tick, 'lands 16:43:17' in the legend and '38.4 GB in 23 s' under the strip.",
+  "good": "It shows Fix Everything's real pacing and when it finishes on both sides, it follows a single pointed fix, and it keeps counting down mid-run while the real line catches up.",
+  "tradeoff": "Two time scales sit on one graph, so the strip has to be read as a zoom (the gap and its own shading carry that), and it says nothing about where the Mac heads without a fix. Proposed facts: The landing clock time and the stepped after-fix line through it. The step durations come from 99-b's fix steps, and how fast memory and disk come back after each step is assumed.",
+  "surface": "menu",
+  "groupId": "181",
+  "direction": "Hour: what comes next"
+ },
+ {
+  "file": "182-a.html",
+  "name": "Sparkline Before Number",
+  "idea": "Every process, worktree and cache row gets a 34 px sparkline of its own last hour just before its number, on its own scale, with a small ring where a line starts late because the thing began this hour; the pointed row's story shows the same hour larger beside its numbers.",
+  "good": "You can scan a whole group and see at a glance what is climbing, what stepped up once and what sat flat, without pointing at anything.",
+  "tradeoff": "The sparkline takes a column, so names and owners get about 40 px less room and drop words or the owner sooner at Peak. Proposed facts: The hour of apps, helpers, tabs, worktrees and caches (no per-process or per-checkout ring in minmacs history; shown as a seeded walk ending at now, with 'hours proposed' on their group headers). Servers and agents are real: one MMHistory ring per server tree and per agent tree, one sample a minute.",
+  "surface": "menu",
+  "groupId": "182",
+  "direction": "Hour: each row has its hour"
+ },
+ {
+  "file": "182-b.html",
+  "name": "Hour Behind Each Row",
+  "idea": "Each row is shaded by its own last hour: a soft area in the lower two thirds of the row, behind its words, an hour ago at the left and now under its number; the pointed row's story shows the hour larger beside its numbers.",
+  "good": "No column is spent, so names and owners keep their full room, and the halves read as a quiet field of shapes where a step or a late start stands out.",
+  "tradeoff": "The shade is fainter and less exact than a line, and on tall rows it sits behind the second line, so you read a shape, not a value. Proposed facts: The hour of apps, helpers, tabs, worktrees and caches (seeded walk ending at now, 'hours proposed' on their group headers). Servers and agents are real from their MMHistory tree rings.",
+  "surface": "menu",
+  "groupId": "182",
+  "direction": "Hour: each row has its hour"
+ },
+ {
+  "file": "183-a.html",
+  "name": "Lit Everywhere at Once",
+  "idea": "Pointing at a row, slice or busiest line lights that holder in white in every place at once: a band in its side's hour graph with a strip under it showing its own hour (and on the other graph, the plain words 'is on disk, not in memory'), its slice in a 140 px ring with a white pointer mark that finds even tiny slices, its share of the Mac's CPU now as a bar plus its own CPU hour, and its story below. A fix or Fix Everything lights what it takes in orange the same way: band in both graphs, a dashed after line, ring slices, rows, and a CPU share bar in the fix story.",
+  "good": "One color means one thing across the whole menu, so the eye can follow a 260 MB server from its row to the graph, the ring and the CPU without reading, and small holders stay visible through the strip and the pointer mark.",
+  "tradeoff": "The center now holds the ring, CPU and story at once, so long stories drop their peers, 'lives with' lines and extra facts first, and the server page picture shrinks to 112 px tall. Proposed facts: A holder's own last hour of memory and disk (the strip and band), a holder's own CPU over the last hour, the CPU of apps and helpers, framework marks, app icons and page pictures. The Mac's memory, disk and CPU hours and the CPU now of servers and agents are real.",
+  "surface": "menu",
+  "groupId": "183",
+  "direction": "Hour: the pointed thing everywhere"
+ },
+ {
+  "file": "183-b.html",
+  "name": "Pin and Read the Hour",
+  "idea": "Everything in a, and a click (or Enter) pins a holder so its light stays while the pointer leaves. Moving along any hour graph (memory, disk or CPU) draws one time line on all of them at the same minute and reads the Mac and the pinned holder there: '16:06, 39.8 GB in use' and 'its 3 GB then'. Click it again or press Esc to let go.",
+  "good": "You can ask 'what was this agent holding at 16:15, and what was the Mac doing then' without holding the pointer still, and the three graphs read as one shared timeline.",
+  "tradeoff": "While a pin holds, pointing at other rows no longer changes the center, so the menu has one more state to learn; the story header says 'Pinned. Click it again to let go' to cover that. Proposed facts: Same as a, plus reading a holder's own memory, disk and CPU at a past minute, which needs a per-process hour that MinMacs history does not keep. The Mac totals at a past minute are real (the minmacs history hour).",
+  "surface": "menu",
+  "groupId": "183",
+  "direction": "Hour: the pointed thing everywhere"
+ },
+ {
+  "file": "184-a.html",
+  "name": "Scrub the Hour",
+  "idea": "Point along either hour graph, or CPU's hour, and one minute line crosses all three graphs while the whole menu goes back to that minute: the ring's center shows memory in use and disk free then, CPU reads that minute, and 'That minute' takes Busiest now's place with the agents running and working, subagents started and servers answering, while agents that started later fade in their group.",
+  "good": "The two graphs stop being pictures and become a way to go back in time, and the whole menu answers in one place without adding a single control.",
+  "tradeoff": "The ring's slices can't go back in time, so they dim while you point and only the numbers show the past, and the minute is gone as soon as the pointer leaves the graph.",
+  "surface": "menu",
+  "groupId": "184",
+  "direction": "Hour: the last hour over each half is something you can hold"
+ },
+ {
+  "file": "184-b.html",
+  "name": "Ask a Stretch",
+  "idea": "Drag across either hour graph, or CPU's hour, to mark a stretch: all three graphs shade it, the ring's center shows how far memory and disk moved, and the center tells its story (memory, disk, average CPU, agents started by name and time, subagents, turns ended, servers answering, what grew the most), while the agents it touched light in their group and in the ring; at rest each graph marks its steepest climb or drop, a click away.",
+  "good": "It answers the real question behind 'up 7.6 GB' (what happened then?) with facts from history, and the stretch stays put while you point at rows.",
+  "tradeoff": "Dragging inside a menu is unusual and hard to discover, the story is dense enough that long agent names lose their last words, and with this fixture the steepest stretch is often the first eight minutes. Proposed facts: what grew the most in a stretch (MinMacs keeps no hour per process; the holder's own hour is the seeded walk from 174-b).",
+  "surface": "menu",
+  "groupId": "184",
+  "direction": "Hour: the last hour over each half is something you can hold"
  }
 ]

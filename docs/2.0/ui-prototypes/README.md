@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-324 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+344 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -48,6 +48,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 163 | 149-a with the owner's changes | On 149-a, gallery 273, only what the owner pointed at: each group scrolls on its own, the fixes move to the center and the caption to the bottom, no Hide Icon, CPU on every row and in the center, a wider center that shows the row you point at, page screenshots for local servers, and an icon for what each thing is |
 | 164–173 | 162-b's skyline with the last hour beside the ring | "we also love 162b - but on left and right of the center thing - we would like the memory in use + disk free from 158b - also learning from the one we just made". On 162-b with every rule of 163: a straight merge, the skyline as the list, three graphs a side, the hour behind the skyline, a CPU skyline, the center as a stage, icons first, screenshots everywhere, calm at rest, and two wild ones (scrub the hour, the skyline as scrollbar) |
 | 174 | The last hour replaces the skyline | "I wanted to replace the bars on the left and right side with that graphs". On 164-a, the memory-in-use and disk-free last-hour graphs take the skylines' place over each half, and the ring stands alone; in 174-b the graphs show a pointed row's share and a fix's after line |
+| 175–184 | More on 174, the last hour over each half | "More more". On 174: taller graphs with a scale or a reading under the pointer, events on the hour, a 1 h, 6 h and today switch, memory by kind over the hour, CPU's hour as a strip or a line, the two nows meeting the ring, what comes next after now, an hour on every row, the pointed thing lit everywhere with a pin, and scrubbing or marking a stretch of the hour |
 
 ## Direction so far
 
