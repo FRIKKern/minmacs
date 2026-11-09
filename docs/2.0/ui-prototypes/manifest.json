@@ -3438,5 +3438,85 @@
   "surface": "menu",
   "groupId": "184",
   "direction": "Hour: the last hour over each half is something you can hold"
+ },
+ {
+  "file": "185-a.html",
+  "name": "One Glowing Pill",
+  "idea": "The center at rest shows only the ring, with memory in use and disk free inside it, then one big glowing orange Fix Everything pill set into the ring's open foot, 'memory back · disk back' under it, and the first fix as one quiet line. Pressing turns the pill into the run: it fills with a slow shimmer, the gains count up and each step's words show, then it turns green 'Done' with both gains and the short skipped / for-good words, and lets go.",
+  "good": "There is one clear joyful target and the center reads in about six things, while hovering still previews where the Mac lands in the ring and lights the rows the fix touches.",
+  "tradeoff": "The ring and the pill each carry numbers (Mac now vs gains back), so the center still has two number groups, and the ring dims to the current fix's slices while the run plays. Proposed facts: none beyond 182-a.",
+  "surface": "menu",
+  "groupId": "185",
+  "direction": "Zen: the ring and one button"
+ },
+ {
+  "file": "185-b.html",
+  "name": "The Ring Button",
+  "idea": "The ring's center is the button: 'Fix Everything' and the two gains sit on a softly breathing disc inside the ring, and the Mac's memory and disk numbers sit on either side of the ring's foot. Hovering anywhere on the ring makes it glow and switches those two numbers to where the Mac lands. Pressing runs Fix Everything, with a thin orange arc going around the ring as the run goes and the disc blooming green at 'Done'.",
+  "good": "This is the fewest separate pieces: the ring itself becomes the magic button, so the center feels like one calm object.",
+  "tradeoff": "Ring slices no longer show a holder's story when pointed at, because the whole ring is one press target; rows still show it. Proposed facts: none beyond 182-a.",
+  "surface": "menu",
+  "groupId": "185",
+  "direction": "Zen: the ring and one button"
+ },
+ {
+  "file": "186-a.html",
+  "name": "CPU Number, One Button",
+  "idea": "A larger ring with CPU now as one small number and its heat word sitting in the ring's open mouth, and Fix Everything below as a big glowing pill with the memory back and disk back under it; nothing else shows at rest.",
+  "good": "The center has 6 things to read, CPU stays visible without a graph or list, and pressing turns the pill into the run: one step at a time, a green fill as each fix lands, a soft glow on the ring while the ring's center counts the gains, then a green Done bloom and one 'Skipped …' line that clear after about 3 s.",
+  "tradeoff": "CPU loses its hour in the center (the rows still carry CPU), and the first fix (Wrap Up) is no longer a separate one-click row; single fixes stay reachable from a row's story. Proposed facts: none new; the app, helper, worktree and cache row hours and the app and helper CPU stay marked proposed as in 182-a.",
+  "surface": "menu",
+  "groupId": "186",
+  "direction": "Zen: CPU stays, but quietly — the ring and one glowing Fix Everything button, with CPU as one small fact"
+ },
+ {
+  "file": "186-b.html",
+  "name": "CPU Hour Behind Button",
+  "idea": "Same zen ring and button, but the CPU of the last hour runs as a very faint softened line just above and behind the button, labeled in small words 'CPU, the last hour' and 'now 38 % cool'.",
+  "good": "It keeps the CPU hour's shape as a quiet backdrop the button rests on, so the center feels composed rather than empty, and nothing in it competes with the button.",
+  "tradeoff": "The faint line is atmosphere more than a reading: it has no axis numbers and is smoothed, so exact CPU history needs a closer look. Proposed facts: none new; same proposed marks as 182-a.",
+  "surface": "menu",
+  "groupId": "186",
+  "direction": "Zen: CPU stays, but quietly — the ring and one glowing Fix Everything button, with CPU as one small fact"
+ },
+ {
+  "file": "187-a.html",
+  "name": "The Button Becomes the Run",
+  "idea": "When pressed, the pill turns into the run: one step per line, each fading in at its own pace, with a thin progress line and a quiet Stop. The orange slices that are going lift off the ring and fade, memory back and disk back count up softly in the ring's center, and then a glowing '7 fixes done' with the run's short end words lets go after about 3 s.",
+  "good": "The press feels alive where the eye already is: the ring visibly loses what is fixed while the numbers climb, and at rest the center is only the ring, the button, the gains and one quiet line.",
+  "tradeoff": "During the run the gains move into the ring and the step line sits in the button, so the eye moves between two places, and the slices lifting off are only easy to see on memory, because disk slices drain down to nothing before they go. Proposed facts: none new; it reuses the existing step words, p99Back gains and skip counts (the lift-off is a view effect only).",
+  "surface": "menu",
+  "groupId": "187",
+  "direction": "Zen: the run is the joy. At rest the center is the ring, one big glowing Fix Everything with memory back and disk back, and the first fix as one quiet line. Pressing the button is the delight."
+ },
+ {
+  "file": "187-b.html",
+  "name": "Gains Fill the Button",
+  "idea": "Two thin lines circle the button, memory back on the inner (blue) and disk back on the outer (gold). They fill toward what the run set out to give back as each step lands, while the button shows the current step. At the end the button glows with '2.97 GB memory and 31.1 GB disk back' and the lines retract as it lets go.",
+  "good": "One place holds the whole run: the progress, what came back as two numbers that are never added together, and the reward. On hover the lines show faintly what pressing would give.",
+  "tradeoff": "The two lines fill by planned share, not by size, so a nearly full blue line can mean only a few GB, and the lines need the colored words under the button to say what they mean. Proposed facts: none new; the landed amounts come from p99Amt raw per fix.",
+  "surface": "menu",
+  "groupId": "187",
+  "direction": "Zen: the run is the joy. At rest the center is the ring, one big glowing Fix Everything with memory back and disk back, and the first fix as one quiet line. Pressing the button is the delight."
+ },
+ {
+  "file": "188-a.html",
+  "name": "Two Numbers One Button",
+  "idea": "The ring holds only memory in use and disk free as two big numbers with tiny units, and under it one glowing pill reads Fix Everything with memory back and disk back as its second line.",
+  "good": "The center has only four things to read; pointing at the pill switches the ring's numbers to what the Mac will have after the fixes and adds one quiet line with the skips and 'for good', and pressing it turns the pill into the run (one step at a time, a dot per fix, a slow shimmer, gains counting up), then 'Done' with both gains and the skips, letting go after about 3 s.",
+  "tradeoff": "The fix order and which fix goes first stay hidden until the press, and a single fix can only be run from a row's story. Proposed facts: none new; the row hours of apps, helpers, worktrees and caches stay proposed as in 182-a.",
+  "surface": "menu",
+  "groupId": "188",
+  "direction": "Zen: fewer words, the ring and one glowing Fix Everything pill, nothing else at rest"
+ },
+ {
+  "file": "188-b.html",
+  "name": "List Under the Button",
+  "idea": "At rest the center is only the ring (memory in use of 64 GB, disk free) and the same glowing pill; resting the pointer on the pill opens the fix list under it, '7 fixes, in this order' with Wrap Up first, each fix's amount, the time and the skip and 'for good' line.",
+  "good": "The center is calm at rest and the full plan is one hover away; the list shows as many fixes as the column holds and counts the rest, and the pill never moves, so the hover stays steady.",
+  "tradeoff": "For the moment the pointer rests on the pill, the list makes the lower center busy, and at rest the ring's center has a few more words than in a. Proposed facts: none new; the row hours of apps, helpers, worktrees and caches stay proposed as in 182-a.",
+  "surface": "menu",
+  "groupId": "188",
+  "direction": "Zen: fewer words, the ring and one glowing Fix Everything pill, nothing else at rest"
  }
 ]
