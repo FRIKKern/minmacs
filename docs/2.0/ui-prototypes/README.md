@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-358 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+368 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -51,6 +51,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 175–184 | More on 174, the last hour over each half | "More more". On 174: taller graphs with a scale or a reading under the pointer, events on the hour, a 1 h, 6 h and today switch, memory by kind over the hour, CPU's hour as a strip or a line, the two nows meeting the ring, what comes next after now, an hour on every row, the pointed thing lit everywhere with a pin, and scrubbing or marking a stretch of the hour |
 | 185–188 | A zen center on 182-a | "This is my favorite - please make the center part a lot more zen and minimalistic". On 182-a: no Memory and Disk header lines, no skip note, no bottom caption; the center is the ring and one glowing Fix Everything, as a pill or the ring itself, with CPU as one number or a faint hour, a joyful run, or the fix list only on hover |
 | 189–191 | 187-b, even more satisfying | "I like 350 - but try to make it even more satisfying". Same layout; only the feel of the button and the run changes: the button sinks and springs, the lines grow from the press point, each step pulses or clicks into place, the rows, ring, graphs and numbers answer each landing, and the finish closes the lines with one bloom or one piece per fix |
+| 192–196 | The same information, other layouts | "maybe there are many other layouts out there? Maybe something smarter exist. We love the way things work". 187-b's information and behavior in other arrangements: one tall column or two, a hero band over five columns, one group open at a time, the button in a dock below or on top, two cards with one drawer, and the button straight under the icon |
 
 ## Direction so far
 

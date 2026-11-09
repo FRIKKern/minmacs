@@ -3578,5 +3578,105 @@
   "surface": "menu",
   "groupId": "191",
   "direction": "Satisfying: the finish"
+ },
+ {
+  "file": "192-a.html",
+  "name": "One Tall Column",
+  "idea": "One 440 px column: the ring and Fix Everything share the top, the two hour graphs sit side by side under them, then all five groups in one stack, each scrolling; a row's story opens as a wing to the left of the column.",
+  "good": "It is the smallest menu of the round, and the button sits right under the icon and never moves or shrinks, because the story opens beside the column and not over it.",
+  "tradeoff": "Five groups share about 400 px, so each shows only 2 to 4 rows before it scrolls, the ring is small (152 px) with shorter words, and the story is a wing beside the menu, not inside the calm area. Proposed facts: None new; still proposed as in 187-b: the row hours of apps, helpers, worktrees and caches, page pictures, framework marks, app icons, CPU of apps and helpers, fix times and live steps.",
+  "surface": "menu",
+  "groupId": "192",
+  "direction": "Layout: tall and narrow, the menu hangs down from its icon instead of spreading out"
+ },
+ {
+  "file": "192-b.html",
+  "name": "Calm Left, Lists Right",
+  "idea": "Two columns, 664 px: left is the calm one with the ring, the big button and both hour graphs stacked; right is all five groups in one stack; a row's story takes the left column, then the calm column comes back.",
+  "good": "One side is for looking and pressing and one side is for reading rows, and each group still shows 4 to 6 rows.",
+  "tradeoff": "While a story shows, both hour graphs are hidden and the button goes small at the foot of the left column; memory rows and disk rows share one stack, so the memory-left, disk-right split is gone. Proposed facts: None new; still proposed as in 187-b: the row hours of apps, helpers, worktrees and caches, page pictures, framework marks, app icons, CPU of apps and helpers, fix times and live steps.",
+  "surface": "menu",
+  "groupId": "192",
+  "direction": "Layout: tall and narrow, the menu hangs down from its icon instead of spreading out"
+ },
+ {
+  "file": "193-a.html",
+  "name": "Band Over Five Columns",
+  "idea": "One full-width band holds the memory hour, the ring with Fix Everything and the disk hour in one line, and under it Servers, Agents, Apps and helpers, Worktrees and Caches stand as five equal columns that each scroll under a still header.",
+  "good": "The Mac reads left to right in one line with the button in the middle, all five groups show nine rows each at once, and the two graphs move live beside the button while Fix Everything runs.",
+  "tradeoff": "Columns are about 206 px wide, so a row is two lines (icon, name and its hour line, then state word, CPU and number), the state word drops when the line has no room as in 187, and a pointed row's story takes the whole band so both graphs step aside until the calm band comes back. Proposed facts: Nothing beyond 187-b (hours of apps, helpers, worktrees and caches, page pictures, framework marks, CPU of apps and helpers stay marked proposed).",
+  "surface": "menu",
+  "groupId": "193",
+  "direction": "Layout: a hero band on top, the five groups as five equal columns under it"
+ },
+ {
+  "file": "193-b.html",
+  "name": "Graphs Head Their Columns",
+  "idea": "The band holds only a large ring and Fix Everything side by side, and each side's last hour sits right over its own columns: memory in use across Servers, Agents, Apps and helpers, disk free across Worktrees and Caches.",
+  "good": "The top is the calmest of the two (ring, button, gains, first fix), each graph sits on the lists that explain it, and the graphs stay in view while a row's story lies along the band.",
+  "tradeoff": "The graphs are wide and only 56 px tall, each column shows seven rows instead of nine, and the ring and button sit as a centered pair with open space left and right of them. Proposed facts: Nothing beyond 187-b (hours of apps, helpers, worktrees and caches, page pictures, framework marks, CPU of apps and helpers stay marked proposed).",
+  "surface": "menu",
+  "groupId": "193",
+  "direction": "Layout: a hero band on top, the five groups as five equal columns under it"
+ },
+ {
+  "file": "194-a.html",
+  "name": "Five Quiet Words",
+  "idea": "The two last-hour graphs sit on top, memory over its three group words and disk over its two; pointing at a word (count and total under it) opens that group as one roomy two-line list, with the ring and Fix Everything beside it.",
+  "good": "Rows get room for a second line and a wider hour line, the graphs line up with the groups they belong to, and the button column stays calm; a row's story takes the ring's place and the ring comes back.",
+  "tradeoff": "Only one group shows at a time, and a short group (2 to 5 rows, as Caches at Quiet) leaves empty room under its list even with the whole-number lines added. Proposed facts: Nothing beyond 187-b (row hours of apps, helpers, worktrees and caches stay marked proposed).",
+  "surface": "menu",
+  "groupId": "194",
+  "direction": "Layout: one group at a time"
+ },
+ {
+  "file": "194-b.html",
+  "name": "Ring Opens the Group",
+  "idea": "Ring and Fix Everything come first; pointing at or pressing a part of the ring opens that group's list beside it under five still headers with counts and totals, and a third calm column holds the two last-hour graphs or a row's story.",
+  "good": "It reads left to right as the Mac, then a group, then one holder, and the ring and button never leave: a pointed row lifts its slice in the ring while its story shows.",
+  "tradeoff": "The disk track is thin and small groups are slim arcs, so headers must also open by press (and Left and Right), and the two graphs are large enough to compete a little with the button. Proposed facts: Nothing beyond 187-b.",
+  "surface": "menu",
+  "groupId": "194",
+  "direction": "Layout: one group at a time"
+ },
+ {
+  "file": "195-a.html",
+  "name": "Dock Below",
+  "idea": "The lists fill both sides top to bottom, the two last-hour graphs sit large between them (a row's story shows there on pointing), and a dock along the bottom holds the small ring with the Mac's two numbers beside it, a wide Fix Everything and the two gains as two big numbers.",
+  "good": "Reads top to bottom as what asks, what holds, then fix; the graphs get about twice the room, each side shows more rows, and the dock never moves while stories come and go.",
+  "tradeoff": "The button is the last thing under the icon, far from the pointer, and the ring is too small to hold its numbers so they sit beside it. Proposed facts: None new; as in 187 the hours of apps, helpers, worktrees and caches, page pictures and app/helper CPU are proposed.",
+  "surface": "menu",
+  "groupId": "195",
+  "direction": "Layout: the button in a dock, lists and graphs fill the rest"
+ },
+ {
+  "file": "195-b.html",
+  "name": "Button First",
+  "idea": "The same dock sits on top, right under 'agents ask you', so Fix Everything is the first thing under the menu bar icon; lists and graphs follow, and Settings and Quit close the menu in a thin strip.",
+  "good": "The one action and its two gains are read first and reached with the shortest pointer move; the run's two filling lines play at eye level.",
+  "tradeoff": "The fix is offered before you have seen what it will touch, and the menu is 735 px tall, 7 px taller than a. Proposed facts: None new; same as a.",
+  "surface": "menu",
+  "groupId": "195",
+  "direction": "Layout: the button in a dock, lists and graphs fill the rest"
+ },
+ {
+  "file": "196-a.html",
+  "name": "Two Cards, One Drawer",
+  "idea": "A band on top holds the Memory card (its last hour, its groups with counts and totals), the ring with Fix Everything, and the Disk card; one card is open and joined to a drawer below where each of its groups gets its own full column, and pressing the other card swaps the drawer.",
+  "good": "Smarter because 187 squeezes 49 memory rows into three short lists (about 16 showing) while the middle stays mostly air: here Servers, Agents and Apps and helpers each get a column and about 33 rows show, disk rows are wide enough to say where they live on the same line, both last hours, the ring and the button stay on top at rest, and during Fix Everything the drawer follows the run.",
+  "tradeoff": "Only one of memory or disk has its rows showing at a time (the other card still shows its hour, counts and totals), a row's story takes the place of the open card and the ring while you point, and the menu gets shorter when the open card has few rows. Proposed facts: Nothing beyond 187-b; the per-group totals on the cards and the 'This disk' lines are sums of rows the menu already has.",
+  "surface": "menu",
+  "groupId": "196",
+  "direction": "Layout: give the room to what you are looking at, and keep the button where the pointer lands"
+ },
+ {
+  "file": "196-b.html",
+  "name": "Button Under the Icon",
+  "idea": "The Mac column moves to the right, directly under the menu bar icon: Fix Everything first, what it gives back, then the ring; memory and disk sit side by side on the left with their two last hours on one line.",
+  "good": "Smarter because the pointer comes down from the icon straight onto the button, the button stays in that one place at full size at rest, over a row's story and during the run (in 187 it shrinks and jumps to the foot when you point at a row), and the two hours and the five groups read left to right like a receipt that ends in the total and the button.",
+  "tradeoff": "The ring is no longer between its two halves, so a slice and its row are farther apart, and the three memory lists are as short as in 187. Proposed facts: Nothing beyond 187-b.",
+  "surface": "menu",
+  "groupId": "196",
+  "direction": "Layout: give the room to what you are looking at, and keep the button where the pointer lands"
  }
 ]
