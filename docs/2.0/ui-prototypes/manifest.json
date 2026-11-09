@@ -3518,5 +3518,65 @@
   "surface": "menu",
   "groupId": "188",
   "direction": "Zen: fewer words, the ring and one glowing Fix Everything pill, nothing else at rest"
+ },
+ {
+  "file": "189-a.html",
+  "name": "Lines From the Press",
+  "idea": "The button sinks under the finger at once and springs back, a soft light spreads from the press point, the two lines (memory back inner, disk back outer) grow both ways from where you pressed, and each landed step sends one soft pulse out through the lines and then the ring, with a bigger one at the finish.",
+  "good": "The press is answered in the same frame and the run stays tied to your own finger, so each landing reads as a calm heartbeat; fast steps (14 tabs) share a pulse and their words update in place instead of flickering.",
+  "tradeoff": "The pulses are quiet and last under a second, so stills barely show them, and the reduced-motion path (no pulses, no light, instant states) is written but was not run in an emulated browser. Proposed facts: None new; it uses 187-b's run data (landed memory and disk per fix, skips, deletes for good) and only adds the press point, which is pointer input.",
+  "surface": "menu",
+  "groupId": "189",
+  "direction": "Satisfying: the press and each landing"
+ },
+ {
+  "file": "189-b.html",
+  "name": "Each Step Clicks In",
+  "idea": "Each landed step clicks into place: its line jumps forward with a small overshoot and settles with a brief white dot at its head, the step's words slide up and out as the next slide in, and the gain rolls digit by digit into the number under the button; the button also sinks and springs on press.",
+  "good": "Every landing is felt three ways at once (line, words, number) in about half a second, so the run has a clear rhythm at its honest pace, and it ends on one glow with both lines full before letting go.",
+  "tradeoff": "The lines start at the top middle as in 187-b, not at the finger, and big cache deletes still land as one large jump at the end of the step because disk back only counts when the delete is done; reduced-motion was not run in an emulated browser. Proposed facts: None new; same run data as 187-b.",
+  "surface": "menu",
+  "groupId": "189",
+  "direction": "Satisfying: the press and each landing"
+ },
+ {
+  "file": "190-a.html",
+  "name": "The Whole Menu Answers",
+  "idea": "As each fix lands its rows on the sides slide toward the center and the rows under them close up, its slice lifts off the ring, the now end of Memory in use drops and of Disk free climbs along a short line from where the press found it, and the two numbers in the ring roll digit by digit.",
+  "good": "You see the fix happen everywhere at once, so the gain feels real, and the disk point climbing to the top of its graph is a clear payoff before the button glows and lets go.",
+  "tradeoff": "The hour line is held still while the run plays and the graph scale opens at the press to make room for what is planned, so the Disk free history goes flat during the run and the graph snaps a little when the run lets go. Proposed facts: None new; the graph scale uses the run's planned memory and disk back, which the fixes already carry.",
+  "surface": "menu",
+  "groupId": "190",
+  "direction": "Satisfying: the whole menu answers the run, not just the button"
+ },
+ {
+  "file": "190-b.html",
+  "name": "Ring and Numbers Answer",
+  "idea": "The sides stay still; slices lift off the ring, memory in use rolls down and disk free grows into a second big gold number that rolls up, in step with the two lines around the button.",
+  "good": "Very calm, and the eye stays in one place: two numbers turning like a counter while the lines fill, then one glow.",
+  "tradeoff": "Rows on the sides still vanish with no motion, and a number that keeps changing during a long delete is always mid-roll. Proposed facts: None.",
+  "surface": "menu",
+  "groupId": "190",
+  "direction": "Satisfying: the whole menu answers the run, not just the button"
+ },
+ {
+  "file": "191-a.html",
+  "name": "Lines Close, Ring Blooms",
+  "idea": "187-b's run unchanged until the last step lands; then the two lines swell and glow once, one soft ring of light passes outward over the ring, the two gains stand large inside the ring (memory blue, disk gold, each its own number) for about 3 seconds, the lines fade and the calm center fades back in.",
+  "good": "One clear, short peak in the place the eye already rests, with the two gains as the biggest thing on screen for a moment; the button sinks on press and springs back, and Quiet, Busy and Peak all end back at the calm center with no overflow and no console errors.",
+  "tradeoff": "The button now says only \"7 fixes done\" at the end because the gains moved up into the ring, and a line closes only as far as the run truly came, so a run that gave back less than planned (Peak memory) ends with that line short of a full circle. Proposed facts: None new; it uses the run's own end totals (memory back, disk back, fixes done, skipped and blocked counts) and each fix's planned and landed amounts.",
+  "surface": "menu",
+  "groupId": "191",
+  "direction": "Satisfying: the finish"
+ },
+ {
+  "file": "191-b.html",
+  "name": "Each Fix Clicks In",
+  "idea": "At the press the two lines split into one piece per fix, as long as that fix's share of the gain; a piece fills with a small spring as its steps land and gleams once when whole, the gains under the button roll digit by digit, and at the end the whole pieces join, one light runs once around each line that landed in full, the button says the two gains, and the lines lift off and fade.",
+  "good": "Every fix landing is felt as its own piece locking in, you can see how much of the run is left and which fix is the big one, and a skipped fix honestly leaves its piece empty; pointing at the button already shows the pieces waiting.",
+  "tradeoff": "More small parts around the button than 187-b's two plain lines, tiny fixes make very short pieces, and the light at the end only runs on a line where every piece landed. Proposed facts: None new; piece lengths come from each fix's planned memory and disk, fills from what has landed so far.",
+  "surface": "menu",
+  "groupId": "191",
+  "direction": "Satisfying: the finish"
  }
 ]
