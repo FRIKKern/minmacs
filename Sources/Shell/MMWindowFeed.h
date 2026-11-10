@@ -34,6 +34,7 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
 #pragma mark Rows, MMWindowRows.m
 
 /// The row of one MMPerformanceRow, with its finding's facts as the story. inFix is left NO; the feed sets it.
+/// An agent is named by its session's title, else by its project folder, so fifteen rows do not all read "Claude Code".
 MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s);
 /// The name the window shows for a finding: ":3000 Next.js" for a server, the branch for a worktree, else its title.
 NSString *MMWindowNameOf(MMFinding *f);

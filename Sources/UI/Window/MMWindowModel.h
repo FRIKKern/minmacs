@@ -2,7 +2,7 @@
 // (branch ui-prototypes, docs/2.0/ui-prototypes/p/195-a.html and p/197-b.html).
 //
 //   +-----------------------------------------------------------------+
-//   | 2 agents ask you                                                |
+//   | 2 agents ask you             (folded away when nobody asks)     |
 //   +------------------+--------------------------+-------------------+
 //   | Servers      20  | Memory in use, last hour | Worktrees     16  |
 //   | Agents       16  | Disk free, last hour     | Caches         5  |
@@ -39,8 +39,8 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 #pragma mark - The last hour
 
 /// One filled line: 60 values, oldest first, one a minute. A minute with no value holds NSNull.
-/// The window draws the line, the first and last value and how far it moved, and nothing when fewer than two
-/// minutes are filled.
+/// The window draws the filled part across the graph's width, with both ends in words and how far it moved.
+/// With fewer than five filled minutes it shows the newest value and says the line fills in as the hour passes.
 @interface MMWindowHour : NSObject
 @property (copy) NSString *title;                       // "Memory in use", "Disk free"
 @property (copy) NSString *explain;                     // "Higher means more of the 64 GB is in use"
@@ -83,6 +83,8 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 @property (copy) NSString *key, *title;                 // "servers", "Servers"
 @property MMWindowSide side;
 @property (copy) NSArray<MMWindowRow *> *rows;
+/// The one quiet line under the header when the group has no rows: "No worktrees found".
+@property (copy, nullable) NSString *emptyNote;
 @end
 
 #pragma mark - The ring
@@ -152,7 +154,8 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 
 @interface MMWindowModel : NSObject
 @property uint64_t generation;                          // the snapshot's; the window drops an older model
-/// The top line, only when something needs the person: "2 agents ask you". nil hides the line's words.
+/// The top line, only when something needs the person: "2 agents ask you". nil folds the line away, and the lists
+/// get its height.
 @property (copy, nullable) NSString *asks;
 @property (strong, nullable) MMWindowHour *memoryHour, *diskHour;
 @property (copy) NSArray<MMWindowGroup *> *memoryGroups, *diskGroups;
@@ -160,6 +163,9 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 /// In Fix Everything's order. Empty when there is nothing to fix: then the button is dimmed in place.
 @property (copy) NSArray<MMWindowFix *> *fixes;
 @property (strong, nullable) MMWindowRun *run;
+/// What came back today, from the look-back. Two numbers. The dock shows a side only when it is above zero, and
+/// only while there is nothing to fix.
+@property uint64_t memoryBackToday, diskBackToday;
 @property (strong) MMWindowSettings *settings;
 - (nullable MMWindowRow *)row:(NSString *)key;
 /// What Fix Everything gives back: the fixes that do not need the person, each side summed on its own.

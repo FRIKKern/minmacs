@@ -40,7 +40,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 @end
 
 @implementation MMWindowGroup (MMJSON)
-- (NSDictionary *)json { return @{@"key": self.key, @"title": self.title, @"side": SideName(self.side), @"rows": All(self.rows)}; }
+- (NSDictionary *)json { return @{@"key": self.key, @"title": self.title, @"side": SideName(self.side), @"rows": All(self.rows),
+                                 @"emptyNote": Or(self.emptyNote)}; }
 @end
 
 @implementation MMWindowRing (MMJSON)
@@ -91,6 +92,7 @@ NSString *MMWindowKindName(MMWindowKind kind) {
              @"memory": All(self.memoryGroups), @"disk": All(self.diskGroups), @"ring": self.ring.json,
              @"fixes": All(self.fixes),
              @"fixEverything": @{@"fixes": @(self.fixCount), @"memoryBack": @(self.memoryBack), @"diskBack": @(self.diskBack)},
+             @"backToday": @{@"memoryBack": @(self.memoryBackToday), @"diskBack": @(self.diskBackToday)},
              @"run": Or(self.run.json), @"settings": self.settings.json};
 }
 @end

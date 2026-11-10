@@ -36,6 +36,40 @@ NSString *MMWindowNameOf(MMFinding *f) {
     return Str(x[@"name"]) ?: title;
 }
 
+/// The session an agent's finding stands for: the one its stable key names, or the one its process runs.
+static MMSession *SessionOf(MMFinding *f, MMSnapshot *s) {
+    NSString *harness = Str(f.facts[@"harnessID"]), *stable = f.stableKey ?: @"";
+    NSRange colon = [stable rangeOfString:@":"];
+    NSString *sid = colon.location == NSNotFound ? nil : [stable substringFromIndex:colon.location + 1];
+    pid_t pid = (pid_t)[Num(f.facts[@"pid"]) intValue];
+    MMSession *byPid = nil;
+    for (MMSession *x in s.facts.sessions) {
+        if (harness && x.agent.length && ![x.agent isEqualToString:harness]) continue;
+        if (sid.length && [x.sessionID isEqualToString:sid]) return x;
+        if (pid > 0 && x.pid == pid) byPid = x;
+    }
+    return byPid;
+}
+
+/// One line, with no line breaks and no space at either end.
+static NSString *OneLine(NSString *t) {
+    NSArray *parts = [t componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return [[parts filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]] componentsJoinedByString:@" "];
+}
+
+/// What tells this agent from the others, most telling first: its session's title, then its project folder.
+/// The harness is the row's icon and a line of its story. With neither fact, the harness's name is all there is.
+static NSString *AgentName(MMFinding *f, MMSnapshot *s) {
+    NSString *title = OneLine(SessionOf(f, s).title ?: @"");
+    if (title.length) return title;
+    NSString *project = Str(f.facts[@"project"]).stringByStandardizingPath;
+    if ([project isEqualToString:NSHomeDirectory()]) return @"Home folder";
+    // A folder inside a hidden one, such as ~/.hermes/hermes-agent, is where the harness lives and no project.
+    for (NSString *part in project.pathComponents) if ([part hasPrefix:@"."]) return MMWindowNameOf(f);
+    NSString *folder = project.lastPathComponent;
+    return folder.length && ![folder isEqualToString:@"/"] ? folder : MMWindowNameOf(f);
+}
+
 #pragma mark - The quiet word
 
 static NSString *StateOf(MMFinding *f, MMWindowKind kind) {
@@ -97,6 +131,7 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             break;
         }
         case MMWindowAgent:
+            Add(out, @"Agent", Str(x[@"name"]));
             Add(out, @"Project", Str(x[@"project"]).lastPathComponent);
             Add(out, @"State", Str(x[@"state"]));
             Add(out, @"Why", Str(x[@"why"]));
@@ -151,7 +186,7 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
     MMWindowRow *row = [MMWindowRow new];
     row.key = r.key;
     row.kind = KindOf(f, r.group);
-    row.name = f ? MMWindowNameOf(f) : r.name ?: @"";
+    row.name = !f ? r.name ?: @"" : row.kind == MMWindowAgent ? AgentName(f, s) : MMWindowNameOf(f);
     row.needsYou = r.needsYou;
     if (r.unit == MMPerformanceTabs) row.tabs = (NSInteger)r.number; else row.bytes = r.number;
     if (!f) return row;
