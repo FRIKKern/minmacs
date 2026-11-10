@@ -10,12 +10,16 @@
 #import "UI/MMSpecMenu.h"
 #import "Shell/MMWatchdog.h"
 #import "Shell/MMWindowCLI.h"
+#import "Shell/MMWindowController.h"
 
 NSString *const MMLoginNotice = @"MinMacs opens at login. Settings can turn that off.";
 static NSString *const kLaunchedKey = @"core.launched";          // set on the first launch
 static NSString *const kLoginNoticeKey = @"core.loginNoticeUntil";   // seconds since 1970
 static NSString *const kOneIconExpert = @"minmacs";               // One Icon stands in for MinMacs's item in Settings
 NSString *const MMOneIconAutosaveName = @"minmacs.oneicon";
+/// Issue #62: the one icon opens the menu window in place of the menus. NO by default until the window is checked
+/// in real use: defaults write no.guerrilla.minmacs core.window -bool YES, then open MinMacs again.
+static NSString *const kWindowKey = @"core.window";
 static NSString *const kOneIconSymbol = @"gauge.with.dots.needle.33percent";
 static const NSTimeInterval kMigrateDelay = 20;                    // the migration's follow-up waits for the menu bar
 
@@ -167,6 +171,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property (strong) id graphToken;
 @property BOOL headless;                                // the bench: no NSStatusItem and no NSApp run loop
 @property BOOL sawSnapshot;
+@property (strong) MMWindowPanel *windowPanel;         // made at the first click on the icon, in window mode
+@property (strong) MMWindowController *windowController;
+- (void)toggleWindow:(NSStatusBarButton *)button;
 - (NSString *)notice;
 - (void)showSettings:(id)sender;
 - (void)rebuildItems;
@@ -207,11 +214,19 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     // The saved position and the Visible state live under minmacs.<expert id>, which Settings reads too.
     // The one icon has a name of its own, so its Hide Icon never hides MinMacs's own item.
     self.item = MMMakeStatusItemSaved(self.itemName, self.itemSymbol, self.expert ? MMStatusAutosaveName(self.expert.expertID) : MMOneIconAutosaveName);
+    if (!self.expert && MMPrefBool(kWindowKey, NO)) {
+        // The window stands in for every menu: a click toggles it, and the item holds no menu.
+        self.item.button.target = self;
+        self.item.button.action = @selector(clicked:);
+        return;
+    }
     self.menu = [NSMenu new];
     self.menu.delegate = self;
     self.menu.autoenablesItems = NO;
     self.item.menu = self.menu;
 }
+
+- (void)clicked:(NSStatusBarButton *)sender { [self.shell toggleWindow:sender]; }
 
 - (BOOL)visible { return self.item ? self.item.visible : MMPrefBool(self.visibleKey, YES); }
 
@@ -399,7 +414,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     for (MMExpertItem *i in self.items) if (i.item) [NSStatusBar.systemStatusBar removeStatusItem:i.item];
     self.items = [NSMutableArray new];
     NSMutableArray *wanted = [NSMutableArray new];
-    if (MMPrefBool(MMOneIconKey, NO)) [wanted addObject:NSNull.null];
+    if (MMPrefBool(MMOneIconKey, NO) || MMPrefBool(kWindowKey, NO)) [wanted addObject:NSNull.null];
     else [wanted addObjectsFromArray:MMExperts()];
     NSMutableArray *made = [NSMutableArray new], *deferred = [NSMutableArray new];
     MMSnapshot *s = MMGraph.shared.current;
@@ -446,6 +461,19 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         [i.focus closed];
         [m popUpMenuPositioningItem:nil atLocation:NSEvent.mouseLocation inView:nil];
     });
+}
+
+/// Opens the menu window under the icon, or closes it. The controller builds models only while it is open.
+- (void)toggleWindow:(NSStatusBarButton *)button {
+    if (!self.windowPanel) {
+        self.windowController = [MMWindowController new];
+        self.windowController.shell = self;
+        self.windowPanel = [[MMWindowPanel alloc] initWithHost:self.windowController];
+        __weak MMShell *weak = self;
+        self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowPanel show:model]; };
+        self.windowPanel.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
+    }
+    [self.windowPanel toggleUnder:button];
 }
 
 - (BOOL)loginEnabled { return SMAppService.mainAppService.status == SMAppServiceStatusEnabled; }

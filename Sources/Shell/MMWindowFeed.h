@@ -38,7 +38,7 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s);
 /// The name the window shows for a finding: ":3000 Next.js" for a server, the branch for a worktree, else its title.
 NSString *MMWindowNameOf(MMFinding *f);
 /// 60 values, bytes or NSNull, oldest first. megabytes of the ring are MiB. nil when ring is nil.
-NSArray *_Nullable MMWindowHourValues(MMHistoryRing *_Nullable ring);
+NSArray *_Nullable MMWindowRingHour(MMHistoryRing *_Nullable ring);
 
 #pragma mark Fixes
 

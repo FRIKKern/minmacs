@@ -12,7 +12,7 @@ static NSString *DiskWhole(uint64_t bytes) {
     return gb >= 1000 ? [NSString stringWithFormat:@"%.1f TB", gb / 1000] : [NSString stringWithFormat:@"%.0f GB", round(gb)];
 }
 
-NSArray *MMWindowHourValues(MMHistoryRing *ring) {
+NSArray *MMWindowRingHour(MMHistoryRing *ring) {
     if (!ring) return nil;
     NSMutableArray *v = [NSMutableArray arrayWithCapacity:MMHistoryMinutes];
     for (NSUInteger i = 0; i < MMHistoryMinutes; i++) {
@@ -24,7 +24,7 @@ NSArray *MMWindowHourValues(MMHistoryRing *ring) {
 }
 
 static MMWindowHour *Hour(MMHistoryRing *ring, MMWindowSide side, NSString *title, NSString *explain) {
-    NSArray *values = MMWindowHourValues(ring);
+    NSArray *values = MMWindowRingHour(ring);
     if (!values) return nil;
     MMWindowHour *h = [MMWindowHour new];
     h.side = side; h.title = title; h.explain = explain; h.values = values;

@@ -170,7 +170,7 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
     if ((row.kind == MMWindowServer || row.kind == MMWindowAgent) && f.procs.count) {
         MMProcKey k = {0, 0};
         [f.procs.firstObject getValue:&k size:sizeof k];
-        row.hour = MMWindowHourValues([s.history treeFor:k]);
+        row.hour = MMWindowRingHour([s.history treeFor:k]);
     }
     row.facts = FactsOf(f, row.kind);
     return row;

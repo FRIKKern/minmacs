@@ -45,6 +45,8 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 - (void)show:(MMWindowModel *)model;                    // a new model, open or not
 - (void)toggleUnder:(NSStatusBarButton *)button;
 - (void)close;
+/// Called on main after the panel opened or closed, however it closed. The shell works only while it is open.
+@property (copy, nullable) void (^onOpenChange)(BOOL open);
 @end
 
 /// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty".

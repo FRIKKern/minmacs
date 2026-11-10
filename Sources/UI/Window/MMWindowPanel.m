@@ -70,6 +70,7 @@
     [self makeFirstResponder:self.view];
     [self.view opened];
     [self watch];
+    if (self.onOpenChange) self.onOpenChange(YES);
 }
 
 /// A press anywhere else closes the panel: in another app, or in another window of MinMacs.
@@ -103,6 +104,7 @@
     [self orderOut:nil];
     [self.view rest];
     self.view.showsSettings = NO;
+    if (self.onOpenChange) self.onOpenChange(NO);
 }
 
 - (void)dealloc { [self unwatch]; }
