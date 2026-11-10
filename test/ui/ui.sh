@@ -46,6 +46,23 @@ ui_fails=missing
 check "the render's DESIGN.md checks all pass" 0 "$ui_fails"
 grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 
+# The window that opens from the icon, issue #62, in window/: 11 states in dark and in dark with Increase Contrast.
+# It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
+ui_win="$ui_out/window"
+check "every window PNG is there" 22 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+ui_ok=yes
+for ui_name in busy-main busy-server busy-worktree busy-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main; do
+  for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
+done
+check "each window state in dark and Increase Contrast" yes "$ui_ok"
+ui_sizes=$(for f in "$ui_win"/*.png; do sips -g pixelWidth -g pixelHeight "$f" 2>/dev/null | awk '/pixelWidth/ {w=$2} /pixelHeight/ {print w "x" $2}'; done | sort -u | tr '\n' ' ')
+check "every window PNG is 1020 by 728 points, two pixels each" "2040x1456 " "$ui_sizes"
+ui_md() { md5 -q "$ui_win/$1.png" 2>/dev/null; }
+check "the window differs under Increase Contrast, with a pointed row and in Settings" "yes yes yes" \
+  "$([ "$(ui_md busy-main-dark)" != "$(ui_md busy-main-contrast-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-server-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-settings-dark)" ] && echo yes || echo no)"
+check "no window fixture shows a banned phrase or an old app name" 6 \
+  "$(grep -c '^ok    window .*: no shown string holds a banned phrase or an old app name' "$ui_out/checks.txt" 2>/dev/null)"
+
 # One spec converter: Sources/UI/MMSpecMenu. The second one, MMSpecKit, is gone, and nothing calls its functions.
 check "one spec converter, MMSpecMenu" "no 0" \
   "$([ -e "$ROOT/Sources/UI/MMSpecKit.m" ] && echo yes || echo no) $(grep -rnE 'MMSpecKit|MMMenuForSpec|MMCardForSpec|MMItemForAction' "$ROOT/Sources" "$ROOT/tools" "$ROOT/test" | grep -v '^.*ui\.sh:' | grep -c .)"

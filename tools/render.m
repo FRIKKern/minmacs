@@ -9,6 +9,7 @@
 #import "UI/MMUI.h"
 #import "UI/MMSettings.h"
 #import "UI/MMSpecMenu.h"
+#import "UI/Window/MMWindowParts.h"
 #import "Core/MMExpert.h"
 #import "Experts/LocoHost/MMLHHost.h"
 #import "Experts/WorkForest/MMWFTree.h"
@@ -644,6 +645,52 @@ static MMCardSpec *SCard(NSString *fid) {
     return c;
 }
 
+/// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
+/// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
+static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *> *appearances, NSMutableArray *unwritten) {
+    NSString *dir = [out stringByAppendingPathComponent:@"window"];
+    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    // fixture, state, the row the pointer rests on
+    NSArray<NSArray *> *shots = @[@[@"busy", @"main", @""], @[@"busy", @"server", @"server:6006"], @[@"busy", @"worktree", @"worktree:fix-auth-redirect"],
+                                  @[@"busy", @"settings", @""], @[@"quiet", @"main", @""], @[@"quiet", @"server", @"server:3001"],
+                                  @[@"peak", @"main", @""], @[@"peak", @"worktree", @"worktree:notes-export"],
+                                  @[@"running", @"main", @""], @[@"done", @"main", @""], @[@"empty", @"main", @""]];
+    for (NSString *mode in @[@"dark", @"contrast-dark"]) {
+        NSAppearance *ap = appearances[mode];
+        if (!ap) continue;
+        MMWindowForceContrast([mode hasPrefix:@"contrast"]);
+        for (NSArray *shot in shots) {
+            MMWindowView *v = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+            v.drawsBacking = YES;
+            v.model = MMWindowFixture(shot[0]);
+            if ([shot[2] length]) v.pointedRow = shot[2];
+            v.showsSettings = [shot[1] isEqualToString:@"settings"];
+            NSString *path = [dir stringByAppendingFormat:@"/%@-%@-%@.png", shot[0], shot[1], mode];
+            if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
+        }
+        MMWindowForceContrast(NO);
+    }
+    // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
+    NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
+                                    @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty"]) {
+        MMWindowModel *m = MMWindowFixture(name);
+        NSMutableArray *bad = [NSMutableArray new];
+        for (NSString *s in [MMWindowView shownStrings:m])
+            for (NSString *b in banned) if ([s rangeOfString:b options:NSCaseInsensitiveSearch].location != NSNotFound) [bad addObject:s];
+        Check(bad.count == 0, [NSString stringWithFormat:@"window %@: no shown string holds a banned phrase or an old app name", name], [bad componentsJoinedByString:@" | "]);
+        // Memory and disk are two numbers: no fix title and no gain adds them into one.
+        Check(m.ring.memoryTotal > 0 && m.ring.diskTotal > 0 && [m row:@"no such row"] == nil, [NSString stringWithFormat:@"window %@: the fixture has a ring and finds no row for an unknown key", name], @"");
+    }
+    MMWindowModel *busy = MMWindowFixture(@"busy");
+    NSInteger rows = 0;
+    for (NSArray<MMWindowGroup *> *side in @[busy.memoryGroups, busy.diskGroups]) for (MMWindowGroup *g in side) rows += g.rows.count;
+    Check(rows == 72 && busy.fixCount == 7, @"window busy: 20 servers, 16 agents, 15 apps and helpers, 16 worktrees, 5 caches and 7 fixes",
+          [NSString stringWithFormat:@"%ld rows, %ld fixes", (long)rows, (long)busy.fixCount]);
+    Check(MMWindowFixture(@"empty").fixCount == 0 && MMWindowFixture(@"running").run.running && !MMWindowFixture(@"done").run.running && MMWindowFixture(@"done").run.endTitle.length,
+          @"window: the empty day has no fix, the running day runs, the done day ended", @"");
+}
+
 /// The shell's PNGs go in their own folder: each expert's menu and card as the shell builds them, One Icon, the icons.
 static void RenderShell(NSString *out, NSDictionary<NSString *, NSAppearance *> *appearances, NSMutableArray *unwritten) {
     NSString *dir = [out stringByAppendingPathComponent:@"shell"];
@@ -910,6 +957,7 @@ int main(int argc, char **argv) { @autoreleasepool {
           @"settings insomnia: each guard menu shows the value set", [menus componentsJoinedByString:@" "]);
     Check([settings viewForExpert:@"locohost"] == nil, @"settings: an expert with no prefs has no pane", @"LocoHost has a pane");
     RenderShell(out, appearances, unwritten);
+    RenderWindow(out, appearances, unwritten);
     Check(unwritten.count == 0, @"every PNG is written", [unwritten componentsJoinedByString:@", "]);
     // The menus still work after drawing: every card view went back to its item alone.
     NSInteger loose = 0;

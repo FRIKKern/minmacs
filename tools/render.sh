@@ -17,5 +17,5 @@ if ! clang -fobjc-arc -O0 -Wall -mmacosx-version-min=14.0 -ISources -framework C
   cat "$LOG" >&2; echo "render build failed" >&2; exit 1
 fi
 if grep -q "warning:" "$LOG"; then cat "$LOG" >&2; echo "render build has warnings; fix them" >&2; exit 1; fi
-rm -f "$OUT"/*.png "$OUT"/shell/*.png "$OUT/checks.txt"
+rm -f "$OUT"/*.png "$OUT"/shell/*.png "$OUT"/window/*.png "$OUT/checks.txt"
 "$BIN/render" "$OUT"
