@@ -37,9 +37,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)start;
 /// Runs on the calling queue and returns the ended run. Never on main: it returns an ended run with nothing done.
 - (MMWindowRun *)run;
-/// Asks the run to end after the step it is in. Any queue.
+/// Asks the run to end after the step it is in. Any queue. Asked before the run began, it ends the run before its
+/// first step. A fix stopped between two of its things is not done: the end note counts the things not reached.
 - (void)stop;
 @property (readonly) BOOL running;
+/// When the last step finished, before the rebuild the run asks for. nil until then. A snapshot built after this
+/// saw what the run did.
+@property (nullable) NSDate *endedAt;
 /// What each step did, once the run ended.
 @property (readonly, copy) NSArray<MMFixResult *> *results;
 @end
