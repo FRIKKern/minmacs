@@ -1,6 +1,7 @@
 # ===== Window: the menu window's feed, its verb and Fix Everything's runner, issue #62 =====
-# Sourced by test.sh after core. It builds test/window/window.m with all of Sources/Core, the feed and runner files of
-# Sources/Shell and the plain model of Sources/UI/Window, and runs it on fixture facts inside $MINMACS_HOME.
+# Sourced by test.sh after core. It builds test/window/window.m with all of Sources/Core, the feed, runner and
+# controller files of Sources/Shell and the plain model of Sources/UI/Window, and runs it on fixture facts inside
+# $MINMACS_HOME.
 # The runner's actions are fakes that act only on files the tool made in its own fixture folder: a stop or a quit
 # writes its key to a list, and a removal goes through MMUndo into $MINMACS_HOME/Trash. No process starts.
 # Fix Everything has no verb, so nothing here could act on a real server, worktree, cache or app.
@@ -11,7 +12,7 @@ mkdir -p "$wn_dir/home"
 wn_home="$wn_dir/home"
 wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/UI/Window/MMWindowModel.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -40,6 +41,12 @@ if [ "$wn_r" = 0 ]; then
   wn_run run
   echo "-- stopped after the step under way"
   wn_run stop
+  echo "-- stopped inside a fix of two things"
+  wn_run inside
+  echo "-- an app that will not quit"
+  wn_run refused
+  echo "-- the controller: open and closed, generations, two presses, stop and what waits for the end"
+  wn_run controller
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null

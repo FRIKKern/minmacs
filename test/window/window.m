@@ -5,7 +5,7 @@
 // Here the facts have the shape the real experts write, and the actions act: on files this tool made inside the
 // fixture folder, through MMUndo, so a trashed file lands in $MINMACS_HOME/Trash. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -17,6 +17,7 @@
 
 static NSMutableArray<NSString *> *gRan;        // the finding id of each action that ran, in order
 static NSMutableSet<NSString *> *gNowKept;      // finding ids the fresh check keeps: they changed since the snapshot
+static NSMutableSet<NSString *> *gRefuses;      // finding ids whose action runs and fails, as an app that will not quit
 
 @interface WAction : TAction
 @end
@@ -25,6 +26,7 @@ static NSMutableSet<NSString *> *gNowKept;      // finding ids the fresh check k
     MMFinding *f = self.finding;
     @synchronized (gRan) { [gRan addObject:f.findingID]; }
     NSString *verb = f.proposal.verb;
+    if ([gRefuses containsObject:f.findingID]) { if (error) *error = @"it did not quit. It may be asking to save"; return NO; }
     // A stop, a quit or a tab close ends nothing here. Only a removal touches the disk, and only inside the fixtures.
     if (![verb isEqualToString:@"remove"]) return YES;
     if (![f.path hasPrefix:gDir]) { if (error) *error = @"not a fixture path"; return NO; }
@@ -109,7 +111,7 @@ static const uint64_t kDiskTotal = 994ull * 1000 * 1000 * 1000, kDiskFree = 182u
 /// A finished workstream, a merged worktree, servers, an agent that asks, apps, clutter and a tool's own cleanup.
 static void World(void) {
     Reset();
-    gRan = [NSMutableArray new]; gNowKept = [NSMutableSet new];
+    gRan = [NSMutableArray new]; gNowKept = [NSMutableSet new]; gRefuses = [NSMutableSet new];
     NSString *w1 = Dir(@"trees/fix-auth-redirect"), *w2 = Dir(@"trees/old-spike"), *w3 = Dir(@"repo"), *w4 = Dir(@"trees/wip");
     NSString *lib = Dir(@"library"), *derived = Dir(@"library/DerivedData");
     File(@"trees/old-spike", @".env"); File(@"library/DerivedData", @"index");
@@ -269,6 +271,11 @@ static void WindowModel(void) {
          sims.state ?: @"-", helper.state ?: @"-"] componentsJoinedByString:@" "]);
     T(@"window: a row with no such fact has no word", @"(nil)", [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"repo")]].state);
     T(@"window: a tabs row counts tabs and holds no bytes", @"3 0", [NSString stringWithFormat:@"%ld %llu", (long)tabs.tabs, tabs.bytes]);
+    T(@"window: a tabs row with no bytes shows its count in its name and no size, and other rows show theirs", @"3 Browser | no | :3001 Next.js | yes",
+      [NSString stringWithFormat:@"%@ | %@ | %@ | %@", tabs.shownName, YN(tabs.showsSize), next.shownName, YN(next.showsSize)]);
+    tabs.bytes = 64 * MB;
+    T(@"window: tabs that do hold bytes show their size", @"yes", YN(tabs.showsSize));
+    tabs.bytes = 0;
     T(@"window: the agent that asks needs you, and only it", @"1", @([[Rows(m) filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"needsYou == YES"]] count]));
     T(@"window: needsYou sits on the asking agent", @"yes", YN(asks.needsYou));
     T(@"window: CPU is unknown where Core has no reading", @"-1 -1", [NSString stringWithFormat:@"%g %g", next.cpuPercent, spike.cpuPercent]);
@@ -408,7 +415,11 @@ static void RunAll(void) {
     MMFixRunner *runner = [[MMFixRunner alloc] initWithPerformance:p];
     NSMutableArray<MMWindowRun *> *seen = [NSMutableArray new];
     __block BOOL offMain = YES;
-    runner.onProgress = ^(MMWindowRun *r) { if (NSThread.isMainThread) offMain = NO; @synchronized (seen) { [seen addObject:r]; } };
+    NSMutableSet<NSString *> *labels = [NSMutableSet new];
+    runner.onProgress = ^(MMWindowRun *r) {
+        if (NSThread.isMainThread) offMain = NO;
+        @synchronized (seen) { [seen addObject:r]; [labels addObject:@(dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL))]; }
+    };
     dispatch_semaphore_t ended = dispatch_semaphore_create(0);
     __block MMWindowRun *end = nil;
     void (^inner)(MMWindowRun *) = runner.onProgress;
@@ -417,6 +428,7 @@ static void RunAll(void) {
     long timedOut = dispatch_semaphore_wait(ended, dispatch_time(DISPATCH_TIME_NOW, 60 * NSEC_PER_SEC));
     T(@"run: the run ends, off main, on its own labeled queue", @"yes yes", [NSString stringWithFormat:@"%@ %@", YN(!timedOut), YN(offMain)]);
     if (timedOut) return;
+    T(@"run: every step comes on the one queue with the runner's label", @"no.guerrilla.minmacs.core.fix-everything", [labels.allObjects componentsJoinedByString:@" "]);
 
     NSArray<MMFixResult *> *res = runner.results;
     NSMutableDictionary<NSString *, NSString *> *by = [NSMutableDictionary new];
@@ -484,9 +496,12 @@ static void RunStopped(void) {
     T(@"stop: the runner can be asked again once it ended", @"no", YN(runner.running));
 }
 
+// The stop inside a fix, the app that will not quit and the controller's checks.
+#import "controller.m"
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -501,6 +516,9 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"calm"]) WindowCalm();
         else if ([mode isEqualToString:@"run"]) RunAll();
         else if ([mode isEqualToString:@"stop"]) RunStopped();
+        else if ([mode isEqualToString:@"inside"]) RunStoppedInside();
+        else if ([mode isEqualToString:@"refused"]) RunRefused();
+        else if ([mode isEqualToString:@"controller"]) Controller();
         else return 2;
         printf("END\n");
     }
