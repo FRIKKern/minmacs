@@ -1,6 +1,8 @@
 // `minmacs window [--json]`: what the menu window would show now, MMWindowFeed.h. It reads the snapshot, the gains
-// table as `performance` does, the mode prefs and the lid setting, and changes nothing. It runs no fix: Fix Everything
-// has no verb, since a verb that acts on everything it finds could not be scoped to a test's own fixtures.
+// table as `performance` does, the mode prefs, the lid setting and the login item's state, and changes nothing.
+// It runs no fix: Fix Everything has no verb, since a verb that acts on everything it finds could not be scoped to a
+// test's own fixtures.
+#import <ServiceManagement/ServiceManagement.h>
 #import "Shell/MMWindowCLI.h"
 #import "Shell/MMWindowFeed.h"
 #import "Shell/MMWindowJSON.h"
@@ -28,8 +30,9 @@ static int Window(MMArgs *a) {
     MMSnapshot *s = a.snapshot;
     MMPerformance *p = [MMPerformance from:s history:a.inApp ? s.history : nil
                                   lookBack:[MMPerformanceLookBack read:MMGains.shared now:NSDate.date]];
-    // Open at login is the app's own to read, on main. A verb prints it as off.
-    MMWindowModel *m = MMWindowModelFrom(s, p, [MMWindowExtras readWithLogin:NO]);
+    // Open at login as the system holds it for this app bundle. A read only: nothing is registered here.
+    BOOL login = SMAppService.mainAppService.status == SMAppServiceStatusEnabled;
+    MMWindowModel *m = MMWindowModelFrom(s, p, [MMWindowExtras readWithLogin:login]);
     if (a.json) {
         NSMutableDictionary *j = [m.json mutableCopy];
         j[@"app"] = @(a.inApp);
