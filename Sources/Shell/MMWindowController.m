@@ -21,12 +21,17 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
     uint64_t _shown;                                     // main: the generation of the last model sent
     _Atomic uint64_t _wanted;                            // the newest generation asked for
     atomic_bool _open, _loginOn;
+    // One run at a time. Main sets it at the press, before anything is queued, so a second press that lands right
+    // behind the first finds it set. The window queue clears it when the run's end has arrived, or when no run began.
+    atomic_bool _busy;
+    void (^_afterRun)(void);                             // main: what waits for the run to end, such as a quit
     // Only on the window queue:
     MMSnapshot *_s;
     MMPerformance *_p;
     MMPerformanceLookBack *_lookBack;
     MMWindowRun *_run;
     MMFixRunner *_runner;
+    NSDate *_endedAt;                                    // when the last run ended: a plan built before it is spent
 }
 
 static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED); }
@@ -82,13 +87,35 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 
 #pragma mark - MMWindowHost
 
+- (BOOL)running { return atomic_load(&_busy); }
+
+/// The window queue. The run is over, or none began. Whoever waited for it is told on main.
+- (void)ended {
+    atomic_store(&_busy, false);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        void (^then)(void) = self->_afterRun;
+        self->_afterRun = nil;
+        if (then) then();
+    });
+}
+
+- (BOOL)stopRunThen:(void (^)(void))then {
+    if (!atomic_load(&_busy)) return NO;
+    _afterRun = [then copy];
+    [self windowStopRun];
+    return YES;
+}
+
 - (void)windowRunFixEverything {
+    if (atomic_exchange(&_busy, true)) return;
     dispatch_async(Queue(), ^{
-        if (self->_runner.running || !self->_p) return;
-        MMPerformance *p = self->_p;
+        // A plan built before the last run ended may name things that run already acted on. The press waits for a
+        // snapshot built since, which the run's own rebuild brings.
+        BOOL spent = self->_endedAt && (!self->_s.builtAt || [self->_s.builtAt compare:self->_endedAt] != NSOrderedDescending);
+        MMPerformance *p = spent ? nil : self->_p;
         NSInteger n = 0;
         for (MMPerformanceFix *f in p.fixes) if (!f.needsYou) n++;
-        if (!n) return;
+        if (!n) { [self ended]; return; }
         MMFixRunner *runner = [[MMFixRunner alloc] initWithPerformance:p];
         __weak MMWindowController *weak = self;
         // Progress comes on the runner's queue. The run is kept and sent from the window queue.
@@ -101,6 +128,8 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
                 if (run.running) return;
                 // What came back is in the gains log now, so the look-back is read again for the next build.
                 me->_lookBack = nil;
+                me->_endedAt = me->_runner.endedAt ?: NSDate.date;
+                [me ended];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kEndShows * NSEC_PER_SEC)), Queue(), ^{
                     MMWindowController *later = weak;
                     if (!later || later->_run != run) return;
@@ -155,6 +184,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     });
 }
 
+/// The shell's -applicationShouldTerminate: lets a run end its step first, so this never quits in the middle of one.
 - (void)windowQuit { [NSApp terminate:nil]; }
 
 @end

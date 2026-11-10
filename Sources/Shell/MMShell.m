@@ -163,6 +163,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property (weak) MMShell *shell;
 - (void)label:(MMSnapshot *)s;
 @property (strong) MMLinkFocus *focus;                  // the link that opens the menu next
+@property BOOL opensWindow;                             // window mode: a click opens the menu window, and there is no menu
 @end
 
 @interface MMShell ()
@@ -174,6 +175,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property (strong) MMWindowPanel *windowPanel;         // made at the first click on the icon, in window mode
 @property (strong) MMWindowController *windowController;
 - (void)toggleWindow:(NSStatusBarButton *)button;
+- (BOOL)showWindow;
 - (NSString *)notice;
 - (void)showSettings:(id)sender;
 - (void)rebuildItems;
@@ -216,6 +218,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     self.item = MMMakeStatusItemSaved(self.itemName, self.itemSymbol, self.expert ? MMStatusAutosaveName(self.expert.expertID) : MMOneIconAutosaveName);
     if (!self.expert && MMPrefBool(kWindowKey, NO)) {
         // The window stands in for every menu: a click toggles it, and the item holds no menu.
+        self.opensWindow = YES;
         self.item.button.target = self;
         self.item.button.action = @selector(clicked:);
         return;
@@ -392,6 +395,13 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     });
 }
 
+/// A run of Fix Everything is never cut in the middle of a step. Quit, from the window, the Dock, a URL or a log out,
+/// asks the run to stop after the step it is in, and the app quits when the run has ended.
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)app {
+    BOOL waits = [self.windowController stopRunThen:^{ [NSApp replyToApplicationShouldTerminate:YES]; }];
+    return waits ? NSTerminateLater : NSTerminateNow;
+}
+
 - (void)applicationWillTerminate:(NSNotification *)note {
     [MMGraph.shared stopObserving:self.graphToken];
     MMCoreStop();
@@ -445,6 +455,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 /// with the linked card as its first row. In One Icon mode the one icon opens. An item the system hides, or one the
 /// person hid, cannot open, so the same menu pops up at the pointer instead.
 - (void)openLink:(NSString *)expert finding:(NSString *)findingID {
+    // In window mode the icon holds no menu, so a link opens the window and leaves an open one as it is.
+    if ([self showWindow]) return;
     MMExpertItem *i = MMPrefBool(MMOneIconKey, NO) ? nil : [self itemFor:expert];
     if (!i) for (MMExpertItem *x in self.items) if (!x.expert) i = x;
     if (!i) return;
@@ -461,6 +473,15 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         [i.focus closed];
         [m popUpMenuPositioningItem:nil atLocation:NSEvent.mouseLocation inView:nil];
     });
+}
+
+/// Window mode only: opens the menu window when it is closed, and never closes it. NO when the icon opens menus.
+- (BOOL)showWindow {
+    MMExpertItem *one = nil;
+    for (MMExpertItem *x in self.items) if (x.opensWindow) one = x;
+    if (!one) return NO;
+    if (!self.windowPanel.isOpen) [self toggleWindow:one.item.button];
+    return YES;
 }
 
 /// Opens the menu window under the icon, or closes it. The controller builds models only while it is open.
@@ -531,6 +552,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
             if ([e respondsToSelector:@selector(setPref:value:)]) [e setPref:key value:value];
         };
         st.onOpenMenu = ^(NSString *expert, NSView *from) {
+            if ([weak showWindow]) return;
             MMExpertItem *i = [weak itemFor:expert];
             // In One Icon mode the expert has no item, so the one icon's menu opens. An item left for later stays shut.
             if (!i) for (MMExpertItem *x in weak.items) if (x.item.visible) { i = x; break; }

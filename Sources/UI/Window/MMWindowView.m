@@ -238,7 +238,8 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 
 - (BOOL)performKeyEquivalent:(NSEvent *)e {
     NSEventModifierFlags flags = e.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-    if ((flags & ~NSEventModifierFlagCapsLock) == NSEventModifierFlagCommand) {
+    // Only the key window's keys are the window's own. AppKit also offers a key no window took to every other window.
+    if (self.window.isKeyWindow && (flags & ~NSEventModifierFlagCapsLock) == NSEventModifierFlagCommand) {
         NSString *key = e.charactersIgnoringModifiers.lowercaseString;
         if ([key isEqualToString:@","]) { self.showsSettings = !self.showsSettings; return YES; }
         if ([key isEqualToString:@"q"]) { [self.host windowQuit]; return YES; }
@@ -247,11 +248,12 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 }
 
 - (void)keyDown:(NSEvent *)e {
-    if (e.keyCode == 53) [self cancelOperation:nil]; else [super keyDown:e];
+    if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil]; else [super keyDown:e];
 }
 
 /// Escape leaves Settings first, and closes the window when Settings does not show.
 - (void)cancelOperation:(id)sender {
+    if (!self.window.isKeyWindow) return;
     if (self.showsSettings) self.showsSettings = NO; else [self.window close];
 }
 

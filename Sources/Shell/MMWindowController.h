@@ -25,6 +25,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Main only. YES starts observing and builds from the current snapshot at once. NO stops and frees what it held.
 /// A run of Fix Everything that is under way goes on to its end either way.
 - (void)setOpen:(BOOL)open;
+/// YES from the press on Fix Everything until that run's end arrived. Any queue.
+@property (readonly) BOOL running;
+/// Main only. With no run under way it returns NO and does nothing. With one, it asks the run to stop after the step
+/// it is in and calls the block on main once the run ended.
+- (BOOL)stopRunThen:(void (^)(void))then;
 @end
 
 NS_ASSUME_NONNULL_END
