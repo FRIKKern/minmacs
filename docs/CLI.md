@@ -177,6 +177,16 @@ help [--json]
 
 Flags: `--json`.
 
+#### `window`
+
+What the menu window shows: asks, the two sides, the ring, the fixes and Settings.
+
+```
+window [--json]
+```
+
+Flags: `--json`.
+
 ### LocoHost
 
 #### `hosts`
