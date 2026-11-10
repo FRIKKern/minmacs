@@ -163,10 +163,13 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
     MMWindowDrawIcon(row, NSMakeRect(r.origin.x + 9, mid - 8, 16, 16), hot ? MMWindowColor(MMWindowInkHot) : [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1]);
 
     // From the right: the number with its gray unit, the row's own hour, CPU, the quiet state word. The name gets the rest.
-    NSArray<NSString *> *size = MMWindowSize2(row.bytes);
-    NSAttributedString *number = MMWindowJoin(@[MMWindowText(size[0], 13, NSFontWeightRegular, text),
-                                                MMWindowText([@" " stringByAppendingString:size[1]], 11, NSFontWeightRegular, quiet)]);
-    MMWindowDraw(number, right, mid, 1);
+    // A tabs row with no bytes has its count in its name, and no size.
+    if (row.showsSize) {
+        NSArray<NSString *> *size = MMWindowSize2(row.bytes);
+        NSAttributedString *number = MMWindowJoin(@[MMWindowText(size[0], 13, NSFontWeightRegular, text),
+                                                    MMWindowText([@" " stringByAppendingString:size[1]], 11, NSFontWeightRegular, quiet)]);
+        MMWindowDraw(number, right, mid, 1);
+    }
     CGFloat edge = right - (side == MMWindowDisk ? 58 : 50) - 6;
     if (hasHour) {
         if (row.hour) MMWindowDrawHour(row.hour, NSMakeRect(edge - 34, mid - 7, 34, 14), hot ? NSColor.whiteColor : MMWindowColor(side == MMWindowDisk ? MMWindowInkDisk : MMWindowInkMemory), 1, NO);
@@ -180,8 +183,7 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
         edge -= 46;
     }
     CGFloat nameLeft = r.origin.x + 31;
-    NSString *name = row.kind == MMWindowTabs && row.tabs > 0 && ![row.name hasPrefix:@(row.tabs).stringValue]
-        ? [NSString stringWithFormat:@"%ld %@", (long)row.tabs, row.name] : row.name;
+    NSString *name = row.shownName;
     if (row.state.length) {
         NSAttributedString *state = MMWindowText(row.state, 11.5, NSFontWeightRegular, quiet);
         CGFloat w = MMWindowWidth(state);
@@ -244,9 +246,9 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
         CGFloat off = _offsets[g.key].doubleValue;
         for (NSInteger r = 0; r < (NSInteger)g.rows.count; r++) {
             MMWindowRow *row = g.rows[r];
-            NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, row.name, nil];
+            NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, row.shownName, nil];
             if (row.state.length) [say addObject:row.state];
-            [say addObject:MMWindowBytes(row.bytes)];
+            if (row.showsSize) [say addObject:MMWindowBytes(row.bytes)];
             if (row.needsYou) [say addObject:@"asks you"];
             if (row.inFix) [say addObject:@"in Fix Everything"];
             NSRect rr = NSIntersectionRect(NSMakeRect(5, box.origin.y + r * kRow - off, box.size.width - 10, kRow), box);

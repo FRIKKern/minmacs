@@ -72,6 +72,10 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 @property (copy, nullable) NSArray *hour;
 /// The story the middle shows while the pointer rests on the row: who owns it, where it is, why it stays.
 @property (copy) NSArray<MMWindowFact *> *facts;
+/// The name as every view draws it: a tabs row leads with its count, "3 Browser".
+@property (readonly) NSString *shownName;
+/// NO for a tabs row that holds no bytes: its count in the name is its number, and no size of 0 is drawn or read out.
+@property (readonly) BOOL showsSize;
 @end
 
 /// One group with a still header: its title, its count and its rows, biggest first. Each group scrolls on its own.

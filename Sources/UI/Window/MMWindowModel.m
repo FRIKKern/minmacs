@@ -13,6 +13,11 @@
 
 @implementation MMWindowRow
 - (instancetype)init { if ((self = [super init])) { _key = @""; _name = @""; _cpuPercent = -1; _facts = @[]; } return self; }
+- (NSString *)shownName {
+    if (self.kind != MMWindowTabs || self.tabs <= 0 || [self.name hasPrefix:@(self.tabs).stringValue]) return self.name;
+    return [NSString stringWithFormat:@"%ld %@", (long)self.tabs, self.name];
+}
+- (BOOL)showsSize { return self.kind != MMWindowTabs || self.bytes > 0; }
 @end
 
 @implementation MMWindowGroup

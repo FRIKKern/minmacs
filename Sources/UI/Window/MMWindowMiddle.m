@@ -63,15 +63,16 @@ static BOOL Ends(NSArray *values, NSInteger *first, NSInteger *last) {
     CGFloat x = 18, w = self.bounds.size.width - 36;
     BOOL disk = row.kind == MMWindowWorktree || row.kind == MMWindowCache;
     MMWindowDrawIcon(row, NSMakeRect(x, 18, 28, 28), [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1]);
-    NSString *name = row.kind == MMWindowTabs && row.tabs > 0 && ![row.name hasPrefix:@(row.tabs).stringValue]
-        ? [NSString stringWithFormat:@"%ld %@", (long)row.tabs, row.name] : row.name;
+    NSString *name = row.shownName;
     MMWindowDraw(MMWindowFit(name, 15, NSFontWeightSemibold, text, w - 44), x + 44, row.state.length ? 24 : 32, -1);
     if (row.state.length) MMWindowDraw(MMWindowFit(row.state, 12, NSFontWeightRegular, t2, w - 44), x + 44, 42, -1);
 
     // The numbers: memory or disk, CPU when known, and the row's own hour to the right.
     CGFloat top = 70, at = x;
-    MMWindowDraw(MMWindowText(disk ? @"Disk" : @"Memory", 11.5, NSFontWeightRegular, t2), at, top + 7, -1);
-    NSAttributedString *big = MMWindowNumber(row.bytes, 25, NSFontWeightMedium, text, 12);
+    // Tabs that hold no bytes of their own show their count where the size would stand.
+    NSAttributedString *big = row.showsSize ? MMWindowNumber(row.bytes, 25, NSFontWeightMedium, text, 12)
+                                            : MMWindowText(@(row.tabs).stringValue, 25, NSFontWeightMedium, text);
+    MMWindowDraw(MMWindowText(!row.showsSize ? @"Tabs" : disk ? @"Disk" : @"Memory", 11.5, NSFontWeightRegular, t2), at, top + 7, -1);
     MMWindowDraw(big, at, top + 32, -1);
     at += MAX(MMWindowWidth(big), 60) + 24;
     if (row.cpuPercent >= 0) {
