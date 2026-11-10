@@ -36,8 +36,9 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 @end
 
 /// The panel that holds the view: borderless, dark glass, non-activating, hanging under the status item's button.
-/// It opens with its first frame already built from the latest model, and closes on a click outside or Escape
-/// (Escape first leaves Settings when Settings shows).
+/// It opens with its first frame already built from the latest model. It closes on Escape (which first leaves
+/// Settings when Settings shows), on a click outside, when it is no longer the key window, when another app comes
+/// to the front and when the space changes.
 @interface MMWindowPanel : NSPanel
 - (instancetype)initWithHost:(nullable id<MMWindowHost>)host;
 @property (readonly) MMWindowView *view;
@@ -45,6 +46,8 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 - (void)show:(MMWindowModel *)model;                    // a new model, open or not
 - (void)toggleUnder:(NSStatusBarButton *)button;
 - (void)close;
+/// YES while the panel holds an event monitor or an observer. It holds them only while it is open.
+@property (readonly) BOOL watching;
 /// Called on main after the panel opened or closed, however it closed. The shell works only while it is open.
 @property (copy, nullable) void (^onOpenChange)(BOOL open);
 @end

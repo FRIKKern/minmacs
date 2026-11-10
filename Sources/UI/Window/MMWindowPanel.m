@@ -1,9 +1,12 @@
 // The panel that holds the window's view: borderless dark glass that hangs under the status item's button.
-// It takes the keyboard without making MinMacs the active app, and closes on a click outside or Escape.
+// It takes the keyboard without making MinMacs the active app. As a menu does, it closes on Escape, on a click
+// outside, when it stops being the key window, when another app comes to the front and when the space changes.
 #import "UI/Window/MMWindowParts.h"
 
 @implementation MMWindowPanel {
     id _outside, _inside;               // event monitors, held only while the panel shows
+    NSArray *_others, *_own;            // observers on the workspace's center and on the default one, the same
+    BOOL _closing;                      // -orderOut: gives up the keyboard, which must not close a second time
     __weak NSWindow *_anchor;           // the status item's own window: its clicks toggle, they do not count as outside
 }
 
@@ -83,25 +86,51 @@
         if (panel && e.window != panel && e.window != panel->_anchor) [panel close];
         return e;
     }];
+    if (_others) return;
+    void (^shut)(NSNotification *) = ^(NSNotification *n) {
+        // MinMacs itself coming to the front is not another app: Settings or an alert took over, and -resignKeyWindow sees that.
+        NSRunningApplication *app = n.userInfo[NSWorkspaceApplicationKey];
+        if (app && app.processIdentifier == getpid()) return;
+        [me close];
+    };
+    NSNotificationCenter *ws = NSWorkspace.sharedWorkspace.notificationCenter, *own = NSNotificationCenter.defaultCenter;
+    NSOperationQueue *main = NSOperationQueue.mainQueue;
+    _others = @[[ws addObserverForName:NSWorkspaceDidActivateApplicationNotification object:nil queue:main usingBlock:shut],
+                [ws addObserverForName:NSWorkspaceActiveSpaceDidChangeNotification object:nil queue:main usingBlock:shut]];
+    _own = @[[own addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:main usingBlock:shut]];
 }
 
 - (void)unwatch {
     if (_outside) { [NSEvent removeMonitor:_outside]; _outside = nil; }
     if (_inside) { [NSEvent removeMonitor:_inside]; _inside = nil; }
+    for (id o in _others) [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:o];
+    for (id o in _own) [NSNotificationCenter.defaultCenter removeObserver:o];
+    _others = nil; _own = nil;
+}
+
+- (BOOL)watching { return _outside || _inside || _others.count || _own.count; }
+
+/// A press on the status item's own button toggles the panel, so losing the keyboard to that press must not close
+/// it first: the toggle would then open it again.
+- (BOOL)pressOnAnchor {
+    NSWindow *anchor = _anchor;
+    return anchor && NSEvent.pressedMouseButtons != 0 && NSPointInRect(NSEvent.mouseLocation, anchor.frame);
 }
 
 - (void)resignKeyWindow {
     [super resignKeyWindow];
-    // Another window of MinMacs took the keyboard, such as an alert: the panel steps aside.
-    if (self.isVisible && NSApp.keyWindow && NSApp.keyWindow != self) [self close];
+    // Whatever took the keyboard, an alert of MinMacs or a window of another app, the panel steps aside as a menu does.
+    if (self.isVisible && ![self pressOnAnchor]) [self close];
 }
 
 - (void)cancelOperation:(id)sender { [self.view cancelOperation:sender]; }
 
 - (void)close {
     [self unwatch];
-    if (!self.isVisible) return;
+    if (!self.isVisible || _closing) return;
+    _closing = YES;
     [self orderOut:nil];
+    _closing = NO;
     [self.view rest];
     self.view.showsSettings = NO;
     if (self.onOpenChange) self.onOpenChange(NO);
