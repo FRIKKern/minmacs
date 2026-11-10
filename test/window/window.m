@@ -122,6 +122,10 @@ static void World(void) {
     Proc(71010, 388 * MB); Proc(71011, 200 * MB); Proc(71020, 1536 * MB); Proc(71021, 3 * GB); Proc(71030, 64 * MB);
     gChildren[@71010] = @[@71002];
     Agent(71010, MMAgentWaiting, 900 * MB); Agent(71011, MMAgentWorking, 200 * MB);
+    TSession *titled = [TSession new];
+    titled.agent = @"claude-code"; titled.sessionID = @"s-71010"; titled.cwd = Dir(@"elsewhere"); titled.title = @"Tune the\n ranking ";
+    titled.started = [NSDate dateWithTimeIntervalSinceNow:-600]; titled.lastActive = NSDate.date;
+    [gSessions addObject:titled];
     NSNumber *hourAgo = @(NSDate.date.timeIntervalSince1970 - 3600);
     gFindings[@"locohost"] = @[
         Finding(@"locohost", @"server", @"w1#dev", @":3000 Vite fix-auth-redirect", w1, 71001, 300 * MB, 0, P(@"stop", MMReversibleRestart),
@@ -132,10 +136,12 @@ static void World(void) {
         Finding(@"locohost", @"server", @"db", @":5432 Postgres db", Dir(@"db"), 71003, 100 * MB, 0, P(@"stop", MMReversibleRestart),
                 @{@"port": @5432, @"framework": @"Postgres", @"project": @"db", @"state": @"active", @"protected": @YES, @"keep": @"protected"})];
     gFindings[@"minmacs"] = @[
-        Finding(@"minmacs", @"agent", @"claude-code:s-71010", @"Tune the ranking", nil, 71010, 900 * MB, 0, nil,
-                @{@"harnessID": @"claude-code", @"name": @"Tune the ranking", @"state": @"waits on you", @"project": Dir(@"app"), @"why": @"a permission prompt is open"}),
-        Finding(@"minmacs", @"agent", @"claude-code:s-71011", @"Write the tests", nil, 71011, 200 * MB, 0, nil,
-                @{@"harnessID": @"claude-code", @"name": @"Write the tests", @"state": @"working", @"project": Dir(@"app")}),
+        // As the expert writes them: every agent of one harness has the harness's name. What tells them apart is the
+        // session's title, which only the first has here, and the project folder.
+        Finding(@"minmacs", @"agent", @"claude-code:s-71010", @"Claude Code", nil, 71010, 900 * MB, 0, nil,
+                @{@"harnessID": @"claude-code", @"name": @"Claude Code", @"state": @"waits on you", @"project": Dir(@"app"), @"why": @"a permission prompt is open", @"pid": @71010}),
+        Finding(@"minmacs", @"agent", @"claude-code:s-71011", @"Claude Code", nil, 71011, 200 * MB, 0, nil,
+                @{@"harnessID": @"claude-code", @"name": @"Claude Code", @"state": @"working", @"project": Dir(@"app"), @"pid": @71011}),
         Finding(@"minmacs", @"app", @"com.example.chat", @"Chat", nil, 71020, 1536 * MB, 0, P(@"quit", MMReversibleRelaunch),
                 @{@"bundleID": @"com.example.chat", @"name": @"Chat", @"group": @"quit"}),
         Finding(@"minmacs", @"app", @"com.example.editor", @"Editor", nil, 71021, 3 * GB, 0, nil,
@@ -257,8 +263,21 @@ static void WindowModel(void) {
     T(@"window: every row has its own key, the Performance row's", @"17 yes", [NSString stringWithFormat:@"%lu %@", (unsigned long)keys.count,
       YN([keys isEqualToSet:want] && keys.count == Rows(m).count)]);
     T(@"window: a server is named by its port and framework", @":3001 Next.js,:3000 Vite,:5432 Postgres", [[m.memoryGroups[0].rows valueForKey:@"name"] componentsJoinedByString:@","]);
-    T(@"window: an agent by its name, a worktree by its branch", @"Tune the ranking | fix-auth-redirect",
-      [NSString stringWithFormat:@"%@ | %@", m.memoryGroups[1].rows[0].name, [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/fix-auth-redirect")]].name]);
+    T(@"window: an agent by its session's title on one line, else by its project folder, never all by the harness, and a worktree by its branch",
+      @"Tune the ranking | app | fix-auth-redirect",
+      [NSString stringWithFormat:@"%@ | %@ | %@", m.memoryGroups[1].rows[0].name, m.memoryGroups[1].rows[1].name, [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/fix-auth-redirect")]].name]);
+    T(@"window: each group has words for when it is empty", @"No servers found | No agents found | No apps found | No worktrees found | No caches or leftovers found",
+      [[[m.memoryGroups arrayByAddingObjectsFromArray:m.diskGroups] valueForKey:@"emptyNote"] componentsJoinedByString:@" | "]);
+    // What came back today reaches the model as two numbers, and none when no look-back was read.
+    __block MMPerformance *back;
+    dispatch_sync(MMQueue(@"windowtest", @"build", QOS_CLASS_USER_INITIATED), ^{
+        back = [MMPerformance from:s history:s.history lookBack:[MMPerformanceLookBack fromSummary:@{@"today": @{@"memoryBack": @(250 * MB), @"diskBack": @(3 * GB)},
+                                                                                                  @"total": @{@"memoryBack": @(9 * GB), @"diskBack": @(40 * GB)}}]];
+    });
+    MMWindowModel *mb2 = MMWindowModelFrom(s, back, nil);
+    T(@"window: memory and disk back today come from the look-back, as two numbers", [NSString stringWithFormat:@"%llu %llu 0 0", 250 * MB, 3 * GB],
+      [NSString stringWithFormat:@"%llu %llu %llu %llu", mb2.memoryBackToday, mb2.diskBackToday, m.memoryBackToday, m.diskBackToday]);
+    T(@"window: --json carries them apart", @"diskBack,memoryBack", [[[mb2.json[@"backToday"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","]);
     MMWindowRow *next = [m row:@"locohost:server:app#dev"], *db = [m row:@"locohost:server:db"], *asks = [m row:@"minmacs:agent:claude-code:s-71010"];
     MMWindowRow *chat = [m row:@"minmacs:app:com.example.chat"], *editor = [m row:@"minmacs:app:com.example.editor"];
     MMWindowRow *wip = [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/wip")]], *spike = [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/old-spike")]];
@@ -288,7 +307,7 @@ static void WindowModel(void) {
         return [a componentsJoinedByString:@"; "];
     };
     T(@"window: a server's story", @"Port=3001; Project=app; Runs in=Ghostty, tab 2; Started by=Claude Code; Idle=1h; Up=1d", story(next));
-    T(@"window: an agent's story", @"Project=app; State=waits on you; Why=a permission prompt is open", story(asks));
+    T(@"window: an agent's story names its harness", @"Agent=Claude Code; Project=app; State=waits on you; Why=a permission prompt is open", story(asks));
     T(@"window: a kept app's story says why it stays", @"Used by=Claude Code; Stays=an agent works in it", story(editor));
     T(@"window: a worktree's story", [NSString stringWithFormat:@"Branch=wip; Files=3 changed; Not pushed=2 commits; Quiet=12d; Folder=%@", Dir(@"trees/wip").stringByAbbreviatingWithTildeInPath], story(wip));
 
@@ -359,7 +378,7 @@ static void WindowModel(void) {
     T(@"window: before the first pass the lid switch reads the pref", @"no", YN([MMWindowExtras readWithLogin:NO].lidOn));
 
     // The JSON and the words.
-    T(@"window: the JSON's keys", @"asks disk diskHour fixEverything fixes generation memory memoryHour ring run settings",
+    T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings",
       [[j.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind name needsYou state tabs",
       [[[next.json allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);

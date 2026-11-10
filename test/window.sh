@@ -101,7 +101,7 @@ echo "-- minmacs window"
 # The verb runs cold here, read only, as performance does: the Mac's own processes, and no worktree walk.
 wn_json=$(MINMACS_HOME="$wn_home" "$BIN" window --json 2>/dev/null)
 check "window: window --json runs" 0 "$?"
-check "window: --json has the asks line, both sides, the ring, the fixes and Settings" "app asks disk diskHour fixEverything fixes generation memory memoryHour ring run settings" \
+check "window: --json has the asks line, both sides, the ring, the fixes and Settings" "app asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings" \
   "$(printf '%s' "$wn_json" | json "' '.join(sorted(j))")"
 check "window: --json groups in the window's order" "servers agents apps worktrees caches" \
   "$(printf '%s' "$wn_json" | json "' '.join(g['key'] for g in j['memory'] + j['disk'])")"

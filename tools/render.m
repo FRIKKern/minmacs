@@ -645,6 +645,9 @@ static MMCardSpec *SCard(NSString *fid) {
     return c;
 }
 
+// What the first look at the real window found, as checks. In a file of its own, so this one does not grow.
+#include "render-window-look.m"
+
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
 static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *> *appearances, NSMutableArray *unwritten) {
@@ -654,7 +657,10 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     NSArray<NSArray *> *shots = @[@[@"busy", @"main", @""], @[@"busy", @"server", @"server:6006"], @[@"busy", @"worktree", @"worktree:fix-auth-redirect"],
                                   @[@"busy", @"settings", @""], @[@"quiet", @"main", @""], @[@"quiet", @"server", @"server:3001"],
                                   @[@"peak", @"main", @""], @[@"peak", @"worktree", @"worktree:notes-export"],
-                                  @[@"running", @"main", @""], @[@"done", @"main", @""], @[@"empty", @"main", @""]];
+                                  @[@"running", @"main", @""], @[@"done", @"main", @""], @[@"empty", @"main", @""],
+                                  // From the first look at the real window: one minute in with an empty disk side and nobody asking,
+                                  // twelve minutes in with nothing to fix and a look-back, and names longer than their column.
+                                  @[@"young", @"main", @""], @[@"calm", @"main", @""], @[@"long", @"main", @""], @[@"long", @"agent", @"agent:long"]];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -673,7 +679,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])
@@ -689,6 +695,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
           [NSString stringWithFormat:@"%ld rows, %ld fixes", (long)rows, (long)busy.fixCount]);
     Check(MMWindowFixture(@"empty").fixCount == 0 && MMWindowFixture(@"running").run.running && !MMWindowFixture(@"done").run.running && MMWindowFixture(@"done").run.endTitle.length,
           @"window: the empty day has no fix, the running day runs, the done day ended", @"");
+    WindowLookChecks();
 }
 
 /// The shell's PNGs go in their own folder: each expert's menu and card as the shell builds them, One Icon, the icons.

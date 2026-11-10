@@ -46,12 +46,15 @@ ui_fails=missing
 check "the render's DESIGN.md checks all pass" 0 "$ui_fails"
 grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 
-# The window that opens from the icon, issue #62, in window/: 11 states in dark and in dark with Increase Contrast.
+# The window that opens from the icon, issue #62, in window/: 15 states in dark and in dark with Increase Contrast.
+# The last four came from the first look at the real window: young is one minute in with an empty disk side and nobody
+# asking, calm is twelve minutes in with nothing to fix and a look-back, and long has names longer than their column.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 22 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 30 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
-for ui_name in busy-main busy-server busy-worktree busy-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main; do
+for ui_name in busy-main busy-server busy-worktree busy-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main \
+               young-main calm-main long-main long-agent; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
@@ -60,8 +63,21 @@ check "every window PNG is 1020 by 728 points, two pixels each" "2040x1456 " "$u
 ui_md() { md5 -q "$ui_win/$1.png" 2>/dev/null; }
 check "the window differs under Increase Contrast, with a pointed row and in Settings" "yes yes yes" \
   "$([ "$(ui_md busy-main-dark)" != "$(ui_md busy-main-contrast-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-server-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-settings-dark)" ] && echo yes || echo no)"
-check "no window fixture shows a banned phrase or an old app name" 6 \
+check "no window fixture shows a banned phrase or an old app name" 9 \
   "$(grep -c '^ok    window .*: no shown string holds a banned phrase or an old app name' "$ui_out/checks.txt" 2>/dev/null)"
+
+ui_look() { grep -c "^ok    window$1" "$ui_out/checks.txt" 2>/dev/null; }
+check "no row's name is cut with an ellipsis, in five fixtures" 5 "$(ui_look " .*: no row's name is cut with an ellipsis")"
+check "a young hour draws no line, twelve minutes draw as twelve, a full hour as sixty" "1 1 1 1" \
+  "$(ui_look ' young: one filled minute is no line') $(ui_look ' calm: twelve filled minutes draw as twelve') $(ui_look ' busy: a full hour draws all sixty') $(ui_look ' young: no row shows an hour line before five')"
+check "an empty group says so, and nothing to fix shows what came back today" "1 5 1" \
+  "$(ui_look ' young: nobody asks, nothing to fix, and each empty disk group says so') $(ui_look ': the .* group has words for when it is empty') $(ui_look ' calm: nothing to fix, with memory and disk back today as two numbers')"
+check "the top band folds away when nobody asks and comes back" "1 1" \
+  "$(ui_look ': with nobody asking the top band folds away') $(ui_look ': the band comes back when an agent asks')"
+check "a group rests on a whole row and opens at its top" "1 1" \
+  "$(ui_look ': every group opens at its first row') $(ui_look ': a closed window forgets its scrolling')"
+check "the young hour, the folded band and the look-back change the picture" "yes yes yes" \
+  "$([ "$(ui_md young-main-dark)" != "$(ui_md empty-main-dark)" ] && echo yes || echo no) $([ "$(ui_md calm-main-dark)" != "$(ui_md quiet-main-dark)" ] && echo yes || echo no) $([ "$(ui_md long-main-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no)"
 
 # One spec converter: Sources/UI/MMSpecMenu. The second one, MMSpecKit, is gone, and nothing calls its functions.
 check "one spec converter, MMSpecMenu" "no 0" \
