@@ -63,8 +63,10 @@ check "window: no string in these files names an old app" 0 \
   "$(grep -cE '@"[^"]*(LocoHost|WorkForest|Noo-Noo|NooNoo|Insomnia)[^"]*"' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
 check "window: no string claims a result or says for good" 0 \
   "$(grep -ciE '@"[^"]*(is clean|all good|for good|everything is fine|nothing needs you)[^"]*"' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
-check "window: the shell does not open the panel yet, and the feed names no view" 0 \
-  "$(grep -cE 'MMWindowView|MMWindowPanel|MMWindowFixture' Sources/Shell/*.m Sources/Shell/*.h Sources/CLI/*.m | awk -F: '{s+=$2} END {print s+0}')"
+check "window: only MMShell.m names the panel, and the feed names no view" 0 \
+  "$(grep -cE 'MMWindowView|MMWindowPanel|MMWindowFixture' $(ls Sources/Shell/*.m Sources/Shell/*.h Sources/CLI/*.m | grep -v 'Shell/MMShell.m') | awk -F: '{s+=$2} END {print s+0}')"
+check "window: the icon opens the panel only while core.window is on, and it is off by default" "1 2" \
+  "$(grep -c 'static NSString \*const kWindowKey = @"core.window";' Sources/Shell/MMShell.m) $(grep -c 'MMPrefBool(kWindowKey, NO)' Sources/Shell/MMShell.m)"
 # The rows read each expert's facts by key, and Settings says what each expert's mode rule does. A rename or a changed
 # rule in an expert would leave a line out or make a sentence false with no error, so each string must still be there.
 wn_has() { # file string...
