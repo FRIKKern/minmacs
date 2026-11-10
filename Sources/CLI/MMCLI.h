@@ -41,6 +41,11 @@ MMVerbSpec *MMFindVerb(NSString *program, NSString *verb);
 NSArray<MMVerbSpec *> *MMAllVerbs(void);
 /// Core's own verbs, from MMCoreVerbs.m.
 NSArray<MMVerbSpec *> *MMCoreVerbs(void);
+/// Adds a verb of the shell's, such as `window`, whose code lives in Sources/Shell and so cannot be named here.
+/// Call it before the CLI or the app starts. It is listed after Core's verbs, and a second verb of one name is ignored.
+void MMAddVerb(MMVerbSpec *verb);
+/// The verbs MMAddVerb took, in the order they came.
+NSArray<MMVerbSpec *> *MMAddedVerbs(void);
 
 /// The app's side of core.sock, for a request of {"cli": [words], "program", "cwd"}, or {"ping": 1}.
 /// Runs the verb with its output collected and replies {"status", "out", "err"}. nil for any other request,

@@ -47,6 +47,9 @@ NSInteger MMPerformanceFold(NSString *group);
 @property (readonly) MMPerformanceUnit unit;
 /// YES for an agent whose state is waiting on the person, from MMAgent.state.
 @property (readonly) BOOL needsYou;
+/// The finding the row was made from. A helper or tabs row's finding is a Wrap Up part's, which the snapshot does not
+/// list, so the window reads a row's facts from here.
+@property (readonly) MMFinding *finding;
 - (NSDictionary *)json;
 @end
 

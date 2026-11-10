@@ -142,7 +142,7 @@ static NSArray<NSArray *> *HelpSections(NSString *program) {
     for (id<MMExpert> e in MMExperts())
         if ([e respondsToSelector:@selector(legacyName)] && [e.legacyName.lowercaseString isEqualToString:program]) own = e;
     if (own) add(own.name, [own verbs], ^BOOL(MMVerbSpec *v) { return YES; });
-    add(nil, MMCoreVerbs(), ^BOOL(MMVerbSpec *v) { return YES; });
+    add(nil, [MMCoreVerbs() arrayByAddingObjectsFromArray:MMAddedVerbs()], ^BOOL(MMVerbSpec *v) { return YES; });
     for (id<MMExpert> e in MMExperts()) {
         if (e == own) continue;
         add(e.name, [e verbs], ^BOOL(MMVerbSpec *v) { return !IsLegacyVerb(e, v); });
