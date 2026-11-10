@@ -3678,5 +3678,25 @@
   "surface": "menu",
   "groupId": "196",
   "direction": "Layout: give the room to what you are looking at, and keep the button where the pointer lands"
+ },
+ {
+  "file": "197-a.html",
+  "name": "Settings Over Dock",
+  "idea": "The gear (or Cmd+comma) turns the area above the dock into six Settings cards, each rule with one Off / Ask / Auto switch, the picked choice in plain words, its timing chips and a live foot line, while the ring, Fix Everything and the gains stay put.",
+  "good": "Fix Everything and the Mac's two numbers stay in view while you change a rule, and the menu box is the same size and place on and off in Quiet, Busy and Peak.",
+  "tradeoff": "Only the picked choice is spelled out (the others show their words on hover), and each card keeps some air above its foot line. Proposed facts: A rule set to Off shows the line 'Pick Ask or Auto and MinMacs starts watching.'; Open at login says 'MinMacs starts when you sign in.' or 'MinMacs starts only when you open it.'; with the lid box off its note reads 'When on, MinMacs keeps the Mac awake while agents work.'; the 'One icon in the menu bar' switch and Advanced mode are gone from Settings.",
+  "surface": "menu",
+  "groupId": "197",
+  "direction": "Settings: the gear flips the menu to Settings in place"
+ },
+ {
+  "file": "197-b.html",
+  "name": "Settings Whole Menu",
+  "idea": "The gear turns the whole menu below the top line into Settings, dock space included, so every rule lists Off, Ask and Auto as three rows each with its own plain words and the picked one marked.",
+  "good": "Every choice says what it does before you pick it, with room to breathe and no scrolling, and only the top line and the gear / Quit icons stay.",
+  "tradeoff": "The ring and Fix Everything are hidden while Settings is on, so you flip back (gear, Escape or Done) to act. Proposed facts: A rule set to Off shows no foot line; Open at login says 'MinMacs starts when you sign in.' or 'MinMacs starts only when you open it.'; with the lid box off its note reads 'When on, MinMacs keeps the Mac awake while agents work.'; the 'One icon in the menu bar' switch and Advanced mode are gone from Settings.",
+  "surface": "menu",
+  "groupId": "197",
+  "direction": "Settings: the gear flips the menu to Settings in place"
  }
 ]
