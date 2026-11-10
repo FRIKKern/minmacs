@@ -83,7 +83,7 @@ static NSArray<MMWindowRow *> *Agents(NSInteger count, NSInteger asking) {
         r.needsYou = i < asking;
         if (r.needsYou) r.state = @"asks you";
         r.hour = HourTo(r.bytes, r.key, (i + 1) % 4);
-        r.facts = @[F(@"Project", a[3]), F(@"Started", [NSString stringWithFormat:@"%ld min ago", (long)(14 + i * 7)]), F(@"Processes", i % 2 ? @"3, with a test runner" : @"2"),
+        r.facts = @[F(@"Agent", i % 3 == 2 ? @"Codex" : @"Claude Code"), F(@"Project", a[3]), F(@"Started", [NSString stringWithFormat:@"%ld min ago", (long)(14 + i * 7)]), F(@"Processes", i % 2 ? @"3, with a test runner" : @"2"),
                     F(@"Why", r.needsYou ? @"Waits on you. It asked a question and has not moved since." : @"Stays. It is working.")];
         [rows addObject:r];
     }
@@ -161,9 +161,29 @@ static NSArray<MMWindowRow *> *Caches(NSInteger count) {
     return rows;
 }
 
+/// A row whose name is longer than its group's column, one per group, for the day named "long".
+static MMWindowRow *Long(MMWindowRow *like, NSString *key, NSString *name, uint64_t bytes) {
+    MMWindowRow *r = Row(like.kind, key, name, like.iconHint, like.state, bytes, like.cpuPercent);
+    r.hour = like.hour; r.facts = like.facts;
+    return r;
+}
+
+/// The same rows on a Mac where the app has run for only `filled` minutes: each row's hour holds that many.
+static NSArray<MMWindowRow *> *Young(NSArray<MMWindowRow *> *rows, NSInteger filled) {
+    for (MMWindowRow *r in rows) {
+        if (!r.hour) continue;
+        NSMutableArray *v = [r.hour mutableCopy];
+        for (NSInteger i = 0; i < 60 - filled; i++) v[i] = NSNull.null;
+        r.hour = v;
+    }
+    return rows;
+}
+
 static MMWindowGroup *Group(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows) {
     MMWindowGroup *g = [MMWindowGroup new];
     g.key = key; g.title = title; g.side = side;
+    g.emptyNote = @{@"servers": @"No servers found", @"agents": @"No agents found", @"apps": @"No apps found",
+                    @"worktrees": @"No worktrees found", @"caches": @"No caches or leftovers found"}[key];
     g.rows = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) { return a.bytes > b.bytes ? NSOrderedAscending : a.bytes < b.bytes ? NSOrderedDescending : NSOrderedSame; }];
     return g;
 }
@@ -215,11 +235,11 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
     for (NSInteger i = 0; i < 60; i++) {
         if (i < 60 - filled) { [v addObject:NSNull.null]; continue; }
         // Memory climbs fast and then slowly. Disk free falls fast and then levels.
-        double t = i / 59.0, eased = side == MMWindowMemory ? pow(t, 0.55) : 1 - pow(1 - t, 2.4);
+        double t = filled > 1 ? (i - (60 - filled)) / (double)(filled - 1) : 1, eased = side == MMWindowMemory ? pow(t, 0.55) : 1 - pow(1 - t, 2.4);
         [v addObject:@((uint64_t)(from + (to - from) * eased + Noise(&seed) * fabs(to - from) * 0.07))];
     }
     if (filled > 0) v[59] = @((uint64_t)to);
-    if (filled >= 60) v[0] = @((uint64_t)from);
+    if (filled > 1) v[60 - filled] = @((uint64_t)from);
     h.values = v;
     return h;
 }
@@ -227,19 +247,40 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
 MMWindowModel *MMWindowFixture(NSString *name) {
     BOOL quiet = [name isEqualToString:@"quiet"], peak = [name isEqualToString:@"peak"], empty = [name isEqualToString:@"empty"];
     BOOL running = [name isEqualToString:@"running"], done = [name isEqualToString:@"done"];
+    // "young": one minute in, on a Mac full of servers, agents and apps, with nothing on disk found yet, nobody asking
+    // and nothing to fix. "calm": twelve minutes in, nobody asks, nothing to fix, and something came back today.
+    // "long": the busy day with one name in each group that is longer than its column.
+    BOOL young = [name isEqualToString:@"young"], calm = [name isEqualToString:@"calm"], longNames = [name isEqualToString:@"long"];
+    NSInteger minutes = empty || young ? 1 : calm ? 12 : 60;
     MMWindowModel *m = [MMWindowModel new];
     m.generation = 1;
     m.settings = Settings();
-    NSInteger asking = empty ? 0 : quiet ? 1 : peak ? 3 : 2;
-    m.memoryGroups = @[Group(@"servers", @"Servers", MMWindowMemory, Servers(empty ? 0 : quiet ? 7 : peak ? 26 : 20)),
-                       Group(@"agents", @"Agents", MMWindowMemory, Agents(empty ? 0 : quiet ? 3 : peak ? 22 : 16, asking)),
-                       Group(@"apps", @"Apps and helpers", MMWindowMemory, Apps(empty ? 0 : quiet ? 12 : 15))];
-    m.diskGroups = @[Group(@"worktrees", @"Worktrees", MMWindowDisk, Worktrees(empty ? 0 : quiet ? 4 : peak ? 18 : 16)),
-                     Group(@"caches", @"Caches", MMWindowDisk, Caches(empty ? 0 : quiet ? 2 : 5))];
+    NSInteger asking = empty || young || calm ? 0 : quiet ? 1 : peak ? 3 : 2;
+    NSArray<MMWindowRow *> *servers = Young(Servers(empty ? 0 : quiet || calm ? 7 : peak ? 26 : 20), minutes);
+    NSArray<MMWindowRow *> *agents = Young(Agents(empty ? 0 : quiet || calm ? 3 : peak ? 22 : 16, asking), minutes);
+    NSArray<MMWindowRow *> *apps = Apps(empty ? 0 : quiet || calm ? 12 : 15);
+    NSArray<MMWindowRow *> *trees = Worktrees(empty || young ? 0 : quiet || calm ? 4 : peak ? 18 : 16);
+    NSArray<MMWindowRow *> *caches = Caches(empty || young ? 0 : quiet || calm ? 2 : 5);
+    if (young || calm) for (NSArray<MMWindowRow *> *rows in @[servers, apps, trees, caches]) for (MMWindowRow *r in rows) {
+        // Nothing is in Fix Everything on these days, so no row says it will go.
+        r.inFix = NO;
+        if ([@[@"idle", @"nobody", @"will close", @"merged", @"may go"] containsObject:r.state ?: @""]) r.state = nil;
+    }
+    if (longNames) {
+        servers = [servers arrayByAddingObject:Long(servers[1], @"server:9366", @":9366 Google Chrome for Testing", 565 * MB)];
+        agents = [agents arrayByAddingObject:Long(agents[4], @"agent:long", @"Review the button pages design before the release goes out to everyone", 700 * MB)];
+        apps = [apps arrayByAddingObject:Long(apps[0], @"app:long", @"Chrome for Testing Helper Renderer", 2000 * MB)];
+        trees = [trees arrayByAddingObject:Long(trees[3], @"worktree:long", @"menu-window-polish-after-the-first-look", 1500 * MB)];
+        caches = [caches arrayByAddingObject:Long(caches[2], @"cache:long", @"Test browsers and their driver downloads", 5000 * MB)];
+    }
+    m.memoryGroups = @[Group(@"servers", @"Servers", MMWindowMemory, servers), Group(@"agents", @"Agents", MMWindowMemory, agents),
+                       Group(@"apps", @"Apps and helpers", MMWindowMemory, apps)];
+    m.diskGroups = @[Group(@"worktrees", @"Worktrees", MMWindowDisk, trees), Group(@"caches", @"Caches", MMWindowDisk, caches)];
     if (asking) m.asks = asking == 1 ? @"Import the glossary asks you" : [NSString stringWithFormat:@"%ld agents ask you", (long)asking];
+    if (calm) { m.memoryBackToday = 250 * MB; m.diskBackToday = 3174 * MB; }
 
-    double used = (empty ? 9.6 : quiet ? 23.2 : peak ? 58.7 : 42.4) * GB, hourAgo = (empty ? 9.5 : quiet ? 20.0 : peak ? 41.3 : 34.8) * GB;
-    double freeNow = (empty ? 612 : peak ? 96 : 182) * GB, freeThen = (empty ? 612 : peak ? 121 : 188) * GB;
+    double used = (empty ? 9.6 : quiet || calm ? 23.2 : peak ? 58.7 : 42.4) * GB, hourAgo = (empty ? 9.5 : quiet || calm ? 20.0 : peak ? 41.3 : 34.8) * GB;
+    double freeNow = (empty || young ? 612 : peak ? 96 : 182) * GB, freeThen = (empty || young ? 612 : peak ? 121 : 188) * GB;
     MMWindowRing *ring = m.ring;
     ring.memoryUsed = (uint64_t)used; ring.memoryTotal = 64 * GB;
     ring.diskFree = (uint64_t)freeNow; ring.diskTotal = 994 * GB;
@@ -252,10 +293,10 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     for (MMWindowGroup *g in m.diskGroups) { uint64_t s = Sum(g); held += s; if (s) [slices addObject:Slice(g.key, s)]; }
     [slices addObject:Slice(@"other", ring.diskTotal - ring.diskFree - held)];
     ring.disk = slices;
-    // The empty day has run for one minute, so no line can be drawn yet.
-    m.memoryHour = Hour(@"Memory in use", @"Higher means more of the 64 GB is in use", MMWindowMemory, hourAgo, used, empty ? 1 : 60);
-    m.diskHour = Hour(@"Disk free", @"Lower means less room left on the 994 GB disk", MMWindowDisk, freeThen, freeNow, empty ? 1 : 60);
-    if (empty) return m;
+    // The empty and the young day have run for one minute, so no line can be drawn yet. The calm day has twelve.
+    m.memoryHour = Hour(@"Memory in use", @"Higher means more of the 64 GB is in use", MMWindowMemory, hourAgo, used, minutes);
+    m.diskHour = Hour(@"Disk free", @"Lower means less room left on the 994 GB disk", MMWindowDisk, freeThen, freeNow, minutes);
+    if (empty || young || calm) return m;
 
     NSMutableArray *fixes = [NSMutableArray arrayWithArray:@[
         Fix(@"wrapup:fix-auth-redirect", @"Wrap Up fix-auth-redirect", 412 * MB, 1905 * MB, NO),

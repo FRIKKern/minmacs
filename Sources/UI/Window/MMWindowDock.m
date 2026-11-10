@@ -263,16 +263,26 @@ static void DrawTrack(NSRect r, double share, NSColor *color) {
 #pragma mark The gains
 
 /// What Fix Everything gives back, memory and disk as two large numbers. While a run plays they count up.
+/// With nothing to fix, what came back today stands there instead: each side only when it is above zero.
 - (void)drawGains {
     BOOL live = self.phase != MMWindowDockCalm;
-    if (!live && self.model.fixCount == 0) return;
-    uint64_t memory = live ? (uint64_t)MAX(self.memoryShown, 0) : self.model.memoryBack, disk = live ? (uint64_t)MAX(self.diskShown, 0) : self.model.diskBack;
-    NSString *tail = self.phase == MMWindowDockRunning ? @" so far" : @"";
     NSColor *t2 = MMWindowColor(MMWindowInkText2);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(MMWindowBytes(memory), 23, NSFontWeightMedium, MMWindowColor(MMWindowInkMemory)),
-                                MMWindowText([@"  memory back" stringByAppendingString:tail], 12, NSFontWeightRegular, t2)]), 764, 50, -1);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(MMWindowBytes(disk), 23, NSFontWeightMedium, MMWindowColor(MMWindowInkDisk)),
-                                MMWindowText([@"  disk back" stringByAppendingString:tail], 12, NSFontWeightRegular, t2)]), 764, 81, -1);
+    NSMutableArray<NSAttributedString *> *lines = [NSMutableArray new];
+    void (^add)(uint64_t, MMWindowInk, NSString *) = ^(uint64_t bytes, MMWindowInk ink, NSString *words) {
+        [lines addObject:MMWindowJoin(@[MMWindowText(MMWindowBytes(bytes), 23, NSFontWeightMedium, MMWindowColor(ink)),
+                                        MMWindowText([@"  " stringByAppendingString:words], 12, NSFontWeightRegular, t2)])];
+    };
+    if (!live && self.model.fixCount == 0) {
+        if (self.model.memoryBackToday > 0) add(self.model.memoryBackToday, MMWindowInkMemory, @"memory back today");
+        if (self.model.diskBackToday > 0) add(self.model.diskBackToday, MMWindowInkDisk, @"disk back today");
+    } else {
+        NSString *tail = self.phase == MMWindowDockRunning ? @" so far" : @"";
+        add(live ? (uint64_t)MAX(self.memoryShown, 0) : self.model.memoryBack, MMWindowInkMemory, [@"memory back" stringByAppendingString:tail]);
+        add(live ? (uint64_t)MAX(self.diskShown, 0) : self.model.diskBack, MMWindowInkDisk, [@"disk back" stringByAppendingString:tail]);
+    }
+    // Two lines sit at 50 and 81. One line sits between them.
+    if (lines.count == 1) MMWindowDraw(lines[0], 764, 65.5, -1);
+    else for (NSUInteger i = 0; i < lines.count; i++) MMWindowDraw(lines[i], 764, 50 + 31 * i, -1);
 }
 
 @end

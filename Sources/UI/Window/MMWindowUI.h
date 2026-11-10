@@ -52,7 +52,8 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 @property (copy, nullable) void (^onOpenChange)(BOOL open);
 @end
 
-/// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty".
+/// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty",
+/// and three days that came from the first look at the real window: "young", "calm" and "long".
 MMWindowModel *MMWindowFixture(NSString *name);
 
 NS_ASSUME_NONNULL_END

@@ -82,6 +82,23 @@ void MMWindowDraw(NSAttributedString *line, CGFloat x, CGFloat midY, NSInteger a
     [line drawAtPoint:NSMakePoint(round(left * 2) / 2, round((midY - s.height / 2) * 2) / 2)];
 }
 
+NSString *MMWindowShorten(NSString *text, CGFloat size, NSFontWeight weight, CGFloat width) {
+    NSFont *f = MMWindowFont(size, weight);
+    NSDictionary *at = @{NSFontAttributeName: f};
+    NSString *t = text ?: @"";
+    // Words end at a space. A name with none, such as a branch, ends its parts at a hyphen, a slash, a dot or an underscore.
+    BOOL spaced = [t rangeOfString:@" "].location != NSNotFound;
+    NSCharacterSet *breaks = [NSCharacterSet characterSetWithCharactersInString:spaced ? @" " : @"-/._"];
+    NSCharacterSet *loose = [NSCharacterSet characterSetWithCharactersInString:@" ,.:;-/_"];
+    while (ceil([t sizeWithAttributes:at].width) > width) {
+        NSRange at2 = [t rangeOfCharacterFromSet:breaks options:NSBackwardsSearch];
+        // One part that is still too wide is cut at the tail, as the last way out.
+        if (at2.location == NSNotFound || at2.location == 0) return MMFitWidth(t, f, MAX(width, 10));
+        t = [[t substringToIndex:at2.location] stringByTrimmingCharactersInSet:loose];
+    }
+    return t;
+}
+
 NSAttributedString *MMWindowFit(NSString *text, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat width) {
     NSFont *f = MMWindowFont(size, weight);
     return MMWindowText(MMFitWidth(text ?: @"", f, MAX(width, 10)), size, weight, color);
@@ -115,10 +132,23 @@ NSArray<NSNumber *> *MMWindowHourValues(NSArray *values, NSInteger *filled) {
     return out;
 }
 
+NSArray *MMWindowHourSpan(NSArray *values, NSInteger *first, NSInteger *last, NSInteger *filled) {
+    NSInteger a = -1, b = -1, n = 0;
+    for (NSInteger i = 0; i < (NSInteger)values.count; i++) {
+        if (![values[i] isKindOfClass:NSNumber.class]) continue;
+        if (a < 0) a = i;
+        b = i; n++;
+    }
+    if (first) *first = a;
+    if (last) *last = b;
+    if (filled) *filled = n;
+    return n >= MMWindowHourLeast ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a + 1))] : nil;
+}
+
 void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, CGFloat lineWidth, BOOL dot) {
-    NSInteger filled = 0;
-    NSArray<NSNumber *> *v = MMWindowHourValues(values, &filled);
-    if (filled < 2) return;
+    // Only the filled part is drawn, across the whole width, so a young hour is a short line and never a stroke at the edge.
+    NSArray<NSNumber *> *v = MMWindowHourValues(MMWindowHourSpan(values, NULL, NULL, NULL), NULL);
+    if (!v.count) return;
     double lo = INFINITY, hi = -INFINITY;
     for (NSNumber *n in v) { double d = n.doubleValue; if (isnan(d)) continue; lo = MIN(lo, d); hi = MAX(hi, d); }
     // A flat hour sits in the middle. Otherwise the line uses the height, with room above for the dot.

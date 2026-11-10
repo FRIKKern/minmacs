@@ -5,6 +5,38 @@
 
 static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
 
+/// How far a group can scroll: to the whole row that brings its last row fully into the box. So at both ends, and at
+/// every rest between them, the first row shown sits whole under the header.
+static CGFloat MaxOffset(MMWindowGroup *g, CGFloat boxHeight) {
+    return MAX(0, ceil((kRow * g.rows.count - boxHeight) / kRow) * kRow);
+}
+
+/// What a row shows beside its name and its number, and the name as drawn.
+typedef struct { BOOL state, cpu, hour; CGFloat edge; } RowFit;
+
+/// From the right: the number, the row's own hour, CPU, the quiet state word. The name gets the rest and is never cut:
+/// the state word yields first, then CPU, then the hour line. A name longer than the whole row loses whole words.
+static NSString *FitRow(MMWindowRow *row, MMWindowSide side, BOOL hasHour, CGFloat nameLeft, CGFloat right, RowFit *fit) {
+    NSString *name = row.shownName;
+    CGFloat need = MMWindowWidth(MMWindowText(name, 13, NSFontWeightRegular, NSColor.whiteColor));
+    CGFloat afterSize = right - (side == MMWindowDisk ? 58 : 50) - 6;
+    BOOL hour = hasHour && MMWindowHourSpan(row.hour, NULL, NULL, NULL) != nil, cpu = side == MMWindowMemory && row.cpuPercent >= 0;
+    CGFloat afterHour = afterSize - (hasHour ? 40 : 0), afterCPU = afterHour - (side == MMWindowMemory ? 46 : 0);
+    CGFloat stateWidth = row.state.length ? MMWindowWidth(MMWindowText(row.state, 11.5, NSFontWeightRegular, NSColor.whiteColor)) + 8 : 0;
+    RowFit f = {NO, cpu, hour, afterCPU};
+    if (stateWidth > 0 && afterCPU - stateWidth - nameLeft >= need) { f.state = YES; f.edge = afterCPU - stateWidth; }
+    else if (afterCPU - nameLeft >= need) f.edge = afterCPU;
+    else if ((hour ? afterHour : afterSize) - nameLeft >= need) { f.cpu = NO; f.edge = hour ? afterHour : afterSize; }
+    else { f.cpu = NO; f.hour = NO; f.edge = afterSize; name = MMWindowShorten(name, 13, NSFontWeightRegular, afterSize - nameLeft); }
+    if (fit) *fit = f;
+    return name;
+}
+
+static BOOL HasHour(MMWindowGroup *g) {
+    for (MMWindowRow *r in g.rows) if (MMWindowHourSpan(r.hour, NULL, NULL, NULL)) return YES;
+    return NO;
+}
+
 @implementation MMWindowListView {
     NSMutableDictionary<NSString *, NSNumber *> *_offsets;   // how far each group is scrolled, by its key
     NSMutableArray<NSValue *> *_frames;                       // each group's frame, header included
@@ -44,7 +76,8 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
     CGFloat room = self.bounds.size.height - kGap * (n - 1), cap = room;
     NSMutableArray<NSNumber *> *want = [NSMutableArray new];
     CGFloat sum = 0;
-    for (MMWindowGroup *g in _groups) { CGFloat h = kHead + kRow * g.rows.count; [want addObject:@(h)]; sum += h; }
+    // A group with no rows keeps one line under its header, for the words that say so.
+    for (MMWindowGroup *g in _groups) { CGFloat h = kHead + kRow * MAX(g.rows.count, 1); [want addObject:@(h)]; sum += h; }
     if (sum > room) {
         // Find the height at which the tall groups are cut so that the sum fills the side.
         NSArray<NSNumber *> *sorted = [want sortedArrayUsingSelector:@selector(compare:)];
@@ -61,8 +94,7 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
         y += h + kGap;
         // A group that grew or shrank keeps its place, as far as its rows still reach.
         MMWindowGroup *g = _groups[i];
-        CGFloat max = MAX(0, kRow * g.rows.count - (h - kHead));
-        _offsets[g.key] = @(MIN(MAX(_offsets[g.key].doubleValue, 0), max));
+        _offsets[g.key] = @(MIN(MAX(_offsets[g.key].doubleValue, 0), MaxOffset(g, h - kHead)));
     }
 }
 
@@ -92,7 +124,7 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
         if (at == NSNotFound) continue;
         CGFloat boxH = [self boxOf:i].size.height, off = _offsets[g.key].doubleValue, top = at * kRow;
         if (top < off) off = top;
-        if (top + kRow > off + boxH - kFade) off = MIN(top + kRow + kFade - boxH, MAX(0, kRow * g.rows.count - boxH));
+        if (top + kRow > off + boxH - kFade) off = MIN(ceil((top + kRow + kFade - boxH) / kRow) * kRow, MaxOffset(g, boxH));
         _offsets[g.key] = @(MAX(off, 0));
         self.needsDisplay = YES;
         return;
@@ -112,17 +144,23 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
     NSRect f = _frames[i].rectValue, box = [self boxOf:i];
     CGFloat off = _offsets[g.key].doubleValue, content = kRow * g.rows.count;
     NSInteger below = (NSInteger)g.rows.count - (NSInteger)floor((off + box.size.height + 0.5) / kRow);
+    NSInteger above = (NSInteger)ceil((off - 0.5) / kRow);
     NSColor *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
 
     // The header stays still: the title, how many, and how many rows wait under the fold.
     NSAttributedString *head = MMWindowJoin(@[MMWindowText(g.title, 11, NSFontWeightBold, t2),
                                               MMWindowText([NSString stringWithFormat:@"   %lu", (unsigned long)g.rows.count], 11, NSFontWeightMedium, t3)]);
     MMWindowDraw(head, 14, f.origin.y + kHead / 2, -1);
-    if (below > 0) MMWindowDraw(MMWindowText([NSString stringWithFormat:@"%ld more below", (long)below], 11, NSFontWeightRegular, t2), f.size.width - 14, f.origin.y + kHead / 2, 1);
+    // Rows wait under the fold, or, once the group is scrolled to its end, above it.
+    NSString *more = below > 0 ? [NSString stringWithFormat:@"%ld more below", (long)below] : above > 0 ? [NSString stringWithFormat:@"%ld more above", (long)above] : nil;
+    if (more) MMWindowDraw(MMWindowText(more, 11, NSFontWeightRegular, t2), f.size.width - 14, f.origin.y + kHead / 2, 1);
     if (box.size.height <= 0) return;
+    if (!g.rows.count) {
+        if (g.emptyNote.length) MMWindowDraw(MMWindowFit(g.emptyNote, 12, NSFontWeightRegular, t3, f.size.width - 28), 14, box.origin.y + kRow / 2, -1);
+        return;
+    }
 
-    BOOL hasHour = NO;
-    for (MMWindowRow *r in g.rows) if (r.hour) { hasHour = YES; break; }
+    BOOL hasHour = HasHour(g);
     CGContextRef cg = NSGraphicsContext.currentContext.CGContext;
     BOOL fade = content - off > box.size.height + 0.5;
     CGContextSaveGState(cg);
@@ -167,31 +205,35 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
     if (row.showsSize) {
         NSArray<NSString *> *size = MMWindowSize2(row.bytes);
         NSAttributedString *number = MMWindowJoin(@[MMWindowText(size[0], 13, NSFontWeightRegular, text),
-                                                    MMWindowText([@" " stringByAppendingString:size[1]], 11, NSFontWeightRegular, quiet)]);
+                                                    MMWindowText([@" " stringByAppendingString:size[1]], 11, NSFontWeightRegular, quiet)]);
         MMWindowDraw(number, right, mid, 1);
     }
+    CGFloat nameLeft = r.origin.x + 31;
+    RowFit fit;
+    NSString *name = FitRow(row, side, hasHour, nameLeft, right, &fit);
     CGFloat edge = right - (side == MMWindowDisk ? 58 : 50) - 6;
     if (hasHour) {
-        if (row.hour) MMWindowDrawHour(row.hour, NSMakeRect(edge - 34, mid - 7, 34, 14), hot ? NSColor.whiteColor : MMWindowColor(side == MMWindowDisk ? MMWindowInkDisk : MMWindowInkMemory), 1, NO);
+        if (fit.hour) MMWindowDrawHour(row.hour, NSMakeRect(edge - 34, mid - 7, 34, 14), hot ? NSColor.whiteColor : MMWindowColor(side == MMWindowDisk ? MMWindowInkDisk : MMWindowInkMemory), 1, NO);
         edge -= 40;
     }
-    if (side == MMWindowMemory) {
-        if (row.cpuPercent >= 0) {
-            NSString *cpu = row.cpuPercent >= 99.5 ? [NSString stringWithFormat:@"%.0f", row.cpuPercent] : [NSString stringWithFormat:@"%.1f", row.cpuPercent];
-            MMWindowDraw(MMWindowJoin(@[MMWindowText(cpu, 12, NSFontWeightRegular, quiet), MMWindowText(@" %", 11, NSFontWeightRegular, quiet)]), edge, mid, 1);
-        }
-        edge -= 46;
+    if (fit.cpu) {
+        NSString *cpu = row.cpuPercent >= 99.5 ? [NSString stringWithFormat:@"%.0f", row.cpuPercent] : [NSString stringWithFormat:@"%.1f", row.cpuPercent];
+        MMWindowDraw(MMWindowJoin(@[MMWindowText(cpu, 12, NSFontWeightRegular, quiet), MMWindowText(@" %", 11, NSFontWeightRegular, quiet)]), edge, mid, 1);
     }
-    CGFloat nameLeft = r.origin.x + 31;
-    NSString *name = row.shownName;
-    if (row.state.length) {
-        NSAttributedString *state = MMWindowText(row.state, 11.5, NSFontWeightRegular, quiet);
-        CGFloat w = MMWindowWidth(state);
-        // The name comes first. A state word that would cut the name is left out, never cut itself.
-        if (edge - w - 8 - nameLeft >= MMWindowWidth(MMWindowText(name, 13, NSFontWeightRegular, text))) { MMWindowDraw(state, edge, mid, 1); edge -= w + 8; }
-    }
-    MMWindowDraw(MMWindowFit(name, 13, NSFontWeightRegular, text, edge - nameLeft), nameLeft, mid, -1);
+    if (fit.state) MMWindowDraw(MMWindowText(row.state, 11.5, NSFontWeightRegular, quiet), edge - (side == MMWindowMemory ? 46 : 0), mid, 1);
+    MMWindowDraw(MMWindowText(name, 13, NSFontWeightRegular, text), nameLeft, mid, -1);
 }
+
+- (NSArray<NSString *> *)drawnNames {
+    NSMutableArray *out = [NSMutableArray new];
+    for (MMWindowGroup *g in _groups) {
+        BOOL hasHour = HasHour(g);
+        for (MMWindowRow *row in g.rows) [out addObject:FitRow(row, g.side, hasHour, 5 + 31, self.bounds.size.width - 5 - 9, NULL)];
+    }
+    return out;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)offsets { return [_offsets copy]; }
 
 #pragma mark Pointer and scrolling
 
@@ -216,7 +258,7 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
     NSInteger i = [self groupAt:p];
     if (i < 0) return;
     MMWindowGroup *g = _groups[i];
-    CGFloat max = MAX(0, kRow * g.rows.count - [self boxOf:i].size.height);
+    CGFloat max = MaxOffset(g, [self boxOf:i].size.height);
     CGFloat step = e.hasPreciseScrollingDeltas ? e.scrollingDeltaY : e.scrollingDeltaY * kRow;
     CGFloat off = MIN(MAX(_offsets[g.key].doubleValue - step, 0), max);
     if (off == _offsets[g.key].doubleValue) return;
@@ -228,11 +270,20 @@ static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22;
     [self pointAt:p];
 }
 
-- (void)hideScroller { _scrolling = nil; self.needsDisplay = YES; }
+/// The scroll came to rest: each group settles on a whole row, so no row stays half cut under a header.
+- (void)hideScroller {
+    _scrolling = nil;
+    for (NSString *key in _offsets.allKeys) _offsets[key] = @(round(_offsets[key].doubleValue / kRow) * kRow);
+    [self place];
+    self.needsDisplay = YES;
+}
 
+/// The window closed. The next time it opens, every group starts at its first row.
 - (void)rest {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideScroller) object:nil];
     _scrolling = nil;
+    [_offsets removeAllObjects];
+    self.needsDisplay = YES;
 }
 
 #pragma mark Accessibility

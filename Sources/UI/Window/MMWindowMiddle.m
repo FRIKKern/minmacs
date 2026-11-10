@@ -15,33 +15,36 @@
     if (self.diskHour) [self drawHour:self.diskHour in:NSMakeRect(18, 17 + h + 17, self.bounds.size.width - 36, h - 17)];
 }
 
-/// How long ago the minute at this index was, as the graph's left end says it.
+/// How long ago the minute at this index was, as an end of the graph says it. The newest minute is "now".
 static NSString *Ago(NSInteger index, NSInteger count) {
     NSInteger minutes = count - 1 - index;
-    return minutes >= 55 ? @"an hour ago" : [NSString stringWithFormat:@"%ld min ago", (long)minutes];
+    return minutes <= 0 ? @"now" : minutes >= 59 ? @"an hour ago" : [NSString stringWithFormat:@"%ld min ago", (long)minutes];
 }
 
-/// The first and the last filled minute.
-static BOOL Ends(NSArray *values, NSInteger *first, NSInteger *last) {
-    *first = -1; *last = -1;
-    for (NSInteger i = 0; i < (NSInteger)values.count; i++) {
-        if (![values[i] isKindOfClass:NSNumber.class]) continue;
-        if (*first < 0) *first = i;
-        *last = i;
-    }
-    return *first >= 0 && *last > *first;
+static NSAttributedString *End(NSString *when, double bytes, NSColor *quiet, NSColor *value) {
+    return MMWindowJoin(@[MMWindowText([when stringByAppendingString:@", "], 10.5, NSFontWeightRegular, quiet),
+                          MMWindowText(MMWindowBytes((uint64_t)bytes), 10.5, NSFontWeightRegular, value)]);
 }
 
 /// One graph: its title, "the last hour", how far it moved, what the height means, the filled line and both ends in words.
+/// The filled part spans the whole width, and each end says how old it is, so a young hour reads as what it is.
 - (void)drawHour:(MMWindowHour *)hour in:(NSRect)r {
     NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
     NSColor *ink = MMWindowColor(hour.side == MMWindowDisk ? MMWindowInkDisk : MMWindowInkMemory);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(hour.title, 12.5, NSFontWeightSemibold, text), MMWindowText(@"  the last hour", 12, NSFontWeightRegular, t2)]),
+    MMWindowDraw(MMWindowJoin(@[MMWindowText(hour.title, 12.5, NSFontWeightSemibold, text), MMWindowText(@"  the last hour", 11.5, NSFontWeightSemibold, t2)]),
                  r.origin.x, r.origin.y + 8.5, -1);
     MMWindowDraw(MMWindowFit(hour.explain, 11, NSFontWeightRegular, t2, r.size.width), r.origin.x, r.origin.y + 25, -1);
-    NSInteger a, b;
-    if (!Ends(hour.values, &a, &b)) {
-        MMWindowDraw(MMWindowText(@"The line shows after two minutes.", 11, NSFontWeightRegular, t3), r.origin.x, r.origin.y + 52, -1);
+    NSInteger a, b, count = (NSInteger)hour.values.count;
+    NSArray *span = MMWindowHourSpan(hour.values, &a, &b, NULL);
+    if (!span) {
+        // Too young for a line: the newest value, and what will come. No line is made up.
+        CGFloat y = r.origin.y + 62;
+        if (b >= 0) {
+            MMWindowDraw(MMWindowJoin(@[MMWindowText([Ago(b, count) stringByAppendingString:@", "], 12, NSFontWeightRegular, t2),
+                                        MMWindowText(MMWindowBytes([hour.values[b] unsignedLongLongValue]), 12, NSFontWeightMedium, text)]), r.origin.x, y, -1);
+            y += 20;
+        }
+        MMWindowDraw(MMWindowText(@"The line fills in as the hour passes.", 11, NSFontWeightRegular, t3), r.origin.x, y, -1);
         return;
     }
     double first = [hour.values[a] doubleValue], last = [hour.values[b] doubleValue], moved = last - first;
@@ -49,12 +52,11 @@ static BOOL Ends(NSArray *values, NSInteger *first, NSInteger *last) {
     uint64_t by = (uint64_t)fabs(moved);
     NSString *move = by < (1 << 20) || by < MAX(first, last) * 0.002 ? @"about the same"
         : [NSString stringWithFormat:@"%@ %@", moved > 0 ? @"up" : @"down", MMWindowBytes(by)];
-    MMWindowDraw(MMWindowText(move, 12.5, NSFontWeightSemibold, text), NSMaxX(r), r.origin.y + 8.5, 1);
+    MMWindowDraw(MMWindowText(move, 12, NSFontWeightSemibold, text), NSMaxX(r), r.origin.y + 8.5, 1);
     MMWindowDrawHour(hour.values, NSMakeRect(r.origin.x, r.origin.y + 36, r.size.width, r.size.height - 36 - 16), ink, 1.5, YES);
     CGFloat y = NSMaxY(r) - 6.5;
-    MMWindowDraw(MMWindowJoin(@[MMWindowText([Ago(a, (NSInteger)hour.values.count) stringByAppendingString:@", "], 10.5, NSFontWeightRegular, t3),
-                                MMWindowText(MMWindowBytes((uint64_t)first), 10.5, NSFontWeightMedium, t2)]), r.origin.x, y, -1);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(@"now, ", 10.5, NSFontWeightRegular, t3), MMWindowText(MMWindowBytes((uint64_t)last), 10.5, NSFontWeightMedium, t2)]), NSMaxX(r), y, 1);
+    MMWindowDraw(End(Ago(a, count), first, t3, t2), r.origin.x, y, -1);
+    MMWindowDraw(End(Ago(b, count), last, t3, t2), NSMaxX(r), y, 1);
 }
 
 /// A row's story: its icon and name, its number large, CPU, its own hour when it has one, and its facts.
@@ -63,12 +65,20 @@ static BOOL Ends(NSArray *values, NSInteger *first, NSInteger *last) {
     CGFloat x = 18, w = self.bounds.size.width - 36;
     BOOL disk = row.kind == MMWindowWorktree || row.kind == MMWindowCache;
     MMWindowDrawIcon(row, NSMakeRect(x, 18, 28, 28), [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1]);
+    // The whole name, on two lines when one is too short for it. Everything under it moves down by that line.
     NSString *name = row.shownName;
-    MMWindowDraw(MMWindowFit(name, 15, NSFontWeightSemibold, text, w - 44), x + 44, row.state.length ? 24 : 32, -1);
-    if (row.state.length) MMWindowDraw(MMWindowFit(row.state, 12, NSFontWeightRegular, t2, w - 44), x + 44, 42, -1);
+    NSMutableParagraphStyle *words = [NSMutableParagraphStyle new];
+    words.lineBreakMode = NSLineBreakByWordWrapping;
+    NSAttributedString *title = [[NSAttributedString alloc] initWithString:name attributes:@{
+        NSFontAttributeName: MMWindowFont(15, NSFontWeightSemibold), NSForegroundColorAttributeName: text, NSParagraphStyleAttributeName: words}];
+    BOOL two = MMWindowWidth(MMWindowText(name, 15, NSFontWeightSemibold, text)) > w - 44;
+    CGFloat more = two ? 19 : 0;
+    if (two) [title drawWithRect:NSMakeRect(x + 44, row.state.length ? 14 : 22, w - 44, 40) options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine];
+    else MMWindowDraw(title, x + 44, row.state.length ? 24 : 32, -1);
+    if (row.state.length) MMWindowDraw(MMWindowFit(row.state, 12, NSFontWeightRegular, t2, w - 44), x + 44, 42 + more, -1);
 
     // The numbers: memory or disk, CPU when known, and the row's own hour to the right.
-    CGFloat top = 70, at = x;
+    CGFloat top = 70 + more, at = x;
     // Tabs that hold no bytes of their own show their count where the size would stand.
     NSAttributedString *big = row.showsSize ? MMWindowNumber(row.bytes, 25, NSFontWeightMedium, text, 12)
                                             : MMWindowText(@(row.tabs).stringValue, 25, NSFontWeightMedium, text);
@@ -83,7 +93,7 @@ static BOOL Ends(NSArray *values, NSInteger *first, NSInteger *last) {
         at += MAX(MMWindowWidth(c), 50) + 24;
     }
     NSInteger a, b;
-    if (row.hour && Ends(row.hour, &a, &b) && x + w - at >= 90) {
+    if (MMWindowHourSpan(row.hour, &a, &b, NULL) && x + w - at >= 90) {
         NSColor *ink = MMWindowColor(disk ? MMWindowInkDisk : MMWindowInkMemory);
         MMWindowDraw(MMWindowText(@"Its last hour", 11.5, NSFontWeightRegular, t2), at, top + 7, -1);
         MMWindowDrawHour(row.hour, NSMakeRect(at, top + 18, x + w - at, 26), ink, 1.2, NO);

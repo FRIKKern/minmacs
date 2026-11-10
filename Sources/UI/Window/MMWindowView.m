@@ -4,6 +4,8 @@
 #import "UI/MMFormat.h"
 
 static const NSTimeInterval kBeat = 0.3, kEndHold = 4.0, kGlow = 0.9, kEase = 0.16;
+// The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference.
+static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
 
 @implementation MMWindowView {
     MMWindowFlipped *_main;
@@ -60,6 +62,21 @@ static const NSTimeInterval kBeat = 0.3, kEndHold = 4.0, kGlow = 0.9, kEase = 0.
     return self;
 }
 
+/// The top line folds away when nobody asks. The window keeps its size: the lists grow by the band's height, and the
+/// dock stays where it is.
+- (void)layBand {
+    CGFloat top = _model && !_model.asks.length ? kNoBand : kBand, W = MMWindowSize.width, H = MMWindowSize.height;
+    if (_main.frame.origin.y == top) return;
+    CGFloat lists = kLists + kBand - top;
+    _main.frame = NSMakeRect(0, top, W, H - top);
+    _left.frame = NSMakeRect(0, 0, 320, lists);
+    _middle.frame = NSMakeRect(320, 0, 380, lists);
+    _right.frame = NSMakeRect(700, 0, 320, lists);
+    _rule.frame = NSMakeRect(14, lists + 7, W - 28, 1);
+    _dock.frame = NSMakeRect(0, lists + 13, W, 137);
+    self.needsDisplay = YES;
+}
+
 - (void)iconsLoaded { _left.needsDisplay = YES; _right.needsDisplay = YES; _middle.needsDisplay = YES; }
 
 #pragma mark The model
@@ -69,6 +86,7 @@ static const NSTimeInterval kBeat = 0.3, kEndHold = 4.0, kGlow = 0.9, kEase = 0.
     if (_model && model && model.generation && model.generation < _model.generation) return;
     BOOL hadRun = _model.run != nil;
     _model = model;
+    [self layBand];
     _rule.fillColor = MMWindowColor(MMWindowInkLine);
     _left.groups = model.memoryGroups;
     _right.groups = model.diskGroups;
@@ -208,6 +226,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     _showsSettings = on;
     _settings.host = self.host;
     _gear.lit = on;
+    self.needsDisplay = YES;
     _gear.accessibilityValue = on ? @"on" : @"off";
     NSView *comes = on ? _settings : _main, *goes = on ? _main : _settings;
     if (on) { _hovered = nil; [self showPointed]; }
@@ -274,13 +293,16 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     [[NSColor colorWithWhite:1 alpha:0.17] setStroke];
     [edge stroke];
 
-    // The top line: what asks the person, with a white diamond. Nothing asks, nothing shows.
+    // The top line: what asks the person, with a white diamond, and a hairline under it. Settings keeps the hairline.
+    // Nobody asks: no words, no hairline and no band. layBand gave its height to the lists.
     if (_model.asks.length) {
         MMWindowDrawDiamond(NSMakeRect(14, 11, 12, 12), NSColor.whiteColor);
         MMWindowDraw(MMWindowFit(_model.asks, 13, NSFontWeightMedium, MMWindowColor(MMWindowInkText), b.size.width - 60), 33, 17, -1);
     }
-    [MMWindowColor(MMWindowInkLine) setFill];
-    NSRectFillUsingOperation(NSMakeRect(14, 34, b.size.width - 28, 1), NSCompositingOperationSourceOver);
+    if (_model.asks.length || self.showsSettings || !_model) {
+        [MMWindowColor(MMWindowInkLine) setFill];
+        NSRectFillUsingOperation(NSMakeRect(14, 34, b.size.width - 28, 1), NSCompositingOperationSourceOver);
+    }
 }
 
 #pragma mark Words
@@ -288,13 +310,13 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)m {
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
         @"Fix Everything", @"Nothing to fix now", @"Press to stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
-        @"the last hour", @"an hour ago", @"now", @"The line shows after two minutes.", @"about the same", @"more below", @"Its last hour",
+        @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs"]];
     void (^add)(NSString *) = ^(NSString *x) { if (x.length) [s addObject:x]; };
     add(m.asks);
     for (MMWindowHour *h in @[m.memoryHour ?: [MMWindowHour new], m.diskHour ?: [MMWindowHour new]]) { add(h.title); add(h.explain); }
     for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) {
-        add(g.title);
+        add(g.title); add(g.emptyNote);
         for (MMWindowRow *r in g.rows) { add(r.name); add(r.state); for (MMWindowFact *f in r.facts) { add(f.label); add(f.value); } }
     }
     for (MMWindowFix *f in m.fixes) add(f.title);

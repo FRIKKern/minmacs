@@ -39,6 +39,9 @@ CGFloat MMWindowWidth(NSAttributedString *line);
 void MMWindowDraw(NSAttributedString *line, CGFloat x, CGFloat midY, NSInteger align);
 /// The same text cut at the tail so it fits.
 NSAttributedString *MMWindowFit(NSString *text, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat width);
+/// The same text with whole words dropped from its end until it fits, and no ellipsis: a shorter true name.
+/// A name with no space, such as a branch, loses whole parts at a hyphen, slash, dot or underscore instead.
+NSString *MMWindowShorten(NSString *text, CGFloat size, NSFontWeight weight, CGFloat width);
 /// A size as its number and its unit, "1.9" and "GB", from MMBytes, so the unit can be drawn small and gray.
 NSArray<NSString *> *MMWindowSize2(uint64_t bytes);
 /// The size on one line, "182 GB": MMBytes with a round number's ".0" left out.
@@ -48,7 +51,13 @@ NSAttributedString *MMWindowNumber(uint64_t bytes, CGFloat size, NSFontWeight we
 
 /// The filled values of an hour, as doubles with NAN for a gap. `filled` gets how many minutes hold a value.
 NSArray<NSNumber *> *MMWindowHourValues(NSArray *_Nullable values, NSInteger *_Nullable filled);
-/// The filled line of an hour inside the rect: the fill, the line, and a dot at the last minute when asked.
+/// An hour draws as a line only once this many of its minutes hold a value. Under that the window says so in words.
+static const NSInteger MMWindowHourLeast = 5;
+/// The part of an hour from its first filled minute to its last, or nil when fewer than MMWindowHourLeast are filled.
+/// `first` and `last` get the two indexes, -1 when none, and `filled` how many minutes hold a value.
+NSArray *_Nullable MMWindowHourSpan(NSArray *_Nullable values, NSInteger *_Nullable first, NSInteger *_Nullable last, NSInteger *_Nullable filled);
+/// The filled part of an hour across the whole rect: the fill, the line, and a dot at the last minute when asked.
+/// Nothing when fewer than MMWindowHourLeast minutes are filled.
 void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, CGFloat lineWidth, BOOL dot);
 
 #pragma mark Icons
@@ -72,7 +81,11 @@ void MMWindowDrawPower(NSRect rect, NSColor *color);
 @property (nonatomic, copy, nullable) NSString *hotKey;             // the row drawn as pointed at
 @property (copy, nullable) void (^onPoint)(NSString *_Nullable key); // the pointer came to rest on a row, or left
 - (void)reveal:(NSString *)key;                                      // scroll so the row shows
-- (void)rest;                                                        // the window closed: no pending calls
+- (void)rest;                                                        // the window closed: no pending calls, every group back at its top
+/// Each row's name as it is drawn at this width, in order, for the checks: whole, or with whole words dropped.
+- (NSArray<NSString *> *)drawnNames;
+/// How far each group is scrolled, by its key, for the checks.
+- (NSDictionary<NSString *, NSNumber *> *)offsets;
 @end
 
 /// The middle: the two last-hour graphs, or one row's story.
