@@ -79,4 +79,8 @@ static const double MMLinkFocusWait = 0.3;
 
 /// The app delegate. One per process, made by MMMain.
 @interface MMShell : NSObject <NSApplicationDelegate>
+/// Open at login, from SMAppService. Main thread. The menu window's switch reads and sets it, issue #62.
+- (BOOL)loginEnabled;
+/// Registers or removes the login item. It does nothing in a test home or outside an .app bundle.
+- (void)setLogin:(BOOL)on;
 @end
