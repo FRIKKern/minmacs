@@ -774,7 +774,8 @@ static BOOL NeverHits(NSString *never, NSString *p) {
         if (e->fts_info != FTS_D) continue;
         if (e->fts_level == 0) continue;
         NSString *name = @(e->fts_name), *p = @(e->fts_path);
-        if (e->fts_level > kProjectDepth || [name isEqualToString:@".git"]) { fts_set(fts, e, FTS_SKIP); continue; }
+        // MinMacs's own staging folder beside a worktree, Act/MMRemoval.h, is never clutter and is never walked.
+        if (e->fts_level > kProjectDepth || [name isEqualToString:@".git"] || [name hasPrefix:@".minmacs-staged-"]) { fts_set(fts, e, FTS_SKIP); continue; }
         // Another checkout inside this one is walked on its own.
         if (![p isEqualToString:project] && [projects containsObject:p]) { fts_set(fts, e, FTS_SKIP); continue; }
         if ([names containsObject:name]) {

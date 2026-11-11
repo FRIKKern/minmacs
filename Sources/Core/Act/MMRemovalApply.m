@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/sysctl.h>
+#import "Core/Senses/MMSenses.h"
 
 #pragma mark - Real paths and places
 
@@ -143,9 +145,11 @@ BOOL MMRemovalApply(NSString *path, MMRemovalDecision *d, MMUndoRecord *record, 
 // The staging folder is on the item's own volume, so staging is one rename and never a copy:
 //   <support>/staged/<wrap up rid>/                     for an item on the support folder's volume
 //   <folder that holds the worktree>/.minmacs-staged-<wrap up rid>/     for an item on another volume
-// It holds a file .minmacs with the rid. Nothing waits in the person's Trash, and MinMacs deletes nothing there.
+// It holds a file .minmacs with the rid, and a .gitignore that hides the folder from a repo it may sit in.
+// Nothing waits in the person's Trash, and MinMacs deletes nothing there.
+// An item is staged only when its staging folder would itself pass the wall. Otherwise it stays where it is.
 
-static NSString *const kMarker = @".minmacs";
+static NSString *const kMarker = @".minmacs", *const kIgnore = @".gitignore";
 
 static uint64_t FreeOn(NSString *path) {
     struct statfs s;
@@ -186,12 +190,20 @@ static NSString *StagedWhyNot(NSDictionary *x, MMUndoRecord *r, NSString **real)
     return WhyNot(t, r, @[t], real);
 }
 
-/// Removes the staging folder once it holds nothing but its marker. Never one that still holds a staged item.
+/// Removes the staging folder once it holds nothing but what MinMacs wrote there itself: its marker and its
+/// .gitignore. Never one that still holds a staged item.
 static void RemoveStagingFolder(NSString *folder, NSString *rid) {
     NSString *f = MMRemovalRealPath(folder);
     if (!f || MMRemovalStagingWhyNot([f stringByAppendingPathComponent:kMarker], f, rid, MMRemovalRealPath(MMSupportDir())) || !MarkerSays(f, rid)) return;
-    NSArray *holds = [NSFileManager.defaultManager contentsOfDirectoryAtPath:f error:nil];
-    if (holds.count == 1 && [holds.firstObject isEqualToString:kMarker]) Unlink(f, nil);
+    NSMutableSet *holds = [NSMutableSet setWithArray:[NSFileManager.defaultManager contentsOfDirectoryAtPath:f error:nil] ?: @[@"?"]];
+    [holds minusSet:[NSSet setWithArray:@[kMarker, kIgnore]]];
+    if (holds.count == 0) Unlink(f, nil);
+}
+
+NSString *MMRemovalStagingFolderWhyNot(NSString *folder, MMRemovalPlaces *places) {
+    // What would be deleted later is a file directly in the folder, so that path is what the wall is asked about now.
+    NSString *item = [folder stringByAppendingPathComponent:@"0.item"];
+    return MMRemovalWallWhyNot(item, @[item], places);
 }
 
 /// The staging folder for an item of this part, made now, on the item's own volume. nil with *why when there is none.
@@ -211,11 +223,17 @@ static NSString *StagingFolder(NSString *real, MMUndoRecord *record, NSString **
             folder = [holder stringByAppendingPathComponent:[@".minmacs-staged-" stringByAppendingString:rid]];
     }
     if (!folder) { *why = @"no folder of MinMacs's own is on its volume"; return nil; }
-    NSString *marker = [folder stringByAppendingPathComponent:kMarker];
+    // The wall is asked now, before anything moves. A staging folder where MinMacs could never delete, such as one
+    // beside a worktree at the top of a volume, would strand the item, so the item is not staged at all.
+    NSString *wall = MMRemovalStagingFolderWhyNot(folder, [MMRemovalPlaces placesFor:real]);
+    if (wall) { *why = [@"its staging folder would lie where MinMacs never deletes: " stringByAppendingString:wall]; return nil; }
+    NSString *marker = [folder stringByAppendingPathComponent:kMarker], *ignore = [folder stringByAppendingPathComponent:kIgnore];
     if (![NSFileManager.defaultManager createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions: @0700} error:nil] ||
         (!MarkerSays(folder, rid) && ![rid writeToFile:marker atomically:YES encoding:NSUTF8StringEncoding error:nil])) {
         *why = @"its staging folder could not be made"; return nil;
     }
+    // A repo that holds this folder, as a main checkout holds .worktrees/, never lists it as untracked.
+    if (lstat(ignore.fileSystemRepresentation, &s) != 0) [@"*\n" writeToFile:ignore atomically:YES encoding:NSUTF8StringEncoding error:nil];
     return folder;
 }
 
@@ -294,42 +312,96 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts) {
 
 #pragma mark - After a crash
 
-static NSMutableSet<NSString *> *Running(void) {
-    static NSMutableSet *s; static dispatch_once_t once;
-    dispatch_once(&once, ^{ s = [NSMutableSet new]; });
-    return s;
+NSDictionary *MMRemovalOwner(void) {
+    struct kinfo_proc kp; size_t len = sizeof kp;
+    int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid() };
+    uint64_t start = sysctl(mib, 4, &kp, &len, NULL, 0) == 0 && len ? (uint64_t)kp.kp_proc.p_starttime.tv_sec : 0;
+    return @{@"pid": @(getpid()), @"start": @(start)};
 }
-void MMRemovalWrapUpBegan(NSString *rid) { if (rid.length) @synchronized (Running()) { [Running() addObject:rid]; } }
-void MMRemovalWrapUpEnded(NSString *rid) { if (rid.length) @synchronized (Running()) { [Running() removeObject:rid]; } }
+
+/// 1 when the process that owns the Wrap Up lives, 0 when it is gone or its pid is another process now, -1 when the
+/// record names no owner, as one written before owners were kept.
+static int OwnerAlive(MMUndoRecord *parent) {
+    NSDictionary *o = parent.payload[@"owner"];
+    if (![o isKindOfClass:NSDictionary.class] || ![o[@"pid"] isKindOfClass:NSNumber.class]) return -1;
+    MMProcKey key = { [o[@"pid"] intValue], [o[@"start"] unsignedLongLongValue] };
+    return key.pid > 0 && MMProcAlive(key) ? 1 : 0;
+}
 
 NSInteger MMRemovalRecoverStaged(void) {
-    // A Wrap Up that another process runs right now has a record that is not finished either. One this old is not running.
+    // Only for a record with no owner: one this old does not run any more.
     NSTimeInterval old = 15 * 60;
     if (TestHome() && getenv("MINMACS_STAGE_RECOVER_AFTER")) old = atof(getenv("MINMACS_STAGE_RECOVER_AFTER"));
+    NSMutableArray<MMUndoRecord *> *pending = [NSMutableArray new];
     NSMutableDictionary<NSString *, NSMutableArray<MMUndoRecord *> *> *byParent = [NSMutableDictionary new];
     for (MMUndoRecord *r in [MMUndo.shared recent:nil limit:5000]) {
-        if (!r.parentRid.length || ![r.payload[@"staged"] isKindOfClass:NSArray.class] || ![r.payload[@"staged"] count]) continue;
-        [(byParent[r.parentRid] ?: (byParent[r.parentRid] = [NSMutableArray new])) addObject:r];
+        if (r.parentRid.length) [(byParent[r.parentRid] ?: (byParent[r.parentRid] = [NSMutableArray new])) addObject:r];
+        else if ([r.kind isEqualToString:@"wrapup"] && r.state == MMUndoPending) [pending addObject:r];
     }
     NSInteger recovered = 0;
-    for (NSString *rid in byParent) {
-        @synchronized (Running()) { if ([Running() containsObject:rid]) continue; }
-        MMUndoRecord *parent = [MMUndo.shared record:rid];
-        if (!parent || parent.state != MMUndoPending || -parent.at.timeIntervalSinceNow < old) continue;
-        NSArray<MMUndoRecord *> *parts = byParent[rid];
+    for (MMUndoRecord *parent in pending) {
+        // A Wrap Up whose process lives is never touched, whatever its age: that process still works on it. One whose
+        // process is gone is settled at once, so a quick restart after a crash puts things back.
+        int alive = OwnerAlive(parent);
+        if (alive == 1 || (alive < 0 && -parent.at.timeIntervalSinceNow < old)) continue;
+        NSArray<MMUndoRecord *> *parts = byParent[parent.rid] ?: @[];
         if ([parent.payload[@"finishing"] boolValue]) {
             // Every part had gone through and the deletes had begun: the worktree is gone, so they are finished.
             int64_t freed = MMRemovalFinishStaged(parts);
             [MMUndo.shared finish:parent ok:YES freed:freed error:nil];
         } else {
-            // It never got that far: nothing is deleted. Each staged item goes back to its exact old path.
+            // It never got that far: nothing is deleted. A part that was still running is failed, so no record stays
+            // pending. Then what the removal parts moved, to the staging folder or to the Trash, goes back.
             for (MMUndoRecord *part in parts)
                 if (part.state == MMUndoPending) [MMUndo.shared finish:part ok:NO freed:0 error:@"MinMacs stopped before this part ended"];
             NSString *notBack = MMRemovalPutBack(parts);
-            [MMUndo.shared finish:parent ok:NO freed:0 error:[NSString stringWithFormat:@"MinMacs stopped before this Wrap Up ended. What it had staged was put back%@",
+            [MMUndo.shared finish:parent ok:NO freed:0 error:[NSString stringWithFormat:@"MinMacs stopped before this Wrap Up ended. What it had moved out of the worktree was put back%@",
                                                              notBack ? [@", except: " stringByAppendingString:notBack] : @""]];
         }
         recovered++;
     }
     return recovered;
+}
+
+#pragma mark - What was left staged
+
+NSInteger MMRemovalSweepStaged(NSArray<NSString *> **orphans) {
+    // 1. A part that still lists staged items though its Wrap Up ended: a put-back that stopped halfway, or a delete
+    // that could not finish. The record names each item's old path, so each goes back there. Nothing is deleted.
+    NSMutableDictionary<NSString *, MMUndoRecord *> *all = [NSMutableDictionary new];
+    NSMutableArray<MMUndoRecord *> *left = [NSMutableArray new];
+    NSMutableSet<NSString *> *named = [NSMutableSet new];
+    for (MMUndoRecord *r in [MMUndo.shared recent:nil limit:5000]) {
+        all[r.rid] = r;
+        if (r.parentRid.length && [r.payload[@"staged"] isKindOfClass:NSArray.class] && [r.payload[@"staged"] count] &&
+            (r.state == MMUndoDone || r.state == MMUndoFailed)) [left addObject:r];
+    }
+    NSInteger back = 0;
+    for (MMUndoRecord *part in left) {
+        MMUndoRecord *parent = all[part.parentRid];
+        // A Wrap Up that still runs, or that recovery has yet to settle, is not this sweep's.
+        if (parent && parent.state == MMUndoPending) { if ([part.payload[@"stagedIn"] isKindOfClass:NSString.class]) [named addObject:part.payload[@"stagedIn"]]; continue; }
+        if (!MMRemovalPutBack(@[part])) back++;
+        else if ([part.payload[@"stagedIn"] isKindOfClass:NSString.class]) [named addObject:part.payload[@"stagedIn"]];
+    }
+    // 2. A folder under <support>/staged that no record names: left alone, and named once.
+    NSString *root = [MMRemovalRealPath(MMSupportDir()) stringByAppendingPathComponent:@"staged"];
+    MMStateFile *seen = [MMStateFile fileNamed:@"staged-orphans" expert:@"core"];
+    NSArray *before = [[seen read] isKindOfClass:NSArray.class] ? [seen read] : @[];
+    NSMutableArray<NSString *> *fresh = [NSMutableArray new], *now = [NSMutableArray new];
+    for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) {
+        NSString *folder = [root stringByAppendingPathComponent:name];
+        struct stat st;
+        if (lstat(folder.fileSystemRepresentation, &st) != 0 || !S_ISDIR(st.st_mode) || [named containsObject:folder]) continue;
+        MMUndoRecord *parent = all[name];
+        if (parent && parent.state == MMUndoPending) continue;
+        // Empty but for what MinMacs wrote: nothing waits in it, so it goes. Otherwise nobody knows whose files these are.
+        RemoveStagingFolder(folder, name);
+        if (lstat(folder.fileSystemRepresentation, &st) != 0) continue;
+        [now addObject:folder];
+        if (![before containsObject:folder]) [fresh addObject:folder];
+    }
+    if (![now isEqualToArray:before]) [seen update:^id(id disk) { return now; }];
+    if (orphans) *orphans = fresh;
+    return back;
 }

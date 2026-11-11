@@ -4,6 +4,7 @@
 // The one place Act deletes is MMRemovalApply in MMRemoval.m, and only where the person's removal choice says so.
 #import <AppKit/AppKit.h>
 #import "Core/Act/MMUndo.h"
+#include <sys/stat.h>
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Store/MMGains.h"
@@ -344,21 +345,36 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
 - (NSString *)untrash:(NSArray *)items { return [self moveBack:items from:@"the Trash"]; }
 
 /// Moves each {from, to} back from to, its place in the Trash or in MinMacs's staging folder, to from, its exact old
-/// path. Nothing moves when something sits at an old path now, or an item is gone from where it waited.
+/// path. Each item on its own, so one that cannot go back does not hold the others, and a second call moves the rest:
+///   it waits at to, and from is free ............ moved
+///   it is gone from to, and from holds it ........ already back, counts as done
+///   something else sits at from .................. left where it waits, never written over, reported
+///   it is at neither place ....................... reported
+/// "Is it there" is always lstat, never a check that follows links: a relative symlink points nowhere while it
+/// waits, and is still there. Returns nil when every item is back, else what is not, in words.
 - (NSString *)moveBack:(NSArray *)items from:(NSString *)place {
     NSFileManager *fm = NSFileManager.defaultManager;
-    for (NSDictionary *i in items) {
-        NSString *from = i[@"from"], *to = i[@"to"];
-        if ([fm fileExistsAtPath:from]) return [NSString stringWithFormat:@"something already exists at %@", from];
-        if (![fm fileExistsAtPath:to]) return [NSString stringWithFormat:@"%@ no longer holds %@", place, from.lastPathComponent];
-    }
+    NSMutableArray<NSString *> *problems = [NSMutableArray new];
     for (NSDictionary *i in items.reverseObjectEnumerator) {
         NSString *from = i[@"from"], *to = i[@"to"];
+        if (![from isKindOfClass:NSString.class] || ![to isKindOfClass:NSString.class]) { [problems addObject:@"the record does not say where one item was"]; continue; }
+        struct stat waits, old;
+        BOOL there = lstat(to.fileSystemRepresentation, &waits) == 0, taken = lstat(from.fileSystemRepresentation, &old) == 0;
+        if (!there && taken) {
+            // Back already, from a put-back that stopped after this one. When the record knows the file, it must be that file.
+            BOOL known = i[@"ino"] != nil;
+            if (!known || ((long long)old.st_dev == [i[@"dev"] longLongValue] && (unsigned long long)old.st_ino == [i[@"ino"] unsignedLongLongValue])) continue;
+            [problems addObject:[NSString stringWithFormat:@"%@ no longer holds %@, and something else sits at %@", place, from.lastPathComponent, from]];
+            continue;
+        }
+        if (!there) { [problems addObject:[NSString stringWithFormat:@"%@ no longer holds %@", place, from.lastPathComponent]]; continue; }
+        if (taken) { [problems addObject:[NSString stringWithFormat:@"something already exists at %@", from]]; continue; }
         [fm createDirectoryAtPath:from.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
         NSError *e = nil;
-        if (![fm moveItemAtPath:to toPath:from error:&e]) return [NSString stringWithFormat:@"%@ could not leave %@: %@", from.lastPathComponent, place, e.localizedDescription];
+        if (![fm moveItemAtPath:to toPath:from error:&e])
+            [problems addObject:[NSString stringWithFormat:@"%@ could not leave %@: %@", from.lastPathComponent, place, e.localizedDescription]];
     }
-    return nil;
+    return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
 }
 
 /// Recreates a worktree at its commit, as WFRestore does. The commit comes from the bundle when the repo lost it.
@@ -495,9 +511,13 @@ static NSMutableSet<NSString *> *Restoring(void) {
         problem = [self restart:p[@"restart"] pid:&pid];
         if (pid) done[@"restartedPid"] = @(pid);
     }
-    if (!problem && [p[@"trashed"] count]) problem = [self untrash:p[@"trashed"]];
-    // What a Wrap Up part staged for a delete that never came: back from MinMacs's staging folder, MMRemoval.h.
-    if (!problem && [p[@"staged"] count]) problem = [self moveBack:p[@"staged"] from:@"MinMacs's staging folder"];
+    if (!problem && ([p[@"trashed"] count] || [p[@"staged"] count])) {
+        // Both are tried, so what waits in one place does not hold what waits in the other.
+        NSString *a = [p[@"trashed"] count] ? [self untrash:p[@"trashed"]] : nil;
+        // What a Wrap Up part staged for a delete that never came: back from MinMacs's staging folder, MMRemoval.h.
+        NSString *b = [p[@"staged"] count] ? [self moveBack:p[@"staged"] from:@"MinMacs's staging folder"] : nil;
+        problem = a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
+    }
     if (!problem && p[@"bundle"]) problem = [self unbundle:p[@"bundle"]];
     // A removed worktree with no bundle: its commit is still in the repo, so it is recreated from there.
     // A failed removal left the worktree in place, so it is not recreated.

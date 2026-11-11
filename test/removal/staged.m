@@ -169,17 +169,14 @@ static void Crash(void) {
     NSString *folder = b.payload[@"stagedIn"];
     T(@"crash: both are staged and the Wrap Up never finished", @"no no pending", [NSString stringWithFormat:@"%@ %@ %@", YN(Exists(env)), YN(Exists(mods)),
       [MMUndo.shared record:parent.rid].state == MMUndoPending ? @"pending" : @"other"]);
-    // A Wrap Up this young may still run in another process, and one that runs in this process is never touched.
-    T(@"crash: a record too young to be a crash is left alone", @"0 no", [NSString stringWithFormat:@"%ld %@", (long)MMRemovalRecoverStaged(), YN(Exists(env))]);
+    // These records name no owner, as one written by an older build: only for those does the age decide.
+    T(@"crash: a record with no owner that is too young to be a crash is left alone", @"0 no", [NSString stringWithFormat:@"%ld %@", (long)MMRemovalRecoverStaged(), YN(Exists(env))]);
     setenv("MINMACS_STAGE_RECOVER_AFTER", "0", 1);
-    MMRemovalWrapUpBegan(parent.rid);
-    T(@"crash: a Wrap Up that runs in this process is left alone", @"0 no", [NSString stringWithFormat:@"%ld %@", (long)MMRemovalRecoverStaged(), YN(Exists(env))]);
-    MMRemovalWrapUpEnded(parent.rid);
     NSInteger n = MMRemovalRecoverStaged();
     T(@"crash: recovery puts every staged item back at its old path and deletes nothing", @"1 KEEP=1 x no", [NSString stringWithFormat:@"%ld %@ %@ %@", (long)n, Read(env),
       Read([mods stringByAppendingPathComponent:@"pkg/index.js"]), YN(Exists(folder))]);
     parent = [MMUndo.shared record:parent.rid];
-    T(@"crash: the Wrap Up's record says what happened, and no part says deleted", @"failed MinMacs stopped before this Wrap Up ended. What it had staged was put back no no restored restored",
+    T(@"crash: the Wrap Up's record says what happened, and no part says deleted", @"failed MinMacs stopped before this Wrap Up ended. What it had moved out of the worktree was put back no no restored restored",
       [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@", parent.state == MMUndoFailed ? @"failed" : @"other", parent.error, YN([MMUndo.shared record:a.rid].deletedNow), YN([MMUndo.shared record:b.rid].deletedNow),
        [MMUndo.shared record:a.rid].state == MMUndoRestored ? @"restored" : @"other", [MMUndo.shared record:b.rid].state == MMUndoRestored ? @"restored" : @"other"]);
     T(@"crash: a second recovery finds nothing left", @"0", @(MMRemovalRecoverStaged()).stringValue);
@@ -205,3 +202,6 @@ static void Crash(void) {
       late.state == MMUndoDone ? @"done" : @"other", YN([MMUndo.shared record:c.rid].deletedNow), YN(Exists(c.payload[@"stagedIn"]))]);
     unsetenv("MINMACS_STAGE_RECOVER_AFTER");
 }
+
+// Links, a put-back that stopped halfway, whose Wrap Up it is, the Trash after a crash, and what was left staged.
+#import "stranded.m"

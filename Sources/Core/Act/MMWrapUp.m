@@ -365,10 +365,11 @@ MMUndoRecord *MMRunWrapUp(MMWrapUpPlan *plan, NSString *by, NSString **error) {
     MMUndo *u = MMUndo.shared;
     MMUndoRecord *parent = [u begin:@"core" kind:@"wrapup" finding:[@"core:workstream:" stringByAppendingString:x.path]
                             subject:[@"Wrap Up " stringByAppendingString:name] why:@"the agent finished and the branch is merged"
-                                 by:by ?: @"manual" parent:nil payload:@{@"path": x.path, @"branch": x.worktree.branch ?: @"", @"parts": list}];
+                                 by:by ?: @"manual" parent:nil payload:@{@"path": x.path, @"branch": x.worktree.branch ?: @"", @"parts": list,
+                                                                          // Whose it is, so a later process can tell a crash from a Wrap Up that still runs.
+                                                                          @"owner": MMRemovalOwner()}];
     // A Wrap Up that MinMacs stopped in the middle of, before this one: what it had staged goes back first.
     (void)MMRemovalRecoverStaged();
-    MMRemovalWrapUpBegan(parent.rid);
     NSString *why = [@"part of Wrap Up " stringByAppendingString:name];
     NSMutableArray *done = [NSMutableArray new];
     NSMutableArray<MMUndoRecord *> *ran = [NSMutableArray new];
@@ -392,7 +393,6 @@ MMUndoRecord *MMRunWrapUp(MMWrapUpPlan *plan, NSString *by, NSString **error) {
                          p.title, what, notRun.count ? [NSString stringWithFormat:@". %lu part%@ did not run", (unsigned long)notRun.count, notRun.count == 1 ? @"" : @"s"] : @"",
                          notBack ? [@". Not put back: " stringByAppendingString:notBack] : @""];
         [u finish:parent ok:NO freed:freed error:msg];
-        MMRemovalWrapUpEnded(parent.rid);
         if (error) *error = msg;
         return [u record:parent.rid] ?: parent;
     }
@@ -401,6 +401,5 @@ MMUndoRecord *MMRunWrapUp(MMWrapUpPlan *plan, NSString *by, NSString **error) {
     [u note:parent payload:@{@"done": done, @"finishing": @YES}];
     freed += MMRemovalFinishStaged(ran);
     [u finish:parent ok:YES freed:freed error:nil];
-    MMRemovalWrapUpEnded(parent.rid);
     return [u record:parent.rid] ?: parent;
 }

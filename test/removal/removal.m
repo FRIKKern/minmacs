@@ -339,6 +339,7 @@ int main(int argc, char **argv) {
         Wall();
         Staged();
         Crash();
+        Stranded();
         printf("END\n");
     }
     return 0;
