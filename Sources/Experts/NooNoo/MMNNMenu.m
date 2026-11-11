@@ -114,7 +114,7 @@ MMMenuSpec *MMNNMenuFor(MMNNView *v, MMNNHandlers *h) {
         [summary addObject:[NSString stringWithFormat:@"Watching %@. Acts on nothing until %@.", MMPlural((NSInteger)v.rows.count, @"item"),
                             v.watchingLeft > 12 * 3600 ? @"tomorrow" : [@"in " stringByAppendingString:MMShortDuration(v.watchingLeft)]]];
     else if (finished.count)
-        [summary addObject:@"Build output of merged worktrees goes first. It goes to the Trash, and Undo brings it back."];
+        [summary addObject:@"Build output of merged worktrees goes first."];
     else if (!v.rows.count) [summary addObject:@"Nothing to clean. Noo-Noo looks again on its own."];
     m.summary = [summary componentsJoinedByString:@" "];
 

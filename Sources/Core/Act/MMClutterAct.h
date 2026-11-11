@@ -1,6 +1,7 @@
 // Removing clutter. Patterns P51 to P53 applied to the clutter catalog of P28, for Noo-Noo's rows.
-// Principle 5 and decision 1: build output, caches and leftovers go to the Trash. A tool row runs the tool's own
-// command, after a recovery copy of what it may remove. Nothing is deleted for good, and every action can be undone.
+// Principle 5 and decision 1: build output, caches and leftovers are removed, and a tool row runs the tool's own
+// command. Where a removed thing goes is the person's removal choice, MMRemoval.h: to the Trash or a recovery copy,
+// or deleted at once. Under Smart, the default, only a row that says a tool rebuilds it is deleted.
 #import <Foundation/Foundation.h>
 #import "Core/Act/MMAct.h"
 #import "Core/Know/MMClutter.h"
@@ -8,10 +9,13 @@
 /// P51 to P53. One clutter item, checked fresh right before it acts. MMRunAction runs it.
 /// New code, from NN's Apply in internal/leaks/module.go: staleness is proven again at apply time, every path
 /// passes -[MMClutterCatalog whyNot:kind:], and the freed bytes are the statfs delta MMRunAction records.
-///   kind "trash"  cache, build and leak rows. Each path goes to the Trash through MMUndo, and restore moves it back.
+///   kind "trash"  cache, build and leak rows. Each path goes through MMRemovalApply: to the Trash, where restore
+///                 moves it back, or deleted at once when MMRemovalDecide says so, and the record then cannot restore.
 ///   kind "clean"  tool rows. An APFS clone of each path goes to <noonoo>/recovery/<rid>, the dry run and the command
 ///                 run through MMToolCommand, and what the tool removed is listed as the record's recovery files,
 ///                 so restore copies them back. The minmacs-recovery row sends the copy to the Trash after 7 days.
+///                 When MMRemovalDecide says no copy is kept, the command runs without one and nothing comes back.
+/// The payload's "removal" holds the decision: {choice, deleted, why}.
 /// The payload also holds "audit": the paths, their sizes and newest change before and after the action.
 @interface MMClutterAction : NSObject <MMAction>
 + (instancetype)actionFor:(MMFinding *)finding item:(MMClutterItem *)item catalog:(MMClutterCatalog *)catalog;
