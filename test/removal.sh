@@ -30,8 +30,7 @@ check "removal: the cache, config-file and worktree paths each ask MMRemovalDeci
 check "removal: only MMRemoval.m reads the pref" 0 \
   "$(grep -rnE 'core\.removal|MMRemovalKey' Sources --include='*.m' | grep -vc '^Sources/Core/Act/MMRemoval\.m:')"
 check "removal: git worktree remove never gets --force" 0 "$(grep -rnE '"--force"|@"-f"' Sources/Core/Act Sources/Experts/WorkForest | grep -c .)"
-check "removal: no shown string says for good" 0 \
-  "$(grep -nE '@"[^"]*for good' Sources/Core/Act/MMRemoval.m Sources/Shell/MMWindowRules.m Sources/Shell/MMFixRunner.m | grep -c .)"
+check "removal: no string in the code says for good" 0 "$(grep -rnE '@"[^"]*for good' Sources --include='*.m' --include='*.h' | grep -c .)"
 
 if [ "$rm_r" = 0 ]; then
   echo "-- the pref, the decision, the delete and the records"

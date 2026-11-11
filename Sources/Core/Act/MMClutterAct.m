@@ -374,7 +374,7 @@ static uint64_t Allocated(NSArray<NSDictionary *> *audit) {
     MMClutterKind *k = i.kind;
     NSArray *paths = i.members;
     NSArray *before = MMClutterAudit(paths);
-    NSString *undo = [NSString stringWithFormat:@"%@ removes it for good, so this cannot be undone.%@", k.cleanup,
+    NSString *undo = [NSString stringWithFormat:@"%@ deletes it at once, so this cannot be undone.%@", k.cleanup,
                       k.rebuild.length ? [NSString stringWithFormat:@" %@.", k.rebuild] : @""];
     [MMUndo.shared note:record payload:@{@"kindID": k.kindID, @"paths": paths, @"tool": k.kindID, @"toolPath": self.toolPath ?: @"",
                                          @"command": k.cleanup, @"undo": undo, @"audit": @{@"before": before},
