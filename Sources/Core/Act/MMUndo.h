@@ -25,7 +25,7 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// and for every removal that went through under the Delete choice.
 @property (readonly) BOOL canRestore;
 /// YES when the payload's "removal" says the thing was deleted, MMRemoval.h. It says so only once the thing is gone:
-/// a record that failed, or a Wrap Up part whose item still waits in the Trash, says NO. A merged worktree deleted under
+/// a record that failed, or a Wrap Up part whose item still waits in the staging folder, says NO. A merged worktree deleted under
 /// Smart can still be restored, since git holds it. Anything else deleted cannot.
 @property (readonly) BOOL deletedNow;
 @end

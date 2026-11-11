@@ -10,7 +10,7 @@
 // Every path that removes something asks MMRemovalDecide, and none decides by itself. The answer is made on the
 // facts the caller read fresh at the moment of the act. It changes only where a removed thing goes. The fresh check,
 // MustKeep and the record of MMRunAction run first in every choice, a git bundle is taken whenever commits are on no
-// remote, git never runs with --force, and MinMacs never empties the Trash.
+// remote, git never runs with --force, and MinMacs never empties the Trash and never deletes from it.
 #import <Foundation/Foundation.h>
 #import "Core/Know/MMClutter.h"
 @class MMUndoRecord;

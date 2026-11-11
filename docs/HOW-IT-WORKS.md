@@ -55,7 +55,7 @@ Every action runs through one function in Act, `MMRunAction`. In order, it:
 3. writes the undo record
 4. acts: to the Trash, to a recovery folder, deleted at once where the removal choice says so, through the owning tool's own command, by a stop signal or a quit request, by closing browser tabs, or by Insomnia's lid setting
 
-A stop sends SIGTERM first. SIGKILL comes only on a second request, and the pid and start time are checked before each. MinMacs never empties the Trash.
+A stop sends SIGTERM first. SIGKILL comes only on a second request, and the pid and start time are checked before each. MinMacs never empties the Trash and never deletes from it.
 
 **The removal choice.** Nothing is lost unless the person chose so. What happens to a removed thing is one setting, `minmacs removal smart|trash|delete`, also in the window's Settings as "When MinMacs removes things". Every removal asks one function, `MMRemovalDecide`, on facts read at that moment:
 
@@ -72,7 +72,7 @@ Smart calls a worktree deleted only when its branch is merged or its remote bran
 
 Until you have chosen, in Settings or with `minmacs removal`, Smart's deletes apply only to your own presses. What a mode removes on its own goes to the Trash, and Settings says so.
 
-A Wrap Up deletes nothing until its last part went through. What an earlier part wants deleted waits in the Trash. When git refuses the worktree, it goes back to where it was. Only when the worktree is gone is it deleted.
+A Wrap Up deletes nothing until its last part went through. What an earlier part wants deleted is renamed into a staging folder of MinMacs's own on the same volume: `staged/<id>` in its support folder, or for another volume a hidden `.minmacs-staged-<id>` folder beside the worktree. It is never copied, and nothing waits in your Trash. When git refuses the worktree, or MinMacs stops in between, each item goes back to its exact old path. Only when the worktree is gone is it deleted.
 
 One function deletes, behind one wall. A path may be deleted only when a fresh finding named it, it is not a volume's root, it does not hold the home folder or MinMacs's own folder, it lies at least 2 levels inside the home folder or 3 levels below its volume's root, and paths are compared as the disk holds them, with links resolved. The choice changes only where a thing goes. The fresh check, the keep checks and the record run first in every choice, a git bundle is taken whenever commits are on no remote, and git never runs with `--force`. A deleted thing's record says so, and `minmacs restore` answers that it was deleted and cannot be brought back. A stop and a quit are not removals and do not change.
 

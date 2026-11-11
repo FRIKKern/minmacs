@@ -98,7 +98,7 @@ static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers())
     if ([self.kind isEqualToString:@"tool"]) return NO;
     NSDictionary *p = self.payload;
     // Under the Delete choice the person asked for no way back. A git bundle is still taken, and restore names it.
-    // Only once the thing is gone: what a Wrap Up part staged in the Trash can still come back.
+    // Only once the thing is gone: what a Wrap Up part staged in MinMacs's folder can still come back.
     NSDictionary *removal = [p[@"removal"] isKindOfClass:NSDictionary.class] ? p[@"removal"] : nil;
     if (self.state == MMUndoDone && self.deletedNow && [removal[@"choice"] isEqual:@"delete"]) return NO;
     // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit

@@ -471,7 +471,7 @@ static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
     MMRemovalNote(record, d, nil);
     NSMutableArray *paths = [NSMutableArray new];
     for (NSString *rel in files) [paths addObject:[self.path stringByAppendingPathComponent:rel]];
-    // The files git listed a moment ago. Under Delete each one waits in the Trash until git worktree remove went
+    // The files git listed a moment ago. Under Delete each one waits in MinMacs's staging folder until git worktree remove went
     // through, since this is a part of a Wrap Up: MMRemovalApply stages it, and Core deletes or puts it back.
     MMRemovalAsk(record, paths);
     for (NSString *rel in files) {
