@@ -54,11 +54,13 @@ typedef struct {
            linkExpert:(NSString *)expert findingID:(NSString *)findingID;
 @end
 
-/// How an action on a finding is undone. Principle 5: an action without a way back is never proposed.
+/// How an action on a finding is undone. Principle 5: an action without a way back is never proposed, unless the
+/// person's removal choice, Act/MMRemoval.h, says the thing is deleted at once. The kind names the way back the
+/// action has when it keeps one.
 typedef NS_ENUM(NSInteger, MMReversibility) {
     MMReversibleNotNeeded,   // nothing is lost, such as keep-awake or a server that restarts on demand
     MMReversibleRestart,     // the undo record holds the command, cwd and env to start it again
-    MMReversibleTrash,       // the item goes to the Trash, and restore moves it back
+    MMReversibleTrash,       // the item goes to the Trash, and restore moves it back, or is deleted as the choice says
     MMReversibleBundle,      // a worktree with a git bundle and saved files, restored at its commit
     MMReversibleToolCommand, // the tool's own cleanup command; its dry-run output is the record
     MMReversibleRelaunch,    // an app is quit and reopened with its saved state

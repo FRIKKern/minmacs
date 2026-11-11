@@ -1,6 +1,7 @@
 // The one undo engine: records, the Trash, the recovery folder, git bundles, restore and tool commands.
 // Ported from WorkForest's WFRemove and WFRestore, LocoHost's restart command and Noo-Noo's Grave.
 // Records go to the log of P38 as append-only rows. Nothing here deletes a file, and nothing empties the Trash.
+// The one place Act deletes is MMRemovalApply in MMRemoval.m, and only where the person's removal choice says so.
 #import <AppKit/AppKit.h>
 #import "Core/Act/MMUndo.h"
 #import "Core/Store/MMStore.h"
@@ -88,10 +89,17 @@ static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers())
     b[@"why"] = self.why; b[@"by"] = self.by; b[@"parentRid"] = self.parentRid; b[@"error"] = self.error;
     return b;
 }
+- (BOOL)deletedNow {
+    NSDictionary *r = self.payload[@"removal"];
+    return [r isKindOfClass:NSDictionary.class] && [r[@"deleted"] isKindOfClass:NSNumber.class] && [r[@"deleted"] boolValue];
+}
 - (BOOL)canRestore {
     if (self.state != MMUndoDone && self.state != MMUndoFailed) return NO;
     if ([self.kind isEqualToString:@"tool"]) return NO;
     NSDictionary *p = self.payload;
+    // Under the Delete choice the person asked for no way back. A git bundle is still taken, and restore names it.
+    NSDictionary *removal = [p[@"removal"] isKindOfClass:NSDictionary.class] ? p[@"removal"] : nil;
+    if (self.state == MMUndoDone && [removal[@"choice"] isEqual:@"delete"]) return NO;
     // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit
     // left its server or app running, so its restart or relaunch would start a second copy: it restores nothing.
     if (self.state == MMUndoFailed) return self.hasParts || [p[@"trashed"] count] || p[@"bundle"] || p[@"recovery"];
@@ -445,6 +453,11 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if (r.state == MMUndoRestored) return @"it was already restored";
     if (r.state == MMUndoPending) return @"the action has not finished";
     if ([r.kind isEqualToString:@"tool"]) return @"a tool's own cleanup cannot be undone; its dry-run output is in the record";
+    if (!r.canRestore && r.state == MMUndoDone && r.deletedNow) {
+        NSString *bundle = [r.payload[@"bundle"] isKindOfClass:NSDictionary.class] ? r.payload[@"bundle"][@"path"] : nil;
+        return bundle.length ? [NSString stringWithFormat:@"it was deleted and cannot be brought back. Its commits on no remote are in the git bundle %@", bundle]
+                             : @"it was deleted and cannot be brought back";
+    }
     if (!r.canRestore) return r.state == MMUndoFailed ? @"the action failed and changed nothing, so there is nothing to restore"
                                                       : @"the record holds nothing to restore";
     NSMutableArray *problems = [NSMutableArray new];

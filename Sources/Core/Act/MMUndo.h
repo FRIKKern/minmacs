@@ -1,6 +1,6 @@
 // Undo records, the Trash, git bundles, restore and tool commands. Patterns P52 and P53 of SYNTHESIS.md section 1.7.
-// Principle 5: nothing is lost. The record is written before the action, MinMacs never empties the Trash,
-// and what cannot be verified is kept.
+// Principle 5: nothing is lost unless the person chose so. The record is written before the action, MinMacs never
+// empties the Trash, and what cannot be verified is kept. Where a removed thing goes is MMRemoval.h's one decision.
 #import <Foundation/Foundation.h>
 
 /// P52. The states of one undo record. Each change is a new row in the log of P38.
@@ -21,7 +21,12 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 @property (readonly) NSDictionary *payload;
 @property (readonly) int64_t freedBytes;                // from MMSizer freedOnVolume, the statfs delta
 @property (readonly, copy) NSString *error;
-@property (readonly) BOOL canRestore;                    // NO for a failed stop or quit, which changed nothing
+/// NO for a failed stop or quit, which changed nothing, for a thing that was deleted at once with no way back kept,
+/// and for every removal made under the Delete choice.
+@property (readonly) BOOL canRestore;
+/// YES when the payload's "removal" says the thing was deleted at once, MMRemoval.h. A merged worktree deleted under
+/// Smart can still be restored, since git holds it. Anything else deleted cannot.
+@property (readonly) BOOL deletedNow;
 @end
 
 /// P52. The one undo engine for every expert.

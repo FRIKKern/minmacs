@@ -23,6 +23,7 @@
 #import "Core/Review/MMReview.h"
 #import "Core/Review/MMInvestigate.h"
 #import "Core/Act/MMUndo.h"
+#import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMAct.h"
 #import "Core/Act/MMWorktreeAct.h"
 #import "Core/Act/MMClutterAct.h"
