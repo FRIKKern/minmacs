@@ -1,4 +1,5 @@
-// Included by removal.m. Who is asked before Smart deletes, the wall as a rule on strings, and what a Wrap Up stages.
+// Included by removal.m. Who is asked before Smart deletes, and the wall as a rule on strings. What a Wrap Up stages
+// is in staged.m, included at the end.
 // The wall checks name / and the real home folder as strings only. MMRemovalWallWhyNot reads no disk and deletes
 // nothing, so they are safe to ask about.
 
@@ -110,75 +111,4 @@ static void Wall(void) {
       YN([here.testHome isEqualToString:MMRemovalRealPath(MMSupportDir())]), YN(here.home.length > 0)]);
 }
 
-#pragma mark - What a Wrap Up stages
-
-static MMUndoRecord *Part(NSString *parent, NSString *subject) {
-    return [MMUndo.shared begin:@"removaltest" kind:@"trash" finding:[@"removaltest:" stringByAppendingString:subject] subject:subject
-                            why:@"test" by:@"manual" parent:parent payload:@{@"part": @0}];
-}
-
-static void Staged(void) {
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
-    MMUndoRecord *parent = Begin(@"wrapup", @"staged parent");
-    // A part of a Wrap Up under Delete: its file leaves, and waits in the Trash, since a later part may still refuse.
-    NSString *env = Path(@"staged/wt/.env.local");
-    Write(env, @"API=1");
-    MMUndoRecord *part = Part(parent.rid, @"config");
-    MMRemovalNote(part, del, nil);
-    MMRemovalAsk(part, @[env]);
-    BOOL ok = MMRemovalApply(env, del, part, nil);
-    MMRemovalDone(part, nil);
-    part = Done(part);
-    NSString *to = [part.payload[@"staged"] firstObject][@"to"];
-    T(@"staged: a Wrap Up part's delete goes to the Trash and waits there", @"yes no yes 0", [NSString stringWithFormat:@"%@ %@ %@ %lu", YN(ok), YN(Exists(env)), YN(to.length && Exists(to)),
-      (unsigned long)[part.payload[@"deleted"] count]]);
-    T(@"staged: its record says staged, not deleted, and can still restore", @"delete 1 1 0 no yes", [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@", part.payload[@"removal"][@"choice"],
-      part.payload[@"removal"][@"wants"], part.payload[@"removal"][@"staged"], part.payload[@"removal"][@"deleted"], YN(part.deletedNow), YN(part.canRestore)]);
-    // A later part refused: what was staged goes back, with what it held.
-    T(@"staged: put back returns the file to its place", @"nil yes API=1 no", [NSString stringWithFormat:@"%@ %@ %@ %@", Or(MMRemovalPutBack(@[part])), YN(Exists(env)),
-      [NSString stringWithContentsOfFile:env encoding:NSUTF8StringEncoding error:nil], YN(Exists(to))]);
-    part = [MMUndo.shared record:part.rid];
-    T(@"staged: the part then says restored, and never deleted", @"restored no", [NSString stringWithFormat:@"%@ %@", part.state == MMUndoRestored ? @"restored" : @"other", YN(part.deletedNow)]);
-
-    // Every part went through: the staged file is deleted, and only then does the record say so.
-    MMUndoRecord *two = Part(parent.rid, @"config again");
-    MMRemovalNote(two, del, nil);
-    MMRemovalAsk(two, @[env]);
-    MMRemovalApply(env, del, two, nil);
-    MMRemovalDone(two, nil);
-    two = Done(two);
-    to = [two.payload[@"staged"] firstObject][@"to"];
-    (void)MMRemovalFinishStaged(@[two]);
-    two = [MMUndo.shared record:two.rid];
-    T(@"staged: finish deletes it from the Trash", @"no no", [NSString stringWithFormat:@"%@ %@", YN(Exists(env)), YN(Exists(to))]);
-    T(@"staged: the record now says deleted, lists the path it came from, and cannot restore", [NSString stringWithFormat:@"1 yes no 0 0 %@", env],
-      [NSString stringWithFormat:@"%@ %@ %@ %lu %lu %@", two.payload[@"removal"][@"deleted"], YN(two.deletedNow), YN(two.canRestore), (unsigned long)[two.payload[@"staged"] count],
-       (unsigned long)[two.payload[@"trashed"] count], [two.payload[@"deleted"] firstObject][@"path"]]);
-    T(@"staged: its restore says it was deleted", @"it was deleted and cannot be brought back", Or([MMUndo.shared restore:two.rid]));
-
-    // Finish deletes only the very file the run staged. Something else at that place in the Trash stays.
-    Write(env, @"API=2");
-    MMUndoRecord *three = Part(parent.rid, @"config swapped");
-    MMRemovalNote(three, del, nil);
-    MMRemovalAsk(three, @[env]);
-    MMRemovalApply(env, del, three, nil);
-    MMRemovalDone(three, nil);
-    three = Done(three);
-    to = [three.payload[@"staged"] firstObject][@"to"];
-    [NSFileManager.defaultManager removeItemAtPath:to error:nil];
-    Write(to, @"somebody else's file");
-    (void)MMRemovalFinishStaged(@[three]);
-    three = [MMUndo.shared record:three.rid];
-    T(@"staged: a file that is not the one it staged is left alone, and the record does not say deleted", @"yes somebody else's file no 1", [NSString stringWithFormat:@"%@ %@ %@ %lu", YN(Exists(to)),
-      [NSString stringWithContentsOfFile:to encoding:NSUTF8StringEncoding error:nil], YN(three.deletedNow), (unsigned long)[three.payload[@"staged"] count]]);
-
-    // A single action, with no Wrap Up around it, has no later part: it deletes at once.
-    Write(env, @"API=3");
-    MMUndoRecord *single = Begin(@"trash", @"single");
-    MMRemovalNote(single, del, nil);
-    MMRemovalAsk(single, @[env]);
-    MMRemovalApply(env, del, single, nil);
-    T(@"staged: an action that is no part of a Wrap Up deletes at once", @"no 0 1", [NSString stringWithFormat:@"%@ %lu %lu", YN(Exists(env)),
-      (unsigned long)[[MMUndo.shared record:single.rid].payload[@"staged"] count], (unsigned long)[[MMUndo.shared record:single.rid].payload[@"deleted"] count]]);
-    [MMUndo.shared finish:parent ok:YES freed:0 error:nil];
-}
+#import "staged.m"

@@ -79,6 +79,9 @@ wu_removal_delete() {
   check "wrapup delete: .env.local was deleted, not sent to the Trash" "delete True 0 1 yes" \
     "$(wu_part "$U" config) $(echo "$U" | json "'yes' if j['parts']['config']['payload']['deleted'][0]['path'].endswith('/feat/.env.local') else 'no'")"
   check "wrapup delete: nothing new is in the Trash" "$wu_t0" "$(ls -A "$wu/Trash" 2>/dev/null | wc -l | tr -d ' ')"
+  check "wrapup delete: what waited was staged in MinMacs's own folder, which is gone now" "0 0" \
+    "$(ls -A "$wu/staged" 2>/dev/null | wc -l | tr -d ' ') $(ls -Ad "$W"/.minmacs-staged-* 2>/dev/null | wc -l | tr -d ' ')"
+  check "wrapup delete: no part ever listed a Trash entry" 0 "$(echo "$U" | json "sum(len(j['parts'][s]['payload'].get('trashed', [])) for s in ('caches', 'config', 'worktree'))")"
   check "wrapup delete: the worktree went with no recovery copy, and the record names the ignored file that went with it" "delete True True no .env" \
     "$(echo "$U" | json "(lambda p: '%s %s %s %s %s' % (p['removal']['choice'], p['removal']['deleted'], p['removal']['ignored']['deleted'], 'yes' if 'recovery' in p else 'no', ' '.join(p.get('ignoredDeleted', []))))(j['parts']['worktree']['payload'])")"
   check "wrapup delete: no recovery folder was made for it" no "$([ -e "$wu/workforest/recovery/$(echo "$U" | json "j['parts']['worktree']['rid']")" ] && echo yes || echo no)"
@@ -120,14 +123,19 @@ wu_removal_refused() {   # choice
   check "wrapup refused $1: the plan is ready, with caches, config and worktree parts" "True caches config worktree" \
     "$(echo "$J" | json "str(j['ready']) + ' ' + ' '.join(p['step'] for p in j['parts'])")"
   wu_t0=$(ls -A "$wu/Trash" 2>/dev/null | wc -l | tr -d ' ')
+  wu_ino0="$(stat -f %i "$SW/.env.local") $(stat -f %i "$SW/node_modules/pkg/index.js")"
   J=$("$T" verb work wrap-up "$SW" --json); r=$?
   check "wrapup refused $1: git refuses the worktree part, and the run fails there" "1 failed worktree yes" \
     "$r $(echo "$J" | json "j['state'] + ' ' + j['failedPart']['step'] + (' yes' if 'git worktree remove refused' in j['error'] else ' ' + j['error'])")"
   check "wrapup refused $1: the worktree is still there" yes "$(wu_has "$SW/lib/lib.txt")"
   check "wrapup refused $1: its .env.local is still there, as it was" "KEEP=me" "$(cat "$SW/.env.local" 2>/dev/null)"
   check "wrapup refused $1: its node_modules is still there, as it was" "module.exports = 2" "$(cat "$SW/node_modules/pkg/index.js" 2>/dev/null)"
+  check "wrapup refused $1: both came back by a rename, the same files and not copies" "$wu_ino0" \
+    "$(stat -f %i "$SW/.env.local" 2>/dev/null) $(stat -f %i "$SW/node_modules/pkg/index.js" 2>/dev/null)"
   check "wrapup refused $1: its ignored .env is still there" "SUB_SECRET=1" "$(cat "$SW/.env" 2>/dev/null)"
   check "wrapup refused $1: nothing of it is left in the Trash" "$wu_t0" "$(ls -A "$wu/Trash" 2>/dev/null | wc -l | tr -d ' ')"
+  check "wrapup refused $1: the staging folder is gone, and the worktree holds no trace of it" "0 clean" \
+    "$(ls -A "$wu/staged" 2>/dev/null | wc -l | tr -d ' ') $([ -z "$(G -C "$SW" status --porcelain --ignore-submodules=none | grep -v '^?? .env.local$')" ] && echo clean || G -C "$SW" status --porcelain)"
   U=$(wu_rec "$(echo "$J" | json "j['rid']")")
   check "wrapup refused $1: no part's record says deleted, and none lists a deleted path" "False False False 0" \
     "$(echo "$U" | json "' '.join(str(j['parts'][s]['payload']['removal']['deleted']) for s in ('caches', 'config', 'worktree')) + ' ' + str(sum(len(j['parts'][s]['payload'].get('deleted', [])) for s in ('caches', 'config', 'worktree')))")"

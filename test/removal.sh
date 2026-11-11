@@ -18,8 +18,12 @@ check "removal: the test binary builds with no warnings" 0 "$rm_r"
 echo "-- one place deletes, and every path asks the one function"
 check "removal: Act deletes a file in one place only, one call in MMRemovalApply.m" "1 0" \
   "$(grep -cE 'removeItemAt|unlink\(|rmdir\(|removefile\(' Sources/Core/Act/MMRemovalApply.m) $(grep -nE 'removeItemAt|unlink\(|rmdir\(|removefile\(|emptyTrash|rm -rf' Sources/Core/Act/*.m | grep -vc '^Sources/Core/Act/MMRemovalApply.m:')"
-check "removal: that call sits behind the wall: every caller of it asks WhyNot first" "2 2" \
-  "$(grep -c 'Unlink(real' Sources/Core/Act/MMRemovalApply.m) $(grep -cE 'WhyNot\((path|to), ' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: that call sits behind the wall: a delete asks WhyNot first, a staged one StagedWhyNot, and the third takes only an empty staging folder" "2 1 1 1" \
+  "$(grep -c 'Unlink(real' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'WhyNot(path, record, nil, &real)' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'if (StagedWhyNot(x, r, &real))' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'if (holds.count == 1 && \[holds.firstObject isEqualToString:kMarker\]) Unlink(f, nil);' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: staging is one rename, and nothing in Act copies a person's file to stage it" "1 0" \
+  "$(grep -c 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m) $(grep -cE '[^e]copyItemAt|clonefile|[^e]moveItemAt|copyfile' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: a crash is settled at Core's start and before the next Wrap Up" "1 1" \
+  "$(grep -c 'MMRemovalRecoverStaged()' Sources/Core/MMCore.m) $(grep -c '(void)MMRemovalRecoverStaged();' Sources/Core/Act/MMWrapUp.m)"
 check "removal: no expert, shell or UI file deletes a person's file itself" 0 \
   "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|removefile\(|trashItemAtURL' Sources/Experts/*/*.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindow*.m Sources/UI/Window/*.m | grep -c .)"
 # The Trash is reached through MMRemovalApply alone. The migration's one move of the old apps asks for the Trash

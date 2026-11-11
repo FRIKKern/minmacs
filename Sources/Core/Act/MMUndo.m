@@ -103,8 +103,8 @@ static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers())
     if (self.state == MMUndoDone && self.deletedNow && [removal[@"choice"] isEqual:@"delete"]) return NO;
     // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit
     // left its server or app running, so its restart or relaunch would start a second copy: it restores nothing.
-    if (self.state == MMUndoFailed) return self.hasParts || [p[@"trashed"] count] || p[@"bundle"] || p[@"recovery"];
-    if (self.hasParts || [p[@"trashed"] count] || p[@"restart"] || p[@"bundle"] || p[@"worktree"] || p[@"recovery"] || p[@"relaunch"]) return YES;
+    if (self.state == MMUndoFailed) return self.hasParts || [p[@"trashed"] count] || [p[@"staged"] count] || p[@"bundle"] || p[@"recovery"];
+    if (self.hasParts || [p[@"trashed"] count] || [p[@"staged"] count] || p[@"restart"] || p[@"bundle"] || p[@"worktree"] || p[@"recovery"] || p[@"relaunch"]) return YES;
     for (NSString *k in RestorerKeys()) if (p[k]) return YES;
     return NO;
 }
@@ -341,18 +341,22 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     return nil;
 }
 
-- (NSString *)untrash:(NSArray *)items {
+- (NSString *)untrash:(NSArray *)items { return [self moveBack:items from:@"the Trash"]; }
+
+/// Moves each {from, to} back from to, its place in the Trash or in MinMacs's staging folder, to from, its exact old
+/// path. Nothing moves when something sits at an old path now, or an item is gone from where it waited.
+- (NSString *)moveBack:(NSArray *)items from:(NSString *)place {
     NSFileManager *fm = NSFileManager.defaultManager;
     for (NSDictionary *i in items) {
         NSString *from = i[@"from"], *to = i[@"to"];
         if ([fm fileExistsAtPath:from]) return [NSString stringWithFormat:@"something already exists at %@", from];
-        if (![fm fileExistsAtPath:to]) return [NSString stringWithFormat:@"the Trash no longer holds %@", from.lastPathComponent];
+        if (![fm fileExistsAtPath:to]) return [NSString stringWithFormat:@"%@ no longer holds %@", place, from.lastPathComponent];
     }
     for (NSDictionary *i in items.reverseObjectEnumerator) {
         NSString *from = i[@"from"], *to = i[@"to"];
         [fm createDirectoryAtPath:from.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
         NSError *e = nil;
-        if (![fm moveItemAtPath:to toPath:from error:&e]) return [NSString stringWithFormat:@"%@ could not leave the Trash: %@", from.lastPathComponent, e.localizedDescription];
+        if (![fm moveItemAtPath:to toPath:from error:&e]) return [NSString stringWithFormat:@"%@ could not leave %@: %@", from.lastPathComponent, place, e.localizedDescription];
     }
     return nil;
 }
@@ -492,6 +496,8 @@ static NSMutableSet<NSString *> *Restoring(void) {
         if (pid) done[@"restartedPid"] = @(pid);
     }
     if (!problem && [p[@"trashed"] count]) problem = [self untrash:p[@"trashed"]];
+    // What a Wrap Up part staged for a delete that never came: back from MinMacs's staging folder, MMRemoval.h.
+    if (!problem && [p[@"staged"] count]) problem = [self moveBack:p[@"staged"] from:@"MinMacs's staging folder"];
     if (!problem && p[@"bundle"]) problem = [self unbundle:p[@"bundle"]];
     // A removed worktree with no bundle: its commit is still in the repo, so it is recreated from there.
     // A failed removal left the worktree in place, so it is not recreated.

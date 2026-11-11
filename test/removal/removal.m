@@ -338,6 +338,7 @@ int main(int argc, char **argv) {
         Chosen();
         Wall();
         Staged();
+        Crash();
         printf("END\n");
     }
     return 0;

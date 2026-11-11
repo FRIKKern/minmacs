@@ -366,6 +366,9 @@ MMUndoRecord *MMRunWrapUp(MMWrapUpPlan *plan, NSString *by, NSString **error) {
     MMUndoRecord *parent = [u begin:@"core" kind:@"wrapup" finding:[@"core:workstream:" stringByAppendingString:x.path]
                             subject:[@"Wrap Up " stringByAppendingString:name] why:@"the agent finished and the branch is merged"
                                  by:by ?: @"manual" parent:nil payload:@{@"path": x.path, @"branch": x.worktree.branch ?: @"", @"parts": list}];
+    // A Wrap Up that MinMacs stopped in the middle of, before this one: what it had staged goes back first.
+    (void)MMRemovalRecoverStaged();
+    MMRemovalWrapUpBegan(parent.rid);
     NSString *why = [@"part of Wrap Up " stringByAppendingString:name];
     NSMutableArray *done = [NSMutableArray new];
     NSMutableArray<MMUndoRecord *> *ran = [NSMutableArray new];
@@ -376,7 +379,7 @@ MMUndoRecord *MMRunWrapUp(MMWrapUpPlan *plan, NSString *by, NSString **error) {
         MMUndoRecord *r = MMRunActionPart(p.action, p.policy, by ?: @"manual", why, parent.rid, (NSInteger)i, &err);
         if (r) { [done addObject:r.rid]; [ran addObject:r]; freed += MAX(r.freedBytes, 0); }
         if (r && r.state == MMUndoDone) continue;
-        // Nothing a part wanted deleted is gone yet: it waits in the Trash, MMRemoval.h. A later part refused, so the
+        // Nothing a part wanted deleted is gone yet: it waits in MinMacs's staging folder, MMRemoval.h. A later part refused, so the
         // worktree stays, and what the removal parts moved out of it goes back to where it was.
         NSString *notBack = MMRemovalPutBack(ran);
         NSString *what = err ?: r.error ?: @"it failed";
@@ -387,14 +390,17 @@ MMUndoRecord *MMRunWrapUp(MMWrapUpPlan *plan, NSString *by, NSString **error) {
         [u note:parent payload:@{@"done": done, @"failedPart": failed, @"notRun": notRun}];
         NSString *msg = [NSString stringWithFormat:@"stopped at part %lu of %lu, %@: %@%@%@", (unsigned long)i + 1, (unsigned long)plan.parts.count,
                          p.title, what, notRun.count ? [NSString stringWithFormat:@". %lu part%@ did not run", (unsigned long)notRun.count, notRun.count == 1 ? @"" : @"s"] : @"",
-                         notBack ? [@". Still in the Trash: " stringByAppendingString:notBack] : @""];
+                         notBack ? [@". Not put back: " stringByAppendingString:notBack] : @""];
         [u finish:parent ok:NO freed:freed error:msg];
+        MMRemovalWrapUpEnded(parent.rid);
         if (error) *error = msg;
         return [u record:parent.rid] ?: parent;
     }
-    // Every part went through, so what the parts wanted deleted is deleted now, and not before.
+    // Every part went through, so what the parts wanted deleted is deleted now, and not before. The record says the
+    // deletes began, so a crash from here on finishes them and never puts a file back into a worktree that is gone.
+    [u note:parent payload:@{@"done": done, @"finishing": @YES}];
     freed += MMRemovalFinishStaged(ran);
-    [u note:parent payload:@{@"done": done}];
     [u finish:parent ok:YES freed:freed error:nil];
+    MMRemovalWrapUpEnded(parent.rid);
     return [u record:parent.rid] ?: parent;
 }

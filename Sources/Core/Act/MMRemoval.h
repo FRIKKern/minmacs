@@ -90,8 +90,9 @@ void MMRemovalNote(MMUndoRecord *record, MMRemovalDecision *decision, NSString *
 /// Lists the paths the fresh finding names, as payload "asked", before the first one goes. MMRemovalApply refuses
 /// any path that is not on the list.
 void MMRemovalAsk(MMUndoRecord *record, NSArray<NSString *> *paths);
-/// The act went through: "deleted" becomes what "wants" said. A part of a Wrap Up whose deletes wait in the Trash says
-/// "staged" in its place, until MMRemovalFinishStaged.
+/// The act went through: "deleted" becomes what "wants" said. A part of a Wrap Up whose deletes wait in the staging
+/// folder says "staged" in its place, until MMRemovalFinishStaged, and one whose item could not be staged says
+/// "unstaged" and never deleted.
 void MMRemovalDone(MMUndoRecord *record, NSString *key);
 
 #pragma mark The one place that deletes
@@ -100,18 +101,33 @@ void MMRemovalDone(MMUndoRecord *record, NSString *key);
 /// item is unlinked, never followed through a symlink, and the record's payload lists it under "deleted" as {path}.
 /// Before it deletes it asks MMRemovalWallWhyNot on the item's real path. This is the only place Act deletes a file.
 ///
-/// A part of a Wrap Up, a record with a parent, never deletes here. Its item goes to the Trash and is listed under
-/// "staged", since a later part, such as git worktree remove, may still refuse. MMRunWrapUp calls
-/// MMRemovalFinishStaged once every part went through, and MMRemovalPutBack when one did not.
+/// A part of a Wrap Up, a record with a parent, never deletes here, since a later part, such as git worktree
+/// remove, may still refuse. Its item is renamed into a staging folder of MinMacs's own on the item's own volume and
+/// listed under "staged": <support>/staged/<wrap up rid>/, or for another volume a hidden folder
+/// .minmacs-staged-<wrap up rid> beside the worktree. It is one rename and never a copy. When no such rename can be,
+/// the item stays where it is and is listed under "unstaged". Nothing waits in the person's Trash.
 BOOL MMRemovalApply(NSString *path, MMRemovalDecision *decision, MMUndoRecord *record, NSError **error);
-/// Deletes what these parts staged, each checked to be the same file that went to the Trash, and marks each part
-/// deleted. An item that cannot be deleted stays in the Trash, and its part can still restore. Returns the bytes the
-/// volume got back. These are MinMacs's own items of this run. It never touches anything else in the Trash.
+/// Every part went through: deletes what these parts staged, each checked to be the same file, in the staging folder
+/// MinMacs made for this Wrap Up, then removes the empty folder and marks each part deleted. An item that cannot be
+/// deleted stays staged, and its part can still restore. Returns the bytes the volume got back.
 int64_t MMRemovalFinishStaged(NSArray<MMUndoRecord *> *parts);
-/// A later part of the Wrap Up refused, so the worktree stays: moves what these removal parts put in the Trash back
-/// to where it was, newest first, whether it was staged for a delete or moved there to keep, and marks each such part
-/// restored. A stop or a quit is not taken back here. Returns nil, or what could not go back.
+/// A later part of the Wrap Up refused, so the worktree stays: renames each staged item back to its exact old path,
+/// newest first, and moves back what these removal parts sent to the Trash to keep. It refuses, and says so, when
+/// something sits at the old path now. Each such part is marked restored and the empty staging folder is removed.
+/// A stop or a quit is not taken back here. Returns nil, or what could not go back.
 NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts);
+/// After a crash: a Wrap Up whose record never finished and that does not run now has its staged items put back, not
+/// deleted. Only one that had every part through and had begun its deletes, payload "finishing", is finished.
+/// MMCoreStart and MMRunWrapUp call it, off main. A record younger than 15 minutes may run in another process and is
+/// left. Returns how many Wrap Ups it settled.
+NSInteger MMRemovalRecoverStaged(void);
+/// MMRunWrapUp says which Wrap Up runs in this process, so MMRemovalRecoverStaged leaves it alone.
+void MMRemovalWrapUpBegan(NSString *rid);
+void MMRemovalWrapUpEnded(NSString *rid);
+/// The staging folder as a rule on strings: item may be deleted as staged for the Wrap Up rid only when folder is
+/// <support>/staged/<rid> or is named .minmacs-staged-<rid>, and item lies directly in it. A folder that only looks
+/// like one, for another rid or one level off, is refused. The marker inside is checked on the disk besides.
+NSString *MMRemovalStagingWhyNot(NSString *item, NSString *folder, NSString *rid, NSString *support);
 
 /// Where a path may be deleted. Every place is a real path: symlinks resolved, in the case the disk holds.
 @interface MMRemovalPlaces : NSObject

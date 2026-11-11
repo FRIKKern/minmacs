@@ -176,9 +176,12 @@ void MMRemovalDone(MMUndoRecord *record, NSString *key) {
     NSMutableDictionary *one = key.length ? ([r[key] isKindOfClass:NSDictionary.class] ? [r[key] mutableCopy] : nil) : r;
     if (!one) return;
     BOOL wants = [one[@"wants"] isKindOfClass:NSNumber.class] && [one[@"wants"] boolValue];
-    // What a Wrap Up part wanted deleted waits in the Trash until the whole Wrap Up went through.
+    // What a Wrap Up part wanted deleted waits in MinMacs's staging folder until the whole Wrap Up went through.
+    // What could not be staged stayed where it is, so the part deleted nothing.
     BOOL staged = !key.length && [record.payload[@"staged"] isKindOfClass:NSArray.class] && [record.payload[@"staged"] count];
-    if (staged) one[@"staged"] = @YES; else one[@"deleted"] = wants ? @YES : @NO;
+    BOOL unstaged = !key.length && [record.payload[@"unstaged"] isKindOfClass:NSArray.class] && [record.payload[@"unstaged"] count];
+    if (unstaged) one[@"unstaged"] = @YES;
+    if (staged) one[@"staged"] = @YES; else one[@"deleted"] = wants && !unstaged ? @YES : @NO;
     if (key.length) r[key] = one;
     [MMUndo.shared note:record payload:@{@"removal": r}];
 }

@@ -251,6 +251,8 @@ void MMCoreStart(void) {
     NSString *dir = MMSupportDir();
     dispatch_async(MMQueue(@"core", @"store", QOS_CLASS_UTILITY), ^{
         for (NSString *name in MMRemoveStaleFiles()) os_log(CoreLog(), "removed the old %{public}@", name);
+        // A Wrap Up the last run stopped in the middle of: what it had staged goes back to where it was, MMRemoval.h.
+        MMLogWhenOpen(^(MMLog *log) { NSInteger n = MMRemovalRecoverStaged(); if (n) os_log(CoreLog(), "settled %ld Wrap Up(s) the last run left staged", (long)n); });
         // The breadcrumbs the last run left, read off main: the first read lists and reads the running folder.
         // On main it was a 130 ms stall in bench hangs on a busy disk, issue #54.
         NSString *crashed = MMBreadcrumbLeftOver();
