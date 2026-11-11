@@ -107,7 +107,7 @@ Flags: `--port`, `--go`, `--json`.
 
 #### `restore`
 
-Undo the last run, or one record.
+Undo the last run, or one record; a thing deleted at once cannot be brought back.
 
 ```
 restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]
@@ -153,6 +153,16 @@ Show or set an expert's mode.
 
 ```
 mode <expert> [idle|proactive|eager] [--json]
+```
+
+Flags: `--json`.
+
+#### `removal`
+
+Show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once.
+
+```
+removal [smart|trash|delete] [--json]
 ```
 
 Flags: `--json`.
@@ -237,7 +247,7 @@ Flags: `--json`, `--dry-run`.
 
 #### `clean`
 
-Moves clutter to the Trash with undo, or with --command runs the row's own cleanup, which cannot be undone.
+Removes clutter as the removal choice says, to the Trash with undo or deleted at once, or with --command runs the row's own cleanup, which cannot be undone.
 
 ```
 clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]

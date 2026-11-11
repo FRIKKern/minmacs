@@ -1,4 +1,5 @@
-// Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore, history, gains and mode.
+// Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore, history, gains, mode
+// and removal.
 // Each reads the snapshot and the Store through Core. None samples, scans or asks the model on its own.
 // Experts add hosts, apps and their other verbs through -[MMExpert verbs].
 #import "CLI/MMCLI.h"
@@ -90,7 +91,10 @@ static NSDictionary *WorkstreamJSON(MMWorkstream *w) {
 static NSDictionary *RecordJSON(MMUndoRecord *r) {
     return @{@"rid": r.rid ?: @"", @"expert": Or(r.expert), @"kind": Or(r.kind), @"subject": Or(r.subject), @"why": Or(r.why),
              @"by": Or(r.by), @"state": UndoStateWord(r.state), @"at": Or(r.at), @"canRestore": @(r.canRestore),
-             @"freedBytes": @(r.freedBytes), @"error": Or(r.error)};
+             @"freedBytes": @(r.freedBytes), @"error": Or(r.error),
+             // The removal choice the action ran under and where its thing went, Core/Act/MMRemoval.h. null for a
+             // stop, a quit or a record written before the choice existed.
+             @"deleted": @(r.deletedNow), @"removal": Or([r.payload[@"removal"] isKindOfClass:NSDictionary.class] ? r.payload[@"removal"] : nil)};
 }
 
 #pragma mark - Expert arguments
@@ -512,7 +516,7 @@ static int Restore(MMArgs *a) {
         if (a.json) { [a printJSON:@{@"records": j}]; return 0; }
         if (!recs.count) { [a print:@"Nothing to restore."]; return 0; }
         for (MMUndoRecord *r in recs)
-            [a print:@"%@%@%@%@%@", Pad(r.rid, 14), Pad(r.expert, 11), Pad(r.kind, 8), Pad(r.canRestore && r.state == MMUndoDone ? @"restorable" : UndoStateWord(r.state), 11), r.subject ?: @""];
+            [a print:@"%@%@%@%@%@", Pad(r.rid, 14), Pad(r.expert, 11), Pad(r.kind, 8), Pad(r.canRestore && r.state == MMUndoDone ? @"restorable" : r.state == MMUndoDone && r.deletedNow ? @"deleted" : UndoStateWord(r.state), 11), r.subject ?: @""];
         return 0;
     }
     // One record by id, or every restorable record of the newest minute of actions: the last run.
@@ -544,13 +548,19 @@ static int Restore(MMArgs *a) {
             NSString *problem = [u restore:r.rid];
             x[@"restored"] = problem ? @NO : @YES;
             if (problem) { x[@"problem"] = problem; status = MMExitFailed; }
+            // The parts of a Wrap Up that were deleted at once stay gone, and the answer counts them.
+            NSInteger gone = 0;
+            for (MMUndoRecord *part in [u recent:nil limit:0]) if ([part.parentRid isEqualToString:r.rid] && part.state == MMUndoDone && part.deletedNow && !part.canRestore) gone++;
+            if (gone) x[@"deletedParts"] = @(gone);
         }
         [j addObject:x];
     }
     if (a.json) { [a printJSON:@{@"restored": j, @"dryRun": @(a.dryRun)}]; return status; }
     for (NSDictionary *x in j) {
         NSString *word = a.dryRun ? @"would restore" : [x[@"restored"] boolValue] ? @"restored" : @"could not restore";
-        [a print:@"%@ %@%@", word, x[@"subject"] != NSNull.null ? x[@"subject"] : x[@"rid"], x[@"problem"] ? [@": " stringByAppendingString:x[@"problem"]] : @""];
+        NSInteger gone = [x[@"deletedParts"] integerValue];
+        [a print:@"%@ %@%@%@", word, x[@"subject"] != NSNull.null ? x[@"subject"] : x[@"rid"], x[@"problem"] ? [@": " stringByAppendingString:x[@"problem"]] : @"",
+                 gone ? [NSString stringWithFormat:@". %ld part%@ deleted and cannot be brought back", (long)gone, gone == 1 ? @" was" : @"s were"] : @""];
     }
     return status;
 }
@@ -568,6 +578,21 @@ static int Mode(MMArgs *a) {
     }
     NSString *now = name && a.dryRun ? name.lowercaseString : MMModeName(MMModeFor(expert));
     if (a.json) [a printJSON:@{@"expert": expert, @"mode": now}]; else [a print:@"%@", now];
+    return 0;
+}
+
+/// removal [smart|trash|delete]: what happens to a thing MinMacs removes, the pref of Core/Act/MMRemoval.h.
+/// It writes a pref only, as mode does, so it runs cold.
+static int Removal(MMArgs *a) {
+    NSString *name = [a word:0].lowercaseString;
+    if (name) {
+        NSInteger c = MMRemovalChoiceFrom(name);
+        if (c < 0) { [a error:@"the choices are smart, trash and delete"]; return [a usageError]; }
+        if (!a.dryRun) MMSetRemovalChoice((MMRemovalChoice)c);
+    }
+    MMRemovalChoice now = name && a.dryRun ? (MMRemovalChoice)MMRemovalChoiceFrom(name) : MMRemovalChoiceNow();
+    if (a.json) [a printJSON:@{@"removal": MMRemovalChoiceName(now), @"explain": MMRemovalChoiceExplain(now)}];
+    else [a print:@"%@: %@", MMRemovalChoiceName(now), MMRemovalChoiceExplain(now)];
     return 0;
 }
 
@@ -591,7 +616,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
             [MMVerbSpec verb:@"tidy" usage:@"tidy [expert] [--dry-run] [--mode <mode>] [--json]   what each mode would act on, and act on it" mutates:YES run:^(MMArgs *a) { return Tidy(a); }],
             Reads([MMVerbSpec verb:@"where" usage:@"where <pid> | where --port <port> [--go] [--json]   the terminal tab, pane or app it runs in" mutates:NO run:^(MMArgs *a) { return Where(a); }],
                   MMVerbReadsNoWorktrees, nil),
-            Reads([MMVerbSpec verb:@"restore" usage:@"restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]   undo the last run, or one record" mutates:NO run:^(MMArgs *a) { return Restore(a); }],
+            Reads([MMVerbSpec verb:@"restore" usage:@"restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]   undo the last run, or one record; a thing deleted at once cannot be brought back" mutates:NO run:^(MMArgs *a) { return Restore(a); }],
                   MMVerbReadsNoWorktrees, @[@"!--list"]),
             Reads([MMVerbSpec verb:@"history" usage:@"history [--json]   the last hour in memory: Mac, disk, agent and server rings, one value a minute" mutates:NO run:^(MMArgs *a) { return MMHistoryVerb(a); }],
                   MMVerbReadsNoWorktrees, nil),
@@ -600,6 +625,8 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
             Reads([MMVerbSpec verb:@"performance" usage:@"performance [--json]   the Performance tab: memory and disk by holder, the fixes ranked, and what came back" mutates:NO run:^(MMArgs *a) { return MMPerformanceVerb(a); }],
                   MMVerbReadsCachedGit, nil),
             Reads([MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
+                  MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"removal" usage:@"removal [smart|trash|delete] [--json]   show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }], MMVerbReadsNoWorktrees, nil),
