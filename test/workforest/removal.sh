@@ -11,7 +11,7 @@ wf_age() { find "$W/$1" -exec touch -h -t 202501011200 {} +; }
 # One expression on the newest remove record r, from Core's restore list.
 wf_last() { "$MM" restore --list --json --limit 6 | json "(lambda r: $1)([r for r in j['records'] if r['kind'] == 'remove'][0])"; }
 wf_what="'%s %s %s %s' % (r['removal']['choice'], r['removal']['deleted'], r['removal']['ignored']['deleted'], r['canRestore'])"
-check "the removal choice starts as smart" smart "$(wf_removal --json | json "j['removal']")"
+check "the removal choice starts as smart, with nothing chosen" "smart False" "$(wf_removal --json | json "j['removal'] + ' ' + str(j['chosen'])")"
 wt rcm; commit rcm 1 "rcm work"; G -C "$W/rcm" push -q -u origin rcm 2>/dev/null
 G -C "$A" merge -q --ff-only rcm 2>/dev/null; G -C "$A" push -q origin main 2>/dev/null
 printf 'RC_SECRET=keep-me\n' > "$W/rcm/.env"; mkdir -p "$W/rcm/node_modules/pkg"; echo x > "$W/rcm/node_modules/pkg/index.js"
@@ -45,6 +45,15 @@ check "smart: it does not count as deleted, and says it has a stash" "smart Fals
 check "smart: the stash is still in the repo" 1 "$(G -C "$A" stash list 2>/dev/null | grep -c 'rcs')"
 "$WF" restore "$W/rcs" >/dev/null 2>&1;                                    check "smart: and restore brings it back" "0 yes" "$? $(wf_has "$W/rcs")"
 "$WF" remove "$W/untracked" --yes >/dev/null 2>&1;                         check "smart: a worktree with an untracked file is refused and stays" "1 yes new" "$? $(wf_has "$W/untracked") $(cat "$W/untracked/new.txt" 2>/dev/null)"
+
+# The person chose Smart with the verb, so now a mode's own removal follows it too.
+wf_removal smart >/dev/null
+wf_age rcm
+RV_TEST_GO=/rcm "$WF" review --model haiku --mode eager --fresh >/dev/null 2>&1
+"$WF" auto --mode eager --path "$W/rcm" >/dev/null 2>&1
+check "smart, chosen: a mode's removal of a merged, pushed worktree counts as deleted" "no eager smart True False True" \
+  "$(wf_has "$W/rcm") $(wf_last "r['by']") $(wf_last "$wf_what")"
+"$WF" restore "$W/rcm" >/dev/null 2>&1;                                    check "smart, chosen: restore brings it back with .env" "0 RC_SECRET=keep-me" "$? $(cat "$W/rcm/.env" 2>/dev/null)"
 
 echo "-- trash"
 wf_removal trash >/dev/null

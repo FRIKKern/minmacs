@@ -191,7 +191,8 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
     MMMode mode = MMModeFor(kExpert);
     BOOL watched = MMWatchedLongEnough(kExpert);
     @synchronized (self) { _growthMin = MMPrefDouble(@"noonoo.growthMinBytes", 1024.0 * 1024 * 1024); }
-    // The removal choice as it is at this build, for each row's words. The act asks again on fresh facts.
+    // The removal choice as it is at this build, for each row's words, as a press would get it. The act asks again
+    // on fresh facts, and for a mode it keeps a way back while the person has not chosen.
     MMRemovalChoice removal = MMRemovalChoiceNow();
     (void)[self undoNow];
     NSMutableArray *rows = [NSMutableArray new];

@@ -88,6 +88,8 @@ static MMWindowRule *RemovalRule(void) {
     }
     r.choices = choices;
     r.picked = (NSInteger)MMRemovalChoiceNow();
+    // Smart is shown as picked while nothing is, and the note says what holds until the person picks.
+    r.note = MMRemovalNotChosenNote();
     return r;
 }
 

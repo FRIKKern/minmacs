@@ -591,8 +591,11 @@ static int Removal(MMArgs *a) {
         if (!a.dryRun) MMSetRemovalChoice((MMRemovalChoice)c);
     }
     MMRemovalChoice now = name && a.dryRun ? (MMRemovalChoice)MMRemovalChoiceFrom(name) : MMRemovalChoiceNow();
-    if (a.json) [a printJSON:@{@"removal": MMRemovalChoiceName(now), @"explain": MMRemovalChoiceExplain(now)}];
-    else [a print:@"%@: %@", MMRemovalChoiceName(now), MMRemovalChoiceExplain(now)];
+    // Until the person sets it, what MinMacs removes on its own keeps a way back. The answer says so.
+    BOOL chosen = MMRemovalChosen() || (name && a.dryRun);
+    NSString *note = chosen ? nil : MMRemovalNotChosenNote();
+    if (a.json) [a printJSON:@{@"removal": MMRemovalChoiceName(now), @"explain": MMRemovalChoiceExplain(now), @"chosen": chosen ? @YES : @NO, @"note": Or(note)}];
+    else [a print:@"%@: %@%@", MMRemovalChoiceName(now), MMRemovalChoiceExplain(now), note ? [@" " stringByAppendingString:note] : @""];
     return 0;
 }
 
