@@ -16,10 +16,10 @@ check "act: the test binary builds with no warnings" 0 "$act_r"
 clang -Wall -Werror -o "$act_dir/fixture" test/act/fixture.c >>"$act_dir/build.log" 2>&1
 check "act: the fixture process builds" 0 "$?"
 
-# Nothing in Act empties the Trash, and nothing deletes a file but MMRemovalApply in MMRemoval.m, which acts only on
-# the person's removal choice. test/removal.sh checks that one place.
-check "act: no permanent delete in Sources/Core/Act outside MMRemoval.m" 0 \
-  "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|emptyTrash|rm -rf' Sources/Core/Act/*.m | grep -vc '^Sources/Core/Act/MMRemoval.m:')"
+# Nothing in Act empties the Trash, and nothing deletes a file but MMRemovalApply in MMRemovalApply.m, which acts
+# only on the person's removal choice and behind the wall. test/removal.sh checks that one place.
+check "act: no permanent delete in Sources/Core/Act outside MMRemovalApply.m" 0 \
+  "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|emptyTrash|rm -rf' Sources/Core/Act/*.m | grep -vc '^Sources/Core/Act/MMRemovalApply.m:')"
 
 # A fixture repo with a bare remote, and a worktree whose one commit is on no remote and whose .env.local is ignored.
 act_git() { GIT_AUTHOR_NAME=fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=fixture \
