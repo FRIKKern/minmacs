@@ -237,7 +237,12 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     else if (![NSFileManager.defaultManager trashItemAtURL:item resultingItemURL:&to error:error] || !to) return nil;
     @synchronized (self) {
         NSMutableArray *t = [record.payload[@"trashed"] mutableCopy] ?: [NSMutableArray new];
-        [t addObject:@{@"from": item.path, @"to": to.path}];
+        // The very file that now waits there, by device and inode, so nothing else at that Trash path is ever taken
+        // for it when it goes back.
+        struct stat st;
+        NSMutableDictionary *entry = [@{@"from": item.path, @"to": to.path} mutableCopy];
+        if (lstat(to.path.fileSystemRepresentation, &st) == 0) { entry[@"dev"] = @(st.st_dev); entry[@"ino"] = @(st.st_ino); }
+        [t addObject:entry];
         [self note:record payload:@{@"trashed": t}];
     }
     return to;
@@ -344,30 +349,41 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
 
 - (NSString *)untrash:(NSArray *)items { return [self moveBack:items from:@"the Trash"]; }
 
-/// Moves each {from, to} back from to, its place in the Trash or in MinMacs's staging folder, to from, its exact old
-/// path. Each item on its own, so one that cannot go back does not hold the others, and a second call moves the rest:
+/// Moves each {from, to, dev, ino} back from to, its place in the Trash or in MinMacs's staging folder, to from, its
+/// exact old path. Each item on its own, so one that cannot go back does not hold the others, and a second call
+/// moves the rest. dev and ino name the very file that was moved away, and only that file ever goes back:
 ///   it waits at to, and from is free ............ moved
+///   another file sits at to ...................... left there, reported: it is not MinMacs's to move
 ///   it is gone from to, and from holds it ........ already back, counts as done
-///   something else sits at from .................. left where it waits, never written over, reported
+///   it is gone from to, and from holds another ... reported as gone, never called put back
+///   something sits at from ....................... left where it waits, never written over, reported
 ///   it is at neither place ....................... reported
-/// "Is it there" is always lstat, never a check that follows links: a relative symlink points nowhere while it
-/// waits, and is still there. Returns nil when every item is back, else what is not, in words.
+/// An entry written before dev and ino were kept has neither: it is moved when it waits and from is free, and is
+/// never taken to be back. "Is it there" is always lstat, never a check that follows links: a relative symlink points
+/// nowhere while it waits, and is still there. Returns nil when every item is back, else what is not, in words.
 - (NSString *)moveBack:(NSArray *)items from:(NSString *)place {
     NSFileManager *fm = NSFileManager.defaultManager;
     NSMutableArray<NSString *> *problems = [NSMutableArray new];
     for (NSDictionary *i in items.reverseObjectEnumerator) {
-        NSString *from = i[@"from"], *to = i[@"to"];
+        // A record may be damaged. Every field is checked before it is read.
+        NSString *from = [i isKindOfClass:NSDictionary.class] ? i[@"from"] : nil, *to = [i isKindOfClass:NSDictionary.class] ? i[@"to"] : nil;
         if (![from isKindOfClass:NSString.class] || ![to isKindOfClass:NSString.class]) { [problems addObject:@"the record does not say where one item was"]; continue; }
+        BOOL known = [i[@"dev"] isKindOfClass:NSNumber.class] && [i[@"ino"] isKindOfClass:NSNumber.class];
         struct stat waits, old;
         BOOL there = lstat(to.fileSystemRepresentation, &waits) == 0, taken = lstat(from.fileSystemRepresentation, &old) == 0;
-        if (!there && taken) {
-            // Back already, from a put-back that stopped after this one. When the record knows the file, it must be that file.
-            BOOL known = i[@"ino"] != nil;
-            if (!known || ((long long)old.st_dev == [i[@"dev"] longLongValue] && (unsigned long long)old.st_ino == [i[@"ino"] unsignedLongLongValue])) continue;
-            [problems addObject:[NSString stringWithFormat:@"%@ no longer holds %@, and something else sits at %@", place, from.lastPathComponent, from]];
+        BOOL (^same)(struct stat *) = ^BOOL(struct stat *st) {
+            return known && (long long)st->st_dev == [i[@"dev"] longLongValue] && (unsigned long long)st->st_ino == [i[@"ino"] unsignedLongLongValue];
+        };
+        if (there && known && !same(&waits)) {
+            [problems addObject:[NSString stringWithFormat:@"%@ holds another file at %@, not the one MinMacs put there, so it stays", place, to]];
             continue;
         }
-        if (!there) { [problems addObject:[NSString stringWithFormat:@"%@ no longer holds %@", place, from.lastPathComponent]]; continue; }
+        if (!there && taken && same(&old)) continue;   // back already, from a put-back that stopped after this one
+        if (!there) {
+            [problems addObject:taken ? [NSString stringWithFormat:@"%@ no longer holds %@, and something else sits at %@", place, from.lastPathComponent, from]
+                                      : [NSString stringWithFormat:@"%@ no longer holds %@", place, from.lastPathComponent]];
+            continue;
+        }
         if (taken) { [problems addObject:[NSString stringWithFormat:@"something already exists at %@", from]]; continue; }
         [fm createDirectoryAtPath:from.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
         NSError *e = nil;

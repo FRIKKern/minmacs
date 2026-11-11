@@ -68,7 +68,7 @@ static void Stranded(void) {
     NSInteger n = MMRemovalRecoverStaged();
     T(@"crash: a relative symlink goes back as the same link, and the plain file beside it goes back too", @"1 ../main/.env.local SHARED=1 PLAIN=1 no failed",
       [NSString stringWithFormat:@"%ld %@ %@ %@ %@ %@", (long)n, LinkOf(link), Read(link), Read(plain), YN(Exists(folder)), StateWord(parent)]);
-    // A link whose target is gone for good is still an item, and goes back as it was.
+    // A link whose target does not exist at all is still an item, and goes back as it was.
     NSString *dangling = [tree stringByAppendingPathComponent:@".dangling"];
     [fm createSymbolicLinkAtPath:dangling withDestinationPath:@"nowhere/at/all" error:nil];
     parent = Unfinished(@"dangling", tree, nil);
@@ -213,3 +213,6 @@ static void Stranded(void) {
     (void)MMRemovalPutBack(@[part]);
     [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
 }
+
+// An owner that cannot be read, a damaged record, and a file that only sits where the item waited.
+#import "owner.m"

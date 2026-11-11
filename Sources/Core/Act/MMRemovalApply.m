@@ -7,6 +7,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
+#include <signal.h>
 #import "Core/Senses/MMSenses.h"
 
 #pragma mark - Real paths and places
@@ -149,7 +150,7 @@ BOOL MMRemovalApply(NSString *path, MMRemovalDecision *d, MMUndoRecord *record, 
 // Nothing waits in the person's Trash, and MinMacs deletes nothing there.
 // An item is staged only when its staging folder would itself pass the wall. Otherwise it stays where it is.
 
-static NSString *const kMarker = @".minmacs", *const kIgnore = @".gitignore";
+static NSString *const kMarker = @".minmacs", *const kIgnore = @".gitignore", *const kIgnoreSays = @"*\n";
 
 static uint64_t FreeOn(NSString *path) {
     struct statfs s;
@@ -177,8 +178,10 @@ static BOOL MarkerSays(NSString *folder, NSString *rid) {
 /// Why the staged entry x of record r may not be deleted, or nil: the record's own staging folder, made by MinMacs
 /// for this Wrap Up, and the very file that was staged, by device and inode. *real is its real path.
 static NSString *StagedWhyNot(NSDictionary *x, MMUndoRecord *r, NSString **real) {
-    NSString *to = x[@"to"], *folder = r.payload[@"stagedIn"];
+    // A record may be damaged. Every field is checked before it is read.
+    NSString *to = [x isKindOfClass:NSDictionary.class] ? x[@"to"] : nil, *folder = r.payload[@"stagedIn"];
     if (![to isKindOfClass:NSString.class] || ![folder isKindOfClass:NSString.class]) return @"the record does not say where it was staged";
+    if (![x[@"dev"] isKindOfClass:NSNumber.class] || ![x[@"ino"] isKindOfClass:NSNumber.class]) return @"the record does not say which file was staged";
     struct stat st;
     if (lstat(to.fileSystemRepresentation, &st) != 0) return @"it is gone";
     if ((long long)st.st_dev != [x[@"dev"] longLongValue] || (unsigned long long)st.st_ino != [x[@"ino"] unsignedLongLongValue]) return @"it is not the file that was staged";
@@ -190,11 +193,23 @@ static NSString *StagedWhyNot(NSDictionary *x, MMUndoRecord *r, NSString **real)
     return WhyNot(t, r, @[t], real);
 }
 
+/// YES when folder holds no .gitignore, or the one MinMacs wrote: a plain file of ours that says exactly "*".
+/// A folder of that name, a link, or a file that says anything else is not MinMacs's.
+static BOOL IgnoreIsOurs(NSString *folder) {
+    NSString *g = [folder stringByAppendingPathComponent:kIgnore];
+    struct stat st;
+    if (lstat(g.fileSystemRepresentation, &st) != 0) return errno == ENOENT;
+    if (!S_ISREG(st.st_mode) || st.st_uid != getuid()) return NO;
+    return [[NSString stringWithContentsOfFile:g encoding:NSUTF8StringEncoding error:nil] isEqualToString:kIgnoreSays];
+}
+
 /// Removes the staging folder once it holds nothing but what MinMacs wrote there itself: its marker and its
-/// .gitignore. Never one that still holds a staged item.
+/// .gitignore, each a plain file with MinMacs's own words. Never one that still holds a staged item, and never one
+/// where something else took one of those two names.
 static void RemoveStagingFolder(NSString *folder, NSString *rid) {
     NSString *f = MMRemovalRealPath(folder);
     if (!f || MMRemovalStagingWhyNot([f stringByAppendingPathComponent:kMarker], f, rid, MMRemovalRealPath(MMSupportDir())) || !MarkerSays(f, rid)) return;
+    if (!IgnoreIsOurs(f)) return;
     NSMutableSet *holds = [NSMutableSet setWithArray:[NSFileManager.defaultManager contentsOfDirectoryAtPath:f error:nil] ?: @[@"?"]];
     [holds minusSet:[NSSet setWithArray:@[kMarker, kIgnore]]];
     if (holds.count == 0) Unlink(f, nil);
@@ -233,7 +248,7 @@ static NSString *StagingFolder(NSString *real, MMUndoRecord *record, NSString **
         *why = @"its staging folder could not be made"; return nil;
     }
     // A repo that holds this folder, as a main checkout holds .worktrees/, never lists it as untracked.
-    if (lstat(ignore.fileSystemRepresentation, &s) != 0) [@"*\n" writeToFile:ignore atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    if (lstat(ignore.fileSystemRepresentation, &s) != 0) [kIgnoreSays writeToFile:ignore atomically:YES encoding:NSUTF8StringEncoding error:nil];
     return folder;
 }
 
@@ -282,7 +297,7 @@ int64_t MMRemovalFinishStaged(NSArray<MMUndoRecord *> *parts) {
             if (!Unlink(real, nil)) { [left addObject:x]; continue; }
             uint64_t after = FreeOn(holder);
             if (after > before) freed += (int64_t)(after - before);
-            [gone addObject:@{@"path": x[@"from"] ?: @""}];
+            [gone addObject:@{@"path": [x[@"from"] isKindOfClass:NSString.class] ? x[@"from"] : @""}];
         }
         NSMutableDictionary *removal = [r.payload[@"removal"] isKindOfClass:NSDictionary.class] ? [r.payload[@"removal"] mutableCopy] : [NSMutableDictionary new];
         // Deleted only when every staged item went. What is left stays staged, and the part can still restore.
@@ -319,13 +334,22 @@ NSDictionary *MMRemovalOwner(void) {
     return @{@"pid": @(getpid()), @"start": @(start)};
 }
 
-/// 1 when the process that owns the Wrap Up lives, 0 when it is gone or its pid is another process now, -1 when the
-/// record names no owner, as one written before owners were kept.
+/// Whose Wrap Up it is, from the record's "owner", every field checked before it is read:
+///    1  its process lives, so the record is left alone, whatever its age
+///    0  its process is gone, or the pid is another process now, so it is settled at once
+///   -1  the record names no owner, or a damaged one, so its age decides
+/// A start time of 0 or none means it could not be read when the Wrap Up began. Then only the pid can be asked, and a
+/// pid that lives keeps the record: taking a live Wrap Up for a crashed one would put files back under it.
 static int OwnerAlive(MMUndoRecord *parent) {
     NSDictionary *o = parent.payload[@"owner"];
     if (![o isKindOfClass:NSDictionary.class] || ![o[@"pid"] isKindOfClass:NSNumber.class]) return -1;
-    MMProcKey key = { [o[@"pid"] intValue], [o[@"start"] unsignedLongLongValue] };
-    return key.pid > 0 && MMProcAlive(key) ? 1 : 0;
+    id start = o[@"start"];
+    if (start && ![start isKindOfClass:NSNumber.class]) return -1;
+    pid_t pid = [o[@"pid"] intValue];
+    if (pid <= 0) return -1;
+    if ([start unsignedLongLongValue] == 0) return kill(pid, 0) == 0 || errno == EPERM ? 1 : 0;
+    MMProcKey key = { pid, [start unsignedLongLongValue] };
+    return MMProcAlive(key) ? 1 : 0;
 }
 
 NSInteger MMRemovalRecoverStaged(void) {

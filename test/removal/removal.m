@@ -340,6 +340,7 @@ int main(int argc, char **argv) {
         Staged();
         Crash();
         Stranded();
+        Owners();
         printf("END\n");
     }
     return 0;
