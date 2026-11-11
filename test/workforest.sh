@@ -258,6 +258,9 @@ check "the expert walks no folder itself" 0 "$(grep -nE 'fts_open|enumeratorAtPa
 check "the expert never deletes a file itself" 0 "$(grep -nE 'removeItemAtPath|removeItemAtURL|unlink\(|rmdir\(|trashItemAtURL' Sources/Experts/WorkForest/*.m | grep -c .)"
 kill "$wf_busy" 2>/dev/null
 
+# The removal choice, issue #62, on worktrees of its own. It runs after the counts above.
+. ./test/workforest/removal.sh
+
 echo "== the disk walk keeps a new walk once the old one is stale"
 # shellcheck disable=SC2086
 clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources -DMM_VERSION='"2.0.0"' \

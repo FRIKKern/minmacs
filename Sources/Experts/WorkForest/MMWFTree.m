@@ -308,6 +308,8 @@ MMMenuSpec *MMWFMenu(MMWFView *v) {
         NSString *title = [NSString stringWithFormat:@"Restore %@", MMCut([Str(x[@"path"]) lastPathComponent] ?: @"worktree", 36)];
         MMActionSpec *a = Action(v, title, [NSString stringWithFormat:@"%@ by %@", MMAgo(Date(x[@"at"])), by], @"restore", Str(x[@"rid"]));
         if ([x[@"taken"] boolValue]) a.disabledReason = @"its folder exists again";
+        // A worktree removed under the Delete choice has no way back. One that went in a Wrap Up restores with the rest.
+        else if (x[@"canRestore"] && ![x[@"canRestore"] boolValue] && ![x[@"wrapUp"] boolValue]) a.disabledReason = @"it was deleted and cannot be brought back";
         [more addObject:a];
     }
     NSInteger missing = groups[@"missing"].count;

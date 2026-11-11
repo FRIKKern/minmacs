@@ -5,7 +5,9 @@
 # process under a name unique to the run with a bundle id unique to the run, and its tabs live in a JSON file that the
 # tool's fake tab bridge reads and changes, so no Apple event reaches a real browser. MINMACS_ROOTS and
 # MINMACS_CLUTTER_ROOT point inside the fixture, so no real worktree, server or cache is read or touched.
-# Items go to the real Trash, and every check that moves one restores it, so the Trash ends as it began.
+# With MINMACS_HOME set, items go to $wu/Trash, never the person's Trash, and MMRemovalApply deletes nothing outside
+# $wu. The first run is under the Trash choice and restores everything. test/wrapup/removal.sh then runs Smart and
+# Delete on the same worktree.
 # Cleanup stops only the pids this section started or restored, read from its own pid files and its own port.
 
 wu=$(cd "$MINMACS_HOME" && pwd -P)/wu$$
@@ -150,6 +152,14 @@ check "wrapup: Wrap Up sits among the card's first four actions" yes "$(echo "$C
 check "wrapup: no Wrap Up when an untracked file is work" no "$("$T" card "$W/notes" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 check "wrapup: no Wrap Up on an unmerged branch" no "$("$T" card "$W/open" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 
+# The removal choice, issue #62: under Smart, the default, the plan says where each thing goes.
+J=$("$T" verb work wrap-up "$F" --dry-run --json)
+check "wrapup: under smart the plan deletes node_modules and sends the config files to the Trash" \
+  "Delete node_modules|Move untracked config files to the Trash" \
+  "$(echo "$J" | json "'|'.join(p['title'] for p in j['parts'] if p['step'] in ('caches', 'config'))")"
+check "wrapup: under smart the caches part's dry run says why it is deleted" yes \
+  "$(echo "$J" | json "(lambda d: 'yes' if 'would delete' in d and 'since its tool rebuilds it. It cannot be brought back.' in d else d)([p['dryRun'] for p in j['parts'] if p['step'] == 'caches'][0])")"
+
 echo "-- the tabs part on main, as a menu builds the plan"
 wu_tabs_file true
 J=$("$T" plan "$F" 3)
@@ -162,6 +172,11 @@ check "wrapup: one the person allowed is read in the background, and the next pl
   "$(echo "$J" | json "'yes' if 'tabs Close 3 localhost tabs in Fixture Browser' in j[2] else j")"
 
 echo "-- Wrap Up runs as one step"
+# Under the Trash choice, so every part can come back and the restore below checks all six.
+. ./test/wrapup/removal.sh
+"$T" verb removal trash >/dev/null
+check "wrapup: under trash the plan sends node_modules to the Trash" "Move node_modules to the Trash" \
+  "$("$T" verb work wrap-up "$F" --dry-run --json | json "[p['title'] for p in j['parts'] if p['step'] == 'caches'][0]")"
 WU_MOVE_URL="http://[::1]:$P/admin" "$T" verb work wrap-up "$F" --json >"$wu/run.json"; r=$?
 J=$(cat "$wu/run.json")
 check "wrapup: it exits 0" 0 "$r"
@@ -246,6 +261,8 @@ check "wrapup: they reopened once the server part was back" yes \
 check "wrapup: and the server listened when they opened" yes "$(wu_listening "$P")"
 "$T" verb restore "$RID" >/dev/null 2>&1; check "wrapup: a second restore is refused, exit 1" 1 "$?"
 
+wu_removal_smart
+
 echo "-- a part that fails stops the rest, and the record says which"
 for f in "$F" "$F/node_modules" "$F/.env.local"; do touch -h -t 202601010000 "$f"; done
 wu_helper 2 stubborn; WU_STUB=$(cat "$wu/pids/helper-2"); procs="$procs $WU_STUB"
@@ -263,6 +280,18 @@ check "wrapup: the server listens again" yes "$(wu_listening "$P")"
 x=$(wu_listener "$P"); [ -n "$x" ] && procs="$procs $x"
 for f in "$wu"/pids/helper-*; do x=$(cat "$f" 2>/dev/null); [ -n "$x" ] && procs="$procs $x"; done
 
+# A pid is this section's only while it still runs a fixture command, see the cleanup at the end.
+wu_ours() {
+  c=$(ps -o command= -p "$1" 2>/dev/null)
+  case "$c" in "$wu/bin/$WH "*|"$wu/bin/$WB "*|*"http.server $P --bind 127.0.0.1"*) return 0 ;; esac
+  return 1
+}
+# The stubborn helper is this section's own, checked by its run-unique command before it is stopped, so the last
+# run has no part that refuses.
+wu_ours "$WU_STUB" && kill -9 "$WU_STUB" 2>/dev/null
+wu_wait "! kill -0 '$WU_STUB' 2>/dev/null"
+wu_removal_delete
+
 echo "-- the invariants"
 check "wrapup: the experts run no git and no process for it" 0 \
   "$(grep -nE 'NSTask|/usr/bin/git|MMRun\(|MMRunTask|MMGit\(|popen|system\(|kill\(' Sources/Experts/MinMacs/MMMinMacsWrapUp.m | grep -c .)"
@@ -273,11 +302,6 @@ check "wrapup: Core runs every part through MMRunActionPart" 1 "$(grep -c 'MMRun
 # Stop what this section started or restored, and nothing else. Wrap Up stopped some of these pids minutes ago,
 # and the Mac may have given a pid to another process since, so each pid is signaled only while it still runs a
 # fixture command: the helper under its run-unique name, or the http.server on this section's port.
-wu_ours() {
-  c=$(ps -o command= -p "$1" 2>/dev/null)
-  case "$c" in "$wu/bin/$WH "*|"$wu/bin/$WB "*|*"http.server $P --bind 127.0.0.1"*) return 0 ;; esac
-  return 1
-}
 check "wrapup: a pid that runs no fixture command is never ours" no "$(wu_ours $$ && echo yes || echo no)"
 for x in $(cat "$wu"/pids/* 2>/dev/null) $(wu_listener "$P"); do wu_ours "$x" && kill -9 "$x" 2>/dev/null; done
 # The pids this section added to procs are stopped or gone, so the harness's cleanup never signals a reused one.

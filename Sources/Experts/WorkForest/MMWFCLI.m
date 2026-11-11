@@ -264,8 +264,10 @@ static int Remove(MMArgs *a, NSString *arg) {
     MMUndoRecord *rec = MMRunAction(action, MMWFManualPolicy(), nil, @"cli", @"removed from the command line", &err);
     if (!rec || rec.state != MMUndoDone) { [a error:@"not removed: %@", err ?: rec.error ?: @"it failed"]; return MMExitFailed; }
     BOOL deleted = [rec.payload[@"branchDeleted"] boolValue];
-    if (a.json) [a printJSON:@{@"id": rec.rid, @"path": path, @"branchDeleted": @(deleted), @"saved": rec.payload[@"recovery"][@"saved"] ?: @[]}];
-    else [a print:@"removed %@, id %@, %@", path.stringByAbbreviatingWithTildeInPath, rec.rid, deleted ? @"merged branch deleted" : @"branch kept"];
+    if (a.json) [a printJSON:@{@"id": rec.rid, @"path": path, @"branchDeleted": @(deleted), @"saved": rec.payload[@"recovery"][@"saved"] ?: @[],
+                               @"canRestore": @(rec.canRestore), @"deleted": @(rec.deletedNow)}];
+    else [a print:@"removed %@, id %@, %@%@", path.stringByAbbreviatingWithTildeInPath, rec.rid, deleted ? @"merged branch deleted" : @"branch kept",
+                  rec.canRestore ? @"" : @". You chose Delete, so it cannot be brought back"];
     return 0;
 }
 
