@@ -64,11 +64,17 @@ A stop sends SIGTERM first. SIGKILL comes only on a second request, and the pid 
 | A worktree's folder | git removes it. git can give it back | the same | git removes it. The record cannot restore |
 | Its ignored files, such as `.env` | recovery folder | recovery folder | deleted with it |
 | Untracked config files in Wrap Up, such as `.env.local` | Trash | Trash | deleted |
-| A cache or build folder whose row says a tool rebuilds it | deleted at once | Trash | deleted |
+| A cache or build folder whose row says a tool rebuilds it, proven on the fresh check | deleted at once | Trash | deleted |
 | Any other cache, and every leftover | Trash | Trash | deleted |
 | What a tool's own cleanup removes | recovery copy, unless its row says the tool fetches it again | recovery copy | no copy |
 
-Smart calls a worktree deleted only when its branch is merged or its remote branch is gone, with no uncommitted change, no untracked file, no commit on no remote and no stash. A row says a tool rebuilds it with `"rebuilt": true` in `registry/clutter`. Rows with logs, hand-made content or leftovers never do. The choice changes only where a thing goes. The fresh check, the keep checks and the record run first in every choice, a git bundle is taken whenever commits are on no remote, and git never runs with `--force`. A deleted thing's record says so, and `minmacs restore` answers that it was deleted and cannot be brought back. A stop and a quit are not removals and do not change.
+Smart calls a worktree deleted only when its branch is merged or its remote branch is gone, with no uncommitted change, no untracked file, no commit on no remote and no stash. A row says a tool rebuilds it with `"rebuilt": true` in `registry/clutter`. Rows with logs, hand-made content or leftovers never do. For a folder inside a project the row is not enough: the fresh check must find a file its tool rebuilds it from beside it, such as a lockfile beside `node_modules`, and git must track nothing in it. Otherwise it goes to the Trash.
+
+Until you have chosen, in Settings or with `minmacs removal`, Smart's deletes apply only to your own presses. What a mode removes on its own goes to the Trash, and Settings says so.
+
+A Wrap Up deletes nothing until its last part went through. What an earlier part wants deleted waits in the Trash. When git refuses the worktree, it goes back to where it was. Only when the worktree is gone is it deleted.
+
+One function deletes, behind one wall. A path may be deleted only when a fresh finding named it, it is not a volume's root, it does not hold the home folder or MinMacs's own folder, it lies at least 2 levels inside the home folder or 3 levels below its volume's root, and paths are compared as the disk holds them, with links resolved. The choice changes only where a thing goes. The fresh check, the keep checks and the record run first in every choice, a git bundle is taken whenever commits are on no remote, and git never runs with `--force`. A deleted thing's record says so, and `minmacs restore` answers that it was deleted and cannot be brought back. A stop and a quit are not removals and do not change.
 
 The modes decide what an expert does without being asked. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge lets go. No mode acts on its own in the first day after the first launch. A notification is sent only after an expert acted without being asked, and it carries one Undo button.
 
