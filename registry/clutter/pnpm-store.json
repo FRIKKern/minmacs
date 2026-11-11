@@ -16,6 +16,7 @@
   "ownerNote": "node_modules/.modules.yaml storeDir",
   "every": 43200,
   "rebuild": "Downloads on the next install",
+  "rebuilt": true,
   "measured_gib": 19.14,
   "sources": [
     "https://pnpm.io/cli/store",

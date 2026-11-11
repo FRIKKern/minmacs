@@ -10,6 +10,7 @@
   "ownerNote": "info.plist WorkspacePath",
   "every": 21600,
   "rebuild": "One full build per project",
+  "rebuilt": true,
   "measured_gib": 0.12,
   "sources": [
     "https://www.kodeco.com/19998365-understanding-and-managing-xcode-space",

@@ -224,7 +224,7 @@ NSString *MMClutterToolPath(NSString *name) {
 @property (readwrite, copy) NSString *kindID, *title, *group, *cleanup, *dryRun, *ownerSetting, *owner, *rebuild, *advice, *workaround, *signature;
 @property (readwrite) MMClutterClass klass;
 @property (readwrite) NSArray<NSString *> *paths, *names, *beside, *never, *quitFirst, *cleanupArgs, *dryRunArgs;
-@property (readwrite) BOOL reportOnly, skipWhenTracked, walk;
+@property (readwrite) BOOL reportOnly, skipWhenTracked, walk, rebuilt;
 @property (readwrite) NSTimeInterval minAge, every;
 @property (readwrite) NSDictionary *json;
 @property NSString *reportOnlyWhen;
@@ -259,6 +259,8 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
     k.reportOnlyWhen = Str(j[@"reportOnlyWhen"]);
     k.reportOnly = k.klass == MMClutterReport || k.klass == MMClutterData || [j[@"reportOnly"] boolValue];
     k.skipWhenTracked = [j[@"skipWhenTracked"] boolValue];
+    // Only a row that acts may say a tool rebuilds it, and only with YES written out. A leftover never does.
+    k.rebuilt = j[@"rebuilt"] == (id)kCFBooleanTrue && (k.klass == MMClutterCache || k.klass == MMClutterBuild || k.klass == MMClutterTool);
     k.walk = j[@"walk"] ? [j[@"walk"] boolValue] : YES;
     k.minAge = MAX(0, [j[@"minAge"] doubleValue]);
     k.every = MAX(kMinEvery, [j[@"every"] doubleValue]);

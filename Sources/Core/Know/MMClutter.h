@@ -35,6 +35,10 @@ NSString *MMClutterClassName(MMClutterClass c);          // cache, tool, build, 
 @property (readonly, copy) NSString *rebuild, *advice, *workaround;
 @property (readonly) BOOL reportOnly;                   // such as the root-owned simulator dyld cache
 @property (readonly) BOOL skipWhenTracked;              // dist and build are skipped when git tracks them
+/// YES only when the row says "rebuilt": a tool rebuilds or downloads all of it again, such as node_modules or the
+/// pip cache. Under the Smart removal choice of Act/MMRemoval.h such an item is deleted at once. A row with logs,
+/// hand-made content or a leftover never says it, so it keeps a way back.
+@property (readonly) BOOL rebuilt;
 @property (readonly) BOOL walk;                         // NO for a mount that must never be walked, such as simulator runtimes
 /// NN's leak signature: "agent-scratch", "open", "aged" or "family". nil for a row with none.
 @property (readonly, copy) NSString *signature;

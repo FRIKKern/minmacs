@@ -28,6 +28,7 @@
     "advice": {"type": "string"},
     "workaround": {"type": "string"},
     "rebuild": {"type": "string"},
+    "rebuilt": {"type": "boolean", "description": "true only when a tool rebuilds or downloads all of it again from what the project or a registry still holds. Under the Smart removal choice such a cache or build row is deleted at once, and a tool row runs with no recovery copy. Rows with logs, hand-made content or anything a tool cannot fetch again leave it out and keep a way back"},
     "every": {"type": "number", "description": "the shortest time in seconds between two scans of the row, at least 600"},
     "measured_gib": {"type": "number"},
     "sources": {"type": "array", "items": {"type": "string"}}

@@ -10,6 +10,7 @@
   "ownerNote": "global",
   "every": 21600,
   "rebuild": "Poetry downloads again",
+  "rebuilt": true,
   "measured_gib": 0,
   "sources": [
     "https://python-poetry.org/docs/cli/"

@@ -9,6 +9,7 @@
   "advice": "npx @puppeteer/browsers clear (guess)",
   "every": 21600,
   "rebuild": "Puppeteer downloads again",
+  "rebuilt": true,
   "measured_gib": 0,
   "sources": [
     "https://pptr.dev/guides/configuration"
