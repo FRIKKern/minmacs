@@ -1,6 +1,6 @@
 # MinMacs 2.0 UI prototypes
 
-370 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
+376 clickable HTML mockups of the 2.0 menu bar UI, made in rounds on 2026-10-27 and 28 with [ftop](https://github.com/Nongfsq/ftop) as the visual inspiration. Each is one self-contained page at a 1280 × 800 stage. They use fixture data, not live data.
 
 ## View them
 
@@ -53,6 +53,7 @@ Then open <http://127.0.0.1:8765/>. Arrow keys step through them, `S` stars one,
 | 189–191 | 187-b, even more satisfying | "I like 350 - but try to make it even more satisfying". Same layout; only the feel of the button and the run changes: the button sinks and springs, the lines grow from the press point, each step pulses or clicks into place, the rows, ring, graphs and numbers answer each landing, and the finish closes the lines with one bloom or one piece per fix |
 | 192–196 | The same information, other layouts | "maybe there are many other layouts out there? Maybe something smarter exist. We love the way things work". 187-b's information and behavior in other arrangements: one tall column or two, a hero band over five columns, one group open at a time, the button in a dock below or on top, two cards with one drawer, and the button straight under the icon |
 | 197 | Settings as a toggle on 195-a | "195-a lets make the settings panel be like toggle on this, and dont have all the other pannels. Make it utilize the same space". The gear flips the menu to Settings in place, same size; no sheet, no other panels; over the dock, or the whole menu |
+| 198–200 | The first launch | "we have to make that very premium ux", about the app adding itself to the login items. The first time the window opens, in the same window: a short welcome, Open at login asked with its consequence, what it does on its own, the first look group by group, then the normal menu. As a card over the menu, as the dock, alone first, as the first look, as a slim strip, and as a first-day line |
 
 ## Direction so far
 

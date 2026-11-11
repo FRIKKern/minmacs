@@ -3698,5 +3698,65 @@
   "surface": "menu",
   "groupId": "197",
   "direction": "Settings: the gear flips the menu to Settings in place"
+ },
+ {
+  "file": "198-a.html",
+  "name": "Welcome Card",
+  "idea": "One calm card in the middle column holds the mark, two sentences, Open at login with its consequence, four short facts and Start, while the dimmed lists fill in on both sides and the dock waits dimmed.",
+  "good": "There is one focal point (the only bright thing is Start), and the choice and the facts are read in one place before anything can be pressed.",
+  "tradeoff": "The card fills the middle column almost fully (it leaves about 12 px above and below), so a longer translation or a fifth fact would not fit. Proposed facts: A first-look order and timing per group (servers, agents, apps and helpers, worktrees, caches) with a count as each is found; a first-launch-seen flag; the minutes MinMacs has been watching, for the young last-hour graphs; a per-row last hour that starts as one point.",
+  "surface": "menu",
+  "groupId": "198",
+  "direction": "First launch: welcome over the menu, which fills in behind it group by group"
+ },
+ {
+  "file": "198-b.html",
+  "name": "Welcome Dock",
+  "idea": "The dock is the welcome: a five-part ring fills one part per group with a running count of what is found, Start sits where Fix Everything will be, and Open at login sits beside it; the middle column holds the words, the facts and the two empty last-hour graphs.",
+  "good": "Start turns into Fix Everything in the same place, so the welcome teaches where the one button lives, and the empty graphs are already shown with 'The line fills in as the hour passes.'",
+  "tradeoff": "The eye has three places to read (words in the middle, ring on the left, login on the right), so it is less of a single moment than the card. Proposed facts: Same as a, plus a live found-count across groups during the first look.",
+  "surface": "menu",
+  "groupId": "198",
+  "direction": "First launch: welcome over the menu, which fills in behind it group by group"
+ },
+ {
+  "file": "199-a.html",
+  "name": "Welcome Then Menu",
+  "idea": "One centered column (the mark, two sentences, Open at login as a switch with its consequence, three facts, Start) with a quiet first-look line under Start that lights each group as it is found; Start fades the column and the menu rises group by group.",
+  "good": "One focal point and lots of air, the login choice is read before anything else happens, and the same 1020 by 728 box is kept with a clean overflow scan and no console errors.",
+  "tradeoff": "The first look is only a small line of counts at the bottom, and the person must press Start (or Return) before seeing any real rows. Proposed facts: The order and timing in which groups are found (servers, agents, apps, then worktrees, caches); the two last-hour graphs starting empty with 'since MinMacs opened', a start dot and the line growing over the first hour; row sparklines shown as a start dot during that hour; the rule names Off, Careful, Eager and the first-day watch-only period come from the brief, while the prototype's Settings still says Off, Ask, Auto.",
+  "surface": "menu",
+  "groupId": "199",
+  "direction": "First launch: the window opens on the welcome alone, then Start lets go and the menu arrives in the same box"
+ },
+ {
+  "file": "199-b.html",
+  "name": "First Look Welcome",
+  "idea": "The first look is the hero: five big rows turn from 'Looking at servers' to 'Found 20 servers, holding 4.93 GB of memory' one by one, with a last-hour row that says it starts empty; the welcome and three facts sit in a quiet right column, and Open at login with Start close the window where the dock will be.",
+  "good": "The wait becomes the pleasant part and shows real numbers from this Mac at once, memory and disk kept apart, with Start sitting where Fix Everything will sit.",
+  "tradeoff": "It is denser than a, with two columns and a bottom band, so the welcome words are secondary and the login choice is read last. Proposed facts: A memory or disk sum per group at first look (summed from the listed rows, so it can be under the group count); the heading change from 'MinMacs is looking at this Mac' to 'This is what MinMacs found'; the same empty first-hour graphs and row start dots as a; rule names Off, Careful, Eager and the first-day watch-only period from the brief.",
+  "surface": "menu",
+  "groupId": "199",
+  "direction": "First launch: the window opens on the welcome alone, then Start lets go and the menu arrives in the same box"
+ },
+ {
+  "file": "200-a.html",
+  "name": "Welcome Strip",
+  "idea": "The normal menu opens at once and takes its first look group by group, while one slim strip on top holds the two sentences, four calm facts and Open at login with a Done that folds it into the top line.",
+  "good": "Nothing stands between the person and the menu, the window box stays 1020 by 728 through the look, the toggle, Settings and the fold, and the strip takes its height from the middle so nothing jumps.",
+  "tradeoff": "The strip is 126 px of small text above a busy menu, so the welcome is easy to skim past and the facts read as fine print. Proposed facts: The first look reports each group as it is found (servers, agents, apps, then worktrees, then caches) so rows can arrive group by group; the time MinMacs was first opened, so each last-hour graph can start as one point and say 'opened N min ago'; a per-row 'no hour yet' state; a shown-once flag for the welcome; Fix Everything waits until the first look ends.",
+  "surface": "menu",
+  "groupId": "200",
+  "direction": "First launch: the lightest touch, the menu is there at once and the welcome is one small part of it"
+ },
+ {
+  "file": "200-b.html",
+  "name": "First Day Line",
+  "idea": "The calm area where the last-hour graphs will be holds the first day as one line with four stops: Now (the first look, five counts arriving), The first day (only watches), After that (Off, Careful or Eager, a way back), Each time you sign in (Open at login), then Start.",
+  "good": "One focal point with generous space: the facts and the login choice read as what happens next in time, the lists fill in on both sides, and Start hands the same space to the young graphs.",
+  "tradeoff": "It needs one press before the graphs show, and Fix Everything stays quiet until Start, so it is a little more ceremony than the strip. Proposed facts: Same as 200-a: per-group first-look progress with counts, the first-opened time for young graphs ('The line fills in as the hour passes'), a per-row 'no hour yet' state, a shown-once flag; plus Fix Everything held off until Start is pressed.",
+  "surface": "menu",
+  "groupId": "200",
+  "direction": "First launch: the lightest touch, the menu is there at once and the welcome is one small part of it"
  }
 ]
