@@ -19,6 +19,9 @@
   "every": 21600,
   "rebuild": "next build, minutes",
   "rebuilt": true,
+  "rebuiltFrom": [
+    "package.json"
+  ],
   "measured_gib": 32.53,
   "sources": [
     "du -sk"

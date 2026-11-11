@@ -10,7 +10,6 @@
   "ownerNote": "project",
   "every": 21600,
   "rebuild": "Python writes it again",
-  "rebuilt": true,
   "sources": [
     "du -sk"
   ]

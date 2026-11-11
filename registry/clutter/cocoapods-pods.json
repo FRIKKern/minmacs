@@ -15,6 +15,9 @@
   "every": 21600,
   "rebuild": "pod install",
   "rebuilt": true,
+  "rebuiltFrom": [
+    "Podfile.lock"
+  ],
   "sources": [
     "https://guides.cocoapods.org/terminal/commands.html"
   ]

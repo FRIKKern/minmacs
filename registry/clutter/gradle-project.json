@@ -17,7 +17,6 @@
   "ownerNote": "settings.gradle(.kts)",
   "every": 21600,
   "rebuild": "One full build",
-  "rebuilt": true,
   "measured_gib": 0,
   "sources": [
     "https://docs.gradle.org/current/userguide/directory_layout.html"

@@ -1,7 +1,8 @@
 # The removal choice on clutter, issue #62. Sourced at the end of test/noonoo.sh, inside its fixtures: every path
 # here is under $nn, which is inside $MINMACS_HOME, the Trash is $nn/Trash, and MMRemovalApply refuses any path
 # outside the tool's MINMACS_HOME. Each choice runs on the same items, made again before it:
-#   node_modules of the merged worktree   build row, rebuilt        the pip cache      cache row, rebuilt
+#   node_modules of the merged worktree   build row, rebuilt, with a package-lock.json beside it
+#                                                                   the pip cache      cache row, rebuilt
 #   Cursor's Cache folder                 cache row, not rebuilt    a dead scratch     leak row
 #   six mktemp siblings                   leak row, a family        simulator Devices  tool row, not rebuilt
 #   the fake tool's cache                 tool row, rebuilt for this block
@@ -54,6 +55,24 @@ check "noonoo smart: its record says why and where, and holds the freed bytes" "
   "$(nn_undo '"%s|%s|%s" % (j[0]["payload"]["removal"]["why"], j[0]["payload"]["deleted"][0]["path"], type(j[0]["freedBytes"]).__name__)')"
 check "noonoo smart: undo of it is refused, and it stays gone" "1 missing yes" \
   "$(nnr_back "$nn_wt/node_modules") $(grep -q 'it was deleted and cannot be brought back' "$nn/nnr-undo.txt" && echo yes || echo no)"
+# The row says rebuilt. Smart still needs the proof on the folder read now: a lockfile beside it, and nothing in it
+# that git tracks. Without either, it keeps a way back.
+nnr_fill
+mv "$nn_wt/package-lock.json" "$nn/lock.aside"
+nnx scan >/dev/null 2>&1
+check "noonoo smart: node_modules with no lockfile beside it goes to the Trash" "0 gone smart False 1 0 True" "$(nnr_go "$nn_wt/node_modules")"
+check "noonoo smart: its record says which file is missing" yes \
+  "$(nn_undo '"yes" if j[0]["payload"]["removal"]["why"].startswith("no package-lock.json or npm-shrinkwrap.json or pnpm-lock.yaml") else j[0]["payload"]["removal"]["why"]')"
+check "noonoo smart: and undo brings it back" "0 back" "$(nnr_back "$nn_wt/node_modules")"
+mv "$nn/lock.aside" "$nn_wt/package-lock.json"
+nn_git -C "$nn_wt" add -f node_modules/left-pad/index.js
+nnx scan >/dev/null 2>&1
+check "noonoo smart: node_modules with a file git tracks goes to the Trash" "0 gone smart False 1 0 True git tracks files in it, so it is part of the project" \
+  "$(nnr_go "$nn_wt/node_modules") $(nn_undo 'j[0]["payload"]["removal"]["why"]')"
+check "noonoo smart: and undo brings it back" "0 back" "$(nnr_back "$nn_wt/node_modules")"
+nn_git -C "$nn_wt" rm -q --cached node_modules/left-pad/index.js
+check "noonoo smart: the row's action says Move to Trash while the proof is missing, and Delete once it holds" "Move to Trash|Delete" \
+  "$(mv "$nn_wt/package-lock.json" "$nn/lock.aside"; nnx scan >/dev/null 2>&1; nnx_show "$nn_wt/node_modules" 'j["action"]'; mv "$nn/lock.aside" "$nn_wt/package-lock.json")|$(nnx scan >/dev/null 2>&1; nnx_show "$nn_wt/node_modules" 'j["action"]')"
 check "noonoo smart: the pip cache is deleted at once" "0 gone smart True 0 1 False" "$(nnr_go "$nnr_pip")"
 check "noonoo smart: a symlink inside it went as a link, and the notes it pointed at stay" notes "$(cat "$nnh/Documents/notes.txt" 2>/dev/null)"
 check "noonoo smart: nothing deleted went to the Trash" "$nnr_t0" "$(nnr_trash)"

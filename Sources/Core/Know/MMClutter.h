@@ -39,6 +39,10 @@ NSString *MMClutterClassName(MMClutterClass c);          // cache, tool, build, 
 /// pip cache. Under the Smart removal choice of Act/MMRemoval.h such an item is deleted at once. A row with logs,
 /// hand-made content or a leftover never says it, so it keeps a way back.
 @property (readonly) BOOL rebuilt;
+/// For a rebuilt row of folders inside projects: the files that prove its tool can rebuild this one, such as
+/// package-lock.json beside node_modules. One must sit beside the folder now. The row's "rebuiltFrom", or its
+/// "beside" when it has none. Empty for a row with neither, whose folders are then never proven.
+@property (readonly) NSArray<NSString *> *rebuiltFrom;
 @property (readonly) BOOL walk;                         // NO for a mount that must never be walked, such as simulator runtimes
 /// NN's leak signature: "agent-scratch", "open", "aged" or "family". nil for a row with none.
 @property (readonly, copy) NSString *signature;
@@ -74,6 +78,11 @@ typedef struct {
 /// For build output the checkout that holds it. nil when the tool keeps no back-link.
 @property (readonly, copy) NSString *ownerPath;
 @property (readonly) BOOL ownerGone;                    // the back-link points at a path that is gone
+/// Why this item's rebuild is not proven now, or nil. Read on the scan and again by inspect:, right before an action.
+/// A folder inside a project is proven only when git tracks nothing in it and one of the row's rebuiltFrom files sits
+/// beside it. "Cannot say" is a reason. nil for a row that does not say rebuilt, which is never deleted as rebuildable,
+/// and for a tool's own cache outside any project. Act/MMRemoval.h reads it.
+@property (readonly, copy) NSString *unproven;
 @property (readonly, copy) NSString *sessionID;         // an agent session the item belongs to, or nil
 @property (readonly) MMSize size;
 @property (readonly) NSDate *lastUsed;                  // the newest modification in the tree

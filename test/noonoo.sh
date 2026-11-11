@@ -58,9 +58,10 @@ nn_old() { find "$@" -exec touch -h -t 202601010000 {} + 2>/dev/null; }
 nn_main="$nn/code/acme"; nn_wt="$nn/code/acme.wt/feat"
 mkdir -p "$nn_main/dist"
 printf '{"name":"acme"}\n' >"$nn_main/package.json"
+printf '{"lockfileVersion": 3}\n' >"$nn_main/package-lock.json"   # what proves npm can rebuild node_modules
 printf 'built\n' >"$nn_main/dist/app.js"
 nn_git -c init.defaultBranch=main init -q "$nn_main"
-nn_git -C "$nn_main" add package.json dist/app.js
+nn_git -C "$nn_main" add package.json package-lock.json dist/app.js
 nn_git -C "$nn_main" commit -qm first
 nn_git -C "$nn_main" worktree add -q -b feat "$nn_wt"
 mkdir -p "$nn_main/node_modules/left-pad" "$nn_wt/node_modules/left-pad/lib" "$nn_wt/.next/cache" "$nn_wt/node_modules/inner/dist"

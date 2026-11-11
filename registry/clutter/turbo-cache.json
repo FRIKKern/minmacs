@@ -16,6 +16,9 @@
   "every": 21600,
   "rebuild": "Turbo runs the tasks again",
   "rebuilt": true,
+  "rebuiltFrom": [
+    "package.json"
+  ],
   "measured_gib": 0.04,
   "sources": [
     "du -sk"
