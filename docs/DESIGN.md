@@ -40,6 +40,7 @@ The menu is an NSMenu. A popover was tried and felt slow next to the system's ow
 ## Words
 
 - **Plain words.** "Squash-merged", not "merged (squash)". "Remote branch deleted", not "upstream gone". "1 commit not in main", not "1 not in main".
+- **Say where a removed thing goes.** What a removal does follows the person's removal choice, so its words do too: "Move to Trash" and "Undo moves it back" when it goes to the Trash, "Delete" and "cannot be brought back" when it is deleted at once. Never promise an undo for a deleted thing. "For good" and "permanently" are not used.
 - **No parentheses** as asides.
 - **Gray tails** carry only time, size, or why an action can't run: "Review Now   9m ago", "Close Idle   2 servers, 1.2 GB".
 - **Truncate** at the tail, never in the middle.

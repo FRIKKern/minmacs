@@ -40,11 +40,11 @@ An expert is one class that reads the snapshot. It gives Core four things: its f
 
 - **MinMacs** groups processes into the apps that own them, and lists apps by the close list and keep list in its rules. It spares an app an agent uses, such as a browser a test drives. It quits apps and closes noise tabs, and Restore brings both back.
 - **LocoHost** lists every listening server on the Mac, with the folder, branch, framework and agent that started it, and who is connected. It stops a dev server nobody has used for a while. The undo record holds the command, so it can start the server again.
-- **WorkForest** lists every git worktree and whether its branch is merged, by ancestry, the same tree, patches or a squash. It removes a worktree with `git worktree remove` and no `--force`, after it copies the ignored files that are not caches, such as `.env`, to a recovery folder. When the commits are on no remote, it saves a git bundle first. Undo recreates the worktree at the same commit and copies the files back.
-- **Noo-Noo** lists caches, build output and the leftovers of agents and tools, with who owns each. Build output of a finished project goes first. Most items go to the Trash. A cache that belongs to a tool is cleaned with the tool's own command, after a copy into a recovery folder.
+- **WorkForest** lists every git worktree and whether its branch is merged, by ancestry, the same tree, patches or a squash. It removes a worktree with `git worktree remove` and no `--force`, after it copies the ignored files that are not caches, such as `.env`, to a recovery folder. When the commits are on no remote, it saves a git bundle first. Undo recreates the worktree at the same commit and copies the files back. Under the Delete choice, below, the ignored files are not saved and the record cannot restore. The bundle is still taken.
+- **Noo-Noo** lists caches, build output and the leftovers of agents and tools, with who owns each. Build output of a finished project goes first. Where an item goes follows the removal choice, below: under Smart a cache or build folder that its tool rebuilds, such as `node_modules`, is deleted at once, and a leftover goes to the Trash. A cache that belongs to a tool is cleaned with the tool's own command, after a copy into a recovery folder unless the choice says no copy is kept.
 - **Insomnia** keeps the Mac awake while an agent works and lets it sleep 10 minutes after the last one stops. With lid mode on, it can also keep the Mac awake with the lid closed. On battery, guards pause that for a low battery, heat, a long time unplugged or a long time offline.
 
-Findings of different experts meet through their owners. A dev server and a worktree that share a folder have the same owner, so WorkForest's card shows LocoHost's server, and the link opens LocoHost's card. **Wrap Up** uses the same link. For a worktree whose branch is merged and whose agent sessions all ended, it stops its dev servers, ends the helpers left in it, closes the browser tabs on those servers' localhost ports, moves its caches to the Trash and removes the worktree, as one step with one undo record. Undo reopens the tabs in the same browser once the servers run again.
+Findings of different experts meet through their owners. A dev server and a worktree that share a folder have the same owner, so WorkForest's card shows LocoHost's server, and the link opens LocoHost's card. **Wrap Up** uses the same link. For a worktree whose branch is merged and whose agent sessions all ended, it stops its dev servers, ends the helpers left in it, closes the browser tabs on those servers' localhost ports, removes its caches and removes the worktree, as one step with one undo record. Undo reopens the tabs in the same browser once the servers run again. A part that was deleted at once stays gone, and undo says how many.
 
 ## Acting
 
@@ -53,9 +53,22 @@ Every action runs through one function in Act, `MMRunAction`. In order, it:
 1. reads the facts again, fresh, and checks that the thing is the same one the menu showed
 2. runs the keep checks, which keep anything with work in it, such as uncommitted files, a process inside or an active agent session. Each expert adds its own. What cannot be checked is kept
 3. writes the undo record
-4. acts: to the Trash, to a recovery folder, through the owning tool's own command, by a stop signal or a quit request, by closing browser tabs, or by Insomnia's lid setting
+4. acts: to the Trash, to a recovery folder, deleted at once where the removal choice says so, through the owning tool's own command, by a stop signal or a quit request, by closing browser tabs, or by Insomnia's lid setting
 
 A stop sends SIGTERM first. SIGKILL comes only on a second request, and the pid and start time are checked before each. MinMacs never empties the Trash.
+
+**The removal choice.** Nothing is lost unless the person chose so. What happens to a removed thing is one setting, `minmacs removal smart|trash|delete`, also in the window's Settings as "When MinMacs removes things". Every removal asks one function, `MMRemovalDecide`, on facts read at that moment:
+
+| Removed thing | Smart, the default | Trash | Delete |
+|---|---|---|---|
+| A worktree's folder | git removes it. git can give it back | the same | git removes it. The record cannot restore |
+| Its ignored files, such as `.env` | recovery folder | recovery folder | deleted with it |
+| Untracked config files in Wrap Up, such as `.env.local` | Trash | Trash | deleted |
+| A cache or build folder whose row says a tool rebuilds it | deleted at once | Trash | deleted |
+| Any other cache, and every leftover | Trash | Trash | deleted |
+| What a tool's own cleanup removes | recovery copy, unless its row says the tool fetches it again | recovery copy | no copy |
+
+Smart calls a worktree deleted only when its branch is merged or its remote branch is gone, with no uncommitted change, no untracked file, no commit on no remote and no stash. A row says a tool rebuilds it with `"rebuilt": true` in `registry/clutter`. Rows with logs, hand-made content or leftovers never do. The choice changes only where a thing goes. The fresh check, the keep checks and the record run first in every choice, a git bundle is taken whenever commits are on no remote, and git never runs with `--force`. A deleted thing's record says so, and `minmacs restore` answers that it was deleted and cannot be brought back. A stop and a quit are not removals and do not change.
 
 The modes decide what an expert does without being asked. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge lets go. No mode acts on its own in the first day after the first launch. A notification is sent only after an expert acted without being asked, and it carries one Undo button.
 

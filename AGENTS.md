@@ -40,7 +40,7 @@ The full `./test.sh` takes about 17 minutes. Issue #58: on this Mac it is someti
 - The version lives in Info.plist only. build.sh passes it to the code as `MM_VERSION`.
 
 **Invariants that must hold after any change**
-1. Nothing is lost. Every action is checked fresh right before it runs. It goes to the Trash, to a recovery folder, or through the owning tool's own command. What cannot be verified is kept. MinMacs never empties the Trash.
+1. Nothing is lost unless the person chose so. Every action is checked fresh right before it runs, passes MustKeep and writes its record first. Where a removed thing goes is the person's removal choice, the pref `core.removal`, asked of one function, `MMRemovalDecide` in `Sources/Core/Act/MMRemoval.h`. Under Smart, the default, only what git or its own tool can give back is deleted at once, and the rest goes to the Trash or a recovery folder. Under Trash everything keeps a way back. Under Delete everything it removes is deleted at once. In every choice what cannot be verified is kept, a git bundle is taken for commits on no remote, git never runs with `--force`, a deleted thing's record says so, and MinMacs never empties the Trash.
 2. An expert never samples, scans or asks the model on its own. It reads the shared graph.
 3. AppKit runs on the main thread only. Each knower has one labeled serial queue, `no.guerrilla.minmacs.<expert>.<job>`.
 4. No tick runs `lsof`, `nettop`, `ps` or `pmset`.
