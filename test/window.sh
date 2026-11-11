@@ -51,6 +51,8 @@ if [ "$wn_r" = 0 ]; then
   echo "-- Fix Everything under the Trash choice and under Delete"
   wn_run trash
   wn_run delete
+  echo "-- the welcome of the first launch"
+  wn_run welcome
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
@@ -76,7 +78,7 @@ check "window: no string claims a result or says for good" 0 \
   "$(grep -ciE '@"[^"]*(is clean|all good|for good|everything is fine|nothing needs you)[^"]*"' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
 check "window: only MMShell.m names the panel, and the feed names no view" 0 \
   "$(grep -cE 'MMWindowView|MMWindowPanel|MMWindowFixture' $(ls Sources/Shell/*.m Sources/Shell/*.h Sources/CLI/*.m | grep -v 'Shell/MMShell.m') | awk -F: '{s+=$2} END {print s+0}')"
-check "window: the icon opens the panel only while core.window is on, and it is off by default" "1 2" \
+check "window: the icon opens the panel only while core.window is on, and it is off by default" "1 3" \
   "$(grep -c 'static NSString \*const kWindowKey = @"core.window";' Sources/Shell/MMShell.m) $(grep -c 'MMPrefBool(kWindowKey, NO)' Sources/Shell/MMShell.m)"
 # The rows read each expert's facts by key, and Settings says what each expert's mode rule does. A rename or a changed
 # rule in an expert would leave a line out or make a sentence false with no error, so each string must still be there.
@@ -103,6 +105,26 @@ check "window: the render's removal card says Core's three sentences and the fee
   "$(for wn_s in 'Deletes what git or its tool can give back. The rest goes to the Trash.' 'Everything goes to the Trash. The disk comes back when you empty it.' 'Deletes everything it removes at once. Nothing can be brought back.'; do
        grep -qF "$wn_s" Sources/Core/Act/MMRemoval.m && grep -qF "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
      grep -qF '@"When MinMacs removes things"' Sources/Shell/MMWindowRules.m && grep -qF '@"When MinMacs removes things"' Sources/UI/Window/MMWindowFixture.m && printf '1' || printf '0')"
+# The welcome: the login item is added in two places only, the old first launch and -setLogin:, and the window reaches
+# -setLogin: from the Settings switch and from Start alone. Under MINMACS_HOME -setLogin: returns before SMAppService.
+check "window: with the menu window the first launch adds no login item, and -setLogin: stops first in a test home" "1 1 1" \
+  "$(grep -c 'if (!self.headless && MMFirstLaunchAddsLogin(MMPrefBool(kWindowKey, NO)) &&' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }' Sources/Shell/MMShell.m) $(grep -A1 -- '- (void)setLogin:(BOOL)on {' Sources/Shell/MMShell.m | grep -c 'if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;')"
+check "window: the controller asks for the login item from the Settings switch and from Start only" "2 1 1" \
+  "$(grep -c 'self.shell setLogin:' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:on\];' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:openAtLogin\];' Sources/Shell/MMWindowController.m)"
+check "window: SMAppService is registered in MMShell.m only" 0 "$(grep -lE 'registerAndReturnError|unregisterAndReturnError' $(find Sources -name '*.m') | grep -vc '^Sources/Shell/MMShell.m$')"
+# The render's welcome cannot link Core or the feed, so it holds the facts as its own strings.
+check "window: the render's welcome says the feed's three facts for a new person" "1 1 1 1 1 1" \
+  "$(for wn_s in '@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."' '@"You set every rule" value:' '@"Each rule can be Off, Careful or Eager. Each starts on Careful."' '@"It starts quietly" value:@"No permission is asked at launch. The Mac stays awake while agents work."'; do
+       grep -qF -- "$wn_s" Sources/Shell/MMWindowRules.m && grep -qF -- "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
+     grep -qF 'NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";' Sources/UI/Window/MMWindowModel.m && printf '1 ' || printf '0 '
+     grep -qF 'c requestAuthorizationWithOptions' Sources/Core/Act/MMAct.m && [ "$(grep -rl 'requestAuthorization' Sources | grep -c .)" = 1 ] && printf '1' || printf '0')"
+# The facts name rules of the experts and of Core. A changed rule would make a sentence false with no error.
+check "window: the code still makes each welcome fact true" "1 1 1 1 1" \
+  "$(grep -qF 'static const NSTimeInterval kWatchDay = 24 * 3600;' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
+     grep -qF 'if (act && !MMWatchedLongEnough(f.expert)) { act = NO;' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
+     grep -qF 'else if (!MMWatchedLongEnough(f.expert)) problem' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
+     grep -qF 'return m < 0 ? MMModeProactive : (MMMode)m;' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
+     grep -qF 'p.manual = NO; p.agents = YES; p.lid = NO;' Sources/Experts/Insomnia/MMINMenu.m && printf '1' || printf '0')"
 check "window: the keep-awake state still has the keys the lid switch reads" 8 \
   "$(grep -cE '^@property (BOOL (lid|lidLive|laptop|otherApp);|\(copy\) (MMINPrefs \*prefs|NSString \*(pauseReason|lidProblem));)' Sources/Experts/Insomnia/MMInsomnia.h)"
 

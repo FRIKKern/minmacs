@@ -123,11 +123,31 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (copy, nullable) void (^onDone)(void);
 @end
 
+/// The welcome of the first launch, alone in the window: one centered column. It keeps the two answers itself until
+/// Start, so a newer model never takes back what the person picked.
+@interface MMWindowWelcomeView : MMWindowFlipped
+@property (nonatomic, strong, nullable) MMWindowWelcome *welcome;
+@property (copy, nullable) void (^onStart)(BOOL openAtLogin, NSInteger removal);
+@property (nonatomic) CGFloat arrival;                               // 0 to 1: how far the parts have risen in
+@property (readonly) BOOL loginOn;
+@property (readonly) NSInteger picked;
+- (void)pressStart;                                                  // Start, as a press or Return
+- (void)rest;                                                        // the panel left: no timer
+- (void)willArrive;                                                  // the panel is about to come on screen
+- (void)arrive;                                                      // the panel came on screen: the parts rise in, or stand still under Reduce Motion
+/// For the checks: the frame of each part, top to bottom, and the buttons a key or VoiceOver reaches, in order.
+- (NSArray<NSValue *> *)partFrames;
+- (NSArray<NSButton *> *)controls;
+@end
+
 @interface MMWindowView ()
 /// The render tool sets this: an opaque dark base under the glass, since no blur is behind it there.
 @property (nonatomic) BOOL drawsBacking;
+- (void)willOpen;                                                    // the panel is about to come on screen
 - (void)opened;                                                      // the panel came on screen
 - (void)rest;                                                        // the panel left: no timers, no hover
+@property (readonly) BOOL showsWelcome;                              // the welcome is what shows now
+@property (readonly, nullable) MMWindowWelcomeView *welcomeView;
 /// Every string the window can show for this model, for the render tool's word check.
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)model;
 @end

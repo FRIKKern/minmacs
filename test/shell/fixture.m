@@ -298,6 +298,8 @@ static int SelfTest(MMArgs *a) {
     C(a, @"login item: the real app registers", @"YES", MMMayRegisterLoginItem(@{}, @"/Applications/MinMacs.app") ? @"YES" : @"NO");
     C(a, @"login item: this test process may not", @"NO",
       MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath) ? @"YES" : @"NO");
+    C(a, @"login item: the first launch adds it by itself only without the menu window, whose welcome asks first", @"YES NO",
+      [NSString stringWithFormat:@"%@ %@", MMFirstLaunchAddsLogin(NO) ? @"YES" : @"NO", MMFirstLaunchAddsLogin(YES) ? @"YES" : @"NO"]);
     C(a, @"icon: an empty field starts hidden", @"0", [MMIconVisibleFor(YES, NO, YES) description]);
     C(a, @"icon: it shows once the field appears", @"1", [MMIconVisibleFor(NO, NO, NO) description]);
     C(a, @"icon: after that the person decides", @"nil", MMIconVisibleFor(YES, YES, NO) ? @"set" : @"nil");

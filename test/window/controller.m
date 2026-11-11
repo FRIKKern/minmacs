@@ -93,6 +93,8 @@ static MMSnapshot *SnapshotAt(uint64_t generation) {
 
 static void Controller(void) {
     World();
+    // A person who pressed Start long ago: no model holds a welcome. welcome.m checks the first launch.
+    MMSetPref(MMWindowWelcomedKey, @YES);
     dispatch_queue_t window = MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED), fixes = MMQueue(@"core", @"fix-everything", QOS_CLASS_USER_INITIATED);
     void (^settle)(void) = ^{ dispatch_sync(window, ^{}); };
     MMWindowController *c = [MMWindowController new];

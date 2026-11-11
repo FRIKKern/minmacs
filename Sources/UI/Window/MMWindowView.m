@@ -1,5 +1,7 @@
 // The whole window as one view: the top line, the two sides with the middle between them, the dock, and the gear and
 // power icons. It draws what the model holds. The gear turns the area under the top line into Settings and back.
+// Until the person pressed Start once, the welcome stands alone in the same window, MMWindowWelcome.m, and Start lets
+// the menu fade up in its place.
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
 
@@ -20,7 +22,12 @@ static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
     NSDate *_stepped, *_endSeen;        // the last step, and when this view first saw the run ended
     BOOL _letGo;                        // the end was shown long enough
     double _memoryShare, _diskShare, _memoryShown, _diskShown;
+    MMWindowWelcomeView *_welcome;      // made the first time a model holds a welcome
+    BOOL _started;                      // Start was pressed here: a model built before that brings no welcome back
+    BOOL _looking;                      // no model came for a moment, so the window says it is taking its first look
 }
+
+static NSString *const kLooking = @"MinMacs is taking its first look. It takes a few seconds.";
 
 - (BOOL)isFlipped { return YES; }
 - (BOOL)acceptsFirstResponder { return YES; }
@@ -64,8 +71,10 @@ static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
 
 /// The top line folds away when nobody asks. The window keeps its size: the lists grow by the band's height, and the
 /// dock stays where it is.
+- (CGFloat)bandTop { return _model && !_model.asks.length ? kNoBand : kBand; }
+
 - (void)layBand {
-    CGFloat top = _model && !_model.asks.length ? kNoBand : kBand, W = MMWindowSize.width, H = MMWindowSize.height;
+    CGFloat top = self.bandTop, W = MMWindowSize.width, H = MMWindowSize.height;
     if (_main.frame.origin.y == top) return;
     CGFloat lists = kLists + kBand - top;
     _main.frame = NSMakeRect(0, top, W, H - top);
@@ -84,10 +93,20 @@ static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
 - (void)setModel:(MMWindowModel *)model {
     // An older snapshot never replaces a newer one.
     if (_model && model && model.generation && model.generation < _model.generation) return;
+    MMWindowWelcome *welcome = _started ? nil : model.welcome;
+    if (model.welcome && model.generation == 0) {
+        // Made before the first snapshot: only its welcome is real. What shows now stays, or nothing does.
+        if (_started) return;
+        model = _model;
+        model.welcome = welcome;
+    }
     BOOL hadRun = _model.run != nil;
     _model = model;
+    [self showWelcome:welcome];
+    if (_model) _looking = NO;
     [self layBand];
     _rule.fillColor = MMWindowColor(MMWindowInkLine);
+    _rule.hidden = model == nil;
     _left.groups = model.memoryGroups;
     _right.groups = model.diskGroups;
     _middle.memoryHour = model.memoryHour;
@@ -99,6 +118,68 @@ static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
     [self followRun:hadRun];
     self.needsDisplay = YES;
 }
+
+#pragma mark The welcome
+
+- (BOOL)showsWelcome { return _welcome && !_welcome.hidden; }
+- (MMWindowWelcomeView *)welcomeView { return _welcome; }
+
+/// The welcome alone: the lists, the dock, Settings and the gear are away until Start.
+- (void)showWelcome:(MMWindowWelcome *)welcome {
+    if (!welcome) {
+        if (self.showsWelcome && !_started) { _welcome.hidden = YES; _main.hidden = self.showsSettings; _gear.hidden = NO; self.needsDisplay = YES; }
+        return;
+    }
+    BOOL was = self.showsWelcome;
+    if (!_welcome) {
+        _welcome = [[MMWindowWelcomeView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+        __weak typeof(self) me = self;
+        _welcome.onStart = ^(BOOL login, NSInteger removal) { [me start:login removal:removal]; };
+        [self addSubview:_welcome positioned:NSWindowBelow relativeTo:_gear];
+    }
+    _welcome.welcome = welcome;
+    if (was) return;
+    if (self.showsSettings) self.showsSettings = NO;
+    _welcome.hidden = NO; _welcome.alphaValue = 1;
+    _main.hidden = YES; _gear.hidden = YES;
+    self.needsDisplay = YES;
+    if (self.window.isVisible) [_welcome arrive];
+}
+
+/// Start: the answers go to the host, the welcome leaves and the menu fades up in its place. With no numbers yet the
+/// window says it is looking, and the lists and the hour lines fill in as they come.
+- (void)start:(BOOL)login removal:(NSInteger)removal {
+    if (_started) return;
+    _started = YES;
+    [self.host windowWelcomeStart:login removal:removal];
+    _model.welcome = nil;
+    if (!_model) _looking = YES;
+    _gear.hidden = NO;
+    _main.hidden = NO;
+    [self.window makeFirstResponder:self];
+    self.needsDisplay = YES;
+    MMWindowWelcomeView *goes = _welcome;
+    if (!self.window.isVisible || !self.layer || MMWindowReduceMotion()) { goes.hidden = YES; return; }
+    _main.alphaValue = 0; _gear.alphaValue = 0;
+    _main.frame = NSOffsetRect(_main.frame, 0, 10);
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
+        c.duration = 0.34;
+        goes.animator.alphaValue = 0;
+    } completionHandler:^{
+        goes.hidden = YES;
+        self.needsDisplay = YES;
+        [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
+            c.duration = 0.6;
+            self->_main.animator.alphaValue = 1; self->_gear.animator.alphaValue = 1;
+            // The band may have folded meanwhile, so the menu lands where it belongs now.
+            CGFloat top = self.bandTop;
+            self->_main.animator.frame = NSMakeRect(0, top, MMWindowSize.width, MMWindowSize.height - top);
+        } completionHandler:nil];
+    }];
+}
+
+/// No model came within a moment of opening: the window says so in one line, in place of an empty pane.
+- (void)sayLooking { if (!_model && !self.showsWelcome) { _looking = YES; self.needsDisplay = YES; } }
 
 - (void)setPointedRow:(NSString *)key {
     _pointedRow = [key copy];
@@ -207,12 +288,20 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     if (![self step:[NSDate date]] || !self.window.isVisible) { [_timer invalidate]; _timer = nil; }
 }
 
-- (void)opened { _stepped = nil; [self wake]; }
+- (void)willOpen { if (self.showsWelcome) [_welcome willArrive]; }
+
+- (void)opened {
+    _stepped = nil;
+    [self wake];
+    if (self.showsWelcome) [_welcome arrive];
+    else if (!_model) [self performSelector:@selector(sayLooking) withObject:nil afterDelay:0.6 inModes:@[NSRunLoopCommonModes]];
+}
 
 - (void)rest {
     [_timer invalidate]; _timer = nil;
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
-    [_left rest]; [_right rest];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(sayLooking) object:nil];
+    [_left rest]; [_right rest]; [_welcome rest];
     _hovered = nil;
     [self showPointed];
 }
@@ -222,7 +311,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 #pragma mark Settings in place
 
 - (void)setShowsSettings:(BOOL)on {
-    if (_showsSettings == on) return;
+    if (_showsSettings == on || (on && self.showsWelcome)) return;
     _showsSettings = on;
     _settings.host = self.host;
     _gear.lit = on;
@@ -260,13 +349,16 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     // Only the key window's keys are the window's own. AppKit also offers a key no window took to every other window.
     if (self.window.isKeyWindow && (flags & ~NSEventModifierFlagCapsLock) == NSEventModifierFlagCommand) {
         NSString *key = e.charactersIgnoringModifiers.lowercaseString;
-        if ([key isEqualToString:@","]) { self.showsSettings = !self.showsSettings; return YES; }
+        // The welcome has no Settings behind it: its two choices are on it.
+        if ([key isEqualToString:@","]) { if (!self.showsWelcome) self.showsSettings = !self.showsSettings; return YES; }
         if ([key isEqualToString:@"q"]) { [self.host windowQuit]; return YES; }
     }
     return [super performKeyEquivalent:e];
 }
 
 - (void)keyDown:(NSEvent *)e {
+    // Return presses Start, wherever the keyboard is in the welcome.
+    if (self.showsWelcome && (e.keyCode == 36 || e.keyCode == 76)) { [_welcome pressStart]; return; }
     if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil]; else [super keyDown:e];
 }
 
@@ -295,11 +387,14 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 
     // The top line: what asks the person, with a white diamond, and a hairline under it. Settings keeps the hairline.
     // Nobody asks: no words, no hairline and no band. layBand gave its height to the lists.
-    if (_model.asks.length) {
+    if (_model.asks.length && !self.showsWelcome) {
         MMWindowDrawDiamond(NSMakeRect(14, 11, 12, 12), NSColor.whiteColor);
         MMWindowDraw(MMWindowFit(_model.asks, 13, NSFontWeightMedium, MMWindowColor(MMWindowInkText), b.size.width - 60), 33, 17, -1);
     }
-    if (_model.asks.length || self.showsSettings || !_model) {
+    if (self.showsWelcome) return;
+    if (!_model && _looking && !self.showsSettings)
+        MMWindowDraw(MMWindowText(kLooking, 13, NSFontWeightRegular, MMWindowColor(MMWindowInkText2)), NSMidX(b), round(b.size.height * 0.42), 0);
+    if (_model.asks.length || self.showsSettings || (!_model && !_looking)) {
         [MMWindowColor(MMWindowInkLine) setFill];
         NSRectFillUsingOperation(NSMakeRect(14, 34, b.size.width - 28, 1), NSCompositingOperationSourceOver);
     }
@@ -311,7 +406,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
         @"Fix Everything", @"Nothing to fix now", @"Press to stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
         @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour",
-        @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs"]];
+        @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", kLooking]];
     void (^add)(NSString *) = ^(NSString *x) { if (x.length) [s addObject:x]; };
     add(m.asks);
     for (MMWindowHour *h in @[m.memoryHour ?: [MMWindowHour new], m.diskHour ?: [MMWindowHour new]]) { add(h.title); add(h.explain); }
@@ -323,6 +418,10 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     add(m.run.step); add(m.run.endTitle); add(m.run.endNote);
     for (MMWindowRule *r in m.settings.rules) { add(r.title); add(r.note); for (MMWindowChoice *c in r.choices) { add(c.title); add(c.explain); } }
     for (MMWindowSwitch *w in m.settings.switches) { add(w.title); add(w.note); }
+    MMWindowWelcome *w = m.welcome;
+    for (NSString *x in @[w.title ?: @"", w.say ?: @"", w.loginTitle ?: @"", w.loginOnNote ?: @"", w.loginOffNote ?: @"", w.removalTitle ?: @"", w.later ?: @"", w.start ?: @""]) add(x);
+    for (MMWindowChoice *c in w.removal) { add(c.title); add(c.explain); }
+    for (MMWindowFact *f in w.facts) { add(f.label); add(f.value); }
     return s;
 }
 

@@ -150,6 +150,32 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 @property (copy) NSArray<MMWindowSwitch *> *switches;
 @end
 
+#pragma mark - The welcome
+
+/// The first time the window opens, prototype 199-a: the welcome alone, in the same window. It holds every string the
+/// welcome shows and the two choices as they stand before the person touches them. Nothing is applied until Start.
+@interface MMWindowWelcome : NSObject
+@property (copy) NSString *title;                       // "Welcome to MinMacs"
+@property (copy) NSString *say;                         // what MinMacs is, in two sentences
+@property (copy) NSString *loginTitle;                  // "Open at login"
+@property (copy) NSString *loginOnNote, *loginOffNote;  // what each state of the switch means
+@property BOOL loginOn;                                 // YES: the switch starts on
+@property (copy) NSString *removalTitle;                // "When MinMacs removes things"
+@property (copy) NSArray<MMWindowChoice *> *removal;    // Smart, Trash, Delete, with Core's sentence each
+@property NSInteger removalPicked;                      // Smart, until the person picks
+@property (copy) NSString *later;                       // "Both can be changed later in Settings."
+@property (copy) NSArray<MMWindowFact *> *facts;        // a few calm facts: label is the title, value the sentence
+@property (copy) NSString *start;                       // "Start"
+/// A welcome with the words that never change, the switch on, and these choices and facts.
++ (instancetype)welcomeWithRemoval:(NSArray<MMWindowChoice *> *)removal picked:(NSInteger)picked facts:(NSArray<MMWindowFact *> *)facts;
+@end
+
+/// What Open at login means in each state, for the welcome and for Settings: "MinMacs starts when you sign in." and
+/// "MinMacs starts only when you open it."
+NSString *MMWindowLoginNote(BOOL on);
+/// The title of the removal choice, in the welcome and on its Settings card.
+extern NSString *const MMWindowRemovalTitle;
+
 #pragma mark - The whole window
 
 @interface MMWindowModel : NSObject
@@ -167,6 +193,9 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 /// only while there is nothing to fix.
 @property uint64_t memoryBackToday, diskBackToday;
 @property (strong) MMWindowSettings *settings;
+/// The welcome, until the person pressed Start once. nil ever after. A model with a welcome and generation 0 was made
+/// before the first snapshot: only its welcome is real, and the window shows nothing else of it.
+@property (strong, nullable) MMWindowWelcome *welcome;
 - (nullable MMWindowRow *)row:(NSString *)key;
 /// What Fix Everything gives back: the fixes that do not need the person, each side summed on its own.
 - (uint64_t)memoryBack;

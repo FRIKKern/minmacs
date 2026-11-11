@@ -258,6 +258,17 @@ static MMWindowSettings *SettingsWithRemoval(void) {
     return s;
 }
 
+/// The welcome as the feed makes it for a person new to MinMacs, MMWindowWelcomeNow in Shell/MMWindowRules.m, with
+/// the switch on or off and one removal choice picked. test/window.sh checks its facts against the feed's.
+static MMWindowWelcome *Welcome(BOOL login, NSInteger picked) {
+    MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:SettingsWithRemoval().rules.lastObject.choices picked:picked facts:@[
+        [MMWindowFact label:@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."],
+        [MMWindowFact label:@"You set every rule" value:@"Each rule can be Off, Careful or Eager. Each starts on Careful."],
+        [MMWindowFact label:@"It starts quietly" value:@"No permission is asked at launch. The Mac stays awake while agents work."]]];
+    w.loginOn = login;
+    return w;
+}
+
 static uint64_t Sum(MMWindowGroup *g) { uint64_t n = 0; for (MMWindowRow *r in g.rows) n += r.bytes; return n; }
 
 static MMWindowSlice *Slice(NSString *group, uint64_t bytes) { MMWindowSlice *s = [MMWindowSlice new]; s.group = group; s.bytes = bytes; return s; }
@@ -285,11 +296,14 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     // "young": one minute in, on a Mac full of servers, agents and apps, with nothing on disk found yet, nobody asking
     // and nothing to fix. "calm": twelve minutes in, nobody asks, nothing to fix, and something came back today.
     // "long": the busy day with one name in each group that is longer than its column.
-    BOOL young = [name isEqualToString:@"young"], calm = [name isEqualToString:@"calm"], longNames = [name isEqualToString:@"long"];
+    // "welcome": the young day, with the welcome on it.
+    BOOL welcome = [name hasPrefix:@"welcome"];
+    BOOL young = welcome || [name isEqualToString:@"young"], calm = [name isEqualToString:@"calm"], longNames = [name isEqualToString:@"long"];
     NSInteger minutes = empty || young ? 1 : calm ? 12 : 60;
     MMWindowModel *m = [MMWindowModel new];
     m.generation = 1;
-    m.settings = [name isEqualToString:@"removal"] ? SettingsWithRemoval() : Settings();
+    m.settings = [name isEqualToString:@"removal"] || welcome ? SettingsWithRemoval() : Settings();
+    if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-trash"] ? 1 : [name isEqualToString:@"welcome-delete"] ? 2 : 0);
     NSInteger asking = empty || young || calm ? 0 : quiet ? 1 : peak ? 3 : 2;
     NSArray<MMWindowRow *> *servers = Young(Servers(empty ? 0 : quiet || calm ? 7 : peak ? 26 : 20), minutes);
     NSArray<MMWindowRow *> *agents = Young(Agents(empty ? 0 : quiet || calm ? 3 : peak ? 22 : 16, asking), minutes);

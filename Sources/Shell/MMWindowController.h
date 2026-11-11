@@ -4,21 +4,31 @@
 //   MMGraph observe ──snapshot──► one MMPerformance per generation ──model──► onModel(model)
 //   MMWindowHost calls ─────────► MMSetMode, the lid, Fix Everything ───────► a new model of the same snapshot
 //
+// Until the person pressed Start once, every model holds the welcome, MMWindowWelcomeNow. Opened before the first
+// snapshot, the controller hands over a model of generation 0 that holds the welcome alone, so the welcome is there
+// at once. Start applies the two answers: the login item through the shell, the removal choice and the done mark.
+//
 // It works only while the window is open: -setOpen:NO ends the observing and lets the last snapshot go. A snapshot
 // that arrives while an older one is still being built replaces it, so only the newest generation reaches main.
 // Fix Everything runs on its own queue through MMFixRunner, and each step sends a model whose run moved.
 #import <Cocoa/Cocoa.h>
 #import "UI/Window/MMWindowUI.h"
 
-@class MMShell;
-
 NS_ASSUME_NONNULL_BEGIN
+
+/// Open at login, as the window needs it. MMShell answers with SMAppService. A check answers with a fake, so no
+/// check ever touches the real login item.
+@protocol MMWindowLogin <NSObject>
+- (BOOL)loginEnabled;
+- (void)setLogin:(BOOL)on;
+@end
 
 @interface MMWindowController : NSObject <MMWindowHost>
 /// Each new model, on main. Set it before -setOpen:YES.
 @property (copy, nullable) void (^onModel)(MMWindowModel *model);
 /// The shell, for Open at login. Without one the switch reads off and a press changes nothing.
-@property (weak, nullable) MMShell *shell;
+/// Only two things ever call -setLogin: here: the switch in Settings, and Start in the welcome.
+@property (weak, nullable) id<MMWindowLogin> shell;
 /// The last model sent, main only. nil before the first and after -setOpen:NO.
 @property (readonly, nullable) MMWindowModel *model;
 @property (readonly) BOOL open;

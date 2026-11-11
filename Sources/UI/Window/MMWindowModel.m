@@ -51,6 +51,26 @@
 - (instancetype)init { if ((self = [super init])) { _rules = @[]; _switches = @[]; } return self; }
 @end
 
+NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";
+
+NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sign in." : @"MinMacs starts only when you open it."; }
+
+@implementation MMWindowWelcome
++ (instancetype)welcomeWithRemoval:(NSArray<MMWindowChoice *> *)removal picked:(NSInteger)picked facts:(NSArray<MMWindowFact *> *)facts {
+    MMWindowWelcome *w = [MMWindowWelcome new];
+    w.title = @"Welcome to MinMacs";
+    w.say = @"MinMacs watches what your agents, servers and apps hold. Press Fix Everything and it gives memory and disk back.";
+    w.loginTitle = @"Open at login"; w.loginOn = YES;
+    w.loginOnNote = MMWindowLoginNote(YES); w.loginOffNote = MMWindowLoginNote(NO);
+    w.removalTitle = MMWindowRemovalTitle;
+    w.removal = removal ?: @[]; w.removalPicked = picked;
+    w.later = @"Both can be changed later in Settings.";
+    w.facts = facts ?: @[];
+    w.start = @"Start";
+    return w;
+}
+@end
+
 @implementation MMWindowModel
 - (instancetype)init {
     if ((self = [super init])) {

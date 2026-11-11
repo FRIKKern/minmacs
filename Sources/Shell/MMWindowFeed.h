@@ -22,6 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property BOOL loginOn;
 @property (copy, nullable) NSString *loginNote;
 @property (strong, nullable) MMWindowRun *run;
+/// The welcome, from MMWindowWelcomeNow, while the person has not pressed Start. The controller sets it. nil in the CLI.
+@property (strong, nullable) MMWindowWelcome *welcome;
 /// The lid switch as the keep-awake expert holds it now, and Open at login as given. Any queue.
 /// It reads the expert's last published state, or its pref before the first pass. It never runs pmset.
 + (instancetype)readWithLogin:(BOOL)loginOn;
@@ -60,5 +62,17 @@ NSArray<NSString *> *MMWindowChoiceTitles(void);
 extern NSString *const MMWindowRemovalRuleID;
 /// Settings: one rule per expert that has modes, picked from MMModeFor, and the lid and login switches.
 MMWindowSettings *MMWindowSettingsFrom(MMPerformance *_Nullable p, MMWindowExtras *_Nullable extras);
+
+#pragma mark The welcome, MMWindowRules.m
+
+/// @"core.welcomed": YES once the person pressed Start in the welcome. The welcome shows while it has no value.
+extern NSString *const MMWindowWelcomedKey;
+/// The welcome of the first launch, or nil once Start was pressed. The switch starts on. The removal choices are
+/// Core's own words, with the one the pref holds picked, Smart while it holds none. Each fact is read from the code
+/// that makes it true: the day of watching from MMWatchingLeft, and where each rule starts from MMModeFor.
+MMWindowWelcome *_Nullable MMWindowWelcomeNow(void);
+/// Start was pressed: writes the removal choice, when it is one of the three, and marks the welcome done. It does not
+/// touch the login item, which the shell owns.
+void MMWindowWelcomeDone(NSInteger removal);
 
 NS_ASSUME_NONNULL_END

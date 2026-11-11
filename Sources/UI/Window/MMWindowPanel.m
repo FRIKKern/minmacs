@@ -68,6 +68,7 @@
     BOOL contrast = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldIncreaseContrast;
     self.appearance = [NSAppearance appearanceNamed:contrast ? NSAppearanceNameAccessibilityHighContrastDarkAqua : NSAppearanceNameDarkAqua];
     // The first frame is drawn before the panel comes on screen.
+    [self.view willOpen];
     [self.contentView displayIfNeeded];
     [self makeKeyAndOrderFront:nil];
     [self makeFirstResponder:self.view];

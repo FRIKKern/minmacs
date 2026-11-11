@@ -1,7 +1,6 @@
 // The window's controller, MMWindowController.h.
 #import <stdatomic.h>
 #import "Shell/MMWindowController.h"
-#import "Shell/MMShell.h"
 #import "Shell/MMWindowFeed.h"
 #import "Shell/MMFixRunner.h"
 #import "Core/MMCore.h"
@@ -52,7 +51,14 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     __weak MMWindowController *weak = self;
     _token = [MMGraph.shared observe:^(MMSnapshot *s) { [weak take:s]; }];
     MMSnapshot *now = MMGraph.shared.current;
-    if (now) [self take:now];
+    if (now) { [self take:now]; return; }
+    // The first launch: no snapshot yet. The welcome needs none, so it is there with the window.
+    MMWindowWelcome *welcome = MMWindowWelcomeNow();
+    if (!welcome) return;
+    MMWindowModel *m = [MMWindowModel new];
+    m.welcome = welcome;
+    _model = m;
+    if (self.onModel) self.onModel(m);
 }
 
 /// Main. One build per generation: a snapshot the window already holds or has asked for is not built again.
@@ -75,6 +81,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (!_s || !_p || !self.open) return;
     MMWindowExtras *x = [MMWindowExtras readWithLogin:atomic_load(&_loginOn)];
     x.run = _run;
+    x.welcome = MMWindowWelcomeNow();
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     dispatch_async(dispatch_get_main_queue(), ^{
         if (!self.open || m.generation < self->_shown) return;
@@ -163,6 +170,21 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         [self send];
         // Each expert reads its mode when the graph prepares a snapshot, so its plan follows at the next build.
         [MMGraph.shared rebuild:@"window mode"];
+    });
+}
+
+/// Start in the welcome, on main. This and the Settings switch are the only places the window changes the login item,
+/// so nothing is added before the person answered. The prefs are written here, before anything else can build a
+/// model, so no later model brings the welcome back.
+- (void)windowWelcomeStart:(BOOL)openAtLogin removal:(NSInteger)removal {
+    if (MMPrefBool(MMWindowWelcomedKey, NO)) return;
+    MMWindowWelcomeDone(removal);
+    [self.shell setLogin:openAtLogin];
+    atomic_store(&_loginOn, [self.shell loginEnabled]);
+    dispatch_async(Queue(), ^{
+        [self send];
+        // Each row's words follow the removal choice, so the experts build their findings again.
+        [MMGraph.shared rebuild:@"window welcome"];
     });
 }
 

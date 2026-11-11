@@ -49,6 +49,8 @@ BOOL MMMayRegisterLoginItem(NSDictionary<NSString *, NSString *> *env, NSString 
 #endif
 }
 
+BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }
+
 NSNumber *MMIconVisibleFor(BOOL fieldEmpty, BOOL seen, BOOL firstLaunch) {
     if (seen) return nil;
     if (!fieldEmpty) return @YES;                          // the field appeared: show the icon, once
@@ -166,7 +168,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property BOOL opensWindow;                             // window mode: a click opens the menu window, and there is no menu
 @end
 
-@interface MMShell ()
+@interface MMShell () <MMWindowLogin>
 @property (strong) NSMutableArray<MMExpertItem *> *items;
 @property (strong) MMSettings *settings;
 @property (strong) id graphToken;
@@ -338,7 +340,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     BOOL first = !MMPrefBool(kLaunchedKey, NO);
     if (first) {
         MMStartWatching();
-        if (!self.headless && MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) {
+        // With the menu window the welcome asks first, and Start adds the login item: MMWindowController.
+        if (!self.headless && MMFirstLaunchAddsLogin(MMPrefBool(kWindowKey, NO)) &&
+            MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) {
             NSError *e = nil;
             if ([SMAppService.mainAppService registerAndReturnError:&e])
                 MMSetPref(kLoginNoticeKey, @(NSDate.date.timeIntervalSince1970 + 86400));

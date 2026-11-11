@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a trashed file lands in
 // $MINMACS_HOME/Trash and a deleted one is unlinked inside the fixture folder only. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -583,10 +583,12 @@ static void RunStopped(void) {
 #import "controller.m"
 // Fix Everything under the Trash choice and under Delete.
 #import "removal.m"
+// The welcome of the first launch.
+#import "welcome.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -606,6 +608,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"controller"]) Controller();
         else if ([mode isEqualToString:@"trash"]) RunChoice(MMRemovalTrash);
         else if ([mode isEqualToString:@"delete"]) RunChoice(MMRemovalDelete);
+        else if ([mode isEqualToString:@"welcome"]) Welcome();
         else return 2;
         printf("END\n");
     }

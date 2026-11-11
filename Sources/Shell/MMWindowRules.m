@@ -75,18 +75,23 @@ static MMWindowRule *Rule(NSString *ruleID, MMPerformance *p) {
     return r;
 }
 
-/// "When MinMacs removes things": the removal choice of Core/Act/MMRemoval.h, with Core's own words for each choice.
-/// It is no expert's mode, so it shows whatever experts run, after their rules.
-static MMWindowRule *RemovalRule(void) {
-    MMWindowRule *r = [MMWindowRule new];
-    r.ruleID = MMWindowRemovalRuleID; r.title = @"When MinMacs removes things";
+/// Smart, Trash and Delete with Core's one sentence each. The Settings card and the welcome show the same three.
+static NSArray<MMWindowChoice *> *RemovalChoices(void) {
     NSMutableArray *choices = [NSMutableArray new];
     for (NSInteger i = MMRemovalSmart; i <= MMRemovalDelete; i++) {
         MMWindowChoice *c = [MMWindowChoice new];
         c.title = MMRemovalChoiceTitle((MMRemovalChoice)i); c.explain = MMRemovalChoiceExplain((MMRemovalChoice)i);
         [choices addObject:c];
     }
-    r.choices = choices;
+    return choices;
+}
+
+/// "When MinMacs removes things": the removal choice of Core/Act/MMRemoval.h, with Core's own words for each choice.
+/// It is no expert's mode, so it shows whatever experts run, after their rules.
+static MMWindowRule *RemovalRule(void) {
+    MMWindowRule *r = [MMWindowRule new];
+    r.ruleID = MMWindowRemovalRuleID; r.title = @"When MinMacs removes things";
+    r.choices = RemovalChoices();
     r.picked = (NSInteger)MMRemovalChoiceNow();
     // Smart is shown as picked while nothing is, and the note says what holds until the person picks.
     r.note = MMRemovalNotChosenNote();
@@ -106,9 +111,42 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
     MMWindowSwitch *lid = [MMWindowSwitch new];
     lid.switchID = @"lid"; lid.title = @"Keep working with the lid closed"; lid.on = extras.lidOn; lid.note = extras.lidNote;
     MMWindowSwitch *login = [MMWindowSwitch new];
-    login.switchID = @"login"; login.title = @"Open at login"; login.on = extras.loginOn; login.note = extras.loginNote;
+    login.switchID = @"login"; login.title = @"Open at login"; login.on = extras.loginOn;
+    // The same sentence the welcome shows for this state of the switch.
+    login.note = extras.loginNote ?: MMWindowLoginNote(extras.loginOn);
     st.switches = @[lid, login];
     return st;
+}
+
+#pragma mark - The welcome
+
+NSString *const MMWindowWelcomedKey = @"core.welcomed";
+
+/// Each fact is true of the code named beside it, and is left out or said another way when it would not be.
+MMWindowWelcome *MMWindowWelcomeNow(void) {
+    if (MMPrefBool(MMWindowWelcomedKey, NO)) return nil;
+    NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
+    // MMPlan and MMRunAction in Core/Act/MMAct.m: no mode acts before MMWatchedLongEnough, a day after the first launch.
+    BOOL waits = NO, careful = YES;
+    for (NSString *rid in MMWindowRuleIDs()) {
+        if (MMWatchingLeft(MMWindowRuleExpert(rid)) > 0) waits = YES;
+        if (MMModeFor(MMWindowRuleExpert(rid)) != MMModeProactive) careful = NO;
+    }
+    if (waits) [facts addObject:[MMWindowFact label:@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."]];
+    else [facts addObject:[MMWindowFact label:@"It has watched a day" value:@"A rule that is not Off may now stop, quit or remove things on its own."]];
+    // MMModeFor: a mode with no value is Proactive, which the window calls Careful. Rules brought over from the old
+    // apps may stand elsewhere, and then the welcome does not say where they start.
+    [facts addObject:[MMWindowFact label:@"You set every rule" value:careful ? @"Each rule can be Off, Careful or Eager. Each starts on Careful."
+                                                                           : @"Each rule can be Off, Careful or Eager. Settings shows where each stands."]];
+    // AGENTS.md invariant 6: no permission is asked for at launch; the notifier asks at its first notice. PLAN.md
+    // decision 4: awake while an agent works starts on, MMINPrefs' default in Experts/Insomnia.
+    [facts addObject:[MMWindowFact label:@"It starts quietly" value:@"No permission is asked at launch. The Mac stays awake while agents work."]];
+    return [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
+}
+
+void MMWindowWelcomeDone(NSInteger removal) {
+    if (removal >= MMRemovalSmart && removal <= MMRemovalDelete) MMSetRemovalChoice((MMRemovalChoice)removal);
+    MMSetPref(MMWindowWelcomedKey, @YES);
 }
 
 #pragma mark - The switches

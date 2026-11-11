@@ -146,6 +146,7 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
     m.memoryBackToday = p.lookBack.todayMemory; m.diskBackToday = p.lookBack.todayDisk;
 
     m.run = extras.run;
+    m.welcome = extras.welcome;
     m.settings = MMWindowSettingsFrom(p, extras);
     return m;
 }

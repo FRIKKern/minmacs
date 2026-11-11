@@ -660,7 +660,9 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
                                   @[@"running", @"main", @""], @[@"done", @"main", @""], @[@"empty", @"main", @""],
                                   // From the first look at the real window: one minute in with an empty disk side and nobody asking,
                                   // twelve minutes in with nothing to fix and a look-back, and names longer than their column.
-                                  @[@"young", @"main", @""], @[@"calm", @"main", @""], @[@"long", @"main", @""], @[@"long", @"agent", @"agent:long"]];
+                                  @[@"young", @"main", @""], @[@"calm", @"main", @""], @[@"long", @"main", @""], @[@"long", @"agent", @"agent:long"],
+                                  // The first launch: the welcome alone, with the switch on and off and each removal choice picked.
+                                  @[@"welcome", @"main", @""], @[@"welcome-off", @"main", @""], @[@"welcome-trash", @"main", @""], @[@"welcome-delete", @"main", @""]];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -674,12 +676,21 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
             NSString *path = [dir stringByAppendingFormat:@"/%@-%@-%@.png", shot[0], shot[1], mode];
             if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
         }
+        // Start pressed before the first snapshot came: the window says it is looking until the first numbers arrive.
+        MMWindowView *v = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+        v.drawsBacking = YES;
+        MMWindowModel *bare = [MMWindowModel new];
+        bare.welcome = MMWindowFixture(@"welcome").welcome;
+        v.model = bare;
+        [v.welcomeView pressStart];
+        NSString *path = [dir stringByAppendingFormat:@"/welcome-started-%@.png", mode];
+        if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
         MMWindowForceContrast(NO);
     }
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])
@@ -696,6 +707,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     Check(MMWindowFixture(@"empty").fixCount == 0 && MMWindowFixture(@"running").run.running && !MMWindowFixture(@"done").run.running && MMWindowFixture(@"done").run.endTitle.length,
           @"window: the empty day has no fix, the running day runs, the done day ended", @"");
     WindowLookChecks();
+    WindowWelcomeChecks();
 }
 
 /// The shell's PNGs go in their own folder: each expert's menu and card as the shell builds them, One Icon, the icons.
