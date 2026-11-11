@@ -146,6 +146,16 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 - (void)windowStopRun { dispatch_async(Queue(), ^{ [self->_runner stop]; }); }
 
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice {
+    if ([ruleID isEqualToString:MMWindowRemovalRuleID]) {
+        if (choice < MMRemovalSmart || choice > MMRemovalDelete) return;
+        dispatch_async(Queue(), ^{
+            MMSetRemovalChoice((MMRemovalChoice)choice);
+            [self send];
+            // Each row's words follow the choice, so the experts build their findings again.
+            [MMGraph.shared rebuild:@"window removal"];
+        });
+        return;
+    }
     NSString *expert = MMWindowRuleExpert(ruleID);
     if (!expert || choice < MMModeIdle || choice > MMModeEager) return;
     dispatch_async(Queue(), ^{

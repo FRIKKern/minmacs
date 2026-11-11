@@ -223,6 +223,41 @@ static MMWindowSettings *Settings(void) {
     return s;
 }
 
+/// One card with choices of its own, as the feed builds them: a title and one sentence each.
+static MMWindowRule *Card(NSString *rid, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *note) {
+    MMWindowRule *r = [MMWindowRule new];
+    r.ruleID = rid; r.title = title; r.picked = picked; r.note = note;
+    NSMutableArray *list = [NSMutableArray new];
+    for (NSArray<NSString *> *c in choices) { MMWindowChoice *x = [MMWindowChoice new]; x.title = c[0]; x.explain = c[1]; [list addObject:x]; }
+    r.choices = list;
+    return r;
+}
+
+/// "removal": Settings as the feed fills it today, MMWindowRules.m: the four mode rules, then the card for the removal
+/// choice with Core's own three sentences, then This Mac. test/window.sh checks the sentences against Core's.
+static MMWindowSettings *SettingsWithRemoval(void) {
+    MMWindowSettings *s = Settings();
+    NSArray *(^modes)(NSString *, NSString *, NSString *) = ^NSArray *(NSString *off, NSString *careful, NSString *eager) {
+        return @[@[@"Off", off], @[@"Careful", careful], @[@"Eager", eager]];
+    };
+    s.rules = @[Card(@"servers", @"Stop idle servers", 1, modes(@"Stops no server on its own.",
+                     @"After a review, stops an idle dev server that was quiet for 6 hours and has no agent above it.",
+                     @"After a review, stops each idle dev server the review finds no use for."), nil),
+                Card(@"apps", @"Quit apps", 0, modes(@"Quits no app on its own.", @"Quits no app on its own either. An app closes only on your press.",
+                     @"Quits the apps on your close list, only while memory pressure or heat is high."), @"1 ready. It waits for your press."),
+                Card(@"worktrees", @"Remove finished worktrees", 1, modes(@"Removes no worktree on its own.",
+                     @"After a review, removes a worktree that is merged, or whose remote branch is gone, and quiet for 7 days.",
+                     @"After a review, removes each worktree the review finds no use for."), nil),
+                Card(@"caches", @"Clean caches and leftovers", 2, modes(@"Cleans up nothing on its own.",
+                     @"After a review, cleans up the build output of finished projects and leftovers.",
+                     @"After a review, also cleans up caches. A tool's own cleanup always waits for your press."), nil),
+                Card(@"removal", @"When MinMacs removes things", 0, @[
+                     @[@"Smart", @"Deletes what git or its tool can give back. The rest goes to the Trash."],
+                     @[@"Trash", @"Everything goes to the Trash. The disk comes back when you empty it."],
+                     @[@"Delete", @"Deletes everything it removes at once. Nothing can be brought back."]], nil)];
+    return s;
+}
+
 static uint64_t Sum(MMWindowGroup *g) { uint64_t n = 0; for (MMWindowRow *r in g.rows) n += r.bytes; return n; }
 
 static MMWindowSlice *Slice(NSString *group, uint64_t bytes) { MMWindowSlice *s = [MMWindowSlice new]; s.group = group; s.bytes = bytes; return s; }
@@ -254,7 +289,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     NSInteger minutes = empty || young ? 1 : calm ? 12 : 60;
     MMWindowModel *m = [MMWindowModel new];
     m.generation = 1;
-    m.settings = Settings();
+    m.settings = [name isEqualToString:@"removal"] ? SettingsWithRemoval() : Settings();
     NSInteger asking = empty || young || calm ? 0 : quiet ? 1 : peak ? 3 : 2;
     NSArray<MMWindowRow *> *servers = Young(Servers(empty ? 0 : quiet || calm ? 7 : peak ? 26 : 20), minutes);
     NSArray<MMWindowRow *> *agents = Young(Agents(empty ? 0 : quiet || calm ? 3 : peak ? 22 : 16, asking), minutes);
@@ -317,7 +352,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         } else {
             run.done = run.total; run.memoryBack = run.memoryPlanned - 96 * MB; run.diskBack = run.diskPlanned;
             run.endTitle = @"7 fixes done";
-            run.endNote = @"Skipped 2 agents that ask you and 1 cache that npm cleans itself. Deletes went to the Trash.";
+            run.endNote = @"Skipped 2 agents that ask you and 1 cache that npm cleans itself. Deleted 3, moved 2 to the Trash.";
         }
         m.run = run;
     }

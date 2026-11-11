@@ -3,7 +3,8 @@
 # controller files of Sources/Shell and the plain model of Sources/UI/Window, and runs it on fixture facts inside
 # $MINMACS_HOME.
 # The runner's actions are fakes that act only on files the tool made in its own fixture folder: a stop or a quit
-# writes its key to a list, and a removal goes through MMUndo into $MINMACS_HOME/Trash. No process starts.
+# writes its key to a list, and a removal goes where the removal choice says, through MMRemovalApply: into
+# $MINMACS_HOME/Trash, or deleted inside the fixture folder, which MMRemovalApply never leaves. No process starts.
 # Fix Everything has no verb, so nothing here could act on a real server, worktree, cache or app.
 
 wn_dir="$(cd "$MINMACS_HOME" && pwd -P)/window.$$"
@@ -47,6 +48,9 @@ if [ "$wn_r" = 0 ]; then
   wn_run refused
   echo "-- the controller: open and closed, generations, two presses, stop and what waits for the end"
   wn_run controller
+  echo "-- Fix Everything under the Trash choice and under Delete"
+  wn_run trash
+  wn_run delete
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
@@ -94,6 +98,11 @@ wn_rules="$(wn_has LocoHost/MMLHScan.m 'EnvMinutes(@"LOCOHOST_PROACTIVE_MINUTES"
   wn_has MinMacs/MMMinMacsExpert.m 'if (m != MMModeEager) return @"Proactive never quits an app on its own";' 'return @"Eager quits apps only while memory pressure or heat is high";'
   wn_has NooNoo/MMNooNooExpert.m 'if ([sec isEqual:@"finished"] || [sec isEqual:@"leftovers"]) return nil;' 'if (m == MMModeEager && [f.facts[@"class"] isEqual:@"cache"]) return nil;' 'return @"Noo-Noo runs a tool'"'"'s own cleanup only when you ask";')"
 check "window: each mode rule is still what Settings says it is" "1 1 1 1 1 1 1 1 1 1 1" "${wn_rules% }"
+# The render's Settings fixture cannot link Core, so it holds the removal card's sentences as its own strings.
+check "window: the render's removal card says Core's three sentences and the feed's title" "1 1 1 1" \
+  "$(for wn_s in 'Deletes what git or its tool can give back. The rest goes to the Trash.' 'Everything goes to the Trash. The disk comes back when you empty it.' 'Deletes everything it removes at once. Nothing can be brought back.'; do
+       grep -qF "$wn_s" Sources/Core/Act/MMRemoval.m && grep -qF "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
+     grep -qF '@"When MinMacs removes things"' Sources/Shell/MMWindowRules.m && grep -qF '@"When MinMacs removes things"' Sources/UI/Window/MMWindowFixture.m && printf '1' || printf '0')"
 check "window: the keep-awake state still has the keys the lid switch reads" 8 \
   "$(grep -cE '^@property (BOOL (lid|lidLive|laptop|otherApp);|\(copy\) (MMINPrefs \*prefs|NSString \*(pauseReason|lidProblem));)' Sources/Experts/Insomnia/MMInsomnia.h)"
 
@@ -111,7 +120,7 @@ check "window: --json memory slices add up to memory in use" yes \
   "$(printf '%s' "$wn_json" | json "'yes' if sum(p['bytes'] for p in j['ring']['memory']['slices']) == j['ring']['memory']['used'] else 'no'")"
 check "window: --json rows carry a kind and their own key" yes \
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
-check "window: --json has a rule per expert with modes, three choices each, and the two switches" "servers,apps,worktrees,caches 3 lid,login" \
+check "window: --json has a rule per expert with modes, the removal choice, three choices each, and the two switches" "servers,apps,worktrees,caches,removal 3 lid,login" \
   "$(printf '%s' "$wn_json" | json "','.join(r['ruleID'] for r in j['settings']['rules']) + ' ' + str(max(len(r['choices']) for r in j['settings']['rules'])) + ' ' + ','.join(s['switchID'] for s in j['settings']['switches'])")"
 wn_text=$(MINMACS_HOME="$wn_home" "$BIN" window 2>/dev/null)
 check "window: the text prints memory and disk on their own lines" "1 1" \

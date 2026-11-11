@@ -45,7 +45,11 @@ NSString *MMWindowFixTitle(MMPerformanceFix *fix) {
     if ([kind isEqualToString:@"stop"]) return [NSString stringWithFormat:@"Stop %@", MMPlural(n, @"idle server")];
     if ([kind isEqualToString:@"quit"]) return [NSString stringWithFormat:@"Quit %@", MMPlural(n, @"app")];
     if ([kind isEqualToString:@"remove"]) return [NSString stringWithFormat:@"Remove %@", MMPlural(n, @"merged worktree")];
-    if ([kind isEqualToString:@"trash"]) return [NSString stringWithFormat:@"Move %@ to the Trash", MMPlural(n, @"leftover")];
+    // What the press does follows the removal choice. Under Smart some are deleted and the rest go to the Trash.
+    if ([kind isEqualToString:@"trash"]) {
+        MMRemovalChoice c = MMRemovalChoiceNow();
+        return [NSString stringWithFormat:c == MMRemovalTrash ? @"Move %@ to the Trash" : c == MMRemovalDelete ? @"Delete %@" : @"Clean up %@", MMPlural(n, @"leftover")];
+    }
     if ([kind isEqualToString:@"clean"]) {
         if (n == 1) return [@"Clean " stringByAppendingString:MMWindowNameOf(fix.actions.firstObject.finding)];
         return [NSString stringWithFormat:@"Run %@", MMPlural(n, @"tool cleanup")];

@@ -156,6 +156,23 @@ static void Controller(void) {
     T(@"controller: what waited for the run is told on main, and only once it ended", @"no yes yes", [NSString stringWithFormat:@"%@ %@ %@", YN(early), YN(told), YN(toldOnMain)]);
     T(@"controller: the end note counts what was stopped", @"yes", YN([stopped.endNote containsString:@"you stopped"]));
 
+    // The removal card writes Core's pref, never an expert's mode, and a choice that is not one of the three is ignored.
+    MMMode before = MMModeFor(@"noonoo");
+    [c windowSetRule:MMWindowRemovalRuleID picked:MMRemovalDelete];
+    settle();
+    NSString *picked = MMRemovalChoiceName(MMRemovalChoiceNow());
+    [c windowSetRule:MMWindowRemovalRuleID picked:7];
+    [c windowSetRule:MMWindowRemovalRuleID picked:-1];
+    settle();
+    T(@"controller: a press on the removal card sets the choice, and a number that is no choice changes nothing", @"delete delete yes", [NSString stringWithFormat:@"%@ %@ %@",
+      picked, MMRemovalChoiceName(MMRemovalChoiceNow()), YN(MMModeFor(@"noonoo") == before)]);
+    Spin(20, ^BOOL { return models.lastObject.settings.rules.lastObject.picked == MMRemovalDelete; });
+    T(@"controller: the next model shows the pick", @"removal 2", [NSString stringWithFormat:@"%@ %ld", models.lastObject.settings.rules.lastObject.ruleID,
+      (long)models.lastObject.settings.rules.lastObject.picked]);
+    [c windowSetRule:MMWindowRemovalRuleID picked:MMRemovalSmart];
+    settle();
+    MMSetPref(MMRemovalKey, nil);
+
     // Closed again: the model goes, and a new snapshot builds nothing.
     NSUInteger had = models.count;
     [c setOpen:NO];

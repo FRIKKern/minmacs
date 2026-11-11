@@ -55,6 +55,9 @@ NSArray<NSString *> *MMWindowRuleIDs(void);
 NSString *_Nullable MMWindowRuleExpert(NSString *ruleID);
 /// The three choices in order, for MMModeIdle, MMModeProactive and MMModeEager: "Off", "Careful", "Eager".
 NSArray<NSString *> *MMWindowChoiceTitles(void);
+/// The id of the card "When MinMacs removes things". Its three choices are MMRemovalChoice in order: Smart, Trash,
+/// Delete. windowSetRule:picked: writes the pref core.removal for it, and no expert's mode.
+extern NSString *const MMWindowRemovalRuleID;
 /// Settings: one rule per expert that has modes, picked from MMModeFor, and the lid and login switches.
 MMWindowSettings *MMWindowSettingsFrom(MMPerformance *_Nullable p, MMWindowExtras *_Nullable extras);
 

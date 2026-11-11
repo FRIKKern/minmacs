@@ -48,7 +48,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, copy) NSArray<MMFixResult *> *results;
 @end
 
-/// "Stopping :3001", "Quitting Chat", "Removing fix-auth", "Moving DerivedData to the Trash".
+/// "Stopping :3001", "Quitting Chat", "Removing fix-auth", and for a cache "Cleaning up DerivedData" under the Smart
+/// removal choice, "Moving DerivedData to the Trash" under Trash and "Deleting DerivedData" under Delete.
 NSString *MMFixStepText(NSString *fixKind, NSString *name);
 
 NS_ASSUME_NONNULL_END

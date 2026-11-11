@@ -655,7 +655,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     // fixture, state, the row the pointer rests on
     NSArray<NSArray *> *shots = @[@[@"busy", @"main", @""], @[@"busy", @"server", @"server:6006"], @[@"busy", @"worktree", @"worktree:fix-auth-redirect"],
-                                  @[@"busy", @"settings", @""], @[@"quiet", @"main", @""], @[@"quiet", @"server", @"server:3001"],
+                                  @[@"busy", @"settings", @""], @[@"removal", @"settings", @""], @[@"quiet", @"main", @""], @[@"quiet", @"server", @"server:3001"],
                                   @[@"peak", @"main", @""], @[@"peak", @"worktree", @"worktree:notes-export"],
                                   @[@"running", @"main", @""], @[@"done", @"main", @""], @[@"empty", @"main", @""],
                                   // From the first look at the real window: one minute in with an empty disk side and nobody asking,
@@ -679,7 +679,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])

@@ -119,7 +119,7 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 @property uint64_t memoryBack, diskBack;                // what has come back so far
 @property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back; the two lines fill to these
 @property (copy, nullable) NSString *endTitle;          // "7 fixes done"
-@property (copy, nullable) NSString *endNote;           // "Skipped 2 agents that ask you and 4 blocked. Deletes went to the Trash."
+@property (copy, nullable) NSString *endNote;           // "Skipped 2 agents that ask you and 4 blocked. Deleted 3, moved 2 to the Trash."
 @end
 
 #pragma mark - Settings

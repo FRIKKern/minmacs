@@ -12,7 +12,12 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     if ([kind isEqualToString:@"stop"]) return [@"Stopping " stringByAppendingString:name];
     if ([kind isEqualToString:@"quit"]) return [@"Quitting " stringByAppendingString:name];
     if ([kind isEqualToString:@"remove"]) return [@"Removing " stringByAppendingString:name];
-    if ([kind isEqualToString:@"trash"]) return [NSString stringWithFormat:@"Moving %@ to the Trash", name];
+    if ([kind isEqualToString:@"trash"]) {
+        // Under Smart the step's own fresh check decides, so the step says neither before it ran.
+        MMRemovalChoice c = MMRemovalChoiceNow();
+        return c == MMRemovalTrash ? [NSString stringWithFormat:@"Moving %@ to the Trash", name]
+             : [(c == MMRemovalDelete ? @"Deleting " : @"Cleaning up ") stringByAppendingString:name];
+    }
     return [@"Fixing " stringByAppendingString:name];
 }
 
@@ -22,11 +27,12 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     NSMutableArray<MMFixResult *> *_results;
     NSInteger _done, _total;
     uint64_t _memoryBack, _diskBack, _memoryPlanned, _diskPlanned;
-    BOOL _trashed, _recovered;
+    BOOL _recovered;
+    NSMutableArray<MMUndoRecord *> *_removed;   // each finished record of the run, a Wrap Up as its parts
 }
 
 - (instancetype)initWithPerformance:(MMPerformance *)p {
-    if ((self = [super init])) { _p = p; _results = [NSMutableArray new]; }
+    if ((self = [super init])) { _p = p; _results = [NSMutableArray new]; _removed = [NSMutableArray new]; }
     return self;
 }
 
@@ -59,7 +65,8 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     return x;
 }
 
-/// Where a finished record's deletes went, from its payload: the Trash, a recovery folder, or neither.
+/// Where a finished record's removed things went, from its payload: deleted, the Trash, a recovery folder, or none.
+/// The records are kept for the end note, which MMRemovalWhereWords counts from them.
 - (void)readWhere:(MMUndoRecord *)rec {
     if (!rec) return;
     NSMutableArray<MMUndoRecord *> *all = [NSMutableArray arrayWithObject:rec];
@@ -67,7 +74,7 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     if ([parts isKindOfClass:NSArray.class])
         for (id rid in parts) { MMUndoRecord *part = [rid isKindOfClass:NSString.class] ? [MMUndo.shared record:rid] : nil; if (part) [all addObject:part]; }
     for (MMUndoRecord *r in all) {
-        if ([r.payload[@"trashed"] isKindOfClass:NSArray.class] && [r.payload[@"trashed"] count]) _trashed = YES;
+        [_removed addObject:r];
         id rec2 = r.payload[@"recovery"];
         if ([rec2 isKindOfClass:NSDictionary.class] && [rec2[@"saved"] isKindOfClass:NSArray.class] && [rec2[@"saved"] count]) _recovered = YES;
     }
@@ -152,8 +159,8 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     return end;
 }
 
-/// One or two short sentences: what was skipped and why, then where deleted things went. Nothing here says a thing is
-/// gone for good, since every step left an undo record.
+/// One or two short sentences: what was skipped and why, then where removed things went in this run, counted from the
+/// records: "Deleted 3, moved 2 to the Trash." Every step left a record, and a deleted thing's record says so.
 - (NSString *)endNote:(NSInteger)needYou notRun:(NSInteger)notRun notReached:(NSInteger)notReached {
     NSInteger kept = 0, stuck = 0;
     for (MMFixResult *x in self.results) {
@@ -173,9 +180,9 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
             : [NSString stringWithFormat:@"%@ and %@", [[skipped subarrayWithRange:NSMakeRange(0, skipped.count - 1)] componentsJoinedByString:@", "], skipped.lastObject];
         [out addObject:[NSString stringWithFormat:@"Skipped %@.", list]];
     }
-    if (_trashed && _recovered) [out addObject:@"Deletes went to the Trash, and files git ignores were saved in a recovery folder."];
-    else if (_trashed) [out addObject:@"Deletes went to the Trash."];
-    else if (_recovered) [out addObject:@"Files git ignores were saved in a recovery folder."];
+    NSString *where = MMRemovalWhereWords(_removed);
+    if (where) [out addObject:where];
+    if (_recovered) [out addObject:@"Files git ignores were saved in a recovery folder."];
     return out.count ? [out componentsJoinedByString:@" "] : nil;
 }
 

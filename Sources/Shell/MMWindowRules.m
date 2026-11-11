@@ -16,6 +16,8 @@ NSString *MMWindowRuleExpert(NSString *ruleID) {
 
 NSArray<NSString *> *MMWindowChoiceTitles(void) { return @[@"Off", @"Careful", @"Eager"]; }
 
+NSString *const MMWindowRemovalRuleID = @"removal";
+
 static NSString *RuleTitle(NSString *ruleID) {
     return @{@"servers": @"Stop idle servers", @"apps": @"Quit apps", @"worktrees": @"Remove finished worktrees",
              @"caches": @"Clean caches and leftovers"}[ruleID];
@@ -37,9 +39,9 @@ static NSArray<NSString *> *Explains(NSString *ruleID) {
         @"worktrees": @[@"Removes no worktree on its own.",
                         @"After a review, removes a worktree that is merged, or whose remote branch is gone, and quiet for 7 days.",
                         @"After a review, removes each worktree the review finds no use for."],
-        @"caches": @[@"Moves nothing to the Trash on its own.",
-                     @"After a review, moves the build output of finished projects and leftovers to the Trash.",
-                     @"After a review, also moves caches to the Trash. A tool's own cleanup always waits for your press."],
+        @"caches": @[@"Cleans up nothing on its own.",
+                     @"After a review, cleans up the build output of finished projects and leftovers.",
+                     @"After a review, also cleans up caches. A tool's own cleanup always waits for your press."],
     }[ruleID];
 }
 
@@ -73,6 +75,22 @@ static MMWindowRule *Rule(NSString *ruleID, MMPerformance *p) {
     return r;
 }
 
+/// "When MinMacs removes things": the removal choice of Core/Act/MMRemoval.h, with Core's own words for each choice.
+/// It is no expert's mode, so it shows whatever experts run, after their rules.
+static MMWindowRule *RemovalRule(void) {
+    MMWindowRule *r = [MMWindowRule new];
+    r.ruleID = MMWindowRemovalRuleID; r.title = @"When MinMacs removes things";
+    NSMutableArray *choices = [NSMutableArray new];
+    for (NSInteger i = MMRemovalSmart; i <= MMRemovalDelete; i++) {
+        MMWindowChoice *c = [MMWindowChoice new];
+        c.title = MMRemovalChoiceTitle((MMRemovalChoice)i); c.explain = MMRemovalChoiceExplain((MMRemovalChoice)i);
+        [choices addObject:c];
+    }
+    r.choices = choices;
+    r.picked = (NSInteger)MMRemovalChoiceNow();
+    return r;
+}
+
 MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras) {
     MMWindowSettings *st = [MMWindowSettings new];
     NSMutableArray *rules = [NSMutableArray new];
@@ -81,6 +99,7 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
         id<MMExpert> e = MMExpertNamed(MMWindowRuleExpert(rid));
         if (e && [[e policy] respondsToSelector:@selector(modeKeeps:mode:review:)]) [rules addObject:Rule(rid, p)];
     }
+    [rules addObject:RemovalRule()];
     st.rules = rules;
     MMWindowSwitch *lid = [MMWindowSwitch new];
     lid.switchID = @"lid"; lid.title = @"Keep working with the lid closed"; lid.on = extras.lidOn; lid.note = extras.lidNote;

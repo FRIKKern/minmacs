@@ -3,9 +3,10 @@
 // The fixture helpers are test/performance/performance.m's own: its fake sample, worktrees, git facts, sessions,
 // agents and experts. That file is included below with its main renamed, so the two sections share one world maker.
 // Here the facts have the shape the real experts write, and the actions act: on files this tool made inside the
-// fixture folder, through MMUndo, so a trashed file lands in $MINMACS_HOME/Trash. A stop or a quit only writes its
+// fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a trashed file lands in
+// $MINMACS_HOME/Trash and a deleted one is unlinked inside the fixture folder only. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -30,12 +31,26 @@ static NSMutableSet<NSString *> *gRefuses;      // finding ids whose action runs
     // A stop, a quit or a tab close ends nothing here. Only a removal touches the disk, and only inside the fixtures.
     if (![verb isEqualToString:@"remove"]) return YES;
     if (![f.path hasPrefix:gDir]) { if (error) *error = @"not a fixture path"; return NO; }
+    // Where it goes is the removal choice's one decision, on the fixture's own facts. A worktree here is merged and
+    // clean, node_modules is build output its tool rebuilds, and DerivedData stands for a cache whose row does not
+    // say rebuilt. git is not run: the worktree's folder goes the way the decision says.
+    MMRemovalDecision *d;
     if ([f.kind isEqualToString:@"worktree"]) {
+        MMRemovalFacts *now = [MMRemovalFacts worktreeKnown:YES merged:YES upstreamGone:NO dirty:0 untracked:0 unpushed:0 stashes:0];
+        d = MMRemovalDecide(MMRemovalWorktree, now);
+        MMRemovalDecision *ignored = MMRemovalDecide(MMRemovalIgnoredFiles, now);
+        MMRemovalNote(record, d, nil);
+        MMRemovalNote(record, ignored, @"ignored");
         NSString *err = nil;
-        if (![MMUndo.shared recover:@[@".env"] from:f.path record:record error:&err]) { if (error) *error = err; return NO; }
+        if (!ignored.deleteNow && ![MMUndo.shared recover:@[@".env"] from:f.path record:record error:&err]) { if (error) *error = err; return NO; }
+    } else {
+        MMRemovalFacts *now = [MMRemovalFacts new];
+        now.klass = MMClutterBuild; now.free = YES; now.rebuilt = [f.facts[@"kindTitle"] isEqual:@"node_modules"];
+        d = MMRemovalDecide(MMRemovalClutter, now);
+        MMRemovalNote(record, d, nil);
     }
     NSError *e = nil;
-    if (![MMUndo.shared trash:[NSURL fileURLWithPath:f.path] record:record error:&e]) { if (error) *error = e.localizedDescription; return NO; }
+    if (!MMRemovalApply([NSURL fileURLWithPath:f.path], d, record, &e)) { if (error) *error = e.localizedDescription; return NO; }
     return YES;
 }
 @end
@@ -343,7 +358,7 @@ static void WindowModel(void) {
     // The fixes.
     T(@"window: the fixes are the Performance model's, in its order", [[p.fixes valueForKey:@"key"] componentsJoinedByString:@","], [[m.fixes valueForKey:@"key"] componentsJoinedByString:@","]);
     T(@"window: each fix has a title in plain words",
-      @"Clean pnpm store | Move 1 leftover to the Trash | Quit 1 app | Remove 1 merged worktree | Stop 1 idle server | Wrap Up fix-auth-redirect",
+      @"Clean pnpm store | Clean up 1 leftover | Quit 1 app | Remove 1 merged worktree | Stop 1 idle server | Wrap Up fix-auth-redirect",
       [[[m.fixes valueForKey:@"title"] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" | "]);
     uint64_t mb = 0, db2 = 0; NSInteger n = 0, needs = 0;
     for (MMPerformanceFix *f in p.fixes) { if (f.needsYou) { needs++; continue; } n++; mb += f.memoryBack; db2 += f.diskBack; }
@@ -356,14 +371,31 @@ static void WindowModel(void) {
 
     // Settings.
     MMWindowSettings *st = m.settings;
-    T(@"window: one rule per expert that has modes", @"servers,apps,worktrees,caches", [[st.rules valueForKey:@"ruleID"] componentsJoinedByString:@","]);
+    T(@"window: one rule per expert that has modes, then the removal choice", @"servers,apps,worktrees,caches,removal", [[st.rules valueForKey:@"ruleID"] componentsJoinedByString:@","]);
     BOOL three = YES;
     for (MMWindowRule *r in st.rules) {
+        if ([r.ruleID isEqualToString:MMWindowRemovalRuleID]) continue;
         if (![[[r.choices valueForKey:@"title"] componentsJoinedByString:@","] isEqualToString:@"Off,Careful,Eager"]) three = NO;
         for (MMWindowChoice *c in r.choices) if (!c.explain.length) three = NO;
     }
     T(@"window: each rule has three choices, each with what it does", @"yes", YN(three));
-    T(@"window: picked follows each expert's mode", @"2,0,1,1", [[st.rules valueForKey:@"picked"] componentsJoinedByString:@","]);
+    T(@"window: picked follows each expert's mode, and the removal choice starts as Smart", @"2,0,1,1,0", [[st.rules valueForKey:@"picked"] componentsJoinedByString:@","]);
+    MMWindowRule *removal = st.rules.lastObject;
+    T(@"window: the removal card's title and its three choices", @"When MinMacs removes things: Smart,Trash,Delete", [NSString stringWithFormat:@"%@: %@", removal.title,
+      [[removal.choices valueForKey:@"title"] componentsJoinedByString:@","]]);
+    T(@"window: each removal choice says what it means in one sentence",
+      @"Deletes what git or its tool can give back. The rest goes to the Trash.|Everything goes to the Trash. The disk comes back when you empty it.|Deletes everything it removes at once. Nothing can be brought back.",
+      [[removal.choices valueForKey:@"explain"] componentsJoinedByString:@"|"]);
+    T(@"window: the removal card is no expert's mode", @"(null)", [NSString stringWithFormat:@"%@", MMWindowRuleExpert(MMWindowRemovalRuleID)]);
+    MMSetRemovalChoice(MMRemovalDelete);
+    MMWindowModel *m2 = MMWindowModelFrom(s, p, nil);
+    T(@"window: the card and the fix's title follow the pref", @"2 Delete 1 leftover", [NSString stringWithFormat:@"%ld %@", (long)m2.settings.rules.lastObject.picked,
+      [[[m2.fixes valueForKey:@"title"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF CONTAINS 'leftover'"]] firstObject]]);
+    MMSetRemovalChoice(MMRemovalTrash);
+    m2 = MMWindowModelFrom(s, p, nil);
+    T(@"window: under Trash the fix says Move to the Trash", @"1 Move 1 leftover to the Trash", [NSString stringWithFormat:@"%ld %@", (long)m2.settings.rules.lastObject.picked,
+      [[[m2.fixes valueForKey:@"title"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF CONTAINS 'leftover'"]] firstObject]]);
+    MMSetPref(MMRemovalKey, nil);
     T(@"window: a rule that is off says what waits for the press", @"1 ready. It waits for your press.", st.rules[1].note);
     T(@"window: a rule maps back to its expert", @"locohost minmacs workforest noonoo (null)", [NSString stringWithFormat:@"%@ %@ %@ %@ %@",
       MMWindowRuleExpert(@"servers"), MMWindowRuleExpert(@"apps"), MMWindowRuleExpert(@"worktrees"), MMWindowRuleExpert(@"caches"), MMWindowRuleExpert(@"icons")]);
@@ -441,6 +473,7 @@ static void RunAll(void) {
     };
     dispatch_semaphore_t ended = dispatch_semaphore_create(0);
     __block MMWindowRun *end = nil;
+    NSUInteger trashBefore = [NSFileManager.defaultManager contentsOfDirectoryAtPath:MMTrashFolder() error:nil].count;
     void (^inner)(MMWindowRun *) = runner.onProgress;
     runner.onProgress = ^(MMWindowRun *r) { inner(r); if (!r.running) { end = r; dispatch_semaphore_signal(ended); } };
     [runner start];
@@ -453,7 +486,7 @@ static void RunAll(void) {
     NSMutableDictionary<NSString *, NSString *> *by = [NSMutableDictionary new];
     for (MMFixResult *x in res) by[x.name] = x.outcome;
     for (MMFixResult *x in res) if (![x.outcome isEqualToString:@"done"]) Info([NSString stringWithFormat:@"%@ %@: %@", x.outcome, x.name, x.why]);
-    T(@"run: each step in plain words", @"Moving DerivedData to the Trash | Quitting Chat | Removing old-spike | Stopping :3001 Next.js | Wrapping up fix-auth-redirect", Steps(seen));
+    T(@"run: each step in plain words", @"Cleaning up DerivedData | Quitting Chat | Removing old-spike | Stopping :3001 Next.js | Wrapping up fix-auth-redirect", Steps(seen));
     T(@"run: what each step did", @":3001 Next.js=done Chat=kept DerivedData=done fix-auth-redirect=done old-spike=done", ({
         NSMutableArray *a = [NSMutableArray new];
         for (NSString *k in [by.allKeys sortedArrayUsingSelector:@selector(compare:)]) [a addObject:[NSString stringWithFormat:@"%@=%@", k, by[k]]];
@@ -461,9 +494,11 @@ static void RunAll(void) {
     T(@"run: the thing that changed since the snapshot was kept, and its action never ran", @"no", YN([gRan containsObject:@"minmacs:app:com.example.chat"]));
     T(@"run: the fix that needs your own press was skipped", @"no", YN([gRan containsObject:@"noonoo:clutter:pnpm-store"]));
     T(@"run: the end", @"no 4 5 4 of 5 fixes done", [NSString stringWithFormat:@"%@ %ld %ld %@", YN(end.running), (long)end.done, (long)end.total, end.endTitle]);
-    T(@"run: the end note says what was skipped and where deletes went",
+    // Under Smart, the default: node_modules and the two merged worktrees were deleted, and DerivedData, whose row does
+    // not say rebuilt here, went to the Trash.
+    T(@"run: the end note says what was skipped and where removed things went in this run",
       @"Skipped 1 agent that asks you, 1 fix that needs your own press and 1 kept since it changed or is in use. "
-      @"Deletes went to the Trash, and files git ignores were saved in a recovery folder.", end.endNote);
+      @"Deleted 3, moved 1 to the Trash. Files git ignores were saved in a recovery folder.", end.endNote);
     T(@"run: the planned totals are the window's own, each side apart", @"yes", YN(end.memoryPlanned == m.memoryBack && end.diskPlanned == m.diskBack));
     // The server outside the Wrap Up, plus the Wrap Up's server and helper. The kept app gave nothing back.
     T(@"run: memory back counts only what ran", @(512 * MB + 364 * MB), @(end.memoryBack));
@@ -474,7 +509,8 @@ static void RunAll(void) {
     }
     T(@"run: progress only grows, and the plan holds still", @"yes yes", [NSString stringWithFormat:@"%@ %@", YN(grew), YN(steady)]);
 
-    // Invariant 1: every step left an undo record by "manual", and what it deleted can come back.
+    // Invariant 1: every step left an undo record by "manual". What went to the Trash can come back, and what was
+    // deleted says so in its record.
     BOOL records = YES; NSString *trashRid = nil, *treeRid = nil;
     for (MMFixResult *x in res) {
         if (![x.outcome isEqualToString:@"done"]) continue;
@@ -486,14 +522,18 @@ static void RunAll(void) {
     T(@"run: every step that ran has a finished undo record by manual", @"yes", YN(records));
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *trash = MMTrashFolder();
-    T(@"run: the deleted folders left their place for the test Trash", @"no no yes", [NSString stringWithFormat:@"%@ %@ %@", YN([fm fileExistsAtPath:derived]),
-      YN([fm fileExistsAtPath:spike]), YN(trash.length && [fm contentsOfDirectoryAtPath:trash error:nil].count >= 2)]);
-    MMUndoRecord *tree = treeRid ? [MMUndo.shared record:treeRid] : nil;
+    T(@"run: both folders left their place, and only DerivedData is in the test Trash", @"no no 1", [NSString stringWithFormat:@"%@ %@ %lu", YN([fm fileExistsAtPath:derived]),
+      YN([fm fileExistsAtPath:spike]), (unsigned long)([fm contentsOfDirectoryAtPath:trash error:nil].count - trashBefore)]);
+    MMUndoRecord *tree = treeRid ? [MMUndo.shared record:treeRid] : nil, *cache = trashRid ? [MMUndo.shared record:trashRid] : nil;
+    T(@"run: the worktree's record says deleted, since git can give it back, and its .env was not", @"smart 1 0", [NSString stringWithFormat:@"%@ %@ %@",
+      tree.payload[@"removal"][@"choice"], tree.payload[@"removal"][@"deleted"], tree.payload[@"removal"][@"ignored"][@"deleted"]]);
+    T(@"run: the cache's record says it went to the Trash and can restore", @"smart 0 yes", [NSString stringWithFormat:@"%@ %@ %@",
+      cache.payload[@"removal"][@"choice"], cache.payload[@"removal"][@"deleted"], YN(cache.canRestore)]);
     NSString *saved = [tree.payload[@"recovery"] isKindOfClass:NSDictionary.class] ? tree.payload[@"recovery"][@"dir"] : nil;
     T(@"run: the worktree's ignored file is in its recovery folder", @"yes", YN(saved.length && [fm fileExistsAtPath:[saved stringByAppendingPathComponent:@".env"]]));
     __block NSString *problem = @"not run";
     dispatch_sync(MMQueue(@"windowtest", @"restore", QOS_CLASS_USER_INITIATED), ^{ problem = trashRid ? [MMUndo.shared restore:trashRid] : @"no record"; });
-    T(@"run: undo brings a deleted folder back", @"(nil) yes", [NSString stringWithFormat:@"%@ %@", problem ?: @"(nil)", YN([fm fileExistsAtPath:[derived stringByAppendingPathComponent:@"index"]])]);
+    T(@"run: undo brings the folder in the Trash back", @"(nil) yes", [NSString stringWithFormat:@"%@ %@", problem ?: @"(nil)", YN([fm fileExistsAtPath:[derived stringByAppendingPathComponent:@"index"]])]);
     T(@"run: no shown string names an old app or says for good", @"", Bad(@[end.endTitle ?: @"", end.endNote ?: @"", Steps(seen)]));
 }
 
@@ -517,10 +557,12 @@ static void RunStopped(void) {
 
 // The stop inside a fix, the app that will not quit and the controller's checks.
 #import "controller.m"
+// Fix Everything under the Trash choice and under Delete.
+#import "removal.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -538,6 +580,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"inside"]) RunStoppedInside();
         else if ([mode isEqualToString:@"refused"]) RunRefused();
         else if ([mode isEqualToString:@"controller"]) Controller();
+        else if ([mode isEqualToString:@"trash"]) RunChoice(MMRemovalTrash);
+        else if ([mode isEqualToString:@"delete"]) RunChoice(MMRemovalDelete);
         else return 2;
         printf("END\n");
     }
