@@ -308,7 +308,7 @@ static MMRemovalFacts *RemovalFactsNow(NSString *path) {
 - (NSString *)dryRun {
     MMWFTree *t = MMWFTreeOf(self.finding);
     // The words follow the removal choice as it is now. Only Delete leaves the ignored files unsaved.
-    BOOL keepsNothing = MMRemovalDecide(MMRemovalIgnoredFiles, nil).deleteNow;
+    BOOL keepsNothing = MMRemovalDecide(MMRemovalIgnoredFiles, nil, nil).deleteNow;
     NSMutableArray *steps = [NSMutableArray new];
     if (!t.onRemote) [steps addObject:@"take a git bundle of the commits on no remote"];
     [steps addObject:keepsNothing ? @"leave its ignored files unsaved" : @"save its ignored files except caches"];
@@ -330,7 +330,7 @@ static MMRemovalFacts *RemovalFactsNow(NSString *path) {
     // way back for what it holds, so the worktree's own answer changes no step here: it is the record's word for
     // where the worktree went. The answer for the ignored files decides whether they are saved first.
     MMRemovalFacts *now = RemovalFactsNow(t.path);
-    MMRemovalDecision *whole = MMRemovalDecide(MMRemovalWorktree, now), *ignored = MMRemovalDecide(MMRemovalIgnoredFiles, now);
+    MMRemovalDecision *whole = MMRemovalDecide(MMRemovalWorktree, now, record.by), *ignored = MMRemovalDecide(MMRemovalIgnoredFiles, now, record.by);
     MMRemovalNote(record, whole, nil);
     MMRemovalNote(record, ignored, @"ignored");
     // Decision 7 and PLAN.md Act: a git bundle whenever commits exist on no remote, in every removal choice.
@@ -360,6 +360,9 @@ static MMRemovalFacts *RemovalFactsNow(NSString *path) {
         return NO;
     }
     [u note:record payload:@{@"branchDeleted": @(deleted)}];
+    // Only now is it gone, so only now does the record say where it and its ignored files went.
+    MMRemovalDone(record, nil);
+    MMRemovalDone(record, @"ignored");
     return YES;
 }
 @end
@@ -451,7 +454,7 @@ static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
 - (NSString *)dryRun {
     NSArray *files = self.files;
     if (!files && !NSThread.isMainThread) { NSString *why = nil; files = [self list:&why]; if (why) return [@"would keep the worktree: " stringByAppendingString:why]; }
-    if (MMRemovalDecide(MMRemovalConfigFiles, nil).deleteNow)
+    if (MMRemovalDecide(MMRemovalConfigFiles, nil, nil).deleteNow)
         return files.count ? [NSString stringWithFormat:@"would delete %@: %@. You chose Delete, so they cannot be brought back.", MMPlural(files.count, @"untracked config file"),
                               MMCut([files componentsJoinedByString:@", "], 80)]
                            : @"would delete the untracked config files. You chose Delete, so they cannot be brought back.";
@@ -464,15 +467,21 @@ static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
     NSArray *files = [self list:&why];
     if (!files) { if (error) *error = why; return NO; }
     [MMUndo.shared note:record payload:@{@"config": files, @"configRoot": self.path ?: @""}];
-    MMRemovalDecision *d = MMRemovalDecide(MMRemovalConfigFiles, nil);
+    MMRemovalDecision *d = MMRemovalDecide(MMRemovalConfigFiles, nil, record.by);
     MMRemovalNote(record, d, nil);
+    NSMutableArray *paths = [NSMutableArray new];
+    for (NSString *rel in files) [paths addObject:[self.path stringByAppendingPathComponent:rel]];
+    // The files git listed a moment ago. Under Delete each one waits in the Trash until git worktree remove went
+    // through, since this is a part of a Wrap Up: MMRemovalApply stages it, and Core deletes or puts it back.
+    MMRemovalAsk(record, paths);
     for (NSString *rel in files) {
         NSError *e = nil;
-        if (!MMRemovalApply([NSURL fileURLWithPath:[self.path stringByAppendingPathComponent:rel]], d, record, &e)) {
+        if (!MMRemovalApply([self.path stringByAppendingPathComponent:rel], d, record, &e)) {
             if (error) *error = [NSString stringWithFormat:@"%@ could not %@: %@", rel, d.deleteNow ? @"be deleted" : @"go to the Trash", e.localizedDescription ?: @"unknown"];
             return NO;
         }
     }
+    MMRemovalDone(record, nil);
     return YES;
 }
 @end
@@ -814,7 +823,7 @@ static NSString *ModelWords(MMReview *r) {
     if (t.untracked != 0) {
         MMWFConfigMove *c = [MMWFConfigMove new];
         c.finding = w;
-        MMWrapUpPart *p = [MMWrapUpPart step:MMWrapUpConfig expert:kExpert title:MMRemovalDecide(MMRemovalConfigFiles, nil).deleteNow ? @"Delete untracked config files" : @"Move untracked config files to the Trash"
+        MMWrapUpPart *p = [MMWrapUpPart step:MMWrapUpConfig expert:kExpert title:MMRemovalDecide(MMRemovalConfigFiles, nil, nil).deleteNow ? @"Delete untracked config files" : @"Move untracked config files to the Trash"
                                       action:c policy:policy];
         if (p) [parts addObject:p];
     }

@@ -37,8 +37,8 @@ static NSMutableSet<NSString *> *gRefuses;      // finding ids whose action runs
     MMRemovalDecision *d;
     if ([f.kind isEqualToString:@"worktree"]) {
         MMRemovalFacts *now = [MMRemovalFacts worktreeKnown:YES merged:YES upstreamGone:NO dirty:0 untracked:0 unpushed:0 stashes:0];
-        d = MMRemovalDecide(MMRemovalWorktree, now);
-        MMRemovalDecision *ignored = MMRemovalDecide(MMRemovalIgnoredFiles, now);
+        d = MMRemovalDecide(MMRemovalWorktree, now, record.by);
+        MMRemovalDecision *ignored = MMRemovalDecide(MMRemovalIgnoredFiles, now, record.by);
         MMRemovalNote(record, d, nil);
         MMRemovalNote(record, ignored, @"ignored");
         NSString *err = nil;
@@ -46,11 +46,14 @@ static NSMutableSet<NSString *> *gRefuses;      // finding ids whose action runs
     } else {
         MMRemovalFacts *now = [MMRemovalFacts new];
         now.klass = MMClutterBuild; now.free = YES; now.rebuilt = [f.facts[@"kindTitle"] isEqual:@"node_modules"];
-        d = MMRemovalDecide(MMRemovalClutter, now);
+        d = MMRemovalDecide(MMRemovalClutter, now, record.by);
         MMRemovalNote(record, d, nil);
     }
+    MMRemovalAsk(record, @[f.path]);
     NSError *e = nil;
-    if (!MMRemovalApply([NSURL fileURLWithPath:f.path], d, record, &e)) { if (error) *error = e.localizedDescription; return NO; }
+    if (!MMRemovalApply(f.path, d, record, &e)) { if (error) *error = e.localizedDescription; return NO; }
+    MMRemovalDone(record, nil);
+    if ([f.kind isEqualToString:@"worktree"]) MMRemovalDone(record, @"ignored");
     return YES;
 }
 @end
@@ -387,6 +390,10 @@ static void WindowModel(void) {
       @"Deletes what git or its tool can give back. The rest goes to the Trash.|Everything goes to the Trash. The disk comes back when you empty it.|Deletes everything it removes at once. Nothing can be brought back.",
       [[removal.choices valueForKey:@"explain"] componentsJoinedByString:@"|"]);
     T(@"window: the removal card is no expert's mode", @"(null)", [NSString stringWithFormat:@"%@", MMWindowRuleExpert(MMWindowRemovalRuleID)]);
+    T(@"window: while nothing is chosen the card's note says what holds until then", @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash.", removal.note);
+    MMSetRemovalChoice(MMRemovalSmart);
+    T(@"window: once Smart is picked the note is gone", @"0 (nil)", [NSString stringWithFormat:@"%ld %@", (long)MMWindowModelFrom(s, p, nil).settings.rules.lastObject.picked,
+      MMWindowModelFrom(s, p, nil).settings.rules.lastObject.note ?: @"(nil)"]);
     MMSetRemovalChoice(MMRemovalDelete);
     MMWindowModel *m2 = MMWindowModelFrom(s, p, nil);
     T(@"window: the card and the fix's title follow the pref", @"2 Delete 1 leftover", [NSString stringWithFormat:@"%ld %@", (long)m2.settings.rules.lastObject.picked,
@@ -499,6 +506,23 @@ static void RunAll(void) {
     T(@"run: the end note says what was skipped and where removed things went in this run",
       @"Skipped 1 agent that asks you, 1 fix that needs your own press and 1 kept since it changed or is in use. "
       @"Deleted 3, moved 1 to the Trash. Files git ignores were saved in a recovery folder.", end.endNote);
+    // The note's two numbers, counted again here from each record of the run, a Wrap Up as its parts: a record with
+    // something still in the Trash, and a record whose payload says its thing is gone and whose path is gone.
+    NSInteger inTrashNow = 0, goneNow = 0;
+    for (MMFixResult *x in res) {
+        MMUndoRecord *top = x.rid ? [MMUndo.shared record:x.rid] : nil;
+        NSMutableArray<MMUndoRecord *> *leaves = [NSMutableArray new];
+        if ([top.payload[@"done"] isKindOfClass:NSArray.class]) for (NSString *rid in top.payload[@"done"]) [leaves addObject:[MMUndo.shared record:rid]];
+        else if (top) [leaves addObject:top];
+        for (MMUndoRecord *r in leaves) {
+            if (r.state != MMUndoDone || !r.payload[@"removal"]) continue;
+            NSArray *t = r.payload[@"trashed"];
+            BOOL held = t.count > 0;
+            for (NSDictionary *one in t) if (![NSFileManager.defaultManager fileExistsAtPath:one[@"to"]]) held = NO;
+            if (held) inTrashNow++; else if (r.deletedNow && ![NSFileManager.defaultManager fileExistsAtPath:r.payload[@"asked"][0]]) goneNow++;
+        }
+    }
+    T(@"run: the note's counts match what the records and the disk say", @"Deleted 3, moved 1 to the Trash.", [NSString stringWithFormat:@"Deleted %ld, moved %ld to the Trash.", (long)goneNow, (long)inTrashNow]);
     T(@"run: the planned totals are the window's own, each side apart", @"yes", YN(end.memoryPlanned == m.memoryBack && end.diskPlanned == m.diskBack));
     // The server outside the Wrap Up, plus the Wrap Up's server and helper. The kept app gave nothing back.
     T(@"run: memory back counts only what ran", @(512 * MB + 364 * MB), @(end.memoryBack));

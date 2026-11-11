@@ -22,9 +22,10 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 @property (readonly) int64_t freedBytes;                // from MMSizer freedOnVolume, the statfs delta
 @property (readonly, copy) NSString *error;
 /// NO for a failed stop or quit, which changed nothing, for a thing that was deleted at once with no way back kept,
-/// and for every removal made under the Delete choice.
+/// and for every removal that went through under the Delete choice.
 @property (readonly) BOOL canRestore;
-/// YES when the payload's "removal" says the thing was deleted at once, MMRemoval.h. A merged worktree deleted under
+/// YES when the payload's "removal" says the thing was deleted, MMRemoval.h. It says so only once the thing is gone:
+/// a record that failed, or a Wrap Up part whose item still waits in the Trash, says NO. A merged worktree deleted under
 /// Smart can still be restored, since git holds it. Anything else deleted cannot.
 @property (readonly) BOOL deletedNow;
 @end

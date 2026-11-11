@@ -1,4 +1,5 @@
-// The removal choice, MMRemoval.h: the pref, the one decision, and the only place Act deletes a file.
+// The removal choice, MMRemoval.h: the pref, the one decision and what a record says of it.
+// The wall and the only place Act deletes a file are in MMRemovalApply.m.
 #import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMUndo.h"
 #import "Core/Store/MMStore.h"
@@ -24,6 +25,12 @@ MMRemovalChoice MMRemovalChoiceNow(void) {
 }
 
 void MMSetRemovalChoice(MMRemovalChoice c) { MMSetPref(MMRemovalKey, MMRemovalChoiceName(c)); }
+
+BOOL MMRemovalChosen(void) { return MMPref(MMRemovalKey) != nil; }
+
+NSString *MMRemovalNotChosenNote(void) {
+    return MMRemovalChosen() ? nil : @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash.";
+}
 
 NSString *MMRemovalChoiceTitle(MMRemovalChoice c) { return @[@"Smart", @"Trash", @"Delete"][(NSUInteger)MAX(0, MIN(2, c))]; }
 
@@ -55,7 +62,7 @@ NSString *MMRemovalChoiceExplain(MMRemovalChoice c) {
     MMRemovalFacts *f = [MMRemovalFacts new];
     if (!item.kind) return f;
     f.klass = item.kind.klass; f.rebuilt = item.kind.rebuilt;
-    f.free = item.state == MMClutterFree; f.ownerGone = item.ownerGone;
+    f.free = item.state == MMClutterFree; f.ownerGone = item.ownerGone; f.unproven = item.unproven;
     return f;
 }
 
@@ -71,7 +78,8 @@ NSString *MMRemovalChoiceExplain(MMRemovalChoice c) {
 @end
 
 @implementation MMRemovalDecision
-- (NSDictionary *)json { return @{@"choice": MMRemovalChoiceName(self.choice), @"deleted": @(self.deleteNow), @"why": self.why ?: @""}; }
+/// "deleted" starts NO. MMRemovalDone turns it into "wants" once the thing is gone.
+- (NSDictionary *)json { return @{@"choice": MMRemovalChoiceName(self.choice), @"wants": self.deleteNow ? @YES : @NO, @"deleted": @NO, @"why": self.why ?: @""}; }
 @end
 
 static NSString *Count(NSInteger n, NSString *one, NSString *many) { return [NSString stringWithFormat:@"%ld %@", (long)n, n == 1 ? one : many]; }
@@ -94,14 +102,25 @@ static NSString *ClutterKeeps(MMRemovalFacts *f) {
     if (f.klass == MMClutterLeak) return @"it is a leftover, and nothing rebuilds a leftover";
     if (f.klass != MMClutterCache && f.klass != MMClutterBuild) return @"its row is neither a cache nor build output";
     if (!f.rebuilt) return @"its row does not say that a tool rebuilds it";
+    if (f.unproven.length) return f.unproven;
     if (!f.free) return @"cannot verify that nothing uses it";
     if (f.ownerGone) return @"its project is gone, so nothing can rebuild it";
     return nil;
 }
 
+/// YES for an act MinMacs starts on its own: a mode or an expert's own rule. A press, the CLI and words shown before
+/// anybody acts are the person's.
+static BOOL OnItsOwn(NSString *by) { return by.length && ![by isEqualToString:@"manual"] && ![by isEqualToString:@"cli"]; }
+
 MMRemovalDecision *MMRemovalDecideWith(MMRemovalChoice choice, MMRemovalThing thing, MMRemovalFacts *facts) {
+    return MMRemovalDecideAs(choice, YES, nil, thing, facts);
+}
+
+MMRemovalDecision *MMRemovalDecideAs(MMRemovalChoice choice, BOOL chosen, NSString *by, MMRemovalThing thing, MMRemovalFacts *facts) {
     MMRemovalDecision *d = [MMRemovalDecision new];
     d.choice = choice; d.thing = thing;
+    // Nobody was asked yet, so what MinMacs does unasked loses nothing, whatever the default would allow.
+    if (!chosen && OnItsOwn(by)) { d.deleteNow = NO; d.why = @"you have not chosen what happens to removed things yet, so a way back is kept"; return d; }
     if (choice == MMRemovalDelete) { d.deleteNow = YES; d.why = @"you chose Delete, so it is deleted at once"; return d; }
     if (choice != MMRemovalSmart) { d.deleteNow = NO; d.why = @"you chose the Trash, so a way back is kept"; return d; }
     NSString *keeps = nil;
@@ -129,11 +148,11 @@ MMRemovalDecision *MMRemovalDecideWith(MMRemovalChoice choice, MMRemovalThing th
     return d;
 }
 
-MMRemovalDecision *MMRemovalDecide(MMRemovalThing thing, MMRemovalFacts *facts) {
-    return MMRemovalDecideWith(MMRemovalChoiceNow(), thing, facts);
+MMRemovalDecision *MMRemovalDecide(MMRemovalThing thing, MMRemovalFacts *facts, NSString *by) {
+    return MMRemovalDecideAs(MMRemovalChoiceNow(), MMRemovalChosen(), by, thing, facts);
 }
 
-#pragma mark - Acting on it
+#pragma mark - The record
 
 void MMRemovalNote(MMUndoRecord *record, MMRemovalDecision *d, NSString *key) {
     if (!record || !d) return;
@@ -143,64 +162,25 @@ void MMRemovalNote(MMUndoRecord *record, MMRemovalDecision *d, NSString *key) {
     [MMUndo.shared note:record payload:@{@"removal": r}];
 }
 
-/// path with every symlink above it resolved, and its own last name kept, so a link is named and never followed.
-static NSString *RealParent(NSString *path) {
-    NSString *std = path.stringByStandardizingPath;
-    if (std.length <= 1) return std;
-    char buf[PATH_MAX];
-    if (!realpath(std.stringByDeletingLastPathComponent.fileSystemRepresentation, buf)) return nil;
-    return [@(buf) stringByAppendingPathComponent:std.lastPathComponent];
-}
-static NSString *Real(NSString *path) {
-    char buf[PATH_MAX];
-    return path.length && realpath(path.fileSystemRepresentation, buf) ? @(buf) : nil;
-}
-static BOOL Holds(NSString *folder, NSString *path) {
-    return folder.length && path.length && ([path isEqualToString:folder] || [path hasPrefix:[folder isEqualToString:@"/"] ? @"/" : [folder stringByAppendingString:@"/"]]);
+void MMRemovalAsk(MMUndoRecord *record, NSArray<NSString *> *paths) {
+    if (!record || !paths.count) return;
+    NSMutableArray *asked = [record.payload[@"asked"] isKindOfClass:NSArray.class] ? [record.payload[@"asked"] mutableCopy] : [NSMutableArray new];
+    for (NSString *p in paths) if (![asked containsObject:p]) [asked addObject:p];
+    [MMUndo.shared note:record payload:@{@"asked": asked}];
 }
 
-/// Why this path is never deleted, whatever asked, or nil.
-static NSString *DeleteWall(NSString *path) {
-    if (![path hasPrefix:@"/"]) return @"it has no full path";
-    NSString *p = RealParent(path);
-    if (!p.length) return @"its folder cannot be read";
-    if (p.pathComponents.count < 3) return @"it is too near the top of the disk";
-    NSString *home = Real(NSHomeDirectory()), *support = Real(MMSupportDir());
-    if (Holds(p, home)) return @"it holds the home folder";
-    if (Holds(p, support)) return @"it holds MinMacs's own folder";
-    NSString *test = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
-    if (test.length) {
-        NSString *root = Real(test);
-        if (!root || !Holds(root, p) || [p isEqualToString:root]) return @"it is outside MINMACS_HOME, and a check deletes only its own fixtures";
-    }
-    return nil;
-}
-
-static NSError *Problem(NSString *words) {
-    return [NSError errorWithDomain:@"no.guerrilla.minmacs.removal" code:1 userInfo:@{NSLocalizedDescriptionKey: words}];
-}
-
-BOOL MMRemovalApply(NSURL *item, MMRemovalDecision *d, MMUndoRecord *record, NSError **error) {
-    if (!item.path.length || !d || !record) { if (error) *error = Problem(@"cannot verify what to remove"); return NO; }
-    if (!d.deleteNow) return [MMUndo.shared trash:item record:record error:error] != nil;
-    NSString *path = item.path;
-    struct stat st;
-    if (lstat(path.fileSystemRepresentation, &st) != 0) { if (error) *error = Problem(@"it is gone"); return NO; }
-    NSString *wall = DeleteWall(path);
-    if (wall) { if (error) *error = Problem([@"MinMacs never deletes it: " stringByAppendingString:wall]); return NO; }
-    NSError *e = nil;
-    // NSFileManager removes a symlink itself and never what it points at.
-    BOOL ok = [NSFileManager.defaultManager removeItemAtPath:path error:&e];
-    BOOL left = lstat(path.fileSystemRepresentation, &st) == 0;
-    @synchronized (MMUndo.shared) {
-        NSMutableArray *gone = [record.payload[@"deleted"] mutableCopy] ?: [NSMutableArray new];
-        // A delete that stopped partway took some files, and the record says so.
-        if (ok && !left) [gone addObject:@{@"path": path}];
-        else [gone addObject:@{@"path": path, @"partial": @YES, @"error": e.localizedDescription ?: @"it could not be deleted"}];
-        [MMUndo.shared note:record payload:@{@"deleted": gone}];
-    }
-    if (!ok && error) *error = e ?: Problem(@"it could not be deleted");
-    return ok;
+void MMRemovalDone(MMUndoRecord *record, NSString *key) {
+    NSDictionary *was = record.payload[@"removal"];
+    if (![was isKindOfClass:NSDictionary.class]) return;
+    NSMutableDictionary *r = [was mutableCopy];
+    NSMutableDictionary *one = key.length ? ([r[key] isKindOfClass:NSDictionary.class] ? [r[key] mutableCopy] : nil) : r;
+    if (!one) return;
+    BOOL wants = [one[@"wants"] isKindOfClass:NSNumber.class] && [one[@"wants"] boolValue];
+    // What a Wrap Up part wanted deleted waits in the Trash until the whole Wrap Up went through.
+    BOOL staged = !key.length && [record.payload[@"staged"] isKindOfClass:NSArray.class] && [record.payload[@"staged"] count];
+    if (staged) one[@"staged"] = @YES; else one[@"deleted"] = wants ? @YES : @NO;
+    if (key.length) r[key] = one;
+    [MMUndo.shared note:record payload:@{@"removal": r}];
 }
 
 #pragma mark - Where things went

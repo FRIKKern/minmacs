@@ -47,7 +47,7 @@ A="$wu/code/app"; W="$wu/code/app.worktrees"; F="$W/feat"
 mkdir -p "$W"
 G init -q --bare "$wu/origin.git"
 G clone -q "$wu/origin.git" "$A" 2>/dev/null
-( cd "$A" && printf 'node_modules/\n.env\n' >.gitignore && printf '{"name": "wu-app"}\n' >package.json && echo one >a.txt \
+( cd "$A" && printf 'node_modules/\n.env\n' >.gitignore && printf '{"name": "wu-app"}\n' >package.json && printf '{"lockfileVersion": 3}\n' >package-lock.json && echo one >a.txt \
   && G add -A && G commit -qm first && G push -q origin main 2>/dev/null )
 G -C "$A" worktree add -q -b feat "$F" main 2>/dev/null
 ( cd "$F" && echo two >b.txt && G add -A && G commit -qm "feat work" )
@@ -291,6 +291,15 @@ wu_ours() {
 wu_ours "$WU_STUB" && kill -9 "$WU_STUB" 2>/dev/null
 wu_wait "! kill -0 '$WU_STUB' 2>/dev/null"
 wu_removal_delete
+# The must-fix of the review of #64: under Delete, and under Smart, a Wrap Up that git refuses deletes nothing.
+wu_refused_fixture
+wu_removal_refused delete
+check "wrapup refused delete: the config part went back from the Trash, and the caches part too" "restored restored" \
+  "$(echo "$U" | json "j['parts']['config']['state'] + ' ' + j['parts']['caches']['state']")"
+wu_removal_refused smart
+check "wrapup refused smart: node_modules, which Smart would delete, went back, and .env.local too" "restored restored" \
+  "$(echo "$U" | json "j['parts']['caches']['state'] + ' ' + j['parts']['config']['state']")"
+"$T" verb removal smart >/dev/null
 
 echo "-- the invariants"
 check "wrapup: the experts run no git and no process for it" 0 \

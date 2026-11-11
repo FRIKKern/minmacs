@@ -69,7 +69,7 @@ NSArray<NSDictionary *> *MMClutterAudit(NSArray<NSString *> *paths) {
     NSString *what = i.members.count == 1 ? i.members.firstObject.stringByAbbreviatingWithTildeInPath
                                           : [NSString stringWithFormat:@"%lu folders of %@", (unsigned long)i.members.count, i.path.stringByAbbreviatingWithTildeInPath];
     // The words follow the removal choice as it is now. The act asks again on the item it reads then.
-    MMRemovalDecision *d = MMRemovalDecide(self.isTool ? MMRemovalToolCopy : MMRemovalClutter, [MMRemovalFacts clutter:i]);
+    MMRemovalDecision *d = MMRemovalDecide(self.isTool ? MMRemovalToolCopy : MMRemovalClutter, [MMRemovalFacts clutter:i], nil);
     if (self.isTool) {
         if (d.deleteNow) return [NSString stringWithFormat:@"would run %@ on %@ with no recovery copy, since %@. It cannot be brought back.", i.kind.cleanup, what, d.why];
         return [NSString stringWithFormat:@"would copy %@ to the recovery folder, then run %@. Undo copies back what it removed.", what, i.kind.cleanup];
@@ -94,19 +94,22 @@ NSArray<NSDictionary *> *MMClutterAudit(NSArray<NSString *> *paths) {
 /// Each path is checked against the walls once more, right before it goes. Where it goes is MMRemovalDecide's
 /// answer on the item as it was read a moment ago, written into the record before the first path moves.
 - (BOOL)trash:(MMClutterItem *)i record:(MMUndoRecord *)record error:(NSString **)error {
-    MMRemovalDecision *d = MMRemovalDecide(MMRemovalClutter, [MMRemovalFacts clutter:i]);
+    MMRemovalDecision *d = MMRemovalDecide(MMRemovalClutter, [MMRemovalFacts clutter:i], record.by);
     MMRemovalNote(record, d, nil);
+    // The paths the item read a moment ago names. MMRemovalApply deletes no other.
+    MMRemovalAsk(record, i.members);
     NSMutableArray *refused = [NSMutableArray new];
     NSInteger moved = 0;
     for (NSString *m in i.members) {
         NSString *w = [self.catalog whyNot:m kind:i.kind];
         if (w) { [refused addObject:[NSString stringWithFormat:@"%@: %@", m.lastPathComponent, w]]; continue; }
         NSError *e = nil;
-        if (MMRemovalApply([NSURL fileURLWithPath:m], d, record, &e)) moved++;
+        if (MMRemovalApply(m, d, record, &e)) moved++;
         else [refused addObject:[NSString stringWithFormat:@"%@: %@", m.lastPathComponent, e.localizedDescription ?: (d.deleteNow ? @"it could not be deleted" : @"it could not go to the Trash")]];
     }
     if (refused.count) [MMUndo.shared note:record payload:@{@"refused": refused}];
     if (moved == 0) { if (error) *error = refused.firstObject ?: (d.deleteNow ? @"nothing was deleted" : @"nothing went to the Trash"); return NO; }
+    MMRemovalDone(record, nil);
     return YES;
 }
 
@@ -139,7 +142,7 @@ static NSArray<NSString *> *Vanished(NSString *dir, NSString *copy) {
     // The recovery copy keeps every block the tool removes, so the disk does not come back until the copy goes.
     // MMRemovalDecide says whether one is kept: always under the Trash choice, never under Delete, and under Smart
     // only for a row that does not say its tool fetches everything again.
-    MMRemovalDecision *d = MMRemovalDecide(MMRemovalToolCopy, [MMRemovalFacts clutter:i]);
+    MMRemovalDecision *d = MMRemovalDecide(MMRemovalToolCopy, [MMRemovalFacts clutter:i], record.by);
     MMRemovalNote(record, d, nil);
     for (NSString *m in d.deleteNow ? @[] : i.members) {
         NSString *to = [dir stringByAppendingString:m];
@@ -160,6 +163,7 @@ static NSArray<NSString *> *Vanished(NSString *dir, NSString *copy) {
         // No copy was kept, so nothing can come back, and the record says so in place of a recovery folder.
         [MMUndo.shared note:record payload:@{@"undo": [NSString stringWithFormat:@"%@ ran with no recovery copy, since %@. It cannot be brought back.", i.kind.cleanup, d.why]}];
         if (!ok && error) *error = err ?: @"the tool failed";
+        if (ok) MMRemovalDone(record, nil);
         return ok;
     }
     // Whatever the exit status, what is gone now can be copied back.

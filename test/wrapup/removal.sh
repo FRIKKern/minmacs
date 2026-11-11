@@ -4,6 +4,7 @@
 #   wu_rec <rid>          the Wrap Up record and its parts by step name, as JSON, from the section's own log
 #   wu_removal_smart      a run under Smart and its restore: node_modules is deleted, the rest comes back
 #   wu_removal_delete     a run under Delete: nothing is kept but the record, and restore says so
+#   wu_removal_refused    a run git refuses at its last part: nothing a part wanted deleted is gone
 wu_rec() {
   python3 - "$wu/minmacs.sqlite" "$1" <<'PY'
 import json, sqlite3, sys
@@ -91,4 +92,44 @@ wu_removal_delete() {
     "$? $(grep -q 'it was deleted and cannot be brought back' "$wu/restore-deleted.txt" && echo yes || echo no)"
   check "wrapup delete: and the worktree stays gone" no "$(wu_has "$F")"
   "$T" verb removal smart >/dev/null
+}
+
+# A Wrap Up whose last part git refuses, the review's must-fix. The worktree holds a submodule, which
+# `git worktree remove` never takes without --force, and nothing before that part can see it. So the caches and
+# config parts run first and the worktree part fails. Nothing they wanted deleted may be gone: the worktree stays,
+# so its .env.local and node_modules stay too.
+wu_refused_fixture() {
+  SUBR="$wu/sublib"; SW="$W/subw"
+  G init -q "$SUBR" && ( cd "$SUBR" && echo lib >lib.txt && G add -A && G commit -qm lib )
+  ( cd "$A" && G -c protocol.file.allow=always submodule add -q "$SUBR" lib >/dev/null 2>&1 && G commit -qm "add lib" && G push -q origin main 2>/dev/null )
+  G -C "$A" worktree add -q -b subw "$SW" main 2>/dev/null
+  ( cd "$SW" && G -c protocol.file.allow=always submodule update -q --init >/dev/null 2>&1 )
+  printf 'SUB_SECRET=1\n' >"$SW/.env"
+  wu_session "$SW" subw
+}
+wu_refused_fresh() {
+  printf 'KEEP=me\n' >"$SW/.env.local"
+  mkdir -p "$SW/node_modules/pkg" && printf 'module.exports = 2\n' >"$SW/node_modules/pkg/index.js"
+  find "$SW" -exec touch -h -t 202601010000 {} + 2>/dev/null
+}
+wu_removal_refused() {   # choice
+  echo "-- a Wrap Up git refuses at the last part, under $1: nothing is deleted"
+  "$T" verb removal "$1" >/dev/null
+  wu_refused_fresh
+  J=$("$T" verb work wrap-up "$SW" --dry-run --json)
+  check "wrapup refused $1: the plan is ready, with caches, config and worktree parts" "True caches config worktree" \
+    "$(echo "$J" | json "str(j['ready']) + ' ' + ' '.join(p['step'] for p in j['parts'])")"
+  wu_t0=$(ls -A "$wu/Trash" 2>/dev/null | wc -l | tr -d ' ')
+  J=$("$T" verb work wrap-up "$SW" --json); r=$?
+  check "wrapup refused $1: git refuses the worktree part, and the run fails there" "1 failed worktree yes" \
+    "$r $(echo "$J" | json "j['state'] + ' ' + j['failedPart']['step'] + (' yes' if 'git worktree remove refused' in j['error'] else ' ' + j['error'])")"
+  check "wrapup refused $1: the worktree is still there" yes "$(wu_has "$SW/lib/lib.txt")"
+  check "wrapup refused $1: its .env.local is still there, as it was" "KEEP=me" "$(cat "$SW/.env.local" 2>/dev/null)"
+  check "wrapup refused $1: its node_modules is still there, as it was" "module.exports = 2" "$(cat "$SW/node_modules/pkg/index.js" 2>/dev/null)"
+  check "wrapup refused $1: its ignored .env is still there" "SUB_SECRET=1" "$(cat "$SW/.env" 2>/dev/null)"
+  check "wrapup refused $1: nothing of it is left in the Trash" "$wu_t0" "$(ls -A "$wu/Trash" 2>/dev/null | wc -l | tr -d ' ')"
+  U=$(wu_rec "$(echo "$J" | json "j['rid']")")
+  check "wrapup refused $1: no part's record says deleted, and none lists a deleted path" "False False False 0" \
+    "$(echo "$U" | json "' '.join(str(j['parts'][s]['payload']['removal']['deleted']) for s in ('caches', 'config', 'worktree')) + ' ' + str(sum(len(j['parts'][s]['payload'].get('deleted', [])) for s in ('caches', 'config', 'worktree')))")"
+  check "wrapup refused $1: the worktree part failed, and the parts before it were put back" "failed" "$(echo "$U" | json "j['parts']['worktree']['state']")"
 }

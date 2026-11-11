@@ -16,19 +16,25 @@ check "removal: the test binary builds with no warnings" 0 "$rm_r"
 [ "$rm_r" = 0 ] || tail -20 "$rm_dir/build.log"
 
 echo "-- one place deletes, and every path asks the one function"
-check "removal: Act deletes a file in one place only, MMRemovalApply" "1 0" \
-  "$(grep -cE 'removeItemAt|unlink\(|rmdir\(|removefile\(' Sources/Core/Act/MMRemoval.m) $(grep -nE 'removeItemAt|unlink\(|rmdir\(|removefile\(|emptyTrash|rm -rf' Sources/Core/Act/*.m | grep -vc '^Sources/Core/Act/MMRemoval.m:')"
+check "removal: Act deletes a file in one place only, one call in MMRemovalApply.m" "1 0" \
+  "$(grep -cE 'removeItemAt|unlink\(|rmdir\(|removefile\(' Sources/Core/Act/MMRemovalApply.m) $(grep -nE 'removeItemAt|unlink\(|rmdir\(|removefile\(|emptyTrash|rm -rf' Sources/Core/Act/*.m | grep -vc '^Sources/Core/Act/MMRemovalApply.m:')"
+check "removal: that call sits behind the wall: every caller of it asks WhyNot first" "2 2" \
+  "$(grep -c 'Unlink(real' Sources/Core/Act/MMRemovalApply.m) $(grep -cE 'WhyNot\((path|to), ' Sources/Core/Act/MMRemovalApply.m)"
 check "removal: no expert, shell or UI file deletes a person's file itself" 0 \
   "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|removefile\(|trashItemAtURL' Sources/Experts/*/*.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindow*.m Sources/UI/Window/*.m | grep -c .)"
 # The Trash is reached through MMRemovalApply alone. The migration's one move of the old apps asks for the Trash
 # in its own confirm and stays there in every choice.
 check "removal: only MMRemovalApply and the migration send a thing to the Trash" 0 \
-  "$(grep -nE 'MMUndo\.shared trash:|\[u trash:' Sources --include='*.m' -r | grep -vcE '^Sources/Core/Act/MMRemoval\.m:|^Sources/Core/Store/MMMigrate\.m:')"
+  "$(grep -nE 'MMUndo\.shared trash:|\[u trash:' Sources --include='*.m' -r | grep -vcE '^Sources/Core/Act/MMRemovalApply\.m:|^Sources/Core/Store/MMMigrate\.m:')"
 check "removal: the cache, config-file and worktree paths each ask MMRemovalDecide" "yes yes yes yes" \
   "$(for p in 'MMRemovalDecide(MMRemovalClutter' 'MMRemovalDecide(MMRemovalToolCopy'; do grep -q "$p" Sources/Core/Act/MMClutterAct.m && printf 'yes ' || printf 'no '; done
      for p in 'MMRemovalDecide(MMRemovalWorktree' 'MMRemovalDecide(MMRemovalConfigFiles'; do grep -q "$p" Sources/Experts/WorkForest/MMWorkForest.m && printf 'yes ' || printf 'no '; done | sed 's/ $//')"
 check "removal: only MMRemoval.m reads the pref" 0 \
   "$(grep -rnE 'core\.removal|MMRemovalKey' Sources --include='*.m' | grep -vc '^Sources/Core/Act/MMRemoval\.m:')"
+check "removal: each path lists what the fresh finding named before anything goes, and says deleted only after" "2 4" \
+  "$(cat Sources/Core/Act/MMClutterAct.m Sources/Experts/WorkForest/MMWorkForest.m | grep -c 'MMRemovalAsk(record, ') $(cat Sources/Core/Act/MMClutterAct.m Sources/Experts/WorkForest/MMWorkForest.m | grep -c 'MMRemovalDone(record, nil);')"
+check "removal: a Wrap Up deletes what its parts staged only after the last part, and puts it back when one fails" "1 1" \
+  "$(grep -c 'freed += MMRemovalFinishStaged(ran);' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalPutBack(ran);' Sources/Core/Act/MMWrapUp.m)"
 check "removal: git worktree remove never gets --force" 0 "$(grep -rnE '"--force"|@"-f"' Sources/Core/Act Sources/Experts/WorkForest | grep -c .)"
 check "removal: no string in the code says for good" 0 "$(grep -rnE '@"[^"]*for good' Sources --include='*.m' --include='*.h' | grep -c .)"
 
@@ -57,10 +63,31 @@ if [ "$rm_r" = 0 ]; then
   check "removal: a path that reaches out through a link is refused" "1 outside" \
     "$(ln -s "$rm_dir/outer" "$rm_dir/inner/via"; MINMACS_HOME="$rm_dir/inner" "$rm_dir/removaltest" --wall "$rm_dir/inner/via/file.txt" >/dev/null 2>&1; echo $?) $(cat "$rm_dir/outer/file.txt" 2>/dev/null)"
 
+  echo "-- other spellings of a protected folder, with a fixture home"
+  # CFFIXED_USER_HOME makes a folder inside the test home the home folder. On a disk that folds case, HOME names it too.
+  mkdir -p "$rm_dir/inner/sub/home/Documents"; printf 'mine\n' >"$rm_dir/inner/sub/home/Documents/notes.txt"
+  rm_wall() { CFFIXED_USER_HOME="$rm_dir/inner/sub/home" MINMACS_HOME="$rm_dir/inner" "$rm_dir/removaltest" --wall "$1" 2>/dev/null; }
+  check "removal: the fixture home is refused by name" "refused: MinMacs never deletes it: it holds the home folder" "$(rm_wall "$rm_dir/inner/sub/home")"
+  rm_wall "$rm_dir/inner/sub/HOME" >/dev/null; rm_x=$?
+  check "removal: another spelling of it is refused too, and the notes stay" "1 mine" "$rm_x $(cat "$rm_dir/inner/sub/home/Documents/notes.txt" 2>/dev/null)"
+  rm_wall "$rm_dir/inner/SUB" >/dev/null; rm_x=$?
+  check "removal: so is another spelling of the folder that holds it" "1 mine" "$rm_x $(cat "$rm_dir/inner/sub/home/Documents/notes.txt" 2>/dev/null)"
+  check "removal: a folder at the top of the fixture home is refused" "refused: MinMacs never deletes it: it is a folder at the top of the home folder mine" \
+    "$(rm_wall "$rm_dir/inner/sub/home/Documents") $(cat "$rm_dir/inner/sub/home/Documents/notes.txt" 2>/dev/null)"
+  mkdir -p "$rm_dir/inner/sub/home/Library/Caches/thing"
+  check "removal: two levels down in the fixture home goes when named" "0 gone" \
+    "$(rm_wall "$rm_dir/inner/sub/home/Library/Caches" >/dev/null; echo $?) $([ -e "$rm_dir/inner/sub/home/Library/Caches" ] && echo kept || echo gone)"
+  check "removal: a path that is not a full path is refused, and nothing in the folder it ran in goes" "1 yes" \
+    "$(cd "$rm_dir/inner/sub/home" && rm_wall Documents >/dev/null; echo $?) $([ -f "$rm_dir/inner/sub/home/Documents/notes.txt" ] && echo yes || echo no)"
+
   echo "-- the CLI"
   rm_home="$rm_dir/cli"; mkdir -p "$rm_home"
   rm_cli() { MINMACS_HOME="$rm_home" "$BIN" "$@" 2>&1; }
-  check "removal: the verb shows smart before anything is set" "smart: Deletes what git or its tool can give back. The rest goes to the Trash." "$(rm_cli removal)"
+  check "removal: the verb shows smart before anything is set, and says nothing is chosen yet" \
+    "smart: Deletes what git or its tool can give back. The rest goes to the Trash. Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash." "$(rm_cli removal)"
+  check "removal: --json says not chosen" "smart False" "$(rm_cli removal --json | json "j['removal'] + ' ' + str(j['chosen'])")"
+  check "removal: setting smart chooses it" "smart True smart: Deletes what git or its tool can give back. The rest goes to the Trash." \
+    "$(rm_cli removal smart --json | json "j['removal'] + ' ' + str(j['chosen'])") $(rm_cli removal)"
   check "removal: it sets trash and reads it back" "trash trash" "$(rm_cli removal trash --json | json "j['removal']") $(rm_cli removal --json | json "j['removal']")"
   check "removal: it sets delete" "delete: Deletes everything it removes at once. Nothing can be brought back." "$(rm_cli removal delete)"
   check "removal: a dry run names the choice and changes nothing" "smart delete" "$(rm_cli removal smart --dry-run --json | json "j['removal']") $(rm_cli removal --json | json "j['removal']")"

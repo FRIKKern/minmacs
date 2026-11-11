@@ -98,8 +98,9 @@ static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers())
     if ([self.kind isEqualToString:@"tool"]) return NO;
     NSDictionary *p = self.payload;
     // Under the Delete choice the person asked for no way back. A git bundle is still taken, and restore names it.
+    // Only once the thing is gone: what a Wrap Up part staged in the Trash can still come back.
     NSDictionary *removal = [p[@"removal"] isKindOfClass:NSDictionary.class] ? p[@"removal"] : nil;
-    if (self.state == MMUndoDone && [removal[@"choice"] isEqual:@"delete"]) return NO;
+    if (self.state == MMUndoDone && self.deletedNow && [removal[@"choice"] isEqual:@"delete"]) return NO;
     // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit
     // left its server or app running, so its restart or relaunch would start a second copy: it restores nothing.
     if (self.state == MMUndoFailed) return self.hasParts || [p[@"trashed"] count] || p[@"bundle"] || p[@"recovery"];
@@ -458,8 +459,14 @@ static NSMutableSet<NSString *> *Restoring(void) {
         return bundle.length ? [NSString stringWithFormat:@"it was deleted and cannot be brought back. Its commits on no remote are in the git bundle %@", bundle]
                              : @"it was deleted and cannot be brought back";
     }
-    if (!r.canRestore) return r.state == MMUndoFailed ? @"the action failed and changed nothing, so there is nothing to restore"
-                                                      : @"the record holds nothing to restore";
+    if (!r.canRestore && r.state == MMUndoFailed) {
+        // A delete that stopped partway did change things, and the record lists what went.
+        NSUInteger gone = [r.payload[@"deleted"] isKindOfClass:NSArray.class] ? [r.payload[@"deleted"] count] : 0;
+        return gone ? [NSString stringWithFormat:@"the action failed partway. What it had deleted by then cannot be brought back: %@",
+                       [[r.payload[@"deleted"] valueForKey:@"path"] componentsJoinedByString:@", "]]
+                    : @"the action failed and changed nothing, so there is nothing to restore";
+    }
+    if (!r.canRestore) return @"the record holds nothing to restore";
     NSMutableArray *problems = [NSMutableArray new];
     // A Wrap Up comes back in reverse order, and a part that cannot come back stops the rest, since each earlier part
     // may need it, as a server needs its worktree. Parts already restored are skipped, so a second restore goes on.
