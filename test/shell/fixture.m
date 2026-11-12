@@ -300,6 +300,13 @@ static int SelfTest(MMArgs *a) {
       MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath) ? @"YES" : @"NO");
     C(a, @"login item: the first launch adds it by itself only without the menu window, whose welcome asks first", @"YES NO",
       [NSString stringWithFormat:@"%@ %@", MMFirstLaunchAddsLogin(NO) ? @"YES" : @"NO", MMFirstLaunchAddsLogin(YES) ? @"YES" : @"NO"]);
+    MMSetPref(@"core.window", nil);
+    BOOL windowDefault = MMWindowMode();
+    MMSetPref(@"core.window", @NO);
+    BOOL windowOff = MMWindowMode();
+    MMSetPref(@"core.window", nil);
+    C(a, @"window: the menu window is the default, and the pref core.window set to NO brings the menus back", @"YES NO",
+      [NSString stringWithFormat:@"%@ %@", windowDefault ? @"YES" : @"NO", windowOff ? @"YES" : @"NO"]);
     C(a, @"icon: an empty field starts hidden", @"0", [MMIconVisibleFor(YES, NO, YES) description]);
     C(a, @"icon: it shows once the field appears", @"1", [MMIconVisibleFor(NO, NO, NO) description]);
     C(a, @"icon: after that the person decides", @"nil", MMIconVisibleFor(YES, YES, NO) ? @"set" : @"nil");

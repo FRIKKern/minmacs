@@ -67,10 +67,17 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *_Nullable p, MMWindowExtra
 
 /// @"core.welcomed": YES once the person pressed Start in the welcome. The welcome shows while it has no value.
 extern NSString *const MMWindowWelcomedKey;
-/// The welcome of the first launch, or nil once Start was pressed. The switch starts on. The removal choices are
-/// Core's own words, with the one the pref holds picked, Smart while it holds none. Each fact is read from the code
-/// that makes it true: the day of watching from MMWatchingLeft, and where each rule starts from MMModeFor.
-MMWindowWelcome *_Nullable MMWindowWelcomeNow(void);
+/// @"core.welcomeNew": YES when this person's first launch ever was with the menu window. The shell writes it then.
+/// Whoever lacks it had MinMacs before the welcome existed, and may have a login item, or have turned it off.
+extern NSString *const MMWindowNewPersonKey;
+/// Where Open at login starts in the welcome: on for a new person, and for anyone else what the login item is now,
+/// so a person who turned it off is not asked to turn it on by a switch that stands on.
+BOOL MMWindowWelcomeLoginStartsOn(BOOL newPerson, BOOL loginNow);
+/// The welcome, or nil once Start was pressed. loginNow is the login item as it is. The switch starts where
+/// MMWindowWelcomeLoginStartsOn says. The removal choices are Core's own words, with the one the pref holds picked,
+/// Smart while it holds none. Each fact is read from the code that makes it true: the day of watching from
+/// MMWatchingLeft, and where each rule starts from MMModeFor.
+MMWindowWelcome *_Nullable MMWindowWelcomeNow(BOOL loginNow);
 /// Start was pressed: writes the removal choice, when it is one of the three, and marks the welcome done. It does not
 /// touch the login item, which the shell owns.
 void MMWindowWelcomeDone(NSInteger removal);

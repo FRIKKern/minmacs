@@ -16,7 +16,10 @@ NSUInteger MMRegisterBuiltInExperts(void);
 /// The menu bar app or the CLI, from argv. Call after the experts are registered.
 int MMMain(int argc, const char *argv[]);
 
-/// Whether the first launch adds the login item by itself, decision 18. With the menu window, core.window, it does
+/// Whether the one icon opens the menu window, issue #62: the pref core.window, YES while it has no value.
+/// With NO the icons open the menus of before, five icons or One Icon.
+BOOL MMWindowMode(void);
+/// Whether the first launch adds the login item by itself, decision 18. With the menu window, the default, it does
 /// not: the window's welcome asks first, and Start adds it when the person left the switch on.
 BOOL MMFirstLaunchAddsLogin(BOOL windowMode);
 /// Decision 18: register the login item on first launch, but only in the real app. NO under tests, which always

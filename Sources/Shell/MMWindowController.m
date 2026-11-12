@@ -53,7 +53,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     MMSnapshot *now = MMGraph.shared.current;
     if (now) { [self take:now]; return; }
     // The first launch: no snapshot yet. The welcome needs none, so it is there with the window.
-    MMWindowWelcome *welcome = MMWindowWelcomeNow();
+    MMWindowWelcome *welcome = MMWindowWelcomeNow(atomic_load(&_loginOn));
     if (!welcome) return;
     MMWindowModel *m = [MMWindowModel new];
     m.welcome = welcome;
@@ -81,7 +81,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (!_s || !_p || !self.open) return;
     MMWindowExtras *x = [MMWindowExtras readWithLogin:atomic_load(&_loginOn)];
     x.run = _run;
-    x.welcome = MMWindowWelcomeNow();
+    x.welcome = MMWindowWelcomeNow(atomic_load(&_loginOn));
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     dispatch_async(dispatch_get_main_queue(), ^{
         if (!self.open || m.generation < self->_shown) return;

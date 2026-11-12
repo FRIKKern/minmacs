@@ -11,14 +11,15 @@
 #import "Shell/MMWatchdog.h"
 #import "Shell/MMWindowCLI.h"
 #import "Shell/MMWindowController.h"
+#import "Shell/MMWindowFeed.h"
 
 NSString *const MMLoginNotice = @"MinMacs opens at login. Settings can turn that off.";
 static NSString *const kLaunchedKey = @"core.launched";          // set on the first launch
 static NSString *const kLoginNoticeKey = @"core.loginNoticeUntil";   // seconds since 1970
 static NSString *const kOneIconExpert = @"minmacs";               // One Icon stands in for MinMacs's item in Settings
 NSString *const MMOneIconAutosaveName = @"minmacs.oneicon";
-/// Issue #62: the one icon opens the menu window in place of the menus. NO by default until the window is checked
-/// in real use: defaults write no.guerrilla.minmacs core.window -bool YES, then open MinMacs again.
+/// Issue #62: the one icon opens the menu window in place of the menus. On by default. The menus of before stay
+/// reachable: defaults write no.guerrilla.minmacs core.window -bool NO, then open MinMacs again.
 static NSString *const kWindowKey = @"core.window";
 static NSString *const kOneIconSymbol = @"gauge.with.dots.needle.33percent";
 static const NSTimeInterval kMigrateDelay = 20;                    // the migration's follow-up waits for the menu bar
@@ -48,6 +49,8 @@ BOOL MMMayRegisterLoginItem(NSDictionary<NSString *, NSString *> *env, NSString 
     return [bundlePath.pathExtension isEqualToString:@"app"];
 #endif
 }
+
+BOOL MMWindowMode(void) { return MMPrefBool(kWindowKey, YES); }
 
 BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }
 
@@ -218,7 +221,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     // The saved position and the Visible state live under minmacs.<expert id>, which Settings reads too.
     // The one icon has a name of its own, so its Hide Icon never hides MinMacs's own item.
     self.item = MMMakeStatusItemSaved(self.itemName, self.itemSymbol, self.expert ? MMStatusAutosaveName(self.expert.expertID) : MMOneIconAutosaveName);
-    if (!self.expert && MMPrefBool(kWindowKey, NO)) {
+    if (!self.expert && MMWindowMode()) {
         // The window stands in for every menu: a click toggles it, and the item holds no menu.
         self.opensWindow = YES;
         self.item.button.target = self;
@@ -341,7 +344,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     if (first) {
         MMStartWatching();
         // With the menu window the welcome asks first, and Start adds the login item: MMWindowController.
-        if (!self.headless && MMFirstLaunchAddsLogin(MMPrefBool(kWindowKey, NO)) &&
+        // The mark says this person met MinMacs with the window, so their welcome starts with Open at login on.
+        if (MMWindowMode()) MMSetPref(MMWindowNewPersonKey, @YES);
+        if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&
             MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) {
             NSError *e = nil;
             if ([SMAppService.mainAppService registerAndReturnError:&e])
@@ -428,7 +433,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     for (MMExpertItem *i in self.items) if (i.item) [NSStatusBar.systemStatusBar removeStatusItem:i.item];
     self.items = [NSMutableArray new];
     NSMutableArray *wanted = [NSMutableArray new];
-    if (MMPrefBool(MMOneIconKey, NO) || MMPrefBool(kWindowKey, NO)) [wanted addObject:NSNull.null];
+    if (MMPrefBool(MMOneIconKey, NO) || MMWindowMode()) [wanted addObject:NSNull.null];
     else [wanted addObjectsFromArray:MMExperts()];
     NSMutableArray *made = [NSMutableArray new], *deferred = [NSMutableArray new];
     MMSnapshot *s = MMGraph.shared.current;

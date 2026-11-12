@@ -1081,6 +1081,8 @@ static int Startup(NSArray<NSString *> *args) {
     MMRegisterBuiltInExperts();
     AllIdle();
     BOOL first = !MMPrefBool(@"core.launched", NO);
+    // The menu window is the default and makes one item. This bench times the heavier launch, an item per expert.
+    MMSetPref(@"core.window", @NO);
     MMStartupBegin();
     id shell = MMShellStartHeadless();
     NSDictionary *atStart = MMStartupTimes();

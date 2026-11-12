@@ -6,7 +6,8 @@
 //
 // Until the person pressed Start once, every model holds the welcome, MMWindowWelcomeNow. Opened before the first
 // snapshot, the controller hands over a model of generation 0 that holds the welcome alone, so the welcome is there
-// at once. Start applies the two answers: the login item through the shell, the removal choice and the done mark.
+// at once. Its switch starts on for a person whose first launch had the window, and on what the login item is now
+// for anyone who had MinMacs before. Start applies the two answers: the login item through the shell, the removal choice and the done mark.
 //
 // It works only while the window is open: -setOpen:NO ends the observing and lets the last snapshot go. A snapshot
 // that arrives while an older one is still being built replaces it, so only the newest generation reaches main.

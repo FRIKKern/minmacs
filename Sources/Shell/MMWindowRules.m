@@ -123,7 +123,11 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
 NSString *const MMWindowWelcomedKey = @"core.welcomed";
 
 /// Each fact is true of the code named beside it, and is left out or said another way when it would not be.
-MMWindowWelcome *MMWindowWelcomeNow(void) {
+NSString *const MMWindowNewPersonKey = @"core.welcomeNew";
+
+BOOL MMWindowWelcomeLoginStartsOn(BOOL newPerson, BOOL loginNow) { return newPerson || loginNow; }
+
+MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
     if (MMPrefBool(MMWindowWelcomedKey, NO)) return nil;
     NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
     // MMPlan and MMRunAction in Core/Act/MMAct.m: no mode acts before MMWatchedLongEnough, a day after the first launch.
@@ -141,7 +145,9 @@ MMWindowWelcome *MMWindowWelcomeNow(void) {
     // AGENTS.md invariant 6: no permission is asked for at launch; the notifier asks at its first notice. PLAN.md
     // decision 4: awake while an agent works starts on, MMINPrefs' default in Experts/Insomnia.
     [facts addObject:[MMWindowFact label:@"It starts quietly" value:@"No permission is asked at launch. The Mac stays awake while agents work."]];
-    return [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
+    MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
+    w.loginOn = MMWindowWelcomeLoginStartsOn(MMPrefBool(MMWindowNewPersonKey, NO), loginNow);
+    return w;
 }
 
 void MMWindowWelcomeDone(NSInteger removal) {

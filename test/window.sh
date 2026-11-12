@@ -78,8 +78,8 @@ check "window: no string claims a result or says for good" 0 \
   "$(grep -ciE '@"[^"]*(is clean|all good|for good|everything is fine|nothing needs you)[^"]*"' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
 check "window: only MMShell.m names the panel, and the feed names no view" 0 \
   "$(grep -cE 'MMWindowView|MMWindowPanel|MMWindowFixture' $(ls Sources/Shell/*.m Sources/Shell/*.h Sources/CLI/*.m | grep -v 'Shell/MMShell.m') | awk -F: '{s+=$2} END {print s+0}')"
-check "window: the icon opens the panel only while core.window is on, and it is off by default" "1 3" \
-  "$(grep -c 'static NSString \*const kWindowKey = @"core.window";' Sources/Shell/MMShell.m) $(grep -c 'MMPrefBool(kWindowKey, NO)' Sources/Shell/MMShell.m)"
+check "window: the icon opens the panel while core.window is on, it is on by default, and one function reads it" "1 1 0 4" \
+  "$(grep -c 'static NSString \*const kWindowKey = @"core.window";' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMWindowMode(void) { return MMPrefBool(kWindowKey, YES); }' Sources/Shell/MMShell.m) $(grep -c 'MMPrefBool(kWindowKey, NO)' Sources/Shell/MMShell.m) $(grep -c 'MMWindowMode()' Sources/Shell/MMShell.m)"
 # The rows read each expert's facts by key, and Settings says what each expert's mode rule does. A rename or a changed
 # rule in an expert would leave a line out or make a sentence false with no error, so each string must still be there.
 wn_has() { # file string...
@@ -108,7 +108,9 @@ check "window: the render's removal card says Core's three sentences and the fee
 # The welcome: the login item is added in two places only, the old first launch and -setLogin:, and the window reaches
 # -setLogin: from the Settings switch and from Start alone. Under MINMACS_HOME -setLogin: returns before SMAppService.
 check "window: with the menu window the first launch adds no login item, and -setLogin: stops first in a test home" "1 1 1" \
-  "$(grep -c 'if (!self.headless && MMFirstLaunchAddsLogin(MMPrefBool(kWindowKey, NO)) &&' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }' Sources/Shell/MMShell.m) $(grep -A1 -- '- (void)setLogin:(BOOL)on {' Sources/Shell/MMShell.m | grep -c 'if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;')"
+  "$(grep -c 'if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }' Sources/Shell/MMShell.m) $(grep -A1 -- '- (void)setLogin:(BOOL)on {' Sources/Shell/MMShell.m | grep -c 'if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;')"
+check "window: the first launch with the window marks the person as new, and only that launch does" "1 1" \
+  "$(grep -c 'if (MMWindowMode()) MMSetPref(MMWindowNewPersonKey, @YES);' Sources/Shell/MMShell.m) $(grep -c 'MMSetPref(MMWindowNewPersonKey' $(find Sources -name '*.m') | awk -F: '{s+=$2} END {print s+0}')"
 check "window: the controller asks for the login item from the Settings switch and from Start only" "2 1 1" \
   "$(grep -c 'self.shell setLogin:' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:on\];' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:openAtLogin\];' Sources/Shell/MMWindowController.m)"
 check "window: SMAppService is registered in MMShell.m only" 0 "$(grep -lE 'registerAndReturnError|unregisterAndReturnError' $(find Sources -name '*.m') | grep -vc '^Sources/Shell/MMShell.m$')"
