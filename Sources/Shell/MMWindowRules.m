@@ -168,8 +168,9 @@ MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
     [facts addObject:[MMWindowFact label:@"It starts quietly" value:awake ? @"No permission is asked at launch. The Mac stays awake while agents work."
                                                                           : @"No permission is asked at launch."]];
     MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
-    // New to MinMacs: nothing watched yet, or a first launch that left the login item for this welcome to ask about.
-    BOOL fresh = left >= 24 * 3600 || MMPrefBool(MMWindowLoginNotAskedKey, NO);
+    // New to MinMacs: never launched, or a first launch that left the login item for this welcome to ask about.
+    // Anyone else launched it before, so the login item as it is now is their answer, whatever was watched.
+    BOOL fresh = !MMPrefBool(@"core.launched", NO) || MMPrefBool(MMWindowLoginNotAskedKey, NO);
     w.loginOn = fresh || loginNow;
     return w;
 }

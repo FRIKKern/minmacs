@@ -72,7 +72,7 @@ extern NSString *const MMWindowWelcomedKey;
 extern NSString *const MMWindowLoginNotAskedKey;
 /// The welcome of the first launch, or nil once Start was pressed. The removal choices are Core's own words, with the
 /// one the pref holds picked, Smart while it holds none. The switch starts on for a person new to MinMacs. For one
-/// who used it before, which is when the day of watching has begun and the mark above is not set, it starts where
+/// who used it before, which is when core.launched is set and the mark above is not, it starts where
 /// the login item stands now, loginNow, so an untouched Start changes nothing for them.
 /// Each fact is read from what makes it true: the day of watching from MMWatchingLeft, where each rule stands from
 /// MMModeFor, and awake while agents work from the keep-awake expert's pref.
