@@ -190,7 +190,7 @@ extern NSString *const MMWindowRemovalTitle;
 @property (copy) NSArray<MMWindowFix *> *fixes;
 @property (strong, nullable) MMWindowRun *run;
 /// What came back today, from the look-back. Two numbers. The dock shows a side only when it is above zero, and
-/// only while there is nothing to fix.
+/// only while there is nothing to fix. The same rule holds for what Fix Everything gives back: a zero side is not shown.
 @property uint64_t memoryBackToday, diskBackToday;
 @property (strong) MMWindowSettings *settings;
 /// The welcome, until the person pressed Start once. nil ever after. A model with a welcome and generation 0 was made

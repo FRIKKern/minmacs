@@ -1,5 +1,5 @@
 // The dock that closes the window: the ring, the two numbers beside it, Fix Everything with its two thin lines,
-// and the two gains. And the window's own buttons, which are real NSButtons that draw themselves.
+// and the gains, each side only when it has something. And the window's own buttons, which are real NSButtons that draw themselves.
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
 
@@ -262,25 +262,49 @@ static void DrawTrack(NSRect r, double share, NSColor *color) {
 
 #pragma mark The gains
 
-/// What Fix Everything gives back, memory and disk as two large numbers. While a run plays they count up.
-/// With nothing to fix, what came back today stands there instead: each side only when it is above zero.
+/// What Fix Everything gives back, memory and disk, each a large number of its own. A side shows only when it has
+/// something: a zero is no gain, so it is never drawn as one.
+/// - Before a press: what the fixes give back, each side that is above zero.
+/// - While a run plays: each side the run set out to give back, counting up from zero.
+/// - Once it ended: each side that did come back.
+/// - With nothing to fix: what came back today, each side that is above zero.
+/// Each entry is the bytes, the ink and the words.
+- (NSArray<NSArray *> *)gains {
+    MMWindowModel *m = self.model;
+    MMWindowRun *run = m.run;
+    NSMutableArray<NSArray *> *out = [NSMutableArray new];
+    void (^add)(double, MMWindowInk, NSString *) = ^(double bytes, MMWindowInk ink, NSString *words) {
+        [out addObject:@[@((uint64_t)MAX(bytes, 0)), @(ink), words]];
+    };
+    if (self.phase == MMWindowDockRunning) {
+        if (run.memoryPlanned > 0 || run.memoryBack > 0) add(self.memoryShown, MMWindowInkMemory, @"memory back so far");
+        if (run.diskPlanned > 0 || run.diskBack > 0) add(self.diskShown, MMWindowInkDisk, @"disk back so far");
+    } else if (self.phase == MMWindowDockEnded) {
+        if (run.memoryBack > 0) add(self.memoryShown, MMWindowInkMemory, @"memory back");
+        if (run.diskBack > 0) add(self.diskShown, MMWindowInkDisk, @"disk back");
+    } else if (m.fixCount == 0) {
+        if (m.memoryBackToday > 0) add(m.memoryBackToday, MMWindowInkMemory, @"memory back today");
+        if (m.diskBackToday > 0) add(m.diskBackToday, MMWindowInkDisk, @"disk back today");
+    } else {
+        if (m.memoryBack > 0) add(m.memoryBack, MMWindowInkMemory, @"memory back");
+        if (m.diskBack > 0) add(m.diskBack, MMWindowInkDisk, @"disk back");
+    }
+    return out;
+}
+
+- (NSArray<NSString *> *)gainLines {
+    NSMutableArray<NSString *> *out = [NSMutableArray new];
+    for (NSArray *g in self.gains) [out addObject:[NSString stringWithFormat:@"%@ %@", MMWindowBytes([g[0] unsignedLongLongValue]), g[2]]];
+    return out;
+}
+
 - (void)drawGains {
-    BOOL live = self.phase != MMWindowDockCalm;
     NSColor *t2 = MMWindowColor(MMWindowInkText2);
     NSMutableArray<NSAttributedString *> *lines = [NSMutableArray new];
-    void (^add)(uint64_t, MMWindowInk, NSString *) = ^(uint64_t bytes, MMWindowInk ink, NSString *words) {
-        [lines addObject:MMWindowJoin(@[MMWindowText(MMWindowBytes(bytes), 23, NSFontWeightMedium, MMWindowColor(ink)),
-                                        MMWindowText([@"  " stringByAppendingString:words], 12, NSFontWeightRegular, t2)])];
-    };
-    if (!live && self.model.fixCount == 0) {
-        if (self.model.memoryBackToday > 0) add(self.model.memoryBackToday, MMWindowInkMemory, @"memory back today");
-        if (self.model.diskBackToday > 0) add(self.model.diskBackToday, MMWindowInkDisk, @"disk back today");
-    } else {
-        NSString *tail = self.phase == MMWindowDockRunning ? @" so far" : @"";
-        add(live ? (uint64_t)MAX(self.memoryShown, 0) : self.model.memoryBack, MMWindowInkMemory, [@"memory back" stringByAppendingString:tail]);
-        add(live ? (uint64_t)MAX(self.diskShown, 0) : self.model.diskBack, MMWindowInkDisk, [@"disk back" stringByAppendingString:tail]);
-    }
-    // Two lines sit at 50 and 81. One line sits between them.
+    for (NSArray *g in self.gains)
+        [lines addObject:MMWindowJoin(@[MMWindowText(MMWindowBytes([g[0] unsignedLongLongValue]), 23, NSFontWeightMedium, MMWindowColor((MMWindowInk)[g[1] integerValue])),
+                                        MMWindowText([@"  " stringByAppendingString:g[2]], 12, NSFontWeightRegular, t2)])];
+    // Two lines sit at 50 and 81. One line sits between them, level with the middle of the button.
     if (lines.count == 1) MMWindowDraw(lines[0], 764, 65.5, -1);
     else for (NSUInteger i = 0; i < lines.count; i++) MMWindowDraw(lines[i], 764, 50 + 31 * i, -1);
 }

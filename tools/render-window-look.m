@@ -58,6 +58,38 @@ static void WindowLookChecks(void) {
     for (NSArray<MMWindowGroup *> *side in @[busy.memoryGroups, busy.diskGroups]) for (MMWindowGroup *g in side)
         Check(g.emptyNote.length > 0, [NSString stringWithFormat:@"window: the %@ group has words for when it is empty", g.key], @"");
 
+    // The gains: a side that is zero is not shown as a gain, before a press, while a run plays and once it ended.
+    NSString *(^gains)(MMWindowModel *, MMWindowDockPhase) = ^NSString *(MMWindowModel *model, MMWindowDockPhase phase) {
+        MMWindowDockView *d = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, 132)];
+        d.model = model; d.phase = phase;
+        d.memoryShown = model.run.memoryBack; d.diskShown = model.run.diskBack;
+        return [d.gainLines componentsJoinedByString:@" | "];
+    };
+    MMWindowModel *memoryOnly = MMWindowFixture(@"memory-only"), *diskOnly = MMWindowFixture(@"disk-only"), *none = MMWindowFixture(@"young");
+    NSString *both = gains(busy, MMWindowDockCalm), *mem = gains(memoryOnly, MMWindowDockCalm), *dsk = gains(diskOnly, MMWindowDockCalm);
+    Check([both isEqualToString:@"3.1 GB memory back | 18.6 GB disk back"] && [mem isEqualToString:@"2.7 GB memory back"] && [dsk isEqualToString:@"16.8 GB disk back"],
+          @"window gains: both sides when both are above zero, and one side alone when the other is zero", [NSString stringWithFormat:@"%@ / %@ / %@", both, mem, dsk]);
+    Check(memoryOnly.fixCount > 0 && memoryOnly.diskBack == 0 && diskOnly.fixCount > 0 && diskOnly.memoryBack == 0 && gains(none, MMWindowDockCalm).length == 0,
+          @"window gains: with nothing to fix and nothing back today no gain is shown", gains(none, MMWindowDockCalm));
+    Check([gains(calm, MMWindowDockCalm) isEqualToString:@"250 MB memory back today | 3.1 GB disk back today"], @"window gains: nothing to fix shows what came back today", gains(calm, MMWindowDockCalm));
+    // A run that set out to give back memory only, and one that ended with nothing on one side.
+    MMWindowRun *run = [MMWindowRun new];
+    run.running = YES; run.total = memoryOnly.fixCount; run.memoryPlanned = memoryOnly.memoryBack;
+    memoryOnly.run = run;
+    NSString *atStart = gains(memoryOnly, MMWindowDockRunning);
+    run.running = NO; run.memoryBack = 0; run.diskBack = 0;
+    NSString *nothing = gains(memoryOnly, MMWindowDockEnded);
+    run.memoryBack = run.memoryPlanned;
+    NSString *ended = gains(memoryOnly, MMWindowDockEnded);
+    Check([atStart isEqualToString:@"0 KB memory back so far"] && nothing.length == 0 && [ended isEqualToString:@"2.7 GB memory back"],
+          @"window gains: a run counts up only the side it set out to give back, and its end shows only what came back", [NSString stringWithFormat:@"%@ / %@ / %@", atStart, nothing, ended]);
+    NSMutableArray<NSString *> *zeros = [NSMutableArray new];
+    for (NSString *name in @[@"busy", @"quiet", @"peak", @"done", @"empty", @"young", @"calm", @"long", @"memory-only", @"disk-only"]) {
+        MMWindowModel *x = MMWindowFixture(name);
+        for (NSString *line in [gains(x, x.run ? MMWindowDockEnded : MMWindowDockCalm) componentsSeparatedByString:@" | "]) if ([line hasPrefix:@"0 "]) [zeros addObject:[NSString stringWithFormat:@"%@: %@", name, line]];
+    }
+    Check(zeros.count == 0, @"window gains: no resting fixture shows a zero as a gain", [zeros componentsJoinedByString:@" | "]);
+
     // The top band folds away when nobody asks, and the window keeps its size.
     MMWindowView *v = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
     v.model = busy;

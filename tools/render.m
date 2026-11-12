@@ -658,6 +658,8 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
                                   @[@"busy", @"settings", @""], @[@"removal", @"settings", @""], @[@"quiet", @"main", @""], @[@"quiet", @"server", @"server:3001"],
                                   @[@"peak", @"main", @""], @[@"peak", @"worktree", @"worktree:notes-export"],
                                   @[@"running", @"main", @""], @[@"done", @"main", @""], @[@"empty", @"main", @""],
+                                  // Fixes that give back one side only: the dock shows that side alone, never a zero beside it.
+                                  @[@"memory-only", @"main", @""], @[@"disk-only", @"main", @""],
                                   // From the first look at the real window: one minute in with an empty disk side and nobody asking,
                                   // twelve minutes in with nothing to fix and a look-back, and names longer than their column.
                                   @[@"young", @"main", @""], @[@"calm", @"main", @""], @[@"long", @"main", @""], @[@"long", @"agent", @"agent:long"],

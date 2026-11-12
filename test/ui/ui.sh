@@ -46,7 +46,7 @@ ui_fails=missing
 check "the render's DESIGN.md checks all pass" 0 "$ui_fails"
 grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 
-# The window that opens from the icon, issue #62, in window/: 15 states in dark and in dark with Increase Contrast.
+# The window that opens from the icon, issue #62, in window/: 23 pictures in dark and in dark with Increase Contrast.
 # The last four came from the first look at the real window: young is one minute in with an empty disk side and nobody
 # asking, calm is twelve minutes in with nothing to fix and a look-back, and long has names longer than their column.
 # removal-settings is Settings as the feed fills it today, with the card for the removal choice of issue #62.
@@ -54,9 +54,9 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # picked, and the window right after a Start that came before the first numbers.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 42 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 46 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
-for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main \
+for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
                young-main calm-main long-main long-agent welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-started; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
@@ -81,6 +81,11 @@ check "a group rests on a whole row and opens at its top" "1 1" \
   "$(ui_look ': every group opens at its first row') $(ui_look ': a closed window forgets its scrolling')"
 check "the young hour, the folded band and the look-back change the picture" "yes yes yes" \
   "$([ "$(ui_md young-main-dark)" != "$(ui_md empty-main-dark)" ] && echo yes || echo no) $([ "$(ui_md calm-main-dark)" != "$(ui_md quiet-main-dark)" ] && echo yes || echo no) $([ "$(ui_md long-main-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no)"
+
+# The dock's gains: a side that gives nothing back is not shown as "0 KB back".
+check "the dock shows only the sides above zero, before a press, in a run and at its end" "5 0" "$(ui_look ' gains: ') $(grep -c '^FAIL  window gains' "$ui_out/checks.txt" 2>/dev/null)"
+check "one side alone changes the picture" "yes yes" \
+  "$([ "$(ui_md memory-only-main-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no) $([ "$(ui_md memory-only-main-dark)" != "$(ui_md disk-only-main-dark)" ] && echo yes || echo no)"
 
 # The welcome of the first launch: it stands alone, its answers stay the person's, Start hands them over once and it
 # does not come back. tools/render-window-look.m holds the checks.

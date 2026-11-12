@@ -293,6 +293,8 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
 MMWindowModel *MMWindowFixture(NSString *name) {
     BOOL quiet = [name isEqualToString:@"quiet"], peak = [name isEqualToString:@"peak"], empty = [name isEqualToString:@"empty"];
     BOOL running = [name isEqualToString:@"running"], done = [name isEqualToString:@"done"];
+    // "memory-only" and "disk-only": the busy day with only the fixes that give that one side back.
+    BOOL memoryOnly = [name isEqualToString:@"memory-only"], diskOnly = [name isEqualToString:@"disk-only"];
     // "young": one minute in, on a Mac full of servers, agents and apps, with nothing on disk found yet, nobody asking
     // and nothing to fix. "calm": twelve minutes in, nobody asks, nothing to fix, and something came back today.
     // "long": the busy day with one name in each group that is longer than its column.
@@ -355,6 +357,11 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         Fix(@"quit:music", @"Quit Music", 578 * MB, 0, NO)]];
     if (!quiet) [fixes addObjectsFromArray:@[Fix(@"remove:merged", @"Remove 3 merged worktrees", 0, 2616 * MB, NO), Fix(@"stop:1313", @"Stop :1313 Hugo", 60 * MB, 0, NO)]];
     [fixes addObject:Fix(@"clean:npm", @"Clean the npm cache", 0, 6246 * MB, YES)];
+    if (memoryOnly || diskOnly) {
+        NSMutableArray *kept = [NSMutableArray new];
+        for (MMWindowFix *x in fixes) if (!x.needsYou && (memoryOnly ? x.diskBack == 0 : x.memoryBack == 0)) [kept addObject:x];
+        fixes = kept;
+    }
     m.fixes = fixes;
 
     if (running || done) {

@@ -57,6 +57,7 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 
 /// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty",
 /// and three days that came from the first look at the real window: "young", "calm" and "long".
+/// "memory-only" and "disk-only" are the busy day with fixes that give only that side back.
 /// "welcome" is the young day with the welcome on it, and "welcome-off", "welcome-trash" and "welcome-delete" are the
 /// same with the switch off or another removal choice picked.
 MMWindowModel *MMWindowFixture(NSString *name);

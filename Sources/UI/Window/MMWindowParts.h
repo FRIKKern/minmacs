@@ -106,7 +106,7 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 + (instancetype)kind:(MMWindowButtonKind)kind title:(NSString *)title target:(nullable id)target action:(nullable SEL)action;
 @end
 
-/// The dock: the ring, the two numbers beside it, Fix Everything with its two lines, and the two gains.
+/// The dock: the ring, the two numbers beside it, Fix Everything with its two lines, and the gains.
 @interface MMWindowDockView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowModel *model;
 @property (nonatomic) MMWindowDockPhase phase;
@@ -114,6 +114,9 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (nonatomic) double memoryShown, diskShown;                 // the gains while they count up, in bytes
 @property (nonatomic) double glow;                                   // 1 right as a run ends, then down to 0
 @property (readonly) MMWindowButton *fix;
+/// The gains as the dock draws them now, top to bottom, such as "2.9 GB memory back". A side that is zero is not
+/// there, so the list holds two lines, one, or none.
+@property (readonly) NSArray<NSString *> *gainLines;
 @end
 
 /// Settings in place: a card per rule and one for the switches.
