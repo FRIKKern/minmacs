@@ -1,4 +1,4 @@
-// The Performance tab as a model: the ring, the two sides, the fixes and the look-back, so the sheet UI only draws it.
+// The Performance tab as a model: the ring, the two sides, the fixes and the look-back, so the menu window only draws it.
 // It maps design 132-a on the ui-prototypes branch to what Core measures today. Every number below names its source.
 // It is built on demand from one MMSnapshot, off main, such as on the graph queue or in a verb. It holds no text
 // but the names and keys its rows and fixes come from, so a calm Mac shows only numbers.

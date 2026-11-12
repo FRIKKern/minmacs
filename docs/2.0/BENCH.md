@@ -197,7 +197,7 @@ The budget of 30 ms at p95 holds on the quieter runs and is passed on the loaded
 
 ### Startup
 
-Same run, headless, in ms from where `MMMain` starts.
+Same run, headless, in ms from where `MMMain` starts. This is the launch of the menus of before, with an item for each expert: `bench startup` sets the pref `core.window` off. The menu window is the default now and makes one item at launch, so its launch makes less. It has not been timed.
 
 | Launch | Core started | Items made | First snapshot | Every summary | Made at launch | Left for later |
 |---|---|---|---|---|---|---|

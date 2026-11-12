@@ -328,7 +328,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
             r.inFix = NO; r.state = nil;
             NSMutableArray<MMWindowFact *> *facts = [r.facts mutableCopy];
             [facts removeLastObject];
-            [facts addObject:F(@"Why", @"Stays. Its rule is Off, so it waits for your own press.")];
+            [facts addObject:F(@"Why", @"Stays. No fix takes it on this day.")];
             r.facts = facts;
         }
     }
