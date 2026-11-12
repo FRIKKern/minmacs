@@ -109,6 +109,9 @@ check "window: the render's removal card says Core's three sentences and the fee
 # -setLogin: from the Settings switch and from Start alone. Under MINMACS_HOME -setLogin: returns before SMAppService.
 check "window: with the menu window the first launch adds no login item, and -setLogin: stops first in a test home" "1 1 1" \
   "$(grep -c 'if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }' Sources/Shell/MMShell.m) $(grep -A1 -- '- (void)setLogin:(BOOL)on {' Sources/Shell/MMShell.m | grep -c 'if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;')"
+# Settings in window mode is the window turned over. The old Settings window is made in one place, behind that check.
+check "window: every way to Settings asks the window first, and the old Settings window opens only past that" "1 1 4 1 1" \
+  "$(grep -A1 -- '^- (void)showSettings:(id)sender {' Sources/Shell/MMShell.m | grep -c 'if (\[self showWindowSettings\]) return;') $(grep -c 'self.windowPanel.view.showsSettings = YES;' Sources/Shell/MMShell.m) $(grep -c '\[self showSettings:nil\]\|\[self.shell showSettings:sender\]' Sources/Shell/MMShell.m) $(grep -c '\[MMSettings new\]' Sources/Shell/MMShell.m) $(grep -l 'MMSettings new\]' $(find Sources -name '*.m') | grep -c .)"
 check "window: the first launch with the window marks the person as new, and only that launch does" "1 1" \
   "$(grep -c 'if (MMWindowMode()) MMSetPref(MMWindowNewPersonKey, @YES);' Sources/Shell/MMShell.m) $(grep -c 'MMSetPref(MMWindowNewPersonKey' $(find Sources -name '*.m') | awk -F: '{s+=$2} END {print s+0}')"
 check "window: the controller asks for the login item from the Settings switch and from Start only" "2 1 1" \

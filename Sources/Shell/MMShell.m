@@ -181,6 +181,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property (strong) MMWindowController *windowController;
 - (void)toggleWindow:(NSStatusBarButton *)button;
 - (BOOL)showWindow;
+- (BOOL)showWindowSettings;
+- (void)makeWindow;
 - (NSString *)notice;
 - (void)showSettings:(id)sender;
 - (void)rebuildItems;
@@ -495,15 +497,19 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 
 /// Opens the menu window under the icon, or closes it. The controller builds models only while it is open.
 - (void)toggleWindow:(NSStatusBarButton *)button {
-    if (!self.windowPanel) {
-        self.windowController = [MMWindowController new];
-        self.windowController.shell = self;
-        self.windowPanel = [[MMWindowPanel alloc] initWithHost:self.windowController];
-        __weak MMShell *weak = self;
-        self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowPanel show:model]; };
-        self.windowPanel.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
-    }
+    [self makeWindow];
     [self.windowPanel toggleUnder:button];
+}
+
+/// The panel and its controller, made once, at the first click on the icon or the first way to Settings.
+- (void)makeWindow {
+    if (self.windowPanel) return;
+    self.windowController = [MMWindowController new];
+    self.windowController.shell = self;
+    self.windowPanel = [[MMWindowPanel alloc] initWithHost:self.windowController];
+    __weak MMShell *weak = self;
+    self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowPanel show:model]; };
+    self.windowPanel.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
 }
 
 - (BOOL)loginEnabled { return SMAppService.mainAppService.status == SMAppServiceStatusEnabled; }
@@ -541,7 +547,24 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     self.settings.openAtLogin = self.loginEnabled;
 }
 
+/// Window mode only: Settings is the window turned over in place, as its gear and Command-comma do, so the window
+/// opens and shows Settings. While the welcome shows it stays the welcome, which holds its two choices itself.
+/// NO when the icon opens menus.
+- (BOOL)showWindowSettings {
+    MMExpertItem *one = nil;
+    for (MMExpertItem *x in self.items) if (x.opensWindow) one = x;
+    if (!one) return NO;
+    // Turned over before it opens, so its first frame is Settings and nothing fades.
+    [self makeWindow];
+    self.windowPanel.view.showsSettings = YES;
+    if (!self.windowPanel.isOpen) [self toggleWindow:one.item.button];
+    return YES;
+}
+
+/// Opening MinMacs again, minmacs://settings and the Settings row of a menu all come here. With the menu window it
+/// is the window's own Settings. The Settings window below opens only while core.window is off.
 - (void)showSettings:(id)sender {
+    if ([self showWindowSettings]) return;
     if (!self.settings) {
         MMSettings *st = [MMSettings new];
         __weak MMShell *weak = self;

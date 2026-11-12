@@ -12,7 +12,7 @@ typedef NS_ENUM(NSInteger, MMRouteKind) {
     MMRouteQuit,
     MMRouteLoginOn,
     MMRouteLoginOff,
-    MMRouteSettings,      // the Settings window on its overview pane
+    MMRouteSettings,      // Settings: the menu window turned over to its Settings, or with core.window off the Settings window
     MMRouteExpert,        // hand url to the expert's -openURL:, then run words when it says NO
 };
 
