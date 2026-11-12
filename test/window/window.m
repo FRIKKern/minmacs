@@ -369,8 +369,12 @@ static void WindowModel(void) {
       [NSString stringWithFormat:@"%ld %llu %llu %ld", (long)m.fixCount, m.memoryBack, m.diskBack, (long)needs]);
     NSMutableSet *marked = [NSMutableSet new], *touched = [NSMutableSet new];
     for (MMWindowRow *r in Rows(m)) if (r.inFix) [marked addObject:r.key];
-    for (MMPerformanceFix *f in p.fixes) [touched addObjectsFromArray:f.rows];
-    T(@"window: inFix marks the rows the fixes touch, and no other", @"yes 10", [NSString stringWithFormat:@"%@ %lu", YN([marked isEqualToSet:touched]), (unsigned long)marked.count]);
+    NSMutableSet *own = [NSMutableSet new];
+    for (MMPerformanceFix *f in p.fixes) [f.needsYou ? own : touched addObjectsFromArray:f.rows];
+    T(@"window: inFix marks the rows a press on Fix Everything acts on, and no other", @"yes 9", [NSString stringWithFormat:@"%@ %lu", YN([marked isEqualToSet:touched]), (unsigned long)marked.count]);
+    BOOL ownMarked = NO;
+    for (MMWindowRow *r in Rows(m)) if ([own containsObject:r.key] && r.inFix) ownMarked = YES;
+    T(@"window: the row of a fix that waits for its own press, the pnpm store, carries no mark", @"1 no", [NSString stringWithFormat:@"%lu %@", (unsigned long)own.count, YN(ownMarked)]);
 
     // Settings.
     MMWindowSettings *st = m.settings;
