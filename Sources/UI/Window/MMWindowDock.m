@@ -20,6 +20,11 @@
 
 - (void)setLit:(BOOL)lit { _lit = lit; self.needsDisplay = YES; }
 
+/// Tab reaches every button of the window that takes presses now, whatever the system's keyboard setting says.
+- (BOOL)canBecomeKeyView { return self.enabled && MMWindowTakesPresses(self); }
+/// A press, Space or a VoiceOver press: none acts on a button that is hidden, fading or held back.
+- (BOOL)sendAction:(SEL)action to:(id)target { return MMWindowTakesPresses(self) && [super sendAction:action to:target]; }
+
 - (void)updateTrackingAreas {
     [super updateTrackingAreas];
     if (_tracking) [self removeTrackingArea:_tracking];

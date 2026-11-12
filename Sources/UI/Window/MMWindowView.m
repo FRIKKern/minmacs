@@ -25,12 +25,39 @@ static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
     MMWindowWelcomeView *_welcome;      // made the first time a model holds a welcome
     BOOL _started;                      // Start was pressed here: a model built before that brings no welcome back
     BOOL _looking;                      // no model came for a moment, so the window says it is taking its first look
+    BOOL _quiet;                        // from Start until the menu has arrived and a moment more: only Quit takes a press
+    NSInteger _flips;                   // fades between the menu and Settings under way
 }
 
-static NSString *const kLooking = @"MinMacs is taking its first look. It takes a few seconds.";
+const NSTimeInterval MMWindowStartGuard = 0.6;
+
+BOOL MMWindowTakesPresses(NSView *view) {
+    if (!view) return NO;
+    for (NSView *v = view; v; v = v.superview) {
+        if ([v isKindOfClass:MMWindowView.class]) return ![(MMWindowView *)v holdsBack:view];
+        if (v.hidden || v.alphaValue < 1) return NO;
+    }
+    return YES;
+}
+
+/// What the window keeps from presses for now, though it is in the view tree and may even be drawn. Quit always works.
+- (BOOL)holdsBack:(NSView *)view {
+    if (view == _power) return NO;
+    if (_quiet) return YES;
+    return _flips > 0 && ([view isDescendantOf:_main] || [view isDescendantOf:_settings]);
+}
+
+/// A press lands only on what takes presses. Anything else under the pointer leaves the press with the window itself,
+/// which does nothing with it.
+- (NSView *)hitTest:(NSPoint)point {
+    NSView *hit = [super hitTest:point];
+    return !hit || hit == self || MMWindowTakesPresses(hit) ? hit : self;
+}
 
 - (BOOL)isFlipped { return YES; }
 - (BOOL)acceptsFirstResponder { return YES; }
+/// It holds the keyboard when no button does, but Tab never stops on it: there is nothing to see there.
+- (BOOL)canBecomeKeyView { return NO; }
 
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:NSMakeRect(frame.origin.x, frame.origin.y, MMWindowSize.width, MMWindowSize.height)])) {
@@ -151,6 +178,8 @@ static NSString *const kLooking = @"MinMacs is taking its first look. It takes a
 - (void)start:(BOOL)login removal:(NSInteger)removal {
     if (_started) return;
     _started = YES;
+    // A second press where Start was would land on the menu that arrives under it, Fix Everything among it.
+    _quiet = YES;
     [self.host windowWelcomeStart:login removal:removal];
     _model.welcome = nil;
     if (!_model) _looking = YES;
@@ -159,7 +188,7 @@ static NSString *const kLooking = @"MinMacs is taking its first look. It takes a
     [self.window makeFirstResponder:self];
     self.needsDisplay = YES;
     MMWindowWelcomeView *goes = _welcome;
-    if (!self.window.isVisible || !self.layer || MMWindowReduceMotion()) { goes.hidden = YES; return; }
+    if (!self.window.isVisible || !self.layer || MMWindowReduceMotion()) { goes.hidden = YES; [self arriveSoon]; return; }
     _main.alphaValue = 0; _gear.alphaValue = 0;
     _main.frame = NSOffsetRect(_main.frame, 0, 10);
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
@@ -168,14 +197,34 @@ static NSString *const kLooking = @"MinMacs is taking its first look. It takes a
     } completionHandler:^{
         goes.hidden = YES;
         self.needsDisplay = YES;
+        if (!self->_quiet) return;      // the window closed meanwhile, and -rest put everything in its place
         [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
             c.duration = 0.6;
             self->_main.animator.alphaValue = 1; self->_gear.animator.alphaValue = 1;
             // The band may have folded meanwhile, so the menu lands where it belongs now.
             CGFloat top = self.bandTop;
             self->_main.animator.frame = NSMakeRect(0, top, MMWindowSize.width, MMWindowSize.height - top);
-        } completionHandler:nil];
+        } completionHandler:^{ if (self->_quiet) [self arriveSoon]; }];
     }];
+}
+
+/// The menu is all there. It takes presses and keys a moment later, so a press meant for Start never reaches it.
+- (void)arriveSoon {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(arrived) object:nil];
+    [self performSelector:@selector(arrived) withObject:nil afterDelay:MMWindowStartGuard inModes:@[NSRunLoopCommonModes]];
+}
+
+- (void)arrived { _quiet = NO; [self.window recalculateKeyViewLoop]; }
+
+/// The window closed between Start and the menu's arrival: the menu is simply there the next time.
+- (void)settleStart {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(arrived) object:nil];
+    if (!_quiet) return;
+    _quiet = NO;
+    _welcome.hidden = YES;
+    _main.alphaValue = 1; _gear.alphaValue = 1;
+    CGFloat top = self.bandTop;
+    _main.frame = NSMakeRect(0, top, MMWindowSize.width, MMWindowSize.height - top);
 }
 
 /// No model came within a moment of opening: the window says so in one line, in place of an empty pane.
@@ -302,6 +351,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(sayLooking) object:nil];
     [_left rest]; [_right rest]; [_welcome rest];
+    [self settleStart];
     _hovered = nil;
     [self showPointed];
 }
@@ -323,10 +373,13 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     comes.hidden = NO;
     if (!fade) { comes.alphaValue = 1; goes.alphaValue = 1; goes.hidden = YES; return; }
     comes.alphaValue = 0;
+    // Neither side takes a press while it fades. The gear and the keys still do, and the last of them wins.
+    _flips++;
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
         c.duration = 0.16;
         comes.animator.alphaValue = 1; goes.animator.alphaValue = 0;
     } completionHandler:^{
+        self->_flips--;
         // A second press during the fade wins.
         BOOL still = self.showsSettings == on;
         goes.hidden = still; goes.alphaValue = 1;
@@ -350,7 +403,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     if (self.window.isKeyWindow && (flags & ~NSEventModifierFlagCapsLock) == NSEventModifierFlagCommand) {
         NSString *key = e.charactersIgnoringModifiers.lowercaseString;
         // The welcome has no Settings behind it: its two choices are on it.
-        if ([key isEqualToString:@","]) { if (!self.showsWelcome) self.showsSettings = !self.showsSettings; return YES; }
+        if ([key isEqualToString:@","]) { if (!self.showsWelcome && !_quiet) self.showsSettings = !self.showsSettings; return YES; }
         if ([key isEqualToString:@"q"]) { [self.host windowQuit]; return YES; }
     }
     return [super performKeyEquivalent:e];
@@ -358,7 +411,9 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 
 - (void)keyDown:(NSEvent *)e {
     // Return presses Start, wherever the keyboard is in the welcome.
-    if (self.showsWelcome && (e.keyCode == 36 || e.keyCode == 76)) { [_welcome pressStart]; return; }
+    if (self.showsWelcome && !_started && (e.keyCode == 36 || e.keyCode == 76)) { [_welcome pressStart]; return; }
+    // Until the menu has arrived no key reaches it, Tab among them. Escape still closes the window.
+    if (_quiet && e.keyCode != 53) return;
     if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil]; else [super keyDown:e];
 }
 
@@ -393,7 +448,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     }
     if (self.showsWelcome) return;
     if (!_model && _looking && !self.showsSettings)
-        MMWindowDraw(MMWindowText(kLooking, 13, NSFontWeightRegular, MMWindowColor(MMWindowInkText2)), NSMidX(b), round(b.size.height * 0.42), 0);
+        MMWindowDraw(MMWindowText(MMWindowLookingNote, 13, NSFontWeightRegular, MMWindowColor(MMWindowInkText2)), NSMidX(b), round(b.size.height * 0.42), 0);
     if (_model.asks.length || self.showsSettings || (!_model && !_looking)) {
         [MMWindowColor(MMWindowInkLine) setFill];
         NSRectFillUsingOperation(NSMakeRect(14, 34, b.size.width - 28, 1), NSCompositingOperationSourceOver);
@@ -406,7 +461,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
         @"Fix Everything", @"Nothing to fix now", @"Press to stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
         @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour",
-        @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", kLooking]];
+        @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     void (^add)(NSString *) = ^(NSString *x) { if (x.length) [s addObject:x]; };
     add(m.asks);
     for (MMWindowHour *h in @[m.memoryHour ?: [MMWindowHour new], m.diskHour ?: [MMWindowHour new]]) { add(h.title); add(h.explain); }

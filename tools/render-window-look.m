@@ -85,11 +85,11 @@ static void WindowLookChecks(void) {
 
 /// A host that only writes down what Start handed it.
 @interface WelcomeHost : NSObject <MMWindowHost>
-@property NSInteger starts, removal;
+@property NSInteger starts, removal, fixes;
 @property BOOL login;
 @end
 @implementation WelcomeHost
-- (void)windowRunFixEverything {}
+- (void)windowRunFixEverything { self.fixes++; }
 - (void)windowStopRun {}
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice {}
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on {}
@@ -101,6 +101,97 @@ static NSArray<MMWindowButton *> *WindowButtons(NSView *v) {
     NSMutableArray *out = [NSMutableArray new];
     for (NSView *sub in v.subviews) if ([sub isKindOfClass:MMWindowButton.class]) [out addObject:sub];
     return out;
+}
+
+/// The view in a window that is never shown, so a point can be hit-tested as a press would be.
+static NSWindow *WelcomeWindow(MMWindowView *v) {
+    NSWindow *win = [[NSWindow alloc] initWithContentRect:v.frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES];
+    win.releasedWhenClosed = NO;
+    [win.contentView addSubview:v];
+    return win;
+}
+
+/// What a press at the middle of `at` would land on.
+static NSView *WelcomeHit(MMWindowView *v, NSRect at, NSView *in) {
+    NSPoint p = [v.superview convertPoint:NSMakePoint(NSMidX(at), NSMidY(at)) fromView:in];
+    return [v hitTest:p];
+}
+
+static void WelcomePress(NSView *hit) { if ([hit isKindOfClass:NSButton.class]) [(NSButton *)hit performClick:nil]; }
+
+/// A second press where Start was must never reach the menu that arrives under it: with fixes ready, Fix Everything
+/// sits at that very point. Nothing of the menu takes a press or a key until it has arrived and a moment more.
+static void WindowWelcomeGuardChecks(void) {
+    WelcomeHost *host = [WelcomeHost new];
+    MMWindowView *v = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+    v.host = host;
+    NSWindow *win = WelcomeWindow(v);
+    MMWindowModel *m = MMWindowFixture(@"busy");
+    m.welcome = MMWindowFixture(@"welcome").welcome;
+    v.model = m;
+    MMWindowWelcomeView *w = v.welcomeView;
+    NSButton *start = w.controls.lastObject;
+    NSRect at = start.frame;
+    NSView *first = WelcomeHit(v, at, w);
+    Check(first == start && m.fixCount == 7, @"welcome guard: with seven fixes ready, a press at Start lands on Start", NSStringFromClass(first.class));
+    WelcomePress(first);
+    NSView *second = WelcomeHit(v, at, w);
+    WelcomePress(second);
+    WelcomePress(WelcomeHit(v, at, w));
+    Check(host.starts == 1 && host.fixes == 0, @"welcome guard: a second and a third press at the same point right after Start run no fix",
+          [NSString stringWithFormat:@"%ld starts, %ld runs of Fix Everything, the press landed on %@", (long)host.starts, (long)host.fixes, NSStringFromClass(second.class)]);
+    MMWindowDockView *dock = nil;
+    for (NSView *sub in WindowLists(v).firstObject.superview.subviews) if ([sub isKindOfClass:MMWindowDockView.class]) dock = (MMWindowDockView *)sub;
+    MMWindowButton *gear = nil, *power = nil;
+    for (MMWindowButton *b in WindowButtons(v)) { if (b.kind == MMWindowButtonGear) gear = b; if (b.kind == MMWindowButtonPower) power = b; }
+    [dock.fix performClick:nil];
+    [gear performClick:nil];
+    NSEvent *enter = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:0 context:nil
+                                    characters:@"\r" charactersIgnoringModifiers:@"\r" isARepeat:NO keyCode:36];
+    NSEvent *space = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:0 context:nil
+                                    characters:@" " charactersIgnoringModifiers:@" " isARepeat:NO keyCode:49];
+    [v keyDown:enter]; [v keyDown:space];
+    Check(dock && host.fixes == 0 && !v.showsSettings && !dock.fix.canBecomeKeyView && !gear.canBecomeKeyView && WelcomeHit(v, gear.frame, v) != gear,
+          @"welcome guard: until the menu has arrived, no press, key or VoiceOver press reaches Fix Everything or the gear, and Tab reaches neither", @"");
+    Check(WelcomeHit(v, power.frame, v) == power && power.canBecomeKeyView, @"welcome guard: Quit stays pressable all the way", @"");
+    // The guard is the time the menu takes to arrive and a moment more. Then the menu is the menu.
+    [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:MMWindowStartGuard + 0.2]];
+    NSView *later = WelcomeHit(v, at, w);
+    Check(later == dock.fix && dock.fix.canBecomeKeyView && gear.canBecomeKeyView && WelcomeHit(v, gear.frame, v) == gear, @"welcome guard: after the guard time Fix Everything and the gear take a press again", NSStringFromClass(later.class));
+    WelcomePress(later);
+    Check(host.fixes == 1, @"welcome guard: and a press on Fix Everything then runs it once", [NSString stringWithFormat:@"%ld", (long)host.fixes]);
+    [win close];
+
+    // A view on its way in or out takes no press: the welcome's own buttons while they rise in.
+    MMWindowView *r = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+    WelcomeHost *rh = [WelcomeHost new];
+    r.host = rh;
+    NSWindow *rwin = WelcomeWindow(r);
+    r.model = MMWindowFixture(@"welcome");
+    MMWindowWelcomeView *rw = r.welcomeView;
+    NSButton *rs = rw.controls.lastObject, *rl = rw.controls.firstObject;
+    NSRect home = rs.frame;
+    rw.arrival = 0.5;
+    WelcomePress(WelcomeHit(r, home, rw));
+    [rs performClick:nil]; [rl performClick:nil];
+    [r keyDown:enter];
+    Check(rs.alphaValue < 1 && rh.starts == 0 && rw.loginOn && !rs.canBecomeKeyView, @"welcome guard: while the welcome's parts rise in, no press or Return reaches a button that is not there yet",
+          [NSString stringWithFormat:@"alpha %g, %ld starts", rs.alphaValue, (long)rh.starts]);
+    rw.arrival = 1;
+    // Tab goes through the five controls and Quit, and back to the first.
+    [rwin recalculateKeyViewLoop];
+    NSMutableArray<NSString *> *loop = [NSMutableArray new];
+    NSView *key = rl;
+    for (NSInteger i = 0; i < 12 && key; i++) {
+        [loop addObject:key.accessibilityLabel ?: NSStringFromClass(key.class)];
+        key = key.nextValidKeyView;
+        if (key == rl) break;
+    }
+    Check(key == rl && loop.count == 6 && [loop containsObject:@"Quit MinMacs, Command Q"] && [loop.firstObject hasPrefix:@"Open at login"] && [loop containsObject:@"Start"],
+          @"welcome: Tab goes through the switch, the three choices, Start and Quit, and around", [loop componentsJoinedByString:@" > "]);
+    WelcomePress(WelcomeHit(r, home, rw));
+    Check(rh.starts == 1, @"welcome guard: once they have landed, Start starts", @"");
+    [rwin close];
 }
 
 /// The welcome of the first launch, as checks: it stands alone, nothing is cut or outside the window, the switch and
@@ -139,11 +230,11 @@ static void WindowWelcomeChecks(void) {
     NSArray<NSButton *> *c = w.controls;
     BOOL five = c.count == 5, labelled = YES, within = YES, oneLine = YES;
     for (NSButton *b in c) {
-        if (!b.accessibilityLabel.length || b.superview != w || b.hidden) labelled = NO;
-        if (!NSContainsRect(w.bounds, b.frame)) within = NO;
+        if (!b.accessibilityLabel.length || ![b isDescendantOf:w] || b.hidden) labelled = NO;
+        if (!NSContainsRect(w.bounds, [w convertRect:b.bounds fromView:b])) within = NO;
     }
     for (NSUInteger i = 1; i + 1 < c.count; i++) {
-        if (!NSContainsRect(parts[4].rectValue, c[i].frame)) within = NO;
+        if (!NSContainsRect(parts[4].rectValue, [w convertRect:c[i].bounds fromView:c[i]])) within = NO;
         if (c[i].frame.size.height != 30) oneLine = NO;
     }
     Check(five && labelled && within && oneLine && NSEqualRects(c.firstObject.frame, parts[3].rectValue) && NSEqualRects(c.lastObject.frame, parts[7].rectValue),
@@ -156,11 +247,39 @@ static void WindowWelcomeChecks(void) {
     Check([c[1].accessibilityRole isEqualToString:NSAccessibilityRadioButtonRole] && [c[1].accessibilityValue isEqual:@1] && [c[2].accessibilityValue isEqual:@0] && [c[3].accessibilityValue isEqual:@0] &&
           [c[3].accessibilityLabel isEqualToString:[NSString stringWithFormat:@"%@, %@. %@", words.removalTitle, words.removal[2].title, words.removal[2].explain]],
           @"welcome: VoiceOver reads each removal choice with its sentence, and Smart is the one picked", c[3].accessibilityLabel);
-    Check([w.accessibilityLabel containsString:words.title] && [w.accessibilityLabel containsString:words.say] && [w.accessibilityLabel containsString:words.facts.lastObject.value],
-          @"welcome: VoiceOver reads the title, the two sentences and the facts", @"");
+    Check([w.accessibilityLabel containsString:words.title] && [w.accessibilityLabel containsString:words.say] && [w.accessibilityLabel containsString:words.facts.lastObject.value] &&
+          [w.accessibilityLabel containsString:@"Both can be changed later in Settings."],
+          @"welcome: VoiceOver reads the title, the two sentences, that both can be changed later, and the facts", w.accessibilityLabel);
+    NSView *group = c[1].superview;
+    Check(group != w && group == c[2].superview && group == c[3].superview && group.isAccessibilityElement && [group.accessibilityRole isEqualToString:NSAccessibilityRadioGroupRole] &&
+          [group.accessibilityLabel isEqualToString:words.removalTitle] && NSEqualRects(group.frame, parts[4].rectValue),
+          @"welcome: the three choices are one radio group, named by the card's title", @"");
     BOOL keys = YES;
     for (NSButton *b in c) if (!b.canBecomeKeyView) keys = NO;
     Check(keys && c.lastObject.keyEquivalent.length == 0, @"welcome: Tab reaches every control, and no hidden button holds a key of its own", @"");
+
+    // An answer the person has not touched follows the model: a choice made elsewhere while the welcome was closed,
+    // as with `minmacs removal trash`, or a login item that changed.
+    MMWindowModel *outside = MMWindowFixture(@"welcome-trash");
+    outside.welcome.loginOn = NO;
+    v.model = outside;
+    Check(w.picked == 1 && !w.loginOn && [c[2].accessibilityValue isEqual:@1] && [c[0].accessibilityLabel isEqualToString:@"Open at login. MinMacs starts only when you open it."],
+          @"welcome: an answer not touched yet follows a choice made outside meanwhile", [NSString stringWithFormat:@"picked %ld", (long)w.picked]);
+    v.model = MMWindowFixture(@"welcome");
+    Check(w.picked == 0 && w.loginOn, @"welcome: and follows it back", @"");
+    // The arrow keys move the pick through the group and around its ends.
+    NSEvent *(^arrow)(unsigned short) = ^NSEvent *(unsigned short code) {
+        return [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:0 context:nil
+                              characters:@"" charactersIgnoringModifiers:@"" isARepeat:NO keyCode:code];
+    };
+    [c[1] keyDown:arrow(125)];
+    NSInteger down = w.picked;
+    [c[2] keyDown:arrow(125)]; [c[3] keyDown:arrow(125)];
+    NSInteger around = w.picked;
+    [c[1] keyDown:arrow(126)];
+    Check(down == 1 && around == 0 && w.picked == 2 && host.starts == 0, @"welcome: Down moves the pick to the next choice and around the end, and Up back around",
+          [NSString stringWithFormat:@"%ld %ld %ld", (long)down, (long)around, (long)w.picked]);
+    [c[1] performClick:nil];
 
     // The answers are the person's: a press changes them, nothing reaches the host, and a newer model takes none back.
     [c[0] performClick:nil];
@@ -172,14 +291,25 @@ static void WindowWelcomeChecks(void) {
     newer.generation = 2;
     v.model = newer;
     Check(v.showsWelcome && !w.loginOn && w.picked == 2 && v.welcomeView == w, @"welcome: a newer model keeps what the person picked", @"");
+    // The words change under the person's picks: the day of watching ended, so the first fact is another one and
+    // the cards are built again. The model still says on and Smart. The picks stay.
+    MMWindowModel *changed = MMWindowFixture(@"welcome-watched");
+    changed.generation = 2;
+    v.model = changed;
+    c = w.controls;
+    Check(c.count == 5 && !w.loginOn && w.picked == 2 && [c[3].accessibilityValue isEqual:@1] && [c[0].accessibilityValue isEqual:@0] && changed.welcome.loginOn && changed.welcome.removalPicked == 0 &&
+          [w.accessibilityLabel containsString:@"It has watched a day"],
+          @"welcome: when a fact changes and the cards are built again, the switch and the choice the person picked stay", [NSString stringWithFormat:@"login %d, picked %ld", w.loginOn, (long)w.picked]);
+    if (c.count != 5) return;
 
     // Start, by Return: the two answers go to the host once, the menu takes the welcome's place, and it stays away.
     NSEvent *enter = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:0 context:nil
                                     characters:@"\r" charactersIgnoringModifiers:@"\r" isARepeat:NO keyCode:36];
     [v keyDown:enter];
+    Check(host.starts == 1 && !host.login && host.removal == 2, @"welcome: Return presses Start, which hands over the switch and the choice", [NSString stringWithFormat:@"%ld starts", (long)host.starts]);
     [v keyDown:enter];
     [w pressStart];
-    Check(host.starts == 1 && !host.login && host.removal == 2, @"welcome: Return presses Start, which hands over the switch and the choice once", [NSString stringWithFormat:@"%ld starts", (long)host.starts]);
+    Check(host.starts == 1, @"welcome: a second Return or press starts nothing again", [NSString stringWithFormat:@"%ld starts", (long)host.starts]);
     Check(!v.showsWelcome && !menu.hidden && !gear.hidden && v.model.welcome == nil, @"welcome: after Start the menu and the gear are back in the same window", @"");
     MMWindowModel *late = MMWindowFixture(@"welcome");
     late.generation = 3;
@@ -210,6 +340,9 @@ static void WindowWelcomeChecks(void) {
           @"welcome: a model with no welcome shows none, and makes no welcome view", @"");
 
     // The three other pictures differ only in the answers.
+    NSArray<MMWindowFact *> *watched = MMWindowFixture(@"welcome-watched").welcome.facts;
+    Check(watched.count == 3 && [watched[0].label isEqualToString:@"It has watched a day"] && [watched[1].value isEqualToString:words.facts[1].value],
+          @"welcome: the watched fixture differs in its first fact only", @"");
     Check(!MMWindowFixture(@"welcome-off").welcome.loginOn && MMWindowFixture(@"welcome-trash").welcome.removalPicked == 1 && MMWindowFixture(@"welcome-delete").welcome.removalPicked == 2 &&
           MMWindowFixture(@"welcome").welcome.loginOn && MMWindowFixture(@"welcome").welcome.removalPicked == 0,
           @"welcome: the fixtures cover the switch on and off and each removal choice", @"");

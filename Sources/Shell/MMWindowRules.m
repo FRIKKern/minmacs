@@ -45,6 +45,17 @@ static NSArray<NSString *> *Explains(NSString *ruleID) {
     }[ruleID];
 }
 
+/// Whether a rule in this mode ever acts on its own. Proactive quits no app, so for apps only Eager does.
+static BOOL RuleActs(NSString *ruleID, MMMode mode) {
+    return mode == MMModeEager || (mode == MMModeProactive && ![ruleID isEqualToString:@"apps"]);
+}
+
+/// A rule shows only for an expert that runs in this binary and has a mode rule of its own.
+static BOOL RuleShows(NSString *ruleID) {
+    id<MMExpert> e = MMExpertNamed(MMWindowRuleExpert(ruleID));
+    return e && [[e policy] respondsToSelector:@selector(modeKeeps:mode:review:)];
+}
+
 /// The fix kinds an expert's own press would run, for the note of a rule that is off.
 static NSInteger Ready(MMPerformance *p, NSString *expert) {
     NSInteger n = 0;
@@ -66,8 +77,7 @@ static MMWindowRule *Rule(NSString *ruleID, MMPerformance *p) {
     }
     r.choices = choices;
     r.picked = (NSInteger)mode;
-    // Proactive quits no app, so for apps only Eager ever acts on its own.
-    BOOL acts = mode == MMModeEager || (mode == MMModeProactive && ![ruleID isEqualToString:@"apps"]);
+    BOOL acts = RuleActs(ruleID, mode);
     NSInteger ready = Ready(p, expert);
     NSTimeInterval left = MMWatchingLeft(expert);
     if (acts && left > 0) r.note = [NSString stringWithFormat:@"It only watches for %@ more, then it may act.", MMDuration(left)];
@@ -90,7 +100,7 @@ static NSArray<MMWindowChoice *> *RemovalChoices(void) {
 /// It is no expert's mode, so it shows whatever experts run, after their rules.
 static MMWindowRule *RemovalRule(void) {
     MMWindowRule *r = [MMWindowRule new];
-    r.ruleID = MMWindowRemovalRuleID; r.title = @"When MinMacs removes things";
+    r.ruleID = MMWindowRemovalRuleID; r.title = MMWindowRemovalTitle;
     r.choices = RemovalChoices();
     r.picked = (NSInteger)MMRemovalChoiceNow();
     // Smart is shown as picked while nothing is, and the note says what holds until the person picks.
@@ -101,11 +111,7 @@ static MMWindowRule *RemovalRule(void) {
 MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras) {
     MMWindowSettings *st = [MMWindowSettings new];
     NSMutableArray *rules = [NSMutableArray new];
-    // A rule shows only for an expert that runs in this binary and has a mode rule of its own.
-    for (NSString *rid in MMWindowRuleIDs()) {
-        id<MMExpert> e = MMExpertNamed(MMWindowRuleExpert(rid));
-        if (e && [[e policy] respondsToSelector:@selector(modeKeeps:mode:review:)]) [rules addObject:Rule(rid, p)];
-    }
+    for (NSString *rid in MMWindowRuleIDs()) if (RuleShows(rid)) [rules addObject:Rule(rid, p)];
     [rules addObject:RemovalRule()];
     st.rules = rules;
     MMWindowSwitch *lid = [MMWindowSwitch new];
@@ -122,31 +128,56 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
 
 NSString *const MMWindowWelcomedKey = @"core.welcomed";
 
+NSString *const MMWindowLoginNotAskedKey = @"core.loginNotAsked";
+
+/// "servers and worktrees", "servers, worktrees and leftovers".
+static NSString *Listed(NSArray<NSString *> *words) {
+    if (words.count < 2) return words.firstObject ?: @"";
+    NSArray *head = [words subarrayWithRange:NSMakeRange(0, words.count - 1)];
+    return [NSString stringWithFormat:@"%@ and %@", [head componentsJoinedByString:@", "], words.lastObject];
+}
+
 /// Each fact is true of the code named beside it, and is left out or said another way when it would not be.
-MMWindowWelcome *MMWindowWelcomeNow(void) {
+MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
     if (MMPrefBool(MMWindowWelcomedKey, NO)) return nil;
     NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
     // MMPlan and MMRunAction in Core/Act/MMAct.m: no mode acts before MMWatchedLongEnough, a day after the first launch.
-    BOOL waits = NO, careful = YES;
+    // The day is one for every expert. Before the first launch nothing is written, and the whole day is left.
+    NSTimeInterval left = MMWatchingLeft(@"minmacs");
+    BOOL careful = YES;
+    NSMutableArray<NSString *> *may = [NSMutableArray new];
     for (NSString *rid in MMWindowRuleIDs()) {
-        if (MMWatchingLeft(MMWindowRuleExpert(rid)) > 0) waits = YES;
-        if (MMModeFor(MMWindowRuleExpert(rid)) != MMModeProactive) careful = NO;
+        if (!RuleShows(rid)) continue;
+        MMMode mode = MMModeFor(MMWindowRuleExpert(rid));
+        if (mode != MMModeProactive) careful = NO;
+        // What each rule does on its own in the mode it is in, Explains above: Careful cleans up no cache.
+        if (RuleActs(rid, mode)) [may addObject:@{@"servers": @"stop servers", @"apps": @"quit apps", @"worktrees": @"remove worktrees",
+                                                  @"caches": mode == MMModeEager ? @"clean up caches" : @"clean up leftovers"}[rid]];
     }
-    if (waits) [facts addObject:[MMWindowFact label:@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."]];
-    else [facts addObject:[MMWindowFact label:@"It has watched a day" value:@"A rule that is not Off may now stop, quit or remove things on its own."]];
+    if (left > 0) [facts addObject:[MMWindowFact label:@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."]];
+    else if (may.count) [facts addObject:[MMWindowFact label:@"It has watched a day" value:[NSString stringWithFormat:@"MinMacs may now %@ on its own.", Listed(may)]]];
+    else [facts addObject:[MMWindowFact label:@"It has watched a day" value:@"As the rules stand, MinMacs stops, quits and removes nothing on its own."]];
     // MMModeFor: a mode with no value is Proactive, which the window calls Careful. Rules brought over from the old
     // apps may stand elsewhere, and then the welcome does not say where they start.
     [facts addObject:[MMWindowFact label:@"You set every rule" value:careful ? @"Each rule can be Off, Careful or Eager. Each starts on Careful."
                                                                            : @"Each rule can be Off, Careful or Eager. Settings shows where each stands."]];
     // AGENTS.md invariant 6: no permission is asked for at launch; the notifier asks at its first notice. PLAN.md
-    // decision 4: awake while an agent works starts on, MMINPrefs' default in Experts/Insomnia.
-    [facts addObject:[MMWindowFact label:@"It starts quietly" value:@"No permission is asked at launch. The Mac stays awake while agents work."]];
-    return [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
+    // decision 4: awake while an agent works starts on, the pref insomnia.agents of MMINPrefs in Experts/Insomnia.
+    // With that pref off, or no keep-awake expert in this binary, the welcome does not say it.
+    BOOL awake = MMExpertNamed(@"insomnia") != nil && MMPrefBool(@"insomnia.agents", YES);
+    [facts addObject:[MMWindowFact label:@"It starts quietly" value:awake ? @"No permission is asked at launch. The Mac stays awake while agents work."
+                                                                          : @"No permission is asked at launch."]];
+    MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
+    // New to MinMacs: nothing watched yet, or a first launch that left the login item for this welcome to ask about.
+    BOOL fresh = left >= 24 * 3600 || MMPrefBool(MMWindowLoginNotAskedKey, NO);
+    w.loginOn = fresh || loginNow;
+    return w;
 }
 
 void MMWindowWelcomeDone(NSInteger removal) {
     if (removal >= MMRemovalSmart && removal <= MMRemovalDelete) MMSetRemovalChoice((MMRemovalChoice)removal);
     MMSetPref(MMWindowWelcomedKey, @YES);
+    MMSetPref(MMWindowLoginNotAskedKey, nil);
 }
 
 #pragma mark - The switches

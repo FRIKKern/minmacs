@@ -662,7 +662,9 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
                                   // twelve minutes in with nothing to fix and a look-back, and names longer than their column.
                                   @[@"young", @"main", @""], @[@"calm", @"main", @""], @[@"long", @"main", @""], @[@"long", @"agent", @"agent:long"],
                                   // The first launch: the welcome alone, with the switch on and off and each removal choice picked.
-                                  @[@"welcome", @"main", @""], @[@"welcome-off", @"main", @""], @[@"welcome-trash", @"main", @""], @[@"welcome-delete", @"main", @""]];
+                                  @[@"welcome", @"main", @""], @[@"welcome-off", @"main", @""], @[@"welcome-trash", @"main", @""], @[@"welcome-delete", @"main", @""],
+                                  // The welcome a person meets who used MinMacs for more than a day before it.
+                                  @[@"welcome-watched", @"main", @""]];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -690,7 +692,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])
@@ -708,6 +710,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
           @"window: the empty day has no fix, the running day runs, the done day ended", @"");
     WindowLookChecks();
     WindowWelcomeChecks();
+    WindowWelcomeGuardChecks();
 }
 
 /// The shell's PNGs go in their own folder: each expert's menu and card as the shell builds them, One Icon, the icons.

@@ -58,7 +58,8 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty",
 /// and three days that came from the first look at the real window: "young", "calm" and "long".
 /// "welcome" is the young day with the welcome on it, and "welcome-off", "welcome-trash" and "welcome-delete" are the
-/// same with the switch off or another removal choice picked.
+/// same with the switch off or another removal choice picked. "welcome-watched" is the welcome a person meets who
+/// used MinMacs for more than a day before.
 MMWindowModel *MMWindowFixture(NSString *name);
 
 NS_ASSUME_NONNULL_END

@@ -251,7 +251,7 @@ static MMWindowSettings *SettingsWithRemoval(void) {
                 Card(@"caches", @"Clean caches and leftovers", 2, modes(@"Cleans up nothing on its own.",
                      @"After a review, cleans up the build output of finished projects and leftovers.",
                      @"After a review, also cleans up caches. A tool's own cleanup always waits for your press."), nil),
-                Card(@"removal", @"When MinMacs removes things", 0, @[
+                Card(@"removal", MMWindowRemovalTitle, 0, @[
                      @[@"Smart", @"Deletes what git or its tool can give back. The rest goes to the Trash."],
                      @[@"Trash", @"Everything goes to the Trash. The disk comes back when you empty it."],
                      @[@"Delete", @"Deletes everything it removes at once. Nothing can be brought back."]], nil)];
@@ -260,9 +260,11 @@ static MMWindowSettings *SettingsWithRemoval(void) {
 
 /// The welcome as the feed makes it for a person new to MinMacs, MMWindowWelcomeNow in Shell/MMWindowRules.m, with
 /// the switch on or off and one removal choice picked. test/window.sh checks its facts against the feed's.
-static MMWindowWelcome *Welcome(BOOL login, NSInteger picked) {
+static MMWindowWelcome *Welcome(BOOL login, NSInteger picked, BOOL watched) {
     MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:SettingsWithRemoval().rules.lastObject.choices picked:picked facts:@[
-        [MMWindowFact label:@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."],
+        // "welcome-watched": a person who used MinMacs for more than a day before the welcome, with every rule on Careful.
+        watched ? [MMWindowFact label:@"It has watched a day" value:@"MinMacs may now stop servers, remove worktrees and clean up leftovers on its own."]
+                : [MMWindowFact label:@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."],
         [MMWindowFact label:@"You set every rule" value:@"Each rule can be Off, Careful or Eager. Each starts on Careful."],
         [MMWindowFact label:@"It starts quietly" value:@"No permission is asked at launch. The Mac stays awake while agents work."]]];
     w.loginOn = login;
@@ -303,7 +305,8 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     MMWindowModel *m = [MMWindowModel new];
     m.generation = 1;
     m.settings = [name isEqualToString:@"removal"] || welcome ? SettingsWithRemoval() : Settings();
-    if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-trash"] ? 1 : [name isEqualToString:@"welcome-delete"] ? 2 : 0);
+    if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-trash"] ? 1 : [name isEqualToString:@"welcome-delete"] ? 2 : 0,
+                                     [name isEqualToString:@"welcome-watched"]);
     NSInteger asking = empty || young || calm ? 0 : quiet ? 1 : peak ? 3 : 2;
     NSArray<MMWindowRow *> *servers = Young(Servers(empty ? 0 : quiet || calm ? 7 : peak ? 26 : 20), minutes);
     NSArray<MMWindowRow *> *agents = Young(Agents(empty ? 0 : quiet || calm ? 3 : peak ? 22 : 16, asking), minutes);

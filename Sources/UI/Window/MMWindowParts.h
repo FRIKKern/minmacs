@@ -60,6 +60,15 @@ NSArray *_Nullable MMWindowHourSpan(NSArray *_Nullable values, NSInteger *_Nulla
 /// Nothing when fewer than MMWindowHourLeast minutes are filled.
 void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, CGFloat lineWidth, BOOL dot);
 
+#pragma mark Presses
+
+/// After Start the menu takes no press and no key for as long as it takes to arrive, and this much longer.
+extern const NSTimeInterval MMWindowStartGuard;
+/// NO for a view that is hidden, not fully there yet or on its way out, or that the window holds back for now. Every
+/// button of the window asks this before it acts and before it takes the keyboard, and the window's hit test asks it
+/// too. So a view at alpha 0 or in the middle of a fade never takes a press.
+BOOL MMWindowTakesPresses(NSView *view);
+
 #pragma mark Icons
 
 /// A row's small mark. `backing` is the color behind it, for the badge's edge.
@@ -123,8 +132,8 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (copy, nullable) void (^onDone)(void);
 @end
 
-/// The welcome of the first launch, alone in the window: one centered column. It keeps the two answers itself until
-/// Start, so a newer model never takes back what the person picked.
+/// The welcome of the first launch, alone in the window: one centered column. An answer the person touched is the
+/// view's own until Start, so a newer model never takes it back. One they left alone follows the model.
 @interface MMWindowWelcomeView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowWelcome *welcome;
 @property (copy, nullable) void (^onStart)(BOOL openAtLogin, NSInteger removal);
@@ -146,6 +155,7 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 - (void)willOpen;                                                    // the panel is about to come on screen
 - (void)opened;                                                      // the panel came on screen
 - (void)rest;                                                        // the panel left: no timers, no hover
+- (BOOL)holdsBack:(NSView *)view;                                    // for MMWindowTakesPresses
 @property (readonly) BOOL showsWelcome;                              // the welcome is what shows now
 @property (readonly, nullable) MMWindowWelcomeView *welcomeView;
 /// Every string the window can show for this model, for the render tool's word check.
