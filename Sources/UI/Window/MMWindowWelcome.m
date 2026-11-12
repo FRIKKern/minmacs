@@ -16,7 +16,10 @@
 //                    [ Start ]
 //
 // It draws only what an MMWindowWelcome holds. Nothing is applied here: Start hands the two answers to onStart.
-// The parts rise in one after the other when the window opens, and stand still under Reduce Motion.
+// The parts rise in one after the other when the window opens, and stand still under Reduce Motion. A button takes
+// no press before it has landed, MMWindowTakesPresses.
+// An answer the person has not touched follows the model, so a choice made elsewhere meanwhile shows. One they
+// touched is theirs and stays, whatever a later model says.
 #import "UI/Window/MMWindowParts.h"
 
 static const CGFloat kColumn = 600, kSay = 520, kMark = 60, kFact = 280, kRise = 14, kExplainX = 92;
@@ -68,14 +71,34 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
 @property NSRect home;                                  // its frame once it has risen in
 @end
 
+/// The card of the three removal choices: one radio group to VoiceOver, named by the card's title.
+@interface MMWelcomeGroup : MMWindowFlipped
+@end
+@implementation MMWelcomeGroup
+- (BOOL)isAccessibilityElement { return YES; }
+- (NSAccessibilityRole)accessibilityRole { return NSAccessibilityRadioGroupRole; }
+@end
+
+@interface MMWindowWelcomeView ()
+- (void)move:(NSInteger)by from:(NSInteger)index;
+@end
+
 @implementation MMWelcomeControl {
     BOOL _hover;
     NSTrackingArea *_tracking;
 }
 
 - (BOOL)isFlipped { return YES; }
-/// Tab reaches it whatever the system's keyboard navigation setting says: the welcome has only these five.
-- (BOOL)canBecomeKeyView { return !self.isHiddenOrHasHiddenAncestor; }
+/// Tab reaches it whatever the system's keyboard navigation setting says, once it has landed.
+- (BOOL)canBecomeKeyView { return MMWindowTakesPresses(self); }
+- (BOOL)sendAction:(SEL)action to:(id)target { return MMWindowTakesPresses(self) && [super sendAction:action to:target]; }
+
+/// The arrow keys move the pick among the removal choices, as in any radio group.
+- (void)keyDown:(NSEvent *)e {
+    NSInteger by = e.keyCode == 125 || e.keyCode == 124 ? 1 : e.keyCode == 126 || e.keyCode == 123 ? -1 : 0;
+    if (self.kind != MMWelcomeOption || !by) { [super keyDown:e]; return; }
+    if (MMWindowTakesPresses(self)) [(MMWindowWelcomeView *)self.target move:by from:self.index];
+}
 - (void)setKnob:(CGFloat)knob { _knob = knob; self.needsDisplay = YES; }
 
 - (void)setOn:(BOOL)on {
@@ -179,9 +202,10 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
 @implementation MMWindowWelcomeView {
     MMWelcomeControl *_login, *_start;
     NSMutableArray<MMWelcomeControl *> *_options;
+    MMWelcomeGroup *_group;             // holds the options, at the removal card's place
     NSRect _parts[PartCount];
     NSString *_built;
-    BOOL _answered;                     // the answers are the view's own from the first welcome on
+    BOOL _touchedLogin, _touchedRemoval;   // the person changed it here: it is theirs, and no later model moves it
     NSTimer *_timer;                    // runs only while the parts rise in or the knob slides
     NSDate *_arriving, *_stepped;       // when the rise began, nil once every part has landed
 }
@@ -193,6 +217,8 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
         _login = [self control:MMWelcomeSwitch];
         _login.accessibilityRole = NSAccessibilityCheckBoxRole;
         _login.accessibilitySubrole = NSAccessibilitySwitchSubrole;
+        _group = [[MMWelcomeGroup alloc] initWithFrame:NSZeroRect];
+        [self addSubview:_group];
         // Return presses Start through the window's view, -[MMWindowView keyDown:], so a hidden welcome takes no key.
         _start = [self control:MMWelcomeStart];
         self.accessibilityRole = NSAccessibilityGroupRole;
@@ -219,15 +245,22 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
     NSMutableString *sig = [NSMutableString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%@|%d;", w.title, w.say, w.loginTitle, w.loginOnNote, w.loginOffNote, w.removalTitle, w.later, w.start, MMWindowContrast()];
     for (MMWindowChoice *c in w.removal) [sig appendFormat:@"%@=%@,", c.title, c.explain];
     for (MMWindowFact *f in w.facts) [sig appendFormat:@"%@=%@,", f.label, f.value];
-    if ([sig isEqualToString:_built]) return;
+    BOOL on = _touchedLogin ? self.loginOn : w.loginOn;
+    NSInteger picked = _touchedRemoval ? self.picked : w.removalPicked;
+    if ([sig isEqualToString:_built]) {
+        // The same words. An answer the person left alone still follows the model.
+        if (on != _login.on) { _login.on = on; [self sayLogin]; [self wake]; }
+        for (MMWelcomeControl *o in _options) if (o.on != (o.index == picked)) { o.on = o.index == picked; o.needsDisplay = YES; }
+        return;
+    }
     _built = sig;
-    BOOL on = _answered ? self.loginOn : w.loginOn;
-    NSInteger picked = _answered ? self.picked : w.removalPicked;
-    _answered = YES;
-    for (NSView *o in _options) [o removeFromSuperview];
+    NSInteger focus = -1;
+    for (MMWelcomeControl *o in _options) { if (self.window.firstResponder == o) focus = o.index; [o removeFromSuperview]; }
     [_options removeAllObjects];
+    _group.accessibilityLabel = w.removalTitle;
     for (NSInteger i = 0; i < (NSInteger)w.removal.count; i++) {
         MMWelcomeControl *o = [self control:MMWelcomeOption];
+        [_group addSubview:o];
         o.index = i; o.label = w.removal[i].title; o.explain = w.removal[i].explain;
         o.accessibilityRole = NSAccessibilityRadioButtonRole;
         o.accessibilityLabel = [NSString stringWithFormat:@"%@, %@. %@", w.removalTitle, o.label, o.explain];
@@ -239,10 +272,11 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
     [self sayLogin];
     _start.label = w.start;
     _start.accessibilityLabel = w.start;
-    NSMutableArray *read = [NSMutableArray arrayWithObjects:w.title, w.say, nil];
+    NSMutableArray *read = [NSMutableArray arrayWithObjects:w.title, w.say, w.later, nil];
     for (MMWindowFact *f in w.facts) [read addObject:[NSString stringWithFormat:@"%@. %@", f.label, f.value]];
     self.accessibilityLabel = [read componentsJoinedByString:@" "];
     [self place];
+    if (focus >= 0 && focus < (NSInteger)_options.count) [self.window makeFirstResponder:_options[focus]];
 }
 
 /// The switch says what its state means, in the card and to VoiceOver.
@@ -252,12 +286,23 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
     _login.needsDisplay = YES;
 }
 
-- (void)pressStart { if (self.welcome && self.onStart) self.onStart(self.loginOn, self.picked); }
+/// Start by a press or by Return. Nothing happens while Start has not landed, or once the welcome is on its way out.
+- (void)pressStart { if (self.welcome && self.onStart && MMWindowTakesPresses(_start)) self.onStart(self.loginOn, self.picked); }
 
 - (void)pressed:(MMWelcomeControl *)c {
     if (c.kind == MMWelcomeStart) { [self pressStart]; return; }
-    if (c.kind == MMWelcomeSwitch) { c.on = !c.on; [self sayLogin]; [self wake]; return; }
+    if (c.kind == MMWelcomeSwitch) { _touchedLogin = YES; c.on = !c.on; [self sayLogin]; [self wake]; return; }
+    _touchedRemoval = YES;
     for (MMWelcomeControl *o in _options) { o.on = o == c; o.needsDisplay = YES; }
+}
+
+/// An arrow key on a choice: the pick and the keyboard go to the next or the one before, around the ends.
+- (void)move:(NSInteger)by from:(NSInteger)index {
+    NSInteger n = (NSInteger)_options.count;
+    if (!n) return;
+    MMWelcomeControl *to = _options[(NSUInteger)(((index + by) % n + n) % n)];
+    [self pressed:to];
+    [self.window makeFirstResponder:to];
 }
 
 #pragma mark Where each part sits
@@ -292,10 +337,12 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
     }
     _login.home = _parts[PartLogin];
     _start.home = _parts[PartStart];
-    CGFloat oy = _parts[PartRemoval].origin.y + 14 + 19 + 9;
+    // The choices sit in the group, which sits at the card's place.
+    CGFloat oy = 14 + 19 + 9;
     for (MMWelcomeControl *o in _options) {
         CGFloat oh = [MMWelcomeControl optionHeight:o.explain width:optionW];
-        o.home = NSMakeRect(_parts[PartRemoval].origin.x + 8, oy, optionW, oh);
+        o.home = NSMakeRect(8, oy, optionW, oh);
+        o.frame = o.home;
         oy += oh + 2;
     }
     [self settle];
@@ -320,11 +367,14 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
 - (void)setArrival:(CGFloat)arrival { _arrival = arrival; [self settle]; }
 
 - (void)settle {
-    for (MMWelcomeControl *c in self.controls) {
-        CGFloat e = [self eased:c.kind == MMWelcomeSwitch ? PartLogin : c.kind == MMWelcomeStart ? PartStart : PartRemoval];
+    for (MMWelcomeControl *c in @[_login, _start]) {
+        CGFloat e = [self eased:c.kind == MMWelcomeSwitch ? PartLogin : PartStart];
         c.frame = NSOffsetRect(c.home, 0, round(kRise * (1 - e)));
         c.alphaValue = e;
     }
+    CGFloat e = [self eased:PartRemoval];
+    _group.frame = NSOffsetRect(_parts[PartRemoval], 0, round(kRise * (1 - e)));
+    _group.alphaValue = e;
     self.needsDisplay = YES;
 }
 

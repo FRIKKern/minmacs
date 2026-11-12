@@ -50,14 +50,15 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # The last four came from the first look at the real window: young is one minute in with an empty disk side and nobody
 # asking, calm is twelve minutes in with nothing to fix and a look-back, and long has names longer than their column.
 # removal-settings is Settings as the feed fills it today, with the card for the removal choice of issue #62.
-# The five welcome pictures are the first launch: the welcome alone with the switch on and off and each removal choice
-# picked, and the window right after a Start that came before the first numbers.
+# The six welcome pictures are the first launch: the welcome alone with the switch on and off and each removal choice
+# picked, the welcome of a person who used MinMacs for more than a day before, and the window right after a Start
+# that came before the first numbers.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 46 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 48 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
-               young-main calm-main long-main long-agent welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-started; do
+               young-main calm-main long-main long-agent welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-watched-main welcome-started; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
@@ -66,7 +67,7 @@ check "every window PNG is 1020 by 728 points, two pixels each" "2040x1456 " "$u
 ui_md() { md5 -q "$ui_win/$1.png" 2>/dev/null; }
 check "the window differs under Increase Contrast, with a pointed row and in Settings" "yes yes yes" \
   "$([ "$(ui_md busy-main-dark)" != "$(ui_md busy-main-contrast-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-server-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-settings-dark)" ] && echo yes || echo no)"
-check "no window fixture shows a banned phrase or an old app name" 11 \
+check "no window fixture shows a banned phrase or an old app name" 12 \
   "$(grep -c '^ok    window .*: no shown string holds a banned phrase or an old app name' "$ui_out/checks.txt" 2>/dev/null)"
 
 ui_look() { grep -c "^ok    window$1" "$ui_out/checks.txt" 2>/dev/null; }
@@ -89,9 +90,11 @@ check "one side alone changes the picture" "yes yes" \
 
 # The welcome of the first launch: it stands alone, its answers stay the person's, Start hands them over once and it
 # does not come back. tools/render-window-look.m holds the checks.
-check "the welcome's checks all ran and passed" "21 0" "$(grep -c '^ok    welcome:' "$ui_out/checks.txt" 2>/dev/null) $(grep -c '^FAIL  welcome:' "$ui_out/checks.txt" 2>/dev/null)"
-check "the welcome is its own picture, and the switch and each removal choice change it" "yes yes yes yes yes" \
-  "$([ "$(ui_md welcome-main-dark)" != "$(ui_md young-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-off-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-trash-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-trash-main-dark)" != "$(ui_md welcome-delete-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-started-dark)" != "$(ui_md welcome-main-dark)" ] && echo yes || echo no)"
+check "the welcome's checks all ran and passed" "29 0" "$(grep -c '^ok    welcome:' "$ui_out/checks.txt" 2>/dev/null) $(grep -c '^FAIL  welcome:' "$ui_out/checks.txt" 2>/dev/null)"
+check "the welcome is its own picture, and the switch, each removal choice and a watched day change it" "yes yes yes yes yes yes" \
+  "$([ "$(ui_md welcome-main-dark)" != "$(ui_md young-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-off-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-trash-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-trash-main-dark)" != "$(ui_md welcome-delete-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-started-dark)" != "$(ui_md welcome-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-watched-main-dark)" != "$(ui_md welcome-main-dark)" ] && echo yes || echo no)"
+# The press guard: a second press where Start was runs no fix, and nothing that fades takes a press.
+check "the guard's checks all ran and passed: no press reaches the menu before it has arrived" "8 0" "$(grep -c '^ok    welcome guard:' "$ui_out/checks.txt" 2>/dev/null) $(grep -c '^FAIL  welcome guard:' "$ui_out/checks.txt" 2>/dev/null)"
 check "the welcome's view stays under 500 lines and names no host and no Core type" "1 0" \
   "$(wc -l <"$ROOT/Sources/UI/Window/MMWindowWelcome.m" | awk '{print ($1 < 500) ? 1 : 0}') $(grep -cE 'MMWindowHost|#import "(Core|Shell)/' "$ROOT/Sources/UI/Window/MMWindowWelcome.m")"
 

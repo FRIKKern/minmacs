@@ -104,32 +104,37 @@ check "window: each mode rule is still what Settings says it is" "1 1 1 1 1 1 1 
 check "window: the render's removal card says Core's three sentences and the feed's title" "1 1 1 1" \
   "$(for wn_s in 'Deletes what git or its tool can give back. The rest goes to the Trash.' 'Everything goes to the Trash. The disk comes back when you empty it.' 'Deletes everything it removes at once. Nothing can be brought back.'; do
        grep -qF "$wn_s" Sources/Core/Act/MMRemoval.m && grep -qF "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
-     grep -qF '@"When MinMacs removes things"' Sources/Shell/MMWindowRules.m && grep -qF '@"When MinMacs removes things"' Sources/UI/Window/MMWindowFixture.m && printf '1' || printf '0')"
+     grep -qF 'r.title = MMWindowRemovalTitle;' Sources/Shell/MMWindowRules.m && grep -qF 'Card(@"removal", MMWindowRemovalTitle,' Sources/UI/Window/MMWindowFixture.m && printf '1' || printf '0')"
+check "window: the removal title and the first-look line are each written once" "1 1" \
+  "$(grep -rF '@"When MinMacs removes things"' Sources | grep -c .) $(grep -rF '@"MinMacs is taking its first look. It takes a few seconds."' Sources | grep -c .)"
 # The welcome: the login item is added in two places only, the old first launch and -setLogin:, and the window reaches
 # -setLogin: from the Settings switch and from Start alone. Under MINMACS_HOME -setLogin: returns before SMAppService.
 check "window: with the menu window the first launch adds no login item, and -setLogin: stops first in a test home" "1 1 1" \
-  "$(grep -c 'if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }' Sources/Shell/MMShell.m) $(grep -A1 -- '- (void)setLogin:(BOOL)on {' Sources/Shell/MMShell.m | grep -c 'if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;')"
+  "$(grep -c 'if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }' Sources/Shell/MMShell.m) $(grep -A1 -- '^- (void)setLogin:(BOOL)on {' Sources/Shell/MMShell.m | grep -c 'if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;')"
 # Settings in window mode is the window turned over. The old Settings window is made in one place, behind that check.
 check "window: every way to Settings asks the window first, and the old Settings window opens only past that" "1 1 4 1 1" \
   "$(grep -A1 -- '^- (void)showSettings:(id)sender {' Sources/Shell/MMShell.m | grep -c 'if (\[self showWindowSettings\]) return;') $(grep -c 'self.windowPanel.view.showsSettings = YES;' Sources/Shell/MMShell.m) $(grep -c '\[self showSettings:nil\]\|\[self.shell showSettings:sender\]' Sources/Shell/MMShell.m) $(grep -c '\[MMSettings new\]' Sources/Shell/MMShell.m) $(grep -l 'MMSettings new\]' $(find Sources -name '*.m') | grep -c .)"
-check "window: the first launch with the window marks the person as new, and only that launch does" "1 1" \
-  "$(grep -c 'if (MMWindowMode()) MMSetPref(MMWindowNewPersonKey, @YES);' Sources/Shell/MMShell.m) $(grep -c 'MMSetPref(MMWindowNewPersonKey' $(find Sources -name '*.m') | awk -F: '{s+=$2} END {print s+0}')"
-check "window: the controller asks for the login item from the Settings switch and from Start only" "2 1 1" \
-  "$(grep -c 'self.shell setLogin:' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:on\];' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:openAtLogin\];' Sources/Shell/MMWindowController.m)"
+check "window: the controller asks for the login item from the Settings switch and from Start only, and Start only for a change" "2 1 1" \
+  "$(grep -c 'self.shell setLogin:' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:on\];' Sources/Shell/MMWindowController.m) $(grep -c 'if (\[self.shell loginEnabled\] != openAtLogin) \[self.shell setLogin:openAtLogin\];' Sources/Shell/MMWindowController.m)"
+check "window: a first launch that leaves the login item alone says so, and any -setLogin: takes the mark away" "1 1 1" \
+  "$(grep -c 'if (!MMFirstLaunchAddsLogin(MMWindowMode())) MMSetPref(MMWindowLoginNotAskedKey, @YES);' Sources/Shell/MMShell.m) $(grep -c 'MMSetPref(MMWindowLoginNotAskedKey, nil);' Sources/Shell/MMShell.m) $(grep -c 'MMSetPref(MMWindowLoginNotAskedKey, nil);' Sources/Shell/MMWindowRules.m)"
 check "window: SMAppService is registered in MMShell.m only" 0 "$(grep -lE 'registerAndReturnError|unregisterAndReturnError' $(find Sources -name '*.m') | grep -vc '^Sources/Shell/MMShell.m$')"
 # The render's welcome cannot link Core or the feed, so it holds the facts as its own strings.
 check "window: the render's welcome says the feed's three facts for a new person" "1 1 1 1 1 1" \
-  "$(for wn_s in '@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."' '@"You set every rule" value:' '@"Each rule can be Off, Careful or Eager. Each starts on Careful."' '@"It starts quietly" value:@"No permission is asked at launch. The Mac stays awake while agents work."'; do
+  "$(for wn_s in '@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."' '@"You set every rule" value:' '@"Each rule can be Off, Careful or Eager. Each starts on Careful."' '@"No permission is asked at launch. The Mac stays awake while agents work."'; do
        grep -qF -- "$wn_s" Sources/Shell/MMWindowRules.m && grep -qF -- "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
      grep -qF 'NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";' Sources/UI/Window/MMWindowModel.m && printf '1 ' || printf '0 '
      grep -qF 'c requestAuthorizationWithOptions' Sources/Core/Act/MMAct.m && [ "$(grep -rl 'requestAuthorization' Sources | grep -c .)" = 1 ] && printf '1' || printf '0')"
+check "window: the render's watched welcome says what the feed says for every rule on Careful" "1 1" \
+  "$(grep -cF '@"It has watched a day" value:@"MinMacs may now stop servers, remove worktrees and clean up leftovers on its own."' Sources/UI/Window/MMWindowFixture.m) $(grep -cF '@"It has watched a day: MinMacs may now stop servers, remove worktrees and clean up leftovers on its own."' test/window/welcome.m)"
 # The facts name rules of the experts and of Core. A changed rule would make a sentence false with no error.
-check "window: the code still makes each welcome fact true" "1 1 1 1 1" \
+check "window: the code still makes each welcome fact true" "1 1 1 1 1 1" \
   "$(grep -qF 'static const NSTimeInterval kWatchDay = 24 * 3600;' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
      grep -qF 'if (act && !MMWatchedLongEnough(f.expert)) { act = NO;' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
      grep -qF 'else if (!MMWatchedLongEnough(f.expert)) problem' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
      grep -qF 'return m < 0 ? MMModeProactive : (MMMode)m;' Sources/Core/Act/MMAct.m && printf '1 ' || printf '0 '
-     grep -qF 'p.manual = NO; p.agents = YES; p.lid = NO;' Sources/Experts/Insomnia/MMINMenu.m && printf '1' || printf '0')"
+     grep -qF 'p.manual = NO; p.agents = YES; p.lid = NO;' Sources/Experts/Insomnia/MMINMenu.m && printf '1 ' || printf '0 '
+     grep -qF 'p.agents = Bool(@"insomnia.agents", d.agents);' Sources/Experts/Insomnia/MMINGuards.m && printf '1' || printf '0')"
 check "window: the keep-awake state still has the keys the lid switch reads" 8 \
   "$(grep -cE '^@property (BOOL (lid|lidLive|laptop|otherApp);|\(copy\) (MMINPrefs \*prefs|NSString \*(pauseReason|lidProblem));)' Sources/Experts/Insomnia/MMInsomnia.h)"
 

@@ -59,7 +59,8 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// and three days that came from the first look at the real window: "young", "calm" and "long".
 /// "memory-only" and "disk-only" are the busy day with fixes that give only that side back.
 /// "welcome" is the young day with the welcome on it, and "welcome-off", "welcome-trash" and "welcome-delete" are the
-/// same with the switch off or another removal choice picked.
+/// same with the switch off or another removal choice picked. "welcome-watched" is the welcome a person meets who
+/// used MinMacs for more than a day before.
 MMWindowModel *MMWindowFixture(NSString *name);
 
 NS_ASSUME_NONNULL_END

@@ -17,8 +17,9 @@ static NSString *Asked(WLogin *l) { return l.asked.count ? [l.asked componentsJo
 /// A person new to MinMacs: nothing welcomed, nothing chosen, every rule where it starts, no day watched.
 static void NewPerson(void) {
     MMSetPref(MMWindowWelcomedKey, nil);
-    MMSetPref(MMWindowNewPersonKey, @YES);
     MMSetPref(MMRemovalKey, nil);
+    MMSetPref(MMWindowLoginNotAskedKey, nil);
+    MMSetPref(@"insomnia.agents", nil);
     for (NSString *rid in MMWindowRuleIDs()) MMSetPref([MMWindowRuleExpert(rid) stringByAppendingString:@".mode"], nil);
     [NSFileManager.defaultManager removeItemAtPath:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"] error:nil];
 }
@@ -64,20 +65,27 @@ static void Welcome(void) {
     T(@"welcome: Careful is the window's word for Proactive", @"Careful", MMWindowChoiceTitles()[MMModeProactive]);
     [[NSString stringWithFormat:@"%.0f\n", NSDate.date.timeIntervalSince1970 - 200000] writeToFile:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"]
                                                                                     atomically:YES encoding:NSUTF8StringEncoding error:nil];
-    MMSetMode(@"noonoo", MMModeEager);
-    T(@"welcome: after a day of watching, and with a rule moved, it no longer says it waits or where rules start",
-      @"It has watched a day: A rule that is not Off may now stop, quit or remove things on its own. | You set every rule: Each rule can be Off, Careful or Eager. Settings shows where each stands.",
+    NSString *(^first)(void) = ^NSString *{ return [[facts(MMWindowWelcomeNow(NO)) componentsSeparatedByString:@" | You set every rule"] firstObject]; };
+    T(@"welcome: after a day of watching it names what the rules as they stand may do: on Careful, no app is quit and no cache cleaned",
+      @"It has watched a day: MinMacs may now stop servers, remove worktrees and clean up leftovers on its own.", first());
+    MMSetMode(@"noonoo", MMModeEager); MMSetMode(@"minmacs", MMModeEager); MMSetMode(@"workforest", MMModeIdle);
+    T(@"welcome: with rules moved it follows them, and no longer says where rules start",
+      @"It has watched a day: MinMacs may now stop servers, quit apps and clean up caches on its own. | You set every rule: Each rule can be Off, Careful or Eager. Settings shows where each stands.",
       [[facts(MMWindowWelcomeNow(NO)) componentsSeparatedByString:@" | It starts quietly"] firstObject]);
+    MMSetMode(@"locohost", MMModeIdle); MMSetMode(@"noonoo", MMModeIdle); MMSetMode(@"minmacs", MMModeProactive);
+    T(@"welcome: with nothing left that acts, apps on Careful among them, it says so", @"It has watched a day: As the rules stand, MinMacs stops, quits and removes nothing on its own.", first());
+    // Awake while agents work is read from its pref, so the welcome does not say it once that is off.
+    MMSetPref(@"insomnia.agents", @NO);
+    T(@"welcome: with awake while agents work turned off, the third fact does not say the Mac stays awake", @"It starts quietly: No permission is asked at launch.",
+      [NSString stringWithFormat:@"%@: %@", MMWindowWelcomeNow(NO).facts.lastObject.label, MMWindowWelcomeNow(NO).facts.lastObject.value]);
+    MMSetPref(@"insomnia.agents", nil);
+    // Open at login: a person who used MinMacs before sees the switch where their login item stands.
+    T(@"welcome: a person who used MinMacs before sees the switch where the login item stands now", @"no yes", [NSString stringWithFormat:@"%@ %@", YN(MMWindowWelcomeNow(NO).loginOn), YN(MMWindowWelcomeNow(YES).loginOn)]);
+    MMSetPref(MMWindowLoginNotAskedKey, @YES);
+    T(@"welcome: after a first launch that left the login item for the welcome to ask about, off is nobody's answer yet and the switch is on", @"yes", YN(MMWindowWelcomeNow(NO).loginOn));
+    MMSetPref(MMWindowLoginNotAskedKey, nil);
     MMSetRemovalChoice(MMRemovalTrash);
     T(@"welcome: a choice made before the first open, as with minmacs removal, is the one picked", @"1", @(MMWindowWelcomeNow(NO).removalPicked));
-    // A person who had MinMacs before the welcome: launched, never welcomed, no mark of a first launch with the window.
-    MMSetPref(MMWindowNewPersonKey, nil);
-    T(@"welcome: for a person who had MinMacs before, the switch starts on what the login item is now, and their removal choice is picked", @"yes no 1",
-      [NSString stringWithFormat:@"%@ %@ %ld", YN(MMWindowWelcomeNow(YES).loginOn), YN(MMWindowWelcomeNow(NO).loginOn), (long)MMWindowWelcomeNow(NO).removalPicked]);
-    MMSetPref(MMRemovalKey, nil);
-    T(@"welcome: with no removal choice of theirs, Smart is picked for them too", @"0", @(MMWindowWelcomeNow(NO).removalPicked));
-    T(@"welcome: a new person's switch starts on whatever the login item is", @"yes yes yes no",
-      [NSString stringWithFormat:@"%@ %@ %@ %@", YN(MMWindowWelcomeLoginStartsOn(YES, NO)), YN(MMWindowWelcomeLoginStartsOn(YES, YES)), YN(MMWindowWelcomeLoginStartsOn(NO, YES)), YN(MMWindowWelcomeLoginStartsOn(NO, NO))]);
     NewPerson();
     NSMutableArray<NSString *> *shown = [NSMutableArray arrayWithObjects:w.title, w.say, w.loginTitle, w.loginOnNote, w.loginOffNote, w.removalTitle, w.later, w.start, nil];
     for (MMWindowChoice *c in w.removal) [shown addObjectsFromArray:@[c.title, c.explain]];
@@ -111,7 +119,7 @@ static void Welcome(void) {
 
     // Start with the switch off and Trash picked.
     [c windowWelcomeStart:NO removal:MMRemovalTrash];
-    T(@"welcome: Start with the switch off asks for no login item, writes the removal choice and marks the welcome done", @"0 no trash yes yes",
+    T(@"welcome: Start with the switch off asks for no login item, writes the removal choice and marks the welcome done", @"none no trash yes yes",
       [NSString stringWithFormat:@"%@ %@ %@ %@ %@", Asked(login), YN(login.enabled), MMPref(MMRemovalKey), YN(MMRemovalChosen()), YN(MMPrefBool(MMWindowWelcomedKey, NO))]);
     settle();
     got = Spin(20, ^BOOL { return models.lastObject.welcome == nil; });
@@ -119,8 +127,8 @@ static void Welcome(void) {
       (long)models.lastObject.settings.rules.lastObject.picked, YN(models.lastObject.settings.switches.lastObject.on)]);
     T(@"welcome: once chosen, the Settings card no longer says not chosen yet", @"(null)", [NSString stringWithFormat:@"%@", models.lastObject.settings.rules.lastObject.note]);
     [c windowWelcomeStart:YES removal:MMRemovalDelete];
-    T(@"welcome: a second Start changes nothing", @"0 trash", [NSString stringWithFormat:@"%@ %@", Asked(login), MMPref(MMRemovalKey)]);
-    T(@"welcome: it never comes back", @"yes", YN(MMWindowWelcomeNow(YES) == nil));
+    T(@"welcome: a second Start changes nothing", @"none trash", [NSString stringWithFormat:@"%@ %@", Asked(login), MMPref(MMRemovalKey)]);
+    T(@"welcome: it never comes back", @"yes", YN(MMWindowWelcomeNow(NO) == nil));
     [c setOpen:NO];
     NSUInteger had = models.count;
     [c setOpen:YES];
@@ -132,10 +140,10 @@ static void Welcome(void) {
     [c windowSetSwitch:@"login" on:YES];
     settle();
     Spin(20, ^BOOL { return models.lastObject.settings.switches.lastObject.on; });
-    T(@"welcome: the Settings switch adds the login item later, and the model shows it on with its sentence", @"0,1 yes MinMacs starts when you sign in.",
+    T(@"welcome: the Settings switch adds the login item later, and the model shows it on with its sentence", @"1 yes MinMacs starts when you sign in.",
       [NSString stringWithFormat:@"%@ %@ %@", Asked(login), YN(models.lastObject.settings.switches.lastObject.on), models.lastObject.settings.switches.lastObject.note]);
     [c windowSetSwitch:@"login" on:NO];
-    T(@"welcome: and takes it away again", @"0,1,0 no", [NSString stringWithFormat:@"%@ %@", Asked(login), YN(login.enabled)]);
+    T(@"welcome: and takes it away again", @"1,0 no", [NSString stringWithFormat:@"%@ %@", Asked(login), YN(login.enabled)]);
     [c setOpen:NO];
 
     // Start with the switch on, as it stands when the person touches nothing.
@@ -153,8 +161,10 @@ static void Welcome(void) {
 
     // A person who had MinMacs before, through the controller: the model's switch follows their login item, and Start
     // with the switch left alone changes nothing about it.
+    // Such a person has a day of watching begun and no mark of a first launch that left the login item alone.
     NewPerson();
-    MMSetPref(MMWindowNewPersonKey, nil);
+    [[NSString stringWithFormat:@"%.0f\n", NSDate.date.timeIntervalSince1970 - 200000] writeToFile:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"]
+                                                                                    atomically:YES encoding:NSUTF8StringEncoding error:nil];
     for (NSNumber *had in @[@NO, @YES]) {
         MMSetPref(MMWindowWelcomedKey, nil);
         WLogin *old = [WLogin new];
@@ -180,6 +190,42 @@ static void Welcome(void) {
     [e windowWelcomeStart:YES removal:7];
     T(@"welcome: a number that is no removal choice writes none, and with no shell nothing is added", @"no yes", [NSString stringWithFormat:@"%@ %@", YN(MMRemovalChosen()), YN(MMPrefBool(MMWindowWelcomedKey, NO))]);
     settle();
+    // A person who used MinMacs before, with the login item off: a day watched, and no mark from a first launch.
+    NewPerson();
+    [[NSString stringWithFormat:@"%.0f\n", NSDate.date.timeIntervalSince1970 - 200000] writeToFile:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"]
+                                                                                    atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    // That person presses Start without touching anything: the login item, off, is not added back.
+    {
+        WLogin *was = [WLogin new];
+        MMWindowController *k = [MMWindowController new];
+        k.shell = was;
+        NSMutableArray<MMWindowModel *> *got = [NSMutableArray new];
+        k.onModel = ^(MMWindowModel *m) { [got addObject:m]; };
+        [k setOpen:YES];
+        [k take:SnapshotAt(2000)];
+        Spin(20, ^BOOL { return got.lastObject.generation > 0; });
+        MMWindowModel *m = got.lastObject;
+        T(@"welcome: for them the welcome's switch and the Settings switch agree, both off", @"no no", [NSString stringWithFormat:@"%@ %@", YN(m.welcome.loginOn), YN(m.settings.switches.lastObject.on)]);
+        [k windowWelcomeStart:m.welcome.loginOn removal:m.welcome.removalPicked];
+        T(@"welcome: their untouched Start asks nothing of the login item, and it stays off", @"none no yes", [NSString stringWithFormat:@"%@ %@ %@", Asked(was), YN(was.enabled), YN(MMPrefBool(MMWindowWelcomedKey, NO))]);
+        dispatch_sync(window, ^{});
+        [k setOpen:NO];
+        // The same person with the login item on, who turns the switch off: Start takes it away.
+        MMSetPref(MMWindowWelcomedKey, nil); MMSetPref(MMRemovalKey, nil);
+        was.enabled = YES;
+        MMWindowController *k2 = [MMWindowController new];
+        k2.shell = was;
+        [k2 setOpen:YES];
+        Spin(20, ^BOOL { return k2.model != nil; });
+        T(@"welcome: with the login item on, their switch starts on", @"yes", YN(k2.model.welcome.loginOn));
+        [k2 windowWelcomeStart:YES removal:MMRemovalSmart];
+        T(@"welcome: and an untouched Start asks nothing again", @"none yes", [NSString stringWithFormat:@"%@ %@", Asked(was), YN(was.enabled)]);
+        MMSetPref(MMWindowWelcomedKey, nil);
+        [k2 windowWelcomeStart:NO removal:MMRemovalSmart];
+        T(@"welcome: turned off in the welcome, Start takes the login item away", @"0 no", [NSString stringWithFormat:@"%@ %@", Asked(was), YN(was.enabled)]);
+        dispatch_sync(window, ^{});
+        [k2 setOpen:NO];
+    }
     NewPerson();
     MMSetPref(MMWindowWelcomedKey, @YES);
 }

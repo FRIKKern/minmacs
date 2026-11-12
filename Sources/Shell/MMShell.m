@@ -252,7 +252,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     NSString *notice = [self.shell notice];
     if (!s) {
         NSMenu *m = [NSMenu new];
-        [m addItem:MMTextItem(@"MinMacs is taking its first look. It takes a few seconds.", 2)];
+        [m addItem:MMTextItem(MMWindowLookingNote, 2)];
         MMAddFooter(m, self);
         return m;
     }
@@ -345,9 +345,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     BOOL first = !MMPrefBool(kLaunchedKey, NO);
     if (first) {
         MMStartWatching();
-        // With the menu window the welcome asks first, and Start adds the login item: MMWindowController.
-        // The mark says this person met MinMacs with the window, so their welcome starts with Open at login on.
-        if (MMWindowMode()) MMSetPref(MMWindowNewPersonKey, @YES);
+        // With the menu window the welcome asks first, and Start adds the login item: MMWindowController. The mark
+        // says the login item was left alone, so the welcome knows "off" is not yet this person's answer.
+        if (!MMFirstLaunchAddsLogin(MMWindowMode())) MMSetPref(MMWindowLoginNotAskedKey, @YES);
         if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&
             MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) {
             NSError *e = nil;
@@ -516,6 +516,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 
 - (void)setLogin:(BOOL)on {
     if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;
+    MMSetPref(MMWindowLoginNotAskedKey, nil);   // from here on the login item's state is the person's answer
     if (self.loginEnabled == on) return;
     NSError *e = nil;
     BOOL ok = on ? [SMAppService.mainAppService registerAndReturnError:&e] : [SMAppService.mainAppService unregisterAndReturnError:&e];

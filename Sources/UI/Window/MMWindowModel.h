@@ -159,7 +159,7 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 @property (copy) NSString *say;                         // what MinMacs is, in two sentences
 @property (copy) NSString *loginTitle;                  // "Open at login"
 @property (copy) NSString *loginOnNote, *loginOffNote;  // what each state of the switch means
-@property BOOL loginOn;                                 // YES: the switch starts on
+@property BOOL loginOn;                                 // where the switch stands before the person touches it
 @property (copy) NSString *removalTitle;                // "When MinMacs removes things"
 @property (copy) NSArray<MMWindowChoice *> *removal;    // Smart, Trash, Delete, with Core's sentence each
 @property NSInteger removalPicked;                      // Smart, until the person picks
@@ -175,6 +175,8 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 NSString *MMWindowLoginNote(BOOL on);
 /// The title of the removal choice, in the welcome and on its Settings card.
 extern NSString *const MMWindowRemovalTitle;
+/// What the window and the menus say before the first numbers: "MinMacs is taking its first look. It takes a few seconds."
+extern NSString *const MMWindowLookingNote;
 
 #pragma mark - The whole window
 

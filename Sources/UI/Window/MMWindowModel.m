@@ -52,6 +52,7 @@
 @end
 
 NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";
+NSString *const MMWindowLookingNote = @"MinMacs is taking its first look. It takes a few seconds.";
 
 NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sign in." : @"MinMacs starts only when you open it."; }
 

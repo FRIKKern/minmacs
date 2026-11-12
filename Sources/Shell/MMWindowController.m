@@ -81,7 +81,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (!_s || !_p || !self.open) return;
     MMWindowExtras *x = [MMWindowExtras readWithLogin:atomic_load(&_loginOn)];
     x.run = _run;
-    x.welcome = MMWindowWelcomeNow(atomic_load(&_loginOn));
+    x.welcome = MMWindowWelcomeNow(x.loginOn);
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     dispatch_async(dispatch_get_main_queue(), ^{
         if (!self.open || m.generation < self->_shown) return;
@@ -179,7 +179,8 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 - (void)windowWelcomeStart:(BOOL)openAtLogin removal:(NSInteger)removal {
     if (MMPrefBool(MMWindowWelcomedKey, NO)) return;
     MMWindowWelcomeDone(removal);
-    [self.shell setLogin:openAtLogin];
+    // Only a change is asked for: a person whose answer is what the login item already is gets nothing touched.
+    if ([self.shell loginEnabled] != openAtLogin) [self.shell setLogin:openAtLogin];
     atomic_store(&_loginOn, [self.shell loginEnabled]);
     dispatch_async(Queue(), ^{
         [self send];

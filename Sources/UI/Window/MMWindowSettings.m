@@ -46,6 +46,7 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
 }
 - (void)mouseEntered:(NSEvent *)e { _hover = YES; self.needsDisplay = YES; }
 - (void)mouseExited:(NSEvent *)e { _hover = NO; self.needsDisplay = YES; }
+- (BOOL)sendAction:(SEL)action to:(id)target { return MMWindowTakesPresses(self) && [super sendAction:action to:target]; }
 
 - (void)drawRect:(NSRect)dirty {
     NSRect b = self.bounds;
