@@ -320,6 +320,18 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         r.inFix = NO;
         if ([@[@"idle", @"nobody", @"will close", @"merged", @"may go"] containsObject:r.state ?: @""]) r.state = nil;
     }
+    if (memoryOnly || diskOnly) {
+        // Only the rows of the fixes that are left say they go. Every other row stays, in its mark, its word and its story.
+        NSArray *stay = memoryOnly ? @[trees, caches] : @[servers, apps, [trees subarrayWithRange:NSMakeRange(1, 1)]];
+        for (NSArray<MMWindowRow *> *rows in stay) for (MMWindowRow *r in rows) {
+            if (!r.inFix) continue;
+            r.inFix = NO; r.state = nil;
+            NSMutableArray<MMWindowFact *> *facts = [r.facts mutableCopy];
+            [facts removeLastObject];
+            [facts addObject:F(@"Why", @"Stays. Its rule is Off, so it waits for your own press.")];
+            r.facts = facts;
+        }
+    }
     if (longNames) {
         servers = [servers arrayByAddingObject:Long(servers[1], @"server:9366", @":9366 Google Chrome for Testing", 565 * MB)];
         agents = [agents arrayByAddingObject:Long(agents[4], @"agent:long", @"Review the button pages design before the release goes out to everyone", 700 * MB)];

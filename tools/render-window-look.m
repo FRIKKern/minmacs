@@ -210,6 +210,28 @@ static void WindowWelcomeGuardChecks(void) {
     Check(rs.alphaValue < 1 && rh.starts == 0 && rw.loginOn && !rs.canBecomeKeyView, @"welcome guard: while the welcome's parts rise in, no press or Return reaches a button that is not there yet",
           [NSString stringWithFormat:@"alpha %g, %ld starts", rs.alphaValue, (long)rh.starts]);
     rw.arrival = 1;
+    // The rise is short: Start is in its place, and takes a press, within 0.9 s of the window's opening. Right before
+    // the end it still takes none, and under Reduce Motion nothing rises at all.
+    rw.arrival = 0.98;
+    BOOL lateStill = rs.alphaValue < 1 && !MMWindowTakesPresses(rs);
+    rw.arrival = 1;
+    Check(MMWindowWelcomeRise > 0.6 && MMWindowWelcomeRise <= 0.9001 && lateStill && rs.alphaValue == 1 && MMWindowTakesPresses(rs),
+          @"welcome: every part has risen in within 0.9 s of the opening, and Start takes a press from then and not before",
+          [NSString stringWithFormat:@"%.2f s, alpha %g", MMWindowWelcomeRise, rs.alphaValue]);
+    // The one-side days: only the rows of the fixes that are left carry the mark, and no other row's story says it goes.
+    for (NSString *name in @[@"memory-only", @"disk-only"]) {
+        MMWindowModel *m = MMWindowFixture(name);
+        NSMutableArray<NSString *> *off = [NSMutableArray new];
+        BOOL memory = [name isEqualToString:@"memory-only"];
+        NSInteger marked = 0;
+        for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) for (MMWindowRow *r in g.rows) {
+            BOOL goes = [r.facts.lastObject.value hasPrefix:@"Goes."];
+            if (r.inFix) marked++;
+            if (r.inFix != goes || (r.inFix && (side == m.diskGroups) == memory)) [off addObject:r.key];
+            if (!r.inFix && [@[@"will close", @"may go", @"merged"] containsObject:r.state ?: @""]) [off addObject:r.key];
+        }
+        Check(off.count == 0 && marked > 0, [NSString stringWithFormat:@"window %@: only rows of the fixes that are left say they go", name], [off componentsJoinedByString:@" "]);
+    }
     // Tab goes through the five controls and Quit, and back to the first.
     [rwin recalculateKeyViewLoop];
     NSMutableArray<NSString *> *loop = [NSMutableArray new];

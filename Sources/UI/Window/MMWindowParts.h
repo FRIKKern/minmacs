@@ -64,6 +64,9 @@ void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, CG
 
 /// After Start the menu takes no press and no key for as long as it takes to arrive, and this much longer.
 extern const NSTimeInterval MMWindowStartGuard;
+/// How long the welcome's parts take to rise in, from the window's opening to Start in its place: 0.9 s. Until a part
+/// has landed it takes no press, so this is also how long Start waits. Nothing rises under Reduce Motion.
+extern const NSTimeInterval MMWindowWelcomeRise;
 /// NO for a view that is hidden, not fully there yet or on its way out, or that the window holds back for now. Every
 /// button of the window asks this before it acts and before it takes the keyboard, and the window's hit test asks it
 /// too. So a view at alpha 0 or in the middle of a fade never takes a press.

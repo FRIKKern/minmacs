@@ -23,7 +23,10 @@
 #import "UI/Window/MMWindowParts.h"
 
 static const CGFloat kColumn = 600, kSay = 520, kMark = 60, kFact = 280, kRise = 14, kExplainX = 92;
-static const NSTimeInterval kStep = 0.1, kPart = 0.9, kArrive = 0.1 + 7 * 0.1 + 0.9;   // the last part starts at 0.8 s
+// Each part starts 0.05 s after the one above it and takes half a second to land, slowing as it does. The last one,
+// Start, has landed 0.9 s after the window opened, and takes a press from then.
+static const NSTimeInterval kStep = 0.05, kPart = 0.5, kArrive = 0.05 + 7 * 0.05 + 0.5;
+const NSTimeInterval MMWindowWelcomeRise = kArrive;
 enum { PartMark = 0, PartTitle, PartSay, PartLogin, PartRemoval, PartLater, PartFacts, PartStart, PartCount };
 
 static NSColor *Soft(CGFloat alpha) { return [NSColor colorWithSRGBRed:0.92 green:0.92 blue:0.96 alpha:MMWindowContrast() ? MIN(1, alpha + 0.3) : alpha]; }
@@ -358,7 +361,7 @@ typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption
 
 #pragma mark Arriving
 
-/// How far part i has come, 0 to 1: each starts a tenth of a second after the one above it and slows as it lands.
+/// How far part i has come, 0 to 1: each starts kStep after the one above it and slows as it lands.
 - (CGFloat)eased:(NSInteger)i {
     double u = MIN(1, MAX(0, (self.arrival * kArrive - (kStep + kStep * i)) / kPart));
     return 1 - pow(1 - u, 3);

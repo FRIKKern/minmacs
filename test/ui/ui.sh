@@ -85,12 +85,13 @@ check "the young hour, the folded band and the look-back change the picture" "ye
 
 # The dock's gains: a side that gives nothing back is not shown as "0 KB back".
 check "the dock shows only the sides above zero, before a press, in a run and at its end" "5 0" "$(ui_look ' gains: ') $(grep -c '^FAIL  window gains' "$ui_out/checks.txt" 2>/dev/null)"
+check "a day with one side to fix marks only the rows of its fixes" 2 "$(ui_look ' .*-only: only rows of the fixes that are left say they go')"
 check "one side alone changes the picture" "yes yes" \
   "$([ "$(ui_md memory-only-main-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no) $([ "$(ui_md memory-only-main-dark)" != "$(ui_md disk-only-main-dark)" ] && echo yes || echo no)"
 
 # The welcome of the first launch: it stands alone, its answers stay the person's, Start hands them over once and it
 # does not come back. tools/render-window-look.m holds the checks.
-check "the welcome's checks all ran and passed" "29 0" "$(grep -c '^ok    welcome:' "$ui_out/checks.txt" 2>/dev/null) $(grep -c '^FAIL  welcome:' "$ui_out/checks.txt" 2>/dev/null)"
+check "the welcome's checks all ran and passed" "30 0" "$(grep -c '^ok    welcome:' "$ui_out/checks.txt" 2>/dev/null) $(grep -c '^FAIL  welcome:' "$ui_out/checks.txt" 2>/dev/null)"
 check "the welcome is its own picture, and the switch, each removal choice and a watched day change it" "yes yes yes yes yes yes" \
   "$([ "$(ui_md welcome-main-dark)" != "$(ui_md young-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-off-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-trash-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-trash-main-dark)" != "$(ui_md welcome-delete-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-started-dark)" != "$(ui_md welcome-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-watched-main-dark)" != "$(ui_md welcome-main-dark)" ] && echo yes || echo no)"
 # The press guard: a second press where Start was runs no fix, and nothing that fades takes a press.
