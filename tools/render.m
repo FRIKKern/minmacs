@@ -647,6 +647,7 @@ static MMCardSpec *SCard(NSString *fid) {
 
 // What the first look at the real window found, as checks. In a file of its own, so this one does not grow.
 #include "render-window-look.m"
+#include "render-window-open.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -710,6 +711,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
           @"window: the empty day has no fix, the running day runs, the done day ended", @"");
     WindowLookChecks();
     WindowWelcomeChecks();
+    WindowOpenTiming(dir, appearances[@"dark"]);
 }
 
 /// The shell's PNGs go in their own folder: each expert's menu and card as the shell builds them, One Icon, the icons.
