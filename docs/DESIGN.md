@@ -27,13 +27,14 @@ The layout is prototype 195-a, Dock Below:
 2. **The middle.** It shows memory in use and disk free over the last hour. While the pointer rests on a row it shows that row's story: who owns it, where it is and why it stays or goes.
 3. **The top line** says who asks the person, such as "2 agents ask you". When nobody asks it folds away and the lists get its height.
 4. **The dock.** The ring shows memory by group, with the disk as the thin outer track. Fix Everything runs every fix that does not need the person, in order. Under it one line says what a press does: "7 fixes, Wrap Up fix-auth-redirect first". While a run plays, the button holds the step and a press stops the run after that step. With nothing to fix the button stays in place, dimmed, over "Nothing to fix now".
-5. **The gains** stand right of the button, a number for memory and a number for disk. A side shows only when it is above zero, so a fix that gives no disk back shows no "0 KB disk back". One side alone sits level with the middle of the button. With nothing to fix, what came back today stands there, by the same rule.
-6. **Two buttons only:** the gear for Settings, also Command-comma, and the power icon for Quit, also Command-Q. There is no Hide Icon.
-7. **A row's name is never cut with an ellipsis.** A name longer than its column loses whole words from the end.
+5. **The orange mark** on a row says a press on Fix Everything acts on it. A row whose fix waits for its own press, such as a cache its tool cleans, carries none.
+6. **The gains** stand right of the button, a number for memory and a number for disk. A side shows only when it is above zero, so a fix that gives no disk back shows no "0 KB disk back". One side alone sits level with the middle of the button. With nothing to fix, what came back today stands there, by the same rule.
+7. **Two buttons only:** the gear for Settings, also Command-comma, and the power icon for Quit, also Command-Q. There is no Hide Icon.
+8. **A row's name is never cut with an ellipsis.** A name longer than its column loses whole words from the end.
 
 ### Settings in place
 
-Settings is prototype 197-b. The gear turns the area under the top line into cards, in the same window, and back. Escape leaves Settings first. Opening MinMacs again and `minmacs://settings` open the window turned over to Settings.
+Settings is prototype 197-b. The gear turns the area under the top line into cards, in the same window, and back. Escape leaves Settings first. Opening MinMacs again and `minmacs://settings` bring MinMacs to the front and open the window turned over to Settings, or on the welcome until Start was pressed. A link that starts MinMacs waits for the launch.
 
 - One card for each rule: "Stop idle servers", "Quit apps", "Remove finished worktrees" and "Clean caches and leftovers". Each has three choices, Off, Careful and Eager, and each choice has one sentence that says what it does today. `test/window.sh` checks each sentence against the expert's own rule.
 - One card for the removal choice, "When MinMacs removes things": Smart, Trash or Delete, each with Core's own sentence.
@@ -41,11 +42,19 @@ Settings is prototype 197-b. The gear turns the area under the top line into car
 
 A press applies at once. There is no Save.
 
+What the Settings window of before held, and where it is with the menu window:
+
+- **Keep working with the lid closed** is the switch on the card for this Mac. It is the one keep-awake control in the window.
+- **The model reviews ask** has no place in the window. `minmacs review --model auto|haiku|sonnet|opus|luna` sets it.
+- **Showing and hiding an icon, and One Icon,** mean nothing with one icon and one window, and are not there. The one icon is shown at every start, whatever was hidden before, since nothing in the window could bring it back.
+- **An expert's own pane,** such as the keep-awake timings, is not in the window. Those prefs keep their values, and the Settings window of before still edits them when `core.window` is off.
+
 ### The welcome
 
 The first time the window opens it shows the welcome alone, prototype 199-a: what MinMacs is in two sentences, the Open at login switch, the removal choice, three facts and Start. Nothing is applied until Start, and Return presses Start. After Start the welcome never comes back.
 
-- No login item is added before Start. For a person whose first launch had the window, the switch starts on. For a person who had MinMacs before, it starts on what their login item is now.
+- No login item is added before Start. For a person new to MinMacs the switch starts on. For a person who launched MinMacs before the welcome existed, it starts on what their login item is now.
+- After Start the menu takes no press for a moment, counted from when it is really shown, so a second press where Start was runs no fix.
 - The removal choice starts on the one the person already made, else on Smart.
 - Each fact is read from the code that makes it true, so it changes when the code does.
 

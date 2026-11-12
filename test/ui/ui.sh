@@ -96,6 +96,8 @@ check "the welcome is its own picture, and the switch, each removal choice and a
   "$([ "$(ui_md welcome-main-dark)" != "$(ui_md young-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-off-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-main-dark)" != "$(ui_md welcome-trash-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-trash-main-dark)" != "$(ui_md welcome-delete-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-started-dark)" != "$(ui_md welcome-main-dark)" ] && echo yes || echo no) $([ "$(ui_md welcome-watched-main-dark)" != "$(ui_md welcome-main-dark)" ] && echo yes || echo no)"
 # The press guard: a second press where Start was runs no fix, and nothing that fades takes a press.
 check "the guard's checks all ran and passed: no press reaches the menu before it has arrived" "8 0" "$(grep -c '^ok    welcome guard:' "$ui_out/checks.txt" 2>/dev/null) $(grep -c '^FAIL  welcome guard:' "$ui_out/checks.txt" 2>/dev/null)"
+# With real fades, in a window ordered in off every screen: the turn to Settings, a close inside the guard, a late welcome.
+check "the checks in a window that is really shown all ran and passed" "5 0" "$(grep -c '^ok    window shown:' "$ui_out/checks.txt" 2>/dev/null) $(grep -c '^FAIL  window shown:' "$ui_out/checks.txt" 2>/dev/null)"
 check "the welcome's view stays under 500 lines and names no host and no Core type" "1 0" \
   "$(wc -l <"$ROOT/Sources/UI/Window/MMWindowWelcome.m" | awk '{print ($1 < 500) ? 1 : 0}') $(grep -cE 'MMWindowHost|#import "(Core|Shell)/' "$ROOT/Sources/UI/Window/MMWindowWelcome.m")"
 

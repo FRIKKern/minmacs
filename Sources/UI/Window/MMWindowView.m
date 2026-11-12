@@ -26,6 +26,7 @@ static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
     BOOL _started;                      // Start was pressed here: a model built before that brings no welcome back
     BOOL _looking;                      // no model came for a moment, so the window says it is taking its first look
     BOOL _quiet;                        // from Start until the menu has arrived and a moment more: only Quit takes a press
+    NSInteger _startRun;                // counts Starts and closes, so a fade that outlived its window changes nothing
     NSInteger _flips;                   // fades between the menu and Settings under way
 }
 
@@ -166,7 +167,12 @@ BOOL MMWindowTakesPresses(NSView *view) {
     }
     _welcome.welcome = welcome;
     if (was) return;
-    if (self.showsSettings) self.showsSettings = NO;
+    // Settings leaves at once, with no fade under the welcome.
+    if (_showsSettings) {
+        _showsSettings = NO;
+        _gear.lit = NO; _gear.accessibilityValue = @"off";
+        _settings.hidden = YES; _settings.alphaValue = 1; _main.alphaValue = 1;
+    }
     _welcome.hidden = NO; _welcome.alphaValue = 1;
     _main.hidden = YES; _gear.hidden = YES;
     self.needsDisplay = YES;
@@ -180,6 +186,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     _started = YES;
     // A second press where Start was would land on the menu that arrives under it, Fix Everything among it.
     _quiet = YES;
+    NSInteger run = ++_startRun;
     [self.host windowWelcomeStart:login removal:removal];
     _model.welcome = nil;
     if (!_model) _looking = YES;
@@ -197,14 +204,14 @@ BOOL MMWindowTakesPresses(NSView *view) {
     } completionHandler:^{
         goes.hidden = YES;
         self.needsDisplay = YES;
-        if (!self->_quiet) return;      // the window closed meanwhile, and -rest put everything in its place
+        if (run != self->_startRun) return;   // the window closed meanwhile, and -rest put everything in its place
         [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
             c.duration = 0.6;
             self->_main.animator.alphaValue = 1; self->_gear.animator.alphaValue = 1;
             // The band may have folded meanwhile, so the menu lands where it belongs now.
             CGFloat top = self.bandTop;
             self->_main.animator.frame = NSMakeRect(0, top, MMWindowSize.width, MMWindowSize.height - top);
-        } completionHandler:^{ if (self->_quiet) [self arriveSoon]; }];
+        } completionHandler:^{ if (run == self->_startRun) [self arriveSoon]; }];
     }];
 }
 
@@ -216,11 +223,12 @@ BOOL MMWindowTakesPresses(NSView *view) {
 
 - (void)arrived { _quiet = NO; [self.window recalculateKeyViewLoop]; }
 
-/// The window closed between Start and the menu's arrival: the menu is simply there the next time.
+/// The window closed between Start and the end of the guard: the menu is in its place the next time, and still
+/// takes no press. The guard counts from when the person really sees the menu, so -opened starts it over.
 - (void)settleStart {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(arrived) object:nil];
     if (!_quiet) return;
-    _quiet = NO;
+    _startRun++;
     _welcome.hidden = YES;
     _main.alphaValue = 1; _gear.alphaValue = 1;
     CGFloat top = self.bandTop;
@@ -342,6 +350,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 - (void)opened {
     _stepped = nil;
     [self wake];
+    if (_quiet) [self arriveSoon];
     if (self.showsWelcome) [_welcome arrive];
     else if (!_model) [self performSelector:@selector(sayLooking) withObject:nil afterDelay:0.6 inModes:@[NSRunLoopCommonModes]];
 }
@@ -380,6 +389,8 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
         comes.animator.alphaValue = 1; goes.animator.alphaValue = 0;
     } completionHandler:^{
         self->_flips--;
+        // The welcome came meanwhile and put Settings away. Nothing of this fade is left to finish.
+        if (self.showsWelcome) { self->_settings.hidden = YES; self->_settings.alphaValue = 1; self->_main.alphaValue = 1; return; }
         // A second press during the fade wins.
         BOOL still = self.showsSettings == on;
         goes.hidden = still; goes.alphaValue = 1;

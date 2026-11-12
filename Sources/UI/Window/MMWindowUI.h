@@ -49,6 +49,11 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 - (void)show:(MMWindowModel *)model;                    // a new model, open or not
 - (void)toggleUnder:(NSStatusBarButton *)button;
 - (void)close;
+/// For a window opened by a way to Settings, not by the icon: for this long, another app coming to the front, or
+/// the panel losing the keyboard to it, does not close the panel. A second copy of MinMacs that handed over quits
+/// right then, and the app that was in front before it comes back. Escape and a press outside still close it.
+- (void)holdOpen:(NSTimeInterval)seconds;
+@property (readonly) BOOL held;
 /// YES while the panel holds an event monitor or an observer. It holds them only while it is open.
 @property (readonly) BOOL watching;
 /// Called on main after the panel opened or closed, however it closed. The shell works only while it is open.

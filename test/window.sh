@@ -78,7 +78,7 @@ check "window: no string claims a result or says for good" 0 \
   "$(grep -ciE '@"[^"]*(is clean|all good|for good|everything is fine|nothing needs you)[^"]*"' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
 check "window: only MMShell.m names the panel, and the feed names no view" 0 \
   "$(grep -cE 'MMWindowView|MMWindowPanel|MMWindowFixture' $(ls Sources/Shell/*.m Sources/Shell/*.h Sources/CLI/*.m | grep -v 'Shell/MMShell.m') | awk -F: '{s+=$2} END {print s+0}')"
-check "window: the icon opens the panel while core.window is on, it is on by default, and one function reads it" "1 1 0 4" \
+check "window: the icon opens the panel while core.window is on, it is on by default, and one function reads it" "1 1 0 5" \
   "$(grep -c 'static NSString \*const kWindowKey = @"core.window";' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMWindowMode(void) { return MMPrefBool(kWindowKey, YES); }' Sources/Shell/MMShell.m) $(grep -c 'MMPrefBool(kWindowKey, NO)' Sources/Shell/MMShell.m) $(grep -c 'MMWindowMode()' Sources/Shell/MMShell.m)"
 # The rows read each expert's facts by key, and Settings says what each expert's mode rule does. A rename or a changed
 # rule in an expert would leave a line out or make a sentence false with no error, so each string must still be there.
@@ -112,8 +112,12 @@ check "window: the removal title and the first-look line are each written once" 
 check "window: with the menu window the first launch adds no login item, and -setLogin: stops first in a test home" "1 1 1" \
   "$(grep -c 'if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }' Sources/Shell/MMShell.m) $(grep -A1 -- '^- (void)setLogin:(BOOL)on {' Sources/Shell/MMShell.m | grep -c 'if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;')"
 # Settings in window mode is the window turned over. The old Settings window is made in one place, behind that check.
-check "window: every way to Settings asks the window first, and the old Settings window opens only past that" "1 1 4 1 1" \
-  "$(grep -A1 -- '^- (void)showSettings:(id)sender {' Sources/Shell/MMShell.m | grep -c 'if (\[self showWindowSettings\]) return;') $(grep -c 'self.windowPanel.view.showsSettings = YES;' Sources/Shell/MMShell.m) $(grep -c '\[self showSettings:nil\]\|\[self.shell showSettings:sender\]' Sources/Shell/MMShell.m) $(grep -c '\[MMSettings new\]' Sources/Shell/MMShell.m) $(grep -l 'MMSettings new\]' $(find Sources -name '*.m') | grep -c .)"
+check "window: every way to Settings waits for the launch, then goes by core.window alone, and the old Settings window is made only past that" "1 1 1 5 1 1" \
+  "$(grep -A2 -- '^- (void)showSettings:(id)sender {' Sources/Shell/MMShell.m | grep -c 'if (!self.launched) { self.settingsWaits = YES; return; }') $(grep -c 'if (MMWindowMode()) { \[self showWindowSettings\]; return; }' Sources/Shell/MMShell.m) $(grep -c 'if (MMPrefBool(MMWindowWelcomedKey, NO)) self.windowPanel.view.showsSettings = YES;' Sources/Shell/MMShell.m) $(grep -c '\[self showSettings:nil\]\|\[self.shell showSettings:sender\]' Sources/Shell/MMShell.m) $(grep -c '\[MMSettings new\]' Sources/Shell/MMShell.m) $(grep -l 'MMSettings new\]' $(find Sources -name '*.m') | grep -c .)"
+# The window has no Hide Icon, so its icon is shown at every start, whatever was saved. A way to Settings brings MinMacs
+# to the front and holds the panel open while a second copy quits.
+check "window: the window's icon is made visible whatever was saved, and a way to Settings activates MinMacs and holds the panel" "1 1 1" \
+  "$(grep -A6 'if (!self.expert && MMWindowMode()) {' Sources/Shell/MMShell.m | grep -c 'self.item.visible = YES;') $(grep -A6 -- '^- (BOOL)showWindowSettings {' Sources/Shell/MMShell.m | grep -c '\[NSApp activateIgnoringOtherApps:YES\];') $(grep -c '\[self.windowPanel holdOpen:MMWindowRouteHold\];' Sources/Shell/MMShell.m)"
 check "window: the controller asks for the login item from the Settings switch and from Start only, and Start only for a change" "2 1 1" \
   "$(grep -c 'self.shell setLogin:' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:on\];' Sources/Shell/MMWindowController.m) $(grep -c 'if (\[self.shell loginEnabled\] != openAtLogin) \[self.shell setLogin:openAtLogin\];' Sources/Shell/MMWindowController.m)"
 check "window: a first launch that leaves the login item alone says so, and any -setLogin: takes the mark away" "1 1 1" \
