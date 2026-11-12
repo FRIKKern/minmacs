@@ -21,10 +21,10 @@ The full `./test.sh` takes about 17 minutes. Issue #58: on this Mac it is someti
 
 **Layout**
 - `Sources/main.m`: the entry point. It registers each class `MMBuiltInExpertClasses` in `Sources/Shell/MMShell.m` names that is linked in, then `Sources/Shell` runs the menu bar app, or the CLI when a verb is given.
-- `Sources/Shell`: the app delegate, `MMCoreStart`, `core.sock`, the status items, One Icon, Settings with a pane per expert, the login item, URLs and the main-thread watchdog.
+- `Sources/Shell`: the app delegate, `MMCoreStart`, `core.sock`, the one icon and the menu window's feed, controller and Fix Everything runner, the login item, URLs and the main-thread watchdog. With the pref `core.window` off: the status items, One Icon and Settings with a pane per expert.
 - `Sources/Core/{Runtime,Senses,Know,Graph,Store,Review,Act}`: the shared core. [Sources/README.md](Sources/README.md) says what each holds.
 - `Sources/Experts/{MinMacs,LocoHost,WorkForest,NooNoo,Insomnia}`: the five experts, each a class that conforms to `MMExpert` in `Sources/Core/MMExpert.h` with `+shared`. Each folder has a README. An expert gives its findings, rules, review request, menu, cards and verbs as data.
-- `Sources/UI`: the menu kit that draws every `MMMenuSpec` and `MMCardSpec`, the formatters and Settings. `tools/render.sh` renders every expert's menus and cards from the fixture subjects in `tools/render.m` into `build/render/`.
+- `Sources/UI`: `Window/`, the menu window's view model and views. The menu kit that draws every `MMMenuSpec` and `MMCardSpec`, the formatters and the Settings window of before. `tools/render.sh` renders every expert's menus and cards from the fixture subjects in `tools/render.m` into `build/render/`.
 - `Sources/CLI`: the verb registry, Core's verbs, `MMArgs` and the URL router. A verb is an `MMVerbSpec` and prints only through `MMArgs`. [docs/CLI.md](docs/CLI.md) is generated from `minmacs help --json`.
 - `docs/`: [HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md), [REVIEW.md](docs/REVIEW.md), [PRIVACY.md](docs/PRIVACY.md), [CLI.md](docs/CLI.md), [DESIGN.md](docs/DESIGN.md), and `docs/img/`, the README's renders. `docs/2.0/` holds the plan, the research, the settling tests in TESTS.md, and the numbers in MEASUREMENTS.md and BENCH.md.
 - `tools/bench`: the bench and its budgets. `test/bench.sh` runs the short bench and the regression gate.
@@ -46,7 +46,7 @@ The full `./test.sh` takes about 17 minutes. Issue #58: on this Mac it is someti
 4. No tick runs `lsof`, `nettop`, `ps` or `pmset`.
 5. SIGTERM first, and SIGKILL only on a second request. Pid and start time are checked before both. Never signal pid 1 or MinMacs itself.
 6. No hooks are installed, and no permission is asked for at launch.
-7. Every menu follows [docs/DESIGN.md](docs/DESIGN.md). After a menu change, run `tools/render.sh` and look at the PNGs in `build/render/` in light, dark and Increase Contrast. CI keeps them.
+7. The menu window and every menu follow [docs/DESIGN.md](docs/DESIGN.md). After a change to either, run `tools/render.sh` and look at the PNGs in `build/render/`: the window's in `window/`, in dark and Increase Contrast, the menus' in light, dark and Increase Contrast. CI keeps them.
 8. Every action goes through `MMRunAction`, which checks fresh facts, runs MustKeep and writes the undo record before it acts.
 9. What the review sends is listed in [docs/PRIVACY.md](docs/PRIVACY.md). A new key in an expert's review facts needs a row there, or `./test.sh docs` fails.
 

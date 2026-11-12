@@ -2,13 +2,13 @@
 
 This page describes MinMacs 2.0 for a reader who does not read the code. [Sources/README.md](../Sources/README.md) and [Sources/Core/README.md](../Sources/Core/README.md) say the same for a reader who does, with the file for each part.
 
-MinMacs is one app with two halves. Core finds out what is on the Mac. Five experts decide what that means for one kind of thing each, and show it in a menu. An expert never looks at the Mac itself. It only reads what Core found. So five experts cost one sampler, one set of file watchers and one place that asks the model.
+MinMacs is one app with two halves. Core finds out what is on the Mac. Five experts decide what that means for one kind of thing each. One window, which opens from the MinMacs icon, shows what all five found. An expert never looks at the Mac itself. It only reads what Core found. So five experts cost one sampler, one set of file watchers and one place that asks the model.
 
 ## What happens every 5 seconds
 
 1. **Senses** takes one sample of the Mac: every process with its CPU time, memory, arguments and folder, the open sockets, power, battery, heat, memory pressure and the lid. One sample cost 3.4 ms of CPU at the median when timed alone, and 6.2 ms on average inside the 30 minute bench of [BENCH.md](2.0/BENCH.md), on a Mac with about 865 processes.
 2. **The graph** gathers that sample with what Know holds, and asks each expert for its findings. A finding is one thing an expert has an opinion about, such as one dev server or one worktree. Each finding names its owner. An owner is a workstream, which is one agent session with its worktree, or a session, a worktree, a project folder or an app. The graph then publishes one snapshot that holds every finding. The snapshot does not change after that, so the menus can read it at any time.
-3. **The menus** draw from the last snapshot. They never wait for the disk, a process or the log.
+3. **The menu window** draws from the last snapshot while it is open. It never waits for the disk, a process or the log. The menus of before, which open when the pref `core.window` is off, draw from it the same way.
 
 A process that exits, an app that starts and a charger that comes or goes push a new build at once, without waiting for the 5 seconds. The sample backs off to 10 seconds on battery, 15 seconds when nobody has touched the keyboard or pointer for 5 minutes, and 30 seconds for both.
 
@@ -80,6 +80,6 @@ The modes decide what an expert does without being asked. Idle acts on nothing. 
 
 ## The app and the CLI
 
-The app starts Core once, makes one menu bar icon per expert and opens a socket, `core.sock`, in the support folder. Only processes of the same user may connect. The CLI is the same binary. When the app runs, the CLI sends it the verb and prints the answer. When no app answers, the CLI builds a snapshot itself. A verb that would change something needs the running app, unless `--dry-run` is given. [CLI.md](CLI.md) lists every verb.
+The app starts Core once, makes the one MinMacs icon that opens the menu window, and opens a socket, `core.sock`, in the support folder. Only processes of the same user may connect. The CLI is the same binary. When the app runs, the CLI sends it the verb and prints the answer. When no app answers, the CLI builds a snapshot itself. A verb that would change something needs the running app, unless `--dry-run` is given. [CLI.md](CLI.md) lists every verb.
 
 In a debug build, or with `MINMACS_WATCHDOG=1`, a watchdog logs every pass of the main thread's run loop that takes longer than 50 ms, with the stack of where main was.

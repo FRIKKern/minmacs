@@ -2,7 +2,7 @@
 
 # MinMacs
 
-MinMacs 2.0 is one macOS menu bar app for a Mac that runs coding agents. It joins five apps that used to run on their own: MinMacs, LocoHost, WorkForest, Noo-Noo and Insomnia. Each one is now an expert inside MinMacs, with its own icon, menu and CLI verbs. All five read one shared core that samples the Mac once every 5 seconds, so the Mac pays for one sampler and not five.
+MinMacs 2.0 is one macOS menu bar app for a Mac that runs coding agents. It joins five apps that used to run on their own: MinMacs, LocoHost, WorkForest, Noo-Noo and Insomnia. Each one is now an expert inside MinMacs, with its own findings, rules and CLI verbs. One icon opens one window that shows what all five found, with memory on one side and disk on the other, and one button, Fix Everything. All five read one shared core that samples the Mac once every 5 seconds, so the Mac pays for one sampler and not five.
 
 MinMacs 2.0 is built on `main` and is not released yet. MinMacs 1.2 lives on the [`legacy`](https://github.com/FRIKKern/minmacs/tree/legacy) branch, and `install.sh` installs 1.2 from there by default. See [Install](#install).
 
@@ -40,7 +40,7 @@ Each expert has three modes. Idle acts on nothing. Proactive, the default, acts 
 </tr>
 </table>
 
-A row's hover card says whether the item stays or goes and why, with at most five facts. A fact that belongs to another expert links to that expert's card. Settings has "One Icon", which puts all five menus into one flat menu. [docs/DESIGN.md](docs/DESIGN.md) is the standard every menu follows.
+A row's hover card says whether the item stays or goes and why, with at most five facts. A fact that belongs to another expert links to that expert's card. These menus are the ones of before: they open when the pref `core.window` is off, and their Settings has "One Icon", which puts all five menus into one flat menu. By default the MinMacs icon opens the menu window. [docs/DESIGN.md](docs/DESIGN.md) is the standard for both.
 
 ## Install
 
@@ -105,7 +105,7 @@ Some decisions need judgment, such as whether a quiet dev server is still wanted
 - [docs/REVIEW.md](docs/REVIEW.md): the review broker, triage, fingerprints, fact blocks and Investigate, with the token numbers.
 - [docs/PRIVACY.md](docs/PRIVACY.md): what is sent to the model, field by field, and what is redacted.
 - [docs/CLI.md](docs/CLI.md): every verb and flag.
-- [docs/DESIGN.md](docs/DESIGN.md): the menu standard.
+- [docs/DESIGN.md](docs/DESIGN.md): the design standard, for the menu window and the menus of before.
 - [docs/2.0/PLAN.md](docs/2.0/PLAN.md): the plan and the decisions.
 - [AGENTS.md](AGENTS.md): the layout and rules for agents that work on the code.
 

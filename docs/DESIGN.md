@@ -1,12 +1,92 @@
-# Menu standard
+# Design standard
 
-MinMacs 2.0 and its five experts share one standard for their menus. It started in LocoHost and WorkForest, and research track G checked it against Apple's Human Interface Guidelines ([G-menu-ux.md](2.0/research/G-menu-ux.md)). A change that breaks a rule here is a bug.
+MinMacs 2.0 has one face: the menu window, which opens from the one MinMacs icon. This page says how it looks, what it says and how it is built. The menus of before are still in the app and open when the pref `core.window` is off. Their rules are the second half of this page. A change that breaks a rule here is a bug.
 
-## The menu is native
+## The menu window
+
+One icon sits in the menu bar. A click opens a window under it, 1020 by 728 points, dark glass in every appearance. It never resizes. It closes as a menu does: on Escape, on a click outside, when another app comes to the front and when the space changes. Its first frame is drawn before it comes on screen.
+
+The layout is prototype 195-a, Dock Below:
+
+```
++-----------------------------------------------------------------+
+| 2 agents ask you             (folded away when nobody asks)     |
++------------------+--------------------------+-------------------+
+| Servers          | Memory in use, last hour | Worktrees         |
+| Agents           | Disk free, last hour     | Caches            |
+| Apps and helpers | (or a pointed row's story)|                  |
++------------------+--------------------------+-------------------+
+| ring  42.4 / 64 GB   [ Fix Everything ]   3.1 GB memory back    |
+|       182 GB free    7 fixes, x first     18.6 GB disk back     |
++-----------------------------------------------------------------+
+|                                                    gear  power  |
++-----------------------------------------------------------------+
+```
+
+1. **Memory left, disk right.** What holds memory is on the left: servers, agents, apps and helpers. What holds disk is on the right: worktrees and caches. Memory and disk are two numbers everywhere and are never added into one.
+2. **The middle.** It shows memory in use and disk free over the last hour. While the pointer rests on a row it shows that row's story: who owns it, where it is and why it stays or goes.
+3. **The top line** says who asks the person, such as "2 agents ask you". When nobody asks it folds away and the lists get its height.
+4. **The dock.** The ring shows memory by group, with the disk as the thin outer track. Fix Everything runs every fix that does not need the person, in order. Under it one line says what a press does: "7 fixes, Wrap Up fix-auth-redirect first". While a run plays, the button holds the step and a press stops the run after that step. With nothing to fix the button stays in place, dimmed, over "Nothing to fix now".
+5. **The gains** stand right of the button, a number for memory and a number for disk. A side shows only when it is above zero, so a fix that gives no disk back shows no "0 KB disk back". One side alone sits level with the middle of the button. With nothing to fix, what came back today stands there, by the same rule.
+6. **Two buttons only:** the gear for Settings, also Command-comma, and the power icon for Quit, also Command-Q. There is no Hide Icon.
+7. **A row's name is never cut with an ellipsis.** A name longer than its column loses whole words from the end.
+
+### Settings in place
+
+Settings is prototype 197-b. The gear turns the area under the top line into cards, in the same window, and back. Escape leaves Settings first. Opening MinMacs again and `minmacs://settings` open the window turned over to Settings.
+
+- One card for each rule: "Stop idle servers", "Quit apps", "Remove finished worktrees" and "Clean caches and leftovers". Each has three choices, Off, Careful and Eager, and each choice has one sentence that says what it does today. `test/window.sh` checks each sentence against the expert's own rule.
+- One card for the removal choice, "When MinMacs removes things": Smart, Trash or Delete, each with Core's own sentence.
+- One card for this Mac: "Keep working with the lid closed" and "Open at login".
+
+A press applies at once. There is no Save.
+
+### The welcome
+
+The first time the window opens it shows the welcome alone, prototype 199-a: what MinMacs is in two sentences, the Open at login switch, the removal choice, three facts and Start. Nothing is applied until Start, and Return presses Start. After Start the welcome never comes back.
+
+- No login item is added before Start. For a person whose first launch had the window, the switch starts on. For a person who had MinMacs before, it starts on what their login item is now.
+- The removal choice starts on the one the person already made, else on Smart.
+- Each fact is read from the code that makes it true, so it changes when the code does.
+
+### The removal choice
+
+Where a removed thing goes is one setting, the pref `core.removal`, shown in the welcome, on its Settings card and by `minmacs removal`. Smart deletes what git or its tool can give back, and the rest goes to the Trash. Trash sends everything to the Trash. Delete deletes everything at once. Every word about a removal follows the choice. [AGENTS.md](../AGENTS.md) invariant 1 has the whole rule.
+
+### Words in the window
+
+- Plain names: Servers, Agents, Apps, Worktrees, Caches. The app is MinMacs. No shown string names LocoHost, WorkForest, Noo-Noo or Insomnia.
+- Never claim a result, such as "all clean". Say what is there and what a press does.
+- No exclamation marks, no emoji, no ellipsis, no asides in parentheses.
+- "For good" and "permanently" are not used.
+
+### How it is built
+
+```
+MMGraph snapshot --> MMPerformance --> MMWindowModelFrom --> MMWindowModel --> MMWindowPanel, MMWindowView
+     any queue        window queue        the feed, off main    plain values       main: draws only the model
+                                                ^                                        |
+                MMWindowController <------------+------------- MMWindowHost: presses ----+
+```
+
+- **The view model**, `Sources/UI/Window/MMWindowModel.h`, is plain values with no AppKit and no Core type. Every string in it is shown as is.
+- **The feed**, `Sources/Shell/MMWindowFeed.h`, makes one model from one snapshot and its `MMPerformance`, off main. `minmacs window --json` prints what it makes.
+- **The controller**, `Sources/Shell/MMWindowController.h`, works only while the window is open. It builds one model per snapshot, applies a press that comes through `MMWindowHost`, and sends a new model. Fix Everything runs through `MMFixRunner`, which acts only through `MMRunAction` and `MMRunWrapUp`.
+- **The views**, `Sources/UI/Window`, run on main and read only the model: no disk, no process, no graph.
+
+### Checked, not assumed
+
+`tools/render.sh` draws the window from fixture models into `build/render/window/`, in dark and in dark with Increase Contrast: the main view, a pointed row, Settings, a run and its end, nothing to fix, one gain alone, and the welcome. It runs its checks of this page into `checks.txt`, and writes how long a first frame took to `window/open-ms.txt`. After a change to the window, look at the PNGs.
+
+## The menus of before
+
+With `defaults write no.guerrilla.minmacs core.window -bool NO`, and MinMacs opened again, each expert has its own icon and menu, or all five share one in "One Icon" mode, and Settings is a window of its own. The rules from here to "Words" are for those menus. They started in LocoHost and WorkForest, and research track G checked them against Apple's Human Interface Guidelines ([G-menu-ux.md](2.0/research/G-menu-ux.md)).
+
+### The menu is native
 
 The menu is an NSMenu. A popover was tried and felt slow next to the system's own menus. Custom views are used only for text meant to be read: the header, the summary and the hover card. Text that should be read is never a disabled item, because macOS greys those out. Section titles use `+[NSMenuItem sectionHeaderWithTitle:]`. A sentence that explains a mode or a setting goes in a hover card or the Settings window.
 
-## The menu bar
+### The menu bar
 
 1. **The icon.** Each expert's icon is a square template symbol at one point size, with no text. A number shows beside it only when it asks the person to act, and then at most three characters.
 2. **Saved position.** Each status item sets `autosaveName` to `minmacs.<expert>` and allows removal. Settings shows the same visible or hidden state.
@@ -14,7 +94,7 @@ The menu is an NSMenu. A popover was tried and felt slow next to the system's ow
 4. **"One Icon" mode is flat.** The MinMacs menu holds one section per visible expert, with its header line and top rows. Experts never nest as submenus, so a card is never two levels deep.
 5. **Accessibility label.** Each status item's label names the expert and its state, such as "LocoHost, 2 idle servers", never a symbol name.
 
-## Every line earns its place
+### Every line earns its place
 
 1. Every line answers a question the person has. Nothing decorative: no SF Symbols on items, no bars that need a legend, no unlabeled icon rows.
 2. A number appears once. The header counts. Section headers do not repeat counts, and rows do not repeat what their section says.
@@ -39,6 +119,8 @@ The menu is an NSMenu. A popover was tried and felt slow next to the system's ow
 
 ## Words
 
+These hold for the window, the menus, the CLI and notifications.
+
 - **Plain words.** "Squash-merged", not "merged (squash)". "Remote branch deleted", not "upstream gone". "1 commit not in main", not "1 not in main".
 - **Say where a removed thing goes.** What a removal does follows the person's removal choice, so its words do too: "Move to Trash" and "Undo moves it back" when it goes to the Trash, "Delete" and "cannot be brought back" when it is deleted at once. Never promise an undo for a deleted thing. "For good" and "permanently" are not used.
 - **No parentheses** as asides.
@@ -51,7 +133,7 @@ The menu is an NSMenu. A popover was tried and felt slow next to the system's ow
 
 ## First launch
 
-No window and no wizard. On the first day each expert's summary says what it watches and when it will first act, such as "Watching 6 servers. Acts on nothing until tomorrow." An expert asks for notification permission the first time it acts on its own, never at launch. An expert whose field is empty on this Mac starts with its icon hidden, and shows it once, when the field appears.
+With the menu window, the first open shows the welcome, as above. With the menus of before there is no window and no wizard, and the login item is added at the first launch, with a line in the menu for a day that says so. On the first day each expert's summary says what it watches and when it will first act, such as "Watching 6 servers. Acts on nothing until tomorrow." An expert asks for notification permission the first time it acts on its own, never at launch. An expert whose field is empty on this Mac starts with its icon hidden, and shows it once, when the field appears.
 
 ## Notifications
 
@@ -61,7 +143,7 @@ A notification is sent only after an expert acted without being asked, one per r
 - **One Undo action,** and the passive interruption level unless the disk is nearly full.
 - **An error** goes in an alert, not a notification.
 
-## Checked, not assumed
+## The menus, checked
 
 After any change to a menu, run `tools/render.sh`. It draws every expert's status item, header, menu and hover cards, the shell's One Icon menu and the Settings panes from the fixture subjects in `tools/render.m`, with the same kit the app uses, to PNG in `build/render/`, in light, dark and Increase Contrast. It also runs its own checks of this standard, writes them to `checks.txt`, and exits 1 when one fails. CI keeps the PNGs. The README's pictures in `docs/img/` are copies of some of them, and `./test.sh docs` reports when they differ from a new render. Look at the PNGs and check that:
 
