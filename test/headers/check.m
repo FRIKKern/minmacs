@@ -31,9 +31,7 @@
 #import "Core/Act/MMClutterAct.h"
 #import "Core/MMExpert.h"
 #import "Core/MMCore.h"
-#import "Core/MMSheet.h"
 #import "Core/MMPerformance.h"
-#import "Core/Store/MMDayLog.h"
 
 // Calls one thing from each part, as an expert or the app would. Never called; it only has to compile.
 __attribute__((unused)) static void MMCheckUse(id<MMExpert> e, MMSnapshot *s, MMFinding *f) {

@@ -208,7 +208,7 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 
 ## The Performance model, wave 8
 
-- `+[MMPerformance from:history:lookBack:]` builds the tab of design 132-a from one snapshot, off main. It is not part of the graph build, so the idle tick does not pay for it. The sheet UI that comes later only draws it. `MMSheet.h` still describes 54-a.
+- `+[MMPerformance from:history:lookBack:]` builds what the menu window shows from one snapshot, off main: the two rings, the rows and the fixes. It is not part of the graph build, so the idle tick does not pay for it. `MMWindowController` in `Sources/Shell` builds one per snapshot while the window is open, and `MMWindowModelFrom` turns it into the window's model.
 - The memory ring reads `NSProcessInfo.physicalMemory` and the Mac ring of `MMHistory`, or `MMReadHostLoad` when the snapshot has no filled minute. The disk ring reads `MMPower.diskTotal` and `diskFree`. A process counts once, for servers, then agents, helpers and apps, and a cache inside a worktree counts in caches and clutter only.
 - Rows come from findings: LocoHost's servers, MinMacs's agents and apps, WorkForest's worktrees and Noo-Noo's clutter, plus the helpers and localhost tabs of finished workstreams' Wrap Up plans. Each has one number and its finding id.
 - A fix is a Wrap Up plan with no whyNot, or every finding of one kind of action that passes `MMMustKeep`: stop, quit, remove for merged worktrees, trash and clean. A tool's own cleanup needs the person. The order is the larger share of memory or disk it gives back, so the two are never summed.
