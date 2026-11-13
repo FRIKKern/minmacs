@@ -135,6 +135,9 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
 
 - (void)setSettings:(MMWindowSettings *)settings {
     _settings = settings;
+    // While Settings is away nothing is built: the menu opens without paying for cards nobody sees. They are built
+    // when Settings comes, before its first frame.
+    if (self.hidden) { _built = nil; return; }
     // The cards are built again only when something they show changed.
     NSMutableString *sig = [NSMutableString new];
     for (MMWindowRule *r in settings.rules) {
@@ -147,6 +150,8 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
     _built = sig;
     [self build];
 }
+
+- (void)viewDidUnhide { [super viewDidUnhide]; if (!_built) self.settings = self.settings; }
 
 - (void)setFrameSize:(NSSize)size {
     BOOL changed = !NSEqualSizes(size, self.frame.size);
