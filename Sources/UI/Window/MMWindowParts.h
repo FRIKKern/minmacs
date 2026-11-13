@@ -79,6 +79,16 @@ void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MM
 /// and lifted and the rest step back. With `after`, the rows Fix Everything touches are left out: the Mac after it.
 void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindowRow *_Nullable lit, BOOL after);
 
+#pragma mark Motion, MMWindowMotion.m
+
+@class CALayer;
+/// A layer over the view that shows the picture in the rect and breathes: its opacity goes from none to full and back,
+/// once a `period`, for as long as it is there. nil under Reduce Motion and for a view with no layer.
+CALayer *_Nullable MMWindowBreathLayer(NSView *view, NSBitmapImageRep *glow, NSRect rect, NSTimeInterval period);
+/// A short light under a rect of the view that fades over 0.7 s and takes itself away: a row that is new.
+/// Nothing under Reduce Motion, for a view with no layer, or in a window that does not show.
+void MMWindowFlash(NSView *view, NSRect rect);
+
 #pragma mark Presses
 
 /// After Start the menu takes no press and no key for as long as it takes to arrive, and this much longer.
@@ -125,6 +135,8 @@ void MMWindowDrawPower(NSRect rect, NSColor *color);
 - (NSArray<NSValue *> *)groupFrames;
 @property (readonly) BOOL showsSum;
 - (NSArray<NSArray<NSString *> *> *)sumLines;
+/// How many rows got the short light of a new row at the last change of the groups, for the checks.
+@property (readonly) NSInteger flashed;
 @end
 
 /// The middle: the two last-hour graphs, or one row's story.
@@ -158,6 +170,10 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (nonatomic) double stepIn;                                 // 0 as a new step's words arrive in the button, up to 1
 @property (nonatomic, strong, nullable) MMWindowRow *pointed;        // the row under the pointer: the ring and the numbers beside it tell its share
 @property (readonly) MMWindowButton *fix;
+/// YES while the glow around the button breathes: at rest, with something to fix, in a window that shows.
+@property (readonly) BOOL breathes;
+- (void)wake;                                                        // the window came on screen
+- (void)rest;                                                        // the window closed: nothing breathes
 @property (readonly) MMWindowButton *stop;                           // the small Stop under the button, there only while a run plays
 /// The gains as the dock draws them now, top to bottom, such as "2.9 GB memory back". A side that is zero is not
 /// there, so the list holds two lines, one, or none.

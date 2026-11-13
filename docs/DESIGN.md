@@ -31,9 +31,10 @@ The layout is prototype 195-a, Dock Below:
 6. **The gains** stand right of the button, a number for memory and a number for disk. A side shows only when it is above zero, so a fix that gives no disk back shows no "0 MB disk back". One side alone sits level with the middle of the button. With nothing to fix, what came back today stands there, by the same rule.
 7. **Two buttons only:** the gear for Settings, also Command-comma, and the power icon for Quit, also Command-Q. There is no Hide Icon.
 8. **A row's name is never cut with an ellipsis.** A name longer than its column loses whole words from the end.
-9. **No row is cut in half.** Each group is a whole number of rows high. Where rows wait below, the last row shown fades as a whole and the header says "9 more below". A side with room to spare makes its rows taller, with a second line each, and closes with its whole number: "This disk", free, held by these rows, and the rest.
+9. **No row is cut in half.** Each group is a whole number of rows high. Where rows wait below, the last row shown fades as a whole and the header says "9 more below". A side with room to spare makes its rows taller, with a second line each, and closes with what the side holds in all: "This disk", free, held by these rows, and the rest. A side with no rows has those lines right under its notes.
 10. **One rule for sizes.** Megabytes are whole. Gigabytes have one decimal, which stays when it is a zero, and a second one under 10 GB when it says more: "1.0 GB", "6.6 GB", "1.86 GB". From 100 GB up the number is whole.
 11. **Quiet rows step back.** An idle server or agent, a helper, a cache nothing uses or a worktree with nothing uncommitted has its name drawn a step dimmer, unless a fix touches it or it asks.
+12. **Three motions, none under Reduce Motion.** The glow around Fix Everything breathes once in 5 s while there is something to fix and the pointer is elsewhere. A row that is new gets a short light under it. The turn to Settings and back takes 0.3 s: what comes rises 6 points into its place. The first two are layer animations: no timer runs for them.
 
 ### Settings in place
 

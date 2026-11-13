@@ -6,7 +6,7 @@
 // when a card's words would not fit that way, every card goes back to 12 points and stands close.
 static const CGFloat kOptionW = 308;
 typedef struct { CGFloat size, pad, gap; } Fit;
-static const Fit kRoomy = {13, 9, 12}, kEven = {13, 7, 6}, kClose = {12, 5, 2};
+static const Fit kLarge = {14, 9, 10}, kRoomy = {13, 8, 8}, kEven = {13, 6, 4}, kClose = {12, 5, 2};
 
 static NSAttributedString *Wrapped(NSString *s, CGFloat size, NSFontWeight weight, NSColor *color) {
     NSMutableParagraphStyle *p = [NSMutableParagraphStyle new];
@@ -154,13 +154,19 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
     if (changed && _built) { _built = nil; self.settings = self.settings; }
 }
 
-- (void)build { if (![self build:kRoomy] && ![self build:kEven]) [self build:kClose]; }
+/// The largest type and spacing whose words fit the cards. A window with room gives it to calmer type, not to emptiness.
+- (void)build {
+    const Fit ladder[] = {kLarge, kRoomy, kEven, kClose};
+    for (int i = 0; i < 4; i++) if ([self build:ladder[i]]) return;
+}
 
 /// Lays the cards out with this type size and spacing. NO when some card's words do not fit it.
+/// The grid is three across. Each row is as tall as its tallest card needs, the rows share what is left, so the last
+/// row ends at the foot, and inside a card the choices stand apart by its share: no card has a dead half.
 - (BOOL)build:(Fit)fit {
     for (NSView *v in _options) [v removeFromSuperview];
     [_options removeAllObjects]; [_cards removeAllObjects];
-    NSInteger n = (NSInteger)self.settings.rules.count + (self.settings.switches.count ? 1 : 0);
+    NSInteger rules = (NSInteger)self.settings.rules.count, n = rules + (self.settings.switches.count ? 1 : 0);
     if (!n) { self.needsDisplay = YES; return YES; }
     _fit = fit;
     // The explanations of every card start at one place: past the widest title, so "Careful" never touches its words.
@@ -169,14 +175,15 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         widest = MAX(widest, MMWindowWidth(MMWindowText(c.title, fit.size, NSFontWeightMedium, NSColor.whiteColor)));
     CGFloat explainX = MIN(30 + widest + 10, 130);
     NSInteger columns = MIN(n, 3), rows = (n + columns - 1) / columns;
-    CGFloat top = 40, gap = 10, w = floor((self.bounds.size.width - 28 - gap * (columns - 1)) / columns);
-    CGFloat h = floor((self.bounds.size.height - top - 8 - gap * (rows - 1)) / rows);
-    BOOL fits = YES;
+    CGFloat top = 40, gap = 10, w = floor((self.bounds.size.width - 28 - gap * (columns - 1)) / columns), head = fit.size > 12 ? 48 : 44;
+
+    // First what each card holds and how tall that is.
+    NSMutableArray<NSArray<MMWindowOption *> *> *held = [NSMutableArray new];
+    NSMutableArray<NSNumber *> *need = [NSMutableArray new];
     for (NSInteger i = 0; i < n; i++) {
-        NSRect card = NSMakeRect(14 + (i % columns) * (w + gap), top + (i / columns) * (h + gap), w, h);
-        [_cards addObject:[NSValue valueWithRect:card]];
-        CGFloat y = card.origin.y + (fit.size > 12 ? 48 : 44);
-        if (i < (NSInteger)self.settings.rules.count) {
+        NSMutableArray<MMWindowOption *> *mine = [NSMutableArray new];
+        CGFloat h = head;
+        if (i < rules) {
             MMWindowRule *rule = self.settings.rules[i];
             for (NSInteger c = 0; c < (NSInteger)rule.choices.count; c++) {
                 MMWindowOption *o = [self option:rule.choices[c].title explain:rule.choices[c].explain picked:c == rule.picked];
@@ -184,27 +191,50 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
                 o.fit = fit; o.explainX = explainX;
                 o.accessibilityRole = NSAccessibilityRadioButtonRole;
                 o.accessibilityLabel = [NSString stringWithFormat:@"%@, %@. %@", rule.title, o.label, o.explain];
-                CGFloat oh = o.wanted;
-                o.frame = NSMakeRect(card.origin.x + 8, y, MIN(kOptionW, w - 16), oh);
-                y += oh + fit.gap;
+                [mine addObject:o];
+                h += o.wanted + (c ? fit.gap : 0);
             }
-            CGFloat note = rule.note.length ? WrappedHeight(Wrapped(rule.note, 11.5, NSFontWeightRegular, NSColor.whiteColor), w - 32) + 14 + 8 : 10;
-            if (y - fit.gap + note > NSMaxY(card)) fits = NO;
+            h += rule.note.length ? WrappedHeight(Wrapped(rule.note, fit.size - 1, NSFontWeightRegular, NSColor.whiteColor), w - 32) + 14 + 10 : 12;
         } else {
-            NSArray<MMWindowSwitch *> *switches = self.settings.switches;
-            for (MMWindowSwitch *s in switches) {
+            for (MMWindowSwitch *s in self.settings.switches) {
                 MMWindowOption *o = [self option:s.title explain:s.note ?: @"" picked:s.on];
                 o.isSwitch = YES; o.ownerID = s.switchID; o.fit = fit;
+                // A switch that changes nothing here takes no press, and VoiceOver reads it as dimmed with its reason.
                 o.inert = s.inert; o.enabled = !s.inert;
                 o.accessibilityRole = NSAccessibilityCheckBoxRole;
                 o.accessibilityLabel = s.note.length ? [NSString stringWithFormat:@"%@. %@", s.title, s.note] : s.title;
-                CGFloat oh = o.wanted;
-                // As 197-b: with two switches the last one closes the card, at its foot.
-                BOOL foot = switches.count == 2 && s == switches.lastObject && NSMaxY(card) - 10 - oh > y;
-                o.frame = NSMakeRect(card.origin.x + 8, foot ? NSMaxY(card) - 10 - oh : y, MIN(kOptionW, w - 16), oh);
-                y += oh + 8;
+                [mine addObject:o];
+                h += o.wanted + (mine.count > 1 ? 12 : 0);
             }
-            if (y - 8 > NSMaxY(card) - 8) fits = NO;
+            h += 10;
+        }
+        [held addObject:mine]; [need addObject:@(ceil(h))];
+    }
+    // Each row as tall as its tallest card, plus an even share of what the window has left.
+    CGFloat room = self.bounds.size.height - top - 8 - gap * (rows - 1), wanted = 0;
+    NSMutableArray<NSNumber *> *rowNeed = [NSMutableArray new];
+    for (NSInteger r = 0; r < rows; r++) {
+        CGFloat most = 0;
+        for (NSInteger i = r * columns; i < MIN(n, (r + 1) * columns); i++) most = MAX(most, need[i].doubleValue);
+        [rowNeed addObject:@(most)]; wanted += most;
+    }
+    BOOL fits = wanted <= room;
+    CGFloat share = floor((room - wanted) / rows), y0 = top;
+    for (NSInteger i = 0; i < n; i++) {
+        NSInteger r = i / columns;
+        if (i % columns == 0 && r > 0) y0 += (fits ? rowNeed[r - 1].doubleValue + share : floor(room / rows)) + gap;
+        CGFloat h = fits ? rowNeed[r].doubleValue + share : floor(room / rows);
+        NSRect card = NSMakeRect(14 + (i % columns) * (w + gap), y0, w, h);
+        [_cards addObject:[NSValue valueWithRect:card]];
+        NSArray<MMWindowOption *> *mine = held[i];
+        // What the card has beyond its need goes between its choices, up to a calm distance. The rest is its foot.
+        CGFloat spare = MAX(0, h - need[i].doubleValue), apart = mine.count ? MIN(floor(spare / mine.count), 14) : 0, y = card.origin.y + head + (i < rules ? floor(apart / 2) : 0);
+        for (MMWindowOption *o in mine) {
+            CGFloat oh = o.wanted;
+            // As 197-b: with two switches the last one closes the card, at its foot.
+            BOOL foot = o.isSwitch && mine.count == 2 && o == mine.lastObject && NSMaxY(card) - 10 - oh > y;
+            o.frame = NSMakeRect(card.origin.x + 8, foot ? NSMaxY(card) - 10 - oh : y, MIN(kOptionW, w - 16), oh);
+            y += oh + (o.isSwitch ? 12 : fit.gap + apart);
         }
     }
     self.needsDisplay = YES;
@@ -255,7 +285,7 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         MMWindowDraw(MMWindowFit(rule ? r.title : @"This Mac", _fit.size + 1, NSFontWeightSemibold, text, card.size.width - 32), card.origin.x + 16, card.origin.y + 24, -1);
         if (!r.note.length) continue;
         // What the rule would do next sits at the foot of its card.
-        NSAttributedString *note = Wrapped(r.note, 11.5, NSFontWeightRegular, t2);
+        NSAttributedString *note = Wrapped(r.note, _fit.size - 1, NSFontWeightRegular, t2);
         CGFloat nh = WrappedHeight(note, card.size.width - 32);
         [note drawWithRect:NSMakeRect(card.origin.x + 16, NSMaxY(card) - 14 - nh, card.size.width - 32, nh) options:NSStringDrawingUsesLineFragmentOrigin];
     }

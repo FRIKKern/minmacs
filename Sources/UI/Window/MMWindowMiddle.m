@@ -52,11 +52,12 @@ static NSAttributedString *End(NSString *when, double bytes, NSColor *quiet, NSC
 
 /// The first minutes, before there is a line to draw: the newest value large, and under it the hour as an empty track
 /// with the minutes that have passed filled in at its right end, where "now" is. No value is made up, and the
-/// block sits in the middle of the graph's place, so nothing looks missing.
+/// block starts right under the graph's title, where its line will start.
 - (void)drawYoung:(MMWindowHour *)hour newest:(NSInteger)b filled:(NSInteger)filled in:(NSRect)r ink:(NSColor *)ink {
     NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
     NSRect plot = NSMakeRect(r.origin.x, r.origin.y + 36, r.size.width, r.size.height - 36);
-    CGFloat mid = round(NSMidY(plot)) + 6, left = NSMinX(plot) + 1, right = NSMaxX(plot) - 3;
+    // Right under the two title lines, as a graph would start there: the number, then the track.
+    CGFloat mid = NSMinY(plot) + 62, left = NSMinX(plot) + 1, right = NSMaxX(plot) - 3;
     NSInteger count = (NSInteger)hour.values.count;
     if (b >= 0) {
         MMWindowDraw(MMWindowNumber([hour.values[b] unsignedLongLongValue], 30, NSFontWeightMedium, text, 13), r.origin.x, mid - 30, -1);

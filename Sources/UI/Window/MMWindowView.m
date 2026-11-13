@@ -4,10 +4,11 @@
 // the menu fade up in its place.
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
+#import <QuartzCore/CAMediaTimingFunction.h>
 
 // 195-a's times: the graphs come back 0.26 s after the pointer leaves a row, a run's end shows for 2.9 s with a burst that
 // settles over 1.8 s, the two lines follow their numbers about as its 0.9 s ease does, and a step's words rise in over 0.5 s.
-static const NSTimeInterval kBeat = 0.26, kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 0.5;
+static const NSTimeInterval kFlip = 0.3, kBeat = 0.26, kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 0.5;
 // The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference.
 static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
 
@@ -367,6 +368,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 - (void)opened {
     _stepped = nil;
     [self wake];
+    [_dock wake];
     if (_quiet) [self arriveSoon];
     if (self.showsWelcome) [_welcome arrive];
     else if (!_model) [self performSelector:@selector(sayLooking) withObject:nil afterDelay:0.6 inModes:@[NSRunLoopCommonModes]];
@@ -376,7 +378,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     [_timer invalidate]; _timer = nil;
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(sayLooking) object:nil];
-    [_left rest]; [_right rest]; [_welcome rest];
+    [_left rest]; [_right rest]; [_welcome rest]; [_dock rest];
     [self settleStart];
     _hovered = nil;
     [self showPointed];
@@ -398,13 +400,19 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     BOOL fade = self.window.isVisible && self.layer && !MMWindowReduceMotion();
     comes.hidden = NO;
     if (!fade) { comes.alphaValue = 1; goes.alphaValue = 1; goes.hidden = YES; return; }
-    comes.alphaValue = 0;
-    // Neither side takes a press while it fades. The gear and the keys still do, and the last of them wins.
+    // As 197-b: what goes is gone at once, and what comes rises 6 points into its place over 0.3 s, fast at first.
+    NSRect home = comes.frame;
+    home.origin.y = self.bandTop;
+    comes.alphaValue = 0; goes.alphaValue = 0;
+    comes.frame = NSOffsetRect(home, 0, 6);
+    // Neither side takes a press while it rises. The gear and the keys still do, and the last of them wins.
     _flips++;
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
-        c.duration = 0.16;
-        comes.animator.alphaValue = 1; goes.animator.alphaValue = 0;
+        c.duration = kFlip;
+        c.timingFunction = [(id)NSClassFromString(@"CAMediaTimingFunction") functionWithControlPoints:0.3 :0.7 :0.2 :1.0];
+        comes.animator.alphaValue = 1; comes.animator.frame = home;
     } completionHandler:^{
+        if (comes.frame.origin.y != self.bandTop) comes.frame = NSMakeRect(0, self.bandTop, home.size.width, home.size.height);
         self->_flips--;
         // The welcome came meanwhile and put Settings away. Nothing of this fade is left to finish.
         if (self.showsWelcome) { self->_settings.hidden = YES; self->_settings.alphaValue = 1; self->_main.alphaValue = 1; return; }

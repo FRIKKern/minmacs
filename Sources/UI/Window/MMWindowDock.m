@@ -84,14 +84,44 @@ static NSColor *Under(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green
 static NSColor *UnderBold(void) { return [NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 1 : 0.86]; }
 static NSColor *Label(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green:235 / 255.0 blue:245 / 255.0 alpha:MMWindowContrast() ? 0.86 : 0.6]; }
 
-@implementation MMWindowDockView
+static const CGFloat kGlowPad = 84;
+static NSBitmapImageRep *RestGlow(BOOL hot, int part);
+
+@implementation MMWindowDockView {
+    CALayer *_breath;                   // the part of the button's glow that breathes, while it does
+}
+
+- (BOOL)breathes { return _breath != nil; }
+
+/// The glow breathes only at rest with something to fix, away from the pointer, in a window that shows.
+- (void)wake { [self syncBreath]; }
+
+- (BOOL)wantsBreath {
+    return self.model && self.phase == MMWindowDockCalm && self.model.fixCount > 0 && !self.fix.hovered && self.window.isVisible && !self.isHiddenOrHasHiddenAncestor && !MMWindowReduceMotion();
+}
+
+- (void)syncBreath {
+    BOOL want = self.wantsBreath && self.layer;
+    if (want == (_breath != nil)) return;
+    if (want) _breath = MMWindowBreathLayer(self, RestGlow(NO, 2), NSInsetRect(kButton, -kGlowPad, -kGlowPad), 5);
+    else { [_breath removeFromSuperlayer]; _breath = nil; }
+    if (want == (_breath != nil)) self.needsDisplay = YES;
+}
+
+- (void)rest {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(syncBreath) object:nil];
+    [_breath removeFromSuperlayer]; _breath = nil; self.needsDisplay = YES;
+}
+- (void)viewDidMoveToWindow { [super viewDidMoveToWindow]; [self syncBreath]; }
+- (void)viewDidHide { [super viewDidHide]; [self syncBreath]; }
+- (void)viewDidUnhide { [super viewDidUnhide]; [self syncBreath]; }
 
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
         _fix = [MMWindowButton kind:MMWindowButtonClear title:@"Fix Everything" target:nil action:NULL];
         _fix.frame = kButton;
         __weak typeof(self) me = self;
-        _fix.onHover = ^{ me.needsDisplay = YES; };
+        _fix.onHover = ^{ me.needsDisplay = YES; [me syncBreath]; };
         [self addSubview:_fix];
         // The small Stop under the button, 195-a's. The large button stops the run too.
         _stop = [MMWindowButton kind:MMWindowButtonOutline title:@"Stop" target:nil action:NULL];
@@ -138,6 +168,7 @@ static NSColor *Label(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green
         CGFloat pill = MMWindowWidth(MMWindowText(self.stop.title, 12, NSFontWeightRegular, Under())) + 24;
         self.stop.frame = NSMakeRect(round(NSMidX(kButton) - (lead + pill) / 2 + lead), kUnder - 10, pill, 20);
     }
+    [self syncBreath];
     self.needsDisplay = YES;
 }
 
@@ -148,6 +179,8 @@ static NSColor *Label(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green
     [self drawMac];
     [self drawButton];
     [self drawGains];
+    // A window that just came on screen has its layer only now, at its first drawing: the breath starts right after.
+    if (!_breath && self.layer && self.wantsBreath) [self performSelector:@selector(syncBreath) withObject:nil afterDelay:0 inModes:@[NSRunLoopCommonModes]];
 }
 
 #pragma mark The Mac's two numbers
@@ -251,11 +284,11 @@ static void Glow(NSBezierPath *pill, NSColor *color, CGFloat blur, CGFloat down)
 
 /// The glow under the button at rest and under the pointer, drawn once and kept: two blurred shadows are the dearest
 /// thing in the dock, and they never change. The picture is the button's rect with `kGlowPad` around it.
-static const CGFloat kGlowPad = 84;
-static NSBitmapImageRep *RestGlow(BOOL hot) {
-    static NSBitmapImageRep *kept[2][2];
-    BOOL hc = MMWindowContrast();
-    if (kept[hot][hc]) return kept[hot][hc];
+/// `part` 0 is the whole resting glow. 1 is the same with the outer glow at the low end of its breath, and 2 is what
+/// the breath adds on top, with the button's own shape cut out, for the layer that fades in and out.
+static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
+    static NSBitmapImageRep *kept[2][3];
+    if (kept[hot][part]) return kept[hot][part];
     NSSize size = NSMakeSize(kButton.size.width + 2 * kGlowPad, kButton.size.height + 2 * kGlowPad);
     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:(NSInteger)(size.width * 2) pixelsHigh:(NSInteger)(size.height * 2)
         bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
@@ -263,10 +296,15 @@ static NSBitmapImageRep *RestGlow(BOOL hot) {
     NSGraphicsContext *was = NSGraphicsContext.currentContext;
     NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
     NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSMakeRect(kGlowPad, kGlowPad, kButton.size.width, kButton.size.height) xRadius:28 yRadius:28];
-    Glow(pill, Orange(159, 69, 0.5 * (hot ? 1 : 0.4)), 32, 0);
-    Glow(pill, hot ? Orange(150, 70, 0.5) : Orange(140, 60, 0.3), hot ? 34 : 22, hot ? 10 : 6);
+    // 195-a's outer glow breathes between 0.22 and 0.62 of its strength, once in 5 s. Still, it stands at 0.4.
+    Glow(pill, Orange(159, 69, 0.5 * (hot ? 1 : part == 1 ? 0.22 : 0.4)), 32, 0);
+    if (part == 2) {
+        NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationDestinationOut;
+        [NSColor.blackColor setFill]; [pill fill];
+        NSGraphicsContext.currentContext.compositingOperation = NSCompositingOperationSourceOver;
+    } else Glow(pill, hot ? Orange(150, 70, 0.5) : Orange(140, 60, 0.3), hot ? 34 : 22, hot ? 10 : 6);
     NSGraphicsContext.currentContext = was;
-    return kept[hot][hc] = rep;
+    return kept[hot][part] = rep;
 }
 
 - (void)drawButton {
@@ -320,7 +358,7 @@ static NSBitmapImageRep *RestGlow(BOOL hot) {
             if (joy > 0) Glow(pill, Orange(170, 80, 0.7 * joy), 70, 0);
             Glow(pill, Orange(140, 60, 0.3), 22, 6);
         } else {
-            [RestGlow(hot) drawInRect:NSInsetRect(b, -kGlowPad, -kGlowPad) fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:nil];
+            [RestGlow(hot, !hot && _breath ? 1 : 0) drawInRect:NSInsetRect(b, -kGlowPad, -kGlowPad) fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:nil];
         }
         NSGradient *g = ended ? [[NSGradient alloc] initWithStartingColor:Orange(213, 150, 1) endingColor:Orange(164, 86, 1)]
                         : hot ? [[NSGradient alloc] initWithStartingColor:Orange(198, 124, 1) endingColor:Orange(149, 72, 1)]

@@ -91,7 +91,7 @@ check "one side alone changes the picture" "yes yes" \
 
 # The second look against 195-a, tools/render-window-polish.m: one rule for sizes, no line under a dimmed button, whole
 # rows, a side with room closing with its whole number, a story's first line, the pointed row in the dock, and Stop.
-check "the second look's checks are there and pass" "15 0" "$(grep -cE '^ok    window (sizes|dock|lists|story|settings)' "$ui_out/checks.txt" 2>/dev/null) $(grep -cE '^FAIL  window (sizes|dock|lists|story|settings)' "$ui_out/checks.txt" 2>/dev/null)"
+check "the second look's checks are there and pass" "18 0" "$(grep -cE '^ok    window (sizes|dock|lists|story|settings|motion)' "$ui_out/checks.txt" 2>/dev/null) $(grep -cE '^FAIL  window (sizes|dock|lists|story|settings|motion)' "$ui_out/checks.txt" 2>/dev/null)"
 check "the pointer on a row or on Fix Everything changes the picture" "yes yes" \
   "$([ "$(ui_md busy-agent-dark)" != "$(ui_md busy-asks-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-fix-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no)"
 

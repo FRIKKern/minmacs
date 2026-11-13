@@ -62,7 +62,11 @@ static BOOL HasHour(MMWindowGroup *g) {
     NSTrackingArea *_tracking;
     CGFloat _rowHeight;                                       // 24, or more on a side with room to spare
     CGFloat _sumTop;                                          // where the side's closing lines start, or below 0 for none
+    NSSet<NSString *> *_known;                                // the rows of the model before this one, to tell a new row
+    NSInteger _flashed;
 }
+
+- (NSInteger)flashed { return _flashed; }
 
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
@@ -77,8 +81,30 @@ static BOOL HasHour(MMWindowGroup *g) {
 - (void)setGroups:(NSArray<MMWindowGroup *> *)groups {
     _groups = [groups copy] ?: @[];
     [self place];
+    [self flashNew];
     self.accessibilityLabel = _groups.firstObject.side == MMWindowDisk ? @"What holds disk" : @"What holds memory";
     self.needsDisplay = YES;
+}
+
+/// A row that was not in the model before this one gets a short light under it, where it shows. The first model
+/// of an open window lights nothing: then every row is new.
+- (void)flashNew {
+    NSMutableSet<NSString *> *now = [NSMutableSet new];
+    _flashed = 0;
+    for (NSInteger i = 0; i < (NSInteger)_groups.count && i < (NSInteger)_frames.count; i++) {
+        MMWindowGroup *g = _groups[i];
+        NSRect box = [self boxOf:i];
+        CGFloat off = _offsets[g.key].doubleValue;
+        for (NSInteger r = 0; r < (NSInteger)g.rows.count; r++) {
+            NSString *key = g.rows[r].key;
+            [now addObject:key];
+            NSRect row = NSMakeRect(5, box.origin.y + r * _rowHeight - off, self.bounds.size.width - 10, _rowHeight);
+            if (!_known || [_known containsObject:key] || !NSContainsRect(box, row) || _flashed >= 8) continue;
+            MMWindowFlash(self, row);
+            _flashed++;
+        }
+    }
+    _known = now;
 }
 
 - (void)setRing:(MMWindowRing *)ring { _ring = ring; [self place]; self.needsDisplay = YES; }
@@ -129,7 +155,9 @@ static BOOL HasHour(MMWindowGroup *g) {
         _offsets[g.key] = @(MIN(MAX(_offsets[g.key].doubleValue, 0), MaxOffset(g, h - kHead, _rowHeight)));
     }
     CGFloat sum = kHead + kSumRow * self.sumLines.count;
-    if (self.ring && H - (y - gap) > MAX(kSumLeast, sum + 8)) _sumTop = H - sum - 2;
+    // With rows above, the closing lines stand at the side's foot, as 195-a's. A side with no rows at all has them
+    // right under its notes, so the notes and the number read as one block and no blank stands between them.
+    if (self.ring && H - (y - gap) > MAX(kSumLeast, sum + 8)) _sumTop = rows ? H - sum - 2 : y - gap + 10;
 }
 
 /// What closes a side that has room left: its whole number, what these rows hold of it, and the rest. Label and value.
@@ -195,11 +223,10 @@ static BOOL HasHour(MMWindowGroup *g) {
 
 /// The side's closing lines, at its foot: "This disk", free of the whole, what these rows hold, and the rest.
 - (void)drawSum {
-    NSColor *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
+    NSColor *t2 = MMWindowColor(MMWindowInkText2);
     BOOL disk = _groups.firstObject.side == MMWindowDisk;
     CGFloat w = self.bounds.size.width, y = _sumTop;
     MMWindowDraw(MMWindowText(disk ? @"This disk" : @"Memory", 11, NSFontWeightBold, t2), 14, y + kHead / 2, -1);
-    MMWindowDraw(MMWindowText(@"the whole number", 11, NSFontWeightRegular, t3), w - 14, y + kHead / 2, 1);
     y += kHead;
     for (NSArray<NSString *> *line in self.sumLines) {
         MMWindowDraw(MMWindowText(line[0], 12.5, NSFontWeightRegular, t2), 14, y + kSumRow / 2, -1);
@@ -371,7 +398,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
 /// The window closed. The next time it opens, every group starts at its first row.
 - (void)rest {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideScroller) object:nil];
-    _scrolling = nil;
+    _scrolling = nil; _known = nil;
     [_offsets removeAllObjects];
     self.needsDisplay = YES;
 }

@@ -152,4 +152,52 @@ static void WindowPolishChecks(void) {
     [lid performClick:nil];
     Check(lid && !lid.enabled && [[lid valueForKey:@"inert"] boolValue] && [lid.accessibilityLabel hasSuffix:@"This Mac has no lid, so it changes nothing here."],
           @"window settings: on a Mac with no lid the lid switch is not available, takes no press and says why", lid.accessibilityLabel);
+
+    // In a window that is ordered in, off screen: the glow around Fix Everything breathes only at rest with something
+    // to fix, a new row gets its short light, and the turn to Settings ends with Settings in its place.
+    BOOL motion = !MMWindowReduceMotion();
+    MMWindowView *live = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+    NSWindow *win = ShownWindow(live);
+    live.model = MMWindowFixture(@"busy");
+    [live opened];
+    [live display];
+    Spin(0.15);
+    MMWindowDockView *ld = PolishDock(live);
+    MMWindowListView *ll = WindowLists(live).firstObject;
+    BOOL atRest = ld.breathes, firstFlash = ll.flashed > 0;
+    [ld.fix setHover:YES];
+    BOOL underPointer = ld.breathes;
+    [ld.fix setHover:NO];
+    BOOL again = ld.breathes;
+    MMWindowModel *more = MMWindowFixture(@"busy");
+    more.generation = 2;
+    MMWindowRow *fresh = [MMWindowRow new];
+    fresh.key = @"agent:new"; fresh.kind = MMWindowAgent; fresh.name = @"A new agent"; fresh.bytes = 3000 * MB;
+    more.memoryGroups[1].rows = [@[fresh] arrayByAddingObjectsFromArray:more.memoryGroups[1].rows];
+    live.model = more;
+    NSInteger lit = ll.flashed;
+    MMWindowModel *same = MMWindowFixture(@"busy");
+    same.generation = 3;
+    same.memoryGroups[1].rows = more.memoryGroups[1].rows;
+    live.model = same;
+    Check(atRest == motion && !underPointer && again == motion && !firstFlash && lit == 1 && ll.flashed == 0,
+          @"window motion: the button's glow breathes at rest and not under the pointer, and only a row that is new gets the short light",
+          [NSString stringWithFormat:@"rest %d, pointed %d, again %d, first %d, new %ld, same %ld", atRest, underPointer, again, firstFlash, (long)lit, (long)ll.flashed]);
+    live.showsSettings = YES;
+    NSView *pane = nil;
+    for (NSView *sub in live.subviews) if ([sub isKindOfClass:MMWindowSettingsView.class]) pane = sub;
+    BOOL held = !MMWindowTakesPresses(pane.subviews.firstObject) || !motion;
+    Spin(0.55);
+    Check(held && pane.frame.origin.y == 40 && pane.alphaValue == 1 && !pane.hidden && MMWindowTakesPresses(pane.subviews.firstObject) && !ld.breathes,
+          @"window motion: the turn to Settings holds presses while Settings rises, and ends with it in its place and the menu's glow still",
+          [NSString stringWithFormat:@"held %d, y %g, alpha %g, breathes %d", held, pane.frame.origin.y, pane.alphaValue, ld.breathes]);
+    live.showsSettings = NO;
+    Spin(0.55);
+    MMWindowModel *none = MMWindowFixture(@"young");
+    none.generation = 4;
+    live.model = none;
+    BOOL dimmedStill = !ld.breathes;
+    [win orderOut:nil]; [live rest];
+    Check(dimmedStill && !ld.breathes, @"window motion: a dimmed button does not breathe, and nothing does once the window closed", @"");
+    [win close];
 }
