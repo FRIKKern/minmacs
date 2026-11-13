@@ -648,6 +648,7 @@ static MMCardSpec *SCard(NSString *fid) {
 // What the first look at the real window found, as checks. In a file of its own, so this one does not grow.
 #include "render-window-look.m"
 #include "render-window-open.m"
+#include "render-window-shown.m"
 #include "render-window-polish.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
@@ -718,6 +719,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowPolishChecks();
     WindowWelcomeChecks();
     WindowWelcomeGuardChecks();
+    WindowShownChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
 }
 

@@ -128,7 +128,8 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
         x.key = f.key; x.title = MMWindowFixTitle(f);
         x.memoryBack = f.memoryBack; x.diskBack = f.diskBack; x.needsYou = f.needsYou;
         [fixes addObject:x];
-        [inFix addObjectsFromArray:f.rows];
+        // The mark says a press on Fix Everything acts on the row, so a fix that waits for its own press marks none.
+        if (!f.needsYou) [inFix addObjectsFromArray:f.rows];
     }
     m.fixes = fixes;
 

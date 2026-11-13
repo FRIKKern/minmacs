@@ -22,6 +22,8 @@ NSString *const MMOneIconAutosaveName = @"minmacs.oneicon";
 /// reachable: defaults write no.guerrilla.minmacs core.window -bool NO, then open MinMacs again.
 static NSString *const kWindowKey = @"core.window";
 static NSString *const kOneIconSymbol = @"gauge.with.dots.needle.33percent";
+/// How long the window, opened by a way to Settings, stays open whatever app comes to the front.
+static const NSTimeInterval MMWindowRouteHold = 1.5;
 static const NSTimeInterval kMigrateDelay = 20;                    // the migration's follow-up waits for the menu bar
 
 NSArray<NSString *> *MMBuiltInExpertClasses(void) {
@@ -177,6 +179,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property (strong) id graphToken;
 @property BOOL headless;                                // the bench: no NSStatusItem and no NSApp run loop
 @property BOOL sawSnapshot;
+@property BOOL launched;                                // -launch has made the items; a way to Settings waits for it
+@property BOOL settingsWaits;                           // Settings was asked for before that
 @property (strong) MMWindowPanel *windowPanel;         // made at the first click on the icon, in window mode
 @property (strong) MMWindowController *windowController;
 - (void)toggleWindow:(NSStatusBarButton *)button;
@@ -226,6 +230,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     if (!self.expert && MMWindowMode()) {
         // The window stands in for every menu: a click toggles it, and the item holds no menu.
         self.opensWindow = YES;
+        // The window has no Hide Icon, and nothing else brings a hidden icon back. So whatever was saved, by Hide Icon
+        // of before or by dragging the icon out of the bar, the icon is there at every start.
+        self.item.visible = YES;
         self.item.button.target = self;
         self.item.button.action = @selector(clicked:);
         return;
@@ -371,6 +378,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         for (MMExpertItem *i in me.items) { [i update:s]; if (i.expert && !i.summarized) all = NO; }
         if (gTraceSummaries && all) Mark(@"summaries");
     }];
+    self.launched = YES;
+    if (self.settingsWaits) { self.settingsWaits = NO; [self showSettings:nil]; }
 }
 
 /// PLAN.md section 8, once: a lid override the old Insomnia left on goes off, then one confirm for Noo-Noo's
@@ -555,9 +564,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     MMExpertItem *one = nil;
     for (MMExpertItem *x in self.items) if (x.opensWindow) one = x;
     if (!one) return NO;
-    // Turned over before it opens, so its first frame is Settings and nothing fades.
+    // MinMacs comes to the front, as it did for the Settings window. A second copy that handed over then quits
+    // without the app behind it coming back over the panel.
+    [NSApp activateIgnoringOtherApps:YES];
     [self makeWindow];
-    self.windowPanel.view.showsSettings = YES;
+    // Turned over before it opens, so its first frame is Settings and nothing fades. Before Start the first frame
+    // is the welcome alone.
+    if (MMPrefBool(MMWindowWelcomedKey, NO)) self.windowPanel.view.showsSettings = YES;
+    [self.windowPanel holdOpen:MMWindowRouteHold];
     if (!self.windowPanel.isOpen) [self toggleWindow:one.item.button];
     return YES;
 }
@@ -565,7 +579,10 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 /// Opening MinMacs again, minmacs://settings and the Settings row of a menu all come here. With the menu window it
 /// is the window's own Settings. The Settings window below opens only while core.window is off.
 - (void)showSettings:(id)sender {
-    if ([self showWindowSettings]) return;
+    // A URL that starts MinMacs arrives before the launch: it waits until Core runs and the icon is made.
+    if (!self.launched) { self.settingsWaits = YES; return; }
+    // With the menu window there is no other Settings, whether or not the window can show, as in the bench.
+    if (MMWindowMode()) { [self showWindowSettings]; return; }
     if (!self.settings) {
         MMSettings *st = [MMSettings new];
         __weak MMShell *weak = self;

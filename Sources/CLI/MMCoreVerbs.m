@@ -370,6 +370,14 @@ static int Work(MMArgs *a) {
 static int Review(MMArgs *a) {
     NSArray<id<MMExpert>> *experts = ExpertsFrom([a word:0]);
     if (!experts) { [a error:@"no expert named %@", [a word:0]]; return [a usageError]; }
+    // The model every review asks, the pref review.model. A pref, as mode and removal are, so it needs no app.
+    if ([a has:@"--model"]) {
+        NSString *model = [a option:@"--model"].lowercaseString;
+        if (![MMReviewModelNames() containsObject:model ?: @""]) { [a error:@"the models are %@", [MMReviewModelNames() componentsJoinedByString:@", "]]; return [a usageError]; }
+        if (!a.dryRun) MMSetPref(MMReviewModelKey, model);
+        if (a.json) [a printJSON:@{@"model": model}]; else [a print:@"Reviews ask %@.", model];
+        return 0;
+    }
     if ([a has:@"--now"] && !a.dryRun) {
         int r = [a needsApp];
         if (r) return r;
@@ -613,7 +621,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json] | work wrap-up <id> [--dry-run] [--json]   each workstream, or Wrap Up of a finished one" mutates:NO run:^(MMArgs *a) { return Work(a); }],
                   MMVerbReadsAll, @[@"wrap-up"]),
-            Reads([MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--json]   the last review, or a new one with --now" mutates:NO run:^(MMArgs *a) { return Review(a); }],
+            Reads([MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--model <model>] [--json]   the last review, a new one with --now, or with --model the model reviews ask: auto, haiku, sonnet, opus or luna" mutates:NO run:^(MMArgs *a) { return Review(a); }],
                   MMVerbReadsCachedGit, @[@"--now"]),
             [MMVerbSpec verb:@"investigate" usage:@"investigate <finding|workstream|path> [question] [--yes] [--json]   look deeper into one, after you confirm its cost" mutates:NO run:^(MMArgs *a) { return MMInvestigateVerb(a); }],
             [MMVerbSpec verb:@"tidy" usage:@"tidy [expert] [--dry-run] [--mode <mode>] [--json]   what each mode would act on, and act on it" mutates:YES run:^(MMArgs *a) { return Tidy(a); }],

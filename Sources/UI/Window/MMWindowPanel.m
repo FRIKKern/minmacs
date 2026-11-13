@@ -7,6 +7,7 @@
     id _outside, _inside;               // event monitors, held only while the panel shows
     NSArray *_others, *_own;            // observers on the workspace's center and on the default one, the same
     BOOL _closing;                      // -orderOut: gives up the keyboard, which must not close a second time
+    NSDate *_heldUntil;                 // -holdOpen: until then another app coming to the front does not close it
     __weak NSWindow *_anchor;           // the status item's own window: its clicks toggle, they do not count as outside
 }
 
@@ -92,6 +93,7 @@
         // MinMacs itself coming to the front is not another app: Settings or an alert took over, and -resignKeyWindow sees that.
         NSRunningApplication *app = n.userInfo[NSWorkspaceApplicationKey];
         if (app && app.processIdentifier == getpid()) return;
+        if (me.held) return;
         [me close];
     };
     NSNotificationCenter *ws = NSWorkspace.sharedWorkspace.notificationCenter, *own = NSNotificationCenter.defaultCenter;
@@ -121,13 +123,17 @@
 - (void)resignKeyWindow {
     [super resignKeyWindow];
     // Whatever took the keyboard, an alert of MinMacs or a window of another app, the panel steps aside as a menu does.
-    if (self.isVisible && ![self pressOnAnchor]) [self close];
+    if (self.isVisible && !self.held && ![self pressOnAnchor]) [self close];
 }
+
+- (void)holdOpen:(NSTimeInterval)seconds { _heldUntil = seconds > 0 ? [NSDate dateWithTimeIntervalSinceNow:seconds] : nil; }
+- (BOOL)held { return _heldUntil && _heldUntil.timeIntervalSinceNow > 0; }
 
 - (void)cancelOperation:(id)sender { [self.view cancelOperation:sender]; }
 
 - (void)close {
     [self unwatch];
+    _heldUntil = nil;
     if (!self.isVisible || _closing) return;
     _closing = YES;
     [self orderOut:nil];

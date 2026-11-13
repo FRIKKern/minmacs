@@ -31,6 +31,8 @@ NSString *MMPrefsTarget(void);
 NSString *MMIconVisibleKey(NSString *expert);
 BOOL MMIconVisible(NSString *expert);                   // YES when the key is missing
 /// P35. The keys the Settings window writes. Each expert's mode is "<expert>.mode", read by MMModeFor in MMAct.h.
+/// The values review.model takes, auto first.
+NSArray<NSString *> *MMReviewModelNames(void);
 extern NSString *const MMReviewModelKey;                // @"review.model": auto, haiku, sonnet, opus or luna. auto by default
 extern NSString *const MMOneIconKey;                    // @"core.oneIcon": one menu with a section per expert. NO by default
 

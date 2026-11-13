@@ -199,7 +199,10 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 /// The render tool sets this: draw as if the pointer rested on Fix Everything.
 @property (nonatomic) BOOL pointsAtFix;
 @property (readonly, nullable) MMWindowWelcomeView *welcomeView;
-/// Every string the window can show for this model, for the render tool's word check.
+@end
+
+@interface MMWindowView (Words)
+/// Every string the window can show for this model, for the render tool's word check. In MMWindowWords.m.
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)model;
 @end
 

@@ -19,6 +19,7 @@ static void NewPerson(void) {
     MMSetPref(MMWindowWelcomedKey, nil);
     MMSetPref(MMRemovalKey, nil);
     MMSetPref(MMWindowLoginNotAskedKey, nil);
+    MMSetPref(@"core.launched", nil);
     MMSetPref(@"insomnia.agents", nil);
     for (NSString *rid in MMWindowRuleIDs()) MMSetPref([MMWindowRuleExpert(rid) stringByAppendingString:@".mode"], nil);
     [NSFileManager.defaultManager removeItemAtPath:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"] error:nil];
@@ -80,6 +81,8 @@ static void Welcome(void) {
       [NSString stringWithFormat:@"%@: %@", MMWindowWelcomeNow(NO).facts.lastObject.label, MMWindowWelcomeNow(NO).facts.lastObject.value]);
     MMSetPref(@"insomnia.agents", nil);
     // Open at login: a person who used MinMacs before sees the switch where their login item stands.
+    T(@"welcome: never launched, the switch is on though a day of watching is written", @"yes", YN(MMWindowWelcomeNow(NO).loginOn));
+    MMSetPref(@"core.launched", @YES);
     T(@"welcome: a person who used MinMacs before sees the switch where the login item stands now", @"no yes", [NSString stringWithFormat:@"%@ %@", YN(MMWindowWelcomeNow(NO).loginOn), YN(MMWindowWelcomeNow(YES).loginOn)]);
     MMSetPref(MMWindowLoginNotAskedKey, @YES);
     T(@"welcome: after a first launch that left the login item for the welcome to ask about, off is nobody's answer yet and the switch is on", @"yes", YN(MMWindowWelcomeNow(NO).loginOn));
@@ -161,8 +164,12 @@ static void Welcome(void) {
 
     // A person who had MinMacs before, through the controller: the model's switch follows their login item, and Start
     // with the switch left alone changes nothing about it.
-    // Such a person has a day of watching begun and no mark of a first launch that left the login item alone.
+    // Launched before, no watching-since file, no mark, login item off: the switch is off, so Start adds none.
     NewPerson();
+    MMSetPref(@"core.launched", @YES);
+    T(@"welcome: launched before with nothing watched and no mark, the switch is where the login item stands", @"no yes",
+      [NSString stringWithFormat:@"%@ %@", YN(MMWindowWelcomeNow(NO).loginOn), YN(MMWindowWelcomeNow(YES).loginOn)]);
+    // Such a person, with a day of watching begun too, through the controller.
     [[NSString stringWithFormat:@"%.0f\n", NSDate.date.timeIntervalSince1970 - 200000] writeToFile:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"]
                                                                                     atomically:YES encoding:NSUTF8StringEncoding error:nil];
     for (NSNumber *had in @[@NO, @YES]) {
@@ -190,8 +197,9 @@ static void Welcome(void) {
     [e windowWelcomeStart:YES removal:7];
     T(@"welcome: a number that is no removal choice writes none, and with no shell nothing is added", @"no yes", [NSString stringWithFormat:@"%@ %@", YN(MMRemovalChosen()), YN(MMPrefBool(MMWindowWelcomedKey, NO))]);
     settle();
-    // A person who used MinMacs before, with the login item off: a day watched, and no mark from a first launch.
+    // A person who used MinMacs before, with the login item off: launched, a day watched, and no mark from a first launch.
     NewPerson();
+    MMSetPref(@"core.launched", @YES);
     [[NSString stringWithFormat:@"%.0f\n", NSDate.date.timeIntervalSince1970 - 200000] writeToFile:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"]
                                                                                     atomically:YES encoding:NSUTF8StringEncoding error:nil];
     // That person presses Start without touching anything: the login item, off, is not added back.

@@ -117,14 +117,14 @@ static void WindowLookChecks(void) {
 
 /// A host that only writes down what Start handed it.
 @interface WelcomeHost : NSObject <MMWindowHost>
-@property NSInteger starts, removal, fixes;
+@property NSInteger starts, removal, fixes, rules;
 @property BOOL login;
 @end
 @implementation WelcomeHost
 - (void)windowRunFixEverything { self.fixes++; }
 - (void)windowStopRun {}
-- (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice {}
-- (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on {}
+- (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice { self.rules++; }
+- (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on { self.rules++; }
 - (void)windowQuit {}
 - (void)windowWelcomeStart:(BOOL)openAtLogin removal:(NSInteger)removal { self.starts++; self.login = openAtLogin; self.removal = removal; }
 @end
