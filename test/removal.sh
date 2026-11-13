@@ -120,7 +120,7 @@ if [ "$rm_r" = 0 ]; then
   rm_ids=$(MINMACS_HOME="$rm_home" "$rm_dir/removaltest" --leave-waiting "$rm_home/fx" 2>/dev/null)
   rm_i1=$(echo "$rm_ids" | sed -n 1p); rm_i2=$(echo "$rm_ids" | sed -n 2p); rm_old=$(echo "$rm_ids" | sed -n 3p)
   rm_j=$(rm_cli removal --waiting --json)
-  check "removal: --waiting --json lists a delete that failed and an old path that is taken, each with its id and old path" "delete-failed old-path-taken|$rm_i1 $rm_i2|yes" \
+  check "removal: --waiting --json lists a delete that failed and an old path that is taken, each with its id and old path" "delete-failed old-path-taken|$(printf '%s\n%s\n' "$rm_i1" "$rm_i2" | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')|yes" \
     "$(echo "$rm_j" | json "' '.join(sorted(w['why'] for w in j['waiting'])) + '|' + ' '.join(sorted(w['id'] for w in j['waiting'])) + '|' + ('yes' if '$rm_old' in [w['oldPath'] for w in j['waiting']] else 'no')")"
   check "removal: the text list counts them and says what can be done" "2 items wait in MinMacs's staging folder for you to decide:|2" \
     "$(rm_cli removal --waiting | head -1)|$(rm_cli removal --waiting | grep -c 'Delete it with --delete, or put it back with --put-back.')"
