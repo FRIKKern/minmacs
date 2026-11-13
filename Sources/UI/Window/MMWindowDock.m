@@ -144,7 +144,7 @@ static NSColor *Label(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green
 - (void)drawRect:(NSRect)dirty {
     MMWindowCrisp();
     if (!self.model) return;
-    MMWindowDrawRing(self.model, NSMakePoint(62, 66), NO, self.pointed);
+    MMWindowDrawRing(self.model, NSMakePoint(62, 66), NO, self.pointed, self.showsAfter);
     [self drawMac];
     [self drawButton];
     [self drawGains];

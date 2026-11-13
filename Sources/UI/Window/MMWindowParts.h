@@ -76,8 +76,8 @@ void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MM
 
 /// The Mac as a ring around `center`: memory by holder inside, the disk as the thin outer track, each row an arc of
 /// its own. Large in the dock, 108 points across, or small in a row's story, 62. With `lit`, that row's arc is white
-/// and lifted and the rest step back.
-void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindowRow *_Nullable lit);
+/// and lifted and the rest step back. With `after`, the rows Fix Everything touches are left out: the Mac after it.
+void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindowRow *_Nullable lit, BOOL after);
 
 #pragma mark Presses
 

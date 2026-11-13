@@ -133,7 +133,7 @@ static NSString *Rank(NSInteger n) {
     if (row.state.length) sub = sub.length ? [NSString stringWithFormat:@"%@ · %@", sub, row.state] : row.state;
     MMWindowDraw(MMWindowFit(sub, 11.5, NSFontWeightRegular, t2, nameRoom), nameLeft, 44.5 + more, -1);
     // The Mac's ring, small, with this row's arc lit: its share at a glance.
-    MMWindowDrawRing(self.model, NSMakePoint(x + w - 31, 37), YES, row);
+    MMWindowDrawRing(self.model, NSMakePoint(x + w - 31, 37), YES, row, NO);
 
     // The numbers: memory or disk, CPU when known, and the row's own hour to the right.
     CGFloat top = 72 + more, at = x;
