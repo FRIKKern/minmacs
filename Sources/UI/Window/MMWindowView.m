@@ -5,7 +5,10 @@
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
 
-static const NSTimeInterval kBeat = 0.3, kEndHold = 4.0, kGlow = 0.9, kEase = 0.16;
+// From 195-a: the graphs come back 0.26 s after the pointer leaves a row; a run's end shows for 2.9 s, with a burst
+// that settles over 1.8 s; the two lines follow their numbers with a time constant near its 0.9 s ease; and a new
+// step's words take half a second to rise in.
+static const NSTimeInterval kBeat = 0.26, kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 0.5;
 // The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference.
 static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
 
@@ -20,6 +23,8 @@ static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
     NSString *_hovered;                 // the row under the pointer
     NSTimer *_timer;                    // runs only while something moves and the window shows
     NSDate *_stepped, *_endSeen;        // the last step, and when this view first saw the run ended
+    NSString *_stepWords;               // the step the button shows, and when it came
+    NSDate *_stepCame;
     BOOL _letGo;                        // the end was shown long enough
     double _memoryShare, _diskShare, _memoryShown, _diskShown;
     MMWindowWelcomeView *_welcome;      // made the first time a model holds a welcome
@@ -70,6 +75,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
         _rule.boxType = NSBoxCustom; _rule.borderWidth = 0; _rule.fillColor = MMWindowColor(MMWindowInkLine);
         _dock = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, 551, W, 137)];
         _dock.fix.target = self; _dock.fix.action = @selector(pressFix:);
+        _dock.stop.target = self; _dock.stop.action = @selector(pressFix:);
         for (NSView *v in @[_left, _middle, _right, _rule, _dock]) [_main addSubview:v];
         [self addSubview:_main];
 
@@ -134,6 +140,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self layBand];
     _rule.fillColor = MMWindowColor(MMWindowInkLine);
     _rule.hidden = model == nil;
+    _left.ring = model.ring; _right.ring = model.ring;
     _left.groups = model.memoryGroups;
     _right.groups = model.diskGroups;
     _middle.memoryHour = model.memoryHour;
@@ -230,6 +237,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
 /// No model came within a moment of opening: the window says so in one line, in place of an empty pane.
 - (void)sayLooking { if (!_model && !self.showsWelcome) { _looking = YES; self.needsDisplay = YES; } }
 
+- (void)setPointsAtFix:(BOOL)on { _pointsAtFix = on; [_dock.fix setHover:on]; }
+
 - (void)setPointedRow:(NSString *)key {
     _pointedRow = [key copy];
     if (key) { [_left reveal:key]; [_right reveal:key]; }
@@ -241,7 +250,9 @@ BOOL MMWindowTakesPresses(NSView *view) {
     NSString *key = _hovered ?: _pointedRow;
     MMWindowRow *row = key ? [_model row:key] : nil;
     _left.hotKey = row.key; _right.hotKey = row.key;
+    _middle.model = _model;
     _middle.row = row;
+    _dock.pointed = row;
 }
 
 - (void)point:(NSString *)key {
@@ -266,7 +277,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 - (void)followRun:(BOOL)hadRun {
     MMWindowRun *run = _model.run;
     if (!run) {
-        _endSeen = nil; _letGo = NO;
+        _endSeen = nil; _letGo = NO; _stepWords = nil; _stepCame = nil;
         _memoryShare = _diskShare = _memoryShown = _diskShown = 0;
         _dock.phase = MMWindowDockCalm;
         [self push];
@@ -278,6 +289,9 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
         // The first frame of a run shows where it stands. Only later changes move.
         _memoryShare = Share(run.memoryBack, run.memoryPlanned); _diskShare = Share(run.diskBack, run.diskPlanned);
         _memoryShown = run.memoryBack; _diskShown = run.diskBack;
+        _stepWords = run.step; _stepCame = nil;
+    } else if (run.running && run.step != _stepWords && ![run.step isEqualToString:_stepWords]) {
+        _stepWords = run.step; _stepCame = [NSDate date];
     }
     [self step:[NSDate date]];
     [self wake];
@@ -298,12 +312,15 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     if (!moving) { _memoryShare = tm; _diskShare = td; _memoryShown = run.memoryBack; _diskShown = run.diskBack; }
     if (run.running) {
         _dock.phase = MMWindowDockRunning; _dock.glow = 0;
+        double x = _stepCame && !MMWindowReduceMotion() ? MIN(MAX([now timeIntervalSinceDate:_stepCame] / kStepIn, 0), 1) : 1;
+        _dock.stepIn = 1 - pow(1 - x, 3);
+        if (x >= 1) _stepCame = nil; else moving = YES;
     } else {
         // The end shows with a short glow, then the view lets go and the calm dock is back.
         NSTimeInterval age = _endSeen ? [now timeIntervalSinceDate:_endSeen] : 0;
         if (age >= kEndHold) _letGo = YES;
         _dock.phase = _letGo ? MMWindowDockCalm : MMWindowDockEnded;
-        _dock.glow = _letGo || MMWindowReduceMotion() ? 0 : MAX(0, 1 - age / kGlow);
+        _dock.glow = _letGo || MMWindowReduceMotion() ? 0 : pow(MAX(0, 1 - age / kGlow), 3);
         moving = moving || !_letGo;
     }
     [self push];
@@ -324,7 +341,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 - (void)wake {
     MMWindowRun *run = _model.run;
     BOOL need = run && self.window.isVisible && (run.running ? (_memoryShare != Share(run.memoryBack, run.memoryPlanned) || _diskShare != Share(run.diskBack, run.diskPlanned) ||
-                                                                 _memoryShown != run.memoryBack || _diskShown != run.diskBack) : !_letGo);
+                                                                 _memoryShown != run.memoryBack || _diskShown != run.diskBack || _stepCame != nil) : !_letGo);
     if (need && !_timer) {
         _timer = [NSTimer timerWithTimeInterval:1.0 / 60 target:self selector:@selector(frame:) userInfo:nil repeats:YES];
         [NSRunLoop.mainRunLoop addTimer:_timer forMode:NSRunLoopCommonModes];
@@ -459,8 +476,9 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)m {
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
-        @"Fix Everything", @"Nothing to fix now", @"Press to stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
-        @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour",
+        @"Fix Everything", @"Stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
+        @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"This disk", @"Memory", @"the whole number", @"Free", @"In use",
+        @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"memory, now", @"biggest", @"minutes",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     void (^add)(NSString *) = ^(NSString *x) { if (x.length) [s addObject:x]; };
     add(m.asks);

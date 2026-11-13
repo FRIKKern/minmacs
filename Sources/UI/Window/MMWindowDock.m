@@ -53,6 +53,14 @@
             if (self.kind == MMWindowButtonGear) MMWindowDrawGear(icon, ink); else MMWindowDrawPower(icon, ink);
             return;
         }
+        case MMWindowButtonOutline: {
+            // A small outlined pill, such as Stop under the button while a run plays.
+            NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.5, 0.5) xRadius:b.size.height / 2 - 0.5 yRadius:b.size.height / 2 - 0.5];
+            if (on) { [[NSColor colorWithWhite:1 alpha:0.14] setFill]; [pill fill]; }
+            [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.5 : 0.2] setStroke]; pill.lineWidth = 1; [pill stroke];
+            MMWindowDraw(MMWindowText(self.title, 12, NSFontWeightRegular, [NSColor colorWithWhite:1 alpha:on ? 1 : 0.82]), NSMidX(b), NSMidY(b), 0);
+            return;
+        }
         case MMWindowButtonPill: {
             [[NSColor colorWithWhite:1 alpha:on ? 0.14 : 0.07] setFill];
             [[NSBezierPath bezierPathWithRoundedRect:b xRadius:b.size.height / 2 yRadius:b.size.height / 2] fill];
@@ -70,6 +78,11 @@
 #pragma mark The dock
 
 static const NSRect kButton = {{290, 19}, {440, 56}};
+// The line under the button, and the dock's quiet inks, from 195-a: the line, the word that stands out in it, a label.
+static const CGFloat kUnder = 96.5;
+static NSColor *Under(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green:235 / 255.0 blue:245 / 255.0 alpha:MMWindowContrast() ? 0.8 : 0.5]; }
+static NSColor *UnderBold(void) { return [NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 1 : 0.86]; }
+static NSColor *Label(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green:235 / 255.0 blue:245 / 255.0 alpha:MMWindowContrast() ? 0.86 : 0.6]; }
 
 @implementation MMWindowDockView
 
@@ -80,6 +93,12 @@ static const NSRect kButton = {{290, 19}, {440, 56}};
         __weak typeof(self) me = self;
         _fix.onHover = ^{ me.needsDisplay = YES; };
         [self addSubview:_fix];
+        // The small Stop under the button, 195-a's. The large button stops the run too.
+        _stop = [MMWindowButton kind:MMWindowButtonOutline title:@"Stop" target:nil action:NULL];
+        _stop.accessibilityLabel = @"Stop after this step";
+        _stop.hidden = YES;
+        [self addSubview:_stop];
+        _stepIn = 1;
     }
     return self;
 }
@@ -91,71 +110,91 @@ static const NSRect kButton = {{290, 19}, {440, 56}};
 - (void)setMemoryShown:(double)v { if (_memoryShown == v) return; _memoryShown = v; self.needsDisplay = YES; }
 - (void)setDiskShown:(double)v { if (_diskShown == v) return; _diskShown = v; self.needsDisplay = YES; }
 - (void)setGlow:(double)v { if (_glow == v) return; _glow = v; self.needsDisplay = YES; }
+- (void)setStepIn:(double)v { if (_stepIn == v) return; _stepIn = v; self.needsDisplay = YES; }
+- (void)setPointed:(MMWindowRow *)row { if (_pointed == row) return; _pointed = row; self.needsDisplay = YES; }
 
 - (BOOL)dimmed { return self.phase == MMWindowDockCalm && self.model.fixCount == 0; }
 
-/// The button says what a press does now, to VoiceOver too.
+/// "Fix 3 of 7", beside the small Stop while a run plays.
+- (NSString *)count {
+    MMWindowRun *run = self.model.run;
+    return run.total > 0 ? [NSString stringWithFormat:@"Fix %ld of %ld", (long)MIN(run.done + 1, run.total), (long)run.total] : @"";
+}
+
+/// The button says what a press does now, to VoiceOver too. A dimmed button says only that it is dimmed: the window
+/// never claims there is nothing to fix.
 - (void)refresh {
     MMWindowRun *run = self.model.run;
-    if (self.phase == MMWindowDockRunning) self.fix.accessibilityLabel = [NSString stringWithFormat:@"Stop, %@", run.step ?: @"a fix runs"];
+    BOOL running = self.phase == MMWindowDockRunning;
+    if (running) self.fix.accessibilityLabel = [NSString stringWithFormat:@"Stop, %@", run.step ?: @"a fix runs"];
     else if (self.phase == MMWindowDockEnded) self.fix.accessibilityLabel = run.endTitle ?: @"Fix Everything";
-    else if (self.dimmed) self.fix.accessibilityLabel = @"Fix Everything, nothing to fix now";
+    else if (self.dimmed) self.fix.accessibilityLabel = @"Fix Everything, dimmed";
     else self.fix.accessibilityLabel = [NSString stringWithFormat:@"Fix Everything, %@", MMPlural(self.model.fixCount, @"fix")];
-    self.fix.enabled = self.phase == MMWindowDockRunning || (self.phase == MMWindowDockCalm && !self.dimmed);
+    self.fix.enabled = running || (self.phase == MMWindowDockCalm && !self.dimmed);
+    // "Fix 3 of 7" and Stop sit under the button as one centered line.
+    self.stop.hidden = !running;
+    if (running) {
+        CGFloat lead = self.count.length ? MMWindowWidth(MMWindowText(self.count, 12, NSFontWeightRegular, Under())) + 8 : 0;
+        CGFloat pill = MMWindowWidth(MMWindowText(self.stop.title, 12, NSFontWeightRegular, Under())) + 24;
+        self.stop.frame = NSMakeRect(round(NSMidX(kButton) - (lead + pill) / 2 + lead), kUnder - 10, pill, 20);
+    }
     self.needsDisplay = YES;
 }
 
 - (void)drawRect:(NSRect)dirty {
+    MMWindowCrisp();
     if (!self.model) return;
-    [self drawRing];
+    MMWindowDrawRing(self.model, NSMakePoint(62, 66), NO, self.pointed);
+    [self drawMac];
     [self drawButton];
     [self drawGains];
 }
 
-#pragma mark The ring
+#pragma mark The Mac's two numbers
 
-static void Arc(NSPoint c, CGFloat radius, CGFloat width, CGFloat from, CGFloat sweep, NSColor *color) {
-    if (sweep <= 0) return;
-    NSBezierPath *p = [NSBezierPath bezierPath];
-    [p appendBezierPathWithArcWithCenter:c radius:radius startAngle:from endAngle:from + sweep clockwise:NO];
-    p.lineWidth = width;
-    [color setStroke];
-    [p stroke];
-}
+/// The pointer rests on Fix Everything while it can be pressed: the dock shows the Mac after it.
+- (BOOL)showsAfter { return !self.pointed && self.phase == MMWindowDockCalm && self.model.fixCount > 0 && self.fix.hovered; }
 
-/// Memory by group inside, the disk as the thin outer track. Both start at the lower left and run three quarters round.
-- (void)drawRing {
+/// Beside the ring, memory and disk as two numbers, never one. While the pointer rests on a row they are that row's
+/// share, and while it rests on Fix Everything they are the Mac after it.
+- (void)drawMac {
     MMWindowRing *ring = self.model.ring;
-    NSPoint c = NSMakePoint(62, 66);
-    const CGFloat start = 135, whole = 270;
-    BOOL hc = MMWindowContrast();
-    NSColor *track = [NSColor colorWithWhite:1 alpha:hc ? 0.2 : 0.07];
-    Arc(c, 37.6, 7, start, whole, track);
-    Arc(c, 48.1, 2.4, start, whole, track);
-    CGFloat at = start;
-    if (ring.memoryTotal) for (MMWindowSlice *s in ring.memory) {
-        CGFloat sweep = MIN(whole * s.bytes / (double)ring.memoryTotal, start + whole - at);
-        BOOL other = [s.group isEqualToString:@"other"];
-        Arc(c, 37.6, 7, at, sweep, other ? [NSColor colorWithSRGBRed:0.92 green:0.92 blue:0.96 alpha:hc ? 0.45 : 0.22] : [MMWindowGroupColor(s.group) colorWithAlphaComponent:hc ? 1 : 0.8]);
-        at += sweep;
+    NSColor *text = MMWindowColor(MMWindowInkText), *label = Label(), *unit = MMWindowColor(MMWindowInkText2), *disk = MMWindowColor(MMWindowInkDisk);
+    CGFloat x = 128;
+    MMWindowRow *row = self.pointed;
+    if (row) {
+        BOOL onDisk = row.kind == MMWindowWorktree || row.kind == MMWindowCache;
+        MMWindowDraw(MMWindowFit(row.shownName, 11.5, NSFontWeightRegular, label, 150), x, 31.5, -1);
+        NSAttributedString *big = row.showsSize ? MMWindowNumber(row.bytes, 25, NSFontWeightMedium, text, 12)
+            : MMWindowJoin(@[MMWindowText(@(row.tabs).stringValue, 25, NSFontWeightMedium, text), MMWindowText(row.tabs == 1 ? @" tab" : @" tabs", 12, NSFontWeightRegular, unit)]);
+        MMWindowDraw(big, x, 54, -1);
+        if (row.showsSize) {
+            uint64_t used = ring.diskTotal > ring.diskFree ? ring.diskTotal - ring.diskFree : 0;
+            MMWindowDraw(MMWindowText(onDisk ? [NSString stringWithFormat:@"of %@ disk in use", MMWindowBytes(used)]
+                                             : [NSString stringWithFormat:@"of %@ memory in use", MMWindowBytes(ring.memoryUsed)], 11.5, NSFontWeightRegular, label), x, 81, -1);
+        }
+        NSString *cpu = MMWindowCPU(row.cpuPercent);
+        if (cpu) MMWindowDraw(MMWindowText([NSString stringWithFormat:@"CPU %@ %%", cpu], 11.5, NSFontWeightRegular, label), x, 99.5, -1);
+        return;
     }
-    at = start;
-    if (ring.diskTotal) for (MMWindowSlice *s in ring.disk) {
-        CGFloat sweep = MIN(whole * s.bytes / (double)ring.diskTotal, start + whole - at);
-        BOOL other = [s.group isEqualToString:@"other"];
-        Arc(c, 48.1, 2.4, at, sweep, [MMWindowGroupColor(other ? @"caches" : s.group) colorWithAlphaComponent:other ? (hc ? 0.55 : 0.32) : (hc ? 1 : 0.8)]);
-        at += sweep;
+    if (self.showsAfter) {
+        NSInteger n = self.model.fixCount;
+        uint64_t back = MIN(self.model.memoryBack, ring.memoryUsed);
+        MMWindowDraw(MMWindowText(n == 1 ? @"After the fix" : [NSString stringWithFormat:@"After all %ld", (long)n], 11.5, NSFontWeightRegular, label), x, 31.5, -1);
+        MMWindowDraw(MMWindowNumber(ring.memoryUsed - back, 25, NSFontWeightMedium, text, 12), x, 54, -1);
+        MMWindowDraw(MMWindowText([NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed)], 11.5, NSFontWeightRegular, label), x, 81, -1);
+        MMWindowDraw(MMWindowJoin(@[MMWindowText(MMWindowBytes(ring.diskFree + self.model.diskBack), 11.5, NSFontWeightMedium, disk),
+                                    MMWindowText(@" disk free", 11.5, NSFontWeightRegular, label)]), x, 99.5, -1);
+        return;
     }
-
-    // Beside it, memory and disk as two numbers, never one.
-    NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2);
-    NSArray<NSString *> *used = MMWindowSize2(ring.memoryUsed), *total = MMWindowSize2(ring.memoryTotal);
-    BOOL same = [used[1] isEqualToString:total[1]];
-    NSString *tail = same ? [NSString stringWithFormat:@" / %@ %@", total[0], total[1]] : [NSString stringWithFormat:@" %@ / %@ %@", used[1], total[0], total[1]];
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(used[0], 25, NSFontWeightMedium, text), MMWindowText(tail, 11.5, NSFontWeightRegular, t2)]), 128, 48, -1);
-    MMWindowDraw(MMWindowText(@"memory in use", 11.5, NSFontWeightRegular, t2), 128, 73, -1);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(MMWindowBytes(ring.diskFree), 11.5, NSFontWeightMedium, MMWindowColor(MMWindowInkDisk)),
-                                MMWindowText(@" disk free", 11.5, NSFontWeightRegular, t2)]), 128, 91, -1);
+    NSArray<NSString *> *used = MMWindowSize2(ring.memoryUsed);
+    NSString *total = MMWindowWhole(ring.memoryTotal);
+    BOOL same = [total hasSuffix:used[1]];
+    NSString *tail = same ? [@" / " stringByAppendingString:total] : [NSString stringWithFormat:@" %@ / %@", used[1], total];
+    MMWindowDraw(MMWindowJoin(@[MMWindowText(used[0], 25, NSFontWeightMedium, text), MMWindowText(tail, 12, NSFontWeightRegular, unit)]), x, 46.5, -1);
+    MMWindowDraw(MMWindowText(@"memory in use", 11.5, NSFontWeightRegular, label), x, 73.5, -1);
+    MMWindowDraw(MMWindowJoin(@[MMWindowText(MMWindowBytes(ring.diskFree), 11.5, NSFontWeightMedium, disk),
+                                MMWindowText(@" disk free", 11.5, NSFontWeightRegular, label)]), x, 92, -1);
 }
 
 #pragma mark Fix Everything
@@ -174,93 +213,130 @@ static NSBezierPath *Track(NSRect r) {
     return p;
 }
 
-static void DrawTrack(NSRect r, double share, NSColor *color) {
+static void DrawTrack(NSRect r, double share, NSColor *color, BOOL lit) {
     NSBezierPath *base = Track(r);
     [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.22 : 0.08] setStroke];
     [base stroke];
-    if (share <= 0.001) return;
+    if (share <= 0.002) return;
     CGFloat rad = r.size.height / 2, length = 2 * (r.size.width - 2 * rad) + 2 * M_PI * rad;
     NSBezierPath *fill = Track(r);
     fill.lineCapStyle = NSLineCapStyleRound;
     CGFloat dash[2] = {length * MIN(share, 1), length * 2};
     [fill setLineDash:dash count:2 phase:0];
+    [NSGraphicsContext saveGraphicsState];
+    if (lit) {
+        // Once the run ended, what it filled glows a little.
+        NSShadow *glow = [NSShadow new];
+        glow.shadowColor = [NSColor colorWithSRGBRed:1 green:235 / 255.0 blue:200 / 255.0 alpha:0.7]; glow.shadowBlurRadius = 4;
+        [glow set];
+    }
     [color setStroke];
     [fill stroke];
+    [NSGraphicsContext restoreGraphicsState];
+}
+
+static NSColor *Orange(CGFloat g, CGFloat b, CGFloat a) { return [NSColor colorWithSRGBRed:1 green:g / 255.0 blue:b / 255.0 alpha:a]; }
+
+/// Fills the pill once with a shadow under it, for a glow. The gradient goes over the fill.
+static void Glow(NSBezierPath *pill, NSColor *color, CGFloat blur, CGFloat down) {
+    if (color.alphaComponent <= 0.004) return;
+    [NSGraphicsContext saveGraphicsState];
+    NSShadow *glow = [NSShadow new];
+    glow.shadowColor = color; glow.shadowBlurRadius = blur; glow.shadowOffset = NSMakeSize(0, -down);
+    [glow set];
+    [[color colorWithAlphaComponent:1] setFill];
+    [pill fill];
+    [NSGraphicsContext restoreGraphicsState];
 }
 
 - (void)drawButton {
     MMWindowRun *run = self.model.run;
     NSRect b = kButton;
-    NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:b xRadius:28 yRadius:28];
     BOOL dimmed = self.dimmed, running = self.phase == MMWindowDockRunning, ended = self.phase == MMWindowDockEnded;
-    NSColor *t2 = MMWindowColor(MMWindowInkText2), *fixInk = MMWindowColor(MMWindowInkFix);
+    BOOL hot = !dimmed && !running && !ended && self.fix.hovered;
+    NSColor *fixInk = MMWindowColor(MMWindowInkFix);
 
-    // The two thin lines: memory back inside, disk back outside.
-    DrawTrack(NSInsetRect(b, -6, -6), running || ended ? self.memoryShare : 0, MMWindowColor(MMWindowInkMemory));
-    DrawTrack(NSInsetRect(b, -11, -11), running || ended ? self.diskShare : 0, MMWindowColor(MMWindowInkDisk));
+    // The two thin lines: memory back inside, disk back outside. While the pointer rests on the button they show,
+    // faintly, which sides a press gives back.
+    double memory = running || ended ? self.memoryShare : hot && self.model.memoryBack > 0 ? 1 : 0;
+    double disk = running || ended ? self.diskShare : hot && self.model.diskBack > 0 ? 1 : 0;
+    CGFloat faint = hot ? 0.34 : 1;
+    DrawTrack(NSInsetRect(b, -6, -6), memory, [MMWindowColor(MMWindowInkMemory) colorWithAlphaComponent:faint], ended);
+    DrawTrack(NSInsetRect(b, -11, -11), disk, [MMWindowColor(MMWindowInkDisk) colorWithAlphaComponent:faint], ended);
 
+    [NSGraphicsContext saveGraphicsState];
+    // Under the pointer the button lifts a point. As a run ends it is a touch larger, and settles.
+    NSAffineTransform *move = [NSAffineTransform transform];
+    double joy = ended ? self.glow : 0;
+    if (hot) [move translateXBy:0 yBy:-1];
+    if (joy > 0) { [move translateXBy:NSMidX(b) yBy:NSMidY(b)]; [move scaleBy:1 + 0.04 * joy]; [move translateXBy:-NSMidX(b) yBy:-NSMidY(b)]; }
+    [move concat];
+    NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:b xRadius:28 yRadius:28];
     NSString *title = @"Fix Everything";
     NSColor *ink = [NSColor colorWithSRGBRed:43 / 255.0 green:20 / 255.0 blue:4 / 255.0 alpha:1];
+    CGFloat size = 17, rise = 0;
+    NSFontWeight weight = NSFontWeightSemibold;
     if (dimmed) {
-        // Nothing to fix: the button stays in place, dimmed, with the reason under it.
-        [[NSColor colorWithWhite:1 alpha:0.05] setFill]; [pill fill];
+        // Nothing to fix: the button stays in place, dimmed, and says no more.
+        [[NSColor colorWithWhite:1 alpha:0.06] setFill]; [pill fill];
         [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.1] setStroke]; pill.lineWidth = 1; [pill stroke];
-        ink = MMWindowColor(MMWindowInkText3);
+        ink = [NSColor colorWithSRGBRed:235 / 255.0 green:235 / 255.0 blue:245 / 255.0 alpha:MMWindowContrast() ? 0.7 : 0.5];
     } else if (running) {
-        // While it runs the button is an outline with the step inside. A press stops the run.
-        [NSGraphicsContext saveGraphicsState];
-        NSShadow *glow = [NSShadow new];
-        glow.shadowColor = [fixInk colorWithAlphaComponent:0.3]; glow.shadowBlurRadius = 30;
-        [glow set];
-        [[fixInk colorWithAlphaComponent:self.fix.hovered ? 0.16 : 0.09] setFill];
-        [pill fill];
-        [NSGraphicsContext restoreGraphicsState];
-        [[fixInk colorWithAlphaComponent:0.75] setStroke]; pill.lineWidth = 1; [pill stroke];
+        // While it runs the button is an outline with the step inside, and each new step's words rise in.
+        Glow(pill, [fixInk colorWithAlphaComponent:0.13], 34, 0);
+        [[NSColor colorWithSRGBRed:36 / 255.0 green:35 / 255.0 blue:46 / 255.0 alpha:1] setFill]; [pill fill];
+        [[fixInk colorWithAlphaComponent:self.fix.hovered ? 0.17 : 0.11] setFill]; [pill fill];
+        [[fixInk colorWithAlphaComponent:MMWindowContrast() ? 0.9 : 0.55] setStroke];
+        NSBezierPath *edge = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.5, 0.5) xRadius:27.5 yRadius:27.5];
+        edge.lineWidth = 1; [edge stroke];
         title = run.step.length ? run.step : @"Fixing";
-        ink = [NSColor colorWithWhite:1 alpha:0.86];
+        size = 13; weight = NSFontWeightRegular;
+        ink = [NSColor colorWithWhite:1 alpha:MIN(MAX(self.stepIn, 0), 1)];
+        rise = 6 * (1 - MIN(MAX(self.stepIn, 0), 1));
     } else {
-        [NSGraphicsContext saveGraphicsState];
-        NSShadow *glow = [NSShadow new];
-        glow.shadowColor = [NSColor colorWithSRGBRed:1 green:0.55 blue:0.235 alpha:0.3 + 0.4 * (ended ? self.glow : 0)];
-        glow.shadowBlurRadius = 22 + 16 * (ended ? self.glow : 0); glow.shadowOffset = NSMakeSize(0, ended ? 0 : -6);
-        [glow set];
-        [fixInk setFill];
-        [pill fill];
-        [NSGraphicsContext restoreGraphicsState];
-        BOOL bright = ended || self.fix.hovered;
-        NSGradient *g = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithSRGBRed:1 green:(bright ? 213 : 182) / 255.0 blue:(bright ? 150 : 99) / 255.0 alpha:1]
-                                                      endingColor:[NSColor colorWithSRGBRed:1 green:(bright ? 164 : 138) / 255.0 blue:(bright ? 86 : 61) / 255.0 alpha:1]];
+        // At rest a warm glow; brighter under the pointer; and a burst as a run ends, which fades.
+        Glow(pill, Orange(159, 69, 0.5 * (hot ? 1 : ended ? 0.9 : 0.4)), 32, 0);
+        if (joy > 0) Glow(pill, Orange(170, 80, 0.7 * joy), 70, 0);
+        Glow(pill, hot ? Orange(150, 70, 0.5) : Orange(140, 60, 0.3), hot ? 34 : 22, hot ? 10 : 6);
+        NSGradient *g = ended ? [[NSGradient alloc] initWithStartingColor:Orange(213, 150, 1) endingColor:Orange(164, 86, 1)]
+                        : hot ? [[NSGradient alloc] initWithStartingColor:Orange(198, 124, 1) endingColor:Orange(149, 72, 1)]
+                              : [[NSGradient alloc] initWithStartingColor:Orange(182, 99, 1) endingColor:Orange(138, 61, 1)];
         [g drawInBezierPath:pill angle:90];
-        [[NSColor colorWithWhite:1 alpha:0.4] setStroke];
+        // A light line along the top inside, and a hair of an edge all round.
+        [NSGraphicsContext saveGraphicsState];
+        [pill addClip];
+        NSBezierPath *top = [NSBezierPath bezierPathWithRoundedRect:NSOffsetRect(b, 0, 1) xRadius:28 yRadius:28];
+        top.lineWidth = 1; [[NSColor colorWithWhite:1 alpha:hot ? 0.45 : 0.35] setStroke]; [top stroke];
+        [NSGraphicsContext restoreGraphicsState];
+        [[NSColor colorWithWhite:1 alpha:hot ? 0.5 : 0.4] setStroke];
         NSBezierPath *edge = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.25, 0.25) xRadius:28 yRadius:28];
         edge.lineWidth = 0.5; [edge stroke];
-        if (ended) title = run.endTitle.length ? run.endTitle : @"Done";
+        if (ended) { title = run.endTitle.length ? run.endTitle : @"Done"; size = 13.5; }
     }
-    MMWindowDraw(MMWindowFit(title, running ? 14 : 17, running ? NSFontWeightMedium : NSFontWeightSemibold, ink, b.size.width - 48), NSMidX(b), NSMidY(b), 0);
+    MMWindowDraw(MMWindowFit(title, size, weight, ink, b.size.width - 48), NSMidX(b), NSMidY(b) + rise, 0);
+    [NSGraphicsContext restoreGraphicsState];
 
-    // Under the button: what a press would do, how far the run is, or how it ended.
-    CGFloat mid = NSMidX(b), y = 98;
+    // Under the button: what a press would do, how far the run is, or how it ended. A dimmed button has no line.
+    CGFloat mid = NSMidX(b), y = kUnder;
+    NSColor *under = Under();
     if (running) {
-        NSString *count = run.total > 0 ? [NSString stringWithFormat:@"Fix %ld of %ld. ", (long)MIN(run.done + 1, run.total), (long)run.total] : @"";
-        MMWindowDraw(MMWindowJoin(@[MMWindowText(count, 12, NSFontWeightRegular, t2), MMWindowText(@"Press to stop", 12, NSFontWeightMedium, MMWindowColor(MMWindowInkText))]), mid, y, 0);
+        if (self.count.length) MMWindowDraw(MMWindowText(self.count, 12, NSFontWeightRegular, under), NSMinX(self.stop.frame) - 8, y, 1);
     } else if (ended) {
         if (!run.endNote.length) return;
         NSMutableParagraphStyle *center = [NSMutableParagraphStyle new];
         center.alignment = NSTextAlignmentCenter; center.lineBreakMode = NSLineBreakByWordWrapping;
         NSAttributedString *note = [[NSAttributedString alloc] initWithString:run.endNote attributes:@{
-            NSFontAttributeName: MMWindowFont(12, NSFontWeightRegular), NSForegroundColorAttributeName: t2, NSParagraphStyleAttributeName: center}];
+            NSFontAttributeName: MMWindowFont(12, NSFontWeightRegular), NSForegroundColorAttributeName: under, NSParagraphStyleAttributeName: center}];
         [note drawWithRect:NSMakeRect(mid - 226, y - 8, 452, 46) options:NSStringDrawingUsesLineFragmentOrigin];
-    } else if (dimmed) {
-        MMWindowDraw(MMWindowText(@"Nothing to fix now", 12, NSFontWeightRegular, t2), mid, y, 0);
-    } else {
+    } else if (!dimmed) {
         MMWindowFix *first = nil;
         for (MMWindowFix *f in self.model.fixes) if (!f.needsYou) { first = f; break; }
         NSInteger n = self.model.fixCount;
-        NSString *lead = [MMPlural(n, @"fix") stringByAppendingString:@", "];
-        CGFloat room = 452 - MMWindowWidth(MMWindowText([lead stringByAppendingString:@" first"], 12, NSFontWeightRegular, t2));
-        NSMutableArray *runs = [NSMutableArray arrayWithObjects:MMWindowText(lead, 12, NSFontWeightRegular, t2),
-                                MMWindowFit(first.title ?: @"", 12, NSFontWeightMedium, MMWindowColor(MMWindowInkText), room), nil];
-        if (n > 1) [runs addObject:MMWindowText(@" first", 12, NSFontWeightRegular, t2)];
+        NSString *lead = n > 1 ? [MMPlural(n, @"fix") stringByAppendingString:@", "] : @"";
+        CGFloat room = 452 - MMWindowWidth(MMWindowText([lead stringByAppendingString:@" first"], 12, NSFontWeightRegular, under));
+        NSMutableArray *runs = [NSMutableArray arrayWithObjects:MMWindowText(lead, 12, NSFontWeightRegular, under),
+                                MMWindowFit(first.title ?: @"", 12, NSFontWeightMedium, UnderBold(), room), nil];
+        if (n > 1) [runs addObject:MMWindowText(@" first", 12, NSFontWeightRegular, under)];
         MMWindowDraw(MMWindowJoin(runs), mid, y, 0);
     }
 }
@@ -304,7 +380,7 @@ static void DrawTrack(NSRect r, double share, NSColor *color) {
 }
 
 - (void)drawGains {
-    NSColor *t2 = MMWindowColor(MMWindowInkText2);
+    NSColor *t2 = Label();
     NSMutableArray<NSAttributedString *> *lines = [NSMutableArray new];
     for (NSArray *g in self.gains)
         [lines addObject:MMWindowJoin(@[MMWindowText(MMWindowBytes([g[0] unsignedLongLongValue]), 23, NSFontWeightMedium, MMWindowColor((MMWindowInk)[g[1] integerValue])),

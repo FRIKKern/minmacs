@@ -648,6 +648,7 @@ static MMCardSpec *SCard(NSString *fid) {
 // What the first look at the real window found, as checks. In a file of its own, so this one does not grow.
 #include "render-window-look.m"
 #include "render-window-open.m"
+#include "render-window-polish.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -668,6 +669,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
                                   @[@"welcome", @"main", @""], @[@"welcome-off", @"main", @""], @[@"welcome-trash", @"main", @""], @[@"welcome-delete", @"main", @""],
                                   // The welcome a person meets who used MinMacs for more than a day before it.
                                   @[@"welcome-watched", @"main", @""]];
+    shots = [shots arrayByAddingObjectsFromArray:WindowPolishShots()];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -678,6 +680,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
             v.model = MMWindowFixture(shot[0]);
             if ([shot[2] length]) v.pointedRow = shot[2];
             v.showsSettings = [shot[1] isEqualToString:@"settings"];
+            v.pointsAtFix = [shot[1] isEqualToString:@"fix"];
             NSString *path = [dir stringByAppendingFormat:@"/%@-%@-%@.png", shot[0], shot[1], mode];
             if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
         }
@@ -712,6 +715,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     Check(MMWindowFixture(@"empty").fixCount == 0 && MMWindowFixture(@"running").run.running && !MMWindowFixture(@"done").run.running && MMWindowFixture(@"done").run.endTitle.length,
           @"window: the empty day has no fix, the running day runs, the done day ended", @"");
     WindowLookChecks();
+    WindowPolishChecks();
     WindowWelcomeChecks();
     WindowWelcomeGuardChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);

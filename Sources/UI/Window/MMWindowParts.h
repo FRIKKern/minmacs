@@ -35,6 +35,9 @@ NSFont *MMWindowFont(CGFloat size, NSFontWeight weight);
 NSAttributedString *MMWindowText(NSString *text, CGFloat size, NSFontWeight weight, NSColor *color);
 NSAttributedString *MMWindowJoin(NSArray<NSAttributedString *> *runs);
 CGFloat MMWindowWidth(NSAttributedString *line);
+/// Text in the window is drawn without font smoothing, as 195-a draws it (antialiased): light letters on dark glass
+/// that are not thickened. MMWindowDraw sets it. A view that draws text another way calls this first.
+void MMWindowCrisp(void);
 /// Draws one line with its middle at midY. align is -1 for left at x, 0 for centered on x, 1 for right at x.
 void MMWindowDraw(NSAttributedString *line, CGFloat x, CGFloat midY, NSInteger align);
 /// The same text cut at the tail so it fits.
@@ -42,10 +45,18 @@ NSAttributedString *MMWindowFit(NSString *text, CGFloat size, NSFontWeight weigh
 /// The same text with whole words dropped from its end until it fits, and no ellipsis: a shorter true name.
 /// A name with no space, such as a branch, loses whole parts at a hyphen, slash, dot or underscore instead.
 NSString *MMWindowShorten(NSString *text, CGFloat size, NSFontWeight weight, CGFloat width);
-/// A size as its number and its unit, "1.9" and "GB", from MMBytes, so the unit can be drawn small and gray.
+/// A size as its number and its unit, "1.86" and "GB", so the unit can be drawn small and gray. One rule for every
+/// size the window shows: megabytes whole, gigabytes with one decimal that stays when it is a zero ("1.0"), a second
+/// decimal under 10 GB when it says more ("1.86", but "1.3"), and whole from 100 GB up ("182").
 NSArray<NSString *> *MMWindowSize2(uint64_t bytes);
-/// The size on one line, "182 GB": MMBytes with a round number's ".0" left out.
+/// The size on one line, "1.86 GB".
 NSString *MMWindowBytes(uint64_t bytes);
+/// What a thing can hold, such as the Mac's memory: the same, with a round number's ".0" left out, "64 GB".
+NSString *MMWindowWhole(uint64_t bytes);
+/// What stands between a number and its small gray unit: a thin space, closer than a word.
+extern NSString *const MMWindowThin;
+/// CPU as the window says it, of one core: "0.3", "12", or nil when it is not known or under 0.05, and then not shown.
+NSString *_Nullable MMWindowCPU(double percent);
 /// The number in the text color and the unit small and gray, one line.
 NSAttributedString *MMWindowNumber(uint64_t bytes, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat unitSize);
 
@@ -56,9 +67,17 @@ static const NSInteger MMWindowHourLeast = 5;
 /// The part of an hour from its first filled minute to its last, or nil when fewer than MMWindowHourLeast are filled.
 /// `first` and `last` get the two indexes, -1 when none, and `filled` how many minutes hold a value.
 NSArray *_Nullable MMWindowHourSpan(NSArray *_Nullable values, NSInteger *_Nullable first, NSInteger *_Nullable last, NSInteger *_Nullable filled);
-/// The filled part of an hour across the whole rect: the fill, the line, and a dot at the last minute when asked.
-/// Nothing when fewer than MMWindowHourLeast minutes are filled.
-void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, CGFloat lineWidth, BOOL dot);
+/// How an hour is drawn: the large graph, a row's small line, or the line in a row's story. Each spreads its filled
+/// part across its whole width. The small ones show a wobble as flat, on a scale of at least a quarter of their value.
+typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHourRow, MMWindowHourStory };
+/// An hour in the rect: the fill, the line, and a dot at the newest minute. Nothing when fewer than
+/// MMWindowHourLeast minutes are filled.
+void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MMWindowHourLook look);
+
+/// The Mac as a ring around `center`: memory by holder inside, the disk as the thin outer track, each row an arc of
+/// its own. Large in the dock, 108 points across, or small in a row's story, 62. With `lit`, that row's arc is white
+/// and lifted and the rest step back.
+void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindowRow *_Nullable lit);
 
 #pragma mark Presses
 
@@ -91,6 +110,8 @@ void MMWindowDrawPower(NSRect rect, NSColor *color);
 @interface MMWindowListView : MMWindowFlipped
 @property (nonatomic, copy) NSArray<MMWindowGroup *> *groups;
 @property (nonatomic, copy, nullable) NSString *hotKey;             // the row drawn as pointed at
+/// The Mac's whole numbers, for the lines that close a side with room left: "This disk", free, held here, the rest.
+@property (nonatomic, strong, nullable) MMWindowRing *ring;
 @property (copy, nullable) void (^onPoint)(NSString *_Nullable key); // the pointer came to rest on a row, or left
 - (void)reveal:(NSString *)key;                                      // scroll so the row shows
 - (void)rest;                                                        // the window closed: no pending calls, every group back at its top
@@ -98,22 +119,31 @@ void MMWindowDrawPower(NSRect rect, NSColor *color);
 - (NSArray<NSString *> *)drawnNames;
 /// How far each group is scrolled, by its key, for the checks.
 - (NSDictionary<NSString *, NSNumber *> *)offsets;
+/// For the checks: a row's height on this side now, each group's frame with its header, whether the side closes
+/// with its whole number, and those lines as label and value.
+@property (readonly) CGFloat rowHeight;
+- (NSArray<NSValue *> *)groupFrames;
+@property (readonly) BOOL showsSum;
+- (NSArray<NSArray<NSString *> *> *)sumLines;
 @end
 
 /// The middle: the two last-hour graphs, or one row's story.
 @interface MMWindowMiddleView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowHour *memoryHour, *diskHour;
 @property (nonatomic, strong, nullable) MMWindowRow *row;
+/// The whole model, for a story's ring and for where its row stands in its group.
+@property (nonatomic, strong, nullable) MMWindowModel *model;
 @end
 
 typedef NS_ENUM(NSInteger, MMWindowDockPhase) { MMWindowDockCalm = 0, MMWindowDockRunning, MMWindowDockEnded };
 
 /// A button the window draws itself: a real NSButton, so keyboard, tooltips and accessibility come with it.
-typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWindowButtonGear, MMWindowButtonPower, MMWindowButtonPill };
+typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWindowButtonGear, MMWindowButtonPower, MMWindowButtonPill, MMWindowButtonOutline };
 @interface MMWindowButton : NSButton
 @property (nonatomic) MMWindowButtonKind kind;
 @property (nonatomic) BOOL lit;                                      // the gear while Settings shows
 @property (readonly) BOOL hovered;
+- (void)setHover:(BOOL)on;                                           // the pointer came or left; the render tool calls it too
 @property (copy, nullable) void (^onHover)(void);
 + (instancetype)kind:(MMWindowButtonKind)kind title:(NSString *)title target:(nullable id)target action:(nullable SEL)action;
 @end
@@ -125,7 +155,10 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (nonatomic) double memoryShare, diskShare;                 // how far the two lines are filled, 0 to 1
 @property (nonatomic) double memoryShown, diskShown;                 // the gains while they count up, in bytes
 @property (nonatomic) double glow;                                   // 1 right as a run ends, then down to 0
+@property (nonatomic) double stepIn;                                 // 0 as a new step's words arrive in the button, up to 1
+@property (nonatomic, strong, nullable) MMWindowRow *pointed;        // the row under the pointer: the ring and the numbers beside it tell its share
 @property (readonly) MMWindowButton *fix;
+@property (readonly) MMWindowButton *stop;                           // the small Stop under the button, there only while a run plays
 /// The gains as the dock draws them now, top to bottom, such as "2.9 GB memory back". A side that is zero is not
 /// there, so the list holds two lines, one, or none.
 @property (readonly) NSArray<NSString *> *gainLines;
@@ -163,6 +196,8 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 - (void)rest;                                                        // the panel left: no timers, no hover
 - (BOOL)holdsBack:(NSView *)view;                                    // for MMWindowTakesPresses
 @property (readonly) BOOL showsWelcome;                              // the welcome is what shows now
+/// The render tool sets this: draw as if the pointer rested on Fix Everything.
+@property (nonatomic) BOOL pointsAtFix;
 @property (readonly, nullable) MMWindowWelcomeView *welcomeView;
 /// Every string the window can show for this model, for the render tool's word check.
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)model;

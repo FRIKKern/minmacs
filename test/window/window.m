@@ -306,6 +306,13 @@ static void WindowModel(void) {
     T(@"window: one quiet word where a fact gives one", @"idle kept asks will close kept changed merged in use left behind",
       [@[next.state ?: @"-", db.state ?: @"-", asks.state ?: @"-", chat.state ?: @"-", editor.state ?: @"-", wip.state ?: @"-", spike.state ?: @"-",
          sims.state ?: @"-", helper.state ?: @"-"] componentsJoinedByString:@" "]);
+    // Quiet is a fact of the row: an idle server, an app that uses next to no CPU, a helper, a worktree with nothing
+    // uncommitted. An active server, an agent that asks, a changed worktree and a cache in use are not.
+    T(@"window: a row is quiet when nothing is going on in it", @"yes no no yes yes no yes no",
+      [@[YN(next.quiet), YN(db.quiet), YN(asks.quiet), YN(chat.quiet), YN(helper.quiet), YN(wip.quiet), YN(spike.quiet), YN(sims.quiet)] componentsJoinedByString:@" "]);
+    T(@"window: the story's first line comes from the row's own facts", @"2 Asks you. A permission prompt is open. | 0 Stays. An agent works in it. | Agent=Claude Code; Project=app",
+      [NSString stringWithFormat:@"%ld %@ %@ | %ld %@ %@ | %@", (long)asks.fate.kind, asks.fate.lead, asks.fate.note, (long)editor.fate.kind, editor.fate.lead, editor.fate.note,
+       [[asks.storyFacts valueForKey:@"label"] componentsJoinedByString:@"; "].length ? [NSString stringWithFormat:@"%@=%@; %@=%@", asks.storyFacts[0].label, asks.storyFacts[0].value, asks.storyFacts[1].label, asks.storyFacts[1].value] : @""]);
     T(@"window: a row with no such fact has no word", @"(nil)", [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"repo")]].state);
     T(@"window: a tabs row counts tabs and holds no bytes", @"3 0", [NSString stringWithFormat:@"%ld %llu", (long)tabs.tabs, tabs.bytes]);
     T(@"window: a tabs row with no bytes shows its count in its name and no size, and other rows show theirs", @"3 Browser | no | :3001 Next.js | yes",
@@ -419,7 +426,7 @@ static void WindowModel(void) {
     // The JSON and the words.
     T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings",
       [[j.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
-    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind name needsYou state tabs",
+    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind name needsYou quiet state tabs",
       [[[next.json allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"window: the JSON is valid and keeps the ring's sides apart", @"yes disk memory", [NSString stringWithFormat:@"%@ %@", YN([NSJSONSerialization isValidJSONObject:j]),
       [[[j[@"ring"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]]);

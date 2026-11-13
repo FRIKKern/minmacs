@@ -18,6 +18,51 @@
     return [NSString stringWithFormat:@"%ld %@", (long)self.tabs, self.name];
 }
 - (BOOL)showsSize { return self.kind != MMWindowTabs || self.bytes > 0; }
+
+- (MMWindowFact *)factLabelled:(NSString *)label {
+    for (MMWindowFact *f in self.facts) if ([f.label isEqualToString:label]) return f;
+    return nil;
+}
+
+/// A fact's words as a sentence of their own: a capital first, and a period when no mark ends it.
+static NSString *Sentence(NSString *words) {
+    NSString *w = [words stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!w.length) return nil;
+    w = [[w substringToIndex:1].localizedUppercaseString stringByAppendingString:[w substringFromIndex:1]];
+    return [NSCharacterSet.alphanumericCharacterSet characterIsMember:[w characterAtIndex:w.length - 1]] ? [w stringByAppendingString:@"."] : w;
+}
+
+/// The line's lead and kind, the fact its sentence comes from, and whether it says the row's State already.
+- (MMWindowFate *)fateFrom:(MMWindowFact *__autoreleasing *)source saysState:(BOOL *)saysState {
+    MMWindowFact *why = [self factLabelled:@"Why"], *stays = [self factLabelled:@"Stays"], *state = [self factLabelled:@"State"], *from = nil;
+    MMWindowFate *f = [MMWindowFate new];
+    BOOL says = NO;
+    if (self.needsYou) { f.kind = MMWindowFateAsks; f.lead = @"Asks you."; from = why ?: stays; says = YES; }
+    else if (self.inFix) { f.kind = MMWindowFateGoes; f.lead = @"Goes with Fix Everything."; from = why; }
+    else if (stays) { f.lead = @"Stays."; from = stays; }
+    else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); from = why; says = YES; }
+    else if (why) from = why;
+    else return nil;
+    f.note = Sentence(from.value);
+    if (source) *source = from;
+    if (saysState) *saysState = says;
+    return f;
+}
+
+- (MMWindowFate *)fate { return [self fateFrom:NULL saysState:NULL]; }
+
+- (NSArray<MMWindowFact *> *)storyFacts {
+    MMWindowFact *from = nil;
+    BOOL says = NO;
+    if (![self fateFrom:&from saysState:&says]) return self.facts;
+    NSMutableArray<MMWindowFact *> *out = [NSMutableArray new];
+    for (MMWindowFact *f in self.facts) if (f != from && !(says && [f.label isEqualToString:@"State"])) [out addObject:f];
+    return out;
+}
+@end
+
+@implementation MMWindowFate
+- (instancetype)init { if ((self = [super init])) { _lead = @""; } return self; }
 @end
 
 @implementation MMWindowGroup

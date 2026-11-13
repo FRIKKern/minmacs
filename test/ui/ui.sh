@@ -55,10 +55,10 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # that came before the first numbers.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 48 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 62 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
-               young-main calm-main long-main long-agent welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-watched-main welcome-started; do
+               young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-watched-main welcome-started; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
@@ -88,6 +88,12 @@ check "the dock shows only the sides above zero, before a press, in a run and at
 check "a day with one side to fix marks only the rows of its fixes" 2 "$(ui_look ' .*-only: only rows of the fixes that are left say they go')"
 check "one side alone changes the picture" "yes yes" \
   "$([ "$(ui_md memory-only-main-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no) $([ "$(ui_md memory-only-main-dark)" != "$(ui_md disk-only-main-dark)" ] && echo yes || echo no)"
+
+# The second look against 195-a, tools/render-window-polish.m: one rule for sizes, no line under a dimmed button, whole
+# rows, a side with room closing with its whole number, a story's first line, the pointed row in the dock, and Stop.
+check "the second look's checks are there and pass" "12 0" "$(grep -cE '^ok    window (sizes|dock|lists|story)' "$ui_out/checks.txt" 2>/dev/null) $(grep -cE '^FAIL  window (sizes|dock|lists|story)' "$ui_out/checks.txt" 2>/dev/null)"
+check "the pointer on a row or on Fix Everything changes the picture" "yes yes" \
+  "$([ "$(ui_md busy-agent-dark)" != "$(ui_md busy-asks-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-fix-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no)"
 
 # The welcome of the first launch: it stands alone, its answers stay the person's, Start hands them over once and it
 # does not come back. tools/render-window-look.m holds the checks.

@@ -56,6 +56,15 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 + (instancetype)label:(NSString *)label value:(NSString *)value;
 @end
 
+/// How a row's story opens: one line that says whether it stays, goes or waits, and why. The window draws the lead
+/// in bold with a mark: a dot for what stays, an orange triangle for what goes, a white diamond for what asks.
+typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFateGoes, MMWindowFateAsks };
+@interface MMWindowFate : NSObject
+@property MMWindowFateKind kind;
+@property (copy) NSString *lead;                        // "Stays.", "Goes with Fix Everything.", "Asks you.", "Working."; empty when only the note is known
+@property (copy, nullable) NSString *note;              // the sentence after it: "In use."
+@end
+
 /// One thing that holds memory or disk.
 @interface MMWindowRow : NSObject
 @property (copy) NSString *key;                         // stable across snapshots, so hover and scroll stay
@@ -68,10 +77,20 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 @property NSInteger tabs;                               // for MMWindowTabs, the count shown in the name
 @property BOOL needsYou;                                // an agent that asks: a white diamond on its icon
 @property BOOL inFix;                                   // Fix Everything touches it: a small orange mark
+/// Nothing is going on in it now: an idle server or agent, an app that uses next to no CPU, a helper left behind,
+/// a worktree with nothing uncommitted, a cache nothing uses. Its name is drawn a step quieter, so the rows where
+/// something happens lead. A row a fix touches or that asks is never drawn quiet, whatever this says.
+@property BOOL quiet;
 /// The row's own last hour, 60 NSNumber bytes or NSNull, or nil when Core keeps none. Only agents and servers have one.
 @property (copy, nullable) NSArray *hour;
 /// The story the middle shows while the pointer rests on the row: who owns it, where it is, why it stays.
 @property (copy) NSArray<MMWindowFact *> *facts;
+/// Read from the row's own fields and never stored: a row that asks leads with "Asks you.", a row Fix Everything
+/// touches with "Goes with Fix Everything.", and any other with its fact labelled Stays, or, for an agent, with its
+/// State. The fact labelled Why, or the one labelled Stays, is the sentence after it. nil when the row holds none of these.
+@property (readonly, nullable) MMWindowFate *fate;
+/// The facts under that line: all of them but the ones the line already said.
+@property (readonly) NSArray<MMWindowFact *> *storyFacts;
 /// The name as every view draws it: a tabs row leads with its count, "3 Browser".
 @property (readonly) NSString *shownName;
 /// NO for a tabs row that holds no bytes: its count in the name is its number, and no size of 0 is drawn or read out.

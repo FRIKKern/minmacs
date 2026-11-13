@@ -76,7 +76,13 @@ NSAttributedString *MMWindowJoin(NSArray<NSAttributedString *> *runs) {
 
 CGFloat MMWindowWidth(NSAttributedString *line) { return ceil(line.size.width); }
 
+// A thin space: 195-a sets a unit two or three points after its number, closer than a word.
+NSString *const MMWindowThin = @"\u2009";
+
+void MMWindowCrisp(void) { CGContextSetShouldSmoothFonts(NSGraphicsContext.currentContext.CGContext, false); }
+
 void MMWindowDraw(NSAttributedString *line, CGFloat x, CGFloat midY, NSInteger align) {
+    MMWindowCrisp();
     NSSize s = line.size;
     CGFloat left = align < 0 ? x : align == 0 ? x - s.width / 2 : x - s.width;
     [line drawAtPoint:NSMakePoint(round(left * 2) / 2, round((midY - s.height / 2) * 2) / 2)];
@@ -105,19 +111,38 @@ NSAttributedString *MMWindowFit(NSString *text, CGFloat size, NSFontWeight weigh
 }
 
 NSArray<NSString *> *MMWindowSize2(uint64_t bytes) {
-    NSArray<NSString *> *p = [MMBytes(bytes) componentsSeparatedByString:@" "];
-    NSString *n = p.firstObject ?: @"0";
-    // "64.0" reads as "64": a round size has no decimal to show.
-    if ([n hasSuffix:@".0"]) n = [n substringToIndex:n.length - 2];
-    return @[n, p.count > 1 ? p[1] : @""];
+    // One rule for every size the window shows, 195-a's: megabytes whole, gigabytes with one decimal, and a second
+    // one under 10 GB when it says more than the first. The decimal stays when it is a zero, so "1.0 GB" stands
+    // beside "6.6 GB". From 100 GB up the number is whole.
+    const double M = 1024.0 * 1024.0, G = M * 1024.0;
+    if (bytes == 0) return @[@"0", @"MB"];
+    if (bytes < G - M / 2 || bytes >= 1024.0 * G - G / 20) {
+        NSArray<NSString *> *p = [MMBytes(bytes) componentsSeparatedByString:@" "];
+        return @[p.firstObject ?: @"0", p.count > 1 ? p[1] : @""];
+    }
+    double x = bytes / G;
+    if (x >= 99.95) return @[[NSString stringWithFormat:@"%.0f", x], @"GB"];
+    if (x >= 9.995) return @[[NSString stringWithFormat:@"%.1f", x], @"GB"];
+    BOOL two = fabs(x * 10 - round(x * 10)) > 0.3;
+    return @[[NSString stringWithFormat:two ? @"%.2f" : @"%.1f", x], @"GB"];
 }
 
 NSString *MMWindowBytes(uint64_t bytes) { return [MMWindowSize2(bytes) componentsJoinedByString:@" "]; }
 
+NSString *MMWindowWhole(uint64_t bytes) {
+    NSString *s = MMWindowBytes(bytes);
+    return [s stringByReplacingOccurrencesOfString:@".0 " withString:@" "];
+}
+
+NSString *MMWindowCPU(double percent) {
+    if (percent < 0.05) return nil;
+    return percent < 9.95 ? [NSString stringWithFormat:@"%.1f", percent] : [NSString stringWithFormat:@"%.0f", percent];
+}
+
 NSAttributedString *MMWindowNumber(uint64_t bytes, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat unitSize) {
     NSArray<NSString *> *p = MMWindowSize2(bytes);
     return MMWindowJoin(@[MMWindowText(p[0], size, weight, color),
-                          MMWindowText([@" " stringByAppendingString:p[1]], unitSize, NSFontWeightRegular, MMWindowColor(MMWindowInkText2))]);
+                          MMWindowText([MMWindowThin stringByAppendingString:p[1]], unitSize, NSFontWeightRegular, MMWindowColor(MMWindowInkText2))]);
 }
 
 NSArray<NSNumber *> *MMWindowHourValues(NSArray *values, NSInteger *filled) {
@@ -145,17 +170,27 @@ NSArray *MMWindowHourSpan(NSArray *values, NSInteger *first, NSInteger *last, NS
     return n >= MMWindowHourLeast ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a + 1))] : nil;
 }
 
-void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, CGFloat lineWidth, BOOL dot) {
+void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHourLook look) {
+    BOOL graph = look == MMWindowHourGraph, small = look == MMWindowHourRow;
     // Only the filled part is drawn, across the whole width, so a young hour is a short line and never a stroke at the edge.
-    NSArray<NSNumber *> *v = MMWindowHourValues(MMWindowHourSpan(values, NULL, NULL, NULL), NULL);
-    if (!v.count) return;
+    NSArray *span = MMWindowHourSpan(values, NULL, NULL, NULL);
+    if (!span) return;
+    NSArray<NSNumber *> *v = MMWindowHourValues(span, NULL);
     double lo = INFINITY, hi = -INFINITY;
     for (NSNumber *n in v) { double d = n.doubleValue; if (isnan(d)) continue; lo = MIN(lo, d); hi = MAX(hi, d); }
-    // A flat hour sits in the middle. Otherwise the line uses the height, with room above for the dot.
-    double span = hi - lo, pad = dot ? 5 : 1.5;
-    double least = MAX(hi, 1) * (dot ? 0.004 : 0.06);   // a row's small line shows a wobble as flat; the large graph shows it
-    if (span < least) { double mid = (hi + lo) / 2; span = least; lo = mid - span * 1.5; hi = mid + span * 1.5; span = hi - lo; }
-    CGFloat usable = rect.size.height - pad - (dot ? rect.size.height * 0.14 : 1.5);
+    double span2 = hi - lo, top, bottom;
+    if (graph) {
+        // The line uses the height, with room above for the dot. A flat hour sits in the middle.
+        double least = MAX(hi, 1) * 0.004;
+        if (span2 < least) { double mid = (hi + lo) / 2; lo = mid - least * 1.5; hi = mid + least * 1.5; span2 = hi - lo; }
+        top = NSMinY(rect) + 5; bottom = NSMaxY(rect) - rect.size.height * 0.14;
+    } else {
+        // A small line shows a wobble as flat: its scale is at least a quarter of its largest value.
+        double wide = MAX(MAX(span2, hi * 0.25), 1), base = lo - (wide - span2) / 2 - wide * 0.08;
+        lo = base; span2 = wide * 1.16;
+        top = NSMinY(rect) + 1; bottom = NSMaxY(rect) - 1;
+    }
+    CGFloat left = NSMinX(rect) + 1, width = rect.size.width - (graph ? 4 : 2.6);
     NSBezierPath *line = [NSBezierPath bezierPath], *fill = [NSBezierPath bezierPath];
     NSPoint last = NSZeroPoint, first = NSZeroPoint;
     BOOL open = NO, any = NO;
@@ -163,17 +198,19 @@ void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, CGFloat line
     for (NSInteger i = 0; i < count; i++) {
         double d = v[i].doubleValue;
         if (isnan(d)) { if (open) { [fill lineToPoint:NSMakePoint(last.x, NSMaxY(rect))]; [fill lineToPoint:NSMakePoint(first.x, NSMaxY(rect))]; [fill closePath]; open = NO; } continue; }
-        NSPoint p = NSMakePoint(NSMinX(rect) + 1 + (rect.size.width - 4) * i / MAX(count - 1, 1), NSMinY(rect) + pad + usable * (1 - (d - lo) / span));
+        NSPoint p = NSMakePoint(left + width * i / MAX(count - 1, 1), bottom - (bottom - top) * (d - lo) / span2);
         if (!open) { [line moveToPoint:p]; [fill moveToPoint:p]; first = p; open = YES; }
         else { [line lineToPoint:p]; [fill lineToPoint:p]; }
         last = p; any = YES;
     }
     if (open) { [fill lineToPoint:NSMakePoint(last.x, NSMaxY(rect))]; [fill lineToPoint:NSMakePoint(first.x, NSMaxY(rect))]; [fill closePath]; }
     if (!any) return;
-    [[color colorWithAlphaComponent:MMWindowContrast() ? 0.26 : 0.15] setFill];
+    [[color colorWithAlphaComponent:color.alphaComponent * (MMWindowContrast() ? 0.26 : graph ? 0.15 : 0.18)] setFill];
     [fill fill];
-    line.lineWidth = lineWidth; line.lineJoinStyle = NSLineJoinStyleRound; line.lineCapStyle = NSLineCapStyleRound;
+    line.lineWidth = small ? 1.2 : 1.5; line.lineJoinStyle = NSLineJoinStyleRound; line.lineCapStyle = NSLineCapStyleRound;
     [color setStroke];
     [line stroke];
-    if (dot) { [color setFill]; [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(last.x - 2.4, last.y - 2.4, 4.8, 4.8)] fill]; }
+    CGFloat dot = graph ? 2.4 : 1.6;
+    [color setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(last.x - dot, last.y - dot, dot * 2, dot * 2)] fill];
 }

@@ -81,7 +81,7 @@ static void WindowLookChecks(void) {
     NSString *nothing = gains(memoryOnly, MMWindowDockEnded);
     run.memoryBack = run.memoryPlanned;
     NSString *ended = gains(memoryOnly, MMWindowDockEnded);
-    Check([atStart isEqualToString:@"0 KB memory back so far"] && nothing.length == 0 && [ended isEqualToString:@"2.7 GB memory back"],
+    Check([atStart isEqualToString:@"0 MB memory back so far"] && nothing.length == 0 && [ended isEqualToString:@"2.7 GB memory back"],
           @"window gains: a run counts up only the side it set out to give back, and its end shows only what came back", [NSString stringWithFormat:@"%@ / %@ / %@", atStart, nothing, ended]);
     NSMutableArray<NSString *> *zeros = [NSMutableArray new];
     for (NSString *name in @[@"busy", @"quiet", @"peak", @"done", @"empty", @"young", @"calm", @"long", @"memory-only", @"disk-only"]) {
@@ -225,7 +225,7 @@ static void WindowWelcomeGuardChecks(void) {
         BOOL memory = [name isEqualToString:@"memory-only"];
         NSInteger marked = 0;
         for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) for (MMWindowRow *r in g.rows) {
-            BOOL goes = [r.facts.lastObject.value hasPrefix:@"Goes."];
+            BOOL goes = r.fate.kind == MMWindowFateGoes && [r.fate.lead hasPrefix:@"Goes"] && ![r.facts.lastObject.label isEqualToString:@"Stays"];
             if (r.inFix) marked++;
             if (r.inFix != goes || (r.inFix && (side == m.diskGroups) == memory)) [off addObject:r.key];
             if (!r.inFix && [@[@"will close", @"may go", @"merged"] containsObject:r.state ?: @""]) [off addObject:r.key];

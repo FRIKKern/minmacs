@@ -34,7 +34,7 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 - (NSDictionary *)json {
     return @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
              @"state": Or(self.state), @"cpuPercent": self.cpuPercent >= 0 ? @(round(self.cpuPercent * 10) / 10) : NSNull.null,
-             @"bytes": @(self.bytes), @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix),
+             @"bytes": @(self.bytes), @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
              @"hour": Or(self.hour), @"facts": All(self.facts)};
 }
 @end

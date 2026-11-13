@@ -58,9 +58,10 @@ static NSArray<MMWindowRow *> *Servers(NSInteger count) {
                              [s[4] length] ? s[4] : nil, [s[2] unsignedLongLongValue] * MB, [s[3] integerValue] < 0 ? -1 : [s[3] integerValue] / 10.0);
         r.hour = HourTo(r.bytes, r.key, i % 4);
         r.inFix = idle;
+        r.quiet = idle;
         r.facts = @[F(@"Project", s[5]), F(@"Runs", @"pnpm dev, 2 processes"), F(@"Port", [NSString stringWithFormat:@":%ld on 127.0.0.1", (long)port]),
                     F(@"Connections", idle ? @"none in the last 2 h" : @"2 now"),
-                    F(@"Why", idle ? @"Goes. Nobody has asked it for a page in 2 h." : @"Stays. A browser tab and an agent use it.")];
+                    idle ? F(@"Why", @"Nobody has asked it for a page in 2 h.") : F(@"Stays", @"A browser tab and an agent use it.")];
         [rows addObject:r];
     }
     return rows;
@@ -82,9 +83,12 @@ static NSArray<MMWindowRow *> *Agents(NSInteger count, NSInteger asking) {
                              [a[1] unsignedLongLongValue] * MB, [a[2] integerValue] < 0 ? -1 : [a[2] integerValue] / 10.0);
         r.needsYou = i < asking;
         if (r.needsYou) r.state = @"asks you";
+        // An agent with no CPU reading here is one that sits idle.
+        r.quiet = !r.needsYou && r.cpuPercent < 0;
         r.hour = HourTo(r.bytes, r.key, (i + 1) % 4);
         r.facts = @[F(@"Agent", i % 3 == 2 ? @"Codex" : @"Claude Code"), F(@"Project", a[3]), F(@"Started", [NSString stringWithFormat:@"%ld min ago", (long)(14 + i * 7)]), F(@"Processes", i % 2 ? @"3, with a test runner" : @"2"),
-                    F(@"Why", r.needsYou ? @"Waits on you. It asked a question and has not moved since." : @"Stays. It is working.")];
+                    F(@"State", r.needsYou ? @"waits on you" : r.quiet ? @"idle" : @"working"),
+                    F(@"Why", r.needsYou ? @"It asked a question and has not moved since." : r.quiet ? @"Its last turn ended and nothing has come since." : @"Its session is active.")];
         [rows addObject:r];
     }
     return rows;
@@ -92,21 +96,21 @@ static NSArray<MMWindowRow *> *Agents(NSInteger count, NSInteger asking) {
 
 static NSArray<MMWindowRow *> *Apps(NSInteger count) {
     // name, bundle id or "" for a helper, megabytes, CPU in tenths or -1, state, why
-    NSArray *t = @[@[@"Safari", @"com.apple.Safari", @4915, @19, @"kept", @"Kept. You use it every day."],
-                   @[@"Terminal", @"com.apple.Terminal", @4300, @21, @"kept", @"Kept. 9 agents run in it."],
-                   @[@"Xcode", @"com.apple.dt.Xcode", @2765, @9, @"kept", @"Kept. A build ran 6 min ago."],
-                   @[@"localhost tabs", @"tabs", @1434, @-1, @"will close", @"Goes. 14 tabs point at servers that stopped."],
-                   @[@"Simulator", @"com.apple.iphonesimulator", @1126, @6, @"", @"Stays. Xcode holds it open."],
-                   @[@"Language server", @"", @905, @11, @"", @"Stays. An editor asks it for answers."],
-                   @[@"Browser helper", @"", @640, @4, @"", @"Stays. It draws the pages Safari shows."],
-                   @[@"Music", @"com.apple.Music", @578, @1, @"will close", @"Goes. On your close list, and nothing has played for 3 h."],
-                   @[@"Mail", @"com.apple.mail", @420, @-1, @"kept", @"Kept. You use it every day."],
-                   @[@"Search indexing", @"", @380, @4, @"", @"Stays. macOS runs it and stops it on its own."],
-                   @[@"Notes", @"com.apple.Notes", @310, @-1, @"", @"Stays. A note has changes not yet saved."],
-                   @[@"Preview", @"com.apple.Preview", @280, @-1, @"unsorted", @"Stays. Nothing says it may close."],
-                   @[@"Photo analysis", @"", @210, @2, @"", @"Stays. macOS runs it and stops it on its own."],
-                   @[@"Calendar", @"com.apple.iCal", @190, @-1, @"", @"Stays. A reminder is due at 15:00."],
-                   @[@"Font helper", @"", @120, @-1, @"", @"Stays. Three apps share it."]];
+    NSArray *t = @[@[@"Safari", @"com.apple.Safari", @4915, @19, @"kept", @"You use it every day."],
+                   @[@"Terminal", @"com.apple.Terminal", @4300, @21, @"kept", @"9 agents run in it."],
+                   @[@"Xcode", @"com.apple.dt.Xcode", @2765, @9, @"kept", @"A build ran 6 min ago."],
+                   @[@"localhost tabs", @"tabs", @1434, @-1, @"will close", @"14 tabs point at servers that stopped."],
+                   @[@"Simulator", @"com.apple.iphonesimulator", @1126, @6, @"", @"Xcode holds it open."],
+                   @[@"Language server", @"", @905, @11, @"", @"An editor asks it for answers."],
+                   @[@"Browser helper", @"", @640, @4, @"", @"It draws the pages Safari shows."],
+                   @[@"Music", @"com.apple.Music", @578, @1, @"will close", @"On your close list, and nothing has played for 3 h."],
+                   @[@"Mail", @"com.apple.mail", @420, @-1, @"kept", @"You use it every day."],
+                   @[@"Search indexing", @"", @380, @4, @"", @"macOS runs it and stops it on its own."],
+                   @[@"Notes", @"com.apple.Notes", @310, @-1, @"", @"A note has changes not yet saved."],
+                   @[@"Preview", @"com.apple.Preview", @280, @-1, @"unsorted", @"Nothing says it may close."],
+                   @[@"Photo analysis", @"", @210, @2, @"", @"macOS runs it and stops it on its own."],
+                   @[@"Calendar", @"com.apple.iCal", @190, @-1, @"", @"A reminder is due at 15:00."],
+                   @[@"Font helper", @"", @120, @-1, @"", @"Three apps share it."]];
     NSMutableArray *rows = [NSMutableArray new];
     for (NSInteger i = 0; i < MIN(count, (NSInteger)t.count); i++) {
         NSArray *a = t[i];
@@ -115,7 +119,8 @@ static NSArray<MMWindowRow *> *Apps(NSInteger count) {
                              tabs || helper ? nil : a[1], [a[4] length] ? a[4] : nil, [a[2] unsignedLongLongValue] * MB, [a[3] integerValue] < 0 ? -1 : [a[3] integerValue] / 10.0);
         if (tabs) r.tabs = 14;
         r.inFix = [a[4] isEqualToString:@"will close"];
-        r.facts = @[F(helper ? @"Part of" : @"Open", helper ? @"macOS and the apps that use it" : tabs ? @"in Safari, 2 windows" : @"since this morning"), F(@"Why", a[5])];
+        r.quiet = helper || tabs || r.cpuPercent < 0.5;
+        r.facts = @[F(helper ? @"Part of" : @"Open", helper ? @"macOS and the apps that use it" : tabs ? @"in Safari, 2 windows" : @"since this morning"), F(r.inFix ? @"Why" : @"Stays", a[5])];
         [rows addObject:r];
     }
     return rows;
@@ -135,27 +140,29 @@ static NSArray<MMWindowRow *> *Worktrees(NSInteger count) {
         NSString *state = w[1];
         MMWindowRow *r = Row(MMWindowWorktree, [@"worktree:" stringByAppendingString:w[0]], w[0], nil, state, [w[2] unsignedLongLongValue] * MB, -1);
         r.inFix = [w[3] boolValue];
-        NSString *why = [state isEqualToString:@"merged"] ? @"Goes. Its branch is merged and nothing in it is uncommitted."
-            : [state isEqualToString:@"in use"] ? @"Stays. An agent works in it now."
-            : [state isEqualToString:@"changed"] ? @"Stays. 3 files are not committed." : @"Stays. Not merged, and no session has touched it for 9 days.";
-        r.facts = @[F(@"Branch", w[0]), F(@"Repo", i % 2 ? @"studio" : @"atlas"), F(@"Frees", MMBytes(r.bytes)), F(@"Last touched", [NSString stringWithFormat:@"%ld d ago", (long)(1 + i)]), F(@"Why", why)];
+        r.quiet = ![state isEqualToString:@"changed"] && ![state isEqualToString:@"in use"];
+        NSString *why = [state isEqualToString:@"merged"] ? @"Its branch is merged and nothing in it is uncommitted."
+            : [state isEqualToString:@"in use"] ? @"An agent works in it now."
+            : [state isEqualToString:@"changed"] ? @"3 files are not committed." : @"Not merged, and no session has touched it for 9 days.";
+        r.facts = @[F(@"Branch", w[0]), F(@"Repo", i % 2 ? @"studio" : @"atlas"), F(@"Last touched", [NSString stringWithFormat:@"%ld d ago", (long)(1 + i)]), F(r.inFix ? @"Why" : @"Stays", why)];
         [rows addObject:r];
     }
     return rows;
 }
 
 static NSArray<MMWindowRow *> *Caches(NSInteger count) {
-    NSArray *t = @[@[@"DerivedData", @"may go", @14541, @"Xcode", @"Goes. 4 of its 7 projects are gone from this Mac."],
-                   @[@"npm cache", @"own clean", @6246, @"npm", @"Stays until you press. npm cleans it with its own command."],
-                   @[@"Container build cache", @"", @4300, @"the container tool", @"Stays. A build used it 2 h ago."],
-                   @[@"Test browsers", @"", @3380, @"the test runner", @"Stays. The newest set is in use."],
-                   @[@"Simulators", @"report only", @800, @"Xcode", @"Stays. Xcode keeps its own simulators, so this is only reported."]];
+    NSArray *t = @[@[@"DerivedData", @"may go", @14541, @"Xcode", @"4 of its 7 projects are gone from this Mac."],
+                   @[@"npm cache", @"own clean", @6246, @"npm", @"Its own tool cleans it, on your press."],
+                   @[@"Container build cache", @"", @4300, @"the container tool", @"A build used it 2 h ago."],
+                   @[@"Test browsers", @"", @3380, @"the test runner", @"The newest set is in use."],
+                   @[@"Simulators", @"report only", @800, @"Xcode", @"Xcode keeps its own simulators, so this is only reported."]];
     NSMutableArray *rows = [NSMutableArray new];
     for (NSInteger i = 0; i < MIN(count, (NSInteger)t.count); i++) {
         NSArray *c = t[i];
         MMWindowRow *r = Row(MMWindowCache, [NSString stringWithFormat:@"cache:%ld", (long)i], c[0], nil, [c[1] length] ? c[1] : nil, [c[2] unsignedLongLongValue] * MB, -1);
         r.inFix = i == 0;
-        r.facts = @[F(@"Owner", c[3]), F(@"Frees", MMBytes(r.bytes)), F(@"Last used", [NSString stringWithFormat:@"%ld d ago", (long)(2 + i * 5)]), F(@"Why", c[4])];
+        r.quiet = YES;
+        r.facts = @[F(@"Owner", c[3]), F(@"Last used", [NSString stringWithFormat:@"%ld d ago", (long)(2 + i * 5)]), F(r.inFix ? @"Why" : @"Stays", c[4])];
         [rows addObject:r];
     }
     return rows;
@@ -164,7 +171,7 @@ static NSArray<MMWindowRow *> *Caches(NSInteger count) {
 /// A row whose name is longer than its group's column, one per group, for the day named "long".
 static MMWindowRow *Long(MMWindowRow *like, NSString *key, NSString *name, uint64_t bytes) {
     MMWindowRow *r = Row(like.kind, key, name, like.iconHint, like.state, bytes, like.cpuPercent);
-    r.hour = like.hour; r.facts = like.facts;
+    r.hour = like.hour; r.facts = like.facts; r.quiet = like.quiet;
     return r;
 }
 
@@ -317,6 +324,12 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     NSArray<MMWindowRow *> *caches = Caches(empty || young ? 0 : quiet || calm ? 2 : 5);
     if (young || calm) for (NSArray<MMWindowRow *> *rows in @[servers, apps, trees, caches]) for (MMWindowRow *r in rows) {
         // Nothing is in Fix Everything on these days, so no row says it will go.
+        if (r.inFix) {
+            NSMutableArray<MMWindowFact *> *facts = [r.facts mutableCopy];
+            [facts removeLastObject];
+            [facts addObject:F(@"Stays", @"Nothing asks for it to go.")];
+            r.facts = facts;
+        }
         r.inFix = NO;
         if ([@[@"idle", @"nobody", @"will close", @"merged", @"may go"] containsObject:r.state ?: @""]) r.state = nil;
     }
@@ -328,7 +341,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
             r.inFix = NO; r.state = nil;
             NSMutableArray<MMWindowFact *> *facts = [r.facts mutableCopy];
             [facts removeLastObject];
-            [facts addObject:F(@"Why", @"Stays. Its rule is Off, so it waits for your own press.")];
+            [facts addObject:F(@"Stays", @"Its rule is Off, so it waits for your own press.")];
             r.facts = facts;
         }
     }

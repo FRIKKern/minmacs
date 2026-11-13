@@ -24,12 +24,15 @@ The layout is prototype 195-a, Dock Below:
 ```
 
 1. **Memory left, disk right.** What holds memory is on the left: servers, agents, apps and helpers. What holds disk is on the right: worktrees and caches. Memory and disk are two numbers everywhere and are never added into one.
-2. **The middle.** It shows memory in use and disk free over the last hour. While the pointer rests on a row it shows that row's story: who owns it, where it is and why it stays or goes.
+2. **The middle.** It shows memory in use and disk free over the last hour. While the pointer rests on a row it shows that row's story: its name and group, its number, and one line that says whether it asks, goes or stays and why, then its facts and where it stands in its group. The dock's ring lights that row's arc, and the numbers beside it are the row's. The first minutes of an hour show the newest value large over an empty track, never a made-up line.
 3. **The top line** says who asks the person, such as "2 agents ask you". When nobody asks it folds away and the lists get its height.
-4. **The dock.** The ring shows memory by group, with the disk as the thin outer track. Fix Everything runs every fix that does not need the person, in order. Under it one line says what a press does: "7 fixes, Wrap Up fix-auth-redirect first". While a run plays, the button holds the step and a press stops the run after that step. With nothing to fix the button stays in place, dimmed, over "Nothing to fix now".
-5. **The gains** stand right of the button, a number for memory and a number for disk. A side shows only when it is above zero, so a fix that gives no disk back shows no "0 KB disk back". One side alone sits level with the middle of the button. With nothing to fix, what came back today stands there, by the same rule.
+4. **The dock.** The ring shows memory by group, with the disk as the thin outer track. Fix Everything runs every fix that does not need the person, in order. Under it one line says what a press does: "7 fixes, Wrap Up fix-auth-redirect first". While the pointer rests on the button, the numbers beside the ring are the Mac after the fixes. While a run plays, the button holds the step, "Fix 3 of 7" and a small Stop stand under it, and a press on either stops the run after that step. With nothing to fix the button stays in place, dimmed, with no line under it: the window never claims a result.
+5. **The gains** stand right of the button, a number for memory and a number for disk. A side shows only when it is above zero, so a fix that gives no disk back shows no "0 MB disk back". One side alone sits level with the middle of the button. With nothing to fix, what came back today stands there, by the same rule.
 6. **Two buttons only:** the gear for Settings, also Command-comma, and the power icon for Quit, also Command-Q. There is no Hide Icon.
 7. **A row's name is never cut with an ellipsis.** A name longer than its column loses whole words from the end.
+8. **No row is cut in half.** Each group is a whole number of rows high. Where rows wait below, the last row shown fades as a whole and the header says "9 more below". A side with room to spare makes its rows taller, with a second line each, and closes with its whole number: "This disk", free, held by these rows, and the rest.
+9. **One rule for sizes.** Megabytes are whole. Gigabytes have one decimal, which stays when it is a zero, and a second one under 10 GB when it says more: "1.0 GB", "6.6 GB", "1.86 GB". From 100 GB up the number is whole.
+10. **Quiet rows step back.** An idle server or agent, a helper, a cache nothing uses or a worktree with nothing uncommitted has its name drawn a step dimmer, unless a fix touches it or it asks.
 
 ### Settings in place
 

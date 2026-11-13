@@ -7,6 +7,8 @@ static const CGFloat kExplainX = 72, kOptionW = 308;
 static NSAttributedString *Wrapped(NSString *s, CGFloat size, NSFontWeight weight, NSColor *color) {
     NSMutableParagraphStyle *p = [NSMutableParagraphStyle new];
     p.lineBreakMode = NSLineBreakByWordWrapping;
+    // 197-b's lines: 16 points for 12-point text.
+    p.minimumLineHeight = p.maximumLineHeight = ceil(size * 1.3);
     return [[NSAttributedString alloc] initWithString:s ?: @"" attributes:@{
         NSFontAttributeName: MMWindowFont(size, weight), NSForegroundColorAttributeName: color, NSParagraphStyleAttributeName: p}];
 }
@@ -49,6 +51,7 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
 - (BOOL)sendAction:(SEL)action to:(id)target { return MMWindowTakesPresses(self) && [super sendAction:action to:target]; }
 
 - (void)drawRect:(NSRect)dirty {
+    MMWindowCrisp();
     NSRect b = self.bounds;
     NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2);
     if (self.isSwitch) {
