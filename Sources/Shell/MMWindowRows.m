@@ -8,6 +8,7 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
 static NSNumber *Num(id v) { return [v isKindOfClass:NSNumber.class] ? v : nil; }
 static NSDate *Date(id v) { return Num(v) && [v doubleValue] > 0 ? [NSDate dateWithTimeIntervalSince1970:[v doubleValue]] : nil; }
 static NSString *Folder(NSString *path) { return path.length ? path.stringByAbbreviatingWithTildeInPath : nil; }
+static BOOL HomeOrTop(NSString *path) { NSString *p = path.stringByStandardizingPath; return [p isEqualToString:NSHomeDirectory()] || [p isEqualToString:@"/"]; }
 
 static BOOL Is(MMFinding *f, NSString *expert, NSString *kind) { return [f.expert isEqualToString:expert] && [f.kind isEqualToString:kind]; }
 
@@ -114,7 +115,8 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
     switch (kind) {
         case MMWindowServer: {
             Add(out, MMWindowFactPort([Num(x[@"port"]) integerValue]));
-            Add(out, MMWindowFactProject(Str(x[@"project"])));
+            // With no folder of its own, Core names a server's project by its process, "node": that is no folder.
+            Add(out, MMWindowFactProject(Str(x[@"repo"]) || Str(x[@"worktree"]) || ![Str(x[@"project"]) isEqualToString:Str(x[@"name"])] ? Str(x[@"project"]) : nil));
             Add(out, MMWindowFactRunsIn(Str(x[@"where"]) ?: Str(x[@"whereApp"])));
             Add(out, MMWindowFactStartedBy(Str(x[@"agent"]) ?: Str(x[@"launcher"])));
             NSDate *last = Date(x[@"lastActive"]);
@@ -126,7 +128,8 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
         }
         case MMWindowAgent:
             Add(out, MMWindowFactAgent(Str(x[@"name"])));
-            Add(out, MMWindowFactProject(Str(x[@"project"]).lastPathComponent));
+            // An agent that runs in the home folder or at the disk's top has no project.
+            Add(out, MMWindowFactProject(HomeOrTop(Str(x[@"project"])) ? nil : Str(x[@"project"]).lastPathComponent));
             Add(out, MMWindowFactState(Str(x[@"state"])));
             break;
         case MMWindowApp:
@@ -151,7 +154,8 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             Add(out, MMWindowFactBranch(Str(x[@"branch"])));
             Add(out, MMWindowFactFiles([Num(x[@"dirty"]) integerValue], [Num(x[@"untracked"]) integerValue]));
             Add(out, MMWindowFactNotPushed([Num(x[@"unpushed"]) integerValue]));
-            if (Num(x[@"quietDays"])) Add(out, MMWindowFactUntouched([x[@"quietDays"] doubleValue] * 86400));
+            // The time of the last work, to the second: quietDays is rounded to tenths of a day, so 0 can be 72 minutes.
+            if (Date(x[@"lastWorkAt"])) Add(out, MMWindowFactUntouched(-Date(x[@"lastWorkAt"]).timeIntervalSinceNow));
             Add(out, MMWindowFactFolder(Folder(f.path ?: Str(x[@"path"]))));
             break;
         case MMWindowCache:

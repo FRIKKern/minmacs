@@ -71,8 +71,8 @@ MMWindowFact *MMWindowFactPort(NSInteger port) { return port > 0 ? Fact(@"Port",
 
 MMWindowFact *MMWindowFactProject(NSString *project) {
     NSString *p = Trimmed(project);
-    // The disk's top is no project.
-    if ([p isEqualToString:@"/"]) return nil;
+    // The disk's top and the home folder are no project: "in /" and "in ~" say nothing.
+    if ([p isEqualToString:@"/"] || [p isEqualToString:@"~"]) return nil;
     NSString *last = p.lastPathComponent;
     return Fact(@"Project", p, last.length ? [@"in " stringByAppendingString:last] : nil);
 }
@@ -81,8 +81,17 @@ MMWindowFact *MMWindowFactOwner(NSString *project) { NSString *p = Trimmed(proje
 MMWindowFact *MMWindowFactRunsIn(NSString *where) { NSString *w = Trimmed(where); return Fact(@"Runs in", w, [@"runs in " stringByAppendingString:w]); }
 
 MMWindowFact *MMWindowFactStartedBy(NSString *who) {
-    // Core marks a launcher that is gone as "cmux · parent exited". The dot is the second line's own separator.
-    NSString *w = [Trimmed(who) stringByReplacingOccurrencesOfString:@" · parent exited" withString:@", which has quit"];
+    // Core writes who started a server as a chain with the starter first, "pnpm dev · cmux", and ends it with "parent
+    // exited" when the starter is gone, or "launchd" when launchd took the server over. The dot is the second line's
+    // own separator between facts, so the chain is said in words: "pnpm dev in cmux".
+    NSMutableArray<NSString *> *chain = [NSMutableArray new];
+    for (NSString *part in [Trimmed(who) componentsSeparatedByString:@"·"]) if (Trimmed(part).length) [chain addObject:Trimmed(part)];
+    BOOL quit = [chain.lastObject isEqualToString:@"parent exited"];
+    if (quit) [chain removeLastObject];
+    if (chain.count > 1 && [chain.lastObject isEqualToString:@"launchd"]) [chain removeLastObject];
+    if (!chain.count) return quit ? Fact(@"Started by", @"a program that has quit", @"its starter has quit") : nil;
+    NSString *w = [chain componentsJoinedByString:@" in "];
+    if (quit) w = [w stringByAppendingString:@", which has quit"];
     return Fact(@"Started by", w, [@"started by " stringByAppendingString:w]);
 }
 

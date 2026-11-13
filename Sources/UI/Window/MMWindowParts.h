@@ -134,11 +134,15 @@ void MMWindowDrawPower(NSRect rect, NSColor *color);
 @interface MMWindowFlipped : NSView
 @end
 
-/// What a row shows beside its name and its number, where its name may reach to, and how many lines the name takes.
-typedef struct { BOOL state, cpu, hour; CGFloat edge; NSInteger lines; } MMWindowRowFit;
-/// A row's name as the lines it is drawn in, whole. It first takes the room of the state word, then of the row's own
-/// hour, then of CPU, and wraps when it is still too long. MMWindowRow.m.
-NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, CGFloat nameLeft, CGFloat right, MMWindowRowFit *_Nullable fit);
+/// Where each part of one row stands, worked out once from the right: the size, the row's own hour, CPU, the state
+/// word, and the name in what is left. A part that is not there has an empty rect, and the parts left of it move
+/// right into its place. Every part is drawn in its rect, so no part reaches into the next. Each rect is as high as
+/// the row.
+typedef struct { NSRect size, hour, cpu, state, name; NSInteger lines; } MMWindowRowColumns;
+/// A row's name as the lines it is drawn in, whole, and where each part of the row stands. The name first takes the
+/// room of a column with nothing to show in this row, then of the state word, then of the row's own hour, then of
+/// CPU, and wraps when it is still too long. `rect` is the row's. MMWindowRow.m.
+NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *_Nullable columns);
 /// The height each line of a name beyond its first adds to a row.
 extern const CGFloat MMWindowNameLine;
 /// A row's second line, where its side has the room: why it stays, or its first facts that the name does not say

@@ -45,6 +45,7 @@ static MMWindowSettingsView *PolishSettings(MMWindowView *v) {
 }
 
 #include "render-window-words.m"
+#include "render-window-row.m"
 
 static void WindowPolishChecks(void) {
     const uint64_t MB = 1ull << 20, GB = 1ull << 30, DMB = 1000000ull, DGB = 1000000000ull;
@@ -207,16 +208,28 @@ static void WindowPolishChecks(void) {
     r.model = next;
     Check([heard isEqualToString:@"Fix 3 of 5"] && [rdock.announced isEqualToString:@"Fix 4 of 5"] && [rdock.fix.accessibilityLabel isEqualToString:@"Stop, Fix 4 of 5, Quitting Music"],
           @"window dock: VoiceOver hears the run's count when it changes, and the button's label holds it", [NSString stringWithFormat:@"%@ then %@, %@", heard, rdock.announced, rdock.fix.accessibilityLabel]);
-    // A step with a name far too long for the button shows its action and the count, never a cut name. A short one is whole.
+    // A step with a name far too long for the button shows its action alone, never a cut name: the count stands
+    // under the button already. A short one is whole.
     MMWindowDockView *xdock = PolishDock(PolishView(@"extreme-running"));
-    Check([rdock.stepWords isEqualToString:@"Quitting Music"] && [xdock.stepWords isEqualToString:@"Wrapping up 1 of 2"] && [xdock.fix.accessibilityLabel containsString:MMWindowFixture(@"extreme-running").run.step],
-          @"window dock: a step too long for two lines in the button shows its action and the count, and VoiceOver still hears the whole step", xdock.stepWords);
-    // The end note is whole sentences. The longest the runner can make loses whole sentences from its end, never part of one.
-    MMWindowDockView *edock = PolishDock(PolishView(@"extreme-done"));
-    NSString *whole = MMWindowFixture(@"extreme-done").run.endNote, *drawn = edock.endNote;
-    Check(drawn.length > 0 && [whole hasPrefix:drawn] && [drawn hasSuffix:@"."] && (drawn.length == whole.length || [[whole substringFromIndex:drawn.length] hasPrefix:@" "]) &&
+    Check([rdock.stepWords isEqualToString:@"Quitting Music"] && [xdock.stepWords isEqualToString:@"Wrapping up"] && [xdock.fix.accessibilityLabel containsString:MMWindowFixture(@"extreme-running").run.step],
+          @"window dock: a step too long for two lines in the button shows its action alone, and VoiceOver still hears the whole step", xdock.stepWords);
+    // The end note is whole sentences, and where removed things went is kept first. The longest the runner can make
+    // shortens its Skipped list from the end, to whole phrases and "and more", before any other sentence goes. With
+    // a skip list longer still, the Skipped sentence goes and the others stay.
+    MMWindowView *ev = PolishView(@"extreme-done");
+    NSString *drawn = PolishDock(ev).endNote, *where = @"Deleted 3, moved 2 to the Trash and kept 1 in a recovery folder.", *saved = @"Files git ignores were saved in a recovery folder.";
+    MMWindowModel *longer = MMWindowFixture(@"extreme-done");
+    longer.generation = 2;
+    longer.run.endNote = [@"Skipped 12 agents that ask you working on the longest branch names anyone has given to a branch in any of the repositories on this Mac, "
+                          @"each of them waiting on a question about a permission that only you can answer, 3 fixes that need your own press because their tools clean their own caches and nothing else may, "
+                          @"14 kept since they changed or are in use. " stringByAppendingString:[@[where, saved] componentsJoinedByString:@" "]];
+    ev.model = longer;
+    NSString *longest = PolishDock(ev).endNote;
+    Check([drawn hasPrefix:@"Skipped 12 agents that ask you, "] && [drawn containsString:@" and more. "] && [drawn hasSuffix:[@[where, saved] componentsJoinedByString:@" "]] &&
+          [longest isEqualToString:[@[where, saved] componentsJoinedByString:@" "]] &&
           [PolishDock(PolishView(@"done")).endNote isEqualToString:MMWindowFixture(@"done").run.endNote],
-          @"window dock: a long end note keeps whole sentences only, and one that fits is whole", drawn);
+          @"window dock: a long end note keeps whole sentences only and where removed things went first, its Skipped list shortened before that, and one that fits is whole",
+          [NSString stringWithFormat:@"%@ / %@", drawn, longest]);
 
     // Settings: no title touches its explanation, no empty band stands over the title when nobody asks, the six
     // cards end level, and the first choices of a row stand level.
@@ -267,8 +280,8 @@ static void WindowPolishChecks(void) {
     live.model = MMWindowFixture(@"busy");
     [live opened];
     [live display];
-    Spin(0.4);          // the breath starts right after the first drawing; a loaded Mac takes its time to get there
     MMWindowDockView *ld = PolishDock(live);
+    SpinUntil(^BOOL { return ld.breathes == motion; });          // the breath starts right after the first drawing
     MMWindowListView *ll = WindowLists(live).firstObject;
     BOOL breathes = ld.breathes, firstFlash = ll.flashed > 0;
     [ld.fix setHover:YES];
@@ -299,7 +312,7 @@ static void WindowPolishChecks(void) {
     live.showsSettings = YES;
     NSView *pane = PolishSettings(live);
     BOOL held = !MMWindowTakesPresses(pane.subviews.firstObject) || !motion;
-    Spin(0.55);
+    SpinUntil(^BOOL { return pane.frame.origin.y == 40 && pane.alphaValue == 1 && MMWindowTakesPresses(pane.subviews.firstObject); });
     MMWindowModel *hidden = MMWindowFixture(@"busy");
     hidden.generation = 6;
     hidden.memoryGroups[1].rows = [@[fresh] arrayByAddingObjectsFromArray:hidden.memoryGroups[1].rows];
@@ -310,16 +323,17 @@ static void WindowPolishChecks(void) {
           @"window motion: the turn to Settings holds presses while Settings rises, and ends with it in its place and the menu's glow still",
           [NSString stringWithFormat:@"held %d, y %g, alpha %g, breathes %d", held, pane.frame.origin.y, pane.alphaValue, ld.breathes]);
     live.showsSettings = NO;
-    Spin(0.55);
+    SpinUntil(^BOOL { return MMWindowTakesPresses(ld.fix) && ld.breathes == motion; });
     BOOL back = ld.breathes;
     // Closed while still on screen: the breath does not come back with the next drawing.
     [live rest];
     [live display];
+    // Something that must not start: there is nothing to wait for, so the main loop runs a moment for it to show if it would.
     Spin(0.1);
     BOOL afterRest = ld.breathes;
     [live opened];
     [live display];
-    Spin(0.1);
+    SpinUntil(^BOOL { return ld.breathes == motion; });
     BOOL reopened = ld.breathes;
     MMWindowModel *dim = MMWindowFixture(@"young");
     dim.generation = 7;
@@ -348,13 +362,21 @@ static void WindowPolishChecks(void) {
     Check(firstKey && grownOff > restOff && grownFirst != NSNotFound && [sl.groups.firstObject.rows[grownFirst].key isEqualToString:firstKey],
           @"window lists: a scrolled group keeps the row it showed first when a row above it grows", [NSString stringWithFormat:@"%g then %g", restOff, grownOff]);
     NSRect sbox = sl.groupFrames.firstObject.rectValue;
-    NSEvent *wheel = [NSEvent eventWithCGEvent:(__bridge CGEventRef)CFBridgingRelease(CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, -7))];
+    // A wheel event placed over the first group: where the CG point (0, 0) lands is read first, then the event is
+    // moved to the group's middle, so it scrolls that group wherever the real pointer is.
+    CGEventRef cg = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, -7);
+    CGEventSetLocation(cg, CGPointZero);
+    NSPoint zero = [NSEvent eventWithCGEvent:cg].locationInWindow, want = [sl convertPoint:NSMakePoint(NSMidX(sbox), NSMidY(sbox)) toView:nil];
+    CGEventSetLocation(cg, CGPointMake(want.x - zero.x, zero.y - want.y));
+    NSEvent *wheel = [NSEvent eventWithCGEvent:cg];
+    CFRelease(cg);
+    BOOL over = NSPointInRect([sl convertPoint:wheel.locationInWindow fromView:nil], sbox);
     [sl scrollWheel:wheel];
     CGFloat moving = sl.offsets[sg.key].doubleValue;
     [sl setGroups:MMWindowFixture(@"extreme").memoryGroups ring:grown.ring];
     CGFloat stillMoving = sl.offsets[sg.key].doubleValue;
-    Check(moving != grownOff ? stillMoving == moving : YES, @"window lists: a model that comes while a group is being scrolled leaves its offset where the fingers have it",
-          [NSString stringWithFormat:@"%g moving, %g after the model", moving, stillMoving]);
+    Check(over && moving == grownOff + 7 && stillMoving == moving, @"window lists: a model that comes while a group is being scrolled leaves its offset where the fingers have it",
+          [NSString stringWithFormat:@"over the group %d, %g at rest, %g moving, %g after the model", over, grownOff, moving, stillMoving]);
     [sl rest];
     [sl setGroups:grown.memoryGroups ring:grown.ring];
     [sl reveal:grown.memoryGroups[0].rows[60].key];
@@ -365,4 +387,5 @@ static void WindowPolishChecks(void) {
           [NSString stringWithFormat:@"last row ends at %g, the group at %g", NSMaxY(lastShown), NSMaxY(sbox)]);
 
     WindowWordChecks();
+    WindowRowChecks();
 }

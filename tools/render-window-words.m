@@ -130,7 +130,7 @@ static void WindowWordChecks(void) {
         for (MMWindowListView *l in WindowLists(v)) {
             [drawn addObjectsFromArray:l.drawnNames];
             for (NSUInteger gi = 0; gi < l.groups.count; gi++) for (NSUInteger ri = 0; ri < l.groups[gi].rows.count; ri++) {
-                NSInteger lines = (NSInteger)[MMWindowRowName(l.groups[gi].rows[ri], l.groups[gi].side, YES, 36, 306, NULL) count];
+                NSInteger lines = (NSInteger)[MMWindowRowName(l.groups[gi].rows[ri], l.groups[gi].side, YES, NSMakeRect(5, 0, 310, 24), NULL) count];
                 CGFloat height = l.rowTops[gi][ri + 1].doubleValue - l.rowTops[gi][ri].doubleValue;
                 if (lines > 1) wrapped++;
                 if (height < l.rowHeight + MMWindowNameLine * (lines - 1) - 0.5) [broken addObject:[NSString stringWithFormat:@"%@ row too low: %@", name, l.groups[gi].rows[ri].shownName]];
@@ -152,9 +152,9 @@ static void WindowWordChecks(void) {
     NSMutableString *growing = [@":3000 Vite" mutableCopy];
     for (NSInteger i = 0; i < 40; i++) {
         tight.name = growing;
-        MMWindowRowFit fit;
-        MMWindowRowName(tight, MMWindowMemory, YES, 36, 306, &fit);
-        NSString *now = [NSString stringWithFormat:@"%d%d%d/%ld", fit.state, fit.hour, fit.cpu, (long)MIN(fit.lines, 2)];
+        MMWindowRowColumns fit;
+        MMWindowRowName(tight, MMWindowMemory, YES, NSMakeRect(5, 0, 310, 24), &fit);
+        NSString *now = [NSString stringWithFormat:@"%d%d%d/%ld", !NSIsEmptyRect(fit.state), !NSIsEmptyRect(fit.hour), !NSIsEmptyRect(fit.cpu), (long)MIN(fit.lines, 2)];
         if (![gives.lastObject isEqualToString:now]) [gives addObject:now];
         [growing appendString:@" of it"];
     }
@@ -168,9 +168,9 @@ static void WindowWordChecks(void) {
     NSMutableArray<NSString *> *wideFaults = [NSMutableArray new];
     for (NSString *n in @[@"日本語のとても長いブランチ名です。", @"日本語のブランチ名です", @"WWWWWWWWWWWWWWWWWW", @"🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀", @"مراجعة كل صفحات الأزرار قبل الإصدار"]) {
         wideRow.name = n;
-        MMWindowRowFit fit;
-        NSArray<NSString *> *got = MMWindowRowName(wideRow, MMWindowMemory, YES, 36, 306, &fit);
-        for (NSString *line in got) if (MMWindowWidth(MMWindowText(line, 13, NSFontWeightRegular, NSColor.whiteColor)) > fit.edge - 36 + 0.5) [wideFaults addObject:n];
+        MMWindowRowColumns fit;
+        NSArray<NSString *> *got = MMWindowRowName(wideRow, MMWindowMemory, YES, NSMakeRect(5, 0, 310, 24), &fit);
+        for (NSString *line in got) if (MMWindowWidth(MMWindowText(line, 13, NSFontWeightRegular, NSColor.whiteColor)) > NSWidth(fit.name) + 0.5) [wideFaults addObject:n];
         if (![[got componentsJoinedByString:@""] isEqualToString:[n stringByReplacingOccurrencesOfString:@" " withString:@""]] &&
             ![[got componentsJoinedByString:@" "] isEqualToString:n]) [wideFaults addObject:[@"not whole: " stringByAppendingString:n]];
     }
@@ -184,11 +184,15 @@ static void WindowWordChecks(void) {
     NSArray<NSArray<NSString *> *> *facts = @[
         @[said(MMWindowFactPort(3000)), @"Port: :3000 / (null)"], @[said(MMWindowFactPort(0)), @"none"],
         @[said(MMWindowFactProject(@"/Users/sam/code/atlas/apps/web")), @"Project: /Users/sam/code/atlas/apps/web / in web"], @[said(MMWindowFactProject(@"atlas")), @"Project: atlas / in atlas"],
-        @[said(MMWindowFactProject(@"/")), @"none"], @[said(MMWindowFactProject(nil)), @"none"],
+        @[said(MMWindowFactProject(@"/")), @"none"], @[said(MMWindowFactProject(@"~")), @"none"], @[said(MMWindowFactProject(nil)), @"none"],
         @[said(MMWindowFactOwner(@"atlas")), @"Project: atlas / for atlas"], @[said(MMWindowFactOwner(@"")), @"none"],
         @[said(MMWindowFactRunsIn(@"Ghostty, tab 2")), @"Runs in: Ghostty, tab 2 / runs in Ghostty, tab 2"],
         @[said(MMWindowFactStartedBy(@"cmux · parent exited")), @"Started by: cmux, which has quit / started by cmux, which has quit"],
         @[said(MMWindowFactStartedBy(@"launchd")), @"Started by: launchd / started by launchd"],
+        @[said(MMWindowFactStartedBy(@"parent exited")), @"Started by: a program that has quit / its starter has quit"],
+        @[said(MMWindowFactStartedBy(@"pnpm dev · cmux")), @"Started by: pnpm dev in cmux / started by pnpm dev in cmux"],
+        @[said(MMWindowFactStartedBy(@"pnpm dev · cmux · parent exited")), @"Started by: pnpm dev in cmux, which has quit / started by pnpm dev in cmux, which has quit"],
+        @[said(MMWindowFactStartedBy(@"pnpm dev · launchd")), @"Started by: pnpm dev / started by pnpm dev"],
         @[said(MMWindowFactIdle(7800)), @"Idle: 2 h 10 min / idle for 2 h 10 min"], @[said(MMWindowFactIdle(2)), @"Idle: since just now / idle since just now"],
         @[said(MMWindowFactLastUsed(180)), @"Last used: 3 min ago / used 3 min ago"], @[said(MMWindowFactLastUsed(0)), @"Last used: just now / used just now"],
         @[said(MMWindowFactUp(9360)), @"Running: 2 h 36 min / up 2 h 36 min"], @[said(MMWindowFactUp(1)), @"Running: since just now / started just now"],
@@ -205,7 +209,10 @@ static void WindowWordChecks(void) {
         @[said(MMWindowFactFiles(3, 1)), @"Files: 3 changed, 1 new / 3 files changed, 1 new"], @[said(MMWindowFactFiles(1, 0)), @"Files: 1 changed / 1 file changed"],
         @[said(MMWindowFactFiles(0, 2)), @"Files: 2 new / 2 new files"], @[said(MMWindowFactFiles(0, 0)), @"none"],
         @[said(MMWindowFactNotPushed(2)), @"Not pushed: 2 commits / 2 commits not pushed"], @[said(MMWindowFactNotPushed(0)), @"none"],
-        @[said(MMWindowFactUntouched(12 * 86400.0)), @"Untouched: 12 d / untouched for 12 d"], @[said(MMWindowFactUntouched(0)), @"Changed: just now / changed just now"],
+        // The feed gives a worktree's quiet time to the second, so the words may be as fine as the span rule.
+        @[said(MMWindowFactUntouched(0)), @"Changed: just now / changed just now"], @[said(MMWindowFactUntouched(0.1 * 86400)), @"Untouched: 2 h 24 min / untouched for 2 h 24 min"],
+        @[said(MMWindowFactUntouched(0.9 * 86400)), @"Untouched: 21 h 36 min / untouched for 21 h 36 min"], @[said(MMWindowFactUntouched(86400)), @"Untouched: 1 d / untouched for 1 d"],
+        @[said(MMWindowFactUntouched(12 * 86400.0)), @"Untouched: 12 d / untouched for 12 d"],
         @[said(MMWindowFactKind(@"Xcode build output")), @"Kind: Xcode build output / Xcode build output"]];
     NSMutableArray<NSString *> *misworded = [NSMutableArray new];
     for (NSArray<NSString *> *f in facts) if (![f[0] isEqualToString:f[1]]) [misworded addObject:[NSString stringWithFormat:@"%@, want %@", f[0], f[1]]];

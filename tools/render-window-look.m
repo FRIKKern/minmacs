@@ -149,6 +149,18 @@ static NSView *WelcomeHit(MMWindowView *v, NSRect at, NSView *in) {
 
 static void WelcomePress(NSView *hit) { if ([hit isKindOfClass:NSButton.class]) [(NSButton *)hit performClick:nil]; }
 
+/// Runs the main loop until `done` holds, for 3 s at most, and says whether it came. A fade or a guard ends when its
+/// own time is up, and a loaded Mac may take longer to get there: no check waits a fixed time for one, and only
+/// the deadline fails.
+static BOOL SpinUntil(BOOL (^done)(void)) {
+    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:3];
+    while (!done()) {
+        if (end.timeIntervalSinceNow <= 0) return NO;
+        [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+    }
+    return YES;
+}
+
 /// A second press where Start was must never reach the menu that arrives under it: with fixes ready, Fix Everything
 /// sits at that very point. Nothing of the menu takes a press or a key until it has arrived and a moment more.
 static void WindowWelcomeGuardChecks(void) {
@@ -185,7 +197,7 @@ static void WindowWelcomeGuardChecks(void) {
           @"welcome guard: until the menu has arrived, no press, key or VoiceOver press reaches Fix Everything or the gear, and Tab reaches neither", @"");
     Check(WelcomeHit(v, power.frame, v) == power && power.canBecomeKeyView, @"welcome guard: Quit stays pressable all the way", @"");
     // The guard is the time the menu takes to arrive and a moment more. Then the menu is the menu.
-    [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:MMWindowStartGuard + 0.2]];
+    SpinUntil(^BOOL { return WelcomeHit(v, at, w) == dock.fix; });
     NSView *later = WelcomeHit(v, at, w);
     Check(later == dock.fix && dock.fix.canBecomeKeyView && gear.canBecomeKeyView && WelcomeHit(v, gear.frame, v) == gear, @"welcome guard: after the guard time Fix Everything and the gear take a press again", NSStringFromClass(later.class));
     WelcomePress(later);

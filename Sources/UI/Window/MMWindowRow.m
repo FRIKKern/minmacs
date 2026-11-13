@@ -1,6 +1,7 @@
-// One row of a list: what stands beside its name, how its name fits, its second line, and its drawing.
-// A name is never cut and never ends on an ellipsis. It first takes the room of what matters less, the state word,
-// then the row's own hour, then CPU, and a name still too long wraps: the row grows by a line for each.
+// One row of a list: where each of its parts stands, how its name fits, its second line, and its drawing.
+// A name is never cut and never ends on an ellipsis. It first takes the room of what matters less, a column with
+// nothing to show, the state word, then the row's own hour, then CPU, and a name still too long wraps: the row grows
+// by a line for each. The parts are placed once, from the right, and drawn where they were placed.
 #import "UI/Window/MMWindowParts.h"
 
 const CGFloat MMWindowNameLine = 16;
@@ -20,20 +21,41 @@ static CGFloat Wide(NSString *text, CGFloat size) {
     return width;
 }
 
-NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, CGFloat nameLeft, CGFloat right, MMWindowRowFit *fit) {
+// The columns right of a name, from the right: the row's own hour, CPU and the state word, after the size.
+enum { kHour, kCPU, kState, kColumns };
+
+/// Where the name ends with the columns that are held.
+static CGFloat NameEdge(CGFloat start, const CGFloat *width, const BOOL *held) {
+    for (int i = 0; i < kColumns; i++) if (held[i]) start -= width[i];
+    return start;
+}
+
+NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *columns) {
     NSString *name = row.shownName;
-    BOOL hour = hasHour && MMWindowHourSpan(row.hour, NULL, NULL, NULL) != nil, cpu = side == MMWindowMemory && MMWindowCPU(row.cpuPercent) != nil;
-    CGFloat afterSize = right - (side == MMWindowDisk ? 58 : 50) - 6;
-    CGFloat hourWidth = hasHour ? 40 : 0, cpuWidth = side == MMWindowMemory ? 46 : 0;
-    MMWindowRowFit f = {NO, cpu, hour, afterSize - hourWidth - cpuWidth, 1};
-    CGFloat need = Wide(name, 13), stateWidth = row.state.length ? Wide(row.state, 11.5) + 8 : 0;
-    if (stateWidth > 0 && f.edge - stateWidth - nameLeft >= need) { f.state = YES; f.edge -= stateWidth; }
-    else if (f.edge - nameLeft >= need) {}
-    else if (afterSize - cpuWidth - nameLeft >= need) { f.hour = NO; f.edge = afterSize - cpuWidth; }
-    else { f.hour = NO; f.cpu = NO; f.edge = afterSize; }
-    NSArray<NSString *> *lines = f.edge - nameLeft >= need ? @[name] : MMWindowLines(name, 13, NSFontWeightRegular, f.edge - nameLeft);
-    f.lines = (NSInteger)lines.count;
-    if (fit) *fit = f;
+    BOOL disk = side == MMWindowDisk;
+    CGFloat nameLeft = NSMinX(rect) + 31, right = NSMaxX(rect) - 9, sizeWidth = disk ? 58 : 50, start = right - sizeWidth - 6, y = rect.origin.y, h = rect.size.height;
+    // A column is there where its group has it: the hour where any row of the group has one, CPU on the memory side.
+    // So the hour lines and the CPU numbers of a group stand one under another.
+    CGFloat width[kColumns] = {hasHour ? 40 : 0, disk ? 0 : 46, row.state.length ? Wide(row.state, 11.5) + 8 : 0};
+    BOOL shows[kColumns] = {MMWindowHourSpan(row.hour, NULL, NULL, NULL) != nil, MMWindowCPU(row.cpuPercent) != nil, row.state.length > 0};
+    BOOL held[kColumns];
+    for (int i = 0; i < kColumns; i++) held[i] = width[i] > 0;
+    CGFloat need = Wide(name, 13);
+    // A name too long for what is left first takes a column with nothing to show in this row, then the state word,
+    // then the row's own hour, then CPU. Whatever goes, what stands left of it moves right into its place.
+    if (NameEdge(start, width, held) - nameLeft < need) for (int i = 0; i < kColumns; i++) if (!shows[i]) held[i] = NO;
+    const int order[kColumns] = {kState, kHour, kCPU};
+    for (int k = 0; k < kColumns && NameEdge(start, width, held) - nameLeft < need; k++) held[order[k]] = NO;
+
+    MMWindowRowColumns c = {NSMakeRect(right - sizeWidth, y, sizeWidth, h), NSZeroRect, NSZeroRect, NSZeroRect, NSZeroRect, 1};
+    CGFloat x = start;
+    if (held[kHour]) { c.hour = NSMakeRect(x - 34, y, 34, h); x -= width[kHour]; }
+    if (held[kCPU]) { c.cpu = NSMakeRect(x - width[kCPU], y, width[kCPU], h); x -= width[kCPU]; }
+    if (held[kState]) { c.state = NSMakeRect(x - width[kState] + 8, y, width[kState] - 8, h); x -= width[kState]; }
+    c.name = NSMakeRect(nameLeft, y, x - nameLeft, h);
+    NSArray<NSString *> *lines = x - nameLeft >= need ? @[name] : MMWindowLines(name, 13, NSFontWeightRegular, x - nameLeft);
+    c.lines = (NSInteger)lines.count;
+    if (columns) *columns = c;
     return lines;
 }
 
@@ -62,12 +84,12 @@ NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
 void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall) {
     // Nothing going on in it, no fix touches it and it asks nothing: its name steps back, so the busy rows lead.
     BOOL calm = row.quiet && !row.inFix && !row.needsYou && !hot, disk = side == MMWindowDisk;
-    CGFloat right = NSMaxX(r) - 9, nameLeft = r.origin.x + 31;
-    MMWindowRowFit fit;
-    NSArray<NSString *> *name = MMWindowRowName(row, side, hasHour, nameLeft, right, &fit);
-    NSString *second = tall ? MMWindowRowSecondLine(row, right - nameLeft) : nil;
+    MMWindowRowColumns col;
+    NSArray<NSString *> *name = MMWindowRowName(row, side, hasHour, r, &col);
+    CGFloat nameLeft = NSMinX(col.name);
+    NSString *second = tall ? MMWindowRowSecondLine(row, NSMaxX(col.size) - nameLeft) : nil;
     // The name's first line stands where a one-line row has it. More lines and the second line follow under it.
-    CGFloat block = MMWindowNameLine * fit.lines + (second ? 15 : 0), mid = NSMidY(r) - block / 2 + MMWindowNameLine / 2 + (second ? 1.5 : 0);
+    CGFloat block = MMWindowNameLine * col.lines + (second ? 15 : 0), mid = NSMidY(r) - block / 2 + MMWindowNameLine / 2 + (second ? 1.5 : 0);
     NSColor *text = hot ? NSColor.whiteColor : MMWindowColor(MMWindowInkText);
     NSColor *quiet = hot ? [NSColor colorWithWhite:1 alpha:0.84] : MMWindowColor(MMWindowInkText2);
     NSColor *nameInk = calm ? [NSColor colorWithSRGBRed:235 / 255.0 green:235 / 255.0 blue:245 / 255.0 alpha:MMWindowContrast() ? 0.86 : 0.62] : text;
@@ -75,29 +97,27 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour
         [MMWindowColor(MMWindowInkHot) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:r xRadius:6 yRadius:6] fill];
     }
-    MMWindowDrawIcon(row, NSMakeRect(r.origin.x + 9, (fit.lines > 1 ? mid : NSMidY(r)) - 8, 16, 16), hot ? MMWindowColor(MMWindowInkHot) : [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1]);
+    MMWindowDrawIcon(row, NSMakeRect(r.origin.x + 9, (col.lines > 1 ? mid : NSMidY(r)) - 8, 16, 16), hot ? MMWindowColor(MMWindowInkHot) : [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1]);
 
-    // From the right: the number with its gray unit, the row's own hour, CPU, the quiet state word. The name gets the rest.
-    // A tabs row with no bytes has its count in its name, and no size.
+    // Each part in its own column, as MMWindowRowName placed them: the number with its gray unit, the row's own hour,
+    // CPU, the quiet state word, and the name in the rest. A tabs row with no bytes has its count in its name, and no size.
     if (row.showsSize) {
         NSArray<NSString *> *size = MMWindowSize2(row.bytes, disk);
         MMWindowDraw(MMWindowJoin(@[MMWindowText(size[0], 13, NSFontWeightRegular, text),
-                                    MMWindowText([MMWindowThin stringByAppendingString:size[1]], 11, NSFontWeightRegular, quiet)]), right, mid, 1);
+                                    MMWindowText([MMWindowThin stringByAppendingString:size[1]], 11, NSFontWeightRegular, quiet)]), NSMaxX(col.size), mid, 1);
     }
-    CGFloat edge = right - (disk ? 58 : 50) - 6;
-    if (hasHour) {
+    if (!NSIsEmptyRect(col.hour)) {
         NSColor *ink = hot ? NSColor.whiteColor : MMWindowColor(disk ? MMWindowInkDisk : MMWindowInkMemory);
-        if (fit.hour) MMWindowDrawHour(row.hour, NSMakeRect(edge - 34, mid - 7, 34, 14), calm ? [ink colorWithAlphaComponent:0.62] : ink, MMWindowHourRow);
-        edge -= 40;
+        MMWindowDrawHour(row.hour, NSMakeRect(NSMinX(col.hour), mid - 7, NSWidth(col.hour), 14), calm ? [ink colorWithAlphaComponent:0.62] : ink, MMWindowHourRow);
     }
-    NSString *cpu = fit.cpu ? MMWindowCPU(row.cpuPercent) : nil;
+    NSString *cpu = NSIsEmptyRect(col.cpu) ? nil : MMWindowCPU(row.cpuPercent);
     if (cpu) {
         // From 3 % of a core on, the number is as bright as the name.
         NSColor *ink = row.cpuPercent >= 3 ? text : quiet;
-        MMWindowDraw(MMWindowJoin(@[MMWindowText(cpu, 12, NSFontWeightRegular, ink), MMWindowText([MMWindowThin stringByAppendingString:@"%"], 11, NSFontWeightRegular, quiet)]), edge, mid, 1);
+        MMWindowDraw(MMWindowJoin(@[MMWindowText(cpu, 12, NSFontWeightRegular, ink), MMWindowText([MMWindowThin stringByAppendingString:@"%"], 11, NSFontWeightRegular, quiet)]), NSMaxX(col.cpu), mid, 1);
     }
-    if (fit.state) MMWindowDraw(MMWindowText(row.state, 11.5, NSFontWeightRegular, quiet), edge - (side == MMWindowMemory ? 46 : 0), mid, 1);
-    for (NSInteger i = 0; i < fit.lines; i++) MMWindowDraw(MMWindowText(name[(NSUInteger)i], 13, NSFontWeightRegular, nameInk), nameLeft, mid + MMWindowNameLine * i, -1);
+    if (!NSIsEmptyRect(col.state)) MMWindowDraw(MMWindowText(row.state, 11.5, NSFontWeightRegular, quiet), NSMaxX(col.state), mid, 1);
+    for (NSInteger i = 0; i < col.lines; i++) MMWindowDraw(MMWindowText(name[(NSUInteger)i], 13, NSFontWeightRegular, nameInk), nameLeft, mid + MMWindowNameLine * i, -1);
     if (second) MMWindowDraw(MMWindowText(second, 11, NSFontWeightRegular, hot ? [NSColor colorWithWhite:1 alpha:0.78] : MMWindowColor(MMWindowInkText3)),
-                             nameLeft, mid + MMWindowNameLine * (fit.lines - 1) + 15.5, -1);
+                             nameLeft, mid + MMWindowNameLine * (col.lines - 1) + 15.5, -1);
 }

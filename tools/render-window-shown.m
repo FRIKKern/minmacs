@@ -45,7 +45,7 @@ static void WindowShownChecks(void) {
     BOOL heldOption = !MMWindowTakesPresses(option), heldFix = !MMWindowTakesPresses(dock.fix);
     [option performClick:nil]; [dock.fix performClick:nil];
     NSInteger during = host.rules + host.fixes;
-    Spin(0.55);      // the turn takes 0.3 s
+    SpinUntil(^BOOL { return MMWindowTakesPresses(option); });      // the turn takes 0.3 s
     BOOL freeOption = MMWindowTakesPresses(option);
     [option performClick:nil];
     Check(win.isVisible && option && dock && (!motion || (heldOption && heldFix)) && during == (motion ? 0 : 1) && freeOption && host.rules == (motion ? 1 : 2) && host.fixes == 0,
@@ -55,7 +55,7 @@ static void WindowShownChecks(void) {
     v.showsSettings = NO;
     [dock.fix performClick:nil];
     NSInteger duringBack = host.fixes;
-    Spin(0.55);      // the turn takes 0.3 s
+    SpinUntil(^BOOL { return MMWindowTakesPresses(dock.fix); });      // the turn takes 0.3 s
     [dock.fix performClick:nil];
     Check(duringBack == (motion ? 0 : 1) && host.fixes == (motion ? 1 : 2), @"window shown: turning back holds Fix Everything the same way, then lets it go",
           [NSString stringWithFormat:@"%ld during, %ld after", (long)duringBack, (long)host.fixes]);
@@ -74,8 +74,7 @@ static void WindowShownChecks(void) {
     NSRect at = start.frame;
     MMWindowWelcomeView *w = v.welcomeView;
     WelcomePress(WelcomeHit(v, at, w));
-    Spin(0.2);
-    [win orderOut:nil]; [v rest];                       // as the panel closes
+    [win orderOut:nil]; [v rest];                       // as the panel closes, at once: well inside the guard
     [v willOpen]; [win orderBack:nil]; [v opened];      // as it opens
     dock = nil;
     for (NSView *sub in WindowLists(v).firstObject.superview.subviews) if ([sub isKindOfClass:MMWindowDockView.class]) dock = (MMWindowDockView *)sub;
@@ -83,7 +82,7 @@ static void WindowShownChecks(void) {
     WelcomePress(hit); [dock.fix performClick:nil];
     NSInteger early = host.fixes;
     BOOL there = !dock.superview.hidden && dock.superview.alphaValue == 1 && !v.showsWelcome;
-    Spin(MMWindowStartGuard + 0.2);
+    SpinUntil(^BOOL { return WelcomeHit(v, at, w) == dock.fix; });
     WelcomePress(WelcomeHit(v, at, w));
     Check(host.starts == 1 && there && early == 0 && host.fixes == 1,
           @"window shown: closed inside the guard after Start and opened again, the menu is there and takes no press until the guard has run from the opening",
@@ -101,7 +100,7 @@ static void WindowShownChecks(void) {
     bare.welcome = MMWindowFixture(@"welcome").welcome;
     v.model = bare;
     BOOL atOnce = settings.hidden && !v.showsSettings && v.showsWelcome;
-    Spin(0.55);      // the turn takes 0.3 s
+    SpinUntil(^BOOL { return settings.alphaValue == 1; });      // the turn takes 0.3 s
     Check(was && atOnce && settings.hidden && settings.alphaValue == 1 && v.showsWelcome, @"window shown: a welcome that comes while Settings shows hides Settings at once, and it stays hidden",
           [NSString stringWithFormat:@"was %d, at once %d, hidden %d", was, atOnce, settings.hidden]);
     [win close];
@@ -111,7 +110,7 @@ static void WindowShownChecks(void) {
     BOOL before = panel.held;
     [panel holdOpen:0.2];
     BOOL during2 = panel.held;
-    Spin(0.3);
+    SpinUntil(^BOOL { return !panel.held; });
     BOOL after = panel.held;
     [panel holdOpen:5]; [panel close];
     Check(!before && during2 && !after && !panel.held && !panel.isOpen, @"window shown: the panel's hold lasts as long as asked and no longer", [NSString stringWithFormat:@"%d %d %d", before, during2, after]);

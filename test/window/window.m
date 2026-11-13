@@ -151,12 +151,15 @@ static void World(void) {
     NSNumber *hourAgo = @(NSDate.date.timeIntervalSince1970 - 3600);
     gFindings[@"locohost"] = @[
         Finding(@"locohost", @"server", @"w1#dev", @":3000 Vite fix-auth-redirect", w1, 71001, 300 * MB, 0, P(@"stop", MMReversibleRestart),
-                @{@"port": @3000, @"framework": @"Vite", @"project": @"fix-auth-redirect", @"state": @"idle", @"lastActive": hourAgo, @"uptimeSeconds": @7200}),
+                @{@"port": @3000, @"framework": @"Vite", @"project": @"fix-auth-redirect", @"state": @"idle", @"lastActive": hourAgo, @"uptimeSeconds": @7200,
+                  @"launcher": @"pnpm dev · cmux"}),
         Finding(@"locohost", @"server", @"app#dev", @":3001 Next.js app", Dir(@"app"), 71002, 512 * MB, 0, P(@"stop", MMReversibleRestart),
                 @{@"port": @3001, @"framework": @"Next.js", @"project": @"app", @"state": @"idle", @"where": @"Ghostty, tab 2", @"agent": @"Claude Code",
                   @"lastActive": hourAgo, @"uptimeSeconds": @86400}),
         Finding(@"locohost", @"server", @"db", @":5432 Postgres db", Dir(@"db"), 71003, 100 * MB, 0, P(@"stop", MMReversibleRestart),
-                @{@"port": @5432, @"framework": @"Postgres", @"project": @"db", @"state": @"active", @"protected": @YES, @"keep": @"protected"})];
+                // Run from the disk's top, so Core names its project by its process, and its starter is gone.
+                @{@"port": @5432, @"framework": @"Postgres", @"project": @"postgres", @"name": @"postgres", @"launcher": @"parent exited",
+                  @"state": @"active", @"protected": @YES, @"keep": @"protected"})];
     gFindings[@"minmacs"] = @[
         // As the expert writes them: every agent of one harness has the harness's name. What tells them apart is the
         // session's title, which only the first has here, and the project folder.
@@ -174,9 +177,11 @@ static void World(void) {
         Finding(@"minmacs", @"tabs", [w1 stringByAppendingString:@"#com.example.browser"], @"Browser", nil, 0, 0, 0,
                 P(@"close-tabs", MMReversibleRelaunch), @{@"bundleID": @"com.example.browser", @"name": @"Browser", @"ports": @[@3000], @"worktree": w1,
                                                          @"urls": @[@"http://localhost:3000/", @"http://localhost:3000/a", @"http://127.0.0.1:3000/b"]})];
+    // The repo was worked on 72 minutes ago, which Core's quietDays rounds to 0.0 days; the others 12 days ago.
     NSDictionary *(^tree)(NSString *, id, NSInteger, NSInteger) = ^(NSString *path, id merged, NSInteger dirty, NSInteger unpushed) {
-        return @{@"path": path, @"branch": path.lastPathComponent, @"merged": merged, @"dirty": @(dirty), @"untracked": @0,
-                 @"unpushed": @(unpushed), @"quietDays": @12.5};
+        BOOL recent = [path isEqualToString:w3];
+        return @{@"path": path, @"branch": path.lastPathComponent, @"merged": merged, @"dirty": @(dirty), @"untracked": @0, @"unpushed": @(unpushed),
+                 @"lastWorkAt": @(NSDate.date.timeIntervalSince1970 - (recent ? 72 * 60 + 20 : 12 * 86400 + 20)), @"quietDays": recent ? @0.0 : @12.0};
     };
     gFindings[@"workforest"] = @[
         Finding(@"workforest", @"worktree", w1, @"repo/fix-auth-redirect", w1, 0, 0, 2500 * MB, P(@"remove", MMReversibleRestart), tree(w1, @"squash", 0, 0)),
@@ -347,6 +352,17 @@ static void WindowModel(void) {
     NSString *(^phrases)(MMWindowRow *) = ^(MMWindowRow *r) { return [[[r.storyFacts valueForKey:@"phrase"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF != nil AND SELF != %@", NSNull.null]] componentsJoinedByString:@"; "]; };
     T(@"window: a server's facts as phrases", @"in app; runs in Ghostty, tab 2; started by Claude Code; idle for 1 h; up 1 d", phrases(next));
     T(@"window: a worktree's facts as phrases", @"3 files changed; 2 commits not pushed; untouched for 12 d", phrases(wip));
+    MMWindowFact *(^labelled)(MMWindowRow *, NSString *) = ^MMWindowFact *(MMWindowRow *r, NSString *label) {
+        for (MMWindowFact *f in r.facts) if ([f.label isEqualToString:label]) return f;
+        return nil;
+    };
+    // Core's quietDays is rounded to tenths of a day: 72 minutes is 0.0 of one. The row reads the time of the last work.
+    T(@"window: a worktree worked on 72 minutes ago says so, not just now", @"untouched for 1 h 12 min",
+      labelled([m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"repo")]], @"Untouched").phrase ?: @"none");
+    MMWindowRow *vite = [m row:@"locohost:server:w1#dev"];
+    T(@"window: a starter chain is said in words, and a gone starter as one", @"started by pnpm dev in cmux | its starter has quit",
+      [NSString stringWithFormat:@"%@ | %@", labelled(vite, @"Started by").phrase, labelled(db, @"Started by").phrase]);
+    T(@"window: a project Core names by its process is no folder", @"Port=:5432; Started by=a program that has quit", story(db));
     T(@"window: a kept app's story says why it stays", @"Used by=Claude Code; Stays=an agent works in it", story(editor));
     T(@"window: a worktree's story", [NSString stringWithFormat:@"Branch=wip; Files=3 changed; Not pushed=2 commits; Untouched=12 d; Folder=%@", Dir(@"trees/wip").stringByAbbreviatingWithTildeInPath], story(wip));
 

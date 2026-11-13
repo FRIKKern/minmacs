@@ -72,7 +72,7 @@ NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count) {
 
 NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking) {
     NSArray *t = @[@[@"Import the glossary", @695, @-1, @"glossary"], @[@"Score answers", @306, @-1, @"scoring"], @[@"Match studio views", @431, @-1, @"studio"],
-                   @[@"Sort lane C by due", @763, @13, @"lane-c"], @[@"Write lane C fixtures", @760, @16, @"lane-c"], @[@"Tune the ranking", @628, @3, @"ranking"],
+                   @[@"Sort lane C by due", @763, @13, @"lane-c"], @[@"Write lane C fixtures now", @760, @140, @"lane-c"], @[@"Tune the ranking", @628, @3, @"ranking"],
                    @[@"Rebuild the search", @625, @22, @"search"], @[@"Check bundle sizes", @622, @-1, @"budget"], @[@"Speed up the base", @622, @10, @"speed"],
                    @[@"Fix the auth redirect", @580, @-1, @"atlas"], @[@"Split the upload form", @540, @8, @"uploader"], @[@"Review the schema diff", @512, @-1, @"schema"],
                    @[@"Trim the icon set", @470, @2, @"icons"], @[@"Port the date helpers", @455, @-1, @"lexicon"], @[@"Draft the release notes", @390, @-1, @"handbook"],

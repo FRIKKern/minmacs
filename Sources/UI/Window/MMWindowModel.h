@@ -187,7 +187,7 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property BOOL running;                                 // NO once it ended; the window shows the end, then lets go
 @property (copy, nullable) NSString *step;              // "Stopping :3001", shown in the button while it runs
 /// The step without the name it acts on, "Stopping". When a name is too long for the button, the button says this
-/// and the count, "Stopping, 3 of 7", and never a cut name.
+/// alone, and never a cut name. The count stands under the button.
 @property (copy, nullable) NSString *stepAction;
 @property NSInteger done, total;                        // fixes landed, fixes planned
 @property uint64_t memoryBack, diskBack;                // what has come back so far

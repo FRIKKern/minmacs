@@ -39,7 +39,7 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
              @"sized": @(self.sized), @"diskBytes": @(self.diskBytes), @"freedBytes": @(self.freedBytes), @"cacheBytes": @(self.cacheBytes),
              @"files": @(self.files), @"touchedAt": Time(self.touched), @"createdAt": Time(self.created),
              @"processes": self.processes ?: @[], @"session": Or(self.session), @"protected": @(self.isProtected),
-             @"quietDays": self.lastWork ? @(round(self.quiet / 8640) / 10) : NSNull.null};
+             @"lastWorkAt": Time(self.lastWork), @"quietDays": self.lastWork ? @(round(self.quiet / 8640) / 10) : NSNull.null};
 }
 
 + (instancetype)fromJSON:(NSDictionary *)j {
