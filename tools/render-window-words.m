@@ -9,13 +9,30 @@ static NSArray<NSString *> *WordFixtures(void) {
 }
 
 static NSMutableArray<NSString *> *gWordFaults, *gWordSeen;
+static NSMutableArray<NSArray *> *gWordRects;       // the lines of one drawing: text, rect, the view it was drawn in
 static NSString *gWordWhere;
 
-/// Draws a view into a throwaway bitmap, with every string it draws read as it goes.
+static void WordFault(NSString *kind, NSString *text) {
+    if (gWordFaults.count < 12) [gWordFaults addObject:[NSString stringWithFormat:@"%@, %@: %@", gWordWhere, kind, text.length > 60 ? [text substringToIndex:60] : text]];
+}
+
+/// Draws a view into a throwaway bitmap, with every string it draws read as it goes. Then no two of the strings one
+/// view drew may stand on one another: a name must end before the number beside it starts.
 static void WordDraw(NSView *v, NSString *where) {
     gWordWhere = where;
+    gWordRects = [NSMutableArray new];
     NSBitmapImageRep *rep = [v bitmapImageRepForCachingDisplayInRect:v.bounds];
     [v cacheDisplayInRect:v.bounds toBitmapImageRep:rep];
+    NSArray<NSArray *> *rects = gWordRects;
+    gWordRects = nil;
+    for (NSUInteger i = 0; i < rects.count; i++) for (NSUInteger j = i + 1; j < rects.count; j++) {
+        if (![rects[i][2] isEqual:rects[j][2]]) continue;       // drawn in two views, each in its own coordinates
+        NSRect a = [rects[i][1] rectValue], b = [rects[j][1] rectValue], both = NSIntersectionRect(a, b);
+        if (NSEqualRects(a, b) && [rects[i][0] isEqual:rects[j][0]]) continue;       // one string, drawn in two passes of one drawing
+        // Two strings on one line that share more than a point of width. Lines of one block touch only at their edges.
+        if (both.size.width > 1.5 && both.size.height > MIN(a.size.height, b.size.height) * 0.5)
+            WordFault(@"over another string", [NSString stringWithFormat:@"%@ / %@", rects[i][0], rects[j][0]]);
+    }
 }
 
 static NSMutableArray *WordViews(NSView *v, Class kind) {
@@ -30,10 +47,10 @@ static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedStates(void) {
              @(MMWindowHelper): @[@"left behind"], @(MMWindowTabs): @[@"will close"], @(MMWindowWorktree): @[@"changed", @"merged", @"kept"], @(MMWindowCache): @[@"kept", @"in use"]};
 }
 static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedLabels(void) {
-    return @{@(MMWindowServer): @[@"Port", @"Project", @"Runs in", @"Started by", @"Idle", @"Last used", @"Up", @"Kept", @"Stays"],
-             @(MMWindowAgent): @[@"Agent", @"Project", @"State", @"Why", @"Stays"], @(MMWindowApp): @[@"Used by", @"Serves", @"Stays"],
+    return @{@(MMWindowServer): @[@"Port", @"Project", @"Runs in", @"Started by", @"Idle", @"Last used", @"Running", @"Kept", @"Stays"],
+             @(MMWindowAgent): @[@"Agent", @"Project", @"State", @"Stays"], @(MMWindowApp): @[@"Used by", @"Serves", @"Stays"],
              @(MMWindowHelper): @[@"Left by", @"Folder", @"Stays"], @(MMWindowTabs): @[@"Open", @"On", @"Left by", @"Stays"],
-             @(MMWindowWorktree): @[@"Branch", @"Merged", @"Files", @"Not pushed", @"Quiet", @"Folder", @"Stays"],
+             @(MMWindowWorktree): @[@"Branch", @"Files", @"Not pushed", @"Untouched", @"Changed", @"Folder", @"Stays"],
              @(MMWindowCache): @[@"Kind", @"Project", @"Last used", @"Folder", @"Stays"]};
 }
 
@@ -46,11 +63,12 @@ static void WindowWordChecks(void) {
     MMWindowWatchDraws(^(NSString *text, NSRect used, NSRect allowed, NSRect bounds) {
         strings++;
         [gWordSeen addObject:text];
+        if (gWordRects && text.length && used.size.width > 0) [gWordRects addObject:@[text, [NSValue valueWithRect:used], [NSValue valueWithNonretainedObject:NSView.focusView]]];
         NSString *fault = nil;
         if ([text containsString:@"…"] || [text containsString:@"..."]) fault = @"ellipsis";
         else if (!NSIsEmptyRect(allowed) && (NSWidth(used) > NSWidth(allowed) + 1 || NSMaxY(used) > NSMaxY(allowed) + 1 || NSMinY(used) < NSMinY(allowed) - 1)) fault = @"past its box";
         else if (!NSIsEmptyRect(bounds) && (NSMinX(used) < NSMinX(bounds) - 1 || NSMaxX(used) > NSMaxX(bounds) + 1 || NSMinY(used) < NSMinY(bounds) - 1 || NSMaxY(used) > NSMaxY(bounds) + 1)) fault = @"past its view";
-        if (fault && gWordFaults.count < 12) [gWordFaults addObject:[NSString stringWithFormat:@"%@, %@: %@", gWordWhere, fault, text.length > 60 ? [text substringToIndex:60] : text]];
+        if (fault) WordFault(fault, text);
     });
     NSInteger states = 0;
     BOOL smallest = NO;
@@ -81,12 +99,21 @@ static void WindowWordChecks(void) {
         WordDraw(v, [name stringByAppendingString:@" settings"]); states++;
         for (NSView *option in PolishSettings(v).subviews) WordDraw(option, [name stringByAppendingString:@" settings"]);
     }
-    // Increase Contrast and the welcome draw through the same helpers.
+    // Increase Contrast draws through the same helpers, and so does the welcome, whose strings are read here too.
     MMWindowForceContrast(YES);
     WordDraw(PolishView(@"extreme"), @"extreme contrast");
     MMWindowForceContrast(NO);
-    WordDraw(PolishView(@"welcome"), @"welcome");
+    NSInteger before = strings;
+    for (NSString *name in @[@"welcome", @"welcome-off", @"welcome-delete", @"welcome-watched"]) {
+        MMWindowView *w = PolishView(name);
+        w.welcomeView.arrival = 1;
+        WordDraw(w, name);
+        for (NSView *control in w.welcomeView.controls) WordDraw(control, name);
+        for (NSView *sub in w.welcomeView.subviews) for (NSView *control in sub.subviews) WordDraw(control, name);
+    }
+    NSInteger welcomeStrings = strings - before;
     MMWindowWatchDraws(nil);
+    Check(welcomeStrings >= 4 * 12, @"window words: the welcome's strings are read by the same watch", [NSString stringWithFormat:@"%ld strings", (long)welcomeStrings]);
     Check(gWordFaults.count == 0 && strings > 20000 && states > 300,
           @"window words: on every day and in every state no drawn string holds an ellipsis, none is wider or taller than its box, and none leaves its view",
           [NSString stringWithFormat:@"%ld strings in %ld states. %@", (long)strings, (long)states, [gWordFaults componentsJoinedByString:@" | "]]);
@@ -134,28 +161,86 @@ static void WindowWordChecks(void) {
     Check([[gives componentsJoinedByString:@" "] isEqualToString:@"111/1 011/1 001/1 000/1 000/2"],
           @"window words: a longer name takes the room of the state word, then of the hour, then of CPU, and only then wraps", [gives componentsJoinedByString:@" "]);
 
-    // A row's second line is whole facts: a long path shows its last folders, a fact that does not fit is left out,
-    // and the line never holds a bare label or ends on a dot.
+    // Wide letters: a name of Japanese letters, of capital W, of emoji or of Arabic is measured as it is, so it ends
+    // before what stands beside it, or wraps and makes its row taller. The watch above saw none of them over a number.
+    MMWindowRow *wideRow = [MMWindowRow new];
+    wideRow.kind = MMWindowAgent; wideRow.key = @"w"; wideRow.cpuPercent = 12.5; wideRow.bytes = 600 << 20; wideRow.hour = tight.hour;
+    NSMutableArray<NSString *> *wideFaults = [NSMutableArray new];
+    for (NSString *n in @[@"日本語のとても長いブランチ名です。", @"日本語のブランチ名です", @"WWWWWWWWWWWWWWWWWW", @"🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀", @"مراجعة كل صفحات الأزرار قبل الإصدار"]) {
+        wideRow.name = n;
+        MMWindowRowFit fit;
+        NSArray<NSString *> *got = MMWindowRowName(wideRow, MMWindowMemory, YES, 36, 306, &fit);
+        for (NSString *line in got) if (MMWindowWidth(MMWindowText(line, 13, NSFontWeightRegular, NSColor.whiteColor)) > fit.edge - 36 + 0.5) [wideFaults addObject:n];
+        if (![[got componentsJoinedByString:@""] isEqualToString:[n stringByReplacingOccurrencesOfString:@" " withString:@""]] &&
+            ![[got componentsJoinedByString:@" "] isEqualToString:n]) [wideFaults addObject:[@"not whole: " stringByAppendingString:n]];
+    }
+    Check(wideFaults.count == 0, @"window words: a name of wide letters is measured as it is, and ends before the columns beside it or wraps", [wideFaults componentsJoinedByString:@" | "]);
+
+    // Each fact is worded in one place, and reads as a person would say it: in the story with its label, and alone
+    // on a row's second line. A duration has one form, and none is ever a zero.
+    NSString *(^said)(MMWindowFact *) = ^NSString *(MMWindowFact *f) { return f ? [NSString stringWithFormat:@"%@: %@ / %@", f.label, f.value, f.phrase] : @"none"; };
+    NSString *spans = [@[MMWindowSpan(0) ?: @"none", MMWindowSpan(9) ?: @"none", MMWindowSpan(40), MMWindowSpan(720), MMWindowSpan(9360), MMWindowSpan(7200), MMWindowSpan(277200), MMWindowSpan(12 * 86400.0)] componentsJoinedByString:@" | "];
+    Check([spans isEqualToString:@"none | none | 40 s | 12 min | 2 h 36 min | 2 h | 3 d 5 h | 12 d"], @"window facts: one rule for how long, and under ten seconds no number at all", spans);
+    NSArray<NSArray<NSString *> *> *facts = @[
+        @[said(MMWindowFactPort(3000)), @"Port: :3000 / (null)"], @[said(MMWindowFactPort(0)), @"none"],
+        @[said(MMWindowFactProject(@"/Users/sam/code/atlas/apps/web")), @"Project: /Users/sam/code/atlas/apps/web / in web"], @[said(MMWindowFactProject(@"atlas")), @"Project: atlas / in atlas"],
+        @[said(MMWindowFactProject(@"/")), @"none"], @[said(MMWindowFactProject(nil)), @"none"],
+        @[said(MMWindowFactOwner(@"atlas")), @"Project: atlas / for atlas"], @[said(MMWindowFactOwner(@"")), @"none"],
+        @[said(MMWindowFactRunsIn(@"Ghostty, tab 2")), @"Runs in: Ghostty, tab 2 / runs in Ghostty, tab 2"],
+        @[said(MMWindowFactStartedBy(@"cmux · parent exited")), @"Started by: cmux, which has quit / started by cmux, which has quit"],
+        @[said(MMWindowFactStartedBy(@"launchd")), @"Started by: launchd / started by launchd"],
+        @[said(MMWindowFactIdle(7800)), @"Idle: 2 h 10 min / idle for 2 h 10 min"], @[said(MMWindowFactIdle(2)), @"Idle: since just now / idle since just now"],
+        @[said(MMWindowFactLastUsed(180)), @"Last used: 3 min ago / used 3 min ago"], @[said(MMWindowFactLastUsed(0)), @"Last used: just now / used just now"],
+        @[said(MMWindowFactUp(9360)), @"Running: 2 h 36 min / up 2 h 36 min"], @[said(MMWindowFactUp(1)), @"Running: since just now / started just now"],
+        @[said(MMWindowFactKept(4800)), @"Kept: 1 h 20 min more / kept for 1 h 20 min more"], @[said(MMWindowFactKept(0)), @"none"],
+        @[said(MMWindowFactAgent(@"Claude Code")), @"Agent: Claude Code / Claude Code"], @[said(MMWindowFactState(@"working")), @"State: working / (null)"],
+        @[said(MMWindowFactUsedBy(@"Claude Code")), @"Used by: Claude Code / used by Claude Code"],
+        @[said(MMWindowFactServes(@[@3000, @3001])), @"Serves: ports 3000, 3001 / serves ports 3000, 3001"], @[said(MMWindowFactServes(@[])), @"none"],
+        @[said(MMWindowFactStays(@"it is on the keep list")), @"Stays: it is on the keep list / (null)"],
+        @[said(MMWindowFactLeftBy(@"fix-auth-redirect")), @"Left by: fix-auth-redirect / left by fix-auth-redirect"],
+        @[said(MMWindowFactFolder(@"~/code/atlas")), @"Folder: ~/code/atlas / (null)"],
+        @[said(MMWindowFactOpenTabs(14)), @"Open: 14 tabs / 14 tabs open"], @[said(MMWindowFactOpenTabs(1)), @"Open: 1 tab / 1 tab open"], @[said(MMWindowFactOpenTabs(0)), @"none"],
+        @[said(MMWindowFactOnPorts(@[@3003])), @"On: port 3003 / on port 3003"],
+        @[said(MMWindowFactBranch(@"wip")), @"Branch: wip / (null)"],
+        @[said(MMWindowFactFiles(3, 1)), @"Files: 3 changed, 1 new / 3 files changed, 1 new"], @[said(MMWindowFactFiles(1, 0)), @"Files: 1 changed / 1 file changed"],
+        @[said(MMWindowFactFiles(0, 2)), @"Files: 2 new / 2 new files"], @[said(MMWindowFactFiles(0, 0)), @"none"],
+        @[said(MMWindowFactNotPushed(2)), @"Not pushed: 2 commits / 2 commits not pushed"], @[said(MMWindowFactNotPushed(0)), @"none"],
+        @[said(MMWindowFactUntouched(12 * 86400.0)), @"Untouched: 12 d / untouched for 12 d"], @[said(MMWindowFactUntouched(0)), @"Changed: just now / changed just now"],
+        @[said(MMWindowFactKind(@"Xcode build output")), @"Kind: Xcode build output / Xcode build output"]];
+    NSMutableArray<NSString *> *misworded = [NSMutableArray new];
+    for (NSArray<NSString *> *f in facts) if (![f[0] isEqualToString:f[1]]) [misworded addObject:[NSString stringWithFormat:@"%@, want %@", f[0], f[1]]];
+    Check(misworded.count == 0 && facts.count >= 36, @"window facts: each of the 22 facts has its own words, with its label in the story and alone on a row's second line, and says nothing when it has nothing true to say",
+          [misworded componentsJoinedByString:@" | "]);
+
+    // A row's second line is whole phrases: one that does not fit is left out, and the line never holds a bare
+    // label, ends on a dot or says a zero.
     MMWindowRow *server = [MMWindowRow new];
     server.kind = MMWindowServer; server.key = @"server:1"; server.name = @":56784 BEAM";
-    server.facts = @[[MMWindowFact label:@"Port" value:@"56784"],
-                     [MMWindowFact label:@"Project" value:@"/Volumes/Work/dev-caches/tmp/agent-code/agent-501/scratchpad/orchestrate/wt/desk-a-hint/api"],
-                     [MMWindowFact label:@"Started by" value:@"Claude Code"]];
-    NSString *line = MMWindowRowSecondLine(server, 270), *narrow = MMWindowRowSecondLine(server, 120), *none = MMWindowRowSecondLine(server, 30);
+    server.facts = @[MMWindowFactPort(56784), MMWindowFactProject(@"/Volumes/Work/dev-caches/tmp/agent-code/agent-501/scratchpad/orchestrate/wt/desk-a-hint/api"),
+                     MMWindowFactStartedBy(@"cmux · parent exited"), MMWindowFactUp(120)];
+    NSString *line = MMWindowRowSecondLine(server, 270), *narrow = MMWindowRowSecondLine(server, 60), *none = MMWindowRowSecondLine(server, 20);
+    NSString *tree = MMWindowRowSecondLine([MMWindowFixture(@"real") row:@"worktree:window-polish"], 270), *merged = MMWindowRowSecondLine([MMWindowFixture(@"real") row:@"worktree:removal-choice"], 270);
+    NSString *agent = MMWindowRowSecondLine([MMWindowFixture(@"real") row:@"agent:0"], 270), *cacheLine = MMWindowRowSecondLine([MMWindowFixture(@"real") row:@"cache:0"], 270);
     NSMutableArray<NSString *> *lineFaults = [NSMutableArray new];
     for (NSString *name in WordFixtures()) {
         MMWindowModel *m = MMWindowFixture(name);
         for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) for (MMWindowRow *r in g.rows) for (NSNumber *w in @[@270, @200, @120]) {
             NSString *l = MMWindowRowSecondLine(r, w.doubleValue);
             if (!l) continue;
-            BOOL bad = [l hasSuffix:@"·"] || [l hasSuffix:@" "] || [l containsString:@"…"] || MMWindowWidth(MMWindowText(l, 11, NSFontWeightRegular, NSColor.whiteColor)) > w.doubleValue + 1;
+            BOOL bad = [l hasSuffix:@"·"] || [l hasSuffix:@" "] || [l containsString:@"…"] || [l containsString:@"Why"] || [l containsString:@" 0s"] || [l containsString:@" 0 s"] ||
+                       MMWindowWidth(MMWindowText(l, 11, NSFontWeightRegular, NSColor.whiteColor)) > w.doubleValue + 1;
             for (MMWindowFact *f in r.facts) if ([l isEqualToString:f.label] || [l hasSuffix:[@" · " stringByAppendingString:f.label]]) bad = YES;
+            // The labels that read odd when glued to their value: "Kind Xcode build output", "Files 3 changed", "Running 2 h".
+            for (NSString *label in @[@"Port ", @"Project ", @"Kind ", @"Files ", @"Not pushed ", @"Open ", @"On port", @"Last used ", @"Agent ", @"Idle 2", @"Running ", @"Untouched 1", @"Branch ", @"Folder ", @"State ", @"Stays "])
+                if ([l hasPrefix:label] || [l containsString:[@" · " stringByAppendingString:label]]) bad = YES;
             if (bad) [lineFaults addObject:[NSString stringWithFormat:@"%@ %@: %@", name, r.key, l]];
         }
     }
-    Check([line isEqualToString:@"Project scratchpad/orchestrate/wt/desk-a-hint/api"] && [narrow isEqualToString:@"Project api"] && none == nil && lineFaults.count == 0,
-          @"window words: a row's second line is whole facts only: a long path shows its last folders, and no line is a bare label or ends on a dot",
-          [NSString stringWithFormat:@"%@ / %@ / %@. %@", line, narrow, none, [lineFaults componentsJoinedByString:@" | "]]);
+    Check([line isEqualToString:@"In api · started by cmux, which has quit"] && [narrow isEqualToString:@"In api"] && none == nil &&
+          [tree isEqualToString:@"3 files changed, 1 new · 2 commits not pushed"] && [merged isEqualToString:@"Untouched for 12 d"] && [agent isEqualToString:@"Claude Code"] &&
+          [cacheLine isEqualToString:@"Xcode build output · for menus"] && lineFaults.count == 0,
+          @"window words: a row's second line is whole phrases a person would say, and never a label glued to its value",
+          [NSString stringWithFormat:@"%@ / %@ / %@ / %@ / %@ / %@ / %@. %@", line, narrow, none, tree, merged, agent, cacheLine, [lineFaults componentsJoinedByString:@" | "]]);
 
     // The made-up rows speak as the feed does: only its state words, only its fact labels.
     NSMutableArray<NSString *> *foreign = [NSMutableArray new];

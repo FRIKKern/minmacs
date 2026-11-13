@@ -142,17 +142,20 @@ CGFloat MMWindowFitSize(NSString *text, CGFloat size, CGFloat floor, NSFontWeigh
     return floor;
 }
 
-CGFloat MMWindowDrawBlock(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, NSColor *color, CGFloat x, CGFloat y, CGFloat width, NSInteger align, NSInteger anchor) {
+CGFloat MMWindowDrawBlock(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, NSColor *color, CGFloat x, CGFloat y, CGFloat width, NSInteger align, NSInteger anchor, CGFloat room) {
+    MMWindowCrisp();
     CGFloat fit = MMWindowFitSize(text, size, floor, weight, width), line = MMWindowLineHeight(fit);
     NSArray<NSString *> *lines = MMWindowLines(text, fit, weight, width);
     CGFloat height = line * lines.count, top = anchor < 0 ? y : anchor == 0 ? y - height / 2 : y - height;
+    // What the place allows: its room around the same anchor, or the block's own height when it may grow.
+    CGFloat allowedHeight = room > 0 ? room : height, allowedTop = anchor < 0 ? y : anchor == 0 ? y - allowedHeight / 2 : y - allowedHeight;
+    CGFloat left = align < 0 ? x : align == 0 ? x - width / 2 : x - width;
     for (NSUInteger i = 0; i < lines.count; i++) {
         NSAttributedString *a = MMWindowText(lines[i], fit, weight, color);
-        MMWindowDraw(a, x, top + line * i + line / 2, align);
-        if (gSeen) {
-            CGFloat w = a.size.width, left = align < 0 ? x : align == 0 ? x - width / 2 : x - width, used = align < 0 ? x : align == 0 ? x - w / 2 : x - w;
-            gSeen(lines[i], NSMakeRect(used, top + line * i, w, line), NSMakeRect(left, top, width, height), NSView.focusView.bounds);
-        }
+        NSSize s = a.size;
+        CGFloat at = align < 0 ? x : align == 0 ? x - s.width / 2 : x - s.width, mid = top + line * i + line / 2;
+        [a drawAtPoint:NSMakePoint(round(at * 2) / 2, round((mid - s.height / 2) * 2) / 2)];
+        if (gSeen) gSeen(lines[i], NSMakeRect(at, top + line * i, s.width, line), NSMakeRect(left, allowedTop, width, allowedHeight), NSView.focusView.bounds);
     }
     return height;
 }

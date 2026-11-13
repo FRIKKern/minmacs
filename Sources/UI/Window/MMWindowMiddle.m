@@ -52,7 +52,7 @@ static NSAttributedString *End(NSString *when, double bytes, BOOL disk, NSColor 
     MMWindowDraw(MMWindowJoin(@[MMWindowText(hour.title, 12.5, NSFontWeightMedium, NSColor.whiteColor), MMWindowText(@"  the last hour", 11.5, NSFontWeightSemibold, t2)]),
                  r.origin.x, r.origin.y + 8.5, -1);
     BOOL disk = hour.side == MMWindowDisk;
-    MMWindowDrawBlock(hour.explain, 11, 9.5, NSFontWeightRegular, t2, r.origin.x, r.origin.y + 24, r.size.width, -1, 0);
+    MMWindowDrawBlock(hour.explain, 11, 10, NSFontWeightRegular, t2, r.origin.x, r.origin.y + 24, r.size.width, -1, 0, 26);
     NSInteger a, b, filled, count = (NSInteger)hour.values.count;
     NSArray *span = MMWindowHourSpan(hour.values, &a, &b, &filled);
     if (!span) { [self drawYoung:hour newest:b filled:filled in:r ink:ink]; return; }
@@ -149,8 +149,8 @@ static NSString *Rank(NSInteger n, NSInteger of) {
     CGFloat nameHeight = MMWindowLineHeight(15) * nameLines, subHeight = MMWindowBlockHeight(sub, 11.5, 11.5, NSFontWeightRegular, nameRoom);
     CGFloat more = nameHeight + subHeight - MMWindowLineHeight(15) - MMWindowLineHeight(11.5);
     MMWindowDrawIcon(row, NSMakeRect(x, 21, 28, 28), backing);
-    MMWindowDrawBlock(name, 15, 15, NSFontWeightSemibold, text, nameLeft, 17, nameRoom, -1, -1);
-    MMWindowDrawBlock(sub, 11.5, 11.5, NSFontWeightRegular, t2, nameLeft, 17 + nameHeight + 0.5, nameRoom, -1, -1);
+    MMWindowDrawBlock(name, 15, 15, NSFontWeightSemibold, text, nameLeft, 17, nameRoom, -1, -1, 0);
+    MMWindowDrawBlock(sub, 11.5, 11.5, NSFontWeightRegular, t2, nameLeft, 17 + nameHeight + 0.5, nameRoom, -1, -1, 0);
     // The Mac's ring, small, with this row's arc lit: its share at a glance.
     MMWindowDrawRing(self.model, NSMakePoint(x + w - 31, 37), YES, row, NO);
 
@@ -173,8 +173,9 @@ static NSString *Rank(NSInteger n, NSInteger of) {
         NSColor *ink = MMWindowColor(disk ? MMWindowInkDisk : MMWindowInkMemory);
         MMWindowDraw(MMWindowText(@"Its last hour", 11, NSFontWeightRegular, t2), at, top + 7, -1);
         MMWindowDrawHour(row.hour, NSMakeRect(at, top + 16, x + w - at, 28), ink, MMWindowHourStory);
-        MMWindowDrawBlock([NSString stringWithFormat:@"%@, %@", Ago(a, (NSInteger)row.hour.count), MMWindowBytes([row.hour[a] unsignedLongLongValue], disk)],
-                          10.5, 9, NSFontWeightRegular, t3, at, top + 44, x + w - at, -1, -1);
+        // Where the line began, under it, when it fits on its one line at 10 points or more. A detail: left out when it does not.
+        NSString *began = [NSString stringWithFormat:@"%@, %@", Ago(a, (NSInteger)row.hour.count), MMWindowBytes([row.hour[a] unsignedLongLongValue], disk)];
+        if (MMWindowLines(began, 10, NSFontWeightRegular, x + w - at).count == 1) MMWindowDrawBlock(began, 10.5, 10, NSFontWeightRegular, t3, at, top + 44, x + w - at, -1, -1, 14);
     }
     CGFloat y = top + 66;
 
@@ -230,7 +231,7 @@ static NSString *Rank(NSInteger n, NSInteger of) {
         NSAttributedString *size = other.showsSize ? MMWindowText(MMWindowBytes(other.bytes, disk), 11.5, NSFontWeightRegular, t2) : nil;
         CGFloat room = w - (size ? MMWindowWidth(size) + 12 : 0), h = MAX(21, MMWindowBlockHeight(other.shownName, 12.5, 12.5, NSFontWeightRegular, room) + 4);
         if (shown >= 5 || y + h > bottom) break;
-        MMWindowDrawBlock(other.shownName, 12.5, 12.5, NSFontWeightRegular, text, x, y + 2, room, -1, -1);
+        MMWindowDrawBlock(other.shownName, 12.5, 12.5, NSFontWeightRegular, text, x, y + 2, room, -1, -1, 0);
         if (size) MMWindowDraw(size, x + w, y + 10.5, 1);
         y += h; shown++;
     }

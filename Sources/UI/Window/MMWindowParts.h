@@ -49,9 +49,11 @@ CGFloat MMWindowLineHeight(CGFloat size);
 /// The largest size, from `size` down to `floor` in half points, at which the text is one line of `width`. `floor` when none is.
 CGFloat MMWindowFitSize(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, CGFloat width);
 /// Draws the text whole: on one line when it fits, with the type stepped down to `floor` when that makes it fit, and
-/// wrapped to as many lines as it needs when not. anchor is -1 for the block's top at y, 0 for its middle, 1 for its
-/// foot. Returns the block's height, which MMWindowBlockHeight says without drawing.
-CGFloat MMWindowDrawBlock(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, NSColor *color, CGFloat x, CGFloat y, CGFloat width, NSInteger align, NSInteger anchor);
+/// wrapped to as many lines as it needs when not. No floor is under 10 points. anchor is -1 for the block's top at y,
+/// 0 for its middle, 1 for its foot. `room` is the height the place has for it, 0 when the block may grow as it needs
+/// and the caller moves what follows: the checks hold a block to its room. Returns the block's height, which
+/// MMWindowBlockHeight says without drawing.
+CGFloat MMWindowDrawBlock(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, NSColor *color, CGFloat x, CGFloat y, CGFloat width, NSInteger align, NSInteger anchor, CGFloat room);
 CGFloat MMWindowBlockHeight(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, CGFloat width);
 /// Draws wrapped text of several fonts into the rect's width, from its top, at its whole height even when the rect is
 /// lower. Returns the height it took.
@@ -140,7 +142,7 @@ NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL h
 /// The height each line of a name beyond its first adds to a row.
 extern const CGFloat MMWindowNameLine;
 /// A row's second line, where its side has the room: why it stays, or its first facts that the name does not say
-/// already. Whole facts only: one that does not fit is left out, and a path shows its last folders. nil for none.
+/// already, each as the phrase a person would say. Whole phrases only: one that does not fit is left out. nil for none.
 NSString *_Nullable MMWindowRowSecondLine(MMWindowRow *row, CGFloat width);
 void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall);
 
@@ -163,6 +165,8 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasH
 /// with its whole number, and those lines as label and value.
 @property (readonly) CGFloat rowHeight;
 - (NSArray<NSValue *> *)groupFrames;
+/// For the checks: where a row is drawn now, in the list's own coordinates. Empty for a row that does not show.
+- (NSRect)frameOfRow:(NSString *)key;
 /// For the checks: where each row of each group starts in its group, with the end of the last.
 - (NSArray<NSArray<NSNumber *> *> *)rowTops;
 @property (readonly) BOOL showsSum;
@@ -215,6 +219,8 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (readonly) NSArray<NSString *> *macLines;
 /// How the run ended as it is drawn: whole sentences only, with trailing ones left out when the place is too small.
 @property (readonly) NSString *endNote;
+/// The step as the running button holds it: whole, or its action and the count when a name is too long for two lines.
+@property (readonly) NSString *stepWords;
 /// The run's count as VoiceOver last heard it, "Fix 3 of 7", for the checks.
 @property (readonly, nullable) NSString *announced;
 @end

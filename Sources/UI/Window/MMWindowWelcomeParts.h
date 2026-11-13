@@ -19,7 +19,8 @@ __unused static CGFloat Height(NSAttributedString *s, CGFloat width) {
     return ceil([s boundingRectWithSize:NSMakeSize(width, 2000) options:NSStringDrawingUsesLineFragmentOrigin].size.height);
 }
 
-__unused static void DrawIn(NSAttributedString *s, NSRect r) { [s drawWithRect:r options:NSStringDrawingUsesLineFragmentOrigin]; }
+/// Through the window's own drawing, so the checks read every string of the welcome too.
+__unused static void DrawIn(NSAttributedString *s, NSRect r) { MMWindowDrawIn(s, r); }
 
 typedef NS_ENUM(NSInteger, MMWelcomeKind) { MMWelcomeSwitch = 0, MMWelcomeOption, MMWelcomeStart };
 

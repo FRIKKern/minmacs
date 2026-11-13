@@ -175,7 +175,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         run.total = m.fixCount; run.memoryPlanned = m.memoryBack; run.diskPlanned = m.diskBack;
         if (running) {
             // The runner's own words, MMFixStepText.
-            run.running = YES; run.step = @"Stopping :4321 Astro"; run.done = 2;
+            run.running = YES; run.step = @"Stopping :4321 Astro"; run.stepAction = @"Stopping"; run.done = 2;
             run.memoryBack = 2086 * MB; run.diskBack = 16446 * DMB;
         } else {
             run.done = run.total; run.memoryBack = run.memoryPlanned - 96 * MB; run.diskBack = run.diskPlanned;

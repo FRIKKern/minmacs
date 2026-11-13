@@ -314,9 +314,9 @@ static void WindowModel(void) {
     // agent that asks, a changed worktree and a cache in use are not, and neither is an app whose CPU is not known.
     T(@"window: a row is quiet only when a fact says nothing is going on in it", @"yes no no no yes no yes no",
       [@[YN(next.quiet), YN(db.quiet), YN(asks.quiet), YN(chat.quiet), YN(helper.quiet), YN(wip.quiet), YN(spike.quiet), YN(sims.quiet)] componentsJoinedByString:@" "]);
-    // The story's first line: an agent's raw Why, a fact of its processes, stays in the fact list and is never the
-    // line's sentence. A kept app's reason, written for a person, is.
-    T(@"window: the story's first line uses plain words only", @"2 Asks you. (null) | 0 Stays. An agent works in it. | Agent; Project; Why",
+    // The story's first line: a kept app's reason, written for a person, is its sentence. An agent's raw why, a word
+    // about its processes such as "a permission prompt is open" here or "child caffeinate", is in no fact at all.
+    T(@"window: the story's first line uses plain words only", @"2 Asks you. (null) | 0 Stays. An agent works in it. | Agent; Project",
       [NSString stringWithFormat:@"%ld %@ %@ | %ld %@ %@ | %@", (long)asks.fate.kind, asks.fate.lead, asks.fate.note, (long)editor.fate.kind, editor.fate.lead, editor.fate.note,
        [[asks.storyFacts valueForKey:@"label"] componentsJoinedByString:@"; "]]);
     // One disk, one size: the graph's line and the window's own rule give the same whole, in thousands as the Finder counts.
@@ -341,10 +341,14 @@ static void WindowModel(void) {
         for (MMWindowFact *f in r.facts) [a addObject:[NSString stringWithFormat:@"%@=%@", f.label, f.value]];
         return [a componentsJoinedByString:@"; "];
     };
-    T(@"window: a server's story", @"Port=3001; Project=app; Runs in=Ghostty, tab 2; Started by=Claude Code; Idle=1h; Up=1d", story(next));
-    T(@"window: an agent's story names its harness", @"Agent=Claude Code; Project=app; State=waits on you; Why=a permission prompt is open", story(asks));
+    T(@"window: a server's story", @"Port=:3001; Project=app; Runs in=Ghostty, tab 2; Started by=Claude Code; Idle=1 h; Running=1 d", story(next));
+    T(@"window: an agent's story names its harness, and leaves the raw why out", @"Agent=Claude Code; Project=app; State=waits on you", story(asks));
+    // Said alone, as on a row's second line, each fact is a phrase.
+    NSString *(^phrases)(MMWindowRow *) = ^(MMWindowRow *r) { return [[[r.storyFacts valueForKey:@"phrase"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF != nil AND SELF != %@", NSNull.null]] componentsJoinedByString:@"; "]; };
+    T(@"window: a server's facts as phrases", @"in app; runs in Ghostty, tab 2; started by Claude Code; idle for 1 h; up 1 d", phrases(next));
+    T(@"window: a worktree's facts as phrases", @"3 files changed; 2 commits not pushed; untouched for 12 d", phrases(wip));
     T(@"window: a kept app's story says why it stays", @"Used by=Claude Code; Stays=an agent works in it", story(editor));
-    T(@"window: a worktree's story", [NSString stringWithFormat:@"Branch=wip; Files=3 changed; Not pushed=2 commits; Quiet=12d; Folder=%@", Dir(@"trees/wip").stringByAbbreviatingWithTildeInPath], story(wip));
+    T(@"window: a worktree's story", [NSString stringWithFormat:@"Branch=wip; Files=3 changed; Not pushed=2 commits; Untouched=12 d; Folder=%@", Dir(@"trees/wip").stringByAbbreviatingWithTildeInPath], story(wip));
 
     // The asks line.
     T(@"window: the asks line", @"1 agent asks you", m.asks);

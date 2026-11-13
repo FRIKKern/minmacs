@@ -9,7 +9,12 @@
 
 static const uint64_t MB = MMFixMB, GB = MMFixGB, DMB = MMFixDiskMB, DGB = MMFixDiskGB;
 
-static MMWindowFact *F(NSString *label, NSString *value) { return [MMWindowFact label:label value:value]; }
+static NSArray<MMWindowFact *> *Facts(NSArray *made) {
+    NSMutableArray<MMWindowFact *> *out = [NSMutableArray new];
+    for (id f in made) if (f != NSNull.null) [out addObject:f];
+    return out;
+}
+#define OR_NONE(f) ((f) ?: (id)NSNull.null)
 
 static MMWindowFix *Fix(NSString *key, NSString *title, uint64_t memory, uint64_t disk, BOOL needsYou) {
     MMWindowFix *f = [MMWindowFix new];
@@ -21,25 +26,23 @@ static MMWindowModel *Real(void) {
     MMWindowModel *m = [MMWindowModel new];
     m.generation = 1;
     // port, name, megabytes, state, project, started by, up
-    NSArray *st = @[@[@5432, @"Postgres", @1803, @"kept", @"/opt/homebrew/var/postgresql@17", @"launchd", @"1d 6h"],
-                    @[@58968, @"Agent", @688, @"", @"Agent", @"launchd", @"1d 6h"],
-                    @[@9367, @"Google Chrome", @541, @"", @"/Volumes/Work/github/page-editor-wt/marks-ci", @"cmux · parent exited", @"2h 36m"],
-                    @[@18789, @"node", @456, @"", @"node", @"launchd", @"1d 6h"],
-                    @[@56784, @"BEAM", @197, @"", @"/Volumes/Work/dev-caches/tmp/agent-code/agent-501/-Volumes-Work-github-parkbench/d2e0bec6-c416-4758-a794-96bebe269ac4/scratchpad/orchestrate/wt/desk-a-hint/api", @"Claude Code", @"2m"],
-                    @[@58491, @"Google Chrome", @143, @"idle", @"/Volumes/Work/github/helperbot-wt/resume-1", @"cmux · parent exited", @"2h 20m"],
-                    @[@5217, @"Vite", @121, @"", @"/Volumes/Work/github/page-editor-wt/marks-ci", @"Claude Code", @"41m"],
-                    @[@57150, @"node", @96, @"idle", @"/Volumes/Work/github/parkbench-studio", @"cmux · parent exited", @"3h 2m"],
-                    @[@22885, @"ControlCenter", @44, @"", @"ControlCenter", @"launchd", @"1d 6h"]];
+    NSArray *st = @[@[@5432, @"Postgres", @1803, @"kept", @"/opt/homebrew/var/postgresql@17", @"launchd", @108000],
+                    @[@58968, @"Agent", @688, @"", @"Agent", @"launchd", @108000],
+                    @[@9367, @"Google Chrome", @541, @"", @"/Volumes/Work/github/page-editor-wt/marks-ci", @"cmux · parent exited", @9360],
+                    @[@18789, @"node", @456, @"", @"node", @"launchd", @108000],
+                    @[@56784, @"BEAM", @197, @"", @"/Volumes/Work/dev-caches/tmp/agent-code/agent-501/-Volumes-Work-github-parkbench/d2e0bec6-c416-4758-a794-96bebe269ac4/scratchpad/orchestrate/wt/desk-a-hint/api", @"Claude Code", @120],
+                    @[@58491, @"Google Chrome", @143, @"idle", @"/Volumes/Work/github/helperbot-wt/resume-1", @"cmux · parent exited", @8400],
+                    @[@5217, @"Vite", @121, @"", @"/Volumes/Work/github/page-editor-wt/marks-ci", @"Claude Code", @2460],
+                    @[@57150, @"node", @96, @"idle", @"/Volumes/Work/github/parkbench-studio", @"cmux · parent exited", @10920],
+                    @[@22885, @"ControlCenter", @44, @"", @"ControlCenter", @"launchd", @108000]];
     NSMutableArray<MMWindowRow *> *servers = [NSMutableArray new];
     for (NSArray *s in st) {
         BOOL idle = [s[3] isEqualToString:@"idle"];
         MMWindowRow *r = MMWindowFixtureRow(MMWindowServer, [NSString stringWithFormat:@"server:%@", s[0]], [NSString stringWithFormat:@":%@ %@", s[0], s[1]], [s[1] lowercaseString],
                                             [s[3] length] ? s[3] : nil, [s[2] unsignedLongLongValue] * MB, 0);
         r.quiet = idle;
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray arrayWithArray:@[F(@"Port", [s[0] stringValue]), F(@"Project", s[4]), F(@"Started by", s[5])]];
-        if (idle) [facts addObject:F(@"Idle", @"2h 10m")];
-        [facts addObject:F(@"Up", s[6])];
-        r.facts = facts;
+        r.facts = Facts(@[MMWindowFactPort([s[0] integerValue]), MMWindowFactProject(s[4]), MMWindowFactStartedBy(s[5]), OR_NONE(idle ? MMWindowFactIdle(7800) : nil),
+                          MMWindowFactUp([s[6] doubleValue])]);
         [servers addObject:r];
     }
     // title, megabytes, state, project, harness
@@ -56,14 +59,13 @@ static MMWindowModel *Real(void) {
         MMWindowRow *r = MMWindowFixtureRow(MMWindowAgent, [NSString stringWithFormat:@"agent:%lu", (unsigned long)i], a[0], [a[4] isEqualToString:@"Codex"] ? @"codex" : @"claude-code", a[2],
                                             [a[1] unsignedLongLongValue] * MB, 0);
         r.quiet = idle;
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray arrayWithArray:@[F(@"Agent", a[4]), F(@"Project", a[3]), F(@"State", a[2])]];
-        if (!idle) [facts addObject:F(@"Why", @"child caffeinate")];
-        r.facts = facts;
+        r.facts = Facts(@[MMWindowFactAgent(a[4]), OR_NONE(MMWindowFactProject(a[3])), MMWindowFactState(a[2])]);
+        (void)idle;
         [agents addObject:r];
     }
     // name, megabytes, state, serves, stays
-    NSArray *pt = @[@[@"cmux", @7344, @"kept", @":9367, :5217, :58491, :57150, :56784", @"it is on the keep list"], @[@"Google Chrome", @4109, @"", @"", @""],
-                    @[@"ControlCenter", @2360, @"", @":22885", @""], @[@"Finder", @1184, @"kept", @"", @"it is on the keep list"], @[@"Messages", @448, @"", @"", @""],
+    NSArray *pt = @[@[@"cmux", @7344, @"kept", @[@9367, @5217, @58491, @57150, @56784], @"it is on the keep list"], @[@"Google Chrome", @4109, @"", @"", @""],
+                    @[@"ControlCenter", @2360, @"", @[@22885], @""], @[@"Finder", @1184, @"kept", @"", @"it is on the keep list"], @[@"Messages", @448, @"", @"", @""],
                     @[@"Notes", @307, @"kept", @"", @"it is on the keep list"], @[@"Preview", @260, @"", @"", @""], @[@"Activity Monitor", @214, @"", @"", @""],
                     @[@"System Settings", @188, @"", @"", @""], @[@"Calendar", @150, @"", @"", @""], @[@"Reminders", @122, @"", @"", @""], @[@"Keychain Access", @96, @"", @"", @""],
                     @[@"TextEdit", @71, @"", @"", @""]];
@@ -72,19 +74,16 @@ static MMWindowModel *Real(void) {
         NSArray *a = pt[i];
         MMWindowRow *r = MMWindowFixtureRow(MMWindowApp, [NSString stringWithFormat:@"app:%lu", (unsigned long)i], a[0], nil, [a[2] length] ? a[2] : nil, [a[1] unsignedLongLongValue] * MB, 0);
         r.quiet = YES;
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
-        if ([a[3] length]) [facts addObject:F(@"Serves", a[3])];
-        if ([a[4] length]) [facts addObject:F(@"Stays", a[4])];
-        r.facts = facts;
+        r.facts = Facts(@[OR_NONE([a[3] isKindOfClass:NSArray.class] ? MMWindowFactServes(a[3]) : nil), OR_NONE(MMWindowFactStays(a[4]))]);
         [apps addObject:r];
     }
     MMWindowRow *polish = MMWindowFixtureRow(MMWindowWorktree, @"worktree:window-polish", @"window-polish", nil, @"changed", 1860 * DMB, -1);
-    polish.facts = @[F(@"Branch", @"window-polish"), F(@"Files", @"3 changed, 1 new"), F(@"Not pushed", @"2 commits"), F(@"Quiet", @"0s"), F(@"Folder", @"/Volumes/Work/github/menus-worktrees/window-polish")];
+    polish.facts = Facts(@[MMWindowFactBranch(@"window-polish"), MMWindowFactFiles(3, 1), MMWindowFactNotPushed(2), MMWindowFactUntouched(0), MMWindowFactFolder(@"/Volumes/Work/github/menus-worktrees/window-polish")]);
     MMWindowRow *choice = MMWindowFixtureRow(MMWindowWorktree, @"worktree:removal-choice", @"removal-choice", nil, @"merged", 800 * DMB, -1);
     choice.inFix = YES; choice.quiet = YES;
-    choice.facts = @[F(@"Branch", @"removal-choice"), F(@"Merged", @"yes"), F(@"Quiet", @"12d"), F(@"Folder", @"/Volumes/Work/github/menus-worktrees/removal-choice")];
+    choice.facts = Facts(@[MMWindowFactBranch(@"removal-choice"), MMWindowFactUntouched(12 * 86400.0), MMWindowFactFolder(@"/Volumes/Work/github/menus-worktrees/removal-choice")]);
     MMWindowRow *derived = MMWindowFixtureRow(MMWindowCache, @"cache:0", @"DerivedData", nil, nil, 14000 * DMB, -1);
-    derived.facts = @[F(@"Kind", @"Xcode build output"), F(@"Project", @"menus"), F(@"Last used", @"9d ago"), F(@"Folder", @"~/Library/Developer/Xcode/DerivedData")];
+    derived.facts = Facts(@[MMWindowFactKind(@"Xcode build output"), MMWindowFactOwner(@"menus"), MMWindowFactLastUsed(9 * 86400.0), MMWindowFactFolder(@"~/Library/Developer/Xcode/DerivedData")]);
     m.memoryGroups = @[MMWindowFixtureGroup(@"servers", @"Servers", MMWindowMemory, servers), MMWindowFixtureGroup(@"agents", @"Agents", MMWindowMemory, agents),
                        MMWindowFixtureGroup(@"apps", @"Apps and helpers", MMWindowMemory, apps)];
     m.diskGroups = @[MMWindowFixtureGroup(@"worktrees", @"Worktrees", MMWindowDisk, @[polish, choice]), MMWindowFixtureGroup(@"caches", @"Caches", MMWindowDisk, @[derived])];
@@ -104,28 +103,37 @@ static MMWindowModel *Extreme(NSString *name) {
                                             @"vite", i % 7 == 3 ? @"idle" : nil, (uint64_t)(999 - i * 7) * MB, i % 3 ? 0.4 * (i % 9) : 104.0);
         r.hour = MMWindowFixtureHour(r.bytes, r.key, i % 4);
         r.quiet = i % 7 == 3; r.inFix = i % 7 == 3;
-        r.facts = @[F(@"Port", @(3000 + i).stringValue), F(@"Project", [NSString stringWithFormat:@"/Users/sam/code/%@/apps/site-%ld", solid, (long)i]), F(@"Started by", @"cmux · parent exited"), F(@"Up", @"2h 36m")];
+        r.facts = Facts(@[MMWindowFactPort(3000 + i), MMWindowFactProject([NSString stringWithFormat:@"/Users/sam/code/%@/apps/site-%ld", solid, (long)i]), MMWindowFactStartedBy(@"cmux · parent exited"), MMWindowFactUp(9360)]);
         [servers addObject:r];
     }
     MMWindowRow *asks = MMWindowFixtureRow(MMWindowAgent, @"agent:0", spaced, @"claude-code", @"asks", 1023 * MB, 3.2);
     asks.needsYou = YES;
-    asks.facts = @[F(@"Agent", @"Claude Code"), F(@"Project", solid), F(@"State", @"waits on you"), F(@"Why", @"a permission prompt is open")];
+    asks.facts = Facts(@[MMWindowFactAgent(@"Claude Code"), MMWindowFactProject(solid), MMWindowFactState(@"waits on you")]);
     MMWindowRow *works = MMWindowFixtureRow(MMWindowAgent, @"agent:1", solid, @"codex", @"working", GB, 99.6);
-    works.facts = @[F(@"Agent", @"Codex"), F(@"Project", @"/"), F(@"State", @"working"), F(@"Why", @"child caffeinate")];
+    works.facts = Facts(@[MMWindowFactAgent(@"Codex"), OR_NONE(MMWindowFactProject(@"/")), MMWindowFactState(@"working")]);
     MMWindowRow *app = MMWindowFixtureRow(MMWindowApp, @"app:0", [spaced stringByAppendingString:@" Helper (Renderer)"], nil, @"kept", (uint64_t)(9.96 * GB), -1);
-    app.facts = @[F(@"Serves", @":3000, :3001, :3002, :3003, :3004, :3005, :3006, :3007, :3008, :3009, :3010, :3011"), F(@"Stays", @"it is on the keep list")];
+    app.facts = Facts(@[MMWindowFactServes(@[@3000, @3001, @3002, @3003, @3004, @3005, @3006, @3007, @3008, @3009, @3010, @3011]), MMWindowFactStays(@"it is on the keep list")]);
     MMWindowRow *tabs = MMWindowFixtureRow(MMWindowTabs, @"app:1", @"localhost tabs", nil, @"will close", 0, -1);
     tabs.tabs = 1; tabs.inFix = YES; tabs.quiet = YES;
-    tabs.facts = @[F(@"Open", @"1 tab"), F(@"On", @":3003"), F(@"Left by", solid)];
+    tabs.facts = Facts(@[MMWindowFactOpenTabs(1), MMWindowFactOnPorts(@[@3003]), MMWindowFactLeftBy(solid)]);
     MMWindowRow *tree = MMWindowFixtureRow(MMWindowWorktree, @"worktree:0", solid, nil, @"merged", (uint64_t)(1023.6 * DGB), -1);
     tree.inFix = YES; tree.quiet = YES;
-    tree.facts = @[F(@"Branch", solid), F(@"Merged", @"yes"), F(@"Quiet", @"112d"), F(@"Folder", [@"~/code/atlas-worktrees/" stringByAppendingString:solid])];
+    tree.facts = Facts(@[MMWindowFactBranch(solid), MMWindowFactUntouched(112 * 86400.0), MMWindowFactFolder([@"~/code/atlas-worktrees/" stringByAppendingString:solid])]);
     MMWindowRow *tree2 = MMWindowFixtureRow(MMWindowWorktree, @"worktree:1", [spaced stringByReplacingOccurrencesOfString:@" " withString:@"-"], nil, @"changed", (uint64_t)(99.96 * DGB), -1);
-    tree2.facts = @[F(@"Branch", tree2.name), F(@"Files", @"1204 changed, 88 new"), F(@"Not pushed", @"312 commits"), F(@"Quiet", @"0s"), F(@"Folder", [@"~/code/atlas-worktrees/" stringByAppendingString:tree2.name])];
+    tree2.facts = Facts(@[MMWindowFactBranch(tree2.name), MMWindowFactFiles(1204, 88), MMWindowFactNotPushed(312), MMWindowFactUntouched(0), MMWindowFactFolder([@"~/code/atlas-worktrees/" stringByAppendingString:tree2.name])]);
     MMWindowRow *cache = MMWindowFixtureRow(MMWindowCache, @"cache:0", [spaced stringByAppendingString:@" cache"], nil, @"in use", 999 * DMB, -1);
-    cache.facts = @[F(@"Kind", @"Build cache of a tool with a very long name indeed"), F(@"Last used", @"now"), F(@"Folder", [@"~/Library/Caches/" stringByAppendingString:solid]),
-                    F(@"Stays", @"a running process has a file open in it")];
-    m.memoryGroups = @[MMWindowFixtureGroup(@"servers", @"Servers", MMWindowMemory, servers), MMWindowFixtureGroup(@"agents", @"Agents", MMWindowMemory, @[asks, works]),
+    cache.facts = Facts(@[MMWindowFactKind(@"Build cache of a tool with a very long name indeed"), MMWindowFactLastUsed(0), MMWindowFactFolder([@"~/Library/Caches/" stringByAppendingString:solid]),
+                          MMWindowFactStays(@"a running process has a file open in it")]);
+    // Wide letters: a name of few characters that is wider than many of Latin ones, with its hour and CPU beside it.
+    NSArray<NSString *> *wide = @[@"日本語のとても長いブランチ名です。", @"WWWWWWWWWWWWWWWWWW", @"🚀🚀🚀🚀🚀 ship it 🚀🚀🚀🚀🚀", @"مراجعة كل صفحات الأزرار قبل الإصدار"];
+    NSMutableArray<MMWindowRow *> *agents = [NSMutableArray arrayWithObjects:asks, works, nil];
+    for (NSUInteger i = 0; i < wide.count; i++) {
+        MMWindowRow *r = MMWindowFixtureRow(MMWindowAgent, [NSString stringWithFormat:@"agent:wide%lu", (unsigned long)i], wide[i], @"claude-code", @"working", (600 - 50 * i) * MB, 12.5);
+        r.hour = MMWindowFixtureHour(r.bytes, r.key, (NSInteger)i);
+        r.facts = Facts(@[MMWindowFactAgent(@"Claude Code"), MMWindowFactProject(wide[i]), MMWindowFactState(@"working")]);
+        [agents addObject:r];
+    }
+    m.memoryGroups = @[MMWindowFixtureGroup(@"servers", @"Servers", MMWindowMemory, servers), MMWindowFixtureGroup(@"agents", @"Agents", MMWindowMemory, agents),
                        MMWindowFixtureGroup(@"apps", @"Apps and helpers", MMWindowMemory, @[app, tabs])];
     m.diskGroups = @[MMWindowFixtureGroup(@"worktrees", @"Worktrees", MMWindowDisk, @[tree, tree2]), MMWindowFixtureGroup(@"caches", @"Caches", MMWindowDisk, @[cache])];
     m.asks = @"1 agent asks you";
@@ -136,7 +144,9 @@ static MMWindowModel *Extreme(NSString *name) {
     MMWindowRun *run = [MMWindowRun new];
     run.total = m.fixCount; run.memoryPlanned = m.memoryBack; run.diskPlanned = m.diskBack;
     if ([name isEqualToString:@"extreme-running"]) {
-        run.running = YES; run.done = 0; run.step = [@"Wrapping up " stringByAppendingString:solid];
+        // A name far too long for the button: four names' worth.
+        run.running = YES; run.done = 0; run.stepAction = @"Wrapping up";
+        run.step = [NSString stringWithFormat:@"Wrapping up %@ %@ %@ %@", solid, spaced, solid, spaced];
     } else {
         // Every skip the runner can name, then its two tail sentences, Shell/MMFixRunner.m.
         run.done = 1; run.memoryBack = 2 * GB; run.diskBack = 3 * DGB;

@@ -151,9 +151,10 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part);
         NSInteger n = self.model.fixCount;
         uint64_t back = MIN(self.model.memoryBack, ring.memoryUsed);
         NSArray<NSString *> *after = MMWindowSize2(ring.memoryUsed - back, NO);
-        [out addObject:@{@"label": n == 1 ? @"After the fix" : [NSString stringWithFormat:@"After all %ld", (long)n]}];
+        [out addObject:@{@"label": n == 1 ? @"After the fix" : [NSString stringWithFormat:@"After all %ld fixes", (long)n]}];
         [out addObject:@{@"big": after[0], @"unit": after[1]}];
-        [out addObject:@{@"label": [NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed, NO)]}];
+        // A fix that gives no memory back leaves the number as it is, and the line says so and does not repeat it.
+        [out addObject:@{@"label": back > 0 ? [NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed, NO)] : @"memory in use, as now"}];
         [out addObject:@{@"disk": MMWindowBytes(ring.diskFree + self.model.diskBack, YES), @"label": @"disk free"}];
     } else {
         NSArray<NSString *> *used = MMWindowSize2(ring.memoryUsed, NO);
@@ -185,11 +186,13 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part);
     CGFloat at[4] = {lead ? 31.5 : 46.5, lead ? 54 : 73.5, lead ? 81 : 92, 99.5}, push = 0;
     for (NSUInteger i = 0; i < lines.count && i < 4; i++) {
         NSDictionary *l = lines[i];
+        // A name of many lines pushes the lines under it down. The last of them, CPU, gives way before it would leave the dock.
+        if (i == 3 && at[i] + push > self.bounds.size.height - 12) break;
         if (l[@"name"]) {
             CGFloat size = MMWindowFitSize(l[@"name"], 11.5, 10, NSFontWeightRegular, width), line = MMWindowLineHeight(size);
             NSInteger n = (NSInteger)MMWindowLines(l[@"name"], size, NSFontWeightRegular, width).count;
             push = MAX(0, (n - 2) * line);
-            MMWindowDrawBlock(l[@"name"], 11.5, 10, NSFontWeightRegular, label, x, at[i] + line / 2 + push, width, -1, 1);
+            MMWindowDrawBlock(l[@"name"], 11.5, 10, NSFontWeightRegular, label, x, at[i] + line / 2 + push, width, -1, 1, 0);
         } else if (l[@"big"]) {
             MMWindowDraw(MMWindowJoin(@[MMWindowText(l[@"big"], 25, NSFontWeightMedium, text),
                                         MMWindowText([[l[@"unit"] hasPrefix:@"/"] ? @" " : MMWindowThin stringByAppendingString:l[@"unit"]], 12, NSFontWeightRegular, unit)]), x, at[i] + push, -1);
@@ -345,7 +348,8 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
         edge.lineWidth = 0.5; [edge stroke];
         if (ended) { title = run.endTitle.length ? run.endTitle : @"Done"; size = 13.5; }
     }
-    MMWindowDrawBlock(title, size, running ? 10.5 : 12, weight, ink, NSMidX(b), NSMidY(b) + rise, b.size.width - 48, 0, 0);
+    if (running) title = [self stepShown:&size];
+    MMWindowDrawBlock(title, size, running ? size : 12, weight, ink, NSMidX(b), NSMidY(b) + rise, b.size.width - 48, 0, 0, 2 * MMWindowLineHeight(size) + 2 * fabs(rise));
     [NSGraphicsContext restoreGraphicsState];
 
     // Under the button: what a press would do, how far the run is, or how it ended. A dimmed button has no line.
@@ -368,6 +372,20 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
         MMWindowDrawIn([self under:runs], NSMakeRect(mid - 226, y - 8, 452, kNoteRoom));
     }
 }
+
+/// The step as the button holds it: whole, on one or two lines, with the type stepped down as far as 10 points. A
+/// step still too long, which only a very long name makes, shows its action and the count, "Removing 3 of 7", and
+/// no name: never a cut one. VoiceOver's label holds the whole step.
+- (NSString *)stepShown:(CGFloat *)size {
+    MMWindowRun *run = self.model.run;
+    NSString *step = run.step.length ? run.step : @"Fixing";
+    for (CGFloat s = 13; s >= 10; s -= 0.5) if (MMWindowLines(step, s, NSFontWeightRegular, kButton.size.width - 48).count <= 2) { if (size) *size = s; return step; }
+    if (size) *size = 13;
+    if (run.stepAction.length && run.total > 0) return [NSString stringWithFormat:@"%@ %ld of %ld", run.stepAction, (long)MIN(run.done + 1, run.total), (long)run.total];
+    return self.count.length ? self.count : @"Fixing";
+}
+
+- (NSString *)stepWords { return [self stepShown:NULL]; }
 
 /// Words for the place under the button: centered, wrapped at spaces.
 - (NSAttributedString *)under:(NSArray<NSAttributedString *> *)runs {

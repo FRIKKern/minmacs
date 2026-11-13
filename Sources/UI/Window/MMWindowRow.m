@@ -5,43 +5,36 @@
 
 const CGFloat MMWindowNameLine = 16;
 
+/// How wide a word is in the row's type, measured with the real font and kept: a list measures every name at every
+/// model, and most names stay. No width is guessed from a count of letters: a name of few wide letters, Japanese ones
+/// or capital W, is wider than many narrow ones.
+static CGFloat Wide(NSString *text, CGFloat size) {
+    static NSMutableDictionary<NSString *, NSNumber *> *kept[2];
+    int which = size == 13 ? 0 : 1;
+    if (!kept[which]) kept[which] = [NSMutableDictionary new];
+    NSNumber *w = kept[which][text];
+    if (w) return w.doubleValue;
+    if (kept[which].count > 4000) [kept[which] removeAllObjects];
+    CGFloat width = MMWindowWidth(MMWindowText(text, size, NSFontWeightRegular, NSColor.whiteColor));
+    kept[which][text] = @(width);
+    return width;
+}
+
 NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, CGFloat nameLeft, CGFloat right, MMWindowRowFit *fit) {
     NSString *name = row.shownName;
     BOOL hour = hasHour && MMWindowHourSpan(row.hour, NULL, NULL, NULL) != nil, cpu = side == MMWindowMemory && MMWindowCPU(row.cpuPercent) != nil;
     CGFloat afterSize = right - (side == MMWindowDisk ? 58 : 50) - 6;
     CGFloat hourWidth = hasHour ? 40 : 0, cpuWidth = side == MMWindowMemory ? 46 : 0;
     MMWindowRowFit f = {NO, cpu, hour, afterSize - hourWidth - cpuWidth, 1};
-    // A short name fits beside everything. Only a long one is measured.
-    if (name.length >= 12) {
-        CGFloat need = MMWindowWidth(MMWindowText(name, 13, NSFontWeightRegular, NSColor.whiteColor));
-        CGFloat stateWidth = row.state.length ? MMWindowWidth(MMWindowText(row.state, 11.5, NSFontWeightRegular, NSColor.whiteColor)) + 8 : 0;
-        if (stateWidth > 0 && f.edge - stateWidth - nameLeft >= need) { f.state = YES; f.edge -= stateWidth; }
-        else if (f.edge - nameLeft >= need) {}
-        else if (afterSize - cpuWidth - nameLeft >= need) { f.hour = NO; f.edge = afterSize - cpuWidth; }
-        else { f.hour = NO; f.cpu = NO; f.edge = afterSize; }
-    } else if (row.state.length) {
-        CGFloat stateWidth = MMWindowWidth(MMWindowText(row.state, 11.5, NSFontWeightRegular, NSColor.whiteColor)) + 8;
-        if (f.edge - stateWidth - nameLeft >= name.length * 11.0 || f.edge - stateWidth - nameLeft >= MMWindowWidth(MMWindowText(name, 13, NSFontWeightRegular, NSColor.whiteColor))) {
-            f.state = YES; f.edge -= stateWidth;
-        }
-    }
-    NSArray<NSString *> *lines = f.edge - nameLeft >= name.length * 11.0 ? @[name] : MMWindowLines(name, 13, NSFontWeightRegular, f.edge - nameLeft);
+    CGFloat need = Wide(name, 13), stateWidth = row.state.length ? Wide(row.state, 11.5) + 8 : 0;
+    if (stateWidth > 0 && f.edge - stateWidth - nameLeft >= need) { f.state = YES; f.edge -= stateWidth; }
+    else if (f.edge - nameLeft >= need) {}
+    else if (afterSize - cpuWidth - nameLeft >= need) { f.hour = NO; f.edge = afterSize - cpuWidth; }
+    else { f.hour = NO; f.cpu = NO; f.edge = afterSize; }
+    NSArray<NSString *> *lines = f.edge - nameLeft >= need ? @[name] : MMWindowLines(name, 13, NSFontWeightRegular, f.edge - nameLeft);
     f.lines = (NSInteger)lines.count;
     if (fit) *fit = f;
     return lines;
-}
-
-/// A path as its last folders, as many whole ones as fit, or nil when not even the last one does.
-static NSString *Tail(NSString *path, NSString *label, NSDictionary *at, CGFloat width) {
-    NSArray<NSString *> *parts = [path componentsSeparatedByString:@"/"];
-    NSString *best = nil;
-    for (NSInteger from = (NSInteger)parts.count - 1; from >= 0; from--) {
-        NSString *tail = [[parts subarrayWithRange:NSMakeRange((NSUInteger)from, parts.count - (NSUInteger)from)] componentsJoinedByString:@"/"];
-        if (!tail.length) continue;
-        if (ceil([[NSString stringWithFormat:@"%@ %@", label, tail] sizeWithAttributes:at].width) > width) break;
-        best = tail;
-    }
-    return best;
 }
 
 NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
@@ -52,21 +45,18 @@ NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
         NSString *plain = [note hasSuffix:@"."] ? [note substringToIndex:note.length - 1] : note;
         if (ceil([plain sizeWithAttributes:at].width) <= width) return plain;
     }
-    // Whole facts only: a fact that does not fit is left out, and a path shows its last folders.
+    // Each fact as the phrase a person would say, whole: one that does not fit is left out, never cut.
     NSString *line = nil;
     NSInteger held = 0;
     for (MMWindowFact *f in row.storyFacts) {
-        if (!f.value.length || [row.name rangeOfString:f.value options:NSCaseInsensitiveSearch].location != NSNotFound) continue;
-        NSString *lead = line ? [line stringByAppendingString:@" · "] : @"";
-        CGFloat room = width - ceil([lead sizeWithAttributes:at].width);
-        NSString *whole = [NSString stringWithFormat:@"%@ %@", f.label, f.value], *part = nil;
-        if (ceil([whole sizeWithAttributes:at].width) <= room) part = whole;
-        else if ([f.value containsString:@"/"]) { NSString *tail = Tail(f.value, f.label, at, room); if (tail) part = [NSString stringWithFormat:@"%@ %@", f.label, tail]; }
-        if (!part) continue;
-        line = [lead stringByAppendingString:part];
+        if (!f.phrase.length || [row.name rangeOfString:f.value options:NSCaseInsensitiveSearch].location != NSNotFound) continue;
+        NSString *more = line ? [NSString stringWithFormat:@"%@ · %@", line, f.phrase] : f.phrase;
+        if (ceil([more sizeWithAttributes:at].width) > width) continue;
+        line = more;
         if (++held == 2) break;
     }
-    return line;
+    // A line starts with a capital, as a sentence would.
+    return line.length ? [[line substringToIndex:1].localizedUppercaseString stringByAppendingString:[line substringFromIndex:1]] : nil;
 }
 
 void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall) {

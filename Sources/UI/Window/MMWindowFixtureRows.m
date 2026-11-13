@@ -29,7 +29,13 @@ MMWindowRow *MMWindowFixtureRow(MMWindowKind kind, NSString *key, NSString *name
     return r;
 }
 
-static MMWindowFact *F(NSString *label, NSString *value) { return [MMWindowFact label:label value:value]; }
+/// The facts that are there, in order: a fact with nothing to say is nil and left out, as in the feed.
+static NSArray<MMWindowFact *> *Facts(NSArray *made) {
+    NSMutableArray<MMWindowFact *> *out = [NSMutableArray new];
+    for (id f in made) if (f != NSNull.null) [out addObject:f];
+    return out;
+}
+#define OR_NONE(f) ((f) ?: (id)NSNull.null)
 
 NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count) {
     // port, framework, megabytes, CPU in tenths or -1, state, project
@@ -55,12 +61,10 @@ NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count) {
                                             [s[1] lowercaseString], [s[4] length] ? s[4] : nil, [s[2] unsignedLongLongValue] * MB, [s[3] integerValue] < 0 ? -1 : [s[3] integerValue] / 10.0);
         r.hour = MMWindowFixtureHour(r.bytes, r.key, i % 4);
         r.inFix = idle; r.quiet = idle;
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray arrayWithArray:@[
-            F(@"Port", @(port).stringValue), F(@"Project", i % 5 == 4 ? [NSString stringWithFormat:@"/Users/sam/code/%@-worktrees/review/apps/web", s[5]] : s[5]),
-            F(@"Runs in", i % 3 ? @"Ghostty, tab 2" : @"Terminal"), F(@"Started by", i % 2 ? @"Claude Code" : @"launchd"),
-            idle ? F(@"Idle", @"2h 10m") : F(@"Last used", @"3m ago"), F(@"Up", i % 2 ? @"1d 6h" : @"2h 36m")]];
-        if (kept) { [facts addObject:F(@"Kept", @"for 1h 20m")]; [facts addObject:F(@"Stays", @"you asked to keep it")]; }
-        r.facts = facts;
+        r.facts = Facts(@[MMWindowFactPort(port), MMWindowFactProject(i % 5 == 4 ? [NSString stringWithFormat:@"/Users/sam/code/%@-worktrees/review/apps/web", s[5]] : s[5]),
+                          MMWindowFactRunsIn(i % 3 ? @"Ghostty, tab 2" : @"Terminal"), MMWindowFactStartedBy(i % 4 == 3 ? @"cmux · parent exited" : i % 2 ? @"Claude Code" : @"launchd"),
+                          idle ? MMWindowFactIdle(7800) : MMWindowFactLastUsed(i % 6 ? 180 : 4), MMWindowFactUp(i % 2 ? 108000 : 9360),
+                          OR_NONE(kept ? MMWindowFactKept(4800) : nil), OR_NONE(kept ? MMWindowFactStays(@"you asked to keep it") : nil)]);
         [rows addObject:r];
     }
     return rows;
@@ -83,12 +87,7 @@ NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking)
                                             asks ? @"asks" : idle ? @"idle" : @"working", [a[1] unsignedLongLongValue] * MB, [a[2] integerValue] < 0 ? -1 : [a[2] integerValue] / 10.0);
         r.needsYou = asks; r.quiet = idle;
         r.hour = MMWindowFixtureHour(r.bytes, r.key, (i + 1) % 4);
-        // The feed's Why is a raw fact of the agent's processes, and an idle agent has none.
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray arrayWithArray:@[F(@"Agent", i % 3 == 2 ? @"Codex" : @"Claude Code"), F(@"Project", a[3]),
-                                                                                 F(@"State", asks ? @"waits on you" : idle ? @"idle" : @"working")]];
-        if (asks) [facts addObject:F(@"Why", @"a permission prompt is open")];
-        else if (!idle) [facts addObject:F(@"Why", i % 2 ? @"child caffeinate" : @"status file busy")];
-        r.facts = facts;
+        r.facts = Facts(@[MMWindowFactAgent(i % 3 == 2 ? @"Codex" : @"Claude Code"), MMWindowFactProject(a[3]), MMWindowFactState(asks ? @"waits on you" : idle ? @"idle" : @"working")]);
         [rows addObject:r];
     }
     return rows;
@@ -120,14 +119,9 @@ NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count) {
         if (tabs) r.tabs = 14;
         r.inFix = [a[4] isEqualToString:@"will close"];
         r.quiet = helper || tabs || (r.cpuPercent >= 0 && r.cpuPercent < 0.5);
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
-        if (helper) [facts addObjectsFromArray:@[F(@"Left by", @"fix-auth-redirect"), F(@"Folder", @"~/code/atlas-worktrees/fix-auth-redirect")]];
-        else if (tabs) [facts addObjectsFromArray:@[F(@"Open", @"14 tabs"), F(@"On", @":3001, :4321"), F(@"Left by", @"fix-auth-redirect")]];
-        else {
-            if (i < 2) [facts addObjectsFromArray:@[F(@"Used by", @"Claude Code"), F(@"Serves", @":3000, :3001, :6006")]];
-            if ([a[5] length]) [facts addObject:F(@"Stays", a[5])];
-        }
-        r.facts = facts;
+        if (helper) r.facts = Facts(@[MMWindowFactLeftBy(@"fix-auth-redirect"), MMWindowFactFolder(@"~/code/atlas-worktrees/fix-auth-redirect")]);
+        else if (tabs) r.facts = Facts(@[MMWindowFactOpenTabs(14), MMWindowFactOnPorts(@[@3001, @4321]), MMWindowFactLeftBy(@"fix-auth-redirect")]);
+        else r.facts = Facts(@[OR_NONE(i < 2 ? MMWindowFactUsedBy(@"Claude Code") : nil), OR_NONE(i < 2 ? MMWindowFactServes(@[@3000, @3001, @6006]) : nil), OR_NONE(MMWindowFactStays(a[5]))]);
         [rows addObject:r];
     }
     return rows;
@@ -149,13 +143,10 @@ NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count) {
         MMWindowRow *r = MMWindowFixtureRow(MMWindowWorktree, [@"worktree:" stringByAppendingString:w[0]], w[0], nil, state.length ? state : nil, [w[2] unsignedLongLongValue] * DMB, -1);
         r.inFix = [w[3] boolValue];
         r.quiet = !changed;
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray arrayWithObject:F(@"Branch", w[0])];
-        if (merged) [facts addObject:F(@"Merged", @"yes")];
-        if (changed) { [facts addObject:F(@"Files", i % 2 ? @"3 changed, 1 new" : @"2 changed")]; [facts addObject:F(@"Not pushed", @"2 commits")]; }
-        [facts addObject:F(@"Quiet", [NSString stringWithFormat:@"%ldd", (long)(1 + i)])];
-        [facts addObject:F(@"Folder", [NSString stringWithFormat:@"~/code/%@-worktrees/%@", i % 2 ? @"studio" : @"atlas", w[0]])];
-        if ([state isEqualToString:@"kept"]) [facts addObject:F(@"Stays", @"you asked to keep it")];
-        r.facts = facts;
+        r.facts = Facts(@[MMWindowFactBranch(w[0]), OR_NONE(changed ? MMWindowFactFiles(i % 2 ? 3 : 2, i % 2 ? 1 : 0) : nil), OR_NONE(changed ? MMWindowFactNotPushed(2) : nil),
+                          MMWindowFactUntouched(changed && i % 4 == 3 ? 3 : 86400.0 * (1 + i)), MMWindowFactFolder([NSString stringWithFormat:@"~/code/%@-worktrees/%@", i % 2 ? @"studio" : @"atlas", w[0]]),
+                          OR_NONE([state isEqualToString:@"kept"] ? MMWindowFactStays(@"you asked to keep it") : nil)]);
+        (void)merged;
         [rows addObject:r];
     }
     return rows;
@@ -174,12 +165,9 @@ NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count) {
         MMWindowRow *r = MMWindowFixtureRow(MMWindowCache, [NSString stringWithFormat:@"cache:%ld", (long)i], c[0], nil, [c[1] length] ? c[1] : nil, [c[2] unsignedLongLongValue] * DMB, -1);
         r.inFix = i == 0;
         r.quiet = ![c[1] isEqualToString:@"in use"];
-        NSMutableArray<MMWindowFact *> *facts = [NSMutableArray arrayWithObject:F(@"Kind", c[3])];
-        if ([c[4] length]) [facts addObject:F(@"Project", c[4])];
-        [facts addObject:F(@"Last used", [NSString stringWithFormat:@"%ldd ago", (long)(2 + i * 5)])];
-        [facts addObject:F(@"Folder", i == 0 ? @"~/Library/Developer/Xcode/DerivedData" : [NSString stringWithFormat:@"~/Library/Caches/%@", [c[0] lowercaseString]])];
-        if ([c[5] length]) [facts addObject:F(@"Stays", c[5])];
-        r.facts = facts;
+        r.facts = Facts(@[MMWindowFactKind(c[3]), OR_NONE(MMWindowFactOwner(c[4])), MMWindowFactLastUsed(86400.0 * (2 + i * 5)),
+                          MMWindowFactFolder(i == 0 ? @"~/Library/Developer/Xcode/DerivedData" : [NSString stringWithFormat:@"~/Library/Caches/%@", [c[0] lowercaseString]]),
+                          OR_NONE(MMWindowFactStays(c[5]))]);
         [rows addObject:r];
     }
     return rows;

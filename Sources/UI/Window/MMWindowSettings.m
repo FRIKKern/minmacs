@@ -298,7 +298,7 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.06] setStroke]; p.lineWidth = 1; [p stroke];
         BOOL rule = i < (NSInteger)self.settings.rules.count;
         MMWindowRule *r = rule ? self.settings.rules[i] : nil;
-        MMWindowDrawBlock(rule ? r.title : @"This Mac", _fit.size + 1, 11, NSFontWeightSemibold, text, card.origin.x + 16, card.origin.y + 24, card.size.width - 32, -1, 0);
+        MMWindowDrawBlock(rule ? r.title : @"This Mac", _fit.size + 1, 11, NSFontWeightSemibold, text, card.origin.x + 16, card.origin.y + 24, card.size.width - 32, -1, 0, 32);
         if (!r.note.length) continue;
         // What the rule would do next sits at the foot of its card.
         NSAttributedString *note = Wrapped(r.note, _fit.size - 1, NSFontWeightRegular, t2);

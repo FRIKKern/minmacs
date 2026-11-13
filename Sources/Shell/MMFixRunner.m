@@ -21,6 +21,12 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     return [@"Fixing " stringByAppendingString:name];
 }
 
+NSString *MMFixStepAction(NSString *kind) {
+    // The same words as MMFixStepText with no name: "Stopping", "Wrapping up", "Moving to the Trash".
+    NSString *words = [MMFixStepText(kind, @"") stringByReplacingOccurrencesOfString:@"  " withString:@" "];
+    return [words stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+}
+
 @implementation MMFixRunner {
     MMPerformance *_p;
     atomic_bool _stop, _running;
@@ -45,9 +51,12 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     dispatch_async(MMQueue(@"core", @"fix-everything", QOS_CLASS_USER_INITIATED), ^{ (void)[self run]; });
 }
 
-- (MMWindowRun *)progress:(NSString *)step {
+- (MMWindowRun *)progress:(NSString *)step { return [self progress:step action:nil]; }
+
+/// A step with its words apart from the name they act on, for a button too small for a long name.
+- (MMWindowRun *)progress:(NSString *)step action:(NSString *)action {
     MMWindowRun *r = [MMWindowRun new];
-    r.running = YES; r.step = step; r.done = _done; r.total = _total;
+    r.running = YES; r.step = step; r.stepAction = action; r.done = _done; r.total = _total;
     r.memoryBack = _memoryBack; r.diskBack = _diskBack; r.memoryPlanned = _memoryPlanned; r.diskPlanned = _diskPlanned;
     return r;
 }
@@ -108,7 +117,7 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
         BOOL landed = NO;
         if (f.wrapUp) {
             NSString *name = f.wrapUp.subject.worktree.branch.length ? f.wrapUp.subject.worktree.branch : f.wrapUp.subject.path.lastPathComponent;
-            [self tell:[self progress:MMFixStepText(f.kind, name ?: @"")]];
+            [self tell:[self progress:MMFixStepText(f.kind, name ?: @"") action:MMFixStepAction(f.kind)]];
             NSString *err = nil;
             MMUndoRecord *rec = MMRunWrapUp(f.wrapUp, @"manual", &err);
             MMFixResult *x = [self note:f name:name ?: @"" record:rec error:err];
@@ -123,7 +132,7 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
                 if (atomic_load(&_stop)) break;
                 reached++;
                 NSString *name = MMWindowNameOf(a.finding);
-                [self tell:[self progress:MMFixStepText(f.kind, name)]];
+                [self tell:[self progress:MMFixStepText(f.kind, name) action:MMFixStepAction(f.kind)]];
                 NSString *err = nil;
                 MMUndoRecord *rec = MMRunAction(a, f.policy, nil, @"manual", @"Fix Everything", &err);
                 MMFixResult *x = [self note:f name:name record:rec error:err];

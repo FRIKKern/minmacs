@@ -101,81 +101,69 @@ static NSString *StateOf(MMFinding *f, MMWindowKind kind) {
 
 #pragma mark - The story
 
-static void Add(NSMutableArray<MMWindowFact *> *out, NSString *label, NSString *value) {
-    if (value.length) [out addObject:[MMWindowFact label:label value:value]];
-}
+static void Add(NSMutableArray<MMWindowFact *> *out, MMWindowFact *fact) { if (fact) [out addObject:fact]; }
 
-static NSString *Ports(id v) {
-    if (![v isKindOfClass:NSArray.class] || ![v count]) return nil;
-    NSMutableArray *a = [NSMutableArray new];
-    for (id p in v) [a addObject:[NSString stringWithFormat:@":%@", p]];
-    return [a componentsJoinedByString:@", "];
-}
-
+/// A row's facts. The words of each are the model's, MMWindowFact… in UI/Window/MMWindowModel.m: one function a fact,
+/// so the render's made-up days say them the same way. An agent's why, a raw word about its processes such as
+/// "child caffeinate" or "status file busy", is not for a person and is left out.
 static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
     NSMutableArray<MMWindowFact *> *out = [NSMutableArray new];
     NSDictionary *x = f.facts;
     NSString *stays = f.keepReasons.firstObject;
+    NSArray *ports = [x[@"ports"] isKindOfClass:NSArray.class] ? x[@"ports"] : nil;
     switch (kind) {
         case MMWindowServer: {
-            if ([Num(x[@"port"]) integerValue] > 0) Add(out, @"Port", [Num(x[@"port"]) stringValue]);
-            Add(out, @"Project", Str(x[@"project"]));
-            Add(out, @"Runs in", Str(x[@"where"]) ?: Str(x[@"whereApp"]));
-            Add(out, @"Started by", Str(x[@"agent"]) ?: Str(x[@"launcher"]));
+            Add(out, MMWindowFactPort([Num(x[@"port"]) integerValue]));
+            Add(out, MMWindowFactProject(Str(x[@"project"])));
+            Add(out, MMWindowFactRunsIn(Str(x[@"where"]) ?: Str(x[@"whereApp"])));
+            Add(out, MMWindowFactStartedBy(Str(x[@"agent"]) ?: Str(x[@"launcher"])));
             NSDate *last = Date(x[@"lastActive"]);
-            if (last) Add(out, [Str(x[@"state"]) isEqualToString:@"idle"] ? @"Idle" : @"Last used",
-                          [Str(x[@"state"]) isEqualToString:@"idle"] ? MMDuration(-last.timeIntervalSinceNow) : MMAgo(last));
-            if ([Num(x[@"uptimeSeconds"]) doubleValue] > 0) Add(out, @"Up", MMDuration([x[@"uptimeSeconds"] doubleValue]));
+            if (last) Add(out, [Str(x[@"state"]) isEqualToString:@"idle"] ? MMWindowFactIdle(-last.timeIntervalSinceNow) : MMWindowFactLastUsed(-last.timeIntervalSinceNow));
+            if ([Num(x[@"uptimeSeconds"]) doubleValue] > 0) Add(out, MMWindowFactUp([x[@"uptimeSeconds"] doubleValue]));
             NSDate *kept = Date(x[@"keptUntil"]);
-            if (kept && kept.timeIntervalSinceNow > 0) Add(out, @"Kept", [@"for " stringByAppendingString:MMDuration(kept.timeIntervalSinceNow)]);
+            if (kept && kept.timeIntervalSinceNow > 0) Add(out, MMWindowFactKept(kept.timeIntervalSinceNow));
             break;
         }
         case MMWindowAgent:
-            Add(out, @"Agent", Str(x[@"name"]));
-            Add(out, @"Project", Str(x[@"project"]).lastPathComponent);
-            Add(out, @"State", Str(x[@"state"]));
-            Add(out, @"Why", Str(x[@"why"]));
+            Add(out, MMWindowFactAgent(Str(x[@"name"])));
+            Add(out, MMWindowFactProject(Str(x[@"project"]).lastPathComponent));
+            Add(out, MMWindowFactState(Str(x[@"state"])));
             break;
         case MMWindowApp:
-            Add(out, @"Used by", Str(x[@"agent"]));
-            Add(out, @"Serves", Ports(x[@"ports"]));
-            Add(out, @"Stays", stays ?: Str(x[@"reason"]));
+            Add(out, MMWindowFactUsedBy(Str(x[@"agent"])));
+            Add(out, MMWindowFactServes(ports));
+            Add(out, MMWindowFactStays(stays ?: Str(x[@"reason"])));
             stays = nil;
             break;
         case MMWindowHelper:
-            Add(out, @"Left by", Str(x[@"worktree"]).lastPathComponent);
-            Add(out, @"Folder", Folder(Str(x[@"cwd"])));
+            Add(out, MMWindowFactLeftBy(Str(x[@"worktree"]).lastPathComponent));
+            Add(out, MMWindowFactFolder(Folder(Str(x[@"cwd"]))));
             break;
         case MMWindowTabs: {
             NSArray *urls = [x[@"urls"] isKindOfClass:NSArray.class] ? x[@"urls"] : @[];
-            if (urls.count) Add(out, @"Open", MMPlural((NSInteger)urls.count, @"tab"));
-            Add(out, @"On", Ports(x[@"ports"]));
-            Add(out, @"Left by", Str(x[@"worktree"]).lastPathComponent);
+            Add(out, MMWindowFactOpenTabs((NSInteger)urls.count));
+            Add(out, MMWindowFactOnPorts(ports));
+            Add(out, MMWindowFactLeftBy(Str(x[@"worktree"]).lastPathComponent));
             break;
         }
-        case MMWindowWorktree: {
-            Add(out, @"Branch", Str(x[@"branch"]));
-            if (Str(x[@"merged"])) Add(out, @"Merged", @"yes");
-            NSInteger dirty = [Num(x[@"dirty"]) integerValue], untracked = [Num(x[@"untracked"]) integerValue];
-            NSMutableArray *ch = [NSMutableArray new];
-            if (dirty > 0) [ch addObject:[NSString stringWithFormat:@"%ld changed", (long)dirty]];
-            if (untracked > 0) [ch addObject:[NSString stringWithFormat:@"%ld new", (long)untracked]];
-            Add(out, @"Files", [ch componentsJoinedByString:@", "]);
-            if ([Num(x[@"unpushed"]) integerValue] > 0) Add(out, @"Not pushed", MMPlural([x[@"unpushed"] integerValue], @"commit"));
-            if (Num(x[@"quietDays"])) Add(out, @"Quiet", MMDuration([x[@"quietDays"] doubleValue] * 86400));
-            Add(out, @"Folder", Folder(f.path ?: Str(x[@"path"])));
+        case MMWindowWorktree:
+            // Merged is the row's own word, so it is no fact here.
+            Add(out, MMWindowFactBranch(Str(x[@"branch"])));
+            Add(out, MMWindowFactFiles([Num(x[@"dirty"]) integerValue], [Num(x[@"untracked"]) integerValue]));
+            Add(out, MMWindowFactNotPushed([Num(x[@"unpushed"]) integerValue]));
+            if (Num(x[@"quietDays"])) Add(out, MMWindowFactUntouched([x[@"quietDays"] doubleValue] * 86400));
+            Add(out, MMWindowFactFolder(Folder(f.path ?: Str(x[@"path"]))));
             break;
-        }
         case MMWindowCache:
-            Add(out, @"Kind", Str(x[@"kindTitle"]));
-            Add(out, @"Project", Str(x[@"owner"]));
-            if (Date(x[@"lastUsed"])) Add(out, @"Last used", MMAgo(Date(x[@"lastUsed"])));
-            Add(out, @"Folder", Folder(f.path ?: Str(x[@"path"])));
-            Add(out, @"Stays", stays ?: Str(x[@"keep"]) ?: Str(x[@"why"]));
+            Add(out, MMWindowFactKind(Str(x[@"kindTitle"])));
+            Add(out, MMWindowFactOwner(Str(x[@"owner"])));
+            if (Date(x[@"lastUsed"])) Add(out, MMWindowFactLastUsed(-Date(x[@"lastUsed"]).timeIntervalSinceNow));
+            Add(out, MMWindowFactFolder(Folder(f.path ?: Str(x[@"path"]))));
+            Add(out, MMWindowFactStays(stays ?: Str(x[@"keep"]) ?: Str(x[@"why"])));
             stays = nil;
             break;
     }
-    Add(out, @"Stays", stays);
+    Add(out, MMWindowFactStays(stays));
     return out;
 }
 

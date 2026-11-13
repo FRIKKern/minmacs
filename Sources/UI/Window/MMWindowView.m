@@ -375,7 +375,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     // The top line: what asks the person, a white diamond and a hairline. Nobody asks: none of them, and no band.
     if (_model.asks.length && !self.showsWelcome) {
         MMWindowDrawDiamond(NSMakeRect(14, 11, 12, 12), NSColor.whiteColor);
-        MMWindowDrawBlock(_model.asks, 13, 10.5, NSFontWeightMedium, MMWindowColor(MMWindowInkText), 33, 17, b.size.width - 60, -1, 0);
+        MMWindowDrawBlock(_model.asks, 13, 10.5, NSFontWeightMedium, MMWindowColor(MMWindowInkText), 33, 17, b.size.width - 60, -1, 0, 30);
     }
     if (self.showsWelcome) return;
     if (!_model && _looking && !self.showsSettings)

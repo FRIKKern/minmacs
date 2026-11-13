@@ -68,11 +68,44 @@ NSString *MMWindowHourTitle(BOOL disk);
 
 #pragma mark - Rows
 
-/// One fact of a row's story, such as "Port" and "3000", or "Idle" and "3 d".
+/// One fact of a row's story. In the story the label stands left and the value beside it: "Files" and "3 changed,
+/// 1 new". Said alone, on a row's second line, it is its phrase: "3 files changed, 1 new". A fact with no phrase is
+/// not for the second line: a port the name already says, a folder too long for a line.
 @interface MMWindowFact : NSObject
 @property (copy) NSString *label, *value;
+@property (copy, nullable) NSString *phrase;
 + (instancetype)label:(NSString *)label value:(NSString *)value;
 @end
+
+/// How long, by the window's one rule: "40 s", "12 min", "2 h 36 min", "3 d 4 h", "12 d". nil under ten seconds:
+/// then the words say "just now", never a zero.
+NSString *_Nullable MMWindowSpan(NSTimeInterval seconds);
+
+/// The facts, each worded in one place, so the feed and the render's made-up days say them alike and every one reads
+/// as a person would say it. Each returns nil when there is nothing true to say.
+MMWindowFact *_Nullable MMWindowFactPort(NSInteger port);                          // Port, ":3000"
+MMWindowFact *_Nullable MMWindowFactProject(NSString *_Nullable project);          // Project, the name or the folder; "in api". nil for the disk's top
+MMWindowFact *_Nullable MMWindowFactOwner(NSString *_Nullable project);            // Project, of a cache; "for atlas"
+MMWindowFact *_Nullable MMWindowFactRunsIn(NSString *_Nullable where);             // Runs in, "Ghostty, tab 2"; "runs in Ghostty, tab 2"
+MMWindowFact *_Nullable MMWindowFactStartedBy(NSString *_Nullable who);            // Started by, "cmux, which has quit"; "started by …"
+MMWindowFact *_Nullable MMWindowFactIdle(NSTimeInterval seconds);                  // Idle, "2 h 10 min"; "idle for 2 h 10 min"
+MMWindowFact *_Nullable MMWindowFactLastUsed(NSTimeInterval ago);                  // Last used, "3 min ago" or "just now"; "used 3 min ago"
+MMWindowFact *_Nullable MMWindowFactUp(NSTimeInterval seconds);                    // Running, "2 h 36 min"; "up 2 h 36 min"
+MMWindowFact *_Nullable MMWindowFactKept(NSTimeInterval left);                     // Kept, "1 h 20 min more"; "kept for 1 h 20 min more"
+MMWindowFact *_Nullable MMWindowFactAgent(NSString *_Nullable harness);            // Agent, "Claude Code"; "Claude Code"
+MMWindowFact *_Nullable MMWindowFactState(NSString *_Nullable state);              // State, "working". The story's first line says it
+MMWindowFact *_Nullable MMWindowFactUsedBy(NSString *_Nullable agent);             // Used by, "Claude Code"; "used by Claude Code"
+MMWindowFact *_Nullable MMWindowFactServes(NSArray *_Nullable ports);              // Serves, "ports 3000, 3001"; "serves ports 3000, 3001"
+MMWindowFact *_Nullable MMWindowFactStays(NSString *_Nullable reason);             // Stays, the reason. The story's first line says it
+MMWindowFact *_Nullable MMWindowFactLeftBy(NSString *_Nullable worktree);          // Left by, "fix-auth-redirect"; "left by fix-auth-redirect"
+MMWindowFact *_Nullable MMWindowFactFolder(NSString *_Nullable folder);            // Folder, the path. Not for the second line
+MMWindowFact *_Nullable MMWindowFactOpenTabs(NSInteger tabs);                      // Open, "14 tabs"; "14 tabs open"
+MMWindowFact *_Nullable MMWindowFactOnPorts(NSArray *_Nullable ports);             // On, "port 3003"; "on port 3003"
+MMWindowFact *_Nullable MMWindowFactBranch(NSString *_Nullable branch);            // Branch, the name. Not for the second line: the row's name says it
+MMWindowFact *_Nullable MMWindowFactFiles(NSInteger changed, NSInteger added);     // Files, "3 changed, 1 new"; "3 files changed, 1 new"
+MMWindowFact *_Nullable MMWindowFactNotPushed(NSInteger commits);                  // Not pushed, "2 commits"; "2 commits not pushed"
+MMWindowFact *_Nullable MMWindowFactUntouched(NSTimeInterval seconds);             // Untouched, "12 d"; "untouched for 12 d". "Changed", "just now" under ten seconds
+MMWindowFact *_Nullable MMWindowFactKind(NSString *_Nullable kind);                // Kind, "Xcode build output"; the same alone
 
 /// How a row's story opens: one line that says whether it stays, goes or waits, and why. The window draws the lead
 /// in bold with a mark: a dot for what stays, an orange triangle for what goes, a white diamond for what asks.
@@ -153,6 +186,9 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @interface MMWindowRun : NSObject
 @property BOOL running;                                 // NO once it ended; the window shows the end, then lets go
 @property (copy, nullable) NSString *step;              // "Stopping :3001", shown in the button while it runs
+/// The step without the name it acts on, "Stopping". When a name is too long for the button, the button says this
+/// and the count, "Stopping, 3 of 7", and never a cut name.
+@property (copy, nullable) NSString *stepAction;
 @property NSInteger done, total;                        // fixes landed, fixes planned
 @property uint64_t memoryBack, diskBack;                // what has come back so far
 @property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back; the two lines fill to these

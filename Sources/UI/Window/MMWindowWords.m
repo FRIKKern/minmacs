@@ -7,7 +7,7 @@
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
         @"Fix Everything", @"Stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
         @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"This disk", @"Memory", @"Free", @"In use",
-        @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"memory, now", @"biggest", @"minutes",
+        @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"fixes", @"memory, now", @"memory in use, as now", @"just now", @"biggest", @"minutes",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     void (^add)(NSString *) = ^(NSString *x) { if (x.length) [s addObject:x]; };
     add(m.asks);

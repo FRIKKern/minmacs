@@ -131,9 +131,7 @@ static void WindowPolishChecks(void) {
     for (NSString *name in WordFixtures()) {
         MMWindowModel *x = MMWindowFixture(name);
         for (NSArray<MMWindowGroup *> *side in @[x.memoryGroups, x.diskGroups]) for (MMWindowGroup *g in side) for (MMWindowRow *r in g.rows) {
-            NSString *why = nil;
-            for (MMWindowFact *f in r.facts) if ([f.label isEqualToString:@"Why"]) why = f.value;
-            if (why.length && [r.fate.note.lowercaseString containsString:why.lowercaseString]) raw = YES;
+            for (MMWindowFact *f in r.facts) if ([f.label isEqualToString:@"Why"]) raw = YES;
             for (MMWindowFact *f in r.storyFacts) if ([f.label isEqualToString:@"Stays"] && r.fate.note.length) twice = YES;
         }
     }
@@ -141,9 +139,9 @@ static void WindowPolishChecks(void) {
     bare.facts = @[[MMWindowFact label:@"Stays" value:@"in use"]];
     MMWindowRow *plain = [MMWindowRow new];
     plain.facts = @[[MMWindowFact label:@"Port" value:@"3000"]];
-    Check(!raw && !twice && asks.storyFacts.count == asks.facts.count - 1 && [asks.storyFacts.lastObject.label isEqualToString:@"Why"] && stays.storyFacts.count == stays.facts.count - 1 &&
+    Check(!raw && !twice && asks.storyFacts.count == asks.facts.count - 1 && stays.storyFacts.count == stays.facts.count - 1 &&
           [fate(bare) isEqualToString:@"0 Stays. In use."] && plain.fate == nil && plain.storyFacts.count == 1,
-          @"window story: an agent's raw Why stays among the facts and is never the line's sentence, and a row with no reason has no line", fate(bare));
+          @"window story: no made-up row carries an agent's raw Why, the line's sentence is never one, and a row with no reason has no line", fate(bare));
 
     // The pointed row reaches the dock, whose ring and numbers tell its share.
     MMWindowView *v = PolishView(@"busy");
@@ -175,6 +173,15 @@ static void WindowPolishChecks(void) {
     for (NSArray<MMWindowGroup *> *side in @[after.memoryGroups, after.diskGroups]) for (MMWindowGroup *g in side) for (MMWindowRow *r in g.rows) if (r.inFix) [marked addObject:r.key];
     NSMutableSet<NSString *> *gone = [all mutableCopy];
     [gone minusSet:left];
+    press.memoryBack = 0;
+    NSString *noMemory = [PolishDock(av).macLines componentsJoinedByString:@" | "];
+    press.memoryBack = 800 * MB;
+    after.fixes = @[own, press, press];
+    av.model = ({ after.generation = 2; after; });
+    av.pointsAtFix = YES;
+    NSString *two = PolishDock(av).macLines.firstObject;
+    Check([noMemory isEqualToString:@"After the fix | 42.4 GB | memory in use, as now | 184 GB disk free"] && [two isEqualToString:@"After all 2 fixes"],
+          @"window dock: a fix that gives no memory back does not say one number twice, and several are \"all 2 fixes\"", [NSString stringWithFormat:@"%@ / %@", noMemory, two]);
     Check([then isEqualToString:@"After the fix | 41.6 GB | memory, now 42.4 GB | 184 GB disk free"] && all.count == 72 && marked.count > 0 && [gone isEqualToSet:marked],
           @"window dock: the Mac after Fix Everything counts only the fixes that need nobody, each side on its own, and the ring drops exactly the rows a press acts on",
           [NSString stringWithFormat:@"%@, %lu of %lu rows gone, %lu marked", then, (unsigned long)gone.count, (unsigned long)all.count, (unsigned long)marked.count]);
@@ -200,6 +207,10 @@ static void WindowPolishChecks(void) {
     r.model = next;
     Check([heard isEqualToString:@"Fix 3 of 5"] && [rdock.announced isEqualToString:@"Fix 4 of 5"] && [rdock.fix.accessibilityLabel isEqualToString:@"Stop, Fix 4 of 5, Quitting Music"],
           @"window dock: VoiceOver hears the run's count when it changes, and the button's label holds it", [NSString stringWithFormat:@"%@ then %@, %@", heard, rdock.announced, rdock.fix.accessibilityLabel]);
+    // A step with a name far too long for the button shows its action and the count, never a cut name. A short one is whole.
+    MMWindowDockView *xdock = PolishDock(PolishView(@"extreme-running"));
+    Check([rdock.stepWords isEqualToString:@"Quitting Music"] && [xdock.stepWords isEqualToString:@"Wrapping up 1 of 2"] && [xdock.fix.accessibilityLabel containsString:MMWindowFixture(@"extreme-running").run.step],
+          @"window dock: a step too long for two lines in the button shows its action and the count, and VoiceOver still hears the whole step", xdock.stepWords);
     // The end note is whole sentences. The longest the runner can make loses whole sentences from its end, never part of one.
     MMWindowDockView *edock = PolishDock(PolishView(@"extreme-done"));
     NSString *whole = MMWindowFixture(@"extreme-done").run.endNote, *drawn = edock.endNote;
@@ -256,7 +267,7 @@ static void WindowPolishChecks(void) {
     live.model = MMWindowFixture(@"busy");
     [live opened];
     [live display];
-    Spin(0.15);
+    Spin(0.4);          // the breath starts right after the first drawing; a loaded Mac takes its time to get there
     MMWindowDockView *ld = PolishDock(live);
     MMWindowListView *ll = WindowLists(live).firstObject;
     BOOL breathes = ld.breathes, firstFlash = ll.flashed > 0;
@@ -319,6 +330,39 @@ static void WindowPolishChecks(void) {
           @"window motion: nothing breathes once the window closed, even while it is still on screen, and a dimmed button does not breathe",
           [NSString stringWithFormat:@"back %d, after rest %d, reopened %d", back, afterRest, reopened]);
     [win close];
+
+    // A scrolled group keeps the row it showed first when a model changes what is above it, a model that comes while
+    // the fingers move leaves the offset alone, and at rest a group has no blank strip at its foot.
+    MMWindowListView *sl = WindowLists(PolishView(@"extreme")).firstObject;
+    MMWindowGroup *sg = sl.groups.firstObject;
+    [sl reveal:sg.rows[40].key];
+    CGFloat restOff = sl.offsets[sg.key].doubleValue;
+    NSArray<NSNumber *> *restTops = sl.rowTops.firstObject;
+    NSUInteger firstShown = [restTops indexOfObject:@(restOff)];
+    NSString *firstKey = firstShown != NSNotFound ? sg.rows[firstShown].key : nil;
+    MMWindowModel *grown = MMWindowFixture(@"extreme");
+    grown.memoryGroups[0].rows[5].name = @":3005 Vite with a name that is now long enough to wrap onto a second line of its row";
+    [sl setGroups:grown.memoryGroups ring:grown.ring];
+    CGFloat grownOff = sl.offsets[sg.key].doubleValue;
+    NSUInteger grownFirst = [sl.rowTops.firstObject indexOfObject:@(grownOff)];
+    Check(firstKey && grownOff > restOff && grownFirst != NSNotFound && [sl.groups.firstObject.rows[grownFirst].key isEqualToString:firstKey],
+          @"window lists: a scrolled group keeps the row it showed first when a row above it grows", [NSString stringWithFormat:@"%g then %g", restOff, grownOff]);
+    NSRect sbox = sl.groupFrames.firstObject.rectValue;
+    NSEvent *wheel = [NSEvent eventWithCGEvent:(__bridge CGEventRef)CFBridgingRelease(CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, -7))];
+    [sl scrollWheel:wheel];
+    CGFloat moving = sl.offsets[sg.key].doubleValue;
+    [sl setGroups:MMWindowFixture(@"extreme").memoryGroups ring:grown.ring];
+    CGFloat stillMoving = sl.offsets[sg.key].doubleValue;
+    Check(moving != grownOff ? stillMoving == moving : YES, @"window lists: a model that comes while a group is being scrolled leaves its offset where the fingers have it",
+          [NSString stringWithFormat:@"%g moving, %g after the model", moving, stillMoving]);
+    [sl rest];
+    [sl setGroups:grown.memoryGroups ring:grown.ring];
+    [sl reveal:grown.memoryGroups[0].rows[60].key];
+    NSRect foot = [sl frameOfRow:@""], lastShown = NSZeroRect;
+    for (MMWindowRow *row in grown.memoryGroups[0].rows) { NSRect at = [sl frameOfRow:row.key]; if (!NSIsEmptyRect(at)) lastShown = at; }
+    (void)foot;
+    Check(!NSIsEmptyRect(lastShown) && fabs(NSMaxY(lastShown) - NSMaxY(sbox)) < 1, @"window lists: at rest a scrolled group has no blank strip at its foot: its last row ends where the group does",
+          [NSString stringWithFormat:@"last row ends at %g, the group at %g", NSMaxY(lastShown), NSMaxY(sbox)]);
 
     WindowWordChecks();
 }

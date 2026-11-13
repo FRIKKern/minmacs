@@ -18,6 +18,7 @@ static BOOL HasHour(MMWindowGroup *g) {
     NSMutableArray<NSValue *> *_frames;                       // each group's frame, header included
     NSMutableArray<NSArray<NSNumber *> *> *_tops;             // each group's rows: where each starts, and where the last ends
     NSString *_scrolling;                                     // the group whose scroller shows
+    NSMutableDictionary<NSString *, NSString *> *_anchors;    // the first row shown of each scrolled group, by the group's key
     NSTrackingArea *_tracking;
     CGFloat _rowHeight;                                       // 24, or more on a side with room to spare
     CGFloat _sumTop;                                          // where the side's closing lines start, or below 0 for none
@@ -29,7 +30,7 @@ static BOOL HasHour(MMWindowGroup *g) {
 
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
-        _groups = @[]; _offsets = [NSMutableDictionary new]; _frames = [NSMutableArray new]; _tops = [NSMutableArray new];
+        _groups = @[]; _offsets = [NSMutableDictionary new]; _anchors = [NSMutableDictionary new]; _frames = [NSMutableArray new]; _tops = [NSMutableArray new];
         _rowHeight = kRow; _sumTop = -1;
         self.accessibilityElement = YES;
         self.accessibilityRole = NSAccessibilityListRole;
@@ -81,15 +82,16 @@ static BOOL HasHour(MMWindowGroup *g) {
 #pragma mark Layout
 
 /// Where each row of a group starts, with the end of the last one: a row is `row` points high, and a name that wraps
-/// adds a line for each line more. Only a long name is measured.
+/// adds a line for each line more.
 - (NSArray<NSNumber *> *)topsOf:(MMWindowGroup *)g row:(CGFloat)row {
     NSMutableArray<NSNumber *> *tops = [NSMutableArray arrayWithCapacity:g.rows.count + 1];
     BOOL hasHour = HasHour(g);
     CGFloat y = 0, left = 5 + 31, right = self.bounds.size.width - 5 - 9;
     for (MMWindowRow *r in g.rows) {
         [tops addObject:@(y)];
+        // Every name is measured with the real font. The widths are kept, so a model that brings the same names costs little.
         MMWindowRowFit fit = {NO, NO, NO, 0, 1};
-        if (r.shownName.length >= 19) MMWindowRowName(r, g.side, hasHour, left, right, &fit);
+        MMWindowRowName(r, g.side, hasHour, left, right, &fit);
         y += row + MMWindowNameLine * (fit.lines - 1);
     }
     [tops addObject:@(y)];
@@ -111,9 +113,33 @@ static BOOL HasHour(MMWindowGroup *g) {
     return best;
 }
 
+/// Remembers which row a scrolled group shows first, or forgets it at the top.
+- (void)anchor:(NSInteger)i at:(CGFloat)off {
+    MMWindowGroup *g = _groups[i];
+    NSUInteger r = [_tops[i] indexOfObject:@(off)];
+    if (off > 0 && r != NSNotFound && r < g.rows.count) _anchors[g.key] = g.rows[r].key; else [_anchors removeObjectForKey:g.key];
+}
+
+/// Rows differ in height, so a scrolled box does not always end on a row's foot. At rest the rows that show share
+/// what is left under the last whole one, each a little taller, so the group has no blank strip at its foot and a
+/// pointer there is on a row that is drawn. Zero while the group moves and where every row shows.
+- (CGFloat)stretch:(NSInteger)i shown:(NSRange)shown box:(NSRect)box offset:(CGFloat)off {
+    MMWindowGroup *g = _groups[i];
+    if ([_scrolling isEqualToString:g.key] || !shown.length || shown.length == g.rows.count) return 0;
+    CGFloat blank = box.size.height - (_tops[i][NSMaxRange(shown)].doubleValue - off);
+    return blank > 0.5 ? blank / shown.length : 0;
+}
+
 - (NSRect)rowRect:(NSInteger)r in:(NSInteger)i box:(NSRect)box offset:(CGFloat)off {
+    NSRange shown = [self shown:i moving:[_scrolling isEqualToString:_groups[i].key]];
+    return [self rowRect:r in:i box:box offset:off shown:shown stretch:[self stretch:i shown:shown box:box offset:off]];
+}
+
+/// The same for a caller that goes through many rows of one group and has asked what shows once.
+- (NSRect)rowRect:(NSInteger)r in:(NSInteger)i box:(NSRect)box offset:(CGFloat)off shown:(NSRange)shown stretch:(CGFloat)stretch {
     NSArray<NSNumber *> *tops = _tops[i];
-    return NSMakeRect(5, box.origin.y + tops[r].doubleValue - off, self.bounds.size.width - 10, tops[r + 1].doubleValue - tops[r].doubleValue);
+    CGFloat more = r >= (NSInteger)shown.location && r < (NSInteger)NSMaxRange(shown) ? stretch : 0;
+    return NSMakeRect(5, box.origin.y + tops[r].doubleValue - off + more * (r - (NSInteger)shown.location), self.bounds.size.width - 10, tops[r + 1].doubleValue - tops[r].doubleValue + more);
 }
 
 /// Each group gets the height its rows need. When they do not all fit, the long ones share what the short ones leave,
@@ -173,8 +199,16 @@ static BOOL HasHour(MMWindowGroup *g) {
         CGFloat h = kHead + give[i].doubleValue;
         [_frames addObject:[NSValue valueWithRect:NSMakeRect(0, y, self.bounds.size.width, h)]];
         y += h + gap;
-        // A group that grew or shrank keeps its place, as far as its rows still reach.
-        _offsets[g.key] = @([self snap:MIN(MAX(_offsets[g.key].doubleValue, 0), [self maxOffset:i box:h - kHead]) in:i]);
+        // A scrolled group keeps the row it showed first, whatever grew or went above it. While the fingers still move
+        // it, a new model leaves it where they have it. Else it rests on a whole row, as far as its rows still reach.
+        CGFloat most = [self maxOffset:i box:h - kHead], was = MIN(MAX(_offsets[g.key].doubleValue, 0), most);
+        if (![_scrolling isEqualToString:g.key]) {
+            NSString *anchor = _anchors[g.key];
+            NSUInteger at = anchor ? [g.rows indexOfObjectPassingTest:^BOOL(MMWindowRow *r, NSUInteger idx, BOOL *stop) { return [r.key isEqualToString:anchor]; }] : NSNotFound;
+            was = at != NSNotFound && was > 0 ? MIN(_tops[i][at].doubleValue, most) : [self snap:was in:i];
+            [self anchor:i at:was];
+        }
+        _offsets[g.key] = @(was);
     }
     CGFloat sum = kHead + kSumRow * self.sumLines.count;
     // With rows above, the closing lines stand at the side's foot, as 195-a's. A side with no rows at all has them
@@ -217,9 +251,10 @@ static BOOL HasHour(MMWindowGroup *g) {
     NSRect box = [self boxOf:i];
     if (!NSPointInRect(p, box)) return nil;
     MMWindowGroup *g = _groups[i];
-    CGFloat y = p.y - box.origin.y + _offsets[g.key].doubleValue;
-    NSArray<NSNumber *> *tops = _tops[i];
-    for (NSInteger r = 0; r < (NSInteger)g.rows.count; r++) if (y >= tops[r].doubleValue && y < tops[r + 1].doubleValue) return g.rows[r];
+    // Only a row that is drawn can be pointed at, where it is drawn.
+    NSRange shown = [self shown:i moving:[_scrolling isEqualToString:g.key]];
+    CGFloat off = _offsets[g.key].doubleValue;
+    for (NSUInteger r = shown.location; r < NSMaxRange(shown); r++) if (NSPointInRect(p, [self rowRect:(NSInteger)r in:i box:box offset:off])) return g.rows[r];
     return nil;
 }
 
@@ -235,6 +270,7 @@ static BOOL HasHour(MMWindowGroup *g) {
         CGFloat need = at + 2 < (NSInteger)tops.count ? tops[at + 2].doubleValue : end;
         if (need > off + boxH) for (NSNumber *t in tops) if (need - t.doubleValue <= boxH) { off = t.doubleValue; break; }
         _offsets[g.key] = @(MIN(MAX(off, 0), [self maxOffset:i box:boxH]));
+        [self anchor:i at:_offsets[g.key].doubleValue];
         self.needsDisplay = YES;
         return;
     }
@@ -312,7 +348,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
     if (more) MMWindowDraw(MMWindowText(more, 11, NSFontWeightRegular, below > 0 || above > 0 ? t2 : t3), f.size.width - 14, f.origin.y + kHead / 2, 1);
     if (box.size.height <= 0) return;
     if (!g.rows.count) {
-        if (g.emptyNote.length) MMWindowDrawBlock(g.emptyNote, 12, 10, NSFontWeightRegular, t3, 14, box.origin.y + kRow / 2, f.size.width - 28, -1, 0);
+        if (g.emptyNote.length) MMWindowDrawBlock(g.emptyNote, 12, 10, NSFontWeightRegular, t3, 14, box.origin.y + kRow / 2, f.size.width - 28, -1, 0, 26);
         return;
     }
     if (!shown.length) return;
@@ -324,9 +360,9 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
     // Where a fade is due, the rows go into a layer of their own, so it thins the rows and not the glass.
     BOOL fadeFoot = below > 0, fadeHead = off > 0.5;
     if (fadeFoot || fadeHead) CGContextBeginTransparencyLayer(cg, NULL);
-    CGFloat foot = NSMaxY(box);
+    CGFloat foot = NSMaxY(box), stretch = [self stretch:i shown:shown box:box offset:off];
     for (NSUInteger r = shown.location; r < NSMaxRange(shown); r++) {
-        NSRect at = [self rowRect:(NSInteger)r in:i box:box offset:off];
+        NSRect at = [self rowRect:(NSInteger)r in:i box:box offset:off shown:shown stretch:stretch];
         MMWindowDrawRow(g.rows[r], at, g.side, hasHour, [g.rows[r].key isEqualToString:_hotKey], _rowHeight >= kTall);
         foot = NSMaxY(at);
     }
@@ -352,6 +388,16 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
         for (MMWindowRow *row in g.rows) [out addObject:[MMWindowRowName(row, g.side, hasHour, 5 + 31, self.bounds.size.width - 5 - 9, NULL) componentsJoinedByString:@"\n"]];
     }
     return out;
+}
+
+- (NSRect)frameOfRow:(NSString *)key {
+    for (NSInteger i = 0; i < (NSInteger)_groups.count && i < (NSInteger)_frames.count; i++) {
+        MMWindowGroup *g = _groups[i];
+        NSRange shown = [self shown:i moving:[_scrolling isEqualToString:g.key]];
+        for (NSUInteger r = shown.location; r < NSMaxRange(shown); r++)
+            if ([g.rows[r].key isEqualToString:key]) return [self rowRect:(NSInteger)r in:i box:[self boxOf:i] offset:_offsets[g.key].doubleValue];
+    }
+    return NSZeroRect;
 }
 
 - (NSDictionary<NSString *, NSNumber *> *)offsets { return [_offsets copy]; }
@@ -397,7 +443,8 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
 
 /// The scroll came to rest: each group settles on a whole row, so no row stays half cut under a header.
 - (void)hideScroller {
-    _scrolling = nil;
+    // The anchors are of before the fingers moved: each group rests on the whole row nearest to where they left it.
+    _scrolling = nil; [_anchors removeAllObjects];
     [self place];
     self.needsDisplay = YES;
 }
@@ -406,7 +453,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
 - (void)rest {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideScroller) object:nil];
     _scrolling = nil; _known = nil;
-    [_offsets removeAllObjects];
+    [_offsets removeAllObjects]; [_anchors removeAllObjects];
     self.needsDisplay = YES;
 }
 

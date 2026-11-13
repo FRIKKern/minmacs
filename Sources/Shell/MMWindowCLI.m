@@ -9,15 +9,19 @@
 #import "CLI/MMCLI.h"
 #import "UI/MMFormat.h"
 
-static NSString *Mem(uint64_t n) { return MMBytes(n); }
+/// Sizes by the window's one rule, so the verb and the window give one number for one thing: memory in 1024s, the
+/// disk and what is on it in thousands.
+static NSString *Mem(uint64_t n) { return MMWindowSizeText(n, NO); }
+static NSString *Disk(uint64_t n) { return MMWindowSizeText(n, YES); }
 
 static void PrintGroup(MMArgs *a, MMWindowGroup *g) {
     uint64_t sum = 0;
     for (MMWindowRow *r in g.rows) sum += r.bytes;
-    [a print:@"%@  %lu, %@", g.title, (unsigned long)g.rows.count, Mem(sum)];
+    BOOL disk = g.side == MMWindowDisk;
+    [a print:@"%@  %lu, %@", g.title, (unsigned long)g.rows.count, disk ? Disk(sum) : Mem(sum)];
     for (MMWindowRow *r in g.rows) {
         NSMutableArray *tail = [NSMutableArray new];
-        if (r.kind == MMWindowTabs) [tail addObject:MMPlural(r.tabs, @"tab")]; else [tail addObject:Mem(r.bytes)];
+        if (r.kind == MMWindowTabs) [tail addObject:MMPlural(r.tabs, @"tab")]; else [tail addObject:disk ? Disk(r.bytes) : Mem(r.bytes)];
         if (r.state) [tail addObject:r.state];
         if (r.needsYou) [tail addObject:@"asks you"];
         if (r.inFix) [tail addObject:@"in a fix"];
@@ -40,16 +44,18 @@ static int Window(MMArgs *a) {
         return 0;
     }
     if (m.asks) [a print:@"%@", m.asks];
-    [a print:@"Memory  %@ in use of %@", Mem(m.ring.memoryUsed), Mem(m.ring.memoryTotal)];
-    [a print:@"Disk    %@ free of %@", Mem(m.ring.diskFree), Mem(m.ring.diskTotal)];
+    [a print:@"Memory  %@ in use of %@", Mem(m.ring.memoryUsed), MMWindowWholeText(m.ring.memoryTotal, NO)];
+    [a print:@"Disk    %@ free of %@", Disk(m.ring.diskFree), MMWindowWholeText(m.ring.diskTotal, YES)];
     for (MMWindowGroup *g in m.memoryGroups) PrintGroup(a, g);
     for (MMWindowGroup *g in m.diskGroups) PrintGroup(a, g);
-    [a print:@"Fix Everything  %@: %@ memory back, %@ disk back", MMPlural(m.fixCount, @"fix"), Mem(m.memoryBack), Mem(m.diskBack)];
+    [a print:@"Fix Everything  %@: %@ memory back, %@ disk back", MMPlural(m.fixCount, @"fix"), Mem(m.memoryBack), Disk(m.diskBack)];
     NSInteger i = 0;
     for (MMWindowFix *f in m.fixes)
-        [a print:@"%2ld  %@ memory %@, disk %@%@", (long)++i, MMColumn(f.title, 38), Mem(f.memoryBack), Mem(f.diskBack),
+        [a print:@"%2ld  %@ memory %@, disk %@%@", (long)++i, MMColumn(f.title, 38), Mem(f.memoryBack), Disk(f.diskBack),
                  f.needsYou ? @", needs your own press" : @""];
-    for (MMWindowRule *r in m.settings.rules) [a print:@"Rule    %@ %@", MMColumn(r.title, 30), r.choices[(NSUInteger)r.picked].title];
+    // A rule with nothing picked yet, the removal choice before the person made it, says so.
+    for (MMWindowRule *r in m.settings.rules)
+        [a print:@"Rule    %@ %@", MMColumn(r.title, 30), r.picked >= 0 && r.picked < (NSInteger)r.choices.count ? r.choices[(NSUInteger)r.picked].title : @"not chosen yet"];
     for (MMWindowSwitch *w in m.settings.switches) [a print:@"Switch  %@ %@", MMColumn(w.title, 34), w.on ? @"on" : @"off"];
     return 0;
 }

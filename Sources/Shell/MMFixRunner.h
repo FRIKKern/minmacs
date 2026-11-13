@@ -51,5 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// "Stopping :3001", "Quitting Chat", "Removing fix-auth", and for a cache "Cleaning up DerivedData" under the Smart
 /// removal choice, "Moving DerivedData to the Trash" under Trash and "Deleting DerivedData" under Delete.
 NSString *MMFixStepText(NSString *fixKind, NSString *name);
+/// The step's words with no name: "Stopping", "Wrapping up". For a button too small for a long name.
+NSString *MMFixStepAction(NSString *fixKind);
 
 NS_ASSUME_NONNULL_END

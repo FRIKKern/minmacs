@@ -39,6 +39,110 @@ NSString *MMWindowHourTitle(BOOL disk) { return disk ? @"Disk free" : @"Memory i
 }
 @end
 
+#pragma mark The facts' words
+
+NSString *MMWindowSpan(NSTimeInterval seconds) {
+    long t = (long)MAX(0, seconds);
+    if (t < 10) return nil;
+    if (t < 60) return [NSString stringWithFormat:@"%ld s", t];
+    if (t < 3600) return [NSString stringWithFormat:@"%ld min", t / 60];
+    if (t < 86400) return t % 3600 >= 60 ? [NSString stringWithFormat:@"%ld h %ld min", t / 3600, t % 3600 / 60] : [NSString stringWithFormat:@"%ld h", t / 3600];
+    // Past a week the hours say nothing: "13 d", not "13 d 4 h".
+    return t % 86400 >= 3600 && t < 7 * 86400 ? [NSString stringWithFormat:@"%ld d %ld h", t / 86400, t % 86400 / 3600] : [NSString stringWithFormat:@"%ld d", t / 86400];
+}
+
+static MMWindowFact *Fact(NSString *label, NSString *value, NSString *phrase) {
+    if (!value.length) return nil;
+    MMWindowFact *f = [MMWindowFact label:label value:value];
+    f.phrase = phrase;
+    return f;
+}
+
+static NSString *Trimmed(NSString *s) { return [s ?: @"" stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]; }
+
+/// "port 3000", "ports 3000, 3001".
+static NSString *Ports(NSArray *ports) {
+    NSMutableArray<NSString *> *a = [NSMutableArray new];
+    for (id p in ports) if ([[p description] integerValue] > 0) [a addObject:[p description]];
+    return a.count ? [NSString stringWithFormat:@"%@ %@", a.count == 1 ? @"port" : @"ports", [a componentsJoinedByString:@", "]] : nil;
+}
+
+MMWindowFact *MMWindowFactPort(NSInteger port) { return port > 0 ? Fact(@"Port", [NSString stringWithFormat:@":%ld", (long)port], nil) : nil; }
+
+MMWindowFact *MMWindowFactProject(NSString *project) {
+    NSString *p = Trimmed(project);
+    // The disk's top is no project.
+    if ([p isEqualToString:@"/"]) return nil;
+    NSString *last = p.lastPathComponent;
+    return Fact(@"Project", p, last.length ? [@"in " stringByAppendingString:last] : nil);
+}
+
+MMWindowFact *MMWindowFactOwner(NSString *project) { NSString *p = Trimmed(project); return Fact(@"Project", p, [@"for " stringByAppendingString:p]); }
+MMWindowFact *MMWindowFactRunsIn(NSString *where) { NSString *w = Trimmed(where); return Fact(@"Runs in", w, [@"runs in " stringByAppendingString:w]); }
+
+MMWindowFact *MMWindowFactStartedBy(NSString *who) {
+    // Core marks a launcher that is gone as "cmux · parent exited". The dot is the second line's own separator.
+    NSString *w = [Trimmed(who) stringByReplacingOccurrencesOfString:@" · parent exited" withString:@", which has quit"];
+    return Fact(@"Started by", w, [@"started by " stringByAppendingString:w]);
+}
+
+MMWindowFact *MMWindowFactIdle(NSTimeInterval seconds) {
+    NSString *span = MMWindowSpan(seconds);
+    return span ? Fact(@"Idle", span, [@"idle for " stringByAppendingString:span]) : Fact(@"Idle", @"since just now", @"idle since just now");
+}
+
+MMWindowFact *MMWindowFactLastUsed(NSTimeInterval ago) {
+    NSString *span = MMWindowSpan(ago), *when = span ? [span stringByAppendingString:@" ago"] : @"just now";
+    return Fact(@"Last used", when, [@"used " stringByAppendingString:when]);
+}
+
+MMWindowFact *MMWindowFactUp(NSTimeInterval seconds) {
+    NSString *span = MMWindowSpan(seconds);
+    return span ? Fact(@"Running", span, [@"up " stringByAppendingString:span]) : Fact(@"Running", @"since just now", @"started just now");
+}
+
+MMWindowFact *MMWindowFactKept(NSTimeInterval left) {
+    NSString *span = MMWindowSpan(left);
+    return span ? Fact(@"Kept", [span stringByAppendingString:@" more"], [NSString stringWithFormat:@"kept for %@ more", span]) : nil;
+}
+
+MMWindowFact *MMWindowFactAgent(NSString *harness) { NSString *h = Trimmed(harness); return Fact(@"Agent", h, h); }
+MMWindowFact *MMWindowFactState(NSString *state) { return Fact(@"State", Trimmed(state), nil); }
+MMWindowFact *MMWindowFactUsedBy(NSString *agent) { NSString *a = Trimmed(agent); return Fact(@"Used by", a, [@"used by " stringByAppendingString:a]); }
+MMWindowFact *MMWindowFactServes(NSArray *ports) { NSString *p = Ports(ports); return Fact(@"Serves", p, [@"serves " stringByAppendingString:p ?: @""]); }
+MMWindowFact *MMWindowFactStays(NSString *reason) { return Fact(@"Stays", Trimmed(reason), nil); }
+MMWindowFact *MMWindowFactLeftBy(NSString *worktree) { NSString *w = Trimmed(worktree); return Fact(@"Left by", w, [@"left by " stringByAppendingString:w]); }
+MMWindowFact *MMWindowFactFolder(NSString *folder) { return Fact(@"Folder", Trimmed(folder), nil); }
+
+MMWindowFact *MMWindowFactOpenTabs(NSInteger tabs) {
+    if (tabs <= 0) return nil;
+    NSString *n = [NSString stringWithFormat:@"%ld %@", (long)tabs, tabs == 1 ? @"tab" : @"tabs"];
+    return Fact(@"Open", n, [n stringByAppendingString:@" open"]);
+}
+
+MMWindowFact *MMWindowFactOnPorts(NSArray *ports) { NSString *p = Ports(ports); return Fact(@"On", p, [@"on " stringByAppendingString:p ?: @""]); }
+MMWindowFact *MMWindowFactBranch(NSString *branch) { return Fact(@"Branch", Trimmed(branch), nil); }
+
+MMWindowFact *MMWindowFactFiles(NSInteger changed, NSInteger added) {
+    NSMutableArray<NSString *> *v = [NSMutableArray new], *said = [NSMutableArray new];
+    if (changed > 0) { [v addObject:[NSString stringWithFormat:@"%ld changed", (long)changed]]; [said addObject:[NSString stringWithFormat:@"%ld %@ changed", (long)changed, changed == 1 ? @"file" : @"files"]]; }
+    if (added > 0) { [v addObject:[NSString stringWithFormat:@"%ld new", (long)added]]; [said addObject:changed > 0 ? [NSString stringWithFormat:@"%ld new", (long)added] : [NSString stringWithFormat:@"%ld new %@", (long)added, added == 1 ? @"file" : @"files"]]; }
+    return Fact(@"Files", [v componentsJoinedByString:@", "], [said componentsJoinedByString:@", "]);
+}
+
+MMWindowFact *MMWindowFactNotPushed(NSInteger commits) {
+    if (commits <= 0) return nil;
+    NSString *n = [NSString stringWithFormat:@"%ld %@", (long)commits, commits == 1 ? @"commit" : @"commits"];
+    return Fact(@"Not pushed", n, [n stringByAppendingString:@" not pushed"]);
+}
+
+MMWindowFact *MMWindowFactUntouched(NSTimeInterval seconds) {
+    NSString *span = MMWindowSpan(seconds);
+    return span ? Fact(@"Untouched", span, [@"untouched for " stringByAppendingString:span]) : Fact(@"Changed", @"just now", @"changed just now");
+}
+
+MMWindowFact *MMWindowFactKind(NSString *kind) { NSString *k = Trimmed(kind); return Fact(@"Kind", k, k); }
+
 @implementation MMWindowRow
 - (instancetype)init { if ((self = [super init])) { _key = @""; _name = @""; _cpuPercent = -1; _facts = @[]; } return self; }
 - (NSString *)shownName {
