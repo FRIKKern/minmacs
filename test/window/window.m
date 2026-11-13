@@ -14,6 +14,10 @@
 #import "Shell/MMWindowJSON.h"
 #import "Shell/MMFixRunner.h"
 
+/// The render's made-up days, Sources/UI/Window/MMWindowFixture.m. Declared here and not imported: its header brings
+/// AppKit, whose names clash with this file's fakes.
+MMWindowModel *MMWindowFixture(NSString *name);
+
 #pragma mark - Experts whose actions act on fixtures
 
 static NSMutableArray<NSString *> *gRan;        // the finding id of each action that ran, in order
@@ -400,6 +404,22 @@ static void WindowModel(void) {
     T(@"window: each removal choice says what it means in one sentence",
       @"Deletes what git or its tool can give back. The rest goes to the Trash.|Everything goes to the Trash. The disk comes back when you empty it.|Deletes everything it removes at once. Nothing can be brought back.",
       [[removal.choices valueForKey:@"explain"] componentsJoinedByString:@"|"]);
+    // The render's Settings fixtures hold what the feed makes: the same cards, titles, choices and sentences, and the
+    // same switches. A card or a word that differs fails here.
+    NSString *(^words)(MMWindowSettings *) = ^NSString *(MMWindowSettings *x) {
+        NSMutableArray *a = [NSMutableArray new];
+        for (MMWindowRule *r in x.rules) {
+            [a addObject:[NSString stringWithFormat:@"%@=%@", r.ruleID, r.title]];
+            for (MMWindowChoice *c in r.choices) [a addObject:[NSString stringWithFormat:@"%@: %@", c.title, c.explain]];
+        }
+        for (MMWindowSwitch *w in x.switches) [a addObject:[NSString stringWithFormat:@"%@=%@", w.switchID, w.title]];
+        return [a componentsJoinedByString:@" | "];
+    };
+    for (NSString *name in @[@"busy", @"removal", @"calm", @"empty", @"welcome"])
+        T([NSString stringWithFormat:@"window: the render's %@ Settings says the feed's cards, word for word", name], words(st), words(MMWindowFixture(name).settings));
+    T(@"window: the fixtures' notes are the feed's own sentences", @"1 ready. It waits for your press. | It only watches for 23h more, then it may act. | This Mac has no lid, so it changes nothing here. | yes",
+      [NSString stringWithFormat:@"%@ | %@ | %@ | %@", MMWindowFixture(@"busy").settings.rules[1].note, MMWindowFixture(@"calm").settings.rules[0].note,
+       MMWindowFixture(@"calm").settings.switches[0].note, YN([MMWindowFixture(@"calm").settings.rules.lastObject.note isEqualToString:removal.note])]);
     T(@"window: the removal card is no expert's mode", @"(null)", [NSString stringWithFormat:@"%@", MMWindowRuleExpert(MMWindowRemovalRuleID)]);
     T(@"window: while nothing is chosen the card's note says what holds until then", @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash.", removal.note);
     MMSetRemovalChoice(MMRemovalSmart);

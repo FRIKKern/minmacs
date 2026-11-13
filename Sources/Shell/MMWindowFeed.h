@@ -52,12 +52,8 @@ NSString *MMWindowFixTitle(MMPerformanceFix *fix);
 
 #pragma mark Settings, MMWindowRules.m
 
-/// The rule ids in the order Settings shows them: servers, apps, worktrees, caches.
-NSArray<NSString *> *MMWindowRuleIDs(void);
 /// The expert whose mode a rule sets, such as "locohost" for "servers". nil for an unknown id.
 NSString *_Nullable MMWindowRuleExpert(NSString *ruleID);
-/// The three choices in order, for MMModeIdle, MMModeProactive and MMModeEager: "Off", "Careful", "Eager".
-NSArray<NSString *> *MMWindowChoiceTitles(void);
 /// The id of the card "When MinMacs removes things". Its three choices are MMRemovalChoice in order: Smart, Trash,
 /// Delete. windowSetRule:picked: writes the pref core.removal for it, and no expert's mode.
 extern NSString *const MMWindowRemovalRuleID;

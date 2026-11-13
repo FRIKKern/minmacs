@@ -201,69 +201,36 @@ static MMWindowFix *Fix(NSString *key, NSString *title, uint64_t memory, uint64_
     return f;
 }
 
-static MMWindowRule *Rule(NSString *rid, NSString *title, NSInteger picked, NSString *ask, NSString *automatic, NSString *note) {
-    MMWindowRule *r = [MMWindowRule new];
-    r.ruleID = rid; r.title = title; r.picked = picked; r.note = note;
-    NSMutableArray *choices = [NSMutableArray new];
-    for (NSArray *c in @[@[@"Off", @"Not watching. Nothing is shown, nothing happens."], @[@"Ask", ask], @[@"Auto", automatic]]) {
-        MMWindowChoice *x = [MMWindowChoice new]; x.title = c[0]; x.explain = c[1];
-        [choices addObject:x];
-    }
-    r.choices = choices;
-    return r;
-}
-
-static MMWindowSettings *Settings(void) {
-    MMWindowSettings *s = [MMWindowSettings new];
-    NSString *ask = @"Shows a button. Nothing happens until you press it.";
-    s.rules = @[Rule(@"wrapup", @"Wrap Up workstreams", 1, ask, @"Runs the plan 1 h after the merge, once its sessions end. What it removes goes to the Trash.", @"1 ready, 1.9 GB disk. Wrap Up waits for your press."),
-                Rule(@"apps", @"Close apps", 1, ask, @"Closes the apps on your close list when memory pressure warns, then sends a notice with Restore.", @"Memory pressure is normal. A button shows for Music once it warns."),
-                Rule(@"leftovers", @"Clean up leftovers", 1, ask, @"Moves what may go to the Trash every Sunday.", @"8 leftovers may go. Nothing happens until you press."),
-                Rule(@"servers", @"Stop idle servers", 2, ask, @"Stops a server after 2 h idle, then sends a notice with Undo.", @"Auto stops :1313 next."),
-                Rule(@"worktrees", @"Remove merged worktrees", 1, ask, @"Removes a worktree no workstream owns 1 day after its merge, once nothing in it is uncommitted.", @"3 merged 1 day ago or more. Each waits for your press.")];
-    MMWindowSwitch *lid = [MMWindowSwitch new];
-    lid.switchID = @"lid"; lid.title = @"Keep working with the lid closed"; lid.on = YES;
-    lid.note = @"MinMacs keeps the Mac awake while 11 agents work. On battery it stops at 20 %, off Wi-Fi or when the Mac runs hot.";
-    MMWindowSwitch *login = [MMWindowSwitch new];
-    login.switchID = @"login"; login.title = @"Open at login"; login.on = YES; login.note = @"MinMacs starts when you sign in.";
-    s.switches = @[lid, login];
-    return s;
-}
-
-/// One card with choices of its own, as the feed builds them: a title and one sentence each.
 static MMWindowRule *Card(NSString *rid, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *note) {
-    MMWindowRule *r = [MMWindowRule new];
-    r.ruleID = rid; r.title = title; r.picked = picked; r.note = note;
-    NSMutableArray *list = [NSMutableArray new];
-    for (NSArray<NSString *> *c in choices) { MMWindowChoice *x = [MMWindowChoice new]; x.title = c[0]; x.explain = c[1]; [list addObject:x]; }
-    r.choices = list;
-    return r;
+    return MMWindowChoiceCard(rid, title, picked, choices, note);
 }
 
-/// "removal": Settings as the feed fills it today, MMWindowRules.m: the four mode rules, then the card for the removal
-/// choice with Core's own three sentences, then This Mac. test/window.sh checks the sentences against Core's.
-static MMWindowSettings *SettingsWithRemoval(void) {
-    MMWindowSettings *s = Settings();
-    NSArray *(^modes)(NSString *, NSString *, NSString *) = ^NSArray *(NSString *off, NSString *careful, NSString *eager) {
-        return @[@[@"Off", off], @[@"Careful", careful], @[@"Eager", eager]];
-    };
-    s.rules = @[Card(@"servers", @"Stop idle servers", 1, modes(@"Stops no server on its own.",
-                     @"After a review, stops an idle dev server that was quiet for 6 hours and has no agent above it.",
-                     @"After a review, stops each idle dev server the review finds no use for."), nil),
-                Card(@"apps", @"Quit apps", 0, modes(@"Quits no app on its own.", @"Quits no app on its own either. An app closes only on your press.",
-                     @"Quits the apps on your close list, only while memory pressure or heat is high."), @"1 ready. It waits for your press."),
-                Card(@"worktrees", @"Remove finished worktrees", 1, modes(@"Removes no worktree on its own.",
-                     @"After a review, removes a worktree that is merged, or whose remote branch is gone, and quiet for 7 days.",
-                     @"After a review, removes each worktree the review finds no use for."), nil),
-                Card(@"caches", @"Clean caches and leftovers", 2, modes(@"Cleans up nothing on its own.",
-                     @"After a review, cleans up the build output of finished projects and leftovers.",
-                     @"After a review, also cleans up caches. A tool's own cleanup always waits for your press."), nil),
-                Card(@"removal", MMWindowRemovalTitle, 0, @[
+/// Settings as the feed fills it, Shell/MMWindowRules.m: the four rules from the same words the feed uses, the card
+/// for the removal choice with Core's own three sentences, then This Mac. The render cannot link Core, so the three
+/// removal sentences are written here too, and test/window.sh and test/window/window.m hold them to Core's.
+/// `picked` is the choice of each of the four rules and of the removal card.
+static MMWindowSettings *SettingsLike(NSArray<NSNumber *> *picked, NSDictionary<NSString *, NSString *> *notes) {
+    MMWindowSettings *s = [MMWindowSettings new];
+    NSMutableArray<MMWindowRule *> *rules = [NSMutableArray new];
+    NSArray<NSString *> *ids = MMWindowRuleIDs();
+    for (NSUInteger i = 0; i < ids.count; i++) [rules addObject:MMWindowRuleCard(ids[i], picked[i].integerValue, notes[ids[i]])];
+    [rules addObject:
+                Card(@"removal", MMWindowRemovalTitle, picked[4].integerValue, @[
                      @[@"Smart", @"Deletes what git or its tool can give back. The rest goes to the Trash."],
                      @[@"Trash", @"Everything goes to the Trash. The disk comes back when you empty it."],
-                     @[@"Delete", @"Deletes everything it removes at once. Nothing can be brought back."]], nil)];
+                     @[@"Delete", @"Deletes everything it removes at once. Nothing can be brought back."]], notes[@"removal"])];
+    s.rules = rules;
+    s.switches = @[MMWindowLidSwitch(YES, NO, @"On now. The Mac keeps running with the lid shut."), MMWindowLoginSwitch(YES, nil)];
     return s;
 }
+
+/// A working day: servers and worktrees on Careful, caches on Eager, apps Off with one app ready for a press.
+static MMWindowSettings *Settings(void) {
+    return SettingsLike(@[@1, @0, @1, @2, @0], @{@"apps": MMWindowReadyNote(1)});
+}
+
+/// "removal": the same day. It keeps its name from when only it had the removal card.
+static MMWindowSettings *SettingsWithRemoval(void) { return Settings(); }
 
 /// The welcome as the feed makes it for a person new to MinMacs, MMWindowWelcomeNow in Shell/MMWindowRules.m, with
 /// the switch on or off and one removal choice picked. test/window.sh checks its facts against the feed's.
@@ -313,13 +280,16 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     NSInteger minutes = empty || young ? 1 : calm ? 12 : 60;
     MMWindowModel *m = [MMWindowModel new];
     m.generation = 1;
-    m.settings = [name isEqualToString:@"removal"] || welcome || [name isEqualToString:@"calm"] ? SettingsWithRemoval() : Settings();
+    m.settings = Settings();
     if ([name isEqualToString:@"calm"]) {
-        // The calm day is on a Mac with no lid: the switch changes nothing there, and says so.
-        MMWindowSwitch *lid = m.settings.switches.firstObject;
-        lid.on = NO; lid.inert = YES; lid.note = @"This Mac has no lid, so it changes nothing here.";
-        for (MMWindowRule *r in m.settings.rules) { r.picked = 0; r.note = nil; }
+        // The calm day is a new person's first hour on a Mac with no lid: every rule on Careful and still only watching,
+        // the removal choice not made yet, the lid switch not available and the login item left alone.
+        NSString *watching = MMWindowWatchingNote(@"23h");
+        m.settings = SettingsLike(@[@1, @1, @1, @1, @0], @{@"servers": watching, @"worktrees": watching, @"caches": watching,
+            @"removal": @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash."});
+        m.settings.switches = @[MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil)];
     }
+    if (empty) m.settings = SettingsLike(@[@0, @0, @0, @0, @1], @{});
     if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-trash"] ? 1 : [name isEqualToString:@"welcome-delete"] ? 2 : 0,
                                      [name isEqualToString:@"welcome-watched"]);
     NSInteger asking = empty || young || calm ? 0 : quiet ? 1 : peak ? 3 : 2;

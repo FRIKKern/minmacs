@@ -172,6 +172,31 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (copy) NSArray<MMWindowSwitch *> *switches;
 @end
 
+/// The words of Settings, written once: the feed in Shell/MMWindowRules.m and the render's fixtures both build their
+/// cards from these, so a fixture cannot show a card the app does not have.
+/// The rule ids in the order Settings shows them: servers, apps, worktrees, caches.
+NSArray<NSString *> *MMWindowRuleIDs(void);
+/// The three choices of a rule, in the order of Core's modes Idle, Proactive and Eager: "Off", "Careful", "Eager".
+NSArray<NSString *> *MMWindowChoiceTitles(void);
+/// "Stop idle servers" for "servers". nil for an unknown id.
+NSString *_Nullable MMWindowRuleTitle(NSString *ruleID);
+/// What each of the three choices does today, one sentence each. Shell/MMWindowRules.m says which expert rule
+/// stands behind each sentence, and test/window.sh checks those.
+NSArray<NSString *> *_Nullable MMWindowRuleExplains(NSString *ruleID);
+/// One rule's card with these words, the choice picked and the note at its foot.
+MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *_Nullable note);
+/// A card with choices of its own, such as the removal choice: each entry is a title and its sentence.
+MMWindowRule *MMWindowChoiceCard(NSString *ruleID, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *_Nullable note);
+/// The note of a rule that does not act on its own while fixes of its kind wait: "1 ready. It waits for your press."
+NSString *MMWindowReadyNote(NSInteger ready);
+/// The note of a rule that would act but still only watches: "It only watches for 5h more, then it may act."
+NSString *MMWindowWatchingNote(NSString *left);
+/// The two switches of the card "This Mac". An inert lid switch is the one of a Mac with no lid.
+MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *_Nullable note);
+MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *_Nullable note);
+/// "This Mac has no lid, so it changes nothing here."
+extern NSString *const MMWindowNoLidNote;
+
 #pragma mark - The welcome
 
 /// The first time the window opens, prototype 199-a: the welcome alone, in the same window. It holds every string the

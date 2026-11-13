@@ -96,6 +96,72 @@ static NSString *Sentence(NSString *words) {
 - (instancetype)init { if ((self = [super init])) { _rules = @[]; _switches = @[]; } return self; }
 @end
 
+#pragma mark The words of Settings
+
+NSArray<NSString *> *MMWindowRuleIDs(void) { return @[@"servers", @"apps", @"worktrees", @"caches"]; }
+
+NSArray<NSString *> *MMWindowChoiceTitles(void) { return @[@"Off", @"Careful", @"Eager"]; }
+
+NSString *MMWindowRuleTitle(NSString *ruleID) {
+    return @{@"servers": @"Stop idle servers", @"apps": @"Quit apps", @"worktrees": @"Remove finished worktrees",
+             @"caches": @"Clean caches and leftovers"}[ruleID ?: @""];
+}
+
+NSArray<NSString *> *MMWindowRuleExplains(NSString *ruleID) {
+    return @{
+        @"servers": @[@"Stops no server on its own.",
+                      @"After a review, stops an idle dev server that was quiet for 6 hours and has no agent above it.",
+                      @"After a review, stops each idle dev server the review finds no use for."],
+        @"apps": @[@"Quits no app on its own.",
+                   @"Quits no app on its own either. An app closes only on your press.",
+                   @"Quits the apps on your close list, only while memory pressure or heat is high."],
+        @"worktrees": @[@"Removes no worktree on its own.",
+                        @"After a review, removes a worktree that is merged, or whose remote branch is gone, and quiet for 7 days.",
+                        @"After a review, removes each worktree the review finds no use for."],
+        @"caches": @[@"Cleans up nothing on its own.",
+                     @"After a review, cleans up the build output of finished projects and leftovers.",
+                     @"After a review, also cleans up caches. A tool's own cleanup always waits for your press."],
+    }[ruleID ?: @""];
+}
+
+MMWindowRule *MMWindowChoiceCard(NSString *ruleID, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *note) {
+    MMWindowRule *r = [MMWindowRule new];
+    r.ruleID = ruleID; r.title = title ?: @""; r.picked = picked; r.note = note;
+    NSMutableArray *list = [NSMutableArray new];
+    for (NSArray<NSString *> *c in choices) { MMWindowChoice *x = [MMWindowChoice new]; x.title = c[0]; x.explain = c[1]; [list addObject:x]; }
+    r.choices = list;
+    return r;
+}
+
+MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *note) {
+    NSArray<NSString *> *titles = MMWindowChoiceTitles(), *explains = MMWindowRuleExplains(ruleID);
+    NSMutableArray *choices = [NSMutableArray new];
+    for (NSUInteger i = 0; i < titles.count && i < explains.count; i++) [choices addObject:@[titles[i], explains[i]]];
+    return MMWindowChoiceCard(ruleID, MMWindowRuleTitle(ruleID), picked, choices, note);
+}
+
+NSString *MMWindowReadyNote(NSInteger ready) {
+    return [NSString stringWithFormat:@"%ld ready. %@ for your press.", (long)ready, ready == 1 ? @"It waits" : @"They wait"];
+}
+
+NSString *MMWindowWatchingNote(NSString *left) { return [NSString stringWithFormat:@"It only watches for %@ more, then it may act.", left]; }
+
+NSString *const MMWindowNoLidNote = @"This Mac has no lid, so it changes nothing here.";
+
+MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *note) {
+    MMWindowSwitch *s = [MMWindowSwitch new];
+    s.switchID = @"lid"; s.title = @"Keep working with the lid closed"; s.on = on; s.inert = inert; s.note = note;
+    return s;
+}
+
+MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *note) {
+    MMWindowSwitch *s = [MMWindowSwitch new];
+    s.switchID = @"login"; s.title = @"Open at login"; s.on = on;
+    // The same sentence the welcome shows for this state of the switch.
+    s.note = note ?: MMWindowLoginNote(on);
+    return s;
+}
+
 NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";
 NSString *const MMWindowLookingNote = @"MinMacs is taking its first look. It takes a few seconds.";
 

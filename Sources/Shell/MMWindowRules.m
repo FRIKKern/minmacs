@@ -8,42 +8,18 @@
 #import "Shell/MMWindowFeed.h"
 #import "UI/MMFormat.h"
 
-NSArray<NSString *> *MMWindowRuleIDs(void) { return @[@"servers", @"apps", @"worktrees", @"caches"]; }
-
 NSString *MMWindowRuleExpert(NSString *ruleID) {
     return @{@"servers": @"locohost", @"apps": @"minmacs", @"worktrees": @"workforest", @"caches": @"noonoo"}[ruleID ?: @""];
 }
 
-NSArray<NSString *> *MMWindowChoiceTitles(void) { return @[@"Off", @"Careful", @"Eager"]; }
-
 NSString *const MMWindowRemovalRuleID = @"removal";
-
-static NSString *RuleTitle(NSString *ruleID) {
-    return @{@"servers": @"Stop idle servers", @"apps": @"Quit apps", @"worktrees": @"Remove finished worktrees",
-             @"caches": @"Clean caches and leftovers"}[ruleID];
-}
 
 /// What each mode does today, for Idle, Proactive and Eager. Every claim is the expert's own rule:
 /// servers: MMLHModeKeeps in MMLocoHost.m, with Proactive's wait of MMLHProactiveQuiet, 6 hours.
 /// apps: MMMinMacsPolicy in MMMinMacsExpert.m. Proactive never quits an app.
 /// worktrees: MMWFKeeps in MMWorkForest.m, with Proactive's wait of MMWFProactiveQuiet, 7 days.
 /// caches: MMNNPolicyObject in MMNooNooExpert.m.
-static NSArray<NSString *> *Explains(NSString *ruleID) {
-    return @{
-        @"servers": @[@"Stops no server on its own.",
-                      @"After a review, stops an idle dev server that was quiet for 6 hours and has no agent above it.",
-                      @"After a review, stops each idle dev server the review finds no use for."],
-        @"apps": @[@"Quits no app on its own.",
-                   @"Quits no app on its own either. An app closes only on your press.",
-                   @"Quits the apps on your close list, only while memory pressure or heat is high."],
-        @"worktrees": @[@"Removes no worktree on its own.",
-                        @"After a review, removes a worktree that is merged, or whose remote branch is gone, and quiet for 7 days.",
-                        @"After a review, removes each worktree the review finds no use for."],
-        @"caches": @[@"Cleans up nothing on its own.",
-                     @"After a review, cleans up the build output of finished projects and leftovers.",
-                     @"After a review, also cleans up caches. A tool's own cleanup always waits for your press."],
-    }[ruleID];
-}
+/// The sentences themselves are MMWindowRuleExplains in UI/Window/MMWindowModel.m, where the render's fixtures read them too.
 
 /// Whether a rule in this mode ever acts on its own. Proactive quits no app, so for apps only Eager does.
 static BOOL RuleActs(NSString *ruleID, MMMode mode) {
@@ -66,23 +42,11 @@ static NSInteger Ready(MMPerformance *p, NSString *expert) {
 static MMWindowRule *Rule(NSString *ruleID, MMPerformance *p) {
     NSString *expert = MMWindowRuleExpert(ruleID);
     MMMode mode = MMModeFor(expert);
-    MMWindowRule *r = [MMWindowRule new];
-    r.ruleID = ruleID; r.title = RuleTitle(ruleID);
-    NSMutableArray *choices = [NSMutableArray new];
-    NSArray<NSString *> *titles = MMWindowChoiceTitles(), *explains = Explains(ruleID);
-    for (NSUInteger i = 0; i < titles.count; i++) {
-        MMWindowChoice *c = [MMWindowChoice new];
-        c.title = titles[i]; c.explain = explains[i];
-        [choices addObject:c];
-    }
-    r.choices = choices;
-    r.picked = (NSInteger)mode;
     BOOL acts = RuleActs(ruleID, mode);
     NSInteger ready = Ready(p, expert);
     NSTimeInterval left = MMWatchingLeft(expert);
-    if (acts && left > 0) r.note = [NSString stringWithFormat:@"It only watches for %@ more, then it may act.", MMDuration(left)];
-    else if (!acts && ready > 0) r.note = [NSString stringWithFormat:@"%ld ready. %@ for your press.", (long)ready, ready == 1 ? @"It waits" : @"They wait"];
-    return r;
+    NSString *note = acts && left > 0 ? MMWindowWatchingNote(MMDuration(left)) : !acts && ready > 0 ? MMWindowReadyNote(ready) : nil;
+    return MMWindowRuleCard(ruleID, (NSInteger)mode, note);
 }
 
 /// Smart, Trash and Delete with Core's one sentence each. The Settings card and the welcome show the same three.
@@ -114,12 +78,8 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
     for (NSString *rid in MMWindowRuleIDs()) if (RuleShows(rid)) [rules addObject:Rule(rid, p)];
     [rules addObject:RemovalRule()];
     st.rules = rules;
-    MMWindowSwitch *lid = [MMWindowSwitch new];
-    lid.switchID = @"lid"; lid.title = @"Keep working with the lid closed"; lid.on = extras.lidOn; lid.note = extras.lidNote; lid.inert = extras.lidInert;
-    MMWindowSwitch *login = [MMWindowSwitch new];
-    login.switchID = @"login"; login.title = @"Open at login"; login.on = extras.loginOn;
-    // The same sentence the welcome shows for this state of the switch.
-    login.note = extras.loginNote ?: MMWindowLoginNote(extras.loginOn);
+    MMWindowSwitch *lid = MMWindowLidSwitch(extras.lidOn, extras.lidInert, extras.lidNote);
+    MMWindowSwitch *login = MMWindowLoginSwitch(extras.loginOn, extras.loginNote);
     st.switches = @[lid, login];
     return st;
 }
@@ -205,7 +165,7 @@ void MMWindowWelcomeDone(NSInteger removal) {
         BOOL live = [[st valueForKey:@"lidLive"] boolValue], other = [[st valueForKey:@"otherApp"] boolValue];
         BOOL laptop = [[st valueForKey:@"laptop"] boolValue];
         x.lidInert = !laptop;
-        if (!laptop) x.lidNote = @"This Mac has no lid, so it changes nothing here.";
+        if (!laptop) x.lidNote = MMWindowNoLidNote;
         else if (!x.lidOn) x.lidNote = nil;
         else if (other) x.lidNote = @"Another app sets it now.";
         else if (live) x.lidNote = @"On now. The Mac keeps running with the lid shut.";
