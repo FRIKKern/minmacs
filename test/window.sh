@@ -13,7 +13,7 @@ mkdir -p "$wn_dir/home"
 wn_home="$wn_dir/home"
 wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -63,7 +63,7 @@ wn_new="Sources/Shell/MMWindowFeed.h $wn_shell Sources/Shell/MMWindowJSON.h Sour
 check "window: the feed, the JSON and the runner import no AppKit" 0 \
   "$(cat Sources/Shell/MMWindowFeed.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h | grep -cE '#import <(Cocoa|AppKit)')"
 check "window: each file stays under 500 lines" 0 "$(wc -l $wn_new | awk '$2 != "total" && $1 >= 500' | grep -c .)"
-check "window: the model stays plain: no Core and no AppKit" 0 "$(grep -cE '#import (<(Cocoa|AppKit)|"Core/)' Sources/UI/Window/MMWindowModel.h Sources/UI/Window/MMWindowModel.m | awk -F: '{s+=$2} END {print s+0}')"
+check "window: the model stays plain: no Core and no AppKit" 0 "$(grep -cE '#import (<(Cocoa|AppKit)|"Core/)' Sources/UI/Window/MMWindowModel.h Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m | awk -F: '{s+=$2} END {print s+0}')"
 check "window: the runner acts only through MMRunAction and MMRunWrapUp" "1 1 0" \
   "$(grep -c 'MMRunAction(a, f.policy, nil, @"manual"' Sources/Shell/MMFixRunner.m) $(grep -c 'MMRunWrapUp(f.wrapUp, @"manual"' Sources/Shell/MMFixRunner.m) $(grep -cE '[^a-zA-Z_]kill\(|removeItemAt|trashItemAt|unlink\(|rmdir\(|NSTask|terminate\]|perform:' Sources/Shell/MMFixRunner.m)"
 check "window: the runner and the controller each have a labeled queue" "1 1" \

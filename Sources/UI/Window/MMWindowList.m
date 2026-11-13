@@ -332,8 +332,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
     MMWindowDraw(head, 14, f.origin.y + kHead / 2, -1);
     // Rows wait under the fold, or, once the group is scrolled to its end, above it. With all of them in view the
     // header says what they are sorted by.
-    NSString *more = below > 0 ? [NSString stringWithFormat:@"%ld more below", (long)below] : above > 0 ? [NSString stringWithFormat:@"%ld more above", (long)above]
-                   : g.rows.count ? (disk ? @"by disk" : @"by memory") : nil;
+    NSString *more = MMWindowMoreLine(below, above) ?: (g.rows.count ? (disk ? @"by disk" : @"by memory") : nil);
     if (more) MMWindowDraw(MMWindowText(more, 11, NSFontWeightRegular, below > 0 || above > 0 ? t2 : t3), f.size.width - 14, f.origin.y + kHead / 2, 1);
     if (box.size.height <= 0) return;
     if (!g.rows.count) {

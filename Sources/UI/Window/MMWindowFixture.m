@@ -144,7 +144,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
                        MMWindowFixtureGroup(@"apps", @"Apps and helpers", MMWindowMemory, apps)];
     m.diskGroups = @[MMWindowFixtureGroup(@"worktrees", @"Worktrees", MMWindowDisk, trees), MMWindowFixtureGroup(@"caches", @"Caches", MMWindowDisk, caches)];
     // The feed's own line: one agent, or how many.
-    if (asking) m.asks = asking == 1 ? @"1 agent asks you" : [NSString stringWithFormat:@"%ld agents ask you", (long)asking];
+    m.asks = MMWindowAsksLine(asking);
     if (calm) { m.memoryBackToday = 250 * MB; m.diskBackToday = 3174 * DMB; }
 
     double used = (empty ? 9.6 : quiet || calm ? 23.2 : peak ? 58.7 : 42.4) * GB, hourAgo = (empty ? 9.5 : quiet || calm ? 20.0 : peak ? 41.3 : 34.8) * GB;

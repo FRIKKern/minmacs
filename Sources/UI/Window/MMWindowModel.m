@@ -155,8 +155,7 @@ MMWindowFact *MMWindowFactKind(NSString *kind) { NSString *k = Trimmed(kind); re
 @implementation MMWindowRow
 - (instancetype)init { if ((self = [super init])) { _key = @""; _name = @""; _cpuPercent = -1; _facts = @[]; } return self; }
 - (NSString *)shownName {
-    if (self.kind != MMWindowTabs || self.tabs <= 0 || [self.name hasPrefix:@(self.tabs).stringValue]) return self.name;
-    return [NSString stringWithFormat:@"%ld %@", (long)self.tabs, self.name];
+    return self.kind == MMWindowTabs ? MMWindowTabsName(self.tabs, self.name) : self.name;
 }
 - (BOOL)showsSize { return self.kind != MMWindowTabs || self.bytes > 0; }
 
@@ -280,10 +279,6 @@ MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *not
     NSMutableArray *choices = [NSMutableArray new];
     for (NSUInteger i = 0; i < titles.count && i < explains.count; i++) [choices addObject:@[titles[i], explains[i]]];
     return MMWindowChoiceCard(ruleID, MMWindowRuleTitle(ruleID), picked, choices, note);
-}
-
-NSString *MMWindowReadyNote(NSInteger ready) {
-    return [NSString stringWithFormat:@"%ld ready. %@ for your press.", (long)ready, ready == 1 ? @"It waits" : @"They wait"];
 }
 
 NSString *MMWindowWatchingNote(NSString *left) { return [NSString stringWithFormat:@"It only watches for %@ more, then it may act.", left]; }

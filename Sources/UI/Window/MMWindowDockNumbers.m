@@ -33,7 +33,7 @@
         NSInteger n = self.model.fixCount;
         uint64_t back = MIN(self.model.memoryBack, ring.memoryUsed);
         NSArray<NSString *> *after = MMWindowSize2(ring.memoryUsed - back, NO);
-        [out addObject:@{@"label": n == 1 ? @"After the fix" : [NSString stringWithFormat:@"After all %ld fixes", (long)n]}];
+        [out addObject:@{@"label": MMWindowAfterTitle(n) ?: @""}];
         [out addObject:@{@"big": after[0], @"unit": after[1]}];
         // A fix that gives no memory back leaves the number as it is, and the line says so and does not repeat it.
         [out addObject:@{@"label": back > 0 ? [NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed, NO)] : @"memory in use, as now"}];

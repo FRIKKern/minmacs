@@ -91,7 +91,8 @@ check "one side alone changes the picture" "yes yes" \
 
 # The second look against 195-a, tools/render-window-polish.m: one rule for sizes, no line under a dimmed button, whole
 # rows, a side with room closing with its whole number, a story's first line, the pointed row in the dock, and Stop.
-check "the second look's checks are there and pass" "43 0" "$(grep -cE '^ok    window (sizes|dock|lists|story|settings|motion|words|facts)' "$ui_out/checks.txt" 2>/dev/null) $(grep -cE '^FAIL  window (sizes|dock|lists|story|settings|motion|words|facts)' "$ui_out/checks.txt" 2>/dev/null)"
+# 44: the counted phrases at 0, 1 and 2 came with the plurals fix.
+check "the second look's checks are there and pass" "44 0" "$(grep -cE '^ok    window (sizes|dock|lists|story|settings|motion|words|facts)' "$ui_out/checks.txt" 2>/dev/null) $(grep -cE '^FAIL  window (sizes|dock|lists|story|settings|motion|words|facts)' "$ui_out/checks.txt" 2>/dev/null)"
 # No drawn string holds an ellipsis or is cut, on every made-up day, the real-shaped one and the day of extremes among them.
 check "no drawn string holds an ellipsis or leaves its box, and the made-up rows speak the feed's words" "1 1" \
   "$(ui_look ' words: on every day and in every state no drawn string holds an ellipsis') $(ui_look ' words: every made-up row has a state word, fact labels and a fix title the feed can make')"

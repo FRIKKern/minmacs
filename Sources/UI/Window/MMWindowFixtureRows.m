@@ -98,7 +98,7 @@ NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count) {
     NSArray *t = @[@[@"Safari", @"com.apple.Safari", @4915, @19, @"kept", @"it is on the keep list"],
                    @[@"Terminal", @"com.apple.Terminal", @4300, @21, @"kept", @"in use"],
                    @[@"Xcode", @"com.apple.dt.Xcode", @2765, @9, @"kept", @"it is on the keep list"],
-                   @[@"localhost tabs", @"tabs", @1434, @-1, @"will close", @""],
+                   @[@"Safari", @"tabs", @1434, @-1, @"will close", @""],
                    @[@"Simulator", @"com.apple.iphonesimulator", @1126, @6, @"", @""],
                    @[@"language-server", @"", @905, @11, @"left behind", @""],
                    @[@"chrome-headless", @"", @640, @4, @"left behind", @""],

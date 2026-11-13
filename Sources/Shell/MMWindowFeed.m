@@ -34,19 +34,9 @@ NSString *MMWindowFixTitle(MMPerformanceFix *fix) {
     NSInteger n = (NSInteger)fix.actions.count;
     NSString *kind = fix.kind;
     if ([kind isEqualToString:@"wrapup"]) return [@"Wrap Up " stringByAppendingString:TreeName(fix.wrapUp)];
-    if ([kind isEqualToString:@"stop"]) return [NSString stringWithFormat:@"Stop %@", MMPlural(n, @"idle server")];
-    if ([kind isEqualToString:@"quit"]) return [NSString stringWithFormat:@"Quit %@", MMPlural(n, @"app")];
-    if ([kind isEqualToString:@"remove"]) return [NSString stringWithFormat:@"Remove %@", MMPlural(n, @"merged worktree")];
-    // What the press does follows the removal choice. Under Smart some are deleted and the rest go to the Trash.
-    if ([kind isEqualToString:@"trash"]) {
-        MMRemovalChoice c = MMRemovalChoiceNow();
-        return [NSString stringWithFormat:c == MMRemovalTrash ? @"Move %@ to the Trash" : c == MMRemovalDelete ? @"Delete %@" : @"Clean up %@", MMPlural(n, @"leftover")];
-    }
-    if ([kind isEqualToString:@"clean"]) {
-        if (n == 1) return [@"Clean " stringByAppendingString:MMWindowNameOf(fix.actions.firstObject.finding)];
-        return [NSString stringWithFormat:@"Run %@", MMPlural(n, @"tool cleanup")];
-    }
-    return MMCapitalized(kind ?: @"");
+    // One cleanup is named by what it cleans. The rest count what they act on, worded in the model.
+    if ([kind isEqualToString:@"clean"] && n == 1) return [@"Clean " stringByAppendingString:MMWindowNameOf(fix.actions.firstObject.finding)];
+    return MMWindowFixCountTitle(kind ?: @"", n, [kind isEqualToString:@"trash"] ? MMRemovalChoiceNow() : 0) ?: MMCapitalized(kind ?: @"");
 }
 
 #pragma mark - The model
@@ -96,7 +86,7 @@ static NSArray<MMWindowSlice *> *Slices(MMPerformanceSideRing *ring) {
 MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras *extras) {
     MMWindowModel *m = [MMWindowModel new];
     m.generation = s.generation;
-    if (p.needsYou > 0) m.asks = p.needsYou == 1 ? @"1 agent asks you" : [NSString stringWithFormat:@"%ld agents ask you", (long)p.needsYou];
+    m.asks = MMWindowAsksLine(p.needsYou);
 
     // The ring. Memory and disk stay two numbers.
     MMWindowRing *ring = [MMWindowRing new];

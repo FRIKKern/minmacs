@@ -330,7 +330,7 @@ static void WindowModel(void) {
          [MMWindowWholeText(245107195904ull, YES) isEqualToString:@"245 GB"] && [MMWindowHourExplain(YES, 245107195904ull) isEqualToString:@"Lower means less room left on the 245 GB disk"]));
     T(@"window: a row with no such fact has no word", @"(nil)", [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"repo")]].state);
     T(@"window: a tabs row counts tabs and holds no bytes", @"3 0", [NSString stringWithFormat:@"%ld %llu", (long)tabs.tabs, tabs.bytes]);
-    T(@"window: a tabs row with no bytes shows its count in its name and no size, and other rows show theirs", @"3 Browser | no | :3001 Next.js | yes",
+    T(@"window: a tabs row with no bytes shows its count in its name and no size, and other rows show theirs", @"3 localhost tabs in Browser | no | :3001 Next.js | yes",
       [NSString stringWithFormat:@"%@ | %@ | %@ | %@", tabs.shownName, YN(tabs.showsSize), next.shownName, YN(next.showsSize)]);
     tabs.bytes = 64 * MB;
     T(@"window: tabs that do hold bytes show their size", @"yes", YN(tabs.showsSize));

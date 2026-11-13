@@ -79,6 +79,28 @@ NSString *MMWindowHourTitle(BOOL disk);
 
 /// How long, by the window's one rule: "40 s", "12 min", "2 h 36 min", "3 d 4 h", "12 d". nil under ten seconds:
 /// then the words say "just now", never a zero.
+#pragma mark - Counted words
+
+// Every phrase with a count in it, worded once, so one of a thing is never "1 fixes". MMWindowCounts.m.
+/// "1 fix", "2 fixes": the count and the one of two forms that goes with it.
+NSString *MMWindowCount(NSInteger n, NSString *one, NSString *many);
+NSString *MMWindowFixes(NSInteger n);
+/// The top line, "1 agent asks you", "2 agents ask you". nil when nobody asks.
+NSString *_Nullable MMWindowAsksLine(NSInteger agents);
+/// The end of a run, "1 fix done", "1 of 2 fixes done".
+NSString *MMWindowEndTitle(NSInteger done, NSInteger total);
+/// "Skipped 1 agent that asks you and 2 blocked.", or nil when nothing was skipped.
+NSString *_Nullable MMWindowSkippedNote(NSInteger asks, NSInteger needYou, NSInteger kept, NSInteger blocked, NSInteger notReached, NSInteger notRun);
+/// A fix's title by its kind and how many it acts on, "Stop 1 idle server". `removal` is the removal choice:
+/// 0 Smart, 1 Trash, 2 Delete. nil for a kind with no count in its title.
+NSString *_Nullable MMWindowFixCountTitle(NSString *kind, NSInteger n, NSInteger removal);
+/// What the dock's numbers stand for while the pointer rests on Fix Everything, "After the fix", "After all 2 fixes".
+NSString *_Nullable MMWindowAfterTitle(NSInteger fixes);
+/// A group's header where rows wait out of view, "1 more below", "3 more above". nil when all show.
+NSString *_Nullable MMWindowMoreLine(NSInteger below, NSInteger above);
+/// A tabs row's name, "1 localhost tab in Safari", "14 localhost tabs in Google Chrome".
+NSString *MMWindowTabsName(NSInteger tabs, NSString *_Nullable browser);
+
 NSString *_Nullable MMWindowSpan(NSTimeInterval seconds);
 
 /// The facts, each worded in one place, so the feed and the render's made-up days say them alike and every one reads
@@ -143,7 +165,7 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (readonly, nullable) MMWindowFate *fate;
 /// The facts under that line: all of them but the ones the line already said.
 @property (readonly) NSArray<MMWindowFact *> *storyFacts;
-/// The name as every view draws it: a tabs row leads with its count, "3 Browser".
+/// The name as every view draws it: a tabs row's is its count and its browser, "3 localhost tabs in Safari".
 @property (readonly) NSString *shownName;
 /// NO for a tabs row that holds no bytes: its count in the name is its number, and no size of 0 is drawn or read out.
 @property (readonly) BOOL showsSize;
@@ -243,7 +265,7 @@ MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *_Nu
 /// A card with choices of its own, such as the removal choice: each entry is a title and its sentence.
 MMWindowRule *MMWindowChoiceCard(NSString *ruleID, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *_Nullable note);
 /// The note of a rule that does not act on its own while fixes of its kind wait: "1 ready. It waits for your press."
-NSString *MMWindowReadyNote(NSInteger ready);
+NSString *_Nullable MMWindowReadyNote(NSInteger ready);
 /// The note of a rule that would act but still only watches: "It only watches for 5h more, then it may act."
 NSString *MMWindowWatchingNote(NSString *left);
 /// The two switches of the card "This Mac". An inert lid switch is the one of a Mac with no lid.

@@ -219,6 +219,70 @@ static void WindowWordChecks(void) {
     Check(misworded.count == 0 && facts.count >= 36, @"window facts: each of the 22 facts has its own words, with its label in the story and alone on a row's second line, and says nothing when it has nothing true to say",
           [misworded componentsJoinedByString:@" | "]);
 
+    // Every phrase the window shows with a count in it, at 0, 1 and 2: one of a thing is never plural, and a zero
+    // says nothing where nothing is the truth.
+    NSString *(^three)(NSString *(^)(NSInteger)) = ^NSString *(NSString *(^f)(NSInteger)) { return [@[f(0) ?: @"none", f(1) ?: @"none", f(2) ?: @"none"] componentsJoinedByString:@" | "]; };
+    NSArray *(^ports)(NSInteger) = ^NSArray *(NSInteger n) { return [@[@3000, @3001] subarrayWithRange:NSMakeRange(0, (NSUInteger)n)]; };
+    NSArray<NSArray<NSString *> *> *counted = @[
+        @[three(^(NSInteger n) { return MMWindowAsksLine(n); }), @"none | 1 agent asks you | 2 agents ask you"],
+        @[three(^(NSInteger n) { return MMWindowFixes(n); }), @"0 fixes | 1 fix | 2 fixes"],
+        @[three(^(NSInteger n) { return MMWindowEndTitle(n, n); }), @"0 fixes done | 1 fix done | 2 fixes done"],
+        @[three(^(NSInteger n) { return MMWindowEndTitle(n, 2); }), @"0 of 2 fixes done | 1 of 2 fixes done | 2 fixes done"],
+        @[three(^(NSInteger n) { return MMWindowEndTitle(0, n); }), @"0 fixes done | 0 of 1 fix done | 0 of 2 fixes done"],
+        @[three(^(NSInteger n) { return MMWindowSkippedNote(n, 0, 0, 0, 0, 0); }), @"none | Skipped 1 agent that asks you. | Skipped 2 agents that ask you."],
+        @[three(^(NSInteger n) { return MMWindowSkippedNote(0, n, 0, 0, 0, 0); }), @"none | Skipped 1 fix that needs your own press. | Skipped 2 fixes that need your own press."],
+        @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, n, 0, 0, 0); }), @"none | Skipped 1 kept since it changed or is in use. | Skipped 2 kept since they changed or are in use."],
+        @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, 0, n, 0, 0); }), @"none | Skipped 1 blocked. | Skipped 2 blocked."],
+        @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, 0, 0, n, 0); }), @"none | Skipped 1 thing in the fix you stopped partway. | Skipped 2 things in the fix you stopped partway."],
+        @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, 0, 0, 0, n); }), @"none | Skipped 1 fix you stopped. | Skipped 2 fixes you stopped."],
+        @[three(^(NSInteger n) { return MMWindowSkippedNote(n, n, 0, 0, 0, 0); }), @"none | Skipped 1 agent that asks you and 1 fix that needs your own press. | Skipped 2 agents that ask you and 2 fixes that need your own press."],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"stop", n, 0); }), @"Stop 0 idle servers | Stop 1 idle server | Stop 2 idle servers"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"quit", n, 0); }), @"Quit 0 apps | Quit 1 app | Quit 2 apps"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"remove", n, 0); }), @"Remove 0 merged worktrees | Remove 1 merged worktree | Remove 2 merged worktrees"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 0); }), @"Clean up 0 leftovers | Clean up 1 leftover | Clean up 2 leftovers"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 1); }), @"Move 0 leftovers to the Trash | Move 1 leftover to the Trash | Move 2 leftovers to the Trash"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 2); }), @"Delete 0 leftovers | Delete 1 leftover | Delete 2 leftovers"],
+        // One cleanup is named by what it cleans in the feed, Shell/MMWindowFeed.m; the count form stays right for it anyway.
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"clean", n, 0); }), @"Run 0 tool cleanups | Run 1 tool cleanup | Run 2 tool cleanups"],
+        @[three(^(NSInteger n) { return MMWindowAfterTitle(n); }), @"none | After the fix | After all 2 fixes"],
+        @[three(^(NSInteger n) { return MMWindowMoreLine(n, 0); }), @"none | 1 more below | 2 more below"],
+        @[three(^(NSInteger n) { return MMWindowMoreLine(0, n); }), @"none | 1 more above | 2 more above"],
+        @[three(^(NSInteger n) { return MMWindowTabsName(n, @"Safari"); }), @"Safari | 1 localhost tab in Safari | 2 localhost tabs in Safari"],
+        @[three(^(NSInteger n) { return MMWindowReadyNote(n); }), @"none | 1 ready. It waits for your press. | 2 ready. They wait for your press."],
+        @[three(^(NSInteger n) { return MMWindowCount(n, @"minute", @"minutes"); }), @"0 minutes | 1 minute | 2 minutes"],
+        @[three(^(NSInteger n) { return MMWindowFactOpenTabs(n).phrase; }), @"none | 1 tab open | 2 tabs open"],
+        @[three(^(NSInteger n) { return MMWindowFactFiles(n, 0).phrase; }), @"none | 1 file changed | 2 files changed"],
+        @[three(^(NSInteger n) { return MMWindowFactFiles(0, n).phrase; }), @"none | 1 new file | 2 new files"],
+        @[three(^(NSInteger n) { return MMWindowFactFiles(n, n).phrase; }), @"none | 1 file changed, 1 new | 2 files changed, 2 new"],
+        @[three(^(NSInteger n) { return MMWindowFactNotPushed(n).phrase; }), @"none | 1 commit not pushed | 2 commits not pushed"],
+        @[three(^(NSInteger n) { return MMWindowFactServes(ports(n)).phrase; }), @"none | serves port 3000 | serves ports 3000, 3001"],
+        @[three(^(NSInteger n) { return MMWindowFactOnPorts(ports(n)).phrase; }), @"none | on port 3000 | on ports 3000, 3001"]];
+    NSMutableArray<NSString *> *miscounted = [NSMutableArray new];
+    for (NSArray<NSString *> *c in counted) if (![c[0] isEqualToString:c[1]]) [miscounted addObject:[NSString stringWithFormat:@"%@, want %@", c[0], c[1]]];
+    // And as the window draws them: a tabs row of one, the dock with one fix and with two.
+    MMWindowRow *oneTab = [MMWindowRow new];
+    oneTab.kind = MMWindowTabs; oneTab.tabs = 1; oneTab.name = @"Safari";
+    NSMutableArray<NSString *> *dockSaid = [NSMutableArray new];
+    for (NSNumber *n in @[@0, @1, @2]) {
+        MMWindowModel *dm = MMWindowFixture(@"busy");
+        dm.fixes = [dm.fixes subarrayWithRange:NSMakeRange(0, n.unsignedIntegerValue)];
+        MMWindowView *dv = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+        dv.model = dm;
+        MMWindowDockView *dd = PolishDock(dv);
+        NSMutableArray<NSString *> *drawn = [NSMutableArray new];
+        MMWindowWatchDraws(^(NSString *text, NSRect used, NSRect allowed, NSRect bounds) { if ([text containsString:@" first"] || [text containsString:@"fix,"]) [drawn addObject:text]; });
+        [dd bitmapImageRepForCachingDisplayInRect:dd.bounds];
+        [dd cacheDisplayInRect:dd.bounds toBitmapImageRep:[dd bitmapImageRepForCachingDisplayInRect:dd.bounds]];
+        MMWindowWatchDraws(nil);
+        dv.pointsAtFix = YES;
+        [dockSaid addObject:[NSString stringWithFormat:@"%@ / %@ / %@", dd.fix.accessibilityLabel, n.integerValue ? dd.macLines.firstObject : @"-", drawn.firstObject ?: @"-"]];
+    }
+    NSString *dockLines = [dockSaid componentsJoinedByString:@" | "];
+    Check(miscounted.count == 0 && [oneTab.shownName isEqualToString:@"1 localhost tab in Safari"] &&
+          [dockLines isEqualToString:@"Fix Everything, dimmed / - / - | Fix Everything, 1 fix / After the fix / - | Fix Everything, 2 fixes / After all 2 fixes / 2 fixes, Wrap Up fix-auth-redirect first"],
+          @"window words: every counted phrase reads right at 0, 1 and 2, one of a thing is never plural, in the model and as the dock draws it",
+          [NSString stringWithFormat:@"%@ / %@. %@", oneTab.shownName, dockLines, [miscounted componentsJoinedByString:@" | "]]);
+
     // A row's second line is whole phrases: one that does not fit is left out, and the line never holds a bare
     // label, ends on a dot or says a zero.
     MMWindowRow *server = [MMWindowRow new];

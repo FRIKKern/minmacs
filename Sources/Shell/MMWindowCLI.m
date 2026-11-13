@@ -21,7 +21,7 @@ static void PrintGroup(MMArgs *a, MMWindowGroup *g) {
     [a print:@"%@  %lu, %@", g.title, (unsigned long)g.rows.count, disk ? Disk(sum) : Mem(sum)];
     for (MMWindowRow *r in g.rows) {
         NSMutableArray *tail = [NSMutableArray new];
-        if (r.kind == MMWindowTabs) [tail addObject:MMPlural(r.tabs, @"tab")]; else [tail addObject:disk ? Disk(r.bytes) : Mem(r.bytes)];
+        if (r.kind == MMWindowTabs) [tail addObject:MMWindowCount(r.tabs, @"tab", @"tabs")]; else [tail addObject:disk ? Disk(r.bytes) : Mem(r.bytes)];
         if (r.state) [tail addObject:r.state];
         if (r.needsYou) [tail addObject:@"asks you"];
         if (r.inFix) [tail addObject:@"in a fix"];
@@ -48,7 +48,7 @@ static int Window(MMArgs *a) {
     [a print:@"Disk    %@ free of %@", Disk(m.ring.diskFree), MMWindowWholeText(m.ring.diskTotal, YES)];
     for (MMWindowGroup *g in m.memoryGroups) PrintGroup(a, g);
     for (MMWindowGroup *g in m.diskGroups) PrintGroup(a, g);
-    [a print:@"Fix Everything  %@: %@ memory back, %@ disk back", MMPlural(m.fixCount, @"fix"), Mem(m.memoryBack), Disk(m.diskBack)];
+    [a print:@"Fix Everything  %@: %@ memory back, %@ disk back", MMWindowFixes(m.fixCount), Mem(m.memoryBack), Disk(m.diskBack)];
     NSInteger i = 0;
     for (MMWindowFix *f in m.fixes)
         [a print:@"%2ld  %@ memory %@, disk %@%@", (long)++i, MMColumn(f.title, 38), Mem(f.memoryBack), Disk(f.diskBack),

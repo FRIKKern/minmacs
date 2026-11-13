@@ -113,7 +113,7 @@ static MMWindowModel *Extreme(NSString *name) {
     works.facts = Facts(@[MMWindowFactAgent(@"Codex"), OR_NONE(MMWindowFactProject(@"/")), MMWindowFactState(@"working")]);
     MMWindowRow *app = MMWindowFixtureRow(MMWindowApp, @"app:0", [spaced stringByAppendingString:@" Helper (Renderer)"], nil, @"kept", (uint64_t)(9.96 * GB), -1);
     app.facts = Facts(@[MMWindowFactServes(@[@3000, @3001, @3002, @3003, @3004, @3005, @3006, @3007, @3008, @3009, @3010, @3011]), MMWindowFactStays(@"it is on the keep list")]);
-    MMWindowRow *tabs = MMWindowFixtureRow(MMWindowTabs, @"app:1", @"localhost tabs", nil, @"will close", 0, -1);
+    MMWindowRow *tabs = MMWindowFixtureRow(MMWindowTabs, @"app:1", @"Safari", nil, @"will close", 0, -1);
     tabs.tabs = 1; tabs.inFix = YES; tabs.quiet = YES;
     tabs.facts = Facts(@[MMWindowFactOpenTabs(1), MMWindowFactOnPorts(@[@3003]), MMWindowFactLeftBy(solid)]);
     MMWindowRow *tree = MMWindowFixtureRow(MMWindowWorktree, @"worktree:0", solid, nil, @"merged", (uint64_t)(1023.6 * DGB), -1);
@@ -136,7 +136,7 @@ static MMWindowModel *Extreme(NSString *name) {
     m.memoryGroups = @[MMWindowFixtureGroup(@"servers", @"Servers", MMWindowMemory, servers), MMWindowFixtureGroup(@"agents", @"Agents", MMWindowMemory, agents),
                        MMWindowFixtureGroup(@"apps", @"Apps and helpers", MMWindowMemory, @[app, tabs])];
     m.diskGroups = @[MMWindowFixtureGroup(@"worktrees", @"Worktrees", MMWindowDisk, @[tree, tree2]), MMWindowFixtureGroup(@"caches", @"Caches", MMWindowDisk, @[cache])];
-    m.asks = @"1 agent asks you";
+    m.asks = MMWindowAsksLine(1);
     MMWindowFixtureRing(m, 127 * GB, 128 * GB, (uint64_t)(0.4 * DGB), 4000 * DGB);
     m.fixes = @[Fix(@"wrapup:0", [@"Wrap Up " stringByAppendingString:solid], 2 * GB, (uint64_t)(1023.6 * DGB), NO), Fix(@"stop:idle", @"Stop 17 idle servers", 14 * GB, 0, NO),
                 Fix(@"clean:0", [@"Clean " stringByAppendingString:cache.name], 0, 14 * DGB, YES)];

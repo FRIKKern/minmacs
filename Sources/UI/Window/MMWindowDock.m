@@ -91,7 +91,7 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part);
     if (running) self.fix.accessibilityLabel = [@[@"Stop", self.count, run.step ?: @"a fix runs"] componentsJoinedByString:@", "];
     else if (self.phase == MMWindowDockEnded) self.fix.accessibilityLabel = run.endTitle ?: @"Fix Everything";
     else if (self.dimmed) self.fix.accessibilityLabel = @"Fix Everything, dimmed";
-    else self.fix.accessibilityLabel = [NSString stringWithFormat:@"Fix Everything, %@", MMPlural(self.model.fixCount, @"fix")];
+    else self.fix.accessibilityLabel = [@"Fix Everything, " stringByAppendingString:MMWindowFixes(self.model.fixCount)];
     // VoiceOver hears the run move on: "Fix 3 of 7" is said when the count changes, not only drawn.
     NSString *said = running ? self.count : nil;
     if (said.length && ![said isEqualToString:_said] && self.window.isVisible)
@@ -283,7 +283,7 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
         for (MMWindowFix *f in self.model.fixes) if (!f.needsYou) { first = f; break; }
         NSInteger n = self.model.fixCount;
         NSMutableArray *runs = [NSMutableArray new];
-        if (n > 1) [runs addObject:MMWindowText([MMPlural(n, @"fix") stringByAppendingString:@", "], 12, NSFontWeightRegular, under)];
+        if (n > 1) [runs addObject:MMWindowText([MMWindowFixes(n) stringByAppendingString:@", "], 12, NSFontWeightRegular, under)];
         [runs addObject:MMWindowText(first.title ?: @"", 12, NSFontWeightMedium, UnderBold())];
         if (n > 1) [runs addObject:MMWindowText(@" first", 12, NSFontWeightRegular, under)];
         // One line as a rule. A long fix's name wraps under it, whole.

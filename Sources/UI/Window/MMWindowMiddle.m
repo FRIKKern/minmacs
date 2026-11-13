@@ -100,7 +100,7 @@ static NSAttributedString *End(NSString *when, double bytes, BOOL disk, NSColor 
         [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(end - 2.4, floorY - 2.4, 4.8, 4.8)] fill];
     }
     MMWindowDraw(MMWindowText(@"The line fills in as the hour passes.", 10.5, NSFontWeightRegular, t3), r.origin.x, NSMaxY(r) - 6.5, -1);
-    if (filled > 0) MMWindowDraw(MMWindowText(MMPlural(filled, @"minute"), 10.5, NSFontWeightRegular, t3), NSMaxX(r), NSMaxY(r) - 6.5, 1);
+    if (filled > 0) MMWindowDraw(MMWindowText(MMWindowCount(filled, @"minute", @"minutes"), 10.5, NSFontWeightRegular, t3), NSMaxX(r), NSMaxY(r) - 6.5, 1);
 }
 
 #pragma mark A row's story

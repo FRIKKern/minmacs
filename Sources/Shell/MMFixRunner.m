@@ -99,7 +99,7 @@ NSString *MMFixStepAction(NSString *kind) {
 - (MMWindowRun *)run {
     MMWindowRun *end = [MMWindowRun new];
     if (NSThread.isMainThread || atomic_exchange(&_running, true)) {
-        end.endTitle = @"0 fixes done"; end.endNote = @"Nothing ran.";
+        end.endTitle = MMWindowEndTitle(0, 0); end.endNote = @"Nothing ran.";
         return end;
     }
     NSMutableArray<MMPerformanceFix *> *fixes = [NSMutableArray new];
@@ -158,8 +158,7 @@ NSString *MMFixStepAction(NSString *kind) {
 
     end = [self progress:nil];
     end.running = NO;
-    end.endTitle = _done == _total ? [NSString stringWithFormat:@"%@ done", MMPlural(_done, @"fix")]
-                                   : [NSString stringWithFormat:@"%ld of %@ done", (long)_done, MMPlural(_total, @"fix")];
+    end.endTitle = MMWindowEndTitle(_done, _total);
     end.endNote = [self endNote:needYou notRun:notRun notReached:notReached];
     // A stop asked for before the run began is kept, so it ends the run at once. It is spent here, at the end.
     atomic_store(&_stop, false);
@@ -176,19 +175,9 @@ NSString *MMFixStepAction(NSString *kind) {
         if ([x.outcome isEqualToString:@"kept"]) kept++;
         else if (![x.outcome isEqualToString:@"done"]) stuck++;
     }
-    NSMutableArray<NSString *> *skipped = [NSMutableArray new];
-    if (_p.needsYou > 0) [skipped addObject:_p.needsYou == 1 ? @"1 agent that asks you" : [NSString stringWithFormat:@"%ld agents that ask you", (long)_p.needsYou]];
-    if (needYou > 0) [skipped addObject:needYou == 1 ? @"1 fix that needs your own press" : [NSString stringWithFormat:@"%ld fixes that need your own press", (long)needYou]];
-    if (kept > 0) [skipped addObject:[NSString stringWithFormat:@"%ld kept since %@ changed or %@ in use", (long)kept, kept == 1 ? @"it" : @"they", kept == 1 ? @"is" : @"are"]];
-    if (stuck > 0) [skipped addObject:[NSString stringWithFormat:@"%ld blocked", (long)stuck]];
-    if (notReached > 0) [skipped addObject:[NSString stringWithFormat:@"%@ in the fix you stopped partway", MMPlural(notReached, @"thing")]];
-    if (notRun > 0) [skipped addObject:[NSString stringWithFormat:@"%@ you stopped", MMPlural(notRun, @"fix")]];
     NSMutableArray<NSString *> *out = [NSMutableArray new];
-    if (skipped.count) {
-        NSString *list = skipped.count == 1 ? skipped[0]
-            : [NSString stringWithFormat:@"%@ and %@", [[skipped subarrayWithRange:NSMakeRange(0, skipped.count - 1)] componentsJoinedByString:@", "], skipped.lastObject];
-        [out addObject:[NSString stringWithFormat:@"Skipped %@.", list]];
-    }
+    NSString *skipped = MMWindowSkippedNote(_p.needsYou, needYou, kept, stuck, notReached, notRun);
+    if (skipped) [out addObject:skipped];
     NSString *where = MMRemovalWhereWords(_removed);
     if (where) [out addObject:where];
     if (_recovered) [out addObject:@"Files git ignores were saved in a recovery folder."];
