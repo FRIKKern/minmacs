@@ -100,7 +100,7 @@ static void WindowShownChecks(void) {
     bare.welcome = MMWindowFixture(@"welcome").welcome;
     v.model = bare;
     BOOL atOnce = settings.hidden && !v.showsSettings && v.showsWelcome;
-    SpinUntil(^BOOL { return settings.alphaValue == 1; });      // the turn takes 0.3 s
+    Spin(0.6);      // the turn takes 0.3 s; this checks that nothing un-hides Settings when it ends, so there is no condition to wait for
     Check(was && atOnce && settings.hidden && settings.alphaValue == 1 && v.showsWelcome, @"window shown: a welcome that comes while Settings shows hides Settings at once, and it stays hidden",
           [NSString stringWithFormat:@"was %d, at once %d, hidden %d", was, atOnce, settings.hidden]);
     [win close];

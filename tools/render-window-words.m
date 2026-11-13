@@ -187,11 +187,11 @@ static void WindowWordChecks(void) {
         @[said(MMWindowFactProject(@"/")), @"none"], @[said(MMWindowFactProject(@"~")), @"none"], @[said(MMWindowFactProject(nil)), @"none"],
         @[said(MMWindowFactOwner(@"atlas")), @"Project: atlas / for atlas"], @[said(MMWindowFactOwner(@"")), @"none"],
         @[said(MMWindowFactRunsIn(@"Ghostty, tab 2")), @"Runs in: Ghostty, tab 2 / runs in Ghostty, tab 2"],
-        @[said(MMWindowFactStartedBy(@"cmux · parent exited")), @"Started by: cmux, which has quit / started by cmux, which has quit"],
+        @[said(MMWindowFactStartedBy(@"cmux · parent exited")), @"Started by: a program in cmux that has quit / started in cmux, its starter has quit"],
         @[said(MMWindowFactStartedBy(@"launchd")), @"Started by: launchd / started by launchd"],
         @[said(MMWindowFactStartedBy(@"parent exited")), @"Started by: a program that has quit / its starter has quit"],
         @[said(MMWindowFactStartedBy(@"pnpm dev · cmux")), @"Started by: pnpm dev in cmux / started by pnpm dev in cmux"],
-        @[said(MMWindowFactStartedBy(@"pnpm dev · cmux · parent exited")), @"Started by: pnpm dev in cmux, which has quit / started by pnpm dev in cmux, which has quit"],
+        @[said(MMWindowFactStartedBy(@"pnpm dev · cmux · parent exited")), @"Started by: pnpm dev in cmux, its starter has quit / started by pnpm dev in cmux, its starter has quit"],
         @[said(MMWindowFactStartedBy(@"pnpm dev · launchd")), @"Started by: pnpm dev / started by pnpm dev"],
         @[said(MMWindowFactIdle(7800)), @"Idle: 2 h 10 min / idle for 2 h 10 min"], @[said(MMWindowFactIdle(2)), @"Idle: since just now / idle since just now"],
         @[said(MMWindowFactLastUsed(180)), @"Last used: 3 min ago / used 3 min ago"], @[said(MMWindowFactLastUsed(0)), @"Last used: just now / used just now"],
@@ -307,7 +307,7 @@ static void WindowWordChecks(void) {
             if (bad) [lineFaults addObject:[NSString stringWithFormat:@"%@ %@: %@", name, r.key, l]];
         }
     }
-    Check([line isEqualToString:@"In api · started by cmux, which has quit"] && [narrow isEqualToString:@"In api"] && none == nil &&
+    Check([line isEqualToString:@"In api · started in cmux, its starter has quit"] && [narrow isEqualToString:@"In api"] && none == nil &&
           [tree isEqualToString:@"3 files changed, 1 new · 2 commits not pushed"] && [merged isEqualToString:@"Untouched for 12 d"] && [agent isEqualToString:@"Claude Code"] &&
           [cacheLine isEqualToString:@"Xcode build output · for menus"] && lineFaults.count == 0,
           @"window words: a row's second line is whole phrases a person would say, and never a label glued to its value",

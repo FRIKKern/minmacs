@@ -91,7 +91,11 @@ MMWindowFact *MMWindowFactStartedBy(NSString *who) {
     if (chain.count > 1 && [chain.lastObject isEqualToString:@"launchd"]) [chain removeLastObject];
     if (!chain.count) return quit ? Fact(@"Started by", @"a program that has quit", @"its starter has quit") : nil;
     NSString *w = [chain componentsJoinedByString:@" in "];
-    if (quit) w = [w stringByAppendingString:@", which has quit"];
+    if (!quit) return Fact(@"Started by", w, [@"started by " stringByAppendingString:w]);
+    // "parent exited" says the server's own parent process ended. The names before it still run: the last is the app
+    // the server runs in, so it is never said to have quit.
+    if (chain.count == 1) return Fact(@"Started by", [NSString stringWithFormat:@"a program in %@ that has quit", w], [NSString stringWithFormat:@"started in %@, its starter has quit", w]);
+    w = [w stringByAppendingString:@", its starter has quit"];
     return Fact(@"Started by", w, [@"started by " stringByAppendingString:w]);
 }
 

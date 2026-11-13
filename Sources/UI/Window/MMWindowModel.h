@@ -109,7 +109,7 @@ MMWindowFact *_Nullable MMWindowFactPort(NSInteger port);                       
 MMWindowFact *_Nullable MMWindowFactProject(NSString *_Nullable project);          // Project, the name or the folder; "in api". nil for the disk's top
 MMWindowFact *_Nullable MMWindowFactOwner(NSString *_Nullable project);            // Project, of a cache; "for atlas"
 MMWindowFact *_Nullable MMWindowFactRunsIn(NSString *_Nullable where);             // Runs in, "Ghostty, tab 2"; "runs in Ghostty, tab 2"
-MMWindowFact *_Nullable MMWindowFactStartedBy(NSString *_Nullable who);            // Started by, "cmux, which has quit"; "started by …"
+MMWindowFact *_Nullable MMWindowFactStartedBy(NSString *_Nullable who);            // Started by, "pnpm dev in cmux"; "started by …"
 MMWindowFact *_Nullable MMWindowFactIdle(NSTimeInterval seconds);                  // Idle, "2 h 10 min"; "idle for 2 h 10 min"
 MMWindowFact *_Nullable MMWindowFactLastUsed(NSTimeInterval ago);                  // Last used, "3 min ago" or "just now"; "used 3 min ago"
 MMWindowFact *_Nullable MMWindowFactUp(NSTimeInterval seconds);                    // Running, "2 h 36 min"; "up 2 h 36 min"
