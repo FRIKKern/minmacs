@@ -28,6 +28,11 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// a record that failed, or a Wrap Up part whose item still waits in the staging folder, says NO. A merged worktree deleted under
 /// Smart can still be restored, since git holds it. Anything else deleted cannot.
 @property (readonly) BOOL deletedNow;
+/// Why this record cannot be read, or nil: a field MinMacs acts on has another shape than MinMacs writes, such as a
+/// "staged" that is no list or a time that is no number. Such a record is never acted on: restore refuses it, and
+/// recovery and the sweep of MMRemoval.h skip its Wrap Up and name it once in the log. A damaged "owner" is not
+/// counted here: it reads as no owner.
+@property (readonly, copy) NSString *damage;
 @end
 
 /// P52. The one undo engine for every expert.
@@ -59,6 +64,27 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 - (NSArray<MMUndoRecord *> *)recent:(NSString *)expert limit:(NSUInteger)limit;   // newest first, expert nil means all
 - (MMUndoRecord *)record:(NSString *)rid;
 @end
+
+#pragma mark The one checked reader
+
+/// Every field Act reads from a record goes through these. A record comes from disk, so any field may have another
+/// shape than MinMacs wrote. A value of the wrong type reads as absent, nil or NO, and never raises.
+/// from is a payload, a body or an entry of a list. Anything that is no dictionary has no fields.
+NSString *MMRecordString(id from, NSString *key);
+NSNumber *MMRecordNumber(id from, NSString *key);                  // a number, never a boolean
+BOOL MMRecordFlag(id from, NSString *key);                         // YES only for a boolean that is true
+NSDictionary *MMRecordDict(id from, NSString *key);
+NSArray<NSDictionary *> *MMRecordList(id from, NSString *key);     // a list, with only its dictionaries
+NSArray<NSString *> *MMRecordStrings(id from, NSString *key);      // a list, with only its strings
+
+/// The very file at path, for a "staged" or "trashed" entry: {ino, vol, dev}. vol is the UUID of the volume that
+/// holds it, which stays the same across a replug or a restart. The device number does not, so it is kept only to
+/// say the entry knew its file. A symlink is named, never followed. nil when nothing is there.
+NSDictionary *MMFileIdentity(NSString *path);
+/// Whether the file at path is the one the entry names: 1 yes, 0 another file or nothing, -1 the entry does not say.
+/// The inode must match. With "vol" the volume's UUID must match too. An entry with "dev" and no "vol", as one
+/// build wrote them, is matched by its inode alone at that path. An entry with neither does not say.
+int MMFileIsEntry(NSString *path, NSDictionary *entry);
 
 /// A payload key whose restore an expert does, such as MinMacs's "reopen", which opens closed tabs again through its
 /// tab bridge. -[MMUndo restore:] of a done record that holds key calls the block with the value, after its own steps,
