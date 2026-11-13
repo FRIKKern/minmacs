@@ -4,6 +4,7 @@
 // Experts add hosts, apps and their other verbs through -[MMExpert verbs].
 #import "CLI/MMCLI.h"
 #import "Core/MMCore.h"
+#import "UI/MMFormat.h"
 #import "Core/Runtime/MMWorker.h"
 
 // From MMInvestigateCLI.m.
@@ -589,9 +590,56 @@ static int Mode(MMArgs *a) {
     return 0;
 }
 
+/// removal --waiting: what waits in a staging folder that MinMacs cannot settle, MMRemovalWaiting, and with --delete
+/// or --put-back the person's act on one. The list reads only and runs cold. An act runs in the app, as restore does.
+static int RemovalWaiting(MMArgs *a) {
+    NSString *del = [a option:@"--delete"], *back = [a option:@"--put-back"], *to = [a option:@"--to"];
+    if ([a word:0] || (del && back) || (to && !back) || [a has:@"--delete"] != (del != nil) || [a has:@"--put-back"] != (back != nil)) return [a usageError];
+    NSArray<MMRemovalWaitingItem *> *items = MMRemovalWaiting();
+    if (del || back) {
+        NSString *itemID = del ?: back;
+        MMRemovalWaitingItem *item = nil;
+        for (MMRemovalWaitingItem *i in items) if ([i.itemID isEqualToString:itemID]) item = i;
+        if (!item) { [a error:@"Nothing waits in MinMacs's staging folder under %@. See minmacs removal --waiting.", itemID]; return MMExitFailed; }
+        NSString *where = to ?: item.oldPath;
+        if (a.dryRun) {
+            NSString *would = del ? [NSString stringWithFormat:@"Would delete %@, %@, from MinMacs's staging folder.", item.name, MMBytes((uint64_t)item.bytes)]
+                                  : [NSString stringWithFormat:@"Would put %@ back at %@.", item.name, where ?: @"the path you give with --to"];
+            if (a.json) [a printJSON:@{@"item": item.json, @"dryRun": @YES, @"act": del ? @"delete" : @"put-back", @"to": Or(back ? where : nil)}];
+            else [a print:@"%@ Dry run. Nothing was changed.", would];
+            return 0;
+        }
+        int r = [a needsApp]; if (r) return r;
+        int64_t freed = 0;
+        NSString *problem = del ? MMRemovalDeleteWaiting(itemID, &freed) : MMRemovalPutBackWaiting(itemID, to);
+        if (a.json) [a printJSON:@{@"item": item.json, @"act": del ? @"delete" : @"put-back", @"done": problem ? @NO : @YES, @"problem": Or(problem), @"to": Or(back ? where : nil), @"freed": @(freed)}];
+        else if (problem) [a error:@"%@ was not %@: %@", item.name, del ? @"deleted" : @"put back", problem];
+        else [a print:del ? @"Deleted %@. It cannot be brought back." : @"Put %@ back at %@.", item.name, where];
+        return problem ? MMExitFailed : 0;
+    }
+    if (a.json) {
+        NSMutableArray *j = [NSMutableArray new];
+        for (MMRemovalWaitingItem *i in items) [j addObject:i.json];
+        [a printJSON:@{@"waiting": j}];
+        return 0;
+    }
+    if (!items.count) { [a print:@"Nothing waits in MinMacs's staging folder."]; return 0; }
+    [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)items.count, items.count == 1 ? @"item waits" : @"items wait"];
+    for (MMRemovalWaitingItem *i in items) {
+        [a print:@"%@  %@, %@: %@%@", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [@". " stringByAppendingString:i.detail] : @""];
+        [a print:@"    was at %@. %@", i.oldPath ?: @"a place its record does not say",
+                 i.canDelete && i.canPutBack ? @"Delete it with --delete, or put it back with --put-back." : i.canDelete ? @"Delete it with --delete."
+                 : i.canPutBack ? @"Put it back with --put-back." : [NSString stringWithFormat:@"Move it by hand from %@.", i.stagedAt]];
+    }
+    return 0;
+}
+
 /// removal [smart|trash|delete]: what happens to a thing MinMacs removes, the pref of Core/Act/MMRemoval.h.
 /// It writes a pref only, as mode does, so it runs cold.
 static int Removal(MMArgs *a) {
+    if ([a has:@"--waiting"]) return RemovalWaiting(a);
+    // An act on a waiting item needs --waiting, so "removal delete <id>" can never set the choice by mistake.
+    if ([a has:@"--delete"] || [a has:@"--put-back"] || [a has:@"--to"] || [a word:1]) return [a usageError];
     NSString *name = [a word:0].lowercaseString;
     if (name) {
         NSInteger c = MMRemovalChoiceFrom(name);
@@ -637,8 +685,8 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsCachedGit, nil),
             Reads([MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
                   MMVerbReadsNoWorktrees, nil),
-            Reads([MMVerbSpec verb:@"removal" usage:@"removal [smart|trash|delete] [--json]   show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
-                  MMVerbReadsNoWorktrees, nil),
+            Reads([MMVerbSpec verb:@"removal" usage:@"removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>]] [--dry-run] [--json]   show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
+                  MMVerbReadsNoWorktrees, @[@"--delete", @"--put-back"]),
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }], MMVerbReadsNoWorktrees, nil),

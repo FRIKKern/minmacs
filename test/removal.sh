@@ -18,14 +18,17 @@ check "removal: the test binary builds with no warnings" 0 "$rm_r"
 echo "-- one place deletes, and every path asks the one function"
 check "removal: Act deletes a file in one place only, one call in MMRemovalApply.m" "1 0" \
   "$(grep -cE 'removeItemAt|unlink\(|rmdir\(|removefile\(' Sources/Core/Act/MMRemovalApply.m) $(grep -nE 'removeItemAt|unlink\(|rmdir\(|removefile\(|emptyTrash|rm -rf' Sources/Core/Act/*.m | grep -vc '^Sources/Core/Act/MMRemovalApply.m:')"
-check "removal: that call sits behind the wall: a delete asks WhyNot first, a staged one StagedWhyNot, and the third takes only an empty staging folder" "2 1 1 1" \
-  "$(grep -c 'Unlink(real' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'WhyNot(path, record, nil, &real)' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'if (StagedWhyNot(x, r, &real))' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'if (holds.count == 0) Unlink(f, nil);' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: that call sits behind the wall: a delete asks WhyNot first, a staged one StagedWhyNot, and the third takes only an empty staging folder" "2 1 1 1 1" \
+  "$(grep -c 'Unlink(real' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'WhyNot(path, record, nil, &real)' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'NSString \*real = nil, \*no = StagedWhyNot(x, r, &real);' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'if (!no && !Unlink(real, &e))' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'if (holds.count == 0) Unlink(f, nil);' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: the sweep and the person's delete of a waiting item delete only through that same finish" "1 1 1" \
+  "$(grep -c '(void)MMRemovalFinishStaged(@\[part\]);' Sources/Core/Act/MMRemovalRecover.m) $(grep -c 'int64_t got = FinishPart(r, stagedAt, &why);' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'return MMRemovalDeleteStagedItem(' Sources/Core/Act/MMRemovalWaiting.m)"
 check "removal: staging is one rename, and nothing in Act copies a person's file to stage it" "1 0" \
   "$(grep -c 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m) $(grep -cE '[^e]copyItemAt|clonefile|[^e]moveItemAt|copyfile' Sources/Core/Act/MMRemovalApply.m)"
 check "removal: a crash is settled at Core's start and before the next Wrap Up, and the start also sweeps what was left staged" "1 1 1" \
   "$(grep -c 'MMRemovalRecoverStaged()' Sources/Core/MMCore.m) $(grep -c '(void)MMRemovalRecoverStaged();' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalSweepStaged(&orphans)' Sources/Core/MMCore.m)"
-check "removal: staging, finish, recovery and the sweep read a record only through the checked reader" "0 0" \
-  "$(grep -c 'payload\[@' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalRecover.m)"
+check "removal: staging, finish, recovery, the sweep and the waiting list read a record only through the checked reader" "0 0 0" \
+  "$(grep -c 'payload\[@' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalRecover.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalWaiting.m)"
+check "removal: LocoHost's restore and restart read a stop's restart through the checked reader" 0 "$(grep -c 'payload\[@' Sources/Experts/LocoHost/MMLHCLI.m)"
 check "removal: the device number is recorded and never compared" 0 "$(grep -c 'st_dev [!=]=' Sources/Core/Act/MMUndo.m)"
 check "removal: a Wrap Up's record names the process that owns it" 1 "$(grep -c '@\"owner\": MMRemovalOwner()' Sources/Core/Act/MMWrapUp.m)"
 check "removal: put-back and staging ask whether a thing is there with lstat, never a check that follows links" "0 0" \
@@ -106,4 +109,30 @@ if [ "$rm_r" = 0 ]; then
   rm_cli removal shred >/dev/null; rm_x=$?
   check "removal: an unknown word is a usage error and changes nothing" "2 delete" "$rm_x $(rm_cli removal --json | json "j['removal']")"
   check "removal: help lists the verb" 1 "$("$BIN" help --json 2>/dev/null | json "sum(v['verb'] == 'removal' for v in j['verbs'])")"
+  rm_cli removal delete abc:0.x >/dev/null; rm_x=$?
+  check "removal: a second word is a usage error, so an id never sets the choice" "2 delete" "$rm_x $(rm_cli removal --json | json "j['removal']")"
+  rm_cli removal --delete abc:0.x >/dev/null; rm_x=$?
+  check "removal: --delete without --waiting is a usage error" 2 "$rm_x"
+  check "removal: help names the forms that change things" "--delete --put-back" "$("$BIN" help --json 2>/dev/null | json "' '.join([v for v in j['verbs'] if v['verb'] == 'removal'][0]['mutatingForms'])")"
+
+  echo "-- what still waits in the staging folder, issue #67"
+  check "removal: with nothing waiting, it says so" "Nothing waits in MinMacs's staging folder. 0" "$(rm_cli removal --waiting) $(rm_cli removal --waiting --json | json "len(j['waiting'])")"
+  rm_ids=$(MINMACS_HOME="$rm_home" "$rm_dir/removaltest" --leave-waiting "$rm_home/fx" 2>/dev/null)
+  rm_i1=$(echo "$rm_ids" | sed -n 1p); rm_i2=$(echo "$rm_ids" | sed -n 2p); rm_old=$(echo "$rm_ids" | sed -n 3p)
+  rm_j=$(rm_cli removal --waiting --json)
+  check "removal: --waiting --json lists a delete that failed and an old path that is taken, each with its id and old path" "delete-failed old-path-taken|$rm_i1 $rm_i2|yes" \
+    "$(echo "$rm_j" | json "' '.join(sorted(w['why'] for w in j['waiting'])) + '|' + ' '.join(sorted(w['id'] for w in j['waiting'])) + '|' + ('yes' if '$rm_old' in [w['oldPath'] for w in j['waiting']] else 'no')")"
+  check "removal: the text list counts them and says what can be done" "2 items wait in MinMacs's staging folder for you to decide:|2" \
+    "$(rm_cli removal --waiting | head -1)|$(rm_cli removal --waiting | grep -c 'Delete it with --delete, or put it back with --put-back.')"
+  rm_at=$(echo "$rm_j" | json "[w['stagedAt'] for w in j['waiting'] if w['id'] == '$rm_i1'][0]")
+  rm_cli removal --waiting --delete "$rm_i1" >/dev/null; rm_x=$?
+  check "removal: a delete needs the running app, and nothing goes" "3 yes" "$rm_x $([ -d "$rm_at" ] && echo yes || echo no)"
+  check "removal: a dry run says what it would delete, and nothing goes" "Would delete node_modules yes" \
+    "$(rm_cli removal --waiting --delete "$rm_i1" --dry-run | cut -d, -f1) $([ -d "$rm_at" ] && echo yes || echo no)"
+  check "removal: a dry run of a put-back names where it would go" "Would put .env back at $rm_home/aside.env. Dry run. Nothing was changed." \
+    "$(rm_cli removal --waiting --put-back "$rm_i2" --to "$rm_home/aside.env" --dry-run)"
+  rm_cli removal --waiting --delete nope:0.x >/dev/null; rm_x=$?
+  check "removal: an id that names nothing fails" 1 "$rm_x"
+  rm_cli removal --waiting --to "$rm_home/x" >/dev/null; rm_x=$?
+  check "removal: --to without --put-back is a usage error" 2 "$rm_x"
 fi

@@ -252,13 +252,14 @@ void MMCoreStart(void) {
     dispatch_async(MMQueue(@"core", @"store", QOS_CLASS_UTILITY), ^{
         for (NSString *name in MMRemoveStaleFiles()) os_log(CoreLog(), "removed the old %{public}@", name);
         // A Wrap Up the last run stopped in the middle of: what it had staged goes back to where it was, MMRemoval.h.
-        // Then what an ended Wrap Up left staged goes back, and a staging folder no record names is named once.
+        // Then what an ended Wrap Up left staged is deleted once more or goes back, MMRemovalSweepStaged, and a staging
+        // folder no record names is named once.
         MMLogWhenOpen(^(MMLog *log) {
             NSInteger n = MMRemovalRecoverStaged();
             if (n) os_log(CoreLog(), "settled %ld Wrap Up(s) the last run left unfinished", (long)n);
             NSArray<NSString *> *orphans = nil;
             NSInteger back = MMRemovalSweepStaged(&orphans);
-            if (back) os_log(CoreLog(), "put back what %ld Wrap Up part(s) had left staged", (long)back);
+            if (back) os_log(CoreLog(), "settled what %ld Wrap Up part(s) had left staged", (long)back);
             for (NSString *o in orphans) os_log(CoreLog(), "a staging folder no record names is left as it is: %{public}@", o);
         });
         // The breadcrumbs the last run left, read off main: the first read lists and reads the running folder.
