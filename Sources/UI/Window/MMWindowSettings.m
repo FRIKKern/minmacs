@@ -41,7 +41,7 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
     Fit f = self.fit;
     if (self.isSwitch) {
         CGFloat h = 10 + WrappedHeight(Wrapped(self.label, 13, NSFontWeightMedium, NSColor.whiteColor), kOptionW - 16 - 50);
-        if (self.explain.length) h += 4 + WrappedHeight(Wrapped(self.explain, f.size - 0.5, NSFontWeightRegular, NSColor.whiteColor), kOptionW - 16);
+        if (self.explain.length) h += 4 + WrappedHeight(Wrapped(self.explain, f.size - 0.5, NSFontWeightRegular, NSColor.whiteColor), kOptionW - 24);
         return h + 10;
     }
     return MAX(26, 2 * f.pad + WrappedHeight(Wrapped(self.explain, f.size, NSFontWeightRegular, NSColor.whiteColor), kOptionW - self.explainX - 8));
@@ -67,9 +67,13 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         // A switch that changes nothing here is drawn as not available: its title steps back, its track is an outline.
         NSAttributedString *title = Wrapped(self.label, 13, NSFontWeightMedium, self.inert ? MMWindowColor(MMWindowInkText3) : text);
         CGFloat th = WrappedHeight(title, titleW);
-        [title drawWithRect:NSMakeRect(8, 5, titleW, th) options:NSStringDrawingUsesLineFragmentOrigin];
+        // Each switch is a panel of its own in the card, with its words in the panel's middle.
+        [MMWindowColor(MMWindowInkCard) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:b xRadius:10 yRadius:10] fill];
+        CGFloat top = floor((b.size.height - self.wanted) / 2) + 5;
+        MMWindowDrawIn(title, NSMakeRect(12, top, titleW, th));
         // The switch: the knob sits right and the track fills when it is on, so the state shows in place as well as color.
-        NSRect track = NSMakeRect(NSMaxX(b) - 8 - 36, 4, 36, 20);
+        NSRect track = NSMakeRect(NSMaxX(b) - 12 - 36, top - 1, 36, 20);
         if (self.inert) {
             NSBezierPath *edge = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(track, 0.5, 0.5) xRadius:9.5 yRadius:9.5];
             [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.4 : 0.14] setStroke]; edge.lineWidth = 1; [edge stroke];
@@ -81,7 +85,7 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         }
         [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(self.picked ? NSMaxX(track) - 18 : NSMinX(track) + 2, track.origin.y + 2, 16, 16)] fill];
         if (self.explain.length)
-            [Wrapped(self.explain, f.size - 0.5, NSFontWeightRegular, t2) drawWithRect:NSMakeRect(8, 5 + th + 4, kOptionW - 16, b.size.height) options:NSStringDrawingUsesLineFragmentOrigin];
+            MMWindowDrawIn(Wrapped(self.explain, f.size - 0.5, NSFontWeightRegular, t2), NSMakeRect(12, top + th + 4, kOptionW - 24, b.size.height - top - th - 4));
         return;
     }
     if (self.picked || _hover) {
@@ -102,10 +106,10 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         [ring stroke];
     }
     MMWindowDraw(MMWindowText(self.label, f.size, NSFontWeightMedium, self.picked ? NSColor.whiteColor : text), 30, NSMidY(mark), -1);
-    [Wrapped(self.explain, f.size, NSFontWeightRegular, self.picked ? text : t2) drawWithRect:NSMakeRect(self.explainX, f.pad, kOptionW - self.explainX - 8, b.size.height) options:NSStringDrawingUsesLineFragmentOrigin];
+    MMWindowDrawIn(Wrapped(self.explain, f.size, NSFontWeightRegular, self.picked ? text : t2), NSMakeRect(self.explainX, f.pad, kOptionW - self.explainX - 8, b.size.height - 2 * f.pad));
 }
 
-- (void)drawFocusRingMask { [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:9 yRadius:9] fill]; }
+- (void)drawFocusRingMask { [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:self.isSwitch ? 10 : 9 yRadius:self.isSwitch ? 10 : 9] fill]; }
 - (NSRect)focusRingMaskBounds { return self.bounds; }
 
 @end
@@ -232,14 +236,21 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         NSRect card = NSMakeRect(14 + (i % columns) * (w + gap), y0, w, h);
         [_cards addObject:[NSValue valueWithRect:card]];
         NSArray<MMWindowOption *> *mine = held[i];
-        // What the card has beyond its need goes between its choices, up to a calm distance. The rest is its foot.
-        CGFloat spare = MAX(0, h - need[i].doubleValue), apart = mine.count ? MIN(floor(spare / mine.count), 14) : 0, y = card.origin.y + head + (i < rules ? floor(apart / 2) : 0);
+        if (i >= rules) {
+            // This Mac: its switches are panels that share the card, so the card has no empty middle.
+            CGFloat each = floor((NSMaxY(card) - 10 - card.origin.y - head - 8 * ((CGFloat)mine.count - 1)) / MAX((CGFloat)mine.count, 1)), y = card.origin.y + head;
+            for (MMWindowOption *o in mine) { o.frame = NSMakeRect(card.origin.x + 8, y, MIN(kOptionW, w - 16), MAX(each, o.wanted)); y += MAX(each, o.wanted) + 8; }
+            continue;
+        }
+        // What a card has beyond its need goes between its choices, up to a calm distance. The cards of one row take
+        // the same distance, the least of theirs, so their first choices stand level. The rest is a card's foot.
+        CGFloat apart = 14;
+        for (NSInteger j = r * columns; j < MIN(rules, (r + 1) * columns); j++) apart = MIN(apart, floor(MAX(0, h - need[j].doubleValue) / MAX((CGFloat)held[j].count, 1)));
+        CGFloat y = card.origin.y + head + floor(apart / 2);
         for (MMWindowOption *o in mine) {
             CGFloat oh = o.wanted;
-            // As 197-b: with two switches the last one closes the card, at its foot.
-            BOOL foot = o.isSwitch && mine.count == 2 && o == mine.lastObject && NSMaxY(card) - 10 - oh > y;
-            o.frame = NSMakeRect(card.origin.x + 8, foot ? NSMaxY(card) - 10 - oh : y, MIN(kOptionW, w - 16), oh);
-            y += oh + (o.isSwitch ? 12 : fit.gap + apart);
+            o.frame = NSMakeRect(card.origin.x + 8, y, MIN(kOptionW, w - 16), oh);
+            y += oh + fit.gap + apart;
         }
     }
     self.needsDisplay = YES;
@@ -287,12 +298,12 @@ static CGFloat WrappedHeight(NSAttributedString *s, CGFloat width) {
         [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.06] setStroke]; p.lineWidth = 1; [p stroke];
         BOOL rule = i < (NSInteger)self.settings.rules.count;
         MMWindowRule *r = rule ? self.settings.rules[i] : nil;
-        MMWindowDraw(MMWindowFit(rule ? r.title : @"This Mac", _fit.size + 1, NSFontWeightSemibold, text, card.size.width - 32), card.origin.x + 16, card.origin.y + 24, -1);
+        MMWindowDrawBlock(rule ? r.title : @"This Mac", _fit.size + 1, 11, NSFontWeightSemibold, text, card.origin.x + 16, card.origin.y + 24, card.size.width - 32, -1, 0);
         if (!r.note.length) continue;
         // What the rule would do next sits at the foot of its card.
         NSAttributedString *note = Wrapped(r.note, _fit.size - 1, NSFontWeightRegular, t2);
         CGFloat nh = WrappedHeight(note, card.size.width - 32);
-        [note drawWithRect:NSMakeRect(card.origin.x + 16, NSMaxY(card) - 14 - nh, card.size.width - 32, nh) options:NSStringDrawingUsesLineFragmentOrigin];
+        MMWindowDrawIn(note, NSMakeRect(card.origin.x + 16, NSMaxY(card) - 14 - nh, card.size.width - 32, nh));
     }
 }
 

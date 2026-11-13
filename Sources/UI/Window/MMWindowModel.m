@@ -1,5 +1,33 @@
 // The window's view model, issue #62. Plain values. MMWindowModel.h says what each holds.
 #import "UI/Window/MMWindowModel.h"
+#import <math.h>
+
+NSArray<NSString *> *MMWindowSizeParts(uint64_t bytes, BOOL disk) {
+    const double K = disk ? 1000.0 : 1024.0, M = K * K, G = M * K;
+    if (bytes == 0) return @[@"0", @"MB"];
+    // Under a megabyte rounds up to kilobytes, so something that holds bytes never reads as zero.
+    if (bytes < M - K / 2) return @[[NSString stringWithFormat:@"%.0f", ceil(bytes / K)], @"KB"];
+    if (bytes < G - M / 2) return @[[NSString stringWithFormat:@"%.0f", bytes / M], @"MB"];
+    double x = bytes / G;
+    if (x >= 999.5) return @[[NSString stringWithFormat:@"%.1f", x / K], @"TB"];
+    if (x >= 99.95) return @[[NSString stringWithFormat:@"%.0f", x], @"GB"];
+    if (x >= 9.995) return @[[NSString stringWithFormat:@"%.1f", x], @"GB"];
+    BOOL two = fabs(x * 10 - round(x * 10)) > 0.3;
+    return @[[NSString stringWithFormat:two ? @"%.2f" : @"%.1f", x], @"GB"];
+}
+
+NSString *MMWindowSizeText(uint64_t bytes, BOOL disk) { return [MMWindowSizeParts(bytes, disk) componentsJoinedByString:@" "]; }
+
+NSString *MMWindowWholeText(uint64_t bytes, BOOL disk) {
+    return [MMWindowSizeText(bytes, disk) stringByReplacingOccurrencesOfString:@".0 " withString:@" "];
+}
+
+NSString *MMWindowHourExplain(BOOL disk, uint64_t whole) {
+    return disk ? [NSString stringWithFormat:@"Lower means less room left on the %@ disk", MMWindowWholeText(whole, YES)]
+                : [NSString stringWithFormat:@"Higher means more of the %@ is in use", MMWindowWholeText(whole, NO)];
+}
+
+NSString *MMWindowHourTitle(BOOL disk) { return disk ? @"Disk free" : @"Memory in use"; }
 
 @implementation MMWindowHour
 - (instancetype)init { if ((self = [super init])) { _title = @""; _explain = @""; _values = @[]; _side = MMWindowMemory; } return self; }
@@ -33,15 +61,16 @@ static NSString *Sentence(NSString *words) {
 }
 
 /// The line's lead and kind, the fact its sentence comes from, and whether it says the row's State already.
+/// The sentence is the fact labelled Stays, which the experts write in plain words for a person. An agent's Why is
+/// a raw fact of its processes, such as "child caffeinate": it stays in the fact list and is never the sentence.
 - (MMWindowFate *)fateFrom:(MMWindowFact *__autoreleasing *)source saysState:(BOOL *)saysState {
-    MMWindowFact *why = [self factLabelled:@"Why"], *stays = [self factLabelled:@"Stays"], *state = [self factLabelled:@"State"], *from = nil;
+    MMWindowFact *stays = [self factLabelled:@"Stays"], *state = [self factLabelled:@"State"], *from = nil;
     MMWindowFate *f = [MMWindowFate new];
     BOOL says = NO;
-    if (self.needsYou) { f.kind = MMWindowFateAsks; f.lead = @"Asks you."; from = why ?: stays; says = YES; }
-    else if (self.inFix) { f.kind = MMWindowFateGoes; f.lead = @"Goes with Fix Everything."; from = why; }
+    if (self.needsYou) { f.kind = MMWindowFateAsks; f.lead = @"Asks you."; says = YES; }
+    else if (self.inFix) { f.kind = MMWindowFateGoes; f.lead = @"Goes with Fix Everything."; }
     else if (stays) { f.lead = @"Stays."; from = stays; }
-    else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); from = why; says = YES; }
-    else if (why) from = why;
+    else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); says = YES; }
     else return nil;
     f.note = Sentence(from.value);
     if (source) *source = from;

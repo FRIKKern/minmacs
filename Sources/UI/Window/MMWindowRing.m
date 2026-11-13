@@ -17,6 +17,17 @@ static MMWindowGroup *GroupOf(NSArray<MMWindowGroup *> *groups, NSString *key) {
     return nil;
 }
 
+/// Whether a row has an arc of its own. In the picture of the Mac after Fix Everything, a row a fix touches has
+/// left the ring. The drawing and the checks both ask here.
+static BOOL Shows(MMWindowRow *row, BOOL after) { return !(after && row.inFix); }
+
+NSArray<NSString *> *MMWindowRingRows(MMWindowModel *model, BOOL after) {
+    NSMutableArray<NSString *> *keys = [NSMutableArray new];
+    for (NSArray<MMWindowGroup *> *side in @[model.memoryGroups ?: @[], model.diskGroups ?: @[]])
+        for (MMWindowGroup *g in side) for (MMWindowRow *r in g.rows) if (Shows(r, after)) [keys addObject:r.key];
+    return keys;
+}
+
 // Both tracks start at the lower left and run three quarters round.
 static const CGFloat kStart = 135, kWhole = 270;
 
@@ -40,7 +51,7 @@ static void Track(NSArray<MMWindowSlice *> *slices, NSArray<MMWindowGroup *> *gr
             CGFloat part = MIN(kWhole * r.bytes / (double)total, sweep - used);
             // An arc under a seventh of a degree is no mark at this size. It still takes its place.
             // The Mac after Fix Everything: what a fix touches has left the ring, and its place is bare track.
-            if (part >= 0.144 && !(after && r.inFix)) {
+            if (part >= 0.144 && Shows(r, after)) {
                 CGFloat gap = MIN(part * 0.3, i + 1 == rows.count ? 1.8 : 0.43);
                 if (lit && [r.key isEqualToString:lit.key]) Arc(c, radius + 2, width + 4, at + used, part - gap, NSColor.whiteColor);
                 else Arc(c, radius, width, at + used, part - gap, [(r.inFix ? fix : color) colorWithAlphaComponent:(r.inFix ? 1 : color.alphaComponent) * back]);

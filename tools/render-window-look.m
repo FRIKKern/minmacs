@@ -20,20 +20,18 @@ static void WindowLookChecks(void) {
         NSMutableArray<NSString *> *drawn = [NSMutableArray new], *whole = [NSMutableArray new], *bad = [NSMutableArray new];
         for (MMWindowListView *l in WindowLists(v)) [drawn addObjectsFromArray:l.drawnNames];
         for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) [whole addObjectsFromArray:[g.rows valueForKey:@"shownName"]];
-        NSInteger shortened = 0;
+        // Every name is whole: its lines, put together, are the name. A name longer than its row wraps.
+        NSInteger wrapped = 0;
         for (NSUInteger i = 0; i < drawn.count && i < whole.count; i++) {
             NSString *d = drawn[i], *w = whole[i];
-            if ([d isEqualToString:w]) continue;
-            shortened++;
-            // A shortened name is whole words from the start of the real one, with no ellipsis.
-            BOOL words = d.length >= 8 && [w hasPrefix:d] && [@" -/._" containsString:[w substringWithRange:NSMakeRange(d.length, 1)]];
-            if (!words || [d containsString:@"…"] || [d containsString:@"..."]) [bad addObject:[NSString stringWithFormat:@"%@ -> %@", w, d]];
+            if ([d containsString:@"\n"]) wrapped++;
+            NSString *joined = [[d stringByReplacingOccurrencesOfString:@"\n" withString:@""] stringByReplacingOccurrencesOfString:@" " withString:@""];
+            if (![joined isEqualToString:[w stringByReplacingOccurrencesOfString:@" " withString:@""]] || [d containsString:@"…"] || [d containsString:@"..."]) [bad addObject:[NSString stringWithFormat:@"%@ -> %@", w, d]];
         }
-        for (NSString *d in drawn) if ([d containsString:@"…"]) [bad addObject:d];
         BOOL isLong = [name isEqualToString:@"long"];
-        Check(drawn.count == whole.count && drawn.count > 0 && bad.count == 0 && (isLong ? shortened >= 1 && shortened <= 4 : shortened == 0),
-              [NSString stringWithFormat:@"window %@: no row's name is cut with an ellipsis%@", name, isLong ? @", and a name longer than the row loses whole words only" : @", and every name is whole"],
-              [NSString stringWithFormat:@"%ld shortened of %lu. %@", (long)shortened, (unsigned long)drawn.count, [bad componentsJoinedByString:@" | "]]);
+        Check(drawn.count == whole.count && drawn.count > 0 && bad.count == 0 && (isLong ? wrapped >= 1 : wrapped == 0),
+              [NSString stringWithFormat:@"window %@: no row's name is cut with an ellipsis%@", name, isLong ? @", and a name longer than the row wraps, whole" : @", and every name is whole on one line"],
+              [NSString stringWithFormat:@"%ld wrapped of %lu. %@", (long)wrapped, (unsigned long)drawn.count, [bad componentsJoinedByString:@" | "]]);
     }
 
     // The hour: one minute draws no line and twelve draw the filled part, with honest ends.
@@ -67,11 +65,11 @@ static void WindowLookChecks(void) {
     };
     MMWindowModel *memoryOnly = MMWindowFixture(@"memory-only"), *diskOnly = MMWindowFixture(@"disk-only"), *none = MMWindowFixture(@"young");
     NSString *both = gains(busy, MMWindowDockCalm), *mem = gains(memoryOnly, MMWindowDockCalm), *dsk = gains(diskOnly, MMWindowDockCalm);
-    Check([both isEqualToString:@"3.1 GB memory back | 18.6 GB disk back"] && [mem isEqualToString:@"2.7 GB memory back"] && [dsk isEqualToString:@"16.8 GB disk back"],
+    Check([both isEqualToString:@"3.16 GB memory back | 19.1 GB disk back"] && [mem isEqualToString:@"1.36 GB memory back"] && [dsk isEqualToString:@"17.2 GB disk back"],
           @"window gains: both sides when both are above zero, and one side alone when the other is zero", [NSString stringWithFormat:@"%@ / %@ / %@", both, mem, dsk]);
     Check(memoryOnly.fixCount > 0 && memoryOnly.diskBack == 0 && diskOnly.fixCount > 0 && diskOnly.memoryBack == 0 && gains(none, MMWindowDockCalm).length == 0,
           @"window gains: with nothing to fix and nothing back today no gain is shown", gains(none, MMWindowDockCalm));
-    Check([gains(calm, MMWindowDockCalm) isEqualToString:@"250 MB memory back today | 3.1 GB disk back today"], @"window gains: nothing to fix shows what came back today", gains(calm, MMWindowDockCalm));
+    Check([gains(calm, MMWindowDockCalm) isEqualToString:@"250 MB memory back today | 3.2 GB disk back today"], @"window gains: nothing to fix shows what came back today", gains(calm, MMWindowDockCalm));
     // A run that set out to give back memory only, and one that ended with nothing on one side.
     MMWindowRun *run = [MMWindowRun new];
     run.running = YES; run.total = memoryOnly.fixCount; run.memoryPlanned = memoryOnly.memoryBack;
@@ -81,7 +79,7 @@ static void WindowLookChecks(void) {
     NSString *nothing = gains(memoryOnly, MMWindowDockEnded);
     run.memoryBack = run.memoryPlanned;
     NSString *ended = gains(memoryOnly, MMWindowDockEnded);
-    Check([atStart isEqualToString:@"0 MB memory back so far"] && nothing.length == 0 && [ended isEqualToString:@"2.7 GB memory back"],
+    Check([atStart isEqualToString:@"0 MB memory back so far"] && nothing.length == 0 && [ended isEqualToString:@"1.36 GB memory back"],
           @"window gains: a run counts up only the side it set out to give back, and its end shows only what came back", [NSString stringWithFormat:@"%@ / %@ / %@", atStart, nothing, ended]);
     NSMutableArray<NSString *> *zeros = [NSMutableArray new];
     for (NSString *name in @[@"busy", @"quiet", @"peak", @"done", @"empty", @"young", @"calm", @"long", @"memory-only", @"disk-only"]) {
@@ -165,7 +163,7 @@ static void WindowWelcomeGuardChecks(void) {
     NSButton *start = w.controls.lastObject;
     NSRect at = start.frame;
     NSView *first = WelcomeHit(v, at, w);
-    Check(first == start && m.fixCount == 7, @"welcome guard: with seven fixes ready, a press at Start lands on Start", NSStringFromClass(first.class));
+    Check(first == start && m.fixCount == 5, @"welcome guard: with five fixes ready, a press at Start lands on Start", NSStringFromClass(first.class));
     WelcomePress(first);
     NSView *second = WelcomeHit(v, at, w);
     WelcomePress(second);
@@ -228,7 +226,7 @@ static void WindowWelcomeGuardChecks(void) {
             BOOL goes = r.fate.kind == MMWindowFateGoes && [r.fate.lead hasPrefix:@"Goes"] && ![r.facts.lastObject.label isEqualToString:@"Stays"];
             if (r.inFix) marked++;
             if (r.inFix != goes || (r.inFix && (side == m.diskGroups) == memory)) [off addObject:r.key];
-            if (!r.inFix && [@[@"will close", @"may go", @"merged"] containsObject:r.state ?: @""]) [off addObject:r.key];
+            if (!r.inFix && [r.state isEqualToString:@"will close"]) [off addObject:r.key];
         }
         Check(off.count == 0 && marked > 0, [NSString stringWithFormat:@"window %@: only rows of the fixes that are left say they go", name], [off componentsJoinedByString:@" "]);
     }

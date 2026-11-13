@@ -55,10 +55,10 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # that came before the first numbers.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 64 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 84 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
-               young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-watched-main welcome-started; do
+               young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-watched-main welcome-started; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
@@ -91,7 +91,10 @@ check "one side alone changes the picture" "yes yes" \
 
 # The second look against 195-a, tools/render-window-polish.m: one rule for sizes, no line under a dimmed button, whole
 # rows, a side with room closing with its whole number, a story's first line, the pointed row in the dock, and Stop.
-check "the second look's checks are there and pass" "18 0" "$(grep -cE '^ok    window (sizes|dock|lists|story|settings|motion)' "$ui_out/checks.txt" 2>/dev/null) $(grep -cE '^FAIL  window (sizes|dock|lists|story|settings|motion)' "$ui_out/checks.txt" 2>/dev/null)"
+check "the second look's checks are there and pass" "34 0" "$(grep -cE '^ok    window (sizes|dock|lists|story|settings|motion|words)' "$ui_out/checks.txt" 2>/dev/null) $(grep -cE '^FAIL  window (sizes|dock|lists|story|settings|motion|words)' "$ui_out/checks.txt" 2>/dev/null)"
+# No drawn string holds an ellipsis or is cut, on every made-up day, the real-shaped one and the day of extremes among them.
+check "no drawn string holds an ellipsis or leaves its box, and the made-up rows speak the feed's words" "1 1" \
+  "$(ui_look ' words: on every day and in every state no drawn string holds an ellipsis') $(ui_look ' words: every made-up row has a state word, fact labels and a fix title the feed can make')"
 check "the pointer on a row or on Fix Everything changes the picture" "yes yes" \
   "$([ "$(ui_md busy-agent-dark)" != "$(ui_md busy-asks-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-fix-dark)" != "$(ui_md busy-main-dark)" ] && echo yes || echo no)"
 

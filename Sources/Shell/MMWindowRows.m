@@ -204,11 +204,13 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
     // Quiet: nothing is going on in it now, by its own facts. The window draws such a name a step quieter.
     NSString *state = Str(x[@"state"]);
     switch (row.kind) {
+        // Only a fact that is there makes a row quiet: an app whose CPU is not known, a worktree whose files were not
+        // counted and a cache with no state are not called quiet.
         case MMWindowServer: case MMWindowAgent: row.quiet = [state isEqualToString:@"idle"]; break;
-        case MMWindowApp: row.quiet = row.cpuPercent < 0.5; break;
+        case MMWindowApp: row.quiet = row.cpuPercent >= 0 && row.cpuPercent < 0.5; break;
         case MMWindowHelper: case MMWindowTabs: row.quiet = YES; break;
-        case MMWindowWorktree: row.quiet = [Num(x[@"dirty"]) integerValue] + [Num(x[@"untracked"]) integerValue] == 0; break;
-        case MMWindowCache: row.quiet = ![state isEqualToString:@"live"]; break;
+        case MMWindowWorktree: row.quiet = Num(x[@"dirty"]) && Num(x[@"untracked"]) && [Num(x[@"dirty"]) integerValue] + [Num(x[@"untracked"]) integerValue] == 0; break;
+        case MMWindowCache: row.quiet = state.length && ![state isEqualToString:@"live"]; break;
     }
     // Core keeps an hour for an agent's tree and a server's tree, keyed by the first process the finding names.
     if ((row.kind == MMWindowServer || row.kind == MMWindowAgent) && f.procs.count) {

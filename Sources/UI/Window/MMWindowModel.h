@@ -36,6 +36,24 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
     MMWindowCache
 };
 
+#pragma mark - Sizes
+
+/// One rule for every size the window shows, as its number and its unit: megabytes whole, gigabytes with one decimal
+/// that stays when it is a zero ("1.0"), a second decimal under 10 GB when it says more ("1.86", but "1.3"), whole
+/// from 100 GB up ("182"), and terabytes from 1000 GB, with one decimal ("1.0 TB").
+/// Memory counts in 1024s, as the Mac names its memory. With `disk`, a size counts in thousands, as the Finder names
+/// a disk and what is on it: the disk's whole, its free space and every size on the disk side come from here.
+NSArray<NSString *> *MMWindowSizeParts(uint64_t bytes, BOOL disk);
+/// The same on one line: "1.86 GB".
+NSString *MMWindowSizeText(uint64_t bytes, BOOL disk);
+/// What a thing can hold, such as the Mac's memory or a disk: the same, with a round number's ".0" left out: "64 GB".
+NSString *MMWindowWholeText(uint64_t bytes, BOOL disk);
+
+/// What a graph's height means, in plain words, with the side's whole: "Higher means more of the 64 GB is in use",
+/// "Lower means less room left on the 994 GB disk". And the graph's title: "Memory in use", "Disk free".
+NSString *MMWindowHourExplain(BOOL disk, uint64_t whole);
+NSString *MMWindowHourTitle(BOOL disk);
+
 #pragma mark - The last hour
 
 /// One filled line: 60 values, oldest first, one a minute. A minute with no value holds NSNull.
@@ -61,7 +79,7 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
 typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFateGoes, MMWindowFateAsks };
 @interface MMWindowFate : NSObject
 @property MMWindowFateKind kind;
-@property (copy) NSString *lead;                        // "Stays.", "Goes with Fix Everything.", "Asks you.", "Working."; empty when only the note is known
+@property (copy) NSString *lead;                        // "Stays.", "Goes with Fix Everything.", "Asks you.", "Working."
 @property (copy, nullable) NSString *note;              // the sentence after it: "In use."
 @end
 
@@ -86,8 +104,9 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 /// The story the middle shows while the pointer rests on the row: who owns it, where it is, why it stays.
 @property (copy) NSArray<MMWindowFact *> *facts;
 /// Read from the row's own fields and never stored: a row that asks leads with "Asks you.", a row Fix Everything
-/// touches with "Goes with Fix Everything.", and any other with its fact labelled Stays, or, for an agent, with its
-/// State. The fact labelled Why, or the one labelled Stays, is the sentence after it. nil when the row holds none of these.
+/// touches with "Goes with Fix Everything.", and any other with its fact labelled Stays, whose words are the sentence
+/// after it, or, for an agent, with its State. nil when the row holds none of these. An agent's Why is a raw fact of
+/// its processes and stays in the fact list.
 @property (readonly, nullable) MMWindowFate *fate;
 /// The facts under that line: all of them but the ones the line already said.
 @property (readonly) NSArray<MMWindowFact *> *storyFacts;
@@ -153,7 +172,7 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @interface MMWindowRule : NSObject
 @property (copy) NSString *ruleID, *title;              // "servers", "Stop idle servers"
 @property (copy) NSArray<MMWindowChoice *> *choices;
-@property NSInteger picked;
+@property NSInteger picked;                             // -1 while nothing is chosen yet: then no choice is drawn picked, and a press on any picks it
 @property (copy, nullable) NSString *note;              // what it would do next: "1 ready. It waits for your press."
 @end
 

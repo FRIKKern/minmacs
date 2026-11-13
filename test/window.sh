@@ -13,7 +13,7 @@ mkdir -p "$wn_dir/home"
 wn_home="$wn_dir/home"
 wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowFixture.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -105,6 +105,13 @@ check "window: the render's removal card says Core's three sentences and the fee
   "$(for wn_s in 'Deletes what git or its tool can give back. The rest goes to the Trash.' 'Everything goes to the Trash. The disk comes back when you empty it.' 'Deletes everything it removes at once. Nothing can be brought back.'; do
        grep -qF "$wn_s" Sources/Core/Act/MMRemoval.m && grep -qF "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
      grep -qF 'r.title = MMWindowRemovalTitle;' Sources/Shell/MMWindowRules.m && grep -qF 'Card(@"removal", MMWindowRemovalTitle,' Sources/UI/Window/MMWindowFixture.m && printf '1' || printf '0')"
+# The render's made-up rows may only use the words the feed can put on a row. tools/render-window-words.m holds the
+# rows to these lists; here each word is held to the feed's own source, so a word the feed drops fails.
+wn_words=$(for wn_s in '@"kept"' '@"idle"' '@"asks"' '@"left behind"' '@"changed"' '@"merged"' '@"in use"' '@"will close"' \
+    '@"Port"' '@"Project"' '@"Runs in"' '@"Started by"' '@"Idle"' '@"Last used"' '@"Up"' '@"Kept"' '@"Agent"' '@"State"' '@"Why"' '@"Used by"' '@"Serves"' '@"Stays"' \
+    '@"Left by"' '@"Folder"' '@"Open"' '@"On"' '@"Branch"' '@"Merged"' '@"Files"' '@"Not pushed"' '@"Quiet"' '@"Kind"'; do
+  grep -qF -- "$wn_s" Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowFeed.m && printf '1' || printf '0(%s)' "$wn_s"; done)
+check "window: every state word and fact label the fixtures may use is one the feed writes" "11111111111111111111111111111111" "$wn_words"
 check "window: the removal title and the first-look line are each written once" "1 1" \
   "$(grep -rF '@"When MinMacs removes things"' Sources | grep -c .) $(grep -rF '@"MinMacs is taking its first look. It takes a few seconds."' Sources | grep -c .)"
 # The welcome: the login item is added in two places only, the old first launch and -setLogin:, and the window reaches

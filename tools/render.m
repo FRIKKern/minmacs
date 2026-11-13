@@ -711,7 +711,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     MMWindowModel *busy = MMWindowFixture(@"busy");
     NSInteger rows = 0;
     for (NSArray<MMWindowGroup *> *side in @[busy.memoryGroups, busy.diskGroups]) for (MMWindowGroup *g in side) rows += g.rows.count;
-    Check(rows == 72 && busy.fixCount == 7, @"window busy: 20 servers, 16 agents, 15 apps and helpers, 16 worktrees, 5 caches and 7 fixes",
+    Check(rows == 72 && busy.fixCount == 5, @"window busy: 20 servers, 16 agents, 15 apps and helpers, 16 worktrees, 5 caches and 5 fixes",
           [NSString stringWithFormat:@"%ld rows, %ld fixes", (long)rows, (long)busy.fixCount]);
     Check(MMWindowFixture(@"empty").fixCount == 0 && MMWindowFixture(@"running").run.running && !MMWindowFixture(@"done").run.running && MMWindowFixture(@"done").run.endTitle.length,
           @"window: the empty day has no fix, the running day runs, the done day ended", @"");

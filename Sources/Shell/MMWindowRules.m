@@ -66,8 +66,9 @@ static MMWindowRule *RemovalRule(void) {
     MMWindowRule *r = [MMWindowRule new];
     r.ruleID = MMWindowRemovalRuleID; r.title = MMWindowRemovalTitle;
     r.choices = RemovalChoices();
-    r.picked = (NSInteger)MMRemovalChoiceNow();
-    // Smart is shown as picked while nothing is, and the note says what holds until the person picks.
+    // While nothing is chosen no choice is picked, so a press on any of them, Smart too, makes the choice. The note
+    // says what holds until then.
+    r.picked = MMRemovalChosen() ? (NSInteger)MMRemovalChoiceNow() : -1;
     r.note = MMRemovalNotChosenNote();
     return r;
 }

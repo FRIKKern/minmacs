@@ -81,66 +81,98 @@ NSString *const MMWindowThin = @"\u2009";
 
 void MMWindowCrisp(void) { CGContextSetShouldSmoothFonts(NSGraphicsContext.currentContext.CGContext, false); }
 
+static void (^gSeen)(NSString *, NSRect, NSRect, NSRect);
+
+void MMWindowWatchDraws(void (^seen)(NSString *text, NSRect used, NSRect allowed, NSRect bounds)) { gSeen = [seen copy]; }
+
 void MMWindowDraw(NSAttributedString *line, CGFloat x, CGFloat midY, NSInteger align) {
     MMWindowCrisp();
     NSSize s = line.size;
     CGFloat left = align < 0 ? x : align == 0 ? x - s.width / 2 : x - s.width;
-    [line drawAtPoint:NSMakePoint(round(left * 2) / 2, round((midY - s.height / 2) * 2) / 2)];
+    NSPoint at = NSMakePoint(round(left * 2) / 2, round((midY - s.height / 2) * 2) / 2);
+    [line drawAtPoint:at];
+    if (gSeen) gSeen(line.string, NSMakeRect(at.x, at.y, s.width, s.height), NSZeroRect, NSView.focusView.bounds);
 }
 
-NSString *MMWindowShorten(NSString *text, CGFloat size, NSFontWeight weight, CGFloat width) {
-    NSFont *f = MMWindowFont(size, weight);
-    NSDictionary *at = @{NSFontAttributeName: f};
+CGFloat MMWindowDrawIn(NSAttributedString *text, NSRect rect) {
+    MMWindowCrisp();
+    CGFloat need = ceil([text boundingRectWithSize:NSMakeSize(rect.size.width, 100000) options:NSStringDrawingUsesLineFragmentOrigin].size.height);
+    // Drawn at its full height: a rect too low would drop its last lines without a word.
+    [text drawWithRect:NSMakeRect(rect.origin.x, rect.origin.y, rect.size.width, MAX(need, rect.size.height)) options:NSStringDrawingUsesLineFragmentOrigin];
+    if (gSeen) gSeen(text.string, NSMakeRect(rect.origin.x, rect.origin.y, rect.size.width, need), rect, NSView.focusView.bounds);
+    return need;
+}
+
+static CGFloat Wide(NSString *t, NSDictionary *at) { return ceil([t sizeWithAttributes:at].width); }
+
+NSArray<NSString *> *MMWindowLines(NSString *text, CGFloat size, NSFontWeight weight, CGFloat width) {
     NSString *t = text ?: @"";
-    // Words end at a space. A name with none, such as a branch, ends its parts at a hyphen, a slash, a dot or an underscore.
-    BOOL spaced = [t rangeOfString:@" "].location != NSNotFound;
-    NSCharacterSet *breaks = [NSCharacterSet characterSetWithCharactersInString:spaced ? @" " : @"-/._"];
-    NSCharacterSet *loose = [NSCharacterSet characterSetWithCharactersInString:@" ,.:;-/_"];
-    while (ceil([t sizeWithAttributes:at].width) > width) {
-        NSRange at2 = [t rangeOfCharacterFromSet:breaks options:NSBackwardsSearch];
-        // One part that is still too wide is cut at the tail, as the last way out.
-        if (at2.location == NSNotFound || at2.location == 0) return MMFitWidth(t, f, MAX(width, 10));
-        t = [[t substringToIndex:at2.location] stringByTrimmingCharactersInSet:loose];
+    NSDictionary *at = @{NSFontAttributeName: MMWindowFont(size, weight)};
+    width = MAX(width, 12);
+    if (Wide(t, at) <= width) return @[t];
+    NSMutableArray<NSString *> *lines = [NSMutableArray new];
+    NSString *line = @"";
+    for (NSString *word in [t componentsSeparatedByString:@" "]) {
+        NSString *more = line.length ? [NSString stringWithFormat:@"%@ %@", line, word] : word;
+        if (Wide(more, at) <= width) { line = more; continue; }
+        if (line.length) { [lines addObject:line]; line = @""; }
+        // A word wider than the line breaks between two characters, as many times as it must.
+        NSString *rest = word;
+        while (Wide(rest, at) > width) {
+            __block NSUInteger cut = 0;
+            [rest enumerateSubstringsInRange:NSMakeRange(0, rest.length) options:NSStringEnumerationByComposedCharacterSequences
+                                  usingBlock:^(NSString *sub, NSRange r, NSRange enclosing, BOOL *stop) {
+                if (Wide([rest substringToIndex:NSMaxRange(r)], at) > width) { *stop = YES; return; }
+                cut = NSMaxRange(r);
+            }];
+            if (cut == 0) cut = [rest rangeOfComposedCharacterSequenceAtIndex:0].length;
+            [lines addObject:[rest substringToIndex:cut]];
+            rest = [rest substringFromIndex:cut];
+        }
+        line = rest;
     }
-    return t;
+    if (line.length) [lines addObject:line];
+    return lines;
 }
 
-NSAttributedString *MMWindowFit(NSString *text, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat width) {
-    NSFont *f = MMWindowFont(size, weight);
-    return MMWindowText(MMFitWidth(text ?: @"", f, MAX(width, 10)), size, weight, color);
+CGFloat MMWindowLineHeight(CGFloat size) { return ceil(size * 1.3); }
+
+CGFloat MMWindowFitSize(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, CGFloat width) {
+    for (CGFloat s = size; s > floor; s -= 0.5) if (Wide(text ?: @"", @{NSFontAttributeName: MMWindowFont(s, weight)}) <= width) return s;
+    return floor;
 }
 
-NSArray<NSString *> *MMWindowSize2(uint64_t bytes) {
-    // One rule for every size the window shows, 195-a's: megabytes whole, gigabytes with one decimal, and a second
-    // one under 10 GB when it says more than the first. The decimal stays when it is a zero, so "1.0 GB" stands
-    // beside "6.6 GB". From 100 GB up the number is whole.
-    const double M = 1024.0 * 1024.0, G = M * 1024.0;
-    if (bytes == 0) return @[@"0", @"MB"];
-    if (bytes < G - M / 2 || bytes >= 1024.0 * G - G / 20) {
-        NSArray<NSString *> *p = [MMBytes(bytes) componentsSeparatedByString:@" "];
-        return @[p.firstObject ?: @"0", p.count > 1 ? p[1] : @""];
+CGFloat MMWindowDrawBlock(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, NSColor *color, CGFloat x, CGFloat y, CGFloat width, NSInteger align, NSInteger anchor) {
+    CGFloat fit = MMWindowFitSize(text, size, floor, weight, width), line = MMWindowLineHeight(fit);
+    NSArray<NSString *> *lines = MMWindowLines(text, fit, weight, width);
+    CGFloat height = line * lines.count, top = anchor < 0 ? y : anchor == 0 ? y - height / 2 : y - height;
+    for (NSUInteger i = 0; i < lines.count; i++) {
+        NSAttributedString *a = MMWindowText(lines[i], fit, weight, color);
+        MMWindowDraw(a, x, top + line * i + line / 2, align);
+        if (gSeen) {
+            CGFloat w = a.size.width, left = align < 0 ? x : align == 0 ? x - width / 2 : x - width, used = align < 0 ? x : align == 0 ? x - w / 2 : x - w;
+            gSeen(lines[i], NSMakeRect(used, top + line * i, w, line), NSMakeRect(left, top, width, height), NSView.focusView.bounds);
+        }
     }
-    double x = bytes / G;
-    if (x >= 99.95) return @[[NSString stringWithFormat:@"%.0f", x], @"GB"];
-    if (x >= 9.995) return @[[NSString stringWithFormat:@"%.1f", x], @"GB"];
-    BOOL two = fabs(x * 10 - round(x * 10)) > 0.3;
-    return @[[NSString stringWithFormat:two ? @"%.2f" : @"%.1f", x], @"GB"];
+    return height;
 }
 
-NSString *MMWindowBytes(uint64_t bytes) { return [MMWindowSize2(bytes) componentsJoinedByString:@" "]; }
-
-NSString *MMWindowWhole(uint64_t bytes) {
-    NSString *s = MMWindowBytes(bytes);
-    return [s stringByReplacingOccurrencesOfString:@".0 " withString:@" "];
+CGFloat MMWindowBlockHeight(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, CGFloat width) {
+    CGFloat fit = MMWindowFitSize(text, size, floor, weight, width);
+    return MMWindowLineHeight(fit) * MMWindowLines(text, fit, weight, width).count;
 }
+
+NSArray<NSString *> *MMWindowSize2(uint64_t bytes, BOOL disk) { return MMWindowSizeParts(bytes, disk); }
+NSString *MMWindowBytes(uint64_t bytes, BOOL disk) { return MMWindowSizeText(bytes, disk); }
+NSString *MMWindowWhole(uint64_t bytes, BOOL disk) { return MMWindowWholeText(bytes, disk); }
 
 NSString *MMWindowCPU(double percent) {
     if (percent < 0.05) return nil;
     return percent < 9.95 ? [NSString stringWithFormat:@"%.1f", percent] : [NSString stringWithFormat:@"%.0f", percent];
 }
 
-NSAttributedString *MMWindowNumber(uint64_t bytes, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat unitSize) {
-    NSArray<NSString *> *p = MMWindowSize2(bytes);
+NSAttributedString *MMWindowNumber(uint64_t bytes, BOOL disk, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat unitSize) {
+    NSArray<NSString *> *p = MMWindowSize2(bytes, disk);
     return MMWindowJoin(@[MMWindowText(p[0], size, weight, color),
                           MMWindowText([MMWindowThin stringByAppendingString:p[1]], unitSize, NSFontWeightRegular, MMWindowColor(MMWindowInkText2))]);
 }

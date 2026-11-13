@@ -2,38 +2,15 @@
 // power icons. It draws what the model holds. The gear turns the area under the top line into Settings and back.
 // Until the person pressed Start once, the welcome stands alone in the same window, MMWindowWelcome.m, and Start lets
 // the menu fade up in its place.
-#import "UI/Window/MMWindowParts.h"
+#import "UI/Window/MMWindowViewParts.h"
 #import "UI/MMFormat.h"
 #import <QuartzCore/CAMediaTimingFunction.h>
 
-// 195-a's times: the graphs come back 0.26 s after the pointer leaves a row, a run's end shows for 2.9 s with a burst that
-// settles over 1.8 s, the two lines follow their numbers about as its 0.9 s ease does, and a step's words rise in over 0.5 s.
-static const NSTimeInterval kFlip = 0.3, kBeat = 0.26, kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 0.5;
+static const NSTimeInterval kFlip = 0.3, kBeat = 0.26;      // 197-b's turn to Settings, and 195-a's wait before the graphs come back
 // The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference.
 static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
 
-@implementation MMWindowView {
-    MMWindowFlipped *_main;
-    MMWindowListView *_left, *_right;
-    MMWindowMiddleView *_middle;
-    MMWindowDockView *_dock;
-    NSBox *_rule;
-    MMWindowSettingsView *_settings;
-    MMWindowButton *_gear, *_power;
-    NSString *_hovered;                 // the row under the pointer
-    NSTimer *_timer;                    // runs only while something moves and the window shows
-    NSDate *_stepped, *_endSeen;        // the last step, and when this view first saw the run ended
-    NSString *_stepWords;               // the step the button shows, and when it came
-    NSDate *_stepCame;
-    BOOL _letGo;                        // the end was shown long enough
-    double _memoryShare, _diskShare, _memoryShown, _diskShown;
-    MMWindowWelcomeView *_welcome;      // made the first time a model holds a welcome
-    BOOL _started;                      // Start was pressed here: a model built before that brings no welcome back
-    BOOL _looking;                      // no model came for a moment, so the window says it is taking its first look
-    BOOL _quiet;                        // from Start until the menu has arrived and a moment more: only Quit takes a press
-    NSInteger _startRun;                // counts Starts and closes, so a fade that outlived its window changes nothing
-    NSInteger _flips;                   // fades between the menu and Settings under way
-}
+@implementation MMWindowView
 
 const NSTimeInterval MMWindowStartGuard = 0.6;
 
@@ -142,9 +119,9 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self layBand];
     _rule.fillColor = MMWindowColor(MMWindowInkLine);
     _rule.hidden = model == nil;
-    _left.ring = model.ring; _right.ring = model.ring;
-    _left.groups = model.memoryGroups;
-    _right.groups = model.diskGroups;
+    [_left setGroups:model.memoryGroups ring:model.ring];
+    [_right setGroups:model.diskGroups ring:model.ring];
+    _middle.model = model;
     _middle.memoryHour = model.memoryHour;
     _middle.diskHour = model.diskHour;
     _dock.model = model;
@@ -278,90 +255,9 @@ BOOL MMWindowTakesPresses(NSView *view) {
 
 - (void)unpoint { _hovered = nil; [self showPointed]; }
 
-#pragma mark The run
+#pragma mark Opening and closing
 
-static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0, (double)back / (double)planned) : 0; }
-
-/// Takes the run's numbers as the place the lines and the gains move toward.
-- (void)followRun:(BOOL)hadRun {
-    MMWindowRun *run = _model.run;
-    if (!run) {
-        _endSeen = nil; _letGo = NO; _stepWords = nil; _stepCame = nil;
-        _memoryShare = _diskShare = _memoryShown = _diskShown = 0;
-        _dock.phase = MMWindowDockCalm;
-        [self push];
-        return;
-    }
-    if (run.running) { _endSeen = nil; _letGo = NO; }
-    else if (!_endSeen) _endSeen = [NSDate date];
-    if (!hadRun || MMWindowReduceMotion()) {
-        // The first frame of a run shows where it stands. Only later changes move.
-        _memoryShare = Share(run.memoryBack, run.memoryPlanned); _diskShare = Share(run.diskBack, run.diskPlanned);
-        _memoryShown = run.memoryBack; _diskShown = run.diskBack;
-        _stepWords = run.step; _stepCame = nil;
-    } else if (run.running && run.step != _stepWords && ![run.step isEqualToString:_stepWords]) {
-        _stepWords = run.step; _stepCame = [NSDate date];
-    }
-    [self step:[NSDate date]];
-    [self wake];
-}
-
-/// One step of the motion. Returns whether anything still moves or waits.
-- (BOOL)step:(NSDate *)now {
-    MMWindowRun *run = _model.run;
-    if (!run) return NO;
-    NSTimeInterval dt = _stepped ? MIN(MAX([now timeIntervalSinceDate:_stepped], 0), 0.1) : 1.0 / 60;
-    _stepped = now;
-    double k = MMWindowReduceMotion() ? 1 : 1 - exp(-dt / kEase);
-    double tm = Share(run.memoryBack, run.memoryPlanned), td = Share(run.diskBack, run.diskPlanned);
-    _memoryShare += (tm - _memoryShare) * k; _diskShare += (td - _diskShare) * k;
-    _memoryShown += (run.memoryBack - _memoryShown) * k; _diskShown += (run.diskBack - _diskShown) * k;
-    BOOL moving = fabs(tm - _memoryShare) > 0.002 || fabs(td - _diskShare) > 0.002 ||
-                  fabs(run.memoryBack - _memoryShown) > 524288 || fabs(run.diskBack - _diskShown) > 524288;
-    if (!moving) { _memoryShare = tm; _diskShare = td; _memoryShown = run.memoryBack; _diskShown = run.diskBack; }
-    if (run.running) {
-        _dock.phase = MMWindowDockRunning; _dock.glow = 0;
-        double x = _stepCame && !MMWindowReduceMotion() ? MIN(MAX([now timeIntervalSinceDate:_stepCame] / kStepIn, 0), 1) : 1;
-        _dock.stepIn = 1 - pow(1 - x, 3);
-        if (x >= 1) _stepCame = nil; else moving = YES;
-    } else {
-        // The end shows with a short glow, then the view lets go and the calm dock is back.
-        NSTimeInterval age = _endSeen ? [now timeIntervalSinceDate:_endSeen] : 0;
-        if (age >= kEndHold) _letGo = YES;
-        _dock.phase = _letGo ? MMWindowDockCalm : MMWindowDockEnded;
-        _dock.glow = _letGo || MMWindowReduceMotion() ? 0 : pow(MAX(0, 1 - age / kGlow), 3);
-        moving = moving || !_letGo;
-    }
-    [self push];
-    return moving;
-}
-
-- (void)push {
-    _dock.memoryShare = _memoryShare; _dock.diskShare = _diskShare;
-    _dock.memoryShown = _memoryShown; _dock.diskShown = _diskShown;
-}
-
-- (void)tick:(NSDate *)now {
-    [self step:now ?: [NSDate date]];
-    [self wake];
-}
-
-/// The timer runs only while the window shows and something moves or the end still shows.
-- (void)wake {
-    MMWindowRun *run = _model.run;
-    BOOL need = run && self.window.isVisible && (run.running ? (_memoryShare != Share(run.memoryBack, run.memoryPlanned) || _diskShare != Share(run.diskBack, run.diskPlanned) ||
-                                                                 _memoryShown != run.memoryBack || _diskShown != run.diskBack || _stepCame != nil) : !_letGo);
-    if (need && !_timer) {
-        _timer = [NSTimer timerWithTimeInterval:1.0 / 60 target:self selector:@selector(frame:) userInfo:nil repeats:YES];
-        [NSRunLoop.mainRunLoop addTimer:_timer forMode:NSRunLoopCommonModes];
-    } else if (!need && _timer) {
-        [_timer invalidate]; _timer = nil;
-    }
-}
-
-- (void)frame:(NSTimer *)t {
-    if (![self step:[NSDate date]] || !self.window.isVisible) { [_timer invalidate]; _timer = nil; }
-}
+- (void)tick:(NSDate *)now { [self runTick:now]; }
 
 - (void)willOpen { if (self.showsWelcome) [_welcome willArrive]; }
 
@@ -479,7 +375,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     // The top line: what asks the person, a white diamond and a hairline. Nobody asks: none of them, and no band.
     if (_model.asks.length && !self.showsWelcome) {
         MMWindowDrawDiamond(NSMakeRect(14, 11, 12, 12), NSColor.whiteColor);
-        MMWindowDraw(MMWindowFit(_model.asks, 13, NSFontWeightMedium, MMWindowColor(MMWindowInkText), b.size.width - 60), 33, 17, -1);
+        MMWindowDrawBlock(_model.asks, 13, 10.5, NSFontWeightMedium, MMWindowColor(MMWindowInkText), 33, 17, b.size.width - 60, -1, 0);
     }
     if (self.showsWelcome) return;
     if (!_model && _looking && !self.showsSettings)

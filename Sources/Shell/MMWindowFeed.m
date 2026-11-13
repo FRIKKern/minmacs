@@ -4,14 +4,6 @@
 
 static NSString *const kApps = @"apps", *const kCaches = @"caches";
 
-/// "64 GB" of memory, in binary units as the Mac names its memory.
-static NSString *MemoryWhole(uint64_t bytes) { return [NSString stringWithFormat:@"%.0f GB", round((double)bytes / (double)(1ull << 30))]; }
-/// "994 GB" of disk, in thousands as the Finder names a disk.
-static NSString *DiskWhole(uint64_t bytes) {
-    double gb = (double)bytes / 1e9;
-    return gb >= 1000 ? [NSString stringWithFormat:@"%.1f TB", gb / 1000] : [NSString stringWithFormat:@"%.0f GB", round(gb)];
-}
-
 NSArray *MMWindowRingHour(MMHistoryRing *ring) {
     if (!ring) return nil;
     NSMutableArray *v = [NSMutableArray arrayWithCapacity:MMHistoryMinutes];
@@ -115,10 +107,8 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
 
     // The last hour of the whole Mac. Before the first fill there is no ring, and the window draws no line.
     MMHistoryView *h = s.history;
-    m.memoryHour = Hour(h.mac, MMWindowMemory, @"Memory in use",
-                        [NSString stringWithFormat:@"Higher means more of the %@ is in use", MemoryWhole(ring.memoryTotal)]);
-    m.diskHour = Hour(h.disk, MMWindowDisk, @"Disk free",
-                      [NSString stringWithFormat:@"Lower means less room left on the %@ disk", DiskWhole(ring.diskTotal)]);
+    m.memoryHour = Hour(h.mac, MMWindowMemory, MMWindowHourTitle(NO), MMWindowHourExplain(NO, ring.memoryTotal));
+    m.diskHour = Hour(h.disk, MMWindowDisk, MMWindowHourTitle(YES), MMWindowHourExplain(YES, ring.diskTotal));
 
     // The fixes, in Fix Everything's order.
     NSMutableSet<NSString *> *inFix = [NSMutableSet new];

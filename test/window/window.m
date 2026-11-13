@@ -310,13 +310,19 @@ static void WindowModel(void) {
     T(@"window: one quiet word where a fact gives one", @"idle kept asks will close kept changed merged in use left behind",
       [@[next.state ?: @"-", db.state ?: @"-", asks.state ?: @"-", chat.state ?: @"-", editor.state ?: @"-", wip.state ?: @"-", spike.state ?: @"-",
          sims.state ?: @"-", helper.state ?: @"-"] componentsJoinedByString:@" "]);
-    // Quiet is a fact of the row: an idle server, an app that uses next to no CPU, a helper, a worktree with nothing
-    // uncommitted. An active server, an agent that asks, a changed worktree and a cache in use are not.
-    T(@"window: a row is quiet when nothing is going on in it", @"yes no no yes yes no yes no",
+    // Quiet is a fact of the row: an idle server, a helper, a worktree with nothing uncommitted. An active server, an
+    // agent that asks, a changed worktree and a cache in use are not, and neither is an app whose CPU is not known.
+    T(@"window: a row is quiet only when a fact says nothing is going on in it", @"yes no no no yes no yes no",
       [@[YN(next.quiet), YN(db.quiet), YN(asks.quiet), YN(chat.quiet), YN(helper.quiet), YN(wip.quiet), YN(spike.quiet), YN(sims.quiet)] componentsJoinedByString:@" "]);
-    T(@"window: the story's first line comes from the row's own facts", @"2 Asks you. A permission prompt is open. | 0 Stays. An agent works in it. | Agent=Claude Code; Project=app",
+    // The story's first line: an agent's raw Why, a fact of its processes, stays in the fact list and is never the
+    // line's sentence. A kept app's reason, written for a person, is.
+    T(@"window: the story's first line uses plain words only", @"2 Asks you. (null) | 0 Stays. An agent works in it. | Agent; Project; Why",
       [NSString stringWithFormat:@"%ld %@ %@ | %ld %@ %@ | %@", (long)asks.fate.kind, asks.fate.lead, asks.fate.note, (long)editor.fate.kind, editor.fate.lead, editor.fate.note,
-       [[asks.storyFacts valueForKey:@"label"] componentsJoinedByString:@"; "].length ? [NSString stringWithFormat:@"%@=%@; %@=%@", asks.storyFacts[0].label, asks.storyFacts[0].value, asks.storyFacts[1].label, asks.storyFacts[1].value] : @""]);
+       [[asks.storyFacts valueForKey:@"label"] componentsJoinedByString:@"; "]]);
+    // One disk, one size: the graph's line and the window's own rule give the same whole, in thousands as the Finder counts.
+    T(@"window: the disk's size in the graph's line is the window's one size for it", @"yes",
+      YN([m.diskHour.explain containsString:[NSString stringWithFormat:@"the %@ disk", MMWindowWholeText(m.ring.diskTotal, YES)]] &&
+         [MMWindowWholeText(245107195904ull, YES) isEqualToString:@"245 GB"] && [MMWindowHourExplain(YES, 245107195904ull) isEqualToString:@"Lower means less room left on the 245 GB disk"]));
     T(@"window: a row with no such fact has no word", @"(nil)", [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"repo")]].state);
     T(@"window: a tabs row counts tabs and holds no bytes", @"3 0", [NSString stringWithFormat:@"%ld %llu", (long)tabs.tabs, tabs.bytes]);
     T(@"window: a tabs row with no bytes shows its count in its name and no size, and other rows show theirs", @"3 Browser | no | :3001 Next.js | yes",
@@ -397,7 +403,7 @@ static void WindowModel(void) {
         for (MMWindowChoice *c in r.choices) if (!c.explain.length) three = NO;
     }
     T(@"window: each rule has three choices, each with what it does", @"yes", YN(three));
-    T(@"window: picked follows each expert's mode, and the removal choice starts as Smart", @"2,0,1,1,0", [[st.rules valueForKey:@"picked"] componentsJoinedByString:@","]);
+    T(@"window: picked follows each expert's mode, and while no removal choice is made none is picked", @"2,0,1,1,-1", [[st.rules valueForKey:@"picked"] componentsJoinedByString:@","]);
     MMWindowRule *removal = st.rules.lastObject;
     T(@"window: the removal card's title and its three choices", @"When MinMacs removes things: Smart,Trash,Delete", [NSString stringWithFormat:@"%@: %@", removal.title,
       [[removal.choices valueForKey:@"title"] componentsJoinedByString:@","]]);

@@ -40,25 +40,38 @@ CGFloat MMWindowWidth(NSAttributedString *line);
 void MMWindowCrisp(void);
 /// Draws one line with its middle at midY. align is -1 for left at x, 0 for centered on x, 1 for right at x.
 void MMWindowDraw(NSAttributedString *line, CGFloat x, CGFloat midY, NSInteger align);
-/// The same text cut at the tail so it fits.
-NSAttributedString *MMWindowFit(NSString *text, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat width);
-/// The same text with whole words dropped from its end until it fits, and no ellipsis: a shorter true name.
-/// A name with no space, such as a branch, loses whole parts at a hyphen, slash, dot or underscore instead.
-NSString *MMWindowShorten(NSString *text, CGFloat size, NSFontWeight weight, CGFloat width);
-/// A size as its number and its unit, "1.86" and "GB", so the unit can be drawn small and gray. One rule for every
-/// size the window shows: megabytes whole, gigabytes with one decimal that stays when it is a zero ("1.0"), a second
-/// decimal under 10 GB when it says more ("1.86", but "1.3"), and whole from 100 GB up ("182").
-NSArray<NSString *> *MMWindowSize2(uint64_t bytes);
+/// No text in the window is ever cut and none ends on an ellipsis. Text that may be longer than its place is drawn
+/// with one of these:
+/// The text as lines no wider than `width`, broken at spaces. A word wider than the line breaks between characters.
+NSArray<NSString *> *MMWindowLines(NSString *text, CGFloat size, NSFontWeight weight, CGFloat width);
+/// A line's height for a type size, as the window sets wrapped text.
+CGFloat MMWindowLineHeight(CGFloat size);
+/// The largest size, from `size` down to `floor` in half points, at which the text is one line of `width`. `floor` when none is.
+CGFloat MMWindowFitSize(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, CGFloat width);
+/// Draws the text whole: on one line when it fits, with the type stepped down to `floor` when that makes it fit, and
+/// wrapped to as many lines as it needs when not. anchor is -1 for the block's top at y, 0 for its middle, 1 for its
+/// foot. Returns the block's height, which MMWindowBlockHeight says without drawing.
+CGFloat MMWindowDrawBlock(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, NSColor *color, CGFloat x, CGFloat y, CGFloat width, NSInteger align, NSInteger anchor);
+CGFloat MMWindowBlockHeight(NSString *text, CGFloat size, CGFloat floor, NSFontWeight weight, CGFloat width);
+/// Draws wrapped text of several fonts into the rect's width, from its top, at its whole height even when the rect is
+/// lower. Returns the height it took.
+CGFloat MMWindowDrawIn(NSAttributedString *text, NSRect rect);
+/// For the checks: called for every string the window draws, with the rect it took, the rect it was allowed (zero
+/// for a single line with no box) and the bounds of the view it was drawn in. nil stops it.
+void MMWindowWatchDraws(void (^_Nullable seen)(NSString *text, NSRect used, NSRect allowed, NSRect bounds));
+/// A size as its number and its unit, "1.86" and "GB", so the unit can be drawn small and gray: MMWindowSizeParts of
+/// the model, where the one rule is written. `disk` counts in thousands, as the Finder does.
+NSArray<NSString *> *MMWindowSize2(uint64_t bytes, BOOL disk);
 /// The size on one line, "1.86 GB".
-NSString *MMWindowBytes(uint64_t bytes);
+NSString *MMWindowBytes(uint64_t bytes, BOOL disk);
 /// What a thing can hold, such as the Mac's memory: the same, with a round number's ".0" left out, "64 GB".
-NSString *MMWindowWhole(uint64_t bytes);
+NSString *MMWindowWhole(uint64_t bytes, BOOL disk);
 /// What stands between a number and its small gray unit: a thin space, closer than a word.
 extern NSString *const MMWindowThin;
 /// CPU as the window says it, of one core: "0.3", "12", or nil when it is not known or under 0.05, and then not shown.
 NSString *_Nullable MMWindowCPU(double percent);
 /// The number in the text color and the unit small and gray, one line.
-NSAttributedString *MMWindowNumber(uint64_t bytes, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat unitSize);
+NSAttributedString *MMWindowNumber(uint64_t bytes, BOOL disk, CGFloat size, NSFontWeight weight, NSColor *color, CGFloat unitSize);
 
 /// The filled values of an hour, as doubles with NAN for a gap. `filled` gets how many minutes hold a value.
 NSArray<NSNumber *> *MMWindowHourValues(NSArray *_Nullable values, NSInteger *_Nullable filled);
@@ -78,6 +91,9 @@ void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MM
 /// its own. Large in the dock, 108 points across, or small in a row's story, 62. With `lit`, that row's arc is white
 /// and lifted and the rest step back. With `after`, the rows Fix Everything touches are left out: the Mac after it.
 void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindowRow *_Nullable lit, BOOL after);
+/// The keys of the rows the ring gives an arc, for the checks: all of them, or with `after` all but the rows Fix
+/// Everything touches. The drawing asks the same rule.
+NSArray<NSString *> *MMWindowRingRows(MMWindowModel *model, BOOL after);
 
 #pragma mark Motion, MMWindowMotion.m
 
@@ -116,16 +132,30 @@ void MMWindowDrawPower(NSRect rect, NSColor *color);
 @interface MMWindowFlipped : NSView
 @end
 
+/// What a row shows beside its name and its number, where its name may reach to, and how many lines the name takes.
+typedef struct { BOOL state, cpu, hour; CGFloat edge; NSInteger lines; } MMWindowRowFit;
+/// A row's name as the lines it is drawn in, whole. It first takes the room of the state word, then of the row's own
+/// hour, then of CPU, and wraps when it is still too long. MMWindowRow.m.
+NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, CGFloat nameLeft, CGFloat right, MMWindowRowFit *_Nullable fit);
+/// The height each line of a name beyond its first adds to a row.
+extern const CGFloat MMWindowNameLine;
+/// A row's second line, where its side has the room: why it stays, or its first facts that the name does not say
+/// already. Whole facts only: one that does not fit is left out, and a path shows its last folders. nil for none.
+NSString *_Nullable MMWindowRowSecondLine(MMWindowRow *row, CGFloat width);
+void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall);
+
 /// One side: its groups, each with a still header and its own scrolling. Drawn in one drawRect.
 @interface MMWindowListView : MMWindowFlipped
 @property (nonatomic, copy) NSArray<MMWindowGroup *> *groups;
 @property (nonatomic, copy, nullable) NSString *hotKey;             // the row drawn as pointed at
 /// The Mac's whole numbers, for the lines that close a side with room left: "This disk", free, held here, the rest.
 @property (nonatomic, strong, nullable) MMWindowRing *ring;
+/// A new model: both at once, laid out once.
+- (void)setGroups:(NSArray<MMWindowGroup *> *)groups ring:(nullable MMWindowRing *)ring;
 @property (copy, nullable) void (^onPoint)(NSString *_Nullable key); // the pointer came to rest on a row, or left
 - (void)reveal:(NSString *)key;                                      // scroll so the row shows
 - (void)rest;                                                        // the window closed: no pending calls, every group back at its top
-/// Each row's name as it is drawn at this width, in order, for the checks: whole, or with whole words dropped.
+/// Each row's name as it is drawn at this width, in order, for the checks: whole, its lines joined by a newline.
 - (NSArray<NSString *> *)drawnNames;
 /// How far each group is scrolled, by its key, for the checks.
 - (NSDictionary<NSString *, NSNumber *> *)offsets;
@@ -133,6 +163,8 @@ void MMWindowDrawPower(NSRect rect, NSColor *color);
 /// with its whole number, and those lines as label and value.
 @property (readonly) CGFloat rowHeight;
 - (NSArray<NSValue *> *)groupFrames;
+/// For the checks: where each row of each group starts in its group, with the end of the last.
+- (NSArray<NSArray<NSNumber *> *> *)rowTops;
 @property (readonly) BOOL showsSum;
 - (NSArray<NSArray<NSString *> *> *)sumLines;
 /// How many rows got the short light of a new row at the last change of the groups, for the checks.
@@ -178,6 +210,13 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 /// The gains as the dock draws them now, top to bottom, such as "2.9 GB memory back". A side that is zero is not
 /// there, so the list holds two lines, one, or none.
 @property (readonly) NSArray<NSString *> *gainLines;
+/// The lines beside the ring as the dock draws them now, top to bottom: "42.4 / 64 GB", "memory in use",
+/// "182 GB disk free", or a pointed row's, or the Mac after the fixes.
+@property (readonly) NSArray<NSString *> *macLines;
+/// How the run ended as it is drawn: whole sentences only, with trailing ones left out when the place is too small.
+@property (readonly) NSString *endNote;
+/// The run's count as VoiceOver last heard it, "Fix 3 of 7", for the checks.
+@property (readonly, nullable) NSString *announced;
 @end
 
 /// Settings in place: a card per rule and one for the switches.

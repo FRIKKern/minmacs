@@ -1,85 +1,13 @@
 // The dock that closes the window: the ring, the two numbers beside it, Fix Everything with its two thin lines,
-// and the gains, each side only when it has something. And the window's own buttons, which are real NSButtons that draw themselves.
+// and the gains, each side only when it has something. The buttons themselves are in MMWindowButton.m.
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
-
-#pragma mark The buttons
-
-@implementation MMWindowButton {
-    NSTrackingArea *_tracking;
-}
-
-+ (instancetype)kind:(MMWindowButtonKind)kind title:(NSString *)title target:(nullable id)target action:(nullable SEL)action {
-    MMWindowButton *b = [[self alloc] initWithFrame:NSZeroRect];
-    b.kind = kind; b.title = title; b.target = target; b.action = action;
-    b.bordered = NO;
-    [b setButtonType:NSButtonTypeMomentaryChange];
-    b.accessibilityLabel = title;
-    return b;
-}
-
-- (void)setLit:(BOOL)lit { _lit = lit; self.needsDisplay = YES; }
-
-/// Tab reaches every button of the window that takes presses now, whatever the system's keyboard setting says.
-- (BOOL)canBecomeKeyView { return self.enabled && MMWindowTakesPresses(self); }
-/// A press, Space or a VoiceOver press: none acts on a button that is hidden, fading or held back.
-- (BOOL)sendAction:(SEL)action to:(id)target { return MMWindowTakesPresses(self) && [super sendAction:action to:target]; }
-
-- (void)updateTrackingAreas {
-    [super updateTrackingAreas];
-    if (_tracking) [self removeTrackingArea:_tracking];
-    _tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect owner:self userInfo:nil];
-    [self addTrackingArea:_tracking];
-}
-
-- (void)setHover:(BOOL)on { _hovered = on; self.needsDisplay = YES; if (self.onHover) self.onHover(); }
-- (void)mouseEntered:(NSEvent *)e { [self setHover:YES]; }
-- (void)mouseExited:(NSEvent *)e { [self setHover:NO]; }
-- (void)viewDidHide { [super viewDidHide]; if (_hovered) [self setHover:NO]; }
-
-- (void)drawRect:(NSRect)dirty {
-    NSRect b = self.bounds;
-    BOOL on = self.lit || (self.hovered && self.enabled);
-    switch (self.kind) {
-        case MMWindowButtonClear: return;   // the dock draws what is under it
-        case MMWindowButtonGear:
-        case MMWindowButtonPower: {
-            if (on) {
-                [[NSColor colorWithWhite:1 alpha:self.lit ? 0.16 : 0.09] setFill];
-                [[NSBezierPath bezierPathWithRoundedRect:b xRadius:6 yRadius:6] fill];
-            }
-            NSColor *ink = on ? NSColor.whiteColor : MMWindowColor(MMWindowInkText2);
-            NSRect icon = NSMakeRect(NSMidX(b) - 7.5, NSMidY(b) - 7.5, 15, 15);
-            if (self.kind == MMWindowButtonGear) MMWindowDrawGear(icon, ink); else MMWindowDrawPower(icon, ink);
-            return;
-        }
-        case MMWindowButtonOutline: {
-            // A small outlined pill, such as Stop under the button while a run plays.
-            NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.5, 0.5) xRadius:b.size.height / 2 - 0.5 yRadius:b.size.height / 2 - 0.5];
-            if (on) { [[NSColor colorWithWhite:1 alpha:0.14] setFill]; [pill fill]; }
-            [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.5 : 0.2] setStroke]; pill.lineWidth = 1; [pill stroke];
-            MMWindowDraw(MMWindowText(self.title, 12, NSFontWeightRegular, [NSColor colorWithWhite:1 alpha:on ? 1 : 0.82]), NSMidX(b), NSMidY(b), 0);
-            return;
-        }
-        case MMWindowButtonPill: {
-            [[NSColor colorWithWhite:1 alpha:on ? 0.14 : 0.07] setFill];
-            [[NSBezierPath bezierPathWithRoundedRect:b xRadius:b.size.height / 2 yRadius:b.size.height / 2] fill];
-            MMWindowDraw(MMWindowText(self.title, 12, NSFontWeightRegular, on ? NSColor.whiteColor : MMWindowColor(MMWindowInkText)), NSMidX(b), NSMidY(b), 0);
-            return;
-        }
-    }
-}
-
-- (void)drawFocusRingMask { [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:MIN(self.bounds.size.height / 2, 28) yRadius:MIN(self.bounds.size.height / 2, 28)] fill]; }
-- (NSRect)focusRingMaskBounds { return self.bounds; }
-
-@end
 
 #pragma mark The dock
 
 static const NSRect kButton = {{290, 19}, {440, 56}};
 // The line under the button, and the dock's quiet inks, from 195-a: the line, the word that stands out in it, a label.
-static const CGFloat kUnder = 96.5;
+static const CGFloat kUnder = 96.5, kNoteRoom = 48;
 static NSColor *Under(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green:235 / 255.0 blue:245 / 255.0 alpha:MMWindowContrast() ? 0.8 : 0.5]; }
 static NSColor *UnderBold(void) { return [NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 1 : 0.86]; }
 static NSColor *Label(void) { return [NSColor colorWithSRGBRed:235 / 255.0 green:235 / 255.0 blue:245 / 255.0 alpha:MMWindowContrast() ? 0.86 : 0.6]; }
@@ -89,15 +17,19 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part);
 
 @implementation MMWindowDockView {
     CALayer *_breath;                   // the part of the button's glow that breathes, while it does
+    BOOL _resting;                      // the window closed: nothing breathes until it comes back
+    NSString *_said;                    // the run's count as VoiceOver last heard it
 }
+
+- (NSString *)announced { return _said; }
 
 - (BOOL)breathes { return _breath != nil; }
 
 /// The glow breathes only at rest with something to fix, away from the pointer, in a window that shows.
-- (void)wake { [self syncBreath]; }
+- (void)wake { _resting = NO; [self syncBreath]; }
 
 - (BOOL)wantsBreath {
-    return self.model && self.phase == MMWindowDockCalm && self.model.fixCount > 0 && !self.fix.hovered && self.window.isVisible && !self.isHiddenOrHasHiddenAncestor && !MMWindowReduceMotion();
+    return !_resting && self.model && self.phase == MMWindowDockCalm && self.model.fixCount > 0 && !self.fix.hovered && self.window.isVisible && !self.isHiddenOrHasHiddenAncestor && !MMWindowReduceMotion();
 }
 
 - (void)syncBreath {
@@ -109,6 +41,7 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part);
 }
 
 - (void)rest {
+    _resting = YES;
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(syncBreath) object:nil];
     [_breath removeFromSuperlayer]; _breath = nil; self.needsDisplay = YES;
 }
@@ -156,10 +89,16 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part);
 - (void)refresh {
     MMWindowRun *run = self.model.run;
     BOOL running = self.phase == MMWindowDockRunning;
-    if (running) self.fix.accessibilityLabel = [NSString stringWithFormat:@"Stop, %@", run.step ?: @"a fix runs"];
+    if (running) self.fix.accessibilityLabel = [@[@"Stop", self.count, run.step ?: @"a fix runs"] componentsJoinedByString:@", "];
     else if (self.phase == MMWindowDockEnded) self.fix.accessibilityLabel = run.endTitle ?: @"Fix Everything";
     else if (self.dimmed) self.fix.accessibilityLabel = @"Fix Everything, dimmed";
     else self.fix.accessibilityLabel = [NSString stringWithFormat:@"Fix Everything, %@", MMPlural(self.model.fixCount, @"fix")];
+    // VoiceOver hears the run move on: "Fix 3 of 7" is said when the count changes, not only drawn.
+    NSString *said = running ? self.count : nil;
+    if (said.length && ![said isEqualToString:_said] && self.window.isVisible)
+        NSAccessibilityPostNotificationWithUserInfo(self.fix, NSAccessibilityAnnouncementRequestedNotification,
+            @{NSAccessibilityAnnouncementKey: said, NSAccessibilityPriorityKey: @(NSAccessibilityPriorityMedium)});
+    _said = said;
     self.fix.enabled = running || (self.phase == MMWindowDockCalm && !self.dimmed);
     // "Fix 3 of 7" and Stop sit under the button as one centered line.
     self.stop.hidden = !running;
@@ -189,45 +128,76 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part);
 - (BOOL)showsAfter { return !self.pointed && self.phase == MMWindowDockCalm && self.model.fixCount > 0 && self.fix.hovered; }
 
 /// Beside the ring, memory and disk as two numbers, never one. While the pointer rests on a row they are that row's
-/// share, and while it rests on Fix Everything they are the Mac after it.
-- (void)drawMac {
+/// share, and while it rests on Fix Everything they are the Mac after it: what is in use now less what the fixes that
+/// need nobody give back, and what is free now plus what they free, each side on its own.
+/// Each line is its words, with the large number and its unit apart where it has one.
+- (NSArray<NSDictionary *> *)mac {
     MMWindowRing *ring = self.model.ring;
-    NSColor *text = MMWindowColor(MMWindowInkText), *label = Label(), *unit = MMWindowColor(MMWindowInkText2), *disk = MMWindowColor(MMWindowInkDisk);
-    CGFloat x = 128;
     MMWindowRow *row = self.pointed;
+    NSMutableArray<NSDictionary *> *out = [NSMutableArray new];
     if (row) {
         BOOL onDisk = row.kind == MMWindowWorktree || row.kind == MMWindowCache;
-        MMWindowDraw(MMWindowFit(row.shownName, 11.5, NSFontWeightRegular, label, 150), x, 31.5, -1);
-        NSAttributedString *big = row.showsSize ? MMWindowNumber(row.bytes, 25, NSFontWeightMedium, text, 12)
-            : MMWindowJoin(@[MMWindowText(@(row.tabs).stringValue, 25, NSFontWeightMedium, text), MMWindowText(row.tabs == 1 ? @" tab" : @" tabs", 12, NSFontWeightRegular, unit)]);
-        MMWindowDraw(big, x, 54, -1);
+        [out addObject:@{@"name": row.shownName}];
+        NSArray<NSString *> *size = row.showsSize ? MMWindowSize2(row.bytes, onDisk) : @[@(row.tabs).stringValue, row.tabs == 1 ? @"tab" : @"tabs"];
+        [out addObject:@{@"big": size[0], @"unit": size[1]}];
         if (row.showsSize) {
             uint64_t used = ring.diskTotal > ring.diskFree ? ring.diskTotal - ring.diskFree : 0;
-            MMWindowDraw(MMWindowText(onDisk ? [NSString stringWithFormat:@"of %@ disk in use", MMWindowBytes(used)]
-                                             : [NSString stringWithFormat:@"of %@ memory in use", MMWindowBytes(ring.memoryUsed)], 11.5, NSFontWeightRegular, label), x, 81, -1);
+            [out addObject:@{@"label": onDisk ? [NSString stringWithFormat:@"of %@ disk in use", MMWindowBytes(used, YES)]
+                                              : [NSString stringWithFormat:@"of %@ memory in use", MMWindowBytes(ring.memoryUsed, NO)]}];
         }
         NSString *cpu = MMWindowCPU(row.cpuPercent);
-        if (cpu) MMWindowDraw(MMWindowText([NSString stringWithFormat:@"CPU %@ %%", cpu], 11.5, NSFontWeightRegular, label), x, 99.5, -1);
-        return;
-    }
-    if (self.showsAfter) {
+        if (cpu) [out addObject:@{@"label": [NSString stringWithFormat:@"CPU %@ %%", cpu]}];
+    } else if (self.showsAfter) {
         NSInteger n = self.model.fixCount;
         uint64_t back = MIN(self.model.memoryBack, ring.memoryUsed);
-        MMWindowDraw(MMWindowText(n == 1 ? @"After the fix" : [NSString stringWithFormat:@"After all %ld", (long)n], 11.5, NSFontWeightRegular, label), x, 31.5, -1);
-        MMWindowDraw(MMWindowNumber(ring.memoryUsed - back, 25, NSFontWeightMedium, text, 12), x, 54, -1);
-        MMWindowDraw(MMWindowText([NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed)], 11.5, NSFontWeightRegular, label), x, 81, -1);
-        MMWindowDraw(MMWindowJoin(@[MMWindowText(MMWindowBytes(ring.diskFree + self.model.diskBack), 11.5, NSFontWeightMedium, disk),
-                                    MMWindowText(@" disk free", 11.5, NSFontWeightRegular, label)]), x, 99.5, -1);
-        return;
+        NSArray<NSString *> *after = MMWindowSize2(ring.memoryUsed - back, NO);
+        [out addObject:@{@"label": n == 1 ? @"After the fix" : [NSString stringWithFormat:@"After all %ld", (long)n]}];
+        [out addObject:@{@"big": after[0], @"unit": after[1]}];
+        [out addObject:@{@"label": [NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed, NO)]}];
+        [out addObject:@{@"disk": MMWindowBytes(ring.diskFree + self.model.diskBack, YES), @"label": @"disk free"}];
+    } else {
+        NSArray<NSString *> *used = MMWindowSize2(ring.memoryUsed, NO);
+        NSString *total = MMWindowWhole(ring.memoryTotal, NO);
+        [out addObject:@{@"big": used[0], @"unit": [total hasSuffix:used[1]] ? [@"/ " stringByAppendingString:total] : [NSString stringWithFormat:@"%@ / %@", used[1], total]}];
+        [out addObject:@{@"label": @"memory in use"}];
+        [out addObject:@{@"disk": MMWindowBytes(ring.diskFree, YES), @"label": @"disk free"}];
     }
-    NSArray<NSString *> *used = MMWindowSize2(ring.memoryUsed);
-    NSString *total = MMWindowWhole(ring.memoryTotal);
-    BOOL same = [total hasSuffix:used[1]];
-    NSString *tail = same ? [@" / " stringByAppendingString:total] : [NSString stringWithFormat:@" %@ / %@", used[1], total];
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(used[0], 25, NSFontWeightMedium, text), MMWindowText(tail, 12, NSFontWeightRegular, unit)]), x, 46.5, -1);
-    MMWindowDraw(MMWindowText(@"memory in use", 11.5, NSFontWeightRegular, label), x, 73.5, -1);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(MMWindowBytes(ring.diskFree), 11.5, NSFontWeightMedium, disk),
-                                MMWindowText(@" disk free", 11.5, NSFontWeightRegular, label)]), x, 92, -1);
+    return out;
+}
+
+- (NSArray<NSString *> *)macLines {
+    NSMutableArray<NSString *> *out = [NSMutableArray new];
+    for (NSDictionary *l in self.mac) {
+        NSMutableArray *words = [NSMutableArray new];
+        for (NSString *k in @[@"name", @"big", @"unit", @"disk", @"label"]) if (l[k]) [words addObject:l[k]];
+        [out addObject:[words componentsJoinedByString:@" "]];
+    }
+    return out;
+}
+
+- (void)drawMac {
+    NSColor *text = MMWindowColor(MMWindowInkText), *label = Label(), *unit = MMWindowColor(MMWindowInkText2), *disk = MMWindowColor(MMWindowInkDisk);
+    NSArray<NSDictionary *> *lines = self.mac;
+    CGFloat x = 128, width = 150;
+    BOOL lead = self.pointed || self.showsAfter;
+    // Three lines sit at 46.5, 73.5 and 92. With a line above the number, four sit at 31.5, 54, 81 and 99.5. A
+    // pointed row's name is whole: when it needs more lines than one, it grows upward first and then pushes the rest down.
+    CGFloat at[4] = {lead ? 31.5 : 46.5, lead ? 54 : 73.5, lead ? 81 : 92, 99.5}, push = 0;
+    for (NSUInteger i = 0; i < lines.count && i < 4; i++) {
+        NSDictionary *l = lines[i];
+        if (l[@"name"]) {
+            CGFloat size = MMWindowFitSize(l[@"name"], 11.5, 10, NSFontWeightRegular, width), line = MMWindowLineHeight(size);
+            NSInteger n = (NSInteger)MMWindowLines(l[@"name"], size, NSFontWeightRegular, width).count;
+            push = MAX(0, (n - 2) * line);
+            MMWindowDrawBlock(l[@"name"], 11.5, 10, NSFontWeightRegular, label, x, at[i] + line / 2 + push, width, -1, 1);
+        } else if (l[@"big"]) {
+            MMWindowDraw(MMWindowJoin(@[MMWindowText(l[@"big"], 25, NSFontWeightMedium, text),
+                                        MMWindowText([[l[@"unit"] hasPrefix:@"/"] ? @" " : MMWindowThin stringByAppendingString:l[@"unit"]], 12, NSFontWeightRegular, unit)]), x, at[i] + push, -1);
+        } else if (l[@"disk"]) {
+            MMWindowDraw(MMWindowJoin(@[MMWindowText(l[@"disk"], 11.5, NSFontWeightMedium, disk),
+                                        MMWindowText([@" " stringByAppendingString:l[@"label"]], 11.5, NSFontWeightRegular, label)]), x, at[i] + push, -1);
+        } else MMWindowDraw(MMWindowText(l[@"label"], 11.5, NSFontWeightRegular, label), x, at[i] + push, -1);
+    }
 }
 
 #pragma mark Fix Everything
@@ -375,7 +345,7 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
         edge.lineWidth = 0.5; [edge stroke];
         if (ended) { title = run.endTitle.length ? run.endTitle : @"Done"; size = 13.5; }
     }
-    MMWindowDraw(MMWindowFit(title, size, weight, ink, b.size.width - 48), NSMidX(b), NSMidY(b) + rise, 0);
+    MMWindowDrawBlock(title, size, running ? 10.5 : 12, weight, ink, NSMidX(b), NSMidY(b) + rise, b.size.width - 48, 0, 0);
     [NSGraphicsContext restoreGraphicsState];
 
     // Under the button: what a press would do, how far the run is, or how it ended. A dimmed button has no line.
@@ -384,23 +354,51 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
     if (running) {
         if (self.count.length) MMWindowDraw(MMWindowText(self.count, 12, NSFontWeightRegular, under), NSMinX(self.stop.frame) - 8, y, 1);
     } else if (ended) {
-        if (!run.endNote.length) return;
-        NSMutableParagraphStyle *center = [NSMutableParagraphStyle new];
-        center.alignment = NSTextAlignmentCenter; center.lineBreakMode = NSLineBreakByWordWrapping;
-        NSAttributedString *note = [[NSAttributedString alloc] initWithString:run.endNote attributes:@{
-            NSFontAttributeName: MMWindowFont(12, NSFontWeightRegular), NSForegroundColorAttributeName: under, NSParagraphStyleAttributeName: center}];
-        [note drawWithRect:NSMakeRect(mid - 226, y - 8, 452, 46) options:NSStringDrawingUsesLineFragmentOrigin];
+        NSString *note = self.endNote;
+        if (note.length) MMWindowDrawIn([self under:@[MMWindowText(note, [self endNoteSize:note], NSFontWeightRegular, under)]], NSMakeRect(mid - 226, y - 8, 452, kNoteRoom));
     } else if (!dimmed) {
         MMWindowFix *first = nil;
         for (MMWindowFix *f in self.model.fixes) if (!f.needsYou) { first = f; break; }
         NSInteger n = self.model.fixCount;
-        NSString *lead = n > 1 ? [MMPlural(n, @"fix") stringByAppendingString:@", "] : @"";
-        CGFloat room = 452 - MMWindowWidth(MMWindowText([lead stringByAppendingString:@" first"], 12, NSFontWeightRegular, under));
-        NSMutableArray *runs = [NSMutableArray arrayWithObjects:MMWindowText(lead, 12, NSFontWeightRegular, under),
-                                MMWindowFit(first.title ?: @"", 12, NSFontWeightMedium, UnderBold(), room), nil];
+        NSMutableArray *runs = [NSMutableArray new];
+        if (n > 1) [runs addObject:MMWindowText([MMPlural(n, @"fix") stringByAppendingString:@", "], 12, NSFontWeightRegular, under)];
+        [runs addObject:MMWindowText(first.title ?: @"", 12, NSFontWeightMedium, UnderBold())];
         if (n > 1) [runs addObject:MMWindowText(@" first", 12, NSFontWeightRegular, under)];
-        MMWindowDraw(MMWindowJoin(runs), mid, y, 0);
+        // One line as a rule. A long fix's name wraps under it, whole.
+        MMWindowDrawIn([self under:runs], NSMakeRect(mid - 226, y - 8, 452, kNoteRoom));
     }
+}
+
+/// Words for the place under the button: centered, wrapped at spaces.
+- (NSAttributedString *)under:(NSArray<NSAttributedString *> *)runs {
+    NSMutableAttributedString *s = [MMWindowJoin(runs) mutableCopy];
+    NSMutableParagraphStyle *center = [NSMutableParagraphStyle new];
+    center.alignment = NSTextAlignmentCenter; center.lineBreakMode = NSLineBreakByWordWrapping;
+    [s addAttribute:NSParagraphStyleAttributeName value:center range:NSMakeRange(0, s.length)];
+    return s;
+}
+
+static CGFloat NoteHeight(NSString *note, CGFloat size) {
+    NSMutableParagraphStyle *wrap = [NSMutableParagraphStyle new];
+    wrap.lineBreakMode = NSLineBreakByWordWrapping;
+    NSAttributedString *a = [[NSAttributedString alloc] initWithString:note attributes:@{NSFontAttributeName: MMWindowFont(size, NSFontWeightRegular), NSParagraphStyleAttributeName: wrap}];
+    return ceil([a boundingRectWithSize:NSMakeSize(452, 10000) options:NSStringDrawingUsesLineFragmentOrigin].size.height);
+}
+
+- (CGFloat)endNoteSize:(NSString *)note { return NoteHeight(note, 12) <= kNoteRoom ? 12 : 11; }
+
+/// How the run ended, as it is drawn: whole sentences only. A note too long for its place at 12 points is set at 11,
+/// and one still too long loses whole sentences from its end.
+- (NSString *)endNote {
+    NSString *note = self.model.run.endNote ?: @"";
+    if (NoteHeight(note, 11) <= kNoteRoom) return note;
+    NSMutableArray<NSString *> *sentences = [[note componentsSeparatedByString:@". "] mutableCopy];
+    while (sentences.count > 1) {
+        [sentences removeLastObject];
+        NSString *shorter = [[sentences componentsJoinedByString:@". "] stringByAppendingString:@"."];
+        if (NoteHeight(shorter, 11) <= kNoteRoom) return shorter;
+    }
+    return sentences.firstObject ?: @"";
 }
 
 #pragma mark The gains
@@ -437,7 +435,7 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
 
 - (NSArray<NSString *> *)gainLines {
     NSMutableArray<NSString *> *out = [NSMutableArray new];
-    for (NSArray *g in self.gains) [out addObject:[NSString stringWithFormat:@"%@ %@", MMWindowBytes([g[0] unsignedLongLongValue]), g[2]]];
+    for (NSArray *g in self.gains) [out addObject:[NSString stringWithFormat:@"%@ %@", MMWindowBytes([g[0] unsignedLongLongValue], [g[1] integerValue] == MMWindowInkDisk), g[2]]];
     return out;
 }
 
@@ -445,7 +443,7 @@ static NSBitmapImageRep *RestGlow(BOOL hot, int part) {
     NSColor *t2 = Label();
     NSMutableArray<NSAttributedString *> *lines = [NSMutableArray new];
     for (NSArray *g in self.gains)
-        [lines addObject:MMWindowJoin(@[MMWindowText(MMWindowBytes([g[0] unsignedLongLongValue]), 23, NSFontWeightMedium, MMWindowColor((MMWindowInk)[g[1] integerValue])),
+        [lines addObject:MMWindowJoin(@[MMWindowText(MMWindowBytes([g[0] unsignedLongLongValue], [g[1] integerValue] == MMWindowInkDisk), 23, NSFontWeightMedium, MMWindowColor((MMWindowInk)[g[1] integerValue])),
                                         MMWindowText([@"  " stringByAppendingString:g[2]], 12, NSFontWeightRegular, t2)])];
     // Two lines sit at 50 and 81. One line sits between them, level with the middle of the button.
     if (lines.count == 1) MMWindowDraw(lines[0], 764, 65.5, -1);
