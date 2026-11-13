@@ -5,9 +5,8 @@
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
 
-// From 195-a: the graphs come back 0.26 s after the pointer leaves a row; a run's end shows for 2.9 s, with a burst
-// that settles over 1.8 s; the two lines follow their numbers with a time constant near its 0.9 s ease; and a new
-// step's words take half a second to rise in.
+// 195-a's times: the graphs come back 0.26 s after the pointer leaves a row, a run's end shows for 2.9 s with a burst that
+// settles over 1.8 s, the two lines follow their numbers about as its 0.9 s ease does, and a step's words rise in over 0.5 s.
 static const NSTimeInterval kBeat = 0.26, kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 0.5;
 // The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference.
 static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;

@@ -247,15 +247,16 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
     CGContextRef cg = NSGraphicsContext.currentContext.CGContext;
     CGContextSaveGState(cg);
     CGContextClipToRect(cg, box);
-    // The rows go into a layer of their own, so a fade thins the rows and not the glass.
-    CGContextBeginTransparencyLayer(cg, NULL);
+    // Where a fade is due, the rows go into a layer of their own, so it thins the rows and not the glass.
+    BOOL fadeFoot = content - off > box.size.height + 0.5, fadeHead = off > 0.5;
+    if (fadeFoot || fadeHead) CGContextBeginTransparencyLayer(cg, NULL);
     NSInteger first = MAX(0, (NSInteger)floor(off / row)), last = MIN((NSInteger)g.rows.count - 1, (NSInteger)floor((off + box.size.height - 0.5) / row));
     for (NSInteger r = first; r <= last; r++)
         [self drawRow:g.rows[r] in:NSMakeRect(5, box.origin.y + r * row - off, f.size.width - 10, row) side:g.side hour:hasHour];
     // Where rows wait below, the last row shown fades as a whole. Once scrolled, so does the edge under the header.
-    if (content - off > box.size.height + 0.5) Fade(cg, NSMaxY(box) - kFade, NSMaxY(box));
-    if (off > 0.5) Fade(cg, NSMinY(box) + kTopFade, NSMinY(box));
-    CGContextEndTransparencyLayer(cg);
+    if (fadeFoot) Fade(cg, NSMaxY(box) - kFade, NSMaxY(box));
+    if (fadeHead) Fade(cg, NSMinY(box) + kTopFade, NSMinY(box));
+    if (fadeFoot || fadeHead) CGContextEndTransparencyLayer(cg);
     CGContextRestoreGState(cg);
 
     // The overlay scroller shows only while the group moves.

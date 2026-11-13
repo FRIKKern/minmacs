@@ -249,6 +249,26 @@ static void Glow(NSBezierPath *pill, NSColor *color, CGFloat blur, CGFloat down)
     [NSGraphicsContext restoreGraphicsState];
 }
 
+/// The glow under the button at rest and under the pointer, drawn once and kept: two blurred shadows are the dearest
+/// thing in the dock, and they never change. The picture is the button's rect with `kGlowPad` around it.
+static const CGFloat kGlowPad = 84;
+static NSBitmapImageRep *RestGlow(BOOL hot) {
+    static NSBitmapImageRep *kept[2][2];
+    BOOL hc = MMWindowContrast();
+    if (kept[hot][hc]) return kept[hot][hc];
+    NSSize size = NSMakeSize(kButton.size.width + 2 * kGlowPad, kButton.size.height + 2 * kGlowPad);
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:(NSInteger)(size.width * 2) pixelsHigh:(NSInteger)(size.height * 2)
+        bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+    rep.size = size;
+    NSGraphicsContext *was = NSGraphicsContext.currentContext;
+    NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+    NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSMakeRect(kGlowPad, kGlowPad, kButton.size.width, kButton.size.height) xRadius:28 yRadius:28];
+    Glow(pill, Orange(159, 69, 0.5 * (hot ? 1 : 0.4)), 32, 0);
+    Glow(pill, hot ? Orange(150, 70, 0.5) : Orange(140, 60, 0.3), hot ? 34 : 22, hot ? 10 : 6);
+    NSGraphicsContext.currentContext = was;
+    return kept[hot][hc] = rep;
+}
+
 - (void)drawButton {
     MMWindowRun *run = self.model.run;
     NSRect b = kButton;
@@ -295,9 +315,13 @@ static void Glow(NSBezierPath *pill, NSColor *color, CGFloat blur, CGFloat down)
         rise = 6 * (1 - MIN(MAX(self.stepIn, 0), 1));
     } else {
         // At rest a warm glow; brighter under the pointer; and a burst as a run ends, which fades.
-        Glow(pill, Orange(159, 69, 0.5 * (hot ? 1 : ended ? 0.9 : 0.4)), 32, 0);
-        if (joy > 0) Glow(pill, Orange(170, 80, 0.7 * joy), 70, 0);
-        Glow(pill, hot ? Orange(150, 70, 0.5) : Orange(140, 60, 0.3), hot ? 34 : 22, hot ? 10 : 6);
+        if (ended) {
+            Glow(pill, Orange(159, 69, 0.45), 32, 0);
+            if (joy > 0) Glow(pill, Orange(170, 80, 0.7 * joy), 70, 0);
+            Glow(pill, Orange(140, 60, 0.3), 22, 6);
+        } else {
+            [RestGlow(hot) drawInRect:NSInsetRect(b, -kGlowPad, -kGlowPad) fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:nil];
+        }
         NSGradient *g = ended ? [[NSGradient alloc] initWithStartingColor:Orange(213, 150, 1) endingColor:Orange(164, 86, 1)]
                         : hot ? [[NSGradient alloc] initWithStartingColor:Orange(198, 124, 1) endingColor:Orange(149, 72, 1)]
                               : [[NSGradient alloc] initWithStartingColor:Orange(182, 99, 1) endingColor:Orange(138, 61, 1)];
