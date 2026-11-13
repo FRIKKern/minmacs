@@ -4,7 +4,9 @@
 /// A row of every kind under the pointer, the pointer on Fix Everything, and a quiet day's story.
 static NSArray<NSArray *> *WindowPolishShots(void) {
     return @[@[@"busy", @"agent", @"agent:4"], @[@"busy", @"asks", @"agent:0"], @[@"busy", @"app", @"app:7"], @[@"busy", @"cache", @"cache:0"],
-             @[@"busy", @"fix", @""], @[@"calm", @"cache", @"cache:1"], @[@"young", @"server", @"server:6006"]];
+             @[@"busy", @"fix", @""], @[@"calm", @"cache", @"cache:1"], @[@"young", @"server", @"server:6006"],
+             // Settings with nobody asking, on a Mac with no lid, every rule Off: as the first live look met it.
+             @[@"calm", @"settings", @""]];
 }
 
 @interface PolishHost : NSObject <MMWindowHost>
@@ -122,4 +124,32 @@ static void WindowPolishChecks(void) {
           @"window dock: Stop shows under the button only while a run plays, and a press stops the run", [NSString stringWithFormat:@"%ld stops, %@", (long)rhost.stops, NSStringFromRect(at)]);
     [rdock.fix performClick:nil];
     Check(rhost.stops == 2 && rhost.fixes == 0, @"window dock: the large button stops the run too", @"");
+
+    // Settings, from the live look: no title touches its explanation, no empty band stands over the title when nobody
+    // asks, and the lid switch of a Mac with no lid is not available.
+    MMWindowView *sv = PolishView(@"calm");
+    PolishHost *shost = [PolishHost new];
+    sv.host = shost;
+    sv.showsSettings = YES;
+    MMWindowSettingsView *panel = nil;
+    for (NSView *sub in sv.subviews) if ([sub isKindOfClass:MMWindowSettingsView.class]) panel = (MMWindowSettingsView *)sub;
+    CGFloat widest = 0, column = 1000;
+    NSButton *lid = nil;
+    for (NSView *sub in panel.subviews) {
+        if (![sub isKindOfClass:NSButton.class] || ![sub respondsToSelector:NSSelectorFromString(@"explainX")]) continue;
+        if ([[sub valueForKey:@"isSwitch"] boolValue]) { if (!lid) lid = (NSButton *)sub; continue; }
+        widest = MAX(widest, MMWindowWidth(MMWindowText([sub valueForKey:@"label"], 13, NSFontWeightMedium, NSColor.whiteColor)));
+        column = MIN(column, [[sub valueForKey:@"explainX"] doubleValue]);
+    }
+    Check(panel && widest > 30 && column >= 30 + widest + 8, @"window settings: every explanation starts past the widest title, with a gap",
+          [NSString stringWithFormat:@"title %g, explanations at %g", widest, column]);
+    MMWindowView *asked = PolishView(@"busy");
+    asked.showsSettings = YES;
+    CGFloat askedTop = 0;
+    for (NSView *sub in asked.subviews) if ([sub isKindOfClass:MMWindowSettingsView.class]) askedTop = sub.frame.origin.y;
+    Check(panel.frame.origin.y == 12 && askedTop == 40 && NSMaxY(panel.frame) == 702, @"window settings: with nobody asking, Settings starts at the top and no empty band stands over it",
+          [NSString stringWithFormat:@"%g and %g", panel.frame.origin.y, askedTop]);
+    [lid performClick:nil];
+    Check(lid && !lid.enabled && [[lid valueForKey:@"inert"] boolValue] && [lid.accessibilityLabel hasSuffix:@"This Mac has no lid, so it changes nothing here."],
+          @"window settings: on a Mac with no lid the lid switch is not available, takes no press and says why", lid.accessibilityLabel);
 }

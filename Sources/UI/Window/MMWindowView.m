@@ -109,6 +109,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     CGFloat top = self.bandTop, W = MMWindowSize.width, H = MMWindowSize.height;
     if (_main.frame.origin.y == top) return;
     CGFloat lists = kLists + kBand - top;
+    _settings.frame = NSMakeRect(0, top, W, 702 - top);
     _main.frame = NSMakeRect(0, top, W, H - top);
     _left.frame = NSMakeRect(0, 0, 320, lists);
     _middle.frame = NSMakeRect(320, 0, 380, lists);
@@ -456,8 +457,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     [[NSColor colorWithWhite:1 alpha:0.17] setStroke];
     [edge stroke];
 
-    // The top line: what asks the person, with a white diamond, and a hairline under it. Settings keeps the hairline.
-    // Nobody asks: no words, no hairline and no band. layBand gave its height to the lists.
+    // The top line: what asks the person, a white diamond and a hairline. Nobody asks: none of them, and no band.
     if (_model.asks.length && !self.showsWelcome) {
         MMWindowDrawDiamond(NSMakeRect(14, 11, 12, 12), NSColor.whiteColor);
         MMWindowDraw(MMWindowFit(_model.asks, 13, NSFontWeightMedium, MMWindowColor(MMWindowInkText), b.size.width - 60), 33, 17, -1);
@@ -465,7 +465,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     if (self.showsWelcome) return;
     if (!_model && _looking && !self.showsSettings)
         MMWindowDraw(MMWindowText(MMWindowLookingNote, 13, NSFontWeightRegular, MMWindowColor(MMWindowInkText2)), NSMidX(b), round(b.size.height * 0.42), 0);
-    if (_model.asks.length || self.showsSettings || (!_model && !_looking)) {
+    if (_model.asks.length || (!_model && (self.showsSettings || !_looking))) {
         [MMWindowColor(MMWindowInkLine) setFill];
         NSRectFillUsingOperation(NSMakeRect(14, 34, b.size.width - 28, 1), NSCompositingOperationSourceOver);
     }

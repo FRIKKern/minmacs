@@ -313,7 +313,13 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     NSInteger minutes = empty || young ? 1 : calm ? 12 : 60;
     MMWindowModel *m = [MMWindowModel new];
     m.generation = 1;
-    m.settings = [name isEqualToString:@"removal"] || welcome ? SettingsWithRemoval() : Settings();
+    m.settings = [name isEqualToString:@"removal"] || welcome || [name isEqualToString:@"calm"] ? SettingsWithRemoval() : Settings();
+    if ([name isEqualToString:@"calm"]) {
+        // The calm day is on a Mac with no lid: the switch changes nothing there, and says so.
+        MMWindowSwitch *lid = m.settings.switches.firstObject;
+        lid.on = NO; lid.inert = YES; lid.note = @"This Mac has no lid, so it changes nothing here.";
+        for (MMWindowRule *r in m.settings.rules) { r.picked = 0; r.note = nil; }
+    }
     if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-trash"] ? 1 : [name isEqualToString:@"welcome-delete"] ? 2 : 0,
                                      [name isEqualToString:@"welcome-watched"]);
     NSInteger asking = empty || young || calm ? 0 : quiet ? 1 : peak ? 3 : 2;

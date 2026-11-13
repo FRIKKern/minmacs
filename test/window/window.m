@@ -420,6 +420,12 @@ static void WindowModel(void) {
     T(@"window: the lid switch says the guard that pauses it", @"Paused, battery under 20%.", st.switches[0].note);
     lid.pauseReason = nil; lid.lidLive = YES;
     T(@"window: and when it is live", @"On now. The Mac keeps running with the lid shut.", [MMWindowExtras readWithLogin:NO].lidNote);
+    lid.laptop = NO;
+    MMWindowExtras *desk = [MMWindowExtras readWithLogin:NO];
+    T(@"window: on a Mac with no lid the switch is inert and says why", @"yes This Mac has no lid, so it changes nothing here. yes",
+      [NSString stringWithFormat:@"%@ %@ %@", YN(desk.lidInert), desk.lidNote, YN(MMWindowSettingsFrom(p, desk).switches[0].inert)]);
+    lid.laptop = YES;
+    T(@"window: and with a lid it is not", @"no", YN([MMWindowExtras readWithLogin:NO].lidInert));
     gLid.state = nil;
     T(@"window: before the first pass the lid switch reads the pref", @"no", YN([MMWindowExtras readWithLogin:NO].lidOn));
 

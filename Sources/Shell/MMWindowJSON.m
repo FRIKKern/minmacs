@@ -80,7 +80,7 @@ NSString *MMWindowKindName(MMWindowKind kind) {
         [rules addObject:@{@"ruleID": r.ruleID, @"title": r.title, @"choices": choices, @"picked": @(r.picked), @"note": Or(r.note)}];
     }
     for (MMWindowSwitch *s in self.switches)
-        [switches addObject:@{@"switchID": s.switchID ?: @"", @"title": s.title ?: @"", @"on": @(s.on), @"note": Or(s.note)}];
+        [switches addObject:@{@"switchID": s.switchID ?: @"", @"title": s.title ?: @"", @"on": @(s.on), @"inert": @(s.inert), @"note": Or(s.note)}];
     return @{@"rules": rules, @"switches": switches};
 }
 @end

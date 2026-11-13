@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MMWindowExtras : NSObject
 @property BOOL lidOn;
 @property (copy, nullable) NSString *lidNote;
+@property BOOL lidInert;                                // this Mac has no lid, so the switch changes nothing here
 @property BOOL loginOn;
 @property (copy, nullable) NSString *loginNote;
 @property (strong, nullable) MMWindowRun *run;

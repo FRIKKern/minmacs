@@ -162,6 +162,9 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (copy) NSString *switchID, *title;            // "lid", "Keep working with the lid closed"
 @property BOOL on;
 @property (copy, nullable) NSString *note;
+/// The switch changes nothing on this Mac, such as the lid switch on a Mac with no lid. It is drawn as not
+/// available, takes no press, and its note says why.
+@property BOOL inert;
 @end
 
 @interface MMWindowSettings : NSObject

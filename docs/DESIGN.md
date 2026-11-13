@@ -41,6 +41,7 @@ Settings is prototype 197-b. The gear turns the area under the top line into car
 - One card for each rule: "Stop idle servers", "Quit apps", "Remove finished worktrees" and "Clean caches and leftovers". Each has three choices, Off, Careful and Eager, and each choice has one sentence that says what it does today. `test/window.sh` checks each sentence against the expert's own rule.
 - One card for the removal choice, "When MinMacs removes things": Smart, Trash or Delete, each with Core's own sentence.
 - One card for this Mac: "Keep working with the lid closed" and "Open at login".
+- In every card the explanations start past the widest title. With room in the cards the type is 13 points and the choices stand apart; when a card's words would not fit, all cards go back to 12. When nobody asks, Settings starts at the window's top, as the menu does. On a Mac with no lid the lid switch is drawn as not available and takes no press.
 
 A press applies at once. There is no Save.
 

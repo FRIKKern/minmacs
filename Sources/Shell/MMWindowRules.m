@@ -115,7 +115,7 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
     [rules addObject:RemovalRule()];
     st.rules = rules;
     MMWindowSwitch *lid = [MMWindowSwitch new];
-    lid.switchID = @"lid"; lid.title = @"Keep working with the lid closed"; lid.on = extras.lidOn; lid.note = extras.lidNote;
+    lid.switchID = @"lid"; lid.title = @"Keep working with the lid closed"; lid.on = extras.lidOn; lid.note = extras.lidNote; lid.inert = extras.lidInert;
     MMWindowSwitch *login = [MMWindowSwitch new];
     login.switchID = @"login"; login.title = @"Open at login"; login.on = extras.loginOn;
     // The same sentence the welcome shows for this state of the switch.
@@ -203,6 +203,7 @@ void MMWindowWelcomeDone(NSInteger removal) {
         NSString *paused = [st valueForKey:@"pauseReason"], *problem = [st valueForKey:@"lidProblem"];
         BOOL live = [[st valueForKey:@"lidLive"] boolValue], other = [[st valueForKey:@"otherApp"] boolValue];
         BOOL laptop = [[st valueForKey:@"laptop"] boolValue];
+        x.lidInert = !laptop;
         if (!laptop) x.lidNote = @"This Mac has no lid, so it changes nothing here.";
         else if (!x.lidOn) x.lidNote = nil;
         else if (other) x.lidNote = @"Another app sets it now.";
