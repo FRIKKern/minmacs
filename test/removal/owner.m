@@ -51,8 +51,10 @@ static void Owners(void) {
         [MMUndo.shared note:p payload:payload];
         [parents addObject:p];
     }
-    // And a part whose staged entry is damaged too.
-    MMUndoRecord *odd = Part(parents.firstObject.rid, @"damaged entry");
+    // And a part whose staged entry is damaged too, in a Wrap Up of its own that ended.
+    MMUndoRecord *oddParent = Unfinished(@"ended, with a damaged part", tree, nil);
+    [MMUndo.shared finish:oddParent ok:NO freed:0 error:@"test"];
+    MMUndoRecord *odd = Part(oddParent.rid, @"damaged entry");
     MMRemovalNote(odd, MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil), nil);
     [MMUndo.shared note:odd payload:@{@"stagedIn": @7, @"staged": @[@{@"from": plain, @"to": @[], @"dev": @"x", @"ino": NSNull.null}, @"not an entry", @{@"from": @3}]}];
     odd = Done(odd);
@@ -126,3 +128,6 @@ static void Owners(void) {
     T(@"sweep: one whose .gitignore says something else is left too, and one with just MinMacs's two files goes", @"yes no", [NSString stringWithFormat:@"%@ %@",
       YN([Read([other stringByAppendingPathComponent:@".gitignore"]) isEqualToString:@"*.log\nnotes\n"]), YN(Exists(ours))]);
 }
+
+// The fourth review: a volume that came back, records that cannot be read, and a pid that is not the owner.
+#import "damaged.m"

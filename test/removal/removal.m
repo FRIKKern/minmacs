@@ -341,6 +341,7 @@ int main(int argc, char **argv) {
         Crash();
         Stranded();
         Owners();
+        Damaged();
         printf("END\n");
     }
     return 0;

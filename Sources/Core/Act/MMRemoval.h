@@ -123,11 +123,25 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts);
 /// deleted: what its removal parts had moved, to the staging folder or to the Trash, goes back to its old path, and
 /// the record and every part still pending are failed, so none stays pending. Only one that had every part through
 /// and had begun its deletes, payload "finishing", is finished. The record's "owner", MMRemovalOwner, says whose it
-/// is: a Wrap Up whose process lives is never touched, whatever its age. A record with no owner is settled once it is
-/// 15 minutes old. MMCoreStart and MMRunWrapUp call it, off main. Returns how many Wrap Ups it settled.
+/// is, MMRemovalOwnerAlive: a Wrap Up whose process lives is never touched, whatever its age. A record with no
+/// owner is settled once it is 15 minutes old. A Wrap Up with a record that cannot be read is skipped and named. MMCoreStart and MMRunWrapUp call it, off main. Returns how many Wrap Ups it settled.
 NSInteger MMRemovalRecoverStaged(void);
-/// {pid, start}: this process, for the Wrap Up record it begins.
+/// {pid, start}: this process, for the Wrap Up record it begins. start is 0 when it could not be read.
 NSDictionary *MMRemovalOwner(void);
+/// Whose Wrap Up it is, from the record's "owner":
+///    1  its process lives, so the record is left alone, whatever its age
+///    0  its process is gone, or the pid is another process now, so it is settled at once
+///   -1  the record names no owner or a damaged one, or the pid is a process of another user: its age decides
+/// With no start time in the record only the pid can be asked. A pid that lives keeps the record, unless that
+/// process began after the record was written: then it only took the pid, and the owner is gone.
+int MMRemovalOwnerAlive(MMUndoRecord *parent);
+/// The rids of the records recovery and the sweep found that cannot be read, -[MMUndoRecord damage]. Each was named
+/// in the log once, and its Wrap Up is left as it is: nothing of it is moved, and nothing deleted.
+NSArray<NSString *> *MMRemovalDamagedRecords(void);
+/// For MMRemovalRecover.m: removes the staging folder of rid once it holds nothing but MinMacs's own marker and
+/// .gitignore, and YES when MINMACS_HOME is set.
+void MMRemovalDropEmptyStagingFolder(NSString *folder, NSString *rid);
+BOOL MMRemovalTestHome(void);
 /// What was left staged though its Wrap Up ended, such as after a put-back that stopped halfway: each item the
 /// record still names goes back to its old path. A folder under <support>/staged that no record names is left alone
 /// and returned in *orphans the first time it is seen, for the log. Nothing is deleted but an empty staging folder.

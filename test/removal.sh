@@ -24,6 +24,9 @@ check "removal: staging is one rename, and nothing in Act copies a person's file
   "$(grep -c 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m) $(grep -cE '[^e]copyItemAt|clonefile|[^e]moveItemAt|copyfile' Sources/Core/Act/MMRemovalApply.m)"
 check "removal: a crash is settled at Core's start and before the next Wrap Up, and the start also sweeps what was left staged" "1 1 1" \
   "$(grep -c 'MMRemovalRecoverStaged()' Sources/Core/MMCore.m) $(grep -c '(void)MMRemovalRecoverStaged();' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalSweepStaged(&orphans)' Sources/Core/MMCore.m)"
+check "removal: staging, finish, recovery and the sweep read a record only through the checked reader" "0 0" \
+  "$(grep -c 'payload\[@' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalRecover.m)"
+check "removal: the device number is recorded and never compared" 0 "$(grep -c 'st_dev [!=]=' Sources/Core/Act/MMUndo.m)"
 check "removal: a Wrap Up's record names the process that owns it" 1 "$(grep -c '@\"owner\": MMRemovalOwner()' Sources/Core/Act/MMWrapUp.m)"
 check "removal: put-back and staging ask whether a thing is there with lstat, never a check that follows links" "0 0" \
   "$(grep -c 'fileExistsAtPath' Sources/Core/Act/MMRemovalApply.m) $(sed -n '/^- (NSString \*)moveBack:/,/^}/p' Sources/Core/Act/MMUndo.m | grep -c 'fileExistsAtPath')"
