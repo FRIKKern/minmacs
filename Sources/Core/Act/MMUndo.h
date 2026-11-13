@@ -31,8 +31,12 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// Why this record cannot be read, or nil: a field MinMacs acts on has another shape than MinMacs writes, such as a
 /// "staged" that is no list or a time that is no number. Such a record is never acted on: restore refuses it, and
 /// recovery and the sweep of MMRemoval.h skip its Wrap Up and name it once in the log. A damaged "owner" is not
-/// counted here: it reads as no owner.
+/// counted here: it reads as no owner. A "kind", "state" or "parentRid" that is no text is damage too.
 @property (readonly, copy) NSString *damage;
+/// Why what this record moved aside cannot be moved back, or nil: its body, or its "staged" or "trashed" list, cannot
+/// be read. A record whose damage lies elsewhere, such as in its "deleted" list, still has those items moved back by
+/// -[MMUndo moveBackOnly:], and is acted on in no other way.
+@property (readonly, copy) NSString *moveDamage;
 @end
 
 /// P52. The one undo engine for every expert.
@@ -61,6 +65,15 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// A Wrap Up record restores each of its parts, newest first. A tool command's record cannot be restored.
 /// Returns nil on success, else the problem in words.
 - (NSString *)restore:(NSString *)rid;
+/// Only what the record moved aside goes back: its "staged" and "trashed" items, each as restore moves them. Unlike
+/// restore it also runs for a record with a damaged field, as long as -[MMUndoRecord moveDamage] is nil, and it never
+/// deletes, restarts, recreates or copies anything. A record whose every item is back is marked restored.
+/// Returns nil, or what is not back, in words.
+- (NSString *)moveBackOnly:(NSString *)rid;
+/// Moves each {from, to, ino, vol} back from to, its place in the Trash or in MinMacs's staging folder, to from. Each
+/// item on its own, only the very file that was moved away, MMFileIsEntry, and never over something at from. place
+/// names where it waits, for the words. Returns nil when every item is back, else what is not, in words.
+- (NSString *)moveBack:(NSArray<NSDictionary *> *)items from:(NSString *)place;
 - (NSArray<MMUndoRecord *> *)recent:(NSString *)expert limit:(NSUInteger)limit;   // newest first, expert nil means all
 - (MMUndoRecord *)record:(NSString *)rid;
 @end
@@ -85,6 +98,10 @@ NSDictionary *MMFileIdentity(NSString *path);
 /// The inode must match. With "vol" the volume's UUID must match too. An entry with "dev" and no "vol", as one
 /// build wrote them, is matched by its inode alone at that path. An entry with neither does not say.
 int MMFileIsEntry(NSString *path, NSDictionary *entry);
+/// The same, and *uuidUnread YES when it answers 0 only because the UUID of the volume that holds path cannot be read
+/// now: then MinMacs cannot tell it is the same file, so it counts as not, and the words say why. An entry with no
+/// UUID, written on a volume that has none, is matched by its inode alone at that path.
+int MMFileIsEntryCheck(NSString *path, NSDictionary *entry, BOOL *uuidUnread);
 
 /// A payload key whose restore an expert does, such as MinMacs's "reopen", which opens closed tabs again through its
 /// tab bridge. -[MMUndo restore:] of a done record that holds key calls the block with the value, after its own steps,

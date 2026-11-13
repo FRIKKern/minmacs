@@ -38,9 +38,11 @@ int MMRemovalOwnerAlive(MMUndoRecord *parent) {
         // Gone. Or a process of another user, which is no MinMacs of this person: then the record's age decides.
         return errno == EPERM ? -1 : 0;
     }
-    // A process that began after the record was written took the pid since. It is not the owner.
+    // A process that began after the record was written may have taken the pid since. Or it is the owner, and the
+    // clock moved back between its start and the record, or the gap is within the clock's own error. A live pid is
+    // never read as gone on that alone: the record's age decides, as for a record with no owner.
     double began = StartOf(pid);
-    if (began > 0 && began > parent.at.timeIntervalSince1970) return 0;
+    if (began > 0 && began > parent.at.timeIntervalSince1970) return -1;
     return 1;
 }
 
@@ -79,21 +81,35 @@ NSInteger MMRemovalRecoverStaged(void) {
     // Only for a record with no owner: one this old does not run any more.
     NSTimeInterval old = 15 * 60;
     if (MMRemovalTestHome() && getenv("MINMACS_STAGE_RECOVER_AFTER")) old = atof(getenv("MINMACS_STAGE_RECOVER_AFTER"));
-    NSMutableArray<MMUndoRecord *> *pending = [NSMutableArray new];
+    NSMutableArray<MMUndoRecord *> *candidates = [NSMutableArray new], *pending = [NSMutableArray new];
     NSMutableDictionary<NSString *, NSMutableArray<MMUndoRecord *> *> *byParent = [NSMutableDictionary new];
     for (MMUndoRecord *r in [MMUndo.shared recent:nil limit:5000]) {
         if (r.parentRid.length) [(byParent[r.parentRid] ?: (byParent[r.parentRid] = [NSMutableArray new])) addObject:r];
-        else if ([r.kind isEqualToString:@"wrapup"] && r.state == MMUndoPending) [pending addObject:r];
+        else if (r.state == MMUndoPending) [candidates addObject:r];
     }
+    // A Wrap Up, or a pending record with parts whose kind cannot be read, which may be one.
+    for (MMUndoRecord *r in candidates)
+        if ([r.kind isEqualToString:@"wrapup"] || (!r.kind && r.damage && byParent[r.rid].count)) [pending addObject:r];
     NSInteger recovered = 0;
     for (MMUndoRecord *parent in pending) {
         NSArray<MMUndoRecord *> *parts = byParent[parent.rid] ?: @[];
-        // A Wrap Up with a record that cannot be read is not settled: nothing of it is moved, and nothing deleted.
-        if (Damaged(parent, parts)) continue;
+        BOOL damaged = Damaged(parent, parts);
         // A Wrap Up whose process lives is never touched, whatever its age: that process still works on it. One whose
         // process is gone is settled at once, so a quick restart after a crash puts things back.
         int alive = MMRemovalOwnerAlive(parent);
         if (alive == 1 || (alive < 0 && -parent.at.timeIntervalSinceNow < old)) continue;
+        if (damaged) {
+            // A record that cannot be read is never finished, and nothing is deleted for it. Its Wrap Up stays pending
+            // until a person looks. What a part moved aside still goes back when that part's body and lists read.
+            NSMutableArray<MMUndoRecord *> *readable = [NSMutableArray new];
+            for (MMUndoRecord *part in parts) {
+                if (part.moveDamage) continue;
+                if (part.state == MMUndoPending) [MMUndo.shared finish:part ok:NO freed:0 error:@"MinMacs stopped before this part ended"];
+                [readable addObject:part];
+            }
+            if (readable.count) (void)MMRemovalPutBack(readable);
+            continue;
+        }
         // Only a true yes that MinMacs wrote counts as "the deletes had begun".
         if (MMRecordFlag(parent.payload, @"finishing")) {
             // Every part had gone through and the deletes had begun: the worktree is gone, so they are finished.
@@ -115,27 +131,47 @@ NSInteger MMRemovalRecoverStaged(void) {
 
 #pragma mark - What was left staged
 
+BOOL MMRemovalDeletesBegan(MMUndoRecord *parent, MMUndoRecord *part) {
+    // Only a Wrap Up that is done and says so with a true yes, and only when neither record is damaged.
+    return parent && !parent.damage && !part.damage && parent.state == MMUndoDone && MMRecordFlag(parent.payload, @"finishing");
+}
+
 NSInteger MMRemovalSweepStaged(NSArray<NSString *> **orphans) {
     // 1. A part that still lists staged items though its Wrap Up ended: a put-back that stopped halfway, or a delete
-    // that could not finish. The record names each item's old path, so each goes back there. Nothing is deleted.
+    // that could not finish.
     NSMutableDictionary<NSString *, MMUndoRecord *> *all = [NSMutableDictionary new];
     NSMutableArray<MMUndoRecord *> *left = [NSMutableArray new];
     NSMutableSet<NSString *> *named = [NSMutableSet new];
     for (MMUndoRecord *r in [MMUndo.shared recent:nil limit:5000]) {
         all[r.rid] = r;
-        if (!r.parentRid.length) continue;
+        // Every record that cannot be read is named once, also one whose parent or kind cannot be read.
+        if (r.damage) NameDamaged(r);
         NSString *folder = MMRecordString(r.payload, @"stagedIn");
-        // A part that cannot be read is not acted on, and its folder is no orphan.
-        if (r.damage) { NameDamaged(r); if (folder) [named addObject:folder]; continue; }
+        // A part whose body or lists cannot be read is not acted on, and its folder is no orphan.
+        if (r.moveDamage) { if (folder) [named addObject:folder]; continue; }
+        if (!r.parentRid.length) continue;
         if (MMRecordList(r.payload, @"staged").count && (r.state == MMUndoDone || r.state == MMUndoFailed)) [left addObject:r];
     }
-    NSInteger back = 0;
+    NSInteger settled = 0;
     for (MMUndoRecord *part in left) {
         MMUndoRecord *parent = all[part.parentRid];
         NSString *folder = MMRecordString(part.payload, @"stagedIn");
-        // A Wrap Up that still runs, that recovery has yet to settle, or that cannot be read is not this sweep's.
-        if (parent && (parent.state == MMUndoPending || parent.damage)) { if (folder) [named addObject:folder]; continue; }
-        if (!MMRemovalPutBack(@[part])) back++;
+        // A Wrap Up that still runs, or that recovery has yet to settle, is not this sweep's.
+        if (parent && parent.state == MMUndoPending) { if (folder) [named addObject:folder]; continue; }
+        if (MMRemovalDeletesBegan(parent, part)) {
+            // The Wrap Up went through and git took the worktree: putting the item back would make the worktree's
+            // folder again for it. Its delete is tried once more, behind the same wall, and then it waits and is listed.
+            if (MMRecordFlag(part.payload, @"sweepTried")) { if (folder) [named addObject:folder]; continue; }
+            [MMUndo.shared note:part payload:@{@"sweepTried": @YES}];
+            (void)MMRemovalFinishStaged(@[part]);
+            if (!MMRecordList([MMUndo.shared record:part.rid].payload, @"staged").count) settled++;
+            else if (folder) [named addObject:folder];
+            continue;
+        }
+        // It failed, was restored, cannot be found or cannot be read: the record names each item's old path, so each
+        // goes back there. Nothing is deleted.
+        if (parent.damage) NameDamaged(parent);
+        if (!MMRemovalPutBack(@[part])) settled++;
         else if (folder) [named addObject:folder];
     }
     // 2. A folder under <support>/staged that no record names: left alone, and named once.
@@ -157,5 +193,5 @@ NSInteger MMRemovalSweepStaged(NSArray<NSString *> **orphans) {
     }
     if (![now isEqualToArray:before]) [seen update:^id(id disk) { return now; }];
     if (orphans) *orphans = fresh;
-    return back;
+    return settled;
 }

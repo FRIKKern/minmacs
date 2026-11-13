@@ -180,9 +180,10 @@ static NSString *StagedWhyNot(NSDictionary *x, MMUndoRecord *r, NSString **real)
     if (!to || !folder) return @"the record does not say where it was staged";
     struct stat st;
     if (lstat(to.fileSystemRepresentation, &st) != 0) return @"it is gone";
-    int same = MMFileIsEntry(to, x);
+    BOOL unread = NO;
+    int same = MMFileIsEntryCheck(to, x, &unread);
     if (same < 0) return @"the record does not say which file was staged";
-    if (same == 0) return @"it is not the file that was staged";
+    if (same == 0) return unread ? @"its volume's UUID cannot be read now, so MinMacs cannot tell it is the file that was staged" : @"it is not the file that was staged";
     NSString *t = MMRemovalRealPath(to), *f = MMRemovalRealPath(folder);
     if (!t || !f) return @"it is gone";
     NSString *why = MMRemovalStagingWhyNot(t, f, r.parentRid, MMRemovalRealPath(MMSupportDir()));
@@ -283,35 +284,95 @@ static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error) {
     return YES;
 }
 
+/// Deletes what part r staged, or with only the one item staged at that path, each checked by StagedWhyNot first.
+/// What cannot go stays staged, its entry noting why. *why gets the last reason. Returns the bytes freed.
+static int64_t FinishPart(MMUndoRecord *r, NSString *only, NSString **why) {
+    int64_t freed = 0;
+    BOOL found = NO;
+    NSMutableArray *left = [NSMutableArray new], *gone = [MMRecordList(r.payload, @"deleted") mutableCopy] ?: [NSMutableArray new];
+    for (NSDictionary *x in MMRecordList(r.payload, @"staged")) {
+        if (only && ![MMRecordString(x, @"to") isEqualToString:only]) { [left addObject:x]; continue; }
+        found = YES;
+        // Only the very file this Wrap Up staged, in the folder MinMacs made for it.
+        NSString *real = nil, *no = StagedWhyNot(x, r, &real);
+        NSString *holder = real.stringByDeletingLastPathComponent;
+        uint64_t before = no ? 0 : FreeOn(holder);
+        NSError *e = nil;
+        if (!no && !Unlink(real, &e)) no = e.localizedDescription ?: @"it could not be deleted";
+        if (no) {
+            // A delete that stopped partway leaves the rest of the item staged, and the entry says why.
+            NSMutableDictionary *y = [x mutableCopy];
+            y[@"why"] = no;
+            [left addObject:y];
+            if (why) *why = no;
+            continue;
+        }
+        uint64_t after = FreeOn(holder);
+        if (after > before) freed += (int64_t)(after - before);
+        [gone addObject:@{@"path": MMRecordString(x, @"from") ?: @""}];
+    }
+    if (only && !found) { if (why) *why = @"the record does not list it"; return 0; }
+    NSMutableDictionary *removal = [MMRecordDict(r.payload, @"removal") mutableCopy] ?: [NSMutableDictionary new];
+    // Deleted only when every staged item went. What is left stays staged, and the part can still restore.
+    if (!left.count) { removal[@"deleted"] = @YES; [removal removeObjectForKey:@"staged"]; }
+    [MMUndo.shared note:r payload:@{@"staged": left, @"deleted": gone, @"removal": removal}];
+    if (MMRecordString(r.payload, @"stagedIn")) MMRemovalDropEmptyStagingFolder(MMRecordString(r.payload, @"stagedIn"), r.parentRid);
+    return freed;
+}
+
 int64_t MMRemovalFinishStaged(NSArray<MMUndoRecord *> *parts) {
     int64_t freed = 0;
     for (MMUndoRecord *given in parts) {
         MMUndoRecord *r = [MMUndo.shared record:given.rid];
-        NSArray<NSDictionary *> *staged = MMRecordList(r.payload, @"staged");
         // A record that cannot be read is never acted on: an entry that does not say where its item came from, a
         // list that is no list. -[MMUndoRecord damage] says which.
-        if (r.state != MMUndoDone || !staged.count || r.damage) continue;
+        if (r.state != MMUndoDone || !MMRecordList(r.payload, @"staged").count || r.damage) continue;
         // Nor is the part of a Wrap Up whose own record cannot be read: nobody can tell that its deletes had begun.
         if ([MMUndo.shared record:r.parentRid].damage) continue;
-        NSMutableArray *left = [NSMutableArray new], *gone = [MMRecordList(r.payload, @"deleted") mutableCopy] ?: [NSMutableArray new];
-        for (NSDictionary *x in staged) {
-            NSString *real = nil;
-            // Only the very file this Wrap Up staged, in the folder MinMacs made for it.
-            if (StagedWhyNot(x, r, &real)) { [left addObject:x]; continue; }
-            NSString *holder = real.stringByDeletingLastPathComponent;
-            uint64_t before = FreeOn(holder);
-            if (!Unlink(real, nil)) { [left addObject:x]; continue; }
-            uint64_t after = FreeOn(holder);
-            if (after > before) freed += (int64_t)(after - before);
-            [gone addObject:@{@"path": MMRecordString(x, @"from") ?: @""}];
-        }
-        NSMutableDictionary *removal = [MMRecordDict(r.payload, @"removal") mutableCopy] ?: [NSMutableDictionary new];
-        // Deleted only when every staged item went. What is left stays staged, and the part can still restore.
-        if (!left.count) { removal[@"deleted"] = @YES; [removal removeObjectForKey:@"staged"]; }
-        [MMUndo.shared note:r payload:@{@"staged": left, @"deleted": gone, @"removal": removal}];
-        if (MMRecordString(r.payload, @"stagedIn")) MMRemovalDropEmptyStagingFolder(MMRecordString(r.payload, @"stagedIn"), r.parentRid);
+        freed += FinishPart(r, nil, NULL);
     }
     return freed;
+}
+
+NSString *MMRemovalDeleteStagedItem(MMUndoRecord *part, NSString *stagedAt, int64_t *freed) {
+    MMUndoRecord *r = [MMUndo.shared record:part.rid];
+    if (!r || !stagedAt.length) return @"the record does not list it";
+    // Never on behalf of a record that cannot be read, its own or its Wrap Up's.
+    if (r.damage || [MMUndo.shared record:r.parentRid].damage) return @"its record is damaged, so MinMacs does not delete it";
+    if (r.state != MMUndoDone && r.state != MMUndoFailed) return @"its part has not ended";
+    NSString *why = nil;
+    int64_t got = FinishPart(r, stagedAt, &why);
+    if (freed) *freed = got;
+    return why;
+}
+
+NSString *MMRemovalPutBackStagedItem(MMUndoRecord *part, NSString *stagedAt, NSString *path) {
+    MMUndoRecord *r = [MMUndo.shared record:part.rid];
+    if (!r || !stagedAt.length || !path.length) return @"the record does not list it";
+    // The record is written again below, so its body and its lists must read.
+    if (r.moveDamage) return @"its record is damaged, so MinMacs does not move it";
+    NSDictionary *x = nil;
+    NSMutableArray *left = [NSMutableArray new];
+    for (NSDictionary *e in MMRecordList(r.payload, @"staged")) {
+        if (!x && [MMRecordString(e, @"to") isEqualToString:stagedAt]) x = e; else [left addObject:e];
+    }
+    if (!x) return @"the record does not list it";
+    // It must wait in the staging folder MinMacs made for this Wrap Up, so a record never moves a file from elsewhere.
+    NSString *t = MMRemovalRealPath(stagedAt), *f = MMRemovalRealPath(MMRecordString(r.payload, @"stagedIn") ?: @"");
+    if (!t) return @"it is gone from the staging folder";
+    NSString *no = f ? MMRemovalStagingWhyNot(t, f, r.parentRid, MMRemovalRealPath(MMSupportDir())) : @"the record does not say where it was staged";
+    if (!no && !MarkerSays(f, r.parentRid)) no = @"its folder was not made by MinMacs for this Wrap Up";
+    if (no) return no;
+    // The very file that was staged goes, and never over something at path: -[MMUndo moveBack:from:].
+    NSMutableDictionary *y = [x mutableCopy];
+    y[@"from"] = path;
+    NSString *problem = [MMUndo.shared moveBack:@[y] from:@"MinMacs's staging folder"];
+    if (problem) return problem;
+    NSMutableArray *moved = [MMRecordList(r.payload, @"movedBack") mutableCopy] ?: [NSMutableArray new];
+    [moved addObject:@{@"from": MMRecordString(x, @"from") ?: @"", @"to": path}];
+    [MMUndo.shared note:r payload:@{@"staged": left, @"movedBack": moved}];
+    MMRemovalDropEmptyStagingFolder(MMRecordString(r.payload, @"stagedIn"), r.parentRid);
+    return nil;
 }
 
 NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts) {
@@ -324,7 +385,8 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts) {
         BOOL holds = MMRecordDict(p, @"removal") && (MMRecordList(p, @"trashed").count || MMRecordList(p, @"staged").count);
         if ((r.state != MMUndoDone && r.state != MMUndoFailed) || !holds) continue;
         // -[MMUndo restore:] renames each staged item back to its exact old path, and refuses when something sits there.
-        NSString *problem = [MMUndo.shared restore:r.rid];
+        // A record with a damaged field has only what it moved aside moved back, and only when its lists read.
+        NSString *problem = r.damage ? [MMUndo.shared moveBackOnly:r.rid] : [MMUndo.shared restore:r.rid];
         if (problem) [problems addObject:[NSString stringWithFormat:@"%@: %@", r.subject ?: r.rid, problem]];
         else if (MMRecordString(p, @"stagedIn")) MMRemovalDropEmptyStagingFolder(MMRecordString(p, @"stagedIn"), r.parentRid);
     }
