@@ -347,6 +347,18 @@ static void Guards(void) {
     T(@"damaged: a Wrap Up whose state cannot be read is not pulled back or failed, and what it staged is listed", @"0 TRASHED=1 no STAGED=1 no pending damaged no no yes",
       [NSString stringWithFormat:@"%ld %@ %@ %@ %@ %@ %@ %@ %@ %@", (long)n, Read(inTrash), YN(Exists(trashed)), Read(to), YN(Exists(staged)), StateWord(parent), WhyName(item), YN(item.canDelete), YN(item.canPutBack),
        YN([MMRemovalDamagedRecords() containsObject:parent.rid])]);
+    T(@"waiting: its delete is refused without offering a put-back it cannot do", @"yes no STAGED=1",
+      [NSString stringWithFormat:@"%@ %@ %@", YN([MMRemovalDeleteWaiting(item.itemID, NULL) containsString:@"Move it by hand from"]), YN([MMRemovalDeleteWaiting(item.itemID, NULL) containsString:@"Put it back"]), Read(to)]);
+    // A state that is text, but none MinMacs writes, cannot be read either.
+    Write(trashed, @"TRASHED=1");
+    parent = Unfinished(@"state is odd text", Path(@"guards/wt4"), GoneOwner());
+    toTrash = TrashOne(parent, @"config to the Trash, odd state", trashed);
+    inTrash = MMRecordString(MMRecordList(toTrash.payload, @"trashed").firstObject, @"to");
+    parent = DoneWrapUp(parent);
+    RewriteBody(parent, @"state", @"finished");
+    (void)MMRemovalRecoverStaged();
+    T(@"damaged: a state that is none MinMacs writes is damage, and its Wrap Up is not pulled back", @"its state is none MinMacs writes TRASHED=1 no pending",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", Or([MMUndo.shared record:parent.rid].damage), Read(inTrash), YN(Exists(trashed)), StateWord(parent)]);
 }
 
 /// For the CLI checks of removal.sh: leaves one item a done Wrap Up could not delete, one whose old path is taken and
