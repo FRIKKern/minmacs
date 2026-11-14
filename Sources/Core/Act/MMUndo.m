@@ -615,6 +615,9 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if ([r.kind isEqualToString:@"tool"]) return @"a tool's own cleanup cannot be undone; its dry-run output is in the record";
     // A record that cannot be read is never acted on.
     if (r.damage) return [@"its record is damaged, so MinMacs does not act on it: " stringByAppendingString:r.damage];
+    // The person wants a Wrap Up back, even when this Undo cannot finish: from now on its leftovers are only put back
+    // or listed, never deleted, MMRemovalDeletesBegan.
+    if (([r.kind isEqualToString:@"wrapup"] || r.parentRid.length) && !MMRecordFlag(r.payload, @"undoAsked")) [self note:r payload:@{@"undoAsked": @YES}];
     if (!r.canRestore && r.state == MMUndoDone && r.deletedNow) {
         NSString *bundle = MMRecordString(MMRecordDict(r.payload, @"bundle"), @"path");
         return bundle.length ? [NSString stringWithFormat:@"it was deleted and cannot be brought back. Its commits on no remote are in the git bundle %@", bundle]

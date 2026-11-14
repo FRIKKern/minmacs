@@ -172,6 +172,16 @@ static BOOL MarkerSays(NSString *folder, NSString *rid) {
     return [[NSString stringWithContentsOfFile:m encoding:NSUTF8StringEncoding error:nil] isEqualToString:rid];
 }
 
+NSString *MMRemovalStagingFolderOf(MMUndoRecord *r) {
+    NSString *f = MMRemovalRealPath(MMRecordString(r.payload, @"stagedIn") ?: @"");
+    if (!f) return nil;
+    // A record whose parent cannot be read: the folder's own name says which Wrap Up made it, and its marker must agree.
+    NSString *rid = r.parentRid, *name = f.lastPathComponent, *beside = @".minmacs-staged-";
+    if (!rid.length) rid = [name hasPrefix:beside] ? [name substringFromIndex:beside.length] : name;
+    if (MMRemovalStagingWhyNot([f stringByAppendingPathComponent:kMarker], f, rid, MMRemovalRealPath(MMSupportDir())) || !MarkerSays(f, rid)) return nil;
+    return f;
+}
+
 /// Why the staged entry x of record r may not be deleted, or nil: the record's own staging folder, made by MinMacs
 /// for this Wrap Up, and the very file that was staged, MMFileIsEntry. An entry that does not say which file it is
 /// is never deleted. *real is its real path.
@@ -334,9 +344,19 @@ int64_t MMRemovalFinishStaged(NSArray<MMUndoRecord *> *parts) {
     return freed;
 }
 
+/// Why a person's act on what part r staged must wait, or nil: its Wrap Up has not ended, so that Wrap Up may still
+/// act on the same files, or recovery settles it at the next start.
+static NSString *StillRuns(MMUndoRecord *r) {
+    MMUndoRecord *parent = r.parentRid.length ? [MMUndo.shared record:r.parentRid] : nil;
+    if (parent && parent.state == MMUndoPending) return MMRemovalOwnerAlive(parent) == 1 ? @"its Wrap Up still runs" : @"its Wrap Up has not ended";
+    return nil;
+}
+
 NSString *MMRemovalDeleteStagedItem(MMUndoRecord *part, NSString *stagedAt, int64_t *freed) {
     MMUndoRecord *r = [MMUndo.shared record:part.rid];
     if (!r || !stagedAt.length) return @"the record does not list it";
+    NSString *runs = StillRuns(r);
+    if (runs) return runs;
     // Never on behalf of a record that cannot be read, its own or its Wrap Up's.
     if (r.damage || [MMUndo.shared record:r.parentRid].damage) return @"its record is damaged, so MinMacs does not delete it";
     if (r.state != MMUndoDone && r.state != MMUndoFailed) return @"its part has not ended";
@@ -349,6 +369,9 @@ NSString *MMRemovalDeleteStagedItem(MMUndoRecord *part, NSString *stagedAt, int6
 NSString *MMRemovalPutBackStagedItem(MMUndoRecord *part, NSString *stagedAt, NSString *path) {
     MMUndoRecord *r = [MMUndo.shared record:part.rid];
     if (!r || !stagedAt.length || !path.length) return @"the record does not list it";
+    NSString *runs = StillRuns(r);
+    if (runs) return runs;
+    if (r.state != MMUndoDone && r.state != MMUndoFailed) return @"its part has not ended";
     // The record is written again below, so its body and its lists must read.
     if (r.moveDamage) return @"its record is damaged, so MinMacs does not move it";
     NSDictionary *x = nil;
@@ -382,7 +405,9 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts) {
         NSDictionary *p = r.payload;
         // Only a removal part that holds something: what it staged for a delete, and what it moved to the Trash to
         // keep. A part that failed midway had moved some of its files too, and those go back with the rest.
-        BOOL holds = MMRecordDict(p, @"removal") && (MMRecordList(p, @"trashed").count || MMRecordList(p, @"staged").count);
+        // Only its lists need to read: a part whose removal field is damaged still has its items moved back. Only a
+        // removal part stages, and a part that says it is one, readable or not, has its Trash items moved back too.
+        BOOL holds = MMRecordList(p, @"staged").count || (p[@"removal"] && MMRecordList(p, @"trashed").count);
         if ((r.state != MMUndoDone && r.state != MMUndoFailed) || !holds) continue;
         // -[MMUndo restore:] renames each staged item back to its exact old path, and refuses when something sits there.
         // A record with a damaged field has only what it moved aside moved back, and only when its lists read.

@@ -595,6 +595,8 @@ static int Mode(MMArgs *a) {
 static int RemovalWaiting(MMArgs *a) {
     NSString *del = [a option:@"--delete"], *back = [a option:@"--put-back"], *to = [a option:@"--to"];
     if ([a word:0] || (del && back) || (to && !back) || [a has:@"--delete"] != (del != nil) || [a has:@"--put-back"] != (back != nil)) return [a usageError];
+    // A flag is never taken for an id or a path: "--delete --dry-run" deletes nothing and says so.
+    for (NSString *v in @[del ?: @"", back ?: @"", to ?: @""]) if ([v hasPrefix:@"-"]) return [a usageError];
     NSArray<MMRemovalWaitingItem *> *items = MMRemovalWaiting();
     if (del || back) {
         NSString *itemID = del ?: back;
@@ -603,6 +605,13 @@ static int RemovalWaiting(MMArgs *a) {
         if (!item) { [a error:@"Nothing waits in MinMacs's staging folder under %@. See minmacs removal --waiting.", itemID]; return MMExitFailed; }
         NSString *where = to ?: item.oldPath;
         if (a.dryRun) {
+            // What the real run would refuse, the dry run refuses too, with the same words.
+            NSString *no = del ? MMRemovalDeleteWaitingWhyNot(item) : MMRemovalPutBackWaitingWhyNot(item, to);
+            if (no) {
+                if (a.json) [a printJSON:@{@"item": item.json, @"dryRun": @YES, @"act": del ? @"delete" : @"put-back", @"done": @NO, @"problem": no, @"to": Or(back ? where : nil)}];
+                else [a error:@"%@ would not be %@: %@. Dry run. Nothing was changed.", item.name, del ? @"deleted" : @"put back", no];
+                return MMExitFailed;
+            }
             NSString *would = del ? [NSString stringWithFormat:@"Would delete %@, %@, from MinMacs's staging folder.", item.name, MMBytes((uint64_t)item.bytes)]
                                   : [NSString stringWithFormat:@"Would put %@ back at %@.", item.name, where ?: @"the path you give with --to"];
             if (a.json) [a printJSON:@{@"item": item.json, @"dryRun": @YES, @"act": del ? @"delete" : @"put-back", @"to": Or(back ? where : nil)}];
@@ -626,10 +635,12 @@ static int RemovalWaiting(MMArgs *a) {
     if (!items.count) { [a print:@"Nothing waits in MinMacs's staging folder."]; return 0; }
     [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)items.count, items.count == 1 ? @"item waits" : @"items wait"];
     for (MMRemovalWaitingItem *i in items) {
-        [a print:@"%@  %@, %@: %@%@", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [@". " stringByAppendingString:i.detail] : @""];
+        [a print:@"%@  %@, %@: %@%@.", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [NSString stringWithFormat:@" (%@)", i.detail] : @""];
+        // What MinMacs may not act on is moved by hand: the exact path it waits at, and where it was.
         [a print:@"    was at %@. %@", i.oldPath ?: @"a place its record does not say",
                  i.canDelete && i.canPutBack ? @"Delete it with --delete, or put it back with --put-back." : i.canDelete ? @"Delete it with --delete."
-                 : i.canPutBack ? @"Put it back with --put-back." : [NSString stringWithFormat:@"Move it by hand from %@.", i.stagedAt]];
+                 : i.canPutBack ? @"Put it back with --put-back."
+                 : [NSString stringWithFormat:@"MinMacs does not act on it. To keep it, move it by hand from %@%@.", i.stagedAt, i.oldPath ? [@" back to " stringByAppendingString:i.oldPath] : @""]];
     }
     return 0;
 }

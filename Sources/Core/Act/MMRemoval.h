@@ -125,10 +125,11 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts);
 /// and had begun its deletes, payload "finishing", is finished. The record's "owner", MMRemovalOwner, says whose it
 /// is, MMRemovalOwnerAlive: a Wrap Up whose process lives is never touched, whatever its age. A record with no
 /// owner is settled once it is 15 minutes old.
-/// A Wrap Up with a record that cannot be read is named, never finished, and nothing is deleted for it. Its own
-/// record stays pending until a person looks. What its parts moved aside still goes back, for each part whose body
-/// and "staged" and "trashed" lists read, -[MMUndoRecord moveDamage]. MMCoreStart and MMRunWrapUp call it, off main.
-/// Returns how many Wrap Ups it settled, not counting those.
+/// A Wrap Up with a record that cannot be read is named, and nothing is deleted for it. What its parts moved aside
+/// goes back, for each part whose body and "staged" and "trashed" lists read, -[MMUndoRecord moveDamage]. Once all
+/// of it is back and nothing waits, the Wrap Up is failed, its error saying its record could not be read in full.
+/// While a part cannot be read or something still waits, it stays pending, and MMRemovalWaiting lists what waits.
+/// MMCoreStart and MMRunWrapUp call it, off main. Returns how many Wrap Ups it settled, failed or finished.
 NSInteger MMRemovalRecoverStaged(void);
 /// {pid, start}: this process, for the Wrap Up record it begins. start is 0 when it could not be read.
 NSDictionary *MMRemovalOwner(void);
@@ -136,7 +137,8 @@ NSDictionary *MMRemovalOwner(void);
 ///    1  its process lives, so the record is left alone, whatever its age
 ///    0  its process is gone, or the pid is another process now, so it is settled at once
 ///   -1  the record names no owner or a damaged one, or the pid is a process of another user: its age decides
-/// With no start time in the record only the pid can be asked. A pid that lives keeps the record when its process
+/// This very process's pid is alive, 1, when the record has no start time. With no start time and another pid, only
+/// the pid can be asked. A pid that lives keeps the record when its process
 /// began before the record was written. One that began after it may have taken the pid since, or the clock may have
 /// moved back: that is never read as gone, -1, so the record's age decides.
 int MMRemovalOwnerAlive(MMUndoRecord *parent);
@@ -158,7 +160,8 @@ BOOL MMRemovalTestHome(void);
 /// MMCoreStart calls it after MMRemovalRecoverStaged. Returns how many parts it settled: put back or deleted.
 NSInteger MMRemovalSweepStaged(NSArray<NSString *> **orphans);
 /// YES when what part staged may be deleted now as its Wrap Up's deletes: the Wrap Up is done, its record says the
-/// deletes had begun with a true yes, "finishing", and neither record is damaged. Otherwise it is put back.
+/// deletes had begun with a true yes, "finishing", neither record is damaged, and no Undo was asked of either,
+/// "undoAsked", which -[MMUndo restore:] notes even when it cannot finish. Otherwise it is put back.
 BOOL MMRemovalDeletesBegan(MMUndoRecord *parent, MMUndoRecord *part);
 
 #pragma mark What still waits
@@ -187,7 +190,8 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
 @end
 /// What sits in a staging folder and cannot be settled, from the records and core/damaged-records.json. A Wrap Up
 /// that still runs, or that recovery will settle at the next start, is not listed. An item of a record whose staged
-/// list cannot be read is found in its staging folder, with no old path.
+/// list cannot be read is found in its staging folder, with no old path. Only what lies directly in a folder that
+/// MMRemovalStagingFolderOf accepts is listed, so a record never lists a file of the person's own.
 NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void);
 /// The person deletes one listed item now. Only an item MinMacs staged itself, whose record and Wrap Up read, whose
 /// Wrap Up ended, and only through MMRemovalFinishStaged's own wall and identity check. nil when it is deleted, else
@@ -197,6 +201,11 @@ NSString *MMRemovalDeleteWaiting(NSString *itemID, int64_t *freed);
 /// and only the very file that was staged. A path of the person's own must be a full path in a folder that exists.
 /// nil when it is there, else why not.
 NSString *MMRemovalPutBackWaiting(NSString *itemID, NSString *path);
+/// The listed item with that id, or nil. Then why MMRemovalDeleteWaiting or MMRemovalPutBackWaiting would refuse it
+/// now, or nil when it would act: what a dry run says.
+MMRemovalWaitingItem *MMRemovalWaitingFind(NSString *itemID);
+NSString *MMRemovalDeleteWaitingWhyNot(MMRemovalWaitingItem *item);
+NSString *MMRemovalPutBackWaitingWhyNot(MMRemovalWaitingItem *item, NSString *path);
 /// For MMRemovalWaiting.m: the one staged item of part at stagedAt, deleted as MMRemovalFinishStaged deletes, or
 /// moved to path, as put-back moves, after the same check of its staging folder. Each notes the record.
 NSString *MMRemovalDeleteStagedItem(MMUndoRecord *part, NSString *stagedAt, int64_t *freed);
@@ -205,6 +214,10 @@ NSString *MMRemovalPutBackStagedItem(MMUndoRecord *part, NSString *stagedAt, NSS
 /// <support>/staged/<rid> or is named .minmacs-staged-<rid>, and item lies directly in it. A folder that only looks
 /// like one, for another rid or one level off, is refused. The marker inside is checked on the disk besides.
 NSString *MMRemovalStagingWhyNot(NSString *item, NSString *folder, NSString *rid, NSString *support);
+/// The real path of record r's staging folder, "stagedIn", or nil when it is none: its name must be the staging
+/// folder of r's Wrap Up and its marker must say that Wrap Up's rid. When r's parent cannot be read, the folder's
+/// own name gives the rid, and the marker must agree.
+NSString *MMRemovalStagingFolderOf(MMUndoRecord *r);
 /// Why nothing may be staged in folder, or nil: a file directly in it must itself pass MMRemovalWallWhyNot, or it
 /// could never be deleted from there. So a worktree at the top of a volume, whose staging folder would sit 2 levels
 /// below the volume's root, has its items left where they are.
