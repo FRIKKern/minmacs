@@ -407,6 +407,9 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts) {
         // keep. A part that failed midway had moved some of its files too, and those go back with the rest.
         // Only its lists need to read: a part whose removal field is damaged still has its items moved back. Only a
         // removal part stages, and a part that says it is one, readable or not, has its Trash items moved back too.
+        // No Wrap Up part trashes without a "removal" today: MMRemovalApply and MMClutterAct note it first. The key
+        // stays as a rule, so a part that sent something to the Trash for another reason, as a migration does, never
+        // has it pulled back here. No test reaches it.
         BOOL holds = MMRecordList(p, @"staged").count || (p[@"removal"] && MMRecordList(p, @"trashed").count);
         if ((r.state != MMUndoDone && r.state != MMUndoFailed) || !holds) continue;
         // -[MMUndo restore:] renames each staged item back to its exact old path, and refuses when something sits there.

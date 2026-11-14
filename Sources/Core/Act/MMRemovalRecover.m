@@ -89,6 +89,32 @@ static NSString *DamageOf(NSArray<MMUndoRecord *> *records) {
     return @"a part cannot be read";
 }
 
+static NSString *Items(NSUInteger n) { return [NSString stringWithFormat:@"%lu item%@", (unsigned long)n, n == 1 ? @"" : @"s"]; }
+
+/// The error of a damaged Wrap Up that recovery fails, built only from what the records say: how many items went
+/// back now, the parts that were restored before wasBack, and what had been deleted, from the parts' "deleted" lists
+/// and the Wrap Up's "finishing". When a list or the flag cannot be read, it says so.
+static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *parts, NSSet<NSString *> *wasBack) {
+    NSUInteger back = 0, gone = 0;
+    // Only a true or false that MinMacs wrote says whether the deletes had begun. A number, even 0, says nothing.
+    id finishing = parent.payload[@"finishing"];
+    BOOL unknown = !parent.payload.count || (finishing && CFGetTypeID((__bridge CFTypeRef)finishing) != CFBooleanGetTypeID());
+    for (MMUndoRecord *given in parts) {
+        MMUndoRecord *r = [MMUndo.shared record:given.rid] ?: given;
+        NSArray *deleted = MMRecordList(r.payload, @"deleted");
+        if (r.payload[@"deleted"] && !deleted) unknown = YES;
+        gone += MAX(deleted.count, r.deletedNow ? 1u : 0u);
+        if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count;
+    }
+    NSString *moved = back ? [NSString stringWithFormat:@"%@ it had moved out of the worktree went back", Items(back)] : @"Nothing it had moved needed to go back";
+    NSString *deleted = unknown ? @"Whether anything was deleted cannot be read from the record"
+                      : gone ? [NSString stringWithFormat:@"%@ had already been deleted and cannot be brought back", Items(gone)]
+                      : MMRecordFlag(parent.payload, @"finishing") ? @"Its deletes had begun, so an item may have been deleted before it stopped, and that cannot be brought back"
+                      : @"Nothing was deleted";
+    return [NSString stringWithFormat:@"MinMacs stopped before this Wrap Up ended, and its record could not be read in full: %@. %@. %@",
+            parent.damage ?: DamageOf(parts), moved, deleted];
+}
+
 NSInteger MMRemovalRecoverStaged(void) {
     // Only for a record with no owner: one this old does not run any more.
     NSTimeInterval old = 15 * 60;
@@ -110,6 +136,9 @@ NSInteger MMRemovalRecoverStaged(void) {
         // process is gone is settled at once, so a quick restart after a crash puts things back.
         int alive = MMRemovalOwnerAlive(parent);
         if (alive == 1 || (alive < 0 && -parent.at.timeIntervalSinceNow < old)) continue;
+        // A Wrap Up whose state cannot be read may have ended, and git may have taken its worktree. Nothing of it is
+        // moved back or failed: it stays pending, named, and MMRemovalWaiting lists what it staged.
+        if (parent.stateUnread) continue;
         if (damaged) {
             // Nothing is deleted for a record that cannot be read. What a part moved aside goes back when that part's
             // body and lists read. A part whose do not is never written, and its Wrap Up stays pending.
@@ -119,15 +148,15 @@ NSInteger MMRemovalRecoverStaged(void) {
                 if (part.state == MMUndoPending) [MMUndo.shared finish:part ok:NO freed:0 error:@"MinMacs stopped before this part ended"];
                 [readable addObject:part];
             }
+            NSMutableSet<NSString *> *wasBack = [NSMutableSet new];
+            for (MMUndoRecord *part in readable) if ([MMUndo.shared record:part.rid].state == MMUndoRestored) [wasBack addObject:part.rid];
             NSString *notBack = readable.count ? MMRemovalPutBack(readable) : nil;
             // Once every part's items are back and nothing of it waits, the Wrap Up is failed, with words that say so.
             // While something still waits it stays pending, and `minmacs removal --waiting` shows where.
             BOOL waits = notBack != nil || readable.count < parts.count;
             for (MMUndoRecord *part in readable) if (StillHolds([MMUndo.shared record:part.rid])) waits = YES;
             if (waits) continue;
-            [MMUndo.shared finish:parent ok:NO freed:0 error:[NSString stringWithFormat:
-                @"MinMacs stopped before this Wrap Up ended, and its record could not be read in full: %@. What it had moved out of the worktree was put back. Nothing was deleted",
-                parent.damage ?: DamageOf(parts)]];
+            [MMUndo.shared finish:parent ok:NO freed:0 error:DamagedWords(parent, parts, wasBack)];
             recovered++;
             continue;
         }

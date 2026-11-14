@@ -149,7 +149,7 @@ NSString *MMRemovalDeleteWaitingWhyNot(MMRemovalWaitingItem *i) {
     NSString *runs = Runs(i);
     if (runs) return runs;
     if (i.why != MMRemovalWaitDamaged) return @"its Wrap Up has not ended";
-    return i.oldPath ? [NSString stringWithFormat:@"its record is damaged, so MinMacs does not delete it. Put it back, or move it by hand from %@", i.stagedAt]
+    return i.oldPath ? [NSString stringWithFormat:@"its record is damaged, so MinMacs does not delete it. %@ it by hand from %@", i.canPutBack ? @"Put it back, or move" : @"Move", i.stagedAt]
                      : [NSString stringWithFormat:@"its record is damaged and does not say what it is, so MinMacs does not delete it. Move it by hand from %@", i.stagedAt];
 }
 

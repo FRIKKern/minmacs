@@ -146,6 +146,7 @@ static NSString *PayloadDamage(NSDictionary *p) {
 @property (readwrite) int64_t freedBytes;
 @property BOOL hasParts;
 @property (copy) NSString *bodyDamage;
+@property (readwrite) BOOL stateUnread;
 @end
 
 @implementation MMUndoRecord
@@ -156,6 +157,7 @@ static NSString *PayloadDamage(NSDictionary *p) {
     r.rid = b[@"rid"]; r.expert = str(@"expert"); r.kind = str(@"kind"); r.findingID = str(@"findingID");
     r.subject = str(@"subject"); r.why = str(@"why"); r.by = str(@"by"); r.parentRid = str(@"parentRid"); r.error = str(@"error");
     r.state = StateFrom(str(@"state"));
+    r.stateUnread = b[@"state"] && ![@[@"pending", @"done", @"failed", @"restored"] containsObject:str(@"state") ?: @""];
     r.at = [NSDate dateWithTimeIntervalSince1970:MMRecordNumber(b, @"at").doubleValue];
     r.payload = MMRecordDict(b, @"payload") ?: @{};
     r.freedBytes = MMRecordNumber(b, @"freedBytes").longLongValue;
@@ -166,6 +168,7 @@ static NSString *PayloadDamage(NSDictionary *p) {
     // part from its Wrap Up, so it is damage, named like the rest.
     else for (NSArray *k in @[@[@"kind", @"kind"], @[@"state", @"state"], @[@"parentRid", @"parent"]])
         if (b[k[0]] && !str(k[0])) { r.bodyDamage = [NSString stringWithFormat:@"its %@ is no text", k[1]]; break; }
+    if (!r.bodyDamage && r.stateUnread) r.bodyDamage = @"its state is none MinMacs writes";
     return r;
 }
 - (NSDictionary *)body {

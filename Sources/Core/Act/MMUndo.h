@@ -31,12 +31,16 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// Why this record cannot be read, or nil: a field MinMacs acts on has another shape than MinMacs writes, such as a
 /// "staged" that is no list or a time that is no number. Such a record is never acted on: restore refuses it, and
 /// recovery and the sweep of MMRemoval.h skip its Wrap Up and name it once in the log. A damaged "owner" is not
-/// counted here: it reads as no owner. A "kind", "state" or "parentRid" that is no text is damage too.
+/// counted here: it reads as no owner. A "kind", "state" or "parentRid" that is no text is damage too, and so is a
+/// state that is none of the four MinMacs writes.
 @property (readonly, copy) NSString *damage;
 /// Why what this record moved aside cannot be moved back, or nil: its body, or its "staged" or "trashed" list, cannot
 /// be read. A record whose damage lies elsewhere, such as in its "deleted" list, still has those items moved back by
 /// -[MMUndo moveBackOnly:], and is acted on in no other way.
 @property (readonly, copy) NSString *moveDamage;
+/// YES when the record names a state that is no text, or text that is none of the four MinMacs writes. Such a record
+/// reads as pending, and is damage too: whether it had ended cannot be told.
+@property (readonly) BOOL stateUnread;
 @end
 
 /// P52. The one undo engine for every expert.

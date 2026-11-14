@@ -129,6 +129,8 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts);
 /// goes back, for each part whose body and "staged" and "trashed" lists read, -[MMUndoRecord moveDamage]. Once all
 /// of it is back and nothing waits, the Wrap Up is failed, its error saying its record could not be read in full.
 /// While a part cannot be read or something still waits, it stays pending, and MMRemovalWaiting lists what waits.
+/// The error says how many items went back and what had been deleted, only as far as the records show it. A Wrap Up
+/// whose state cannot be read, -[MMUndoRecord stateUnread], may have ended: nothing of it is moved back or failed.
 /// MMCoreStart and MMRunWrapUp call it, off main. Returns how many Wrap Ups it settled, failed or finished.
 NSInteger MMRemovalRecoverStaged(void);
 /// {pid, start}: this process, for the Wrap Up record it begins. start is 0 when it could not be read.
