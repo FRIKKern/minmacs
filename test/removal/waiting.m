@@ -264,6 +264,18 @@ static void Guards(void) {
     for (MMRemovalWaitingItem *i in MMRemovalWaiting()) if ([i.stagedAt hasPrefix:doc.stringByDeletingLastPathComponent]) fromDocs++;
     T(@"waiting: a damaged record whose stagedIn is no staging folder lists nothing from it", @"0 MY THESIS", [NSString stringWithFormat:@"%lu %@", (unsigned long)fromDocs, Read(doc)]);
     [fm moveItemAtPath:to toPath:plain error:nil];
+    // And one whose staged list reads but whose trashed list does not: an entry that names a file outside its staging
+    // folder is not listed either.
+    parent = Unfinished(@"trashed damaged, forged entry", tree, nil);
+    part = StageMany(parent, @"config, trashed damaged, forged", @[plain], YES);
+    to = StagedTo(part);
+    forged = [MMFileIdentity(doc) mutableCopy];
+    forged[@"from"] = [tree stringByAppendingPathComponent:@"thesis.txt"]; forged[@"to"] = doc;
+    [MMUndo.shared note:part payload:@{@"staged": @[forged, MMRecordList(part.payload, @"staged").firstObject], @"trashed": @"no list"}];
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    T(@"waiting: a damaged record lists what waits in its staging folder, and not a file elsewhere that it names", @"damaged not listed MY THESIS",
+      [NSString stringWithFormat:@"%@ %@ %@", WhyName(WaitingAt(to)), WhyName(WaitingAt(doc)), Read(doc)]);
+    [fm moveItemAtPath:to toPath:plain error:nil];
 
     // F3. The person asked for an Undo of a done Wrap Up and it could not finish: from then on its leftover is only
     // put back or listed, never deleted by the sweep.
