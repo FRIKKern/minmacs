@@ -223,8 +223,8 @@ NSString *MMClutterToolPath(NSString *name) {
 @interface MMClutterKind ()
 @property (readwrite, copy) NSString *kindID, *title, *group, *cleanup, *dryRun, *ownerSetting, *owner, *rebuild, *advice, *workaround, *signature;
 @property (readwrite) MMClutterClass klass;
-@property (readwrite) NSArray<NSString *> *paths, *names, *beside, *never, *quitFirst, *cleanupArgs, *dryRunArgs;
-@property (readwrite) BOOL reportOnly, skipWhenTracked, walk;
+@property (readwrite) NSArray<NSString *> *paths, *names, *beside, *never, *quitFirst, *cleanupArgs, *dryRunArgs, *rebuiltFrom;
+@property (readwrite) BOOL reportOnly, skipWhenTracked, walk, rebuilt;
 @property (readwrite) NSTimeInterval minAge, every;
 @property (readwrite) NSDictionary *json;
 @property NSString *reportOnlyWhen;
@@ -259,6 +259,9 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
     k.reportOnlyWhen = Str(j[@"reportOnlyWhen"]);
     k.reportOnly = k.klass == MMClutterReport || k.klass == MMClutterData || [j[@"reportOnly"] boolValue];
     k.skipWhenTracked = [j[@"skipWhenTracked"] boolValue];
+    k.rebuiltFrom = Strings(j[@"rebuiltFrom"]).count ? Strings(j[@"rebuiltFrom"]) : k.beside;
+    // Only a row that acts may say a tool rebuilds it, and only with YES written out. A leftover never does.
+    k.rebuilt = j[@"rebuilt"] == (id)kCFBooleanTrue && (k.klass == MMClutterCache || k.klass == MMClutterBuild || k.klass == MMClutterTool);
     k.walk = j[@"walk"] ? [j[@"walk"] boolValue] : YES;
     k.minAge = MAX(0, [j[@"minAge"] doubleValue]);
     k.every = MAX(kMinEvery, [j[@"every"] doubleValue]);
@@ -296,7 +299,7 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
 
 @interface MMClutterItem ()
 @property (readwrite) MMClutterKind *kind;
-@property (readwrite, copy) NSString *path, *ownerPath, *sessionID, *why;
+@property (readwrite, copy) NSString *path, *ownerPath, *sessionID, *why, *unproven;
 @property (readwrite) NSArray<NSString *> *members;
 @property (readwrite) BOOL ownerGone;
 @property (readwrite) MMSize size;
@@ -317,6 +320,7 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
     if (self.ownerPath) j[@"ownerPath"] = self.ownerPath;
     if (self.sessionID) j[@"sessionID"] = self.sessionID;
     if (self.why) j[@"why"] = self.why;
+    if (self.unproven) j[@"unproven"] = self.unproven;
     if (self.lastUsed) j[@"lastUsed"] = @(self.lastUsed.timeIntervalSince1970);
     MMClutterTrend t = self.trend;
     if (t.ok || t.points) j[@"trend"] = @{@"ok": @(t.ok), @"bytesPerDay": @(t.bytesPerDay), @"windowDays": @(t.windowDays), @"points": @(t.points),
@@ -329,6 +333,7 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
     i.kind = k; i.path = j[@"path"]; i.members = Strings(j[@"members"]).count ? Strings(j[@"members"]) : @[i.path];
     i.ownerPath = Str(j[@"ownerPath"]); i.sessionID = Str(j[@"sessionID"]); i.why = Str(j[@"why"]);
     i.ownerGone = [j[@"ownerGone"] boolValue];
+    i.unproven = Str(j[@"unproven"]);
     i.size = (MMSize){ [j[@"allocated"] unsignedLongLongValue], [j[@"freed"] unsignedLongLongValue], [j[@"files"] integerValue], 0 };
     if ([j[@"lastUsed"] doubleValue] > 0) i.lastUsed = [NSDate dateWithTimeIntervalSince1970:[j[@"lastUsed"] doubleValue]];
     NSString *st = Str(j[@"state"]);
@@ -769,7 +774,8 @@ static BOOL NeverHits(NSString *never, NSString *p) {
         if (e->fts_info != FTS_D) continue;
         if (e->fts_level == 0) continue;
         NSString *name = @(e->fts_name), *p = @(e->fts_path);
-        if (e->fts_level > kProjectDepth || [name isEqualToString:@".git"]) { fts_set(fts, e, FTS_SKIP); continue; }
+        // MinMacs's own staging folder beside a worktree, Act/MMRemoval.h, is never clutter and is never walked.
+        if (e->fts_level > kProjectDepth || [name isEqualToString:@".git"] || [name hasPrefix:@".minmacs-staged-"]) { fts_set(fts, e, FTS_SKIP); continue; }
         // Another checkout inside this one is walked on its own.
         if (![p isEqualToString:project] && [projects containsObject:p]) { fts_set(fts, e, FTS_SKIP); continue; }
         if ([names containsObject:name]) {
@@ -909,10 +915,34 @@ static BOOL IsUUID(NSString *s) {
     }
 }
 
+/// Why the tool cannot be shown to rebuild this item now, or nil. Only for a rebuilt row of folders inside projects:
+/// git must say it tracks nothing in each folder, and one of the row's rebuiltFrom files must sit beside it.
+- (NSString *)unprovenFor:(MMClutterItem *)i {
+    MMClutterKind *k = i.kind;
+    if (!k.rebuilt || !k.names.count) return nil;
+    if (!k.rebuiltFrom.count) return @"its row names no file that its tool rebuilds it from";
+    NSFileManager *fm = NSFileManager.defaultManager;
+    for (NSString *m in i.members) {
+        NSString *dir = m.stringByDeletingLastPathComponent;
+        BOOL found = NO;
+        for (NSString *f in k.rebuiltFrom) {
+            BOOL isDir = NO;
+            if ([fm fileExistsAtPath:[dir stringByAppendingPathComponent:f] isDirectory:&isDir] && !isDir) { found = YES; break; }
+        }
+        if (!found) return [NSString stringWithFormat:@"no %@ sits beside it, so its tool cannot rebuild the same thing", [k.rebuiltFrom componentsJoinedByString:@" or "]];
+        int status = -1;
+        NSString *out = GitLsFiles(dir, m.lastPathComponent, &status);
+        if (status != 0) return @"git could not say whether it tracks it";
+        if (out.length) return @"git tracks files in it, so it is part of the project";
+    }
+    return nil;
+}
+
 /// The state of one item on what the disk and the kernel say now. open is the set MMOpenUnder found, or nil to ask.
 - (void)judge:(MMClutterItem *)i open:(NSSet<NSString *> *)open sample:(MMSample *)sample projects:(NSArray<NSString *> *)projects {
     MMClutterKind *k = i.kind;
     i.state = MMClutterFree; i.why = nil;
+    i.unproven = [self unprovenFor:i];
     NSTimeInterval now = NSDate.date.timeIntervalSince1970;
     // Data and report rows are never acted on, whatever the walls say.
     if (k.reportOnly) { i.state = MMClutterKept; i.why = k.ownerSetting ?: k.advice ?: @"its row only reports it"; return; }

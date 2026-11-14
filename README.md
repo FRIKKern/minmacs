@@ -2,7 +2,7 @@
 
 # MinMacs
 
-MinMacs 2.0 is one macOS menu bar app for a Mac that runs coding agents. It joins five apps that used to run on their own: MinMacs, LocoHost, WorkForest, Noo-Noo and Insomnia. Each one is now an expert inside MinMacs, with its own icon, menu and CLI verbs. All five read one shared core that samples the Mac once every 5 seconds, so the Mac pays for one sampler and not five.
+MinMacs 2.0 is one macOS menu bar app for a Mac that runs coding agents. It joins five apps that used to run on their own: MinMacs, LocoHost, WorkForest, Noo-Noo and Insomnia. Each one is now an expert inside MinMacs, with its own findings, rules and CLI verbs. One icon opens one window that shows what all five found, with memory on one side and disk on the other, and one button, Fix Everything. All five read one shared core that samples the Mac once every 5 seconds, so the Mac pays for one sampler and not five.
 
 MinMacs 2.0 is built on `main` and is not released yet. MinMacs 1.2 lives on the [`legacy`](https://github.com/FRIKKern/minmacs/tree/legacy) branch, and `install.sh` installs 1.2 from there by default. See [Install](#install).
 
@@ -20,10 +20,10 @@ Every picture on this page is a PNG from `tools/render.sh`, which draws each exp
 | MinMacs | Running apps, their memory and CPU, and the agents that use them | Quit apps on the close list, trim noise tabs in browsers, restore both | MinMacs 1.2 |
 | LocoHost | Every server on a localhost port: what runs, in which folder and branch, who uses it | Stop a dev server nobody uses, start it again | LocoHost 0.1 |
 | WorkForest | Every git worktree: merged or not, what it holds, what removing it frees | Remove a merged worktree, and recreate it at the same commit | WorkForest 0.1 |
-| Noo-Noo | Caches, build output and leftovers of agents and tools | Move them to the Trash, or run the tool's own clean command after a recovery copy | Noo-Noo 0.7 |
+| Noo-Noo | Caches, build output and leftovers of agents and tools | Remove them as you chose, or run the tool's own clean command | Noo-Noo 0.7 |
 | Insomnia | Agents that work right now, power, battery, lid and heat | Keep the Mac awake while an agent works, and let it sleep when none does | Insomnia 1.3 |
 
-Each expert has three modes. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge, a second model call, lets go. No mode acts on its own during the first day after the first launch. Every action is checked again right before it runs and writes an undo record first. What it removes goes to the Trash, to a recovery folder or through the owning tool's own command.
+Each expert has three modes. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge, a second model call, lets go. No mode acts on its own during the first day after the first launch. Every action is checked again right before it runs and writes an undo record first. What it removes goes where you chose: Smart, the default, deletes what git or its tool can give back and sends the rest to the Trash or a recovery folder. Trash keeps everything, and Delete deletes at once.
 
 <table>
 <tr>
@@ -40,7 +40,7 @@ Each expert has three modes. Idle acts on nothing. Proactive, the default, acts 
 </tr>
 </table>
 
-A row's hover card says whether the item stays or goes and why, with at most five facts. A fact that belongs to another expert links to that expert's card. Settings has "One Icon", which puts all five menus into one flat menu. [docs/DESIGN.md](docs/DESIGN.md) is the standard every menu follows.
+A row's hover card says whether the item stays or goes and why, with at most five facts. A fact that belongs to another expert links to that expert's card. These menus are the ones of before: they open when the pref `core.window` is off, and their Settings has "One Icon", which puts all five menus into one flat menu. By default the MinMacs icon opens the menu window. [docs/DESIGN.md](docs/DESIGN.md) is the standard for both.
 
 ## Install
 
@@ -105,7 +105,7 @@ Some decisions need judgment, such as whether a quiet dev server is still wanted
 - [docs/REVIEW.md](docs/REVIEW.md): the review broker, triage, fingerprints, fact blocks and Investigate, with the token numbers.
 - [docs/PRIVACY.md](docs/PRIVACY.md): what is sent to the model, field by field, and what is redacted.
 - [docs/CLI.md](docs/CLI.md): every verb and flag.
-- [docs/DESIGN.md](docs/DESIGN.md): the menu standard.
+- [docs/DESIGN.md](docs/DESIGN.md): the design standard, for the menu window and the menus of before.
 - [docs/2.0/PLAN.md](docs/2.0/PLAN.md): the plan and the decisions.
 - [AGENTS.md](AGENTS.md): the layout and rules for agents that work on the code.
 

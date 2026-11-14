@@ -143,9 +143,9 @@ Every call records its full usage split (F7). **Target:** a fifth of today's 3.2
 - **Every expert starts in Proactive** with a day of watching before it acts on its own (A8).
 - **Insomnia** keeps the Mac awake only while an agent works (decision 4).
 - **No hooks are installed** (decision 11). Claude Code's status files, cmux events, Codex's SQLite and power assertions cover Claude Code and Codex with nothing installed. Opt-in async hooks may come later, if a measurement shows a gap.
-- **No onboarding window.** On the first day each expert's summary says what it watches and when it first acts (G3).
+- **A welcome, once, and no separate onboarding window.** The menu window of issue #62 opens on a welcome the first time, in that same window: what MinMacs is, Open at login, the removal choice, three facts and Start. It never shows again once Start was pressed. With the menus, there is no welcome: on the first day each expert's summary says what it watches and when it first acts (G3).
 - **Icons:** an expert whose field is empty on this Mac starts with its icon hidden, and shows it when the field appears.
-- **Login:** MinMacs registers as a login item on first launch, says so in one line, and has a switch in Settings (decision 18).
+- **Login:** MinMacs registers as a login item on first launch, says so in one line, and has a switch in Settings (decision 18). With the menu window, `core.window`, the first launch adds nothing: the welcome asks, with the switch on for a person new to MinMacs and where the login item stands for one who used it before, and Start changes the login item only to what the switch says.
 - **The model** is found on its own: whichever claude or codex login is signed in.
 - **Old apps:** their settings, rules, keeps and undo records carry over.
 

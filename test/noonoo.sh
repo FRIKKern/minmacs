@@ -58,9 +58,10 @@ nn_old() { find "$@" -exec touch -h -t 202601010000 {} + 2>/dev/null; }
 nn_main="$nn/code/acme"; nn_wt="$nn/code/acme.wt/feat"
 mkdir -p "$nn_main/dist"
 printf '{"name":"acme"}\n' >"$nn_main/package.json"
+printf '{"lockfileVersion": 3}\n' >"$nn_main/package-lock.json"   # what proves npm can rebuild node_modules
 printf 'built\n' >"$nn_main/dist/app.js"
 nn_git -c init.defaultBranch=main init -q "$nn_main"
-nn_git -C "$nn_main" add package.json dist/app.js
+nn_git -C "$nn_main" add package.json package-lock.json dist/app.js
 nn_git -C "$nn_main" commit -qm first
 nn_git -C "$nn_main" worktree add -q -b feat "$nn_wt"
 mkdir -p "$nn_main/node_modules/left-pad" "$nn_wt/node_modules/left-pad/lib" "$nn_wt/.next/cache" "$nn_wt/node_modules/inner/dist"
@@ -202,6 +203,16 @@ if [ "$nn_r" = 0 ]; then
   check "noonoo: no refused clean wrote an undo record" 0 "$(nn_undo 'len(j)')"
 
   echo "-- removal and undo"
+  # The checks from here to the removal choice at the end are about the Trash and its undo, so they run under the
+  # Trash choice. Smart, the default, deletes rebuilt items such as node_modules at once, and the last block of this
+  # section checks that, and Delete, on the same fixtures.
+  nn_removal() { MINMACS_HOME="$nn" "$BIN" removal "$@" 2>/dev/null; }
+  check "noonoo: the removal choice starts as smart" smart "$(nn_removal --json | json "j['removal']")"
+  check "noonoo: under smart a dry run says node_modules is deleted, and why" yes \
+    "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'would delete .*node_modules, since its tool rebuilds it. It cannot be brought back.' && echo yes || echo no)"
+  check "noonoo: under smart a dry run sends a leftover to the Trash" yes \
+    "$(nnt verb clean "$nn_scr/$nn_dead" --dry-run 2>/dev/null | grep -q 'to the Trash. Undo moves it back' && echo yes || echo no)"
+  nn_removal trash >/dev/null
   # A dry run says what would happen and changes nothing.
   check "noonoo: a dry run says the item goes to the Trash" yes \
     "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'to the Trash. Undo moves it back' && echo yes || echo no)"
@@ -421,4 +432,6 @@ NNROW
   check "noonoo: no fixture sleeper of this run is left" 0 "$(pgrep -f "$nnx_sleeper" | grep -c .)"
   nn_rowdirs=""
   check "noonoo: the files the slow tool never reached stay" 2 "$(nnx_files cache)"
+  # The removal choice, issue #62, on this section's fixtures. It runs last, since it deletes them.
+  . ./test/noonoo/removal.sh
 fi

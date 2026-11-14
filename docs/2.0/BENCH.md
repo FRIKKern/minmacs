@@ -176,6 +176,18 @@ Menu open is under 30 ms at p95 for every expert, and card hover under 16 ms. Th
 
 **What the graph queue does now.** The prepare step, from the same `menus` run, at the median: LocoHost 0.73 ms, MinMacs 0.28 ms, Noo-Noo 0.28 ms, Insomnia 0.07 ms. WorkForest took 18.0 ms. That figure is the bench's alone. The fixture's findings come from a stand-in expert, so `MMMustKeep` reads each worktree again from the fixture facts. In the app, WorkForest made the findings from those same facts, and it reads them from each finding. On this Mac's real process table with an empty `MINMACS_HOME`, `bench idle --tick-runs 10` timed the prepare step at 1.48 ms of CPU a tick at the median. In the app, main did this work on every snapshot before, through `badgeFor:` and `accessibilityStateFor:`.
 
+### The menu window's first frame, 2026-11-12
+
+The menu window replaced the menus as what the icon opens, issue #62. `tools/render.sh` times it and writes `window/open-ms.txt`: a new `MMWindowView`, a fixture model set, laid out and drawn once into a bitmap at two pixels a point, on main. "Cold" makes the view, as the first click does. "Warm" gives the same view a new model and draws again, as each later click and snapshot does. It leaves out the glass blur and the window server, which only a screen has, and the app was not opened for it. Three runs on the development Mac at load averages of 5 to 7, 30 rounds each:
+
+| Fixture | Rows | Cold median | Cold p95 | Warm median | Warm p95 |
+|---|---|---|---|---|---|
+| quiet | 28 | 23.1 to 23.8 ms | 25.8 to 35.2 ms | 19.7 to 20.0 ms | 23.1 to 27.4 ms |
+| busy | 72 | 25.9 to 28.5 ms | 28.9 to 38.8 ms | 22.8 to 24.0 ms | 24.8 to 31.8 ms |
+| peak | 86 | 26.0 to 26.2 ms | 27.7 to 30.7 ms | 22.5 to 22.7 ms | 23.8 to 27.4 ms |
+
+The budget of 30 ms at p95 holds on the quieter runs and is passed on the loaded one, by up to 9 ms cold and 2 ms warm. The time barely grows with the rows, so most of it is the fixed drawing of a 1020 by 728 window. Nothing was changed for it yet, and it is no gate: a render that failed on a slow minute would stop every section that renders. What is left for #53: the same timing in the running app, with the blur and the screen.
+
 ### Main never waits
 
 `tools/bench/run.sh 60 10 200`, from 23:50 UTC on 2026-10-27, at load averages of 17 to 20.
@@ -185,7 +197,7 @@ Menu open is under 30 ms at p95 for every expert, and card hover under 16 ms. Th
 
 ### Startup
 
-Same run, headless, in ms from where `MMMain` starts.
+Same run, headless, in ms from where `MMMain` starts. This is the launch of the menus of before, with an item for each expert: `bench startup` sets the pref `core.window` off. The menu window is the default now and makes one item at launch, so its launch makes less. It has not been timed.
 
 | Launch | Core started | Items made | First snapshot | Every summary | Made at launch | Left for later |
 |---|---|---|---|---|---|---|

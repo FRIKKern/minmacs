@@ -38,6 +38,12 @@ for f in sys.argv[1:]:
     if c != "tool" and "cleanup" in row: errs.append("only a tool row runs a command")
     if c == "leak" and not row.get("signature"): errs.append("a leak row needs a signature")
     if c in ("data", "report") and not row.get("ownerSetting") and c == "data": errs.append("a data row says who keeps it in ownerSetting")
+    if row.get("rebuilt"):
+        if c not in ("cache", "build", "tool"): errs.append("rebuilt is for cache, build and tool rows: a leftover or data is never deleted as rebuildable")
+        if not row.get("rebuild") or row["rebuild"].lower().startswith(("none", "lost", "cannot")): errs.append("a rebuilt row says in rebuild what brings it back")
+        if any("log" in p.lower() for p in row.get("paths", [])): errs.append("a row that holds logs is not rebuilt: no tool writes old logs again")
+        if row.get("names") and not row.get("rebuiltFrom"): errs.append("a rebuilt row with names says in rebuiltFrom which file beside the folder its tool rebuilds it from")
+    if "rebuiltFrom" in row and not row.get("rebuilt"): errs.append("rebuiltFrom is for a rebuilt row")
     if row.get("every", 0) < 600: errs.append("every must be at least 600 seconds")
     for p in row.get("paths", []):
         if p in ("~", "/", "~/") or (not p.startswith("${") and p.rstrip("/").count("/") < 1): errs.append(f"{p}: a row never names the home folder or /")

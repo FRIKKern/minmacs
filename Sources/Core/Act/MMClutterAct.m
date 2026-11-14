@@ -1,8 +1,10 @@
-// Clutter actions: the Trash for cache, build and leak rows, the tool's own command for tool rows.
-// Ported from NN's Apply and FreedByDelete, internal/leaks/module.go and internal/sizer, with the permanent delete
-// replaced by the Trash, and the tool command preceded by an APFS clone that undo copies back from.
+// Clutter actions: cache, build and leak rows are removed, and tool rows run the tool's own command.
+// Ported from NN's Apply and FreedByDelete, internal/leaks/module.go and internal/sizer. Where a removed item goes is
+// the person's removal choice, asked of MMRemovalDecide on the item read fresh: the Trash, or deleted at once. A tool
+// command is preceded by an APFS clone that undo copies back from, unless that decision says no copy is kept.
 #import "Core/Act/MMClutterAct.h"
 #import "Core/Act/MMUndo.h"
+#import "Core/Act/MMRemoval.h"
 #import "Core/Store/MMStore.h"
 #import "Core/Know/MMGit.h"
 #include <fts.h>
@@ -66,8 +68,13 @@ NSArray<NSDictionary *> *MMClutterAudit(NSArray<NSString *> *paths) {
     MMClutterItem *i = self.fresh ?: self.item;
     NSString *what = i.members.count == 1 ? i.members.firstObject.stringByAbbreviatingWithTildeInPath
                                           : [NSString stringWithFormat:@"%lu folders of %@", (unsigned long)i.members.count, i.path.stringByAbbreviatingWithTildeInPath];
-    if (self.isTool)
+    // The words follow the removal choice as it is now. The act asks again on the item it reads then.
+    MMRemovalDecision *d = MMRemovalDecide(self.isTool ? MMRemovalToolCopy : MMRemovalClutter, [MMRemovalFacts clutter:i], nil);
+    if (self.isTool) {
+        if (d.deleteNow) return [NSString stringWithFormat:@"would run %@ on %@ with no recovery copy, since %@. It cannot be brought back.", i.kind.cleanup, what, d.why];
         return [NSString stringWithFormat:@"would copy %@ to the recovery folder, then run %@. Undo copies back what it removed.", what, i.kind.cleanup];
+    }
+    if (d.deleteNow) return [NSString stringWithFormat:@"would delete %@, since %@. It cannot be brought back.", what, d.why];
     return [NSString stringWithFormat:@"would move %@ to the Trash. Undo moves it back.", what];
 }
 
@@ -84,19 +91,25 @@ NSArray<NSDictionary *> *MMClutterAudit(NSArray<NSString *> *paths) {
     return ok;
 }
 
-/// Each path is checked against the walls once more, right before it moves.
+/// Each path is checked against the walls once more, right before it goes. Where it goes is MMRemovalDecide's
+/// answer on the item as it was read a moment ago, written into the record before the first path moves.
 - (BOOL)trash:(MMClutterItem *)i record:(MMUndoRecord *)record error:(NSString **)error {
+    MMRemovalDecision *d = MMRemovalDecide(MMRemovalClutter, [MMRemovalFacts clutter:i], record.by);
+    MMRemovalNote(record, d, nil);
+    // The paths the item read a moment ago names. MMRemovalApply deletes no other.
+    MMRemovalAsk(record, i.members);
     NSMutableArray *refused = [NSMutableArray new];
     NSInteger moved = 0;
     for (NSString *m in i.members) {
         NSString *w = [self.catalog whyNot:m kind:i.kind];
         if (w) { [refused addObject:[NSString stringWithFormat:@"%@: %@", m.lastPathComponent, w]]; continue; }
         NSError *e = nil;
-        if ([MMUndo.shared trash:[NSURL fileURLWithPath:m] record:record error:&e]) moved++;
-        else [refused addObject:[NSString stringWithFormat:@"%@: %@", m.lastPathComponent, e.localizedDescription ?: @"it could not go to the Trash"]];
+        if (MMRemovalApply(m, d, record, &e)) moved++;
+        else [refused addObject:[NSString stringWithFormat:@"%@: %@", m.lastPathComponent, e.localizedDescription ?: (d.deleteNow ? @"it could not be deleted" : @"it could not go to the Trash")]];
     }
     if (refused.count) [MMUndo.shared note:record payload:@{@"refused": refused}];
-    if (moved == 0) { if (error) *error = refused.firstObject ?: @"nothing went to the Trash"; return NO; }
+    if (moved == 0) { if (error) *error = refused.firstObject ?: (d.deleteNow ? @"nothing was deleted" : @"nothing went to the Trash"); return NO; }
+    MMRemovalDone(record, nil);
     return YES;
 }
 
@@ -126,7 +139,12 @@ static NSArray<NSString *> *Vanished(NSString *dir, NSString *copy) {
 - (BOOL)clean:(MMClutterItem *)i record:(MMUndoRecord *)record error:(NSString **)error {
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *dir = [[MMExpertDir(@"noonoo") stringByAppendingPathComponent:@"recovery"] stringByAppendingPathComponent:record.rid];
-    for (NSString *m in i.members) {
+    // The recovery copy keeps every block the tool removes, so the disk does not come back until the copy goes.
+    // MMRemovalDecide says whether one is kept: always under the Trash choice, never under Delete, and under Smart
+    // only for a row that does not say its tool fetches everything again.
+    MMRemovalDecision *d = MMRemovalDecide(MMRemovalToolCopy, [MMRemovalFacts clutter:i], record.by);
+    MMRemovalNote(record, d, nil);
+    for (NSString *m in d.deleteNow ? @[] : i.members) {
         NSString *to = [dir stringByAppendingString:m];
         [fm createDirectoryAtPath:to.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
         // An APFS clone shares every block, so the copy costs almost nothing until the tool removes the original.
@@ -141,6 +159,13 @@ static NSArray<NSString *> *Vanished(NSString *dir, NSString *copy) {
                                   dryRunArgs:dryArgs env:nil];
     NSString *out = nil, *err = nil;
     BOOL ok = [cmd runWithRecord:record output:&out error:&err];
+    if (d.deleteNow) {
+        // No copy was kept, so nothing can come back, and the record says so in place of a recovery folder.
+        [MMUndo.shared note:record payload:@{@"undo": [NSString stringWithFormat:@"%@ ran with no recovery copy, since %@. It cannot be brought back.", i.kind.cleanup, d.why]}];
+        if (!ok && error) *error = err ?: @"the tool failed";
+        if (ok) MMRemovalDone(record, nil);
+        return ok;
+    }
     // Whatever the exit status, what is gone now can be copied back.
     NSMutableArray *saved = [NSMutableArray new];
     for (NSString *m in i.members) {
@@ -353,7 +378,7 @@ static uint64_t Allocated(NSArray<NSDictionary *> *audit) {
     MMClutterKind *k = i.kind;
     NSArray *paths = i.members;
     NSArray *before = MMClutterAudit(paths);
-    NSString *undo = [NSString stringWithFormat:@"%@ removes it for good, so this cannot be undone.%@", k.cleanup,
+    NSString *undo = [NSString stringWithFormat:@"%@ deletes it at once, so this cannot be undone.%@", k.cleanup,
                       k.rebuild.length ? [NSString stringWithFormat:@" %@.", k.rebuild] : @""];
     [MMUndo.shared note:record payload:@{@"kindID": k.kindID, @"paths": paths, @"tool": k.kindID, @"toolPath": self.toolPath ?: @"",
                                          @"command": k.cleanup, @"undo": undo, @"audit": @{@"before": before},

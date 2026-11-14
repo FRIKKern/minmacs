@@ -11,6 +11,7 @@
   "ownerNote": "global",
   "every": 86400,
   "rebuild": "Gradle downloads again",
+  "rebuilt": true,
   "measured_gib": 0,
   "sources": [
     "https://docs.gradle.org/current/userguide/directory_layout.html"

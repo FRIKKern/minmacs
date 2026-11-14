@@ -103,8 +103,22 @@ static NSArray<MMVerbSpec *> *ExpertVerbs(id<MMExpert> e) {
     return [v isKindOfClass:NSArray.class] ? v : @[];
 }
 
+static NSMutableArray<MMVerbSpec *> *gAdded;
+
+void MMAddVerb(MMVerbSpec *verb) {
+    if (!verb.verb.length) return;
+    @synchronized (MMVerbSpec.class) {
+        if (!gAdded) gAdded = [NSMutableArray new];
+        for (MMVerbSpec *v in gAdded) if ([v.verb isEqualToString:verb.verb]) return;
+        [gAdded addObject:verb];
+    }
+}
+
+NSArray<MMVerbSpec *> *MMAddedVerbs(void) { @synchronized (MMVerbSpec.class) { return [gAdded copy] ?: @[]; } }
+
 NSArray<MMVerbSpec *> *MMAllVerbs(void) {
     NSMutableArray *all = [MMCoreVerbs() mutableCopy];
+    [all addObjectsFromArray:MMAddedVerbs()];
     for (id<MMExpert> e in MMExperts()) [all addObjectsFromArray:ExpertVerbs(e)];
     return all;
 }
@@ -114,6 +128,7 @@ MMVerbSpec *MMFindVerb(NSString *program, NSString *verb) {
     NSString *own = ExpertOfProgram(program);
     if (own) for (MMVerbSpec *v in ExpertVerbs(MMExpertNamed(own))) if ([v.verb isEqualToString:verb]) return v;
     for (MMVerbSpec *v in MMCoreVerbs()) if ([v.verb isEqualToString:verb]) return v;
+    for (MMVerbSpec *v in MMAddedVerbs()) if ([v.verb isEqualToString:verb]) return v;
     for (id<MMExpert> e in MMExperts()) for (MMVerbSpec *v in ExpertVerbs(e)) if ([v.verb isEqualToString:verb]) return v;
     return nil;
 }

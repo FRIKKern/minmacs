@@ -13,6 +13,11 @@
 #import "Shell/MMShell.h"
 #import "UI/MMStatusItem.h"
 
+/// The shell's way to Settings, which its header keeps to itself.
+@protocol EarlySettings
+- (void)showSettings:(id)sender;
+@end
+
 static NSString *Home(void) { return [NSProcessInfo.processInfo.environment[@"MINMACS_HOME"] stringByAppendingPathComponent:@"fx"]; }
 
 #pragma mark - Fakes for Senses and Know, as in test/graph/graph.m
@@ -298,6 +303,20 @@ static int SelfTest(MMArgs *a) {
     C(a, @"login item: the real app registers", @"YES", MMMayRegisterLoginItem(@{}, @"/Applications/MinMacs.app") ? @"YES" : @"NO");
     C(a, @"login item: this test process may not", @"NO",
       MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath) ? @"YES" : @"NO");
+    C(a, @"login item: the first launch adds it by itself only without the menu window, whose welcome asks first", @"YES NO",
+      [NSString stringWithFormat:@"%@ %@", MMFirstLaunchAddsLogin(NO) ? @"YES" : @"NO", MMFirstLaunchAddsLogin(YES) ? @"YES" : @"NO"]);
+    MMSetPref(@"core.window", nil);
+    BOOL windowDefault = MMWindowMode();
+    MMSetPref(@"core.window", @NO);
+    BOOL windowOff = MMWindowMode();
+    MMSetPref(@"core.window", nil);
+    C(a, @"window: the menu window is the default, and the pref core.window set to NO brings the menus back", @"YES NO",
+      [NSString stringWithFormat:@"%@ %@", windowDefault ? @"YES" : @"NO", windowOff ? @"YES" : @"NO"]);
+    // A URL that starts MinMacs asks for Settings before the launch. It waits, and makes no Settings window.
+    MMShell *early = [MMShell new];
+    [(id<EarlySettings>)early showSettings:nil];
+    C(a, @"window: Settings asked for before the launch waits for it and makes no Settings window", @"nil YES",
+      [NSString stringWithFormat:@"%@ %@", [early valueForKey:@"settings"] ? @"made" : @"nil", [[early valueForKey:@"settingsWaits"] boolValue] ? @"YES" : @"NO"]);
     C(a, @"icon: an empty field starts hidden", @"0", [MMIconVisibleFor(YES, NO, YES) description]);
     C(a, @"icon: it shows once the field appears", @"1", [MMIconVisibleFor(NO, NO, NO) description]);
     C(a, @"icon: after that the person decides", @"nil", MMIconVisibleFor(YES, YES, NO) ? @"set" : @"nil");

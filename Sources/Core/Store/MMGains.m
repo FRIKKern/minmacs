@@ -341,7 +341,7 @@ static NSString *Settle(MMGain *g) {
     return @{@"days": @(days), @"since": @(start.timeIntervalSince1970), @"now": @(now.timeIntervalSince1970),
              @"keepDays": @(MMGainsKeepDays), @"schema": @([self schemaVersion]),
              @"meaning": @{@"memoryBack": @"the footprint of the process trees a stop or a quit ended, read right before it ran",
-                           @"diskBack": @"what MMSizer said deleting frees, for items deleted for good or gone from the Trash",
+                           @"diskBack": @"what MMSizer said deleting frees, for items deleted at once or gone from the Trash",
                            @"diskInTrash": @"what MMSizer said deleting frees, for items still in the Trash; not back yet",
                            @"actions": @"finished actions, with a run of several such as Wrap Up counted once"},
              @"today": [todays json], @"total": [total json], @"byDay": dayList,

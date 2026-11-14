@@ -2,13 +2,13 @@
 
 This page describes MinMacs 2.0 for a reader who does not read the code. [Sources/README.md](../Sources/README.md) and [Sources/Core/README.md](../Sources/Core/README.md) say the same for a reader who does, with the file for each part.
 
-MinMacs is one app with two halves. Core finds out what is on the Mac. Five experts decide what that means for one kind of thing each, and show it in a menu. An expert never looks at the Mac itself. It only reads what Core found. So five experts cost one sampler, one set of file watchers and one place that asks the model.
+MinMacs is one app with two halves. Core finds out what is on the Mac. Five experts decide what that means for one kind of thing each. One window, which opens from the MinMacs icon, shows what all five found. An expert never looks at the Mac itself. It only reads what Core found. So five experts cost one sampler, one set of file watchers and one place that asks the model.
 
 ## What happens every 5 seconds
 
 1. **Senses** takes one sample of the Mac: every process with its CPU time, memory, arguments and folder, the open sockets, power, battery, heat, memory pressure and the lid. One sample cost 3.4 ms of CPU at the median when timed alone, and 6.2 ms on average inside the 30 minute bench of [BENCH.md](2.0/BENCH.md), on a Mac with about 865 processes.
 2. **The graph** gathers that sample with what Know holds, and asks each expert for its findings. A finding is one thing an expert has an opinion about, such as one dev server or one worktree. Each finding names its owner. An owner is a workstream, which is one agent session with its worktree, or a session, a worktree, a project folder or an app. The graph then publishes one snapshot that holds every finding. The snapshot does not change after that, so the menus can read it at any time.
-3. **The menus** draw from the last snapshot. They never wait for the disk, a process or the log.
+3. **The menu window** draws from the last snapshot while it is open. It never waits for the disk, a process or the log. The menus of before, which open when the pref `core.window` is off, draw from it the same way.
 
 A process that exits, an app that starts and a charger that comes or goes push a new build at once, without waiting for the 5 seconds. The sample backs off to 10 seconds on battery, 15 seconds when nobody has touched the keyboard or pointer for 5 minutes, and 30 seconds for both.
 
@@ -40,11 +40,11 @@ An expert is one class that reads the snapshot. It gives Core four things: its f
 
 - **MinMacs** groups processes into the apps that own them, and lists apps by the close list and keep list in its rules. It spares an app an agent uses, such as a browser a test drives. It quits apps and closes noise tabs, and Restore brings both back.
 - **LocoHost** lists every listening server on the Mac, with the folder, branch, framework and agent that started it, and who is connected. It stops a dev server nobody has used for a while. The undo record holds the command, so it can start the server again.
-- **WorkForest** lists every git worktree and whether its branch is merged, by ancestry, the same tree, patches or a squash. It removes a worktree with `git worktree remove` and no `--force`, after it copies the ignored files that are not caches, such as `.env`, to a recovery folder. When the commits are on no remote, it saves a git bundle first. Undo recreates the worktree at the same commit and copies the files back.
-- **Noo-Noo** lists caches, build output and the leftovers of agents and tools, with who owns each. Build output of a finished project goes first. Most items go to the Trash. A cache that belongs to a tool is cleaned with the tool's own command, after a copy into a recovery folder.
+- **WorkForest** lists every git worktree and whether its branch is merged, by ancestry, the same tree, patches or a squash. It removes a worktree with `git worktree remove` and no `--force`, after it copies the ignored files that are not caches, such as `.env`, to a recovery folder. When the commits are on no remote, it saves a git bundle first. Undo recreates the worktree at the same commit and copies the files back. Under the Delete choice, below, the ignored files are not saved and the record cannot restore. The bundle is still taken.
+- **Noo-Noo** lists caches, build output and the leftovers of agents and tools, with who owns each. Build output of a finished project goes first. Where an item goes follows the removal choice, below: under Smart a cache or build folder that its tool rebuilds, such as `node_modules`, is deleted at once, and a leftover goes to the Trash. A cache that belongs to a tool is cleaned with the tool's own command, after a copy into a recovery folder unless the choice says no copy is kept.
 - **Insomnia** keeps the Mac awake while an agent works and lets it sleep 10 minutes after the last one stops. With lid mode on, it can also keep the Mac awake with the lid closed. On battery, guards pause that for a low battery, heat, a long time unplugged or a long time offline.
 
-Findings of different experts meet through their owners. A dev server and a worktree that share a folder have the same owner, so WorkForest's card shows LocoHost's server, and the link opens LocoHost's card. **Wrap Up** uses the same link. For a worktree whose branch is merged and whose agent sessions all ended, it stops its dev servers, ends the helpers left in it, closes the browser tabs on those servers' localhost ports, moves its caches to the Trash and removes the worktree, as one step with one undo record. Undo reopens the tabs in the same browser once the servers run again.
+Findings of different experts meet through their owners. A dev server and a worktree that share a folder have the same owner, so WorkForest's card shows LocoHost's server, and the link opens LocoHost's card. **Wrap Up** uses the same link. For a worktree whose branch is merged and whose agent sessions all ended, it stops its dev servers, ends the helpers left in it, closes the browser tabs on those servers' localhost ports, removes its caches and removes the worktree, as one step with one undo record. Undo reopens the tabs in the same browser once the servers run again. A part that was deleted at once stays gone, and undo says how many.
 
 ## Acting
 
@@ -53,14 +53,33 @@ Every action runs through one function in Act, `MMRunAction`. In order, it:
 1. reads the facts again, fresh, and checks that the thing is the same one the menu showed
 2. runs the keep checks, which keep anything with work in it, such as uncommitted files, a process inside or an active agent session. Each expert adds its own. What cannot be checked is kept
 3. writes the undo record
-4. acts: to the Trash, to a recovery folder, through the owning tool's own command, by a stop signal or a quit request, by closing browser tabs, or by Insomnia's lid setting
+4. acts: to the Trash, to a recovery folder, deleted at once where the removal choice says so, through the owning tool's own command, by a stop signal or a quit request, by closing browser tabs, or by Insomnia's lid setting
 
-A stop sends SIGTERM first. SIGKILL comes only on a second request, and the pid and start time are checked before each. MinMacs never empties the Trash.
+A stop sends SIGTERM first. SIGKILL comes only on a second request, and the pid and start time are checked before each. MinMacs never empties the Trash and never deletes from it.
+
+**The removal choice.** Nothing is lost unless the person chose so. What happens to a removed thing is one setting, `minmacs removal smart|trash|delete`, also in the window's Settings as "When MinMacs removes things". Every removal asks one function, `MMRemovalDecide`, on facts read at that moment:
+
+| Removed thing | Smart, the default | Trash | Delete |
+|---|---|---|---|
+| A worktree's folder | git removes it. git can give it back | the same | git removes it. The record cannot restore |
+| Its ignored files, such as `.env` | recovery folder | recovery folder | deleted with it |
+| Untracked config files in Wrap Up, such as `.env.local` | Trash | Trash | deleted |
+| A cache or build folder whose row says a tool rebuilds it, proven on the fresh check | deleted at once | Trash | deleted |
+| Any other cache, and every leftover | Trash | Trash | deleted |
+| What a tool's own cleanup removes | recovery copy, unless its row says the tool fetches it again | recovery copy | no copy |
+
+Smart calls a worktree deleted only when its branch is merged or its remote branch is gone, with no uncommitted change, no untracked file, no commit on no remote and no stash. A row says a tool rebuilds it with `"rebuilt": true` in `registry/clutter`. Rows with logs, hand-made content or leftovers never do. For a folder inside a project the row is not enough: the fresh check must find a file its tool rebuilds it from beside it, such as a lockfile beside `node_modules`, and git must track nothing in it. Otherwise it goes to the Trash.
+
+Until you have chosen, in Settings or with `minmacs removal`, Smart's deletes apply only to your own presses. What a mode removes on its own goes to the Trash, and Settings says so.
+
+A Wrap Up deletes nothing until its last part went through. What an earlier part wants deleted is renamed into a staging folder of MinMacs's own on the same volume: `staged/<id>` in its support folder, or for another volume a hidden `.minmacs-staged-<id>` folder beside the worktree. It is never copied, and nothing waits in your Trash. The folder hides itself from git and from MinMacs's own scans. When git refuses the worktree, each item goes back to its exact old path at once, one by one: an item whose old path holds something else by then stays where it waits and is named, and the rest still go. When MinMacs stops in between, the same happens the next time MinMacs starts or runs a Wrap Up, as soon as the process that owned the Wrap Up is gone, and what a part had sent to the Trash is moved back out too. Until then the items wait, safe, in the staging folder. A delete from the staging folder that failed is not tried again: at the next start the item goes back to its old path, in a folder remade for it, and the staging folder goes once it is empty. Only the very file MinMacs moved away is ever moved back, from the staging folder or from the Trash: another file at that place is left where it is and named. The file is known by its inode and its volume's UUID, so it is still known after the drive was plugged in again. A record on disk that cannot be read is never acted on: it is named once in the log and left as it is. An item whose staging folder would lie where MinMacs never deletes, such as beside a worktree at the top of a volume, is not staged: it stays where it is, and git takes it with the worktree or refuses. Only when the worktree is gone is it deleted.
+
+One function deletes, behind one wall. A path may be deleted only when a fresh finding named it, it is not a volume's root, it does not hold the home folder or MinMacs's own folder, it lies at least 2 levels inside the home folder or 3 levels below its volume's root, and paths are compared as the disk holds them, with links resolved. The choice changes only where a thing goes. The fresh check, the keep checks and the record run first in every choice, a git bundle is taken whenever commits are on no remote, and git never runs with `--force`. A deleted thing's record says so, and `minmacs restore` answers that it was deleted and cannot be brought back. A stop and a quit are not removals and do not change.
 
 The modes decide what an expert does without being asked. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge lets go. No mode acts on its own in the first day after the first launch. A notification is sent only after an expert acted without being asked, and it carries one Undo button.
 
 ## The app and the CLI
 
-The app starts Core once, makes one menu bar icon per expert and opens a socket, `core.sock`, in the support folder. Only processes of the same user may connect. The CLI is the same binary. When the app runs, the CLI sends it the verb and prints the answer. When no app answers, the CLI builds a snapshot itself. A verb that would change something needs the running app, unless `--dry-run` is given. [CLI.md](CLI.md) lists every verb.
+The app starts Core once, makes the one MinMacs icon that opens the menu window, and opens a socket, `core.sock`, in the support folder. Only processes of the same user may connect. The CLI is the same binary. When the app runs, the CLI sends it the verb and prints the answer. When no app answers, the CLI builds a snapshot itself. A verb that would change something needs the running app, unless `--dry-run` is given. [CLI.md](CLI.md) lists every verb.
 
 In a debug build, or with `MINMACS_WATCHDOG=1`, a watchdog logs every pass of the main thread's run loop that takes longer than 50 ms, with the stack of where main was.

@@ -10,6 +10,7 @@
   "ownerNote": "Podfile.lock",
   "every": 86400,
   "rebuild": "pod install downloads again",
+  "rebuilt": true,
   "measured_gib": 0,
   "sources": [
     "https://guides.cocoapods.org/terminal/commands.html"

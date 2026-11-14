@@ -1,7 +1,9 @@
-// The app shell, pattern P56: one binary, one app, one status item per registered expert.
+// The app shell, pattern P56: one binary, one app, one icon that opens the menu window.
 // main.m registers the experts, then calls MMMain. With a verb in argv it runs the CLI and exits.
-// Without one it runs the menu bar app: MMCoreStart, core.sock, the status items, Settings, the URL router
-// and the login item on first launch. Once after the import, the migration's follow-up of MMMigrate.h.
+// Without one it runs the menu bar app: MMCoreStart, core.sock, the icon and its window, the URL router and the
+// login item, which the window's welcome asks about before anything adds it. With the pref core.window off it is
+// one status item per registered expert, or One Icon, with their menus, the Settings window and a login item added
+// at first launch. Once after the import, the migration's follow-up of MMMigrate.h.
 #import <Cocoa/Cocoa.h>
 
 @protocol MMExpert;
@@ -16,6 +18,12 @@ NSUInteger MMRegisterBuiltInExperts(void);
 /// The menu bar app or the CLI, from argv. Call after the experts are registered.
 int MMMain(int argc, const char *argv[]);
 
+/// Whether the one icon opens the menu window, issue #62: the pref core.window, YES while it has no value.
+/// With NO the icons open the menus of before, five icons or One Icon.
+BOOL MMWindowMode(void);
+/// Whether the first launch adds the login item by itself, decision 18. With the menu window, the default, it does
+/// not: the window's welcome asks first, and Start adds it when the person left the switch on.
+BOOL MMFirstLaunchAddsLogin(BOOL windowMode);
 /// Decision 18: register the login item on first launch, but only in the real app. NO under tests, which always
 /// set MINMACS_HOME, and NO for a binary that does not run from an .app bundle.
 BOOL MMMayRegisterLoginItem(NSDictionary<NSString *, NSString *> *env, NSString *bundlePath);
@@ -79,4 +87,9 @@ static const double MMLinkFocusWait = 0.3;
 
 /// The app delegate. One per process, made by MMMain.
 @interface MMShell : NSObject <NSApplicationDelegate>
+/// Open at login, from SMAppService. Main thread. The menu window's switch reads and sets it, issue #62, and so
+/// does Start in its welcome.
+- (BOOL)loginEnabled;
+/// Registers or removes the login item. It does nothing in a test home or outside an .app bundle.
+- (void)setLogin:(BOOL)on;
 @end

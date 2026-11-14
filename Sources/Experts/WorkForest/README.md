@@ -28,15 +28,16 @@ The fingerprint holds HEAD, the merge state, the upstream, the dirty, untracked 
 
 `MMRunAction` checks the action again, reads fresh facts, writes the undo record, then the action:
 
-1. When HEAD is on no remote, `-[MMUndo bundle:]` takes a git bundle of the commits on no remote. No bundle, no removal.
-2. The ignored files that are not caches, from `MMWorktreeIgnoredFiles`, are copied to the recovery folder with `-[MMUndo recover:]`. A `.env` is saved, and `node_modules` is not.
+0. `MMRemovalDecide` answers for the worktree and for its ignored files, on git facts read now, and both answers go into the record's `removal`. git removes the folder in every choice and is the way back for what it holds, so the worktree's answer is the record's word for where it went. Under Smart it says deleted only for a merged or remote-gone branch with no change, no untracked file, no commit on no remote and no stash.
+1. `-[MMUndo bundle:]` counts the commits on no remote itself and takes a git bundle when there are any, in every choice. No bundle, no removal.
+2. The ignored files that are not caches, from `MMWorktreeIgnoredFiles`, are copied to the recovery folder with `-[MMUndo recover:]`. A `.env` is saved, and `node_modules` is not. Under the Delete choice they are not saved, the record lists them as `ignoredDeleted`, and it cannot restore.
 3. `MMWorktreeRemove` runs `git worktree remove` with no `--force`, so git refuses a worktree with changes, then `git branch -d` for a merged branch only.
 
 `-[MMUndo restore:]` recreates the worktree at its commit, from the bundle when the repo lost it, then copies the saved files back without writing over anything. WorkForest 0.1's `removed.json` is imported into the undo log once per record, with its saved files left where 0.1 put them, so `restore <0.1 id>` still works. The 0.1 files are never changed.
 
 ## Wrap Up
 
-A merged worktree whose agent sessions ended gets Wrap Up… on its card, after Open in Terminal, when every part passes its keeps. The gray tail is the servers it stops and what it frees. WorkForest owns two of its parts: untracked config files such as `.env.local` go to the Trash, and the worktree goes the way Remove takes it. Its keeps are Remove's work keeps on the tree read again, with three changes: the processes the server and helper parts end do not count, the day of quiet after the last change and the last session is waived, and untracked files are the config part's, which refuses any file that is not a config file. Recently Removed restores a worktree that went in a Wrap Up together with the rest of it. `Sources/Core/README.md` describes the run and the record.
+A merged worktree whose agent sessions ended gets Wrap Up… on its card, after Open in Terminal, when every part passes its keeps. The gray tail is the servers it stops and what it frees. WorkForest owns two of its parts: untracked config files such as `.env.local` go to the Trash, and under the Delete choice wait in MinMacs's staging folder and are deleted only once `git worktree remove` went through, and the worktree goes the way Remove takes it. Its keeps are Remove's work keeps on the tree read again, with three changes: the processes the server and helper parts end do not count, the day of quiet after the last change and the last session is waived, and untracked files are the config part's, which refuses any file that is not a config file. Recently Removed restores a worktree that went in a Wrap Up together with the rest of it. `Sources/Core/README.md` describes the run and the record.
 
 ## What the review gets
 

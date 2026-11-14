@@ -9,13 +9,21 @@
 #import "UI/MMSettings.h"
 #import "UI/MMSpecMenu.h"
 #import "Shell/MMWatchdog.h"
+#import "Shell/MMWindowCLI.h"
+#import "Shell/MMWindowController.h"
+#import "Shell/MMWindowFeed.h"
 
 NSString *const MMLoginNotice = @"MinMacs opens at login. Settings can turn that off.";
 static NSString *const kLaunchedKey = @"core.launched";          // set on the first launch
 static NSString *const kLoginNoticeKey = @"core.loginNoticeUntil";   // seconds since 1970
 static NSString *const kOneIconExpert = @"minmacs";               // One Icon stands in for MinMacs's item in Settings
 NSString *const MMOneIconAutosaveName = @"minmacs.oneicon";
+/// Issue #62: the one icon opens the menu window in place of the menus. On by default. The menus of before stay
+/// reachable: defaults write no.guerrilla.minmacs core.window -bool NO, then open MinMacs again.
+static NSString *const kWindowKey = @"core.window";
 static NSString *const kOneIconSymbol = @"gauge.with.dots.needle.33percent";
+/// How long the window, opened by a way to Settings, stays open whatever app comes to the front.
+static const NSTimeInterval MMWindowRouteHold = 1.5;
 static const NSTimeInterval kMigrateDelay = 20;                    // the migration's follow-up waits for the menu bar
 
 NSArray<NSString *> *MMBuiltInExpertClasses(void) {
@@ -43,6 +51,10 @@ BOOL MMMayRegisterLoginItem(NSDictionary<NSString *, NSString *> *env, NSString 
     return [bundlePath.pathExtension isEqualToString:@"app"];
 #endif
 }
+
+BOOL MMWindowMode(void) { return MMPrefBool(kWindowKey, YES); }
+
+BOOL MMFirstLaunchAddsLogin(BOOL windowMode) { return !windowMode; }
 
 NSNumber *MMIconVisibleFor(BOOL fieldEmpty, BOOL seen, BOOL firstLaunch) {
     if (seen) return nil;
@@ -158,14 +170,23 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property (weak) MMShell *shell;
 - (void)label:(MMSnapshot *)s;
 @property (strong) MMLinkFocus *focus;                  // the link that opens the menu next
+@property BOOL opensWindow;                             // window mode: a click opens the menu window, and there is no menu
 @end
 
-@interface MMShell ()
+@interface MMShell () <MMWindowLogin>
 @property (strong) NSMutableArray<MMExpertItem *> *items;
 @property (strong) MMSettings *settings;
 @property (strong) id graphToken;
 @property BOOL headless;                                // the bench: no NSStatusItem and no NSApp run loop
 @property BOOL sawSnapshot;
+@property BOOL launched;                                // -launch has made the items; a way to Settings waits for it
+@property BOOL settingsWaits;                           // Settings was asked for before that
+@property (strong) MMWindowPanel *windowPanel;         // made at the first click on the icon, in window mode
+@property (strong) MMWindowController *windowController;
+- (void)toggleWindow:(NSStatusBarButton *)button;
+- (BOOL)showWindow;
+- (BOOL)showWindowSettings;
+- (void)makeWindow;
 - (NSString *)notice;
 - (void)showSettings:(id)sender;
 - (void)rebuildItems;
@@ -206,11 +227,23 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     // The saved position and the Visible state live under minmacs.<expert id>, which Settings reads too.
     // The one icon has a name of its own, so its Hide Icon never hides MinMacs's own item.
     self.item = MMMakeStatusItemSaved(self.itemName, self.itemSymbol, self.expert ? MMStatusAutosaveName(self.expert.expertID) : MMOneIconAutosaveName);
+    if (!self.expert && MMWindowMode()) {
+        // The window stands in for every menu: a click toggles it, and the item holds no menu.
+        self.opensWindow = YES;
+        // The window has no Hide Icon, and nothing else brings a hidden icon back. So whatever was saved, by Hide Icon
+        // of before or by dragging the icon out of the bar, the icon is there at every start.
+        self.item.visible = YES;
+        self.item.button.target = self;
+        self.item.button.action = @selector(clicked:);
+        return;
+    }
     self.menu = [NSMenu new];
     self.menu.delegate = self;
     self.menu.autoenablesItems = NO;
     self.item.menu = self.menu;
 }
+
+- (void)clicked:(NSStatusBarButton *)sender { [self.shell toggleWindow:sender]; }
 
 - (BOOL)visible { return self.item ? self.item.visible : MMPrefBool(self.visibleKey, YES); }
 
@@ -226,7 +259,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     NSString *notice = [self.shell notice];
     if (!s) {
         NSMenu *m = [NSMenu new];
-        [m addItem:MMTextItem(@"MinMacs is taking its first look. It takes a few seconds.", 2)];
+        [m addItem:MMTextItem(MMWindowLookingNote, 2)];
         MMAddFooter(m, self);
         return m;
     }
@@ -319,7 +352,11 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     BOOL first = !MMPrefBool(kLaunchedKey, NO);
     if (first) {
         MMStartWatching();
-        if (!self.headless && MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) {
+        // With the menu window the welcome asks first, and Start adds the login item: MMWindowController. The mark
+        // says the login item was left alone, so the welcome knows "off" is not yet this person's answer.
+        if (!MMFirstLaunchAddsLogin(MMWindowMode())) MMSetPref(MMWindowLoginNotAskedKey, @YES);
+        if (!self.headless && MMFirstLaunchAddsLogin(MMWindowMode()) &&
+            MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) {
             NSError *e = nil;
             if ([SMAppService.mainAppService registerAndReturnError:&e])
                 MMSetPref(kLoginNoticeKey, @(NSDate.date.timeIntervalSince1970 + 86400));
@@ -341,6 +378,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         for (MMExpertItem *i in me.items) { [i update:s]; if (i.expert && !i.summarized) all = NO; }
         if (gTraceSummaries && all) Mark(@"summaries");
     }];
+    self.launched = YES;
+    if (self.settingsWaits) { self.settingsWaits = NO; [self showSettings:nil]; }
 }
 
 /// PLAN.md section 8, once: a lid override the old Insomnia left on goes off, then one confirm for Noo-Noo's
@@ -376,6 +415,13 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     });
 }
 
+/// A run of Fix Everything is never cut in the middle of a step. Quit, from the window, the Dock, a URL or a log out,
+/// asks the run to stop after the step it is in, and the app quits when the run has ended.
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)app {
+    BOOL waits = [self.windowController stopRunThen:^{ [NSApp replyToApplicationShouldTerminate:YES]; }];
+    return waits ? NSTerminateLater : NSTerminateNow;
+}
+
 - (void)applicationWillTerminate:(NSNotification *)note {
     [MMGraph.shared stopObserving:self.graphToken];
     MMCoreStop();
@@ -398,7 +444,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     for (MMExpertItem *i in self.items) if (i.item) [NSStatusBar.systemStatusBar removeStatusItem:i.item];
     self.items = [NSMutableArray new];
     NSMutableArray *wanted = [NSMutableArray new];
-    if (MMPrefBool(MMOneIconKey, NO)) [wanted addObject:NSNull.null];
+    if (MMPrefBool(MMOneIconKey, NO) || MMWindowMode()) [wanted addObject:NSNull.null];
     else [wanted addObjectsFromArray:MMExperts()];
     NSMutableArray *made = [NSMutableArray new], *deferred = [NSMutableArray new];
     MMSnapshot *s = MMGraph.shared.current;
@@ -429,6 +475,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 /// with the linked card as its first row. In One Icon mode the one icon opens. An item the system hides, or one the
 /// person hid, cannot open, so the same menu pops up at the pointer instead.
 - (void)openLink:(NSString *)expert finding:(NSString *)findingID {
+    // In window mode the icon holds no menu, so a link opens the window and leaves an open one as it is.
+    if ([self showWindow]) return;
     MMExpertItem *i = MMPrefBool(MMOneIconKey, NO) ? nil : [self itemFor:expert];
     if (!i) for (MMExpertItem *x in self.items) if (!x.expert) i = x;
     if (!i) return;
@@ -447,10 +495,37 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     });
 }
 
+/// Window mode only: opens the menu window when it is closed, and never closes it. NO when the icon opens menus.
+- (BOOL)showWindow {
+    MMExpertItem *one = nil;
+    for (MMExpertItem *x in self.items) if (x.opensWindow) one = x;
+    if (!one) return NO;
+    if (!self.windowPanel.isOpen) [self toggleWindow:one.item.button];
+    return YES;
+}
+
+/// Opens the menu window under the icon, or closes it. The controller builds models only while it is open.
+- (void)toggleWindow:(NSStatusBarButton *)button {
+    [self makeWindow];
+    [self.windowPanel toggleUnder:button];
+}
+
+/// The panel and its controller, made once, at the first click on the icon or the first way to Settings.
+- (void)makeWindow {
+    if (self.windowPanel) return;
+    self.windowController = [MMWindowController new];
+    self.windowController.shell = self;
+    self.windowPanel = [[MMWindowPanel alloc] initWithHost:self.windowController];
+    __weak MMShell *weak = self;
+    self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowPanel show:model]; };
+    self.windowPanel.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
+}
+
 - (BOOL)loginEnabled { return SMAppService.mainAppService.status == SMAppServiceStatusEnabled; }
 
 - (void)setLogin:(BOOL)on {
     if (!MMMayRegisterLoginItem(NSProcessInfo.processInfo.environment, NSBundle.mainBundle.bundlePath)) return;
+    MMSetPref(MMWindowLoginNotAskedKey, nil);   // from here on the login item's state is the person's answer
     if (self.loginEnabled == on) return;
     NSError *e = nil;
     BOOL ok = on ? [SMAppService.mainAppService registerAndReturnError:&e] : [SMAppService.mainAppService unregisterAndReturnError:&e];
@@ -482,7 +557,32 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     self.settings.openAtLogin = self.loginEnabled;
 }
 
+/// Window mode only: Settings is the window turned over in place, as its gear and Command-comma do, so the window
+/// opens and shows Settings. While the welcome shows it stays the welcome, which holds its two choices itself.
+/// NO when the icon opens menus.
+- (BOOL)showWindowSettings {
+    MMExpertItem *one = nil;
+    for (MMExpertItem *x in self.items) if (x.opensWindow) one = x;
+    if (!one) return NO;
+    // MinMacs comes to the front, as it did for the Settings window. A second copy that handed over then quits
+    // without the app behind it coming back over the panel.
+    [NSApp activateIgnoringOtherApps:YES];
+    [self makeWindow];
+    // Turned over before it opens, so its first frame is Settings and nothing fades. Before Start the first frame
+    // is the welcome alone.
+    if (MMPrefBool(MMWindowWelcomedKey, NO)) self.windowPanel.view.showsSettings = YES;
+    [self.windowPanel holdOpen:MMWindowRouteHold];
+    if (!self.windowPanel.isOpen) [self toggleWindow:one.item.button];
+    return YES;
+}
+
+/// Opening MinMacs again, minmacs://settings and the Settings row of a menu all come here. With the menu window it
+/// is the window's own Settings. The Settings window below opens only while core.window is off.
 - (void)showSettings:(id)sender {
+    // A URL that starts MinMacs arrives before the launch: it waits until Core runs and the icon is made.
+    if (!self.launched) { self.settingsWaits = YES; return; }
+    // With the menu window there is no other Settings, whether or not the window can show, as in the bench.
+    if (MMWindowMode()) { [self showWindowSettings]; return; }
     if (!self.settings) {
         MMSettings *st = [MMSettings new];
         __weak MMShell *weak = self;
@@ -502,6 +602,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
             if ([e respondsToSelector:@selector(setPref:value:)]) [e setPref:key value:value];
         };
         st.onOpenMenu = ^(NSString *expert, NSView *from) {
+            if ([weak showWindow]) return;
             MMExpertItem *i = [weak itemFor:expert];
             // In One Icon mode the expert has no item, so the one icon's menu opens. An item left for later stays shut.
             if (!i) for (MMExpertItem *x in weak.items) if (x.item.visible) { i = x; break; }
@@ -556,6 +657,8 @@ void MMShellStopHeadless(id shell) {
 
 int MMMain(int argc, const char *argv[]) {
     MMStartupBegin();
+    // The window's feed lives in the shell, so the shell adds the verb that prints it, for the CLI and for the app.
+    MMAddVerb(MMWindowVerbSpec());
     if (MMWantsCLI(argc, argv)) return MMRunCLI(argc, argv);
     NSApplication *app = NSApplication.sharedApplication;
     MMShell *delegate = [MMShell new];

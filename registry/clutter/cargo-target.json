@@ -15,6 +15,10 @@
   "ownerNote": "Cargo.toml",
   "every": 21600,
   "rebuild": "cargo build, minutes",
+  "rebuilt": true,
+  "rebuiltFrom": [
+    "Cargo.toml"
+  ],
   "measured_gib": 0,
   "sources": [
     "https://doc.rust-lang.org/cargo/commands/cargo-clean.html"

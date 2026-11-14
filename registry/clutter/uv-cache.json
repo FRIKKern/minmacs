@@ -15,6 +15,7 @@
   "ownerNote": "global",
   "every": 43200,
   "rebuild": "uv downloads again",
+  "rebuilt": true,
   "measured_gib": 0,
   "sources": [
     "https://docs.astral.sh/uv/concepts/cache/"

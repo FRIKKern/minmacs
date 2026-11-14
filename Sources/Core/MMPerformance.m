@@ -38,7 +38,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 @property (readwrite) uint64_t number;
 @property (readwrite) MMPerformanceUnit unit;
 @property (readwrite) BOOL needsYou;
-@property MMFinding *finding;
+@property (readwrite) MMFinding *finding;
 @end
 
 @implementation MMPerformanceRow

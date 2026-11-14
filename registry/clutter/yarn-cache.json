@@ -14,6 +14,7 @@
   "ownerNote": ".yarnrc.yml",
   "every": 21600,
   "rebuild": "Yarn downloads again",
+  "rebuilt": true,
   "measured_gib": 0,
   "sources": [
     "https://yarnpkg.com/cli/cache/clean"

@@ -23,13 +23,12 @@
 #import "Core/Review/MMReview.h"
 #import "Core/Review/MMInvestigate.h"
 #import "Core/Act/MMUndo.h"
+#import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMAct.h"
 #import "Core/Act/MMWorktreeAct.h"
 #import "Core/Act/MMClutterAct.h"
 #import "Core/MMExpert.h"
-#import "Core/MMSheet.h"
 #import "Core/MMPerformance.h"
-#import "Core/Store/MMDayLog.h"
 
 NS_ASSUME_NONNULL_BEGIN
 /// Starts Core in order: Store, Senses, Know, the graph with its fact source, the review broker and the core socket.

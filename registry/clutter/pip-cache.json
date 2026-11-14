@@ -10,6 +10,7 @@
   "ownerNote": "global",
   "every": 21600,
   "rebuild": "pip downloads again",
+  "rebuilt": true,
   "measured_gib": 0.08,
   "sources": [
     "https://pip.pypa.io/en/stable/cli/pip_cache/"

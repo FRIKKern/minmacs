@@ -4,12 +4,14 @@ All notable changes to MinMacs. Format follows [Keep a Changelog](https://keepac
 
 ## [2.0.0] - unreleased
 
-MinMacs 2.0 joins five apps in one: MinMacs 1.2, LocoHost 0.1, WorkForest 0.1, Noo-Noo 0.7 and Insomnia 1.3. Each became an expert with its own icon and menu in the menu bar. All five read one shared core, which samples the Mac once and keeps one record of what it did. The app is Objective-C built with clang, with macOS 14 as the floor.
+MinMacs 2.0 joins five apps in one: MinMacs 1.2, LocoHost 0.1, WorkForest 0.1, Noo-Noo 0.7 and Insomnia 1.3. Each became an expert, and one icon in the menu bar opens one window for all five. All five read one shared core, which samples the Mac once and keeps one record of what it did. The app is Objective-C built with clang, with macOS 14 as the floor.
 
 ### Added
 - **One core for five experts.** Senses takes one sample of processes, sockets and power every 5 seconds. Know holds agents, sessions, git facts and worktrees. The graph builds each expert's findings from those facts. An expert never samples, scans or asks the model on its own.
-- **Five icons, or one.** Each expert has its own icon by default. One Icon in Settings puts them in one menu (decision 3).
+- **The menu window.** One MinMacs icon opens one window: what holds memory on the left, what holds disk on the right, the last hour in the middle, and Fix Everything below. Settings turns over in the same window. The first open is a welcome that asks about Open at login and what happens to removed things, and nothing is added before Start (issue #62).
+- **The menus of before.** With the pref `core.window` off, each expert has its own icon and menu, and One Icon in Settings puts them in one menu (decision 3).
 - **One undo log.** Every action is checked fresh right before it runs, writes an undo record, and goes to the Trash, a recovery folder or the owning tool's own command. History, undo and disk trends live in one SQLite log.
+- **The removal choice.** What happens to a removed thing is yours to choose, in Settings and with `minmacs removal`. Smart, the default, deletes at once what git or its tool can give back, such as a merged worktree or `node_modules`, and sends the rest to the Trash. Trash keeps everything. Delete deletes everything it removes at once. A deleted thing's record says so. Until you choose, what MinMacs removes on its own goes to the Trash.
 - **Modes per expert.** Idle, Proactive and Eager. What each mode may do is listed in each expert's README under Sources/Experts.
 - **One review broker.** Each expert's rules decide first, then a fingerprint cache, then the model. On the recorded fixture day the broker sent 56,846 uncached tokens, 3.1 % of the 1,842,725 that the 1.x apps sent for the same day (docs/2.0/MEASUREMENTS.md).
 - **Investigate.** A run on request for one finding or workstream, with the cost and model shown first. The model gets only MinMacs's own scoped Read, Grep and Glob tools.

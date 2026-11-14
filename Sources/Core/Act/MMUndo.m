@@ -1,8 +1,10 @@
 // The one undo engine: records, the Trash, the recovery folder, git bundles, restore and tool commands.
 // Ported from WorkForest's WFRemove and WFRestore, LocoHost's restart command and Noo-Noo's Grave.
 // Records go to the log of P38 as append-only rows. Nothing here deletes a file, and nothing empties the Trash.
+// The one place Act deletes is MMRemovalApply in MMRemoval.m, and only where the person's removal choice says so.
 #import <AppKit/AppKit.h>
 #import "Core/Act/MMUndo.h"
+#include <sys/stat.h>
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Store/MMGains.h"
@@ -56,6 +58,71 @@ void MMUndoRestoreKey(NSString *key, NSString *(^restore)(id value)) {
 static NSArray<NSString *> *RestorerKeys(void) { @synchronized (Restorers()) { return Restorers().allKeys; } }
 static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers()) { return Restorers()[key]; } }
 
+#pragma mark - The one checked reader
+
+static id Field(id from, NSString *key) { return [from isKindOfClass:NSDictionary.class] && key ? ((NSDictionary *)from)[key] : nil; }
+static BOOL IsFlag(id v) { return v && CFGetTypeID((__bridge CFTypeRef)v) == CFBooleanGetTypeID(); }
+NSString *MMRecordString(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSString.class] ? v : nil; }
+NSNumber *MMRecordNumber(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSNumber.class] && !IsFlag(v) ? v : nil; }
+BOOL MMRecordFlag(id from, NSString *key) { id v = Field(from, key); return IsFlag(v) && [v boolValue]; }
+NSDictionary *MMRecordDict(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSDictionary.class] ? v : nil; }
+static NSArray *ListOf(id from, NSString *key, Class kind) {
+    id v = Field(from, key);
+    if (![v isKindOfClass:NSArray.class]) return nil;
+    NSMutableArray *out = [NSMutableArray new];
+    for (id x in (NSArray *)v) if ([x isKindOfClass:kind]) [out addObject:x];
+    return out;
+}
+NSArray<NSDictionary *> *MMRecordList(id from, NSString *key) { return ListOf(from, key, NSDictionary.class); }
+NSArray<NSString *> *MMRecordStrings(id from, NSString *key) { return ListOf(from, key, NSString.class); }
+
+/// The UUID of the volume that holds the folder of path, or nil when it has none. The folder is asked, not the item,
+/// so a symlink is never followed to another volume.
+static NSString *VolumeOf(NSString *path) {
+    NSString *uuid = nil;
+    [[NSURL fileURLWithPath:path.stringByDeletingLastPathComponent] getResourceValue:&uuid forKey:NSURLVolumeUUIDStringKey error:nil];
+    return [uuid isKindOfClass:NSString.class] && uuid.length ? uuid : nil;
+}
+NSDictionary *MMFileIdentity(NSString *path) {
+    struct stat st;
+    if (!path.length || lstat(path.fileSystemRepresentation, &st) != 0) return nil;
+    NSMutableDictionary *d = [@{@"ino": @(st.st_ino), @"dev": @(st.st_dev)} mutableCopy];
+    NSString *vol = VolumeOf(path);
+    if (vol) d[@"vol"] = vol;
+    return d;
+}
+int MMFileIsEntry(NSString *path, NSDictionary *entry) {
+    NSNumber *ino = MMRecordNumber(entry, @"ino");
+    NSString *vol = MMRecordString(entry, @"vol");
+    if (!ino || (!vol && !MMRecordNumber(entry, @"dev"))) return -1;
+    struct stat st;
+    if (!path.length || lstat(path.fileSystemRepresentation, &st) != 0) return 0;
+    if ((unsigned long long)st.st_ino != ino.unsignedLongLongValue) return 0;
+    // The device number changes when a volume comes back, so it is never compared. The volume's UUID is.
+    return !vol || [VolumeOf(path) isEqualToString:vol] ? 1 : 0;
+}
+
+/// Why a payload cannot be read, or nil. Only fields Act acts on, and only when they are there.
+static NSString *PayloadDamage(NSDictionary *p) {
+    for (NSString *k in @[@"staged", @"trashed", @"deleted", @"unstaged"]) {
+        id v = p[k];
+        if (!v) continue;
+        if (![v isKindOfClass:NSArray.class]) return [k stringByAppendingString:@" is no list"];
+        for (id x in (NSArray *)v) {
+            if (![x isKindOfClass:NSDictionary.class]) return [k stringByAppendingString:@" holds an entry that is no entry"];
+            if (![k isEqualToString:@"staged"] && ![k isEqualToString:@"trashed"]) continue;
+            if (!MMRecordString(x, @"from") || !MMRecordString(x, @"to")) return [k stringByAppendingString:@" holds an entry that does not say where its item was"];
+            for (NSString *n in @[@"dev", @"ino"]) if (x[n] && !MMRecordNumber(x, n)) return [NSString stringWithFormat:@"%@ holds an entry whose %@ is no number", k, n];
+            if (x[@"vol"] && !MMRecordString(x, @"vol")) return [k stringByAppendingString:@" holds an entry whose vol is no text"];
+        }
+    }
+    if (p[@"asked"] && (![p[@"asked"] isKindOfClass:NSArray.class] || [MMRecordStrings(p, @"asked") count] != [p[@"asked"] count])) return @"asked is no list of paths";
+    for (NSString *k in @[@"removal", @"bundle", @"recovery", @"worktree", @"restart", @"relaunch"]) if (p[k] && !MMRecordDict(p, k)) return [k stringByAppendingString:@" is no dictionary"];
+    for (NSString *k in @[@"stagedIn", @"path"]) if (p[k] && !MMRecordString(p, k)) return [k stringByAppendingString:@" is no text"];
+    if (p[@"finishing"] && !IsFlag(p[@"finishing"])) return @"finishing is neither yes nor no";
+    return nil;
+}
+
 #pragma mark - Records
 
 @interface MMUndoRecord ()
@@ -65,6 +132,7 @@ static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers())
 @property (readwrite) NSDictionary *payload;
 @property (readwrite) int64_t freedBytes;
 @property BOOL hasParts;
+@property (copy) NSString *bodyDamage;
 @end
 
 @implementation MMUndoRecord
@@ -75,9 +143,12 @@ static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers())
     r.rid = b[@"rid"]; r.expert = str(@"expert"); r.kind = str(@"kind"); r.findingID = str(@"findingID");
     r.subject = str(@"subject"); r.why = str(@"why"); r.by = str(@"by"); r.parentRid = str(@"parentRid"); r.error = str(@"error");
     r.state = StateFrom(str(@"state"));
-    r.at = [NSDate dateWithTimeIntervalSince1970:[b[@"at"] doubleValue]];
-    r.payload = [b[@"payload"] isKindOfClass:NSDictionary.class] ? b[@"payload"] : @{};
-    r.freedBytes = [b[@"freedBytes"] longLongValue];
+    r.at = [NSDate dateWithTimeIntervalSince1970:MMRecordNumber(b, @"at").doubleValue];
+    r.payload = MMRecordDict(b, @"payload") ?: @{};
+    r.freedBytes = MMRecordNumber(b, @"freedBytes").longLongValue;
+    if (!MMRecordNumber(b, @"at")) r.bodyDamage = @"its time is no number";
+    else if (b[@"freedBytes"] && !MMRecordNumber(b, @"freedBytes")) r.bodyDamage = @"its freed bytes are no number";
+    else if (b[@"payload"] && !MMRecordDict(b, @"payload")) r.bodyDamage = @"its payload is no dictionary";
     return r;
 }
 - (NSDictionary *)body {
@@ -88,14 +159,21 @@ static NSString *(^RestorerFor(NSString *key))(id) { @synchronized (Restorers())
     b[@"why"] = self.why; b[@"by"] = self.by; b[@"parentRid"] = self.parentRid; b[@"error"] = self.error;
     return b;
 }
+- (NSString *)damage { return self.bodyDamage ?: PayloadDamage(self.payload); }
+- (BOOL)deletedNow { return MMRecordFlag(MMRecordDict(self.payload, @"removal"), @"deleted"); }
 - (BOOL)canRestore {
     if (self.state != MMUndoDone && self.state != MMUndoFailed) return NO;
     if ([self.kind isEqualToString:@"tool"]) return NO;
     NSDictionary *p = self.payload;
+    // Under the Delete choice the person asked for no way back. A git bundle is still taken, and restore names it.
+    // Only once the thing is gone: what a Wrap Up part staged in MinMacs's folder can still come back.
+    if (self.state == MMUndoDone && self.deletedNow && [MMRecordString(MMRecordDict(p, @"removal"), @"choice") isEqualToString:@"delete"]) return NO;
+    // Every field through the checked reader: a field of another shape reads as absent.
+    BOOL moved = MMRecordList(p, @"trashed").count || MMRecordList(p, @"staged").count;
     // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit
     // left its server or app running, so its restart or relaunch would start a second copy: it restores nothing.
-    if (self.state == MMUndoFailed) return self.hasParts || [p[@"trashed"] count] || p[@"bundle"] || p[@"recovery"];
-    if (self.hasParts || [p[@"trashed"] count] || p[@"restart"] || p[@"bundle"] || p[@"worktree"] || p[@"recovery"] || p[@"relaunch"]) return YES;
+    if (self.state == MMUndoFailed) return self.hasParts || moved || MMRecordDict(p, @"bundle") || MMRecordDict(p, @"recovery");
+    if (self.hasParts || moved || MMRecordDict(p, @"restart") || MMRecordDict(p, @"bundle") || MMRecordDict(p, @"worktree") || MMRecordDict(p, @"recovery") || MMRecordDict(p, @"relaunch")) return YES;
     for (NSString *k in RestorerKeys()) if (p[k]) return YES;
     return NO;
 }
@@ -226,8 +304,12 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     if (folder) { if (!(to = MoveInto(folder, item, error))) return nil; }
     else if (![NSFileManager.defaultManager trashItemAtURL:item resultingItemURL:&to error:error] || !to) return nil;
     @synchronized (self) {
-        NSMutableArray *t = [record.payload[@"trashed"] mutableCopy] ?: [NSMutableArray new];
-        [t addObject:@{@"from": item.path, @"to": to.path}];
+        NSMutableArray *t = [MMRecordList(record.payload, @"trashed") mutableCopy] ?: [NSMutableArray new];
+        // The very file that now waits there, MMFileIdentity, so nothing else at that Trash path is ever taken for
+        // it when it goes back.
+        NSMutableDictionary *entry = [@{@"from": item.path, @"to": to.path} mutableCopy];
+        [entry addEntriesFromDictionary:MMFileIdentity(to.path) ?: @{}];
+        [t addObject:entry];
         [self note:record payload:@{@"trashed": t}];
     }
     return to;
@@ -332,25 +414,52 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     return nil;
 }
 
-- (NSString *)untrash:(NSArray *)items {
+- (NSString *)untrash:(NSArray *)items { return [self moveBack:items from:@"the Trash"]; }
+
+/// Moves each {from, to, ino, vol} back from to, its place in the Trash or in MinMacs's staging folder, to from, its
+/// exact old path. Each item on its own, so one that cannot go back does not hold the others, and a second call
+/// moves the rest. The entry names the very file that was moved away, MMFileIsEntry, and only that file goes back:
+///   it waits at to, and from is free ............ moved
+///   another file sits at to ...................... left there, reported: it is not MinMacs's to move
+///   it is gone from to, and from holds it ........ already back, counts as done
+///   it is gone from to, and from holds another ... reported as gone, never called put back
+///   something sits at from ....................... left where it waits, never written over, reported
+///   it is at neither place ....................... reported
+/// An entry that does not say which file, as one written before that was kept, is moved when something waits at to
+/// and from is free, and is never taken to be back. "Is it there" is always lstat, never a check that follows links:
+/// a relative symlink points nowhere while it waits, and is still there. items come from MMRecordList.
+/// Returns nil when every item is back, else what is not, in words.
+- (NSString *)moveBack:(NSArray<NSDictionary *> *)items from:(NSString *)place {
     NSFileManager *fm = NSFileManager.defaultManager;
-    for (NSDictionary *i in items) {
-        NSString *from = i[@"from"], *to = i[@"to"];
-        if ([fm fileExistsAtPath:from]) return [NSString stringWithFormat:@"something already exists at %@", from];
-        if (![fm fileExistsAtPath:to]) return [NSString stringWithFormat:@"the Trash no longer holds %@", from.lastPathComponent];
-    }
+    NSMutableArray<NSString *> *problems = [NSMutableArray new];
     for (NSDictionary *i in items.reverseObjectEnumerator) {
-        NSString *from = i[@"from"], *to = i[@"to"];
+        NSString *from = MMRecordString(i, @"from"), *to = MMRecordString(i, @"to");
+        if (!from || !to) { [problems addObject:@"the record does not say where one item was"]; continue; }
+        struct stat st;
+        BOOL there = lstat(to.fileSystemRepresentation, &st) == 0, taken = lstat(from.fileSystemRepresentation, &st) == 0;
+        if (there && MMFileIsEntry(to, i) == 0) {
+            [problems addObject:[NSString stringWithFormat:@"%@ holds another file at %@, not the one MinMacs put there, so it stays", place, to]];
+            continue;
+        }
+        if (!there && taken && MMFileIsEntry(from, i) == 1) continue;   // back already, from a put-back that stopped after this one
+        if (!there) {
+            [problems addObject:taken ? [NSString stringWithFormat:@"%@ no longer holds %@, and something else sits at %@", place, from.lastPathComponent, from]
+                                      : [NSString stringWithFormat:@"%@ no longer holds %@", place, from.lastPathComponent]];
+            continue;
+        }
+        if (taken) { [problems addObject:[NSString stringWithFormat:@"something already exists at %@", from]]; continue; }
         [fm createDirectoryAtPath:from.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
         NSError *e = nil;
-        if (![fm moveItemAtPath:to toPath:from error:&e]) return [NSString stringWithFormat:@"%@ could not leave the Trash: %@", from.lastPathComponent, e.localizedDescription];
+        if (![fm moveItemAtPath:to toPath:from error:&e])
+            [problems addObject:[NSString stringWithFormat:@"%@ could not leave %@: %@", from.lastPathComponent, place, e.localizedDescription]];
     }
-    return nil;
+    return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
 }
 
 /// Recreates a worktree at its commit, as WFRestore does. The commit comes from the bundle when the repo lost it.
 - (NSString *)unbundle:(NSDictionary *)b {
-    NSString *repo = b[@"repo"], *path = b[@"worktree"], *head = b[@"head"], *branch = b[@"branch"], *bundle = b[@"path"];
+    NSString *repo = MMRecordString(b, @"repo"), *path = MMRecordString(b, @"worktree"), *head = MMRecordString(b, @"head"), *branch = MMRecordString(b, @"branch"), *bundle = MMRecordString(b, @"path");
+    if (!repo.length || !path.length || !head.length) return @"the record does not say which worktree it was";
     if ([NSFileManager.defaultManager fileExistsAtPath:path]) return @"something already exists at that path";
     NSString *out = nil;
     // The bundle is needed only when the repo lost the commit. A worktree whose commits are all on a remote has none.
@@ -371,9 +480,10 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
 
 - (NSString *)unrecover:(NSDictionary *)r {
     NSFileManager *fm = NSFileManager.defaultManager;
-    NSString *dir = r[@"dir"], *root = r[@"root"];
+    NSString *dir = MMRecordString(r, @"dir"), *root = MMRecordString(r, @"root");
+    if (!dir.length || !root.length) return @"the record does not say where its saved files are";
     NSMutableArray *missed = [NSMutableArray new];
-    for (NSString *rel in r[@"saved"]) {
+    for (NSString *rel in MMRecordStrings(r, @"saved")) {
         NSString *to = [root stringByAppendingPathComponent:rel];
         if ([fm fileExistsAtPath:to]) continue;   // never write over what is there now
         [fm createDirectoryAtPath:to.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
@@ -405,7 +515,10 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
 /// The parts of a Wrap Up record, newest first: by the "part" index each was run with, else as the log returns them.
 - (NSArray<MMUndoRecord *> *)partsOf:(NSString *)rid {
     NSMutableArray *parts = [NSMutableArray new];
-    for (NSDictionary *b in LogLatest(nil)) if ([b[@"parentRid"] isEqual:rid]) [parts addObject:[MMUndoRecord fromBody:b]];
+    for (NSDictionary *b in LogLatest(nil)) {
+        MMUndoRecord *part = [MMRecordString(b, @"parentRid") isEqualToString:rid] ? [MMUndoRecord fromBody:b] : nil;
+        if (part) [parts addObject:part];
+    }
     NSMutableArray *indexed = [NSMutableArray new];
     for (NSUInteger i = 0; i < parts.count; i++) [indexed addObject:@[parts[i], @(i)]];
     [indexed sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSArray *a, NSArray *b) {
@@ -415,7 +528,7 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     }];
     // A part that asks to come back last, such as tabs that need their servers, goes after the others.
     NSMutableArray *out = [NSMutableArray new], *last = [NSMutableArray new];
-    for (NSArray *x in indexed) [([[x[0] payload][@"restoreLast"] boolValue] ? last : out) addObject:x[0]];
+    for (NSArray *x in indexed) [(MMRecordFlag([x[0] payload], @"restoreLast") || MMRecordNumber([x[0] payload], @"restoreLast").boolValue ? last : out) addObject:x[0]];
     [out addObjectsFromArray:last];
     return out;
 }
@@ -445,8 +558,22 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if (r.state == MMUndoRestored) return @"it was already restored";
     if (r.state == MMUndoPending) return @"the action has not finished";
     if ([r.kind isEqualToString:@"tool"]) return @"a tool's own cleanup cannot be undone; its dry-run output is in the record";
-    if (!r.canRestore) return r.state == MMUndoFailed ? @"the action failed and changed nothing, so there is nothing to restore"
-                                                      : @"the record holds nothing to restore";
+    // A record that cannot be read is never acted on.
+    if (r.damage) return [@"its record is damaged, so MinMacs does not act on it: " stringByAppendingString:r.damage];
+    if (!r.canRestore && r.state == MMUndoDone && r.deletedNow) {
+        NSString *bundle = MMRecordString(MMRecordDict(r.payload, @"bundle"), @"path");
+        return bundle.length ? [NSString stringWithFormat:@"it was deleted and cannot be brought back. Its commits on no remote are in the git bundle %@", bundle]
+                             : @"it was deleted and cannot be brought back";
+    }
+    if (!r.canRestore && r.state == MMUndoFailed) {
+        // A delete that stopped partway did change things, and the record lists what went.
+        NSMutableArray *paths = [NSMutableArray new];
+        for (NSDictionary *d in MMRecordList(r.payload, @"deleted")) [paths addObject:MMRecordString(d, @"path") ?: @"?"];
+        return paths.count ? [NSString stringWithFormat:@"the action failed partway. What it had deleted by then cannot be brought back: %@",
+                       [paths componentsJoinedByString:@", "]]
+                    : @"the action failed and changed nothing, so there is nothing to restore";
+    }
+    if (!r.canRestore) return @"the record holds nothing to restore";
     NSMutableArray *problems = [NSMutableArray new];
     // A Wrap Up comes back in reverse order, and a part that cannot come back stops the rest, since each earlier part
     // may need it, as a server needs its worktree. Parts already restored are skipped, so a second restore goes on.
@@ -466,18 +593,25 @@ static NSMutableSet<NSString *> *Restoring(void) {
     NSMutableDictionary *done = [NSMutableDictionary new];
     NSString *problem = nil;
     BOOL failed = r.state == MMUndoFailed;   // only what it moved aside comes back, never a restart or a relaunch
-    if (!problem && p[@"restart"] && !failed) {
+    if (!problem && MMRecordDict(p, @"restart") && !failed) {
         pid_t pid = 0;
-        problem = [self restart:p[@"restart"] pid:&pid];
+        problem = [self restart:MMRecordDict(p, @"restart") pid:&pid];
         if (pid) done[@"restartedPid"] = @(pid);
     }
-    if (!problem && [p[@"trashed"] count]) problem = [self untrash:p[@"trashed"]];
-    if (!problem && p[@"bundle"]) problem = [self unbundle:p[@"bundle"]];
+    NSArray<NSDictionary *> *trashed = MMRecordList(p, @"trashed"), *staged = MMRecordList(p, @"staged");
+    if (!problem && (trashed.count || staged.count)) {
+        // Both are tried, so what waits in one place does not hold what waits in the other.
+        NSString *a = trashed.count ? [self untrash:trashed] : nil;
+        // What a Wrap Up part staged for a delete that never came: back from MinMacs's staging folder, MMRemoval.h.
+        NSString *b = staged.count ? [self moveBack:staged from:@"MinMacs's staging folder"] : nil;
+        problem = a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
+    }
+    if (!problem && MMRecordDict(p, @"bundle")) problem = [self unbundle:MMRecordDict(p, @"bundle")];
     // A removed worktree with no bundle: its commit is still in the repo, so it is recreated from there.
     // A failed removal left the worktree in place, so it is not recreated.
-    else if (!problem && !failed && [p[@"worktree"] isKindOfClass:NSDictionary.class]) problem = [self unbundle:p[@"worktree"]];
-    if (!problem && p[@"recovery"]) problem = [self unrecover:p[@"recovery"]];
-    if (!problem && p[@"relaunch"] && !failed) problem = [self relaunch:p[@"relaunch"]];
+    else if (!problem && !failed && MMRecordDict(p, @"worktree")) problem = [self unbundle:MMRecordDict(p, @"worktree")];
+    if (!problem && MMRecordDict(p, @"recovery")) problem = [self unrecover:MMRecordDict(p, @"recovery")];
+    if (!problem && MMRecordDict(p, @"relaunch") && !failed) problem = [self relaunch:MMRecordDict(p, @"relaunch")];
     // What an expert registered with MMUndoRestoreKey, such as MinMacs's reopen of closed tabs. Never for a failed record.
     for (NSString *k in [RestorerKeys() sortedArrayUsingSelector:@selector(compare:)]) {
         if (problem || failed || !p[k]) continue;
@@ -502,10 +636,10 @@ static NSMutableSet<NSString *> *Restoring(void) {
 - (NSArray<MMUndoRecord *> *)recent:(NSString *)expert limit:(NSUInteger)limit {
     NSArray *all = LogLatest(nil);
     NSMutableSet *parents = [NSMutableSet new];
-    for (NSDictionary *b in all) if ([b[@"parentRid"] isKindOfClass:NSString.class]) [parents addObject:b[@"parentRid"]];
+    for (NSDictionary *b in all) if (MMRecordString(b, @"parentRid")) [parents addObject:MMRecordString(b, @"parentRid")];
     NSMutableArray *out = [NSMutableArray new];
     for (NSDictionary *b in all) {
-        if (expert && ![b[@"expert"] isEqual:expert]) continue;
+        if (expert && ![MMRecordString(b, @"expert") isEqualToString:expert]) continue;
         MMUndoRecord *r = [MMUndoRecord fromBody:b];
         if (!r) continue;
         r.hasParts = [parents containsObject:r.rid];

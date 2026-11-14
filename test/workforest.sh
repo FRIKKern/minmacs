@@ -191,6 +191,9 @@ echo "== ignored files are saved, caches are not"
 RV_TEST_GO=/envy "$WF" review --model haiku --mode eager --fresh >/dev/null 2>&1
 "$WF" auto --mode eager --path "$W/envy" >/dev/null
 check "envy is removed" no "$(wf_has "$W/envy")"
+# Nobody has chosen what happens to removed things yet, and Eager removed this on its own: a way back is kept.
+check "a mode's removal before the person chose keeps a way back, and says why" "False you have not chosen what happens to removed things yet, so a way back is kept" \
+  "$("$MM" restore --list --json --limit 6 | json "(lambda r: '%s %s' % (r['removal']['wants'], r['removal']['why']))([r for r in j['records'] if r['kind'] == 'remove'][0])")"
 REC=$("$WF" removed --json)
 check ".env is saved" True "$(echo "$REC" | json "'.env' in j[0]['saved']")"
 check "node_modules is not" False "$(echo "$REC" | json "any('node_modules' in s for s in j[0]['saved'])")"
@@ -257,6 +260,9 @@ check "the expert lists no processes itself" 0 "$(grep -nE 'proc_listpids|PROC_P
 check "the expert walks no folder itself" 0 "$(grep -nE 'fts_open|enumeratorAtPath|contentsOfDirectoryAtPath|getattrlistbulk' Sources/Experts/WorkForest/*.m | grep -c .)"
 check "the expert never deletes a file itself" 0 "$(grep -nE 'removeItemAtPath|removeItemAtURL|unlink\(|rmdir\(|trashItemAtURL' Sources/Experts/WorkForest/*.m | grep -c .)"
 kill "$wf_busy" 2>/dev/null
+
+# The removal choice, issue #62, on worktrees of its own. It runs after the counts above.
+. ./test/workforest/removal.sh
 
 echo "== the disk walk keeps a new walk once the old one is stale"
 # shellcheck disable=SC2086

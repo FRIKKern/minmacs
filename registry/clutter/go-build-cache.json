@@ -10,6 +10,7 @@
   "ownerNote": "global",
   "every": 21600,
   "rebuild": "Slower next builds",
+  "rebuilt": true,
   "measured_gib": 2.91,
   "sources": [
     "https://pkg.go.dev/cmd/go",

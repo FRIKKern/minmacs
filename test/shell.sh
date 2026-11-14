@@ -49,6 +49,11 @@ check "review before any review says so" "LocoHost    no review yet" "$(fx revie
 check "_review saves a fixture review" saved "$(fx _review)"
 check "review --json counts the verdicts in LocoHost's words" "1 1 proactive" \
   "$(fx review locohost --json | jq_ 'j["reviews"][0]["verdicts"]["idle"], j["reviews"][0]["verdicts"]["in_use"], j["reviews"][0]["mode"]' | tr '\n' ' ' | sed 's/ $//')"
+check "review --model sets the model reviews ask, with no app" "Reviews ask sonnet. sonnet" "$(fx review --model sonnet) $(fx review --model sonnet --json | jq_ 'j["model"]')"
+check "review --model --dry-run changes nothing" "Reviews ask opus. sonnet" "$(fx review --model opus --dry-run) $(python3 -c "import plistlib,sys; print(plistlib.load(open(sys.argv[1],'rb')).get('review.model'))" "$MINMACS_HOME/Preferences/no.guerrilla.minmacs.plist" 2>/dev/null)"
+fx review --model gpt >/dev/null 2>&1
+check "review --model with an unknown model exits 2" 2 "$?"
+fx review --model auto >/dev/null 2>&1
 fx review nosuch >/dev/null 2>&1
 check "review of an unknown expert exits 2" 2 "$?"
 fx review locohost --now >/dev/null 2>&1

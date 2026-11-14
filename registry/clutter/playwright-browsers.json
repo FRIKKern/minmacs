@@ -11,6 +11,7 @@
   "ownerNote": "ms-playwright/.links/<hash> holds install path",
   "every": 21600,
   "rebuild": "A download of up to 370 MB",
+  "rebuilt": true,
   "measured_gib": 2.48,
   "sources": [
     "https://playwright.dev/docs/browsers",

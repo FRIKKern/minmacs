@@ -54,7 +54,8 @@ static MMTreeDiskFacts *Walk(NSString *root, NSSet<NSString *> *caches) {
                 if (m > newest && m <= limit) newest = m;
             }
             if (e->fts_level > 0) {
-                if (!strcmp(e->fts_name, ".git")) { fts_set(fts, e, FTS_SKIP); continue; }
+                // .git, and MinMacs's own staging folder beside a worktree, Act/MMRemoval.h, are no part of a checkout's size.
+                if (!strcmp(e->fts_name, ".git") || !strncmp(e->fts_name, ".minmacs-staged-", 16)) { fts_set(fts, e, FTS_SKIP); continue; }
                 char git[PATH_MAX];
                 snprintf(git, sizeof git, "%s/.git", e->fts_path);
                 if (cacheLevel < 0 && access(git, F_OK) == 0) { fts_set(fts, e, FTS_SKIP); continue; }
