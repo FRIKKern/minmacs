@@ -345,6 +345,7 @@ int main(int argc, char **argv) {
         Owners();
         Damaged();
         Leftovers();
+        Guards();
         printf("END\n");
     }
     return 0;

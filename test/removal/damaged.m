@@ -126,6 +126,17 @@ static void Damaged(void) {
     T(@"crash: and once the record is old its age settles it, so a pid taken since keeps nothing for ever", @"1 PLAIN=1 failed", [NSString stringWithFormat:@"%ld %@ %@", (long)n, Read(plain), StateWord(parent)]);
     kill(child, SIGKILL);
     int st; waitpid(child, &st, 0);
+    // F7. This very process is alive and is the owner, also with no start time and a record that seems older than it.
+    parent = Unfinished(@"own pid, no start", tree, @{@"pid": @(getpid()), @"start": @0});
+    part = StageMany(parent, @"config, own pid", @[plain], YES);
+    RewriteBody(parent, @"at", @([MMRemovalOwner()[@"start"] doubleValue] - 3600));
+    setenv("MINMACS_STAGE_RECOVER_AFTER", "0", 1);
+    verdict = MMRemovalOwnerAlive([MMUndo.shared record:parent.rid]);
+    n = MMRemovalRecoverStaged();
+    unsetenv("MINMACS_STAGE_RECOVER_AFTER");
+    T(@"owner: this very process counts as alive, also with no start time and an old record", @"1 0 no pending", [NSString stringWithFormat:@"%d %ld %@ %@", verdict, (long)n, YN(Exists(plain)), StateWord(parent)]);
+    (void)MMRemovalPutBack(@[part]);
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
     // A process of another user, which answers EPERM, is no MinMacs of this person: the record's age decides.
     parent = Unfinished(@"pid of another user", tree, @{@"pid": @1, @"start": @0});
     part = StageMany(parent, @"config, pid 1", @[plain], YES);
@@ -154,7 +165,11 @@ static void Damaged(void) {
         @[@"parent", @"finishing", @[@1], @NO, @NO], @[@"parent", @"finishing", @{@"a": @1}, @NO, @NO], @[@"parent", @"finishing", @"yes", @NO, @NO], @[@"parent", @"finishing", @1, @NO, @NO],
         @[@"part body", @"at", @[@1], @NO, @YES], @[@"part body", @"freedBytes", @[@1], @YES, @YES], @[@"parent body", @"at", @[@1], @NO, @NO], @[@"parent body", @"freedBytes", @"much", @NO, @NO],
         // C4: a kind, a state or a parent that is no text.
-        @[@"parent body", @"kind", @7, @NO, @NO], @[@"parent body", @"state", @[@"pending"], @YES, @NO], @[@"part body", @"kind", @YES, @NO, @YES], @[@"part body", @"state", @2, @NO, @YES]];
+        @[@"parent body", @"kind", @7, @NO, @NO], @[@"parent body", @"state", @[@"pending"], @YES, @NO], @[@"part body", @"kind", @YES, @NO, @YES], @[@"part body", @"state", @2, @NO, @YES],
+        // F1 of the review of #69: every other field the payload check names, on the part and on the Wrap Up.
+        @[@"part", @"removal", @"a string", @NO, @NO], @[@"part", @"stagedIn", @7, @NO, @NO], @[@"part", @"asked", @"x", @YES, @NO], @[@"part", @"unstaged", @"x", @NO, @NO],
+        @[@"part", @"restart", @"x", @NO, @NO], @[@"part", @"worktree", @[@1], @NO, @NO], @[@"part", @"relaunch", @7, @NO, @NO], @[@"part", @"path", @7, @NO, @NO],
+        @[@"parent", @"path", @7, @NO, @NO], @[@"parent", @"asked", @"x", @YES, @NO]];
     NSUInteger namedBefore = MMRemovalDamagedRecords().count;
     NSMutableArray<NSArray *> *made = [NSMutableArray new];
     for (NSUInteger i = 0; i < shapes.count; i++) {
@@ -172,6 +187,8 @@ static void Damaged(void) {
         else RewriteBody([who hasPrefix:@"part"] ? x : p, key, shape[2]);
         [made addObject:@[p, x, file, waits, [who hasPrefix:@"part"] ? x : p]];
     }
+    // C4 is read before recovery: a Wrap Up failed by F8 is written again, from what could be read of it.
+    NSString *saidC4 = [@[Or([MMUndo.shared record:[made[22][0] rid]].damage), Or([MMUndo.shared record:[made[23][0] rid]].damage)] componentsJoinedByString:@"|"];
     NSInteger settled = MMRemovalRecoverStaged() + MMRemovalRecoverStaged();
     NSInteger swept = MMRemovalSweepStaged(NULL) + MMRemovalSweepStaged(NULL);
     NSMutableArray<NSString *> *bad = [NSMutableArray new];
@@ -184,37 +201,61 @@ static void Damaged(void) {
         (void)MMRemovalFinishStaged(@[x]);
         (void)hurt.canRestore;
         NSString *undo = [MMUndo.shared restore:hurt.rid];
-        BOOL refused = [undo hasPrefix:@"its record is damaged, so MinMacs does not act on it: "] || [undo isEqualToString:@"the action has not finished"] ||
-                       (!frozen && [undo isEqualToString:@"it was already restored"]);
-        // Left: it still waits in the staging folder. Put back: it is at its old path, and nothing waits.
-        BOOL where = frozen ? [Read(waits) isEqualToString:@"KEEP=1"] && !Exists(file) : [Read(file) isEqualToString:@"KEEP=1"] && !Exists(waits);
-        BOOL safe = where && [StateWord(p) isEqualToString:@"pending"] && hurt.damage.length && refused &&
+        // A hand Undo of a record whose items cannot be moved is refused. Once its items are back, an Undo has nothing to do.
+        BOOL refused = !frozen || [undo hasPrefix:@"its record is damaged, so MinMacs does not act on it: "] || [undo isEqualToString:@"the action has not finished"];
+        // Left: it still waits in the staging folder, and its Wrap Up stays pending. Put back: it is at its old path,
+        // nothing of it waits, and its Wrap Up no longer pends.
+        BOOL where = frozen ? [Read(waits) isEqualToString:@"KEEP=1"] && !Exists(file) && [StateWord(p) isEqualToString:@"pending"] && hurt.damage.length
+                            : [Read(file) isEqualToString:@"KEEP=1"] && !Exists(waits) && ([StateWord(p) isEqualToString:@"failed"] || [StateWord(p) isEqualToString:@"restored"]);
+        BOOL safe = where && refused &&
                     ![MMUndo.shared record:x.rid].deletedNow && !MMRecordList([MMUndo.shared record:x.rid].payload, @"deleted").count && [MMRemovalDamagedRecords() containsObject:hurt.rid];
         if (safe) { if (frozen) left++; else back++; }
         else [bad addObject:[NSString stringWithFormat:@"%@ %@ as %@: waits %@, old path %@, parent %@, damage %@, undo %@", shapes[i][0], shapes[i][1], [shapes[i][2] class], Read(waits), Read(file),
                              StateWord(p), hurt.damage, undo]];
     }
-    T(@"damaged: no shape of a record that cannot be read stops recovery or the sweep, nothing of it is deleted, and its Wrap Up stays pending", @"0 0 ",
+    T(@"damaged: no shape of a record that cannot be read stops recovery or the sweep, and nothing of it is deleted", @"22 0 ",
       [NSString stringWithFormat:@"%ld %ld %@", (long)settled, (long)swept, [bad componentsJoinedByString:@" | "]]);
-    T(@"damaged: a part whose body and lists cannot be read is left where it waits, and one whose lists read is put back", @"14 12",
+    T(@"damaged: a part whose body and lists cannot be read is left where it waits, and one whose lists read is put back", @"14 22",
       [NSString stringWithFormat:@"%lu %lu", (unsigned long)left, (unsigned long)back]);
     T(@"damaged: each is named once", @(shapes.count).stringValue, @(MMRemovalDamagedRecords().count - namedBefore).stringValue);
-    T(@"damaged: a kind, a state or a parent that is no text is damage, and says which", @"its kind is no text|its state is no text|its parent is no text", [@[
-      Or([MMUndo.shared record:[made[22][0] rid]].damage), Or([MMUndo.shared record:[made[23][0] rid]].damage), Or(OddParent(tree).damage)] componentsJoinedByString:@"|"]);
+    T(@"damaged: a kind, a state or a parent that is no text is damage, and says which", @"its kind is no text|its state is no text|its parent is no text", [saidC4 stringByAppendingFormat:@"|%@", Or(OddParent(tree).damage)]);
 
-    // C1. Only its deleted list is damaged, and the deletes had begun: put back all the same, and never deleted.
-    for (NSNumber *finishing in @[@NO, @YES]) {
+    // C1. Only its deleted list, or its removal, is damaged, and maybe the deletes had begun: put back all the same,
+    // never deleted, and its Wrap Up no longer pends, F8, since nothing of it waits.
+    for (NSArray *c in @[@[@"deleted", @NO, @""], @[@"deleted", @YES, @", also once the deletes had begun"], @[@"removal", @NO, @""]]) {
         Write(plain, @"PLAIN=1");
-        parent = Unfinished(@"part with a damaged deleted list", tree, GoneOwner());
-        part = StageMany(parent, @"config, deleted list damaged", @[plain], YES);
-        if (finishing.boolValue) [MMUndo.shared note:parent payload:@{@"finishing": @YES}];
-        [MMUndo.shared note:part payload:@{@"deleted": @"not a list"}];
+        parent = Unfinished(@"part with a damaged field", tree, GoneOwner());
+        part = StageMany(parent, @"config, one field damaged", @[plain], YES);
+        if ([c[1] boolValue]) [MMUndo.shared note:parent payload:@{@"finishing": @YES}];
+        [MMUndo.shared note:part payload:@{c[0]: @"not a list"}];
         to = MMRecordString(MMRecordList(part.payload, @"staged").firstObject, @"to");
         n = MMRemovalRecoverStaged();
-        T([NSString stringWithFormat:@"damaged: a part whose staged list reads fine is still put back when only its deleted list is damaged%@", finishing.boolValue ? @", also once the deletes had begun" : @""],
-          @"0 PLAIN=1 no restored pending yes", [NSString stringWithFormat:@"%ld %@ %@ %@ %@ %@", (long)n, Read(plain), YN(Exists(to)), StateWord(part), StateWord(parent),
-          YN([MMRemovalDamagedRecords() containsObject:part.rid])]);
+        T([NSString stringWithFormat:@"damaged: a part whose staged list reads fine is still put back when only its %@ is damaged%@", c[0], c[2]],
+          @"1 PLAIN=1 no restored failed yes yes", [NSString stringWithFormat:@"%ld %@ %@ %@ %@ %@ %@", (long)n, Read(plain), YN(Exists(to)), StateWord(part), StateWord(parent),
+          YN([MMRemovalDamagedRecords() containsObject:part.rid]), YN([[MMUndo.shared record:parent.rid].error containsString:@"could not be read"])]);
     }
+    // The same through the sweep, for a Wrap Up that failed: the part is put back, and only then counted.
+    Write(plain, @"PLAIN=1");
+    parent = Unfinished(@"failed, part removal damaged", tree, nil);
+    part = StageMany(parent, @"config, removal damaged, swept", @[plain], YES);
+    [MMUndo.shared note:part payload:@{@"removal": @"not a dictionary"}];
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    to = MMRecordString(MMRecordList(part.payload, @"staged").firstObject, @"to");
+    n = MMRemovalSweepStaged(NULL);
+    T(@"damaged: the sweep puts back a part whose removal is damaged, and counts it", @"1 PLAIN=1 no restored", [NSString stringWithFormat:@"%ld %@ %@ %@", (long)n, Read(plain), YN(Exists(to)), StateWord(part)]);
+    // Move-back itself refuses a record whose staged list cannot be read, whoever asks.
+    parent = Unfinished(@"failed, staged entry damaged", tree, nil);
+    part = StageMany(parent, @"config, ino damaged", @[plain], YES);
+    part = Rewrite(part, @"staged", ^(NSMutableDictionary *e) { e[@"ino"] = @"12"; });
+    to = MMRecordString(MMRecordList(part.payload, @"staged").firstObject, @"to");
+    [MMUndo.shared finish:part ok:NO freed:0 error:@"test"];
+    NSString *mb = [MMUndo.shared moveBackOnly:part.rid];
+    T(@"damaged: move-back alone refuses a part whose staged list cannot be read, and the file stays", @"yes PLAIN=1 no",
+      [NSString stringWithFormat:@"%@ %@ %@", YN([mb hasPrefix:@"its record is damaged"]), Read(to), YN(Exists(plain))]);
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    Write(plain, @"PLAIN=1");
+    (void)MMRemovalSweepStaged(NULL);
+    T(@"damaged: the sweep names a part that lost its parent", @"yes", YN([MMRemovalDamagedRecords() containsObject:OddParent(tree).rid]));
     // A record that can be read, beside all of these, is still settled.
     parent = Unfinished(@"fine, beside the damaged ones", tree, GoneOwner());
     part = StageMany(parent, @"config of a fine one", @[plain], YES);

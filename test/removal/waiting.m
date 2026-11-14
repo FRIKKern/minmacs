@@ -166,8 +166,111 @@ static void Leftovers(void) {
       [NSString stringWithFormat:@"%ld %@ %@ %@", (long)n, Read(plain), YN(Exists(to)), StateWord(part)]);
 }
 
-/// For the CLI checks of removal.sh: leaves one item a done Wrap Up could not delete and one whose old path is
-/// taken, in MINMACS_HOME, and prints each id on its own line, then the second one's old path.
+/// The review of #69: guards that must bite, an Undo that could not finish, a folder that is no staging folder, and
+/// the two item functions on their own.
+static void Guards(void) {
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSString *tree = Path(@"guards/wt"), *plain = [tree stringByAppendingPathComponent:@".env"], *aside = Path(@"guards/aside.env");
+    Write(plain, @"PLAIN=1");
+
+    // G1. A failed Wrap Up is put back, even when its record says the deletes began.
+    MMUndoRecord *parent = Unfinished(@"failed, finishing", tree, nil);
+    MMUndoRecord *part = StageMany(parent, @"config, failed but finishing", @[plain], YES);
+    NSString *to = StagedTo(part);
+    [MMUndo.shared note:parent payload:@{@"finishing": @YES}];
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    NSInteger n = MMRemovalSweepStaged(NULL);
+    T(@"sweep: a staged item of a failed Wrap Up is put back, not deleted, though its record says the deletes began", @"1 PLAIN=1 no restored no",
+      [NSString stringWithFormat:@"%ld %@ %@ %@ %@", (long)n, Read(plain), YN(Exists(to)), StateWord(part), YN([MMUndo.shared record:part.rid].deletedNow)]);
+
+    // G11. The person's delete of an item whose record is damaged, though its lists read: refused, and it stays.
+    parent = Unfinished(@"failed, part damaged, old path taken", tree, nil);
+    part = StageMany(parent, @"config, recovery damaged, old path taken", @[plain], YES);
+    to = StagedTo(part);
+    [MMUndo.shared note:part payload:@{@"recovery": @"no dictionary"}];
+    Write(plain, @"NEWER=1");
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    (void)MMRemovalSweepStaged(NULL);
+    MMRemovalWaitingItem *item = WaitingAt(to);
+    NSString *said = MMRemovalDeleteWaiting(item.itemID, NULL), *direct = MMRemovalDeleteStagedItem(part, to, NULL);
+    T(@"waiting: the person's delete of an item whose record is damaged is refused, and it stays", @"damaged no yes yes yes PLAIN=1",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@", WhyName(item), YN(item.canDelete), YN(item.canPutBack), YN([said containsString:@"damaged"]), YN([direct containsString:@"damaged"]), Read(to)]);
+    T(@"waiting: it can still be put back to a path of the person's own", @"nil PLAIN=1 no", [NSString stringWithFormat:@"%@ %@ %@", Or(MMRemovalPutBackWaiting(item.itemID, aside)), Read(aside), YN(Exists(to))]);
+    [fm removeItemAtPath:aside error:nil];
+    Write(plain, @"PLAIN=1");
+
+    // G12, F6. A Wrap Up that still runs: its item is not listed, and neither item function acts on it.
+    parent = Unfinished(@"still running", tree, MMRemovalOwner());
+    part = StageMany(parent, @"config of a running one", @[plain], YES);
+    to = StagedTo(part);
+    NSString *del = MMRemovalDeleteStagedItem(part, to, NULL), *mv = MMRemovalPutBackStagedItem(part, to, aside);
+    T(@"waiting: an item of a Wrap Up that still runs is not listed, and delete and put-back are refused", @"not listed yes yes PLAIN=1 no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@", WhyName(WaitingAt(to)), YN([del isEqualToString:@"its Wrap Up still runs"]), YN([mv isEqualToString:@"its Wrap Up still runs"]), Read(to), YN(Exists(aside))]);
+    // With a damaged part it is listed, so a person sees it, but only to be moved by hand while the Wrap Up runs.
+    [MMUndo.shared note:part payload:@{@"recovery": @"no dictionary"}];
+    item = WaitingAt(to);
+    T(@"waiting: a damaged part of a Wrap Up that still runs is listed, and can be neither deleted nor put back", @"damaged no no its Wrap Up still runs",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", WhyName(item), YN(item.canDelete), YN(item.canPutBack), Or(MMRemovalPutBackWaiting(item.itemID, aside))]);
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    (void)MMRemovalPutBack(@[[MMUndo.shared record:part.rid]]);
+
+    // G22. A part that never ended is not deleted by the person, even in a Wrap Up that ended.
+    parent = Unfinished(@"part never ended", tree, nil);
+    part = StageMany(parent, @"config, part pending", @[plain], NO);
+    to = StagedTo([MMUndo.shared record:part.rid]);
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    T(@"waiting: an item of a part that never ended is not deleted", @"its part has not ended PLAIN=1", [NSString stringWithFormat:@"%@ %@", Or(MMRemovalDeleteStagedItem(part, to, NULL)), Read(to)]);
+    [MMUndo.shared finish:part ok:NO freed:0 error:@"test"];
+    (void)MMRemovalPutBack(@[[MMUndo.shared record:part.rid]]);
+
+    // G13. An entry that does not lie in its Wrap Up's staging folder is never moved, and never listed.
+    NSString *doc = Path(@"guards/Documents/thesis.txt");
+    Write(doc, @"MY THESIS");
+    parent = Unfinished(@"forged entry", tree, nil);
+    part = StageMany(parent, @"config, forged", @[plain], YES);
+    to = StagedTo(part);
+    NSMutableDictionary *forged = [MMFileIdentity(doc) mutableCopy];
+    forged[@"from"] = [tree stringByAppendingPathComponent:@"thesis.txt"]; forged[@"to"] = doc;
+    [MMUndo.shared note:part payload:@{@"staged": @[forged, MMRecordList(part.payload, @"staged").firstObject]}];
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    part = [MMUndo.shared record:part.rid];
+    T(@"waiting: put-back refuses an entry that does not lie in this Wrap Up's staging folder, and does not list it", @"yes MY THESIS no not listed",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", YN([MMRemovalPutBackStagedItem(part, doc, aside) isEqualToString:@"it does not lie directly in the staging folder"]), Read(doc), YN(Exists(aside)), WhyName(WaitingAt(doc))]);
+    (void)MMRemovalPutBackStagedItem(part, to, plain);
+    // The forged entry is taken out again, so no later sweep finds it.
+    [MMUndo.shared note:[MMUndo.shared record:part.rid] payload:@{@"staged": @[]}];
+
+    // F4. A damaged record whose stagedIn is no staging folder: nothing of that folder is listed.
+    parent = Unfinished(@"stagedIn elsewhere", tree, nil);
+    part = StageMany(parent, @"config, stagedIn forged", @[plain], YES);
+    to = StagedTo(part);
+    [MMUndo.shared note:part payload:@{@"staged": @"no list", @"stagedIn": doc.stringByDeletingLastPathComponent}];
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    NSUInteger fromDocs = 0;
+    for (MMRemovalWaitingItem *i in MMRemovalWaiting()) if ([i.stagedAt hasPrefix:doc.stringByDeletingLastPathComponent]) fromDocs++;
+    T(@"waiting: a damaged record whose stagedIn is no staging folder lists nothing from it", @"0 MY THESIS", [NSString stringWithFormat:@"%lu %@", (unsigned long)fromDocs, Read(doc)]);
+    [fm moveItemAtPath:to toPath:plain error:nil];
+
+    // F3. The person asked for an Undo of a done Wrap Up and it could not finish: from then on its leftover is only
+    // put back or listed, never deleted by the sweep.
+    NSString *mods = [tree stringByAppendingPathComponent:@"node_modules"];
+    Write([mods stringByAppendingPathComponent:@"a.js"], @"A=1");
+    parent = Unfinished(@"done, then an Undo", tree, nil);
+    part = StageMany(parent, @"node_modules, Undo refused", @[mods], YES);
+    to = StagedTo(part);
+    parent = DoneWrapUp(parent);
+    Write(mods, @"SOMETHING ELSE");
+    NSString *undo = [MMUndo.shared restore:parent.rid];
+    n = MMRemovalSweepStaged(NULL);
+    item = WaitingAt(to);
+    T(@"sweep: after an Undo that could not finish, a leftover is not deleted", @"yes 0 A=1 old-path-taken SOMETHING ELSE",
+      [NSString stringWithFormat:@"%@ %ld %@ %@ %@", YN(undo != nil), (long)n, Read([to stringByAppendingPathComponent:@"a.js"]), WhyName(item), Read(mods)]);
+    [fm removeItemAtPath:mods error:nil];
+    T(@"sweep: once its old path is free, the next sweep puts it back", @"1 A=1", [NSString stringWithFormat:@"%ld %@", (long)MMRemovalSweepStaged(NULL), Read([mods stringByAppendingPathComponent:@"a.js"])]);
+}
+
+/// For the CLI checks of removal.sh: leaves one item a done Wrap Up could not delete, one whose old path is taken and
+/// one whose record is damaged, in MINMACS_HOME, and prints the first two ids, the second one's old path, then the third id.
 static int LeaveWaiting(NSString *dir) {
     gDir = dir;
     NSString *tree = Path(@"cli/wt"), *mods = [tree stringByAppendingPathComponent:@"node_modules"], *plain = [tree stringByAppendingPathComponent:@".env"];
@@ -180,6 +283,15 @@ static int LeaveWaiting(NSString *dir) {
     MMUndoRecord *part2 = StageMany(other, @"cli config", @[plain], YES);
     Write(plain, @"NEWER=1");
     [MMUndo.shared finish:other ok:NO freed:0 error:@"test"];
-    printf("%s:%s\n%s:%s\n%s\n", part.rid.UTF8String, StagedTo(part).lastPathComponent.UTF8String, part2.rid.UTF8String, StagedTo(part2).lastPathComponent.UTF8String, plain.UTF8String);
+    // A third: its part's record is damaged, though its lists read, and its old path is taken.
+    NSString *local = [tree stringByAppendingPathComponent:@".env.local"];
+    Write(local, @"LOCAL=1");
+    MMUndoRecord *third = Unfinished(@"cli, damaged", tree, nil);
+    MMUndoRecord *part3 = StageMany(third, @"cli damaged config", @[local], YES);
+    [MMUndo.shared note:part3 payload:@{@"recovery": @"no dictionary"}];
+    Write(local, @"NEWER=1");
+    [MMUndo.shared finish:third ok:NO freed:0 error:@"test"];
+    printf("%s:%s\n%s:%s\n%s\n%s:%s\n", part.rid.UTF8String, StagedTo(part).lastPathComponent.UTF8String, part2.rid.UTF8String, StagedTo(part2).lastPathComponent.UTF8String, plain.UTF8String,
+           part3.rid.UTF8String, StagedTo(part3).lastPathComponent.UTF8String);
     return 0;
 }

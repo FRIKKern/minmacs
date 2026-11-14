@@ -300,6 +300,7 @@ wu_removal_refused smart
 check "wrapup refused smart: node_modules, which Smart would delete, went back, and .env.local too" "restored restored" \
   "$(echo "$U" | json "j['parts']['caches']['state'] + ' ' + j['parts']['config']['state']")"
 "$T" verb removal smart >/dev/null
+wu_removal_waiting
 
 echo "-- the invariants"
 check "wrapup: the experts run no git and no process for it" 0 \
