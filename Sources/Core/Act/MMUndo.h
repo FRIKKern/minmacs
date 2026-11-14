@@ -90,6 +90,8 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 NSString *MMRecordString(id from, NSString *key);
 NSNumber *MMRecordNumber(id from, NSString *key);                  // a number, never a boolean
 BOOL MMRecordFlag(id from, NSString *key);                         // YES only for a boolean that is true
+BOOL MMRecordIsFlag(id from, NSString *key);                       // YES for a boolean, true or false
+BOOL MMRecordHas(id from, NSString *key);                          // YES when the key holds anything, of any type
 NSDictionary *MMRecordDict(id from, NSString *key);
 NSArray<NSDictionary *> *MMRecordList(id from, NSString *key);     // a list, with only its dictionaries
 NSArray<NSString *> *MMRecordStrings(id from, NSString *key);      // a list, with only its strings

@@ -65,6 +65,8 @@ static BOOL IsFlag(id v) { return v && CFGetTypeID((__bridge CFTypeRef)v) == CFB
 NSString *MMRecordString(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSString.class] ? v : nil; }
 NSNumber *MMRecordNumber(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSNumber.class] && !IsFlag(v) ? v : nil; }
 BOOL MMRecordFlag(id from, NSString *key) { id v = Field(from, key); return IsFlag(v) && [v boolValue]; }
+BOOL MMRecordIsFlag(id from, NSString *key) { return IsFlag(Field(from, key)); }
+BOOL MMRecordHas(id from, NSString *key) { return Field(from, key) != nil; }
 NSDictionary *MMRecordDict(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSDictionary.class] ? v : nil; }
 static NSArray *ListOf(id from, NSString *key, Class kind) {
     id v = Field(from, key);

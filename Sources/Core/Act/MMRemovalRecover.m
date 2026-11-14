@@ -97,12 +97,11 @@ static NSString *Items(NSUInteger n) { return [NSString stringWithFormat:@"%lu i
 static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *parts, NSSet<NSString *> *wasBack) {
     NSUInteger back = 0, gone = 0;
     // Only a true or false that MinMacs wrote says whether the deletes had begun. A number, even 0, says nothing.
-    id finishing = parent.payload[@"finishing"];
-    BOOL unknown = !parent.payload.count || (finishing && CFGetTypeID((__bridge CFTypeRef)finishing) != CFBooleanGetTypeID());
+    BOOL unknown = !parent.payload.count || (MMRecordHas(parent.payload, @"finishing") && !MMRecordIsFlag(parent.payload, @"finishing"));
     for (MMUndoRecord *given in parts) {
         MMUndoRecord *r = [MMUndo.shared record:given.rid] ?: given;
         NSArray *deleted = MMRecordList(r.payload, @"deleted");
-        if (r.payload[@"deleted"] && !deleted) unknown = YES;
+        if (MMRecordHas(r.payload, @"deleted") && !deleted) unknown = YES;
         gone += MAX(deleted.count, r.deletedNow ? 1u : 0u);
         if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count;
     }
