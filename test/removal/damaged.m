@@ -165,7 +165,7 @@ static void Damaged(void) {
         @[@"parent", @"finishing", @[@1], @NO, @NO], @[@"parent", @"finishing", @{@"a": @1}, @NO, @NO], @[@"parent", @"finishing", @"yes", @NO, @NO], @[@"parent", @"finishing", @1, @NO, @NO],
         @[@"part body", @"at", @[@1], @NO, @YES], @[@"part body", @"freedBytes", @[@1], @YES, @YES], @[@"parent body", @"at", @[@1], @NO, @NO], @[@"parent body", @"freedBytes", @"much", @NO, @NO],
         // C4: a kind, a state or a parent that is no text.
-        @[@"parent body", @"kind", @7, @NO, @NO], @[@"parent body", @"state", @[@"pending"], @YES, @NO], @[@"part body", @"kind", @YES, @NO, @YES], @[@"part body", @"state", @2, @NO, @YES],
+        @[@"parent body", @"kind", @7, @NO, @NO], @[@"parent body", @"state", @[@"pending"], @YES, @YES], @[@"part body", @"kind", @YES, @NO, @YES], @[@"part body", @"state", @2, @NO, @YES],
         // F1 of the review of #69: every other field the payload check names, on the part and on the Wrap Up.
         @[@"part", @"removal", @"a string", @NO, @NO], @[@"part", @"stagedIn", @7, @NO, @NO], @[@"part", @"asked", @"x", @YES, @NO], @[@"part", @"unstaged", @"x", @NO, @NO],
         @[@"part", @"restart", @"x", @NO, @NO], @[@"part", @"worktree", @[@1], @NO, @NO], @[@"part", @"relaunch", @7, @NO, @NO], @[@"part", @"path", @7, @NO, @NO],
@@ -213,9 +213,9 @@ static void Damaged(void) {
         else [bad addObject:[NSString stringWithFormat:@"%@ %@ as %@: waits %@, old path %@, parent %@, damage %@, undo %@", shapes[i][0], shapes[i][1], [shapes[i][2] class], Read(waits), Read(file),
                              StateWord(p), hurt.damage, undo]];
     }
-    T(@"damaged: no shape of a record that cannot be read stops recovery or the sweep, and nothing of it is deleted", @"22 0 ",
+    T(@"damaged: no shape of a record that cannot be read stops recovery or the sweep, and nothing of it is deleted", @"21 0 ",
       [NSString stringWithFormat:@"%ld %ld %@", (long)settled, (long)swept, [bad componentsJoinedByString:@" | "]]);
-    T(@"damaged: a part whose body and lists cannot be read is left where it waits, and one whose lists read is put back", @"14 22",
+    T(@"damaged: a part whose body and lists cannot be read is left where it waits, and one whose lists read is put back", @"15 21",
       [NSString stringWithFormat:@"%lu %lu", (unsigned long)left, (unsigned long)back]);
     T(@"damaged: each is named once", @(shapes.count).stringValue, @(MMRemovalDamagedRecords().count - namedBefore).stringValue);
     T(@"damaged: a kind, a state or a parent that is no text is damage, and says which", @"its kind is no text|its state is no text|its parent is no text", [saidC4 stringByAppendingFormat:@"|%@", Or(OddParent(tree).damage)]);
@@ -234,6 +234,42 @@ static void Damaged(void) {
           @"1 PLAIN=1 no restored failed yes yes", [NSString stringWithFormat:@"%ld %@ %@ %@ %@ %@ %@", (long)n, Read(plain), YN(Exists(to)), StateWord(part), StateWord(parent),
           YN([MMRemovalDamagedRecords() containsObject:part.rid]), YN([[MMUndo.shared record:parent.rid].error containsString:@"could not be read"])]);
     }
+    // R1 of the second review of #69. A Wrap Up whose deletes had begun, one item already deleted, its own record
+    // damaged: recovery puts the other back and fails it, and its words never say that nothing was deleted.
+    NSString *first = [tree stringByAppendingPathComponent:@"began/first.env"], *second = [tree stringByAppendingPathComponent:@"began/second.env"];
+    Write(first, @"FIRST=1"); Write(second, @"SECOND=1");
+    parent = Unfinished(@"deletes began, then damaged", tree, GoneOwner());
+    MMUndoRecord *gone = StageMany(parent, @"config, deleted before the crash", @[first], YES);
+    part = StageMany(parent, @"config, still staged at the crash", @[second], YES);
+    [MMUndo.shared note:parent payload:@{@"finishing": @YES}];
+    (void)MMRemovalFinishStaged(@[gone]);
+    [MMUndo.shared note:parent payload:@{@"bundle": @"not a dictionary"}];
+    n = MMRemovalRecoverStaged();
+    NSString *said = [MMUndo.shared record:parent.rid].error ?: @"";
+    T(@"damaged: a Wrap Up failed after its deletes began does not say nothing was deleted", @"failed no yes yes SECOND=1 no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@", StateWord(parent), YN([said containsString:@"Nothing was deleted"]), YN([said containsString:@"1 item had already been deleted and cannot be brought back"]),
+       YN([said containsString:@"1 item it had moved out of the worktree went back"]), Read(second), YN(Exists(first))]);
+
+    // The same without a deleted list to count: its deletes had begun, so it says one may have gone.
+    Write(first, @"FIRST=1");
+    parent = Unfinished(@"deletes began, none recorded", tree, GoneOwner());
+    part = StageMany(parent, @"config, staged, deletes begun", @[first], YES);
+    [MMUndo.shared note:parent payload:@{@"finishing": @YES, @"bundle": @"not a dictionary"}];
+    (void)MMRemovalRecoverStaged();
+    said = [MMUndo.shared record:parent.rid].error ?: @"";
+    T(@"damaged: a Wrap Up whose deletes had begun says something may have been deleted", @"failed no yes FIRST=1",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", StateWord(parent), YN([said containsString:@"Nothing was deleted"]), YN([said containsString:@"may have been deleted"]), Read(first)]);
+
+    // A "finishing" that is a number, even 0, does not say the deletes never began.
+    Write(first, @"FIRST=1");
+    parent = Unfinished(@"finishing is 0", tree, GoneOwner());
+    part = StageMany(parent, @"config, finishing 0", @[first], YES);
+    [MMUndo.shared note:parent payload:@{@"finishing": @0}];
+    (void)MMRemovalRecoverStaged();
+    said = [MMUndo.shared record:parent.rid].error ?: @"";
+    T(@"damaged: a finishing that is a number does not let the words say nothing was deleted", @"failed no yes FIRST=1",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", StateWord(parent), YN([said containsString:@"Nothing was deleted"]), YN([said containsString:@"Whether anything was deleted cannot be read"]), Read(first)]);
+
     // The same through the sweep, for a Wrap Up that failed: the part is put back, and only then counted.
     Write(plain, @"PLAIN=1");
     parent = Unfinished(@"failed, part removal damaged", tree, nil);

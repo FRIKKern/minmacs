@@ -293,6 +293,60 @@ static void Guards(void) {
       [NSString stringWithFormat:@"%@ %ld %@ %@ %@", YN(undo != nil), (long)n, Read([to stringByAppendingPathComponent:@"a.js"]), WhyName(item), Read(mods)]);
     [fm removeItemAtPath:mods error:nil];
     T(@"sweep: once its old path is free, the next sweep puts it back", @"1 A=1", [NSString stringWithFormat:@"%ld %@", (long)MMRemovalSweepStaged(NULL), Read([mods stringByAppendingPathComponent:@"a.js"])]);
+
+    // R2. An Undo that stopped at a later part never reached the earlier one: only the Wrap Up's own undoAsked keeps
+    // the earlier part's leftover from being deleted.
+    NSString *early = Path(@"guards/wt2/early.env"), *late = Path(@"guards/wt2/late.env");
+    Write(early, @"EARLY=1"); Write(late, @"LATE=1");
+    parent = Unfinished(@"done, Undo stopped at a later part", Path(@"guards/wt2"), nil);
+    MMUndoRecord *first = StageMany(parent, @"config, part 0", @[early], YES), *second = StageMany(parent, @"config, part 1", @[late], YES);
+    [MMUndo.shared note:[MMUndo.shared record:first.rid] payload:@{@"part": @0}];
+    [MMUndo.shared note:[MMUndo.shared record:second.rid] payload:@{@"part": @1}];
+    parent = DoneWrapUp(parent);
+    Write(late, @"SOMETHING ELSE");
+    undo = [MMUndo.shared restore:parent.rid];
+    // Read before the sweep: its own put-back is a restore of the part, which notes undoAsked on it too.
+    BOOL firstAsked = MMRecordFlag([MMUndo.shared record:first.rid].payload, @"undoAsked");
+    (void)MMRemovalSweepStaged(NULL);
+    T(@"sweep: after an Undo that stopped at another part, a leftover is not deleted", @"yes no yes EARLY=1 no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@", YN(undo != nil), YN(firstAsked),
+       YN(MMRecordFlag([MMUndo.shared record:parent.rid].payload, @"undoAsked")), Read(early), YN([MMUndo.shared record:first.rid].deletedNow)]);
+    [fm removeItemAtPath:late error:nil];
+    (void)MMRemovalSweepStaged(NULL);
+
+    // R2. A damaged Wrap Up whose Trash item could not go back stays pending, and once its old path is free it goes
+    // back and the Wrap Up fails, its words saying what went back and that nothing was deleted.
+    NSString *kept = Path(@"guards/wt3/.env.local");
+    Write(kept, @"KEPT=1");
+    parent = Unfinished(@"damaged, Trash item blocked", Path(@"guards/wt3"), GoneOwner());
+    part = TrashOne(parent, @"config to the Trash, damaged", kept);
+    NSString *inTrash = MMRecordString(MMRecordList(part.payload, @"trashed").firstObject, @"to");
+    [MMUndo.shared note:part payload:@{@"recovery": @"no dictionary"}];
+    Write(kept, @"NEWER=1");
+    (void)MMRemovalRecoverStaged();
+    T(@"damaged: a Wrap Up whose Trash item could not go back stays pending", @"pending KEPT=1 NEWER=1",
+      [NSString stringWithFormat:@"%@ %@ %@", StateWord(parent), Read(inTrash), Read(kept)]);
+    [fm removeItemAtPath:kept error:nil];
+    (void)MMRemovalRecoverStaged();
+    NSString *words = [MMUndo.shared record:parent.rid].error ?: @"";
+    T(@"damaged: once it went back, the Wrap Up fails and its words say what went back", @"failed KEPT=1 yes yes",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", StateWord(parent), Read(kept), YN([words containsString:@"1 item it had moved out of the worktree went back"]), YN([words containsString:@"Nothing was deleted"])]);
+
+    // R1. A Wrap Up whose state cannot be read may have ended and had its worktree taken: nothing of it is pulled
+    // back from the Trash or the staging folder, nothing is deleted, it stays pending, and what it staged is listed.
+    NSString *trashed = Path(@"guards/wt4/.env"), *staged = Path(@"guards/wt4/.env.local");
+    Write(trashed, @"TRASHED=1"); Write(staged, @"STAGED=1");
+    parent = Unfinished(@"state cannot be read", Path(@"guards/wt4"), GoneOwner());
+    MMUndoRecord *toTrash = TrashOne(parent, @"config to the Trash, state unread", trashed);
+    part = StageMany(parent, @"config staged, state unread", @[staged], YES);
+    to = StagedTo(part); inTrash = MMRecordString(MMRecordList(toTrash.payload, @"trashed").firstObject, @"to");
+    parent = DoneWrapUp(parent);
+    RewriteBody(parent, @"state", @[@"done"]);
+    n = MMRemovalRecoverStaged() + MMRemovalSweepStaged(NULL);
+    item = WaitingAt(to);
+    T(@"damaged: a Wrap Up whose state cannot be read is not pulled back or failed, and what it staged is listed", @"0 TRASHED=1 no STAGED=1 no pending damaged no no yes",
+      [NSString stringWithFormat:@"%ld %@ %@ %@ %@ %@ %@ %@ %@ %@", (long)n, Read(inTrash), YN(Exists(trashed)), Read(to), YN(Exists(staged)), StateWord(parent), WhyName(item), YN(item.canDelete), YN(item.canPutBack),
+       YN([MMRemovalDamagedRecords() containsObject:parent.rid])]);
 }
 
 /// For the CLI checks of removal.sh: leaves one item a done Wrap Up could not delete, one whose old path is taken and
