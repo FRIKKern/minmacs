@@ -124,6 +124,36 @@ static void WalkRoots(void) {
     [NSNotificationCenter.defaultCenter removeObserver:token];
 }
 
+/// One Wrap Up of the removal choice's staging, issue #67: its one part stages path under Delete, as a config part
+/// does, and the Wrap Up ends done, with its deletes begun, or failed.
+static NSString *StagedFor(NSString *path, BOOL done) {
+    MMUndoRecord *parent = [MMUndo.shared begin:@"core" kind:@"wrapup" finding:@"tool:waiting" subject:@"Wrap Up waiting" why:@"test" by:@"manual" parent:nil
+                                        payload:@{@"path": path.stringByDeletingLastPathComponent}];
+    MMUndoRecord *part = [MMUndo.shared begin:@"tool" kind:@"trash" finding:@"tool:waiting:part" subject:path.lastPathComponent why:@"test" by:@"manual" parent:parent.rid payload:@{@"part": @0}];
+    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
+    MMRemovalNote(part, del, nil);
+    MMRemovalAsk(part, @[path]);
+    MMRemovalApply(path, del, part, nil);
+    MMRemovalDone(part, nil);
+    [MMUndo.shared finish:part ok:YES freed:0 error:nil];
+    if (done) [MMUndo.shared note:parent payload:@{@"finishing": @YES}];
+    [MMUndo.shared finish:parent ok:done freed:0 error:done ? nil : @"test"];
+    NSString *to = MMRecordString(MMRecordList([MMUndo.shared record:part.rid].payload, @"staged").firstObject, @"to");
+    return [NSString stringWithFormat:@"%@:%@", part.rid, to.lastPathComponent];
+}
+/// tool leave-waiting <dir>: one item a done Wrap Up could not delete and one whose old path is taken, in
+/// MINMACS_HOME, for the act forms of `removal --waiting` run as the app runs them. Prints both ids.
+static int LeaveWaiting(NSString *dir) {
+    NSString *a = [dir stringByAppendingPathComponent:@"wt/cache"], *b = [dir stringByAppendingPathComponent:@"wt/.env"];
+    [NSFileManager.defaultManager createDirectoryAtPath:a withIntermediateDirectories:YES attributes:nil error:nil];
+    [@"A=1" writeToFile:[a stringByAppendingPathComponent:@"a.js"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    [@"B=1" writeToFile:b atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    NSString *one = StagedFor(a, YES), *two = StagedFor(b, NO);
+    [@"NEWER=1" writeToFile:b atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    printf("%s\n%s\n", one.UTF8String, two.UTF8String);
+    return 0;
+}
+
 /// Runs block off main and turns the main run loop until it ends, as the app's socket queue does.
 static void OffMain(dispatch_block_t block) {
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
@@ -207,6 +237,7 @@ int main(int argc, const char *argv[]) {
             PrintJSON(rounds);
             return 0;
         }
+        if (!strcmp(argv[1], "leave-waiting") && argc == 3) return LeaveWaiting(@(argv[2]));
         if (strcmp(argv[1], "verb")) { fprintf(stderr, "tool: unknown command %s\n", argv[1]); return 2; }
         NSMutableArray *words = [NSMutableArray new];
         for (int i = 2; i < argc; i++) [words addObject:@(argv[i])];

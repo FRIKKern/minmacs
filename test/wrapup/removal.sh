@@ -141,3 +141,21 @@ wu_removal_refused() {   # choice
     "$(echo "$U" | json "' '.join(str(j['parts'][s]['payload']['removal']['deleted']) for s in ('caches', 'config', 'worktree')) + ' ' + str(sum(len(j['parts'][s]['payload'].get('deleted', [])) for s in ('caches', 'config', 'worktree')))")"
   check "wrapup refused $1: the worktree part failed, and the parts before it were put back" "failed" "$(echo "$U" | json "j['parts']['worktree']['state']")"
 }
+
+# The act forms of `removal --waiting`, issue #67, run as the app runs a verb. The tool leaves one item a done Wrap Up
+# could not delete and one whose old path is taken, under $wu.
+wu_removal_waiting() {
+  echo "-- what still waits in the staging folder, deleted or put back as the app runs it"
+  wu_ids=$("$T" leave-waiting "$wu/waiting")
+  wu_i1=$(echo "$wu_ids" | sed -n 1p); wu_i2=$(echo "$wu_ids" | sed -n 2p)
+  check "wrapup waiting: both are listed" 2 "$("$T" verb removal --waiting --json | json "len([w for w in j['waiting'] if w['id'] in ('$wu_i1', '$wu_i2')])")"
+  J=$("$T" verb removal --waiting --delete "$wu_i1" --json); r=$?
+  check "wrapup waiting: the delete runs in the app, and the item is gone and not put back" "0 True no no" \
+    "$r $(echo "$J" | json "str(j['done'])") $([ -e "$(echo "$J" | json "j['item']['stagedAt']")" ] && echo yes || echo no) $(wu_has "$wu/waiting/wt/cache")"
+  J=$("$T" verb removal --waiting --put-back "$wu_i2" --json); r=$?
+  check "wrapup waiting: a put-back onto its taken old path is refused, and nothing is written over" "1 False NEWER=1" "$r $(echo "$J" | json "str(j['done'])") $(cat "$wu/waiting/wt/.env")"
+  "$T" verb removal --waiting --put-back "$wu_i2" --to "$wu/waiting/aside.env" >"$wu/waiting/put.txt" 2>&1; r=$?
+  check "wrapup waiting: a put-back to a path of the person's own moves it there" "0 Put .env back at $wu/waiting/aside.env. B=1 NEWER=1" \
+    "$r $(cat "$wu/waiting/put.txt") $(cat "$wu/waiting/aside.env") $(cat "$wu/waiting/wt/.env")"
+  check "wrapup waiting: nothing of them waits any more" 0 "$("$T" verb removal --waiting --json | json "len([w for w in j['waiting'] if w['id'] in ('$wu_i1', '$wu_i2')])")"
+}

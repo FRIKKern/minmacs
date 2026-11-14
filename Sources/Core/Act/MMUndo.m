@@ -65,6 +65,8 @@ static BOOL IsFlag(id v) { return v && CFGetTypeID((__bridge CFTypeRef)v) == CFB
 NSString *MMRecordString(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSString.class] ? v : nil; }
 NSNumber *MMRecordNumber(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSNumber.class] && !IsFlag(v) ? v : nil; }
 BOOL MMRecordFlag(id from, NSString *key) { id v = Field(from, key); return IsFlag(v) && [v boolValue]; }
+BOOL MMRecordIsFlag(id from, NSString *key) { return IsFlag(Field(from, key)); }
+BOOL MMRecordHas(id from, NSString *key) { return Field(from, key) != nil; }
 NSDictionary *MMRecordDict(id from, NSString *key) { id v = Field(from, key); return [v isKindOfClass:NSDictionary.class] ? v : nil; }
 static NSArray *ListOf(id from, NSString *key, Class kind) {
     id v = Field(from, key);
@@ -79,6 +81,8 @@ NSArray<NSString *> *MMRecordStrings(id from, NSString *key) { return ListOf(fro
 /// The UUID of the volume that holds the folder of path, or nil when it has none. The folder is asked, not the item,
 /// so a symlink is never followed to another volume.
 static NSString *VolumeOf(NSString *path) {
+    // A check can make the UUID unreadable, as on a volume that has none. Only with MINMACS_HOME set.
+    if (getenv("MINMACS_TEST_NO_VOLUME_UUID") && NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) return nil;
     NSString *uuid = nil;
     [[NSURL fileURLWithPath:path.stringByDeletingLastPathComponent] getResourceValue:&uuid forKey:NSURLVolumeUUIDStringKey error:nil];
     return [uuid isKindOfClass:NSString.class] && uuid.length ? uuid : nil;
@@ -91,31 +95,42 @@ NSDictionary *MMFileIdentity(NSString *path) {
     if (vol) d[@"vol"] = vol;
     return d;
 }
-int MMFileIsEntry(NSString *path, NSDictionary *entry) {
+int MMFileIsEntry(NSString *path, NSDictionary *entry) { return MMFileIsEntryCheck(path, entry, NULL); }
+int MMFileIsEntryCheck(NSString *path, NSDictionary *entry, BOOL *uuidUnread) {
+    if (uuidUnread) *uuidUnread = NO;
     NSNumber *ino = MMRecordNumber(entry, @"ino");
     NSString *vol = MMRecordString(entry, @"vol");
     if (!ino || (!vol && !MMRecordNumber(entry, @"dev"))) return -1;
     struct stat st;
     if (!path.length || lstat(path.fileSystemRepresentation, &st) != 0) return 0;
     if ((unsigned long long)st.st_ino != ino.unsignedLongLongValue) return 0;
-    // The device number changes when a volume comes back, so it is never compared. The volume's UUID is.
-    return !vol || [VolumeOf(path) isEqualToString:vol] ? 1 : 0;
+    // The device number changes when a volume comes back, so it is never compared. The volume's UUID is. An entry
+    // written on a volume with no UUID has none, and is matched by its inode alone at that path.
+    if (!vol) return 1;
+    NSString *now = VolumeOf(path);
+    // A UUID that cannot be read now cannot say it is the same file, so it is not, and the caller says why.
+    if (!now && uuidUnread) *uuidUnread = YES;
+    return [now isEqualToString:vol] ? 1 : 0;
+}
+
+/// Why the list k of a payload cannot be read, or nil when it reads or is not there.
+static NSString *ListDamage(NSDictionary *p, NSString *k) {
+    id v = p[k];
+    if (!v) return nil;
+    if (![v isKindOfClass:NSArray.class]) return [k stringByAppendingString:@" is no list"];
+    for (id x in (NSArray *)v) {
+        if (![x isKindOfClass:NSDictionary.class]) return [k stringByAppendingString:@" holds an entry that is no entry"];
+        if (![k isEqualToString:@"staged"] && ![k isEqualToString:@"trashed"]) continue;
+        if (!MMRecordString(x, @"from") || !MMRecordString(x, @"to")) return [k stringByAppendingString:@" holds an entry that does not say where its item was"];
+        for (NSString *n in @[@"dev", @"ino"]) if (x[n] && !MMRecordNumber(x, n)) return [NSString stringWithFormat:@"%@ holds an entry whose %@ is no number", k, n];
+        if (x[@"vol"] && !MMRecordString(x, @"vol")) return [k stringByAppendingString:@" holds an entry whose vol is no text"];
+    }
+    return nil;
 }
 
 /// Why a payload cannot be read, or nil. Only fields Act acts on, and only when they are there.
 static NSString *PayloadDamage(NSDictionary *p) {
-    for (NSString *k in @[@"staged", @"trashed", @"deleted", @"unstaged"]) {
-        id v = p[k];
-        if (!v) continue;
-        if (![v isKindOfClass:NSArray.class]) return [k stringByAppendingString:@" is no list"];
-        for (id x in (NSArray *)v) {
-            if (![x isKindOfClass:NSDictionary.class]) return [k stringByAppendingString:@" holds an entry that is no entry"];
-            if (![k isEqualToString:@"staged"] && ![k isEqualToString:@"trashed"]) continue;
-            if (!MMRecordString(x, @"from") || !MMRecordString(x, @"to")) return [k stringByAppendingString:@" holds an entry that does not say where its item was"];
-            for (NSString *n in @[@"dev", @"ino"]) if (x[n] && !MMRecordNumber(x, n)) return [NSString stringWithFormat:@"%@ holds an entry whose %@ is no number", k, n];
-            if (x[@"vol"] && !MMRecordString(x, @"vol")) return [k stringByAppendingString:@" holds an entry whose vol is no text"];
-        }
-    }
+    for (NSString *k in @[@"staged", @"trashed", @"deleted", @"unstaged"]) { NSString *d = ListDamage(p, k); if (d) return d; }
     if (p[@"asked"] && (![p[@"asked"] isKindOfClass:NSArray.class] || [MMRecordStrings(p, @"asked") count] != [p[@"asked"] count])) return @"asked is no list of paths";
     for (NSString *k in @[@"removal", @"bundle", @"recovery", @"worktree", @"restart", @"relaunch"]) if (p[k] && !MMRecordDict(p, k)) return [k stringByAppendingString:@" is no dictionary"];
     for (NSString *k in @[@"stagedIn", @"path"]) if (p[k] && !MMRecordString(p, k)) return [k stringByAppendingString:@" is no text"];
@@ -133,6 +148,7 @@ static NSString *PayloadDamage(NSDictionary *p) {
 @property (readwrite) int64_t freedBytes;
 @property BOOL hasParts;
 @property (copy) NSString *bodyDamage;
+@property (readwrite) BOOL stateUnread;
 @end
 
 @implementation MMUndoRecord
@@ -143,12 +159,18 @@ static NSString *PayloadDamage(NSDictionary *p) {
     r.rid = b[@"rid"]; r.expert = str(@"expert"); r.kind = str(@"kind"); r.findingID = str(@"findingID");
     r.subject = str(@"subject"); r.why = str(@"why"); r.by = str(@"by"); r.parentRid = str(@"parentRid"); r.error = str(@"error");
     r.state = StateFrom(str(@"state"));
+    r.stateUnread = b[@"state"] && ![@[@"pending", @"done", @"failed", @"restored"] containsObject:str(@"state") ?: @""];
     r.at = [NSDate dateWithTimeIntervalSince1970:MMRecordNumber(b, @"at").doubleValue];
     r.payload = MMRecordDict(b, @"payload") ?: @{};
     r.freedBytes = MMRecordNumber(b, @"freedBytes").longLongValue;
     if (!MMRecordNumber(b, @"at")) r.bodyDamage = @"its time is no number";
     else if (b[@"freedBytes"] && !MMRecordNumber(b, @"freedBytes")) r.bodyDamage = @"its freed bytes are no number";
     else if (b[@"payload"] && !MMRecordDict(b, @"payload")) r.bodyDamage = @"its payload is no dictionary";
+    // What says which record it is and where it stands. One of another type would hide a Wrap Up from recovery or a
+    // part from its Wrap Up, so it is damage, named like the rest.
+    else for (NSArray *k in @[@[@"kind", @"kind"], @[@"state", @"state"], @[@"parentRid", @"parent"]])
+        if (b[k[0]] && !str(k[0])) { r.bodyDamage = [NSString stringWithFormat:@"its %@ is no text", k[1]]; break; }
+    if (!r.bodyDamage && r.stateUnread) r.bodyDamage = @"its state is none MinMacs writes";
     return r;
 }
 - (NSDictionary *)body {
@@ -160,6 +182,7 @@ static NSString *PayloadDamage(NSDictionary *p) {
     return b;
 }
 - (NSString *)damage { return self.bodyDamage ?: PayloadDamage(self.payload); }
+- (NSString *)moveDamage { return self.bodyDamage ?: ListDamage(self.payload, @"staged") ?: ListDamage(self.payload, @"trashed"); }
 - (BOOL)deletedNow { return MMRecordFlag(MMRecordDict(self.payload, @"removal"), @"deleted"); }
 - (BOOL)canRestore {
     if (self.state != MMUndoDone && self.state != MMUndoFailed) return NO;
@@ -437,8 +460,10 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
         if (!from || !to) { [problems addObject:@"the record does not say where one item was"]; continue; }
         struct stat st;
         BOOL there = lstat(to.fileSystemRepresentation, &st) == 0, taken = lstat(from.fileSystemRepresentation, &st) == 0;
-        if (there && MMFileIsEntry(to, i) == 0) {
-            [problems addObject:[NSString stringWithFormat:@"%@ holds another file at %@, not the one MinMacs put there, so it stays", place, to]];
+        BOOL unread = NO;
+        if (there && MMFileIsEntryCheck(to, i, &unread) == 0) {
+            [problems addObject:unread ? [NSString stringWithFormat:@"%@ holds a file at %@ that MinMacs cannot tell is the one it put there, since its volume's UUID cannot be read now, so it stays", place, to]
+                                       : [NSString stringWithFormat:@"%@ holds another file at %@, not the one MinMacs put there, so it stays", place, to]];
             continue;
         }
         if (!there && taken && MMFileIsEntry(from, i) == 1) continue;   // back already, from a put-back that stopped after this one
@@ -552,6 +577,41 @@ static NSMutableSet<NSString *> *Restoring(void) {
     return problem;
 }
 
+- (NSString *)moveBackOnly:(NSString *)rid {
+    if (!rid.length) return @"no undo record with that id";
+    @synchronized (Restoring()) {
+        if ([Restoring() containsObject:rid]) return @"a restore of it is already running";
+        [Restoring() addObject:rid];
+    }
+    NSString *problem = [self moveBackOnce:rid];
+    @synchronized (Restoring()) { [Restoring() removeObject:rid]; }
+    return problem;
+}
+
+- (NSString *)moveBackOnce:(NSString *)rid {
+    MMUndoRecord *r = [self record:rid];
+    if (!r) return @"no undo record with that id";
+    if (r.state == MMUndoRestored) return @"it was already restored";
+    if (r.state == MMUndoPending) return @"the action has not finished";
+    // Only the body and the two lists are read here, so another damaged field does not hold these items.
+    if (r.moveDamage) return [@"its record is damaged, so MinMacs does not act on it: " stringByAppendingString:r.moveDamage];
+    NSArray<NSDictionary *> *trashed = MMRecordList(r.payload, @"trashed"), *staged = MMRecordList(r.payload, @"staged");
+    if (!trashed.count && !staged.count) return @"the record holds nothing to move back";
+    NSString *a = trashed.count ? [self untrash:trashed] : nil;
+    NSString *b = staged.count ? [self moveBack:staged from:@"MinMacs's staging folder"] : nil;
+    if (a || b) return a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
+    @synchronized (self) {
+        // The payload is written back as it was read, damaged field and all, so the damage is still named.
+        NSMutableDictionary *np = [r.payload mutableCopy];
+        np[@"restored"] = @{@"restoredAt": @(NSDate.date.timeIntervalSince1970), @"movedBackOnly": @YES};
+        r.payload = np;
+        r.state = MMUndoRestored;
+        [self write:r];
+    }
+    [MMGains.shared takeBack:rid];
+    return nil;
+}
+
 - (NSString *)restoreOnce:(NSString *)rid {
     MMUndoRecord *r = [self record:rid];
     if (!r) return @"no undo record with that id";
@@ -560,6 +620,9 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if ([r.kind isEqualToString:@"tool"]) return @"a tool's own cleanup cannot be undone; its dry-run output is in the record";
     // A record that cannot be read is never acted on.
     if (r.damage) return [@"its record is damaged, so MinMacs does not act on it: " stringByAppendingString:r.damage];
+    // The person wants a Wrap Up back, even when this Undo cannot finish: from now on its leftovers are only put back
+    // or listed, never deleted, MMRemovalDeletesBegan.
+    if (([r.kind isEqualToString:@"wrapup"] || r.parentRid.length) && !MMRecordFlag(r.payload, @"undoAsked")) [self note:r payload:@{@"undoAsked": @YES}];
     if (!r.canRestore && r.state == MMUndoDone && r.deletedNow) {
         NSString *bundle = MMRecordString(MMRecordDict(r.payload, @"bundle"), @"path");
         return bundle.length ? [NSString stringWithFormat:@"it was deleted and cannot be brought back. Its commits on no remote are in the git bundle %@", bundle]

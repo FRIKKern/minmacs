@@ -2,6 +2,7 @@
 // test/removal.sh builds this with all of Sources/Core and runs it twice.
 // Usage: removaltest <dir> <registry/clutter>     every check, on fixtures it makes in <dir>
 //        removaltest --wall <path>                asks MMRemovalApply to delete <path> and prints why it refused
+//        removaltest --leave-waiting <dir>        leaves two items in staging that MinMacs cannot settle, for the CLI
 // <dir> is inside $MINMACS_HOME. The --wall form runs with MINMACS_HOME set to a folder inside the section's own
 // folder, so the path it is asked to delete is a fixture too, and would only cost a fixture if the wall failed.
 // It prints one line per check, CHECK<tab>name<tab>want<tab>got, and removal.sh hands each to check.
@@ -328,6 +329,7 @@ int main(int argc, char **argv) {
             printf("%s: %s\n", ok ? "deleted" : "refused", e.localizedDescription.UTF8String ?: "");
             return ok ? 0 : 1;
         }
+        if (argc == 3 && !strcmp(argv[1], "--leave-waiting")) return LeaveWaiting(@(argv[2]));
         if (argc < 3) { fprintf(stderr, "usage: removaltest <dir> <registry/clutter>\n"); return 2; }
         gDir = @(argv[1]);
         Pref();
@@ -342,6 +344,8 @@ int main(int argc, char **argv) {
         Stranded();
         Owners();
         Damaged();
+        Leftovers();
+        Guards();
         printf("END\n");
     }
     return 0;

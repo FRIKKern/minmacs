@@ -668,7 +668,7 @@ static int Open(MMLHArgs *a) {
 static NSArray<MMUndoRecord *> *Stops(void) {
     NSMutableArray *out = [NSMutableArray new];
     for (MMUndoRecord *r in [MMUndo.shared recent:kExpert limit:50])
-        if ([r.kind isEqualToString:@"stop"] && r.state != MMUndoPending && [r.payload[@"restart"] isKindOfClass:NSDictionary.class]) [out addObject:r];
+        if ([r.kind isEqualToString:@"stop"] && r.state != MMUndoPending && MMRecordDict(r.payload, @"restart")) [out addObject:r];
     return out;
 }
 
@@ -677,11 +677,12 @@ static NSString *StateWord(MMUndoState s) {
 }
 
 static NSDictionary *StopJSON(MMUndoRecord *r) {
-    NSDictionary *rs = r.payload[@"restart"];
-    NSString *cmd = rs[@"command"] ?: @"";
-    NSString *cwd = rs[@"cwd"];
-    return @{@"rid": r.rid ?: @"", @"at": @(r.at.timeIntervalSince1970), @"port": rs[@"port"] ?: @0, @"framework": rs[@"framework"] ?: @"",
-             @"project": rs[@"project"] ?: @"", @"restart": cwd.length ? [NSString stringWithFormat:@"cd %@ && %@", MMLHQuote(cwd), cmd] : cmd,
+    // Through the checked reader of MMUndo.h: a record comes from disk, and a field of another type reads as absent.
+    NSDictionary *rs = MMRecordDict(r.payload, @"restart");
+    NSString *cmd = MMRecordString(rs, @"command") ?: @"";
+    NSString *cwd = MMRecordString(rs, @"cwd");
+    return @{@"rid": r.rid ?: @"", @"at": @(r.at.timeIntervalSince1970), @"port": MMRecordNumber(rs, @"port") ?: @0, @"framework": MMRecordString(rs, @"framework") ?: @"",
+             @"project": MMRecordString(rs, @"project") ?: @"", @"restart": cwd.length ? [NSString stringWithFormat:@"cd %@ && %@", MMLHQuote(cwd), cmd] : cmd,
              @"by": r.by ?: @"manual", @"why": r.why ?: @"", @"state": StateWord(r.state), @"canRestore": @(r.canRestore && r.state == MMUndoDone)};
 }
 
@@ -700,7 +701,7 @@ static int Stopped(MMLHArgs *a) {
 /// Starts the newest stopped server on this port again, through Core's undo record.
 static int RestartPort(NSInteger port, MMLHArgs *a) {
     for (MMUndoRecord *r in Stops()) {
-        if ([r.payload[@"restart"][@"port"] integerValue] != port || r.state != MMUndoDone) continue;
+        if (MMRecordNumber(MMRecordDict(r.payload, @"restart"), @"port").integerValue != port || r.state != MMUndoDone) continue;
         if (Listening(port)) { Err([NSString stringWithFormat:@":%ld is already taken", (long)port]); return 1; }
         if (a.dry) { Print([@"would run " stringByAppendingString:StopJSON(r)[@"restart"]]); return 0; }
         __block NSString *problem = nil;
@@ -733,7 +734,7 @@ static int Restore(MMLHArgs *a) {
         return RestartPort(a.arg1.integerValue, a);
     MMUndoRecord *r = [MMUndo.shared record:a.arg1];
     if (!r || ![r.expert isEqualToString:kExpert]) { Err([@"no LocoHost record " stringByAppendingString:a.arg1]); return 1; }
-    NSInteger port = [r.payload[@"restart"][@"port"] integerValue];
+    NSInteger port = MMRecordNumber(MMRecordDict(r.payload, @"restart"), @"port").integerValue;
     if (port && Listening(port)) { Err([NSString stringWithFormat:@":%ld is already taken", (long)port]); return 1; }
     if (a.dry) { Print([@"would run " stringByAppendingString:StopJSON(r)[@"restart"]]); return 0; }
     __block NSString *problem = nil;
