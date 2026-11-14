@@ -220,6 +220,8 @@ static void Guards(void) {
     to = StagedTo([MMUndo.shared record:part.rid]);
     [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
     T(@"waiting: an item of a part that never ended is not deleted", @"its part has not ended PLAIN=1", [NSString stringWithFormat:@"%@ %@", Or(MMRemovalDeleteStagedItem(part, to, NULL)), Read(to)]);
+    T(@"waiting: an item of a part that never ended is not put back by the person either", @"its part has not ended PLAIN=1 no",
+      [NSString stringWithFormat:@"%@ %@ %@", Or(MMRemovalPutBackStagedItem(part, to, aside)), Read(to), YN(Exists(aside))]);
     [MMUndo.shared finish:part ok:NO freed:0 error:@"test"];
     (void)MMRemovalPutBack(@[[MMUndo.shared record:part.rid]]);
 
@@ -239,6 +241,18 @@ static void Guards(void) {
     (void)MMRemovalPutBackStagedItem(part, to, plain);
     // The forged entry is taken out again, so no later sweep finds it.
     [MMUndo.shared note:[MMUndo.shared record:part.rid] payload:@{@"staged": @[]}];
+
+    // A staging folder whose marker names another Wrap Up is not this one's: nothing of it is moved or listed.
+    parent = Unfinished(@"marker of another", tree, nil);
+    part = StageMany(parent, @"config, marker changed", @[plain], YES);
+    to = StagedTo(part);
+    [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
+    NSString *marker = [to.stringByDeletingLastPathComponent stringByAppendingPathComponent:@".minmacs"];
+    Write(marker, @"another Wrap Up");
+    T(@"waiting: put-back refuses a staging folder whose marker names another Wrap Up, and does not list it", @"yes PLAIN=1 no not listed",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", YN([MMRemovalPutBackStagedItem(part, to, aside) isEqualToString:@"its folder was not made by MinMacs for this Wrap Up"]), Read(to), YN(Exists(aside)), WhyName(WaitingAt(to))]);
+    Write(marker, parent.rid);
+    (void)MMRemovalPutBack(@[[MMUndo.shared record:part.rid]]);
 
     // F4. A damaged record whose stagedIn is no staging folder: nothing of that folder is listed.
     parent = Unfinished(@"stagedIn elsewhere", tree, nil);
