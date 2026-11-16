@@ -387,3 +387,6 @@ static int LeaveWaiting(NSString *dir) {
            part3.rid.UTF8String, StagedTo(part3).lastPathComponent.UTF8String);
     return 0;
 }
+
+// Issue #70: forged records.
+#import "forged.m"

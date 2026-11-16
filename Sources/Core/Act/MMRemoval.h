@@ -212,6 +212,20 @@ NSString *MMRemovalPutBackWaitingWhyNot(MMRemovalWaitingItem *item, NSString *pa
 /// moved to path, as put-back moves, after the same check of its staging folder. Each notes the record.
 NSString *MMRemovalDeleteStagedItem(MMUndoRecord *part, NSString *stagedAt, int64_t *freed);
 NSString *MMRemovalPutBackStagedItem(MMUndoRecord *part, NSString *stagedAt, NSString *path);
+/// The one check of where a staged item waits, asked before MinMacs deletes it or moves it back, issue #70. nil when
+/// MinMacs may act on what part staged at stagedAt, else why not. All of these must hold:
+///   1. part names a Wrap Up, and that Wrap Up has a record
+///   2. stagedAt is spelled as a real path, with no ".." in it, and something is there
+///   3. it lies directly in part's "stagedIn", by real paths, so a link is never taken for the folder it points at
+///   4. that folder is <support>/staged/<rid>, or is named .minmacs-staged-<rid> and lies beside the worktree that
+///      the Wrap Up's record names, where alone MinMacs makes one
+///   5. the folder holds the marker MinMacs wrote, and it says that rid
+/// So a record that names a file somewhere else, whatever inode it gives, never has that file moved or deleted.
+NSString *MMRemovalStagedItemWhyNot(MMUndoRecord *part, NSString *stagedAt);
+/// For -[MMUndo restore:] and -[MMUndo moveBackOnly:]: the same for one entry of part's "staged" list before it is
+/// moved back, and its old path must be spelled as a real path too. nil when nothing waits at the entry's "to", since
+/// nothing moves then.
+NSString *MMRemovalStagedEntryWhyNot(MMUndoRecord *part, NSDictionary *entry);
 /// The staging folder as a rule on strings: item may be deleted as staged for the Wrap Up rid only when folder is
 /// <support>/staged/<rid> or is named .minmacs-staged-<rid>, and item lies directly in it. A folder that only looks
 /// like one, for another rid or one level off, is refused. The marker inside is checked on the disk besides.

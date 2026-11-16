@@ -346,6 +346,7 @@ int main(int argc, char **argv) {
         Damaged();
         Leftovers();
         Guards();
+        Forged();
         printf("END\n");
     }
     return 0;
