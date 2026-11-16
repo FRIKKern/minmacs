@@ -112,7 +112,9 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
             // sees it, and MinMacs takes no act on it.
             i.why = damaged ? MMRemovalWaitDamaged : !parent ? MMRemovalWaitNoWrapUp : began ? MMRemovalWaitDeleteFailed : There(from) ? MMRemovalWaitOldPathTaken : MMRemovalWaitPutBackFailed;
             // What the act itself would refuse is not offered: the list says so, and why.
-            i.refusal = parent ? MMRemovalStagedItemWhyNot(r, to) : nil;
+            // That is also an old path other than the one the staging folder holds for the item: a put-back with no
+            // path of the person's own would go there.
+            i.refusal = !parent ? nil : from ? MMRemovalStagedEntryWhyNot(r, x) : MMRemovalStagedItemWhyNot(r, to);
             i.detail = damaged ? (r.damage ?: parent.damage) : i.refusal ?: MMRecordString(x, @"why");
             i.canDelete = parent && !i.refusal && !damaged && !running && ended;
             i.canPutBack = parent && !i.refusal && !running && ended && from != nil;

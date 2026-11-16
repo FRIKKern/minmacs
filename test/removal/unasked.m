@@ -117,6 +117,11 @@ static void Unasked(void) {
     [MMUndo.shared note:[MMUndo.shared record:part.rid] payload:@{@"staged": @[ForgedEntry(to, to, wrong)]}];
     said = MMRemovalPutBack(@[[MMUndo.shared record:part.rid]]);
     T(@"put back: nor does the part that staged it, once its record names another old path", @"yes no PLAIN=1", [NSString stringWithFormat:@"%@ %@ %@", YN(said != nil), YN(Exists(wrong)), Read(to)]);
+    // It is listed with neither act offered, since its record's old path is not the one the staging folder holds.
+    MMRemovalWaitingItem *odd = WaitingAt(to);
+    T(@"waiting: an item whose record names another old path is listed, and a put-back there is not offered", @"yes no no yes PLAIN=1 no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@", YN(odd != nil), YN(odd.canDelete), YN(odd.canPutBack),
+       YN([MMRemovalPutBackWaiting(odd.itemID, nil) containsString:@"the record names another old path than the one it was staged from"]), Read(to), YN(Exists(wrong))]);
     // The person can still say where it goes, by its id.
     NSString *aside = [base stringByAppendingPathComponent:@"aside.env"];
     T(@"waiting: the person can still put it where they say", @"nil PLAIN=1", [NSString stringWithFormat:@"%@ %@", Or(MMRemovalPutBackStagedItem([MMUndo.shared record:part.rid], to, aside)), Read(aside)]);
