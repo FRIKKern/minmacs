@@ -122,7 +122,7 @@ LOCOHOST_IDLE_MINUTES=0 "$LH" close-idle --yes --port "$P" >/dev/null; check "cl
 check "and the port is free" no "$(lh_listening "$P")"
 "$LH" stopped --json | grep -q "http.server";                       check "stopped keeps its restart command" 0 "$?"
 
-echo "== Luna when Haiku is out of usage"
+echo "== Sol when Opus is out of usage"
 lh_stop_all; lh_serve "$P"; "$LH" ready "$P" --timeout 10 >/dev/null
 # The idle verdict above was for the stopped instance. The new one on the same port and folder has the same finding id.
 r=$(LOCOHOST_IDLE_MINUTES=0 "$LH" idle --json --port "$P" | json "len(j['candidates'])")
@@ -132,9 +132,9 @@ r=$("$LH" list --json | json "'review' in [h for h in j['hosts'] if $P in h['por
 r=$("$LH" explain "$P" | grep -c "fixture says so")
                                                                      check "and explain shows no earlier reason" 0 "$r"
 RV_TEST_CLAUDE_LIMIT=1 OPENAI_API_KEY=sk-test "$LH" review --model auto --port "$P" --json >"$lh/luna.json" 2>/dev/null
-r=$(json "j['model']" <"$lh/luna.json");                             check "auto falls back to Luna, without the API key" gpt-6-luna "$r"
-r=$(json "'usage limit' in (j['note'] or '')" <"$lh/luna.json");     check "and notes why Haiku was skipped" True "$r"
-grep -q "SUPERSECRET123" "$RV_TEST_SENT";                            check "the api key value is not sent to Luna" 1 "$?"
+r=$(json "j['model']" <"$lh/luna.json");                             check "auto falls back to Sol, without the API key" gpt-6.1-sol "$r"
+r=$(json "'usage limit' in (j['note'] or '')" <"$lh/luna.json");     check "and notes why Opus was skipped" True "$r"
+grep -q "SUPERSECRET123" "$RV_TEST_SENT";                            check "the api key value is not sent to Sol" 1 "$?"
 lh_fresh
 r=$(RV_TEST_CODEX_UNSUPPORTED=gpt-6-luna "$LH" review --model luna --port "$P" --json | json "j['model']")
                                                                      check "luna moves on from a model the account lacks" gpt-5.6-luna "$r"

@@ -544,8 +544,10 @@ static NSString *LocalAddr(const MMSocket *s) {
         if (ra.localizedName && ![via containsObject:ra.localizedName]) [via addObject:ra.localizedName];
         // launchd adopts a process whose parent exits. One an app or a terminal started, which macOS still names
         // as responsible, that has no shell, agent or app above it now, lost its parent. A brew service is responsible
-        // for itself.
-        h.orphaned = !owned && resp != pid && ![h.kind isEqualToString:@"service"];
+        // for itself. A dev server whose parent is launchd is an orphan too: macOS names a process responsible for
+        // itself once its responsible process is gone, so a next-server left by a closed terminal looked like a
+        // launchd job, and the review read it as one set up on purpose. Nobody starts a dev server from a plist.
+        h.orphaned = !owned && ![h.kind isEqualToString:@"service"] && (resp != pid || (h.isDev && h.ppid == 1));
         if (h.orphaned) [via addObject:@"parent exited"];
         else if (!owned) [via addObject:@"launchd"];
         h.launcher = [via componentsJoinedByString:@" · "];
