@@ -13,7 +13,7 @@ static MMRemovalWaitingItem *WaitingAt(NSString *stagedAt) {
     return nil;
 }
 static NSString *WhyName(MMRemovalWaitingItem *i) {
-    return i ? @[@"delete-failed", @"old-path-taken", @"put-back-failed", @"damaged"][i.why] : @"not listed";
+    return i ? i.json[@"why"] : @"not listed";
 }
 static NSString *StagedTo(MMUndoRecord *part) { return MMRecordString(MMRecordList(part.payload, @"staged").firstObject, @"to"); }
 

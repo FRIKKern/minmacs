@@ -154,11 +154,123 @@ static void Forged(void) {
     [MMUndo.shared note:part payload:@{@"staged": @[ForgedEntry(kept, kept, was)], @"stagedIn": orphan, @"asked": @[was],
                                        @"removal": @{@"choice": @"delete", @"wants": @YES, @"staged": @YES, @"deleted": @NO}}];
     MMRemovalWaitingItem *item = WaitingAt(kept);
-    T(@"waiting: an item whose Wrap Up has no record is listed", @"yes keep.txt", [NSString stringWithFormat:@"%@ %@", YN(item != nil), item.name]);
+    T(@"waiting: an item whose Wrap Up has no record is listed, and its words say so", @"no-wrap-up keep.txt its Wrap Up has no record", [NSString stringWithFormat:@"%@ %@ %@", WhyName(item), item.name, item.whyWords]);
     said = MMRemovalDeleteWaiting(item.itemID, NULL);
-    T(@"waiting: an item whose Wrap Up has no record cannot be deleted", @"no yes KEEP=1", [NSString stringWithFormat:@"%@ %@ %@", YN(item.canDelete), YN(said != nil), Read(kept)]);
+    T(@"waiting: an item whose Wrap Up has no record cannot be deleted", @"no yes KEEP=1", [NSString stringWithFormat:@"%@ %@ %@", YN(item.canDelete), YN([said hasPrefix:@"its Wrap Up has no record, so MinMacs does not delete it. Move it by hand from "]), Read(kept)]);
     T(@"waiting: nor by the item function on its own", @"yes KEEP=1", [NSString stringWithFormat:@"%@ %@", YN(MMRemovalDeleteStagedItem(part, kept, NULL) != nil), Read(kept)]);
     said = MMRemovalPutBackWaiting(item.itemID, nil);
     T(@"waiting: nor put back, by the person or by the sweep", @"no yes 0 KEEP=1 no",
       [NSString stringWithFormat:@"%@ %@ %ld %@ %@", YN(item.canPutBack), YN(said != nil), (long)MMRemovalSweepStaged(NULL), Read(kept), YN(Exists(was))]);
+}
+
+/// The same issue's lows, T1 and T2: what the error of a damaged Wrap Up says was deleted and went back.
+static void DamagedWordsSay(void) {
+    NSString *tree = Path(@"words/wt"), *plain = [tree stringByAppendingPathComponent:@".env"], *second = [tree stringByAppendingPathComponent:@".env.local"];
+    NSString *(^errorOf)(MMUndoRecord *) = ^NSString *(MMUndoRecord *r) { return [MMUndo.shared record:r.rid].error ?: @""; };
+
+    // T1. A merged worktree that git removed under Smart can still be restored. It is no loss, and is not counted as one.
+    MMUndoRecord *parent = Unfinished(@"damaged, a part can still restore", tree, GoneOwner());
+    MMUndoRecord *gone = Part(parent.rid, @"a worktree git removed");
+    [MMUndo.shared note:gone payload:@{@"removal": @{@"choice": @"smart", @"wants": @YES, @"deleted": @YES},
+                                       @"worktree": @{@"repo": tree, @"worktree": [tree stringByAppendingString:@"-merged"], @"head": @"0123abc"}}];
+    gone = Done(gone);
+    [MMUndo.shared note:parent payload:@{@"bundle": @"not a dictionary"}];
+    (void)MMRemovalRecoverStaged();
+    NSString *said = errorOf(parent);
+    T(@"damaged: a part that can still restore is not counted as deleted for ever", @"failed yes yes no yes",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@", StateWord(parent), YN(gone.deletedNow), YN(gone.canRestore), YN([said containsString:@"had already been deleted"]),
+       YN([said containsString:@"Nothing was deleted that cannot be brought back. 1 item it had removed can still come back with Restore"])]);
+    // One deleted under the Delete choice has no way back, and is still counted.
+    parent = Unfinished(@"damaged, a part deleted with no way back", tree, GoneOwner());
+    gone = Part(parent.rid, @"a worktree deleted under Delete");
+    [MMUndo.shared note:gone payload:@{@"removal": @{@"choice": @"delete", @"wants": @YES, @"deleted": @YES},
+                                       @"worktree": @{@"repo": tree, @"worktree": [tree stringByAppendingString:@"-deleted"], @"head": @"0123abc"}}];
+    gone = Done(gone);
+    [MMUndo.shared note:parent payload:@{@"bundle": @"not a dictionary"}];
+    (void)MMRemovalRecoverStaged();
+    said = errorOf(parent);
+    T(@"damaged: a part deleted with no way back is still counted as deleted", @"no yes no",
+      [NSString stringWithFormat:@"%@ %@ %@", YN(gone.canRestore), YN([said containsString:@"1 item had already been deleted and cannot be brought back"]), YN([said containsString:@"can still come back"])]);
+
+    // T2. A "deleted" list that cannot be read: nobody can tell what went, and the words say so.
+    Write(plain, @"PLAIN=1");
+    parent = Unfinished(@"damaged, deleted list unread", tree, GoneOwner());
+    MMUndoRecord *part = StageMany(parent, @"config, deleted list unread", @[plain], YES);
+    [MMUndo.shared note:part payload:@{@"deleted": @"not a list"}];
+    (void)MMRemovalRecoverStaged();
+    said = errorOf(parent);
+    T(@"damaged: a deleted list that cannot be read makes the words say that nobody can tell", @"failed PLAIN=1 yes no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", StateWord(parent), Read(plain), YN([said containsString:@"Whether anything was deleted cannot be read from the record"]), YN([said containsString:@"Nothing was deleted"])]);
+
+    // T2. A part that went back before recovery ran is not counted among what recovery moved back now.
+    Write(plain, @"PLAIN=1"); Write(second, @"SECOND=1");
+    parent = Unfinished(@"damaged, one part back before", tree, GoneOwner());
+    MMUndoRecord *before = StageMany(parent, @"config, back before recovery", @[plain], YES);
+    part = StageMany(parent, @"config, back at recovery", @[second], YES);
+    NSString *early = MMRemovalPutBack(@[before]);
+    [MMUndo.shared note:part payload:@{@"recovery": @"not a dictionary"}];
+    (void)MMRemovalRecoverStaged();
+    said = errorOf(parent);
+    T(@"damaged: an item that was back before recovery ran is not counted as moved back by it", @"nil failed PLAIN=1 SECOND=1 yes no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@", Or(early), StateWord(parent), Read(plain), Read(second), YN([said containsString:@"1 item it had moved out of the worktree went back"]), YN([said containsString:@"2 items"])]);
+
+    // T2. A Wrap Up whose own payload cannot be read: whether its deletes had begun is unknown, and the words say so.
+    Write(plain, @"PLAIN=1");
+    parent = Unfinished(@"damaged, payload unread", tree, GoneOwner());
+    part = StageMany(parent, @"config, parent payload unread", @[plain], YES);
+    RewriteBody(parent, @"payload", @"not a dictionary");
+    setenv("MINMACS_STAGE_RECOVER_AFTER", "0", 1);
+    (void)MMRemovalRecoverStaged();
+    unsetenv("MINMACS_STAGE_RECOVER_AFTER");
+    said = errorOf(parent);
+    T(@"damaged: a Wrap Up whose payload cannot be read does not say that nothing was deleted", @"failed PLAIN=1 yes no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", StateWord(parent), Read(plain), YN([said containsString:@"Whether anything was deleted cannot be read from the record"]), YN([said containsString:@"Nothing was deleted"])]);
+}
+
+static NSDictionary *UnreadOf(MMUndoRecord *r) {
+    for (NSDictionary *u in MMRemovalUnreadWrapUps()) if ([MMRecordString(u, @"rid") isEqualToString:r.rid]) return u;
+    return nil;
+}
+
+/// Issue #70: a Wrap Up whose state cannot be read stays pending, since it may have ended. Once the person moved what
+/// it staged by hand, they close it. Closing moves no file and deletes none.
+static void Closing(void) {
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSString *base = Path(@"closing"), *tree = [base stringByAppendingPathComponent:@"wt"];
+    NSString *trashed = [tree stringByAppendingPathComponent:@".env"], *staged = [tree stringByAppendingPathComponent:@".env.local"], *byHand = [base stringByAppendingPathComponent:@"kept.env"];
+    Write(trashed, @"TRASHED=1"); Write(staged, @"STAGED=1");
+    MMUndoRecord *parent = Unfinished(@"state unread, closed by hand", tree, GoneOwner());
+    // One part with both: an item in the staging folder and one in the Trash.
+    MMUndoRecord *part = StageMany(parent, @"config staged and trashed, state unread", @[staged], YES);
+    [MMUndo.shared trash:[NSURL fileURLWithPath:trashed] record:part error:nil];
+    part = [MMUndo.shared record:part.rid];
+    NSString *to = StagedTo(part), *inTrash = MMRecordString(MMRecordList(part.payload, @"trashed").firstObject, @"to");
+    parent = DoneWrapUp(parent);
+    RewriteBody(parent, @"state", @[@"done"]);
+    (void)MMRemovalRecoverStaged(); (void)MMRemovalSweepStaged(NULL);
+    NSString *said = MMRemovalCloseUnread(parent.rid);
+    T(@"close: a Wrap Up whose state cannot be read is named, and is not closed while its item waits", @"1 yes pending STAGED=1 TRASHED=1",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@", UnreadOf(parent)[@"waiting"], YN([said hasPrefix:@"1 item of it still waits in MinMacs's staging folder. Move it by hand first."]), StateWord(parent), Read(to), Read(inTrash)]);
+    // The person moves it by hand.
+    [fm moveItemAtPath:to toPath:byHand error:nil];
+    T(@"close: once the person moved it by hand, nothing of it waits and it may be closed", @"0 nil pending",
+      [NSString stringWithFormat:@"%@ %@ %@", UnreadOf(parent)[@"waiting"], Or(MMRemovalCloseUnreadWhyNot(parent.rid)), StateWord(parent)]);
+    said = MMRemovalCloseUnread(parent.rid);
+    MMUndoRecord *now = [MMUndo.shared record:parent.rid];
+    T(@"close: the person closes it: its record is failed and says so, and no file was moved or deleted", @"nil failed yes nil STAGED=1 TRASHED=1 no no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@ %@ %@", Or(said), StateWord(parent), YN([now.error containsString:@"It was closed by hand"]), Or(now.damage), Read(byHand), Read(inTrash), YN(Exists(trashed)), YN(Exists(staged))]);
+    NSInteger n = MMRemovalRecoverStaged() + MMRemovalSweepStaged(NULL);
+    T(@"close: after it, recovery and the sweep pull nothing of it back from the Trash, and it is named no more", @"0 TRASHED=1 no no it has ended already",
+      [NSString stringWithFormat:@"%ld %@ %@ %@ %@", (long)n, Read(inTrash), YN(Exists(trashed)), YN(UnreadOf(parent) != nil), Or(MMRemovalCloseUnread(parent.rid))]);
+
+    // What it refuses: a Wrap Up that reads, one whose process lives, a record that is no Wrap Up, and no record.
+    Write(staged, @"STAGED=1");
+    MMUndoRecord *reads = Unfinished(@"state reads, not to close", tree, GoneOwner());
+    MMUndoRecord *mine = Unfinished(@"state unread, still running", tree, MMRemovalOwner());
+    RewriteBody(mine, @"state", @"finished");
+    T(@"close: a Wrap Up whose state reads, one that still runs, a part and an unknown id are refused, and none is written", @"its state can be read, so MinMacs settles it by itself the next time it starts|its Wrap Up still runs|it is not a Wrap Up|no record has that id|pending pending",
+      [NSString stringWithFormat:@"%@|%@|%@|%@|%@ %@", Or(MMRemovalCloseUnread(reads.rid)), Or(MMRemovalCloseUnread(mine.rid)), Or(MMRemovalCloseUnread(part.rid)), Or(MMRemovalCloseUnread(@"nope")), StateWord(reads), StateWord(mine)]);
+    [MMUndo.shared finish:reads ok:NO freed:0 error:@"test"];
+    // Left failed too, so the checks after this one find nothing of it.
+    [MMUndo.shared finish:[MMUndo.shared record:mine.rid] ok:NO freed:0 error:@"test"];
 }

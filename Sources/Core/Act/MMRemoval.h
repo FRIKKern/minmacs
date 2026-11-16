@@ -174,6 +174,7 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
     MMRemovalWaitOldPathTaken,  // its Wrap Up failed, and something sits at its old path now
     MMRemovalWaitPutBackFailed, // its Wrap Up failed, its old path is free, and the move back failed
     MMRemovalWaitDamaged,       // its record, or its Wrap Up's, cannot be read, so MinMacs does not act on it alone
+    MMRemovalWaitNoWrapUp,      // its Wrap Up has no record, so nobody can tell MinMacs staged it: listed, never acted on
 };
 /// One item in a staging folder that MinMacs cannot settle by itself.
 @interface MMRemovalWaitingItem : NSObject
@@ -186,7 +187,8 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
 @property (readonly, copy) NSString *detail;            // the last failure or the damage, in words, or nil
 @property (readonly, copy) NSString *wrapUpRid, *partRid;
 @property (readonly) BOOL canDelete, canPutBack;        // what MMRemovalDeleteWaiting and MMRemovalPutBackWaiting allow
-/// "could not be deleted", "its old place is taken", "could not go back", "its record is damaged"
+/// "could not be deleted", "its old place is taken", "could not go back", "its record is damaged",
+/// "its Wrap Up has no record"
 @property (readonly, copy) NSString *whyWords;
 - (NSDictionary *)json;
 @end
@@ -216,7 +218,8 @@ NSString *MMRemovalPutBackStagedItem(MMUndoRecord *part, NSString *stagedAt, NSS
 /// MinMacs may act on what part staged at stagedAt, else why not. All of these must hold:
 ///   1. part names a Wrap Up, and that Wrap Up has a record
 ///   2. stagedAt is spelled as a real path, with no ".." in it, and something is there
-///   3. it lies directly in part's "stagedIn", by real paths, so a link is never taken for the folder it points at
+///   3. it lies directly in part's "stagedIn", by real paths, so a link is never taken for the folder it points at.
+///      When "stagedIn" cannot be read, the folder that holds the item now is the one asked 4 and 5
 ///   4. that folder is <support>/staged/<rid>, or is named .minmacs-staged-<rid> and lies beside the worktree that
 ///      the Wrap Up's record names, where alone MinMacs makes one
 ///   5. the folder holds the marker MinMacs wrote, and it says that rid
@@ -226,6 +229,18 @@ NSString *MMRemovalStagedItemWhyNot(MMUndoRecord *part, NSString *stagedAt);
 /// moved back, and its old path must be spelled as a real path too. nil when nothing waits at the entry's "to", since
 /// nothing moves then.
 NSString *MMRemovalStagedEntryWhyNot(MMUndoRecord *part, NSDictionary *entry);
+/// A Wrap Up whose state cannot be read, -[MMUndoRecord stateUnread], is left pending by recovery, since it may have
+/// ended. Once the person has moved what it staged by hand, only they can say it is over. Each such Wrap Up, for the
+/// CLI: {rid, subject, waiting: how many of its items still wait where MinMacs staged them, problem: why it cannot be
+/// closed now, or null}.
+NSArray<NSDictionary *> *MMRemovalUnreadWrapUps(void);
+/// The person closes one: its record is failed, its error saying its state could not be read and that it was closed
+/// by hand. No file is moved and none deleted. Only a Wrap Up whose state cannot be read, whose process is gone, and
+/// of which nothing waits in a staging folder any more. A pending part that reads is failed with it, and a part's
+/// "staged" list, of which nothing is there any more, moves to "stagedBeforeClose", so the sweep puts nothing of it
+/// back. What its parts sent to the Trash stays in the Trash. nil when it is closed, else why not.
+NSString *MMRemovalCloseUnread(NSString *rid);
+NSString *MMRemovalCloseUnreadWhyNot(NSString *rid);    // what a dry run says
 /// The staging folder as a rule on strings: item may be deleted as staged for the Wrap Up rid only when folder is
 /// <support>/staged/<rid> or is named .minmacs-staged-<rid>, and item lies directly in it. A folder that only looks
 /// like one, for another rid or one level off, is refused. The marker inside is checked on the disk besides.
