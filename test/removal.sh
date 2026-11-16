@@ -146,7 +146,7 @@ if [ "$rm_r" = 0 ]; then
   echo "-- a Wrap Up whose state cannot be read, closed by the person, issue #70"
   check "removal: --waiting --json names a Wrap Up whose state cannot be read, with what of it waits and no problem" "$rm_unread 0 None" \
     "$(echo "$rm_j" | json "' '.join('%s %s %s' % (u['rid'], u['waiting'], u['problem']) for u in j['unread'])")"
-  check "removal: the text list names it and says how to close it" "The Wrap Up $rm_unread of cli, state unread has a state MinMacs cannot read, so it stays open. Nothing of it waits. Close it with --close $rm_unread." \
+  check "removal: the text list names it and says how to close it" "The Wrap Up $rm_unread (cli, state unread) has a state MinMacs cannot read, so it stays open. Nothing of it waits. Close it with --close $rm_unread." \
     "$(rm_cli removal --waiting | grep '^The Wrap Up ')"
   check "removal: a dry run of --close says it would close it, and that no file moves" "0 Would close the Wrap Up $rm_unread. That moves no file and deletes none. Dry run. Nothing was changed." \
     "$(rm_out=$(rm_cli removal --waiting --close "$rm_unread" --dry-run); echo "$? $rm_out")"

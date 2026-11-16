@@ -663,7 +663,7 @@ static int RemovalWaiting(MMArgs *a) {
     // A Wrap Up whose state cannot be read stays open until the person closes it.
     for (NSDictionary *u in MMRemovalUnreadWrapUps()) {
         NSString *problem = MMRecordString(u, @"problem"), *rid = MMRecordString(u, @"rid"), *subject = MMRecordString(u, @"subject");
-        [a print:@"The Wrap Up %@%@ has a state MinMacs cannot read, so it stays open. %@", rid, subject.length ? [NSString stringWithFormat:@" of %@", subject] : @"",
+        [a print:@"The Wrap Up %@%@ has a state MinMacs cannot read, so it stays open. %@", rid, subject.length ? [NSString stringWithFormat:@" (%@)", subject] : @"",
                  problem ? [NSString stringWithFormat:@"It cannot be closed yet: %@.", problem] : [NSString stringWithFormat:@"Nothing of it waits. Close it with --close %@.", rid]];
     }
     return 0;
