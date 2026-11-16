@@ -293,8 +293,23 @@ static void WindowModel(void) {
     T(@"window: an agent by its session's title on one line, else by its project folder, never all by the harness, and a worktree by its branch",
       @"Tune the ranking | app | fix-auth-redirect",
       [NSString stringWithFormat:@"%@ | %@ | %@", m.memoryGroups[1].rows[0].name, m.memoryGroups[1].rows[1].name, [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/fix-auth-redirect")]].name]);
-    T(@"window: each group has words for when it is empty", @"No servers found | No agents found | No apps found | No worktrees found | No caches or leftovers found",
-      [[[m.memoryGroups arrayByAddingObjectsFromArray:m.diskGroups] valueForKey:@"emptyNote"] componentsJoinedByString:@" | "]);
+    // The words of an empty group. This test home has no folder to look in and no clutter root, so neither disk
+    // group may say "found": nothing looked.
+    NSString *(^notes)(MMWindowModel *) = ^(MMWindowModel *x) {
+        return [[[x.memoryGroups arrayByAddingObjectsFromArray:x.diskGroups] valueForKey:@"emptyNote"] componentsJoinedByString:@" | "];
+    };
+    T(@"window: with no folder to look in, the empty disk groups claim no result", @"No servers found | No agents found | No apps found | No folders to look in | Not looked at", notes(m));
+    // A folder to look in whose first walk has not ended: still looking. No walk starts here.
+    NSArray *rootsWere = MMRepoIndex.shared.roots;
+    MMRepoIndex.shared.roots = @[Dir(@"trees")];
+    T(@"window: before the first walk of its folders ends, it says it is looking", @"Looking for worktrees",
+      MMWindowModelFrom(s, p, [MMWindowExtras readWithLogin:YES]).diskGroups[0].emptyNote);
+    MMRepoIndex.shared.roots = rootsWere;
+    MMWindowExtras *looked = [MMWindowExtras new], *looking = [MMWindowExtras new];
+    looking.worktreesLooked = looking.cachesLooked = MMWindowLookedNotYet;
+    T(@"window: a look that ended says found, and one that still runs says looking", @"No worktrees found | No caches or leftovers found | Looking for worktrees | Looking for caches",
+      [NSString stringWithFormat:@"%@ | %@", [notes(MMWindowModelFrom(s, p, looked)) substringFromIndex:@"No servers found | No agents found | No apps found | ".length],
+       [notes(MMWindowModelFrom(s, p, looking)) substringFromIndex:@"No servers found | No agents found | No apps found | ".length]]);
     // What came back today reaches the model as two numbers, and none when no look-back was read.
     __block MMPerformance *back;
     dispatch_sync(MMQueue(@"windowtest", @"build", QOS_CLASS_USER_INITIATED), ^{

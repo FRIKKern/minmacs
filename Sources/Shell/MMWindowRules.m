@@ -151,6 +151,9 @@ void MMWindowWelcomeDone(NSInteger removal) {
 + (instancetype)readWithLogin:(BOOL)loginOn {
     MMWindowExtras *x = [MMWindowExtras new];
     x.loginOn = loginOn;
+    MMRepoIndex *index = MMRepoIndex.shared;
+    x.worktreesLooked = !index.roots.count ? MMWindowLookedNowhere : index.walked ? MMWindowLookedDone : MMWindowLookedNotYet;
+    x.cachesLooked = !MMClutterRoot() ? MMWindowLookedNowhere : MMClutterCatalog.shared.lastScan ? MMWindowLookedDone : MMWindowLookedNotYet;
     id<MMExpert> e = MMExpertNamed(@"insomnia");
     id st = nil;
     @try { st = [(id)e respondsToSelector:NSSelectorFromString(@"state")] ? [(id)e valueForKey:@"state"] : nil; }

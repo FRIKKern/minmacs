@@ -158,6 +158,7 @@ static BOOL InGitDir(NSString *dir, NSString **gitRoot, NSString **rest) {
     NSArray<MMWorktree *> *_trees;     // deepest path first
     BOOL _walking, _again;              // a walk is in flight; another was asked for meanwhile
     NSDate *_lastWalk;
+    BOOL _walked;                      // a walk ended with an answer
     // Git facts and sizes.
     MMFactCache *_git, *_patchIds, *_sizes;                     // persisted; nil until first used off main
     NSMutableDictionary<NSString *, NSDictionary *> *_dirs;    // path: {gitDir, common}
@@ -243,6 +244,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
 }
 
 - (NSArray<MMWorktree *> *)worktrees { @synchronized (self) { return _trees ?: @[]; } }
+- (BOOL)walked { @synchronized (self) { return _walked; } }
 
 #pragma mark Walks
 
@@ -334,6 +336,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
                   ![[_trees valueForKey:@"branch"] isEqual:[sorted valueForKey:@"branch"]] ||
                   ![[_trees valueForKey:@"locked"] isEqual:[sorted valueForKey:@"locked"]];
         _trees = sorted;
+        _walked = YES;
         _lastWalk = NSDate.date;
         _walking = NO;
         again = _again;

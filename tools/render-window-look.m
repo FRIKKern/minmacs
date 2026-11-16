@@ -55,6 +55,12 @@ static void WindowLookChecks(void) {
           @"window calm: nothing to fix, with memory and disk back today as two numbers", @"");
     for (NSArray<MMWindowGroup *> *side in @[busy.memoryGroups, busy.diskGroups]) for (MMWindowGroup *g in side)
         Check(g.emptyNote.length > 0, [NSString stringWithFormat:@"window: the %@ group has words for when it is empty", g.key], @"");
+    // Only a look that ended says "found". With no folder to look in, or while the first look runs, the line says that.
+    NSMutableArray<NSString *> *unlooked = [NSMutableArray new];
+    for (NSString *key in @[@"worktrees", @"caches"]) for (NSNumber *looked in @[@(MMWindowLookedNotYet), @(MMWindowLookedNowhere)])
+        [unlooked addObject:MMWindowEmptyNote(key, looked.integerValue) ?: @"found"];
+    Check(![[unlooked componentsJoinedByString:@" | "] containsString:@"found"] && [unlooked[1] isEqualToString:@"No folders to look in"] && [unlooked[0] hasPrefix:@"Looking"] && [unlooked[2] hasPrefix:@"Looking"],
+          @"window: an empty disk group whose look did not end never says found", [unlooked componentsJoinedByString:@" | "]);
 
     // The gains: a side that is zero is not shown as a gain, before a press, while a run plays and once it ended.
     NSString *(^gains)(MMWindowModel *, MMWindowDockPhase) = ^NSString *(MMWindowModel *model, MMWindowDockPhase phase) {
