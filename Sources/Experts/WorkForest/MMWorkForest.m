@@ -751,7 +751,7 @@ static NSDictionary *VerdictJSON(MMVerdict *v) {
 
 static NSString *ModelWords(MMReview *r) {
     NSString *m = nil;
-    for (MMUsage *u in r.calls) if (u.model.length) m = u.model;
+    for (MMUsage *u in r.calls) if (u.model.length && !m) m = u.model;   // the first pass, not a look it dispatched
     if (!m.length) return nil;
     if ([m hasPrefix:@"gpt-"]) return [@"GPT" stringByAppendingString:[m substringFromIndex:3].capitalizedString];
     return MMCapitalized(m);

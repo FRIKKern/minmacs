@@ -20,7 +20,7 @@ NSString *MMInvestigateDisabledReason(NSDictionary *run) {
 
 BOOL MMInvestigateNote(NSDictionary *run, NSString **noteBy, NSString **note) {
     if (![run isKindOfClass:NSDictionary.class]) return NO;
-    NSString *model = MMCapitalized(Str(run[@"model"]).length ? run[@"model"] : @"haiku");
+    NSString *model = MMCapitalized(Str(run[@"model"]).length ? run[@"model"] : @"opus");
     if ([run[@"running"] boolValue]) { *noteBy = [model stringByAppendingString:@" is investigating"]; *note = @"The answer shows here."; return YES; }
     NSString *answer = Str(run[@"answer"]);
     if (!answer.length) { *noteBy = @"Investigate failed"; *note = MMSentence(Str(run[@"error"]) ?: @"the model did not answer"); return YES; }

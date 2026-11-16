@@ -128,7 +128,7 @@ grep -q "hunter2" "$RV_TEST_SENT" "$wf/would.json";                       check 
 grep -q "try a thing" "$wf/would.json";                                   check "the rest of the title is in the facts a review builds" 0 "$?"
 ANTHROPIC_API_KEY=sk-ant-test "$WF" review --model haiku --mode idle --fresh >/dev/null 2>&1; check "an API key never reaches claude" 0 "$?"
 r=$(RV_TEST_CLAUDE_LIMIT=1 OPENAI_API_KEY=sk-test "$WF" review --model auto --mode idle --fresh --json | json "j['model']")
-                                                                          check "out of Haiku usage, Luna answers without the key" gpt-6-luna "$r"
+                                                                          check "out of Opus usage, Sol answers without the key" gpt-6.1-sol "$r"
 MINMACS_CLAUDE=/usr/bin/false MINMACS_CODEX=/usr/bin/false "$WF" review --model auto --fresh >/dev/null 2>&1; check "both models failing exits 1" 1 "$?"
 r=$("$WF" auto --mode eager --dry-run --json | json "sum(p['remove'] for p in j['plan'])"); check "and after a failed review nothing goes" 0 "$r"
 

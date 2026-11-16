@@ -9,13 +9,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-NSString *const MMInvestigateModel = @"haiku";
+NSString *const MMInvestigateModel = @"opus";
 const NSInteger MMInvestigateMaxTurns = 12;
 const NSInteger MMInvestigateDefaultEstimate = 35000;
 
 @interface MMModel (MMInvestigate)
 + (MMAnswer *)investigate:(NSString *)question system:(NSString *)system folders:(NSArray<NSString *> *)folders
-                    audit:(NSString *)audit maxTurns:(NSInteger)maxTurns;
+                    audit:(NSString *)audit maxTurns:(NSInteger)maxTurns tier:(NSString *)tier schema:(NSDictionary *)schema;
 @end
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] ? v : nil; }
@@ -107,7 +107,7 @@ NSArray<NSString *> *MMInvestigateFolders(NSArray<NSString *> *candidates) {
 @implementation MMInvestigateEstimate
 
 - (NSString *)sentence {
-    NSString *model = self.model.length ? [[self.model substringToIndex:1].uppercaseString stringByAppendingString:[self.model substringFromIndex:1]] : @"Haiku";
+    NSString *model = self.model.length ? [[self.model substringToIndex:1].uppercaseString stringByAppendingString:[self.model substringFromIndex:1]] : @"Opus";
     NSNumberFormatter *f = [NSNumberFormatter new];
     f.numberStyle = NSNumberFormatterDecimalStyle; f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US"];
     NSString *n = [f stringFromNumber:@(self.tokens)];
@@ -308,6 +308,11 @@ static void ReadAudit(NSString *path, MMInvestigation *r) {
 }
 
 - (MMInvestigation *)runReserved:(MMInvestigation *)r subject:(MMInvestigateSubject *)subject error:(NSString **)error {
+    return [self runReserved:r subject:subject tier:MMInvestigateModel system:kSystem schema:nil json:nil error:error];
+}
+
+- (MMInvestigation *)runReserved:(MMInvestigation *)r subject:(MMInvestigateSubject *)subject tier:(NSString *)tier
+                          system:(NSString *)system schema:(NSDictionary *)schema json:(NSDictionary **)json error:(NSString **)error {
     [self load];
     Rebuild(@"investigate started");
     NSString *dir = [MMExpertDir(@"review") stringByAppendingPathComponent:@"investigate"];
@@ -317,14 +322,19 @@ static void ReadAudit(NSString *path, MMInvestigation *r) {
     for (NSString *f in subject.folders) [shown addObject:Tilde(f)];
     NSString *prompt = [NSString stringWithFormat:@"Subject: %@\nFolders: %@\nQuestion: %@\n", MMClip(subject.title, 200) ?: @"a folder",
                         [shown componentsJoinedByString:@", "], MMClip(r.question, 1000) ?: @""];
-    MMAnswer *a = [MMModel investigate:prompt system:kSystem folders:subject.folders audit:audit maxTurns:MMInvestigateMaxTurns];
+    MMAnswer *a = [MMModel investigate:prompt system:system folders:subject.folders audit:audit
+                              maxTurns:[tier isEqualToString:MMInvestigateModel] && !schema ? MMInvestigateMaxTurns : MMInvestigateTurns(tier)
+                                  tier:tier schema:schema];
+    if (json) *json = a.json;
     [MMBudget.shared record:a.usage expert:@"investigate"];
     ReadAudit(audit, r);
     [NSFileManager.defaultManager removeItemAtPath:audit error:nil];
     MMInvestigation *done = [MMInvestigation fromJSON:r.json];
     done.usage = a.usage;
     done.model = a.model ?: MMInvestigateModel;
-    NSString *text = Str(a.json[@"text"]);
+    NSString *text = Str(a.json[@"text"]) ?: Str(a.json[@"evidence"]);
+    if (schema && Str(a.json[@"reason"]).length)
+        text = [NSString stringWithFormat:@"%@ %@", Str(a.json[@"evidence"]) ?: @"", Str(a.json[@"reason"])];
     // The answer is redacted with the home folder as ~, as everything the review sends or saves.
     if (text.length) done.answer = MMRedact(Tilde([text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]));
     else done.error = a.error ?: @"the model did not answer";
@@ -370,6 +380,18 @@ static void ReadAudit(NSString *path, MMInvestigation *r) {
             if (!run.answer && failed) failed(error ?: run.error);
         }];
     }];
+}
+
+- (MMInvestigation *)dispatch:(MMInvestigateSubject *)subject tier:(NSString *)tier question:(NSString *)question
+                       system:(NSString *)system schema:(NSDictionary *)schema json:(NSDictionary **)json error:(NSString **)error {
+    if (!subject.folders.count) { if (error) *error = @"there is no folder to look in"; return nil; }
+    [self load];
+    MMInvestigation *r = [self reserve:subject question:question];
+    if (!r) { if (error) *error = @"an investigation of this already runs"; return nil; }
+    r.model = tier;
+    MMInvestigation *done = [self runReserved:r subject:subject tier:tier system:system schema:schema json:json error:error];
+    Rebuild(@"investigate done");
+    return done;
 }
 
 - (void)start:(MMInvestigateSubject *)subject question:(NSString *)question done:(void (^)(MMInvestigation *, NSString *))done {

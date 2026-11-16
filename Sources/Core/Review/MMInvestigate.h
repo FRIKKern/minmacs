@@ -11,10 +11,13 @@
 #import "Core/Graph/MMGraph.h"
 #import "Core/Review/MMReview.h"
 
-/// The model Investigate asks. It needs tools, so only Claude can run it, and the codex fallback does not apply.
-extern NSString *const MMInvestigateModel;             // @"haiku"
+/// The model Investigate asks when the person asks for one. When Claude is out of reach, Sol runs it through Codex
+/// with the same tools and Codex's shell off.
+extern NSString *const MMInvestigateModel;             // @"opus"
 /// The turn limit passed to claude as --max-turns, so one run cannot read without end.
 extern const NSInteger MMInvestigateMaxTurns;           // 12
+/// The turn limit of a dispatched tier: haiku 6, sonnet 10, opus and sol 16.
+NSInteger MMInvestigateTurns(NSString *tier);
 /// The estimate before any run has been measured: research F 4.4 found first turns that write 3k to 35k tokens.
 extern const NSInteger MMInvestigateDefaultEstimate;   // 35,000 uncached tokens
 
@@ -46,10 +49,10 @@ NSArray<NSString *> *MMInvestigateFolders(NSArray<NSString *> *candidates);
 
 /// What a run will likely cost, shown before it runs.
 @interface MMInvestigateEstimate : NSObject
-@property (copy) NSString *model;                       // "haiku"
+@property (copy) NSString *model;                       // "opus"
 @property NSInteger tokens;                             // uncached tokens: the median of the last five runs, or the default
 @property NSInteger basedOn;                            // how many past runs the median uses, 0 for the default
-/// "About 35,000 tokens on Haiku, an estimate before the first run." in sentence case.
+/// "About 35,000 tokens on Opus, an estimate before the first run." in sentence case.
 - (NSString *)sentence;
 - (NSDictionary *)json;
 @end
@@ -80,6 +83,12 @@ NSArray<NSString *> *MMInvestigateFolders(NSArray<NSString *> *candidates);
 /// Runs one Investigate now, saves it and returns it. Blocks. Never on main. question nil asks the default.
 /// It counts against MMBudget as "investigate". A second run for a subject that is running returns nil with *error.
 - (MMInvestigation *)run:(MMInvestigateSubject *)subject question:(NSString *)question error:(NSString **)error;
+/// A run the review broker dispatched, PLAN.md decision on tiers: Opus decides per finding whether Haiku gathers
+/// fast evidence, Sonnet gathers and concludes, or Opus looks itself. tier is haiku, sonnet, opus or sol. system and
+/// schema are the broker's; *json gets the structured answer. Saved like any run, so the card shows who looked.
+/// Blocks. Never on main. nil with *error when one already runs for the subject or nothing can be read.
+- (MMInvestigation *)dispatch:(MMInvestigateSubject *)subject tier:(NSString *)tier question:(NSString *)question
+                       system:(NSString *)system schema:(NSDictionary *)schema json:(NSDictionary **)json error:(NSString **)error;
 /// The same on MMQueue(@"core", @"investigate"), one run at a time. done runs on main. The subject is marked as
 /// running before the run queues, so a second start for it, while one waits or runs, calls done with nil and an error.
 /// The graph is asked to rebuild when the run queues and when it ends, so the card shows it.

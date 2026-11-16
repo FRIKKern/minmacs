@@ -9,7 +9,7 @@
 NSString *MMInvestigateTail(NSDictionary *run);
 /// "running now" while a run goes, so the action is dimmed, else nil.
 NSString *MMInvestigateDisabledReason(NSDictionary *run);
-/// The card's note for run: "Haiku investigated", then the whole sentences of the answer that fit in the note's
+/// The card's note for run: "Opus investigated", then the whole sentences of the answer that fit in the note's
 /// two lines. While a run goes, or after it failed, it says so. NO when run is nil, and the card keeps its note.
 BOOL MMInvestigateNote(NSDictionary *run, NSString **noteBy, NSString **note);
 /// The alert that shows the cost and the model, with a field for the question.

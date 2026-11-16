@@ -38,8 +38,8 @@ int main(void) { @autoreleasepool {
     s.onOpenMenu = ^(NSString *e, NSView *v) { [calls addObject:[@"open " stringByAppendingString:e]]; };
 
     Out(@"settings: the default model is auto", @"auto", s.model);
-    Out(@"settings: the models in order", @"auto,haiku,sonnet,opus,luna", [MMSettingsModels() componentsJoinedByString:@","]);
-    Out(@"settings: the auto title says what it does", @"Auto: Haiku, Then Luna", MMSettingsModelTitle(@"auto"));
+    Out(@"settings: the models in order", @"auto,opus,sol,sonnet,haiku", [MMSettingsModels() componentsJoinedByString:@","]);
+    Out(@"settings: the auto title says what it does", @"Auto: Opus, Then Sol", MMSettingsModelTitle(@"auto"));
     Out(@"settings: the first pane is Overview", @"Overview", MMSettingsPaneTitle(0));
 
     NSView *experts = [s viewFor:MMSettingsExperts];
@@ -61,8 +61,8 @@ int main(void) { @autoreleasepool {
     NSView *overview = [s viewFor:MMSettingsOverview];
     NSButton *open = Find(overview, NSButton.class, @"locohost");
     [open performClick:nil];
-    Out(@"settings: each control calls its block", @"icon insomnia 1|mode locohost idle|model haiku|one 1|open locohost", [calls componentsJoinedByString:@"|"]);
-    Out(@"settings: the view keeps the new state", @"idle yes haiku", [NSString stringWithFormat:@"%@ %@ %@", lh.mode, in.iconVisible ? @"yes" : @"no", s.model]);
+    Out(@"settings: each control calls its block", @"icon insomnia 1|mode locohost idle|model opus|one 1|open locohost", [calls componentsJoinedByString:@"|"]);
+    Out(@"settings: the view keeps the new state", @"idle yes opus", [NSString stringWithFormat:@"%@ %@ %@", lh.mode, in.iconVisible ? @"yes" : @"no", s.model]);
 
     // An expert's own pane: Insomnia's guard numbers and its heat switch, each sent back with its key.
     NSMutableArray *prefCalls = [NSMutableArray new];

@@ -24,16 +24,19 @@
 /// P39. One model answer, parsed against the schema.
 @interface MMAnswer : NSObject
 @property (readonly) NSDictionary *json;                // nil when the call failed
-@property (readonly, copy) NSString *model;             // the one that answered: haiku, gpt-6-luna, ...
-@property (readonly, copy) NSString *error, *note;      // note: why the first choice was skipped, "Haiku: usage limit reached"
+@property (readonly, copy) NSString *model;             // the one that answered: opus, gpt-6.1-sol, ...
+@property (readonly, copy) NSString *error, *note;      // note: why the first choice was skipped, "Opus: usage limit reached"
 @property (readonly) MMUsage *usage;
 @end
 
-/// P39. A model call on the person's login: Haiku through `claude -p` first, Luna through codex when Claude
+/// P39. A model call on the person's login: Opus through `claude -p` first, Sol through codex when Claude
 /// is missing, signed out or out of usage. Each call gets its own temp folder, so parallel calls never share a file.
 /// Starts from WF Review.m:146-351, which fixed LocoHost's fixed temp file names.
-/// input is sent as compact JSON with sorted keys, stable facts first, and null, false and zero fields dropped.
+/// input is sent as compact JSON with sorted keys, stable facts first, and null and empty fields dropped; 0 and false are kept.
 /// Blocks. Never on main.
+extern NSString *const MMModelClaudeFirst;              // @"opus", auto's first choice
+extern NSString *const MMModelCodexFirst;               // @"sol", auto's choice when Claude is out of reach
+
 @interface MMModel : NSObject
 + (NSString *)claudePath;                               // $MINMACS_CLAUDE, the review.claudePath pref, or the usual paths
 + (NSString *)codexPath;                                // $MINMACS_CODEX, the review.codexPath pref, or the usual paths
@@ -68,6 +71,10 @@ typedef NS_ENUM(NSInteger, MMVerdictKind) { MMVerdictUnsure = 0, MMVerdictKeep =
 @property (copy) NSString *context;
 @property (copy) NSString *about, *reason, *keepEvidence;
 @property (copy) NSString *decidedBy;                   // a rule id of P47, "model" or "judge"
+/// Who looked into the finding's folders for this verdict, when the review dispatched one: haiku (evidence that the
+/// review's model then weighed), sonnet or opus (who concluded), or a Sol model. nil when nobody looked.
+@property (copy) NSString *investigatedBy;
+@property (copy) NSString *evidence;                    // what the look found, in words
 /// When the model or the judge made it, by the broker's clock. A carried verdict keeps it, so its age counts from
 /// the call that made it. nil for a verdict saved before this field, which then counts from its review.
 @property (strong) NSDate *madeAt;
@@ -79,7 +86,7 @@ typedef NS_ENUM(NSInteger, MMVerdictKind) { MMVerdictUnsure = 0, MMVerdictKeep =
 @property (copy) NSString *expert, *trigger;            // trigger: schedule, new finding, age mark, memory pressure, manual
 @property (copy) NSString *summary;                     // P45: numbers from code, words from the model
 @property (copy) NSString *error, *judgeError;          // a failed judge keeps every finding it was asked about
-@property (copy) NSString *note;                        // why the first model was skipped, "Haiku: usage limit reached"
+@property (copy) NSString *note;                        // why the first model was skipped, "Opus: usage limit reached"
 @property (copy) NSString *summaryWords;                // the model's part of summary, kept while nothing moves
 @property NSDate *at;
 @property NSInteger mode;                               // the MMMode the review ran under
@@ -134,7 +141,7 @@ extern NSString *const MMWorkKeepsRuleID;               // "core.work-keeps"
 
 /// One request to the broker: what to review, how, and in whose words.
 @interface MMReviewRequest : NSObject
-@property (copy) NSString *expert, *trigger, *model;    // model "auto" tries Haiku, then Luna
+@property (copy) NSString *expert, *trigger, *model;    // model "auto" tries Opus, then Sol
 @property NSArray<MMFinding *> *findings;
 @property MMFacts *facts;
 @property (copy) NSString *system;                      // the expert's prompt

@@ -104,6 +104,7 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     j[@"word"] = self.word; j[@"finding"] = self.findingID; j[@"fingerprint"] = self.fingerprint;
     j[@"about"] = self.about; j[@"reason"] = self.reason; j[@"keep_evidence"] = self.keepEvidence; j[@"decided_by"] = self.decidedBy;
     j[@"instance"] = self.instanceKey; j[@"context"] = self.context;
+    j[@"investigated_by"] = self.investigatedBy; j[@"evidence"] = self.evidence;
     if (self.madeAt) j[@"made_at"] = @(self.madeAt.timeIntervalSince1970);
     return j;
 }
@@ -117,6 +118,7 @@ static NSString *const kKinds[] = {@"unsure", @"keep", @"go"};
     v.word = Str(j[@"word"]); v.findingID = Str(j[@"finding"]); v.fingerprint = Str(j[@"fingerprint"]);
     v.about = Str(j[@"about"]); v.reason = Str(j[@"reason"]); v.keepEvidence = Str(j[@"keep_evidence"]); v.decidedBy = Str(j[@"decided_by"]);
     v.instanceKey = Str(j[@"instance"]); v.context = Str(j[@"context"]);
+    v.investigatedBy = Str(j[@"investigated_by"]); v.evidence = Str(j[@"evidence"]);
     if ([j[@"made_at"] isKindOfClass:NSNumber.class]) v.madeAt = [NSDate dateWithTimeIntervalSince1970:[j[@"made_at"] doubleValue]];
     return v;
 }
@@ -258,11 +260,33 @@ static NSDictionary *ItemSchema(MMVerdictWords *w) {
                               @"reason": @{@"type": @"string"}, @"keep_evidence": @{@"type": @"string"}}};
 }
 
-static NSDictionary *ReviewSchema(MMReviewRequest *q) {
+/// The dispatch field of the first pass: who should look into the finding's folders before its verdict stands.
+static NSDictionary *DispatchSchema(void) {
+    return @{@"type": @"object", @"additionalProperties": @NO, @"required": @[@"question", @"to"],
+             @"properties": @{@"to": @{@"type": @"string", @"enum": @[@"none", @"haiku", @"sonnet", @"opus"]},
+                              @"question": @{@"type": @"string"}}};
+}
+
+/// The item schema with dispatch added, whatever schema the expert gave.
+static NSDictionary *WithDispatch(NSDictionary *item) {
+    NSMutableDictionary *i = [item mutableCopy];
+    NSMutableDictionary *props = [Dict(item[@"properties"]) mutableCopy] ?: [NSMutableDictionary new];
+    props[@"dispatch"] = DispatchSchema();
+    i[@"properties"] = props;
+    NSMutableArray *req = [List(item[@"required"]) mutableCopy] ?: [NSMutableArray new];
+    if (![req containsObject:@"dispatch"]) [req addObject:@"dispatch"];
+    i[@"required"] = [req sortedArrayUsingSelector:@selector(compare:)];
+    return i;
+}
+
+static NSDictionary *ReviewSchemaWith(MMReviewRequest *q, BOOL dispatch) {
     NSDictionary *item = q.schema ?: ItemSchema(WordsFor(q));
+    if (dispatch) item = WithDispatch(item);
     return @{@"type": @"object", @"additionalProperties": @NO, @"required": @[@"items", @"summary"],
              @"properties": @{@"items": @{@"type": @"array", @"items": item}, @"summary": @{@"type": @"string"}}};
 }
+
+static NSDictionary *ReviewSchema(MMReviewRequest *q) { return ReviewSchemaWith(q, YES); }
 
 static NSDictionary *JudgeSchema(MMVerdictWords *w) {
     return @{@"type": @"object", @"additionalProperties": @NO, @"required": @[@"items"], @"properties": @{@"items": @{@"type": @"array", @"items": @{
@@ -489,9 +513,54 @@ static MMVerdict *WorkKeep(MMFinding *f) {
 static NSString *const kInputNote =
     @"\n\nHow the input is laid out: blocks holds one block per workstream. w names its folder, ws holds the facts that every "
     @"finding in the block shares, and f lists the findings. all holds the facts that every finding in this call shares. "
-    @"A fact in ws or all belongs to each of those findings as if it were listed with it.";
+    @"A fact in ws or all belongs to each of those findings as if it were listed with it. "
+    @"0 and false are measured facts, such as no open connections. A fact that is left out was not known.";
 
 static NSString *WithNote(NSString *system) { return [system ?: @"" stringByAppendingString:kInputNote]; }
+
+/// The first pass decides, per finding, who looks into its folders before the verdict stands.
+static NSString *const kDispatchNote =
+    @"\n\nFor every finding also return dispatch. Someone can look into the finding's folders with Read, Grep and Glob "
+    @"before your verdict stands. to is none when the facts settle it, which is most findings. "
+    @"haiku sends Haiku for fast evidence: a few concrete facts, such as whether a file exists, what a script runs or when "
+    @"the folder last changed. You get its evidence back and decide. "
+    @"sonnet sends Sonnet for fast evidence and a conclusion: it looks and decides the verdict itself, for an ordinary question. "
+    @"opus sends Opus, for a question where you are not sure Sonnet is smart enough: subtle work, facts that disagree, "
+    @"or a mistake that would cost the developer. Dispatch only when what they find could change the verdict. "
+    @"question is one concrete question for them, empty for none.";
+
+/// The second look of the review's model, at findings Haiku gathered evidence for.
+static NSString *const kEvidenceNote =
+    @"\n\nThese findings were looked into before. first is your first verdict, and evidence is what a look into the "
+    @"finding's folders found. Weigh the evidence with the facts and decide again.";
+
+/// Haiku's system: evidence only, no verdict.
+static NSString *const kEvidenceSystem =
+    @"You gather evidence for MinMacs, a menu bar app on a developer's Mac, about one finding. Your only tools are Read, "
+    @"Grep and Glob, and they open only the folders the message names. Never print secrets, keys, tokens or the contents "
+    @"of .env files. Be fast: a few tool calls that answer the question, then stop. Return evidence: at most five short "
+    @"plain facts you found, each naming the file or path it came from. No verdict and no advice.";
+
+/// What Sonnet and Opus add to the expert's prompt when they look and conclude.
+static NSString *const kConcludeNote =
+    @"\n\nYou look into one finding yourself. Your only tools are Read, Grep and Glob, and they open only the folders "
+    @"the message names. Never print secrets, keys, tokens or the contents of .env files. Read what answers the question, "
+    @"then decide. Return verdict, confidence from 0 to 1, reason (one plain sentence of at most 25 words naming the facts) "
+    @"and evidence (the files and facts you used, at most three sentences).";
+
+static NSDictionary *ConcludeSchema(MMVerdictWords *w) {
+    return @{@"type": @"object", @"additionalProperties": @NO, @"required": @[@"confidence", @"evidence", @"reason", @"verdict"],
+             @"properties": @{@"verdict": @{@"type": @"string", @"enum": @[w.keep, w.go, w.unsure]}, @"confidence": @{@"type": @"number"},
+                              @"reason": @{@"type": @"string"}, @"evidence": @{@"type": @"string"}}};
+}
+
+static NSDictionary *EvidenceSchema(void) {
+    return @{@"type": @"object", @"additionalProperties": @NO, @"required": @[@"evidence"],
+             @"properties": @{@"evidence": @{@"type": @"string"}}};
+}
+
+/// The most findings one review sends someone to look into. The pref review.dispatchMax, 5 by default; 0 turns it off.
+static NSInteger DispatchMax(void) { return (NSInteger)MMPrefDouble(@"review.dispatchMax", 5); }
 
 /// What the model gets for one batch: one block per workstream, its shared facts once, then each finding's own facts.
 /// extra adds fields per finding, such as the judge's first review. MMModel compacts and redacts it all.
@@ -590,7 +659,7 @@ static NSString *TTLFor(MMReview *prev) {
     dispatch_semaphore_t gate = dispatch_semaphore_create((long)MAX(1, q.parallel ?: 3));
     dispatch_apply(batches.count, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^(size_t i) {
         dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
-        MMAnswer *a = [MMModel ask:q.model system:system schema:schema input:input(batches[i]) effort:@"low" ttl:ttl];
+        MMAnswer *a = [MMModel ask:q.model system:system schema:schema input:input(batches[i]) effort:@"medium" ttl:ttl];
         dispatch_semaphore_signal(gate);
         [MMBudget.shared record:a.usage expert:q.expert];
         @synchronized (r) {
@@ -612,10 +681,16 @@ static NSString *TTLFor(MMReview *prev) {
 /// or the judge made. A rule decides again on every review, so a rule's verdict is never carried, and a failed judge
 /// is asked again.
 /// It also holds at most MMVerdictMaxAgeNow after the call that made it.
+/// Part of every verdict's context. A verdict of an older era never carries over: bump it when the model reviews ask
+/// or the facts they get change in a way that makes earlier verdicts worth less. e2: Opus and Sol replaced Haiku and
+/// Luna, and 0 and false are sent, so a Haiku verdict made without "no connections" is asked again. e3: Opus dispatches
+/// looks, so a verdict made without the chance of one is asked again.
+static NSString *const kVerdictEra = @"|e3";
+
 static BOOL Carries(MMVerdict *v, NSString *context, NSDate *now, NSTimeInterval maxAge) {
     if (![v.decidedBy isEqualToString:@"model"] && ![v.decidedBy isEqualToString:@"judge"]) return NO;
     if (!v.madeAt || [now timeIntervalSinceDate:v.madeAt] > maxAge) return NO;
-    return !v.context || [v.context isEqualToString:context];   // a verdict saved before contexts holds on its fingerprint
+    return [v.context isEqualToString:context];   // a verdict saved before contexts, or before this era, is asked again
 }
 
 const NSTimeInterval MMVerdictMaxAge = 24 * 3600;
@@ -642,7 +717,7 @@ NSTimeInterval MMVerdictMaxAgeNow(void) {
     NSMutableDictionary<NSString *, NSNumber *> *decided = [NSMutableDictionary new];
     NSMutableDictionary<NSString *, NSString *> *contexts = [NSMutableDictionary new];
     for (MMFinding *f in q.findings) {
-        NSString *ctx = MMReviewContext(f, q.facts);
+        NSString *ctx = [MMReviewContext(f, q.facts) ?: @"" stringByAppendingString:kVerdictEra];
         contexts[f.findingID] = ctx;
         MMVerdict *x = nil;
         for (id<MMRule> rule in rules) {
@@ -666,6 +741,7 @@ NSTimeInterval MMVerdictMaxAgeNow(void) {
 
     NSMutableArray<NSString *> *summaries = [NSMutableArray new];
     NSUInteger batchCount = 0;
+    NSMutableDictionary<NSString *, NSDictionary *> *dispatches = nil;
     if (send.count && ![MMBudget.shared allows:q.trigger]) {
         r.error = [NSString stringWithFormat:@"The daily review budget is used: %ld of %ld uncached tokens. A manual review still runs.",
                    (long)MMBudget.shared.uncachedToday, (long)MMBudget.shared.dailyUncached];
@@ -676,7 +752,8 @@ NSTimeInterval MMVerdictMaxAgeNow(void) {
         NSMutableArray *errors = [NSMutableArray new];
         NSArray *batches = nil;
         __block NSInteger byModel = 0;
-        [self batches:send request:q review:r system:WithNote(q.system) schema:ReviewSchema(q) ttl:TTLFor(prev)
+        dispatches = [NSMutableDictionary new];
+        [self batches:send request:q review:r system:[WithNote(q.system) stringByAppendingString:kDispatchNote] schema:ReviewSchema(q) ttl:TTLFor(prev)
                 input:^NSDictionary *(NSArray<MMFinding *> *batch) { return BatchInput(batch, q, nil); }
                 parse:^(NSDictionary *so, NSArray<MMFinding *> *batch) {
             for (NSDictionary *x in List(so[@"items"]) ?: @[]) {
@@ -692,6 +769,10 @@ NSTimeInterval MMVerdictMaxAgeNow(void) {
                 w.instanceKey = f.instanceKey; w.context = contexts[f.findingID]; w.madeAt = now;
                 if (!v[f.findingID]) byModel++;
                 v[f.findingID] = w;
+                NSDictionary *d = Dict(x[@"dispatch"]);
+                NSString *to = Str(d[@"to"]);
+                if ([@[@"haiku", @"sonnet", @"opus"] containsObject:to ?: @""])
+                    dispatches[f.findingID] = @{@"to": to, @"question": Str(d[@"question"]) ?: @""};
             }
             if (Str(so[@"summary"]).length) [summaries addObject:so[@"summary"]];
         } errors:errors batchesOut:&batches];
@@ -702,6 +783,11 @@ NSTimeInterval MMVerdictMaxAgeNow(void) {
         for (MMFinding *f in send) if (v[f.findingID]) answered++;
         if (!r.error && answered < send.count)
             r.error = [NSString stringWithFormat:@"the answer covered %lu of %lu findings", (unsigned long)answered, (unsigned long)send.count];
+    }
+    // Opus's call: who looks into which finding before its verdict stands.
+    if (dispatches.count && !r.error) {
+        NSInteger looked = [self dispatch:dispatches request:q review:r verdicts:v contexts:contexts now:now];
+        if (looked) decided[@"investigated"] = @(looked);
     }
     r.verdicts = v;
     for (NSString *k in decided) [self count:k expert:q.expert by:decided[k].integerValue];
@@ -760,6 +846,109 @@ static NSString *CountsSentence(NSDictionary<NSString *, NSNumber *> *counts) {
 - (NSString *)summaryText:(NSDictionary *)counts words:(NSString *)words {
     NSString *c = CountsSentence(counts);
     return words.length ? [NSString stringWithFormat:@"%@ %@", c, words] : c;
+}
+
+#pragma mark Dispatch: Haiku for evidence, Sonnet for evidence and a conclusion, Opus where Sonnet may not be enough
+
+/// The finding's facts as the review sent them, compacted and redacted the same way.
+static NSString *FactsText(MMFinding *f, MMReviewRequest *q) {
+    NSDictionary *facts = q.factsFor ? q.factsFor(f) : f.facts;
+    return [[NSString alloc] initWithData:MMReviewJSON(MMCompactFacts(facts ?: @{}, nil) ?: @{}) encoding:NSUTF8StringEncoding] ?: @"{}";
+}
+
+/// Runs the looks the first pass asked for, at most DispatchMax, three at a time, and writes what they decide into v.
+/// Haiku's evidence goes back to the review's model in one more call. On Codex every tier is Sol. Returns how many
+/// verdicts a look changed or confirmed.
+- (NSInteger)dispatch:(NSDictionary<NSString *, NSDictionary *> *)dispatches request:(MMReviewRequest *)q review:(MMReview *)r
+             verdicts:(NSMutableDictionary<NSString *, MMVerdict *> *)v contexts:(NSDictionary *)contexts now:(NSDate *)now {
+    NSInteger max = DispatchMax();
+    if (max <= 0 || ![MMBudget.shared allows:q.trigger]) return 0;
+    MMVerdictWords *words = WordsFor(q);
+    BOOL onSol = NO;
+    for (MMUsage *u in r.calls) if ([u.model hasPrefix:@"gpt-"]) onSol = YES;
+    // Opus first, then Sonnet, then Haiku, in the order the findings came, so the cap keeps the hardest questions.
+    // Only a finding with a folder to read counts against the cap.
+    NSMutableArray<MMFinding *> *picked = [NSMutableArray new];
+    NSMutableArray<MMInvestigateSubject *> *subjects = [NSMutableArray new];
+    for (NSString *tier in @[@"opus", @"sonnet", @"haiku"])
+        for (MMFinding *f in q.findings) {
+            if (![dispatches[f.findingID][@"to"] isEqualToString:tier] || f.kept || (NSInteger)picked.count >= max) continue;
+            MMInvestigateSubject *x = [MMInvestigateSubject finding:f snapshot:nil];
+            if (!x) continue;
+            [picked addObject:f]; [subjects addObject:x];
+        }
+    if (!picked.count) return 0;
+    NSMutableDictionary<NSString *, NSString *> *evidence = [NSMutableDictionary new];
+    __block NSInteger looked = 0;
+    NSMutableArray *calls = [r.calls mutableCopy] ?: [NSMutableArray new];
+    dispatch_semaphore_t gate = dispatch_semaphore_create(3);
+    dispatch_apply(picked.count, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^(size_t i) {
+        MMFinding *f = picked[i];
+        NSString *tier = dispatches[f.findingID][@"to"];
+        BOOL gather = [tier isEqualToString:@"haiku"];
+        MMInvestigateSubject *subject = subjects[i];
+        MMVerdict *first = nil;
+        @synchronized (r) { first = v[f.findingID]; }
+        NSString *question = [NSString stringWithFormat:@"%@\n\nThe facts MinMacs has: %@\nThe review's first verdict: %@, %.0f%%: %@",
+                              dispatches[f.findingID][@"question"] ?: @"", FactsText(f, q), first.word ?: words.unsure,
+                              first.confidence * 100, first.reason ?: @""];
+        dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
+        NSDictionary *so = nil; NSString *err = nil;
+        MMInvestigation *run = [MMInvestigations.shared dispatch:subject tier:onSol ? MMModelCodexFirst : tier question:question
+                                                         system:gather ? kEvidenceSystem : [(q.system ?: @"") stringByAppendingString:kConcludeNote]
+                                                         schema:gather ? EvidenceSchema() : ConcludeSchema(words) json:&so error:&err];
+        dispatch_semaphore_signal(gate);
+        if (!run || !so) return;
+        @synchronized (r) {
+            if (run.usage) [calls addObject:run.usage];
+            if (gather) { if (Str(so[@"evidence"]).length) evidence[f.findingID] = so[@"evidence"]; return; }
+            MMVerdict *w = [MMVerdict new];
+            w.confidence = MAX(0, MIN(1, [so[@"confidence"] doubleValue]));
+            w.kind = [words kindFor:so[@"verdict"]];
+            if (w.confidence < MMMinConfidence) w.kind = MMVerdictUnsure;
+            w.word = [words wordFor:w.kind];
+            w.about = first.about; w.reason = Str(so[@"reason"]); w.keepEvidence = w.kind == MMVerdictKeep ? Str(so[@"evidence"]) ?: @"" : @"";
+            w.evidence = Str(so[@"evidence"]); w.investigatedBy = run.model ?: tier;
+            w.findingID = f.findingID; w.fingerprint = f.fingerprint; w.decidedBy = @"model";
+            w.instanceKey = f.instanceKey; w.context = contexts[f.findingID]; w.madeAt = now;
+            v[f.findingID] = w; looked++;
+        }
+    });
+    r.calls = calls;
+    if (!evidence.count) return looked;
+    // Haiku found; the review's model concludes, in one call per batch, with its first verdict and the evidence.
+    NSMutableArray<MMFinding *> *again = [NSMutableArray new];
+    for (MMFinding *f in picked) if (evidence[f.findingID]) [again addObject:f];
+    NSDictionary<NSString *, MMVerdict *> *firsts = [v copy];
+    NSMutableDictionary *byID = [NSMutableDictionary new];
+    for (MMFinding *f in again) byID[IDFor(f)] = f;
+    NSMutableArray *errors = [NSMutableArray new];
+    [self batches:again request:q review:r system:[WithNote(q.system) stringByAppendingString:kEvidenceNote]
+           schema:ReviewSchemaWith(q, NO) ttl:@"1h"
+            input:^NSDictionary *(NSArray<MMFinding *> *batch) {
+                return BatchInput(batch, q, ^NSDictionary *(MMFinding *f) {
+                    MMVerdict *w = firsts[f.findingID];
+                    return @{@"first": @{@"verdict": w.word ?: words.unsure, @"confidence": @(w.confidence), @"reason": w.reason ?: @""},
+                             @"evidence": evidence[f.findingID] ?: @""};
+                });
+            }
+            parse:^(NSDictionary *so, NSArray<MMFinding *> *batch) {
+                for (NSDictionary *x in List(so[@"items"]) ?: @[]) {
+                    MMFinding *f = Dict(x) ? byID[Str(x[@"id"]) ?: @""] : nil;
+                    if (!f || ![batch containsObject:f]) continue;
+                    MMVerdict *w = [MMVerdict new];
+                    w.confidence = MAX(0, MIN(1, [x[@"confidence"] doubleValue]));
+                    w.kind = [words kindFor:x[@"verdict"]];
+                    if (w.confidence < MMMinConfidence) w.kind = MMVerdictUnsure;
+                    w.word = [words wordFor:w.kind];
+                    w.about = Str(x[@"about"]); w.reason = Str(x[@"reason"]); w.keepEvidence = Str(x[@"keep_evidence"]) ?: @"";
+                    w.evidence = evidence[f.findingID]; w.investigatedBy = onSol ? MMModelCodexFirst : @"haiku";
+                    w.findingID = f.findingID; w.fingerprint = f.fingerprint; w.decidedBy = @"model";
+                    w.instanceKey = f.instanceKey; w.context = contexts[f.findingID]; w.madeAt = now;
+                    v[f.findingID] = w; looked++;
+                }
+            } errors:errors batchesOut:nil];
+    return looked;
 }
 
 #pragma mark P44, the judge

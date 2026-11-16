@@ -227,7 +227,7 @@ static NSString *Mark(MMFinding *f, MMReview *r) {
 
 static NSString *ModelOf(MMReview *r) {
     NSString *m = nil;
-    for (MMUsage *u in r.calls) if (u.model.length) m = u.model;
+    for (MMUsage *u in r.calls) if (u.model.length && !m) m = u.model;   // the first pass, not a look it dispatched
     return m ?: @"";
 }
 
@@ -285,7 +285,9 @@ static void PrintHosts(NSArray<MMFinding *> *fs, MMReview *r) {
                     @[MMShortDuration(-h.started.timeIntervalSinceNow), @8], @[[NSString stringWithFormat:@"%.1f%%", h.cpuPercent], @7, @YES],
                     @[MMBytes(h.memory), @10, @YES], @[@"", @2], @[MMLHStateWords(h), @26], @[h.launcher ?: @"", @0]]));
         MMVerdict *v = MMLHVerdictFor(f, r);
-        if (v) Outf("       %s %s, %.0f%%: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, (v.reason ?: @"").UTF8String);
+        if (v) Outf("       %s%s %s, %.0f%%: %s\n", ModelOf(r).UTF8String,
+                    v.investigatedBy.length ? [NSString stringWithFormat:@", %@ looked,", v.investigatedBy].UTF8String : "",
+                    v.word.UTF8String, v.confidence * 100, (v.reason ?: @"").UTF8String);
     }
 }
 

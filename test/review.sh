@@ -50,7 +50,7 @@ grep -q "Fixture session" "$RV_TEST_SENT";                       check "the agen
 grep -q "HUNTER77" "$RV_TEST_SENT";                              check "a secret in the session prompt is redacted" 1 "$?"
 grep -qF "$HOME/" "$RV_TEST_SENT";                               check "the home folder is never sent" 1 "$?"
 grep -qF '"~/Documents/fixture-app"' "$RV_TEST_SENT";            check "a path in the home folder is sent as ~" 0 "$?"
-check "null, false and zero facts are dropped" "[]" "$(rv_sent "sorted(k for f in items for k in f if k in ('locked', 'dirty', 'pr'))")"
+check "null facts are dropped, false and zero are sent" "['dirty', 'locked']" "$(rv_sent "sorted(k for f in items for k in f if k in ('locked', 'dirty', 'pr'))")"
 check "one block per workstream, and one without an owner" 3 "$(rv_sent "len(j['blocks'])")"
 check "the input is compact JSON with sorted keys" True \
   "$(python3 -c "import json,sys; l=open(sys.argv[1]).readline().strip(); print(l == json.dumps(json.loads(l), sort_keys=True, separators=(',', ':'), ensure_ascii=False))" "$RV_TEST_SENT")"
@@ -138,16 +138,57 @@ calls = [json.loads(l) for l in open(sys.argv[1])]
 ws = [sorted(set(b.get('w', '') for b in c['blocks'])) for c in calls]
 print(all(len(w) == 1 for w in ws))" "$RV_TEST_SENT")"
 
-echo "  -- Luna when Haiku is out of usage"
+echo "  -- Sol when Opus is out of usage"
 rv_fx luna "$rv_app" >/dev/null; rv_fresh
 RV_TEST_CLAUDE_LIMIT=1 OPENAI_API_KEY=sk-test "$RV" review "$rv_dir/luna.json" --model auto >"$rv_dir/out.json"
-check "auto falls back to Luna, without the API key" gpt-6-luna "$(rv_get "j['calls'][-1]['model']")"
-check "and notes why Haiku was skipped" True "$(rv_get "'usage limit' in j['note']")"
-grep -q "SUPERSECRET123" "$RV_TEST_SENT";                        check "the api key value is not sent to Luna" 1 "$?"
+check "auto falls back to Sol, without the API key" gpt-6.1-sol "$(rv_get "j['calls'][-1]['model']")"
+check "and notes why Opus was skipped" True "$(rv_get "'usage limit' in j['note']")"
+grep -q "SUPERSECRET123" "$RV_TEST_SENT";                        check "the api key value is not sent to Sol" 1 "$?"
 check "codex counts cached input apart from input" "15 5 7 3 22" "$(rv_get "' '.join(str(j['calls'][-1][k]) for k in ('input', 'cache_read', 'output', 'thinking', 'uncached'))")"
 rv_fx luna2 "$rv_app" >/dev/null
-RV_TEST_CODEX_UNSUPPORTED=gpt-6-luna "$RV" review "$rv_dir/luna2.json" --model luna >"$rv_dir/out.json"
-check "luna moves on from a model the account lacks" gpt-5.6-luna "$(rv_get "j['calls'][-1]['model']")"
+"$RV" review "$rv_dir/luna2.json" --model luna >"$rv_dir/out.json"
+check "OpenAI is always Sol: an old luna pref asks Sol" gpt-6.1-sol "$(rv_get "j['calls'][-1]['model']")"
+rv_fx sol2 "$rv_app" >/dev/null
+RV_TEST_CODEX_UNSUPPORTED=gpt-6.1-sol "$RV" review "$rv_dir/sol2.json" --model sol >"$rv_dir/out.json"
+check "sol moves on from a model the account lacks" gpt-6-sol "$(rv_get "j['calls'][-1]['model']")"
+
+echo "  -- Opus dispatches: Haiku for evidence, Sonnet to conclude, Opus where Sonnet may not be enough"
+rv_fx disp "$rv_app" >/dev/null; rv_fresh
+RV_TEST_UNSURE="#dev,#api,#docs" RV_TEST_DISPATCH="#dev=haiku,#api=sonnet,#docs=opus" "$RV" review "$rv_dir/disp.json" --model auto >"$rv_dir/out.json"
+rv_vd() { rv_get "' '.join(v['$1'] for k, v in sorted(j['verdicts'].items()) if k.endswith('#$2'))"; }
+rv_pref() { python3 -c "
+import plistlib,sys,os
+p = os.path.join(sys.argv[1], 'Preferences', 'no.guerrilla.minmacs.plist')
+d = plistlib.load(open(p, 'rb')) if os.path.exists(p) else {}
+if sys.argv[3] == '-': d.pop(sys.argv[2], None)
+else: d[sys.argv[2]] = int(sys.argv[3])
+plistlib.dump(d, open(p, 'wb'))" "$MINMACS_HOME" "$1" "$2"; }
+check "the first pass asks Opus with the dispatch field" True "$(python3 -c "import json,sys; c=[json.loads(l) for l in open(sys.argv[1])]; print(c[0]['model'] == 'opus')" "$RV_TEST_SENT.calls")"
+check "two looks ran: #docs has no folder to read" 2 "$(grep -c . "$RV_TEST_SENT.looks")"
+check "Haiku gathers evidence only, with no verdict in its schema" 1 "$(grep -c '"schema": \["evidence"\]' "$RV_TEST_SENT.looks")"
+check "and the review's model decides again with that evidence" "idle haiku" "$(rv_vd word dev) $(rv_vd investigated_by dev)"
+check "the second look gets the evidence and the first verdict" True "$(python3 -c "import json,sys; f=[f for b in json.loads(open(sys.argv[1]).readline())['blocks'] for f in b['f']][0]; print('evidence' in f and 'first' in f)" "$RV_TEST_SENT.again")"
+check "Sonnet looks and concludes itself" "idle sonnet" "$(rv_vd word api) $(rv_vd investigated_by api)"
+check "a finding with no folder to read keeps the first verdict" "unsure " "$(rv_vd word docs) $(rv_vd investigated_by docs)"
+check "a look's prompt holds the question and the facts" True "$(python3 -c "import json,sys; p=json.loads(open(sys.argv[1]).readline())['prompt']; print('is the script still there' in p and 'The facts MinMacs has' in p)" "$RV_TEST_SENT.looks")"
+grep -q "ENVSECRET999" "$RV_TEST_SENT.looks";                    check "a look's prompt never holds .env contents" 1 "$?"
+check "the review counts the looks" 2 "$(rv_get "j['review_decided'].get('investigated')")"
+check "a look is saved as an investigation, by its tier" "haiku sonnet" "$(python3 -c "
+import json,sqlite3,sys,os
+db = [os.path.join(r, 'minmacs.sqlite') for r, d, f in os.walk(sys.argv[1]) if 'minmacs.sqlite' in f][0]
+print(' '.join(sorted(set(json.loads(b).get('model','') for (b,) in sqlite3.connect(db).execute(\"select body from rows where tbl='investigate'\")))))" "$MINMACS_HOME" 2>/dev/null)"
+rv_fx disp4 "$rv_app" >/dev/null; rv_fresh
+RV_TEST_UNSURE="#dev,#api,#docs" RV_TEST_DISPATCH="#api=opus" RV_TEST_LOOK="fixture-app api" "$RV" review "$rv_dir/disp4.json" --model auto >"$rv_dir/out.json"
+check "Opus looks where Sonnet may not be enough, and a look may keep" "in_use opus" "$(rv_vd word api) $(rv_vd investigated_by api)"
+check "a keep from a look carries its evidence" "fixture: read package.json and the server's folder" "$(rv_vd keep_evidence api)"
+rv_fx disp2 "$rv_app" >/dev/null; rv_fresh
+rv_pref review.dispatchMax 1
+RV_TEST_UNSURE="#dev,#api,#docs" RV_TEST_DISPATCH="#dev=haiku,#api=opus" "$RV" review "$rv_dir/disp2.json" --model auto >"$rv_dir/out.json"
+rv_pref review.dispatchMax -
+check "review.dispatchMax caps the looks, the hardest first" "1 opus" "$(grep -c . "$RV_TEST_SENT.looks") $(rv_get "' '.join(v['investigated_by'] for v in j['verdicts'].values() if v['investigated_by'])")"
+rv_fx disp3 "$rv_app" >/dev/null; rv_fresh
+RV_TEST_CLAUDE_LIMIT=1 RV_TEST_UNSURE="#dev,#api,#docs" RV_TEST_DISPATCH="#api=sonnet" "$RV" review "$rv_dir/disp3.json" --model auto >"$rv_dir/out.json"
+check "on Codex every look is Sol" "gpt-6.1-sol" "$(rv_vd investigated_by api)"
 
 echo "  -- the Eager judge"
 rv_fx judge "$rv_app" --keep "#web" >/dev/null; rv_fresh

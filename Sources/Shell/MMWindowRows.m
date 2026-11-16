@@ -58,10 +58,23 @@ static NSString *OneLine(NSString *t) {
     return [[parts filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]] componentsJoinedByString:@" "];
 }
 
+/// A session's title when it is a name. Codex titles an untitled thread with its first prompt, which is no name:
+/// a row never cuts text, so a prompt of 600 characters wrapped to 18 lines and pushed the list under the dock.
+/// Pasted-image markers such as "[Image #1]" are no words. A title longer than kTitleMost is a prompt, and the
+/// row falls back to the project folder.
+static const NSUInteger kTitleMost = 60;
+static NSString *SessionTitle(NSString *raw) {
+    NSString *t = raw ?: @"";
+    t = [t stringByReplacingOccurrencesOfString:@"\\[(Image|Pasted text) #[0-9]+[^\\]]*\\]" withString:@" "
+                                        options:NSRegularExpressionSearch range:NSMakeRange(0, t.length)];
+    t = OneLine(t);
+    return t.length <= kTitleMost ? t : nil;
+}
+
 /// What tells this agent from the others, most telling first: its session's title, then its project folder.
 /// The harness is the row's icon and a line of its story. With neither fact, the harness's name is all there is.
 static NSString *AgentName(MMFinding *f, MMSnapshot *s) {
-    NSString *title = OneLine(SessionOf(f, s).title ?: @"");
+    NSString *title = SessionTitle(SessionOf(f, s).title);
     if (title.length) return title;
     NSString *project = Str(f.facts[@"project"]).stringByStandardizingPath;
     if ([project isEqualToString:NSHomeDirectory()]) return @"Home folder";

@@ -23,8 +23,8 @@ typedef NS_ENUM(NSInteger, MMSettingsPane) { MMSettingsOverview = 0, MMSettingsE
 @end
 
 /// The model choices, in the order the menu shows them. The first is the default.
-NSArray<NSString *> *MMSettingsModels(void);            // auto, haiku, sonnet, opus, luna
-NSString *MMSettingsModelTitle(NSString *model);        // "Auto: Haiku, Then Luna", "Haiku", ...
+NSArray<NSString *> *MMSettingsModels(void);            // auto, opus, sol, sonnet, haiku
+NSString *MMSettingsModelTitle(NSString *model);        // "Auto: Opus, Then Sol", "Opus", ...
 NSArray<NSString *> *MMSettingsModes(void);             // idle, proactive, eager
 NSString *MMSettingsPaneTitle(MMSettingsPane pane);     // "Overview", "Experts", "General"
 

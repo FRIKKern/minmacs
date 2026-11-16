@@ -13,10 +13,10 @@ static const CGFloat kButtonWidth = 110;
 }
 @end
 
-NSArray<NSString *> *MMSettingsModels(void) { return @[@"auto", @"haiku", @"sonnet", @"opus", @"luna"]; }
+NSArray<NSString *> *MMSettingsModels(void) { return @[@"auto", @"opus", @"sol", @"sonnet", @"haiku"]; }
 
 NSString *MMSettingsModelTitle(NSString *model) {
-    NSDictionary *t = @{@"auto": @"Auto: Haiku, Then Luna", @"haiku": @"Haiku", @"sonnet": @"Sonnet", @"opus": @"Opus", @"luna": @"Luna"};
+    NSDictionary *t = @{@"auto": @"Auto: Opus, Then Sol", @"opus": @"Opus", @"sol": @"Sol", @"sonnet": @"Sonnet", @"haiku": @"Haiku"};
     return t[model.lowercaseString ?: @""] ?: model;
 }
 
@@ -346,7 +346,7 @@ static NSBox *Line(void) {
 
     NSGridView *g = [NSGridView gridViewWithViews:@[
         @[Label(@"Review model:", Body(), NSColor.labelColor), model],
-        @[[NSGridCell emptyContentView], Note(@"Reviews run on your own Claude Code or Codex login. Auto asks Haiku first and Luna when Haiku is out of reach.", textWidth)],
+        @[[NSGridCell emptyContentView], Note(@"Reviews run on your own Claude Code or Codex login. Auto asks Opus first and Sol when Opus is out of reach. Opus sends Haiku for fast evidence, Sonnet for evidence and a conclusion, or looks itself.", textWidth)],
         @[Label(@"Menu bar:", Body(), NSColor.labelColor), one],
         @[[NSGridCell emptyContentView], Note(@"One menu with a section for each expert, in place of five icons.", textWidth)],
         @[Label(@"Startup:", Body(), NSColor.labelColor), login],
