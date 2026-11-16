@@ -704,7 +704,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"work" usage:@"work [path] [--here] [--json] | work wrap-up <id> [--dry-run] [--json]   each workstream, or Wrap Up of a finished one" mutates:NO run:^(MMArgs *a) { return Work(a); }],
                   MMVerbReadsAll, @[@"wrap-up"]),
-            Reads([MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--model <model>] [--json]   the last review, a new one with --now, or with --model the model reviews ask: auto, opus, sol, sonnet, haiku or luna" mutates:NO run:^(MMArgs *a) { return Review(a); }],
+            Reads([MMVerbSpec verb:@"review" usage:@"review [expert] [--now] [--model <model>] [--json]   the last review, a new one with --now, or with --model the model reviews ask: auto, opus, sol, sonnet or haiku" mutates:NO run:^(MMArgs *a) { return Review(a); }],
                   MMVerbReadsCachedGit, @[@"--now"]),
             [MMVerbSpec verb:@"investigate" usage:@"investigate <finding|workstream|path> [question] [--yes] [--json]   look deeper into one, after you confirm its cost" mutates:NO run:^(MMArgs *a) { return MMInvestigateVerb(a); }],
             [MMVerbSpec verb:@"tidy" usage:@"tidy [expert] [--dry-run] [--mode <mode>] [--json]   what each mode would act on, and act on it" mutates:YES run:^(MMArgs *a) { return Tidy(a); }],

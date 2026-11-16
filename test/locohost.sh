@@ -136,8 +136,8 @@ r=$(json "j['model']" <"$lh/luna.json");                             check "auto
 r=$(json "'usage limit' in (j['note'] or '')" <"$lh/luna.json");     check "and notes why Opus was skipped" True "$r"
 grep -q "SUPERSECRET123" "$RV_TEST_SENT";                            check "the api key value is not sent to Sol" 1 "$?"
 lh_fresh
-r=$(RV_TEST_CODEX_UNSUPPORTED=gpt-6-luna "$LH" review --model luna --port "$P" --json | json "j['model']")
-                                                                     check "luna moves on from a model the account lacks" gpt-5.6-luna "$r"
+r=$("$LH" review --model luna --port "$P" --json | json "j['model']")
+                                                                     check "OpenAI is always Sol: an old luna pref asks Sol" gpt-6.1-sol "$r"
 
 echo "== modes, every auto run names the fixture port, so no other server is judged or stopped"
 export LOCOHOST_IDLE_MINUTES=0 LOCOHOST_MIN_UPTIME_MINUTES=0

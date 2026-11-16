@@ -22,6 +22,13 @@ if "--effort" not in args: fail("fixture: no --effort")
 usage = {"input_tokens": 10, "cache_creation_input_tokens": 300, "cache_read_input_tokens": 1000, "output_tokens": 50,
          "cache_creation": {"ephemeral_5m_input_tokens": 100, "ephemeral_1h_input_tokens": 200},
          "output_tokens_details": {"thinking_tokens": 30}}
+if "--mcp-config" in args:   # a look the review dispatched: only MinMacs's tools, scoped, and a schema
+    if args[args.index("--tools") + 1] != "": fail("fixture: the built-in tools are not off")
+    if args[args.index("--allowedTools") + 1] != "mcp__minmacs__Read,mcp__minmacs__Grep,mcp__minmacs__Glob": fail("fixture: the look's tools are wrong")
+    import fakeanswer
+    so = fakeanswer.look(data, args[args.index("--json-schema") + 1])
+    print(json.dumps({"type": "result", "is_error": False, "result": "", "structured_output": so, "total_cost_usd": 0.0001, "usage": usage}))
+    sys.exit(0)
 if "--json-schema" not in args: fail("fixture: Investigate has its own fake, test/investigate/fakeclaude.py")
 if args[args.index("--tools") + 1] != "": fail("fixture: tools are not off")
 schema = args[args.index("--json-schema") + 1]

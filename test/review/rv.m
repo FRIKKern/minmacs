@@ -20,7 +20,7 @@
 @implementation RVOwner @end
 
 @interface RVFinding : NSObject
-@property (copy) NSString *findingID, *expert, *kind, *stableKey, *instanceKey, *title, *path, *fingerprint;
+@property (copy) NSString *findingID, *expert, *kind, *stableKey, *instanceKey, *title, *path, *fingerprint, *ownerPath;
 @property RVOwner *owner;
 @property NSDictionary *facts;
 @property NSArray<NSString *> *keepReasons;
@@ -122,7 +122,8 @@ static NSDictionary *ReviewJSON(MMReview *r) {
         MMVerdict *x = r.verdicts[k];
         v[k] = @{@"kind": kKinds[x.kind], @"word": x.word ?: @"", @"confidence": @(x.confidence), @"judged": @(x.judged),
                  @"decided_by": x.decidedBy ?: @"", @"fingerprint": x.fingerprint ?: @"", @"reason": x.reason ?: @"",
-                 @"keep_evidence": x.keepEvidence ?: @"", @"about": x.about ?: @"", @"context": x.context ?: @"", @"instance": x.instanceKey ?: @""};
+                 @"keep_evidence": x.keepEvidence ?: @"", @"about": x.about ?: @"", @"context": x.context ?: @"", @"instance": x.instanceKey ?: @"",
+                 @"investigated_by": x.investigatedBy ?: @"", @"evidence": x.evidence ?: @""};
     }
     NSMutableArray *calls = [NSMutableArray new];
     for (MMUsage *u in r.calls) [calls addObject:u.json];

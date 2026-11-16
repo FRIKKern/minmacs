@@ -71,6 +71,10 @@ typedef NS_ENUM(NSInteger, MMVerdictKind) { MMVerdictUnsure = 0, MMVerdictKeep =
 @property (copy) NSString *context;
 @property (copy) NSString *about, *reason, *keepEvidence;
 @property (copy) NSString *decidedBy;                   // a rule id of P47, "model" or "judge"
+/// Who looked into the finding's folders for this verdict, when the review dispatched one: haiku (evidence that the
+/// review's model then weighed), sonnet or opus (who concluded), or a Sol model. nil when nobody looked.
+@property (copy) NSString *investigatedBy;
+@property (copy) NSString *evidence;                    // what the look found, in words
 /// When the model or the judge made it, by the broker's clock. A carried verdict keeps it, so its age counts from
 /// the call that made it. nil for a verdict saved before this field, which then counts from its review.
 @property (strong) NSDate *madeAt;

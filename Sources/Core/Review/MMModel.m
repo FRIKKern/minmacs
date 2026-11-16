@@ -78,7 +78,7 @@ static NSString *MMReviewDir(void) { return MMExpertDir(@"review"); }
 }
 
 /// One turn.completed event of `codex exec --json`. Codex counts cached input inside input_tokens, research F 1.2,
-/// and reasoning inside output_tokens. It reports no cost, and no Luna price was found, so the list cost stays 0.
+/// and reasoning inside output_tokens. It reports no cost, and no Sol price was found, so the list cost stays 0.
 - (void)addCodexTurn:(NSDictionary *)x {
     NSInteger cached = [x[@"cached_input_tokens"] integerValue];
     self.input += MAX(0, [x[@"input_tokens"] integerValue] - cached);
@@ -287,7 +287,7 @@ static NSDictionary *AskClaude(MMAnswer *a, NSString *claude, MMClaudeCall *c, N
 
 #pragma mark - Codex
 
-/// The models of one family ("sol", "luna") Codex offers this account, newest first as Codex lists them, then the known names.
+/// The models of one family, such as "sol", Codex offers this account, newest first as Codex lists them, then the known names.
 static NSArray<NSString *> *CodexFamily(NSString *family, NSArray<NSString *> *known) {
     NSString *home = NSProcessInfo.processInfo.environment[@"CODEX_HOME"] ?: [@"~/.codex" stringByExpandingTildeInPath];
     NSData *d = [NSData dataWithContentsOfFile:[home stringByAppendingPathComponent:@"models_cache.json"]];
@@ -301,7 +301,6 @@ static NSArray<NSString *> *CodexFamily(NSString *family, NSArray<NSString *> *k
     return l;
 }
 
-static NSArray<NSString *> *LunaModels(void) { return CodexFamily(@"luna", @[@"gpt-6-luna", @"gpt-5.6-luna"]); }
 static NSArray<NSString *> *SolModels(void) { return CodexFamily(@"sol", @[@"gpt-6.1-sol", @"gpt-6-sol", @"gpt-5.6-sol"]); }
 
 /// A TOML basic string, for codex -c key=value.
@@ -322,7 +321,7 @@ static NSString *CodexMessage(NSString *m) {
 
 /// OpenAI through `codex exec`. Every tool is turned off and the sandbox is read-only, so the model only answers.
 static NSDictionary *AskCodexModel(MMAnswer *a, NSString *codex, NSString *model, NSString *system, NSDictionary *schemaObj,
-                                   NSString *effort, NSData *prompt) {
+                                   NSString *effort, NSData *prompt, NSArray<NSString *> *extra) {
     NSString *dir = CallDir();
     if (!dir) { a.error = @"could not make a folder for the call"; return nil; }
     NSString *schema = [dir stringByAppendingPathComponent:@"schema.json"], *answer = [dir stringByAppendingPathComponent:@"answer.json"];
@@ -336,6 +335,7 @@ static NSDictionary *AskCodexModel(MMAnswer *a, NSString *codex, NSString *model
     for (NSString *f in @[@"shell_tool", @"unified_exec", @"apps", @"plugins", @"browser_use", @"computer_use", @"image_generation",
                           @"multi_agent", @"hooks", @"view_image", @"skill_search", @"tool_suggest", @"goals", @"sleep_tool"])
         [args addObjectsFromArray:@[@"--disable", f]];
+    if (extra.count) [args addObjectsFromArray:extra];
     [args addObject:@"-"];
     // The person's ChatGPT login from ~/.codex, never an API key from the environment, and not a nested session of a running Codex.
     NSData *out, *err; int status; NSString *e = nil;
@@ -372,15 +372,17 @@ static NSDictionary *AskCodexModel(MMAnswer *a, NSString *codex, NSString *model
     return nil;
 }
 
-/// "sol" and "luna" try each model of that family this account offers, moving on only when the account cannot use that model.
+/// OpenAI is always Sol. "sol", and "luna" of an older pref, try each Sol model this account offers, moving on only when the account cannot use that model.
 static NSDictionary *AskCodex(MMAnswer *a, NSString *codex, NSString *model, NSString *system, NSDictionary *schema,
-                              NSString *effort, NSData *prompt) {
-    NSArray *models = [model isEqualToString:@"sol"] ? SolModels() : [model isEqualToString:@"luna"] ? LunaModels() : @[model];
+                              NSString *effort, NSData *prompt, NSArray<NSString *> *extra) {
+    // OpenAI is always Sol: a named Sol model is tried first, and any other name, such as an old pref's luna, asks Sol.
+    NSMutableArray *models = [SolModels() mutableCopy];
+    if ([model hasSuffix:@"-sol"]) { [models removeObject:model]; [models insertObject:model atIndex:0]; }
     MMUsage *spent = nil;
     NSDictionary *so = nil;
     for (NSString *m in models) {
         a.error = nil; a.usage = nil;
-        so = AskCodexModel(a, codex, m, system, schema, effort, prompt);
+        so = AskCodexModel(a, codex, m, system, schema, effort, prompt, extra);
         spent = spent ? [spent adding:a.usage] : a.usage;
         if (so) break;
         if (!([a.error containsString:@"not supported"] || [a.error containsString:@"model_not_found"] || [a.error containsString:@"does not exist"])) break;
@@ -392,6 +394,12 @@ static NSDictionary *AskCodex(MMAnswer *a, NSString *codex, NSString *model, NSS
 static BOOL IsCodexModel(NSString *m) { return [m isEqualToString:@"sol"] || [m isEqualToString:@"luna"] || [m hasPrefix:@"gpt-"]; }
 
 #pragma mark - The model
+
+/// "opus" as Opus, "gpt-6.1-sol" as Sol.
+static NSString *MMCapitalizedModel(NSString *m) {
+    if ([m hasSuffix:@"-sol"] || [m isEqualToString:@"sol"]) return @"Sol";
+    return m.length ? [[m substringToIndex:1].uppercaseString stringByAppendingString:[m substringFromIndex:1]] : @"";
+}
 
 NSString *const MMModelClaudeFirst = @"opus";   // Claude Code's alias for its newest Opus, Opus 5.5 today
 NSString *const MMModelCodexFirst = @"sol";     // the newest Sol this Codex account offers, gpt-6.1-sol today
@@ -432,14 +440,14 @@ NSString *const MMModelCodexFirst = @"sol";     // the newest Sol this Codex acc
             a.note = [NSString stringWithFormat:@"Opus: %@", claude ? a.error : @"claude CLI not found"];
             MMUsage *first = a.usage;
             a.error = nil; a.usage = nil;
-            if ((codex = [self codexPath])) so = AskCodex(a, codex, MMModelCodexFirst, system, c.schema, effort, prompt);
+            if ((codex = [self codexPath])) so = AskCodex(a, codex, MMModelCodexFirst, system, c.schema, effort, prompt, nil);
             else a.error = @"codex CLI not found";
             a.usage = first ? [first adding:a.usage] : a.usage;   // a failed Opus call may still have spent tokens
             if (!so) a.error = [NSString stringWithFormat:@"%@. Sol: %@", a.note, a.error];
         }
     } else if (IsCodexModel(model)) {
         NSString *codex = [self codexPath];
-        if (codex) so = AskCodex(a, codex, model, system, c.schema, effort, prompt);
+        if (codex) so = AskCodex(a, codex, model, system, c.schema, effort, prompt, nil);
         else a.error = @"codex CLI not found. Install Codex and sign in, or set review.codexPath.";
     } else {
         NSString *claude = [self claudePath];
@@ -452,26 +460,63 @@ NSString *const MMModelCodexFirst = @"sol";     // the newest Sol this Codex acc
     return a;
 }
 
+/// The effort and turn limit of each tier. Haiku gathers fast evidence, Sonnet gathers and concludes, Opus looks where
+/// Sonnet may not be smart enough. Sol stands in for each tier with the same effort.
+static NSString *TierEffort(NSString *tier) {
+    return [tier isEqualToString:@"haiku"] ? @"low" : [tier isEqualToString:@"sonnet"] ? @"medium" : @"high";
+}
+NSInteger MMInvestigateTurns(NSString *tier) {
+    return [tier isEqualToString:@"haiku"] ? 6 : [tier isEqualToString:@"sonnet"] ? 10 : 16;
+}
+
+/// A TOML array of basic strings, for codex -c key=[...].
+static NSString *TOMLArray(NSArray<NSString *> *a) {
+    NSMutableArray *parts = [NSMutableArray new];
+    for (NSString *x in a) [parts addObject:TOMLString(x)];
+    return [NSString stringWithFormat:@"[%@]", [parts componentsJoinedByString:@", "]];
+}
+
 /// Investigate's call, PLAN.md section 4 and research F9. Every built-in tool is off, so Claude Code's own Read,
 /// which opens any path, never runs. The only tools are MinMacs's Read, Grep and Glob, served by this same binary
 /// over MCP and scoped to folders, MMInvestigate.h. The call runs in a fresh folder, so no project file is read
-/// unless a tool reads it.
+/// unless a tool reads it. tier is haiku, sonnet, opus or sol. Claude's tiers go to Sol, at the tier's effort, when
+/// claude is missing, signed out or out of usage, and a sol tier goes straight to Codex, with Codex's shell off and
+/// the same MCP tools. schema nil asks for words in a.json[@"text"].
 + (MMAnswer *)investigate:(NSString *)question system:(NSString *)system folders:(NSArray<NSString *> *)folders
-                    audit:(NSString *)audit maxTurns:(NSInteger)maxTurns {
+                    audit:(NSString *)audit maxTurns:(NSInteger)maxTurns tier:(NSString *)tier schema:(NSDictionary *)schema {
     MMAnswer *a = [MMAnswer new];
-    NSString *claude = [self claudePath];
-    if (!claude) { a.error = @"claude CLI not found. Install Claude Code and sign in, or set review.claudePath."; a.usage = [MMUsage new]; return a; }
+    tier = tier.length ? tier : MMInvestigateModel;
     NSString *me = NSBundle.mainBundle.executablePath;
     if (!me.length) { a.error = @"could not find the MinMacs binary for the tools"; a.usage = [MMUsage new]; return a; }
     NSMutableArray *serverArgs = [@[@"_investigate-tools"] mutableCopy];
     for (NSString *f in folders) [serverArgs addObjectsFromArray:@[@"--folder", f]];
     if (audit.length) [serverArgs addObjectsFromArray:@[@"--audit", audit]];
-    NSDictionary *mcp = @{@"mcpServers": @{@"minmacs": @{@"type": @"stdio", @"command": me, @"args": serverArgs, @"env": @{}}}};
-    MMClaudeCall *c = [MMClaudeCall new];
-    c.model = MMInvestigateModel; c.system = system; c.tools = @""; c.effort = @"medium";
-    c.allowed = @"mcp__minmacs__Read,mcp__minmacs__Grep,mcp__minmacs__Glob";
-    c.extra = @[@"--mcp-config", JSONText(mcp), @"--max-turns", [NSString stringWithFormat:@"%ld", (long)maxTurns]];
-    NSDictionary *so = AskClaude(a, claude, c, [question dataUsingEncoding:NSUTF8StringEncoding]);
+    NSData *prompt = [question dataUsingEncoding:NSUTF8StringEncoding];
+    NSDictionary *so = nil;
+    NSString *claude = IsCodexModel(tier) ? nil : [self claudePath];
+    if (claude) {
+        NSDictionary *mcp = @{@"mcpServers": @{@"minmacs": @{@"type": @"stdio", @"command": me, @"args": serverArgs, @"env": @{}}}};
+        MMClaudeCall *c = [MMClaudeCall new];
+        c.model = tier; c.system = system; c.tools = @""; c.effort = TierEffort(tier); c.schema = schema;
+        c.allowed = @"mcp__minmacs__Read,mcp__minmacs__Grep,mcp__minmacs__Glob";
+        c.extra = @[@"--mcp-config", JSONText(mcp), @"--max-turns", [NSString stringWithFormat:@"%ld", (long)maxTurns]];
+        so = AskClaude(a, claude, c, prompt);
+        if (so) { a.json = so; if (!a.usage) a.usage = [MMUsage new]; return a; }
+        a.note = [NSString stringWithFormat:@"%@: %@", MMCapitalizedModel(tier), a.error ?: @"failed"];
+    }
+    // OpenAI is always Sol. Its shell and every other tool are off; the MCP server is the only way to read.
+    NSString *codex = [self codexPath];
+    MMUsage *first = a.usage;
+    if (!codex) { a.error = a.note ? [a.note stringByAppendingString:@". Sol: codex CLI not found"] : @"neither claude nor codex was found"; a.usage = first ?: [MMUsage new]; return a; }
+    a.error = nil; a.usage = nil;
+    NSArray *extra = @[@"-c", [@"mcp_servers.minmacs.command=" stringByAppendingString:TOMLString(me)],
+                       @"-c", [@"mcp_servers.minmacs.args=" stringByAppendingString:TOMLArray(serverArgs)],
+                       @"-c", @"mcp_servers.minmacs.default_tools_approval_mode=\"approve\""];
+    NSDictionary *sch = schema ?: @{@"type": @"object", @"additionalProperties": @NO, @"required": @[@"text"],
+                                    @"properties": @{@"text": @{@"type": @"string"}}};
+    so = AskCodex(a, codex, MMModelCodexFirst, system, sch, IsCodexModel(tier) ? @"high" : TierEffort(tier), prompt, extra);
+    a.usage = first ? [first adding:a.usage] : a.usage;
+    if (!so && a.note) a.error = [NSString stringWithFormat:@"%@. Sol: %@", a.note, a.error];
     a.json = so;
     if (!a.usage) a.usage = [MMUsage new];
     return a;

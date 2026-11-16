@@ -6,7 +6,7 @@ This page says what the broker does and what it cost on a fixture day. [PRIVACY.
 
 ## Which model, and how
 
-- **The CLI on the person's own login.** The broker runs `claude -p` with Opus, Claude Code's alias for its newest Opus (Opus 5.5 today), at medium effort. When `claude` is missing, signed out, out of usage or fails another way, it runs `codex exec` with the newest Sol model the account offers (gpt-6.1-sol today). The `review.model` pref picks auto, opus, sol, sonnet, haiku or luna, and auto is the default. MinMacs asks the strongest models because a verdict is only as good as the judgment behind it: a cheap model that answers unsure on every quiet server tells the person nothing.
+- **The CLI on the person's own login.** The broker runs `claude -p` with Opus, Claude Code's alias for its newest Opus (Opus 5.5 today), at medium effort. When `claude` is missing, signed out, out of usage or fails another way, it runs `codex exec` with the newest Sol model the account offers (gpt-6.1-sol today). The `review.model` pref picks auto, opus, sol, sonnet or haiku, and auto is the default. OpenAI is always Sol: an older pref that names luna, or any other GPT model, asks Sol. MinMacs asks the strongest models because a verdict is only as good as the judgment behind it: a cheap model that answers unsure on every quiet server tells the person nothing.
 - **No tools.** Every call to `claude` passes `--tools ""`, `--strict-mcp-config`, `--setting-sources ""` and `--no-session-persistence`, and runs in a fresh empty folder, so no project file is picked up. `codex` runs with every tool off and a read-only sandbox.
 - **No API key.** `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and the variables of a Claude Code session that launched MinMacs are removed from the call's environment.
 - **A JSON schema.** The answer must match a schema in the expert's own words: for LocoHost the verdicts are `in_use`, `idle` and `unsure`, for WorkForest `active`, `stale` and `unsure`. Core stores keep, go and unsure underneath.
@@ -79,6 +79,25 @@ These bytes were measured while false and zero were still dropped. Since they ar
 
 In the broker's day, `ws` saved 70 uncached tokens: 56,916 without it, 56,846 with it. Only LocoHost's two servers in one worktree shared a block.
 
+## Dispatch: Opus sends the looks
+
+The first pass is a triage. Next to each verdict, the review's model returns `dispatch`: who should look into the finding's folders before the verdict stands, and one concrete question for them.
+
+```
+first pass (Opus, no tools)        each finding: verdict + dispatch {to, question}
+  to = none    the facts settle it, which is most findings
+  to = haiku   Haiku gathers fast evidence, no verdict  ──► Opus decides again with it, one call per batch
+  to = sonnet  Sonnet gathers evidence and concludes
+  to = opus    Opus looks itself, where Sonnet may not be smart enough
+on Codex       every tier runs on Sol, at low, medium or high effort
+```
+
+- **Tools.** A look has only MinMacs's Read, Grep and Glob, scoped to the finding's folders, as Investigate below. On Codex the same MCP server is the only tool: the shell and every other tool are off.
+- **Effort and turns.** Haiku runs at low effort with 6 turns, Sonnet at medium with 10, Opus and Sol at high with 16.
+- **Cap.** One review sends at most `review.dispatchMax` looks, 5 by default, and 0 turns dispatch off. Opus's questions go first, then Sonnet's, then Haiku's. A finding with no folder to read, or one the person keeps, is not looked into. Looks count against the daily budget, and none run when it is used.
+- **What a look sends.** The question, the finding's facts as the review sent them, compacted and redacted, and the first verdict. What it reads comes from the tools, one call at a time.
+- **What it leaves.** The verdict records `investigated_by` and `evidence`, and the look is saved as an investigation, so the card says who looked and what they found. The review counts them under `investigated`. A look's verdict is the model's, so the fingerprint cache carries it like any other.
+
 ## The judge and the summary
 
 - **The judge.** In Eager mode, findings the model decided but did not call a sure go get a second call. The burden of proof is on the finding: it stays only when a concrete fact shows someone still needs it. A failed judge keeps every finding it was asked about, and the next review asks again.
@@ -116,4 +135,4 @@ Investigate is one deeper look, only when the person asks, at one finding, one w
 
 In the test, 10 of 15 scripted tool calls try to leave the folder or reach a secret, through an absolute path, `..`, a symlink, a symlinked folder, a sibling folder with the same prefix, `.env`, a Grep through the symlink, a glob with `..`, an absolute glob and a tool named Bash. All 10 are refused, and no byte of the outside files or of `.env` reaches the fake model.
 
-Before a run the alert shows an estimate. Before the first run it is 35,000 tokens on Opus. After that it is the median uncached tokens of the last five runs that answered. One call sends a system prompt of 426 characters, three tool schemas of 1,088 bytes, and a message of 224 to 242 bytes on the fixture. The tokens and time of a real run have not been measured, since that needs a paid call.
+Before a run the alert shows an estimate. Before the first run it is 35,000 tokens on Opus. When `claude` is out of reach, Sol runs it through Codex with the same tools. After that it is the median uncached tokens of the last five runs that answered. One call sends a system prompt of 426 characters, three tool schemas of 1,088 bytes, and a message of 224 to 242 bytes on the fixture. The tokens and time of a real run have not been measured, since that needs a paid call.

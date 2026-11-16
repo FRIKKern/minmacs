@@ -19,7 +19,10 @@ if model in os.environ.get("RV_TEST_CODEX_UNSUPPORTED", "").split(","):
     fail("The '%s' model is not supported when using Codex with a ChatGPT account." % model)
 data = sys.stdin.read()
 import fakeanswer
-so = fakeanswer.answer(data, open(args[args.index("--output-schema") + 1]).read())
+if any(a.startswith("mcp_servers.minmacs.command=") for a in args):   # a look on Sol, with MinMacs's tools only
+    so = fakeanswer.look(data, open(args[args.index("--output-schema") + 1]).read())
+else:
+    so = fakeanswer.answer(data, open(args[args.index("--output-schema") + 1]).read())
 open(args[args.index("--output-last-message") + 1], "w").write(json.dumps(so))
 print(json.dumps({"type": "thread.started", "thread_id": "fixture"}))
 print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 20, "cached_input_tokens": 5, "output_tokens": 7, "reasoning_output_tokens": 3}}))

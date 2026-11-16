@@ -81,6 +81,25 @@ def prose(name, kind):
     if name in ("keep_evidence", "evidence"): return "an agent session was active in it today" if kind == "keep" else ""
     return "One plain sentence of about twenty five words built only from the facts, as the 1.x prompts asked for every field here."
 
+def tier(i):
+    """The look the fixture's first pass asks for: $RV_TEST_DISPATCH is "#dev=haiku,#api=sonnet", by id substring."""
+    for pair in names("RV_TEST_DISPATCH"):
+        key, _, t = pair.partition("=")
+        if key and key in i: return t
+    return "none"
+
+def look(prompt, schema):
+    """A dispatched look: Haiku's evidence, or Sonnet's and Opus's conclusion. $RV_TEST_LOOK names ids that a look
+    keeps; every other one goes. Each look appends its prompt to $RV_TEST_SENT.looks."""
+    s = json.loads(schema)
+    open(os.environ["RV_TEST_SENT"] + ".looks", "a").write(json.dumps({"prompt": prompt, "schema": sorted(s["properties"])}) + "\n")
+    if "verdict" not in s["properties"]:
+        return {"evidence": "fixture evidence: the script the server runs is gone from its folder"}
+    keep, go, unsure = s["properties"]["verdict"]["enum"]
+    k = any(n in prompt for n in names("RV_TEST_LOOK"))
+    return {"verdict": keep if k else go, "confidence": 0.9, "reason": "the fixture look says so",
+            "evidence": "fixture: read package.json and the server's folder"}
+
 def answer(data, schema):
     j = json.loads(data)
     s = json.loads(schema)
@@ -113,6 +132,13 @@ def answer(data, schema):
         return {"summary": "Fixture summary: %d items." % len(fs), list_key: out}
     def verdict(i):
         return go if named(i, "RV_TEST_GO") else unsure if named(i, "RV_TEST_UNSURE") else keep
-    return {"summary": "Fixture summary: %d items." % len(fs),
-            list_key: [{"id": f["id"], "verdict": verdict(f["id"]), "confidence": 0.5 if verdict(f["id"]) == unsure else 0.95,
-                        "about": "fixture", "reason": "fixture says so", "keep_evidence": ""} for f in fs]}
+    if any("evidence" in f for f in fs):   # the second look after Haiku's evidence: the evidence decides go
+        open(sent + ".again", "a").write(data + "\n")
+        return {"summary": "Fixture summary: %d items." % len(fs),
+                list_key: [{"id": f["id"], "verdict": go, "confidence": 0.85, "about": "fixture", "reason": "the evidence says so",
+                            "keep_evidence": ""} for f in fs]}
+    out = [{"id": f["id"], "verdict": verdict(f["id"]), "confidence": 0.5 if verdict(f["id"]) == unsure else 0.95,
+            "about": "fixture", "reason": "fixture says so", "keep_evidence": ""} for f in fs]
+    if "dispatch" in item:
+        for a in out: a["dispatch"] = {"to": tier(a["id"]), "question": "" if tier(a["id"]) == "none" else "fixture: is the script still there?"}
+    return {"summary": "Fixture summary: %d items." % len(fs), list_key: out}
