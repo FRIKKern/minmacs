@@ -54,11 +54,11 @@ static NSString *Bucket(NSDate *d) {
 }
 
 /// What must change for the model to look again: the instance, its state, who has it open, duplicates,
-/// the protect list, whether its agent session is fresh, and how long it has been quiet, in buckets.
+/// the protect list, whether its parent exited, whether its agent session is fresh, and how long it has been quiet, in buckets.
 static NSString *Fingerprint(MMLHHost *h) {
     NSDate *sessionLast = h.session[@"lastActiveAt"] ? [NSDate dateWithTimeIntervalSince1970:[h.session[@"lastActiveAt"] doubleValue]] : nil;
-    return [NSString stringWithFormat:@"%@|%@|%@|c%d|d%lu|p%d|s%@|q%@", h.key, h.kind, MMLHStateName(h.state), h.clients.count > 0,
-            (unsigned long)h.duplicates.count, h.isProtected, sessionLast ? Bucket(sessionLast) : @"-", Bucket(h.lastActive ?: h.firstSeen)];
+    return [NSString stringWithFormat:@"%@|%@|%@|c%d|d%lu|p%d|o%d|s%@|q%@", h.key, h.kind, MMLHStateName(h.state), h.clients.count > 0,
+            (unsigned long)h.duplicates.count, h.isProtected, h.orphaned, sessionLast ? Bucket(sessionLast) : @"-", Bucket(h.lastActive ?: h.firstSeen)];
 }
 
 /// keptUntil is the person's timed keep, read on the graph queue, so the menu never reads the keeps file on main.

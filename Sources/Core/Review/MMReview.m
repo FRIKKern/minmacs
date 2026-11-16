@@ -613,10 +613,15 @@ static NSString *TTLFor(MMReview *prev) {
 /// or the judge made. A rule decides again on every review, so a rule's verdict is never carried, and a failed judge
 /// is asked again.
 /// It also holds at most MMVerdictMaxAgeNow after the call that made it.
+/// Part of every verdict's context. A verdict of an older era never carries over: bump it when the model reviews ask
+/// or the facts they get change in a way that makes earlier verdicts worth less. e2: Opus and Sol replaced Haiku and
+/// Luna, and 0 and false are sent, so a Haiku verdict made without "no connections" is asked again.
+static NSString *const kVerdictEra = @"|e2";
+
 static BOOL Carries(MMVerdict *v, NSString *context, NSDate *now, NSTimeInterval maxAge) {
     if (![v.decidedBy isEqualToString:@"model"] && ![v.decidedBy isEqualToString:@"judge"]) return NO;
     if (!v.madeAt || [now timeIntervalSinceDate:v.madeAt] > maxAge) return NO;
-    return !v.context || [v.context isEqualToString:context];   // a verdict saved before contexts holds on its fingerprint
+    return [v.context isEqualToString:context];   // a verdict saved before contexts, or before this era, is asked again
 }
 
 const NSTimeInterval MMVerdictMaxAge = 24 * 3600;
@@ -643,7 +648,7 @@ NSTimeInterval MMVerdictMaxAgeNow(void) {
     NSMutableDictionary<NSString *, NSNumber *> *decided = [NSMutableDictionary new];
     NSMutableDictionary<NSString *, NSString *> *contexts = [NSMutableDictionary new];
     for (MMFinding *f in q.findings) {
-        NSString *ctx = MMReviewContext(f, q.facts);
+        NSString *ctx = [MMReviewContext(f, q.facts) ?: @"" stringByAppendingString:kVerdictEra];
         contexts[f.findingID] = ctx;
         MMVerdict *x = nil;
         for (id<MMRule> rule in rules) {
