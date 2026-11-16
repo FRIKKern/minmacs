@@ -346,6 +346,11 @@ int main(int argc, char **argv) {
         Damaged();
         Leftovers();
         Guards();
+        Forged();
+        DamagedWordsSay();
+        Closing();
+        Unasked();
+        TrashRule();
         printf("END\n");
     }
     return 0;

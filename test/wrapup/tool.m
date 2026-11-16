@@ -14,6 +14,7 @@
 // ever reaches a real browser. With no WU_BROWSER_PID, MinMacs sees no app at all.
 #import <Cocoa/Cocoa.h>
 #import "Core/MMCore.h"
+#import "Core/Store/MMLog.h"
 #import "CLI/MMCLI.h"
 #import "Experts/LocoHost/MMLocoHost.h"
 #import "Experts/WorkForest/MMWorkForest.h"
@@ -142,7 +143,8 @@ static NSString *StagedFor(NSString *path, BOOL done) {
     return [NSString stringWithFormat:@"%@:%@", part.rid, to.lastPathComponent];
 }
 /// tool leave-waiting <dir>: one item a done Wrap Up could not delete and one whose old path is taken, in
-/// MINMACS_HOME, for the act forms of `removal --waiting` run as the app runs them. Prints both ids.
+/// MINMACS_HOME, for the act forms of `removal --waiting` run as the app runs them. Prints both ids, then the rid of
+/// a Wrap Up whose state cannot be read, for --close.
 static int LeaveWaiting(NSString *dir) {
     NSString *a = [dir stringByAppendingPathComponent:@"wt/cache"], *b = [dir stringByAppendingPathComponent:@"wt/.env"];
     [NSFileManager.defaultManager createDirectoryAtPath:a withIntermediateDirectories:YES attributes:nil error:nil];
@@ -150,7 +152,13 @@ static int LeaveWaiting(NSString *dir) {
     [@"B=1" writeToFile:b atomically:YES encoding:NSUTF8StringEncoding error:nil];
     NSString *one = StagedFor(a, YES), *two = StagedFor(b, NO);
     [@"NEWER=1" writeToFile:b atomically:YES encoding:NSUTF8StringEncoding error:nil];
-    printf("%s\n%s\n", one.UTF8String, two.UTF8String);
+    // A third Wrap Up, an hour old with no owner, whose state is none MinMacs writes, and of which nothing waits.
+    MMUndoRecord *odd = [MMUndo.shared begin:@"core" kind:@"wrapup" finding:@"tool:waiting:unread" subject:@"Wrap Up with a state that cannot be read" why:@"test" by:@"manual" parent:nil
+                                     payload:@{@"path": [dir stringByAppendingPathComponent:@"wt"]}];
+    NSMutableDictionary *body = [[MMLog.shared history:odd.rid].lastObject.body mutableCopy];
+    body[@"state"] = @"finished"; body[@"at"] = @(NSDate.date.timeIntervalSince1970 - 3600);
+    [MMLog.shared append:@"undo" rid:odd.rid expert:@"core" subject:odd.subject state:@"pending" body:body];
+    printf("%s\n%s\n%s\n", one.UTF8String, two.UTF8String, odd.rid.UTF8String);
     return 0;
 }
 

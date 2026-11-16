@@ -591,12 +591,30 @@ static int Mode(MMArgs *a) {
 }
 
 /// removal --waiting: what waits in a staging folder that MinMacs cannot settle, MMRemovalWaiting, and with --delete
-/// or --put-back the person's act on one. The list reads only and runs cold. An act runs in the app, as restore does.
+/// or --put-back the person's act on one. With --close the person closes a Wrap Up whose state cannot be read, once
+/// nothing of it waits: MMRemovalCloseUnread, which moves and deletes no file. The list reads only and runs cold. An
+/// act runs in the app, as restore does.
 static int RemovalWaiting(MMArgs *a) {
-    NSString *del = [a option:@"--delete"], *back = [a option:@"--put-back"], *to = [a option:@"--to"];
-    if ([a word:0] || (del && back) || (to && !back) || [a has:@"--delete"] != (del != nil) || [a has:@"--put-back"] != (back != nil)) return [a usageError];
+    NSString *del = [a option:@"--delete"], *back = [a option:@"--put-back"], *to = [a option:@"--to"], *close = [a option:@"--close"];
+    if ([a word:0] || (del != nil) + (back != nil) + (close != nil) > 1 || (to && !back) || [a has:@"--delete"] != (del != nil) || [a has:@"--put-back"] != (back != nil) ||
+        [a has:@"--close"] != (close != nil)) return [a usageError];
     // A flag is never taken for an id or a path: "--delete --dry-run" deletes nothing and says so.
-    for (NSString *v in @[del ?: @"", back ?: @"", to ?: @""]) if ([v hasPrefix:@"-"]) return [a usageError];
+    for (NSString *v in @[del ?: @"", back ?: @"", to ?: @"", close ?: @""]) if ([v hasPrefix:@"-"]) return [a usageError];
+    if (close) {
+        if (a.dryRun) {
+            NSString *no = MMRemovalCloseUnreadWhyNot(close);
+            if (a.json) [a printJSON:@{@"wrapUp": close, @"dryRun": @YES, @"act": @"close", @"done": @NO, @"problem": Or(no)}];
+            else if (no) [a error:@"The Wrap Up %@ would not be closed: %@. Dry run. Nothing was changed.", close, no];
+            else [a print:@"Would close the Wrap Up %@. That moves no file and deletes none. Dry run. Nothing was changed.", close];
+            return no ? MMExitFailed : 0;
+        }
+        int r = [a needsApp]; if (r) return r;
+        NSString *problem = MMRemovalCloseUnread(close);
+        if (a.json) [a printJSON:@{@"wrapUp": close, @"act": @"close", @"done": problem ? @NO : @YES, @"problem": Or(problem)}];
+        else if (problem) [a error:@"The Wrap Up %@ was not closed: %@", close, problem];
+        else [a print:@"Closed the Wrap Up %@. No file was moved or deleted.", close];
+        return problem ? MMExitFailed : 0;
+    }
     NSArray<MMRemovalWaitingItem *> *items = MMRemovalWaiting();
     if (del || back) {
         NSString *itemID = del ?: back;
@@ -629,11 +647,11 @@ static int RemovalWaiting(MMArgs *a) {
     if (a.json) {
         NSMutableArray *j = [NSMutableArray new];
         for (MMRemovalWaitingItem *i in items) [j addObject:i.json];
-        [a printJSON:@{@"waiting": j}];
+        [a printJSON:@{@"waiting": j, @"unread": MMRemovalUnreadWrapUps()}];
         return 0;
     }
-    if (!items.count) { [a print:@"Nothing waits in MinMacs's staging folder."]; return 0; }
-    [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)items.count, items.count == 1 ? @"item waits" : @"items wait"];
+    if (!items.count) [a print:@"Nothing waits in MinMacs's staging folder."];
+    else [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)items.count, items.count == 1 ? @"item waits" : @"items wait"];
     for (MMRemovalWaitingItem *i in items) {
         [a print:@"%@  %@, %@: %@%@.", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [NSString stringWithFormat:@" (%@)", i.detail] : @""];
         // What MinMacs may not act on is moved by hand: the exact path it waits at, and where it was.
@@ -641,6 +659,12 @@ static int RemovalWaiting(MMArgs *a) {
                  i.canDelete && i.canPutBack ? @"Delete it with --delete, or put it back with --put-back." : i.canDelete ? @"Delete it with --delete."
                  : i.canPutBack ? @"Put it back with --put-back."
                  : [NSString stringWithFormat:@"MinMacs does not act on it. To keep it, move it by hand from %@%@.", i.stagedAt, i.oldPath ? [@" back to " stringByAppendingString:i.oldPath] : @""]];
+    }
+    // A Wrap Up whose state cannot be read stays open until the person closes it.
+    for (NSDictionary *u in MMRemovalUnreadWrapUps()) {
+        NSString *problem = MMRecordString(u, @"problem"), *rid = MMRecordString(u, @"rid"), *subject = MMRecordString(u, @"subject");
+        [a print:@"The Wrap Up %@%@ has a state MinMacs cannot read, so it stays open. %@", rid, subject.length ? [NSString stringWithFormat:@" (%@)", subject] : @"",
+                 problem ? [NSString stringWithFormat:@"It cannot be closed yet: %@.", problem] : [NSString stringWithFormat:@"Nothing of it waits. Close it with --close %@.", rid]];
     }
     return 0;
 }
@@ -650,7 +674,7 @@ static int RemovalWaiting(MMArgs *a) {
 static int Removal(MMArgs *a) {
     if ([a has:@"--waiting"]) return RemovalWaiting(a);
     // An act on a waiting item needs --waiting, so "removal delete <id>" can never set the choice by mistake.
-    if ([a has:@"--delete"] || [a has:@"--put-back"] || [a has:@"--to"] || [a word:1]) return [a usageError];
+    if ([a has:@"--delete"] || [a has:@"--put-back"] || [a has:@"--to"] || [a has:@"--close"] || [a word:1]) return [a usageError];
     NSString *name = [a word:0].lowercaseString;
     if (name) {
         NSInteger c = MMRemovalChoiceFrom(name);
@@ -696,8 +720,8 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsCachedGit, nil),
             Reads([MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
                   MMVerbReadsNoWorktrees, nil),
-            Reads([MMVerbSpec verb:@"removal" usage:@"removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>]] [--dry-run] [--json]   show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
-                  MMVerbReadsNoWorktrees, @[@"--delete", @"--put-back"]),
+            Reads([MMVerbSpec verb:@"removal" usage:@"removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]   show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
+                  MMVerbReadsNoWorktrees, @[@"--delete", @"--put-back", @"--close"]),
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }], MMVerbReadsNoWorktrees, nil),

@@ -159,13 +159,13 @@ Flags: `--json`.
 
 #### `removal`
 
-Show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back.
+Show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits.
 
 ```
-removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>]] [--dry-run] [--json]
+removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]
 ```
 
-Flags: `--json`, `--waiting`, `--delete`, `--put-back`, `--to`, `--dry-run`.
+Flags: `--json`, `--waiting`, `--delete`, `--put-back`, `--to`, `--close`, `--dry-run`.
 
 It changes things, so it runs only through the running app, unless `--dry-run` is given.
 

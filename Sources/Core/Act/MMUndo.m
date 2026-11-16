@@ -4,6 +4,7 @@
 // The one place Act deletes is MMRemovalApply in MMRemoval.m, and only where the person's removal choice says so.
 #import <AppKit/AppKit.h>
 #import "Core/Act/MMUndo.h"
+#import "Core/Act/MMRemoval.h"
 #include <sys/stat.h>
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
@@ -121,7 +122,8 @@ static NSString *ListDamage(NSDictionary *p, NSString *k) {
     for (id x in (NSArray *)v) {
         if (![x isKindOfClass:NSDictionary.class]) return [k stringByAppendingString:@" holds an entry that is no entry"];
         if (![k isEqualToString:@"staged"] && ![k isEqualToString:@"trashed"]) continue;
-        if (!MMRecordString(x, @"from") || !MMRecordString(x, @"to")) return [k stringByAppendingString:@" holds an entry that does not say where its item was"];
+        // An empty path says nothing either, and would raise where a path is asked of the disk.
+        if (!MMRecordString(x, @"from").length || !MMRecordString(x, @"to").length) return [k stringByAppendingString:@" holds an entry that does not say where its item was"];
         for (NSString *n in @[@"dev", @"ino"]) if (x[n] && !MMRecordNumber(x, n)) return [NSString stringWithFormat:@"%@ holds an entry whose %@ is no number", k, n];
         if (x[@"vol"] && !MMRecordString(x, @"vol")) return [k stringByAppendingString:@" holds an entry whose vol is no text"];
     }
@@ -437,7 +439,71 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     return nil;
 }
 
-- (NSString *)untrash:(NSArray *)items { return [self moveBack:items from:@"the Trash"]; }
+BOOL MMPathLiesInTrash(NSString *real, NSString *home, uid_t uid, NSString *testTrash) {
+    NSString *holder = real.stringByDeletingLastPathComponent;
+    if (!real.length || !holder.length) return NO;
+    // A check has one Trash, its own.
+    if (testTrash) return testTrash.length && [holder isEqualToString:testTrash];
+    if (home.length > 1 && [holder isEqualToString:[home stringByAppendingPathComponent:@".Trash"]]) return YES;
+    NSArray<NSString *> *names = [holder componentsSeparatedByString:@"/"];   // "", Volumes, <volume>, .Trashes, <uid>
+    return names.count == 5 && [names[1] isEqualToString:@"Volumes"] && names[2].length && [names[3] isEqualToString:@".Trashes"] &&
+           [names[4] isEqualToString:[NSString stringWithFormat:@"%u", (unsigned)uid]];
+}
+
+/// Why the "trashed" entry x may not be moved back, or nil. Something must wait at its "to", directly in a Trash,
+/// MMPathLiesInTrash, and the entry must say which file it is, so a file the person trashed is never taken for it.
+static NSString *TrashedWhyNot(NSDictionary *x) {
+    NSString *to = MMRecordString(x, @"to");
+    struct stat st;
+    if (!to.length || lstat(to.fileSystemRepresentation, &st) != 0) return nil;   // nothing waits there, so nothing moves
+    BOOL test = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length > 0;
+    NSString *real = MMRemovalRealPath(to);
+    if (!real || !MMPathLiesInTrash(real, MMRemovalRealPath(NSHomeDirectory()), getuid(), test ? (MMRemovalRealPath(MMTrashFolder() ?: @"") ?: @"") : nil))
+        return @"it does not lie in the Trash";
+    if (MMFileIsEntry(to, x) < 0) return @"the record does not say which file it is, so MinMacs does not move it";
+    return nil;
+}
+
+/// What restore and moveBackOnly would refuse to move back for r, in words, or nil: each "trashed" entry asked of
+/// TrashedWhyNot and each "staged" one of MMRemovalStagedEntryWhyNot. An entry that is refused stays where it is.
+- (NSString *)refusedOf:(MMUndoRecord *)r {
+    NSMutableArray<NSString *> *problems = [NSMutableArray new];
+    for (NSDictionary *x in MMRecordList(r.payload, @"trashed")) {
+        NSString *why = TrashedWhyNot(x);
+        if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(x, @"to") ?: @"one item", why]];
+    }
+    for (NSDictionary *x in MMRecordList(r.payload, @"staged")) {
+        NSString *why = MMRemovalStagedEntryWhyNot(r, x);
+        if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(x, @"to") ?: @"one item", why]];
+    }
+    return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
+}
+
+/// Asks no of each entry, and moves back only those it has nothing against. One it refuses stays where it is and is
+/// reported with why, so a record never moves a file that MinMacs did not move away itself.
+- (NSString *)moveBack:(NSArray<NSDictionary *> *)items from:(NSString *)place unless:(NSString *(^)(NSDictionary *entry))no {
+    NSMutableArray<NSDictionary *> *may = [NSMutableArray new];
+    NSMutableArray<NSString *> *problems = [NSMutableArray new];
+    for (NSDictionary *x in items) {
+        NSString *why = no(x);
+        if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(x, @"to") ?: @"one item", why]];
+        else [may addObject:x];
+    }
+    NSString *moved = may.count ? [self moveBack:may from:place] : nil;
+    if (moved) [problems addObject:moved];
+    return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
+}
+
+/// Back from the Trash: only what lies in a Trash now and is the file the entry names.
+- (NSString *)untrash:(NSArray *)items {
+    return [self moveBack:items from:@"the Trash" unless:^NSString *(NSDictionary *x) { return TrashedWhyNot(x); }];
+}
+
+/// Back from MinMacs's staging folder: only what lies in the staging folder MinMacs made for r's Wrap Up, its marker
+/// inside, MMRemovalStagedEntryWhyNot. It is the check the delete of a staged item passes too, MMRemovalApply.m.
+- (NSString *)unstage:(NSArray<NSDictionary *> *)items of:(MMUndoRecord *)r {
+    return [self moveBack:items from:@"MinMacs's staging folder" unless:^NSString *(NSDictionary *x) { return MMRemovalStagedEntryWhyNot(r, x); }];
+}
 
 /// Moves each {from, to, ino, vol} back from to, its place in the Trash or in MinMacs's staging folder, to from, its
 /// exact old path. Each item on its own, so one that cannot go back does not hold the others, and a second call
@@ -457,7 +523,7 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     NSMutableArray<NSString *> *problems = [NSMutableArray new];
     for (NSDictionary *i in items.reverseObjectEnumerator) {
         NSString *from = MMRecordString(i, @"from"), *to = MMRecordString(i, @"to");
-        if (!from || !to) { [problems addObject:@"the record does not say where one item was"]; continue; }
+        if (!from.length || !to.length) { [problems addObject:@"the record does not say where one item was"]; continue; }
         struct stat st;
         BOOL there = lstat(to.fileSystemRepresentation, &st) == 0, taken = lstat(from.fileSystemRepresentation, &st) == 0;
         BOOL unread = NO;
@@ -572,8 +638,10 @@ static NSMutableSet<NSString *> *Restoring(void) {
         if ([Restoring() containsObject:rid]) return @"a restore of it is already running";
         [Restoring() addObject:rid];
     }
-    NSString *problem = [self restoreOnce:rid];
-    @synchronized (Restoring()) { [Restoring() removeObject:rid]; }
+    NSString *problem = nil;
+    // Whatever a record makes this raise, the rid is let go, so a later restore is not refused for ever.
+    @try { problem = [self restoreOnce:rid]; }
+    @finally { @synchronized (Restoring()) { [Restoring() removeObject:rid]; } }
     return problem;
 }
 
@@ -583,8 +651,9 @@ static NSMutableSet<NSString *> *Restoring(void) {
         if ([Restoring() containsObject:rid]) return @"a restore of it is already running";
         [Restoring() addObject:rid];
     }
-    NSString *problem = [self moveBackOnce:rid];
-    @synchronized (Restoring()) { [Restoring() removeObject:rid]; }
+    NSString *problem = nil;
+    @try { problem = [self moveBackOnce:rid]; }
+    @finally { @synchronized (Restoring()) { [Restoring() removeObject:rid]; } }
     return problem;
 }
 
@@ -598,7 +667,7 @@ static NSMutableSet<NSString *> *Restoring(void) {
     NSArray<NSDictionary *> *trashed = MMRecordList(r.payload, @"trashed"), *staged = MMRecordList(r.payload, @"staged");
     if (!trashed.count && !staged.count) return @"the record holds nothing to move back";
     NSString *a = trashed.count ? [self untrash:trashed] : nil;
-    NSString *b = staged.count ? [self moveBack:staged from:@"MinMacs's staging folder"] : nil;
+    NSString *b = staged.count ? [self unstage:staged of:r] : nil;
     if (a || b) return a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
     @synchronized (self) {
         // The payload is written back as it was read, damaged field and all, so the damage is still named.
@@ -637,6 +706,10 @@ static NSMutableSet<NSString *> *Restoring(void) {
                     : @"the action failed and changed nothing, so there is nothing to restore";
     }
     if (!r.canRestore) return @"the record holds nothing to restore";
+    // Every entry is asked before anything is done. One that would be refused stops this Undo here: no command is
+    // run, no app opened, no part restored and no file moved for a record with an entry MinMacs does not believe.
+    NSString *refused = [self refusedOf:r];
+    if (refused) return refused;
     NSMutableArray *problems = [NSMutableArray new];
     // A Wrap Up comes back in reverse order, and a part that cannot come back stops the rest, since each earlier part
     // may need it, as a server needs its worktree. Parts already restored are skipped, so a second restore goes on.
@@ -666,7 +739,7 @@ static NSMutableSet<NSString *> *Restoring(void) {
         // Both are tried, so what waits in one place does not hold what waits in the other.
         NSString *a = trashed.count ? [self untrash:trashed] : nil;
         // What a Wrap Up part staged for a delete that never came: back from MinMacs's staging folder, MMRemoval.h.
-        NSString *b = staged.count ? [self moveBack:staged from:@"MinMacs's staging folder"] : nil;
+        NSString *b = staged.count ? [self unstage:staged of:r] : nil;
         problem = a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
     }
     if (!problem && MMRecordDict(p, @"bundle")) problem = [self unbundle:MMRecordDict(p, @"bundle")];

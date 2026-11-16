@@ -93,7 +93,7 @@ static void Damaged(void) {
     [fm removeItemAtPath:to error:nil];
     Write(to, @"NOT THE ITEM");
     T(@"put back: with an entry that has no UUID, another file there is still not taken", @"yes no NOT THE ITEM", [NSString stringWithFormat:@"%@ %@ %@",
-      YN([MMRemovalPutBack(@[part]) containsString:@"holds another file at"]), YN(Exists(plain)), Read(to)]);
+      YN([MMRemovalPutBack(@[part]) containsString:@"it is not the file that was staged"]), YN(Exists(plain)), Read(to)]);
     [fm removeItemAtPath:to error:nil];
     // An entry that does not say which file: never deleted, and never taken to be back.
     Write(plain, @"PLAIN=1");

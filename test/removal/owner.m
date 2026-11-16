@@ -108,7 +108,7 @@ static void Owners(void) {
     Write(to, @"NOT THE ITEM");
     NSString *problem = MMRemovalPutBack(@[part]);
     T(@"put back: another file in the staging folder is not taken for the staged one", @"yes no NOT THE ITEM done", [NSString stringWithFormat:@"%@ %@ %@ %@",
-      YN([problem containsString:@"MinMacs's staging folder holds another file at"]), YN(Exists(plain)), Read(to), StateWord(part)]);
+      YN([problem containsString:@"stays where it is: it is not the file that was staged"]), YN(Exists(plain)), Read(to), StateWord(part)]);
     [MMUndo.shared finish:parent ok:NO freed:0 error:@"test"];
     Write(plain, @"PLAIN=1");
 

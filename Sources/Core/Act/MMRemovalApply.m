@@ -148,6 +148,44 @@ BOOL MMRemovalApply(NSString *path, MMRemovalDecision *d, MMUndoRecord *record, 
 // An item is staged only when its staging folder would itself pass the wall. Otherwise it stays where it is.
 
 static NSString *const kMarker = @".minmacs", *const kIgnore = @".gitignore", *const kIgnoreSays = @"*\n";
+// What the folder itself holds about each item: .minmacs-items, {<its name in the folder>: {from, part, ino, vol}},
+// written when the item is staged. A record in the log says where an item was, and a record can be written by
+// anybody who can write the log. The folder's own list is what a put-back and a delete believe.
+static NSString *const kItems = @".minmacs-items";
+
+BOOL MMRemovalStagingOwnName(NSString *name) {
+    return [name isEqualToString:kMarker] || [name isEqualToString:kIgnore] || [name isEqualToString:kItems];
+}
+
+/// YES when path is a plain file of this user's, never a link or a folder.
+static BOOL OwnFile(NSString *path) {
+    struct stat st;
+    return lstat(path.fileSystemRepresentation, &st) == 0 && S_ISREG(st.st_mode) && st.st_uid == getuid();
+}
+
+/// The folder's own list of what was staged in it, or nil when it has none that MinMacs wrote.
+static NSDictionary *ItemsOf(NSString *folder) {
+    NSString *path = [folder stringByAppendingPathComponent:kItems];
+    if (!OwnFile(path)) return nil;
+    NSData *data = [NSData dataWithContentsOfFile:path];
+    id j = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    return [j isKindOfClass:NSDictionary.class] ? j : nil;
+}
+
+/// Writes into the folder's own list that the item now at to was at from and was staged by the part rid.
+static BOOL NoteItem(NSString *folder, NSString *to, NSString *from, NSString *rid, NSDictionary *identity) {
+    NSString *path = [folder stringByAppendingPathComponent:kItems];
+    struct stat st;
+    BOOL there = lstat(path.fileSystemRepresentation, &st) == 0;
+    // Something else took that name, or a list nobody can read: nothing is written over, and the item is not staged.
+    if (there && !ItemsOf(folder)) return NO;
+    NSMutableDictionary *all = [ItemsOf(folder) mutableCopy] ?: [NSMutableDictionary new];
+    NSMutableDictionary *entry = [@{@"from": from, @"part": rid} mutableCopy];
+    [entry addEntriesFromDictionary:identity ?: @{}];
+    all[to.lastPathComponent] = entry;
+    NSData *data = [NSJSONSerialization dataWithJSONObject:all options:0 error:nil];
+    return data && [data writeToFile:path atomically:YES];
+}
 
 static uint64_t FreeOn(NSString *path) {
     struct statfs s;
@@ -182,9 +220,67 @@ NSString *MMRemovalStagingFolderOf(MMUndoRecord *r) {
     return f;
 }
 
-/// Why the staged entry x of record r may not be deleted, or nil: the record's own staging folder, made by MinMacs
-/// for this Wrap Up, and the very file that was staged, MMFileIsEntry. An entry that does not say which file it is
-/// is never deleted. *real is its real path.
+/// YES when path is spelled as a real path is: full, with no "." or ".." name in it and no slash at its end.
+static BOOL Spelled(NSString *path) {
+    if (![path hasPrefix:@"/"] || (path.length > 1 && [path hasSuffix:@"/"])) return NO;
+    for (NSString *c in [path componentsSeparatedByString:@"/"]) if ([c isEqualToString:@".."] || [c isEqualToString:@"."]) return NO;
+    return YES;
+}
+
+NSString *MMRemovalStagedItemWhyNot(MMUndoRecord *r, NSString *stagedAt) {
+    // Only a part of a Wrap Up stages, and only a Wrap Up that has a record says where its worktree was.
+    if (!r.parentRid.length) return @"its record names no Wrap Up";
+    MMUndoRecord *parent = [MMUndo.shared record:r.parentRid];
+    if (!parent) return @"its Wrap Up has no record";
+    if (!stagedAt.length || !Spelled(stagedAt)) return @"its path is not a real path";
+    NSString *t = MMRemovalRealPath(stagedAt), *in = MMRecordString(r.payload, @"stagedIn");
+    if (!t) return @"it is gone from the staging folder";
+    // A record whose "stagedIn" cannot be read: the folder that holds the item now is asked the same questions.
+    NSString *f = in ? MMRemovalRealPath(in) : t.stringByDeletingLastPathComponent;
+    if (!f) return @"the record does not say where it was staged";
+    NSString *support = MMRemovalRealPath(MMSupportDir());
+    NSString *why = MMRemovalStagingWhyNot(t, f, r.parentRid, support);
+    if (why) return why;
+    if (!support.length || ![f isEqualToString:[[support stringByAppendingPathComponent:@"staged"] stringByAppendingPathComponent:r.parentRid]]) {
+        // The hidden folder is only ever made beside the Wrap Up's worktree, StagingFolder. One of that name anywhere
+        // else was not made by MinMacs. The worktree may be gone by now, so the folder that held it is asked.
+        NSString *tree = MMRecordString(parent.payload, @"path");
+        NSString *holder = tree.length > 1 && Spelled(tree) ? MMRemovalRealPath([tree.stringByDeletingLastPathComponent stringByAppendingString:@"/."]) : nil;
+        if (!holder || ![holder isEqualToString:f.stringByDeletingLastPathComponent]) return @"its folder is not beside the worktree of this Wrap Up";
+    }
+    if (!MarkerSays(f, r.parentRid)) return @"its folder was not made by MinMacs for this Wrap Up";
+    // The folder's own marker, .gitignore and list are no items, whoever names them.
+    if (MMRemovalStagingOwnName(t.lastPathComponent)) return @"it is the staging folder's own file, not an item";
+    // The folder's own list must say that this part staged this very file. A record alone never does.
+    NSDictionary *bound = MMRecordDict(ItemsOf(f), t.lastPathComponent);
+    if (!bound) return @"its staging folder does not say that MinMacs staged it";
+    if (![MMRecordString(bound, @"part") isEqualToString:r.rid]) return @"another part of the Wrap Up staged it";
+    BOOL unread = NO;
+    if (MMFileIsEntryCheck(t, bound, &unread) != 1)
+        return unread ? @"its volume's UUID cannot be read now, so MinMacs cannot tell it is the file that was staged" : @"it is not the file that was staged";
+    return nil;
+}
+
+NSString *MMRemovalStagedEntryWhyNot(MMUndoRecord *r, NSDictionary *x) {
+    NSString *to = MMRecordString(x, @"to"), *from = MMRecordString(x, @"from");
+    // An entry that does not say where its item was is named by -[MMUndo moveBack:from:], which moves nothing for it.
+    if (!to.length || !from.length) return nil;
+    if (!Spelled(from)) return @"its old path is not a real path";
+    struct stat st;
+    // Nothing waits there, so nothing would move: moveBack says whether it is back already or gone.
+    if (lstat(to.fileSystemRepresentation, &st) != 0) return nil;
+    NSString *why = MMRemovalStagedItemWhyNot(r, to);
+    if (why) return why;
+    // It goes back only to the old path the folder's own list holds for it, not to one a record names.
+    NSString *t = MMRemovalRealPath(to);
+    NSString *was = MMRecordString(MMRecordDict(ItemsOf(t.stringByDeletingLastPathComponent), t.lastPathComponent), @"from");
+    if (!was || ![was isEqualToString:from]) return @"the record names another old path than the one it was staged from";
+    return nil;
+}
+
+/// Why the staged entry x of record r may not be deleted, or nil: the very file that was staged, MMFileIsEntry, in
+/// the staging folder MinMacs made for this Wrap Up, MMRemovalStagedItemWhyNot. An entry that does not say which
+/// file it is is never deleted. *real is its real path.
 static NSString *StagedWhyNot(NSDictionary *x, MMUndoRecord *r, NSString **real) {
     NSString *to = MMRecordString(x, @"to"), *folder = MMRecordString(r.payload, @"stagedIn");
     if (!to || !folder) return @"the record does not say where it was staged";
@@ -194,11 +290,10 @@ static NSString *StagedWhyNot(NSDictionary *x, MMUndoRecord *r, NSString **real)
     int same = MMFileIsEntryCheck(to, x, &unread);
     if (same < 0) return @"the record does not say which file was staged";
     if (same == 0) return unread ? @"its volume's UUID cannot be read now, so MinMacs cannot tell it is the file that was staged" : @"it is not the file that was staged";
-    NSString *t = MMRemovalRealPath(to), *f = MMRemovalRealPath(folder);
-    if (!t || !f) return @"it is gone";
-    NSString *why = MMRemovalStagingWhyNot(t, f, r.parentRid, MMRemovalRealPath(MMSupportDir()));
+    NSString *why = MMRemovalStagedItemWhyNot(r, to);
     if (why) return why;
-    if (!MarkerSays(f, r.parentRid)) return @"its folder was not made by MinMacs for this Wrap Up";
+    NSString *t = MMRemovalRealPath(to);
+    if (!t) return @"it is gone";
     return WhyNot(t, r, @[t], real);
 }
 
@@ -213,14 +308,18 @@ static BOOL IgnoreIsOurs(NSString *folder) {
 }
 
 /// Removes the staging folder once it holds nothing but what MinMacs wrote there itself: its marker and its
-/// .gitignore, each a plain file with MinMacs's own words. Never one that still holds a staged item, and never one
+/// .gitignore, each a plain file with MinMacs's own words, and its list of items, a plain file of ours. Never one that still holds a staged item, and never one
 /// where something else took one of those two names.
 void MMRemovalDropEmptyStagingFolder(NSString *folder, NSString *rid) {
     NSString *f = MMRemovalRealPath(folder);
     if (!f || MMRemovalStagingWhyNot([f stringByAppendingPathComponent:kMarker], f, rid, MMRemovalRealPath(MMSupportDir())) || !MarkerSays(f, rid)) return;
     if (!IgnoreIsOurs(f)) return;
+    // Its own list of items the same way: a plain file of ours, or none.
+    struct stat st;
+    NSString *items = [f stringByAppendingPathComponent:kItems];
+    if (lstat(items.fileSystemRepresentation, &st) == 0 ? !OwnFile(items) : errno != ENOENT) return;
     NSMutableSet *holds = [NSMutableSet setWithArray:[NSFileManager.defaultManager contentsOfDirectoryAtPath:f error:nil] ?: @[@"?"]];
-    [holds minusSet:[NSSet setWithArray:@[kMarker, kIgnore]]];
+    [holds minusSet:[NSSet setWithArray:@[kMarker, kIgnore, kItems]]];
     if (holds.count == 0) Unlink(f, nil);
 }
 
@@ -275,6 +374,11 @@ static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error) {
         do { to = [folder stringByAppendingPathComponent:[NSString stringWithFormat:@"%lu.%@", (unsigned long)n++, real.lastPathComponent]]; } while (lstat(to.fileSystemRepresentation, &(struct stat){0}) == 0);
         // rename(2) never copies: across volumes it fails, and the item stays.
         if (rename(real.fileSystemRepresentation, to.fileSystemRepresentation) != 0) { why = [NSString stringWithFormat:@"it could not move to the staging folder: %s", strerror(errno)]; to = nil; }
+        // The folder's own list says where it was and which part staged it. An item it cannot name could never be put
+        // back or deleted by MinMacs, so it goes straight back and stays where it was.
+        else if (!NoteItem(folder, to, real, record.rid, MMFileIdentity(to) ?: @{@"ino": @(st.st_ino), @"dev": @(st.st_dev)})) {
+            if (rename(to.fileSystemRepresentation, real.fileSystemRepresentation) == 0) { why = @"its staging folder's list could not be written"; to = nil; }
+        }
     }
     @synchronized (MMUndo.shared) {
         if (to) {
@@ -357,8 +461,9 @@ NSString *MMRemovalDeleteStagedItem(MMUndoRecord *part, NSString *stagedAt, int6
     if (!r || !stagedAt.length) return @"the record does not list it";
     NSString *runs = StillRuns(r);
     if (runs) return runs;
-    // Never on behalf of a record that cannot be read, its own or its Wrap Up's.
+    // Never on behalf of a record that cannot be read, its own or its Wrap Up's, or of a Wrap Up that has no record.
     if (r.damage || [MMUndo.shared record:r.parentRid].damage) return @"its record is damaged, so MinMacs does not delete it";
+    if (!r.parentRid.length || ![MMUndo.shared record:r.parentRid]) return @"its Wrap Up has no record, so MinMacs does not delete it";
     if (r.state != MMUndoDone && r.state != MMUndoFailed) return @"its part has not ended";
     NSString *why = nil;
     int64_t got = FinishPart(r, stagedAt, &why);
@@ -381,11 +486,9 @@ NSString *MMRemovalPutBackStagedItem(MMUndoRecord *part, NSString *stagedAt, NSS
     }
     if (!x) return @"the record does not list it";
     // It must wait in the staging folder MinMacs made for this Wrap Up, so a record never moves a file from elsewhere.
-    NSString *t = MMRemovalRealPath(stagedAt), *f = MMRemovalRealPath(MMRecordString(r.payload, @"stagedIn") ?: @"");
-    if (!t) return @"it is gone from the staging folder";
-    NSString *no = f ? MMRemovalStagingWhyNot(t, f, r.parentRid, MMRemovalRealPath(MMSupportDir())) : @"the record does not say where it was staged";
-    if (!no && !MarkerSays(f, r.parentRid)) no = @"its folder was not made by MinMacs for this Wrap Up";
+    NSString *no = MMRemovalStagedItemWhyNot(r, stagedAt);
     if (no) return no;
+    if (!Spelled(path)) return @"its path is not a real path";
     // The very file that was staged goes, and never over something at path: -[MMUndo moveBack:from:].
     NSMutableDictionary *y = [x mutableCopy];
     y[@"from"] = path;
@@ -412,9 +515,11 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts) {
         // has it pulled back here. No test reaches it.
         BOOL holds = MMRecordList(p, @"staged").count || (MMRecordHas(p, @"removal") && MMRecordList(p, @"trashed").count);
         if ((r.state != MMUndoDone && r.state != MMUndoFailed) || !holds) continue;
-        // -[MMUndo restore:] renames each staged item back to its exact old path, and refuses when something sits there.
-        // A record with a damaged field has only what it moved aside moved back, and only when its lists read.
-        NSString *problem = r.damage ? [MMUndo.shared moveBackOnly:r.rid] : [MMUndo.shared restore:r.rid];
+        // Nobody asked for this put-back: a Wrap Up, recovery or the sweep runs it. So only what the part moved aside
+        // is moved back, -[MMUndo moveBackOnly:], each staged item to its exact old path and never over something
+        // there. A record's restart command, relaunch, restorer, bundle and recovery copy are never run from here,
+        // whatever the record holds: those are for the person's own Undo, -[MMUndo restore:].
+        NSString *problem = [MMUndo.shared moveBackOnly:r.rid];
         if (problem) [problems addObject:[NSString stringWithFormat:@"%@: %@", r.subject ?: r.rid, problem]];
         else if (MMRecordString(p, @"stagedIn")) MMRemovalDropEmptyStagingFolder(MMRecordString(p, @"stagedIn"), r.parentRid);
     }

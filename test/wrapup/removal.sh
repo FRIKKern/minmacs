@@ -157,5 +157,11 @@ wu_removal_waiting() {
   "$T" verb removal --waiting --put-back "$wu_i2" --to "$wu/waiting/aside.env" >"$wu/waiting/put.txt" 2>&1; r=$?
   check "wrapup waiting: a put-back to a path of the person's own moves it there" "0 Put .env back at $wu/waiting/aside.env. B=1 NEWER=1" \
     "$r $(cat "$wu/waiting/put.txt") $(cat "$wu/waiting/aside.env") $(cat "$wu/waiting/wt/.env")"
+  wu_odd=$(echo "$wu_ids" | sed -n 3p)
+  J=$("$T" verb removal --waiting --close "$wu_odd" --json); r=$?
+  check "wrapup waiting: a Wrap Up whose state cannot be read is closed in the app, and is named no more" "0 True 0" \
+    "$r $(echo "$J" | json "str(j['done'])") $("$T" verb removal --waiting --json | json "len([u for u in j['unread'] if u['rid'] == '$wu_odd'])")"
+  "$T" verb removal --waiting --close "$wu_odd" >"$wu/waiting/close.txt" 2>&1; r=$?
+  check "wrapup waiting: a second close is refused, since it has ended" "1 The Wrap Up $wu_odd was not closed: it has ended already" "$r $(cat "$wu/waiting/close.txt")"
   check "wrapup waiting: nothing of them waits any more" 0 "$("$T" verb removal --waiting --json | json "len([w for w in j['waiting'] if w['id'] in ('$wu_i1', '$wu_i2')])")"
 }
