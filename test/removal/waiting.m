@@ -363,6 +363,7 @@ static void Guards(void) {
 
 /// For the CLI checks of removal.sh: leaves one item a done Wrap Up could not delete, one whose old path is taken and
 /// one whose record is damaged, in MINMACS_HOME, and prints the first two ids, the second one's old path, then the third id.
+/// Then a Wrap Up whose state cannot be read and of which nothing waits, and one that reads: their rids, lines 5 and 6.
 static int LeaveWaiting(NSString *dir) {
     gDir = dir;
     NSString *tree = Path(@"cli/wt"), *mods = [tree stringByAppendingPathComponent:@"node_modules"], *plain = [tree stringByAppendingPathComponent:@".env"];
@@ -383,8 +384,10 @@ static int LeaveWaiting(NSString *dir) {
     [MMUndo.shared note:part3 payload:@{@"recovery": @"no dictionary"}];
     Write(local, @"NEWER=1");
     [MMUndo.shared finish:third ok:NO freed:0 error:@"test"];
-    printf("%s:%s\n%s:%s\n%s\n%s:%s\n", part.rid.UTF8String, StagedTo(part).lastPathComponent.UTF8String, part2.rid.UTF8String, StagedTo(part2).lastPathComponent.UTF8String, plain.UTF8String,
-           part3.rid.UTF8String, StagedTo(part3).lastPathComponent.UTF8String);
+    MMUndoRecord *unread = Unfinished(@"cli, state unread", tree, GoneOwner());
+    RewriteBody(unread, @"state", @"finished");
+    printf("%s:%s\n%s:%s\n%s\n%s:%s\n%s\n%s\n", part.rid.UTF8String, StagedTo(part).lastPathComponent.UTF8String, part2.rid.UTF8String, StagedTo(part2).lastPathComponent.UTF8String, plain.UTF8String,
+           part3.rid.UTF8String, StagedTo(part3).lastPathComponent.UTF8String, unread.rid.UTF8String, other.rid.UTF8String);
     return 0;
 }
 

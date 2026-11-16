@@ -155,8 +155,10 @@ BOOL MMRemovalTestHome(void);
 /// begun, payload "finishing", the worktree is gone: the delete of what is left is tried once more, as
 /// MMRemovalFinishStaged deletes, behind the same wall and the same check that it is the very file that was staged,
 /// and the part notes "sweepTried" so it is not tried at every start. What still cannot be deleted waits, and
-/// MMRemovalWaiting lists it. In every other case, a Wrap Up that failed, was restored or cannot be found, each item
-/// goes back to its old path. A record that cannot be read never has anything deleted: a part whose lists read goes
+/// MMRemovalWaiting lists it. In every other case, a Wrap Up that failed or was restored, each item goes back to its
+/// old path, and only from the staging folder MinMacs made for that Wrap Up, MMRemovalStagedItemWhyNot: an entry
+/// that names a file anywhere else is left where it is. A part whose Wrap Up has no record takes no act: nothing of
+/// it is moved or deleted, and MMRemovalWaiting lists it. A record that cannot be read never has anything deleted: a part whose lists read goes
 /// back, -[MMUndoRecord moveDamage], and one whose lists do not is left. A folder under <support>/staged that no
 /// record names is left alone and returned in *orphans the first time it is seen, for the log.
 /// MMCoreStart calls it after MMRemovalRecoverStaged. Returns how many parts it settled: put back or deleted.
@@ -198,11 +200,12 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
 /// MMRemovalStagingFolderOf accepts is listed, so a record never lists a file of the person's own.
 NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void);
 /// The person deletes one listed item now. Only an item MinMacs staged itself, whose record and Wrap Up read, whose
-/// Wrap Up ended, and only through MMRemovalFinishStaged's own wall and identity check. nil when it is deleted, else
+/// Wrap Up has a record and ended, and only through MMRemovalFinishStaged's own wall and identity check. nil when it is deleted, else
 /// why not. *freed gets the bytes the volume got back.
 NSString *MMRemovalDeleteWaiting(NSString *itemID, int64_t *freed);
 /// The person puts one listed item back: to path, or to its old path when path is nil. Never over something there,
-/// and only the very file that was staged. A path of the person's own must be a full path in a folder that exists.
+/// and only the very file that was staged, from the staging folder MinMacs made for its Wrap Up, which must have a
+/// record. A path of the person's own must be a full path in a folder that exists.
 /// nil when it is there, else why not.
 NSString *MMRemovalPutBackWaiting(NSString *itemID, NSString *path);
 /// The listed item with that id, or nil. Then why MMRemovalDeleteWaiting or MMRemovalPutBackWaiting would refuse it

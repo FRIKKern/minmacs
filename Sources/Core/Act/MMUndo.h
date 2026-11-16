@@ -77,6 +77,9 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// Moves each {from, to, ino, vol} back from to, its place in the Trash or in MinMacs's staging folder, to from. Each
 /// item on its own, only the very file that was moved away, MMFileIsEntry, and never over something at from. place
 /// names where it waits, for the words. Returns nil when every item is back, else what is not, in words.
+/// It does not ask where to lies. restore and moveBackOnly ask first, issue #70: a "trashed" entry goes back only
+/// from a Trash, and a "staged" one only from the staging folder MinMacs made for the record's Wrap Up,
+/// MMRemovalStagedEntryWhyNot. An entry that fails stays where it is and is reported. Any other caller asks too.
 - (NSString *)moveBack:(NSArray<NSDictionary *> *)items from:(NSString *)place;
 - (NSArray<MMUndoRecord *> *)recent:(NSString *)expert limit:(NSUInteger)limit;   // newest first, expert nil means all
 - (MMUndoRecord *)record:(NSString *)rid;

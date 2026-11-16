@@ -113,12 +113,13 @@ if [ "$rm_r" = 0 ]; then
   check "removal: a second word is a usage error, so an id never sets the choice" "2 delete" "$rm_x $(rm_cli removal --json | json "j['removal']")"
   rm_cli removal --delete abc:0.x >/dev/null; rm_x=$?
   check "removal: --delete without --waiting is a usage error" 2 "$rm_x"
-  check "removal: help names the forms that change things" "--delete --put-back" "$("$BIN" help --json 2>/dev/null | json "' '.join([v for v in j['verbs'] if v['verb'] == 'removal'][0]['mutatingForms'])")"
+  check "removal: help names the forms that change things" "--delete --put-back --close" "$("$BIN" help --json 2>/dev/null | json "' '.join([v for v in j['verbs'] if v['verb'] == 'removal'][0]['mutatingForms'])")"
 
   echo "-- what still waits in the staging folder, issue #67"
   check "removal: with nothing waiting, it says so" "Nothing waits in MinMacs's staging folder. 0" "$(rm_cli removal --waiting) $(rm_cli removal --waiting --json | json "len(j['waiting'])")"
   rm_ids=$(MINMACS_HOME="$rm_home" "$rm_dir/removaltest" --leave-waiting "$rm_home/fx" 2>/dev/null)
   rm_i1=$(echo "$rm_ids" | sed -n 1p); rm_i2=$(echo "$rm_ids" | sed -n 2p); rm_old=$(echo "$rm_ids" | sed -n 3p); rm_i3=$(echo "$rm_ids" | sed -n 4p)
+  rm_unread=$(echo "$rm_ids" | sed -n 5p); rm_reads=$(echo "$rm_ids" | sed -n 6p)
   rm_j=$(rm_cli removal --waiting --json)
   check "removal: --waiting --json lists a delete that failed, an old path that is taken and a damaged record, each with its id and old path" "damaged delete-failed old-path-taken|$(printf '%s\n%s\n%s\n' "$rm_i1" "$rm_i2" "$rm_i3" | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')|yes" \
     "$(echo "$rm_j" | json "' '.join(sorted(w['why'] for w in j['waiting'])) + '|' + ' '.join(sorted(w['id'] for w in j['waiting'])) + '|' + ('yes' if '$rm_old' in [w['oldPath'] for w in j['waiting']] else 'no')")"
@@ -141,4 +142,20 @@ if [ "$rm_r" = 0 ]; then
   check "removal: an id that names nothing fails" 1 "$rm_x"
   rm_cli removal --waiting --to "$rm_home/x" >/dev/null; rm_x=$?
   check "removal: --to without --put-back is a usage error" 2 "$rm_x"
+
+  echo "-- a Wrap Up whose state cannot be read, closed by the person, issue #70"
+  check "removal: --waiting --json names a Wrap Up whose state cannot be read, with what of it waits and no problem" "$rm_unread 0 None" \
+    "$(echo "$rm_j" | json "' '.join('%s %s %s' % (u['rid'], u['waiting'], u['problem']) for u in j['unread'])")"
+  check "removal: the text list names it and says how to close it" "The Wrap Up $rm_unread of cli, state unread has a state MinMacs cannot read, so it stays open. Nothing of it waits. Close it with --close $rm_unread." \
+    "$(rm_cli removal --waiting | grep '^The Wrap Up ')"
+  check "removal: a dry run of --close says it would close it, and that no file moves" "0 Would close the Wrap Up $rm_unread. That moves no file and deletes none. Dry run. Nothing was changed." \
+    "$(rm_out=$(rm_cli removal --waiting --close "$rm_unread" --dry-run); echo "$? $rm_out")"
+  rm_cli removal --waiting --close "$rm_unread" >/dev/null; rm_x=$?
+  check "removal: a close needs the running app, and the Wrap Up is still named" "3 1" "$rm_x $(rm_cli removal --waiting --json | json "len(j['unread'])")"
+  check "removal: a dry run refuses to close a Wrap Up whose state reads" "1 The Wrap Up $rm_reads would not be closed: it has ended already. Dry run. Nothing was changed." \
+    "$(rm_out=$(rm_cli removal --waiting --close "$rm_reads" --dry-run); echo "$? $rm_out")"
+  rm_cli removal --waiting --close "$rm_unread" --delete "$rm_i1" --dry-run >/dev/null; rm_x=$?
+  rm_cli removal --close "$rm_unread" --dry-run >/dev/null; rm_y=$?
+  rm_cli removal --waiting --close --dry-run >/dev/null; rm_z=$?
+  check "removal: --close with --delete, without --waiting, or with a flag for an id is a usage error" "2 2 2" "$rm_x $rm_y $rm_z"
 fi
