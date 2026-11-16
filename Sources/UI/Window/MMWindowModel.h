@@ -171,12 +171,21 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (readonly) BOOL showsSize;
 @end
 
+/// How far the look behind a group's empty line went. Only a look that ended may say "found".
+typedef NS_ENUM(NSInteger, MMWindowLooked) {
+    MMWindowLookedDone = 0,     // the look ended: "No worktrees found"
+    MMWindowLookedNotYet,       // the first look still runs: "Looking for worktrees"
+    MMWindowLookedNowhere,      // there was nothing to look in, or nothing looks here: "No folders to look in"
+};
+/// The quiet line of a group with no rows, by its key. It never claims a result the look did not give.
+NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked);
+
 /// One group with a still header: its title, its count and its rows, biggest first. Each group scrolls on its own.
 @interface MMWindowGroup : NSObject
 @property (copy) NSString *key, *title;                 // "servers", "Servers"
 @property MMWindowSide side;
 @property (copy) NSArray<MMWindowRow *> *rows;
-/// The one quiet line under the header when the group has no rows: "No worktrees found".
+/// The one quiet line under the header when the group has no rows, from MMWindowEmptyNote: "No worktrees found".
 @property (copy, nullable) NSString *emptyNote;
 @end
 
