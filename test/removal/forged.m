@@ -274,3 +274,6 @@ static void Closing(void) {
     // Left failed too, so the checks after this one find nothing of it.
     [MMUndo.shared finish:[MMUndo.shared record:mine.rid] ok:NO freed:0 error:@"test"];
 }
+
+// The careful review of #73.
+#import "unasked.m"
