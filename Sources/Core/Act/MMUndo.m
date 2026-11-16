@@ -122,7 +122,8 @@ static NSString *ListDamage(NSDictionary *p, NSString *k) {
     for (id x in (NSArray *)v) {
         if (![x isKindOfClass:NSDictionary.class]) return [k stringByAppendingString:@" holds an entry that is no entry"];
         if (![k isEqualToString:@"staged"] && ![k isEqualToString:@"trashed"]) continue;
-        if (!MMRecordString(x, @"from") || !MMRecordString(x, @"to")) return [k stringByAppendingString:@" holds an entry that does not say where its item was"];
+        // An empty path says nothing either, and would raise where a path is asked of the disk.
+        if (!MMRecordString(x, @"from").length || !MMRecordString(x, @"to").length) return [k stringByAppendingString:@" holds an entry that does not say where its item was"];
         for (NSString *n in @[@"dev", @"ino"]) if (x[n] && !MMRecordNumber(x, n)) return [NSString stringWithFormat:@"%@ holds an entry whose %@ is no number", k, n];
         if (x[@"vol"] && !MMRecordString(x, @"vol")) return [k stringByAppendingString:@" holds an entry whose vol is no text"];
     }
@@ -438,17 +439,44 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     return nil;
 }
 
-/// YES when the item at path lies in a Trash: the test Trash with MINMACS_HOME set, else below a folder named .Trash
-/// or .Trashes, as the home folder, every other volume and iCloud Drive name theirs.
-static BOOL LiesInTrash(NSString *path) {
-    NSString *real = MMRemovalRealPath(path);
-    if (!real) return NO;
-    if (NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) {
-        NSString *trash = MMRemovalRealPath(MMTrashFolder() ?: @"");
-        return trash.length && [real hasPrefix:[trash stringByAppendingString:@"/"]];
+BOOL MMPathLiesInTrash(NSString *real, NSString *home, uid_t uid, NSString *testTrash) {
+    NSString *holder = real.stringByDeletingLastPathComponent;
+    if (!real.length || !holder.length) return NO;
+    // A check has one Trash, its own.
+    if (testTrash) return testTrash.length && [holder isEqualToString:testTrash];
+    if (home.length > 1 && [holder isEqualToString:[home stringByAppendingPathComponent:@".Trash"]]) return YES;
+    NSArray<NSString *> *names = [holder componentsSeparatedByString:@"/"];   // "", Volumes, <volume>, .Trashes, <uid>
+    return names.count == 5 && [names[1] isEqualToString:@"Volumes"] && names[2].length && [names[3] isEqualToString:@".Trashes"] &&
+           [names[4] isEqualToString:[NSString stringWithFormat:@"%u", (unsigned)uid]];
+}
+
+/// Why the "trashed" entry x may not be moved back, or nil. Something must wait at its "to", directly in a Trash,
+/// MMPathLiesInTrash, and the entry must say which file it is, so a file the person trashed is never taken for it.
+static NSString *TrashedWhyNot(NSDictionary *x) {
+    NSString *to = MMRecordString(x, @"to");
+    struct stat st;
+    if (!to.length || lstat(to.fileSystemRepresentation, &st) != 0) return nil;   // nothing waits there, so nothing moves
+    BOOL test = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length > 0;
+    NSString *real = MMRemovalRealPath(to);
+    if (!real || !MMPathLiesInTrash(real, MMRemovalRealPath(NSHomeDirectory()), getuid(), test ? (MMRemovalRealPath(MMTrashFolder() ?: @"") ?: @"") : nil))
+        return @"it does not lie in the Trash";
+    if (MMFileIsEntry(to, x) < 0) return @"the record does not say which file it is, so MinMacs does not move it";
+    return nil;
+}
+
+/// What restore and moveBackOnly would refuse to move back for r, in words, or nil: each "trashed" entry asked of
+/// TrashedWhyNot and each "staged" one of MMRemovalStagedEntryWhyNot. An entry that is refused stays where it is.
+- (NSString *)refusedOf:(MMUndoRecord *)r {
+    NSMutableArray<NSString *> *problems = [NSMutableArray new];
+    for (NSDictionary *x in MMRecordList(r.payload, @"trashed")) {
+        NSString *why = TrashedWhyNot(x);
+        if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(x, @"to") ?: @"one item", why]];
     }
-    NSArray<NSString *> *names = real.stringByDeletingLastPathComponent.pathComponents;
-    return [names containsObject:@".Trash"] || [names containsObject:@".Trashes"];
+    for (NSDictionary *x in MMRecordList(r.payload, @"staged")) {
+        NSString *why = MMRemovalStagedEntryWhyNot(r, x);
+        if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(x, @"to") ?: @"one item", why]];
+    }
+    return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
 }
 
 /// Asks no of each entry, and moves back only those it has nothing against. One it refuses stays where it is and is
@@ -466,14 +494,9 @@ static BOOL LiesInTrash(NSString *path) {
     return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
 }
 
-/// Back from the Trash: only what lies in a Trash now.
+/// Back from the Trash: only what lies in a Trash now and is the file the entry names.
 - (NSString *)untrash:(NSArray *)items {
-    return [self moveBack:items from:@"the Trash" unless:^NSString *(NSDictionary *x) {
-        NSString *to = MMRecordString(x, @"to");
-        struct stat st;
-        if (!to || lstat(to.fileSystemRepresentation, &st) != 0) return nil;   // nothing waits there, so nothing moves
-        return LiesInTrash(to) ? nil : @"it does not lie in the Trash";
-    }];
+    return [self moveBack:items from:@"the Trash" unless:^NSString *(NSDictionary *x) { return TrashedWhyNot(x); }];
 }
 
 /// Back from MinMacs's staging folder: only what lies in the staging folder MinMacs made for r's Wrap Up, its marker
@@ -500,7 +523,7 @@ static BOOL LiesInTrash(NSString *path) {
     NSMutableArray<NSString *> *problems = [NSMutableArray new];
     for (NSDictionary *i in items.reverseObjectEnumerator) {
         NSString *from = MMRecordString(i, @"from"), *to = MMRecordString(i, @"to");
-        if (!from || !to) { [problems addObject:@"the record does not say where one item was"]; continue; }
+        if (!from.length || !to.length) { [problems addObject:@"the record does not say where one item was"]; continue; }
         struct stat st;
         BOOL there = lstat(to.fileSystemRepresentation, &st) == 0, taken = lstat(from.fileSystemRepresentation, &st) == 0;
         BOOL unread = NO;
@@ -615,8 +638,10 @@ static NSMutableSet<NSString *> *Restoring(void) {
         if ([Restoring() containsObject:rid]) return @"a restore of it is already running";
         [Restoring() addObject:rid];
     }
-    NSString *problem = [self restoreOnce:rid];
-    @synchronized (Restoring()) { [Restoring() removeObject:rid]; }
+    NSString *problem = nil;
+    // Whatever a record makes this raise, the rid is let go, so a later restore is not refused for ever.
+    @try { problem = [self restoreOnce:rid]; }
+    @finally { @synchronized (Restoring()) { [Restoring() removeObject:rid]; } }
     return problem;
 }
 
@@ -626,8 +651,9 @@ static NSMutableSet<NSString *> *Restoring(void) {
         if ([Restoring() containsObject:rid]) return @"a restore of it is already running";
         [Restoring() addObject:rid];
     }
-    NSString *problem = [self moveBackOnce:rid];
-    @synchronized (Restoring()) { [Restoring() removeObject:rid]; }
+    NSString *problem = nil;
+    @try { problem = [self moveBackOnce:rid]; }
+    @finally { @synchronized (Restoring()) { [Restoring() removeObject:rid]; } }
     return problem;
 }
 
@@ -680,6 +706,10 @@ static NSMutableSet<NSString *> *Restoring(void) {
                     : @"the action failed and changed nothing, so there is nothing to restore";
     }
     if (!r.canRestore) return @"the record holds nothing to restore";
+    // Every entry is asked before anything is done. One that would be refused stops this Undo here: no command is
+    // run, no app opened, no part restored and no file moved for a record with an entry MinMacs does not believe.
+    NSString *refused = [self refusedOf:r];
+    if (refused) return refused;
     NSMutableArray *problems = [NSMutableArray new];
     // A Wrap Up comes back in reverse order, and a part that cannot come back stops the rest, since each earlier part
     // may need it, as a server needs its worktree. Parts already restored are skipped, so a second restore goes on.

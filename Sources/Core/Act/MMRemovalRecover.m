@@ -70,6 +70,17 @@ static void NameDamaged(MMUndoRecord *r) {
     }];
 }
 
+/// A record made recovery or the sweep raise: it is named with the others that cannot be read, once, and left.
+static void Raised(MMUndoRecord *r, NSException *e) {
+    if (!r.rid.length || [MMRemovalDamagedRecords() containsObject:r.rid]) return;
+    os_log(os_log_create("no.guerrilla.minmacs", "removal"), "the record %{public}@ stopped a put-back and is left as it is: %{public}@", r.rid, e.reason ?: e.name ?: @"");
+    [[MMStateFile fileNamed:kDamagedFile expert:@"core"] update:^id(id disk) {
+        NSMutableArray *all = [MMRecordStrings(@{@"seen": disk ?: @[]}, @"seen") mutableCopy] ?: [NSMutableArray new];
+        if (![all containsObject:r.rid]) [all addObject:r.rid];
+        return all;
+    }];
+}
+
 /// YES when the Wrap Up or one of its parts cannot be read. Each such record is named.
 static BOOL Damaged(MMUndoRecord *parent, NSArray<MMUndoRecord *> *parts) {
     BOOL any = NO;
@@ -137,7 +148,7 @@ NSInteger MMRemovalRecoverStaged(void) {
     for (MMUndoRecord *r in candidates)
         if ([r.kind isEqualToString:@"wrapup"] || (!r.kind && r.damage && byParent[r.rid].count)) [pending addObject:r];
     NSInteger recovered = 0;
-    for (MMUndoRecord *parent in pending) {
+    for (MMUndoRecord *parent in pending) @try {
         NSArray<MMUndoRecord *> *parts = byParent[parent.rid] ?: @[];
         BOOL damaged = Damaged(parent, parts);
         // A Wrap Up whose process lives is never touched, whatever its age: that process still works on it. One whose
@@ -183,6 +194,9 @@ NSInteger MMRemovalRecoverStaged(void) {
                                                              notBack ? [@", except: " stringByAppendingString:notBack] : @""]];
         }
         recovered++;
+    } @catch (NSException *e) {
+        // A record that makes MinMacs raise is left as it is and named, and the others are still settled.
+        Raised(parent, e);
     }
     return recovered;
 }
@@ -213,7 +227,7 @@ NSInteger MMRemovalSweepStaged(NSArray<NSString *> **orphans) {
         if (MMRecordList(r.payload, @"staged").count && (r.state == MMUndoDone || r.state == MMUndoFailed)) [left addObject:r];
     }
     NSInteger settled = 0;
-    for (MMUndoRecord *part in left) {
+    for (MMUndoRecord *part in left) @try {
         MMUndoRecord *parent = all[part.parentRid];
         NSString *folder = MMRecordString(part.payload, @"stagedIn");
         // A Wrap Up that still runs, or that recovery has yet to settle, is not this sweep's.
@@ -234,6 +248,10 @@ NSInteger MMRemovalSweepStaged(NSArray<NSString *> **orphans) {
         // Counted only once nothing of it waits any more.
         if (!MMRemovalPutBack(@[part]) && !StillHolds([MMUndo.shared record:part.rid])) settled++;
         else if (folder) [named addObject:folder];
+    } @catch (NSException *e) {
+        Raised(part, e);
+        NSString *folder = MMRecordString(part.payload, @"stagedIn");
+        if (folder) [named addObject:folder];
     }
     // 2. A folder under <support>/staged that no record names: left alone, and named once.
     NSString *root = [MMRemovalRealPath(MMSupportDir()) stringByAppendingPathComponent:@"staged"];
@@ -276,9 +294,10 @@ static BOOL UnreadWrapUp(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
     return r && !r.parentRid.length && r.stateUnread && ([r.kind isEqualToString:@"wrapup"] || (!r.kind && parts.count));
 }
 
-/// How many items of the Wrap Up r still wait where MinMacs staged them: what MMRemovalWaiting lists for it, what
-/// its parts' lists name and is still there, and whatever else lies in the two folders MinMacs would have made for it.
-static NSUInteger StillStaged(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
+/// Where items of the Wrap Up r still wait where MinMacs staged them, each path: what MMRemovalWaiting lists for it,
+/// what its parts' lists name and is still there, and whatever else lies in the two folders MinMacs would have made
+/// for it, also a file no record names.
+static NSArray<NSString *> *StillStaged(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
     NSMutableSet<NSString *> *at = [NSMutableSet new];
     struct stat st;
     for (MMRemovalWaitingItem *i in MMRemovalWaiting()) if ([i.wrapUpRid isEqualToString:r.rid]) [at addObject:MMRemovalRealPath(i.stagedAt) ?: i.stagedAt];
@@ -286,7 +305,7 @@ static NSUInteger StillStaged(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
         if (part.state == MMUndoRestored) continue;
         for (NSDictionary *x in MMRecordList(part.payload, @"staged")) {
             NSString *to = MMRecordString(x, @"to");
-            if (to && lstat(to.fileSystemRepresentation, &st) == 0) [at addObject:MMRemovalRealPath(to) ?: to];
+            if (to.length && lstat(to.fileSystemRepresentation, &st) == 0) [at addObject:MMRemovalRealPath(to) ?: to];
         }
     }
     NSMutableArray<NSString *> *folders = [NSMutableArray new];
@@ -296,9 +315,9 @@ static NSUInteger StillStaged(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
     for (NSString *given in folders) {
         NSString *folder = MMRemovalRealPath(given);
         for (NSString *name in folder ? [NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:nil] : @[])
-            if (![name isEqualToString:@".minmacs"] && ![name isEqualToString:@".gitignore"]) [at addObject:[folder stringByAppendingPathComponent:name]];
+            if (!MMRemovalStagingOwnName(name)) [at addObject:[folder stringByAppendingPathComponent:name]];
     }
-    return at.count;
+    return [at.allObjects sortedArrayUsingSelector:@selector(compare:)];
 }
 
 static NSString *CloseWhyNot(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
@@ -309,9 +328,11 @@ static NSString *CloseWhyNot(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
     int alive = MMRemovalOwnerAlive(r);
     if (alive == 1) return @"its Wrap Up still runs";
     if (alive < 0 && -r.at.timeIntervalSinceNow < OldAfter()) return @"its Wrap Up may still run. Try again in 15 minutes";
-    NSUInteger n = StillStaged(r, parts);
-    if (n) return [NSString stringWithFormat:@"%@ of it still wait%@ in MinMacs's staging folder. Move %@ by hand first. minmacs removal --waiting says where %@",
-                   Items(n), n == 1 ? @"s" : @"", n == 1 ? @"it" : @"each", n == 1 ? @"it is" : @"they are"];
+    // Each path is named here, since --waiting lists only what a record names.
+    NSArray<NSString *> *at = StillStaged(r, parts);
+    NSUInteger n = at.count;
+    if (n) return [NSString stringWithFormat:@"%@ of it still wait%@ in MinMacs's staging folder: %@. Move %@ by hand first",
+                   Items(n), n == 1 ? @"s" : @"", [at componentsJoinedByString:@", "], n == 1 ? @"it" : @"each"];
     return nil;
 }
 
@@ -352,7 +373,7 @@ NSArray<NSDictionary *> *MMRemovalUnreadWrapUps(void) {
         MMUndoRecord *r = seen[rid];
         NSArray<MMUndoRecord *> *parts = PartsOf(rid);
         if (!UnreadWrapUp(r, parts)) continue;
-        [out addObject:@{@"rid": rid, @"subject": r.subject ?: NSNull.null, @"waiting": @(StillStaged(r, parts)), @"problem": CloseWhyNot(r, parts) ?: NSNull.null}];
+        [out addObject:@{@"rid": rid, @"subject": r.subject ?: NSNull.null, @"waiting": @(StillStaged(r, parts).count), @"problem": CloseWhyNot(r, parts) ?: NSNull.null}];
     }
     return out;
 }

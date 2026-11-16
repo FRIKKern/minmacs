@@ -250,7 +250,7 @@ static void Closing(void) {
     (void)MMRemovalRecoverStaged(); (void)MMRemovalSweepStaged(NULL);
     NSString *said = MMRemovalCloseUnread(parent.rid);
     T(@"close: a Wrap Up whose state cannot be read is named, and is not closed while its item waits", @"1 yes pending STAGED=1 TRASHED=1",
-      [NSString stringWithFormat:@"%@ %@ %@ %@ %@", UnreadOf(parent)[@"waiting"], YN([said hasPrefix:@"1 item of it still waits in MinMacs's staging folder. Move it by hand first."]), StateWord(parent), Read(to), Read(inTrash)]);
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@", UnreadOf(parent)[@"waiting"], YN([said isEqualToString:[NSString stringWithFormat:@"1 item of it still waits in MinMacs's staging folder: %@. Move it by hand first", to]]), StateWord(parent), Read(to), Read(inTrash)]);
     // The person moves it by hand.
     [fm moveItemAtPath:to toPath:byHand error:nil];
     T(@"close: once the person moved it by hand, nothing of it waits and it may be closed", @"0 nil pending",

@@ -255,12 +255,18 @@ void MMCoreStart(void) {
         // Then what an ended Wrap Up left staged is deleted once more or goes back, MMRemovalSweepStaged, and a staging
         // folder no record names is named once.
         MMLogWhenOpen(^(MMLog *log) {
-            NSInteger n = MMRemovalRecoverStaged();
-            if (n) os_log(CoreLog(), "settled %ld Wrap Up(s) the last run left unfinished", (long)n);
-            NSArray<NSString *> *orphans = nil;
-            NSInteger back = MMRemovalSweepStaged(&orphans);
-            if (back) os_log(CoreLog(), "settled what %ld Wrap Up part(s) had left staged", (long)back);
-            for (NSString *o in orphans) os_log(CoreLog(), "a staging folder no record names is left as it is: %{public}@", o);
+            // A record comes from disk. Whatever one makes this raise, MinMacs still starts: recovery and the sweep
+            // each skip and name such a record themselves, and this is the last wall behind them.
+            @try {
+                NSInteger n = MMRemovalRecoverStaged();
+                if (n) os_log(CoreLog(), "settled %ld Wrap Up(s) the last run left unfinished", (long)n);
+                NSArray<NSString *> *orphans = nil;
+                NSInteger back = MMRemovalSweepStaged(&orphans);
+                if (back) os_log(CoreLog(), "settled what %ld Wrap Up part(s) had left staged", (long)back);
+                for (NSString *o in orphans) os_log(CoreLog(), "a staging folder no record names is left as it is: %{public}@", o);
+            } @catch (NSException *e) {
+                os_log(CoreLog(), "settling what the last run left staged stopped: %{public}@", e.reason ?: e.name ?: @"");
+            }
         });
         // The breadcrumbs the last run left, read off main: the first read lists and reads the running folder.
         // On main it was a 130 ms stall in bench hangs on a busy disk, issue #54.

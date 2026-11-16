@@ -117,6 +117,8 @@ int64_t MMRemovalFinishStaged(NSArray<MMUndoRecord *> *parts);
 /// cannot go back, since something sits at its old path now, stays where it waits and is reported, and the others
 /// still go. A second call moves the rest. A part whose every item is back is marked restored, and the empty
 /// staging folder is removed.
+/// Nobody asked for this put-back, so it only moves files, -[MMUndo moveBackOnly:]: a record's restart command,
+/// relaunch, restorer, bundle and recovery copy are never run from here, whatever the record holds.
 /// A stop or a quit is not taken back here. Returns nil, or what could not go back.
 NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts);
 /// After a crash: a Wrap Up whose record never finished and whose process is gone is settled at once. Nothing is
@@ -226,12 +228,19 @@ NSString *MMRemovalPutBackStagedItem(MMUndoRecord *part, NSString *stagedAt, NSS
 ///   4. that folder is <support>/staged/<rid>, or is named .minmacs-staged-<rid> and lies beside the worktree that
 ///      the Wrap Up's record names, where alone MinMacs makes one
 ///   5. the folder holds the marker MinMacs wrote, and it says that rid
+///   6. it is not one of the folder's own files, MMRemovalStagingOwnName
+///   7. the folder's own list, .minmacs-items, written when the item was staged, says that this part staged this
+///      very file, by its inode and volume UUID
 /// So a record that names a file somewhere else, whatever inode it gives, never has that file moved or deleted.
 NSString *MMRemovalStagedItemWhyNot(MMUndoRecord *part, NSString *stagedAt);
 /// For -[MMUndo restore:] and -[MMUndo moveBackOnly:]: the same for one entry of part's "staged" list before it is
-/// moved back, and its old path must be spelled as a real path too. nil when nothing waits at the entry's "to", since
-/// nothing moves then.
+/// moved back, and its old path must be spelled as a real path and be the one the folder's own list holds for the
+/// item, so a record never sends a staged item to an old path of its own making. nil when nothing waits at the
+/// entry's "to", since nothing moves then.
 NSString *MMRemovalStagedEntryWhyNot(MMUndoRecord *part, NSDictionary *entry);
+/// YES for the names MinMacs keeps in a staging folder for itself: .minmacs, .gitignore and .minmacs-items. None is
+/// ever an item.
+BOOL MMRemovalStagingOwnName(NSString *name);
 /// A Wrap Up whose state cannot be read, -[MMUndoRecord stateUnread], is left pending by recovery, since it may have
 /// ended. Once the person has moved what it staged by hand, only they can say it is over. Each such Wrap Up, for the
 /// CLI: {rid, subject, waiting: how many of its items still wait where MinMacs staged them, problem: why it cannot be

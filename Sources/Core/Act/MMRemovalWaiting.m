@@ -12,6 +12,8 @@
 @property (readwrite) int64_t bytes;
 @property (readwrite) MMRemovalWaitWhy why;
 @property (readwrite) BOOL canDelete, canPutBack;
+/// Why MinMacs would refuse to act on it where it waits, MMRemovalStagedItemWhyNot, or nil.
+@property (copy) NSString *refusal;
 @end
 
 @implementation MMRemovalWaitingItem
@@ -109,9 +111,11 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
             // A part whose Wrap Up has no record: nobody can tell that MinMacs staged it. It is listed, so the person
             // sees it, and MinMacs takes no act on it.
             i.why = damaged ? MMRemovalWaitDamaged : !parent ? MMRemovalWaitNoWrapUp : began ? MMRemovalWaitDeleteFailed : There(from) ? MMRemovalWaitOldPathTaken : MMRemovalWaitPutBackFailed;
-            i.detail = damaged ? (r.damage ?: parent.damage) : MMRecordString(x, @"why");
-            i.canDelete = parent && !damaged && !running && ended;
-            i.canPutBack = parent && !running && ended && from != nil;
+            // What the act itself would refuse is not offered: the list says so, and why.
+            i.refusal = parent ? MMRemovalStagedItemWhyNot(r, to) : nil;
+            i.detail = damaged ? (r.damage ?: parent.damage) : i.refusal ?: MMRecordString(x, @"why");
+            i.canDelete = parent && !i.refusal && !damaged && !running && ended;
+            i.canPutBack = parent && !i.refusal && !running && ended && from != nil;
             [out addObject:i];
         }
     }
@@ -125,7 +129,7 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
         [seen addObject:folder];
         for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:nil] sortedArrayUsingSelector:@selector(compare:)]) {
             NSString *to = [folder stringByAppendingPathComponent:name];
-            if ([name isEqualToString:@".minmacs"] || [name isEqualToString:@".gitignore"] || [claimed containsObject:to]) continue;
+            if (MMRemovalStagingOwnName(name) || [claimed containsObject:to]) continue;
             MMRemovalWaitingItem *i = Item(r, to, nil);
             i.why = MMRemovalWaitDamaged; i.detail = r.moveDamage;
             [out addObject:i];
@@ -153,6 +157,7 @@ NSString *MMRemovalDeleteWaitingWhyNot(MMRemovalWaitingItem *i) {
     NSString *runs = Runs(i);
     if (runs) return runs;
     if (i.why == MMRemovalWaitNoWrapUp) return [NSString stringWithFormat:@"its Wrap Up has no record, so MinMacs does not delete it. Move it by hand from %@", i.stagedAt];
+    if (i.refusal && i.why != MMRemovalWaitDamaged) return [NSString stringWithFormat:@"%@, so MinMacs does not delete it. Move it by hand from %@", i.refusal, i.stagedAt];
     if (i.why != MMRemovalWaitDamaged) return @"its Wrap Up has not ended";
     return i.oldPath ? [NSString stringWithFormat:@"its record is damaged, so MinMacs does not delete it. %@ it by hand from %@", i.canPutBack ? @"Put it back, or move" : @"Move", i.stagedAt]
                      : [NSString stringWithFormat:@"its record is damaged and does not say what it is, so MinMacs does not delete it. Move it by hand from %@", i.stagedAt];
@@ -165,6 +170,7 @@ NSString *MMRemovalPutBackWaitingWhyNot(MMRemovalWaitingItem *i, NSString *path)
         if (runs) return runs;
         if (i.why == MMRemovalWaitDamaged) return [NSString stringWithFormat:@"its record is damaged, so MinMacs does not move it. Move it by hand from %@", i.stagedAt];
         if (i.why == MMRemovalWaitNoWrapUp) return [NSString stringWithFormat:@"its Wrap Up has no record, so MinMacs does not move it. Move it by hand from %@", i.stagedAt];
+        if (i.refusal) return [NSString stringWithFormat:@"%@, so MinMacs does not move it. Move it by hand from %@", i.refusal, i.stagedAt];
         return i.oldPath ? @"its Wrap Up has not ended" : @"the record does not say where it was";
     }
     NSString *to = path.length ? path : i.oldPath;

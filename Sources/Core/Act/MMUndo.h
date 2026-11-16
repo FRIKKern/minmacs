@@ -78,8 +78,10 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// item on its own, only the very file that was moved away, MMFileIsEntry, and never over something at from. place
 /// names where it waits, for the words. Returns nil when every item is back, else what is not, in words.
 /// It does not ask where to lies. restore and moveBackOnly ask first, issue #70: a "trashed" entry goes back only
-/// from a Trash, and a "staged" one only from the staging folder MinMacs made for the record's Wrap Up,
-/// MMRemovalStagedEntryWhyNot. An entry that fails stays where it is and is reported. Any other caller asks too.
+/// from directly in a Trash, MMPathLiesInTrash, and only when it says which file it is. A "staged" one goes back
+/// only from the staging folder MinMacs made for the record's Wrap Up, and only to the old path that folder's own
+/// list holds for it, MMRemovalStagedEntryWhyNot. An entry that fails stays where it is and is reported. restore
+/// asks every entry before it does anything else, and one refusal stops it. Any other caller asks too.
 - (NSString *)moveBack:(NSArray<NSDictionary *> *)items from:(NSString *)place;
 - (NSArray<MMUndoRecord *> *)recent:(NSString *)expert limit:(NSUInteger)limit;   // newest first, expert nil means all
 - (MMUndoRecord *)record:(NSString *)rid;
@@ -118,6 +120,11 @@ int MMFileIsEntryCheck(NSString *path, NSDictionary *entry, BOOL *uuidUnread);
 /// returns nil or the problem in words. A part whose payload has "restoreLast" set comes back after the other parts
 /// of its Wrap Up, so tabs reopen once their servers run again.
 void MMUndoRestoreKey(NSString *key, NSString *(^)(id value));
+
+/// The Trash as a rule on strings: YES when the real path lies directly in the person's Trash, <home>/.Trash, or in
+/// their Trash on another volume, /Volumes/<volume>/.Trashes/<uid>. With testTrash given, the Trash of a test run,
+/// only directly in that. A folder that is merely named .Trash somewhere else is no Trash.
+BOOL MMPathLiesInTrash(NSString *real, NSString *home, uid_t uid, NSString *testTrash);
 
 /// The Trash of a test run: <MINMACS_HOME>/Trash when MINMACS_HOME is set, else nil for the real Trash.
 /// -[MMUndo trash:record:error:] moves items there, and restore moves them back from there.

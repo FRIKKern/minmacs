@@ -165,3 +165,16 @@ static void Unasked(void) {
     [fm removeItemAtPath:stray error:nil];
     T(@"close: once it is gone, the close goes through", @"nil failed", [NSString stringWithFormat:@"%@ %@", Or(MMRemovalCloseUnread(parent.rid)), StateWord(parent)]);
 }
+
+/// The Trash as a rule on strings, so the person's real Trash is never touched by a check.
+static void TrashRule(void) {
+    NSString *home = @"/Users/me";
+    NSArray<NSString *> *paths = @[@"/Users/me/.Trash/notes.txt", @"/Volumes/Disk/.Trashes/501/notes.txt", @"/Users/me/Documents/.Trash/notes.txt", @"/Users/me/.Trash/deep/notes.txt",
+                                   @"/Volumes/Disk/.Trashes/502/notes.txt", @"/Volumes/Disk/code/.Trashes/501/notes.txt", @"/Users/other/.Trash/notes.txt", @"/Users/me/.Trash", @"/tmp/.Trashes/501/notes.txt"];
+    NSMutableArray<NSString *> *says = [NSMutableArray new];
+    for (NSString *p in paths) [says addObject:YN(MMPathLiesInTrash(p, home, 501, nil))];
+    T(@"trash rule: only directly in the home Trash or in this user's Trash on another volume, never a folder merely named so", @"yes yes no no no no no no no", [says componentsJoinedByString:@" "]);
+    T(@"trash rule: a check has one Trash, its own, and with no home nothing is a Trash", @"yes no no no",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", YN(MMPathLiesInTrash(@"/t/home/Trash/a", home, 501, @"/t/home/Trash")), YN(MMPathLiesInTrash(@"/Users/me/.Trash/a", home, 501, @"/t/home/Trash")),
+       YN(MMPathLiesInTrash(@"/t/home/Trash/a", home, 501, @"")), YN(MMPathLiesInTrash(@"/.Trash/a", @"", 501, nil))]);
+}
