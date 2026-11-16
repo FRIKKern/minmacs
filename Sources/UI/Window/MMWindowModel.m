@@ -156,6 +156,15 @@ MMWindowFact *MMWindowFactUntouched(NSTimeInterval seconds) {
 
 MMWindowFact *MMWindowFactKind(NSString *kind) { NSString *k = Trimmed(kind); return Fact(@"Kind", k, k); }
 
+NSString *MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked) {
+    if ([groupKey isEqualToString:@"worktrees"])
+        return looked == MMWindowLookedNowhere ? @"No folders to look in" : looked == MMWindowLookedNotYet ? @"Looking for worktrees" : @"No worktrees found";
+    if ([groupKey isEqualToString:@"caches"])
+        return looked == MMWindowLookedNowhere ? @"Not looked at" : looked == MMWindowLookedNotYet ? @"Looking for caches" : @"No caches or leftovers found";
+    // Servers, agents and apps are read from the processes of every pass, so their look has always ended.
+    return @{@"servers": @"No servers found", @"agents": @"No agents found", @"apps": @"No apps found"}[groupKey];
+}
+
 @implementation MMWindowRow
 - (instancetype)init { if ((self = [super init])) { _key = @""; _name = @""; _cpuPercent = -1; _facts = @[]; } return self; }
 - (NSString *)shownName {

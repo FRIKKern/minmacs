@@ -176,8 +176,7 @@ NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count) {
 MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows) {
     MMWindowGroup *g = [MMWindowGroup new];
     g.key = key; g.title = title; g.side = side;
-    g.emptyNote = @{@"servers": @"No servers found", @"agents": @"No agents found", @"apps": @"No apps found",
-                    @"worktrees": @"No worktrees found", @"caches": @"No caches or leftovers found"}[key];
+    g.emptyNote = MMWindowEmptyNote(key, MMWindowLookedDone);
     g.rows = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) { return a.bytes > b.bytes ? NSOrderedAscending : a.bytes < b.bytes ? NSOrderedDescending : NSOrderedSame; }];
     return g;
 }

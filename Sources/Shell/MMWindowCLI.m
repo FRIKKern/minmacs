@@ -18,6 +18,8 @@ static void PrintGroup(MMArgs *a, MMWindowGroup *g) {
     uint64_t sum = 0;
     for (MMWindowRow *r in g.rows) sum += r.bytes;
     BOOL disk = g.side == MMWindowDisk;
+    // An empty group prints its own line, so a look that never ran does not read as a count of none.
+    if (!g.rows.count && g.emptyNote.length) { [a print:@"%@  %@", g.title, g.emptyNote]; return; }
     [a print:@"%@  %lu, %@", g.title, (unsigned long)g.rows.count, disk ? Disk(sum) : Mem(sum)];
     for (MMWindowRow *r in g.rows) {
         NSMutableArray *tail = [NSMutableArray new];
@@ -36,7 +38,10 @@ static int Window(MMArgs *a) {
                                   lookBack:[MMPerformanceLookBack read:MMGains.shared now:NSDate.date]];
     // Open at login as the system holds it for this app bundle. A read only: nothing is registered here.
     BOOL login = SMAppService.mainAppService.status == SMAppServiceStatusEnabled;
-    MMWindowModel *m = MMWindowModelFrom(s, p, [MMWindowExtras readWithLogin:login]);
+    MMWindowExtras *x = [MMWindowExtras readWithLogin:login];
+    // Run cold, the facts hold no clutter at all: the catalog's scans run in the app only.
+    if (!a.inApp) x.cachesLooked = MMWindowLookedNowhere;
+    MMWindowModel *m = MMWindowModelFrom(s, p, x);
     if (a.json) {
         NSMutableDictionary *j = [m.json mutableCopy];
         j[@"app"] = @(a.inApp);

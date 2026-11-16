@@ -23,10 +23,15 @@ NS_ASSUME_NONNULL_BEGIN
 @property BOOL loginOn;
 @property (copy, nullable) NSString *loginNote;
 @property (strong, nullable) MMWindowRun *run;
+/// How far the look for worktrees and for caches went, for the line of an empty group. Worktrees: nowhere with no
+/// folder to look in, which is MMRepoIndex's roots being empty, and not yet until its first walk ended. Caches:
+/// nowhere where the catalog scans nothing, in a test home with no clutter root, and not yet before its first scan.
+@property MMWindowLooked worktreesLooked, cachesLooked;
 /// The welcome, from MMWindowWelcomeNow, while the person has not pressed Start. The controller sets it. nil in the CLI.
 @property (strong, nullable) MMWindowWelcome *welcome;
 /// The lid switch as the keep-awake expert holds it now, and Open at login as given. Any queue.
 /// It reads the expert's last published state, or its pref before the first pass. It never runs pmset.
+/// The two looks are read from the repo index and the clutter catalog as they stand, with no walk and no scan.
 + (instancetype)readWithLogin:(BOOL)loginOn;
 @end
 

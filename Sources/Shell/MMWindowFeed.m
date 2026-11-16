@@ -51,7 +51,7 @@ static NSArray<MMWindowRow *> *Sorted(NSArray<MMWindowRow *> *rows) {
     }];
 }
 
-static MMWindowGroup *Group(NSString *key, NSString *title, NSString *emptyNote, MMWindowSide side, NSArray<MMPerformanceGroup *> *from,
+static MMWindowGroup *Group(NSString *key, NSString *title, MMWindowLooked looked, MMWindowSide side, NSArray<MMPerformanceGroup *> *from,
                             NSArray<NSString *> *keys, MMSnapshot *s, NSSet<NSString *> *inFix) {
     NSMutableArray<MMWindowRow *> *rows = [NSMutableArray new];
     for (MMPerformanceGroup *g in from) {
@@ -65,7 +65,7 @@ static MMWindowGroup *Group(NSString *key, NSString *title, NSString *emptyNote,
         }
     }
     MMWindowGroup *g = [MMWindowGroup new];
-    g.key = key; g.title = title; g.emptyNote = emptyNote; g.side = side; g.rows = Sorted(rows);
+    g.key = key; g.title = title; g.emptyNote = MMWindowEmptyNote(key, looked); g.side = side; g.rows = Sorted(rows);
     return g;
 }
 
@@ -115,13 +115,14 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
 
     // The groups. Apps, helpers and localhost tabs share one title, and each row keeps its own kind.
     m.memoryGroups = @[
-        Group(MMPerformanceServers, @"Servers", @"No servers found", MMWindowMemory, p.memoryGroups, @[MMPerformanceServers], s, inFix),
-        Group(MMPerformanceAgents, @"Agents", @"No agents found", MMWindowMemory, p.memoryGroups, @[MMPerformanceAgents], s, inFix),
-        Group(kApps, @"Apps and helpers", @"No apps found", MMWindowMemory, p.memoryGroups,
+        Group(MMPerformanceServers, @"Servers", MMWindowLookedDone, MMWindowMemory, p.memoryGroups, @[MMPerformanceServers], s, inFix),
+        Group(MMPerformanceAgents, @"Agents", MMWindowLookedDone, MMWindowMemory, p.memoryGroups, @[MMPerformanceAgents], s, inFix),
+        Group(kApps, @"Apps and helpers", MMWindowLookedDone, MMWindowMemory, p.memoryGroups,
               @[MMPerformanceApps, MMPerformanceHelpers, MMPerformanceTabsGroup], s, inFix)];
+    // An empty disk group says what the look behind it gave: found none, still looking, or nothing to look in.
     m.diskGroups = @[
-        Group(MMPerformanceWorktrees, @"Worktrees", @"No worktrees found", MMWindowDisk, p.diskGroups, @[MMPerformanceWorktrees], s, inFix),
-        Group(kCaches, @"Caches", @"No caches or leftovers found", MMWindowDisk, p.diskGroups, @[MMPerformanceClutter], s, inFix)];
+        Group(MMPerformanceWorktrees, @"Worktrees", extras.worktreesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceWorktrees], s, inFix),
+        Group(kCaches, @"Caches", extras.cachesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceClutter], s, inFix)];
 
     // What came back today, two numbers, for the dock when there is nothing to fix.
     m.memoryBackToday = p.lookBack.todayMemory; m.diskBackToday = p.lookBack.todayDisk;

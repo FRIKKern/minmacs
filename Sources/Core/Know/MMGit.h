@@ -82,6 +82,9 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// known checkout, starts a walk, and walks are at least 10 seconds apart. Never blocks.
 - (void)refresh:(NSSet<NSString *> *)changedDirs;
 - (NSArray<MMWorktree *> *)worktrees;                   // the last walk, deepest path first
+/// YES once a walk of the roots has ended with an answer, so an empty list means none were found. NO before that,
+/// while the first walk runs, and after a walk the worker failed. Any queue, never blocks.
+- (BOOL)walked;
 /// The worktree that holds path, read from .git files with no spawn. nil outside any repo.
 - (MMWorktree *)worktreeAt:(NSString *)path;
 /// Through MMFactCache, in two layers that persist across launches. The status layer, dirty and untracked counts,
