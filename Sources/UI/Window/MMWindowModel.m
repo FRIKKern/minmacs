@@ -165,12 +165,23 @@ NSString *MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked) {
     return @{@"servers": @"No servers found", @"agents": @"No agents found", @"apps": @"No apps found"}[groupKey];
 }
 
+NSString *const MMWindowMeasuring = @"measuring";
+NSString *const MMWindowNotMeasured = @"Not measured yet";
+
+NSComparisonResult MMWindowRowOrder(MMWindowRow *a, MMWindowRow *b) {
+    if (a.unmeasured != b.unmeasured) return a.unmeasured ? NSOrderedDescending : NSOrderedAscending;
+    if (a.bytes != b.bytes) return a.bytes > b.bytes ? NSOrderedAscending : NSOrderedDescending;
+    if (a.tabs != b.tabs) return a.tabs > b.tabs ? NSOrderedAscending : NSOrderedDescending;
+    return [a.key compare:b.key];
+}
+
 @implementation MMWindowRow
 - (instancetype)init { if ((self = [super init])) { _key = @""; _name = @""; _cpuPercent = -1; _facts = @[]; } return self; }
 - (NSString *)shownName {
     return self.kind == MMWindowTabs ? MMWindowTabsName(self.tabs, self.name) : self.name;
 }
-- (BOOL)showsSize { return self.kind != MMWindowTabs || self.bytes > 0; }
+- (BOOL)showsSize { return !self.unmeasured && (self.kind != MMWindowTabs || self.bytes > 0); }
+- (NSString *)sizeWord { return self.unmeasured ? MMWindowMeasuring : nil; }
 
 - (MMWindowFact *)factLabelled:(NSString *)label {
     for (MMWindowFact *f in self.facts) if ([f.label isEqualToString:label]) return f;
@@ -221,6 +232,7 @@ static NSString *Sentence(NSString *words) {
 
 @implementation MMWindowGroup
 - (instancetype)init { if ((self = [super init])) { _key = @""; _title = @""; _side = MMWindowMemory; _rows = @[]; } return self; }
+- (NSInteger)unmeasured { NSInteger n = 0; for (MMWindowRow *r in self.rows) if (r.unmeasured) n++; return n; }
 @end
 
 @implementation MMWindowSlice
@@ -351,5 +363,6 @@ NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sig
 
 - (uint64_t)memoryBack { uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.memoryBack; return n; }
 - (uint64_t)diskBack { uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.diskBack; return n; }
+- (BOOL)diskBackPartial { for (MMWindowFix *f in self.fixes) if (!f.needsYou && f.diskPartial) return YES; return NO; }
 - (NSInteger)fixCount { NSInteger n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n++; return n; }
 @end

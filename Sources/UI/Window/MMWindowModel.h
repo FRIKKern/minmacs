@@ -98,6 +98,16 @@ NSString *_Nullable MMWindowFixCountTitle(NSString *kind, NSInteger n, NSInteger
 NSString *_Nullable MMWindowAfterTitle(NSInteger fixes);
 /// A group's header where rows wait out of view, "1 more below", "3 more above". nil when all show.
 NSString *_Nullable MMWindowMoreLine(NSInteger below, NSInteger above);
+/// What `count` things hold together when `unmeasured` of them have no size yet: "456 MB" with none missing,
+/// "456 MB so far" with some, and "measuring" when none is measured. `size` is the measured sum as its words.
+NSString *MMWindowSumText(NSString *size, NSInteger count, NSInteger unmeasured);
+/// What a fix gives back on disk: "456 MB", "456 MB or more" when a part is not measured yet, and "not measured yet"
+/// when nothing of it is. `size` is the measured sum as its words, and `nothing` says that sum is 0.
+NSString *MMWindowBackText(NSString *size, BOOL nothing, BOOL partial);
+/// Where a row stands in its group, "The biggest of 16 worktrees". With rows not measured yet it counts the measured
+/// ones only and says so, "2nd biggest of 5 worktrees measured so far", and a row not measured has no place: "16 worktrees".
+/// `place` counts from 1 among the measured rows, and `title` is the group's, in small letters.
+NSString *MMWindowPlaceLine(NSInteger place, NSInteger count, NSInteger unmeasured, BOOL rowMeasured, NSString *title);
 /// A tabs row's name, "1 localhost tab in Safari", "14 localhost tabs in Google Chrome".
 NSString *MMWindowTabsName(NSInteger tabs, NSString *_Nullable browser);
 
@@ -147,6 +157,9 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (copy, nullable) NSString *state;             // one quiet word: "merged", "kept", "will close"
 @property double cpuPercent;                            // of one core; below 0 when not known, then not drawn
 @property uint64_t bytes;                               // the one number
+/// The size was not measured yet: a worktree whose files have not been walked. bytes is then 0 and no reading, so no
+/// view and no verb shows it as a number. Each shows sizeWord where the size would stand. A measured 0 is a reading.
+@property BOOL unmeasured;
 @property NSInteger tabs;                               // for MMWindowTabs, the count shown in the name
 @property BOOL needsYou;                                // an agent that asks: a white diamond on its icon
 @property BOOL inFix;                                   // Fix Everything touches it: a small orange mark
@@ -168,8 +181,19 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 /// The name as every view draws it: a tabs row's is its count and its browser, "3 localhost tabs in Safari".
 @property (readonly) NSString *shownName;
 /// NO for a tabs row that holds no bytes: its count in the name is its number, and no size of 0 is drawn or read out.
+/// NO for a row whose size is not measured yet, too.
 @property (readonly) BOOL showsSize;
+/// The word that stands where the size would while it is not measured, MMWindowMeasuring. nil for any other row.
+@property (readonly, nullable) NSString *sizeWord;
 @end
+
+/// "measuring": a row's size slot while its size is not measured yet.
+extern NSString *const MMWindowMeasuring;
+/// "Not measured yet": the same, where the window has a line of its own for it.
+extern NSString *const MMWindowNotMeasured;
+/// The order of a group's rows: the measured ones biggest first, then by tabs, then by key, and after them the rows
+/// whose size is not measured yet, by key. The order holds between snapshots.
+NSComparisonResult MMWindowRowOrder(MMWindowRow *a, MMWindowRow *b);
 
 /// How far the look behind a group's empty line went. Only a look that ended may say "found".
 typedef NS_ENUM(NSInteger, MMWindowLooked) {
@@ -187,6 +211,8 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @property (copy) NSArray<MMWindowRow *> *rows;
 /// The one quiet line under the header when the group has no rows, from MMWindowEmptyNote: "No worktrees found".
 @property (copy, nullable) NSString *emptyNote;
+/// How many of its rows have no measured size yet.
+@property (readonly) NSInteger unmeasured;
 @end
 
 #pragma mark - The ring
@@ -210,6 +236,8 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @interface MMWindowFix : NSObject
 @property (copy) NSString *key, *title;                 // "wrapup:/path", "Wrap Up fix-auth-redirect"
 @property uint64_t memoryBack, diskBack;
+/// Something it removes has no measured size yet, so diskBack holds only what was measured: it is "or more", no total.
+@property BOOL diskPartial;
 @property BOOL needsYou;                                // runs only on its own press, so Fix Everything skips it
 @end
 
@@ -335,6 +363,8 @@ extern NSString *const MMWindowLookingNote;
 /// What Fix Everything gives back: the fixes that do not need the person, each side summed on its own.
 - (uint64_t)memoryBack;
 - (uint64_t)diskBack;
+/// YES when a fix in that sum has a part not measured yet: then diskBack is no total, and is shown as "or more".
+- (BOOL)diskBackPartial;
 - (NSInteger)fixCount;
 @end
 

@@ -116,14 +116,6 @@ static NSString *GroupKey(MMWindowKind kind) {
     return @"";
 }
 
-/// "The biggest", "2nd biggest", "11th biggest", and "The smallest" for the last of several.
-static NSString *Rank(NSInteger n, NSInteger of) {
-    if (n <= 1) return @"The biggest";
-    if (n == of) return @"The smallest";
-    NSString *end = n % 100 >= 11 && n % 100 <= 13 ? @"th" : n % 10 == 1 ? @"st" : n % 10 == 2 ? @"nd" : n % 10 == 3 ? @"rd" : @"th";
-    return [NSString stringWithFormat:@"%ld%@ biggest", (long)n, end];
-}
-
 - (MMWindowGroup *)groupOf:(MMWindowRow *)row {
     for (NSArray<MMWindowGroup *> *side in @[self.model.memoryGroups ?: @[], self.model.diskGroups ?: @[]])
         for (MMWindowGroup *g in side) if ([g.rows containsObject:row]) return g;
@@ -157,9 +149,11 @@ static NSString *Rank(NSInteger n, NSInteger of) {
     // The numbers: memory or disk, CPU when known, and the row's own hour to the right.
     CGFloat top = 72 + more, at = x;
     // Tabs that hold no bytes of their own show their count where the size would stand.
-    NSAttributedString *big = row.showsSize ? MMWindowNumber(row.bytes, disk, 24, NSFontWeightMedium, text, 12)
+    // A size not measured yet is said in words, smaller and quieter than a number.
+    NSAttributedString *big = row.sizeWord ? MMWindowText(MMWindowNotMeasured, 15, NSFontWeightRegular, t2)
+                            : row.showsSize ? MMWindowNumber(row.bytes, disk, 24, NSFontWeightMedium, text, 12)
                                             : MMWindowText(@(row.tabs).stringValue, 24, NSFontWeightMedium, text);
-    MMWindowDraw(MMWindowText(!row.showsSize ? @"Tabs" : disk ? @"Disk" : @"Memory", 11, NSFontWeightRegular, t2), at, top + 7, -1);
+    MMWindowDraw(MMWindowText(row.kind == MMWindowTabs && !row.showsSize ? @"Tabs" : disk ? @"Disk" : @"Memory", 11, NSFontWeightRegular, t2), at, top + 7, -1);
     MMWindowDraw(big, at, top + 28, -1);
     at += MAX(MMWindowWidth(big), 44) + 20;
     if (row.cpuPercent >= 0) {
@@ -223,12 +217,13 @@ static NSString *Rank(NSInteger n, NSInteger of) {
     y += 6;
     [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.07] setFill];
     NSRectFillUsingOperation(NSMakeRect(x, y, w, 1), NSCompositingOperationSourceOver);
-    MMWindowDraw(MMWindowText([NSString stringWithFormat:@"%@ of %lu %@", Rank(place + 1, (NSInteger)group.rows.count), (unsigned long)group.rows.count, group.title.lowercaseString], 11, NSFontWeightRegular, t2), x, y + 17, -1);
+    MMWindowDraw(MMWindowText(MMWindowPlaceLine(place + 1, (NSInteger)group.rows.count, group.unmeasured, !row.unmeasured, group.title.lowercaseString), 11, NSFontWeightRegular, t2), x, y + 17, -1);
     y += 28;
     NSInteger shown = 0;
     for (MMWindowRow *other in group.rows) {
         if (other == row) continue;
-        NSAttributedString *size = other.showsSize ? MMWindowText(MMWindowBytes(other.bytes, disk), 11.5, NSFontWeightRegular, t2) : nil;
+        NSAttributedString *size = other.showsSize ? MMWindowText(MMWindowBytes(other.bytes, disk), 11.5, NSFontWeightRegular, t2)
+                                 : other.sizeWord ? MMWindowText(other.sizeWord, 11.5, NSFontWeightRegular, t2) : nil;
         CGFloat room = w - (size ? MMWindowWidth(size) + 12 : 0), h = MAX(21, MMWindowBlockHeight(other.shownName, 12.5, 12.5, NSFontWeightRegular, room) + 4);
         if (shown >= 5 || y + h > bottom) break;
         MMWindowDrawBlock(other.shownName, 12.5, 12.5, NSFontWeightRegular, text, x, y + 2, room, -1, -1, 0);

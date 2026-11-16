@@ -64,3 +64,27 @@ NSString *MMWindowReadyNote(NSInteger ready) {
     if (ready <= 0) return nil;
     return [NSString stringWithFormat:@"%ld ready. %@ for your press.", (long)ready, ready == 1 ? @"It waits" : @"They wait"];
 }
+
+NSString *MMWindowSumText(NSString *size, NSInteger count, NSInteger unmeasured) {
+    if (unmeasured <= 0) return size;
+    return unmeasured >= count ? MMWindowMeasuring : [size stringByAppendingString:@" so far"];
+}
+
+NSString *MMWindowBackText(NSString *size, BOOL nothing, BOOL partial) {
+    if (!partial) return size;
+    return nothing ? @"not measured yet" : [size stringByAppendingString:@" or more"];
+}
+
+NSString *MMWindowPlaceLine(NSInteger place, NSInteger count, NSInteger unmeasured, BOOL rowMeasured, NSString *title) {
+    NSInteger known = count - unmeasured;
+    if (!rowMeasured) return [NSString stringWithFormat:@"%ld %@", (long)count, title];
+    if (known == 1 && unmeasured > 0) return [NSString stringWithFormat:@"The only one measured so far of %ld %@", (long)count, title];
+    NSString *rank;
+    if (place <= 1) rank = @"The biggest";
+    else if (place == known) rank = @"The smallest";
+    else {
+        NSString *end = place % 100 >= 11 && place % 100 <= 13 ? @"th" : place % 10 == 1 ? @"st" : place % 10 == 2 ? @"nd" : place % 10 == 3 ? @"rd" : @"th";
+        rank = [NSString stringWithFormat:@"%ld%@ biggest", (long)place, end];
+    }
+    return [NSString stringWithFormat:@"%@ of %ld %@%@", rank, (long)known, title, unmeasured > 0 ? @" measured so far" : @""];
+}

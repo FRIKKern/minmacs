@@ -62,6 +62,7 @@
             NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, row.shownName, nil];
             if (row.state.length) [say addObject:row.state];
             if (row.showsSize) [say addObject:MMWindowBytes(row.bytes, g.side == MMWindowDisk)];
+            else if (row.sizeWord) [say addObject:@"size not measured yet"];
             if (row.needsYou) [say addObject:@"asks you"];
             if (row.inFix) [say addObject:@"in Fix Everything"];
             NSString *cpu = MMWindowCPU(row.cpuPercent);

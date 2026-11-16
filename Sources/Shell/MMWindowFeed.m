@@ -42,13 +42,9 @@ NSString *MMWindowFixTitle(MMPerformanceFix *fix) {
 #pragma mark - The model
 
 /// Biggest first, then by key, so the order holds between snapshots. A tabs row has no bytes and sorts by its tabs
-/// among the rows with none.
+/// among the rows with none. A row whose size is not measured yet has no number to sort by and comes after the rest.
 static NSArray<MMWindowRow *> *Sorted(NSArray<MMWindowRow *> *rows) {
-    return [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) {
-        if (a.bytes != b.bytes) return a.bytes > b.bytes ? NSOrderedAscending : NSOrderedDescending;
-        if (a.tabs != b.tabs) return a.tabs > b.tabs ? NSOrderedAscending : NSOrderedDescending;
-        return [a.key compare:b.key];
-    }];
+    return [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) { return MMWindowRowOrder(a, b); }];
 }
 
 static MMWindowGroup *Group(NSString *key, NSString *title, MMWindowLooked looked, MMWindowSide side, NSArray<MMPerformanceGroup *> *from,
@@ -103,11 +99,13 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
     // The fixes, in Fix Everything's order.
     NSMutableSet<NSString *> *inFix = [NSMutableSet new];
     NSMutableArray<MMWindowFix *> *fixes = [NSMutableArray new];
+    NSMutableDictionary<NSString *, MMWindowFix *> *fixOfRow = [NSMutableDictionary new];
     for (MMPerformanceFix *f in p.fixes) {
         MMWindowFix *x = [MMWindowFix new];
         x.key = f.key; x.title = MMWindowFixTitle(f);
         x.memoryBack = f.memoryBack; x.diskBack = f.diskBack; x.needsYou = f.needsYou;
         [fixes addObject:x];
+        for (NSString *key in f.rows) fixOfRow[key] = x;
         // The mark says a press on Fix Everything acts on the row, so a fix that waits for its own press marks none.
         if (!f.needsYou) [inFix addObjectsFromArray:f.rows];
     }
@@ -123,6 +121,9 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
     m.diskGroups = @[
         Group(MMPerformanceWorktrees, @"Worktrees", extras.worktreesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceWorktrees], s, inFix),
         Group(kCaches, @"Caches", extras.cachesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceClutter], s, inFix)];
+
+    // A fix that removes a thing not measured yet gives back more disk than its number holds, and says so.
+    for (MMWindowGroup *g in m.diskGroups) for (MMWindowRow *r in g.rows) if (r.unmeasured) fixOfRow[r.key].diskPartial = YES;
 
     // What came back today, two numbers, for the dock when there is nothing to fix.
     m.memoryBackToday = p.lookBack.todayMemory; m.diskBackToday = p.lookBack.todayDisk;

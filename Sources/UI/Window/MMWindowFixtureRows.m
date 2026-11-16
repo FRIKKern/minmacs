@@ -177,7 +177,11 @@ MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide
     MMWindowGroup *g = [MMWindowGroup new];
     g.key = key; g.title = title; g.side = side;
     g.emptyNote = MMWindowEmptyNote(key, MMWindowLookedDone);
-    g.rows = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) { return a.bytes > b.bytes ? NSOrderedAscending : a.bytes < b.bytes ? NSOrderedDescending : NSOrderedSame; }];
+    // As the feed orders them: the measured rows biggest first, then the ones not measured yet.
+    g.rows = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) {
+        if (a.unmeasured != b.unmeasured) return a.unmeasured ? NSOrderedDescending : NSOrderedAscending;
+        return a.bytes > b.bytes ? NSOrderedAscending : a.bytes < b.bytes ? NSOrderedDescending : NSOrderedSame;
+    }];
     return g;
 }
 
