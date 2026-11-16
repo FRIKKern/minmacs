@@ -172,9 +172,9 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         fixes = kept;
     }
     if (measuring) for (MMWindowFix *x in fixes) {
-        // The Wrap Up's worktree is not measured, so only the cache inside it counts. The merged worktrees hold no number at all.
-        if ([x.key hasPrefix:@"wrapup:"]) { x.diskBack = 1229 * DMB; x.diskPartial = YES; }
-        if ([x.key isEqualToString:@"remove:merged"]) { x.diskBack = 0; x.diskPartial = YES; }
+        // As the feed makes them: a Wrap Up's disk is its worktree's number, which counts the cache inside it, so with
+        // the worktree not measured it holds none. Neither do the merged worktrees. Both read "not measured yet".
+        if ([x.key hasPrefix:@"wrapup:"] || [x.key isEqualToString:@"remove:merged"]) { x.diskBack = 0; x.diskPartial = YES; }
     }
     m.fixes = fixes;
 

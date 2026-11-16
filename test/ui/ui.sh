@@ -53,12 +53,14 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # The six welcome pictures are the first launch: the welcome alone with the switch on and off and each removal choice
 # picked, the welcome of a person who used MinMacs for more than a day before, and the window right after a Start
 # that came before the first numbers.
+# The four measuring pictures are a day with one worktree's size measured and the others not yet: the list, a row
+# not measured, the measured one, and the pointer on Fix Everything.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 84 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 92 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
-               young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-watched-main welcome-started; do
+               young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main measuring-main measuring-worktree measuring-measured measuring-fix welcome-main welcome-off-main welcome-trash-main welcome-delete-main welcome-watched-main welcome-started; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
@@ -67,7 +69,7 @@ check "every window PNG is 1020 by 728 points, two pixels each" "2040x1456 " "$u
 ui_md() { md5 -q "$ui_win/$1.png" 2>/dev/null; }
 check "the window differs under Increase Contrast, with a pointed row and in Settings" "yes yes yes" \
   "$([ "$(ui_md busy-main-dark)" != "$(ui_md busy-main-contrast-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-server-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-settings-dark)" ] && echo yes || echo no)"
-check "no window fixture shows a banned phrase or an old app name" 12 \
+check "no window fixture shows a banned phrase or an old app name" 13 \
   "$(grep -c '^ok    window .*: no shown string holds a banned phrase or an old app name' "$ui_out/checks.txt" 2>/dev/null)"
 
 ui_look() { grep -c "^ok    window$1" "$ui_out/checks.txt" 2>/dev/null; }

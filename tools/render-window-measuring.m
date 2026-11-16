@@ -84,7 +84,7 @@ static void WindowMeasuringChecks(void) {
     v.pointsAtFix = YES;
     NSString *after = [dock.macLines componentsJoinedByString:@" | "];
     v.pointsAtFix = NO;
-    Check(m.diskBackPartial && [gains isEqualToString:@"3.16 GB memory back | 15.8 GB or more disk back"] && [after hasSuffix:@"198 GB disk free or more"],
+    Check(m.diskBackPartial && [gains isEqualToString:@"3.16 GB memory back | 14.5 GB or more disk back"] && [after hasSuffix:@"197 GB or more disk free"],
           @"window measuring: Fix Everything's disk back reads or more while a thing it removes is not measured", [NSString stringWithFormat:@"%@ / %@", gains, after]);
     Check(!MMWindowFixture(@"busy").diskBackPartial && MMWindowFixture(@"busy").diskGroups[0].unmeasured == 0, @"window measuring: a day with every size measured says none of it", @"");
 }

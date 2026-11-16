@@ -40,7 +40,7 @@
         // A fix that gives no memory back leaves the number as it is, and the line says so and does not repeat it.
         [out addObject:@{@"label": back > 0 ? [NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed, NO)] : @"memory in use, as now"}];
         // With a part not measured yet, what comes back is that much or more, and the line says so.
-        [out addObject:@{@"disk": MMWindowBytes(ring.diskFree + self.model.diskBack, YES), @"label": self.model.diskBackPartial ? @"disk free or more" : @"disk free"}];
+        [out addObject:@{@"disk": MMWindowBytes(ring.diskFree + self.model.diskBack, YES), @"label": self.model.diskBackPartial ? @"or more disk free" : @"disk free"}];
     } else {
         NSArray<NSString *> *used = MMWindowSize2(ring.memoryUsed, NO);
         NSString *total = MMWindowWhole(ring.memoryTotal, NO);
