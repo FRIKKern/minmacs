@@ -98,6 +98,8 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     BOOL running = [name isEqualToString:@"running"], done = [name isEqualToString:@"done"];
     // "memory-only" and "disk-only": the busy day with only the fixes that give that one side back.
     BOOL memoryOnly = [name isEqualToString:@"memory-only"], diskOnly = [name isEqualToString:@"disk-only"];
+    // "measuring": the busy day soon after launch, with one worktree's size measured and the others not yet.
+    BOOL measuring = [name isEqualToString:@"measuring"];
     // "young": one minute in, on a Mac full of servers, agents and apps, with nothing on disk found yet, nobody asking
     // and nothing to fix. "calm": twelve minutes in, nobody asks, nothing to fix, and something came back today.
     // "long": the busy day with one name in each group that is longer than its column.
@@ -133,6 +135,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         if (r.inFix && [r.state isEqualToString:@"will close"]) r.state = nil;
         r.inFix = NO;
     }
+    if (measuring) for (NSUInteger i = 1; i < trees.count; i++) { trees[i].unmeasured = YES; trees[i].bytes = 0; }
     if (longNames) {
         servers = [servers arrayByAddingObject:Long(servers[1], @"server:9366", @":9366 Google Chrome for Testing", 565 * MB)];
         agents = [agents arrayByAddingObject:Long(agents[4], @"agent:long", @"Review the button pages design before the release goes out to everyone", 700 * MB)];
@@ -167,6 +170,11 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         NSMutableArray *kept = [NSMutableArray new];
         for (MMWindowFix *x in fixes) if (!x.needsYou && (memoryOnly ? x.diskBack == 0 : x.memoryBack == 0)) [kept addObject:x];
         fixes = kept;
+    }
+    if (measuring) for (MMWindowFix *x in fixes) {
+        // As the feed makes them: a Wrap Up's disk is its worktree's number, which counts the cache inside it, so with
+        // the worktree not measured it holds none. Neither do the merged worktrees. Both read "not measured yet".
+        if ([x.key hasPrefix:@"wrapup:"] || [x.key isEqualToString:@"remove:merged"]) { x.diskBack = 0; x.diskPartial = YES; }
     }
     m.fixes = fixes;
 

@@ -21,7 +21,9 @@
         BOOL onDisk = row.kind == MMWindowWorktree || row.kind == MMWindowCache;
         [out addObject:@{@"name": row.shownName}];
         NSArray<NSString *> *size = row.showsSize ? MMWindowSize2(row.bytes, onDisk) : @[@(row.tabs).stringValue, row.tabs == 1 ? @"tab" : @"tabs"];
-        [out addObject:@{@"big": size[0], @"unit": size[1]}];
+        // A size not measured yet is a line of words, and no number stands for it.
+        if (row.sizeWord) [out addObject:@{@"label": MMWindowNotMeasured}];
+        else [out addObject:@{@"big": size[0], @"unit": size[1]}];
         if (row.showsSize) {
             uint64_t used = ring.diskTotal > ring.diskFree ? ring.diskTotal - ring.diskFree : 0;
             [out addObject:@{@"label": onDisk ? [NSString stringWithFormat:@"of %@ disk in use", MMWindowBytes(used, YES)]
@@ -37,7 +39,8 @@
         [out addObject:@{@"big": after[0], @"unit": after[1]}];
         // A fix that gives no memory back leaves the number as it is, and the line says so and does not repeat it.
         [out addObject:@{@"label": back > 0 ? [NSString stringWithFormat:@"memory, now %@", MMWindowBytes(ring.memoryUsed, NO)] : @"memory in use, as now"}];
-        [out addObject:@{@"disk": MMWindowBytes(ring.diskFree + self.model.diskBack, YES), @"label": @"disk free"}];
+        // With a part not measured yet, what comes back is that much or more, and the line says so.
+        [out addObject:@{@"disk": MMWindowBytes(ring.diskFree + self.model.diskBack, YES), @"label": self.model.diskBackPartial ? @"or more disk free" : @"disk free"}];
     } else {
         NSArray<NSString *> *used = MMWindowSize2(ring.memoryUsed, NO);
         NSString *total = MMWindowWhole(ring.memoryTotal, NO);
@@ -89,7 +92,8 @@
 
 /// What Fix Everything gives back, memory and disk, each a large number of its own. A side shows only when it has
 /// something: a zero is no gain, so it is never drawn as one.
-/// - Before a press: what the fixes give back, each side that is above zero.
+/// - Before a press: what the fixes give back, each side that is above zero. Disk reads "or more" while a thing the
+///   fixes remove is not measured yet, and with nothing of it measured there is no disk line.
 /// - While a run plays: each side the run set out to give back, counting up from zero.
 /// - Once it ended: each side that did come back.
 /// - With nothing to fix: what came back today, each side that is above zero.
@@ -112,7 +116,7 @@
         if (m.diskBackToday > 0) add(m.diskBackToday, MMWindowInkDisk, @"disk back today");
     } else {
         if (m.memoryBack > 0) add(m.memoryBack, MMWindowInkMemory, @"memory back");
-        if (m.diskBack > 0) add(m.diskBack, MMWindowInkDisk, @"disk back");
+        if (m.diskBack > 0) add(m.diskBack, MMWindowInkDisk, m.diskBackPartial ? @"or more disk back" : @"disk back");
     }
     return out;
 }

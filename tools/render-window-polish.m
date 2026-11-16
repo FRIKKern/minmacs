@@ -12,7 +12,10 @@ static NSArray<NSArray *> *WindowPolishShots(void) {
              @[@"calm", @"settings", @""],
              @[@"real", @"main", @""], @[@"real", @"agent", @"agent:0"], @[@"real", @"server", @"server:56784"], @[@"real", @"fix", @""],
              @[@"extreme", @"main", @""], @[@"extreme", @"server", @"server:3000"], @[@"extreme", @"asks", @"agent:0"], @[@"extreme", @"tree", @"worktree:0"],
-             @[@"extreme-running", @"main", @""], @[@"extreme-done", @"main", @""]];
+             @[@"extreme-running", @"main", @""], @[@"extreme-done", @"main", @""],
+             // One worktree measured and the others not yet: the list, a row not measured, the measured one, and Fix Everything.
+             @[@"measuring", @"main", @""], @[@"measuring", @"worktree", @"worktree:fix-auth-redirect"], @[@"measuring", @"measured", @"worktree:dogfood"],
+             @[@"measuring", @"fix", @""]];
 }
 
 @interface PolishHost : NSObject <MMWindowHost>
@@ -46,6 +49,7 @@ static MMWindowSettingsView *PolishSettings(MMWindowView *v) {
 
 #include "render-window-words.m"
 #include "render-window-row.m"
+#include "render-window-measuring.m"
 
 static void WindowPolishChecks(void) {
     const uint64_t MB = 1ull << 20, GB = 1ull << 30, DMB = 1000000ull, DGB = 1000000000ull;
@@ -388,4 +392,5 @@ static void WindowPolishChecks(void) {
 
     WindowWordChecks();
     WindowRowChecks();
+    WindowMeasuringChecks();
 }

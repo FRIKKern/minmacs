@@ -14,7 +14,7 @@ NSString *MMWindowKindName(MMWindowKind kind);
 - (NSDictionary *)json;        // {label, value}
 @end
 @interface MMWindowRow (MMJSON)
-- (NSDictionary *)json;        // {key, kind, iconHint, name, state, cpuPercent, bytes, tabs, needsYou, inFix, hour, facts}
+- (NSDictionary *)json;        // {key, kind, iconHint, name, state, cpuPercent, bytes or null while not measured, measured, tabs, needsYou, inFix, hour, facts}
 @end
 @interface MMWindowGroup (MMJSON)
 - (NSDictionary *)json;        // {key, title, side, rows}
@@ -23,7 +23,7 @@ NSString *MMWindowKindName(MMWindowKind kind);
 - (NSDictionary *)json;        // {memory: {used, total, slices}, disk: {free, total, slices}}
 @end
 @interface MMWindowFix (MMJSON)
-- (NSDictionary *)json;        // {key, title, memoryBack, diskBack, needsYou}
+- (NSDictionary *)json;        // {key, title, memoryBack, diskBack, diskBackPartial, needsYou}
 @end
 @interface MMWindowRun (MMJSON)
 - (NSDictionary *)json;        // {running, step, done, total, memoryBack, diskBack, memoryPlanned, diskPlanned, endTitle, endNote}

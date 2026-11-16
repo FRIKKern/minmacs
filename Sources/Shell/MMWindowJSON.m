@@ -34,7 +34,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 - (NSDictionary *)json {
     return @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
              @"state": Or(self.state), @"cpuPercent": self.cpuPercent >= 0 ? @(round(self.cpuPercent * 10) / 10) : NSNull.null,
-             @"bytes": @(self.bytes), @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
+             // A size not measured yet is null, never 0.
+             @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": @(!self.unmeasured), @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
              @"hour": Or(self.hour), @"facts": All(self.facts)};
 }
 @end
@@ -59,7 +60,7 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 @implementation MMWindowFix (MMJSON)
 - (NSDictionary *)json {
     return @{@"key": self.key ?: @"", @"title": self.title ?: @"", @"memoryBack": @(self.memoryBack), @"diskBack": @(self.diskBack),
-             @"needsYou": @(self.needsYou)};
+             @"diskBackPartial": @(self.diskPartial), @"needsYou": @(self.needsYou)};
 }
 @end
 
@@ -91,7 +92,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
              @"memoryHour": Or(self.memoryHour.json), @"diskHour": Or(self.diskHour.json),
              @"memory": All(self.memoryGroups), @"disk": All(self.diskGroups), @"ring": self.ring.json,
              @"fixes": All(self.fixes),
-             @"fixEverything": @{@"fixes": @(self.fixCount), @"memoryBack": @(self.memoryBack), @"diskBack": @(self.diskBack)},
+             @"fixEverything": @{@"fixes": @(self.fixCount), @"memoryBack": @(self.memoryBack), @"diskBack": @(self.diskBack),
+                                  @"diskBackPartial": @(self.diskBackPartial)},
              @"backToday": @{@"memoryBack": @(self.memoryBackToday), @"diskBack": @(self.diskBackToday)},
              @"run": Or(self.run.json), @"settings": self.settings.json};
 }

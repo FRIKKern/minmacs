@@ -18,12 +18,16 @@ static void PrintGroup(MMArgs *a, MMWindowGroup *g) {
     uint64_t sum = 0;
     for (MMWindowRow *r in g.rows) sum += r.bytes;
     BOOL disk = g.side == MMWindowDisk;
+    // With rows not measured yet the sum is of the measured ones only, and says so. It is no total.
+    NSString *held = MMWindowSumText(disk ? Disk(sum) : Mem(sum), (NSInteger)g.rows.count, g.unmeasured);
     // An empty group prints its own line, so a look that never ran does not read as a count of none.
     if (!g.rows.count && g.emptyNote.length) { [a print:@"%@  %@", g.title, g.emptyNote]; return; }
-    [a print:@"%@  %lu, %@", g.title, (unsigned long)g.rows.count, disk ? Disk(sum) : Mem(sum)];
+    [a print:@"%@  %lu, %@", g.title, (unsigned long)g.rows.count, held];
     for (MMWindowRow *r in g.rows) {
         NSMutableArray *tail = [NSMutableArray new];
-        if (r.kind == MMWindowTabs) [tail addObject:MMWindowCount(r.tabs, @"tab", @"tabs")]; else [tail addObject:disk ? Disk(r.bytes) : Mem(r.bytes)];
+        if (r.sizeWord) [tail addObject:r.sizeWord];
+        else if (r.kind == MMWindowTabs) [tail addObject:MMWindowCount(r.tabs, @"tab", @"tabs")];
+        else [tail addObject:disk ? Disk(r.bytes) : Mem(r.bytes)];
         if (r.state) [tail addObject:r.state];
         if (r.needsYou) [tail addObject:@"asks you"];
         if (r.inFix) [tail addObject:@"in a fix"];
@@ -53,11 +57,14 @@ static int Window(MMArgs *a) {
     [a print:@"Disk    %@ free of %@", Disk(m.ring.diskFree), MMWindowWholeText(m.ring.diskTotal, YES)];
     for (MMWindowGroup *g in m.memoryGroups) PrintGroup(a, g);
     for (MMWindowGroup *g in m.diskGroups) PrintGroup(a, g);
-    [a print:@"Fix Everything  %@: %@ memory back, %@ disk back", MMWindowFixes(m.fixCount), Mem(m.memoryBack), Disk(m.diskBack)];
+    // "456 MB or more disk back" while a thing the fixes remove is not measured yet, so no number poses as the total.
+    NSString *back = MMWindowBackText(Disk(m.diskBack), m.diskBack == 0, m.diskBackPartial);
+    [a print:@"Fix Everything  %@: %@ memory back, %@", MMWindowFixes(m.fixCount), Mem(m.memoryBack),
+             m.diskBackPartial && m.diskBack == 0 ? [@"disk back " stringByAppendingString:back] : [back stringByAppendingString:@" disk back"]];
     NSInteger i = 0;
     for (MMWindowFix *f in m.fixes)
-        [a print:@"%2ld  %@ memory %@, disk %@%@", (long)++i, MMColumn(f.title, 38), Mem(f.memoryBack), Disk(f.diskBack),
-                 f.needsYou ? @", needs your own press" : @""];
+        [a print:@"%2ld  %@ memory %@, disk %@%@", (long)++i, MMColumn(f.title, 38), Mem(f.memoryBack),
+                 MMWindowBackText(Disk(f.diskBack), f.diskBack == 0, f.diskPartial), f.needsYou ? @", needs your own press" : @""];
     // A rule with nothing picked yet, the removal choice before the person made it, says so.
     for (MMWindowRule *r in m.settings.rules)
         [a print:@"Rule    %@ %@", MMColumn(r.title, 30), r.picked >= 0 && r.picked < (NSInteger)r.choices.count ? r.choices[(NSUInteger)r.picked].title : @"not chosen yet"];

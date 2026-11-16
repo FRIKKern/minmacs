@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a trashed file lands in
 // $MINMACS_HOME/Trash and a deleted one is unlinked inside the fixture folder only. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome | unmeasured
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -497,7 +497,7 @@ static void WindowModel(void) {
     // The JSON and the words.
     T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings",
       [[j.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
-    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind name needsYou quiet state tabs",
+    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind measured name needsYou quiet state tabs",
       [[[next.json allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"window: the JSON is valid and keeps the ring's sides apart", @"yes disk memory", [NSString stringWithFormat:@"%@ %@", YN([NSJSONSerialization isValidJSONObject:j]),
       [[[j[@"ring"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]]);
@@ -663,10 +663,12 @@ static void RunStopped(void) {
 #import "removal.m"
 // The welcome of the first launch.
 #import "welcome.m"
+// A worktree whose size is not measured yet.
+#import "unmeasured.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome|unmeasured\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -687,6 +689,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"trash"]) RunChoice(MMRemovalTrash);
         else if ([mode isEqualToString:@"delete"]) RunChoice(MMRemovalDelete);
         else if ([mode isEqualToString:@"welcome"]) Welcome();
+        else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
         else return 2;
         printf("END\n");
     }

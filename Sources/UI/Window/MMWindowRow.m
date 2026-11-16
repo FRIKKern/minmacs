@@ -33,7 +33,9 @@ static CGFloat NameEdge(CGFloat start, const CGFloat *width, const BOOL *held) {
 NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *columns) {
     NSString *name = row.shownName;
     BOOL disk = side == MMWindowDisk;
-    CGFloat nameLeft = NSMinX(rect) + 31, right = NSMaxX(rect) - 9, sizeWidth = disk ? 58 : 50, start = right - sizeWidth - 6, y = rect.origin.y, h = rect.size.height;
+    // The size column holds a number and its unit. The word of a size not measured yet is never wider than it is given.
+    CGFloat nameLeft = NSMinX(rect) + 31, right = NSMaxX(rect) - 9, sizeWidth = MAX(disk ? 58 : 50, row.sizeWord ? ceil(Wide(row.sizeWord, 11.5)) : 0);
+    CGFloat start = right - sizeWidth - 6, y = rect.origin.y, h = rect.size.height;
     // A column is there where its group has it: the hour where any row of the group has one, CPU on the memory side.
     // So the hour lines and the CPU numbers of a group stand one under another.
     CGFloat width[kColumns] = {hasHour ? 40 : 0, disk ? 0 : 46, row.state.length ? Wide(row.state, 11.5) + 8 : 0};
@@ -105,6 +107,9 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour
         NSArray<NSString *> *size = MMWindowSize2(row.bytes, disk);
         MMWindowDraw(MMWindowJoin(@[MMWindowText(size[0], 13, NSFontWeightRegular, text),
                                     MMWindowText([MMWindowThin stringByAppendingString:size[1]], 11, NSFontWeightRegular, quiet)]), NSMaxX(col.size), mid, 1);
+    } else if (row.sizeWord) {
+        // Not measured yet: a quiet word where the number would stand, never a 0.
+        MMWindowDraw(MMWindowText(row.sizeWord, 11.5, NSFontWeightRegular, quiet), NSMaxX(col.size), mid, 1);
     }
     if (!NSIsEmptyRect(col.hour)) {
         NSColor *ink = hot ? NSColor.whiteColor : MMWindowColor(disk ? MMWindowInkDisk : MMWindowInkMemory);

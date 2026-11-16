@@ -53,6 +53,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run delete
   echo "-- the welcome of the first launch"
   wn_run welcome
+  echo "-- a worktree whose size is not measured yet"
+  wn_run unmeasured
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
@@ -90,9 +92,9 @@ wn_strings="$(wn_has LocoHost/MMLHHost.m '@"port": @(self.port)' '@"framework": 
   wn_has LocoHost/MMLocoHost.m 'facts[@"keptUntil"]'
   wn_has MinMacs/MMMinMacsExpert.m '@"harnessID": m.harnessID' '@"name": m.name' '@"state": StateWord(m.state)' '@"project": m.project' '@"why": m.why' 'return @"waits on you"' '@"bundleID": a.bundleID' '@"group": GroupName(g)' 'fx[@"reason"] = reason' 'fx[@"agent"] = a.agentName' 'fx[@"ports"] = a.loopbackPorts'
   wn_has MinMacs/MMMinMacsWrapUp.m '@"cwd": cwd' '@"worktree": subject.path' '@"urls": urls' '@"ports": on.array' '@"bundleID": bid'
-  wn_has WorkForest/MMWFTree.m '@"branch": Or(self.branch)' '@"merged": Or(self.merged)' '@"dirty": @(self.dirty)' '@"untracked": @(self.untracked)' '@"unpushed": @(self.unpushed)' '@"lastWorkAt": Time(self.lastWork)' '@"protected": @(self.isProtected)'
+  wn_has WorkForest/MMWFTree.m '@"branch": Or(self.branch)' '@"merged": Or(self.merged)' '@"dirty": @(self.dirty)' '@"untracked": @(self.untracked)' '@"unpushed": @(self.unpushed)' '@"lastWorkAt": Time(self.lastWork)' '@"protected": @(self.isProtected)' '@"sized": @(self.sized)' '@"missing": @(self.missing)'
   wn_has NooNoo/MMNooNooExpert.m '@"kindTitle": k.title' '@"name": RowName(i)' '? @"free" : i.state == MMClutterLive ? @"live" : @"kept"' 'fx[@"owner"] = ownerName' 'fx[@"lastUsed"]' 'fx[@"keep"]' 'fx[@"why"]')"
-check "window: the experts still write the facts the rows read" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${wn_strings% }"
+check "window: the experts still write the facts the rows read" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${wn_strings% }"
 wn_rules="$(wn_has LocoHost/MMLHScan.m 'EnvMinutes(@"LOCOHOST_PROACTIVE_MINUTES", 6 * 60)'
   wn_has LocoHost/MMLocoHost.m 'if (m != MMModeProactive) return nil;' 'if (h.agent.length && !h.orphaned) return'
   wn_has WorkForest/MMWFTree.m 'EnvHours("WORKFOREST_PROACTIVE_HOURS", 7 * 24)' 'self.merged.length > 0 || [self.upstream isEqualToString:@"gone"]'
@@ -159,10 +161,12 @@ check "window: --json has the asks line, both sides, the ring, the fixes and Set
   "$(printf '%s' "$wn_json" | json "' '.join(sorted(j))")"
 check "window: --json groups in the window's order" "servers agents apps worktrees caches" \
   "$(printf '%s' "$wn_json" | json "' '.join(g['key'] for g in j['memory'] + j['disk'])")"
-check "window: --json keeps memory and disk apart in the ring and in Fix Everything" "disk memory | diskBack fixes memoryBack" \
+check "window: --json keeps memory and disk apart in the ring and in Fix Everything" "disk memory | diskBack diskBackPartial fixes memoryBack" \
   "$(printf '%s' "$wn_json" | json "' '.join(sorted(j['ring'])) + ' | ' + ' '.join(sorted(j['fixEverything']))")"
 check "window: --json memory slices add up to memory in use" yes \
   "$(printf '%s' "$wn_json" | json "'yes' if sum(p['bytes'] for p in j['ring']['memory']['slices']) == j['ring']['memory']['used'] else 'no'")"
+check "window: --json rows say whether their size is measured, and one that is not holds null and no 0" yes \
+  "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if all((r['bytes'] is None) != r['measured'] for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json rows carry a kind and their own key" yes \
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json has a rule per expert with modes, the removal choice, three choices each, and the two switches" "servers,apps,worktrees,caches,removal 3 lid,login" \
