@@ -6,7 +6,7 @@ This page says what the broker does and what it cost on a fixture day. [PRIVACY.
 
 ## Which model, and how
 
-- **The CLI on the person's own login.** The broker runs `claude -p` with Haiku. When `claude` is missing, signed out, out of usage or fails another way, it runs `codex exec` with a Luna model. The `review.model` pref picks auto, haiku, sonnet, opus or luna, and auto is the default.
+- **The CLI on the person's own login.** The broker runs `claude -p` with Opus, Claude Code's alias for its newest Opus (Opus 5.5 today), at medium effort. When `claude` is missing, signed out, out of usage or fails another way, it runs `codex exec` with the newest Sol model the account offers (gpt-6.1-sol today). The `review.model` pref picks auto, opus, sol, sonnet, haiku or luna, and auto is the default. MinMacs asks the strongest models because a verdict is only as good as the judgment behind it: a cheap model that answers unsure on every quiet server tells the person nothing.
 - **No tools.** Every call to `claude` passes `--tools ""`, `--strict-mcp-config`, `--setting-sources ""` and `--no-session-persistence`, and runs in a fresh empty folder, so no project file is picked up. `codex` runs with every tool off and a read-only sandbox.
 - **No API key.** `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and the variables of a Claude Code session that launched MinMacs are removed from the call's environment.
 - **A JSON schema.** The answer must match a schema in the expert's own words: for LocoHost the verdicts are `in_use`, `idle` and `unsure`, for WorkForest `active`, `stale` and `unsure`. Core stores keep, go and unsure underneath.
@@ -62,7 +62,7 @@ The findings of one call are grouped into one block per top owner, which is the 
 - **`f`** lists each finding's own facts and its `id`.
 - **`ws`** holds the values of the expert's shared keys that every finding of a block of two or more has in common. LocoHost's shared keys are the agent session, branch, project, project files, repo activity and worktree. WorkForest's are the agent session, repo and default branch.
 - **`all`** holds the values that every finding of a call of two or more shares.
-- **Compact.** The input is compact JSON with sorted keys. Every null, false, zero and empty value is dropped.
+- **Compact.** The input is compact JSON with sorted keys. Every null and empty value is dropped. False and zero are kept, so the model can tell no connections from not known.
 - **One cached prefix.** Every system prompt ends with the same fixed note on how to read blocks, `ws` and `all`, so the prompt and schema stay one cached prefix. The cache lasts one hour when the expert's last review is less than an hour old, and five minutes otherwise.
 - **Batches.** Calls hold at most 25 findings, three calls at a time.
 
@@ -74,6 +74,8 @@ On the 75 inputs the old apps' way of asking sent on the fixture day:
 | Compact with sorted keys | 928,658 | 66 % |
 | Compact, null, false, zero and empty values dropped | 718,587 | 51 % |
 | And values every finding of a call shares sent once, in `all` | 649,923 | 46 % |
+
+These bytes were measured while false and zero were still dropped. Since they are sent again, the compact row grows by the keys that hold them.
 
 In the broker's day, `ws` saved 70 uncached tokens: 56,916 without it, 56,846 with it. Only LocoHost's two servers in one worktree shared a block.
 
@@ -114,4 +116,4 @@ Investigate is one deeper look, only when the person asks, at one finding, one w
 
 In the test, 10 of 15 scripted tool calls try to leave the folder or reach a secret, through an absolute path, `..`, a symlink, a symlinked folder, a sibling folder with the same prefix, `.env`, a Grep through the symlink, a glob with `..`, an absolute glob and a tool named Bash. All 10 are refused, and no byte of the outside files or of `.env` reaches the fake model.
 
-Before a run the alert shows an estimate. Before the first run it is 35,000 tokens on Haiku. After that it is the median uncached tokens of the last five runs that answered. One call sends a system prompt of 426 characters, three tool schemas of 1,088 bytes, and a message of 224 to 242 bytes on the fixture. The tokens and time of a real run have not been measured, since that needs a paid call.
+Before a run the alert shows an estimate. Before the first run it is 35,000 tokens on Opus. After that it is the median uncached tokens of the last five runs that answered. One call sends a system prompt of 426 characters, three tool schemas of 1,088 bytes, and a message of 224 to 242 bytes on the fixture. The tokens and time of a real run have not been measured, since that needs a paid call.

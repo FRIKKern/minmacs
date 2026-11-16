@@ -12,7 +12,7 @@
 #import "Core/Review/MMReview.h"
 
 /// The model Investigate asks. It needs tools, so only Claude can run it, and the codex fallback does not apply.
-extern NSString *const MMInvestigateModel;             // @"haiku"
+extern NSString *const MMInvestigateModel;             // @"opus"
 /// The turn limit passed to claude as --max-turns, so one run cannot read without end.
 extern const NSInteger MMInvestigateMaxTurns;           // 12
 /// The estimate before any run has been measured: research F 4.4 found first turns that write 3k to 35k tokens.
@@ -46,10 +46,10 @@ NSArray<NSString *> *MMInvestigateFolders(NSArray<NSString *> *candidates);
 
 /// What a run will likely cost, shown before it runs.
 @interface MMInvestigateEstimate : NSObject
-@property (copy) NSString *model;                       // "haiku"
+@property (copy) NSString *model;                       // "opus"
 @property NSInteger tokens;                             // uncached tokens: the median of the last five runs, or the default
 @property NSInteger basedOn;                            // how many past runs the median uses, 0 for the default
-/// "About 35,000 tokens on Haiku, an estimate before the first run." in sentence case.
+/// "About 35,000 tokens on Opus, an estimate before the first run." in sentence case.
 - (NSString *)sentence;
 - (NSDictionary *)json;
 @end

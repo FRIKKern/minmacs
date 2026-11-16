@@ -2,6 +2,7 @@
 // Ported from WorkForest's Review.m, which LocoHost's Review.m shares line for line, with three changes:
 // every call gets its own temp folder, the usage is split as the CLI reports it, and the input is compacted.
 #import "Core/Review/MMReview.h"
+#import "Core/Review/MMInvestigate.h"
 #import "Core/Know/MMGit.h"
 #import "Core/Store/MMStore.h"
 #include <fcntl.h>
@@ -133,7 +134,7 @@ NSString *MMClip(NSString *s, NSUInteger max) {
 }
 
 /// F5. What the model gets: every string redacted with the home folder as ~ and clipped at 400 characters,
-/// and every null, false, zero and empty value dropped. An id is never redacted, so the answer maps back to it.
+/// and every null and empty value dropped. 0 and false stay, since the model must tell "none" from "not known". An id is never redacted, so the answer maps back to it.
 /// nil when nothing is left.
 id MMCompactFacts(id v, NSString *key) {
     if (!v || v == NSNull.null) return nil;
@@ -143,7 +144,7 @@ id MMCompactFacts(id v, NSString *key) {
         if (s.length > 400) s = [[s substringToIndex:399] stringByAppendingString:@"…"];
         return s.length ? s : nil;
     }
-    if ([v isKindOfClass:NSNumber.class]) return [v doubleValue] == 0 ? nil : v;   // @NO is 0 too
+    if ([v isKindOfClass:NSNumber.class]) return v;   // 0 and false are facts: no connections is not the same as not known
     if ([v isKindOfClass:NSDate.class]) return [NSISO8601DateFormatter stringFromDate:v timeZone:NSTimeZone.localTimeZone
                                                                         formatOptions:NSISO8601DateFormatWithInternetDateTime];
     if ([v isKindOfClass:NSArray.class]) {
@@ -286,18 +287,22 @@ static NSDictionary *AskClaude(MMAnswer *a, NSString *claude, MMClaudeCall *c, N
 
 #pragma mark - Codex
 
-/// The Luna models Codex offers this account, newest first as Codex lists them, then the known names.
-static NSArray<NSString *> *LunaModels(void) {
+/// The models of one family ("sol", "luna") Codex offers this account, newest first as Codex lists them, then the known names.
+static NSArray<NSString *> *CodexFamily(NSString *family, NSArray<NSString *> *known) {
     NSString *home = NSProcessInfo.processInfo.environment[@"CODEX_HOME"] ?: [@"~/.codex" stringByExpandingTildeInPath];
     NSData *d = [NSData dataWithContentsOfFile:[home stringByAppendingPathComponent:@"models_cache.json"]];
     NSDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
     NSMutableArray *l = [NSMutableArray new];
+    NSString *suffix = [@"-" stringByAppendingString:family];
     if ([j isKindOfClass:NSDictionary.class] && [j[@"models"] isKindOfClass:NSArray.class])
         for (NSDictionary *m in j[@"models"])
-            if ([m isKindOfClass:NSDictionary.class] && [m[@"slug"] isKindOfClass:NSString.class] && [m[@"slug"] containsString:@"luna"]) [l addObject:m[@"slug"]];
-    for (NSString *m in @[@"gpt-6-luna", @"gpt-5.6-luna"]) if (![l containsObject:m]) [l addObject:m];
+            if ([m isKindOfClass:NSDictionary.class] && [m[@"slug"] isKindOfClass:NSString.class] && [m[@"slug"] hasSuffix:suffix]) [l addObject:m[@"slug"]];
+    for (NSString *m in known) if (![l containsObject:m]) [l addObject:m];
     return l;
 }
+
+static NSArray<NSString *> *LunaModels(void) { return CodexFamily(@"luna", @[@"gpt-6-luna", @"gpt-5.6-luna"]); }
+static NSArray<NSString *> *SolModels(void) { return CodexFamily(@"sol", @[@"gpt-6.1-sol", @"gpt-6-sol", @"gpt-5.6-sol"]); }
 
 /// A TOML basic string, for codex -c key=value.
 static NSString *TOMLString(NSString *s) {
@@ -367,10 +372,10 @@ static NSDictionary *AskCodexModel(MMAnswer *a, NSString *codex, NSString *model
     return nil;
 }
 
-/// "luna" tries each Luna model this account offers, moving on only when the account cannot use that model.
+/// "sol" and "luna" try each model of that family this account offers, moving on only when the account cannot use that model.
 static NSDictionary *AskCodex(MMAnswer *a, NSString *codex, NSString *model, NSString *system, NSDictionary *schema,
                               NSString *effort, NSData *prompt) {
-    NSArray *models = [model isEqualToString:@"luna"] ? LunaModels() : @[model];
+    NSArray *models = [model isEqualToString:@"sol"] ? SolModels() : [model isEqualToString:@"luna"] ? LunaModels() : @[model];
     MMUsage *spent = nil;
     NSDictionary *so = nil;
     for (NSString *m in models) {
@@ -384,9 +389,12 @@ static NSDictionary *AskCodex(MMAnswer *a, NSString *codex, NSString *model, NSS
     return so;
 }
 
-static BOOL IsCodexModel(NSString *m) { return [m isEqualToString:@"luna"] || [m hasPrefix:@"gpt-"]; }
+static BOOL IsCodexModel(NSString *m) { return [m isEqualToString:@"sol"] || [m isEqualToString:@"luna"] || [m hasPrefix:@"gpt-"]; }
 
 #pragma mark - The model
+
+NSString *const MMModelClaudeFirst = @"opus";   // Claude Code's alias for its newest Opus, Opus 5.5 today
+NSString *const MMModelCodexFirst = @"sol";     // the newest Sol this Codex account offers, gpt-6.1-sol today
 
 @implementation MMModel
 
@@ -410,24 +418,24 @@ static BOOL IsCodexModel(NSString *m) { return [m isEqualToString:@"luna"] || [m
             input:(NSDictionary *)input effort:(NSString *)effort ttl:(NSString *)ttl {
     MMAnswer *a = [MMAnswer new];
     model = model.length ? model : @"auto";
-    effort = effort.length ? effort : @"low";
+    effort = effort.length ? effort : @"medium";
     NSData *prompt = MMReviewJSON(MMCompactFacts(input, nil) ?: @{});
     MMClaudeCall *c = [MMClaudeCall new];
     c.system = system; c.tools = @""; c.effort = effort; c.ttl = ttl; c.schema = schema ?: @{@"type": @"object"};
     NSDictionary *so = nil;
     if ([model isEqualToString:@"auto"]) {
-        // Haiku first. Luna when claude is missing, signed out, out of usage or fails in any other way.
+        // Opus first. Sol when claude is missing, signed out, out of usage or fails in any other way.
         NSString *claude = [self claudePath], *codex = nil;
-        c.model = @"haiku";
+        c.model = MMModelClaudeFirst;
         if (claude) so = AskClaude(a, claude, c, prompt);
         if (!so) {
-            a.note = [NSString stringWithFormat:@"Haiku: %@", claude ? a.error : @"claude CLI not found"];
-            MMUsage *haiku = a.usage;
+            a.note = [NSString stringWithFormat:@"Opus: %@", claude ? a.error : @"claude CLI not found"];
+            MMUsage *first = a.usage;
             a.error = nil; a.usage = nil;
-            if ((codex = [self codexPath])) so = AskCodex(a, codex, @"luna", system, c.schema, effort, prompt);
+            if ((codex = [self codexPath])) so = AskCodex(a, codex, MMModelCodexFirst, system, c.schema, effort, prompt);
             else a.error = @"codex CLI not found";
-            a.usage = haiku ? [haiku adding:a.usage] : a.usage;   // a failed Haiku call may still have spent tokens
-            if (!so) a.error = [NSString stringWithFormat:@"%@. Luna: %@", a.note, a.error];
+            a.usage = first ? [first adding:a.usage] : a.usage;   // a failed Opus call may still have spent tokens
+            if (!so) a.error = [NSString stringWithFormat:@"%@. Sol: %@", a.note, a.error];
         }
     } else if (IsCodexModel(model)) {
         NSString *codex = [self codexPath];
@@ -460,7 +468,7 @@ static BOOL IsCodexModel(NSString *m) { return [m isEqualToString:@"luna"] || [m
     if (audit.length) [serverArgs addObjectsFromArray:@[@"--audit", audit]];
     NSDictionary *mcp = @{@"mcpServers": @{@"minmacs": @{@"type": @"stdio", @"command": me, @"args": serverArgs, @"env": @{}}}};
     MMClaudeCall *c = [MMClaudeCall new];
-    c.model = @"haiku"; c.system = system; c.tools = @""; c.effort = @"low";
+    c.model = MMInvestigateModel; c.system = system; c.tools = @""; c.effort = @"medium";
     c.allowed = @"mcp__minmacs__Read,mcp__minmacs__Grep,mcp__minmacs__Glob";
     c.extra = @[@"--mcp-config", JSONText(mcp), @"--max-turns", [NSString stringWithFormat:@"%ld", (long)maxTurns]];
     NSDictionary *so = AskClaude(a, claude, c, [question dataUsingEncoding:NSUTF8StringEncoding]);

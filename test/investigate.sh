@@ -75,13 +75,13 @@ inv_fresh
 "$INV" investigate "$fx/in" "What is this folder for?" >"$inv/out.txt" 2>&1
 check "investigate with no --yes succeeds" 0 "$?"
 check "and asks no model" no "$([ -e "$INV_TEST_SENT.calls" ] && echo yes || echo no)"
-check "it shows the estimate and the model" 1 "$(grep -c 'Cost      About 35,000 tokens on Haiku, an estimate before the first run.' "$inv/out.txt")"
+check "it shows the estimate and the model" 1 "$(grep -c 'Cost      About 35,000 tokens on Opus, an estimate before the first run.' "$inv/out.txt")"
 check "it names the folder it may read" 1 "$(grep -c "Folders   $fx/in\$" "$inv/out.txt")"
 check "and asks the person to confirm" 1 "$(grep -c 'Run it with --yes to confirm the cost.' "$inv/out.txt")"
 "$INV" investigate "$fx/in" --yes --dry-run >/dev/null 2>&1
 check "--dry-run with --yes asks no model either" no "$([ -e "$INV_TEST_SENT.calls" ] && echo yes || echo no)"
 "$INV" investigate "$fx/in" --json >"$inv/out.json"
-check "--json gives the estimate as numbers" "35000 0 haiku" "$(inv_get "' '.join(str(j['estimate'][k]) for k in ('tokens', 'based_on', 'model'))")"
+check "--json gives the estimate as numbers" "35000 0 opus" "$(inv_get "' '.join(str(j['estimate'][k]) for k in ('tokens', 'based_on', 'model'))")"
 "$INV" investigate "$inv/no-such-folder" >/dev/null 2>&1
 check "a subject with no folder fails" 1 "$?"
 
@@ -110,7 +110,7 @@ check "investigate --yes runs, without the API key" 0 "$?"
 check "the built-in tools are off" "" "$(inv_calls "c['tools']")"
 check "only MinMacs's Read, Grep and Glob are allowed" "mcp__minmacs__Read,mcp__minmacs__Grep,mcp__minmacs__Glob" "$(inv_calls "c['allowed']")"
 check "only its own MCP config, and no settings files" "True ''" "$(inv_calls "str(c['strict']) + ' ' + repr(c['setting_sources'])")"
-check "Haiku at low effort with a turn limit" "haiku low 12" "$(inv_calls "' '.join([c['model'], c['effort'], c['max_turns']])")"
+check "Opus at medium effort with a turn limit" "opus medium 12" "$(inv_calls "' '.join([c['model'], c['effort'], c['max_turns']])")"
 check "a custom system prompt" True "$(inv_calls "c['system'].startswith('You look into one finding')")"
 check "the call runs in a fresh folder, not the project" True "$(inv_calls "'/review/calls/' in c['cwd']")"
 check "the prompt names the folders and the question" True "$(inv_calls "'Folders: $fx/in' in c['prompt'] and 'What is this folder for?' in c['prompt']")"
@@ -139,7 +139,7 @@ grep -q "ENVSECRET777" "$INV_TEST_SENT.tools";            check "no byte of .env
 check "the tool server exited with the call" 0 "$(inv_servers)"
 check "the saved run counts the tool calls and the refusals" "15 10" "$(inv_get "str(j['tool_calls']) + ' ' + str(j['refused'])")"
 check "the answer is saved, redacted" "True False" "$(inv_get "str('Fixture answer: 5 tool calls answered and 10 refused.' in j['answer']) + ' ' + str('FIXTURESECRET1' in j['answer'])")"
-check "the usage is saved with it" "360 haiku" "$(inv_get "str(j['usage']['uncached']) + ' ' + j['model']")"
+check "the usage is saved with it" "360 opus" "$(inv_get "str(j['usage']['uncached']) + ' ' + j['model']")"
 check "no audit file is left behind" 0 "$(ls "$MINMACS_HOME/review/investigate" 2>/dev/null | grep -c .)"
 
 echo "  -- saved with the subject, and the estimate after"
@@ -148,10 +148,10 @@ check "a new process reads the saved answer" True "$(inv_get "j['last']['answer'
 check "the estimate is the last run's cost" "360 1" "$(inv_get "str(j['estimate']['tokens']) + ' ' + str(j['estimate']['based_on'])")"
 "$INV" investigate "$fx/in" >"$inv/out.txt"
 check "the text shows the last answer" 1 "$(grep -c '^Last answer, just now:' "$inv/out.txt")"
-check "and the new estimate" 1 "$(grep -c 'About 360 tokens on Haiku, the cost of the last run.' "$inv/out.txt")"
+check "and the new estimate" 1 "$(grep -c 'About 360 tokens on Opus, the cost of the last run.' "$inv/out.txt")"
 INV_TEST_OUTPUT=150 "$INV" investigate "$fx/in" --yes >/dev/null 2>&1
 INV_TEST_OUTPUT=250 "$INV" investigate "$fx/in" --yes >"$inv/out.txt" 2>&1
-check "a plain run prints the answer and its cost" 1 "$(grep -c '^Used 560 uncached tokens on haiku, with 15 tool calls, 10 refused.$' "$inv/out.txt")"
+check "a plain run prints the answer and its cost" 1 "$(grep -c '^Used 560 uncached tokens on opus, with 15 tool calls, 10 refused.$' "$inv/out.txt")"
 "$INV" investigate "$fx/in" --json >"$inv/out.json"
 check "the estimate is the median of the runs" "460 3" "$(inv_get "str(j['estimate']['tokens']) + ' ' + str(j['estimate']['based_on'])")"
 

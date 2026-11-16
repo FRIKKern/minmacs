@@ -50,7 +50,7 @@ grep -q "Fixture session" "$RV_TEST_SENT";                       check "the agen
 grep -q "HUNTER77" "$RV_TEST_SENT";                              check "a secret in the session prompt is redacted" 1 "$?"
 grep -qF "$HOME/" "$RV_TEST_SENT";                               check "the home folder is never sent" 1 "$?"
 grep -qF '"~/Documents/fixture-app"' "$RV_TEST_SENT";            check "a path in the home folder is sent as ~" 0 "$?"
-check "null, false and zero facts are dropped" "[]" "$(rv_sent "sorted(k for f in items for k in f if k in ('locked', 'dirty', 'pr'))")"
+check "null facts are dropped, false and zero are sent" "['dirty', 'locked']" "$(rv_sent "sorted(k for f in items for k in f if k in ('locked', 'dirty', 'pr'))")"
 check "one block per workstream, and one without an owner" 3 "$(rv_sent "len(j['blocks'])")"
 check "the input is compact JSON with sorted keys" True \
   "$(python3 -c "import json,sys; l=open(sys.argv[1]).readline().strip(); print(l == json.dumps(json.loads(l), sort_keys=True, separators=(',', ':'), ensure_ascii=False))" "$RV_TEST_SENT")"
@@ -138,16 +138,19 @@ calls = [json.loads(l) for l in open(sys.argv[1])]
 ws = [sorted(set(b.get('w', '') for b in c['blocks'])) for c in calls]
 print(all(len(w) == 1 for w in ws))" "$RV_TEST_SENT")"
 
-echo "  -- Luna when Haiku is out of usage"
+echo "  -- Sol when Opus is out of usage"
 rv_fx luna "$rv_app" >/dev/null; rv_fresh
 RV_TEST_CLAUDE_LIMIT=1 OPENAI_API_KEY=sk-test "$RV" review "$rv_dir/luna.json" --model auto >"$rv_dir/out.json"
-check "auto falls back to Luna, without the API key" gpt-6-luna "$(rv_get "j['calls'][-1]['model']")"
-check "and notes why Haiku was skipped" True "$(rv_get "'usage limit' in j['note']")"
-grep -q "SUPERSECRET123" "$RV_TEST_SENT";                        check "the api key value is not sent to Luna" 1 "$?"
+check "auto falls back to Sol, without the API key" gpt-6.1-sol "$(rv_get "j['calls'][-1]['model']")"
+check "and notes why Opus was skipped" True "$(rv_get "'usage limit' in j['note']")"
+grep -q "SUPERSECRET123" "$RV_TEST_SENT";                        check "the api key value is not sent to Sol" 1 "$?"
 check "codex counts cached input apart from input" "15 5 7 3 22" "$(rv_get "' '.join(str(j['calls'][-1][k]) for k in ('input', 'cache_read', 'output', 'thinking', 'uncached'))")"
 rv_fx luna2 "$rv_app" >/dev/null
 RV_TEST_CODEX_UNSUPPORTED=gpt-6-luna "$RV" review "$rv_dir/luna2.json" --model luna >"$rv_dir/out.json"
 check "luna moves on from a model the account lacks" gpt-5.6-luna "$(rv_get "j['calls'][-1]['model']")"
+rv_fx sol2 "$rv_app" >/dev/null
+RV_TEST_CODEX_UNSUPPORTED=gpt-6.1-sol "$RV" review "$rv_dir/sol2.json" --model sol >"$rv_dir/out.json"
+check "sol moves on from a model the account lacks" gpt-6-sol "$(rv_get "j['calls'][-1]['model']")"
 
 echo "  -- the Eager judge"
 rv_fx judge "$rv_app" --keep "#web" >/dev/null; rv_fresh

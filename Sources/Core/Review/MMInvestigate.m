@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-NSString *const MMInvestigateModel = @"haiku";
+NSString *const MMInvestigateModel = @"opus";
 const NSInteger MMInvestigateMaxTurns = 12;
 const NSInteger MMInvestigateDefaultEstimate = 35000;
 
@@ -107,7 +107,7 @@ NSArray<NSString *> *MMInvestigateFolders(NSArray<NSString *> *candidates) {
 @implementation MMInvestigateEstimate
 
 - (NSString *)sentence {
-    NSString *model = self.model.length ? [[self.model substringToIndex:1].uppercaseString stringByAppendingString:[self.model substringFromIndex:1]] : @"Haiku";
+    NSString *model = self.model.length ? [[self.model substringToIndex:1].uppercaseString stringByAppendingString:[self.model substringFromIndex:1]] : @"Opus";
     NSNumberFormatter *f = [NSNumberFormatter new];
     f.numberStyle = NSNumberFormatterDecimalStyle; f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US"];
     NSString *n = [f stringFromNumber:@(self.tokens)];

@@ -63,7 +63,7 @@ It changes things, so it runs only through the running app, unless `--dry-run` i
 
 #### `review`
 
-The last review, a new one with --now, or with --model the model reviews ask: auto, haiku, sonnet, opus or luna.
+The last review, a new one with --now, or with --model the model reviews ask: auto, opus, sol, sonnet, haiku or luna.
 
 ```
 review [expert] [--now] [--model <model>] [--json]

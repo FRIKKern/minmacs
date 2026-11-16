@@ -489,7 +489,8 @@ static MMVerdict *WorkKeep(MMFinding *f) {
 static NSString *const kInputNote =
     @"\n\nHow the input is laid out: blocks holds one block per workstream. w names its folder, ws holds the facts that every "
     @"finding in the block shares, and f lists the findings. all holds the facts that every finding in this call shares. "
-    @"A fact in ws or all belongs to each of those findings as if it were listed with it.";
+    @"A fact in ws or all belongs to each of those findings as if it were listed with it. "
+    @"0 and false are measured facts, such as no open connections. A fact that is left out was not known.";
 
 static NSString *WithNote(NSString *system) { return [system ?: @"" stringByAppendingString:kInputNote]; }
 
@@ -590,7 +591,7 @@ static NSString *TTLFor(MMReview *prev) {
     dispatch_semaphore_t gate = dispatch_semaphore_create((long)MAX(1, q.parallel ?: 3));
     dispatch_apply(batches.count, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^(size_t i) {
         dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
-        MMAnswer *a = [MMModel ask:q.model system:system schema:schema input:input(batches[i]) effort:@"low" ttl:ttl];
+        MMAnswer *a = [MMModel ask:q.model system:system schema:schema input:input(batches[i]) effort:@"medium" ttl:ttl];
         dispatch_semaphore_signal(gate);
         [MMBudget.shared record:a.usage expert:q.expert];
         @synchronized (r) {

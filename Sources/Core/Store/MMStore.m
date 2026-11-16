@@ -10,7 +10,7 @@
 
 NSString *const MMPrefsDomain = @"no.guerrilla.minmacs";
 NSString *const MMReviewModelKey = @"review.model";
-NSArray<NSString *> *MMReviewModelNames(void) { return @[@"auto", @"haiku", @"sonnet", @"opus", @"luna"]; }
+NSArray<NSString *> *MMReviewModelNames(void) { return @[@"auto", @"opus", @"sol", @"sonnet", @"haiku", @"luna"]; }
 NSString *const MMOneIconKey = @"core.oneIcon";
 
 #pragma mark Folders

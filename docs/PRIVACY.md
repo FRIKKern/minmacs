@@ -15,7 +15,7 @@ Every value goes through the same steps in `MMCompactFacts` in `Sources/Core/Rev
   - a password in a URL, such as `https://user:<redacted>@host`
   - any run of 40 or more letters, digits, `+`, `_` or `-`, which is how most keys and tokens look
 - **Length.** A string longer than 400 characters is cut there. Several fields are cut shorter by the expert, as the tables say.
-- **Empty values.** Null, false, zero and empty values are dropped.
+- **Empty values.** Null and empty values are dropped. False and zero are sent, since "no open connections" is a fact and a left-out key means not known.
 
 The finding `id` is the one string that is not redacted, so the answer can be matched back to it. It does have the home folder as `~`.
 
