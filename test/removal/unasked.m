@@ -56,13 +56,15 @@ static void Unasked(void) {
     [MMUndo.shared finish:[MMUndo.shared record:part.rid] ok:YES freed:0 error:nil];
     part = [MMUndo.shared record:part.rid];
     NSString *to = StagedTo(part);
-    [MMUndo.shared note:part payload:@{@"staged": @[ForgedEntry(doc, doc, free), MMRecordList(part.payload, @"staged").firstObject], @"restart": restart, @"unaskedtest": @YES}];
+    // The true entry is kept here: note: changes part's payload, so its first entry is the forged one after this.
+    NSDictionary *trueEntry = MMRecordList(part.payload, @"staged").firstObject;
+    [MMUndo.shared note:part payload:@{@"staged": @[ForgedEntry(doc, doc, free), trueEntry], @"restart": restart, @"unaskedtest": @YES}];
     NSString *said = [MMUndo.shared restore:part.rid];
     usleep(1200000);
     T(@"restore: an Undo with an entry it refuses runs nothing and moves nothing", @"yes no no MY THESIS PLAIN=1 no",
       [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@", YN(said != nil), YN(Exists(flag)), YN(gRestorerRan), Read(doc), Read(to), YN(Exists(plain))]);
-    [MMUndo.shared note:[MMUndo.shared record:part.rid] payload:@{@"staged": @[MMRecordList(part.payload, @"staged").firstObject], @"restart": @{}, @"unaskedtest": @NO}];
-    (void)MMRemovalPutBack(@[[MMUndo.shared record:part.rid]]);
+    [MMUndo.shared note:[MMUndo.shared record:part.rid] payload:@{@"staged": @[trueEntry], @"restart": @{}, @"unaskedtest": @NO}];
+    T(@"restore: with its true entry again, the item goes back", @"nil PLAIN=1", [NSString stringWithFormat:@"%@ %@", Or(MMRemovalPutBack(@[[MMUndo.shared record:part.rid]])), Read(plain)]);
     fresh();
 
     // B2. The staging folder's own marker and .gitignore are no items, whoever names them.
@@ -183,3 +185,6 @@ static void TrashRule(void) {
       [NSString stringWithFormat:@"%@ %@ %@ %@", YN(MMPathLiesInTrash(@"/t/home/Trash/a", home, 501, @"/t/home/Trash")), YN(MMPathLiesInTrash(@"/Users/me/.Trash/a", home, 501, @"/t/home/Trash")),
        YN(MMPathLiesInTrash(@"/t/home/Trash/a", home, 501, @"")), YN(MMPathLiesInTrash(@"/.Trash/a", @"", 501, nil))]);
 }
+
+// Issue #75: a stop between the rename into the staging folder and the record.
+#import "stopped.m"

@@ -241,6 +241,33 @@ NSString *MMRemovalStagedEntryWhyNot(MMUndoRecord *part, NSDictionary *entry);
 /// YES for the names MinMacs keeps in a staging folder for itself: .minmacs, .gitignore and .minmacs-items. None is
 /// ever an item.
 BOOL MMRemovalStagingOwnName(NSString *name);
+/// An item its part's record never names, issue #75: MinMacs stopped between the rename into the staging folder and
+/// the write of the record, or that write was lost. The folder's own list named it before it moved. Each such item
+/// that part r staged by the list's word and that is there, as a "staged" entry {from, to, ino, dev, vol, stranded,
+/// why}, read only. Only from the staging folder r's "stagedIn" names, or with none, the two MinMacs makes for r's
+/// Wrap Up. parent is r's Wrap Up when the caller has it, else nil. Empty for a record whose lists cannot be read.
+NSArray<NSDictionary *> *MMRemovalStranded(MMUndoRecord *r, MMUndoRecord *parent);
+/// Writes into r's "staged" list each item of MMRemovalStranded that passes MMRemovalStagedItemWhyNot, the one check,
+/// so put-back, the delete, the sweep and the waiting list then treat it as any staged item. Never while the process
+/// that runs r's Wrap Up lives, never for a Wrap Up that has no record, never into a record whose lists cannot be read
+/// or that was restored. Returns how many it wrote in.
+NSUInteger MMRemovalAdoptStranded(MMUndoRecord *r, MMUndoRecord *parent);
+
+#pragma mark For MMRemovalApply.m: the staging folder's own files, MMRemovalStaging.m
+
+/// The folder's own list, .minmacs-items, or nil when it has none that MinMacs wrote: a plain file of this user's.
+NSDictionary *MMRemovalStagingItems(NSString *folder);
+/// Writes into the folder's list that the item to be at to was at from, staged by the part rid, with its identity.
+/// NO, and nothing written over, when something else holds that name or the list cannot be read.
+BOOL MMRemovalStagingNoteItem(NSString *folder, NSString *to, NSString *from, NSString *rid, NSDictionary *identity);
+/// Takes name out of the folder's list again, when the rename it was written for did not happen.
+void MMRemovalStagingForgetItem(NSString *folder, NSString *name);
+/// YES when folder holds the marker MinMacs wrote for this rid: a plain file of ours that says the rid.
+BOOL MMRemovalStagingMarkerSays(NSString *folder, NSString *rid);
+/// YES when the folder's .gitignore and list are each a plain file of ours with MinMacs's own words, or not there.
+BOOL MMRemovalStagingOwnFilesAreOurs(NSString *folder);
+/// Makes the folder, 0700, with its marker for rid and its .gitignore. NO when it cannot be made.
+BOOL MMRemovalStagingMake(NSString *folder, NSString *rid);
 /// A Wrap Up whose state cannot be read, -[MMUndoRecord stateUnread], is left pending by recovery, since it may have
 /// ended. Once the person has moved what it staged by hand, only they can say it is over. Each such Wrap Up, for the
 /// CLI: {rid, subject, waiting: how many of its items still wait where MinMacs staged them, problem: why it cannot be
