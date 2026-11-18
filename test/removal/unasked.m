@@ -183,3 +183,6 @@ static void TrashRule(void) {
       [NSString stringWithFormat:@"%@ %@ %@ %@", YN(MMPathLiesInTrash(@"/t/home/Trash/a", home, 501, @"/t/home/Trash")), YN(MMPathLiesInTrash(@"/Users/me/.Trash/a", home, 501, @"/t/home/Trash")),
        YN(MMPathLiesInTrash(@"/t/home/Trash/a", home, 501, @"")), YN(MMPathLiesInTrash(@"/.Trash/a", @"", 501, nil))]);
 }
+
+// Issue #75: a stop between the rename into the staging folder and the record.
+#import "stopped.m"

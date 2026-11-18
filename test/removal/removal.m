@@ -330,8 +330,11 @@ int main(int argc, char **argv) {
             return ok ? 0 : 1;
         }
         if (argc == 3 && !strcmp(argv[1], "--leave-waiting")) return LeaveWaiting(@(argv[2]));
+        if (argc == 4 && !strcmp(argv[1], "--stop-after-rename")) return StopAfterRenameChild(@(argv[2]), @(argv[3]));
         if (argc < 3) { fprintf(stderr, "usage: removaltest <dir> <registry/clutter>\n"); return 2; }
         gDir = @(argv[1]);
+        char me[PATH_MAX];
+        gSelf = realpath(argv[0], me) ? @(me) : @(argv[0]);
         Pref();
         Worktrees();
         Clutters(@(argv[2]));
@@ -351,6 +354,7 @@ int main(int argc, char **argv) {
         Closing();
         Unasked();
         TrashRule();
+        Stopped();
         printf("END\n");
     }
     return 0;
