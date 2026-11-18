@@ -95,18 +95,26 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
             if (MMRecordString(r.payload, @"stagedIn")) [unread addObject:r];
             continue;
         }
-        if (!r.parentRid.length || !staged.count) continue;
-        MMUndoRecord *parent = all[r.parentRid] ?: [MMUndo.shared record:r.parentRid];
+        if (!r.parentRid.length) continue;
+        MMUndoRecord *parent = all[r.parentRid];
+        // What its record never named, issue #75, found from the staging folder's own list alone. Nothing is written.
+        NSArray<NSDictionary *> *stranded = MMRemovalStranded(r, parent);
+        if (!staged.count && !stranded.count) continue;
+        parent = parent ?: [MMUndo.shared record:r.parentRid];
         BOOL damaged = r.damage || parent.damage, running = parent.state == MMUndoPending && parent != nil;
         BOOL began = MMRemovalDeletesBegan(parent, r), ended = r.state == MMUndoDone || r.state == MMUndoFailed;
         NSString *folder = MMRemovalStagingFolderOf(r);
-        for (NSDictionary *x in staged) {
+        NSArray<NSDictionary *> *both = [staged ?: @[] arrayByAddingObjectsFromArray:stranded];
+        for (NSUInteger k = 0; k < both.count; k++) {
+            NSDictionary *x = both[k];
             NSString *to = MMRecordString(x, @"to"), *from = MMRecordString(x, @"from");
             if (!to) continue;
             [claimed addObject:to]; if (MMRemovalRealPath(to)) [claimed addObject:MMRemovalRealPath(to)];
             // A Wrap Up that still runs, or that recovery settles at the next start, is not listed. Nor is what does
-            // not lie in this Wrap Up's own staging folder: a record names it, but MinMacs never put it there.
-            if ((running && !damaged) || !There(to) || !In(folder, to)) continue;
+            // not lie in this Wrap Up's own staging folder: a record names it, but MinMacs never put it there. One
+            // its record never named lies in a folder MMRemovalStranded found with MinMacs's marker for this Wrap Up.
+            NSString *in = folder ?: (k >= staged.count ? MMRemovalRealPath(to.stringByDeletingLastPathComponent) : nil);
+            if ((running && !damaged) || !There(to) || !In(in, to)) continue;
             MMRemovalWaitingItem *i = Item(r, to, from);
             // A part whose Wrap Up has no record: nobody can tell that MinMacs staged it. It is listed, so the person
             // sees it, and MinMacs takes no act on it.

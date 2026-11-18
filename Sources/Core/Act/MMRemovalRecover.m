@@ -130,6 +130,34 @@ static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *par
             parent.damage ?: DamageOf(parts), moved, deleted];
 }
 
+/// Whatever lies in the two folders MinMacs would have made for the Wrap Up r, but for the folders' own files.
+static NSArray<NSString *> *InFolders(MMUndoRecord *r) {
+    NSMutableArray<NSString *> *folders = [NSMutableArray new], *at = [NSMutableArray new];
+    NSString *support = MMRemovalRealPath(MMSupportDir()), *tree = MMRecordString(r.payload, @"path");
+    if (support) [folders addObject:[[support stringByAppendingPathComponent:@"staged"] stringByAppendingPathComponent:r.rid]];
+    if (tree.length > 1) [folders addObject:[tree.stringByDeletingLastPathComponent stringByAppendingPathComponent:[@".minmacs-staged-" stringByAppendingString:r.rid]]];
+    for (NSString *given in folders) {
+        NSString *folder = MMRemovalRealPath(given);
+        for (NSString *name in folder ? [NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:nil] : @[])
+            if (!MMRemovalStagingOwnName(name)) [at addObject:[folder stringByAppendingPathComponent:name]];
+    }
+    return at;
+}
+
+/// What lies in the staging folders of the Wrap Up r that no "staged" list of its parts names now, sorted.
+static NSArray<NSString *> *Unnamed(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
+    NSMutableSet<NSString *> *named = [NSMutableSet new];
+    for (MMUndoRecord *given in parts) {
+        for (NSDictionary *x in MMRecordList(([MMUndo.shared record:given.rid] ?: given).payload, @"staged")) {
+            NSString *to = MMRecordString(x, @"to");
+            if (to) [named addObject:MMRemovalRealPath(to) ?: to];
+        }
+    }
+    NSMutableArray<NSString *> *out = [NSMutableArray new];
+    for (NSString *path in InFolders(r)) if (![named containsObject:path]) [out addObject:path];
+    return [out sortedArrayUsingSelector:@selector(compare:)];
+}
+
 /// Only for a record with no owner: one this old, in seconds, does not run any more.
 static NSTimeInterval OldAfter(void) {
     if (MMRemovalTestHome() && getenv("MINMACS_STAGE_RECOVER_AFTER")) return atof(getenv("MINMACS_STAGE_RECOVER_AFTER"));
@@ -167,6 +195,8 @@ NSInteger MMRemovalRecoverStaged(void) {
                 if (part.state == MMUndoPending) [MMUndo.shared finish:part ok:NO freed:0 error:@"MinMacs stopped before this part ended"];
                 [readable addObject:part];
             }
+            // What a part staged and its record never named, issue #75, is named now, so it goes back with the rest.
+            for (MMUndoRecord *part in readable) (void)MMRemovalAdoptStranded(part, parent);
             NSMutableSet<NSString *> *wasBack = [NSMutableSet new];
             for (MMUndoRecord *part in readable) if ([MMUndo.shared record:part.rid].state == MMUndoRestored) [wasBack addObject:part.rid];
             NSString *notBack = readable.count ? MMRemovalPutBack(readable) : nil;
@@ -182,6 +212,7 @@ NSInteger MMRemovalRecoverStaged(void) {
         // Only a true yes that MinMacs wrote counts as "the deletes had begun".
         if (MMRecordFlag(parent.payload, @"finishing")) {
             // Every part had gone through and the deletes had begun: the worktree is gone, so they are finished.
+            for (MMUndoRecord *part in parts) (void)MMRemovalAdoptStranded(part, parent);
             int64_t freed = MMRemovalFinishStaged(parts);
             [MMUndo.shared finish:parent ok:YES freed:freed error:nil];
         } else {
@@ -189,9 +220,19 @@ NSInteger MMRemovalRecoverStaged(void) {
             // pending. Then what the removal parts moved, to the staging folder or to the Trash, goes back.
             for (MMUndoRecord *part in parts)
                 if (part.state == MMUndoPending) [MMUndo.shared finish:part ok:NO freed:0 error:@"MinMacs stopped before this part ended"];
+            // It stopped between a rename into the staging folder and the record, issue #75: the folder's own list
+            // names the item, and now its record does too, so it goes back with the rest.
+            for (MMUndoRecord *part in parts) (void)MMRemovalAdoptStranded(part, parent);
             NSString *notBack = MMRemovalPutBack(parts);
+            // The words say put back only of what went back. What still lies in its staging folder and no record
+            // names is said too, with where it waits.
+            NSMutableArray<NSString *> *except = [NSMutableArray new];
+            if (notBack) [except addObject:notBack];
+            NSArray<NSString *> *unnamed = Unnamed(parent, parts);
+            if (unnamed.count) [except addObject:[NSString stringWithFormat:@"%@ that no record names still wait%@ in MinMacs's staging folder: %@",
+                                                  Items(unnamed.count), unnamed.count == 1 ? @"s" : @"", [unnamed componentsJoinedByString:@", "]]];
             [MMUndo.shared finish:parent ok:NO freed:0 error:[NSString stringWithFormat:@"MinMacs stopped before this Wrap Up ended. What it had moved out of the worktree was put back%@",
-                                                             notBack ? [@", except: " stringByAppendingString:notBack] : @""]];
+                                                             except.count ? [@", except: " stringByAppendingString:[except componentsJoinedByString:@"; "]] : @""]];
         }
         recovered++;
     } @catch (NSException *e) {
@@ -216,15 +257,22 @@ NSInteger MMRemovalSweepStaged(NSArray<NSString *> **orphans) {
     NSMutableDictionary<NSString *, MMUndoRecord *> *all = [NSMutableDictionary new];
     NSMutableArray<MMUndoRecord *> *left = [NSMutableArray new];
     NSMutableSet<NSString *> *named = [NSMutableSet new];
-    for (MMUndoRecord *r in [MMUndo.shared recent:nil limit:5000]) {
-        all[r.rid] = r;
+    NSArray<MMUndoRecord *> *recent = [MMUndo.shared recent:nil limit:5000];
+    for (MMUndoRecord *r in recent) all[r.rid] = r;
+    for (MMUndoRecord *given in recent) {
+        MMUndoRecord *r = given;
         // Every record that cannot be read is named once, also one whose parent or kind cannot be read.
         if (r.damage) NameDamaged(r);
         NSString *folder = MMRecordString(r.payload, @"stagedIn");
         // A part whose body or lists cannot be read is not acted on, and its folder is no orphan.
         if (r.moveDamage) { if (folder) [named addObject:folder]; continue; }
         if (!r.parentRid.length) continue;
-        if (MMRecordList(r.payload, @"staged").count && (r.state == MMUndoDone || r.state == MMUndoFailed)) [left addObject:r];
+        BOOL ended = r.state == MMUndoDone || r.state == MMUndoFailed;
+        // An item its record never named though its Wrap Up ended, issue #75: the folder's own list names it, and
+        // the record does from now on, so it is settled as any staged item.
+        MMUndoRecord *parent = all[r.parentRid];
+        if (ended && parent && parent.state != MMUndoPending && MMRemovalAdoptStranded(r, parent)) r = [MMUndo.shared record:r.rid] ?: r;
+        if (MMRecordList(r.payload, @"staged").count && ended) [left addObject:r];
     }
     NSInteger settled = 0;
     for (MMUndoRecord *part in left) @try {
@@ -308,15 +356,7 @@ static NSArray<NSString *> *StillStaged(MMUndoRecord *r, NSArray<MMUndoRecord *>
             if (to.length && lstat(to.fileSystemRepresentation, &st) == 0) [at addObject:MMRemovalRealPath(to) ?: to];
         }
     }
-    NSMutableArray<NSString *> *folders = [NSMutableArray new];
-    NSString *support = MMRemovalRealPath(MMSupportDir()), *tree = MMRecordString(r.payload, @"path");
-    if (support) [folders addObject:[[support stringByAppendingPathComponent:@"staged"] stringByAppendingPathComponent:r.rid]];
-    if (tree.length > 1) [folders addObject:[tree.stringByDeletingLastPathComponent stringByAppendingPathComponent:[@".minmacs-staged-" stringByAppendingString:r.rid]]];
-    for (NSString *given in folders) {
-        NSString *folder = MMRemovalRealPath(given);
-        for (NSString *name in folder ? [NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:nil] : @[])
-            if (!MMRemovalStagingOwnName(name)) [at addObject:[folder stringByAppendingPathComponent:name]];
-    }
+    [at addObjectsFromArray:InFolders(r)];
     return [at.allObjects sortedArrayUsingSelector:@selector(compare:)];
 }
 
