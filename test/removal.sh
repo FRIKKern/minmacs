@@ -24,10 +24,14 @@ check "removal: the sweep and the person's delete of a waiting item delete only 
   "$(grep -c '(void)MMRemovalFinishStaged(@\[part\]);' Sources/Core/Act/MMRemovalRecover.m) $(grep -c 'int64_t got = FinishPart(r, stagedAt, &why);' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'return no ?: MMRemovalDeleteStagedItem(' Sources/Core/Act/MMRemovalWaiting.m)"
 check "removal: staging is one rename, and nothing in Act copies a person's file to stage it" "1 0" \
   "$(grep -c 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m) $(grep -cE '[^e]copyItemAt|clonefile|[^e]moveItemAt|copyfile' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: the staging folder's list names an item before the rename moves it, issue #75" yes \
+  "$(rm_note=$(grep -n 'MMRemovalStagingNoteItem(folder, to, real' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1); rm_mv=$(grep -n 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1)
+     [ -n "$rm_note" ] && [ -n "$rm_mv" ] && [ "$rm_note" -lt "$rm_mv" ] && echo yes || echo no)"
+check "removal: the staging folder's own files move and copy nothing" 0 "$(grep -cE 'rename\(|copyItemAt|moveItemAt|clonefile|copyfile|fileExistsAtPath' Sources/Core/Act/MMRemovalStaging.m)"
 check "removal: a crash is settled at Core's start and before the next Wrap Up, and the start also sweeps what was left staged" "1 1 1" \
   "$(grep -c 'MMRemovalRecoverStaged()' Sources/Core/MMCore.m) $(grep -c '(void)MMRemovalRecoverStaged();' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalSweepStaged(&orphans)' Sources/Core/MMCore.m)"
-check "removal: staging, finish, recovery, the sweep and the waiting list read a record only through the checked reader" "0 0 0" \
-  "$(grep -c 'payload\[@' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalRecover.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalWaiting.m)"
+check "removal: staging, finish, recovery, the sweep and the waiting list read a record only through the checked reader" "0 0 0 0" \
+  "$(grep -c 'payload\[@' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalRecover.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalWaiting.m) $(grep -c 'payload\[@' Sources/Core/Act/MMRemovalStaging.m)"
 check "removal: LocoHost's restore and restart read a stop's restart through the checked reader" 0 "$(grep -c 'payload\[@' Sources/Experts/LocoHost/MMLHCLI.m)"
 check "removal: the device number is recorded and never compared" 0 "$(grep -c 'st_dev [!=]=' Sources/Core/Act/MMUndo.m)"
 check "removal: a Wrap Up's record names the process that owns it" 1 "$(grep -c '@\"owner\": MMRemovalOwner()' Sources/Core/Act/MMWrapUp.m)"
