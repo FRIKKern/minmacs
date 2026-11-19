@@ -331,7 +331,9 @@ static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error) {
             // did not stage. A stop before this write, or a write that fails, leaves the id from the old place: the
             // item is then kept and listed, and MinMacs neither moves nor deletes it.
             NSDictionary *after = HeldAt(held, to);
-            if (after && ![after isEqualToDictionary:before]) (void)MMRemovalStagingNoteIdentity(folder, to.lastPathComponent, after);
+            // Only when the inode or the device is another. A volume UUID that read before and does not read now is
+            // no reason to write, and the entry never loses the one it had.
+            if (after && (![after[@"ino"] isEqual:before[@"ino"]] || ![after[@"dev"] isEqual:before[@"dev"]])) (void)MMRemovalStagingNoteIdentity(folder, to.lastPathComponent, after);
         }
         if (held >= 0) close(held);
     }

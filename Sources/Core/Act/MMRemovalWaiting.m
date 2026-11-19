@@ -28,7 +28,7 @@
     return @"its record is damaged";
 }
 - (NSString *)wasWords {
-    if (self.listedOldPath) return [NSString stringWithFormat:@"The list of its staging folder holds this name for another file, which was at %@. Where this one was, MinMacs cannot say.", self.listedOldPath];
+    if (self.listedOldPath) return [NSString stringWithFormat:@"The list of its staging folder holds this name for a file with another id, which was at %@. MinMacs cannot tell that this is that file.", self.listedOldPath];
     return [NSString stringWithFormat:@"was at %@.", self.oldPath ?: @"a place its record does not say"];
 }
 - (NSString *)whyWord { return @[@"delete-failed", @"old-path-taken", @"put-back-failed", @"damaged", @"no-wrap-up"][self.why]; }

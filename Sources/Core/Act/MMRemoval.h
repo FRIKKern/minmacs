@@ -185,8 +185,8 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
 @property (readonly, copy) NSString *itemID;            // "<part rid>:<its name in the staging folder>", for the CLI
 @property (readonly, copy) NSString *name;              // its own name, such as node_modules
 @property (readonly, copy) NSString *oldPath;           // where it was, or nil when the record does not say
-/// Set when the staging folder's list holds this name for another file than the one that waits there now: the old
-/// path of that other file. oldPath is nil then, since MinMacs cannot say where this one was.
+/// Set when the staging folder's list holds this name for a file with another id than the one that waits there now:
+/// the old path the list holds. oldPath is nil then, since MinMacs cannot tell that this is that file.
 @property (readonly, copy) NSString *listedOldPath;
 /// "was at <old path>.", or what the list holds instead, as one line for the CLI.
 @property (readonly, copy) NSString *wasWords;

@@ -35,6 +35,12 @@ static void Moved(void) {
     NSString *stagedAt = StagedTo(part), *folder = part.payload[@"stagedIn"];
     T(@"moved: after the rename the staging folder's list holds the id the file has at its new place", @"no yes",
       [NSString stringWithFormat:@"%@ %@", YN(Exists(env)), YN(InodeAt(stagedAt) != 0 && ListedInode(stagedAt) == InodeAt(stagedAt))]);
+    // A second write whose read gives no volume UUID keeps the one the entry had: it never comes to match by inode alone.
+    NSDictionary *(^listed)(void) = ^{ return MMRecordDict(ListOfFolder(folder), stagedAt.lastPathComponent); };
+    NSString *vol = MMRecordString(listed(), @"vol");
+    BOOL wrote = MMRemovalStagingNoteIdentity(folder, stagedAt.lastPathComponent, @{@"ino": @(InodeAt(stagedAt)), @"dev": MMRecordNumber(listed(), @"dev") ?: @0});
+    T(@"moved: a second write with no volume UUID keeps the one the list had", @"yes yes yes yes",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", YN(vol.length > 0), YN(wrote), YN([MMRecordString(listed(), @"vol") isEqualToString:vol ?: @""]), YN(ListedInode(stagedAt) == InodeAt(stagedAt))]);
     T(@"moved: a put-back brings it back to its old path, and its folder goes", @"nil KEEP=1 no",
       [NSString stringWithFormat:@"%@ %@ %@", Or(MMRemovalPutBack(@[part])), Read(env), YN(Exists(folder))]);
     [MMUndo.shared finish:wrapUp ok:NO freed:0 error:@"test"];
@@ -85,7 +91,7 @@ static void Moved(void) {
     T(@"moved, stopped before the second write: the listing does not give the list's old path as this file's own", @"nil|.env.local|yes",
       [NSString stringWithFormat:@"%@|%@|%@", Or(item.oldPath), item.name, YN([item.listedOldPath isEqualToString:env] && [item.json[@"listedOldPath"] isEqual:env] && item.json[@"oldPath"] == NSNull.null)]);
     T(@"moved, stopped before the second write: its line says so in plain words",
-      [NSString stringWithFormat:@"The list of its staging folder holds this name for another file, which was at %@. Where this one was, MinMacs cannot say.", env], item.wasWords);
+      [NSString stringWithFormat:@"The list of its staging folder holds this name for a file with another id, which was at %@. MinMacs cannot tell that this is that file.", env], item.wasWords);
     [fm removeItemAtPath:stagedAt error:nil];
     MMRemovalDropEmptyStagingFolder(folder, wrap);
 

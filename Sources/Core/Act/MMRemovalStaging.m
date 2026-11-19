@@ -60,7 +60,8 @@ BOOL MMRemovalStagingNoteIdentity(NSString *folder, NSString *name, NSDictionary
     NSMutableDictionary *entry = [MMRecordDict(all, name) mutableCopy];
     if (!entry || !MMRecordNumber(identity, @"ino")) return NO;
     // Where it was and which part staged it stay as they were written before the item moved.
-    [entry removeObjectsForKeys:@[@"ino", @"dev", @"vol"]];
+    // A volume UUID the entry had stays when the new read gives none, so the entry never comes to match by inode alone.
+    [entry removeObjectsForKeys:@[@"ino", @"dev"]];
     [entry addEntriesFromDictionary:identity];
     all[name] = entry;
     return WriteItems(folder, all);
