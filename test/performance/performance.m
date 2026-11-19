@@ -502,7 +502,7 @@ static void Bench(void) {
     T(@"bench: every build made the same fixes", @(6 * n), @(fixes));
 }
 
-#import "unmeasured.m"
+#import "unsized.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -514,7 +514,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"calm"]) Calm();
         else if ([mode isEqualToString:@"lookback"]) LookBack();
         else if ([mode isEqualToString:@"bench"]) Bench();
-        else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
+        else if ([mode isEqualToString:@"unmeasured"]) PerformanceUnmeasured();
         else return 2;
         printf("END\n");
     }

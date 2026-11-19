@@ -4,7 +4,7 @@
 // worktrees are not measured, one is measured at 10 GB, one is measured and holds nothing, and one folder is gone.
 // Only the first two may lack a number.
 
-static void Unmeasured(void) {
+static void PerformanceUnmeasured(void) {
     Busy();
     NSString *w1 = Dir(@"trees/w1"), *w2 = Dir(@"trees/w2"), *w3 = Dir(@"repo"), *w4 = Dir(@"trees/w4"), *w5 = Dir(@"trees/gone");
     Tree(w5, NO, MMMergedNone);

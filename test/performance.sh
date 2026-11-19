@@ -92,6 +92,27 @@ check "performance: the text prints memory and disk on their own lines" "1 1" \
 check "performance: the text has the look-back's numbers" 1 "$(printf '%s\n' "$pf_text" | grep -c '^Back .*this week memory .*today memory')"
 check "performance: the text claims no result and names no lid" "0 0" \
   "$(printf '%s\n' "$pf_text" | grep -ciE 'is clean|fine|nothing needs') $(printf '%s\n' "$pf_text" | grep -ciw lid)"
+# A worktree whose size is not measured yet, issue #76. One fixture repo with one worktree, read cold in a home of its
+# own: no walk of them has ended, so neither has a size. The verb printed their 0 as a reading nobody took.
+pf_code="$pf_dir/code"; pf_cold="$pf_dir/cold"
+mkdir -p "$pf_code" "$pf_cold"
+pf_git() { git -c user.name=Fixture -c user.email=fixture@example.com -c commit.gpgsign=false -c init.defaultBranch=main "$@"; }
+pf_git init -q "$pf_code/shop"
+( cd "$pf_code/shop" && echo one >a.txt && pf_git add -A && pf_git commit -qm first )
+pf_git -C "$pf_code/shop" worktree add -q -b wip "$pf_code/shop.worktrees/wip" main 2>/dev/null
+pf_un() { MINMACS_HOME="$pf_cold" MINMACS_ROOTS="$pf_code" MINMACS_COLD=1 GIT_CONFIG_NOSYSTEM=1 "$BIN" performance "$@" 2>/dev/null; }
+pf_unjson=$(pf_un --json)
+check "performance: --json holds null and measured false for a worktree not measured, never 0" "shop/wip:None:False shop:None:False" \
+  "$(printf '%s' "$pf_unjson" | json "' '.join(sorted('%s:%s:%s' % (r['name'], r['number'], r['measured']) for g in j['disk'] if g['group'] == 'worktrees' for r in g['rows']))")"
+check "performance: --json marks the ring's worktrees part as no total, and only it" "worktrees" \
+  "$(printf '%s' "$pf_unjson" | json "' '.join(p['group'] for p in j['ring']['memory']['parts'] + j['ring']['disk']['parts'] if p['partial'])")"
+check "performance: --json disk parts and other still add up to disk used" yes \
+  "$(printf '%s' "$pf_unjson" | json "'yes' if sum(p['bytes'] for p in j['ring']['disk']['parts']) == j['ring']['disk']['used'] else 'no'")"
+pf_untext=$(pf_un)
+check "performance: the text says measuring for worktrees not measured, and prints no number for them" "1 0" \
+  "$(printf '%s\n' "$pf_untext" | grep -c '^Disk .*: worktrees measuring, clutter ') $(printf '%s\n' "$pf_untext" | grep -cE 'worktrees (Zero|[0-9])')"
+check "performance: the words for a size not measured are the menu window's own" "3 0" \
+  "$(grep -cE 'MMWindowSumText\(|MMWindowBackText\(|#import "UI/Window/MMWindowModel.h"' Sources/CLI/MMPerformanceCLI.m) $(grep -cE '@"[^"]*(measuring|so far|or more|not measured)' Sources/CLI/MMPerformanceCLI.m Sources/Core/MMPerformance.m | awk -F: '{s+=$2} END {print s+0}')"
 MINMACS_HOME="$pf_home" "$BIN" performance extra >/dev/null 2>&1
 check "performance: a word after the verb is a usage error" 2 "$?"
 check "performance: help --json lists it as a verb that reads only" "False" \
