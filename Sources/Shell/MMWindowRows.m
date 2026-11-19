@@ -194,11 +194,10 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
     row.name = !f ? r.name ?: @"" : row.kind == MMWindowAgent ? AgentName(f, s) : MMWindowNameOf(f);
     row.needsYou = r.needsYou;
     if (r.unit == MMPerformanceTabs) row.tabs = (NSInteger)r.number; else row.bytes = r.number;
+    // A worktree whose size is not measured yet holds 0, which is no reading. The model's row says which, issue #76.
+    row.unmeasured = r.unmeasured;
     if (!f) return row;
     NSDictionary *x = f.facts;
-    // A worktree's size comes from a walk in the background. Until the first one ends its cost holds 0, which is no
-    // reading. A folder that is gone holds nothing, and that 0 is one.
-    if (row.kind == MMWindowWorktree && Num(x[@"sized"]) && ![x[@"sized"] boolValue] && ![Num(x[@"missing"]) boolValue]) row.unmeasured = YES;
     switch (row.kind) {
         case MMWindowServer: row.iconHint = Str(x[@"framework"]); break;
         case MMWindowAgent: row.iconHint = Str(x[@"harnessID"]); break;

@@ -99,13 +99,13 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
     // The fixes, in Fix Everything's order.
     NSMutableSet<NSString *> *inFix = [NSMutableSet new];
     NSMutableArray<MMWindowFix *> *fixes = [NSMutableArray new];
-    NSMutableDictionary<NSString *, MMWindowFix *> *fixOfRow = [NSMutableDictionary new];
     for (MMPerformanceFix *f in p.fixes) {
         MMWindowFix *x = [MMWindowFix new];
         x.key = f.key; x.title = MMWindowFixTitle(f);
         x.memoryBack = f.memoryBack; x.diskBack = f.diskBack; x.needsYou = f.needsYou;
+        // A fix that removes a thing not measured yet gives back more disk than its number holds, and says so.
+        x.diskPartial = f.diskPartial;
         [fixes addObject:x];
-        for (NSString *key in f.rows) fixOfRow[key] = x;
         // The mark says a press on Fix Everything acts on the row, so a fix that waits for its own press marks none.
         if (!f.needsYou) [inFix addObjectsFromArray:f.rows];
     }
@@ -121,9 +121,6 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
     m.diskGroups = @[
         Group(MMPerformanceWorktrees, @"Worktrees", extras.worktreesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceWorktrees], s, inFix),
         Group(kCaches, @"Caches", extras.cachesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceClutter], s, inFix)];
-
-    // A fix that removes a thing not measured yet gives back more disk than its number holds, and says so.
-    for (MMWindowGroup *g in m.diskGroups) for (MMWindowRow *r in g.rows) if (r.unmeasured) fixOfRow[r.key].diskPartial = YES;
 
     // What came back today, two numbers, for the dock when there is nothing to fix.
     m.memoryBackToday = p.lookBack.todayMemory; m.diskBackToday = p.lookBack.todayDisk;

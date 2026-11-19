@@ -2,7 +2,7 @@
 // Every fact is a fixture: a fake sample, fake worktrees, git facts, sessions and agents, and five fake experts whose
 // findings, policies and actions are data. No action runs, no process starts, and the only folders it reads are the
 // ones it made inside $MINMACS_HOME. The gains rows go to the table in $MINMACS_HOME.
-// Usage: performance <fixture dir> model | calm | lookback | bench
+// Usage: performance <fixture dir> model | calm | lookback | bench | unmeasured
 // Prints one line per check, CHECK<tab>name<tab>want<tab>got, or info<tab>text.
 #import <mach/mach.h>
 #import "Core/MMCore.h"
@@ -327,7 +327,7 @@ static void Model(void) {
         for (MMPerformanceGroup *g in [p.memoryGroups arrayByAddingObjectsFromArray:p.diskGroups]) [n addObject:@(g.rows.count)];
         [n componentsJoinedByString:@" "]; }));
     BOOL sorted = YES, one = YES;
-    NSSet *rowKeys = [NSSet setWithArray:@[@"expert", @"findingID", @"group", @"key", @"name", @"needsYou", @"number", @"unit"]];
+    NSSet *rowKeys = [NSSet setWithArray:@[@"expert", @"findingID", @"group", @"key", @"measured", @"name", @"needsYou", @"number", @"unit"]];
     for (MMPerformanceGroup *g in [p.memoryGroups arrayByAddingObjectsFromArray:p.diskGroups]) {
         for (NSUInteger i = 1; i < g.rows.count; i++) if (g.rows[i - 1].number < g.rows[i].number) sorted = NO;
         for (MMPerformanceRow *r in g.rows) {
@@ -502,9 +502,11 @@ static void Bench(void) {
     T(@"bench: every build made the same fixes", @(6 * n), @(fixes));
 }
 
+#import "unsized.m"
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: performance <dir> model|calm|lookback|bench\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: performance <dir> model|calm|lookback|bench|unmeasured\n"); return 2; }
         gDir = @(argv[1]);
         Register();
         NSString *mode = @(argv[2]);
@@ -512,6 +514,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"calm"]) Calm();
         else if ([mode isEqualToString:@"lookback"]) LookBack();
         else if ([mode isEqualToString:@"bench"]) Bench();
+        else if ([mode isEqualToString:@"unmeasured"]) PerformanceUnmeasured();
         else return 2;
         printf("END\n");
     }
