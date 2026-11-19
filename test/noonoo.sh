@@ -102,7 +102,10 @@ nn_T="$nnr/private/var/folders/ab/cdef/T"
 for s in a1B2c3 d4E5f6 g7H8i9 j1K2l3 m4N5o6 p7Q8r9; do mkdir -p "$nn_T/mv-test-$s"; printf 'x\n' >"$nn_T/mv-test-$s/f"; done
 for s in a1B2c3 d4E5f6 g7H8i9 j1K2l3 m4N5o6 p7Q8r9; do mkdir -p "$nn_T/com.apple.launchd.$s"; done
 for s in a1B2c3 d4E5f6 g7H8i9 j1K2l3 m4N5o6; do mkdir -p "$nn_T/fresh-run-$s"; done
-nn_old "$nn_T"/mv-test-* "$nn_T"/com.apple.launchd.*
+# Issue #86: five folders named after a port are a family, and five with a 3-digit tail are not.
+for s in 9391 9392 9393 9394 9395; do mkdir -p "$nn_T/dev-chrome-$s"; printf 'x\n' >"$nn_T/dev-chrome-$s/f"; done
+for s in 101 102 103 104 105; do mkdir -p "$nn_T/build-out-$s"; printf 'x\n' >"$nn_T/build-out-$s/f"; done
+nn_old "$nn_T"/mv-test-* "$nn_T"/com.apple.launchd.* "$nn_T"/dev-chrome-* "$nn_T"/build-out-*
 nn_clone="$nnr/private/var/folders/ab/cdef/X/com.google.Chrome.code_sign_clone/code_sign_clone.Ab12Cd"
 mkdir -p "$nn_clone/Contents"; printf 'bin\n' >"$nn_clone/Contents/Chrome"
 mkdir -p "$nnr/System/Library/Caches"; printf 'sys\n' >"$nnr/System/Library/Caches/x"
@@ -145,6 +148,9 @@ if [ "$nn_r" = 0 ]; then
   check "noonoo: six old mktemp siblings are one family leftover" "leftovers 6" \
     "$(nn_item "$nn_T/mv-test-*" section) $(nn_item "$nn_T/mv-test-*" members)"
   check "noonoo: com.apple. siblings never form a family" absent "$(nn_item "$nn_T/com.apple.launchd.*" section)"
+  check "noonoo: five old folders named after a port are one family leftover" "leftovers 5" \
+    "$(nn_item "$nn_T/dev-chrome-*" section) $(nn_item "$nn_T/dev-chrome-*" members)"
+  check "noonoo: a 3-digit tail is no suffix, so those five form no family" absent "$(nn_item "$nn_T/build-out-*" section)"
   check "noonoo: a family written just now stays" "kept" "$(nn_item "$nn_T/fresh-run-*" section)"
   check "noonoo: a Chrome code-sign clone nothing holds open is a leftover" leftovers "$(nn_item "$nn_clone" section)"
   check "noonoo: Claude Code transcripts are data, kept with their owner's setting" "kept data" \
@@ -192,7 +198,7 @@ if [ "$nn_r" = 0 ]; then
   printf '%s\n' "$nn_main/node_modules" "$nn_wt/.next" "$nn_wt/node_modules" "$nnh/.npm/_cacache" \
     "$nnh/Library/Application Support/Cursor/Cache" "$nnh/Library/Caches/pip" "$nn_dev" "$nn_scr/$nn_dead" "$nn_scr/$nn_live" \
     "$nn_scr/$nn_dead/scratchpad/run" "$nn_scr/$nn_live/scratchpad/new" "$nn_clone" \
-    $(cd "$nn_T" && ls -d fresh-run-* mv-test-* | sed "s|^|$nn_T/|") | LC_ALL=C sort >"$nn/expected.txt"
+    $(cd "$nn_T" && ls -d dev-chrome-* fresh-run-* mv-test-* | sed "s|^|$nn_T/|") | LC_ALL=C sort >"$nn/expected.txt"
   check "noonoo: the walls let through exactly the listed leaves" "" "$(LC_ALL=C sort "$nn/allowed.txt" | diff - "$nn/expected.txt" | tr '\n' ' ')"
   nn_before=$(find "$nnr" "$nn/code" | LC_ALL=C sort | md5 -q)
   for p in "$nnh" "$nnh/Documents" "$nnr/System/Library/Caches/x" "$nnh/Library/Caches/random-app" "$nnh/Library/Caches/pip/docs-link" \
