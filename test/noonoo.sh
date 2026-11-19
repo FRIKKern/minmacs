@@ -432,6 +432,31 @@ NNROW
   check "noonoo: no fixture sleeper of this run is left" 0 "$(pgrep -f "$nnx_sleeper" | grep -c .)"
   nn_rowdirs=""
   check "noonoo: the files the slow tool never reached stay" 2 "$(nnx_files cache)"
+  echo "-- with no app, the CLI reads the checkouts the app does, issue #85"
+  # The real binary, cold, with a home of its own inside this section's folder: a fixture repo under MINMACS_ROOTS that
+  # holds node_modules and .next, and a clutter root with nothing in it. It scans and reads only, and removes nothing.
+  nnc="$nn/cold"; nnc_repo="$nnc/code/acme"
+  mkdir -p "$nnc/root/home" "$nnc/claude" "$nnc/codex" "$nnc_repo/node_modules/left-pad" "$nnc_repo/.next/cache"
+  printf '{"name":"acme"}\n' >"$nnc_repo/package.json"; printf '{"lockfileVersion": 3}\n' >"$nnc_repo/package-lock.json"
+  printf 'module.exports = {}\n' >"$nnc_repo/next.config.js"; printf 'node_modules\n.next\n' >"$nnc_repo/.gitignore"
+  printf 'x\n' >"$nnc_repo/node_modules/left-pad/index.js"; printf 'p\n' >"$nnc_repo/.next/cache/page.html"
+  (cd "$nnc_repo" && nn_git init -q . && nn_git add -A && nn_git commit -qm init)
+  nnc_bin() { MINMACS_HOME="$nnc" MINMACS_COLD=1 MINMACS_ROOTS="$nnc/code" MINMACS_CLUTTER_ROOT="$nnc/root" \
+              MINMACS_CLUTTER_ROWS="$ROOT/registry/clutter" MINMACS_TOOLS="$nn/tools" CLAUDE_CONFIG_DIR="$nnc/claude" \
+              CODEX_HOME="$nnc/codex" GIT_CONFIG_NOSYSTEM=1 "$BIN" "$@"; }
+  nnc_kinds() { nnc_bin clutter list --json 2>/dev/null | python3 -c "
+import json,sys; j=json.load(sys.stdin)
+print(' '.join(sorted(i['kindID'] for i in j['items'] if i['path'].startswith(sys.argv[1]))) or 'none')" "$nnc_repo"; }
+  check "noonoo: cold, node_modules in a checkout is on its row" "0 yes" \
+    "$(nnc_bin clutter check "$nnc_repo/node_modules" >"$nnc/check.txt" 2>&1; echo $?) $(grep -q 'the node_modules row lists it' "$nnc/check.txt" && echo yes || echo no)"
+  check "noonoo: cold, a folder outside every checkout is on no row" "1 yes" \
+    "$(mkdir -p "$nnc/loose/node_modules"; nnc_bin clutter check "$nnc/loose/node_modules" >"$nnc/loose.txt" 2>&1; echo $?) $(grep -q 'no clutter row lists it' "$nnc/loose.txt" && echo yes || echo no)"
+  nnc_bin clutter scan >/dev/null 2>&1
+  check "noonoo: cold, the scan finds the checkout's build folders" "next-build node-modules" "$(nnc_kinds)"
+  check "noonoo: cold, status counts the items of the last scan" yes \
+    "$(nnc_bin status 2>/dev/null | grep 'Noo-Noo' | grep -q ' 2 items' && echo yes || echo no)"
+  check "noonoo: cold, the scan left both folders in place" yes "$([ -f "$nnc_repo/node_modules/left-pad/index.js" ] && [ -f "$nnc_repo/.next/cache/page.html" ] && echo yes || echo no)"
+
   # The removal choice, issue #62, on this section's fixtures. It runs last, since it deletes them.
   . ./test/noonoo/removal.sh
 fi

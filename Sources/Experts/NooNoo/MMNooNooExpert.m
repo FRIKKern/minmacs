@@ -507,6 +507,13 @@ static void RunOffMain(dispatch_block_t block) {
     return [MMSnapshot snapshotFrom:facts experts:@[self] reviews:r ? @{kExpert: r} : @{} holds:nil];
 }
 
+/// The snapshot a verb reads. Issue #85: with no app and no source, the CLI's cold facts, so the worktrees and their
+/// git facts are there and a build folder knows its owner. A test tool sets a source of its own and keeps it.
+- (MMSnapshot *)snapshotFor:(MMArgs *)a {
+    if (MMGraph.shared.latest || MMGraph.shared.source) return [self snapshotNow];
+    return a.snapshot ?: [self snapshotNow];
+}
+
 #pragma mark Menu
 
 - (MMNNRow *)rowFor:(MMFinding *)f {
@@ -648,7 +655,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
         else [a print:@"Noo-Noo scanned every row and found %@", MMPlural((NSInteger)c.items.count, @"item")];
         return MMExitOK;
     }
-    MMSnapshot *s = [self snapshotNow];
+    MMSnapshot *s = [self snapshotFor:a];
     NSArray<MMFinding *> *fs = [s findingsFor:kExpert];
     if ([sub isEqualToString:@"trends"]) {
         NSMutableArray *out = [NSMutableArray new];
@@ -719,7 +726,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
         return MMExitOK;
     }
     if ([a has:@"--command"]) return [self commandVerb:a];
-    MMSnapshot *s = [self snapshotNow];
+    MMSnapshot *s = [self snapshotFor:a];
     NSArray<MMFinding *> *ts = [self targets:a.words args:a in:s];
     if (!ts.count) {
         // A path no finding names still gets the walls' answer, so a refusal always says why.
@@ -765,7 +772,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
 /// clean <id|path|row> --command: the row's own cleanup command, for good. --dry-run runs only its dry-run form and
 /// says what it would free. Without it the command runs in the app, by "cli", after the dry run.
 - (int)commandVerb:(MMArgs *)a {
-    MMSnapshot *s = [self snapshotNow];
+    MMSnapshot *s = [self snapshotFor:a];
     NSArray<MMFinding *> *ts = [self targets:a.words args:a in:s];
     if (!ts.count) { [a error:@"noonoo: nothing matches %@", [a word:0] ?: @""]; return MMExitFailed; }
     NSMutableArray *j = [NSMutableArray new];
@@ -809,9 +816,12 @@ static NSDictionary *ItemJSON(MMFinding *f) {
 
 - (NSArray<MMVerbSpec *> *)verbs {
     __weak MMNooNooExpert *me = self;
+    MMVerbSpec *clutter = [MMVerbSpec verb:@"clutter" usage:@"clutter [list | show <id|path> | trends | check <path> | scan] [--json] [--dry-run]" mutates:NO
+                                       run:^int(MMArgs *a) { return [me clutter:a]; }];
+    // Issue #85. With no app it walks the roots for the checkouts and takes the git facts the cache holds, as the menu does.
+    clutter.reads = MMVerbReadsCachedGit;
     return @[
-        [MMVerbSpec verb:@"clutter" usage:@"clutter [list | show <id|path> | trends | check <path> | scan] [--json] [--dry-run]" mutates:NO
-                     run:^int(MMArgs *a) { return [me clutter:a]; }],
+        clutter,
         [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]   removes clutter as the removal choice says, to the Trash with undo or deleted at once, or with --command runs the row's own cleanup, which cannot be undone" mutates:YES
                      run:^int(MMArgs *a) { return [me cleanVerb:a]; }],
     ];
