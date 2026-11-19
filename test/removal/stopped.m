@@ -167,3 +167,6 @@ static void Stopped(void) {
     MMRemovalDropEmptyStagingFolder(folder, wrap);
     unsetenv("MINMACS_STAGE_RECOVER_AFTER");
 }
+
+// A volume that gives a file another id after the rename, issue #79.
+#import "moved.m"

@@ -185,6 +185,11 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
 @property (readonly, copy) NSString *itemID;            // "<part rid>:<its name in the staging folder>", for the CLI
 @property (readonly, copy) NSString *name;              // its own name, such as node_modules
 @property (readonly, copy) NSString *oldPath;           // where it was, or nil when the record does not say
+/// Set when the staging folder's list holds this name for another file than the one that waits there now: the old
+/// path of that other file. oldPath is nil then, since MinMacs cannot say where this one was.
+@property (readonly, copy) NSString *listedOldPath;
+/// "was at <old path>.", or what the list holds instead, as one line for the CLI.
+@property (readonly, copy) NSString *wasWords;
 @property (readonly, copy) NSString *stagedAt;          // where it waits now
 @property (readonly) int64_t bytes;                     // what it takes on the disk
 @property (readonly) MMRemovalWaitWhy why;
@@ -260,6 +265,13 @@ NSDictionary *MMRemovalStagingItems(NSString *folder);
 /// Writes into the folder's list that the item to be at to was at from, staged by the part rid, with its identity.
 /// NO, and nothing written over, when something else holds that name or the list cannot be read.
 BOOL MMRemovalStagingNoteItem(NSString *folder, NSString *to, NSString *from, NSString *rid, NSDictionary *identity);
+/// After the rename, issue #79: writes the identity the item has at its new place into the entry the list holds
+/// under name. Its "from" and "part" stay. NO when the list has no such entry or cannot be written.
+BOOL MMRemovalStagingNoteIdentity(NSString *folder, NSString *name, NSDictionary *identity);
+/// For the waiting list: the old path the folder's list holds under the name of the file at stagedAt, when the list
+/// means another file than the one that is there now, by inode and volume UUID. Then that old path is not this
+/// file's own. nil when the file is the one the list names, or the list does not say.
+NSString *MMRemovalStagingListsAnother(NSString *stagedAt);
 /// Takes name out of the folder's list again, when the rename it was written for did not happen.
 void MMRemovalStagingForgetItem(NSString *folder, NSString *name);
 /// YES when folder holds the marker MinMacs wrote for this rid: a plain file of ours that says the rid.

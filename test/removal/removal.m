@@ -355,6 +355,7 @@ int main(int argc, char **argv) {
         Unasked();
         TrashRule();
         Stopped();
+        Moved();
         printf("END\n");
     }
     return 0;

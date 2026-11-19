@@ -275,6 +275,15 @@ static NSString *StagingFolder(NSString *real, MMUndoRecord *record, NSString **
     return folder;
 }
 
+/// The identity of the item at to when it is the very file held open since before the rename, else nil: the open
+/// file says which id it has now, and the item at to must have that one.
+static NSDictionary *HeldAt(int held, NSString *to) {
+    struct stat h;
+    NSDictionary *now = held >= 0 && fstat(held, &h) == 0 ? MMFileIdentity(to) : nil;
+    if (!now || [now[@"ino"] unsignedLongLongValue] != (unsigned long long)h.st_ino || [now[@"dev"] longLongValue] != (long long)h.st_dev) return nil;
+    return now;
+}
+
 /// One rename into the staging folder. When that cannot be, the item stays where it is, listed as "unstaged": it is
 /// never copied and never deleted here, and the part goes on. git then takes it with the worktree or refuses.
 static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error) {
@@ -287,10 +296,20 @@ static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error) {
         NSUInteger n = MMRecordList(record.payload, @"staged").count;
         do { to = [folder stringByAppendingPathComponent:[NSString stringWithFormat:@"%lu.%@", (unsigned long)n++, real.lastPathComponent]]; } while (lstat(to.fileSystemRepresentation, &(struct stat){0}) == 0);
         // The folder's own list says where it was and which part staged it, and says so before the item moves, issue
-        // #75: a stop at any moment leaves the item where it was, or in the folder and named there. The very file, its
-        // inode and its volume's UUID, is the same after a rename on its own volume. An item the list cannot name
-        // could never be put back or deleted by MinMacs, so it does not move.
-        if (!MMRemovalStagingNoteItem(folder, to, real, record.rid, MMFileIdentity(real) ?: @{@"ino": @(st.st_ino), @"dev": @(st.st_dev)})) {
+        // #75: a stop at any moment leaves the item where it was, or in the folder and named there. An item the list
+        // cannot name could never be put back or deleted by MinMacs, so it does not move. The item is held open across
+        // the rename, a link as the link it is, so the file at the new place can be told to be this very one.
+        int held = open(real.fileSystemRepresentation, O_EVTONLY | O_SYMLINK | O_CLOEXEC);
+        NSDictionary *before = MMFileIdentity(real) ?: @{@"ino": @(st.st_ino), @"dev": @(st.st_dev)};
+#ifdef MM_TESTS
+        // A check has the list hold another id before the rename, as a volume that gives a moved file a new id would.
+        if (getenv("MINMACS_TEST_ID_MOVES_ON_RENAME") && MMRemovalTestHome()) {
+            NSMutableDictionary *other = [before mutableCopy];
+            other[@"ino"] = @(st.st_ino + 1);
+            before = other;
+        }
+#endif
+        if (!MMRemovalStagingNoteItem(folder, to, real, record.rid, before)) {
             why = @"its staging folder's list could not be written"; to = nil;
         }
         // rename(2) never copies: across volumes it fails, and the item stays. Its line in the list goes again.
@@ -298,11 +317,23 @@ static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error) {
             why = [NSString stringWithFormat:@"it could not move to the staging folder: %s", strerror(errno)];
             MMRemovalStagingForgetItem(folder, to.lastPathComponent);
             to = nil;
-        }
+        } else {
 #ifdef MM_TESTS
-        // A check stops MinMacs here, as a crash would, between the rename and the record.
-        else if (getenv("MINMACS_TEST_STOP_AFTER_RENAME") && MMRemovalTestHome()) _exit(0);
+            // A check stops MinMacs here, as a crash would, between the rename and the record.
+            if (getenv("MINMACS_TEST_STOP_AFTER_RENAME") && MMRemovalTestHome()) _exit(0);
+            // Or puts a fixture of its own in the item's place, as another process could right after the rename.
+            const char *swap = MMRemovalTestHome() ? getenv("MINMACS_TEST_SWAP_AFTER_RENAME") : NULL;
+            if (swap) (void)rename(swap, to.fileSystemRepresentation);
 #endif
+            // Issue #79: a volume may give the file another id where it lies now, as msdosfs does for an empty file.
+            // Put-back and the delete believe only the list, so the list gets the id read at the new place. Only for
+            // the very file held open since before the rename, HeldAt, so the list never comes to name a file MinMacs
+            // did not stage. A stop before this write, or a write that fails, leaves the id from the old place: the
+            // item is then kept and listed, and MinMacs neither moves nor deletes it.
+            NSDictionary *after = HeldAt(held, to);
+            if (after && ![after isEqualToDictionary:before]) (void)MMRemovalStagingNoteIdentity(folder, to.lastPathComponent, after);
+        }
+        if (held >= 0) close(held);
     }
     @synchronized (MMUndo.shared) {
         if (to) {
