@@ -37,15 +37,16 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 @property (readwrite) MMPerformanceSide side;
 @property (readwrite) uint64_t number;
 @property (readwrite) MMPerformanceUnit unit;
-@property (readwrite) BOOL needsYou;
+@property (readwrite) BOOL needsYou, unmeasured;
 @property (readwrite) MMFinding *finding;
 @end
 
 @implementation MMPerformanceRow
 - (NSDictionary *)json {
     return @{@"key": self.key ?: @"", @"findingID": self.findingID ?: @"", @"expert": self.expert ?: @"", @"group": self.group ?: @"",
-             @"name": self.name ?: @"", @"number": @(self.number), @"unit": self.unit == MMPerformanceTabs ? @"tabs" : @"bytes",
-             @"needsYou": @(self.needsYou)};
+             // A number not measured yet is null, never 0.
+             @"name": self.name ?: @"", @"number": self.unmeasured ? NSNull.null : @(self.number), @"measured": self.unmeasured ? @NO : @YES,
+             @"unit": self.unit == MMPerformanceTabs ? @"tabs" : @"bytes", @"needsYou": @(self.needsYou)};
 }
 @end
 
@@ -57,6 +58,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 @end
 
 @implementation MMPerformanceGroup
+- (NSInteger)unmeasured { NSInteger n = 0; for (MMPerformanceRow *r in self.rows) if (r.unmeasured) n++; return n; }
 - (NSDictionary *)json {
     NSMutableArray *rows = [NSMutableArray arrayWithCapacity:self.rows.count];
     for (MMPerformanceRow *r in self.rows) [rows addObject:r.json];
@@ -71,6 +73,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 @property (readwrite) uint64_t total, used, cut;
 @property (readwrite) NSDictionary<NSString *, NSNumber *> *parts;
 @property (readwrite) NSArray<NSString *> *order;
+@property (readwrite) NSSet<NSString *> *partial;
 @end
 
 @implementation MMPerformanceSideRing
@@ -92,7 +95,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 }
 - (NSDictionary *)json {
     NSMutableArray *parts = [NSMutableArray new];
-    for (NSString *k in self.order) [parts addObject:@{@"group": k, @"bytes": self.parts[k] ?: @0}];
+    for (NSString *k in self.order) [parts addObject:@{@"group": k, @"bytes": self.parts[k] ?: @0, @"partial": @([self.partial containsObject:k])}];
     return @{@"total": @(self.total), @"used": @(self.used), @"parts": parts, @"cut": @(self.cut)};
 }
 @end
@@ -103,7 +106,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 @property (readwrite, copy) NSString *key, *kind, *expert;
 @property (readwrite) uint64_t memoryBack, diskBack;
 @property (readwrite) NSArray<NSString *> *rows;
-@property (readwrite) BOOL needsYou;
+@property (readwrite) BOOL needsYou, diskPartial;
 @property (readwrite) double share;
 @property (readwrite) MMWrapUpPlan *wrapUp;
 @property (readwrite) NSArray<id<MMAction>> *actions;
@@ -115,7 +118,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
     NSMutableArray *ids = [NSMutableArray new];
     for (id<MMAction> a in self.actions) [ids addObject:a.finding.findingID ?: @""];
     return @{@"key": self.key ?: @"", @"kind": self.kind ?: @"", @"expert": self.expert ?: @"", @"memoryBack": @(self.memoryBack),
-             @"diskBack": @(self.diskBack), @"rows": self.rows ?: @[], @"needsYou": @(self.needsYou), @"share": @(self.share),
+             @"diskBack": @(self.diskBack), @"diskBackPartial": @(self.diskPartial), @"rows": self.rows ?: @[], @"needsYou": @(self.needsYou), @"share": @(self.share),
              @"wrapUp": self.wrapUp ? self.wrapUp.subject.path ?: @"" : NSNull.null, @"actions": ids};
 }
 @end
@@ -220,12 +223,20 @@ static MMPerformanceRow *RowFor(MMFinding *f, NSString *group, MMPerformanceSide
         id urls = f.facts[@"urls"];
         r.number = [urls isKindOfClass:NSArray.class] ? [urls count] : 0; r.unit = MMPerformanceTabs;
     } else r.number = side == MMPerformanceMemory ? f.cost.ramBytes : f.cost.diskFreed;
+    // A worktree's size comes from a walk in the background. Until the first one ends its cost holds 0, which is no
+    // reading. A folder that is gone holds nothing, and that 0 is one. A finding with no sized fact keeps its number.
+    if ([group isEqualToString:MMPerformanceWorktrees]) {
+        id sized = f.facts[@"sized"], gone = f.facts[@"missing"];
+        r.unmeasured = [sized isKindOfClass:NSNumber.class] && ![sized boolValue] && !([gone isKindOfClass:NSNumber.class] && [gone boolValue]);
+    }
     return r;
 }
 
-/// Biggest number first, then by key, so the order holds between builds.
+/// Biggest number first, then by key, so the order holds between builds. A row not measured yet has no number to
+/// sort by and comes after the rest.
 static NSArray<MMPerformanceRow *> *Sorted(NSArray<MMPerformanceRow *> *rows) {
     return [rows sortedArrayUsingComparator:^NSComparisonResult(MMPerformanceRow *a, MMPerformanceRow *b) {
+        if (a.unmeasured != b.unmeasured) return a.unmeasured ? NSOrderedDescending : NSOrderedAscending;
         if (a.number != b.number) return a.number > b.number ? NSOrderedAscending : NSOrderedDescending;
         return [a.key compare:b.key];
     }];
@@ -410,10 +421,16 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
         for (MMPerformanceRow *c in groups[MMPerformanceClutter]) if (PathIn(c.finding.path, t.finding.path)) inside += c.number;
         trees += t.number > inside ? t.number - inside : 0;
     }
+    // A worktree not measured yet adds nothing above, so the part is of the measured ones only.
+    NSMutableSet<NSString *> *partial = [NSMutableSet new];
+    for (MMPerformanceGroup *g in dg) if (g.unmeasured) [partial addObject:g.key];
     MMPower *power = facts.power;
     uint64_t dt = power.diskTotal, df = MIN(power.diskFree, dt);
     m.disk = [MMPerformanceSideRing side:MMPerformanceDisk total:dt used:dt - df order:DiskOrder()
                                    bytes:@{MMPerformanceWorktrees: @(trees), MMPerformanceClutter: @(clutter)}];
+    m.disk.partial = partial;
+    // A fix that removes a thing not measured yet gives back more disk than its number holds.
+    for (MMPerformanceFix *x in fixes) for (NSString *k in x.rows) if (byKey[k].unmeasured) x.diskPartial = YES;
 
     // The order: the larger share of what comes back, memory and disk apart.
     double mw = PressureWeight(power), dw = df < 100ull * 1000 * 1000 * 1000 ? 3 : 1;

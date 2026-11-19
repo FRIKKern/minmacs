@@ -43,7 +43,12 @@ NSInteger MMPerformanceFold(NSString *group);
 @property (readonly, copy) NSString *name;              // the finding's title
 @property (readonly) MMPerformanceSide side;
 /// The one number. Memory rows: the finding's cost.ramBytes. Disk rows: cost.diskFreed. Tabs rows: the tabs.
+/// While unmeasured is YES it holds 0, which is no reading: nothing may show it or count it as one.
 @property (readonly) uint64_t number;
+/// YES for a worktree whose size is not measured yet: its finding's fact sized is NO and its folder is not missing.
+/// A worktree's size comes from a walk in the background, and until the first one ends its cost holds 0. A measured 0
+/// and a folder that is gone are readings. Every other row is measured.
+@property (readonly) BOOL unmeasured;
 @property (readonly) MMPerformanceUnit unit;
 /// YES for an agent whose state is waiting on the person, from MMAgent.state.
 @property (readonly) BOOL needsYou;
@@ -53,12 +58,14 @@ NSInteger MMPerformanceFold(NSString *group);
 - (NSDictionary *)json;
 @end
 
-/// One group of rows, biggest number first.
+/// One group of rows, biggest number first. A row that is not measured has no number to sort by and comes last.
 @interface MMPerformanceGroup : NSObject
 @property (readonly, copy) NSString *key;
 @property (readonly) MMPerformanceSide side;
 @property (readonly) NSInteger fold;
 @property (readonly) NSArray<MMPerformanceRow *> *rows;
+/// How many of the rows are not measured yet. Above 0, a sum of the rows' numbers is of the measured ones only.
+@property (readonly) NSInteger unmeasured;
 - (NSDictionary *)json;
 @end
 
@@ -79,6 +86,9 @@ NSInteger MMPerformanceFold(NSString *group);
 @property (readonly) NSDictionary<NSString *, NSNumber *> *parts;   // group key to bytes, other included
 @property (readonly) NSArray<NSString *> *order;        // the part keys in ring order, other last
 @property (readonly) uint64_t cut;
+/// The part keys that hold a row not measured yet. Such a part counts its measured rows only, so it is no total, and
+/// what it lacks sits in other.
+@property (readonly) NSSet<NSString *> *partial;
 - (NSDictionary *)json;
 @end
 
@@ -94,6 +104,9 @@ NSInteger MMPerformanceFold(NSString *group);
 /// Disk back: what deleting frees, cost.diskFreed, or a Wrap Up plan's freedBytes, which counts a cache inside its
 /// worktree once.
 @property (readonly) uint64_t diskBack;
+/// YES when a row it touches is not measured yet. Then it gives back more disk than diskBack holds, and a diskBack
+/// of 0 is no reading.
+@property (readonly) BOOL diskPartial;
 /// The row keys it touches, each one a row of a group.
 @property (readonly) NSArray<NSString *> *rows;
 /// YES when it runs only on the person's press, as a tool's own cleanup with no undo does.

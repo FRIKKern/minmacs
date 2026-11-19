@@ -36,6 +36,8 @@ if [ "$pf_r" = 0 ]; then
   pf_run lookback
   echo "-- the calm state, with the look-back's rows in the table"
   pf_run calm
+  echo "-- a worktree whose size is not measured yet"
+  pf_run unmeasured
   echo "-- what one build costs"
   pf_run bench
   # docs/2.0/BENCH.md, section The Performance model, has the number. The ceiling is ten times it, for a loaded Mac.
@@ -59,8 +61,9 @@ pf_strings="$(pf_has LocoHost/MMLocoHost.m 'kExpert = @"locohost"' 'kind:@"serve
   pf_has MinMacs/MMMinMacsExpert.m 'kExpert = @"minmacs"' 'kind:@"agent"' 'kind:@"app"' 'verb:@"quit"'
   pf_has MinMacs/MMMinMacsWrapUp.m 'kind:@"helper"' 'kind:@"tabs"' '@"urls": urls'
   pf_has WorkForest/MMWorkForest.m 'kExpert = @"workforest"' 'kind:@"worktree"' 'verb:@"remove"'
+  pf_has WorkForest/MMWFTree.m '@"sized": @(self.sized)' '@"missing": @(self.missing)'
   pf_has NooNoo/MMNooNooExpert.m 'kExpert = @"noonoo"' 'kKind = @"clutter"' 'verb:@"clean"' 'verb:@"remove"')"
-check "performance: the experts still give the kinds and verbs the model reads" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${pf_strings% }"
+check "performance: the experts still give the kinds and verbs the model reads" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${pf_strings% }"
 check "performance: the model claims no result in words" 0 \
   "$(grep -ciE 'is clean|everything is fine|nothing needs you|all good' Sources/Core/MMPerformance.m Sources/CLI/MMPerformanceCLI.m | awk -F: '{s+=$2} END {print s+0}')"
 
