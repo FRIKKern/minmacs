@@ -62,7 +62,7 @@ static BOOL ReadableAt(NSString *path, NSArray<NSString *> *roots) {
 #pragma mark - Worktrees
 
 @interface MMWorktree ()
-@property (readwrite, copy) NSString *path, *repo, *branch, *lockReason, *makerSession;
+@property (readwrite, copy) NSString *path, *realPath, *repo, *branch, *lockReason, *makerSession;
 @property (readwrite) BOOL isMain, locked, missing;
 @property (readwrite) MMWorktreeMaker maker;
 @end
@@ -81,6 +81,8 @@ static MMWorktreeMaker MakerOf(NSString *path) {
 + (instancetype)path:(NSString *)path repo:(NSString *)repo branch:(NSString *)branch locked:(BOOL)locked {
     MMWorktree *w = [MMWorktree new];
     w.path = path; w.repo = repo; w.branch = branch; w.locked = locked;
+    char real[PATH_MAX];   // once per checkout, on the queue that stores it: the walk's reply, a read of .git, a recheck
+    w.realPath = path.length && realpath(path.fileSystemRepresentation, real) ? @(real) : path;
     w.isMain = [path isEqualToString:repo];
     w.maker = MakerOf(path);
     return w;

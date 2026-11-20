@@ -124,6 +124,7 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
 
     // What came back today, two numbers, for the dock when there is nothing to fix.
     m.memoryBackToday = p.lookBack.todayMemory; m.diskBackToday = p.lookBack.todayDisk;
+    m.diskBackTodayPartial = p.lookBack.todayDiskPartial;
 
     m.run = extras.run;
     m.welcome = extras.welcome;

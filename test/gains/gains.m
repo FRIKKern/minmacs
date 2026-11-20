@@ -310,13 +310,17 @@ static void Seeded(void) {
     T(@"keep: days are cut to 30", @"30", [s[@"days"] description]);
 }
 
+// A removal whose size was not measured.
+#import "unsized.m"
+
 int main(int argc, char **argv) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: gainstest <fixture> <dir>\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: gainstest <fixture> <dir> [unsized]\n"); return 2; }
         gFixture = @(argv[1]); gDir = @(argv[2]);
         gStarted = [NSMutableArray new];
         if (!NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) { fprintf(stderr, "MINMACS_HOME is not set\n"); return 2; }
         MMGraph.shared.source = [GNSource new];
+        if (argc > 3 && !strcmp(argv[3], "unsized")) { Unsized(); printf("END\n"); return 0; }
         Actions();
         Seeded();
         // Stop only what this test started, and only while its start time still matches.

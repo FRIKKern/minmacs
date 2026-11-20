@@ -276,6 +276,8 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
     }
     MMUndoRecord *record = [MMUndo.shared begin:f.expert kind:action.kind finding:f.findingID subject:f.title
                                             why:why by:by parent:parent payload:parent ? @{@"part": @(index)} : nil];
+    // What it frees is read before it runs too, since its folder is gone after: a size measured by now, or none.
+    NSNumber *diskBefore = MMGainsDiskBefore(action, f);
     uint64_t before = FreeBytes(f.path);
     NSString *err = nil;
     BOOL ok = NO;
@@ -286,7 +288,7 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
     [MMUndo.shared finish:record ok:ok freed:freed error:ok ? nil : (err ?: @"the action failed")];
     if (!ok && error) *error = err ?: @"the action failed";
     // A finished action writes what came back. A failed one records nothing there.
-    if (ok) MMGainsRecordAction(action, record, f, memoryBefore);
+    if (ok) MMGainsRecordAction(action, record, f, memoryBefore, diskBefore);
     return [MMUndo.shared record:record.rid] ?: record;
 }
 

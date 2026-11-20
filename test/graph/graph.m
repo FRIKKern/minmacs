@@ -59,7 +59,7 @@ static void Check(NSString *name, id want, id got) {
 @implementation TSession @end
 
 @interface TTree : NSObject
-@property (copy) NSString *path, *repo, *branch; @property BOOL isMain, locked, missing;
+@property (copy) NSString *path, *realPath, *repo, *branch; @property BOOL isMain, locked, missing;
 @end
 @implementation TTree @end
 
@@ -169,7 +169,7 @@ static TClutter *C(NSString *path, NSString *ownerPath, uint64_t freed) {
         }
     } else if ([self.expertID isEqual:@"workforest"]) {
         for (TTree *t in facts.worktrees)
-            [out addObject:[MMFinding expert:@"workforest" kind:@"worktree" stableKey:t.path build:^(MMFindingBuilder *b) { b.path = t.path; }]];
+            [out addObject:[MMFinding expert:@"workforest" kind:@"worktree" stableKey:t.realPath ?: t.path build:^(MMFindingBuilder *b) { b.path = t.realPath ?: t.path; }]];
     } else if ([self.expertID isEqual:@"noonoo"]) {
         for (TClutter *c in facts.clutter)
             [out addObject:[MMFinding expert:@"noonoo" kind:@"clutter" stableKey:c.path build:^(MMFindingBuilder *b) {
@@ -366,6 +366,8 @@ static BOOL NoCPUTicks(int64_t *ticks) {
 - (void)dealloc { [self stop]; }
 @end
 
+#import "links.m"
+
 #pragma mark - Checks
 
 static atomic_bool stop;
@@ -420,6 +422,7 @@ int main(int argc, char **argv) {
             Check(@"findingsFor gives one expert's findings", @3, @([s findingsFor:@"noonoo"].count));
             Check(@"findingsOwnedBy filters by owner and expert", @3,
                   @([s findingsOwnedBy:feat.owner expert:@"locohost"].count));
+            LinkChecks(experts);
 
             // Owner choice is stable: the input order never matters.
             NSString *want = Owners(s);

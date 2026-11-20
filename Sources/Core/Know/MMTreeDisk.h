@@ -30,6 +30,9 @@ typedef NS_ENUM(NSInteger, MMTreeDiskRead) {
 /// Folder names whose files are rebuildable. Their size counts as cacheBytes and their changes are not work.
 @property (copy) NSArray<NSString *> *cacheNames;
 - (MMTreeDiskFacts *)factsFor:(NSString *)path read:(MMTreeDiskRead)read;
+/// The last walk of a folder as it is kept, however old, or nil when none ended. It never walks and queues none,
+/// so it is safe right before the folder is removed.
+- (MMTreeDiskFacts *)lastWalkOf:(NSString *)path;
 /// Drops the walks of checkouts that are gone.
 - (void)forget:(NSSet<NSString *> *)livePaths;
 @end

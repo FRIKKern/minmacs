@@ -251,6 +251,12 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @property NSInteger done, total;                        // fixes landed, fixes planned
 @property uint64_t memoryBack, diskBack;                // what has come back so far
 @property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back; the two lines fill to these
+/// YES while a fix that has not landed has a part not measured yet, issue #83: diskPlanned is then no total, and
+/// the disk line does not fill toward it. Once such a fix landed, what it gave back is counted into diskPlanned.
+@property BOOL diskPlannedPartial;
+/// How far each line is filled, 0 to 1: what came back of what was planned. 0 while the plan is no total.
+- (double)memoryShare;
+- (double)diskShare;
 @property (copy, nullable) NSString *endTitle;          // "7 fixes done"
 @property (copy, nullable) NSString *endNote;           // "Skipped 2 agents that ask you and 4 blocked. Deleted 3, moved 2 to the Trash."
 @end
@@ -355,6 +361,8 @@ extern NSString *const MMWindowLookingNote;
 /// What came back today, from the look-back. Two numbers. The dock shows a side only when it is above zero, and
 /// only while there is nothing to fix. The same rule holds for what Fix Everything gives back: a zero side is not shown.
 @property uint64_t memoryBackToday, diskBackToday;
+/// YES when a removal of today was not measured: diskBackToday is then no total, and is shown as "or more".
+@property BOOL diskBackTodayPartial;
 @property (strong) MMWindowSettings *settings;
 /// The welcome, until the person pressed Start once. nil ever after. A model with a welcome and generation 0 was made
 /// before the first snapshot: only its welcome is real, and the window shows nothing else of it.

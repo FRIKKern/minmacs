@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a trashed file lands in
 // $MINMACS_HOME/Trash and a deleted one is unlinked inside the fixture folder only. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome | unmeasured
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome | unmeasured | planned
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -319,7 +319,15 @@ static void WindowModel(void) {
     MMWindowModel *mb2 = MMWindowModelFrom(s, back, nil);
     T(@"window: memory and disk back today come from the look-back, as two numbers", [NSString stringWithFormat:@"%llu %llu 0 0", 250 * MB, 3 * GB],
       [NSString stringWithFormat:@"%llu %llu %llu %llu", mb2.memoryBackToday, mb2.diskBackToday, m.memoryBackToday, m.diskBackToday]);
-    T(@"window: --json carries them apart", @"diskBack,memoryBack", [[[mb2.json[@"backToday"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","]);
+    T(@"window: --json carries them apart, with the disk's mark", @"diskBack,diskBackPartial,memoryBack", [[[mb2.json[@"backToday"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","]);
+    // Issue #83: a removal of today that nobody measured makes today's disk back no total, and the model carries that.
+    dispatch_sync(MMQueue(@"windowtest", @"build", QOS_CLASS_USER_INITIATED), ^{
+        back = [MMPerformance from:s history:s.history lookBack:[MMPerformanceLookBack fromSummary:@{@"today": @{@"memoryBack": @0, @"diskBack": @(3 * GB), @"diskBackPartial": @YES}}]];
+    });
+    MMWindowModel *mb3 = MMWindowModelFrom(s, back, nil);
+    T(@"window: today's disk back is marked as no total when the look-back says so, and only then", @"no no yes yes",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", YN([[mb2 valueForKey:@"diskBackTodayPartial"] boolValue]), YN([mb2.json[@"backToday"][@"diskBackPartial"] boolValue]),
+       YN([[mb3 valueForKey:@"diskBackTodayPartial"] boolValue]), YN([mb3.json[@"backToday"][@"diskBackPartial"] boolValue])]);
     MMWindowRow *next = [m row:@"locohost:server:app#dev"], *db = [m row:@"locohost:server:db"], *asks = [m row:@"minmacs:agent:claude-code:s-71010"];
     MMWindowRow *chat = [m row:@"minmacs:app:com.example.chat"], *editor = [m row:@"minmacs:app:com.example.editor"];
     MMWindowRow *wip = [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/wip")]], *spike = [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/old-spike")]];
@@ -665,10 +673,12 @@ static void RunStopped(void) {
 #import "welcome.m"
 // A worktree whose size is not measured yet.
 #import "unmeasured.m"
+// Fix Everything's planned disk with such a worktree.
+#import "planned.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome|unmeasured\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome|unmeasured|planned\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -690,6 +700,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"delete"]) RunChoice(MMRemovalDelete);
         else if ([mode isEqualToString:@"welcome"]) Welcome();
         else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
+        else if ([mode isEqualToString:@"planned"]) Planned();
         else return 2;
         printf("END\n");
     }

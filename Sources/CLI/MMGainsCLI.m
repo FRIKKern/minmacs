@@ -3,6 +3,7 @@
 // settling rows whose items left the Trash, as every read of the table does.
 #import "CLI/MMCLI.h"
 #import "Core/Store/MMGains.h"
+#import "UI/Window/MMWindowModel.h"
 
 static NSString *Bytes(id n) {
     static NSByteCountFormatter *f;
@@ -14,11 +15,17 @@ static NSString *Pad(NSString *s, NSUInteger n) {
     s = s ?: @"";
     return s.length >= n ? [s stringByAppendingString:@" "] : [s stringByPaddingToLength:n withString:@" " startingAtIndex:0];
 }
+/// A total's disk number in the menu window's words: as it is, "or more" when a row in it was not measured, and
+/// "not measured yet" when no row in it was. key is diskBack or diskInTrash, with its Partial beside it.
+static NSString *Disk(NSDictionary *t, NSString *key) {
+    return MMWindowBackText(Bytes(t[key]), [t[key] longLongValue] == 0, [t[[key stringByAppendingString:@"Partial"]] boolValue]);
+}
 static NSString *Line(NSString *label, NSDictionary *t) {
     NSInteger n = [t[@"actions"] integerValue];
-    NSMutableString *s = [NSMutableString stringWithFormat:@"%@%@ memory, %@ disk, %ld action%@", Pad(label, 13),
-                          Bytes(t[@"memoryBack"]), Bytes(t[@"diskBack"]), (long)n, n == 1 ? @"" : @"s"];
-    if ([t[@"diskInTrash"] longLongValue] > 0) [s appendFormat:@", %@ still in the Trash", Bytes(t[@"diskInTrash"])];
+    BOOL none = [t[@"diskBackPartial"] boolValue] && ![t[@"diskBack"] longLongValue];
+    NSMutableString *s = [NSMutableString stringWithFormat:none ? @"%@%@ memory, disk %@, %ld action%@" : @"%@%@ memory, %@ disk, %ld action%@",
+                          Pad(label, 13), Bytes(t[@"memoryBack"]), Disk(t, @"diskBack"), (long)n, n == 1 ? @"" : @"s"];
+    if ([t[@"diskInTrash"] longLongValue] > 0) [s appendFormat:@", %@ still in the Trash", Disk(t, @"diskInTrash")];
     return s;
 }
 
@@ -44,7 +51,7 @@ int MMGainsVerb(MMArgs *a) {
         [a print:@""];
         [a print:@"%@%@%@%@", Pad(@"Day", 13), Pad(@"Memory", 12), Pad(@"Disk", 12), @"Actions"];
         for (NSDictionary *x in j[@"byDay"])
-            [a print:@"%@%@%@%@", Pad(x[@"day"], 13), Pad(Bytes(x[@"memoryBack"]), 12), Pad(Bytes(x[@"diskBack"]), 12), x[@"actions"]];
+            [a print:@"%@%@%@%@", Pad(x[@"day"], 13), Pad(Bytes(x[@"memoryBack"]), 12), Pad(Disk(x, @"diskBack"), 12), x[@"actions"]];
     }
     NSDictionary *kinds = j[@"byKind"], *who = j[@"byWho"];
     NSMutableArray *k = [NSMutableArray new];

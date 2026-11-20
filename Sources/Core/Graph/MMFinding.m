@@ -210,6 +210,10 @@ static NSString *DefaultFingerprint(NSString *stableKey, NSDictionary *facts) {
 - (NSString *)fingerprint { return _fingerprint; }
 - (NSDictionary *)facts { return _facts; }
 - (BOOL)kept { return _keepReasons.count > 0; }
+- (BOOL)unmeasured {
+    id sized = _facts[@"sized"], gone = _facts[@"missing"];
+    return [sized isKindOfClass:NSNumber.class] && ![sized boolValue] && !([gone isKindOfClass:NSNumber.class] && [gone boolValue]);
+}
 - (NSString *)description { return [NSString stringWithFormat:@"%@ owner %@", _findingID, _owner.ownerID]; }
 
 @end

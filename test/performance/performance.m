@@ -50,7 +50,7 @@ static NSValue *V(pid_t pid, uint64_t start) { MMProcKey k = { pid, start }; ret
 @end
 
 @interface TWorktree : NSObject
-@property NSString *path, *repo, *branch, *lockReason, *makerSession; @property BOOL isMain, locked, missing; @property MMWorktreeMaker maker;
+@property NSString *path, *realPath, *repo, *branch, *lockReason, *makerSession; @property BOOL isMain, locked, missing; @property MMWorktreeMaker maker;
 @end
 @implementation TWorktree @end
 
