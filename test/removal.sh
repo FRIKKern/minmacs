@@ -27,6 +27,11 @@ check "removal: staging is one rename, and nothing in Act copies a person's file
 check "removal: the staging folder's list names an item before the rename moves it, issue #75" yes \
   "$(rm_note=$(grep -n 'MMRemovalStagingNoteItem(folder, to, real' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1); rm_mv=$(grep -n 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1)
      [ -n "$rm_note" ] && [ -n "$rm_mv" ] && [ "$rm_note" -lt "$rm_mv" ] && echo yes || echo no)"
+check "removal: after the rename the list gets the id read at the new place, only for the file held open across it, issue #79" "yes 1" \
+  "$(rm_again=$(grep -n '(void)MMRemovalStagingNoteIdentity(folder, to.lastPathComponent, after);' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1); rm_mv=$(grep -n 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1)
+     [ -n "$rm_again" ] && [ -n "$rm_mv" ] && [ "$rm_again" -gt "$rm_mv" ] && echo yes || echo no) $(grep -c 'NSDictionary \*after = HeldAt(held, to);' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: what a check uses to stop or swap at the rename is compiled only with MM_TESTS" "3 0" \
+  "$(grep -c 'getenv("MINMACS_TEST_' Sources/Core/Act/MMRemovalApply.m) $(awk '/^#ifdef MM_TESTS/{t=1} /^#endif/{t=0} /MINMACS_TEST_/ && !t {n++} END{print n+0}' Sources/Core/Act/MMRemovalApply.m)"
 check "removal: the staging folder's own files move and copy nothing" 0 "$(grep -cE 'rename\(|copyItemAt|moveItemAt|clonefile|copyfile|fileExistsAtPath' Sources/Core/Act/MMRemovalStaging.m)"
 check "removal: a crash is settled at Core's start and before the next Wrap Up, and the start also sweeps what was left staged" "1 1 1" \
   "$(grep -c 'MMRemovalRecoverStaged()' Sources/Core/MMCore.m) $(grep -c '(void)MMRemovalRecoverStaged();' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalSweepStaged(&orphans)' Sources/Core/MMCore.m)"

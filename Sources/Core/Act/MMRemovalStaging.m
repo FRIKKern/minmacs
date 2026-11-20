@@ -5,7 +5,8 @@
 //   <staging folder>/
 //     .minmacs          the rid of its Wrap Up, so a folder of that name MinMacs did not make is never taken for one
 //     .gitignore        "*", so a repo that holds the folder never lists it
-//     .minmacs-items    {<its name in the folder>: {from, part, ino, dev, vol}}, written before the item moves in
+//     .minmacs-items    {<its name in the folder>: {from, part, ino, dev, vol}}, written before the item moves in, and
+//                       again after, issue #79, when the file has another id at its new place
 //     0.node_modules    an item
 //
 // The list is written before the rename, issue #75, so at every moment an item is either where it was, or in the
@@ -52,6 +53,27 @@ BOOL MMRemovalStagingNoteItem(NSString *folder, NSString *to, NSString *from, NS
     [entry addEntriesFromDictionary:identity ?: @{}];
     all[to.lastPathComponent] = entry;
     return WriteItems(folder, all);
+}
+
+BOOL MMRemovalStagingNoteIdentity(NSString *folder, NSString *name, NSDictionary *identity) {
+    NSMutableDictionary *all = [MMRemovalStagingItems(folder) mutableCopy];
+    NSMutableDictionary *entry = [MMRecordDict(all, name) mutableCopy];
+    if (!entry || !MMRecordNumber(identity, @"ino")) return NO;
+    // Where it was and which part staged it stay as they were written before the item moved.
+    // A volume UUID the entry had stays when the new read gives none, so the entry never comes to match by inode alone.
+    [entry removeObjectsForKeys:@[@"ino", @"dev"]];
+    [entry addEntriesFromDictionary:identity];
+    all[name] = entry;
+    return WriteItems(folder, all);
+}
+
+NSString *MMRemovalStagingListsAnother(NSString *stagedAt) {
+    NSString *t = MMRemovalRealPath(stagedAt ?: @"");
+    NSDictionary *e = t ? MMRecordDict(MMRemovalStagingItems(t.stringByDeletingLastPathComponent), t.lastPathComponent) : nil;
+    BOOL unread = NO;
+    // Only when the list says which file it means and the one there is not it. A UUID that cannot be read says neither.
+    if (!e || MMFileIsEntryCheck(t, e, &unread) != 0 || unread) return nil;
+    return MMRecordString(e, @"from");
 }
 
 void MMRemovalStagingForgetItem(NSString *folder, NSString *name) {
@@ -185,7 +207,8 @@ NSUInteger MMRemovalAdoptStranded(MMUndoRecord *given, MMUndoRecord *parent) {
         NSMutableArray *staged = [MMRecordList(r.payload, @"staged") mutableCopy] ?: [NSMutableArray new];
         [staged addObjectsFromArray:add];
         NSMutableDictionary *more = [@{@"staged": staged} mutableCopy];
-        if (!MMRecordHas(r.payload, @"stagedIn")) more[@"stagedIn"] = in;        [MMUndo.shared note:r payload:more];
+        if (!MMRecordHas(r.payload, @"stagedIn")) more[@"stagedIn"] = in;
+        [MMUndo.shared note:r payload:more];
         return add.count;
     }
 }
