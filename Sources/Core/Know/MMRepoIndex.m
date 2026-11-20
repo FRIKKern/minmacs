@@ -371,8 +371,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
 - (MMWorktree *)worktreeAt:(NSString *)path {
     if (!path.length) return nil;
     NSString *p = path.stringByStandardizingPath;
-    // By the path as kept or the resolved one, so a finding's real path gives the walked checkout and no second one.
-    for (MMWorktree *w in self.worktrees) if (PathIn(p, w.path) || PathIn(path, w.realPath) || PathIn(p, w.realPath)) return w;
+    for (MMWorktree *w in self.worktrees) if (PathIn(p, w.path)) return w;
     // Not walked: read the .git files above it.
     for (NSString *dir = p; dir.length > 1; dir = dir.stringByDeletingLastPathComponent) {
         MMWorktree *w = CheckoutAt(dir);
