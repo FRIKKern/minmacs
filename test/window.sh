@@ -55,6 +55,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run welcome
   echo "-- a worktree whose size is not measured yet"
   wn_run unmeasured
+  echo "-- Fix Everything's planned disk with a worktree not measured, issue #83"
+  wn_run planned
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null

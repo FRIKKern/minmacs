@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a trashed file lands in
 // $MINMACS_HOME/Trash and a deleted one is unlinked inside the fixture folder only. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome | unmeasured
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome | unmeasured | planned
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -665,10 +665,12 @@ static void RunStopped(void) {
 #import "welcome.m"
 // A worktree whose size is not measured yet.
 #import "unmeasured.m"
+// Fix Everything's planned disk with such a worktree.
+#import "planned.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome|unmeasured\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome|unmeasured|planned\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -690,6 +692,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"delete"]) RunChoice(MMRemovalDelete);
         else if ([mode isEqualToString:@"welcome"]) Welcome();
         else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
+        else if ([mode isEqualToString:@"planned"]) Planned();
         else return 2;
         printf("END\n");
     }
