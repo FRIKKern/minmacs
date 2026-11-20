@@ -183,8 +183,9 @@ static BOOL WalkRoot(NSString *root, NSInteger *errors, BOOL (^stop)(void), MMFi
 typedef struct { uint64_t at; uint32_t inode; int8_t delta; } MMEdge;
 
 /// Maps every allocated byte of the file at dirfd/name, never reading its data. Holes have no mapping.
+/// O_NONBLOCK, issue #81: the walk listed a plain file, and a named pipe that took its name since never holds it.
 static BOOL MapExtents(int dirfd, const char *name, uint32_t inode, NSMutableData *edges) {
-    int fd = openat(dirfd, name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    int fd = openat(dirfd, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) return NO;
     struct stat st;
     if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) { close(fd); return NO; }

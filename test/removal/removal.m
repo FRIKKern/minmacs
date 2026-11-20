@@ -3,6 +3,7 @@
 // Usage: removaltest <dir> <registry/clutter>     every check, on fixtures it makes in <dir>
 //        removaltest --wall <path>                asks MMRemovalApply to delete <path> and prints why it refused
 //        removaltest --leave-waiting <dir>        leaves two items in staging that MinMacs cannot settle, for the CLI
+//        removaltest --pipe <case> <dir>          one case of pipes.m, ended by an alarm when it waits on a pipe
 // <dir> is inside $MINMACS_HOME. The --wall form runs with MINMACS_HOME set to a folder inside the section's own
 // folder, so the path it is asked to delete is a fixture too, and would only cost a fixture if the wall failed.
 // It prints one line per check, CHECK<tab>name<tab>want<tab>got, and removal.sh hands each to check.
@@ -331,6 +332,7 @@ int main(int argc, char **argv) {
         }
         if (argc == 3 && !strcmp(argv[1], "--leave-waiting")) return LeaveWaiting(@(argv[2]));
         if (argc == 4 && !strcmp(argv[1], "--stop-after-rename")) return StopAfterRenameChild(@(argv[2]), @(argv[3]));
+        if (argc == 4 && !strcmp(argv[1], "--pipe")) return PipeChild(@(argv[2]), @(argv[3]));
         if (argc < 3) { fprintf(stderr, "usage: removaltest <dir> <registry/clutter>\n"); return 2; }
         gDir = @(argv[1]);
         char me[PATH_MAX];
@@ -356,6 +358,7 @@ int main(int argc, char **argv) {
         TrashRule();
         Stopped();
         Moved();
+        Pipes();
         printf("END\n");
     }
     return 0;
