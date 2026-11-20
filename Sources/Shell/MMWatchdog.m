@@ -245,6 +245,7 @@ static void *Watch(void *arg) {
         while (atomic_load(&gRunning) && atomic_load(&gGen) == gen && atomic_load(&gBusy)) { SleepNs(kLookNs); Look(gen, &seenReady, &last); }
         // Main keeps the end of a pass that ran over the threshold. With none kept, the pass ended in time by main's
         // clock and is no stall, unless the watchdog stopped inside it: then it ends now, and nothing counts as ready.
+        // A stall is lost only when kEndsKept later passes ran over the threshold before this thread read its end.
         PassEnd e = {0};
         BOOL ended = EndOf(gen, &e);
         if (!ended && atomic_load(&gRunning)) continue;
