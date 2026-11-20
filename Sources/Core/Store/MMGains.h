@@ -12,6 +12,9 @@
 //   Trash and not back at its old path. An item put back by hand never counts.
 //   When the Trash refuses a look, which it may without Full Disk Access, nothing can be verified and the bytes
 //   stay in the Trash.
+//   A thing whose size nobody measured, such as a worktree removed before its first size walk ended, issue #83,
+//   has no number: its row says not measured, and each sum it would be in holds the measured rows alone and is
+//   marked as no total. Act logs the walk kept right before the action when there is one, MMGainsDiskBefore.
 // - Memory back and disk back are two numbers and are never summed.
 #import <Foundation/Foundation.h>
 
@@ -32,6 +35,9 @@ extern NSString *const MMGainDiskFreed;     // deleted for good, so the bytes ar
 extern NSString *const MMGainDiskTrash;     // in the Trash, not back yet
 extern NSString *const MMGainDiskPutBack;   // the item is back at its old path, by hand, so it never counts
 
+/// Passed as disk to -add: for a thing whose size nobody measured. The row then holds no number.
+extern const uint64_t MMGainDiskNotMeasured;
+
 /// How many days the table keeps. A row older than this is dropped on the next write or read.
 extern const NSInteger MMGainsKeepDays;     // 30
 
@@ -50,11 +56,14 @@ extern const NSInteger MMGainsKeepDays;     // 30
 @property (readonly) NSDate *at;                        // when the action finished
 @property (readonly) uint64_t memoryBytes;              // memory back
 @property (readonly) uint64_t diskBytes;                // what MMSizer said deleting frees; back only when diskState is freed
+/// NO when nobody measured what it freed. diskBytes then holds 0, which is no reading: nothing may show or count it.
+@property (readonly) BOOL diskMeasured;
 @property (readonly, copy) NSString *diskState;         // MMGainDiskNone and the rest
 @property (readonly) NSInteger items;                   // tabs closed for a trim, else 1
 @property (readonly) BOOL undone;                       // restored since, so it gave its gain back
 /// {rid, run, kind, part, who, by, expert, subject, workstream, at, memoryBack, diskBack, diskInTrash, diskState,
-/// items, undone}. diskBack is diskBytes when the state is freed and 0 otherwise; diskInTrash is the same for trash.
+/// measured, items, undone}. diskBack is diskBytes when the state is freed and 0 otherwise; diskInTrash is the same
+/// for trash. For a row not measured, measured is false and the one of the two its state names is null.
 - (NSDictionary *)json;
 @end
 
@@ -69,6 +78,7 @@ extern const NSInteger MMGainsKeepDays;     // 30
         who:(NSString *)who by:(NSString *)by expert:(NSString *)expert subject:(NSString *)subject
  workstream:(nullable NSString *)workstream at:(NSDate *)at memory:(uint64_t)memory disk:(uint64_t)disk
   diskState:(NSString *)diskState trashed:(nullable NSArray<NSDictionary *> *)trashed items:(NSInteger)items;
+// disk is MMGainDiskNotMeasured for a size nobody measured. The table keeps it as -1, which a build of before reads as 0.
 /// Restore calls this when a record came back. The row stays, marked undone, and counts nothing.
 - (void)takeBack:(NSString *)rid;
 /// Rows since a time, newest first, undone rows left out unless asked for. First it drops rows past the 30 days and
@@ -81,7 +91,9 @@ extern const NSInteger MMGainsKeepDays;     // 30
 /// The summary `minmacs gains` prints, over days local calendar days that end with now's day, today included:
 /// {days, since, now, meaning, today, total, byDay: [{day, start, ...}], byKind: {kind: {...}}, byWho: {...},
 ///  byWorkstream: {...}, gains: [MMGain json, newest first]}. Each total is {actions, items, memoryBack, diskBack,
-/// diskInTrash}. actions counts a run of several as one action. days is cut to 1 to MMGainsKeepDays.
+/// diskBackPartial, diskInTrash, diskInTrashPartial}. actions counts a run of several as one action. A Partial is
+/// true when a row in that sum is not measured: the sum is then of the others and is no total. days is cut to 1 to
+/// MMGainsKeepDays.
 - (NSDictionary *)summary:(NSInteger)days now:(NSDate *)now;
 /// The schema version of the table, 1 now. 0 when the file could not be opened.
 - (NSInteger)schemaVersion;
@@ -90,8 +102,13 @@ extern const NSInteger MMGainsKeepDays;     // 30
 /// Act's part. Called by MMRunAction once an action finished, with the finding as it ran and the fresh facts its
 /// check read. Writes nothing when the action failed, when it gives nothing back, such as the lid override or a
 /// keep-awake hold, or when it was the migration's. Returns the row written, or nil.
+/// diskBefore is MMGainsDiskBefore's answer, read before the action ran. nil logs the disk as not measured.
 MMGain *_Nullable MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding *finding,
-                                      uint64_t memoryBefore);
+                                      uint64_t memoryBefore, NSNumber *_Nullable diskBefore);
+/// What deleting the finding's thing frees, as a reading taken before the action runs: its cost.diskFreed, or for a
+/// finding not measured yet the last walk MMTreeDisk keeps of its folder, such as the one its policy took on fresh
+/// facts a moment ago. nil when there is no reading. It walks nothing itself.
+NSNumber *_Nullable MMGainsDiskBefore(id<MMAction> action, MMFinding *finding);
 /// The memory back of a stop or a quit: the footprint of each process tree of the finding in the fresh sample,
 /// with a pid counted once. Falls back to the finding's cost.ramBytes when the facts have no sample. 0 for any
 /// other kind of action.

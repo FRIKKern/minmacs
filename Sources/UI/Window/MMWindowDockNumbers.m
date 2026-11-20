@@ -96,7 +96,8 @@
 ///   fixes remove is not measured yet, and with nothing of it measured there is no disk line.
 /// - While a run plays: each side the run set out to give back, counting up from zero.
 /// - Once it ended: each side that did come back.
-/// - With nothing to fix: what came back today, each side that is above zero.
+/// - With nothing to fix: what came back today, each side that is above zero. Disk reads "or more" when a removal
+///   of today was not measured.
 /// Each entry is the bytes, the ink and the words.
 - (NSArray<NSArray *> *)gains {
     MMWindowModel *m = self.model;
@@ -113,7 +114,7 @@
         if (run.diskBack > 0) add(self.diskShown, MMWindowInkDisk, @"disk back");
     } else if (m.fixCount == 0) {
         if (m.memoryBackToday > 0) add(m.memoryBackToday, MMWindowInkMemory, @"memory back today");
-        if (m.diskBackToday > 0) add(m.diskBackToday, MMWindowInkDisk, @"disk back today");
+        if (m.diskBackToday > 0) add(m.diskBackToday, MMWindowInkDisk, m.diskBackTodayPartial ? @"or more disk back today" : @"disk back today");
     } else {
         if (m.memoryBack > 0) add(m.memoryBack, MMWindowInkMemory, @"memory back");
         if (m.diskBack > 0) add(m.diskBack, MMWindowInkDisk, m.diskBackPartial ? @"or more disk back" : @"disk back");

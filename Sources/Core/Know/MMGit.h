@@ -34,6 +34,11 @@ typedef NS_ENUM(NSInteger, MMWorktreeMaker) { MMMakerPerson, MMMakerClaudeCode, 
 /// P25. One checkout: a repo's main checkout or a linked worktree.
 @interface MMWorktree : NSObject
 @property (readonly, copy) NSString *path, *repo, *branch;   // repo: the main checkout's path
+/// path with every link resolved, read once when the index stores the checkout, or path itself for a folder that is
+/// gone. The kernel names a process's folder this way and WorkForest names its finding this way, while path stays as
+/// the root gave it: /tmp for /private/tmp, or a root that is a link to another volume. The graph, asked which checkout
+/// holds a path, tries both, as text, and reads no file. worktreeAt: goes by path alone, issue #101.
+@property (readonly, copy) NSString *realPath;
 @property (readonly) BOOL isMain;
 @property (readonly) BOOL locked;                       // `git worktree lock`, which counts as in use
 @property (readonly, copy) NSString *lockReason;

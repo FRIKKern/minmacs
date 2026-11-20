@@ -2,6 +2,7 @@
 // MMRunAction reads the memory before the action and writes the row after it. Restore takes the row back.
 #import "Core/Store/MMGains.h"
 #import "Core/Act/MMAct.h"
+#import "Core/Know/MMTreeDisk.h"
 
 static BOOL Stops(NSString *actionKind) { return [actionKind isEqualToString:@"stop"] || [actionKind isEqualToString:@"quit"]; }
 
@@ -29,6 +30,15 @@ uint64_t MMGainsMemoryBefore(id<MMAction> action, MMFinding *f, MMFacts *fresh) 
         }
     }
     return sum;
+}
+
+NSNumber *MMGainsDiskBefore(id<MMAction> action, MMFinding *f) {
+    if (!f || Stops(action.kind)) return nil;
+    if (!f.unmeasured) return @(f.cost.diskFreed);
+    // Not measured when it was listed, so its cost holds 0, which is no reading. A walk kept now ended after that:
+    // WorkForest's policy takes one on fresh facts right before a removal. With none kept, nobody knows the size.
+    MMTreeDiskFacts *d = [MMTreeDisk.shared lastWalkOf:f.path];
+    return d ? @(d.freed) : nil;
 }
 
 /// The kind of thing an action gave back, or nil when it gives nothing back, such as the lid override,
@@ -64,7 +74,7 @@ static NSString *WorkstreamOf(MMFinding *f, MMUndoRecord *r) {
     return nil;
 }
 
-MMGain *MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding *f, uint64_t memoryBefore) {
+MMGain *MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding *f, uint64_t memoryBefore, NSNumber *diskBefore) {
     if (!record || record.state != MMUndoDone || !f) return nil;
     // The migration's own moves, the old apps and Noo-Noo's agent, are not gains. Their findings are Core's.
     if ([f.expert isEqualToString:@"core"]) return nil;
@@ -77,9 +87,10 @@ MMGain *MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding
     NSInteger items = 1;
     if ([kind isEqualToString:MMGainTab]) items = [p[@"tabs"] isKindOfClass:NSArray.class] ? (NSInteger)[p[@"tabs"] count] : 1;
     else if (!Stops(action.kind)) {
-        disk = f.cost.diskFreed;
+        // The reading taken before the action ran. With none, the row says not measured, and never 0.
+        disk = diskBefore ? diskBefore.unsignedLongLongValue : MMGainDiskNotMeasured;
         // A tool's own cleanup has no Sizer size of its own at times, so its statfs delta stands in.
-        if (!disk && ([action.kind isEqualToString:@"clean"] || [action.kind isEqualToString:@"tool"])) disk = (uint64_t)MAX(record.freedBytes, 0);
+        if ((!disk || disk == MMGainDiskNotMeasured) && ([action.kind isEqualToString:@"clean"] || [action.kind isEqualToString:@"tool"])) disk = (uint64_t)MAX(record.freedBytes, 0);
         state = trashed.count ? MMGainDiskTrash : MMGainDiskFreed;
     }
     NSString *run = record.parentRid.length ? record.parentRid : nil;

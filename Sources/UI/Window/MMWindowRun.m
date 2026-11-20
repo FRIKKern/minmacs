@@ -9,8 +9,6 @@ static const NSTimeInterval kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 
 
 @implementation MMWindowView (Run)
 
-static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0, (double)back / (double)planned) : 0; }
-
 /// Takes the run's numbers as the place the lines and the gains move toward.
 - (void)followRun:(BOOL)hadRun {
     MMWindowRun *run = self.model.run;
@@ -25,7 +23,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     else if (!_endSeen) _endSeen = [NSDate date];
     if (!hadRun || MMWindowReduceMotion()) {
         // The first frame of a run shows where it stands. Only later changes move.
-        _memoryShare = Share(run.memoryBack, run.memoryPlanned); _diskShare = Share(run.diskBack, run.diskPlanned);
+        _memoryShare = run.memoryShare; _diskShare = run.diskShare;
         _memoryShown = run.memoryBack; _diskShown = run.diskBack;
         _stepWords = run.step; _stepCame = nil;
     } else if (run.running && run.step != _stepWords && ![run.step isEqualToString:_stepWords]) {
@@ -42,7 +40,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
     NSTimeInterval dt = _stepped ? MIN(MAX([now timeIntervalSinceDate:_stepped], 0), 0.1) : 1.0 / 60;
     _stepped = now;
     double k = MMWindowReduceMotion() ? 1 : 1 - exp(-dt / kEase);
-    double tm = Share(run.memoryBack, run.memoryPlanned), td = Share(run.diskBack, run.diskPlanned);
+    double tm = run.memoryShare, td = run.diskShare;
     _memoryShare += (tm - _memoryShare) * k; _diskShare += (td - _diskShare) * k;
     _memoryShown += (run.memoryBack - _memoryShown) * k; _diskShown += (run.diskBack - _diskShown) * k;
     BOOL moving = fabs(tm - _memoryShare) > 0.002 || fabs(td - _diskShare) > 0.002 ||
@@ -78,7 +76,7 @@ static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0,
 /// The timer runs only while the window shows and something moves or the end still shows.
 - (void)wake {
     MMWindowRun *run = self.model.run;
-    BOOL need = run && self.window.isVisible && (run.running ? (_memoryShare != Share(run.memoryBack, run.memoryPlanned) || _diskShare != Share(run.diskBack, run.diskPlanned) ||
+    BOOL need = run && self.window.isVisible && (run.running ? (_memoryShare != run.memoryShare || _diskShare != run.diskShare ||
                                                                  _memoryShown != run.memoryBack || _diskShown != run.diskBack || _stepCame != nil) : !_letGo);
     if (need && !_timer) {
         _timer = [NSTimer timerWithTimeInterval:1.0 / 60 target:self selector:@selector(frame:) userInfo:nil repeats:YES];

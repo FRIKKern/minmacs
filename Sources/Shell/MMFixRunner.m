@@ -33,6 +33,7 @@ NSString *MMFixStepAction(NSString *kind) {
     NSMutableArray<MMFixResult *> *_results;
     NSInteger _done, _total;
     uint64_t _memoryBack, _diskBack, _memoryPlanned, _diskPlanned;
+    NSInteger _unmeasuredLeft;                  // fixes with a part not measured yet that have not landed
     BOOL _recovered;
     NSMutableArray<MMUndoRecord *> *_removed;   // each finished record of the run, a Wrap Up as its parts
 }
@@ -58,6 +59,7 @@ NSString *MMFixStepAction(NSString *kind) {
     MMWindowRun *r = [MMWindowRun new];
     r.running = YES; r.step = step; r.stepAction = action; r.done = _done; r.total = _total;
     r.memoryBack = _memoryBack; r.diskBack = _diskBack; r.memoryPlanned = _memoryPlanned; r.diskPlanned = _diskPlanned;
+    r.diskPlannedPartial = _unmeasuredLeft > 0;
     return r;
 }
 
@@ -108,13 +110,16 @@ NSString *MMFixStepAction(NSString *kind) {
         if (f.needsYou) { needYou++; continue; }
         [fixes addObject:f];
         _memoryPlanned += f.memoryBack; _diskPlanned += f.diskBack;
+        // A fix with a part not measured yet adds only its measured parts, so until it landed the sum is no total.
+        if (f.diskPartial) _unmeasuredLeft++;
     }
     _total = (NSInteger)fixes.count;
     BOOL treesMoved = NO;
     NSInteger notRun = 0, notReached = 0;
     for (MMPerformanceFix *f in fixes) {
         if (atomic_load(&_stop)) { notRun++; continue; }
-        BOOL landed = NO;
+        BOOL landed = NO, sizeUnknown = NO;   // sizeUnknown: a thing not measured was kept or failed, so its size is still not known
+        uint64_t diskWas = _diskBack;
         if (f.wrapUp) {
             NSString *name = f.wrapUp.subject.worktree.branch.length ? f.wrapUp.subject.worktree.branch : f.wrapUp.subject.path.lastPathComponent;
             [self tell:[self progress:MMFixStepText(f.kind, name ?: @"") action:MMFixStepAction(f.kind)]];
@@ -137,7 +142,7 @@ NSString *MMFixStepAction(NSString *kind) {
                 MMUndoRecord *rec = MMRunAction(a, f.policy, nil, @"manual", @"Fix Everything", &err);
                 MMFixResult *x = [self note:f name:name record:rec error:err];
                 if (rec) { _diskBack += (uint64_t)MAX(rec.freedBytes, 0); [self readWhere:rec]; }
-                if (![x.outcome isEqualToString:@"done"]) continue;
+                if (![x.outcome isEqualToString:@"done"]) { if (a.finding.unmeasured) sizeUnknown = YES; continue; }
                 landed = YES;
                 _memoryBack += [self memoryOf:rec];
                 if ([f.kind isEqualToString:@"remove"]) treesMoved = YES;
@@ -150,6 +155,14 @@ NSString *MMFixStepAction(NSString *kind) {
             }
         }
         if (landed) _done++;
+        // It landed, so what it gave back is counted now: the removal's own count is its size, and the plan holds
+        // that in place of the part nobody had measured. One that did not land leaves the plan no total, and so does
+        // one of several things that kept the one not measured while another went.
+        if (landed && f.diskPartial && !sizeUnknown) {
+            uint64_t got = _diskBack - diskWas;
+            if (got > f.diskBack) _diskPlanned += got - f.diskBack;
+            _unmeasuredLeft--;
+        }
     }
     self.endedAt = NSDate.date;
     // What the menus do after a removal: the repo index reads the worktrees again, then the graph builds anew.

@@ -5,6 +5,7 @@
 #import "CLI/MMCLI.h"
 #import "Core/MMCore.h"
 #import "UI/MMFormat.h"
+#import "UI/Window/MMWindowModel.h"
 #import "Core/Runtime/MMWorker.h"
 
 // From MMInvestigateCLI.m.
@@ -62,7 +63,9 @@ static NSDictionary *FindingJSON(MMFinding *f) {
     MMCost c = f.cost;
     NSMutableDictionary *j = [@{@"id": f.findingID ?: @"", @"expert": f.expert ?: @"", @"kind": f.kind ?: @"",
                                 @"title": f.title ?: @"", @"kept": @(f.kept), @"keepReasons": f.keepReasons ?: @[],
-                                @"ramBytes": @(c.ramBytes), @"diskFreed": @(c.diskFreed)} mutableCopy];
+                                // A size not measured yet is null with measured false, as a row of `performance --json` is.
+                                @"ramBytes": @(c.ramBytes), @"diskFreed": f.unmeasured ? NSNull.null : @(c.diskFreed),
+                                @"measured": f.unmeasured ? @NO : @YES} mutableCopy];
     if (c.cpuPercent >= 0) j[@"cpuPercent"] = @(round(c.cpuPercent * 10) / 10);
     if (f.path) j[@"path"] = f.path;
     if (f.owner) j[@"owner"] = f.owner.ownerID;
@@ -316,7 +319,9 @@ static int WrapUp(MMArgs *a) {
         j[@"rid"] = rec.rid;
         j[@"state"] = UndoStateWord(rec.state);
         j[@"error"] = Or(rec.error);
+        // What the run freed is the record's own count, a reading whatever the plan knew before.
         j[@"freedBytes"] = @(rec.freedBytes);
+        j[@"freedBytesPartial"] = @NO;
         if (rec.payload[@"failedPart"]) j[@"failedPart"] = rec.payload[@"failedPart"];
         NSMutableArray *records = [NSMutableArray new];
         for (MMUndoRecord *r in [MMUndo.shared recent:nil limit:500]) if ([r.parentRid isEqualToString:rec.rid]) [records insertObject:RecordJSON(r) atIndex:0];
@@ -330,7 +335,11 @@ static int WrapUp(MMArgs *a) {
         return status;
     }
     if (a.dryRun) {
-        [a print:@"Wrap Up %@ would run %lu parts and free %@:", name, (unsigned long)plan.parts.count, Bytes(plan.freedBytes)];
+        // A part not measured yet has no number: the sum is that much or more, or with nothing measured it has none.
+        uint64_t freed = plan.freedBytes;
+        NSString *back = MMWindowBackText(Bytes(freed), freed == 0, plan.freedPartial);
+        [a print:plan.freedPartial && !freed ? @"Wrap Up %@ would run %lu parts, disk back %@:" : @"Wrap Up %@ would run %lu parts and free %@:",
+                 name, (unsigned long)plan.parts.count, back];
         for (NSDictionary *p in j[@"parts"])
             [a print:@"  %@%@%@", Pad(p[@"step"], 10), p[@"title"], p[@"dryRun"] != NSNull.null ? [@": " stringByAppendingString:p[@"dryRun"]] : @""];
         [a print:@"Dry run. Nothing was changed."];
@@ -348,7 +357,10 @@ static int Work(MMArgs *a) {
         NSString *path = [a word:0] ?: a.cwd;
         if (![path isAbsolutePath]) path = [a.cwd stringByAppendingPathComponent:path];
         path = path.stringByStandardizingPath;
-        MMWorkstream *w = [s workstreamAt:path];
+        // A workstream's folder is known as its root gave it and as the kernel names it, with every link resolved.
+        // The path typed here can be a third way to the same folder, so it is resolved first.
+        char real[PATH_MAX];
+        MMWorkstream *w = (realpath(path.fileSystemRepresentation, real) ? [s workstreamAt:@(real)] : nil) ?: [s workstreamAt:path];
         if (a.json) { [a printJSON:@{@"path": path, @"workstream": w ? WorkstreamJSON(w) : NSNull.null}]; return 0; }
         if (!w) { [a print:@"No workstream holds %@.", path]; return 0; }
         NSDictionary *j = WorkstreamJSON(w);

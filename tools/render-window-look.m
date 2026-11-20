@@ -75,7 +75,13 @@ static void WindowLookChecks(void) {
           @"window gains: both sides when both are above zero, and one side alone when the other is zero", [NSString stringWithFormat:@"%@ / %@ / %@", both, mem, dsk]);
     Check(memoryOnly.fixCount > 0 && memoryOnly.diskBack == 0 && diskOnly.fixCount > 0 && diskOnly.memoryBack == 0 && gains(none, MMWindowDockCalm).length == 0,
           @"window gains: with nothing to fix and nothing back today no gain is shown", gains(none, MMWindowDockCalm));
-    Check([gains(calm, MMWindowDockCalm) isEqualToString:@"250 MB memory back today | 3.2 GB disk back today"], @"window gains: nothing to fix shows what came back today", gains(calm, MMWindowDockCalm));
+    // Issue #83: with a removal of today that nobody measured, today's disk back is that much or more.
+    NSString *today = gains(calm, MMWindowDockCalm);
+    calm.diskBackTodayPartial = YES;
+    NSString *todayOrMore = gains(calm, MMWindowDockCalm);
+    calm.diskBackTodayPartial = NO;
+    Check([today isEqualToString:@"250 MB memory back today | 3.2 GB disk back today"] && [todayOrMore isEqualToString:@"250 MB memory back today | 3.2 GB or more disk back today"],
+          @"window gains: nothing to fix shows what came back today", [NSString stringWithFormat:@"%@ / %@", today, todayOrMore]);
     // A run that set out to give back memory only, and one that ended with nothing on one side.
     MMWindowRun *run = [MMWindowRun new];
     run.running = YES; run.total = memoryOnly.fixCount; run.memoryPlanned = memoryOnly.memoryBack;

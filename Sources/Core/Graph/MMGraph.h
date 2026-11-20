@@ -115,6 +115,10 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
 @property (readonly, copy) NSString *fingerprint;
 @property (readonly) NSDictionary *facts;               // expert-specific facts for --json and the review
 @property (readonly) BOOL kept;                         // YES when keepReasons is not empty
+/// YES while its size is not measured yet: its fact sized is NO and its fact missing is not YES, as for a worktree
+/// whose first size walk has not ended. Then cost.diskFreed holds 0, which is no reading, issues #76 and #83:
+/// nothing may show it or count it as one. A finding with no sized fact is measured.
+@property (readonly) BOOL unmeasured;
 @property (readonly, copy) NSString *ownerPath;         // the back-link the expert gave, or nil
 /// The one way to make a finding. stableKey must not hold a pid or a start time.
 + (instancetype)expert:(NSString *)expert kind:(NSString *)kind stableKey:(NSString *)stableKey

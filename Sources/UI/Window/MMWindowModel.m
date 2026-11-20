@@ -246,6 +246,10 @@ static NSString *Sentence(NSString *words) {
 @end
 
 @implementation MMWindowRun
+static double Share(uint64_t back, uint64_t planned) { return planned ? MIN(1.0, (double)back / (double)planned) : 0; }
+- (double)memoryShare { return Share(self.memoryBack, self.memoryPlanned); }
+/// A planned disk that is no total has no share to show, however much came back.
+- (double)diskShare { return self.diskPlannedPartial ? 0 : Share(self.diskBack, self.diskPlanned); }
 @end
 
 @implementation MMWindowChoice
