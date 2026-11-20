@@ -33,7 +33,7 @@ NSString *MMFixStepAction(NSString *kind) {
     NSMutableArray<MMFixResult *> *_results;
     NSInteger _done, _total;
     uint64_t _memoryBack, _diskBack, _memoryPlanned, _diskPlanned;
-    NSInteger _unmeasuredLeft;                  // fixes with a part not measured yet that have not had their turn
+    NSInteger _unmeasuredLeft;                  // fixes with a part not measured yet that have not landed
     BOOL _recovered;
     NSMutableArray<MMUndoRecord *> *_removed;   // each finished record of the run, a Wrap Up as its parts
 }
@@ -110,7 +110,7 @@ NSString *MMFixStepAction(NSString *kind) {
         if (f.needsYou) { needYou++; continue; }
         [fixes addObject:f];
         _memoryPlanned += f.memoryBack; _diskPlanned += f.diskBack;
-        // A fix with a part not measured yet adds only its measured parts, so until it ran the sum is no total.
+        // A fix with a part not measured yet adds only its measured parts, so until it landed the sum is no total.
         if (f.diskPartial) _unmeasuredLeft++;
     }
     _total = (NSInteger)fixes.count;
@@ -155,9 +155,9 @@ NSString *MMFixStepAction(NSString *kind) {
             }
         }
         if (landed) _done++;
-        // Its turn is over, so what it gave back is counted now: the removal's own count is its size, and the plan
-        // holds that in place of the part nobody had measured.
-        if (f.diskPartial) {
+        // It landed, so what it gave back is counted now: the removal's own count is its size, and the plan holds
+        // that in place of the part nobody had measured. One that did not land leaves the plan no total.
+        if (landed && f.diskPartial) {
             uint64_t got = _diskBack - diskWas;
             if (got > f.diskBack) _diskPlanned += got - f.diskBack;
             _unmeasuredLeft--;

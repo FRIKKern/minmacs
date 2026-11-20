@@ -42,7 +42,7 @@ static void Planned(void) {
     MMWindowRun *first = seen.firstObject;
     for (MMFixResult *x in runner.results) if (![x.outcome isEqualToString:@"done"]) Info([NSString stringWithFormat:@"%@ %@: %@", x.outcome, x.name, x.why]);
 
-    // While a fix with a part not measured has not had its turn, the planned disk is no total, and the run says so.
+    // While a fix with a part not measured has not landed, the planned disk is no total, and the run says so.
     T(@"planned: the run starts with its planned disk marked as no total, in the model and in --json", @"yes yes yes",
       [NSString stringWithFormat:@"%@ %@ %@", Flag(Key(first, @"diskPlannedPartial")), Flag(first.json[@"diskPlannedPartial"]), YN(first.diskPlanned == m.diskBack)]);
     T(@"planned: the memory side is a total all along", @"yes", YN(first.memoryPlanned == m.memoryBack && end.memoryPlanned == m.memoryBack));
@@ -56,14 +56,17 @@ static void Planned(void) {
     half.diskBack = 20;
     T(@"planned: more back than was planned is still no full line while the plan is no total", @"0", Key(half, @"diskShare") ?: @"missing");
 
-    // Once every such fix had its turn, what each gave back is known, so the plan is a total again and holds it.
-    T(@"planned: with every fix run the planned disk is a total again, and never less than what came back", @"no no yes",
+    // Once every such fix landed, what each gave back is known, so the plan is a total again and holds it.
+    BOOL landed = YES;
+    for (MMFixResult *x in runner.results) if (([x.kind isEqualToString:@"wrapup"] || [x.kind isEqualToString:@"remove"]) && ![x.outcome isEqualToString:@"done"]) landed = NO;
+    T(@"planned: the Wrap Up and the removal both landed", @"yes", YN(landed));
+    T(@"planned: with every such fix landed the planned disk is a total again, and never less than what came back", @"no no yes",
       [NSString stringWithFormat:@"%@ %@ %@", Flag(Key(end, @"diskPlannedPartial")), Flag(end.json[@"diskPlannedPartial"]), YN(end.diskPlanned >= m.diskBack)]);
     T(@"planned: the run's JSON keys", @"diskBack diskPlanned diskPlannedPartial done endNote endTitle memoryBack memoryPlanned running step total",
       [[end.json.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"planned: no shown string names an old app or says for good", @"", Bad(@[end.endTitle ?: @"", end.endNote ?: @"", Steps(seen)]));
 
-    // A run stopped before the fixes with a part not measured had their turn never learned their size.
+    // A run stopped before the fixes with a part not measured landed never learned their size.
     MMPerformance *p2 = PlannedWorld(NULL);
     MMFixRunner *stopped = [[MMFixRunner alloc] initWithPerformance:p2];
     dispatch_semaphore_t ended2 = dispatch_semaphore_create(0);

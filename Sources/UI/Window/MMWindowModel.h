@@ -251,8 +251,8 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @property NSInteger done, total;                        // fixes landed, fixes planned
 @property uint64_t memoryBack, diskBack;                // what has come back so far
 @property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back; the two lines fill to these
-/// YES while a fix that has not had its turn has a part not measured yet, issue #83: diskPlanned is then no total,
-/// and the disk line does not fill toward it. Once such a fix ran, what it gave back is counted into diskPlanned.
+/// YES while a fix that has not landed has a part not measured yet, issue #83: diskPlanned is then no total, and
+/// the disk line does not fill toward it. Once such a fix landed, what it gave back is counted into diskPlanned.
 @property BOOL diskPlannedPartial;
 /// How far each line is filled, 0 to 1: what came back of what was planned. 0 while the plan is no total.
 - (double)memoryShare;
