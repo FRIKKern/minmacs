@@ -153,6 +153,10 @@ static BOOL InGitDir(NSString *dir, NSString **gitRoot, NSString **rest) {
     return NO;
 }
 
+#ifdef MM_TESTS
+void (^MMRepoIndexTestStep)(NSString *step, NSString *path);
+#endif
+
 @implementation MMRepoIndex {
     NSArray<NSString *> *_roots;
     NSArray<MMWorktree *> *_trees;     // deepest path first
@@ -165,6 +169,7 @@ static BOOL InGitDir(NSString *dir, NSString **gitRoot, NSString **rest) {
     NSMutableDictionary<NSString *, id> *_facts;               // path: MMGitFacts, or NSNull when the path holds none
     NSMutableDictionary<NSString *, MMWorktree *> *_marked;    // fingerprints to read in the next pass
     NSMutableSet<NSString *> *_dropped;                        // status layers a change dropped
+    NSObject *_statusLock;                                     // a drop, and updateOne's read or write of the status, one at a time
     NSMutableDictionary<NSString *, NSDate *> *_sizeAsked;
     NSMutableArray *_dones;
     BOOL _updating, _updateAgain;
@@ -184,7 +189,7 @@ static BOOL InGitDir(NSString *dir, NSString **gitRoot, NSString **rest) {
     if ((self = [super init])) {
         _dirs = [NSMutableDictionary new]; _facts = [NSMutableDictionary new]; _marked = [NSMutableDictionary new];
         _dropped = [NSMutableSet new]; _sizeAsked = [NSMutableDictionary new]; _dones = [NSMutableArray new];
-        _counts = [NSMutableDictionary new]; _early = [NSMutableArray new];
+        _counts = [NSMutableDictionary new]; _early = [NSMutableArray new]; _statusLock = [NSObject new];
     }
     return self;
 }
@@ -382,14 +387,19 @@ static NSArray<NSString *> *DefaultRoots(void) {
 
 /// A change among the worktree's files: its status layer goes, on disk too, so a restart computes it again.
 - (void)dropStatus:(MMWorktree *)w {
-    @synchronized (self) { [_dropped addObject:w.path]; _marked[w.path] = w; }
-    if (![self loadCaches]) return;
-    NSDictionary *v = [_git peek:w.path];
-    if ([v isKindOfClass:NSDictionary.class] && v[@"sfp"]) {
-        NSMutableDictionary *m = [v mutableCopy];
-        [m removeObjectForKey:@"sfp"];
-        [_git setValue:m for:w.path fingerprint:@""];
+    BOOL caches = [self loadCaches];
+    // Issue #84: the mark and the cached fingerprint go in one step. updateOne reads both under the same lock, so it
+    // sees a drop whole or not at all, and one change costs one git status.
+    @synchronized (_statusLock) {
+        @synchronized (self) { [_dropped addObject:w.path]; _marked[w.path] = w; }
+        NSDictionary *v = caches ? [_git peek:w.path] : nil;
+        if ([v isKindOfClass:NSDictionary.class] && v[@"sfp"]) {
+            NSMutableDictionary *m = [v mutableCopy];
+            [m removeObjectForKey:@"sfp"];
+            [_git setValue:m for:w.path fingerprint:@""];
+        }
     }
+    if (!caches) return;
     NSDictionary *size = [_sizes peek:w.path];
     if (size && ![_sizes changed:w.path fingerprint:@"stale"]) return;
     if (size) [_sizes setValue:size for:w.path fingerprint:@"stale"];
@@ -467,21 +477,31 @@ static NSArray<NSString *> *DefaultRoots(void) {
     NSString *path = w.path;
     *ran = NO; *changed = NO;
     NSDictionary *dirs;
-    @synchronized (self) {
-        dirs = _dirs[path];
-        if ([_dropped containsObject:path]) { force = YES; [_dropped removeObject:path]; }
-    }
+    @synchronized (self) { dirs = _dirs[path]; }
     BOOL readable = ReadableAt(path, self.roots);
     if (!dirs && readable) dirs = MMGitDirsOf(path);
     if (!dirs || !readable) {
-        @synchronized (self) { *changed = _facts[path] && _facts[path] != NSNull.null; _facts[path] = NSNull.null; }
+        @synchronized (self) {
+            *changed = _facts[path] && _facts[path] != NSNull.null; _facts[path] = NSNull.null;
+            [_dropped removeObject:path];
+        }
         [_git drop:path];
         return nil;
     }
     [self count:@"fingerprintReads" by:1];
     NSDictionary *files = MMGitReadFiles(dirs[@"gitDir"], dirs[@"common"]);
     [self recheckTree:path dirs:dirs files:files];
-    NSDictionary *old = [_git peek:path];
+#ifdef MM_TESTS
+    if (MMRepoIndexTestStep) MMRepoIndexTestStep(@"read", path);
+#endif
+    // Issue #84: the drop is taken here, in one step with the cached status. Taken at the top of this method, a
+    // change that came between the two cost two runs of git status: one for the fingerprint the drop had removed,
+    // and one more in the next pass for the drop itself.
+    NSDictionary *old;
+    @synchronized (_statusLock) {
+        old = [_git peek:path];
+        @synchronized (self) { if ([_dropped containsObject:path]) { force = YES; [_dropped removeObject:path]; } }
+    }
     if (![old isKindOfClass:NSDictionary.class]) old = nil;
     NSString *sfp = MMGitStatusFingerprint(files), *hfp = MMGitHistoryFingerprint(files, w.isMain);
     NSMutableDictionary *counts = [NSMutableDictionary new];
@@ -497,7 +517,15 @@ static NSArray<NSString *> *DefaultRoots(void) {
     NSMutableDictionary *value = [@{@"files": files, @"status": status, @"history": history, @"hfp": hfp} mutableCopy];
     if ([status[@"dirty"] integerValue] >= 0) value[@"sfp"] = sfp;   // a failed status is asked again next time
     *changed = !old || ![old[@"files"] isEqual:files] || ![old[@"status"] isEqual:status] || ![old[@"history"] isEqual:history];
-    if (![value isEqual:old]) [_git setValue:value for:path fingerprint:@""];
+#ifdef MM_TESTS
+    if (MMRepoIndexTestStep) MMRepoIndexTestStep(@"write", path);
+#endif
+    @synchronized (_statusLock) {
+        // A change that came while git ran left its drop for the next pass. Until then the status is kept with no
+        // fingerprint, as the drop wrote it, so a restart in between computes it again.
+        @synchronized (self) { if ([_dropped containsObject:path]) [value removeObjectForKey:@"sfp"]; }
+        if (![value isEqual:old]) [_git setValue:value for:path fingerprint:@""];
+    }
     MMGitFacts *g = [MMGitFacts fromValue:value];
     @synchronized (self) { _facts[path] = g ?: NSNull.null; }
     return g;
