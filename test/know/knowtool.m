@@ -10,6 +10,8 @@
 //   run                                   MMRun checks, one line each
 //   where-prune <pid>                     MMWhereIs caches pid's place, ends pid, and the cache drops it
 //   sizer quick <path> | exact <path>...  MMSizer in process
+//   plain <path> <max> head|tail|whole    MMReadPlain, issue #96
+//   within <seconds> <command> [args]     any command on a thread of its own: "stuck" and exit 3 past seconds
 #import <Cocoa/Cocoa.h>
 #import "Core/Know/MMRegistry.h"
 #import "Core/Know/MMSessions.h"
@@ -17,6 +19,7 @@
 #import "Core/Know/MMGit.h"
 #import "Core/Know/MMFactCache.h"
 #import "Core/Know/MMSizer.h"
+#import "Core/Runtime/MMRuntime.h"
 #import <sys/wait.h>
 
 @interface MMFactCache (Drain)
@@ -207,14 +210,35 @@ static int Run(void) {
     return 0;
 }
 
-int main(int argc, const char *argv[]) {
+/// Issue #96: what MMReadPlain gives for one path, as {nil, length, text}. part is head, tail or whole.
+static int Plain(NSString *path, NSUInteger max, NSString *part) {
+    MMPlainPart p = [part isEqualToString:@"tail"] ? MMPlainTail : [part isEqualToString:@"whole"] ? MMPlainWhole : MMPlainHead;
+    NSData *d = MMReadPlain(path, max, p);
+    NSString *text = d ? [[NSString alloc] initWithData:[d subdataWithRange:NSMakeRange(0, MIN(d.length, 64))] encoding:NSUTF8StringEncoding] : nil;
+    Print(@{ @"nil": d ? @NO : @YES, @"length": @(d.length), @"text": text ?: @"" });
+    return 0;
+}
+
+static int Command(NSString *cmd, NSArray<NSString *> *rest);
+
+/// Runs one command on a thread of its own and gives it seconds. One that has not returned by then prints "stuck"
+/// and the tool ends at once with _exit, so a read that waits for ever fails its check and never holds the run: the
+/// thread that waits goes with the process.
+static int Within(double seconds, NSString *cmd, NSArray<NSString *> *rest) {
+    __block int status = 0;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    NSThread *t = [[NSThread alloc] initWithBlock:^{ status = Command(cmd, rest); fflush(stdout); dispatch_semaphore_signal(done); }];
+    [t start];
+    if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC))) != 0) {
+        printf("stuck\n");
+        fflush(stdout);
+        _exit(3);
+    }
+    return status;
+}
+
+static int Command(NSString *cmd, NSArray<NSString *> *rest) {
     @autoreleasepool {
-        // Fixtures only: every file this tool reads or writes is under MINMACS_HOME and the agent homes test.sh sets.
-        if (!NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) { fprintf(stderr, "knowtool: set MINMACS_HOME\n"); return 2; }
-        NSMutableArray<NSString *> *args = [NSMutableArray new];
-        for (int i = 1; i < argc; i++) [args addObject:@(argv[i])];
-        NSString *cmd = args.firstObject ?: @"";
-        NSArray *rest = args.count > 1 ? [args subarrayWithRange:NSMakeRange(1, args.count - 1)] : @[];
         if ([cmd isEqualToString:@"rows"]) {
             MMRegistry *r = [[MMRegistry alloc] initWithRowDirectories:rest];
             NSMutableArray *names = [NSMutableArray new];
@@ -260,7 +284,22 @@ int main(int argc, const char *argv[]) {
             } else Print(@{ @"freed": @([MMSizer exact:paths]) });
             return 0;
         }
-        fprintf(stderr, "usage: knowtool rows|agents|sessions|where|where-later|goto|events|cache|run\n");
+        if ([cmd isEqualToString:@"plain"] && rest.count > 2) return Plain(rest[0], (NSUInteger)rest[1].longLongValue, rest[2]);
+        fprintf(stderr, "usage: knowtool rows|agents|sessions|where|where-later|goto|events|cache|run|plain|within\n");
         return 2;
+    }
+}
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        // Fixtures only: every file this tool reads or writes is under MINMACS_HOME and the agent homes test.sh sets.
+        if (!NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) { fprintf(stderr, "knowtool: set MINMACS_HOME\n"); return 2; }
+        NSMutableArray<NSString *> *args = [NSMutableArray new];
+        for (int i = 1; i < argc; i++) [args addObject:@(argv[i])];
+        NSString *cmd = args.firstObject ?: @"";
+        NSArray *rest = args.count > 1 ? [args subarrayWithRange:NSMakeRange(1, args.count - 1)] : @[];
+        if ([cmd isEqualToString:@"within"] && rest.count > 1)
+            return Within([rest[0] doubleValue], rest[1], [rest subarrayWithRange:NSMakeRange(2, rest.count - 2)]);
+        return Command(cmd, rest);
     }
 }

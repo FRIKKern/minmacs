@@ -143,6 +143,9 @@ check "latestIn finds the newest session inside a folder" pi-uuid-1 "$(sj "j['la
 check "openAt finds a session open now in the folder" "$K/proj" "$(sj "j['openAt']['cwd']")"
 check "the sessions cache is kept in the support folder" yes "$([ -s "$MINMACS_HOME/sessions.json" ] && echo yes || echo no)"
 
+echo "-- a file Know reads that is a named pipe, a socket or a device, issue #96"
+. ./test/know/pipes.sh
+
 echo "-- Codex turns, TESTS.md question 10"
 stop "$FA"
 ( cd "$K/proj" && exec "$K/bin/codex" ) & CX=$!; procs="$procs $CX"; sleep 1
