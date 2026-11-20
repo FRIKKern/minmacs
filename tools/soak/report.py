@@ -6,8 +6,8 @@
 It exits 0 when the run passes: every leaks(1) run worked, found no leak in MinMacs code, and found no more leaks
 trees that only system frameworks made at the last sample than at the first. The soak process lived to the stop and
 exited 0 on SIGTERM, no crash, hang or spin report names its processes, the watchdog saw no pass of main over 50 ms
-apart from those while leaks(1) held the process and those in which main was ready but got under a tenth of the
-time on a core,
+apart from those while leaks(1) held the process and those main held for under 50 ms, where the rest of the time it
+was ready to run and had no CPU,
 every mode stayed Idle with no undo record and no awake hold, and no fixture was left running. Footprint growth is
 judged against 5 MB a day only on a run of 6 hours or more, since a shorter run measures the warm-up more than a trend.
 """
@@ -101,13 +101,14 @@ def main(out):
     def during_leaks(st):
         end = st.get("at", 0); start = end - st.get("ms", 0) / 1000.0
         return any(start <= b and end >= a for a, b in windows)
-    # A pass in which main was ready to run but used under a tenth of its time on the CPU waited for a core, not for
-    # anything of its own: the Mac's load held it. It is listed apart too, with its CPU time, so the reader can judge.
-    starved = lambda st: st.get("state") == "runs" and st.get("cpuMs", 0) * 10 < st.get("ms", 0)
+    # A pass main held for under 50 ms waited for a core, not for anything of its own: the Mac's load held it. What
+    # main held is the pass's time less readyMs, the time the watchdog read main as ready to run with no CPU. It is
+    # listed apart too, with its CPU time, so the reader can judge. A stall with no readyMs has nothing taken off.
+    starved = lambda st: st.get("ms", 0) - st.get("readyMs", 0) < 50
     stalls = [st for st in summary.get("stalls", []) if not during_leaks(st) and not starved(st)]
     sampler = [st for st in summary.get("stalls", []) if during_leaks(st)]
     waited = [st for st in summary.get("stalls", []) if not during_leaks(st) and starved(st)]
-    words = lambda xs: "; ".join("%s ms, %s ms CPU, in %s" % (st.get("ms"), st.get("cpuMs"), st.get("what")) for st in xs)
+    words = lambda xs: "; ".join("%s ms, %s ms CPU, %s ms ready with no CPU, in %s" % (st.get("ms"), st.get("cpuMs"), st.get("readyMs", 0), st.get("what")) for st in xs)
     check("no pass of main over 50 ms", bool(summary) and not stalls, words(stalls) or "none")
     checks.append(("passes over 50 ms while leaks(1) held the process", None, "%d%s" % (len(sampler), ": " + words(sampler) if sampler else "")))
     checks.append(("passes over 50 ms in which main waited for a core", None, "%d%s" % (len(waited), ": " + words(waited) if waited else "")))
