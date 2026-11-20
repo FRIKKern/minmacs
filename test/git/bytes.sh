@@ -86,6 +86,12 @@ gy_case "$GYR" f5 open
 python3 -c "import sys; p=sys.argv[1]; d=open(p,'rb').read(); open(p,'wb').write(d.rstrip(b'\n'))" "$GYR/f5/main/.git/config"
 check "bytes: git reads a config with no trailing newline" origin/f5 "$(gt_up "$GYR/f5/wt")"
 
+echo "-- a folder where a loose ref would be is no ref, as git reads it"
+gy_case "$GYR" h open
+gq -C "$GYR/h/main" push -q origin :h; gq -C "$GYR/h/main" push -q origin main:refs/heads/h/sub; gq -C "$GYR/h/main" fetch -q --prune
+check "bytes: the remote branch h is gone and h/sub is a loose ref under its name" "[gone]|yes" \
+  "$(git -C "$GYR/h/main" for-each-ref --format='%(upstream:track)' refs/heads/h)|$([ -d "$GYR/h/main/.git/refs/remotes/origin/h" ] && echo yes || echo no)"
+
 echo "-- a file that is there and cannot be read"
 gy_case "$GYR" g1 merged
 mkdir -p "$GYR/g1/main/.git/logs/refs"; mkfifo "$GYR/g1/main/.git/logs/refs/stash"
@@ -133,6 +139,7 @@ check "bytes: a CRLF config gives the upstream, not gone" "origin/f2|False|its b
 check "bytes: CRLF stash lines and no trailing newline count" 2 "$(gy f3 stashes)"
 check "bytes: a BOM in config and stash log" "origin/f4|1" "$(gy f4 upstream)|$(gy f4 stashes)"
 check "bytes: a config with no trailing newline" "origin/f5|False" "$(gy f5 upstream)|$(gy f5 upstreamGone)"
+check "bytes: an upstream whose name is now a folder of refs is gone" "origin/h|True" "$(gy h upstream)|$(gy h upstreamGone)"
 check "bytes: a stash log that is a named pipe is not known, and keeps" "-1|cannot verify what git holds of it" \
   "$(gy g1 stashes)|$(gy g1 smart)"
 check "bytes: a stash log past the cap is not known, and keeps" "-1|cannot verify what git holds of it" \

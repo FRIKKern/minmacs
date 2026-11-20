@@ -101,10 +101,13 @@ static const NSUInteger kGitFileMax = 256u * 1024 * 1024;
 static NSString *const kUnread = @"(not read)";
 
 /// YES when nothing is at path, the one case a file git did not write is none. lstat, so a link to nothing is there.
-static BOOL Missing(NSString *path) {
+/// dirToo, for a loose ref: a folder there is no ref, as git reads it, since it holds refs below that name.
+static BOOL Missing(NSString *path, BOOL dirToo) {
     const char *p = path.fileSystemRepresentation;
     struct stat st;
-    return p && lstat(p, &st) != 0 && (errno == ENOENT || errno == ENOTDIR);
+    if (!p) return NO;
+    if (lstat(p, &st) == 0) return dirToo && S_ISDIR(st.st_mode);
+    return errno == ENOENT || errno == ENOTDIR;
 }
 
 /// The length of the UTF-8 sequence at s, or 0 when none starts there: the strict rules Foundation decodes by, with
@@ -180,21 +183,22 @@ static BOOL NameUsable(NSString *s) {
 /// A small file's text, trimmed, or nil: HEAD, a ref, a .git file, commondir. Text that is not UTF-8, or holds a NUL,
 /// would build a path, so it reads as nil, issue #116, except a symbolic ref, "ref: <name>": its name is shown, so it
 /// reads with U+FFFD for each such byte, and Resolve never makes a path of it. *unread, when given, turns YES when the
-/// file is there and gives no text. Issue #54: open and read, since Foundation's file read cost most of a warm walk of
-/// 300 worktrees, which reads about 15 such files each. Issues #81 and #96: through MMReadPlain, so only a plain file
-/// is opened, and a named pipe under one of those names, as a .git in a folder that is scanned can be, is not read.
-static NSString *Line(NSString *path, BOOL *unread) {
+/// file is there and gives no text, and a ref's folder is no file, as Missing says. Issue #54: open and read, since
+/// Foundation's file read cost most of a warm walk of 300 worktrees, which reads about 15 such files each. Issues #81
+/// and #96: through MMReadPlain, so only a plain file is opened, and a named pipe under one of those names, as a .git
+/// in a folder that is scanned can be, is not read.
+static NSString *Line(NSString *path, BOOL *unread, BOOL ref) {
     NSData *d = MMReadPlain(path, kGitFileMax, MMPlainWhole);
     BOOL lossy = NO;
     NSString *s = d ? Text(d.bytes, d.length, &lossy) : nil;
     if (lossy && !(d.length >= 5 && !memcmp(d.bytes, "ref: ", 5))) s = nil;
-    if (unread) *unread = d ? !s : !Missing(path);
+    if (unread) *unread = d ? !s : !Missing(path, ref);
     return [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
 }
 
-NSString *MMReadLine(NSString *path) { return Line(path, NULL); }
+NSString *MMReadLine(NSString *path) { return Line(path, NULL, NO); }
 
-static NSString *ReadLine(NSString *path) { return Line(path, NULL); }
+static NSString *ReadLine(NSString *path) { return Line(path, NULL, NO); }
 
 /// mtime, size and inode, or "-" when the file is missing. A rewrite of the file always moves it.
 static NSString *Stamp(NSString *path) {
@@ -216,13 +220,13 @@ static id Parsed(NSString *path, id (^parse)(NSArray<NSString *> *lines)) {
     static NSMutableDictionary<NSString *, NSArray *> *memo; static dispatch_once_t once;
     dispatch_once(&once, ^{ memo = [NSMutableDictionary new]; });
     NSString *stamp = Stamp(path);
-    if ([stamp isEqualToString:@"-"]) return Missing(path) ? parse(@[]) ?: NSNull.null : kUnread;
+    if ([stamp isEqualToString:@"-"]) return Missing(path, NO) ? parse(@[]) ?: NSNull.null : kUnread;
     @synchronized (memo) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }
     NSData *bytes = MMReadPlain(path, kGitFileMax, MMPlainWhole);
-    if (!bytes) return Missing(path) ? parse(@[]) ?: NSNull.null : kUnread;
+    if (!bytes) return Missing(path, NO) ? parse(@[]) ?: NSNull.null : kUnread;
     id value = parse(FileLines(bytes)) ?: NSNull.null;
     @synchronized (memo) {
         if (memo.count > 512) [memo removeAllObjects];
@@ -251,7 +255,7 @@ static id PackedRefs(NSString *common) {
 static NSString *Resolve(NSString *common, NSString *ref, int depth) {
     if (!ref.length || depth > 3 || [ref containsString:@".."] || !NameUsable(ref)) return kUnread;
     BOOL unread = NO;
-    NSString *line = Line([common stringByAppendingPathComponent:ref], &unread);
+    NSString *line = Line([common stringByAppendingPathComponent:ref], &unread, YES);
     if (unread) return kUnread;
     if ([line hasPrefix:@"ref: "]) return Resolve(common, [line substringFromIndex:5], depth + 1);
     if (line) return IsSha(line) ? line : kUnread;
@@ -327,7 +331,7 @@ NSDictionary<NSString *, NSString *> *MMGitDirsOf(NSString *path) {
     if (!gitDir.isAbsolutePath) gitDir = [path stringByAppendingPathComponent:gitDir];
     gitDir = gitDir.stringByStandardizingPath;
     BOOL unread = NO;
-    NSString *common = Line([gitDir stringByAppendingPathComponent:@"commondir"], &unread);
+    NSString *common = Line([gitDir stringByAppendingPathComponent:@"commondir"], &unread, NO);
     if (unread) return nil;   // issue #116: a commondir there and not read is not a submodule's
     if (!common.length) return @{@"gitDir": gitDir, @"common": gitDir};   // a submodule keeps its own refs
     if (!common.isAbsolutePath) common = [gitDir stringByAppendingPathComponent:common];
@@ -340,7 +344,7 @@ NSDictionary<NSString *, NSString *> *MMGitDirsOf(NSString *path) {
 NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
     NSMutableDictionary *f = [NSMutableDictionary new];
     BOOL headUnread = NO;
-    NSString *line = Line([gitDir stringByAppendingPathComponent:@"HEAD"], &headUnread);
+    NSString *line = Line([gitDir stringByAppendingPathComponent:@"HEAD"], &headUnread, NO);
     if ([line hasPrefix:@"ref: "]) {
         NSString *ref = [line substringFromIndex:5];
         if ([ref hasPrefix:@"refs/heads/"]) f[@"branch"] = [ref substringFromIndex:11];   // shown, U+FFFD and all
@@ -355,7 +359,7 @@ NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
     // The default branch: origin/HEAD when the clone set it, else the usual names. One that cannot be known ends the
     // search, so no other name stands in for it.
     BOOL originUnread = NO;
-    NSString *originHead = Line([common stringByAppendingPathComponent:@"refs/remotes/origin/HEAD"], &originUnread);
+    NSString *originHead = Line([common stringByAppendingPathComponent:@"refs/remotes/origin/HEAD"], &originUnread, YES);
     NSMutableArray *candidates = [NSMutableArray new];
     if ([originHead hasPrefix:@"ref: refs/"]) [candidates addObject:[originHead substringFromIndex:5]];
     if (!originUnread) [candidates addObjectsFromArray:@[@"refs/remotes/origin/main", @"refs/remotes/origin/master", @"refs/heads/main", @"refs/heads/master"]];
