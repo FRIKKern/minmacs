@@ -111,10 +111,10 @@ static NSString *WrapperLabel(NSString *tool, NSArray<NSString *> *args) {
 
 #pragma mark - Git and project files
 
+/// The first max bytes of a project file as text. Issue #96: through MMReadPlain, so a package.json or a README that
+/// is a named pipe reads as no file. NSFileHandle's open of a pipe waited for a writer, and held the scan's queue.
 static NSString *HeadText(NSString *path, NSUInteger max) {
-    NSFileHandle *f = [NSFileHandle fileHandleForReadingAtPath:path];
-    NSData *d = [f readDataUpToLength:max error:nil];
-    [f closeFile];
+    NSData *d = MMReadPlain(path, max, MMPlainHead);
     return d ? ([[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding]) : nil;
 }
 
@@ -168,7 +168,7 @@ static NSString *ScriptName(NSArray<NSString *> *wrapperArgs, NSString *command,
 /// What the project's own files say, read from an allowlist: the package.json name, description and scripts,
 /// the README's first heading and paragraph, mix.exs and pyproject.toml names, and the names of config files.
 /// .env files and other contents are never opened. Ported from Project in LocoHost's Intel.m.
-static NSDictionary *ReadProject(NSArray<NSString *> *folders, NSArray<NSString *> *wrapperArgs, NSString *command) {
+NSDictionary *MMLHReadProject(NSArray<NSString *> *folders, NSArray<NSString *> *wrapperArgs, NSString *command) {
     NSFileManager *fm = NSFileManager.defaultManager;
     NSMutableDictionary *p = [NSMutableDictionary new];
     NSMutableOrderedSet *configs = [NSMutableOrderedSet new];
@@ -569,7 +569,7 @@ static NSString *LocalAddr(const MMSocket *s) {
             NSArray *fs = folders.array, *wargs = h.wrapperArgs ?: @[];
             NSString *cmd = [h.command stringByAppendingFormat:@" %@", [h.args componentsJoinedByString:@" "]];
             NSString *pkey = [[fs componentsJoinedByString:@"|"] stringByAppendingFormat:@"|%@", wargs.count ? [wargs componentsJoinedByString:@" "] : cmd];
-            NSDictionary *proj = [ProjectCache() valueFor:pkey fingerprint:@"" orCompute:^id{ return ReadProject(fs, wargs, cmd); } wait:read == MMLHReadNow];
+            NSDictionary *proj = [ProjectCache() valueFor:pkey fingerprint:@"" orCompute:^id{ return MMLHReadProject(fs, wargs, cmd); } wait:read == MMLHReadNow];
             NSMutableDictionary *pf = [Dict(proj) mutableCopy];
             h.script = Str(pf[@"scriptName"]);
             [pf removeObjectForKey:@"scriptName"];

@@ -13,6 +13,7 @@
 #import <sys/stat.h>
 #import <CoreServices/CoreServices.h>
 #import <stdatomic.h>
+#include <errno.h>
 
 
 static const NSTimeInterval kSessionWindow = 30 * 86400;   // older transcripts are left out, as WorkForest does
@@ -53,25 +54,27 @@ static NSString *PiSessionsDir(void) {
     return [a.length ? a : [NSHomeDirectory() stringByAppendingPathComponent:@".pi/agent"] stringByAppendingPathComponent:@"sessions"];
 }
 
-static NSData *Head(NSString *path, NSUInteger max) {
-    NSFileHandle *f = [NSFileHandle fileHandleForReadingAtPath:path];
-    NSData *d = [f readDataUpToLength:max error:nil];
-    [f closeFile];
-    return d;
-}
+/// Issue #96: every session file is read through MMReadPlain, so one that is a named pipe, a socket or a device is
+/// no session file. NSFileHandle's open of a pipe waited for a writer, and held every refresh behind it.
+static NSData *Head(NSString *path, NSUInteger max) { return MMReadPlain(path, max, MMPlainHead); }
 
 static NSString *Text(NSData *d) {
     return d ? ([[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding]) : nil;
 }
 
 /// The last bytes of a file, for keys an agent appends late, such as Claude Code's aiTitle.
-static NSString *TailText(NSString *path, unsigned long long max) {
-    NSFileHandle *f = [NSFileHandle fileHandleForReadingAtPath:path];
-    unsigned long long end = [f seekToEndOfFile];
-    [f seekToFileOffset:end > max ? end - max : 0];
-    NSData *d = [f readDataToEndOfFile];
-    [f closeFile];
-    return Text(d);
+static NSString *TailText(NSString *path, NSUInteger max) { return Text(MMReadPlain(path, max, MMPlainTail)); }
+
+/// A status file is a few hundred bytes. One past this is no status file of Claude Code's.
+static const NSUInteger kStatusFileMax = 1024 * 1024;
+
+/// YES when path is a plain file, or a link to one. SQLite opens its files with no O_NONBLOCK, so a database, or its
+/// -wal, -shm or -journal file, that is a named pipe would hold the open for ever: such a database is not opened at all.
+static BOOL PlainOrMissing(NSString *path, BOOL *exists) {
+    struct stat st;
+    if (stat(path.fileSystemRepresentation, &st) != 0) { if (exists) *exists = NO; return errno == ENOENT; }
+    if (exists) *exists = YES;
+    return S_ISREG(st.st_mode);
 }
 
 static NSString *Match(NSString *s, NSString *pattern, BOOL last) {
@@ -134,10 +137,11 @@ static BOOL SameStart(uint64_t running, NSString *procStart) {
     return NO;
 }
 
-/// The modification time and size of path from one stat, with no extended attributes read. NO when it is missing.
+/// The modification time and size of path from one stat, with no extended attributes read. NO when it is missing, or
+/// when it is no plain file, issue #96: a named pipe, a socket or a device under a session's name is no session.
 static BOOL StatOf(NSString *path, NSTimeInterval *mtime, unsigned long long *size) {
     struct stat st;
-    if (stat(path.fileSystemRepresentation, &st) != 0) return NO;
+    if (stat(path.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)) return NO;
     if (mtime) *mtime = st.st_mtimespec.tv_sec + st.st_mtimespec.tv_nsec / 1e9;
     if (size) *size = (unsigned long long)st.st_size;
     return YES;
@@ -222,8 +226,12 @@ static NSString *URIPath(NSString *path) {
 /// TESTS.md question 10. mode=ro needs the -shm file, which exists while Codex has the database open.
 /// Without it a read-only connection cannot create one, so immutable=1 is used, which is safe while nothing writes.
 static sqlite3 *OpenCodexDB(NSString *path, NSString **modeOut) {
-    if (![NSFileManager.defaultManager fileExistsAtPath:path]) return NULL;
-    BOOL shm = [NSFileManager.defaultManager fileExistsAtPath:[path stringByAppendingString:@"-shm"]];
+    BOOL there = NO, shm = NO;
+    if (!PlainOrMissing(path, &there) || !there) return NULL;
+    // With -shm there, the read is mode=ro, and SQLite's first read looks for a hot journal at -journal.
+    for (NSString *x in @[@"-wal", @"-journal"])
+        if (!PlainOrMissing([path stringByAppendingString:x], NULL)) return NULL;
+    if (!PlainOrMissing([path stringByAppendingString:@"-shm"], &shm)) return NULL;
     NSString *mode = shm ? @"mode=ro" : @"immutable=1";
     if (modeOut) *modeOut = mode;
     NSString *uri = [NSString stringWithFormat:@"file:%@?%@", URIPath(path), mode];
@@ -567,7 +575,7 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
     NSString *sdir = [claude stringByAppendingPathComponent:@"sessions"];
     for (NSString *name in Names(sdir)) {
         if (![name.pathExtension isEqualToString:@"json"]) continue;
-        NSData *d = [NSData dataWithContentsOfFile:[sdir stringByAppendingPathComponent:name]];
+        NSData *d = MMReadPlain([sdir stringByAppendingPathComponent:name], kStatusFileMax, MMPlainWhole);
         NSDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
         if (![j isKindOfClass:NSDictionary.class]) continue;
         pid_t pid = [j[@"pid"] isKindOfClass:NSNumber.class] ? [j[@"pid"] intValue] : name.stringByDeletingPathExtension.intValue;

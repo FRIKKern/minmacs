@@ -42,6 +42,10 @@ NSDictionary *MMLHGitOf(NSString *folder, MMFacts *facts, MMLHRead read);
 NSString *MMLHCanon(NSString *path);
 /// "merged", "squash-merged", "merged through a pull request" or "not merged". nil for a main checkout or no facts.
 NSString *MMLHMergeWords(MMGitFacts *g, BOOL isMain);
+/// What a project's own allowlisted files say: package.json's name, description and script, the README's intro, the
+/// mix.exs and pyproject.toml names, and the names of config files. Each file is read through MMReadPlain, so one that
+/// is a named pipe, a socket or a device counts as not there, issue #96. Reads disk: the scan calls it off main.
+NSDictionary *MMLHReadProject(NSArray<NSString *> *folders, NSArray<NSString *> *wrapperArgs, NSString *command);
 
 /// Where the host runs, from Know's Where. wait YES asks cmux and tmux now, for the CLI.
 void MMLHFillWhere(MMLHHost *h, MMSample *s, BOOL wait);

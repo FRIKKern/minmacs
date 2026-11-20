@@ -39,3 +39,20 @@ void MMBreadcrumbEnter(NSString *expert, NSString *job);
 void MMBreadcrumbLeave(NSString *expert, NSString *job);
 /// "workforest.scan" when the last run crashed inside that job, nil after a clean exit. Read once at launch.
 NSString *MMBreadcrumbLeftOver(void);
+
+/// Which bytes of a plain file MMReadPlain gives.
+typedef NS_ENUM(NSInteger, MMPlainPart) {
+    MMPlainHead,    // the first max bytes, or all of a shorter file
+    MMPlainTail,    // the last max bytes, or all of a shorter file
+    MMPlainWhole,   // the whole file, or nil when it is longer than max
+};
+
+/// Issue #96. The bytes of the plain file at path, read with no wait, for every file whose path comes from the disk:
+/// an agent's session file, a project's package.json, git's files, another tool's config. An open of a named pipe
+/// waits until a writer comes, and an open of a device can wait or act on it, so only a plain file is ever opened.
+/// nil, at once and with nothing opened, when path is missing, a folder, a named pipe with or without a writer, a
+/// socket, a device, or a link to any of those. A link to a plain file reads as that file. The open carries
+/// O_NONBLOCK and the opened file is asked again with fstat, so a pipe that takes the name in between gives nil too.
+/// A file is read as long as it was when opened: one that shrinks gives what it still holds. A read error gives nil.
+/// MMPlainFile.m.
+NSData *MMReadPlain(NSString *path, NSUInteger max, MMPlainPart part);

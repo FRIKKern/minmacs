@@ -5,6 +5,7 @@
 #import "Core/Review/MMInvestigate.h"
 #import "Core/Know/MMGit.h"
 #import "Core/Store/MMStore.h"
+#import "Core/Runtime/MMRuntime.h"
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -290,7 +291,8 @@ static NSDictionary *AskClaude(MMAnswer *a, NSString *claude, MMClaudeCall *c, N
 /// The models of one family, such as "sol", Codex offers this account, newest first as Codex lists them, then the known names.
 static NSArray<NSString *> *CodexFamily(NSString *family, NSArray<NSString *> *known) {
     NSString *home = NSProcessInfo.processInfo.environment[@"CODEX_HOME"] ?: [@"~/.codex" stringByExpandingTildeInPath];
-    NSData *d = [NSData dataWithContentsOfFile:[home stringByAppendingPathComponent:@"models_cache.json"]];
+    // Codex's own file, so through MMReadPlain, issue #96: one that is a named pipe or a device is no cache.
+    NSData *d = MMReadPlain([home stringByAppendingPathComponent:@"models_cache.json"], 16 * 1024 * 1024, MMPlainWhole);
     NSDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
     NSMutableArray *l = [NSMutableArray new];
     NSString *suffix = [@"-" stringByAppendingString:family];

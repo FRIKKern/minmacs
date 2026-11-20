@@ -9,6 +9,7 @@
 // Every function here reads disk or runs git, so it runs on a Know queue, never on main.
 #import "Core/Know/MMGit.h"
 #import "Core/Know/MMFactCache.h"
+#import "Core/Runtime/MMRuntime.h"
 #import <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -80,31 +81,17 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
 
 #pragma mark - git's own files
 
+/// The most of git's own files that is read: far past any packed-refs or config git writes. A bigger one reads as none.
+static const NSUInteger kGitFileMax = 256u * 1024 * 1024;
+
 /// A small file's text, trimmed, or nil when it cannot be read or is not UTF-8: HEAD, a ref, a .git file, commondir.
 /// Issue #54: open and read, since Foundation's file read cost most of a warm walk of 300 worktrees, which reads
-/// about 15 such files each. A file over 4 KB is read by Foundation, as before.
-/// Issue #81: only a plain file is opened, and stat says so first. A named pipe under one of those names, as a .git
-/// in a folder that is scanned can be, reads as nothing and is never opened: an open of a pipe waits for a writer,
-/// and even one that does not wait lets a waiting writer through. stat, not lstat, so a link to a plain file reads
-/// as before. The open still carries O_NONBLOCK, for a pipe that takes the name between the two calls.
+/// about 15 such files each. Issues #81 and #96: through MMReadPlain, so only a plain file is opened, and a named
+/// pipe under one of those names, as a .git in a folder that is scanned can be, reads as nothing. A link to a plain
+/// file reads as before.
 NSString *MMReadLine(NSString *path) {
-    if (!path.length) return nil;
-    struct stat st;
-    if (stat(path.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)) return nil;
-    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-    if (fd < 0) return nil;
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) { close(fd); return nil; }
-    char buf[4096];
-    ssize_t got = 0, n = 0;
-    while (got < (ssize_t)sizeof buf && (n = read(fd, buf + got, sizeof buf - (size_t)got)) != 0) {
-        if (n < 0) { if (errno == EINTR) continue; break; }
-        got += n;
-    }
-    BOOL more = got == (ssize_t)sizeof buf;
-    close(fd);
-    if (n < 0) return nil;
-    NSString *s = more ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil]
-                       : [[NSString alloc] initWithBytes:buf length:(NSUInteger)got encoding:NSUTF8StringEncoding];
+    NSData *d = MMReadPlain(path, kGitFileMax, MMPlainWhole);
+    NSString *s = d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : nil;
     return [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
 }
 
@@ -132,8 +119,9 @@ static id Parsed(NSString *path, id (^parse)(NSString *text)) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }
-    NSString *text = [stamp isEqualToString:@"-"] ? @"" :
-        ([NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil] ?: @"");
+    // Issue #96: a packed-refs, config or stash log that is a named pipe reads as empty, and never waits.
+    NSData *bytes = [stamp isEqualToString:@"-"] ? nil : MMReadPlain(path, kGitFileMax, MMPlainWhole);
+    NSString *text = bytes ? ([[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] ?: @"") : @"";
     id value = parse(text) ?: NSNull.null;
     @synchronized (memo) {
         if (memo.count > 512) [memo removeAllObjects];

@@ -3,8 +3,10 @@
 // core.sock: MMArgs collects the output, and a verb that changes things may run, since this process stands in for
 // the app. No app runs, so the snapshot is the CLI's cold one from Sources/CLI.
 // `verbs` lists LocoHost's MMVerbSpecs. `_menureads` and `_gotime <port>` are checks of the menu on the main thread.
+// `_project <folder>` reads a project folder's files on a thread of its own, issue #96, and gives it 2 seconds.
 #import <Foundation/Foundation.h>
 #import "Experts/LocoHost/MMLocoHost.h"
+#import "Experts/LocoHost/MMLHScan.h"
 #import "CLI/MMCLI.h"
 
 /// The undo log and the keeps read on the main thread while LocoHost draws its menu, its cards, badge and label.
@@ -38,6 +40,18 @@ static int GoTime(NSString *port) {
     return 0;
 }
 
+/// MMLHReadProject of one folder as JSON, or "stuck" when it has not returned in 2 seconds: a read that waits on a
+/// named pipe fails its check that way, and _exit ends the tool with the thread still waiting, so the run never waits.
+static int Project(NSString *folder) {
+    __block NSDictionary *p = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    [[[NSThread alloc] initWithBlock:^{ p = MMLHReadProject(@[folder], @[], @""); dispatch_semaphore_signal(done); }] start];
+    if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0) { printf("stuck\n"); fflush(stdout); _exit(3); }
+    NSData *d = [NSJSONSerialization dataWithJSONObject:p ?: @{} options:NSJSONWritingSortedKeys error:nil];
+    printf("%s\n", [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding].UTF8String);
+    return 0;
+}
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         MMRegisterExpert(MMLocoHost.shared);
@@ -51,6 +65,7 @@ int main(int argc, const char *argv[]) {
         }
         if ([verb isEqualToString:@"_menureads"]) return MenuReads();
         if ([verb isEqualToString:@"_gotime"] && argc > 2) return GoTime(@(argv[2]));
+        if ([verb isEqualToString:@"_project"] && argc > 2) return Project(@(argv[2]));
         NSMutableArray *words = [NSMutableArray new];
         for (int i = 1; i < argc; i++) [words addObject:@(argv[i])];
         NSDictionary *r = MMCLIReply(@{@"cli": words, @"program": @"locohost", @"cwd": NSFileManager.defaultManager.currentDirectoryPath});
