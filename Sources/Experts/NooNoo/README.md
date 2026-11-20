@@ -34,7 +34,7 @@ One finding per item, `noonoo:clutter:<row>:<path>`. Finished projects come firs
 
 A tool row's finding holds `command` in its facts: the command line, the button title `MMClutterCommandTitle` gives, such as "Run pnpm store prune, Cannot Be Undone", `undo` false, `askOnly` true, the dry-run form, `quitFirst`, and `lastDryRun` with what it would free. No menu or card shows it yet.
 
-The rule `noonoo.owner-state` decides every finding, so the model is never asked about clutter. Proactive cleans finished projects and leftovers. Eager adds caches. After a new review the app's watch on main takes the mode from the view `prepareFor:` made on the graph queue, so main reads no pref. A tool's own cleanup runs only when the person asks. An agent working in the project keeps its build output in every mode.
+The rule `noonoo.owner-state` decides every finding, so the model is never asked about clutter. Proactive cleans finished projects and leftovers. Eager adds caches. After a new review the app's watch on main takes the mode from the view `prepareFor:` made on the graph queue, so main reads no pref. A tool's own cleanup runs only when the person asks. An agent working in the project keeps its build output in every mode. The agent works in the project when its session's folder is the checkout or inside it. A session started in a folder above the checkout, such as the folder that holds every repo, keeps a checkout only while a process of its tree runs in it, issue #91. A folder that is in no checkout is still kept by a session started above it.
 
 ## Menu
 

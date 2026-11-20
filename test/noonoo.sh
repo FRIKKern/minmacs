@@ -192,6 +192,25 @@ print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('fre
   check "noonoo: sizes are what deleting frees, from the Sizer" yes \
     "$(printf '%s' "$nn_list" | json '"yes" if [i for i in j["items"] if i["path"].endswith("Caches/pip")][0]["freed"] >= 8*1048576 else "no"')"
 
+  echo "-- which checkouts a working agent keeps, issue #91"
+  # One field of the item at a path, with a working agent session in a folder, and as a process when a pid is given.
+  nn_agent() { ( export NN_AGENT_CWD="$1" NN_AGENT_PID="$2"; nn_item "$3" "$4" ); }
+  check "noonoo: an agent that works in a checkout keeps its node_modules" "kept an agent works in acme" \
+    "$(nn_agent "$nn_main" "" "$nn_main/node_modules" section) $(nn_agent "$nn_main" "" "$nn_main/node_modules" keep)"
+  mkdir -p "$nn_main/src"
+  check "noonoo: so does one that works in a folder of the checkout" "kept an agent works in acme" \
+    "$(nn_agent "$nn_main/src" "" "$nn_main/node_modules" section) $(nn_agent "$nn_main/src" "" "$nn_main/node_modules" keep)"
+  check "noonoo: an agent started in the folder that holds the checkouts keeps none of them by that alone" "caches  finished " \
+    "$(nn_agent "$nn/code" "" "$nn_main/node_modules" section) $(nn_agent "$nn/code" "" "$nn_main/node_modules" keep) $(nn_agent "$nn/code" "" "$nn_wt/node_modules" section) $(nn_agent "$nn/code" "" "$nn_wt/node_modules" keep)"
+  check "noonoo: an agent in another checkout keeps nothing here" "caches" "$(nn_agent "$nn_wt" "" "$nn_main/node_modules" section)"
+  (cd "$nn/code" && exec sh -c "cd '$nn_main' && sleep 60; :" 2>/dev/null) &
+  nn_runner=$!; procs="$procs $nn_runner"
+  sleep 0.3
+  check "noonoo: started above, it keeps the checkout one of its processes runs in" "kept an agent started in code runs a process in acme" \
+    "$(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" section) $(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" keep)"
+  check "noonoo: and no other checkout" "finished" "$(nn_agent "$nn/code" "$nn_runner" "$nn_wt/node_modules" section)"
+  pkill -P "$nn_runner" 2>/dev/null; kill "$nn_runner" 2>/dev/null
+
   echo "-- a file held open keeps its folder"
   (exec 3<"$nn_clone/Contents/Chrome"; exec sleep 60) &
   nn_holder=$!; procs="$procs $nn_holder"

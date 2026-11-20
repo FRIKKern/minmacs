@@ -15,6 +15,8 @@
 //   tool freed <text>                             what MMClutterFreedFromOutput reads from text
 // NN_RUNNING_APPS names the bundle ids that count as running, comma separated, for the rows' quitFirst.
 // NN_PROJECTS names the checkouts, colon separated. NN_MERGED names the worktree whose git facts say squash-merged.
+// NN_AGENT_CWD adds a working agent session in that folder. With NN_AGENT_PID it runs as that process, and the facts
+// carry a process sample taken now.
 #import <Cocoa/Cocoa.h>
 #import "Core/MMCore.h"
 #import "Experts/NooNoo/MMNooNoo.h"
@@ -52,7 +54,19 @@ static NSArray<NSString *> *Projects(void) {
         git[p] = g;
     }
     [MMSessions.shared refresh];
-    return [MMFacts generation:generation sample:nil power:nil agents:@[] sessions:MMSessions.shared.all ?: @[]
+    NSMutableArray *sessions = [MMSessions.shared.all ?: @[] mutableCopy];
+    MMSample *sample = nil;
+    if (Env(@"NN_AGENT_CWD").length) {
+        MMSession *x = [MMSession new];
+        [x setValue:@"claude-code" forKey:@"agent"]; [x setValue:@"nn-agent" forKey:@"sessionID"];
+        [x setValue:Env(@"NN_AGENT_CWD") forKey:@"cwd"]; [x setValue:@"busy" forKey:@"liveStatus"];
+        if (Env(@"NN_AGENT_PID").intValue > 0) {
+            [x setValue:@(Env(@"NN_AGENT_PID").intValue) forKey:@"pid"];
+            sample = MMSenses.shared.sampleNow;
+        }
+        [sessions addObject:x];
+    }
+    return [MMFacts generation:generation sample:sample power:nil agents:@[] sessions:sessions
                      worktrees:trees clutter:MMClutterCatalog.shared.items git:git];
 }
 - (MMFacts *)freshFactsFor:(MMFinding *)finding { return [self factsFor:0]; }
