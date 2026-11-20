@@ -13,6 +13,7 @@ NSString *const MMGainServer = @"server", *const MMGainApp = @"app", *const MMGa
 NSString *const MMGainByYou = @"you", *const MMGainByAuto = @"auto", *const MMGainByRun = @"run";
 NSString *const MMGainDiskNone = @"none", *const MMGainDiskFreed = @"freed", *const MMGainDiskTrash = @"trash",
     *const MMGainDiskPutBack = @"put-back";
+const uint64_t MMGainDiskNotMeasured = UINT64_MAX;
 const NSInteger MMGainsKeepDays = 30;
 
 // Version 0 is a minmacs.sqlite with no gains table, as every build before this one left it. The step to version 1
@@ -52,10 +53,14 @@ static int ExecPatiently(sqlite3 *db, const char *sql) {
 @property (readwrite, copy) NSString *rid, *run, *kind, *part, *who, *by, *expert, *subject, *workstream, *diskState;
 @property (readwrite) NSDate *at;
 @property (readwrite) uint64_t memoryBytes, diskBytes;
+@property (readwrite) BOOL diskMeasured;
 @property (readwrite) NSInteger items;
 @property (readwrite) BOOL undone;
 @property (copy) NSArray *trashed;
 @end
+
+/// A row's disk number for --json: null when nobody measured it, and never a 0 nobody read.
+static id DiskOf(MMGain *g) { return g.diskMeasured ? @(g.diskBytes) : (id)NSNull.null; }
 
 @implementation MMGain
 - (NSDictionary *)json {
@@ -63,8 +68,9 @@ static int ExecPatiently(sqlite3 *db, const char *sql) {
     return @{@"rid": self.rid ?: @"", @"run": self.run ?: NSNull.null, @"kind": self.kind ?: @"", @"part": self.part ?: NSNull.null,
              @"who": self.who ?: @"", @"by": self.by ?: @"", @"expert": self.expert ?: @"", @"subject": self.subject ?: @"",
              @"workstream": self.workstream ?: NSNull.null, @"at": @(self.at.timeIntervalSince1970),
-             @"memoryBack": @(self.undone ? 0 : self.memoryBytes), @"diskBack": @(freed && !self.undone ? self.diskBytes : 0),
-             @"diskInTrash": @(inTrash && !self.undone ? self.diskBytes : 0), @"diskState": self.diskState ?: MMGainDiskNone,
+             @"memoryBack": @(self.undone ? 0 : self.memoryBytes), @"diskBack": freed && !self.undone ? DiskOf(self) : @0,
+             @"diskInTrash": inTrash && !self.undone ? DiskOf(self) : @0, @"diskState": self.diskState ?: MMGainDiskNone,
+             @"measured": @(self.diskMeasured),
              @"items": @(self.items), @"undone": @(self.undone)};
 }
 - (NSString *)description { return [NSString stringWithFormat:@"%@ %@ %@ mem %llu disk %llu %@", self.rid, self.kind, self.who, self.memoryBytes, self.diskBytes, self.diskState]; }
@@ -75,6 +81,7 @@ static int ExecPatiently(sqlite3 *db, const char *sql) {
 @property NSMutableSet *actions;
 @property NSInteger items;
 @property uint64_t memory, disk, trash;
+@property BOOL diskPartial, trashPartial;               // a row in that sum is not measured, so the sum is no total
 @end
 @implementation MMGainTotal
 - (instancetype)init { if ((self = [super init])) _actions = [NSMutableSet new]; return self; }
@@ -82,12 +89,16 @@ static int ExecPatiently(sqlite3 *db, const char *sql) {
     [self.actions addObject:g.run ?: g.rid];
     self.items += g.items;
     self.memory += g.memoryBytes;
-    if ([g.diskState isEqualToString:MMGainDiskFreed]) self.disk += g.diskBytes;
-    if ([g.diskState isEqualToString:MMGainDiskTrash]) self.trash += g.diskBytes;
+    BOOL freed = [g.diskState isEqualToString:MMGainDiskFreed], inTrash = [g.diskState isEqualToString:MMGainDiskTrash];
+    // A row nobody measured adds no number. It marks the sum it would be in.
+    if (!g.diskMeasured) { if (freed) self.diskPartial = YES; if (inTrash) self.trashPartial = YES; return; }
+    if (freed) self.disk += g.diskBytes;
+    if (inTrash) self.trash += g.diskBytes;
 }
 - (NSDictionary *)json {
     return @{@"actions": @(self.actions.count), @"items": @(self.items), @"memoryBack": @(self.memory),
-             @"diskBack": @(self.disk), @"diskInTrash": @(self.trash)};
+             @"diskBack": @(self.disk), @"diskBackPartial": @(self.diskPartial),
+             @"diskInTrash": @(self.trash), @"diskInTrashPartial": @(self.trashPartial)};
 }
 @end
 
@@ -162,6 +173,8 @@ static MMGain *GainFrom(sqlite3_stmt *st) {
     g.expert = Text(st, 6); g.subject = Text(st, 7); g.workstream = Text(st, 8);
     g.at = [NSDate dateWithTimeIntervalSince1970:sqlite3_column_double(st, 9)];
     g.memoryBytes = (uint64_t)MAX(sqlite3_column_int64(st, 10), 0);
+    // -1 is a size nobody measured, MMGainDiskNotMeasured.
+    g.diskMeasured = sqlite3_column_int64(st, 11) >= 0;
     g.diskBytes = (uint64_t)MAX(sqlite3_column_int64(st, 11), 0);
     g.diskState = Text(st, 12) ?: MMGainDiskNone;
     NSString *t = Text(st, 13);
@@ -215,7 +228,7 @@ static NSArray *WithInodes(NSArray<NSDictionary *> *trashed) {
                          " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)" bind:^(sqlite3_stmt *st) {
         BindText(st, 1, rid); BindText(st, 2, run); BindText(st, 3, kind); BindText(st, 4, part); BindText(st, 5, who); BindText(st, 6, by);
         BindText(st, 7, expert); BindText(st, 8, subject); BindText(st, 9, workstream); sqlite3_bind_double(st, 10, t);
-        sqlite3_bind_int64(st, 11, (sqlite3_int64)MIN(memory, (uint64_t)INT64_MAX)); sqlite3_bind_int64(st, 12, (sqlite3_int64)MIN(disk, (uint64_t)INT64_MAX));
+        sqlite3_bind_int64(st, 11, (sqlite3_int64)MIN(memory, (uint64_t)INT64_MAX)); sqlite3_bind_int64(st, 12, disk == MMGainDiskNotMeasured ? -1 : (sqlite3_int64)MIN(disk, (uint64_t)INT64_MAX));
         BindText(st, 13, diskState ?: MMGainDiskNone); BindText(st, 14, trashText); sqlite3_bind_int64(st, 15, MAX(items, 0));
     }];
     [self dropOld:NSDate.date];
@@ -343,6 +356,7 @@ static NSString *Settle(MMGain *g) {
              @"meaning": @{@"memoryBack": @"the footprint of the process trees a stop or a quit ended, read right before it ran",
                            @"diskBack": @"what MMSizer said deleting frees, for items deleted at once or gone from the Trash",
                            @"diskInTrash": @"what MMSizer said deleting frees, for items still in the Trash; not back yet",
+                           @"measured": @"false for a row whose size nobody measured: its disk number is null, and a sum it would be in is marked Partial",
                            @"actions": @"finished actions, with a run of several such as Wrap Up counted once"},
              @"today": [todays json], @"total": [total json], @"byDay": dayList,
              @"byKind": TotalsJSON(byKind), @"byWho": TotalsJSON(byWho), @"byWorkstream": TotalsJSON(byWs), @"gains": rows};

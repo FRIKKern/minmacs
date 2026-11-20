@@ -33,6 +33,7 @@ NSString *MMFixStepAction(NSString *kind) {
     NSMutableArray<MMFixResult *> *_results;
     NSInteger _done, _total;
     uint64_t _memoryBack, _diskBack, _memoryPlanned, _diskPlanned;
+    NSInteger _unmeasuredLeft;                  // fixes with a part not measured yet that have not had their turn
     BOOL _recovered;
     NSMutableArray<MMUndoRecord *> *_removed;   // each finished record of the run, a Wrap Up as its parts
 }
@@ -58,6 +59,7 @@ NSString *MMFixStepAction(NSString *kind) {
     MMWindowRun *r = [MMWindowRun new];
     r.running = YES; r.step = step; r.stepAction = action; r.done = _done; r.total = _total;
     r.memoryBack = _memoryBack; r.diskBack = _diskBack; r.memoryPlanned = _memoryPlanned; r.diskPlanned = _diskPlanned;
+    r.diskPlannedPartial = _unmeasuredLeft > 0;
     return r;
 }
 
@@ -108,6 +110,8 @@ NSString *MMFixStepAction(NSString *kind) {
         if (f.needsYou) { needYou++; continue; }
         [fixes addObject:f];
         _memoryPlanned += f.memoryBack; _diskPlanned += f.diskBack;
+        // A fix with a part not measured yet adds only its measured parts, so until it ran the sum is no total.
+        if (f.diskPartial) _unmeasuredLeft++;
     }
     _total = (NSInteger)fixes.count;
     BOOL treesMoved = NO;
@@ -115,6 +119,7 @@ NSString *MMFixStepAction(NSString *kind) {
     for (MMPerformanceFix *f in fixes) {
         if (atomic_load(&_stop)) { notRun++; continue; }
         BOOL landed = NO;
+        uint64_t diskWas = _diskBack;
         if (f.wrapUp) {
             NSString *name = f.wrapUp.subject.worktree.branch.length ? f.wrapUp.subject.worktree.branch : f.wrapUp.subject.path.lastPathComponent;
             [self tell:[self progress:MMFixStepText(f.kind, name ?: @"") action:MMFixStepAction(f.kind)]];
@@ -150,6 +155,13 @@ NSString *MMFixStepAction(NSString *kind) {
             }
         }
         if (landed) _done++;
+        // Its turn is over, so what it gave back is counted now: the removal's own count is its size, and the plan
+        // holds that in place of the part nobody had measured.
+        if (f.diskPartial) {
+            uint64_t got = _diskBack - diskWas;
+            if (got > f.diskBack) _diskPlanned += got - f.diskBack;
+            _unmeasuredLeft--;
+        }
     }
     self.endedAt = NSDate.date;
     // What the menus do after a removal: the repo index reads the worktrees again, then the graph builds anew.

@@ -319,7 +319,15 @@ static void WindowModel(void) {
     MMWindowModel *mb2 = MMWindowModelFrom(s, back, nil);
     T(@"window: memory and disk back today come from the look-back, as two numbers", [NSString stringWithFormat:@"%llu %llu 0 0", 250 * MB, 3 * GB],
       [NSString stringWithFormat:@"%llu %llu %llu %llu", mb2.memoryBackToday, mb2.diskBackToday, m.memoryBackToday, m.diskBackToday]);
-    T(@"window: --json carries them apart", @"diskBack,memoryBack", [[[mb2.json[@"backToday"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","]);
+    T(@"window: --json carries them apart, with the disk's mark", @"diskBack,diskBackPartial,memoryBack", [[[mb2.json[@"backToday"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","]);
+    // Issue #83: a removal of today that nobody measured makes today's disk back no total, and the model carries that.
+    dispatch_sync(MMQueue(@"windowtest", @"build", QOS_CLASS_USER_INITIATED), ^{
+        back = [MMPerformance from:s history:s.history lookBack:[MMPerformanceLookBack fromSummary:@{@"today": @{@"memoryBack": @0, @"diskBack": @(3 * GB), @"diskBackPartial": @YES}}]];
+    });
+    MMWindowModel *mb3 = MMWindowModelFrom(s, back, nil);
+    T(@"window: today's disk back is marked as no total when the look-back says so, and only then", @"no no yes yes",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", YN([[mb2 valueForKey:@"diskBackTodayPartial"] boolValue]), YN([mb2.json[@"backToday"][@"diskBackPartial"] boolValue]),
+       YN([[mb3 valueForKey:@"diskBackTodayPartial"] boolValue]), YN([mb3.json[@"backToday"][@"diskBackPartial"] boolValue])]);
     MMWindowRow *next = [m row:@"locohost:server:app#dev"], *db = [m row:@"locohost:server:db"], *asks = [m row:@"minmacs:agent:claude-code:s-71010"];
     MMWindowRow *chat = [m row:@"minmacs:app:com.example.chat"], *editor = [m row:@"minmacs:app:com.example.editor"];
     MMWindowRow *wip = [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/wip")]], *spike = [m row:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/old-spike")]];

@@ -68,7 +68,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 - (NSDictionary *)json {
     return @{@"running": @(self.running), @"step": Or(self.step), @"done": @(self.done), @"total": @(self.total),
              @"memoryBack": @(self.memoryBack), @"diskBack": @(self.diskBack), @"memoryPlanned": @(self.memoryPlanned),
-             @"diskPlanned": @(self.diskPlanned), @"endTitle": Or(self.endTitle), @"endNote": Or(self.endNote)};
+             @"diskPlanned": @(self.diskPlanned), @"diskPlannedPartial": @(self.diskPlannedPartial),
+             @"endTitle": Or(self.endTitle), @"endNote": Or(self.endNote)};
 }
 @end
 
@@ -94,7 +95,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
              @"fixes": All(self.fixes),
              @"fixEverything": @{@"fixes": @(self.fixCount), @"memoryBack": @(self.memoryBack), @"diskBack": @(self.diskBack),
                                   @"diskBackPartial": @(self.diskBackPartial)},
-             @"backToday": @{@"memoryBack": @(self.memoryBackToday), @"diskBack": @(self.diskBackToday)},
+             @"backToday": @{@"memoryBack": @(self.memoryBackToday), @"diskBack": @(self.diskBackToday),
+                              @"diskBackPartial": @(self.diskBackTodayPartial)},
              @"run": Or(self.run.json), @"settings": self.settings.json};
 }
 @end

@@ -125,6 +125,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 
 @interface MMPerformanceLookBack ()
 @property (readwrite) uint64_t weekMemory, weekDisk, todayMemory, todayDisk;
+@property (readwrite) BOOL weekDiskPartial, todayDiskPartial;
 @end
 
 @implementation MMPerformanceLookBack
@@ -134,12 +135,13 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
     NSDictionary *t = [summary[@"today"] isKindOfClass:NSDictionary.class] ? summary[@"today"] : nil;
     b.weekMemory = [w[@"memoryBack"] unsignedLongLongValue]; b.weekDisk = [w[@"diskBack"] unsignedLongLongValue];
     b.todayMemory = [t[@"memoryBack"] unsignedLongLongValue]; b.todayDisk = [t[@"diskBack"] unsignedLongLongValue];
+    b.weekDiskPartial = [w[@"diskBackPartial"] boolValue]; b.todayDiskPartial = [t[@"diskBackPartial"] boolValue];
     return b;
 }
 + (instancetype)read:(MMGains *)gains now:(NSDate *)now { return [self fromSummary:[gains summary:7 now:now ?: NSDate.date]]; }
 - (NSDictionary *)json {
-    return @{@"week": @{@"memoryBack": @(self.weekMemory), @"diskBack": @(self.weekDisk)},
-             @"today": @{@"memoryBack": @(self.todayMemory), @"diskBack": @(self.todayDisk)}};
+    return @{@"week": @{@"memoryBack": @(self.weekMemory), @"diskBack": @(self.weekDisk), @"diskBackPartial": @(self.weekDiskPartial)},
+             @"today": @{@"memoryBack": @(self.todayMemory), @"diskBack": @(self.todayDisk), @"diskBackPartial": @(self.todayDiskPartial)}};
 }
 @end
 
@@ -225,10 +227,7 @@ static MMPerformanceRow *RowFor(MMFinding *f, NSString *group, MMPerformanceSide
     } else r.number = side == MMPerformanceMemory ? f.cost.ramBytes : f.cost.diskFreed;
     // A worktree's size comes from a walk in the background. Until the first one ends its cost holds 0, which is no
     // reading. A folder that is gone holds nothing, and that 0 is one. A finding with no sized fact keeps its number.
-    if ([group isEqualToString:MMPerformanceWorktrees]) {
-        id sized = f.facts[@"sized"], gone = f.facts[@"missing"];
-        r.unmeasured = [sized isKindOfClass:NSNumber.class] && ![sized boolValue] && !([gone isKindOfClass:NSNumber.class] && [gone boolValue]);
-    }
+    if ([group isEqualToString:MMPerformanceWorktrees]) r.unmeasured = f.unmeasured;
     return r;
 }
 

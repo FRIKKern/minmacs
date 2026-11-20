@@ -127,6 +127,9 @@ NSInteger MMPerformanceFold(NSString *group);
 /// Numbers only. Memory back and disk back are two numbers.
 @interface MMPerformanceLookBack : NSObject
 @property (readonly) uint64_t weekMemory, weekDisk, todayMemory, todayDisk;
+/// YES when a removal in that sum was not measured, issue #83: the disk number is then of the others and no total,
+/// shown as "or more". json gives it as diskBackPartial beside each diskBack.
+@property (readonly) BOOL weekDiskPartial, todayDiskPartial;
 /// From the dictionary -[MMGains summary:now:] returns, read with 7 days.
 + (instancetype)fromSummary:(NSDictionary *)summary;
 /// Reads the table's 7-day summary. Blocks on disk, so in the app it runs off main.
