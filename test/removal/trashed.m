@@ -140,5 +140,18 @@ static void TrashedByMinMacs(void) {
       [NSString stringWithFormat:@"%@ %@ %@", YN(Exists(at)), YN(Exists(cache)), YN([said containsString:why])]);
     [fm removeItemAtPath:TrashListOf(older.rid) error:nil];
     [fm removeItemAtPath:at error:nil];
+
+    // 8. When the list cannot be written, as when a folder holds its name, nothing goes to the Trash: the item stays.
+    Write(cache, @"CACHE");
+    MMUndoRecord *blocked = Begin(@"trash", @"trash, the list cannot be written");
+    [fm createDirectoryAtPath:TrashListOf(blocked.rid) withIntermediateDirectories:YES attributes:nil error:nil];
+    NSUInteger inTrash = [fm contentsOfDirectoryAtPath:MMTrashFolder() error:nil].count;
+    NSError *e = nil;
+    BOOL went = MMRemovalApply(cache.stringByDeletingLastPathComponent, MMRemovalDecideWith(MMRemovalTrash, MMRemovalClutter, nil), blocked, &e);
+    T(@"trash, no list: when MinMacs cannot write its own list the item stays where it is, and the words say why", @"no CACHE 0 0 MinMacs could not write its own list of what it sends to the Trash, so the item stays where it is",
+      [NSString stringWithFormat:@"%@ %@ %lu %lu %@", YN(went), Read(cache), (unsigned long)MMRecordList([MMUndo.shared record:blocked.rid].payload, @"trashed").count,
+       (unsigned long)([fm contentsOfDirectoryAtPath:MMTrashFolder() error:nil].count - inTrash), e.localizedDescription]);
+    [fm removeItemAtPath:TrashListOf(blocked.rid) error:nil];
+    [MMUndo.shared finish:blocked ok:NO freed:0 error:@"test"];
     [fm removeItemAtPath:mine error:nil];
 }

@@ -325,8 +325,10 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
 
 - (NSURL *)trash:(NSURL *)item record:(MMUndoRecord *)record error:(NSError **)error {
     // Issue #74: MinMacs's own list names the item before it moves, so only what MinMacs sent there ever comes back
-    // from the Trash. When that list cannot be written the item stays where it is.
-    if (record.rid.length && !MMRemovalTrashListNote(record.rid, item.path, nil, MMFileIdentity(item.path))) {
+    // from the Trash. When that list cannot be written the item stays where it is. With nothing at the path the move
+    // below fails and says so in its own words, and should something come there in between, no list names it.
+    NSDictionary *before = MMFileIdentity(item.path);
+    if (record.rid.length && before && !MMRemovalTrashListNote(record.rid, item.path, nil, before)) {
         if (error) *error = [NSError errorWithDomain:@"MMUndo" code:1 userInfo:@{NSLocalizedDescriptionKey:
             @"MinMacs could not write its own list of what it sends to the Trash, so the item stays where it is"}];
         return nil;
