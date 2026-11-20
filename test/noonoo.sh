@@ -83,6 +83,24 @@ mkdir -p "$nnh/Library/Application Support/Cursor/User/globalStorage" "$nnh/Libr
 printf 'state\n' >"$nnh/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
 printf 'c\n' >"$nnh/Library/Application Support/Cursor/Cache/c"
 
+# Update downloads Sparkle left, issue #87: an old and a new one for an app with no row of its own, and an old one
+# inside the cache folder that the cmux row names whole.
+nn_sp="$nnh/Library/Caches/com.example.app/org.sparkle-project.Sparkle/PersistentDownloads"
+mkdir -p "$nn_sp/aB3xK9old" "$nn_sp/Zq81mNnew"
+dd if=/dev/zero of="$nn_sp/aB3xK9old/App.zip" bs=1024 count=256 2>/dev/null
+printf 'zip\n' >"$nn_sp/Zq81mNnew/App.zip"
+nn_cm="$nnh/Library/Caches/com.cmuxterm.app"
+nn_cmd="$nn_cm/org.sparkle-project.Sparkle/PersistentDownloads/Old11111"
+mkdir -p "$nn_cmd" "$nn_cm/data"
+dd if=/dev/zero of="$nn_cmd/cmux.zip" bs=1048576 count=2 2>/dev/null
+dd if=/dev/zero of="$nn_cm/data/blob" bs=1048576 count=1 2>/dev/null
+nn_old "$nn_sp/aB3xK9old" "$nn_cm"
+
+nn_pg="$nnr/opt/homebrew/var/postgresql@16"
+mkdir -p "$nn_pg/base/16384"
+printf '16\n' >"$nn_pg/PG_VERSION"
+dd if=/dev/zero of="$nn_pg/base/16384/1259" bs=1024 count=64 2>/dev/null
+
 nn_dev="$nnh/Library/Developer/CoreSimulator/Devices"
 nn_gone=11111111-2222-3333-4444-555555555555; nn_keep=66666666-7777-8888-9999-AAAAAAAAAAAA
 mkdir -p "$nn_dev/$nn_gone/data" "$nn_dev/$nn_keep/data"
@@ -102,7 +120,10 @@ nn_T="$nnr/private/var/folders/ab/cdef/T"
 for s in a1B2c3 d4E5f6 g7H8i9 j1K2l3 m4N5o6 p7Q8r9; do mkdir -p "$nn_T/mv-test-$s"; printf 'x\n' >"$nn_T/mv-test-$s/f"; done
 for s in a1B2c3 d4E5f6 g7H8i9 j1K2l3 m4N5o6 p7Q8r9; do mkdir -p "$nn_T/com.apple.launchd.$s"; done
 for s in a1B2c3 d4E5f6 g7H8i9 j1K2l3 m4N5o6; do mkdir -p "$nn_T/fresh-run-$s"; done
-nn_old "$nn_T"/mv-test-* "$nn_T"/com.apple.launchd.*
+# Issue #86: five folders named after a port are a family, and five with a 3-digit tail are not.
+for s in 9391 9392 9393 9394 9395; do mkdir -p "$nn_T/dev-chrome-$s"; printf 'x\n' >"$nn_T/dev-chrome-$s/f"; done
+for s in 101 102 103 104 105; do mkdir -p "$nn_T/build-out-$s"; printf 'x\n' >"$nn_T/build-out-$s/f"; done
+nn_old "$nn_T"/mv-test-* "$nn_T"/com.apple.launchd.* "$nn_T"/dev-chrome-* "$nn_T"/build-out-*
 nn_clone="$nnr/private/var/folders/ab/cdef/X/com.google.Chrome.code_sign_clone/code_sign_clone.Ab12Cd"
 mkdir -p "$nn_clone/Contents"; printf 'bin\n' >"$nn_clone/Contents/Chrome"
 mkdir -p "$nnr/System/Library/Caches"; printf 'sys\n' >"$nnr/System/Library/Caches/x"
@@ -145,14 +166,50 @@ if [ "$nn_r" = 0 ]; then
   check "noonoo: six old mktemp siblings are one family leftover" "leftovers 6" \
     "$(nn_item "$nn_T/mv-test-*" section) $(nn_item "$nn_T/mv-test-*" members)"
   check "noonoo: com.apple. siblings never form a family" absent "$(nn_item "$nn_T/com.apple.launchd.*" section)"
+  check "noonoo: five old folders named after a port are one family leftover" "leftovers 5" \
+    "$(nn_item "$nn_T/dev-chrome-*" section) $(nn_item "$nn_T/dev-chrome-*" members)"
+  check "noonoo: a 3-digit tail is no suffix, so those five form no family" absent "$(nn_item "$nn_T/build-out-*" section)"
   check "noonoo: a family written just now stays" "kept" "$(nn_item "$nn_T/fresh-run-*" section)"
   check "noonoo: a Chrome code-sign clone nothing holds open is a leftover" leftovers "$(nn_item "$nn_clone" section)"
   check "noonoo: Claude Code transcripts are data, kept with their owner's setting" "kept data" \
     "$(nn_item "$nn/claude/projects/-code-acme" section) $(nn_item "$nn/claude/projects/-code-acme" class)"
+  check "noonoo: an old update download Sparkle left is a leftover on its own row, issue #87" "leftovers sparkle-downloads" \
+    "$(nn_item "$nn_sp/aB3xK9old" section) $(nn_item "$nn_sp/aB3xK9old" kindID)"
+  check "noonoo: a download written just now stays" "kept" "$(nn_item "$nn_sp/Zq81mNnew" section)"
+  check "noonoo: a download inside a cache folder another row names whole is its own item too" "leftovers sparkle-downloads" \
+    "$(nn_item "$nn_cmd" section) $(nn_item "$nn_cmd" kindID)"
+  check "noonoo: and the row of the whole folder counts only the rest, so no byte is counted twice" "yes yes" \
+    "$(printf '%s' "$nn_list" | python3 -c "
+import json,sys; j=json.load(sys.stdin); M=1048576
+by={i['path']:i for i in j['items']}
+o=by.get(sys.argv[1],{}); d=by.get(sys.argv[2],{})
+print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('freed',0) < 3*M else 'no')" "$nn_cm" "$nn_cmd")"
+  check "noonoo: a local Postgres data folder is data, kept with its owner's setting, issue #90" "kept data yes" \
+    "$(nn_item "$nn_pg" section) $(nn_item "$nn_pg" class) $(nn_item "$nn_pg" why | grep -q dropdb && echo yes || echo no)"
+  check "noonoo: clean refuses it and leaves every file" "1 16" "$(nnt verb clean "$nn_pg" >/dev/null 2>&1; echo $?) $(cat "$nn_pg/PG_VERSION" 2>/dev/null)"
   check "noonoo: the Trash is reported and never acted on" "kept  yes" \
     "$(nn_item "$nnh/.Trash" section) $(nn_item "$nnh/.Trash" action) $(printf '%s' "$nn_list" | json '"yes" if j["trashBytes"] > 0 else "no"')"
   check "noonoo: sizes are what deleting frees, from the Sizer" yes \
     "$(printf '%s' "$nn_list" | json '"yes" if [i for i in j["items"] if i["path"].endswith("Caches/pip")][0]["freed"] >= 8*1048576 else "no"')"
+
+  echo "-- which checkouts a working agent keeps, issue #91"
+  # One field of the item at a path, with a working agent session in a folder, and as a process when a pid is given.
+  nn_agent() { ( export NN_AGENT_CWD="$1" NN_AGENT_PID="$2"; nn_item "$3" "$4" ); }
+  check "noonoo: an agent that works in a checkout keeps its node_modules" "kept an agent works in acme" \
+    "$(nn_agent "$nn_main" "" "$nn_main/node_modules" section) $(nn_agent "$nn_main" "" "$nn_main/node_modules" keep)"
+  mkdir -p "$nn_main/src"
+  check "noonoo: so does one that works in a folder of the checkout" "kept an agent works in acme" \
+    "$(nn_agent "$nn_main/src" "" "$nn_main/node_modules" section) $(nn_agent "$nn_main/src" "" "$nn_main/node_modules" keep)"
+  check "noonoo: an agent started in the folder that holds the checkouts keeps none of them by that alone" "caches  finished " \
+    "$(nn_agent "$nn/code" "" "$nn_main/node_modules" section) $(nn_agent "$nn/code" "" "$nn_main/node_modules" keep) $(nn_agent "$nn/code" "" "$nn_wt/node_modules" section) $(nn_agent "$nn/code" "" "$nn_wt/node_modules" keep)"
+  check "noonoo: an agent in another checkout keeps nothing here" "caches" "$(nn_agent "$nn_wt" "" "$nn_main/node_modules" section)"
+  (cd "$nn/code" && exec sh -c "cd '$nn_main' && sleep 60; :" 2>/dev/null) &
+  nn_runner=$!; procs="$procs $nn_runner"
+  sleep 0.3
+  check "noonoo: started above, it keeps the checkout one of its processes runs in" "kept an agent started in code runs a process in acme" \
+    "$(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" section) $(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" keep)"
+  check "noonoo: and no other checkout" "finished" "$(nn_agent "$nn/code" "$nn_runner" "$nn_wt/node_modules" section)"
+  pkill -P "$nn_runner" 2>/dev/null; kill "$nn_runner" 2>/dev/null
 
   echo "-- a file held open keeps its folder"
   (exec 3<"$nn_clone/Contents/Chrome"; exec sleep 60) &
@@ -192,7 +249,8 @@ if [ "$nn_r" = 0 ]; then
   printf '%s\n' "$nn_main/node_modules" "$nn_wt/.next" "$nn_wt/node_modules" "$nnh/.npm/_cacache" \
     "$nnh/Library/Application Support/Cursor/Cache" "$nnh/Library/Caches/pip" "$nn_dev" "$nn_scr/$nn_dead" "$nn_scr/$nn_live" \
     "$nn_scr/$nn_dead/scratchpad/run" "$nn_scr/$nn_live/scratchpad/new" "$nn_clone" \
-    $(cd "$nn_T" && ls -d fresh-run-* mv-test-* | sed "s|^|$nn_T/|") | LC_ALL=C sort >"$nn/expected.txt"
+    "$nn_cm" "$nn_cmd" "$nn_sp/aB3xK9old" "$nn_sp/Zq81mNnew" \
+    $(cd "$nn_T" && ls -d dev-chrome-* fresh-run-* mv-test-* | sed "s|^|$nn_T/|") | LC_ALL=C sort >"$nn/expected.txt"
   check "noonoo: the walls let through exactly the listed leaves" "" "$(LC_ALL=C sort "$nn/allowed.txt" | diff - "$nn/expected.txt" | tr '\n' ' ')"
   nn_before=$(find "$nnr" "$nn/code" | LC_ALL=C sort | md5 -q)
   for p in "$nnh" "$nnh/Documents" "$nnr/System/Library/Caches/x" "$nnh/Library/Caches/random-app" "$nnh/Library/Caches/pip/docs-link" \
@@ -432,6 +490,31 @@ NNROW
   check "noonoo: no fixture sleeper of this run is left" 0 "$(pgrep -f "$nnx_sleeper" | grep -c .)"
   nn_rowdirs=""
   check "noonoo: the files the slow tool never reached stay" 2 "$(nnx_files cache)"
+  echo "-- with no app, the CLI reads the checkouts the app does, issue #85"
+  # The real binary, cold, with a home of its own inside this section's folder: a fixture repo under MINMACS_ROOTS that
+  # holds node_modules and .next, and a clutter root with nothing in it. It scans and reads only, and removes nothing.
+  nnc="$nn/cold"; nnc_repo="$nnc/code/acme"
+  mkdir -p "$nnc/root/home" "$nnc/claude" "$nnc/codex" "$nnc_repo/node_modules/left-pad" "$nnc_repo/.next/cache"
+  printf '{"name":"acme"}\n' >"$nnc_repo/package.json"; printf '{"lockfileVersion": 3}\n' >"$nnc_repo/package-lock.json"
+  printf 'module.exports = {}\n' >"$nnc_repo/next.config.js"; printf 'node_modules\n.next\n' >"$nnc_repo/.gitignore"
+  printf 'x\n' >"$nnc_repo/node_modules/left-pad/index.js"; printf 'p\n' >"$nnc_repo/.next/cache/page.html"
+  (cd "$nnc_repo" && nn_git init -q . && nn_git add -A && nn_git commit -qm init)
+  nnc_bin() { MINMACS_HOME="$nnc" MINMACS_COLD=1 MINMACS_ROOTS="$nnc/code" MINMACS_CLUTTER_ROOT="$nnc/root" \
+              MINMACS_CLUTTER_ROWS="$ROOT/registry/clutter" MINMACS_TOOLS="$nn/tools" CLAUDE_CONFIG_DIR="$nnc/claude" \
+              CODEX_HOME="$nnc/codex" GIT_CONFIG_NOSYSTEM=1 "$BIN" "$@"; }
+  nnc_kinds() { nnc_bin clutter list --json 2>/dev/null | python3 -c "
+import json,sys; j=json.load(sys.stdin)
+print(' '.join(sorted(i['kindID'] for i in j['items'] if i['path'].startswith(sys.argv[1]))) or 'none')" "$nnc_repo"; }
+  check "noonoo: cold, node_modules in a checkout is on its row" "0 yes" \
+    "$(nnc_bin clutter check "$nnc_repo/node_modules" >"$nnc/check.txt" 2>&1; echo $?) $(grep -q 'the node_modules row lists it' "$nnc/check.txt" && echo yes || echo no)"
+  check "noonoo: cold, a folder outside every checkout is on no row" "1 yes" \
+    "$(mkdir -p "$nnc/loose/node_modules"; nnc_bin clutter check "$nnc/loose/node_modules" >"$nnc/loose.txt" 2>&1; echo $?) $(grep -q 'no clutter row lists it' "$nnc/loose.txt" && echo yes || echo no)"
+  nnc_bin clutter scan >/dev/null 2>&1
+  check "noonoo: cold, the scan finds the checkout's build folders" "next-build node-modules" "$(nnc_kinds)"
+  check "noonoo: cold, status counts the items of the last scan" yes \
+    "$(nnc_bin status 2>/dev/null | grep 'Noo-Noo' | grep -q ' 2 items' && echo yes || echo no)"
+  check "noonoo: cold, the scan left both folders in place" yes "$([ -f "$nnc_repo/node_modules/left-pad/index.js" ] && [ -f "$nnc_repo/.next/cache/page.html" ] && echo yes || echo no)"
+
   # The removal choice, issue #62, on this section's fixtures. It runs last, since it deletes them.
   . ./test/noonoo/removal.sh
 fi

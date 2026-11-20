@@ -1,0 +1,18 @@
+{
+  "id": "sparkle-downloads",
+  "title": "App update downloads",
+  "group": "system",
+  "class": "leak",
+  "paths": [
+    "~/Library/Caches/*/org.sparkle-project.Sparkle/PersistentDownloads/*"
+  ],
+  "signature": "aged",
+  "minAge": 259200,
+  "ownerNote": "the app whose bundle id names the cache folder",
+  "every": 21600,
+  "rebuild": "The app downloads its next update again",
+  "sources": [
+    "https://github.com/sparkle-project/Sparkle",
+    "du -sk"
+  ]
+}

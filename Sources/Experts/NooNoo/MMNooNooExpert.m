@@ -94,10 +94,41 @@ static MMWorktree *TreeOf(NSString *path, MMFacts *facts) {
     return best;
 }
 
-/// The working agent session inside folder, from the facts, or nil.
-static MMSession *AgentIn(NSString *folder, MMFacts *facts) {
+/// The checkouts in which a working agent session started above them runs a process now, each with that session.
+/// Issue #91. It reads the process tree only of a session whose folder holds a checkout, so a session that works in
+/// its own checkout costs nothing here. A process's folder comes from the kernel, resolved, and is matched with the
+/// checkout's path as kept.
+static NSDictionary<NSString *, MMSession *> *AgentRuns(MMFacts *facts) {
+    NSMutableDictionary<NSString *, MMSession *> *out = [NSMutableDictionary new];
+    MMSample *sample = facts.sample;
+    if (!sample) return out;
+    for (MMSession *s in facts.sessions) {
+        if (!s.stillWorking || s.pid <= 0 || !s.cwd.length) continue;
+        BOOL holds = NO;
+        for (MMWorktree *w in facts.worktrees) if (Within(w.path, s.cwd) && ![w.path isEqualToString:s.cwd]) { holds = YES; break; }
+        if (!holds) continue;
+        for (NSNumber *pid in [sample treeOf:s.pid limit:500]) {
+            MMWorktree *w = TreeOf([sample cwdOf:pid.intValue], facts);
+            if (w && Within(w.path, s.cwd) && ![w.path isEqualToString:s.cwd] && !out[w.path]) out[w.path] = s;
+        }
+    }
+    return out;
+}
+
+/// Why a working agent session keeps folder, or nil. A session keeps the folder it works in, and a folder below its
+/// own while no checkout starts between the two. Issue #91: a session started in the folder that holds every repo
+/// is in none of them, so it keeps a checkout only while one of its processes runs there, which runs says.
+static NSString *AgentKeeps(NSString *folder, MMFacts *facts, NSDictionary<NSString *, MMSession *> *runs) {
     if (!folder.length) return nil;
-    for (MMSession *s in facts.sessions) if (s.stillWorking && (Within(s.cwd, folder) || Within(folder, s.cwd))) return s;
+    MMWorktree *tree = TreeOf(folder, facts);
+    for (MMSession *s in facts.sessions) {
+        if (!s.stillWorking) continue;
+        if (Within(s.cwd, folder)) return [NSString stringWithFormat:@"an agent works in %@", folder.lastPathComponent];
+        if (Within(folder, s.cwd) && (!tree || Within(s.cwd, tree.path)))
+            return [NSString stringWithFormat:@"an agent works in %@, which holds it", s.cwd.lastPathComponent];
+    }
+    MMSession *s = tree ? runs[tree.path] : nil;
+    if (s) return [NSString stringWithFormat:@"an agent started in %@ runs a process in %@", s.cwd.lastPathComponent, tree.path.lastPathComponent];
     return nil;
 }
 
@@ -211,6 +242,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         return [x.key compare:y.key];
     }];
     NSMutableArray *out = [NSMutableArray new];
+    NSDictionary<NSString *, MMSession *> *runs = AgentRuns(facts);
     for (NSArray *row in rows) {
         MMClutterItem *i = row[0];
         NSString *ownerState = [row[1] length] ? row[1] : nil;
@@ -219,8 +251,8 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         MMNNSection section = SectionOf(i, ownerState);
         NSMutableArray *keep = [NSMutableArray new];
         if (i.state != MMClutterFree) [keep addObject:i.why ?: @"it is in use"];
-        MMSession *agent = AgentIn(i.ownerPath ?: tree.path, facts);
-        if (agent) [keep addObject:[NSString stringWithFormat:@"an agent works in %@", (i.ownerPath ?: tree.path).lastPathComponent]];
+        NSString *agent = AgentKeeps(i.ownerPath ?: tree.path, facts, runs);
+        if (agent) [keep addObject:agent];
         double until = [keeps[i.key] doubleValue];
         if (until > now) [keep addObject:[NSString stringWithFormat:@"kept by you until %@", [NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:until] dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterNoStyle]]];
         if (keep.count && section != MMNNKept) section = MMNNKept;
@@ -507,6 +539,13 @@ static void RunOffMain(dispatch_block_t block) {
     return [MMSnapshot snapshotFrom:facts experts:@[self] reviews:r ? @{kExpert: r} : @{} holds:nil];
 }
 
+/// The snapshot a verb reads. Issue #85: with no app and no source, the CLI's cold facts, so the worktrees and their
+/// git facts are there and a build folder knows its owner. A test tool sets a source of its own and keeps it.
+- (MMSnapshot *)snapshotFor:(MMArgs *)a {
+    if (MMGraph.shared.latest || MMGraph.shared.source) return [self snapshotNow];
+    return a.snapshot ?: [self snapshotNow];
+}
+
 #pragma mark Menu
 
 - (MMNNRow *)rowFor:(MMFinding *)f {
@@ -648,7 +687,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
         else [a print:@"Noo-Noo scanned every row and found %@", MMPlural((NSInteger)c.items.count, @"item")];
         return MMExitOK;
     }
-    MMSnapshot *s = [self snapshotNow];
+    MMSnapshot *s = [self snapshotFor:a];
     NSArray<MMFinding *> *fs = [s findingsFor:kExpert];
     if ([sub isEqualToString:@"trends"]) {
         NSMutableArray *out = [NSMutableArray new];
@@ -719,7 +758,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
         return MMExitOK;
     }
     if ([a has:@"--command"]) return [self commandVerb:a];
-    MMSnapshot *s = [self snapshotNow];
+    MMSnapshot *s = [self snapshotFor:a];
     NSArray<MMFinding *> *ts = [self targets:a.words args:a in:s];
     if (!ts.count) {
         // A path no finding names still gets the walls' answer, so a refusal always says why.
@@ -765,7 +804,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
 /// clean <id|path|row> --command: the row's own cleanup command, for good. --dry-run runs only its dry-run form and
 /// says what it would free. Without it the command runs in the app, by "cli", after the dry run.
 - (int)commandVerb:(MMArgs *)a {
-    MMSnapshot *s = [self snapshotNow];
+    MMSnapshot *s = [self snapshotFor:a];
     NSArray<MMFinding *> *ts = [self targets:a.words args:a in:s];
     if (!ts.count) { [a error:@"noonoo: nothing matches %@", [a word:0] ?: @""]; return MMExitFailed; }
     NSMutableArray *j = [NSMutableArray new];
@@ -809,9 +848,12 @@ static NSDictionary *ItemJSON(MMFinding *f) {
 
 - (NSArray<MMVerbSpec *> *)verbs {
     __weak MMNooNooExpert *me = self;
+    MMVerbSpec *clutter = [MMVerbSpec verb:@"clutter" usage:@"clutter [list | show <id|path> | trends | check <path> | scan] [--json] [--dry-run]" mutates:NO
+                                       run:^int(MMArgs *a) { return [me clutter:a]; }];
+    // Issue #85. With no app it walks the roots for the checkouts and takes the git facts the cache holds, as the menu does.
+    clutter.reads = MMVerbReadsCachedGit;
     return @[
-        [MMVerbSpec verb:@"clutter" usage:@"clutter [list | show <id|path> | trends | check <path> | scan] [--json] [--dry-run]" mutates:NO
-                     run:^int(MMArgs *a) { return [me clutter:a]; }],
+        clutter,
         [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]   removes clutter as the removal choice says, to the Trash with undo or deleted at once, or with --command runs the row's own cleanup, which cannot be undone" mutates:YES
                      run:^int(MMArgs *a) { return [me cleanVerb:a]; }],
     ];
@@ -829,9 +871,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
     if (!i) return @"it is gone from the last scan";
     if (i.state != MMClutterFree) return i.why ?: @"it is in use";
     if (i.kind.reportOnly) return i.kind.ownerSetting ?: @"its row only reports it";
-    MMSession *s = AgentIn(i.ownerPath ?: f.ownerPath, facts);
-    if (s) return [NSString stringWithFormat:@"an agent works in %@", (i.ownerPath ?: f.ownerPath).lastPathComponent];
-    return nil;
+    return AgentKeeps(i.ownerPath ?: f.ownerPath, facts, AgentRuns(facts));
 }
 
 - (NSString *)reviewKeeps:(MMFinding *)f review:(MMReview *)r { return nil; }

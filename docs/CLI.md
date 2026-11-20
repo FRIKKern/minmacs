@@ -218,10 +218,10 @@ Flags: `--json`.
 Every git worktree, whether it is merged, and what removing it frees.
 
 ```
-trees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|path>|removed|keep <path>|protect <path>|prune <path>|rules] [--all] [--mode <mode>] [--model <model>] [--path <path>] [--days <n>] [--off] [--fresh] [--review] [--yes] [--dry-run] [--json]
+trees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|path>|removed|keep <path>|protect <path>|prune <path>|rules] [--all] [--mode <mode>] [--model <model>] [--path <path>] [--days <n>] [--off] [--fresh] [--review] [--merged] [--yes] [--dry-run] [--json]
 ```
 
-Flags: `--all`, `--mode`, `--model`, `--path`, `--days`, `--off`, `--fresh`, `--review`, `--yes`, `--dry-run`, `--json`.
+Flags: `--all`, `--mode`, `--model`, `--path`, `--days`, `--off`, `--fresh`, `--review`, `--merged`, `--yes`, `--dry-run`, `--json`.
 
 It changes things, so it runs only through the running app, unless `--dry-run` is given.
 
@@ -230,10 +230,10 @@ It changes things, so it runs only through the running app, unless `--dry-run` i
 Every git worktree, whether it is merged, and what removing it frees.
 
 ```
-worktrees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|path>|removed|keep <path>|protect <path>|prune <path>|rules] [--all] [--mode <mode>] [--model <model>] [--path <path>] [--days <n>] [--off] [--fresh] [--review] [--yes] [--dry-run] [--json]
+worktrees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|path>|removed|keep <path>|protect <path>|prune <path>|rules] [--all] [--mode <mode>] [--model <model>] [--path <path>] [--days <n>] [--off] [--fresh] [--review] [--merged] [--yes] [--dry-run] [--json]
 ```
 
-Flags: `--all`, `--mode`, `--model`, `--path`, `--days`, `--off`, `--fresh`, `--review`, `--yes`, `--dry-run`, `--json`.
+Flags: `--all`, `--mode`, `--model`, `--path`, `--days`, `--off`, `--fresh`, `--review`, `--merged`, `--yes`, `--dry-run`, `--json`.
 
 It changes things, so it runs only through the running app, unless `--dry-run` is given.
 

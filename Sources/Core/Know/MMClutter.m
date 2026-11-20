@@ -303,6 +303,9 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
 @property (readwrite) NSArray<NSString *> *members;
 @property (readwrite) BOOL ownerGone;
 @property (readwrite) MMSize size;
+/// What the walk measured for the members, with everything in them. size is this less the items that lie inside,
+/// which -countedOnce: takes off. Issue #87.
+@property MMSize whole;
 @property (readwrite) NSDate *lastUsed;
 @property (readwrite) MMClutterState state;
 @property (readwrite) MMClutterTrend trend;
@@ -322,6 +325,9 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
     if (self.why) j[@"why"] = self.why;
     if (self.unproven) j[@"unproven"] = self.unproven;
     if (self.lastUsed) j[@"lastUsed"] = @(self.lastUsed.timeIntervalSince1970);
+    MMSize w = self.whole, s = self.size;
+    if (w.allocated != s.allocated || w.freedIfDeleted != s.freedIfDeleted || w.files != s.files)
+        j[@"whole"] = @{@"allocated": @(w.allocated), @"freed": @(w.freedIfDeleted), @"files": @(w.files)};
     MMClutterTrend t = self.trend;
     if (t.ok || t.points) j[@"trend"] = @{@"ok": @(t.ok), @"bytesPerDay": @(t.bytesPerDay), @"windowDays": @(t.windowDays), @"points": @(t.points),
                                           @"firstBytes": @(t.firstBytes), @"lastBytes": @(t.lastBytes), @"weekRatio": @(t.weekRatio)};
@@ -335,6 +341,8 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
     i.ownerGone = [j[@"ownerGone"] boolValue];
     i.unproven = Str(j[@"unproven"]);
     i.size = (MMSize){ [j[@"allocated"] unsignedLongLongValue], [j[@"freed"] unsignedLongLongValue], [j[@"files"] integerValue], 0 };
+    NSDictionary *w = [j[@"whole"] isKindOfClass:NSDictionary.class] ? j[@"whole"] : nil;
+    i.whole = w ? (MMSize){ [w[@"allocated"] unsignedLongLongValue], [w[@"freed"] unsignedLongLongValue], [w[@"files"] integerValue], 0 } : i.size;
     if ([j[@"lastUsed"] doubleValue] > 0) i.lastUsed = [NSDate dateWithTimeIntervalSince1970:[j[@"lastUsed"] doubleValue]];
     NSString *st = Str(j[@"state"]);
     i.state = [st isEqualToString:@"free"] ? MMClutterFree : [st isEqualToString:@"live"] ? MMClutterLive : MMClutterKept;
@@ -491,10 +499,13 @@ static NSString *GitLsFiles(NSString *dir, NSString *name, int *status) {
 #pragma mark - Families
 
 /// NN familyKeyOf: the name with one random suffix stripped, as "prefix" plus the separator, or nil.
+/// Issue #86: a port number after a separator is a suffix too, as in "dev-chrome-9391", so 4 or 5 digits count there.
 static NSString *FamilyKey(NSString *name) {
     NSUInteger n = name.length, i = n;
     while (i > 0 && isdigit([name characterAtIndex:i - 1])) i--;
     if (n - i >= 6 && i > 0) return [name substringToIndex:i];   // MkdirTemp("prefix") or "prefix-123456"
+    if (n - i >= 4 && i > 1 && [@"-_." rangeOfString:[name substringWithRange:NSMakeRange(i - 1, 1)]].location != NSNotFound)
+        return [name substringToIndex:i];                        // "prefix-9391", a folder named after its port
     NSRange r = [name rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"-_."] options:NSBackwardsSearch];
     if (r.location == NSNotFound || r.location == 0) return nil;
     NSString *tail = [name substringFromIndex:r.location + 1];
@@ -1029,8 +1040,46 @@ static BOOL IsUUID(NSString *s) {
             total.files += [s[@"files"] integerValue];
             total.errors += [s[@"errors"] integerValue];
         }
-        i.size = total;
+        i.size = total; i.whole = total;
     }
+}
+
+/// The items, each counting its bytes once. An item whose folder holds another item's folder counts only the rest,
+/// so a sum over the items counts no byte twice. Issue #87: the row for a cache's update downloads sits inside the
+/// row for that whole cache folder. The nearest item above takes the inner one off, and whole keeps what the walk
+/// measured. An item whose size changes is copied, since readers on other queues hold the old one.
+- (NSArray<MMClutterItem *> *)countedOnce:(NSArray<MMClutterItem *> *)items {
+    NSUInteger n = items.count;
+    NSMutableDictionary<NSString *, NSNumber *> *holder = [NSMutableDictionary new];
+    for (NSUInteger x = 0; x < n; x++) if (items[x].kind.walk) for (NSString *m in items[x].members) holder[m] = @(x);
+    uint64_t *allocated = calloc(n + 1, sizeof(uint64_t)), *freed = calloc(n + 1, sizeof(uint64_t));
+    NSInteger *files = calloc(n + 1, sizeof(NSInteger));
+    for (NSUInteger x = 0; x < n; x++) {
+        MMClutterItem *i = items[x];
+        if (!i.kind.walk) continue;
+        // A family's members are siblings, so the first one finds the item above them all.
+        for (NSString *p = i.members.firstObject.stringByDeletingLastPathComponent; p.length > 1; p = p.stringByDeletingLastPathComponent) {
+            NSNumber *above = holder[p];
+            if (!above || above.unsignedIntegerValue == x) continue;
+            NSUInteger a = above.unsignedIntegerValue;
+            allocated[a] += i.whole.allocated; freed[a] += i.whole.freedIfDeleted; files[a] += i.whole.files;
+            break;
+        }
+    }
+    NSMutableArray<MMClutterItem *> *out = [NSMutableArray arrayWithCapacity:n];
+    for (NSUInteger x = 0; x < n; x++) {
+        MMClutterItem *i = items[x];
+        MMSize w = i.whole, s = w;
+        s.allocated = w.allocated > allocated[x] ? w.allocated - allocated[x] : 0;
+        s.freedIfDeleted = w.freedIfDeleted > freed[x] ? w.freedIfDeleted - freed[x] : 0;
+        s.files = MAX(0, w.files - files[x]);
+        if (s.allocated == i.size.allocated && s.freedIfDeleted == i.size.freedIfDeleted && s.files == i.size.files) { [out addObject:i]; continue; }
+        MMClutterItem *c = [MMClutterItem fromJSON:i.json kind:i.kind];
+        c.whole = w; c.size = s;
+        [out addObject:c];
+    }
+    free(allocated); free(freed); free(files);
+    return out;
 }
 
 - (MMSample *)sampleForLiveness {
@@ -1103,6 +1152,7 @@ static BOOL IsUUID(NSString *s) {
         for (MMClutterItem *i in _items) if (![scannedIDs containsObject:i.kind.kindID]) [keep addObject:i];
         NSArray *before = [[_items valueForKey:@"json"] copy];
         [keep addObjectsFromArray:found];
+        keep = [[self countedOnce:keep] mutableCopy];
         [keep sortUsingComparator:^NSComparisonResult(MMClutterItem *a, MMClutterItem *b) {
             if (a.size.allocated != b.size.allocated) return a.size.allocated > b.size.allocated ? NSOrderedAscending : NSOrderedDescending;
             return [a.key compare:b.key];

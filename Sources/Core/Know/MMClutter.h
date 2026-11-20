@@ -84,6 +84,8 @@ typedef struct {
 /// and for a tool's own cache outside any project. Act/MMRemoval.h reads it.
 @property (readonly, copy) NSString *unproven;
 @property (readonly, copy) NSString *sessionID;         // an agent session the item belongs to, or nil
+/// What the item holds, less any other item that lies inside it, so a sum over the items counts no byte twice.
+/// -inspect: reads the whole folder again, since removing the item takes all of it.
 @property (readonly) MMSize size;
 @property (readonly) NSDate *lastUsed;                  // the newest modification in the tree
 @property (readonly) MMClutterState state;
