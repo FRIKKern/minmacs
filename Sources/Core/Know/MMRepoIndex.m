@@ -116,6 +116,8 @@ NSString *MMWorktreeOtherForm(MMWorktree *w, NSString *path) {
     return [to stringByAppendingString:[path substringFromIndex:from.length]];
 }
 
+static NSString *Up(NSString *p);   // below: the folder above p
+
 /// The checkouts of one array by name, so a holder lookup walks up path's folders, a few dictionary reads, rather
 /// than every checkout. Made once per array: the index and the facts hand out the same array until the next walk.
 @interface MMWorktreeNames : NSObject
@@ -147,12 +149,6 @@ static MMWorktreeNames *NamesOf(NSArray<MMWorktree *> *trees) {
     [made setObject:x forKey:trees];
     os_unfair_lock_unlock(&lock);
     return x;
-}
-
-/// The folder above p, nil at the top.
-static NSString *Up(NSString *p) {
-    NSRange r = [p rangeOfString:@"/" options:NSBackwardsSearch];
-    return r.location == NSNotFound || r.location == 0 ? nil : [p substringToIndex:r.location];
 }
 
 MMWorktree *MMWorktreeHolding(NSArray<MMWorktree *> *trees, NSString *path) {
@@ -192,17 +188,34 @@ MMWorktree *MMWorktreeHolding(NSArray<MMWorktree *> *trees, NSString *path) {
     return best;
 }
 
-/// The resolved form of path, as text: the longest pair's kept folder that holds it swapped for its resolved one.
-/// pairs is [kept, real] with kept longest first, from the roots and the checkouts. FSEvents names resolved paths.
-static NSString *Resolved(NSString *path, NSArray<NSArray<NSString *> *> *pairs) {
-    for (NSArray<NSString *> *p in pairs)
-        if (PathIn(path, p[0]) && ![p[0] hasSuffix:@"/"]) return [p[1] stringByAppendingString:[path substringFromIndex:p[0].length]];
+/// The folder above p, nil at the top.
+static NSString *Up(NSString *p) {
+    NSRange r = [p rangeOfString:@"/" options:NSBackwardsSearch];
+    return r.location == NSNotFound || r.location == 0 ? nil : [p substringToIndex:r.location];
+}
+
+/// The pairs [kept, real] of the roots and the checkouts as one table, kept to real; of two pairs with one kept folder
+/// the first. Made once per walk, so a path resolves by walking up its folders, not by trying every pair.
+static NSDictionary<NSString *, NSString *> *PairMap(NSArray<NSArray<NSString *> *> *pairs) {
+    NSMutableDictionary *m = [NSMutableDictionary new];
+    for (NSArray<NSString *> *p in pairs) if (p[0].length && ![p[0] hasSuffix:@"/"] && !m[p[0]]) m[p[0]] = p[1];
+    return m;
+}
+
+/// The resolved form of path, as text: the deepest pair's kept folder that holds it swapped for its resolved one.
+/// FSEvents names resolved paths.
+static NSString *Resolved(NSString *path, NSDictionary<NSString *, NSString *> *pairs) {
+    if (!pairs.count) return path;
+    for (NSString *p = path; p.length; p = Up(p)) {
+        NSString *real = pairs[p];
+        if (real) return [real stringByAppendingString:[path substringFromIndex:p.length]];
+    }
     return path;
 }
 
 /// A changed folder as FSEvents or a caller names it, in its resolved form. A path as kept resolves through the pairs.
 /// One no pair holds is resolved already, as FSEvents names it: standardized, with the /private that standardizing drops.
-static NSString *ResolvedForm(NSString *raw, NSArray<NSArray<NSString *> *> *pairs) {
+static NSString *ResolvedForm(NSString *raw, NSDictionary<NSString *, NSString *> *pairs) {
     NSString *s = raw.stringByStandardizingPath, *r = Resolved(s, pairs);
     if (![r isEqualToString:s] || !raw.isAbsolutePath) return r;
     return [raw hasPrefix:@"/private/"] && ![s hasPrefix:@"/private/"] ? [@"/private" stringByAppendingString:s] : s;
@@ -279,7 +292,7 @@ MMRepoIndexStep MMRepoIndexTestStep;
     NSArray<NSString *> *_roots;
     NSArray<NSString *> *_realRoots;   // each root resolved by the last walk, in the same order
     NSArray<MMWorktree *> *_trees;     // deepest path first
-    NSArray<NSArray<NSString *> *> *_pairs;                    // [kept, resolved] of each root and checkout, longest first
+    NSDictionary<NSString *, NSString *> *_pairs;              // kept to resolved, of each root and checkout
     NSArray<NSString *> *_pairRoots;                           // the resolved roots of the walk that made _pairs
     NSDictionary<NSString *, NSDictionary *> *_realDirs;       // path: {gitDir, common}, resolved as text
     BOOL _walking, _again;              // a walk is in flight; another was asked for meanwhile
@@ -381,7 +394,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
 
 /// path as text in its resolved form, through the pairs of the last walk.
 - (NSString *)resolved:(NSString *)path {
-    NSArray *pairs;
+    NSDictionary *pairs;
     @synchronized (self) { pairs = _pairs; }
     return Resolved(path, pairs);
 }
@@ -394,8 +407,8 @@ static NSArray<NSString *> *DefaultRoots(void) {
 - (BOOL)matters:(NSString *)dir {
     // Issue #101: every path here is compared in its resolved form, which FSEvents gives for a root that is a link.
     // The pairs, the git dirs and the resolved roots come from one finished walk, read in one lock.
-    NSArray *pairs, *realRoots;
-    NSDictionary *real;
+    NSArray *realRoots;
+    NSDictionary *real, *pairs;
     @synchronized (self) { pairs = _pairs; real = _realDirs; realRoots = _pairRoots; }
     if (!realRoots) realRoots = self.roots;   // before the first walk ends
     dir = ResolvedForm(dir, pairs);
@@ -487,10 +500,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
     for (NSUInteger i = 0; i < roots.count && i < realRoots.count; i++)
         if (![roots[i] isEqualToString:realRoots[i]]) [pairs addObject:@[roots[i], realRoots[i]]];
     for (MMWorktree *w in sorted) if (![w.path isEqualToString:w.realPath]) [pairs addObject:@[w.path, w.realPath]];
-    [pairs sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSArray *a, NSArray *b) {
-        NSUInteger x = [a[0] length], y = [b[0] length];
-        return x > y ? NSOrderedAscending : x < y ? NSOrderedDescending : NSOrderedSame;
-    }];
+    NSDictionary<NSString *, NSString *> *pairMap = PairMap(pairs);
     // The git dirs of every worktree, so a change in one maps to its worktrees with no disk read.
     NSMutableDictionary *dirs = [NSMutableDictionary new];
     NSMutableDictionary *realDirs = [NSMutableDictionary new];
@@ -498,7 +508,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
         NSDictionary *d = known[w.path] ?: MMGitDirsOf(w.path);
         if (!d) continue;
         dirs[w.path] = d;
-        realDirs[w.path] = @{@"gitDir": Resolved(d[@"gitDir"], pairs), @"common": Resolved(d[@"common"], pairs)};
+        realDirs[w.path] = @{@"gitDir": Resolved(d[@"gitDir"], pairMap), @"common": Resolved(d[@"common"], pairMap)};
     }
     NSSet *live = [NSSet setWithArray:[sorted valueForKey:@"path"]];
     BOOL again, changed;
@@ -516,7 +526,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
         _again = NO;
         _dirs = dirs;
         _realDirs = realDirs;
-        _pairs = pairs;
+        _pairs = pairMap;
         _pairRoots = realRoots;
         for (NSString *p in _facts.allKeys) if (![live containsObject:p]) [_facts removeObjectForKey:p];
         // Every fingerprint is read again after a walk. git runs only where one moved.
@@ -611,7 +621,7 @@ static void MarkFor(NSString *d, NSArray<MMWorktree *> *trees, NSDictionary<NSSt
 - (void)invalidate:(NSSet<NSString *> *)dirs subtrees:(BOOL)subtrees {
     NSArray<MMWorktree *> *trees;
     NSDictionary<NSString *, NSDictionary *> *dirsOf;
-    NSArray *pairs;
+    NSDictionary *pairs;
     @synchronized (self) {
         if (!_lastWalk) { [_early addObject:@[dirs ?: NSNull.null, @(subtrees)]]; return; }
         trees = _trees ?: @[];
