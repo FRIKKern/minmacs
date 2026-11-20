@@ -30,6 +30,19 @@ static const NSUInteger kWalkMax = 200000;            // a leak tree past this m
 static const NSInteger kProjectDepth = 6;             // how deep build rows look below a checkout
 /// A scratch entry of a session that ended. The session folder is the item then, so the entry is left out of a scan.
 static NSString *const kWholeSession = @"its session ended, so the whole session folder goes instead";
+/// The most of another tool's small file that is read: pnpm's rc, Xcode's and the simulator's plists, Playwright's links.
+static const NSUInteger kToolFileMax = 4 * 1024 * 1024;
+
+/// Issue #96: another tool's file through MMReadPlain, so one that is a named pipe, a socket or a device is no file.
+static NSString *ToolText(NSString *path) {
+    NSData *d = MMReadPlain(path, kToolFileMax, MMPlainWhole);
+    return d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : nil;
+}
+static NSDictionary *ToolPlist(NSString *path) {
+    NSData *d = MMReadPlain(path, kToolFileMax, MMPlainWhole);
+    id p = d ? [NSPropertyListSerialization propertyListWithData:d options:NSPropertyListImmutable format:NULL error:nil] : nil;
+    return [p isKindOfClass:NSDictionary.class] ? p : nil;
+}
 
 NSString *MMClutterClassName(MMClutterClass c) {
     switch (c) {
@@ -108,8 +121,7 @@ static NSString *EnvPath(NSString *k) {
 
 /// pnpm's store-dir from its rc file, the only config pnpm reads it from besides the command line.
 static NSString *PnpmStoreFromRC(NSString *home) {
-    NSString *rc = [NSString stringWithContentsOfFile:[home stringByAppendingPathComponent:@"Library/Preferences/pnpm/rc"]
-                                             encoding:NSUTF8StringEncoding error:nil];
+    NSString *rc = ToolText([home stringByAppendingPathComponent:@"Library/Preferences/pnpm/rc"]);
     for (NSString *line in [rc componentsSeparatedByString:@"\n"]) {
         NSString *l = [line stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
         if (![l hasPrefix:@"store-dir"]) continue;
@@ -893,7 +905,7 @@ static BOOL IsUUID(NSString *s) {
     NSFileManager *fm = NSFileManager.defaultManager;
     if ([how isEqualToString:@"project"]) i.ownerPath = ProjectOf(p, projects);
     else if ([how isEqualToString:@"derived-data"]) {
-        NSDictionary *plist = [NSDictionary dictionaryWithContentsOfFile:[p stringByAppendingPathComponent:@"info.plist"]];
+        NSDictionary *plist = ToolPlist([p stringByAppendingPathComponent:@"info.plist"]);
         NSString *ws = Str(plist[@"WorkspacePath"]);
         if (ws) { i.ownerPath = ws.stringByDeletingLastPathComponent; i.ownerGone = ![fm fileExistsAtPath:ws]; }
     } else if ([how isEqualToString:@"playwright-links"]) {
@@ -901,8 +913,7 @@ static BOOL IsUUID(NSString *s) {
         NSArray *files = [fm contentsOfDirectoryAtPath:links error:nil];
         NSString *live = nil, *any = nil;
         for (NSString *f in files) {
-            NSString *target = [[NSString stringWithContentsOfFile:[links stringByAppendingPathComponent:f] encoding:NSUTF8StringEncoding error:nil]
-                                stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+            NSString *target = [ToolText([links stringByAppendingPathComponent:f]) stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
             if (!target.length) continue;
             any = any ?: target;
             if ([fm fileExistsAtPath:target]) { live = target; break; }
@@ -912,7 +923,7 @@ static BOOL IsUUID(NSString *s) {
     } else if ([how isEqualToString:@"simulator-device"]) {
         NSDate *last = nil;
         for (NSString *d in [fm contentsOfDirectoryAtPath:p error:nil]) {
-            NSDictionary *plist = [NSDictionary dictionaryWithContentsOfFile:[[p stringByAppendingPathComponent:d] stringByAppendingPathComponent:@"device.plist"]];
+            NSDictionary *plist = ToolPlist([[p stringByAppendingPathComponent:d] stringByAppendingPathComponent:@"device.plist"]);
             NSDate *b = [plist[@"lastBootedAt"] isKindOfClass:NSDate.class] ? plist[@"lastBootedAt"] : nil;
             if (b && (!last || [b compare:last] == NSOrderedDescending)) last = b;
         }

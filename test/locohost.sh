@@ -292,6 +292,8 @@ check "MMLHGitOf reads the repo index's worktree and facts" "1 1" \
 check "the expert never asks the model itself" 0 "$(grep -nE 'MMModel|claudePath|codexPath|NSTask' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert never signals a process itself" 0 "$(grep -nE '[^a-zA-Z_]kill\(' Sources/Experts/LocoHost/*.m | grep -c .)"
 check "the expert names no .env file in its code" 0 "$(grep -nE '@"[^"]*\.env("|[^a-zA-Z])' Sources/Experts/LocoHost/*.m | grep -c .)"
+echo "-- a project file that is a named pipe, issue #96"
+. ./test/locohost/pipes.sh
 lh_stop_all
 
 echo "== the menu and cards, rendered"
