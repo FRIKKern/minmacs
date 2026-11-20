@@ -9,7 +9,7 @@ Developer clutter on the shared core, issues #28, #29 and #30. Noo-Noo lists cac
 
 ## What Core holds for it
 
-- **The catalog.** `registry/clutter/*.json`, one row per kind: the 52 rows of `docs/2.0/research/D-clutter.md`, plus `agent-trial`, `tmp-gocache`, `cocoapods-pods`, `python-pycache` and `minmacs-recovery`. `registry/clutter-schema.json` describes a row, and `test/noonoo/validate_clutter.py` checks each one. build.sh ships them in `Resources/registry/clutter`.
+- **The catalog.** `registry/clutter/*.json`, one row per kind: the 52 rows of `docs/2.0/research/D-clutter.md`, plus `agent-trial`, `tmp-gocache`, `cocoapods-pods`, `python-pycache`, `minmacs-recovery` and `postgres-data`. `registry/clutter-schema.json` describes a row, and `test/noonoo/validate_clutter.py` checks each one. build.sh ships them in `Resources/registry/clutter`.
 - **Know, `Core/Know/MMClutter.{h,m}`.** It loads the rows, expands `~`, `${cache:<tool>}`, `${claude}`, `${codex}` and `${support}` from env vars and the documented defaults, never by running a tool, and finds the items:
   - Build rows look inside the repo index's checkouts for their folder names, pruned at the first match, with a manifest beside them.
   - Leak rows carry NN's signatures: `agent-scratch` (session alive by `--session-id`, its transcript in the last 30 minutes, or Know's session index), `aged`, `open`, and `family` (5 or more siblings whose names differ only in a random suffix or, after a separator, a port number of 4 or 5 digits, 12 hours quiet, never `com.apple.`).

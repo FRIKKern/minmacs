@@ -83,6 +83,11 @@ mkdir -p "$nnh/Library/Application Support/Cursor/User/globalStorage" "$nnh/Libr
 printf 'state\n' >"$nnh/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
 printf 'c\n' >"$nnh/Library/Application Support/Cursor/Cache/c"
 
+nn_pg="$nnr/opt/homebrew/var/postgresql@16"
+mkdir -p "$nn_pg/base/16384"
+printf '16\n' >"$nn_pg/PG_VERSION"
+dd if=/dev/zero of="$nn_pg/base/16384/1259" bs=1024 count=64 2>/dev/null
+
 nn_dev="$nnh/Library/Developer/CoreSimulator/Devices"
 nn_gone=11111111-2222-3333-4444-555555555555; nn_keep=66666666-7777-8888-9999-AAAAAAAAAAAA
 mkdir -p "$nn_dev/$nn_gone/data" "$nn_dev/$nn_keep/data"
@@ -155,6 +160,9 @@ if [ "$nn_r" = 0 ]; then
   check "noonoo: a Chrome code-sign clone nothing holds open is a leftover" leftovers "$(nn_item "$nn_clone" section)"
   check "noonoo: Claude Code transcripts are data, kept with their owner's setting" "kept data" \
     "$(nn_item "$nn/claude/projects/-code-acme" section) $(nn_item "$nn/claude/projects/-code-acme" class)"
+  check "noonoo: a local Postgres data folder is data, kept with its owner's setting, issue #90" "kept data yes" \
+    "$(nn_item "$nn_pg" section) $(nn_item "$nn_pg" class) $(nn_item "$nn_pg" why | grep -q dropdb && echo yes || echo no)"
+  check "noonoo: clean refuses it and leaves every file" "1 16" "$(nnt verb clean "$nn_pg" >/dev/null 2>&1; echo $?) $(cat "$nn_pg/PG_VERSION" 2>/dev/null)"
   check "noonoo: the Trash is reported and never acted on" "kept  yes" \
     "$(nn_item "$nnh/.Trash" section) $(nn_item "$nnh/.Trash" action) $(printf '%s' "$nn_list" | json '"yes" if j["trashBytes"] > 0 else "no"')"
   check "noonoo: sizes are what deleting frees, from the Sizer" yes \
