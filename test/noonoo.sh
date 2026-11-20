@@ -365,6 +365,19 @@ PY
   check "noonoo: a flat cache gives no line" "False" \
     "$(nnt verb clutter trends --json 2>/dev/null | json 'any("npm" in t["title"] and t["trend"]["bytesPerDay"] > 0 for t in j["trends"])')"
 
+  echo "-- the whole disk beside the rows, issue #89"
+  check "noonoo: with no reading of the disk, trends names no volume" "False" "$(nnt verb clutter trends --json 2>/dev/null | json '"volume" in j')"
+  nnt record -volume 6 100000000000 148000000000
+  MINMACS_TEST_VOLUME_USED=156000000000 nnt scan >/dev/null 2>&1
+  check "noonoo: a scan writes one point a day for the whole volume" 7 "$(nnt points -volume)"
+  nn_tr=$(nnt verb clutter trends --json 2>/dev/null)
+  check "noonoo: trends gives the disk's growth a day, and what the rows explain of it" "yes yes" \
+    "$(printf '%s' "$nn_tr" | json '("yes" if 8e9 < j["volume"]["bytesPerDay"] < 11e9 else "no") + " " + ("yes" if 0 < j["volume"]["rowsBytesPerDay"] < 1e7 else "no")')"
+  check "noonoo: and the swap in use as a number" yes "$(printf '%s' "$nn_tr" | json '"yes" if j["swapBytes"] >= 0 else "no"')"
+  nn_tt=$(nnt verb clutter trends 2>/dev/null)
+  check "noonoo: in words, the whole disk has its own line" 1 "$(printf '%s\n' "$nn_tt" | grep -c '^  The whole disk  *+[0-9.]* GB a day over 6 days, now 145.3 GB used$')"
+  check "noonoo: and the growth no row names is said" 1 "$(printf '%s\n' "$nn_tt" | grep -c '^The rows explain .* a day of that. [0-9.]* GB a day grows in folders no row names.$')"
+
   echo "-- the menu and cards"
   nn_out="$ROOT/build/render/noonoo"
   rm -rf "$nn_out"; mkdir -p "$nn_out"

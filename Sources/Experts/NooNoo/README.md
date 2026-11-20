@@ -43,6 +43,7 @@ The header is what deleting frees, then finished projects, what the Trash holds 
 ## Verbs
 
 - `clutter [list | show <id|path> | trends | check <path> | scan] [--json] [--dry-run]` reads.
+- `clutter trends` ends with the whole disk, issue #89. Every scan writes the used bytes of the home folder's volume as one point a day, in the series `MMClutterSeries(MMClutterVolumeKind)`. The verb prints the disk's growth a day beside the rows, says how much of it the rows explain and how much grows in folders no row names, and names the swap in use when it is 1 GB or more. `--json` holds them as `volume` and `swapBytes`. It does not say which folder grew.
 - `clean <id|path|row> ... | --finished | --leftovers | --undo [rid] [--json] [--dry-run]` changes things, so it runs in the app. A member of a temp family names the family.
 - `clean <id|path|row> --command [--dry-run] [--json]` runs the row's own command for good. With `--dry-run` it runs only the dry-run form, in the CLI, and says what it would free. No mode, plan, Tidy or Wrap Up runs it, since `actionFor:step:` never returns it.
 
