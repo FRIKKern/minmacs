@@ -9,7 +9,10 @@
 //   restart-b <root> <path>               a new process: FSEvents from the saved ids, a walk, and what git ran for
 //   midpass <root> <path>                 a change that lands in the middle of an update pass: how often git status ran
 //   moves <root> <path> <branch>          FSEvents on, a branch switch and a lock in path: when the index shows each
+//   keeps <root>                          facts as facts gives them, with the index's branch and Smart's answer, issue #116
+//   dirs <path>                           the git dir and common dir MMGitDirsOf reads for path, or null
 #import <Foundation/Foundation.h>
+#import "Core/Act/MMRemoval.h"
 #import "Core/Know/MMGit.h"
 #import "Core/Runtime/MMWorker.h"
 #import <sys/resource.h>
@@ -90,6 +93,35 @@ static int Facts(NSString *root) {
     Scan();
     Drain();
     Print(@{@"facts": AllFacts(), @"stats": MMRepoIndex.shared.stats});
+    return 0;
+}
+
+/// Issue #116: what each worktree's facts make of the removal choice. The facts go to Smart as WorkForest's
+/// RemovalFactsNow hands them over, and smart is "delete now" or Smart's reason to keep a way back.
+static int Keeps(NSString *root) {
+    MMRepoIndex.shared.roots = @[root.stringByStandardizingPath];
+    Scan();
+    NSMutableDictionary *out = [NSMutableDictionary new];
+    for (MMWorktree *w in MMRepoIndex.shared.worktrees) {
+        MMGitFacts *g = [MMRepoIndex.shared factsFor:w wait:NO];
+        MMRemovalFacts *f = !g ? [MMRemovalFacts new]
+            : [MMRemovalFacts worktreeKnown:YES merged:!w.isMain && g.merged != MMMergedNone upstreamGone:g.upstreamGone
+                                      dirty:g.dirty untracked:g.untracked unpushed:g.unpushed stashes:g.stashes];
+        MMRemovalDecision *d = MMRemovalDecideWith(MMRemovalSmart, MMRemovalWorktree, f);
+        NSMutableDictionary *j = [(g ? g.json : @{}) mutableCopy];
+        j[@"smart"] = d.deleteNow ? @"delete now" : d.why ?: @"";
+        j[@"indexBranch"] = w.branch ?: NSNull.null;
+        out[w.path] = j;
+    }
+    Drain();
+    Print(@{@"facts": out, @"stats": MMRepoIndex.shared.stats});
+    return 0;
+}
+
+NSDictionary<NSString *, NSString *> *MMGitDirsOf(NSString *path);
+
+static int Dirs(NSString *path) {
+    Print(@{@"dirs": MMGitDirsOf(path.stringByStandardizingPath) ?: NSNull.null});
     return 0;
 }
 
@@ -355,6 +387,8 @@ int main(int argc, const char **argv) {
         if ([cmd isEqualToString:@"restart-b"] && a.count == 2) return RestartB(a[0], a[1]);
         if ([cmd isEqualToString:@"midpass"] && a.count == 2) return MidPass(a[0], a[1]);
         if ([cmd isEqualToString:@"moves"] && a.count == 3) return Moves(a[0], a[1], a[2]);
+        if ([cmd isEqualToString:@"keeps"] && a.count == 1) return Keeps(a[0]);
+        if ([cmd isEqualToString:@"dirs"] && a.count == 1) return Dirs(a[0]);
         fprintf(stderr, "unknown command\n");
         return 2;
     }
