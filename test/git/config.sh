@@ -87,6 +87,15 @@ for cf_r in $(git -C "$CFD/main" for-each-ref --format='%(refname)' refs/remotes
 printf '[branch "x1"]\n\tremote = origin\n\tmerge = refs/heads/x1\n' >>"$CFC"
 cf_sec x2 '\tremote = upstream\n\tmerge = refs/heads/x2\n'
 cf_sec p1 '\tremote = origin\n\tpushRemote = fork\n\tmerge = refs/heads/p1\n[remote]\n\tpushDefault = fork\n'
+cf_sec x3 '\tremote = origin\n\tmerge = refs/heads/x3\n[remote "origin"]\n\tfetch = ^refs/heads/x3\n'
+# The first fetch line that maps the merge wins.
+cf_sec x4 '\tremote = origin\n\tmerge = refs/heads/x4\n'; gq -C "$CFD/main" config --unset remote.origin.fetch
+printf '[remote "origin"]\n\tfetch = +refs/heads/x4:refs/remotes/special/x4\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n' >>"$CFC"
+gq -C "$CFD/main" fetch -q origin
+# A remote with no url in config is read from .git/remotes as well.
+cf_sec x5 '\tremote = legacy\n\tmerge = refs/heads/x5\n'; mkdir -p "$CFD/main/.git/remotes"
+printf 'URL: %s\nPull: refs/heads/x5:refs/remotes/legacy/x5\n' "$CFD/origin.git" >"$CFD/main/.git/remotes/legacy"
+gq -C "$CFD/main" update-ref refs/remotes/legacy/x5 "$(git -C "$CFD/wt" rev-parse HEAD)"
 
 echo "-- per-worktree config, include and includeIf"
 cf_case wt1; gq -C "$CFD/main" config extensions.worktreeConfig true
@@ -100,10 +109,22 @@ cf_case i4; printf '[includeIf "gitdir:**/i4/**"]\n\tpath = up.inc\n' >>"$CFC"; 
 cf_sec i5 '\tremote = nothere\n\tmerge = refs/heads/i5\n[include]\n\tpath = up.inc\n'; printf '[branch "i5"]\n\tremote = origin\n' >"$CFD/main/.git/up.inc"
 cf_sec i6 '\tremote = nothere\n\tmerge = refs/heads/i6\n[includeIf "gitdir:**/i6/**"]\n\tpath = up.inc\n'; printf '[branch "i6"]\n\tremote = origin\n' >"$CFD/main/.git/up.inc"
 cf_sec i7 '\tremote = origin\n\tmerge = refs/heads/i7\n[include]\n\tpath = config\n'
+# Ten files deep, as git follows, and eleven, which git refuses.
+for cf_n in 8:10 9:11; do
+  cf_i="i${cf_n%%:*}"; cf_case "$cf_i"; printf '[include]\n\tpath = inc1\n' >>"$CFC"
+  for cf_k in $(seq 1 "${cf_n#*:}"); do
+    if [ "$cf_k" = "${cf_n#*:}" ]; then printf '[branch "%s"]\n\tremote = origin\n\tmerge = refs/heads/%s\n' "$cf_i" "$cf_i"
+    else printf '[include]\n\tpath = inc%d\n' $((cf_k + 1)); fi >"$CFD/main/.git/inc$cf_k"
+  done
+done
+# extensions.worktreeConfig in an included file is not read, so config.worktree is not either.
+cf_case wt3; printf '[include]\n\tpath = ext.inc\n' >>"$CFC"; printf '[extensions]\n\tworktreeConfig = true\n' >"$CFD/main/.git/ext.inc"
+printf '[branch "wt3"]\n\tremote = origin\n\tmerge = refs/heads/wt3\n' >>"$CFD/main/.git/worktrees/wt/config.worktree"
 
 echo "-- a line git cannot parse inside the branch's section"
 cf_sec u1 '\tremote = origin\n\tmerge: refs/heads/u1\n'
 cf_sec u2 '\tremote = origin\n\tmerge = "refs/heads/u2\n'
+cf_sec u3 '\tremote = origin\n\tmerge = refs/heads/u3\n[branch ""]\n\tremote = origin\n'
 
 GO=$("$GT" keeps "$CFR")
 # cf_row <id> <branch> <git's answer> <MinMacs's answer>. git's answer is for-each-ref's %(upstream:short) and
@@ -121,7 +142,8 @@ v=j.get(k) or j.get(k[len('/private'):]) or {}
 s=v.get('smart', '?'); s=s if s == 'delete now' else 'keep: ' + s
 print('%s|%s|%s|%s' % (v.get('upstream'), v.get('upstreamGone'), v.get('upstreamUnknown'), s))" "$cf_w")
   printf '  row   %-4s git %-24s rev-parse %-18s config %s / %s\n        %-4s mm  %s\n' "$1" "$cf_git" "$cf_rp" "$cf_cr" "$cf_cm" "" "$cf_mm" | tr '\t\n' '~\n'
-  check "config $1: git answers" "$3" "$cf_git"
+  cf_want=$3; case " or $3 or " in *" or $cf_git or "*) cf_want=$cf_git ;; esac   # "a or b": either answer of git's
+  check "config $1: git answers" "$cf_want" "$cf_git"
   check "config $1: MinMacs reads what git reads" "$4" "$cf_mm"
   case "$cf_mm|$cf_git" in *"delete now|"*"[gone]") ;; *"delete now|"*) cf_lost="$cf_lost $1" ;; esac
 }
@@ -155,7 +177,7 @@ cf_row w3 w3 "|" "$cf_none"
 cf_row k1 k1 "origin/k1|" "$(cf_live origin/k1)"
 cf_row k2 k2 "origin/k2|" "$(cf_live origin/k2)"
 cf_row s1 s1 "origin/s1|" "$(cf_live origin/s1)"
-cf_row v1 v1 fatal "$cf_refused"
+cf_row v1 v1 fatal "$cf_unread"   # git status still runs: only the remotes are refused
 cf_row v2 v2 "|" "$cf_none"
 cf_row h1 h1 "origin/h1|" "$(cf_live origin/h1)"
 cf_row h2 h2 "|" "$cf_none"
@@ -192,4 +214,11 @@ cf_row i6 i6 "origin/i6|" "$cf_unread"
 cf_row i7 i7 fatal "$cf_refused"
 cf_row u1 u1 fatal "$cf_refused"
 cf_row u2 u2 fatal "$cf_refused"
+cf_row x3 x3 "origin/x3| or |" "$cf_unread"   # git 2.39 maps past a negative line, and a later git may not
+cf_row x4 x4 "special/x4|" "$(cf_live special/x4)"
+cf_row x5 x5 "legacy/x5|" "$cf_unread"
+cf_row i8 i8 "origin/i8|" "$(cf_live origin/i8)"
+cf_row i9 i9 fatal "$cf_refused"
+cf_row wt3 wt3 "|" "$cf_none"
+cf_row u3 u3 fatal "$cf_unread"
 check "config: Smart deletes no worktree whose upstream git says is live, or that git has none of" "" "$cf_lost"

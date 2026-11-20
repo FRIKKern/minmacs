@@ -44,6 +44,9 @@ typedef NS_ENUM(NSInteger, MMRemovalThing) {
 @interface MMRemovalFacts : NSObject
 // A worktree. A count is -1 while git could not tell.
 @property BOOL gitKnown, merged, upstreamGone;
+// Issue #118: the upstream could not be read, which keeps whatever else says, or the branch tracks none. Only the
+// words follow upstreamNone: with neither set the remote branch it tracks is there.
+@property BOOL upstreamUnknown, upstreamNone;
 @property NSInteger dirty, untracked, unpushed, stashes;
 // Clutter and a tool's cleanup.
 @property MMClutterClass klass;

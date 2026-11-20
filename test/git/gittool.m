@@ -107,6 +107,7 @@ static int Keeps(NSString *root) {
         MMRemovalFacts *f = !g ? [MMRemovalFacts new]
             : [MMRemovalFacts worktreeKnown:YES merged:!w.isMain && g.merged != MMMergedNone upstreamGone:g.upstreamGone
                                       dirty:g.dirty untracked:g.untracked unpushed:g.unpushed stashes:g.stashes];
+        f.upstreamUnknown = g.upstreamUnknown; f.upstreamNone = g && !g.upstream.length && !g.upstreamGone && !g.upstreamUnknown;
         MMRemovalDecision *d = MMRemovalDecideWith(MMRemovalSmart, MMRemovalWorktree, f);
         NSMutableDictionary *j = [(g ? g.json : @{}) mutableCopy];
         j[@"smart"] = d.deleteNow ? @"delete now" : d.why ?: @"";
