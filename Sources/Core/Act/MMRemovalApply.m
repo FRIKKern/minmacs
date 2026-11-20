@@ -55,7 +55,9 @@ static NSError *Problem(NSString *words) {
 static NSString *WhyNot(NSString *path, MMUndoRecord *record, NSArray<NSString *> *allowed, NSString **real) {
     if (![path hasPrefix:@"/"]) return @"it has no full path";
     NSString *r = MMRemovalRealPath(path);
-    if (!r) return @"it is gone";
+    struct stat st;
+    // It is there, and nothing says where: its folder cannot be listed, or lists no one name for it. So it stays.
+    if (!r) return lstat(path.fileSystemRepresentation, &st) == 0 ? @"MinMacs never deletes it: cannot verify where it lies" : @"it is gone";
     *real = r;
     NSMutableArray *asked = [NSMutableArray new];
     for (NSString *a in allowed ?: MMRecordStrings(record.payload, @"asked") ?: @[]) {

@@ -209,14 +209,15 @@ static int PipeChild(NSString *which, NSString *dir) {
         // A checkout whose .git is a pipe: the walk that reads .git files must come back, with no checkout read.
         NSString *git = [tree stringByAppendingPathComponent:@".git"];
         MakePipe(git);
-        // A writer waits on that pipe, a process of this check's own that writes nothing. An open of the pipe for
-        // reading, even one that does not wait, would let its open come back. So the pipe must not be opened at all.
+        Said(MMGitDirsOf(tree) ? @"read" : @"no checkout");
+        // Then a writer waits on that pipe, a process of this check's own that writes nothing. An open of the pipe
+        // for reading, even one that does not wait, would let its open come back. So the pipe must not be opened.
         char name[PATH_MAX];
         strlcpy(name, git.fileSystemRepresentation, sizeof name);
         pid_t writer = fork();
         if (writer == 0) { alarm(kPipeLimit + 5); close(STDOUT_FILENO); _exit(open(name, O_WRONLY) >= 0 ? 7 : 8); }
         usleep(100000);   // it reaches its open
-        Said(MMGitDirsOf(tree) ? @"read" : @"no checkout");
+        (void)MMGitDirsOf(tree);
         int st = 0;
         BOOL ended = writer <= 0;
         for (int k = 0; k < 40 && !ended; k++) { ended = waitpid(writer, &st, WNOHANG) == writer; if (!ended) usleep(5000); }
