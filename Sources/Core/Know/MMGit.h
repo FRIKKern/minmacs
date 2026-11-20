@@ -68,8 +68,11 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// P26. The git facts of one worktree, keyed by HEAD in the fact cache of P27.
 /// branch, head, the default branch, the upstream and the stash count are read from git's own files.
 /// The rest come from git through MMGit, on a Know queue. A count of -1 means git could not tell, which counts as dirty.
+/// Issue #116: git's files are read as bytes. A name that is not UTF-8 shows with U+FFFD and never resolves, and a file
+/// that is there and cannot be read leaves its facts not known: stashes -1, no head with unpushed and notInDefault -1,
+/// no default branch, and an upstream that is not gone.
 @interface MMGitFacts : NSObject
-@property (readonly, copy) NSString *branch;            // nil when HEAD is detached
+@property (readonly, copy) NSString *branch;            // nil when HEAD is detached, or cannot be read
 @property (readonly, copy) NSString *head, *defaultBranch, *upstream;   // upstream: "origin/x", nil when none is set
 @property (readonly) MMMergeKind merged;
 @property (readonly) NSInteger dirty, untracked, stashes, notInDefault;
@@ -79,6 +82,7 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// Decision 7: a squash-merged HEAD on no remote goes in Eager only, after a git bundle.
 @property (readonly) BOOL onRemote;
 @property (readonly) BOOL upstreamGone;                 // the remote branch was deleted
+@property (readonly) BOOL upstreamUnknown;              // the upstream or its tip cannot be read, so it is not gone
 @property (readonly) NSDate *lastCommit;
 /// The facts as JSON, with merged as a word: none, ancestor, tree, patch, squash, pr or merge-tree.
 - (NSDictionary *)json;

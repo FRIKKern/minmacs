@@ -137,7 +137,8 @@ static MMWFTree *TreeFrom(MMWorktree *w, MMFacts *facts, NSArray *procs, MMSessi
     if (g) {
         t.gitKnown = YES;
         t.head = g.head; t.defaultBranch = g.defaultBranch;
-        t.upstream = g.upstreamGone ? @"gone" : g.upstream.length ? g.upstream : @"none";
+        // Issue #116: an upstream that cannot be read is "unknown", never "none", which says never pushed.
+        t.upstream = g.upstreamGone ? @"gone" : g.upstream.length ? g.upstream : g.upstreamUnknown ? @"unknown" : @"none";
         t.merged = t.isMain ? nil : MergedWord(g.merged);
         t.dirty = g.dirty; t.untracked = g.untracked; t.stashes = g.stashes; t.unpushed = g.unpushed;
         t.notInDefault = g.notInDefault; t.onRemote = g.onRemote; t.lastCommit = g.lastCommit;

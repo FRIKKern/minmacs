@@ -187,6 +187,7 @@ check "  and a new file, named by its resolved folder, reaches the status under 
 GO=$("$GT" linked "$GL/code:$GL/my/docs/root" "$GL/code/r.wt/a/a.txt")
 check "git: with the link and its target both listed, a new file reaches every name of its checkout" \
   "code/r.wt/a my/docs/root/r.wt/a" "$(gl_trees grew)"
+. test/git/bytes.sh
 
 echo "-- bench: about 100 worktrees"
 GB="$G/bench/roots"; mkdir -p "$GB"
