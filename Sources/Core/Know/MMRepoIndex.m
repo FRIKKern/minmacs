@@ -154,7 +154,7 @@ static BOOL InGitDir(NSString *dir, NSString **gitRoot, NSString **rest) {
 }
 
 #ifdef MM_TESTS
-void (^MMRepoIndexTestStep)(NSString *step, NSString *path);
+MMRepoIndexStep MMRepoIndexTestStep;
 #endif
 
 @implementation MMRepoIndex {

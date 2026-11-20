@@ -118,7 +118,8 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// Compiled only with -DMM_TESTS. Runs where one worktree's facts are brought up to date: with step "read" right
 /// before the cached status and its drop are read, and with "write" after git ran, right before the facts are
 /// kept. A check lands a change at either point through it, issue #84.
-extern void (^MMRepoIndexTestStep)(NSString *step, NSString *path);
+typedef void (^MMRepoIndexStep)(NSString *step, NSString *path);
+extern MMRepoIndexStep MMRepoIndexTestStep;
 #endif
 /// Posted when a walk finds other worktrees, branches or locks than the last one, or when an update pass on the
 /// git queue reads a moved branch or lock from a worktree's .git files.
