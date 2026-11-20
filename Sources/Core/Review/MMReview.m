@@ -454,19 +454,14 @@ static BOOL Inside(NSString *path, NSString *folder) {
     return [path isEqualToString:folder] || [path hasPrefix:[folder stringByAppendingString:@"/"]];
 }
 
-/// The deepest worktree in facts that holds folder, or nil.
-static MMWorktree *WorktreeHolding(NSString *folder, MMFacts *facts) {
-    MMWorktree *best = nil;
-    for (MMWorktree *w in facts.worktrees)
-        if (Inside(folder, w.path) && (!best || w.path.length > best.path.length)) best = w;
-    return best;
-}
+/// The deepest worktree in facts that holds folder, by its path as kept or its resolved one, issue #101, or nil.
+static MMWorktree *WorktreeHolding(NSString *folder, MMFacts *facts) { return MMWorktreeHolding(facts.worktrees, folder); }
 
-/// The newest session whose folder is folder or inside it, or nil.
-static MMSession *NewestSessionIn(NSString *folder, MMFacts *facts) {
+/// The newest session whose folder is the worktree's, in either form, or inside it, else folder or inside it, or nil.
+static MMSession *NewestSessionIn(MMWorktree *w, NSString *folder, MMFacts *facts) {
     MMSession *best = nil;
     for (MMSession *x in facts.sessions) {
-        if (!Inside(x.cwd, folder)) continue;
+        if (w ? !MMWorktreeFolderFor(w, x.cwd) : !Inside(x.cwd, folder)) continue;
         if (!best || (x.lastActive && (!best.lastActive || [x.lastActive compare:best.lastActive] == NSOrderedDescending))) best = x;
     }
     return best;
@@ -492,7 +487,7 @@ NSString *MMReviewContext(MMFinding *f, MMFacts *facts) {
     NSString *folder = TopOwner(f).path ?: f.path;
     MMWorktree *w = folder.length ? WorktreeHolding(folder, facts) : nil;
     NSString *head = w ? [facts gitFor:w].head : nil;
-    MMSession *x = folder.length ? NewestSessionIn(w.path ?: folder, facts) : nil;
+    MMSession *x = folder.length ? NewestSessionIn(w, folder, facts) : nil;
     return [NSString stringWithFormat:@"g%@|a%@|z%@", head.length > 12 ? [head substringToIndex:12] : head.length ? head : @"-",
             ActivityBucket(x), SizeBucketOf(f.cost.diskFreed)];
 }

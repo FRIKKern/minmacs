@@ -87,17 +87,18 @@ static NSString *SectionName(MMNNSection s) { return @[@"finished", @"leftovers"
 
 #pragma mark Owners
 
-/// The worktree that holds path, deepest first, from the facts.
-static MMWorktree *TreeOf(NSString *path, MMFacts *facts) {
-    MMWorktree *best = nil;
-    for (MMWorktree *w in facts.worktrees) if (Within(path, w.path) && w.path.length > best.path.length) best = w;
-    return best;
+/// The worktree that holds path, deepest first, from the facts, by its path as kept or its resolved one, issue #101.
+static MMWorktree *TreeOf(NSString *path, MMFacts *facts) { return MMWorktreeHolding(facts.worktrees, path); }
+
+/// YES when the checkout lies inside folder and is not folder itself, in either of its forms.
+static BOOL Below(MMWorktree *w, NSString *folder) {
+    return (Within(w.path, folder) && ![w.path isEqualToString:folder]) || (Within(w.realPath, folder) && ![w.realPath isEqualToString:folder]);
 }
 
 /// The checkouts in which a working agent session started above them runs a process now, each with that session.
 /// Issue #91. It reads the process tree only of a session whose folder holds a checkout, so a session that works in
-/// its own checkout costs nothing here. A process's folder comes from the kernel, resolved, and is matched with the
-/// checkout's path as kept.
+/// its own checkout costs nothing here. A process's folder comes from the kernel, resolved, and a session's as its
+/// agent wrote it, so both are matched with the checkout's path as kept and its resolved one.
 static NSDictionary<NSString *, MMSession *> *AgentRuns(MMFacts *facts) {
     NSMutableDictionary<NSString *, MMSession *> *out = [NSMutableDictionary new];
     MMSample *sample = facts.sample;
@@ -105,11 +106,11 @@ static NSDictionary<NSString *, MMSession *> *AgentRuns(MMFacts *facts) {
     for (MMSession *s in facts.sessions) {
         if (!s.stillWorking || s.pid <= 0 || !s.cwd.length) continue;
         BOOL holds = NO;
-        for (MMWorktree *w in facts.worktrees) if (Within(w.path, s.cwd) && ![w.path isEqualToString:s.cwd]) { holds = YES; break; }
+        for (MMWorktree *w in facts.worktrees) if (Below(w, s.cwd)) { holds = YES; break; }
         if (!holds) continue;
         for (NSNumber *pid in [sample treeOf:s.pid limit:500]) {
             MMWorktree *w = TreeOf([sample cwdOf:pid.intValue], facts);
-            if (w && Within(w.path, s.cwd) && ![w.path isEqualToString:s.cwd] && !out[w.path]) out[w.path] = s;
+            if (w && Below(w, s.cwd) && !out[w.path]) out[w.path] = s;
         }
     }
     return out;
@@ -121,10 +122,12 @@ static NSDictionary<NSString *, MMSession *> *AgentRuns(MMFacts *facts) {
 static NSString *AgentKeeps(NSString *folder, MMFacts *facts, NSDictionary<NSString *, MMSession *> *runs) {
     if (!folder.length) return nil;
     MMWorktree *tree = TreeOf(folder, facts);
+    // Issue #101: the same folder through the checkout's other form, so a session named either way keeps it.
+    NSString *other = tree ? MMWorktreeOtherForm(tree, folder) : folder;
     for (MMSession *s in facts.sessions) {
         if (!s.stillWorking) continue;
-        if (Within(s.cwd, folder)) return [NSString stringWithFormat:@"an agent works in %@", folder.lastPathComponent];
-        if (Within(folder, s.cwd) && (!tree || Within(s.cwd, tree.path)))
+        if (Within(s.cwd, folder) || Within(s.cwd, other)) return [NSString stringWithFormat:@"an agent works in %@", folder.lastPathComponent];
+        if ((Within(folder, s.cwd) || Within(other, s.cwd)) && (!tree || MMWorktreeFolderFor(tree, s.cwd)))
             return [NSString stringWithFormat:@"an agent works in %@, which holds it", s.cwd.lastPathComponent];
     }
     MMSession *s = tree ? runs[tree.path] : nil;
@@ -279,7 +282,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (i.ownerPath) fx[@"ownerPath"] = i.ownerPath;
         NSString *ownerName = i.ownerPath.lastPathComponent ?: tree.path.lastPathComponent ?: WildPart(i);
         if (ownerName.length) fx[@"owner"] = ownerName;
-        if (tree.path) fx[@"worktree"] = tree.path;
+        if (tree.realPath) fx[@"worktree"] = tree.realPath;   // the form WorkForest's finding id holds, issue #101
         if (i.lastUsed) fx[@"lastUsed"] = @(i.lastUsed.timeIntervalSince1970);
         if (k.rebuild) fx[@"rebuild"] = k.rebuild;
         if (k.cleanup) fx[@"cleanup"] = k.cleanup;
@@ -305,7 +308,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
             NSMutableArray *ev = [NSMutableArray arrayWithObject:[MMEvidence label:@"Size" value:MMBytes(i.size.freedIfDeleted) raw:@(i.size.freedIfDeleted)]];
             if (i.lastUsed) [ev addObject:[MMEvidence label:@"Last used" value:MMAgo(i.lastUsed) raw:i.lastUsed]];
             if (ownerState) [ev addObject:[MMEvidence label:@"Owner" value:ownerState raw:ownerState
-                                                linkExpert:@"workforest" findingID:tree.path ? [@"workforest:worktree:" stringByAppendingString:tree.path] : nil]];
+                                                linkExpert:@"workforest" findingID:tree.realPath ? [@"workforest:worktree:" stringByAppendingString:tree.realPath] : nil]];
             b.evidence = ev;
             b.keepReasons = keep;
             b.proposal = proposal;

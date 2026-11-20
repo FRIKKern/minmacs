@@ -655,6 +655,14 @@ static NSArray<MMUndoRecord *> *Restorable(void) {
 #pragma mark Cards
 
 /// "uses the most energy" for the app with the highest rank, a softer word for the next two, nil for the rest.
+/// The id of WorkForest's finding for the checkout an owner names. The owner holds the path as the index kept it, and
+/// the finding is named by the resolved one, which differs under /tmp or a root that is a link. Issue #101.
+static NSString *WorktreeLinkID(NSString *path, MMSnapshot *s) {
+    MMWorktree *w = nil;
+    for (MMWorktree *x in s.facts.worktrees) if (MMWorktreeIsAt(x, path)) { w = x; break; }
+    return [@"workforest:worktree:" stringByAppendingString:(w.realPath ?: path) ?: @""];
+}
+
 static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     if (f.cost.energyRank <= 0) return nil;
     NSArray *apps = [AllApps(s) sortedArrayUsingComparator:^NSComparisonResult(MMFinding *x, MMFinding *y) {
@@ -667,7 +675,7 @@ static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
 }
 
 - (MMCardSpec *)cardFor:(MMFinding *)f snapshot:(MMSnapshot *)s {
-    if ([f.kind isEqualToString:@"agent"]) return [self agentCard:f];
+    if ([f.kind isEqualToString:@"agent"]) return [self agentCard:f snapshot:s];
     MMCardSpec *c = MMMinMacsCard();
     MMMinMacsGroup g = GroupOf(f);
     NSString *bid = f.facts[@"bundleID"];
@@ -713,7 +721,7 @@ static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     if (f.owner.kind == MMOwnerWorkstream || f.owner.kind == MMOwnerWorktree) {
         NSString *path = f.owner.kind == MMOwnerWorkstream ? f.owner.key : f.owner.path;
         MMCardFact *link = MMMinMacsFact(@"Worktree", f.owner.name);
-        link.linkExpert = @"workforest"; link.linkFindingID = [@"workforest:worktree:" stringByAppendingString:path ?: @""];
+        link.linkExpert = @"workforest"; link.linkFindingID = WorktreeLinkID(path, s);
         [facts addObject:link];
     }
     c.facts = [facts subarrayWithRange:NSMakeRange(0, MIN(5, facts.count))];
@@ -749,7 +757,7 @@ static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     return c;
 }
 
-- (MMCardSpec *)agentCard:(MMFinding *)f {
+- (MMCardSpec *)agentCard:(MMFinding *)f snapshot:(MMSnapshot *)s {
     MMCardSpec *c = MMMinMacsCard();
     NSString *state = f.facts[@"state"];
     MMAgentState st = MMAgentUnknown;
@@ -767,7 +775,7 @@ static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     if (f.owner.kind == MMOwnerWorkstream || f.owner.kind == MMOwnerWorktree) {
         MMCardFact *link = MMMinMacsFact(@"Worktree", f.owner.name);
         link.linkExpert = @"workforest";
-        link.linkFindingID = [@"workforest:worktree:" stringByAppendingString:(f.owner.kind == MMOwnerWorkstream ? f.owner.key : f.owner.path) ?: @""];
+        link.linkFindingID = WorktreeLinkID(f.owner.kind == MMOwnerWorkstream ? f.owner.key : f.owner.path, s);
         [facts addObject:link];
     }
     c.facts = facts;

@@ -28,6 +28,20 @@ static BOOL PathIn(NSString *path, NSString *folder) {
     return path.length == folder.length || [path characterAtIndex:folder.length] == '/';
 }
 
+/// The checkout named path in either form, issue #101: a WorkForest finding names it resolved, the index as its root
+/// gave it.
+static MMWorktree *TreeNamed(NSString *path, MMFacts *facts) {
+    for (MMWorktree *w in facts.worktrees) if (MMWorktreeIsAt(w, path)) return w;
+    return nil;
+}
+
+/// YES when path lies in the checkout at tree, as text in either of the checkout's forms.
+static BOOL InTree(NSString *path, NSString *tree, MMFacts *facts) {
+    if (PathIn(path, tree)) return YES;
+    MMWorktree *w = TreeNamed(tree, facts);
+    return w && MMWorktreeFolderFor(w, path) != nil;
+}
+
 static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:sizeof k]; return k; }
 
 #pragma mark - Rows and groups
@@ -342,8 +356,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
         NSString *kind = FixKind(f);
         if (!kind || f.kept || [inFix containsObject:f.findingID] || !byKey[RowKey(f)]) continue;
         if ([kind isEqualToString:@"remove"]) {
-            MMWorktree *tree = nil;
-            for (MMWorktree *w in facts.worktrees) if ([w.path isEqualToString:f.path]) tree = w;
+            MMWorktree *tree = TreeNamed(f.path, facts);
             if (!tree || tree.isMain || [facts gitFor:tree].merged == MMMergedNone) continue;
         }
         id<MMExpert> e = MMExpertNamed(f.expert);
@@ -362,7 +375,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
             // What a removed worktree holds goes with it, so a cache inside one is not a fix of its own.
             BOOL inside = NO;
             if ([kind isEqualToString:@"trash"] || [kind isEqualToString:@"clean"])
-                for (NSString *t in removedTrees) if (PathIn(f.path, t)) inside = YES;
+                for (NSString *t in removedTrees) if (InTree(f.path, t, facts)) inside = YES;
             if (inside) continue;
             id<MMExpert> e = MMExpertNamed(f.expert);
             [actions addObject:[e actionFor:f step:MMStopTerm]];
@@ -417,7 +430,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
     for (MMPerformanceRow *r in groups[MMPerformanceClutter]) clutter += r.number;
     for (MMPerformanceRow *t in groups[MMPerformanceWorktrees]) {
         uint64_t inside = 0;
-        for (MMPerformanceRow *c in groups[MMPerformanceClutter]) if (PathIn(c.finding.path, t.finding.path)) inside += c.number;
+        for (MMPerformanceRow *c in groups[MMPerformanceClutter]) if (InTree(c.finding.path, t.finding.path, facts)) inside += c.number;
         trees += t.number > inside ? t.number - inside : 0;
     }
     // A worktree not measured yet adds nothing above, so the part is of the measured ones only.
