@@ -118,7 +118,7 @@ NSString *MMFixStepAction(NSString *kind) {
     NSInteger notRun = 0, notReached = 0;
     for (MMPerformanceFix *f in fixes) {
         if (atomic_load(&_stop)) { notRun++; continue; }
-        BOOL landed = NO;
+        BOOL landed = NO, sizeUnknown = NO;   // sizeUnknown: a thing not measured was kept or failed, so its size is still not known
         uint64_t diskWas = _diskBack;
         if (f.wrapUp) {
             NSString *name = f.wrapUp.subject.worktree.branch.length ? f.wrapUp.subject.worktree.branch : f.wrapUp.subject.path.lastPathComponent;
@@ -142,7 +142,7 @@ NSString *MMFixStepAction(NSString *kind) {
                 MMUndoRecord *rec = MMRunAction(a, f.policy, nil, @"manual", @"Fix Everything", &err);
                 MMFixResult *x = [self note:f name:name record:rec error:err];
                 if (rec) { _diskBack += (uint64_t)MAX(rec.freedBytes, 0); [self readWhere:rec]; }
-                if (![x.outcome isEqualToString:@"done"]) continue;
+                if (![x.outcome isEqualToString:@"done"]) { if (a.finding.unmeasured) sizeUnknown = YES; continue; }
                 landed = YES;
                 _memoryBack += [self memoryOf:rec];
                 if ([f.kind isEqualToString:@"remove"]) treesMoved = YES;
@@ -156,8 +156,9 @@ NSString *MMFixStepAction(NSString *kind) {
         }
         if (landed) _done++;
         // It landed, so what it gave back is counted now: the removal's own count is its size, and the plan holds
-        // that in place of the part nobody had measured. One that did not land leaves the plan no total.
-        if (landed && f.diskPartial) {
+        // that in place of the part nobody had measured. One that did not land leaves the plan no total, and so does
+        // one of several things that kept the one not measured while another went.
+        if (landed && f.diskPartial && !sizeUnknown) {
             uint64_t got = _diskBack - diskWas;
             if (got > f.diskBack) _diskPlanned += got - f.diskBack;
             _unmeasuredLeft--;

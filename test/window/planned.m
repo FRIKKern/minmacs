@@ -7,7 +7,8 @@
 static id Key(id o, NSString *k) { @try { return [o valueForKey:k]; } @catch (NSException *e) { return nil; } }
 static NSString *Flag(id v) { return !v ? @"missing" : [v boolValue] ? @"yes" : @"no"; }
 
-static MMPerformance *PlannedWorld(MMWindowModel **model) {
+/// With chore, the removal has a second worktree, merged and measured, beside the one that is not.
+static MMPerformance *PlannedWorld(MMWindowModel **model, BOOL chore) {
     World();
     NSString *w1 = Dir(@"trees/fix-auth-redirect"), *w2 = Dir(@"trees/old-spike"), *w3 = Dir(@"repo");
     NSDictionary *(^tree)(NSString *, id, BOOL) = ^(NSString *path, id merged, BOOL sized) {
@@ -18,6 +19,12 @@ static MMPerformance *PlannedWorld(MMWindowModel **model) {
         Finding(@"workforest", @"worktree", w1, @"repo/fix-auth-redirect", w1, 0, 0, 0, P(@"remove", MMReversibleRestart), tree(w1, @"squash", NO)),
         Finding(@"workforest", @"worktree", w2, @"repo/old-spike", w2, 0, 0, 0, P(@"remove", MMReversibleRestart), tree(w2, @"ancestor", NO)),
         Finding(@"workforest", @"worktree", w3, @"repo", w3, 0, 0, 456 * 1000 * 1000, nil, tree(w3, NSNull.null, YES))];
+    if (chore) {
+        NSString *w5 = Dir(@"trees/done-chore");
+        Tree(w5, NO, MMMergedAncestor);
+        gFindings[@"workforest"] = [gFindings[@"workforest"] arrayByAddingObject:
+            Finding(@"workforest", @"worktree", w5, @"repo/done-chore", w5, 0, 0, 120 * 1000 * 1000, P(@"remove", MMReversibleRestart), tree(w5, @"ancestor", YES))];
+    }
     MMSnapshot *s = WorldSnapshot();
     MMPerformance *p = Build(s);
     if (model) *model = MMWindowModelFrom(s, p, nil);
@@ -26,7 +33,7 @@ static MMPerformance *PlannedWorld(MMWindowModel **model) {
 
 static void Planned(void) {
     MMWindowModel *m = nil;
-    MMPerformance *p = PlannedWorld(&m);
+    MMPerformance *p = PlannedWorld(&m, NO);
     T(@"planned: before the press the window's disk back is marked as no total", @"yes", YN(m.diskBackPartial && m.diskBack > 0));
 
     MMFixRunner *runner = [[MMFixRunner alloc] initWithPerformance:p];
@@ -67,7 +74,7 @@ static void Planned(void) {
     T(@"planned: no shown string names an old app or says for good", @"", Bad(@[end.endTitle ?: @"", end.endNote ?: @"", Steps(seen)]));
 
     // A run stopped before the fixes with a part not measured landed never learned their size.
-    MMPerformance *p2 = PlannedWorld(NULL);
+    MMPerformance *p2 = PlannedWorld(NULL, NO);
     MMFixRunner *stopped = [[MMFixRunner alloc] initWithPerformance:p2];
     dispatch_semaphore_t ended2 = dispatch_semaphore_create(0);
     __block MMWindowRun *end2 = nil;
@@ -77,4 +84,21 @@ static void Planned(void) {
     if (dispatch_semaphore_wait(ended2, dispatch_time(DISPATCH_TIME_NOW, 60 * NSEC_PER_SEC))) { T(@"planned: the stopped run ends", @"yes", @"no"); return; }
     T(@"planned: a run stopped before them ends with its planned disk still no total", @"0 yes yes",
       [NSString stringWithFormat:@"%ld %@ %@", (long)end2.done, Flag(Key(end2, @"diskPlannedPartial")), Flag(end2.json[@"diskPlannedPartial"])]);
+
+    // One removal of two worktrees: the fresh check keeps the one not measured, and the measured one goes. The fix
+    // did something, yet nobody learned the kept one's size, so the plan stays no total.
+    MMPerformance *p3 = PlannedWorld(NULL, YES);
+    [gNowKept addObject:[@"workforest:worktree:" stringByAppendingString:Dir(@"trees/old-spike")]];
+    MMFixRunner *mixed = [[MMFixRunner alloc] initWithPerformance:p3];
+    dispatch_semaphore_t ended3 = dispatch_semaphore_create(0);
+    __block MMWindowRun *end3 = nil;
+    mixed.onProgress = ^(MMWindowRun *r) { if (!r.running) { end3 = r; dispatch_semaphore_signal(ended3); } };
+    [mixed start];
+    if (dispatch_semaphore_wait(ended3, dispatch_time(DISPATCH_TIME_NOW, 60 * NSEC_PER_SEC))) { T(@"planned: the mixed run ends", @"yes", @"no"); return; }
+    NSMutableDictionary<NSString *, NSString *> *by = [NSMutableDictionary new];
+    for (MMFixResult *x in mixed.results) by[x.name] = x.outcome;
+    T(@"planned: a removal that kept its worktree not measured and removed a measured one leaves the planned disk no total",
+      @"kept done done yes yes",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@", by[@"old-spike"], by[@"done-chore"], by[@"fix-auth-redirect"],
+          Flag(Key(end3, @"diskPlannedPartial")), Flag(end3.json[@"diskPlannedPartial"])]);
 }
