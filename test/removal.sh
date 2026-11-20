@@ -24,6 +24,8 @@ check "removal: the sweep and the person's delete of a waiting item delete only 
   "$(grep -c '(void)MMRemovalFinishStaged(@\[part\]);' Sources/Core/Act/MMRemovalRecover.m) $(grep -c 'int64_t got = FinishPart(r, stagedAt, &why);' Sources/Core/Act/MMRemovalApply.m) $(grep -c 'return no ?: MMRemovalDeleteStagedItem(' Sources/Core/Act/MMRemovalWaiting.m)"
 check "removal: staging is one rename, and nothing in Act copies a person's file to stage it" "1 0" \
   "$(grep -c 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m) $(grep -cE '[^e]copyItemAt|clonefile|[^e]moveItemAt|copyfile' Sources/Core/Act/MMRemovalApply.m)"
+check "removal: Act opens an item in one place only, never waiting on it, and never a pipe, a socket or a device, issue #81" "1 1 1 1" \
+  "$(grep -hE '(^|[^A-Za-z_])f?open(at)?\(' Sources/Core/Act/*.m | grep -c .) $(grep -c 'O_EVTONLY | O_SYMLINK | O_NONBLOCK | O_CLOEXEC' Sources/Core/Act/MMRemovalPath.m) $(grep -c 'if (NeverOpened(st.st_mode)) { if (never) \*never = YES; return -1; }' Sources/Core/Act/MMRemovalPath.m) $(grep -c 'int held = MMRemovalOpenItem(real, NULL);' Sources/Core/Act/MMRemovalApply.m)"
 check "removal: the staging folder's list names an item before the rename moves it, issue #75" yes \
   "$(rm_note=$(grep -n 'MMRemovalStagingNoteItem(folder, to, real' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1); rm_mv=$(grep -n 'rename(real.fileSystemRepresentation, to.fileSystemRepresentation)' Sources/Core/Act/MMRemovalApply.m | cut -d: -f1)
      [ -n "$rm_note" ] && [ -n "$rm_mv" ] && [ "$rm_note" -lt "$rm_mv" ] && echo yes || echo no)"

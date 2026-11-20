@@ -6,7 +6,8 @@
 //             a second process, ended by its own alarm after kPipeLimit seconds
 //
 // So a wait on a pipe fails the checks of one case and never holds the run. Every pipe and socket here is a fixture
-// under <dir>, inside $MINMACS_HOME. Nothing writes to one, and nothing reads one.
+// under <dir>, inside $MINMACS_HOME. Nothing writes to one, and nothing reads one. A device is not checked: making
+// one needs root.
 #import <sys/socket.h>
 #import <sys/un.h>
 
@@ -92,6 +93,16 @@ static int PipeChild(NSString *which, NSString *dir) {
         Write([mods stringByAppendingPathComponent:@"a.js"], @"A=1");
         MakePipe([mods stringByAppendingPathComponent:@"deep/agent.pipe"]);
         StagePutBackDelete(tree, mods, @"deep/agent.pipe");
+        // A worktree's ignored files are saved before git takes it. The copy saves the file, skips the pipe and says so.
+        Write([tree stringByAppendingPathComponent:@".env"], @"KEEP=1");
+        MakePipe([tree stringByAppendingPathComponent:@".env.pipe"]);
+        MMUndoRecord *r = Begin(@"trash", @"pipes: ignored files saved");
+        NSString *saved = [MMUndo.shared recover:@[@".env", @".env.pipe"] from:tree record:r error:nil];
+        NSDictionary *copy = MMRecordDict(r.payload, @"recovery");
+        Said([NSString stringWithFormat:@"%@ %@ %@ %@", Read([saved stringByAppendingPathComponent:@".env"]), [MMRecordStrings(copy, @"saved") componentsJoinedByString:@","],
+              [MMRecordStrings(copy, @"skipped") componentsJoinedByString:@","], KindAt([saved stringByAppendingPathComponent:@".env.pipe"])]);
+        (void)Done(r);
+        [fm removeItemAtPath:[tree stringByAppendingPathComponent:@".env.pipe"] error:nil];
     } else if ([which isEqualToString:@"kept"]) {
         // Under the Trash choice it goes to the Trash by its name and comes back from there.
         MakePipe(pipe);
@@ -118,6 +129,8 @@ static int PipeChild(NSString *which, NSString *dir) {
         // A checkout whose .git is a pipe: the walk that reads .git files must come back, with no checkout read.
         MakePipe([tree stringByAppendingPathComponent:@".git"]);
         Said(MMGitDirsOf(tree) ? @"read" : @"no checkout");
+        // No pipe stays behind for the sections that scan after this one.
+        [fm removeItemAtPath:[tree stringByAppendingPathComponent:@".git"] error:nil];
     } else return 2;
     return 0;
 }
@@ -157,7 +170,8 @@ static void Pipes(void) {
     PipeCase(@"holds", @[
         @[@"holds a pipe: a folder with a pipe inside is staged whole, the pipe with it", @"gone pipe 1 0"],
         @[@"holds a pipe: a put-back brings the folder back, the pipe inside it", @"nil pipe yes no"],
-        @[@"holds a pipe: after the last part the folder is deleted, the pipe with it", @"gone gone yes no"]]);
+        @[@"holds a pipe: after the last part the folder is deleted, the pipe with it", @"gone gone yes no"],
+        @[@"holds a pipe: the copy of a worktree's ignored files saves the file, skips the pipe and says so", @"KEEP=1 .env .env.pipe gone"]]);
     PipeCase(@"kept", @[
         @[@"pipe, Trash: under the Trash choice it goes to the Trash by its name", @"yes gone pipe yes"],
         @[@"pipe, Trash: a put-back brings the same pipe back from the Trash", @"nil pipe yes"],

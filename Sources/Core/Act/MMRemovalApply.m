@@ -1,45 +1,11 @@
 // The removal choice, MMRemoval.h: the wall and the only place Act deletes a file. What a Wrap Up stages, and how
 // it is finished, put back and recovered after a crash, is below, since it deletes through the same one call.
+// The real path of an item and the wall's places are in MMRemovalPath.m.
 #import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMUndo.h"
 #import "Core/Store/MMStore.h"
-#include <fcntl.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-
-#pragma mark - Real paths and places
-
-NSString *MMRemovalRealPath(NSString *path) {
-    if (![path hasPrefix:@"/"]) return nil;
-    // The item itself is opened, a symlink as the link it is, and the kernel says where that is: every symlink above
-    // it resolved, and each name in the case the disk holds, so HOME and home are one path on a disk that folds case.
-    int fd = open(path.fileSystemRepresentation, O_EVTONLY | O_SYMLINK | O_CLOEXEC);
-    if (fd < 0) return nil;
-    char buf[PATH_MAX];
-    NSString *real = fcntl(fd, F_GETPATH, buf) == 0 ? @(buf) : nil;
-    close(fd);
-    return real.length ? real : nil;
-}
-
-@implementation MMRemovalPlaces
-+ (instancetype)placesFor:(NSString *)path {
-    MMRemovalPlaces *p = [MMRemovalPlaces new];
-    p.home = MMRemovalRealPath(NSHomeDirectory());
-    p.support = MMRemovalRealPath(MMSupportDir());
-    NSString *test = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
-    // A test home that cannot be read keeps every path out, since nothing lies inside "".
-    if (test.length) p.testHome = MMRemovalRealPath(test) ?: @"";
-    // The volume of the folder that holds the item, so a symlink is never followed to another volume.
-    NSURL *holder = [NSURL fileURLWithPath:path.stringByDeletingLastPathComponent];
-    NSURL *volume = nil; NSNumber *sensitive = nil;
-    [holder getResourceValue:&volume forKey:NSURLVolumeURLKey error:nil];
-    [holder getResourceValue:&sensitive forKey:NSURLVolumeSupportsCaseSensitiveNamesKey error:nil];
-    p.volume = volume.path;
-    // Not knowing counts as folding case, the reading that refuses more.
-    p.foldCase = !sensitive.boolValue;
-    return p;
-}
-@end
 
 #pragma mark - The wall
 
@@ -298,8 +264,10 @@ static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error) {
         // The folder's own list says where it was and which part staged it, and says so before the item moves, issue
         // #75: a stop at any moment leaves the item where it was, or in the folder and named there. An item the list
         // cannot name could never be put back or deleted by MinMacs, so it does not move. The item is held open across
-        // the rename, a link as the link it is, so the file at the new place can be told to be this very one.
-        int held = open(real.fileSystemRepresentation, O_EVTONLY | O_SYMLINK | O_CLOEXEC);
+        // the rename, a link as the link it is, so the file at the new place can be told to be this very one. A named
+        // pipe, a socket or a device is never opened, issue #81, so held is -1 for one: it moves by its name alone, and
+        // its entry keeps the id read before the rename.
+        int held = MMRemovalOpenItem(real, NULL);
         NSDictionary *before = MMFileIdentity(real) ?: @{@"ino": @(st.st_ino), @"dev": @(st.st_dev)};
 #ifdef MM_TESTS
         // A check has the list hold another id before the rename, as a volume that gives a moved file a new id would.

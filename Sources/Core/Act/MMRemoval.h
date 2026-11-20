@@ -316,8 +316,13 @@ NSString *MMRemovalStagingFolderWhyNot(NSString *folder, MMRemovalPlaces *places
 @end
 
 /// The real path of the item itself: every symlink above it resolved and its own name in the case the disk holds.
-/// A symlink is named, never followed. nil when it is gone or was not given as a full path.
+/// A symlink is named, never followed. nil when it is gone or was not given as a full path. A named pipe, a socket
+/// or a device is never opened for it, issue #81: its folder entry gives the path. MMRemovalPath.m.
 NSString *MMRemovalRealPath(NSString *path);
+/// For MMRemovalApply.m: the item at path held open for its path and its id alone, a symlink as the link it is, or
+/// -1. Nothing is read through it, and the open never waits. A named pipe, a socket or a device is not opened, and
+/// *never, when given, says so with YES.
+int MMRemovalOpenItem(NSString *path, BOOL *never);
 
 /// The wall, as one rule on strings, so a check can ask it about / or the home folder and delete nothing.
 /// A path may be deleted only when all of these hold:
