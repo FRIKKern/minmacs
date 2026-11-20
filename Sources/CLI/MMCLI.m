@@ -204,8 +204,26 @@ static MMFacts *ColdFacts(uint64_t generation, MMSample *s) {
         MMGitFacts *g = w.path ? [MMRepoIndex.shared factsFor:w wait:NO] : nil;
         if (g) git[w.path] = g;
     }
+    // The items of the last scan, the app's or a cold `clutter scan`, as the app's source hands them over. Issue #85.
     return [MMFacts generation:generation sample:s power:p agents:agents ?: @[] sessions:[MMSessions.shared all] ?: @[]
-                     worktrees:trees clutter:@[] git:git];
+                     worktrees:trees clutter:MMClutterCatalog.shared.items ?: @[] git:git];
+}
+
+/// Issue #85. The app gives the clutter catalog its checkouts in StartClutter. A cold run has no MMCoreStart, so the
+/// catalog gets them here, from the same index: the walk of the roots, at most once per run, as the verb's reads allow.
+/// A catalog that already has checkouts, as a test tool's has, is left alone.
+static void ColdClutterProjects(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        MMClutterCatalog *c = MMClutterCatalog.shared;
+        if (c.projectsProvider || c.projects.count) return;
+        c.projectsProvider = ^NSArray<NSString *> *{
+            ColdIndex();
+            NSMutableArray *out = [NSMutableArray new];
+            for (MMWorktree *w in MMRepoIndex.shared.worktrees) if (w.path.length && !w.missing) [out addObject:w.path];
+            return out;
+        };
+    });
 }
 
 - (MMFacts *)factsFor:(uint64_t)generation { return ColdFacts(generation, [MMSenses.shared sampleNow]); }
@@ -317,7 +335,7 @@ static int Run(MMVerbSpec *spec, NSArray<NSString *> *words, NSString *program, 
     if (spec.mutates && !args.dryRun && !inApp) return [args needsApp];
     // A cold run reads only what the verb needs: no walk for a verb that reads no worktree, and no git for one
     // that takes the cached facts.
-    if (!inApp) gColdReads = spec.reads;
+    if (!inApp) { gColdReads = spec.reads; ColdClutterProjects(); }
     if (!spec.run) return MMExitFailed;
     @autoreleasepool { return spec.run(args); }
 }
