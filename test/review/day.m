@@ -23,7 +23,7 @@
 #pragma mark - Stand-ins for the facts and the snapshot. The experts and the broker only send them messages.
 
 @interface RDWorktree : NSObject
-@property (copy) NSString *path;
+@property (copy) NSString *path, *realPath;   // as MMWorktree; the generated day has no links, so the two are one
 @end
 @implementation RDWorktree @end
 
@@ -113,7 +113,7 @@ static RDFacts *FactsAt(NSDictionary *tick, double now) {
     NSMutableArray *ws = [NSMutableArray new], *ss = [NSMutableArray new];
     NSMutableDictionary *git = [NSMutableDictionary new];
     for (NSDictionary *j in tick[@"worktrees"]) {
-        RDWorktree *w = [RDWorktree new]; w.path = j[@"path"]; [ws addObject:w];
+        RDWorktree *w = [RDWorktree new]; w.path = j[@"path"]; w.realPath = j[@"path"]; [ws addObject:w];
         RDGit *g = [RDGit new]; g.head = j[@"head"]; git[w.path] = g;
     }
     for (NSDictionary *j in tick[@"sessions"]) {
