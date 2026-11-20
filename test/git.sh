@@ -144,7 +144,7 @@ check "  and git status runs for it alone" "1|0" "$(gs statusRuns)|$(gs historyR
 echo "-- a change in the middle of an update pass"
 GO=$("$GT" midpass "$GR" "$W/cp")
 check "git: a change that lands before a pass reads the worktree runs git status once" 1 "$(printf '%s' "$GO" | json "j['beforeRead']")"
-check "  and a second change that lands after git ran runs it once more" 2"$(printf '%s' "$GO" | json "j['afterGit']")"
+check "  and a second change that lands after git ran runs it once more" 2 "$(printf '%s' "$GO" | json "j['afterGit']")"
 
 echo "-- a branch switch and a lock show with no walk"
 GO=$("$GT" moves "$GR" "$W/det" "named")

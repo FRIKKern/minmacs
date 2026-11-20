@@ -8,7 +8,7 @@
 //   restart-a <root>                      cold scan with FSEvents on, then stop, which saves each root's event id
 //   restart-b <root> <path>               a new process: FSEvents from the saved ids, a walk, and what git ran for
 //   midpass <root> <path>                 a change that lands in the middle of an update pass: how often git status ran
-//   moves <root> <path> <branch>         FSEvents on, a branch switch and a lock in path: when the index shows each
+//   moves <root> <path> <branch>          FSEvents on, a branch switch and a lock in path: when the index shows each
 #import <Foundation/Foundation.h>
 #import "Core/Know/MMGit.h"
 #import "Core/Runtime/MMWorker.h"

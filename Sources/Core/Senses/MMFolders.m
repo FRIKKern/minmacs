@@ -31,7 +31,7 @@ static void Changed(ConstFSEventStreamRef s, void *info, size_t n, void *paths,
     FSEventStreamEventId _lastId;
     NSDate *_savedAt;
     // Issue #84: FSEvents may deliver an event of the replay a second time, with the same id, one latency after the
-    // replay ended. In 100 restarts right after one change it did so 7 times. Each delivery dropped the worktree's
+    // replay ended. In 200 restarts right after one change it did so 16 times. Each delivery dropped the worktree's
     // status, so git status ran twice for one change.
     BOOL _replaying;                               // from a start with a saved id until HistoryDone
     FSEventStreamEventId _replayed[kReplayKept];   // the ids the replay delivered last, as a ring
