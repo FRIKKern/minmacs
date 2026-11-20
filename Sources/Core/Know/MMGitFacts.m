@@ -83,10 +83,17 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
 /// A small file's text, trimmed, or nil when it cannot be read or is not UTF-8: HEAD, a ref, a .git file, commondir.
 /// Issue #54: open and read, since Foundation's file read cost most of a warm walk of 300 worktrees, which reads
 /// about 15 such files each. A file over 4 KB is read by Foundation, as before.
+/// Issue #81: only a plain file is opened, and stat says so first. A named pipe under one of those names, as a .git
+/// in a folder that is scanned can be, reads as nothing and is never opened: an open of a pipe waits for a writer,
+/// and even one that does not wait lets a waiting writer through. stat, not lstat, so a link to a plain file reads
+/// as before. The open still carries O_NONBLOCK, for a pipe that takes the name between the two calls.
 NSString *MMReadLine(NSString *path) {
     if (!path.length) return nil;
-    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_CLOEXEC);
+    struct stat st;
+    if (stat(path.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)) return nil;
+    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) return nil;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) { close(fd); return nil; }
     char buf[4096];
     ssize_t got = 0, n = 0;
     while (got < (ssize_t)sizeof buf && (n = read(fd, buf + got, sizeof buf - (size_t)got)) != 0) {
