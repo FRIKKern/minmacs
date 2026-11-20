@@ -115,7 +115,7 @@ static NSString *WrapperLabel(NSString *tool, NSArray<NSString *> *args) {
 /// is a named pipe reads as no file. NSFileHandle's open of a pipe waited for a writer, and held the scan's queue.
 static NSString *HeadText(NSString *path, NSUInteger max) {
     NSData *d = MMReadPlain(path, max, MMPlainHead);
-    return d ?([[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding]) : nil;
+    return d ? ([[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding]) : nil;
 }
 
 static NSString *Match(NSString *s, NSString *pattern) {

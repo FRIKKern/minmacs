@@ -7,7 +7,6 @@
 #import "Core/Store/MMLog.h"
 #import "Core/Act/MMAct.h"
 #import "Core/Know/MMGit.h"
-#import "Core/Runtime/MMRuntime.h"
 #import <objc/message.h>
 #include <sqlite3.h>
 #include <sys/sysctl.h>
@@ -25,18 +24,9 @@ static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? 
 static NSArray *List(id v) { return [v isKindOfClass:NSArray.class] ? v : nil; }
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] ? v : nil; }
 
-/// The most of an old app's file that is read. A bigger one reads as none.
-static const NSUInteger kOldFileMax = 64 * 1024 * 1024;
-
-/// Issue #96: the old apps' files go through MMReadPlain, so one that is a named pipe, a socket or a device is no
-/// file, and the import never waits on it.
 static id ReadJSON(NSString *path) {
-    NSData *d = MMReadPlain(path, kOldFileMax, MMPlainWhole);
+    NSData *d = [NSData dataWithContentsOfFile:path];
     return d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
-}
-static NSDictionary *ReadPlist(NSString *path) {
-    NSData *d = MMReadPlain(path, kOldFileMax, MMPlainWhole);
-    return Dict(d ? [NSPropertyListSerialization propertyListWithData:d options:NSPropertyListImmutable format:NULL error:nil] : nil);
 }
 
 static BOOL IsOwnHome(NSString *home) {
@@ -54,7 +44,7 @@ static NSDictionary *ReadDomain(NSString *home, NSString *domain, NSMutableArray
         [sources addObject:domain];
         return CFBridgingRelease(CFPreferencesCopyMultiple((__bridge CFArrayRef)keys, d, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)) ?: @{};
     }
-    NSDictionary *p = ReadPlist(plist);
+    NSDictionary *p = [NSDictionary dictionaryWithContentsOfFile:plist];
     if (p) [sources addObject:plist];
     return p ?: @{};
 }
@@ -547,8 +537,7 @@ static NSDictionary *NooNooPlan(NSString *home, BOOL readStore) {
 
     NSString *storePath = [home stringByAppendingPathComponent:@"Library/Application Support/noo-noo/store.db"];
     NSString *cfgPath = [home stringByAppendingPathComponent:@".config/noo-noo/config.toml"];
-    NSData *tomlData = MMReadPlain(cfgPath, kOldFileMax, MMPlainWhole);
-    NSString *toml = tomlData ? [[NSString alloc] initWithData:tomlData encoding:NSUTF8StringEncoding] : nil;
+    NSString *toml = [NSString stringWithContentsOfFile:cfgPath encoding:NSUTF8StringEncoding error:nil];
     if (toml) {
         [sources addObject:cfgPath];
         NSDictionary *cfg = [[MMTOMLReader alloc] initWithString:toml].parse;
@@ -735,7 +724,7 @@ static NSArray<NSArray<NSString *> *> *OldApps(void) {
 }
 
 static NSString *BundleIDAt(NSString *app) {
-    NSDictionary *info = ReadPlist([app stringByAppendingPathComponent:@"Contents/Info.plist"]);
+    NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"Contents/Info.plist"]];
     return Str(info[@"CFBundleIdentifier"]);
 }
 
@@ -821,7 +810,7 @@ static BOOL Launchctl(NSArray<NSString *> *args, NSString **error) {
     NSString *path = self.finding.path;
     NSDictionary *attrs = [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil];
     if (![attrs.fileType isEqualToString:NSFileTypeRegular]) return @"the agent's file is gone";
-    NSDictionary *plist = ReadPlist(path);
+    NSDictionary *plist = [NSDictionary dictionaryWithContentsOfFile:path];
     if (![Str(plist[@"Label"]) isEqualToString:MMNooNooAgentLabel]) return @"the file is not Noo-Noo's agent";
     return nil;
 }

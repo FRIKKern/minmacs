@@ -69,7 +69,7 @@ static NSString *TailText(NSString *path, NSUInteger max) { return Text(MMReadPl
 static const NSUInteger kStatusFileMax = 1024 * 1024;
 
 /// YES when path is a plain file, or a link to one. SQLite opens its files with no O_NONBLOCK, so a database, or its
-/// -wal or -shm file, that is a named pipe would hold the open for ever: such a database is not opened at all.
+/// -wal, -shm or -journal file, that is a named pipe would hold the open for ever: such a database is not opened at all.
 static BOOL PlainOrMissing(NSString *path, BOOL *exists) {
     struct stat st;
     if (stat(path.fileSystemRepresentation, &st) != 0) { if (exists) *exists = NO; return errno == ENOENT; }
@@ -137,10 +137,11 @@ static BOOL SameStart(uint64_t running, NSString *procStart) {
     return NO;
 }
 
-/// The modification time and size of path from one stat, with no extended attributes read. NO when it is missing.
+/// The modification time and size of path from one stat, with no extended attributes read. NO when it is missing, or
+/// when it is no plain file, issue #96: a named pipe, a socket or a device under a session's name is no session.
 static BOOL StatOf(NSString *path, NSTimeInterval *mtime, unsigned long long *size) {
     struct stat st;
-    if (stat(path.fileSystemRepresentation, &st) != 0) return NO;
+    if (stat(path.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)) return NO;
     if (mtime) *mtime = st.st_mtimespec.tv_sec + st.st_mtimespec.tv_nsec / 1e9;
     if (size) *size = (unsigned long long)st.st_size;
     return YES;
@@ -227,7 +228,10 @@ static NSString *URIPath(NSString *path) {
 static sqlite3 *OpenCodexDB(NSString *path, NSString **modeOut) {
     BOOL there = NO, shm = NO;
     if (!PlainOrMissing(path, &there) || !there) return NULL;
-    if (!PlainOrMissing([path stringByAppendingString:@"-shm"], &shm) || !PlainOrMissing([path stringByAppendingString:@"-wal"], NULL)) return NULL;
+    // With -shm there, the read is mode=ro, and SQLite's first read looks for a hot journal at -journal.
+    for (NSString *x in @[@"-wal", @"-journal"])
+        if (!PlainOrMissing([path stringByAppendingString:x], NULL)) return NULL;
+    if (!PlainOrMissing([path stringByAppendingString:@"-shm"], &shm)) return NULL;
     NSString *mode = shm ? @"mode=ro" : @"immutable=1";
     if (modeOut) *modeOut = mode;
     NSString *uri = [NSString stringWithFormat:@"file:%@?%@", URIPath(path), mode];

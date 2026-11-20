@@ -5,25 +5,44 @@
 # the run never waits on the stuck thread.
 
 KP="$K/pipes96"; mkdir -p "$KP"
-# The session read with one pipe in place, then the pipe gone. Prints stuck, or the id the fixture transcript still gives.
-kp_sessions() { # pipe path
-  rm -f "$1"; mkfifo "$1"
+# The session read with one odd file in place, then the file gone. Prints stuck, or three facts: the id the fixture
+# transcript still gives, how many sessions the odd file gave (its name holds "96-<pid>"), and how many Codex threads.
+kp_sessions() { # path [kind: fifo, the default, or zero for a link to /dev/zero]
+  rm -f "$1"; if [ "${2:-fifo}" = zero ]; then ln -s /dev/zero "$1"; else mkfifo "$1"; fi
   kp_out=$("$KT" within 2 sessions --id sess-transcript)
   rm -f "$1"
-  [ "$kp_out" = stuck ] && echo stuck || printf '%s' "$kp_out" | json "j['withID']['id']" 2>/dev/null
+  [ "$kp_out" = stuck ] && echo stuck || printf '%s' "$kp_out" | json "'%s odd=%d codex=%d' % (j['withID']['id'],
+    len([x for x in j['all'] if '96-$$' in x['id']]), len([x for x in j['all'] if x['agent'] == 'codex']))" 2>/dev/null
 }
-check "a Claude Code transcript that is a named pipe is no session, and the read returns" sess-transcript \
+check "a Claude Code transcript that is a named pipe is no session, and the read returns" "sess-transcript odd=0 codex=1" \
   "$(kp_sessions "$CLAUDE_CONFIG_DIR/projects/fixture/pipe96-$$.jsonl")"
-check "a Claude Code status file that is a named pipe is skipped" sess-transcript \
+check "a Claude Code transcript that links to /dev/zero is no session" "sess-transcript odd=0 codex=1" \
+  "$(kp_sessions "$CLAUDE_CONFIG_DIR/projects/fixture/zero96-$$.jsonl" zero)"
+check "a Claude Code status file that is a named pipe is skipped" "sess-transcript odd=0 codex=1" \
   "$(kp_sessions "$CLAUDE_CONFIG_DIR/sessions/96096.json")"
-check "a pi session file that is a named pipe is skipped" sess-transcript \
+check "a pi session file that is a named pipe is no session" "sess-transcript odd=0 codex=1" \
   "$(kp_sessions "$K/pi/sessions/--fixture--/2026-10-27T10-00-00-000Z_pipe96-$$.jsonl")"
 mkdir -p "$KP/codex-db"
-check "a Codex database that is a named pipe gives no threads" sess-transcript \
+check "a Codex database that is a named pipe gives no threads" "sess-transcript odd=0 codex=0" \
   "$(CODEX_HOME="$KP/codex-db" kp_sessions "$KP/codex-db/state_5.sqlite")"
 python3 test/know/codexdb.py "$KP/codex-shm" "$K/proj" completed
-check "a Codex database whose -shm file is a named pipe gives no threads" sess-transcript \
+check "a Codex database whose -shm file is a named pipe gives no threads" "sess-transcript odd=0 codex=0" \
   "$(CODEX_HOME="$KP/codex-shm" kp_sessions "$KP/codex-shm/state_5.sqlite-shm")"
+# While Codex holds its databases the -shm files exist, so they are read with mode=ro. SQLite's first read then looks
+# for a hot journal and opens <db>-journal with no O_NONBLOCK, so a pipe there would wait for ever.
+python3 test/know/codexdb.py "$KP/codex-held" "$K/proj" completed
+start python3 -u -c 'import sqlite3, sys, time
+dbs = [sqlite3.connect(sys.argv[1] + "/" + n) for n in ("state_5.sqlite", "thread_history_1.sqlite")]
+for d in dbs: d.execute("PRAGMA journal_mode=WAL"); d.execute("SELECT count(*) FROM sqlite_master").fetchall()
+print("held", flush=True); time.sleep(30)' "$KP/codex-held" >"$KP/held.out"; KPH=$LAST
+for i in 1 2 3 4 5 6 7 8 9 10; do grep -q held "$KP/held.out" 2>/dev/null && break; sleep 0.3; done
+check "  the held databases have their -shm files" yes \
+  "$([ -e "$KP/codex-held/state_5.sqlite-shm" ] && [ -e "$KP/codex-held/thread_history_1.sqlite-shm" ] && echo yes || echo no)"
+check "a held Codex database whose -journal is a named pipe gives no threads" "sess-transcript odd=0 codex=0" \
+  "$(CODEX_HOME="$KP/codex-held" kp_sessions "$KP/codex-held/state_5.sqlite-journal")"
+check "a held turn history whose -journal is a named pipe is not read, and the threads stay" "sess-transcript odd=0 codex=1" \
+  "$(CODEX_HOME="$KP/codex-held" kp_sessions "$KP/codex-held/thread_history_1.sqlite-journal")"
+stop "$KPH"; procs=$(printf '%s' "$procs" | sed "s/ $KPH\$//;s/ $KPH / /")
 
 echo "-- MMReadPlain, the one read of a file whose path comes from the disk"
 kp_plain() { # path max part: nil:length:text, or stuck
