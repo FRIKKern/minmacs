@@ -270,8 +270,8 @@ static void Spin(NSTimeInterval seconds, BOOL (^done)(void)) {
 /// - what the kernel counts for the whole process, which holds the waiting of every other thread too;
 /// - what a watcher thread saw. About every millisecond it reads whether main is blocked. The time it saw main
 ///   blocked never comes off. The time since it looked last counts as ready, since it may have had no CPU itself.
-/// The CPU main used never comes off. So main busy counts in full, and main asleep, on a semaphore or in
-/// dispatch_sync counts in full as long as the watcher gets to run, also beside busy threads of this process. When
+/// The CPU main used never comes off. So main busy counts in full, and main blocked, such as asleep or on a
+/// semaphore, counts in full as long as the watcher gets to run, also beside busy threads of this process. When
 /// the watcher gets no CPU either, only the process's number holds, and other threads' waiting can hide a stall.
 /// One at a time: the watcher's numbers are shared.
 @interface TStalls : NSObject
