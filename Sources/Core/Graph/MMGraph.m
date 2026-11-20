@@ -224,6 +224,9 @@ static uint64_t FactsDigest(MMFacts *f) {
 @property (readwrite) NSArray<MMClutterItem *> *clutter;
 @property (copy) NSString *fingerprintText;
 @property (copy) NSString *folder;                      // the worktree path, or the session's cwd without one
+/// The worktree's resolved path when it is another text than folder, else nil. Set once while the graph builds and
+/// never after, so it is read with no lock: HeldBy runs once for each workstream and clutter item of a build.
+@property (nonatomic, copy) NSString *realFolder;
 @end
 
 @implementation MMWorkstream
@@ -313,9 +316,10 @@ static uint64_t FactsDigest(MMFacts *f) {
 /// How much of path the workstream's folder is: the length of the folder, as kept or resolved, that holds path, or 0
 /// when neither does. Text only.
 static NSUInteger HeldBy(MMWorkstream *w, NSString *path) {
-    if (PathIn(path, w.folder)) return w.folder.length;
-    NSString *real = w.worktree.realPath;
-    return PathIn(path, real) ? real.length : 0;
+    NSString *folder = w.folder;
+    if (PathIn(path, folder)) return folder.length;
+    NSString *real = w.realFolder;
+    return real && PathIn(path, real) ? real.length : 0;
 }
 
 /// Higher ranks lead a worktree's workstream: a working agent, then any agent, then a session that still works.
@@ -409,6 +413,8 @@ static NSString *SizeBucket(uint64_t bytes) {
         w.agentState = lead.agent ? lead.agent.state : (lead.session.stillWorking ? MMAgentWorking : MMAgentUnknown);
         if (lead.worktree) {
             w.folder = lead.worktree.path;
+            NSString *real = lead.worktree.realPath;
+            if (real.length && ![real isEqualToString:w.folder]) w.realFolder = real;
             w.git = [b.facts gitFor:lead.worktree];
             w.owner = [b owner:MMOwnerWorkstream key:lead.worktree.path name:lead.worktree.path.lastPathComponent
                           path:lead.worktree.path parent:nil];
