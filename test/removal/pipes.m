@@ -300,3 +300,6 @@ static void Pipes(void) {
         @[@"pipe: a folder whose .git is a pipe is read as no checkout, and the read comes back", @"no checkout"],
         @[@"pipe: a writer that waits on that .git pipe is not let through, since the pipe is never opened", @"still waits"]]);
 }
+
+// Issue #74: a Trash file goes back only when MinMacs's own list says MinMacs sent it there.
+#import "trashed.m"
