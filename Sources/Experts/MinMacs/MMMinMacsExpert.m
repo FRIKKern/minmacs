@@ -654,7 +654,6 @@ static NSArray<MMUndoRecord *> *Restorable(void) {
 
 #pragma mark Cards
 
-/// "uses the most energy" for the app with the highest rank, a softer word for the next two, nil for the rest.
 /// The id of WorkForest's finding for the checkout an owner names. The owner holds the path as the index kept it, and
 /// the finding is named by the resolved one, which differs under /tmp or a root that is a link. Issue #101.
 static NSString *WorktreeLinkID(NSString *path, MMSnapshot *s) {
@@ -663,6 +662,7 @@ static NSString *WorktreeLinkID(NSString *path, MMSnapshot *s) {
     return [@"workforest:worktree:" stringByAppendingString:(w.realPath ?: path) ?: @""];
 }
 
+/// "uses the most energy" for the app with the highest rank, a softer word for the next two, nil for the rest.
 static NSString *EnergyWords(MMFinding *f, MMSnapshot *s) {
     if (f.cost.energyRank <= 0) return nil;
     NSArray *apps = [AllApps(s) sortedArrayUsingComparator:^NSComparisonResult(MMFinding *x, MMFinding *y) {

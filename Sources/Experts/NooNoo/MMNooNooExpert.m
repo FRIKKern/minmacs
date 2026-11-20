@@ -282,7 +282,8 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (i.ownerPath) fx[@"ownerPath"] = i.ownerPath;
         NSString *ownerName = i.ownerPath.lastPathComponent ?: tree.path.lastPathComponent ?: WildPart(i);
         if (ownerName.length) fx[@"owner"] = ownerName;
-        if (tree.realPath) fx[@"worktree"] = tree.realPath;   // the form WorkForest's finding id holds, issue #101
+        NSString *treeID = tree.realPath ?: tree.path;   // the form WorkForest's finding id holds, issue #101
+        if (treeID) fx[@"worktree"] = treeID;
         if (i.lastUsed) fx[@"lastUsed"] = @(i.lastUsed.timeIntervalSince1970);
         if (k.rebuild) fx[@"rebuild"] = k.rebuild;
         if (k.cleanup) fx[@"cleanup"] = k.cleanup;
@@ -308,7 +309,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
             NSMutableArray *ev = [NSMutableArray arrayWithObject:[MMEvidence label:@"Size" value:MMBytes(i.size.freedIfDeleted) raw:@(i.size.freedIfDeleted)]];
             if (i.lastUsed) [ev addObject:[MMEvidence label:@"Last used" value:MMAgo(i.lastUsed) raw:i.lastUsed]];
             if (ownerState) [ev addObject:[MMEvidence label:@"Owner" value:ownerState raw:ownerState
-                                                linkExpert:@"workforest" findingID:tree.realPath ? [@"workforest:worktree:" stringByAppendingString:tree.realPath] : nil]];
+                                                linkExpert:@"workforest" findingID:treeID ? [@"workforest:worktree:" stringByAppendingString:treeID] : nil]];
             b.evidence = ev;
             b.keepReasons = keep;
             b.proposal = proposal;
