@@ -55,8 +55,8 @@ BOOL MMWorktreeIsAt(MMWorktree *w, NSString *path);
 /// path, which w holds in one form, in w's other form: the same file named through realPath or through path.
 /// path itself when w does not hold it or both forms are one.
 NSString *MMWorktreeOtherForm(MMWorktree *w, NSString *path);
-/// The checkout in trees whose folder, in either form, holds path with the longest match, the first of a tie. nil
-/// when none does.
+/// The deepest checkout in trees, by its resolved path, whose folder holds path in either form; of two entries of one
+/// folder, the one named the way path is, else the first. nil when none does.
 MMWorktree *MMWorktreeHolding(NSArray<MMWorktree *> *trees, NSString *path);
 
 /// P26. How a branch reached the default branch. MMMergedNone means it did not, as far as the checks can tell.
@@ -98,8 +98,8 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// nil walks every root. FSEvents passes what changed: only a .git folder, or a folder near a root outside every
 /// known checkout, starts a walk, and walks are at least 10 seconds apart. Never blocks.
 - (void)refresh:(NSSet<NSString *> *)changedDirs;
-/// The last walk, deepest path first, one per folder: of two paths that resolve to one folder, as a root that is a
-/// link and its target both listed give, the first in that order stays. Issue #101.
+/// The last walk, deepest path first. A folder reached by two paths, as a root that is a link gives a linked worktree,
+/// is held under both, since the graph names owners by the form a process or session gives. Issue #101.
 - (NSArray<MMWorktree *> *)worktrees;
 /// YES once a walk of the roots has ended with an answer, so an empty list means none were found. NO before that,
 /// while the first walk runs, and after a walk the worker failed. Any queue, never blocks.

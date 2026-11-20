@@ -56,8 +56,8 @@ check "linked: under a root that is a link it keeps all three, the id to the let
 # Issue #101: three more checkouts. done is merged and its agent finished three days ago, hid sits in a hidden folder
 # that only .git/worktrees names, and wip holds a commit on no remote. Under the link the walk finds done and wip by the
 # root's path, and .git/worktrees names all three by the resolved path git wrote. Each reader must see one checkout per
-# folder with the git facts, keeps and ids of the plain root: before, the index held both names, WorkForest took the
-# resolved one, and under a test home the git facts of a resolved path outside the roots were never read.
+# folder with the git facts, keeps and ids of the plain root: before, WorkForest took the resolved name, and under a
+# test home the git facts of a resolved path outside the roots were never read.
 lk_then=$(date -v-3d +%Y-%m-%dT%H:%M:%S)
 (
   export GIT_AUTHOR_DATE="$lk_then" GIT_COMMITTER_DATE="$lk_then"
@@ -94,6 +94,72 @@ check "linked: and under a root that is a link, by its path there" "True None co
   "$(lk_cold root wrap-link work wrap-up "$lk_dir/root/shop.wt/done" --dry-run --json | json "$lk_wrap")"
 check "linked: clean-up lists the two merged worktrees under the link, as under the plain root" "2 2" \
   "$(lk_cold code clean-plain trees clean-up --merged --dry-run | grep -c merged) $(lk_cold root clean-link trees clean-up --merged --dry-run | grep -c merged)"
+
+# Issue #101, the ids. A workstream id and a finding's owner id name a checkout by the form a process, a session or a
+# finding gave: the graph finds the index entry of that form first. So the index must keep both names of a linked
+# worktree, and the ids under every root shape must be the ones origin/main gave for the same fixture (7353916, read
+# with a build of it). The shapes: a link longer than its target, as ~/Documents/github leads to /Volumes/SATECHI/github,
+# one as long, a shorter one, a link in the middle of the path, and the plain root with the long link, in either order.
+# Under /private the worker writes /tmp, which hides the case, so this part needs a folder outside /private: the home
+# when it is, else build/ in the checkout, as on a hosted macOS runner, where the home is in /var/folders.
+lk_ids="$lk_dir"
+case "$lk_ids" in /private/*) lk_ids="$ROOT/build/linked-ids.$$" ;; esac
+case "$lk_ids" in /private/*) echo "  SKIP  linked: the id checks need a folder outside /private, and the home and the checkout are both in it"; lk_ids= ;; esac
+if [ -n "$lk_ids" ]; then
+  mkdir -p "$lk_ids/code" "$lk_ids/my/docs" "$lk_ids/claude/sessions" "$lk_ids/claude/projects" "$lk_ids/codex" "$lk_ids/clutter"
+  lk_x=$(cd "$lk_ids" && pwd -P)
+  ln -s "$lk_x/code" "$lk_x/my/docs/github"; ln -s "$lk_x/code" "$lk_x/root"; ln -s "$lk_x/code" "$lk_x/g"; ln -s "$lk_x" "$lk_x/via"
+  lk_git init -q "$lk_x/code/shop"
+  ( cd "$lk_x/code/shop" && echo one >a.txt && lk_git add -A && lk_git commit -qm first )
+  for n in live link idle; do lk_git -C "$lk_x/code/shop" worktree add -q -b "$n" "$lk_x/code/shop.wt/$n" main 2>/dev/null; done
+  lk_git -C "$lk_x/code/shop" worktree add -q -b hid "$lk_x/code/shop/.worktrees/hid" main 2>/dev/null
+  printf '.worktrees/\n' >>"$lk_x/code/shop/.git/info/exclude"
+  # Two working sessions, each a sleep this section starts and stops by its pid: live's folder resolved, as the
+  # kernel names it, and link's through the long link, as an agent started there writes it.
+  lk_sess() { # name cwd
+    ( exec sleep 600 ) & lk_p=$!; procs="$procs $lk_p"; lk_sleeps="${lk_sleeps:-} $lk_p"
+    printf '{"pid":%s,"sessionId":"linked-ids-%s","cwd":"%s","startedAt":%s000,"kind":"interactive","status":"busy","statusUpdatedAt":%s000}\n' \
+      "$lk_p" "$1" "$2" "$(date +%s)" "$(date +%s)" >"$lk_x/claude/sessions/$lk_p.json"
+  }
+  lk_sess live "$lk_x/code/shop.wt/live"; lk_sess link "$lk_x/my/docs/github/shop.wt/link"
+  lk_ws() { # roots, colon separated names in lk_x: each workstream id, then each of its findings' id and owner id
+    mkdir -p "$lk_x/home-$2"
+    MINMACS_HOME="$lk_x/home-$2" MINMACS_ROOTS="$(printf %s "$1" | sed "s|[^:][^:]*|$lk_x/&|g")" MINMACS_CLUTTER_ROOT="$lk_x/clutter" \
+      MINMACS_COLD=1 GIT_CONFIG_NOSYSTEM=1 CLAUDE_CONFIG_DIR="$lk_x/claude" CODEX_HOME="$lk_x/codex" "$BIN" work --json 2>/dev/null |
+      python3 -c "
+import json, sys
+j = json.load(sys.stdin); x = sys.argv[1] + '/'
+s = lambda t: t.replace(x, '@/').replace('workstream:', 'ws:').replace('workforest:worktree:', 'wf:')
+rows = []   # the fixture's only: the cold read sees every agent on the Mac
+for w in j['workstreams']:
+    if x in w['id'] or 'linked-ids' in w['id']: rows.append(s(w['id']))
+    for f in w['findings']:
+        if f['expert'] == 'workforest' and x in f['id']: rows.append('%s <- %s' % (s(f['id']), s(f.get('owner', '-'))))
+print(' | '.join(sorted(rows)))" "$lk_x"
+  }
+  # What a build of origin/main 7353916 gives, row for row: a workstream (ws) or a session, and a WorkForest finding
+  # (wf, named resolved) with its owner. live's session is resolved, so its workstream is named by the resolved path
+  # under every shape. The main checkout is walked only, so it is named as the root gives it. link's session is named
+  # through the long link, so it has a workstream of that form where an index entry has it, else only its session.
+  lk_main="wf:@/code/shop <- ws:@/R/shop | wf:@/code/shop.wt/live <- ws:@/code/shop.wt/live | ws:@/code/shop.wt/live | ws:@/R/shop"
+  lk_both="wf:@/code/shop <- ws:@/code/shop | wf:@/code/shop.wt/live <- ws:@/code/shop.wt/live | ws:@/code/shop | ws:@/code/shop.wt/live | ws:@/my/docs/github/shop.wt/link"
+  lk_shapes="code=session:linked-ids-link | wf:@/code/shop <- ws:@/code/shop | wf:@/code/shop.wt/live <- ws:@/code/shop.wt/live | ws:@/code/shop | ws:@/code/shop.wt/live
+my/docs/github=$(printf %s "$lk_main" | sed 's|@/R/|@/my/docs/github/|g') | ws:@/my/docs/github/shop.wt/link
+root=session:linked-ids-link | $(printf %s "$lk_main" | sed 's|@/R/|@/root/|g')
+g=session:linked-ids-link | $(printf %s "$lk_main" | sed 's|@/R/|@/g/|g')
+via/code=session:linked-ids-link | $(printf %s "$lk_main" | sed 's|@/R/|@/via/code/|g')
+code:my/docs/github=$lk_both
+my/docs/github:code=$lk_both"
+  while IFS='=' read -r lk_shape lk_want; do
+    # sort the rows of the expectation as the reader sorts its own
+    lk_want=$(printf %s "$lk_want" | python3 -c "import sys; print(' | '.join(sorted(sys.stdin.read().strip().split(' | '))))")
+    check "linked: ids as main gives them, roots $lk_shape" "$lk_want" "$(lk_ws "$lk_shape" "ids-$(printf %s "$lk_shape" | tr '/:' '-+')" </dev/null)"
+  done <<LKEOF
+$lk_shapes
+LKEOF
+  for p in $lk_sleeps; do kill "$p" 2>/dev/null; done
+  trash "$lk_ids" 2>/dev/null
+fi
 
 # Stop the server this section started, by the pid its own pid file names, while its command line is still ours.
 for f in "$lk_dir"/pids/server-*; do

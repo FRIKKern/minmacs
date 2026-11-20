@@ -342,8 +342,8 @@ static int Moves(NSString *root, NSString *path, NSString *branch) {
 }
 
 /// Issue #101: a walk of roots, colon separated, then a new file in the folder of file, which the stream names by its
-/// resolved path, handed to invalidate: as the stream's callback would. The checkouts the index holds, and the untracked
-/// count of the checkout that holds file before and after.
+/// resolved path, handed to invalidate: as the stream's callback would. The checkouts the index holds, and those whose
+/// untracked count grew by the one file.
 static int Linked(NSString *roots, NSString *file) {
     MMRepoIndex *ix = MMRepoIndex.shared;
     NSMutableArray *rs = [NSMutableArray new];
@@ -351,17 +351,22 @@ static int Linked(NSString *roots, NSString *file) {
     ix.roots = rs;
     Scan();
     MMWorktree *w = [ix worktreeAt:file];
-    NSInteger before = [ix factsFor:w wait:NO].untracked;
+    NSMutableDictionary *before = [NSMutableDictionary new], *after = [NSMutableDictionary new];
+    for (MMWorktree *x in ix.worktrees) before[x.path] = @([ix factsFor:x wait:NO].untracked);
     char real[PATH_MAX];
     NSString *dir = realpath(file.stringByDeletingLastPathComponent.fileSystemRepresentation, real) ? @(real) : nil;
     [@"new\n" writeToFile:[dir stringByAppendingFormat:@"/new-%d.txt", getpid()] atomically:NO encoding:NSUTF8StringEncoding error:nil];
     [ix invalidate:[NSSet setWithObject:dir] subtrees:NO];
     Settle();
-    NSMutableArray *paths = [NSMutableArray new];
-    for (MMWorktree *x in ix.worktrees) [paths addObject:x.path];
+    NSMutableArray *paths = [NSMutableArray new], *grew = [NSMutableArray new];
+    for (MMWorktree *x in ix.worktrees) {
+        [paths addObject:x.path];
+        after[x.path] = @([ix factsFor:x wait:NO].untracked);
+        if ([after[x.path] integerValue] == [before[x.path] integerValue] + 1) [grew addObject:x.path];
+    }
     Drain();
     Print(@{@"worktrees": [paths sortedArrayUsingSelector:@selector(compare:)], @"at": w.path ?: NSNull.null,
-            @"untrackedBefore": @(before), @"untrackedAfter": @([ix factsFor:w wait:NO].untracked)});
+            @"grew": [grew sortedArrayUsingSelector:@selector(compare:)]});
     return 0;
 }
 

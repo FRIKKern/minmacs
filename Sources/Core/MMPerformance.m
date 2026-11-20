@@ -322,8 +322,11 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
     NSMutableArray<MMPerformanceFix *> *fixes = [NSMutableArray new];
     NSMutableSet<NSString *> *inFix = [NSMutableSet new];
     NSMutableArray<NSString *> *removedTrees = [NSMutableArray new];
+    NSMutableSet<NSString *> *planned = [NSMutableSet new];   // issue #101: a folder the index names twice plans once
     for (MMWorktree *w in facts.worktrees) {
         if (w.isMain || w.missing || !w.path.length || [facts gitFor:w].merged == MMMergedNone) continue;
+        if ([planned containsObject:w.realPath ?: w.path]) continue;
+        [planned addObject:w.realPath ?: w.path];
         MMWrapUpPlan *plan = MMWrapUpPlanFor(w.path, s);
         if (plan.subject.whyNot) continue;
         for (MMWrapUpPart *p in plan.parts) {

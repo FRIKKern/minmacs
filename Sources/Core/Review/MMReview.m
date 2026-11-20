@@ -457,13 +457,13 @@ static BOOL Inside(NSString *path, NSString *folder) {
 /// YES when path is in w's folder, by its path as kept or its resolved one, issue #101.
 static BOOL InTree(NSString *path, MMWorktree *w) { return Inside(path, w.path) || Inside(path, w.realPath); }
 
-/// The deepest worktree in facts that holds folder, in either form, or nil.
+/// The deepest worktree in facts that holds folder, in either form, else as before with /private as /var and /tmp,
+/// or nil.
 static MMWorktree *WorktreeHolding(NSString *folder, MMFacts *facts) {
-    MMWorktree *best = nil;
-    NSUInteger most = 0;
+    MMWorktree *best = MMWorktreeHolding(facts.worktrees, folder);
+    if (best) return best;
     for (MMWorktree *w in facts.worktrees)
-        for (NSString *p in @[w.path ?: @"", w.realPath ?: @""])
-            if (Inside(folder, p) && p.length > most) { best = w; most = p.length; }
+        if (Inside(folder, w.path) && (!best || w.path.length > best.path.length)) best = w;
     return best;
 }
 
