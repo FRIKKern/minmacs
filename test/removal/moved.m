@@ -119,3 +119,6 @@ static void Moved(void) {
     MMRemovalDropEmptyStagingFolder(folder, wrapUp.rid);
     unsetenv("MINMACS_STAGE_RECOVER_AFTER");
 }
+
+// A named pipe or a socket as an item, issue #81.
+#import "pipes.m"
