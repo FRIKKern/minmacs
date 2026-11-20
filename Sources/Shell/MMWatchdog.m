@@ -1,5 +1,8 @@
 #import "Shell/MMWatchdog.h"
 #import <mach/mach.h>
+#import <mach/mach_time.h>
+#import <libproc.h>
+#import <os/lock.h>
 #import <pthread.h>
 #import <dlfcn.h>
 #import <stdatomic.h>
@@ -9,11 +12,20 @@
 const double MMWatchdogDefaultMs = 50;
 
 enum { kMaxFrames = 64 };
+static const uint64_t kLookNs = 1000000;   // how often the watchdog thread reads main's run state while a pass runs
 
 // Written by main's observer, read by the watchdog thread.
 static _Atomic uint64_t gGen;          // the pass number; a new pass makes a new one
 static _Atomic bool gBusy;             // main is inside a pass
-static _Atomic uint64_t gBeginNs, gBeginCPU, gEndNs, gEndCPU, gEndGen;
+static _Atomic uint64_t gBeginNs, gBeginCPU;
+static _Atomic int64_t gBeginNoCPU;    // NoCPUTicks at the same mark, kUnknown when the read failed
+/// Where a pass over the threshold ended. Main keeps the last few, since many short passes can end before the
+/// watchdog thread wakes to read one.
+typedef struct { uint64_t gen, ns, cpu; int64_t noCPU; } PassEnd;
+enum { kEndsKept = 16 };
+static PassEnd gEnds[kEndsKept];       // under gEndsLock
+static unsigned gEndsCount;
+static os_unfair_lock gEndsLock = OS_UNFAIR_LOCK_INIT;
 static _Atomic bool gParked;           // the watchdog thread waits for a pass to start
 static _Atomic bool gRunning;
 static _Atomic uint64_t gThresholdNs;
@@ -27,6 +39,16 @@ static NSMutableArray<NSDictionary *> *gStalls;   // under @synchronized (gStall
 static uint64_t NowNs(void) { return clock_gettime_nsec_np(CLOCK_UPTIME_RAW); }
 static uint64_t ThreadCPUNs(void) { return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID); }
 
+static const int64_t kUnknown = INT64_MIN;
+/// How long this process's threads have been ready to run with no CPU to run on, all of them together, in mach time.
+/// The kernel's runnable time counts the time they ran too, so the CPU they used comes off. kUnknown when it cannot
+/// be read.
+static int64_t NoCPUTicks(void) {
+    struct rusage_info_v4 ri;
+    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) != 0) return kUnknown;
+    return (int64_t)ri.ri_runnable_time - (int64_t)(ri.ri_user_time + ri.ri_system_time);
+}
+
 BOOL MMWatchdogWanted(NSDictionary<NSString *, NSString *> *env) {
 #ifdef MM_DEBUG
     return YES;
@@ -37,7 +59,13 @@ BOOL MMWatchdogWanted(NSDictionary<NSString *, NSString *> *env) {
 
 #pragma mark - Main's side
 
+static void End(void);
+
 static void Begin(void) {
+    // A pass that goes on into a new one without a wait, such as when the loop returns to its caller, ends here.
+    // Its end is kept as any other, so its stall has the CPU it used.
+    if (atomic_load(&gBusy)) End();
+    atomic_store(&gBeginNoCPU, NoCPUTicks());
     atomic_store(&gBeginCPU, ThreadCPUNs());
     atomic_store(&gBeginNs, NowNs());
     atomic_fetch_add(&gGen, 1);
@@ -47,10 +75,24 @@ static void Begin(void) {
 }
 
 static void End(void) {
-    atomic_store(&gEndCPU, ThreadCPUNs());
-    atomic_store(&gEndNs, NowNs());
-    atomic_store(&gEndGen, atomic_load(&gGen));
+    if (!atomic_load(&gBusy)) return;
+    uint64_t cpu = ThreadCPUNs(), now = NowNs();
+    if (now - atomic_load(&gBeginNs) >= atomic_load(&gThresholdNs)) {
+        PassEnd e = { atomic_load(&gGen), now, cpu, NoCPUTicks() };
+        os_unfair_lock_lock(&gEndsLock);
+        gEnds[gEndsCount++ % kEndsKept] = e;
+        os_unfair_lock_unlock(&gEndsLock);
+    }
     atomic_store(&gBusy, false);
+}
+
+/// The end of pass gen, when main kept one: it ran over the threshold by main's own clock.
+static BOOL EndOf(uint64_t gen, PassEnd *end) {
+    BOOL found = NO;
+    os_unfair_lock_lock(&gEndsLock);
+    for (int k = 0; k < kEndsKept; k++) if (gEnds[k].gen == gen) { *end = gEnds[k]; found = YES; }
+    os_unfair_lock_unlock(&gEndsLock);
+    return found;
 }
 
 /// A pass starts when the loop starts an iteration or wakes, and ends when it goes to sleep. A nested loop, such as a
@@ -123,11 +165,12 @@ static NSString *StallsPath(void) {
     return dir.length ? [dir stringByAppendingPathComponent:@"stalls.log"] : nil;
 }
 
-static void Record(double ms, double cpuMs, NSString *state, NSArray *stack, NSString *what) {
-    NSDictionary *s = @{@"ms": @(round(ms * 10) / 10), @"cpuMs": @(round(cpuMs * 10) / 10), @"state": state,
-                        @"at": @(round(NSDate.date.timeIntervalSince1970)), @"stack": stack, @"what": what ?: @""};
+static void Record(double ms, double cpuMs, double readyMs, NSString *state, NSArray *stack, NSString *what) {
+    NSDictionary *s = @{@"ms": @(round(ms * 10) / 10), @"cpuMs": @(round(cpuMs * 10) / 10), @"readyMs": @(round(readyMs * 10) / 10),
+                        @"state": state, @"at": @(round(NSDate.date.timeIntervalSince1970)), @"stack": stack, @"what": what ?: @""};
     @synchronized (gStalls) { [gStalls addObject:s]; }
-    NSLog(@"MinMacs: main stalled %.0f ms, %.0f ms CPU, %@, in %@\n  %@", ms, cpuMs, state, what, [stack componentsJoinedByString:@"\n  "]);
+    NSLog(@"MinMacs: main stalled %.0f ms, %.0f ms CPU, %.0f ms ready with no CPU, %@, in %@\n  %@", ms, cpuMs, readyMs, state, what,
+          [stack componentsJoinedByString:@"\n  "]);
     NSString *path = StallsPath();
     NSData *line = [NSJSONSerialization dataWithJSONObject:s options:0 error:nil];
     if (!path || !line) return;
@@ -144,6 +187,31 @@ static void SleepNs(uint64_t ns) {
     nanosleep(&t, NULL);
 }
 
+/// One look at main while pass gen runs. When main runs or is ready to, the time since the last look counts as seen
+/// ready. A read that fails counts as blocked, and so does a wait that cannot be interrupted, such as a page read
+/// from disk. A look after the pass ended counts nothing: the end settles the time since the last look.
+static void Look(uint64_t gen, uint64_t *seenReady, uint64_t *last) {
+    thread_basic_info_data_t info; mach_msg_type_number_t c = THREAD_BASIC_INFO_COUNT;
+    BOOL ready = thread_info(gMain, THREAD_BASIC_INFO, (thread_info_t)&info, &c) == KERN_SUCCESS && info.run_state == TH_STATE_RUNNING;
+    uint64_t now = NowNs();
+    if (atomic_load(&gGen) != gen || !atomic_load(&gBusy)) return;
+    if (ready && now > *last) *seenReady += now - *last;
+    *last = now;
+}
+
+/// How much of a pass main was ready to run and had no CPU, in ms. No call gives that for one thread, so it is the
+/// smaller of two numbers that are each too large at times: what the kernel counts for the whole process, which
+/// holds the waiting of every other thread too, and what the looks saw, less the CPU main used. The time between
+/// the last look and the end counts as seen ready, since the watchdog thread may have had no CPU itself. So main
+/// busy never counts as ready, and main blocked does not either as long as the watchdog thread gets to look.
+static double ReadyMs(double ms, double cpuMs, uint64_t seenReady, int64_t noCPUBegin, int64_t noCPUEnd) {
+    static mach_timebase_info_data_t tb;
+    if (!tb.denom) mach_timebase_info(&tb);
+    double process = noCPUBegin != kUnknown && noCPUEnd != kUnknown && noCPUEnd > noCPUBegin
+        ? (double)(noCPUEnd - noCPUBegin) * tb.numer / tb.denom / 1e6 : 0;
+    return MAX(0, MIN(MIN(process, seenReady / 1e6 - cpuMs), ms - cpuMs));
+}
+
 static void *Watch(void *arg) {
     pthread_setname_np("no.guerrilla.minmacs.shell.watchdog");
     while (atomic_load(&gRunning)) @autoreleasepool {
@@ -154,8 +222,14 @@ static void *Watch(void *arg) {
             continue;
         }
         uint64_t gen = atomic_load(&gGen), begin = atomic_load(&gBeginNs), beginCPU = atomic_load(&gBeginCPU);
-        uint64_t due = begin + atomic_load(&gThresholdNs), now = NowNs();
-        if (now < due) SleepNs(due - now);
+        int64_t beginNoCPU = atomic_load(&gBeginNoCPU);
+        uint64_t due = begin + atomic_load(&gThresholdNs), now;
+        // Until the threshold it looks at main every millisecond, and stops when the pass ends.
+        uint64_t seenReady = 0, last = begin;
+        while ((now = NowNs()) < due && atomic_load(&gRunning) && atomic_load(&gBusy) && atomic_load(&gGen) == gen) {
+            SleepNs(MIN(due - now, kLookNs));
+            Look(gen, &seenReady, &last);
+        }
         if (!atomic_load(&gRunning)) break;
         if (!atomic_load(&gBusy) || atomic_load(&gGen) != gen) continue;
         // The same pass still runs past the threshold: read main's state and stack now.
@@ -168,12 +242,19 @@ static void *Watch(void *arg) {
             thread_resume(gMain);
         }
         if (atomic_load(&gGen) != gen) n = 0;   // the pass ended while main stopped; these frames belong to the next one
-        while (atomic_load(&gRunning) && atomic_load(&gGen) == gen && atomic_load(&gBusy)) SleepNs(2000000);
-        uint64_t end = atomic_load(&gEndGen) == gen ? atomic_load(&gEndNs) : NowNs();
-        uint64_t endCPU = atomic_load(&gEndGen) == gen ? atomic_load(&gEndCPU) : beginCPU;
+        while (atomic_load(&gRunning) && atomic_load(&gGen) == gen && atomic_load(&gBusy)) { SleepNs(kLookNs); Look(gen, &seenReady, &last); }
+        // Main keeps the end of a pass that ran over the threshold. With none kept, the pass ended in time by main's
+        // clock and is no stall, unless the watchdog stopped inside it: then it ends now, and nothing counts as ready.
+        PassEnd e = {0};
+        BOOL ended = EndOf(gen, &e);
+        if (!ended && atomic_load(&gRunning)) continue;
+        uint64_t end = ended ? e.ns : NowNs();
+        double ms = (end - begin) / 1e6, cpuMs = ended && e.cpu > beginCPU ? (e.cpu - beginCPU) / 1e6 : 0;
+        if (end > last) seenReady += end - last;
+        double readyMs = ended ? ReadyMs(ms, cpuMs, seenReady, beginNoCPU, e.noCPU) : 0;
         NSString *what = nil;
         NSArray *stack = Symbols(pcs, n, &what);
-        Record((end - begin) / 1e6, endCPU > beginCPU ? (endCPU - beginCPU) / 1e6 : 0, waits ? @"waits" : @"runs", stack, what);
+        Record(ms, cpuMs, readyMs, waits ? @"waits" : @"runs", stack, what);
     }
     return NULL;
 }
