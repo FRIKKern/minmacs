@@ -45,10 +45,12 @@ for f in "$lk_dir"/pids/server-*; do [ -e "$f" ] && procs="$procs ${f##*server-}
 lk_host="'%s|%s|%s' % (j.get('project'), j.get('subdir'), j.get('findingID'))"
 lk_plain=$(lk_cold code host-plain hosts "$lk_port" --json | json "$lk_host")
 lk_linked=$(lk_cold root host-linked hosts "$lk_port" --json | json "$lk_host")
-lk_tail=no
-case "$lk_plain" in *"/code/shop/web:$lk_port") lk_tail=yes ;; esac
-check "linked: a server in a subfolder has its project name, its subfolder and an id that ends in both, under a plain root" "shop/web|web|yes" \
-  "${lk_plain%|*}|$lk_tail"
+# The id to the letter: the resolved folder, with /private taken off as LocoHost does for /tmp and /var, and the home
+# as ~. So in a home under /tmp or /var/folders a change that names the server by /private, or by the root, fails here.
+lk_id="${lk_dir#/private}"
+case "$lk_id" in "$HOME"/*) lk_id="~${lk_id#"$HOME"}" ;; esac
+check "linked: a server in a subfolder has its project name, its subfolder and its id, under a plain root" \
+  "shop/web|web|locohost:server:$lk_id/code/shop/web:$lk_port" "$lk_plain"
 check "linked: under a root that is a link it keeps all three, the id to the letter" "$lk_plain" "$lk_linked"
 
 # Issue #101: three more checkouts. done is merged and its agent finished three days ago, hid sits in a hidden folder
@@ -75,7 +77,7 @@ with open(sys.argv[1], "w") as f:
     f.write(json.dumps({"type": "user", "timestamp": t, "cwd": sys.argv[2], "sessionId": "linked-done", "message": {"role": "user", "content": "Finish"}}) + "\n")
 PY
 for d in "$lk_s" "$lk_dir/code/shop.wt" "$lk_dir/code/shop/.worktrees"; do find "$d" -exec touch -h -t "$(date -v-3d +%Y%m%d%H%M)" {} + 2>/dev/null; done
-lk_rows="'|'.join('%s %s %s %s' % (t['findingID'][len('workforest:worktree:$lk_dir/'):], t['merged'], t['gitKnown'], t.get('keep')) for t in sorted(j['trees'], key=lambda t: t['findingID']))"
+lk_rows="'|'.join('%s %s %s %s' % (t['findingID'].replace('workforest:worktree:$lk_dir/', '', 1), t['merged'], t['gitKnown'], t.get('keep')) for t in sorted(j['trees'], key=lambda t: t['findingID']))"
 lk_plain=$(lk_cold code rows-plain trees list --all --json | json "$lk_rows")
 check "linked: the plain root lists four checkouts, done and hid merged, each with its git facts" \
   "code/shop None True the main checkout|code/shop.wt/done ancestor True None|code/shop.wt/wip None True 3 commits on no remote and not in main|code/shop/.worktrees/hid ancestor True None" \
@@ -85,7 +87,7 @@ check "linked: under a root that is a link, the same four with the same git fact
 check "linked: with the link and its target both listed, each checkout once, the same four" "$lk_plain" \
   "$(lk_cold code:root rows-both trees list --all --json | json "$lk_rows")"
 check "linked: and with the link listed first" "$lk_plain" "$(lk_cold root:code rows-both2 trees list --all --json | json "$lk_rows")"
-lk_wrap="'%s %s %s' % (j['ready'], j['whyNot'], ' '.join(p['findingID'][len('workforest:worktree:$lk_dir/'):] for p in j['parts'] if p['step'] == 'worktree'))"
+lk_wrap="'%s %s %s' % (j['ready'], j['whyNot'], ' '.join(p['findingID'].replace('workforest:worktree:$lk_dir/', '', 1) for p in j['parts'] if p['step'] == 'worktree'))"
 check "linked: the finished worktree wraps up under the plain root" "True None code/shop.wt/done" \
   "$(lk_cold code wrap-plain work wrap-up "$lk_dir/code/shop.wt/done" --dry-run --json | json "$lk_wrap")"
 check "linked: and under a root that is a link, by its path there" "True None code/shop.wt/done" \

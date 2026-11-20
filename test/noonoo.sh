@@ -130,7 +130,7 @@ mkdir -p "$nnr/System/Library/Caches"; printf 'sys\n' >"$nnr/System/Library/Cach
 mkdir -p "$nnr/Library/Caches/shared"; printf 'lib\n' >"$nnr/Library/Caches/shared/x"
 
 nn_env() { MINMACS_HOME="$nn" MINMACS_CLUTTER_ROOT="$nnr" MINMACS_CLUTTER_ROWS="${nn_rowdirs:-$ROOT/registry/clutter}" MINMACS_TOOLS="$nn/tools" \
-           CLAUDE_CONFIG_DIR="$nn/claude" CODEX_HOME="$nn/codex" NN_PROJECTS="$nn_main:$nn_wt" NN_MERGED="$nn_wt" "$@"; }
+           CLAUDE_CONFIG_DIR="$nn/claude" CODEX_HOME="$nn/codex" NN_PROJECTS="${nn_projects:-$nn_main:$nn_wt}" NN_MERGED="${nn_merged:-$nn_wt}" "$@"; }
 nnt() { nn_env "$nn/tool" "$@"; }
 # One field of the item at a path in `clutter list --json`, or absent.
 nn_item() { nnt verb clutter list --json 2>/dev/null | python3 -c "
@@ -209,6 +209,18 @@ print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('fre
   check "noonoo: started above, it keeps the checkout one of its processes runs in" "kept an agent started in code runs a process in acme" \
     "$(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" section) $(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" keep)"
   check "noonoo: and no other checkout" "finished" "$(nn_agent "$nn/code" "$nn_runner" "$nn_wt/node_modules" section)"
+  # Issue #101: under a root that is a link the index keeps each checkout by the link's path, while the session and the
+  # kernel name the agent's folder by the resolved one. Before, neither keep matched: the agent's node_modules read as
+  # finished, ready to delete.
+  ln -s "$nn/code" "$nn/linkroot"
+  nn_lk() { ( nn_projects="$nn/linkroot/acme:$nn/linkroot/acme.wt/feat"; nn_merged="$nn/linkroot/acme.wt/feat"; nn_agent "$@" ); }
+  echo "PROBE $(nn_lk "$nn_main/src" "" "$nn_main/node_modules" path) | $(nn_lk "$nn_main/src" "" "$nn/linkroot/acme/node_modules" section)"
+  check "noonoo: under a root that is a link, an agent in a checkout keeps its node_modules" "kept an agent works in acme" \
+    "$(nn_lk "$nn_main/src" "" "$nn_main/node_modules" section) $(nn_lk "$nn_main/src" "" "$nn_main/node_modules" keep)"
+  check "noonoo: and so does one that runs a process in it" "kept an agent started in code runs a process in acme" \
+    "$(nn_lk "$nn/code" "$nn_runner" "$nn_main/node_modules" section) $(nn_lk "$nn/code" "$nn_runner" "$nn_main/node_modules" keep)"
+  check "noonoo: and neither keeps the other checkout" "finished finished" \
+    "$(nn_lk "$nn_main/src" "" "$nn_wt/node_modules" section) $(nn_lk "$nn/code" "$nn_runner" "$nn_wt/node_modules" section)"
   pkill -P "$nn_runner" 2>/dev/null; kill "$nn_runner" 2>/dev/null
 
   echo "-- a file held open keeps its folder"
