@@ -37,6 +37,10 @@ check "removal: after the rename the list gets the id read at the new place, onl
 check "removal: what a check uses to stop or swap at the rename is compiled only with MM_TESTS" "3 0" \
   "$(grep -c 'getenv("MINMACS_TEST_' Sources/Core/Act/MMRemovalApply.m) $(awk '/^#ifdef MM_TESTS/{t=1} /^#endif/{t=0} /MINMACS_TEST_/ && !t {n++} END{print n+0}' Sources/Core/Act/MMRemovalApply.m)"
 check "removal: the staging folder's own files move and copy nothing" 0 "$(grep -cE 'rename\(|copyItemAt|moveItemAt|clonefile|copyfile|fileExistsAtPath' Sources/Core/Act/MMRemovalStaging.m)"
+check "removal: MinMacs's own list of what it sends to the Trash names an item before the move, and the record takes what the list holds after it, issue #74" "yes 1" \
+  "$(rm_note=$(grep -n 'MMRemovalTrashListNote(record.rid, item.path, nil, MMFileIdentity(item.path))' Sources/Core/Act/MMUndo.m | cut -d: -f1); rm_mv=$(grep -n 'if (folder) to = MoveInto(folder, item, error);' Sources/Core/Act/MMUndo.m | cut -d: -f1)
+     [ -n "$rm_note" ] && [ -n "$rm_mv" ] && [ "$rm_note" -lt "$rm_mv" ] && echo yes || echo no) $(grep -c 'MMRemovalTrashListNote(record.rid, item.path, to.path, identity)' Sources/Core/Act/MMUndo.m)"
+check "removal: that list moves, copies and deletes nothing" 0 "$(grep -cE 'rename\(|copyItemAt|moveItemAt|removeItemAt|unlink\(|trashItemAtURL|clonefile|copyfile' Sources/Core/Act/MMRemovalTrashList.m)"
 check "removal: a crash is settled at Core's start and before the next Wrap Up, and the start also sweeps what was left staged" "1 1 1" \
   "$(grep -c 'MMRemovalRecoverStaged()' Sources/Core/MMCore.m) $(grep -c '(void)MMRemovalRecoverStaged();' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalSweepStaged(&orphans)' Sources/Core/MMCore.m)"
 check "removal: staging, finish, recovery, the sweep and the waiting list read a record only through the checked reader" "0 0 0 0" \
