@@ -18,7 +18,9 @@
 #include <glob.h>
 #include <libproc.h>
 #include <mach-o/dyld.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/sysctl.h>
 #include <unistd.h>
 
 NSNotificationName const MMClutterDidChangeNotification = @"MMClutterDidChangeNotification";
@@ -356,6 +358,21 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
 #pragma mark - Trends
 
 NSString *MMClutterSeries(NSString *kindID) { return [@"noonoo.disk." stringByAppendingString:kindID ?: @""]; }
+
+NSString *const MMClutterVolumeKind = @"-volume";
+
+uint64_t MMClutterVolumeUsed(void) {
+    if (Env(@"MINMACS_HOME")) return strtoull((Env(@"MINMACS_TEST_VOLUME_USED") ?: @"0").UTF8String, NULL, 10);
+    struct statfs fs;
+    if (statfs(NSHomeDirectory().fileSystemRepresentation, &fs) != 0 || fs.f_blocks < fs.f_bfree) return 0;
+    return (uint64_t)(fs.f_blocks - fs.f_bfree) * (uint64_t)fs.f_bsize;
+}
+
+uint64_t MMClutterSwapUsed(void) {
+    struct xsw_usage x = {0};
+    size_t n = sizeof x;
+    return sysctlbyname("vm.swapusage", &x, &n, NULL, 0) == 0 ? x.xsu_used : 0;
+}
 
 MMClutterTrend MMClutterTrendOf(NSData *data, NSDate *now) {
     MMClutterTrend t = {0};
@@ -1139,6 +1156,9 @@ static BOOL IsUUID(NSString *s) {
         MMClutterTrend t = MMClutterTrendOf([MMLog.shared points:MMClutterSeries(kid) since:[now dateByAddingTimeInterval:-kTrendDays * 86400]], now);
         trends[kid] = [NSValue valueWithBytes:&t objCType:@encode(MMClutterTrend)];
     }
+    // The whole volume too, one point a day, so the growth no row names can be told from the growth they explain.
+    uint64_t used = MMClutterVolumeUsed();
+    if (used) [MMLog.shared addPoint:MMClutterSeries(MMClutterVolumeKind) value:(double)used at:now bucket:86400];
     for (MMClutterItem *i in found) {
         NSValue *v = trends[i.kind.kindID];
         if (!v) continue;
@@ -1164,6 +1184,11 @@ static BOOL IsUUID(NSString *s) {
     [self save];
     if (changed) [NSNotificationCenter.defaultCenter postNotificationName:MMClutterDidChangeNotification object:self];
     return found;
+}
+
+- (MMClutterTrend)volumeTrend {
+    NSDate *now = NSDate.date;
+    return MMClutterTrendOf([MMLog.shared points:MMClutterSeries(MMClutterVolumeKind) since:[now dateByAddingTimeInterval:-kTrendDays * 86400]], now);
 }
 
 - (NSArray<MMClutterItem *> *)scan {
