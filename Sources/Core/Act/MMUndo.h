@@ -130,6 +130,19 @@ BOOL MMPathLiesInTrash(NSString *real, NSString *home, uid_t uid, NSString *test
 /// -[MMUndo trash:record:error:] moves items there, and restore moves them back from there.
 NSString *MMTrashFolder(void);
 
+/// Issue #74. MinMacs's own list of what record rid sent to the Trash, <support>/core/trashed/<rid>.json, in
+/// MMRemovalTrashList.m. -[MMUndo trash:record:error:] writes an entry before the move, with to nil, from and the
+/// identity at from, and again after it, with to and the identity in the Trash. Returns the identity the list now holds
+/// for it, which the record's entry takes too, or nil when the list could not be written or something MinMacs did not
+/// write holds its name, which is never written over.
+NSDictionary *MMRemovalTrashListNote(NSString *rid, NSString *from, NSString *to, NSDictionary *identity);
+/// Takes the entry for from and to out of rid's list: one written before a move that did not happen, to nil, or one
+/// whose item is back at from, so a record written again never takes the same file out of the Trash a second time.
+void MMRemovalTrashListDrop(NSString *rid, NSString *from, NSString *to);
+/// Why the "trashed" entry of record rid is not one MinMacs's own list names, or nil when it is: the same from and to,
+/// and the same file by inode and volume UUID. A record names a file in the Trash; this list says MinMacs put it there.
+NSString *MMRemovalTrashListWhyNot(NSString *rid, NSDictionary *entry);
+
 /// P53. A tool's own cleanup command, run first in its dry-run form.
 /// New code. uv says direct edits to its cache are never safe, and Go's module cache is read-only on this Mac.
 /// Decision 1 lists the commands: `xcrun simctl`, `brew cleanup`, `pnpm store prune`, `docker system prune`.
