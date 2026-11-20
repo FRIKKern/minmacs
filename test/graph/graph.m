@@ -257,6 +257,50 @@ static void Spin(NSTimeInterval seconds, BOOL (^done)(void)) {
         [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.002]];
 }
 
+/// Main's longest stall, as Sources/Shell/MMWatchdog.m counts one for issue #55: the longest time main went without
+/// going back to wait in its run loop. Main blocked or busy in anything it runs counts in full. The time it sleeps
+/// in the loop does not, so a timer that fires late because the machine gave main no CPU is no stall. Issue #84: the
+/// gap between two fires of a 5 ms timer read 53 ms on a hosted runner, with nothing running on main.
+@interface TStalls : NSObject
+@property (readonly) double worstMs, worstCPUMs;   // the longest stall, and the CPU main used in it
+- (void)stop;
+@end
+@implementation TStalls {
+    CFRunLoopObserverRef _woke, _sleeps;
+    uint64_t _since, _cpuSince;
+    BOOL _waiting;
+}
+static uint64_t MainCPUNs(void) { return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID); }
+- (instancetype)init {
+    if ((self = [super init])) {
+        __weak TStalls *weak = self;
+        // First after a wait and last before one, so what other observers do counts too.
+        _woke = CFRunLoopObserverCreateWithHandler(NULL, kCFRunLoopAfterWaiting, YES, LONG_MIN, ^(CFRunLoopObserverRef o, CFRunLoopActivity a) { [weak begin]; });
+        _sleeps = CFRunLoopObserverCreateWithHandler(NULL, kCFRunLoopBeforeWaiting, YES, LONG_MAX, ^(CFRunLoopObserverRef o, CFRunLoopActivity a) { [weak end]; });
+        CFRunLoopAddObserver(CFRunLoopGetMain(), _woke, kCFRunLoopCommonModes);
+        CFRunLoopAddObserver(CFRunLoopGetMain(), _sleeps, kCFRunLoopCommonModes);
+        [self begin];
+    }
+    return self;
+}
+- (void)begin { _since = mach_absolute_time(); _cpuSince = MainCPUNs(); _waiting = NO; }
+- (void)end {
+    if (_waiting) return;
+    double ms = Ms(_since, mach_absolute_time());
+    if (ms > _worstMs) { _worstMs = ms; _worstCPUMs = (MainCPUNs() - _cpuSince) / 1e6; }
+    _waiting = YES;
+}
+- (void)stop {
+    if (!_woke) return;
+    [self end];
+    CFRunLoopRemoveObserver(CFRunLoopGetMain(), _woke, kCFRunLoopCommonModes);
+    CFRunLoopRemoveObserver(CFRunLoopGetMain(), _sleeps, kCFRunLoopCommonModes);
+    CFRelease(_woke); CFRelease(_sleeps);
+    _woke = _sleeps = NULL;
+}
+- (void)dealloc { [self stop]; }
+@end
+
 #pragma mark - Checks
 
 static atomic_bool stop;
@@ -429,16 +473,14 @@ int main(int argc, char **argv) {
             double callMs = Ms(t0, mach_absolute_time());
             Check(@"start and 1000 rebuild calls return at once on main", @"yes", callMs < 20 ? @"yes" : [NSString stringWithFormat:@"%.1f ms", callMs]);
             Check(@"current is nil before the first build ends", @"nil", g.current ? @"set" : @"nil");
-            // Main keeps turning its run loop while the build sleeps.
-            __block uint64_t last = mach_absolute_time(); __block double worst = 0;
-            NSTimer *tick = [NSTimer scheduledTimerWithTimeInterval:0.005 repeats:YES block:^(NSTimer *t) {
-                uint64_t now = mach_absolute_time();
-                worst = MAX(worst, Ms(last, now)); last = now;
-            }];
+            // Main keeps turning its run loop while the build sleeps. Main waiting for the build, or busy for it,
+            // shows as one long stall. The limit is the watchdog's, issue #55.
+            TStalls *stalls = [TStalls new];
             Spin(3, ^BOOL { return published >= 1 && published == src.calls && g.current.generation == g.latest.generation; });
             Spin(0.5, nil);
-            [tick invalidate];
-            Check(@"the main run loop never stalls while a 200 ms build runs", @"yes", worst < 50 ? @"yes" : [NSString stringWithFormat:@"%.1f ms", worst]);
+            [stalls stop];
+            Check(@"the main run loop never stalls while a 200 ms build runs", @"yes", stalls.worstMs < 50 ? @"yes" :
+                  [NSString stringWithFormat:@"%.1f ms, %.1f ms CPU", stalls.worstMs, stalls.worstCPUMs]);
             Check(@"1000 rebuild calls coalesce into at most two builds", @"yes", src.calls <= 2 ? @"yes" : [NSString stringWithFormat:@"%ld", (long)src.calls]);
             Check(@"the source never runs on main", @NO, @(src.onMain));
             Check(@"observers run on main", @0, @(offMain));
