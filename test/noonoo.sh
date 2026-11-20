@@ -83,6 +83,19 @@ mkdir -p "$nnh/Library/Application Support/Cursor/User/globalStorage" "$nnh/Libr
 printf 'state\n' >"$nnh/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
 printf 'c\n' >"$nnh/Library/Application Support/Cursor/Cache/c"
 
+# Update downloads Sparkle left, issue #87: an old and a new one for an app with no row of its own, and an old one
+# inside the cache folder that the cmux row names whole.
+nn_sp="$nnh/Library/Caches/com.example.app/org.sparkle-project.Sparkle/PersistentDownloads"
+mkdir -p "$nn_sp/aB3xK9old" "$nn_sp/Zq81mNnew"
+dd if=/dev/zero of="$nn_sp/aB3xK9old/App.zip" bs=1024 count=256 2>/dev/null
+printf 'zip\n' >"$nn_sp/Zq81mNnew/App.zip"
+nn_cm="$nnh/Library/Caches/com.cmuxterm.app"
+nn_cmd="$nn_cm/org.sparkle-project.Sparkle/PersistentDownloads/Old11111"
+mkdir -p "$nn_cmd" "$nn_cm/data"
+dd if=/dev/zero of="$nn_cmd/cmux.zip" bs=1048576 count=2 2>/dev/null
+dd if=/dev/zero of="$nn_cm/data/blob" bs=1048576 count=1 2>/dev/null
+nn_old "$nn_sp/aB3xK9old" "$nn_cm"
+
 nn_pg="$nnr/opt/homebrew/var/postgresql@16"
 mkdir -p "$nn_pg/base/16384"
 printf '16\n' >"$nn_pg/PG_VERSION"
@@ -160,6 +173,17 @@ if [ "$nn_r" = 0 ]; then
   check "noonoo: a Chrome code-sign clone nothing holds open is a leftover" leftovers "$(nn_item "$nn_clone" section)"
   check "noonoo: Claude Code transcripts are data, kept with their owner's setting" "kept data" \
     "$(nn_item "$nn/claude/projects/-code-acme" section) $(nn_item "$nn/claude/projects/-code-acme" class)"
+  check "noonoo: an old update download Sparkle left is a leftover on its own row, issue #87" "leftovers sparkle-downloads" \
+    "$(nn_item "$nn_sp/aB3xK9old" section) $(nn_item "$nn_sp/aB3xK9old" kindID)"
+  check "noonoo: a download written just now stays" "kept" "$(nn_item "$nn_sp/Zq81mNnew" section)"
+  check "noonoo: a download inside a cache folder another row names whole is its own item too" "leftovers sparkle-downloads" \
+    "$(nn_item "$nn_cmd" section) $(nn_item "$nn_cmd" kindID)"
+  check "noonoo: and the row of the whole folder counts only the rest, so no byte is counted twice" "yes yes" \
+    "$(printf '%s' "$nn_list" | python3 -c "
+import json,sys; j=json.load(sys.stdin); M=1048576
+by={i['path']:i for i in j['items']}
+o=by.get(sys.argv[1],{}); d=by.get(sys.argv[2],{})
+print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('freed',0) < 3*M else 'no')" "$nn_cm" "$nn_cmd")"
   check "noonoo: a local Postgres data folder is data, kept with its owner's setting, issue #90" "kept data yes" \
     "$(nn_item "$nn_pg" section) $(nn_item "$nn_pg" class) $(nn_item "$nn_pg" why | grep -q dropdb && echo yes || echo no)"
   check "noonoo: clean refuses it and leaves every file" "1 16" "$(nnt verb clean "$nn_pg" >/dev/null 2>&1; echo $?) $(cat "$nn_pg/PG_VERSION" 2>/dev/null)"
@@ -206,6 +230,7 @@ if [ "$nn_r" = 0 ]; then
   printf '%s\n' "$nn_main/node_modules" "$nn_wt/.next" "$nn_wt/node_modules" "$nnh/.npm/_cacache" \
     "$nnh/Library/Application Support/Cursor/Cache" "$nnh/Library/Caches/pip" "$nn_dev" "$nn_scr/$nn_dead" "$nn_scr/$nn_live" \
     "$nn_scr/$nn_dead/scratchpad/run" "$nn_scr/$nn_live/scratchpad/new" "$nn_clone" \
+    "$nn_cm" "$nn_cmd" "$nn_sp/aB3xK9old" "$nn_sp/Zq81mNnew" \
     $(cd "$nn_T" && ls -d dev-chrome-* fresh-run-* mv-test-* | sed "s|^|$nn_T/|") | LC_ALL=C sort >"$nn/expected.txt"
   check "noonoo: the walls let through exactly the listed leaves" "" "$(LC_ALL=C sort "$nn/allowed.txt" | diff - "$nn/expected.txt" | tr '\n' ' ')"
   nn_before=$(find "$nnr" "$nn/code" | LC_ALL=C sort | md5 -q)
