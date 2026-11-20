@@ -30,7 +30,7 @@ static const NSUInteger kBranchCommits = 200;      // branch commits compared on
 @property (readwrite, copy) NSString *branch, *head, *defaultBranch, *upstream;
 @property (readwrite) MMMergeKind merged;
 @property (readwrite) NSInteger dirty, untracked, stashes, notInDefault, unpushed, ahead, behind;
-@property (readwrite) BOOL onRemote, upstreamGone;
+@property (readwrite) BOOL onRemote, upstreamGone, upstreamUnknown;
 @property (readwrite) NSDate *lastCommit;
 @end
 
@@ -52,8 +52,8 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
     NSDictionary *h = [v[@"history"] isKindOfClass:NSDictionary.class] ? v[@"history"] : @{};
     MMGitFacts *g = [MMGitFacts new];
     g.branch = Str(f[@"branch"]); g.head = Str(f[@"head"]); g.defaultBranch = Str(f[@"def"]); g.upstream = Str(f[@"up"]);
-    g.upstreamGone = [f[@"gone"] boolValue];
-    g.stashes = Int(f[@"stashes"], 0);
+    g.upstreamGone = [f[@"gone"] boolValue]; g.upstreamUnknown = [f[@"upUnread"] boolValue];
+    g.stashes = Int(f[@"stashes"], -1);   // issue #116: not known keeps
     g.dirty = Int(s[@"dirty"], -1); g.untracked = Int(s[@"untracked"], -1);   // not known yet counts as dirty
     g.notInDefault = Int(h[@"notInDefault"], -1); g.unpushed = Int(h[@"unpushed"], -1);
     g.ahead = Int(h[@"ahead"], 0); g.behind = Int(h[@"behind"], 0);
@@ -68,7 +68,7 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
     NSUInteger m = (NSUInteger)self.merged;
     return @{@"branch": self.branch ?: NSNull.null, @"head": self.head ?: NSNull.null,
              @"defaultBranch": self.defaultBranch ?: NSNull.null, @"upstream": self.upstream ?: NSNull.null,
-             @"upstreamGone": @(self.upstreamGone), @"merged": m < MergeWords().count ? MergeWords()[m] : @"none",
+             @"upstreamGone": @(self.upstreamGone), @"upstreamUnknown": @(self.upstreamUnknown), @"merged": m < MergeWords().count ? MergeWords()[m] : @"none",
              @"dirty": @(self.dirty), @"untracked": @(self.untracked), @"stashes": @(self.stashes),
              @"notInDefault": @(self.notInDefault), @"unpushed": @(self.unpushed), @"ahead": @(self.ahead),
              @"behind": @(self.behind), @"onRemote": @(self.onRemote),
@@ -81,21 +81,120 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
 
 #pragma mark - git's own files
 
-/// The most of git's own files that is read: far past any packed-refs or config git writes. A bigger one reads as none.
+/// The most of git's own files that is read: far past any packed-refs or config git writes. A bigger one is not read.
 static const NSUInteger kGitFileMax = 256u * 1024 * 1024;
 
-/// A small file's text, trimmed, or nil when it cannot be read or is not UTF-8: HEAD, a ref, a .git file, commondir.
-/// Issue #54: open and read, since Foundation's file read cost most of a warm walk of 300 worktrees, which reads
-/// about 15 such files each. Issues #81 and #96: through MMReadPlain, so only a plain file is opened, and a named
-/// pipe under one of those names, as a .git in a folder that is scanned can be, reads as nothing. A link to a plain
-/// file reads as before.
-NSString *MMReadLine(NSString *path) {
+// Issue #116: git's files are bytes, and a fact read from one that cannot be read is not known, never none.
+//
+//   the file is                                 what it gives
+//   missing                                     none: no stash, no such ref, no config section
+//   there and read                              its lines, split on the byte \n, a \r before it dropped. A byte that
+//                                               starts no UTF-8 sequence, and a NUL, reads as U+FFFD, so the line
+//                                               still counts and a name in it still shows
+//   there and not read: a pipe, past the cap,   kUnread: the stash count is -1, HEAD and the commits on it are not
+//   no permission, a read error                 known, no default branch, and the remote branch is not gone
+//   a ref name with U+FFFD or a NUL             shown, and never made a path or a git argument: Resolve gives kUnread
+//
+// Counts and which refs exist come from the lines alone. A name is decoded only to be shown or compared.
+
+/// What a file that is there and cannot be read gives, and the sha of a ref that cannot be known. Compared by pointer.
+static NSString *const kUnread = @"(not read)";
+
+/// YES when nothing is at path, the one case a file git did not write is none. lstat, so a link to nothing is there.
+static BOOL Missing(NSString *path) {
+    const char *p = path.fileSystemRepresentation;
+    struct stat st;
+    return p && lstat(p, &st) != 0 && (errno == ENOENT || errno == ENOTDIR);
+}
+
+/// The length of the UTF-8 sequence at s, or 0 when none starts there: the strict rules Foundation decodes by, with
+/// no overlong form, no surrogate and nothing past U+10FFFF. A NUL counts as none.
+static NSUInteger UTF8Run(const unsigned char *s, NSUInteger n) {
+    unsigned char c = s[0], lo = 0x80, hi = 0xBF;
+    NSUInteger len;
+    if (c < 0x80) return c ? 1 : 0;
+    if (c >= 0xC2 && c <= 0xDF) len = 2;
+    else if (c >= 0xE0 && c <= 0xEF) { len = 3; if (c == 0xE0) lo = 0xA0; if (c == 0xED) hi = 0x9F; }
+    else if (c >= 0xF0 && c <= 0xF4) { len = 4; if (c == 0xF0) lo = 0x90; if (c == 0xF4) hi = 0x8F; }
+    else return 0;
+    if (n < len || s[1] < lo || s[1] > hi) return 0;
+    for (NSUInteger i = 2; i < len; i++) if (s[i] < 0x80 || s[i] > 0xBF) return 0;
+    return len;
+}
+
+/// n bytes as text, never nil. *lossy, when given, turns YES when a byte is not UTF-8 or is a NUL: each such byte
+/// reads as U+FFFD, and the rest as it is.
+static NSString *Text(const unsigned char *b, NSUInteger n, BOOL *lossy) {
+    if (!n) return @"";
+    if (!memchr(b, 0, n)) {
+        NSString *s = [[NSString alloc] initWithBytes:b length:n encoding:NSUTF8StringEncoding];
+        if (s) return s;
+    }
+    if (lossy) *lossy = YES;
+    static const unsigned char fffd[] = {0xEF, 0xBF, 0xBD};
+    NSMutableData *d = [NSMutableData dataWithCapacity:n + 16];
+    for (NSUInteger i = 0; i < n;) {
+        NSUInteger k = UTF8Run(b + i, n - i);
+        if (k) { [d appendBytes:b + i length:k]; i += k; } else { [d appendBytes:fffd length:3]; i++; }
+    }
+    NSString *s = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding];
+    if (s) return s;
+    d.length = 0;   // were Foundation stricter than UTF8Run: ASCII alone, and U+FFFD for every other byte
+    for (NSUInteger i = 0; i < n; i++) { if (b[i] && b[i] < 0x80) [d appendBytes:b + i length:1]; else [d appendBytes:fffd length:3]; }
+    return [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+/// A file's lines, split on the byte \n, each with a \r before the \n dropped, as git's config reader drops it.
+static NSArray<NSString *> *FileLines(NSData *data) {
+    const unsigned char *b = data.bytes;
+    NSUInteger n = data.length;
+    NSMutableArray *out = [NSMutableArray new];
+    if (!n) return out;
+    // The usual file, all UTF-8 with no NUL, decodes once as before.
+    NSString *whole = memchr(b, 0, n) ? nil : [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (whole) {
+        for (NSString *l in [whole componentsSeparatedByString:@"\n"]) [out addObject:[l hasSuffix:@"\r"] ? [l substringToIndex:l.length - 1] : l];
+        return out;
+    }
+    for (NSUInteger i = 0; i < n;) {
+        const unsigned char *nl = memchr(b + i, '\n', n - i);
+        NSUInteger end = nl ? (NSUInteger)(nl - b) : n, len = end - i;
+        if (len && b[i + len - 1] == '\r') len--;
+        [out addObject:Text(b + i, len, NULL)];
+        i = end + 1;
+    }
+    return out;
+}
+
+/// NO for a name with U+FFFD or a NUL: it stands for bytes it does not hold, so it never builds a path or a git argument.
+static BOOL NameUsable(NSString *s) {
+    static NSCharacterSet *bad; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableCharacterSet *c = [NSMutableCharacterSet new];
+        [c addCharactersInRange:NSMakeRange(0, 1)]; [c addCharactersInRange:NSMakeRange(0xFFFD, 1)];
+        bad = c;
+    });
+    return [s rangeOfCharacterFromSet:bad].location == NSNotFound;
+}
+
+/// A small file's text, trimmed, or nil: HEAD, a ref, a .git file, commondir. Text that is not UTF-8, or holds a NUL,
+/// would build a path, so it reads as nil, issue #116, except a symbolic ref, "ref: <name>": its name is shown, so it
+/// reads with U+FFFD for each such byte, and Resolve never makes a path of it. *unread, when given, turns YES when the
+/// file is there and gives no text. Issue #54: open and read, since Foundation's file read cost most of a warm walk of
+/// 300 worktrees, which reads about 15 such files each. Issues #81 and #96: through MMReadPlain, so only a plain file
+/// is opened, and a named pipe under one of those names, as a .git in a folder that is scanned can be, is not read.
+static NSString *Line(NSString *path, BOOL *unread) {
     NSData *d = MMReadPlain(path, kGitFileMax, MMPlainWhole);
-    NSString *s = d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : nil;
+    BOOL lossy = NO;
+    NSString *s = d ? Text(d.bytes, d.length, &lossy) : nil;
+    if (lossy && !(d.length >= 5 && !memcmp(d.bytes, "ref: ", 5))) s = nil;
+    if (unread) *unread = d ? !s : !Missing(path);
     return [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
 }
 
-static NSString *ReadLine(NSString *path) { return MMReadLine(path); }
+NSString *MMReadLine(NSString *path) { return Line(path, NULL); }
+
+static NSString *ReadLine(NSString *path) { return Line(path, NULL); }
 
 /// mtime, size and inode, or "-" when the file is missing. A rewrite of the file always moves it.
 static NSString *Stamp(NSString *path) {
@@ -110,19 +209,21 @@ static BOOL IsSha(NSString *s) {
     return [s rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"].invertedSet].location == NSNotFound;
 }
 
-/// A file git rewrites whole, parsed once per stamp and kept per path.
-static id Parsed(NSString *path, id (^parse)(NSString *text)) {
+/// A file git rewrites whole, parsed from its lines once per stamp and kept per path. A missing file parses as no
+/// lines. Issues #96 and #116: one that is there and cannot be read, a named pipe among them, gives kUnread and never
+/// waits, and is read again next time.
+static id Parsed(NSString *path, id (^parse)(NSArray<NSString *> *lines)) {
     static NSMutableDictionary<NSString *, NSArray *> *memo; static dispatch_once_t once;
     dispatch_once(&once, ^{ memo = [NSMutableDictionary new]; });
     NSString *stamp = Stamp(path);
+    if ([stamp isEqualToString:@"-"]) return Missing(path) ? parse(@[]) ?: NSNull.null : kUnread;
     @synchronized (memo) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }
-    // Issue #96: a packed-refs, config or stash log that is a named pipe reads as empty, and never waits.
-    NSData *bytes = [stamp isEqualToString:@"-"] ? nil : MMReadPlain(path, kGitFileMax, MMPlainWhole);
-    NSString *text = bytes ? ([[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] ?: @"") : @"";
-    id value = parse(text) ?: NSNull.null;
+    NSData *bytes = MMReadPlain(path, kGitFileMax, MMPlainWhole);
+    if (!bytes) return Missing(path) ? parse(@[]) ?: NSNull.null : kUnread;
+    id value = parse(FileLines(bytes)) ?: NSNull.null;
     @synchronized (memo) {
         if (memo.count > 512) [memo removeAllObjects];
         memo[path] = @[stamp, value];
@@ -130,11 +231,11 @@ static id Parsed(NSString *path, id (^parse)(NSString *text)) {
     return value;
 }
 
-/// packed-refs as ref name to sha.
-static NSDictionary<NSString *, NSString *> *PackedRefs(NSString *common) {
-    return Parsed([common stringByAppendingPathComponent:@"packed-refs"], ^id(NSString *text) {
+/// packed-refs as ref name to sha, or kUnread. A name that is not UTF-8 is kept with U+FFFD, and no lookup asks for it.
+static id PackedRefs(NSString *common) {
+    return Parsed([common stringByAppendingPathComponent:@"packed-refs"], ^id(NSArray<NSString *> *lines) {
         NSMutableDictionary *refs = [NSMutableDictionary new];
-        for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        for (NSString *line in lines) {
             if (line.length < 42 || [line hasPrefix:@"#"] || [line hasPrefix:@"^"]) continue;
             NSRange sp = [line rangeOfString:@" "];
             if (sp.location == NSNotFound) continue;
@@ -144,24 +245,30 @@ static NSDictionary<NSString *, NSString *> *PackedRefs(NSString *common) {
     });
 }
 
-/// The sha a ref names, from the loose file or packed-refs, following a symbolic ref twice at most. nil when none.
+/// The sha a ref names, from the loose file or packed-refs, following a symbolic ref twice at most. nil when no such
+/// ref is there. kUnread when it cannot be known, issue #116: a name NameUsable refuses, a loose file or a packed-refs
+/// that is there and not read, a loose file or a packed line that names no sha, or a loop.
 static NSString *Resolve(NSString *common, NSString *ref, int depth) {
-    if (!ref.length || depth > 3 || [ref containsString:@".."]) return nil;
-    NSString *line = ReadLine([common stringByAppendingPathComponent:ref]);
+    if (!ref.length || depth > 3 || [ref containsString:@".."] || !NameUsable(ref)) return kUnread;
+    BOOL unread = NO;
+    NSString *line = Line([common stringByAppendingPathComponent:ref], &unread);
+    if (unread) return kUnread;
     if ([line hasPrefix:@"ref: "]) return Resolve(common, [line substringFromIndex:5], depth + 1);
-    if (IsSha(line)) return line;
-    NSDictionary *packed = PackedRefs(common);
-    return [packed isKindOfClass:NSDictionary.class] ? Str(packed[ref]) : nil;
+    if (line) return IsSha(line) ? line : kUnread;
+    id packed = PackedRefs(common);
+    if (![packed isKindOfClass:NSDictionary.class]) return kUnread;
+    NSString *sha = Str(packed[ref]);
+    return !sha || IsSha(sha) ? sha : kUnread;
 }
 
-/// The [branch "x"] sections of config as {x: {remote, merge}}. Includes are not followed.
-static NSDictionary<NSString *, NSDictionary *> *BranchConfig(NSString *common) {
-    return Parsed([common stringByAppendingPathComponent:@"config"], ^id(NSString *text) {
+/// The [branch "x"] sections of config as {x: {remote, merge}}, or kUnread. Includes are not followed.
+static id BranchConfig(NSString *common) {
+    return Parsed([common stringByAppendingPathComponent:@"config"], ^id(NSArray<NSString *> *lines) {
         NSMutableDictionary *out = [NSMutableDictionary new];
         NSString *branch = nil;
         NSRegularExpression *head = [NSRegularExpression regularExpressionWithPattern:@"^\\[\\s*([A-Za-z0-9.-]+)(?:\\s+\"((?:[^\"\\\\]|\\\\.)*)\")?\\s*\\]"
                                                                               options:0 error:nil];
-        for (NSString *raw in [text componentsSeparatedByString:@"\n"]) {
+        for (NSString *raw in lines) {
             NSString *line = [raw stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
             if (!line.length || [line hasPrefix:@"#"] || [line hasPrefix:@";"]) continue;
             if ([line hasPrefix:@"["]) {
@@ -187,18 +294,21 @@ static NSDictionary<NSString *, NSDictionary *> *BranchConfig(NSString *common) 
     });
 }
 
-/// The stash entries made on branch, from logs/refs/stash: "WIP on <branch>:" or "On <branch>:".
+/// The stash entries made on branch, from logs/refs/stash: "WIP on <branch>:" or "On <branch>:". -1 when the log is
+/// there and cannot be read, issue #116. A line that is not UTF-8 still counts, its subject read with U+FFFD, so a
+/// branch whose name is not UTF-8 matches its own entries, and at worst those of a name that reads the same: more,
+/// never fewer.
 static NSInteger StashesOn(NSString *common, NSString *branch) {
     if (!branch.length) return 0;
-    NSArray *lines = Parsed([common stringByAppendingPathComponent:@"logs/refs/stash"], ^id(NSString *text) {
+    id lines = Parsed([common stringByAppendingPathComponent:@"logs/refs/stash"], ^id(NSArray<NSString *> *lines) {
         NSMutableArray *subjects = [NSMutableArray new];
-        for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        for (NSString *line in lines) {
             NSRange tab = [line rangeOfString:@"\t"];
             if (tab.location != NSNotFound) [subjects addObject:[line substringFromIndex:NSMaxRange(tab)]];
         }
         return subjects;
     });
-    if (![lines isKindOfClass:NSArray.class]) return 0;
+    if (![lines isKindOfClass:NSArray.class]) return -1;
     NSString *wip = [NSString stringWithFormat:@"WIP on %@:", branch], *on = [NSString stringWithFormat:@"On %@:", branch];
     NSInteger n = 0;
     for (NSString *s in lines) if ([s hasPrefix:wip] || [s hasPrefix:on]) n++;
@@ -216,31 +326,42 @@ NSDictionary<NSString *, NSString *> *MMGitDirsOf(NSString *path) {
     NSString *gitDir = [line substringFromIndex:8];
     if (!gitDir.isAbsolutePath) gitDir = [path stringByAppendingPathComponent:gitDir];
     gitDir = gitDir.stringByStandardizingPath;
-    NSString *common = ReadLine([gitDir stringByAppendingPathComponent:@"commondir"]);
+    BOOL unread = NO;
+    NSString *common = Line([gitDir stringByAppendingPathComponent:@"commondir"], &unread);
+    if (unread) return nil;   // issue #116: a commondir there and not read is not a submodule's
     if (!common.length) return @{@"gitDir": gitDir, @"common": gitDir};   // a submodule keeps its own refs
     if (!common.isAbsolutePath) common = [gitDir stringByAppendingPathComponent:common];
     return @{@"gitDir": gitDir, @"common": common.stringByStandardizingPath};
 }
 
-/// Everything git's files tell with no spawn, plus the stamps the fingerprints are made of.
+/// Everything git's files tell with no spawn, plus the stamps the fingerprints are made of. Issue #116: what cannot be
+/// known is said so, never left out as none. headUnread: HEAD, or the sha its branch names, cannot be known, so the
+/// history layer counts nothing as 0. upUnread: the upstream cannot be known, so it is not gone. stashes -1.
 NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
     NSMutableDictionary *f = [NSMutableDictionary new];
-    NSString *line = ReadLine([gitDir stringByAppendingPathComponent:@"HEAD"]);
+    BOOL headUnread = NO;
+    NSString *line = Line([gitDir stringByAppendingPathComponent:@"HEAD"], &headUnread);
     if ([line hasPrefix:@"ref: "]) {
         NSString *ref = [line substringFromIndex:5];
-        if ([ref hasPrefix:@"refs/heads/"]) f[@"branch"] = [ref substringFromIndex:11];
+        if ([ref hasPrefix:@"refs/heads/"]) f[@"branch"] = [ref substringFromIndex:11];   // shown, U+FFFD and all
         NSString *sha = Resolve(common, ref, 0);
-        if (sha) f[@"head"] = sha;
+        if (sha == kUnread) headUnread = YES;
+        else if (sha) f[@"head"] = sha;   // nil: a branch with no commit yet
     } else if (IsSha(line)) f[@"head"] = line;
+    else if (line) headUnread = YES;      // a HEAD git does not write
+    if (headUnread) f[@"headUnread"] = @YES;
     f[@"index"] = Stamp([gitDir stringByAppendingPathComponent:@"index"]);
 
-    // The default branch: origin/HEAD when the clone set it, else the usual names.
-    NSString *originHead = ReadLine([common stringByAppendingPathComponent:@"refs/remotes/origin/HEAD"]);
+    // The default branch: origin/HEAD when the clone set it, else the usual names. One that cannot be known ends the
+    // search, so no other name stands in for it.
+    BOOL originUnread = NO;
+    NSString *originHead = Line([common stringByAppendingPathComponent:@"refs/remotes/origin/HEAD"], &originUnread);
     NSMutableArray *candidates = [NSMutableArray new];
     if ([originHead hasPrefix:@"ref: refs/"]) [candidates addObject:[originHead substringFromIndex:5]];
-    [candidates addObjectsFromArray:@[@"refs/remotes/origin/main", @"refs/remotes/origin/master", @"refs/heads/main", @"refs/heads/master"]];
+    if (!originUnread) [candidates addObjectsFromArray:@[@"refs/remotes/origin/main", @"refs/remotes/origin/master", @"refs/heads/main", @"refs/heads/master"]];
     for (NSString *ref in candidates) {
         NSString *tip = Resolve(common, ref, 0);
+        if (tip == kUnread) break;
         if (!tip) continue;
         f[@"defRef"] = ref; f[@"defTip"] = tip;
         f[@"def"] = [ref hasPrefix:@"refs/remotes/"] ? [ref substringFromIndex:13] : [ref substringFromIndex:11];
@@ -248,7 +369,8 @@ NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
     }
 
     // The upstream, from [branch "x"] remote and merge.
-    NSDictionary *cfg = f[@"branch"] ? BranchConfig(common) : nil;
+    id cfg = f[@"branch"] ? BranchConfig(common) : nil;
+    if (cfg == kUnread || (headUnread && !f[@"branch"])) f[@"upUnread"] = @YES;
     NSDictionary *b = [cfg isKindOfClass:NSDictionary.class] ? cfg[f[@"branch"]] : nil;
     NSString *remote = Str(b[@"remote"]), *merge = Str(b[@"merge"]);
     if (remote && [merge hasPrefix:@"refs/heads/"]) {
@@ -257,11 +379,13 @@ NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
         f[@"up"] = [remote isEqualToString:@"."] ? name : [NSString stringWithFormat:@"%@/%@", remote, name];
         f[@"upRef"] = ref;
         NSString *tip = Resolve(common, ref, 0);
-        if (tip) f[@"upTip"] = tip; else f[@"gone"] = @YES;
+        if (tip == kUnread) f[@"upUnread"] = @YES;
+        else if (tip) f[@"upTip"] = tip;
+        else f[@"gone"] = @YES;
     }
     f[@"fetched"] = Stamp([common stringByAppendingPathComponent:@"FETCH_HEAD"]);
     f[@"packed"] = Stamp([common stringByAppendingPathComponent:@"packed-refs"]);
-    f[@"stashes"] = @(StashesOn(common, f[@"branch"]));
+    f[@"stashes"] = @(headUnread && !f[@"branch"] ? -1 : StashesOn(common, f[@"branch"]));
     return f;
 }
 
@@ -273,7 +397,7 @@ NSString *MMGitStatusFingerprint(NSDictionary *files) {
 
 /// The history layer's fingerprint: everything the counts and the merge kind depend on.
 NSString *MMGitHistoryFingerprint(NSDictionary *files, BOOL isMain) {
-    return [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%d", files[@"head"] ?: @"-", files[@"defRef"] ?: @"-",
+    return [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%d", files[@"head"] ?: (files[@"headUnread"] ? @"?" : @"-"), files[@"defRef"] ?: @"-",
             files[@"defTip"] ?: @"-", files[@"upRef"] ?: @"-", files[@"upTip"] ?: @"-", files[@"fetched"] ?: @"-",
             files[@"packed"] ?: @"-", isMain];
 }
@@ -390,7 +514,9 @@ static MMMergeKind PatchOrSquash(NSString *dir, NSString *def, NSString *head, M
 /// and how the branch reached the default branch. The main checkout is never called merged.
 NSDictionary *MMGitHistoryOf(NSString *dir, NSDictionary *files, BOOL isMain, MMFactCache *patchIds, NSMutableDictionary *counts) {
     NSString *head = files[@"head"];
-    if (!head) return @{@"merged": @"none", @"notInDefault": @0, @"unpushed": @0};   // no commit yet
+    // No commit yet, or issue #116, a HEAD that cannot be known: its commits are not counted, and so not 0.
+    if (!head) return [files[@"headUnread"] boolValue] ? @{@"merged": @"none", @"notInDefault": @(-1), @"unpushed": @(-1)}
+                                                       : @{@"merged": @"none", @"notInDefault": @0, @"unpushed": @0};
     NSMutableDictionary *h = [NSMutableDictionary new];
     int st = -1;
     NSString *ct = Git(dir, @[@"show", @"-s", @"--format=%ct", head, @"--"], kGitShort, &st, counts);
