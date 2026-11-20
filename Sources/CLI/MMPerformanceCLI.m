@@ -12,6 +12,9 @@ static NSString *Bytes(uint64_t n, BOOL memory) {
                                           countStyle:memory ? NSByteCountFormatterCountStyleMemory : NSByteCountFormatterCountStyleFile];
 }
 
+/// Disk that comes or came back, as a total or as a sum with a part nobody measured.
+static NSString *DiskBack(uint64_t n, BOOL partial) { return MMWindowBackText(Bytes(n, NO), n == 0, partial); }
+
 static NSString *Parts(MMPerformanceSideRing *r, NSArray<MMPerformanceGroup *> *groups, BOOL memory) {
     NSMutableArray *a = [NSMutableArray new];
     for (NSString *k in r.order) {
@@ -40,9 +43,10 @@ int MMPerformanceVerb(MMArgs *a) {
     NSInteger i = 0;
     for (MMPerformanceFix *f in p.fixes)
         [a print:@"%2ld  %-7@ memory %@, disk %@, %lu rows%@", (long)++i, f.kind, Bytes(f.memoryBack, YES),
-                 MMWindowBackText(Bytes(f.diskBack, NO), f.diskBack == 0, f.diskPartial), (unsigned long)f.rows.count, f.needsYou ? @", needs you" : @""];
+                 DiskBack(f.diskBack, f.diskPartial), (unsigned long)f.rows.count, f.needsYou ? @", needs you" : @""];
+    // A removal the gains log could not measure makes the look-back's disk that much or more, issue #83.
     MMPerformanceLookBack *b = p.lookBack;
-    [a print:@"Back    this week memory %@, disk %@; today memory %@, disk %@", Bytes(b.weekMemory, YES), Bytes(b.weekDisk, NO),
-             Bytes(b.todayMemory, YES), Bytes(b.todayDisk, NO)];
+    [a print:@"Back    this week memory %@, disk %@; today memory %@, disk %@", Bytes(b.weekMemory, YES), DiskBack(b.weekDisk, b.weekDiskPartial),
+             Bytes(b.todayMemory, YES), DiskBack(b.todayDisk, b.todayDiskPartial)];
     return 0;
 }

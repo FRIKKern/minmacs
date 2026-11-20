@@ -214,7 +214,8 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
 
 @implementation MMWrapUpPlan
 
-- (uint64_t)freedBytes {
+/// What the counted parts free, and whether one of them is not measured yet.
+- (uint64_t)freed:(BOOL *)partial {
     BOOL tree = NO;
     for (MMWrapUpPart *p in self.parts) if (p.step == MMWrapUpWorktree) tree = YES;
     uint64_t n = 0;
@@ -222,10 +223,14 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
     for (MMWrapUpPart *p in self.parts) {
         MMFinding *f = p.action.finding;
         if (tree && p.step != MMWrapUpWorktree && [self.subject holds:f.path]) continue;
+        // Not measured yet: its cost holds 0, which is no reading, so the sum is of the others and is no total.
+        if (f.unmeasured) { if (partial) *partial = YES; continue; }
         n += f.cost.diskFreed;
     }
     return n;
 }
+- (uint64_t)freedBytes { return [self freed:NULL]; }
+- (BOOL)freedPartial { BOOL partial = NO; (void)[self freed:&partial]; return partial; }
 
 - (NSUInteger)servers {
     NSUInteger n = 0;
@@ -242,8 +247,12 @@ NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked
         if (dryRuns) j[@"dryRun"] = [p.action dryRun] ?: NSNull.null;
         [parts addObject:j];
     }
+    BOOL partial = NO;
+    uint64_t freed = [self freed:&partial];
     return @{@"path": self.subject.path ?: @"", @"ready": [NSNumber numberWithBool:self.whyNot == nil], @"whyNot": self.whyNot ?: NSNull.null,
-             @"freedBytes": @(self.freedBytes), @"branch": self.subject.worktree.branch ?: NSNull.null, @"parts": parts};
+             // With nothing of it measured there is no number to give: null, and never a 0 nobody read.
+             @"freedBytes": partial && !freed ? NSNull.null : @(freed), @"freedBytesPartial": @(partial),
+             @"branch": self.subject.worktree.branch ?: NSNull.null, @"parts": parts};
 }
 @end
 

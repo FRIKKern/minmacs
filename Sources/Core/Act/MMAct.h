@@ -219,8 +219,12 @@ NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, tabs
 /// Why it cannot run now: the subject's reason, or the first part whose check failed, named. nil when it may run.
 @property (readonly, copy) NSString *whyNot;
 @property (readonly) uint64_t freedBytes;               // what the parts' findings say deleting frees
+/// YES when a part it counts is not measured yet, MMFinding.unmeasured, issue #83: then freedBytes is the measured
+/// parts alone and no total. It is shown as "or more", or as "not measured yet" when it holds 0.
+@property (readonly) BOOL freedPartial;
 @property (readonly) NSUInteger servers;                // server parts
-/// {path, ready, whyNot, freedBytes, parts: [{step, expert, title, findingID, whyNot, dryRun}]}, for --json.
+/// {path, ready, whyNot, freedBytes, freedBytesPartial, parts: [{step, expert, title, findingID, whyNot, dryRun}]},
+/// for --json. freedBytes is null when nothing of it is measured, and never a 0 nobody read.
 - (NSDictionary *)json:(BOOL)dryRuns;
 @end
 

@@ -51,3 +51,27 @@ gn_text=$("$BIN" gains 2>/dev/null)
 check "gains: the text says memory and disk are never added" 1 "$(printf '%s\n' "$gn_text" | grep -c 'never added together')"
 check "gains: the text has today's line" 1 "$(printf '%s\n' "$gn_text" | grep -c '^Today .* 5 actions')"
 check "gains: the text lists by who did it" 1 "$(printf '%s\n' "$gn_text" | grep -c '^By who did it')"
+
+# A removal whose size was not measured, issue #83, in a home of its own, so the counts above hold. The fake removal
+# deletes nothing. The verb then reads the one row not measured that the binary left in that home's log.
+if [ -x "$gn_dir/gainstest-$$" ]; then
+  echo "-- a removal whose size was not measured"
+  gn_un="$(cd "$gn_dir" && pwd -P)/unsized-home"; mkdir -p "$gn_un/fixtures"
+  MINMACS_HOME="$gn_un" "$gn_dir/gainstest-$$" "$gn_dir/gainsfixture-$$" "$gn_un/fixtures" unsized >"$gn_dir/unsized.txt" 2>"$gn_dir/unsized-err.txt"
+  gn_r=$?
+  check "gains: the unsized checks ran to the end" "0 END" "$gn_r $(tail -1 "$gn_dir/unsized.txt")"
+  [ "$gn_r" = 0 ] || tail -10 "$gn_dir/unsized-err.txt"
+  while IFS="$gn_tab" read -r gn_tag gn_name gn_want gn_got; do
+    [ "$gn_tag" = CHECK ] && check "$gn_name" "$gn_want" "$gn_got"
+  done <"$gn_dir/unsized.txt"
+  gn_json=$(MINMACS_HOME="$gn_un" "$BIN" gains --json 2>/dev/null)
+  check "gains: --json marks today's disk back as no total, and holds null for the row not measured" "True 1" \
+    "$(printf '%s' "$gn_json" | json "'%s %d' % (j['today'].get('diskBackPartial'), sum(1 for g in j['gains'] if g['diskBack'] is None and g.get('measured') is False))")"
+  gn_text=$(MINMACS_HOME="$gn_un" "$BIN" gains 2>/dev/null)
+  check "gains: the text says or more for a sum with a row not measured, today and by kind" "1 1" \
+    "$(printf '%s\n' "$gn_text" | grep -cE '^Today +.* memory, [0-9.,]+ [KMG]B or more disk, 4 actions$') $(printf '%s\n' "$gn_text" | grep -cE '^  worktree +.* [KMG]B or more disk, 4 actions$')"
+  check "gains: performance --json carries the mark in its look-back" "True True" \
+    "$(MINMACS_HOME="$gn_un" MINMACS_COLD=1 "$BIN" performance --json 2>/dev/null | json "'%s %s' % (j['lookBack']['today'].get('diskBackPartial'), j['lookBack']['week'].get('diskBackPartial'))")"
+  check "gains: and its text says or more on the Back line" 1 \
+    "$(MINMACS_HOME="$gn_un" MINMACS_COLD=1 "$BIN" performance 2>/dev/null | grep -cE '^Back .*this week memory .*, disk [0-9.,]+ [KMG]B or more; today memory .*, disk [0-9.,]+ [KMG]B or more$')"
+fi

@@ -26,7 +26,7 @@ NSString *MMWindowKindName(MMWindowKind kind);
 - (NSDictionary *)json;        // {key, title, memoryBack, diskBack, diskBackPartial, needsYou}
 @end
 @interface MMWindowRun (MMJSON)
-- (NSDictionary *)json;        // {running, step, done, total, memoryBack, diskBack, memoryPlanned, diskPlanned, endTitle, endNote}
+- (NSDictionary *)json;        // {running, step, done, total, memoryBack, diskBack, memoryPlanned, diskPlanned, diskPlannedPartial, endTitle, endNote}
 @end
 @interface MMWindowSettings (MMJSON)
 - (NSDictionary *)json;        // {rules: [{ruleID, title, choices, picked, note}], switches: [{switchID, title, on, note}]}

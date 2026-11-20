@@ -148,6 +148,10 @@ static NSString *Stamp(NSString *path) {
     return old;
 }
 
+- (MMTreeDiskFacts *)lastWalkOf:(NSString *)path {
+    return path.length ? [MMTreeDiskFacts fromJSON:[_cache peek:path]] : nil;
+}
+
 - (void)forget:(NSSet<NSString *> *)livePaths { [_cache forget:livePaths ?: [NSSet set]]; }
 
 @end

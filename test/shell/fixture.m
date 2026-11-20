@@ -64,7 +64,7 @@ static NSString *Home(void) { return [NSProcessInfo.processInfo.environment[@"MI
 @implementation FSession @end
 
 @interface FTree : NSObject
-@property (copy) NSString *path, *repo, *branch; @property BOOL isMain, locked, missing;
+@property (copy) NSString *path, *realPath, *repo, *branch; @property BOOL isMain, locked, missing;
 @end
 @implementation FTree @end
 
