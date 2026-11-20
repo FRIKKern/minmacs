@@ -1,0 +1,24 @@
+{
+  "id": "postgres-data",
+  "title": "Postgres data folder",
+  "group": "databases",
+  "class": "data",
+  "paths": [
+    "/opt/homebrew/var/postgresql@*",
+    "/opt/homebrew/var/postgres",
+    "/usr/local/var/postgresql@*",
+    "/usr/local/var/postgres",
+    "~/Library/Application Support/Postgres/var-*"
+  ],
+  "ownerSetting": "Postgres keeps every database here. dropdb removes one, and psql -l lists them with their sizes",
+  "advice": "psql -l",
+  "ownerNote": "a database a test run made is often named after its worktree",
+  "every": 86400,
+  "rebuild": "None. A dropped database is lost",
+  "measured_gib": 23.8,
+  "sources": [
+    "https://www.postgresql.org/docs/current/storage-file-layout.html",
+    "https://www.postgresql.org/docs/current/app-dropdb.html",
+    "du -sk"
+  ]
+}
