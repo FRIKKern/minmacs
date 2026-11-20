@@ -491,10 +491,13 @@ static NSString *GitLsFiles(NSString *dir, NSString *name, int *status) {
 #pragma mark - Families
 
 /// NN familyKeyOf: the name with one random suffix stripped, as "prefix" plus the separator, or nil.
+/// Issue #86: a port number after a separator is a suffix too, as in "dev-chrome-9391", so 4 or 5 digits count there.
 static NSString *FamilyKey(NSString *name) {
     NSUInteger n = name.length, i = n;
     while (i > 0 && isdigit([name characterAtIndex:i - 1])) i--;
     if (n - i >= 6 && i > 0) return [name substringToIndex:i];   // MkdirTemp("prefix") or "prefix-123456"
+    if (n - i >= 4 && i > 1 && [@"-_." rangeOfString:[name substringWithRange:NSMakeRange(i - 1, 1)]].location != NSNotFound)
+        return [name substringToIndex:i];                        // "prefix-9391", a folder named after its port
     NSRange r = [name rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"-_."] options:NSBackwardsSearch];
     if (r.location == NSNotFound || r.location == 0) return nil;
     NSString *tail = [name substringFromIndex:r.location + 1];
