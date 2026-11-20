@@ -152,6 +152,8 @@ check "stop saves the event id" 1 "$(sj 'j["savedId"]')"
 check "the next watch replays what changed while stopped" True "$(sj 'j["replayed"]')"
 check "it replays nothing from before the saved id" False "$(sj 'j["replayedBeforeSavedId"]')"
 check "callbacks run on the watch's queue" no.guerrilla.minmacs.core.fixture "$(sj 'j["label"]')"
+check "a replayed event that FSEvents delivers once more is passed on once, and no other is left out" \
+  "/w/five /w/seven /w/six /w/eight" "$(sj 'j["passedOn"]')"
 
 # P4. The worker child: repo discovery, the Sizer call, a crash mid-request and a restart.
 sn_repos="$sn_dir/repos"; mkdir -p "$sn_repos" "$sn_dir/outside"

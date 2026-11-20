@@ -331,8 +331,28 @@ static int Folders(NSString *dir) {
     BOOL replayedOld = NO;
     @synchronized (batches) { for (NSArray *b in batches) if ([b containsObject:src]) replayedOld = YES; }
     [w2 stop];
+
+    // Issue #84: now and then FSEvents delivers an event of the replay once more, with the same id, after the replay
+    // ended. A watch with no stream gets the batches by hand: the replay brings ids 5 and 7 and ends, then 7 comes
+    // once more, then 6, a lower id the replay never brought, and 8.
+    NSMutableArray<NSString *> *passedOn = [NSMutableArray new];
+    MMFolderWatch *again = [MMFolderWatch replayingWatchNamed:@"fixture.again" changed:^(NSSet<NSString *> *dirs, BOOL rescan) {
+        [passedOn addObjectsFromArray:dirs.allObjects];
+    }];
+    FSEventStreamEventId base = FSEventsGetCurrentEventId();
+    void (^hand)(FSEventStreamEventId, const char *, FSEventStreamEventFlags) = ^(FSEventStreamEventId eid, const char *path, FSEventStreamEventFlags f) {
+        char *paths[1] = { (char *)path };
+        [again handle:1 paths:paths flags:&f ids:&eid];
+    };
+    hand(base + 5, "/w/five", 0);
+    hand(base + 7, "/w/seven", 0);
+    hand(base + 7, "/w", kFSEventStreamEventFlagHistoryDone);
+    hand(base + 7, "/w/seven", 0);
+    hand(base + 6, "/w/six", 0);
+    hand(base + 8, "/w/eight", 0);
     Out(@{@"savedAtStart": @(savedAtStart), @"live": @(live), @"sawSkipped": @(sawSkipped), @"savedId": @(saved > 0),
-          @"replayed": @(replayed), @"replayedBeforeSavedId": @(replayedOld), @"label": label ?: @""});
+          @"replayed": @(replayed), @"replayedBeforeSavedId": @(replayedOld), @"label": label ?: @"",
+          @"passedOn": [passedOn componentsJoinedByString:@" "]});
     return 0;
 }
 

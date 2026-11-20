@@ -4,6 +4,7 @@
 // Prints one line per check: name, want and got, split by tabs.
 #import <Foundation/Foundation.h>
 #import <mach/mach_time.h>
+#import <libproc.h>
 #import <stdatomic.h>
 #import "Core/Graph/MMGraph.h"
 #import "Core/MMExpert.h"
@@ -261,16 +262,24 @@ static void Spin(NSTimeInterval seconds, BOOL (^done)(void)) {
 /// going back to wait in its run loop. Main blocked or busy in anything it runs counts in full. The time it sleeps
 /// in the loop does not, so a timer that fires late because the machine gave main no CPU is no stall. Issue #84: the
 /// gap between two fires of a 5 ms timer read 53 ms on a hosted runner, with nothing running on main.
+/// The time this process's threads were ready to run and had no CPU is taken off each stall, as the kernel counts
+/// it: with 30 busy loops on 10 cores, main lost the CPU for 46 ms in the middle of 0.2 ms of work.
 @interface TStalls : NSObject
-@property (readonly) double worstMs, worstCPUMs;   // the longest stall, and the CPU main used in it
+/// The longest stall. Of it: wallMs before the time with no CPU came off, that time, and the CPU main used.
+@property (readonly) double worstMs, worstWallMs, worstNoCPUMs, worstCPUMs;
 - (void)stop;
 @end
 @implementation TStalls {
     CFRunLoopObserverRef _woke, _sleeps;
-    uint64_t _since, _cpuSince;
+    uint64_t _since, _cpuSince, _noCPUSince;
     BOOL _waiting;
 }
 static uint64_t MainCPUNs(void) { return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID); }
+/// How long this process's threads have been ready to run with no CPU to run on, in mach time. 0 when unknown.
+static uint64_t NoCPUTicks(void) {
+    struct rusage_info_v4 ri;
+    return proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) == 0 ? ri.ri_runnable_time : 0;
+}
 - (instancetype)init {
     if ((self = [super init])) {
         __weak TStalls *weak = self;
@@ -283,11 +292,12 @@ static uint64_t MainCPUNs(void) { return clock_gettime_nsec_np(CLOCK_THREAD_CPUT
     }
     return self;
 }
-- (void)begin { _since = mach_absolute_time(); _cpuSince = MainCPUNs(); _waiting = NO; }
+- (void)begin { _noCPUSince = NoCPUTicks(); _cpuSince = MainCPUNs(); _since = mach_absolute_time(); _waiting = NO; }
 - (void)end {
     if (_waiting) return;
-    double ms = Ms(_since, mach_absolute_time());
-    if (ms > _worstMs) { _worstMs = ms; _worstCPUMs = (MainCPUNs() - _cpuSince) / 1e6; }
+    double wall = Ms(_since, mach_absolute_time()), noCPU = Ms(_noCPUSince, NoCPUTicks());
+    double ms = MAX(0, wall - noCPU);
+    if (ms > _worstMs) { _worstMs = ms; _worstWallMs = wall; _worstNoCPUMs = noCPU; _worstCPUMs = (MainCPUNs() - _cpuSince) / 1e6; }
     _waiting = YES;
 }
 - (void)stop {
@@ -480,7 +490,8 @@ int main(int argc, char **argv) {
             Spin(0.5, nil);
             [stalls stop];
             Check(@"the main run loop never stalls while a 200 ms build runs", @"yes", stalls.worstMs < 50 ? @"yes" :
-                  [NSString stringWithFormat:@"%.1f ms, %.1f ms CPU", stalls.worstMs, stalls.worstCPUMs]);
+                  [NSString stringWithFormat:@"%.1f ms, of %.1f ms with %.1f ms ready and no CPU, %.1f ms CPU", stalls.worstMs,
+                   stalls.worstWallMs, stalls.worstNoCPUMs, stalls.worstCPUMs]);
             Check(@"1000 rebuild calls coalesce into at most two builds", @"yes", src.calls <= 2 ? @"yes" : [NSString stringWithFormat:@"%ld", (long)src.calls]);
             Check(@"the source never runs on main", @NO, @(src.onMain));
             Check(@"observers run on main", @0, @(offMain));
