@@ -324,16 +324,31 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
 }
 
 - (NSURL *)trash:(NSURL *)item record:(MMUndoRecord *)record error:(NSError **)error {
+    // Issue #74: MinMacs's own list names the item before it moves, so only what MinMacs sent there ever comes back
+    // from the Trash. When that list cannot be written the item stays where it is. With nothing at the path the move
+    // below fails and says so in its own words, and should something come there in between, no list names it.
+    NSDictionary *before = MMFileIdentity(item.path);
+    if (record.rid.length && before && !MMRemovalTrashListNote(record.rid, item.path, nil, before)) {
+        if (error) *error = [NSError errorWithDomain:@"MMUndo" code:1 userInfo:@{NSLocalizedDescriptionKey:
+            @"MinMacs could not write its own list of what it sends to the Trash, so the item stays where it is"}];
+        return nil;
+    }
     NSURL *to = nil;
     NSString *folder = MMTrashFolder();
-    if (folder) { if (!(to = MoveInto(folder, item, error))) return nil; }
-    else if (![NSFileManager.defaultManager trashItemAtURL:item resultingItemURL:&to error:error] || !to) return nil;
+    if (folder) to = MoveInto(folder, item, error);
+    else if (![NSFileManager.defaultManager trashItemAtURL:item resultingItemURL:&to error:error]) to = nil;
+    if (!to) { if (record.rid.length) MMRemovalTrashListDrop(record.rid, item.path, nil); return nil; }
+    // The identity in the Trash, written into the list after the move. The record's entry takes what the list holds,
+    // so the two always agree. When that write fails the item is in the Trash and named in the record, and recovery
+    // and an Undo leave it there and say why.
+    NSDictionary *identity = MMFileIdentity(to.path);
+    identity = (record.rid.length ? MMRemovalTrashListNote(record.rid, item.path, to.path, identity) : nil) ?: identity;
     @synchronized (self) {
         NSMutableArray *t = [MMRecordList(record.payload, @"trashed") mutableCopy] ?: [NSMutableArray new];
         // The very file that now waits there, MMFileIdentity, so nothing else at that Trash path is ever taken for
         // it when it goes back.
         NSMutableDictionary *entry = [@{@"from": item.path, @"to": to.path} mutableCopy];
-        [entry addEntriesFromDictionary:MMFileIdentity(to.path) ?: @{}];
+        [entry addEntriesFromDictionary:identity ?: @{}];
         [t addObject:entry];
         [self note:record payload:@{@"trashed": t}];
     }
@@ -450,9 +465,11 @@ BOOL MMPathLiesInTrash(NSString *real, NSString *home, uid_t uid, NSString *test
            [names[4] isEqualToString:[NSString stringWithFormat:@"%u", (unsigned)uid]];
 }
 
-/// Why the "trashed" entry x may not be moved back, or nil. Something must wait at its "to", directly in a Trash,
-/// MMPathLiesInTrash, and the entry must say which file it is, so a file the person trashed is never taken for it.
-static NSString *TrashedWhyNot(NSDictionary *x) {
+/// Why the "trashed" entry x of record r may not be moved back, or nil. Something must wait at its "to", directly in a
+/// Trash, MMPathLiesInTrash, and the entry must say which file it is, so a file the person trashed is never taken for
+/// it. The record is a claim, and anyone who can read the Trash can give a file's true inode, issue #74: MinMacs's own
+/// list of what r sent there must name the entry too, MMRemovalTrashListWhyNot.
+static NSString *TrashedWhyNot(MMUndoRecord *r, NSDictionary *x) {
     NSString *to = MMRecordString(x, @"to");
     struct stat st;
     if (!to.length || lstat(to.fileSystemRepresentation, &st) != 0) return nil;   // nothing waits there, so nothing moves
@@ -461,7 +478,7 @@ static NSString *TrashedWhyNot(NSDictionary *x) {
     if (!real || !MMPathLiesInTrash(real, MMRemovalRealPath(NSHomeDirectory()), getuid(), test ? (MMRemovalRealPath(MMTrashFolder() ?: @"") ?: @"") : nil))
         return @"it does not lie in the Trash";
     if (MMFileIsEntry(to, x) < 0) return @"the record does not say which file it is, so MinMacs does not move it";
-    return nil;
+    return MMRemovalTrashListWhyNot(r.rid, x);
 }
 
 /// What restore and moveBackOnly would refuse to move back for r, in words, or nil: each "trashed" entry asked of
@@ -469,7 +486,7 @@ static NSString *TrashedWhyNot(NSDictionary *x) {
 - (NSString *)refusedOf:(MMUndoRecord *)r {
     NSMutableArray<NSString *> *problems = [NSMutableArray new];
     for (NSDictionary *x in MMRecordList(r.payload, @"trashed")) {
-        NSString *why = TrashedWhyNot(x);
+        NSString *why = TrashedWhyNot(r, x);
         if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(x, @"to") ?: @"one item", why]];
     }
     for (NSDictionary *x in MMRecordList(r.payload, @"staged")) {
@@ -494,9 +511,17 @@ static NSString *TrashedWhyNot(NSDictionary *x) {
     return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
 }
 
-/// Back from the Trash: only what lies in a Trash now and is the file the entry names.
-- (NSString *)untrash:(NSArray *)items {
-    return [self moveBack:items from:@"the Trash" unless:^NSString *(NSDictionary *x) { return TrashedWhyNot(x); }];
+/// Back from the Trash: only what lies in a Trash now, is the file the entry names, and MinMacs's own list says r sent
+/// there. What is back at its old path is taken out of that list, so a record written again never takes the same file
+/// out of the Trash a second time.
+- (NSString *)untrash:(NSArray<NSDictionary *> *)items of:(MMUndoRecord *)r {
+    NSString *problem = [self moveBack:items from:@"the Trash" unless:^NSString *(NSDictionary *x) { return TrashedWhyNot(r, x); }];
+    for (NSDictionary *x in items) {
+        NSString *from = MMRecordString(x, @"from"), *to = MMRecordString(x, @"to");
+        struct stat st;
+        if (from.length && to.length && lstat(to.fileSystemRepresentation, &st) != 0 && MMFileIsEntry(from, x) == 1) MMRemovalTrashListDrop(r.rid, from, to);
+    }
+    return problem;
 }
 
 /// Back from MinMacs's staging folder: only what lies in the staging folder MinMacs made for r's Wrap Up, its marker
@@ -666,7 +691,7 @@ static NSMutableSet<NSString *> *Restoring(void) {
     if (r.moveDamage) return [@"its record is damaged, so MinMacs does not act on it: " stringByAppendingString:r.moveDamage];
     NSArray<NSDictionary *> *trashed = MMRecordList(r.payload, @"trashed"), *staged = MMRecordList(r.payload, @"staged");
     if (!trashed.count && !staged.count) return @"the record holds nothing to move back";
-    NSString *a = trashed.count ? [self untrash:trashed] : nil;
+    NSString *a = trashed.count ? [self untrash:trashed of:r] : nil;
     NSString *b = staged.count ? [self unstage:staged of:r] : nil;
     if (a || b) return a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
     @synchronized (self) {
@@ -737,7 +762,7 @@ static NSMutableSet<NSString *> *Restoring(void) {
     NSArray<NSDictionary *> *trashed = MMRecordList(p, @"trashed"), *staged = MMRecordList(p, @"staged");
     if (!problem && (trashed.count || staged.count)) {
         // Both are tried, so what waits in one place does not hold what waits in the other.
-        NSString *a = trashed.count ? [self untrash:trashed] : nil;
+        NSString *a = trashed.count ? [self untrash:trashed of:r] : nil;
         // What a Wrap Up part staged for a delete that never came: back from MinMacs's staging folder, MMRemoval.h.
         NSString *b = staged.count ? [self unstage:staged of:r] : nil;
         problem = a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;

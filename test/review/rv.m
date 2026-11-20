@@ -252,7 +252,9 @@ static int Review(int argc, const char *argv[]) {
 /// The wake queue with a short gap: wakes inside the gap give one review after it, and a manual wake runs at once.
 static int Wake(void) {
     MMReviewBroker *b = MMReviewBroker.shared;
-    b.minGap = 1.0;
+    // Issue #108: with a gap of 1 second, the three sleeps before the third check could outlast it on a slow runner,
+    // and the waiting review had then already run. 4 seconds leaves that check more than 3 seconds to spare.
+    b.minGap = 4.0;
     __block NSMutableArray *triggers = [NSMutableArray new];
     [b setRequestMaker:^MMReviewRequest *(NSString *trigger, MMSnapshot *s) {
         @synchronized (triggers) { [triggers addObject:trigger]; }
@@ -269,7 +271,9 @@ static int Wake(void) {
     [b wake:@"manual" expert:@"waketest"];
     [NSThread sleepForTimeInterval:0.2];
     Out(@"a manual wake skips the gap", @"schedule,manual", seen());
-    [NSThread sleepForTimeInterval:1.2];
+    // The waiting review runs 4 seconds after the first wake. The wait ends when it shows, at most 20 seconds on.
+    for (int i = 0; i < 200 && [seen() componentsSeparatedByString:@","].count < 3; i++) [NSThread sleepForTimeInterval:0.1];
+    [NSThread sleepForTimeInterval:0.3];   // a second review for the two waiting wakes would show by now
     Out(@"the waiting wakes give one review after the gap", @"schedule,manual,new finding", seen());
     return 0;
 }

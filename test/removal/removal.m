@@ -359,6 +359,7 @@ int main(int argc, char **argv) {
         Stopped();
         Moved();
         Pipes();
+        TrashedByMinMacs();
         printf("END\n");
     }
     return 0;
