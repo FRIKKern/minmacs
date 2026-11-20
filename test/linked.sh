@@ -102,7 +102,7 @@ check "linked: clean-up lists the two merged worktrees under the link, as under 
 # one as long, a shorter one, a link in the middle of the path, and the plain root with the long link, in either order.
 # Under /private the worker writes /tmp, which hides the case, so this part needs a folder outside /private: the home
 # when it is, else build/ in the checkout, as on a hosted macOS runner, where the home is in /var/folders.
-lk_ids="$lk_dir"
+lk_ids="$lk_dir/ids"
 case "$lk_ids" in /private/*) lk_ids="$ROOT/build/linked-ids.$$" ;; esac
 case "$lk_ids" in /private/*) echo "  SKIP  linked: the id checks need a folder outside /private, and the home and the checkout are both in it"; lk_ids= ;; esac
 if [ -n "$lk_ids" ]; then
@@ -114,14 +114,16 @@ if [ -n "$lk_ids" ]; then
   for n in live link idle; do lk_git -C "$lk_x/code/shop" worktree add -q -b "$n" "$lk_x/code/shop.wt/$n" main 2>/dev/null; done
   lk_git -C "$lk_x/code/shop" worktree add -q -b hid "$lk_x/code/shop/.worktrees/hid" main 2>/dev/null
   printf '.worktrees/\n' >>"$lk_x/code/shop/.git/info/exclude"
-  # Two working sessions, each a sleep this section starts and stops by its pid: live's folder resolved, as the
-  # kernel names it, and link's through the long link, as an agent started there writes it.
+  # Three working sessions, each a sleep this section starts and stops by its pid: live's folder and the main
+  # checkout resolved, as the kernel names them, and link's through the long link, as an agent started there writes it.
+  # The main checkout has a file not committed, so it has a finding.
   lk_sess() { # name cwd
     ( exec sleep 600 ) & lk_p=$!; procs="$procs $lk_p"; lk_sleeps="${lk_sleeps:-} $lk_p"
     printf '{"pid":%s,"sessionId":"linked-ids-%s","cwd":"%s","startedAt":%s000,"kind":"interactive","status":"busy","statusUpdatedAt":%s000}\n' \
       "$lk_p" "$1" "$2" "$(date +%s)" "$(date +%s)" >"$lk_x/claude/sessions/$lk_p.json"
   }
-  lk_sess live "$lk_x/code/shop.wt/live"; lk_sess link "$lk_x/my/docs/github/shop.wt/link"
+  lk_sess live "$lk_x/code/shop.wt/live"; lk_sess link "$lk_x/my/docs/github/shop.wt/link"; lk_sess main "$lk_x/code/shop"
+  echo two >"$lk_x/code/shop/b.txt"
   lk_ws() { # roots, colon separated names in lk_x: each workstream id, then each of its findings' id and owner id
     mkdir -p "$lk_x/home-$2"
     MINMACS_HOME="$lk_x/home-$2" MINMACS_ROOTS="$(printf %s "$1" | sed "s|[^:][^:]*|$lk_x/&|g")" MINMACS_CLUTTER_ROOT="$lk_x/clutter" \
