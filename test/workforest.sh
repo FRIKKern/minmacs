@@ -100,6 +100,18 @@ check "a process inside is found" True "$(get busy "['processes'] != []")"
 check "the agent session is found" "Claude Code" "$(get agent "['session']['agent']")"
 r=$("$MM" trees list --json | json "len(j['trees'])");                    check "minmacs trees list reads the same worktrees" 12 "$r"
 
+echo "== clean-up with no review, issue #88"
+wf_cu=$("$WF" clean-up --dry-run 2>&1)
+check "clean-up with no review says so, and names the merged worktrees that pass every keep" "1 1" \
+  "$(printf '%s\n' "$wf_cu" | grep -c '^No review yet') $(printf '%s\n' "$wf_cu" | grep -c '^3 worktrees merged and pass every keep. clean-up --merged removes them with no review.$')"
+check "and still proposes nothing itself" 1 "$(printf '%s\n' "$wf_cu" | grep -c '^Nothing to clean up.$')"
+wf_cm=$("$WF" clean-up --merged --dry-run 2>&1)
+check "clean-up --merged lists the merged worktrees with nothing to lose" "envy merged squash" \
+  "$(printf '%s\n' "$wf_cm" | awk '/^  /{sub("^app/", "", $1); print $1}' | sort | tr '\n' ' ' | sed 's/ $//')"
+check "and none that a work keep holds, merged by ancestry as they are" 0 "$(printf '%s\n' "$wf_cm" | grep -cE '^  app/(dirty|untracked|locked|busy|recent|agent|unpushed|loose|judged) ')"
+"$WF" clean-up --merged >/dev/null 2>&1;                                   check "clean-up --merged without --yes asks for it, exit 2" 2 "$?"
+check "a dry run and a refusal remove nothing" "yes yes yes" "$(wf_has "$W/merged") $(wf_has "$W/squash") $(wf_has "$W/envy")"
+
 echo "== every mode keeps work, even when the review calls it all stale"
 ALL="/merged,/squash,/dirty,/untracked,/unpushed,/locked,/busy,/loose,/recent,/agent,/judged,/envy"
 RV_TEST_GO=$ALL "$WF" review --model haiku --mode eager --fresh >/dev/null 2>&1; check "the review succeeds" 0 "$?"
@@ -259,6 +271,16 @@ check "the expert never runs git, a process or the model" 0 "$(grep -nE 'NSTask|
 check "the expert lists no processes itself" 0 "$(grep -nE 'proc_listpids|PROC_PIDVNODEPATHINFO|KERN_PROC_ALL|proc_pidinfo|lsof|nettop|pmset' Sources/Experts/WorkForest/*.m | grep -c .)"
 check "the expert walks no folder itself" 0 "$(grep -nE 'fts_open|enumeratorAtPath|contentsOfDirectoryAtPath|getattrlistbulk' Sources/Experts/WorkForest/*.m | grep -c .)"
 check "the expert never deletes a file itself" 0 "$(grep -nE 'removeItemAtPath|removeItemAtURL|unlink\(|rmdir\(|trashItemAtURL' Sources/Experts/WorkForest/*.m | grep -c .)"
+# clean-up --merged removes, on a worktree of its own, issue #88. cm2 is merged too, and --path leaves it.
+wt cm1; wt cm2
+find "$W/cm1" "$W/cm2" -exec touch -h -t 202501011200 {} +
+"$WF" clean-up --merged --path "$W/cm1" --yes >"$wf/cm.out" 2>&1;         check "clean-up --merged --yes removes a merged worktree with no review of it" 0 "$?"
+check "the worktree is gone, and the one outside --path stays" "no yes" "$(wf_has "$W/cm1") $(wf_has "$W/cm2")"
+check "it says what it removed" 1 "$(grep -c '^removed app/cm1' "$wf/cm.out")"
+check "the record says who removed it and why" "cli merged, removed by clean-up --merged" "$("$WF" removed --json | json "'%s %s' % (j[0]['by'], j[0]['why'])")"
+"$WF" restore "$W/cm1" >/dev/null 2>&1;                                    check "and restore brings it back" "0 yes" "$? $(wf_has "$W/cm1")"
+G -C "$A" worktree remove --force "$W/cm1" 2>/dev/null; G -C "$A" worktree remove --force "$W/cm2" 2>/dev/null
+G -C "$A" branch -q -D cm1 cm2 2>/dev/null
 kill "$wf_busy" 2>/dev/null
 
 # The removal choice, issue #62, on worktrees of its own. It runs after the counts above.

@@ -366,13 +366,28 @@ static int RulesCommand(MMArgs *a) {
     return 0;
 }
 
+/// The merged worktrees a manual remove would take now: every work keep and Core's keeps pass, with no review asked.
+/// Issue #88. `remove <path>` holds each one to the same keeps.
+static NSArray<MMFinding *> *MergedAndFree(NSArray<MMFinding *> *scope, MMFacts *facts) {
+    NSMutableArray *out = [NSMutableArray new];
+    for (MMFinding *f in scope)
+        if (MMWFTreeOf(f).merged.length && !MMMustKeep(f, facts, nil, MMWFManualPolicy())) [out addObject:f];
+    return out;
+}
+
 static int CleanUp(MMArgs *a) {
     MMSnapshot *s = Snapshot(a);
     MMReview *r = [s reviewFor:kExpert];
-    NSArray<MMFinding *> *c = MMWFCandidates(Scope(a, s), s.facts, r);
-    if (!r) [a print:@"No review yet. Run a review first."];
+    BOOL merged = [a has:@"--merged"];
+    NSArray<MMFinding *> *c = merged ? MergedAndFree(Scope(a, s), s.facts) : MMWFCandidates(Scope(a, s), s.facts, r);
+    if (!merged && !r) {
+        [a print:@"No review yet. Run a review first."];
+        NSUInteger n = MergedAndFree(Scope(a, s), s.facts).count;
+        if (n) [a print:@"%@ merged and %@ every keep. clean-up --merged removes %@ with no review.", MMPlural(n, @"worktree"),
+                        n == 1 ? @"passes" : @"pass", n == 1 ? @"it" : @"them"];
+    }
     if (!c.count) { [a print:@"Nothing to clean up."]; return 0; }
-    for (MMFinding *f in c) [a print:@"  %@%@", Pad(f.title, 44), r.verdicts[f.findingID].reason ?: @""];
+    for (MMFinding *f in c) [a print:@"  %@%@", Pad(f.title, 44), merged ? MMWFStateWords(MMWFTreeOf(f)) : r.verdicts[f.findingID].reason ?: @""];
     if (a.dryRun) return 0;
     if (![a has:@"--yes"]) { [a error:@"clean-up asks no questions on the command line. Add --yes to remove %@.", MMPlural(c.count, @"worktree")]; return MMExitUsage; }
     int needs = [a needsApp];
@@ -380,7 +395,8 @@ static int CleanUp(MMArgs *a) {
     int status = 0;
     for (MMFinding *f in c) {
         NSString *err = nil;
-        MMUndoRecord *rec = MMRunAction(MMWFRemoveAction(f), MMWFManualPolicy(), nil, @"cli", r.verdicts[f.findingID].reason ?: @"Clean Up", &err);
+        NSString *why = merged ? @"merged, removed by clean-up --merged" : r.verdicts[f.findingID].reason ?: @"Clean Up";
+        MMUndoRecord *rec = MMRunAction(MMWFRemoveAction(f), MMWFManualPolicy(), nil, @"cli", why, &err);
         BOOL done = rec && rec.state == MMUndoDone;
         [a print:@"%@ %@%@", done ? @"removed" : @"kept", f.title, done ? @"" : [@": " stringByAppendingString:err ?: rec.error ?: @"it failed"]];
         if (!done) status = 3;
@@ -415,7 +431,7 @@ static int Trees(MMArgs *a) {
 
 static NSString *const kUsage =
     @"trees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|path>|removed|keep <path>|protect <path>|prune <path>|rules] "
-    @"[--all] [--mode <mode>] [--model <model>] [--path <path>] [--days <n>] [--off] [--fresh] [--review] [--yes] [--dry-run] [--json]"
+    @"[--all] [--mode <mode>] [--model <model>] [--path <path>] [--days <n>] [--off] [--fresh] [--review] [--merged] [--yes] [--dry-run] [--json]"
     @"   every git worktree, whether it is merged, and what removing it frees";
 
 NSArray<MMVerbSpec *> *MMWFVerbs(void) {

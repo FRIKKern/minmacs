@@ -20,7 +20,7 @@ The fingerprint holds HEAD, the merge state, the upstream, the dirty, untracked 
 - **Core's keeps.** No review, a failed or old review, a changed fingerprint, a timed keep and the `protect` list in `workforest/rules.json`.
 - **The review.** Worked on after the review.
 - **Proactive.** Not merged with the remote branch still there, or quiet for less than a week. A judged keep with evidence stays in every mode.
-- **Manual.** Remove from the CLI or the menu runs the work keeps and Core's keeps, with no review needed.
+- **Manual.** Remove from the CLI or the menu runs the work keeps and Core's keeps, with no review needed. `trees clean-up --merged` is that remove for every merged worktree that passes those keeps, issue #88. With no review, plain `clean-up` says how many there are.
 
 `WORKFOREST_RECENT_HOURS` and `WORKFOREST_PROACTIVE_HOURS` change the day and the week, for tests.
 
@@ -51,7 +51,7 @@ A worktree's card lists the servers LocoHost finds inside it, such as ":3000 Vit
 
 ## Verbs
 
-`trees` and its other name `worktrees`, registered through `MMExpert`: `list [--all]`, `explain <path>`, `review [--model] [--mode] [--fresh] [--path]`, `plan`, `auto [--mode] [--path] [--review]`, `clean-up [--yes]`, `remove <path> --yes`, `restore <id|path>`, `removed`, `keep <path> [--days n] [--off]`, `protect <path> [--off]`, `prune <path>` and `rules`. Every command takes `--json` and `--dry-run`. A command that changes things needs the app, unless it is given `--dry-run`. That holds for `keep` and `protect` too, since a keep and the protect list change what the modes may remove. The verb is registered with `mutates:NO` because `list`, `explain` and the other reads run anywhere, so each changing command calls `needsApp` itself. `--fresh` sends every worktree to the model past the fingerprint cache.
+`trees` and its other name `worktrees`, registered through `MMExpert`: `list [--all]`, `explain <path>`, `review [--model] [--mode] [--fresh] [--path]`, `plan`, `auto [--mode] [--path] [--review]`, `clean-up [--merged] [--yes]`, `remove <path> --yes`, `restore <id|path>`, `removed`, `keep <path> [--days n] [--off]`, `protect <path> [--off]`, `prune <path>` and `rules`. Every command takes `--json` and `--dry-run`. A command that changes things needs the app, unless it is given `--dry-run`. That holds for `keep` and `protect` too, since a keep and the protect list change what the modes may remove. The verb is registered with `mutates:NO` because `list`, `explain` and the other reads run anywhere, so each changing command calls `needsApp` itself. `--fresh` sends every worktree to the model past the fingerprint cache.
 
 WorkForest 0.1's syntax works under the `workforest` name through the shim in `Sources/CLI/MMCLI.m`: `list`, `explain`, `review`, `summary`, `auto`, `clean-up`, `remove`, `restore`, `removed`, `keep`, `prune`, `rules` and `fetch` become `trees` commands, and `mode` becomes Core's `mode workforest`. `openURL:` handles `workforest://review`, `clean-up` and `rescan`.
 
