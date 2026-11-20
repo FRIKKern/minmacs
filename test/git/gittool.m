@@ -9,6 +9,7 @@
 //   restart-b <root> <path>               a new process: FSEvents from the saved ids, a walk, and what git ran for
 //   midpass <root> <path>                 a change that lands in the middle of an update pass: how often git status ran
 //   moves <root> <path> <branch>          FSEvents on, a branch switch and a lock in path: when the index shows each
+//   linked <roots> <file>                 a walk, then a new file beside file handed over by its resolved folder
 #import <Foundation/Foundation.h>
 #import "Core/Know/MMGit.h"
 #import "Core/Runtime/MMWorker.h"
@@ -340,6 +341,30 @@ static int Moves(NSString *root, NSString *path, NSString *branch) {
     return 0;
 }
 
+/// Issue #101: a walk of roots, colon separated, then a new file in the folder of file, which the stream names by its
+/// resolved path, handed to invalidate: as the stream's callback would. The checkouts the index holds, and the untracked
+/// count of the checkout that holds file before and after.
+static int Linked(NSString *roots, NSString *file) {
+    MMRepoIndex *ix = MMRepoIndex.shared;
+    NSMutableArray *rs = [NSMutableArray new];
+    for (NSString *r in [roots componentsSeparatedByString:@":"]) [rs addObject:r.stringByStandardizingPath];
+    ix.roots = rs;
+    Scan();
+    MMWorktree *w = [ix worktreeAt:file];
+    NSInteger before = [ix factsFor:w wait:NO].untracked;
+    char real[PATH_MAX];
+    NSString *dir = realpath(file.stringByDeletingLastPathComponent.fileSystemRepresentation, real) ? @(real) : nil;
+    [@"new\n" writeToFile:[dir stringByAppendingFormat:@"/new-%d.txt", getpid()] atomically:NO encoding:NSUTF8StringEncoding error:nil];
+    [ix invalidate:[NSSet setWithObject:dir] subtrees:NO];
+    Settle();
+    NSMutableArray *paths = [NSMutableArray new];
+    for (MMWorktree *x in ix.worktrees) [paths addObject:x.path];
+    Drain();
+    Print(@{@"worktrees": [paths sortedArrayUsingSelector:@selector(compare:)], @"at": w.path ?: NSNull.null,
+            @"untrackedBefore": @(before), @"untrackedAfter": @([ix factsFor:w wait:NO].untracked)});
+    return 0;
+}
+
 int main(int argc, const char **argv) {
     @autoreleasepool {
         if (argc < 2) { fprintf(stderr, "usage: gittool <command> [args]\n"); return 2; }
@@ -355,6 +380,7 @@ int main(int argc, const char **argv) {
         if ([cmd isEqualToString:@"restart-b"] && a.count == 2) return RestartB(a[0], a[1]);
         if ([cmd isEqualToString:@"midpass"] && a.count == 2) return MidPass(a[0], a[1]);
         if ([cmd isEqualToString:@"moves"] && a.count == 3) return Moves(a[0], a[1], a[2]);
+        if ([cmd isEqualToString:@"linked"] && a.count == 2) return Linked(a[0], a[1]);
         fprintf(stderr, "unknown command\n");
         return 2;
     }

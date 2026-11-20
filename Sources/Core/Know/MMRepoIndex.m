@@ -131,6 +131,15 @@ static NSString *Resolved(NSString *path, NSArray<NSArray<NSString *> *> *pairs)
     return path;
 }
 
+/// A changed folder as FSEvents or a caller names it, in its resolved form. A path as kept resolves through the pairs.
+/// One no pair holds is taken as given, since FSEvents names resolved paths and standardizing one drops /private.
+static NSString *ResolvedForm(NSString *raw, NSArray<NSArray<NSString *> *> *pairs) {
+    NSString *s = raw.stringByStandardizingPath, *r = Resolved(s, pairs);
+    if (![r isEqualToString:s] || !raw.isAbsolutePath) return r;
+    while (raw.length > 1 && [raw hasSuffix:@"/"]) raw = [raw substringToIndex:raw.length - 1];
+    return raw;
+}
+
 NSString *MMReadLine(NSString *path);   // MMGitFacts.m: a small file's text, trimmed, read with open and read
 static NSString *ReadLine(NSString *path) { return MMReadLine(path); }
 
@@ -315,7 +324,9 @@ static NSArray<NSString *> *DefaultRoots(void) {
 /// a known checkout. Edits inside a project change nothing here.
 - (BOOL)matters:(NSString *)dir {
     // Issue #101: every path here is compared in its resolved form, which FSEvents gives for a root that is a link.
-    dir = [self resolved:dir.stringByStandardizingPath];
+    NSArray *pairs;
+    @synchronized (self) { pairs = _pairs; }
+    dir = ResolvedForm(dir, pairs);
     if ([dir hasSuffix:@"/.git/worktrees"]) return YES;   // git worktree add, remove or prune
     NSDictionary *real;
     NSArray *realRoots;
@@ -508,6 +519,28 @@ static NSArray<NSString *> *DefaultRoots(void) {
     if (size) [_sizes setValue:size for:w.path fingerprint:@"stale"];
 }
 
+/// What one changed folder d, resolved, marks: the checkouts whose git dir it is in, to check, else the deepest
+/// checkout that holds it, and with subtrees every one below it, to drop.
+static void MarkFor(NSString *d, NSArray<MMWorktree *> *trees, NSDictionary<NSString *, NSDictionary *> *dirsOf, BOOL subtrees,
+                    NSMutableDictionary<NSString *, MMWorktree *> *check, NSMutableDictionary<NSString *, MMWorktree *> *drop) {
+    NSString *gitRoot = nil, *rest = nil;
+    if (InGitDir(d, &gitRoot, &rest)) {
+        // A worktree's own git dir under .git/worktrees/<name>, or the repo's shared refs and config.
+        NSArray *parts = [rest componentsSeparatedByString:@"/"];   // "", "worktrees", name, ...
+        NSString *own = parts.count >= 3 && [parts[1] isEqualToString:@"worktrees"] ?
+            [[gitRoot stringByAppendingPathComponent:@"worktrees"] stringByAppendingPathComponent:parts[2]] : nil;
+        for (MMWorktree *w in trees) {
+            NSDictionary *x = dirsOf[w.path];
+            if (own ? [x[@"gitDir"] isEqualToString:own] : [x[@"common"] isEqualToString:gitRoot]) check[w.path] = w;
+        }
+        return;
+    }
+    MMWorktree *in = nil;   // the deepest that holds it
+    for (MMWorktree *w in trees) if (PathIn(d, w.realPath) && w.realPath.length > in.realPath.length) in = w;
+    if (in) drop[in.path] = in;
+    if (subtrees) for (MMWorktree *w in trees) if (PathIn(w.realPath, d)) drop[w.path] = w;
+}
+
 - (void)invalidate:(NSSet<NSString *> *)dirs subtrees:(BOOL)subtrees {
     NSArray<MMWorktree *> *trees;
     NSDictionary<NSString *, NSDictionary *> *dirsOf;
@@ -523,23 +556,7 @@ static NSArray<NSString *> *DefaultRoots(void) {
     for (NSString *raw in dirs) {
         // FSEvents names real paths, such as /private/var or the target of a root that is a link, and the walk keeps
         // the paths the roots gave. Issue #101: both sides are compared resolved, as text.
-        NSString *d = Resolved(raw.stringByStandardizingPath, pairs);
-        NSString *gitRoot = nil, *rest = nil;
-        if (InGitDir(d, &gitRoot, &rest)) {
-            // A worktree's own git dir under .git/worktrees/<name>, or the repo's shared refs and config.
-            NSArray *parts = [rest componentsSeparatedByString:@"/"];   // "", "worktrees", name, ...
-            NSString *own = parts.count >= 3 && [parts[1] isEqualToString:@"worktrees"] ?
-                [[gitRoot stringByAppendingPathComponent:@"worktrees"] stringByAppendingPathComponent:parts[2]] : nil;
-            for (MMWorktree *w in trees) {
-                NSDictionary *x = dirsOf[w.path];
-                if (own ? [x[@"gitDir"] isEqualToString:own] : [x[@"common"] isEqualToString:gitRoot]) check[w.path] = w;
-            }
-            continue;
-        }
-        MMWorktree *in = nil;   // the deepest that holds it
-        for (MMWorktree *w in trees) if (PathIn(d, w.realPath) && w.realPath.length > in.realPath.length) in = w;
-        if (in) drop[in.path] = in;
-        if (subtrees) for (MMWorktree *w in trees) if (PathIn(w.realPath, d)) drop[w.path] = w;
+        MarkFor(ResolvedForm(raw, pairs), trees, dirsOf, subtrees, check, drop);
     }
     for (MMWorktree *w in drop.allValues) [self dropStatus:w];
     @synchronized (self) { [_marked addEntriesFromDictionary:check]; }

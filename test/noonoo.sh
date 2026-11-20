@@ -210,11 +210,11 @@ print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('fre
     "$(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" section) $(nn_agent "$nn/code" "$nn_runner" "$nn_main/node_modules" keep)"
   check "noonoo: and no other checkout" "finished" "$(nn_agent "$nn/code" "$nn_runner" "$nn_wt/node_modules" section)"
   # Issue #101: under a root that is a link the index keeps each checkout by the link's path, while the session and the
-  # kernel name the agent's folder by the resolved one. Before, neither keep matched: the agent's node_modules read as
-  # finished, ready to delete.
+  # kernel name the agent's folder and the scan names the cache by the resolved one. Before, Noo-Noo found no checkout
+  # for the cache: an agent started in the folder above kept every checkout, and the merged worktree's cache lost its
+  # finished. Keeps went the safe way, but not the plain root's way.
   ln -s "$nn/code" "$nn/linkroot"
   nn_lk() { ( nn_projects="$nn/linkroot/acme:$nn/linkroot/acme.wt/feat"; nn_merged="$nn/linkroot/acme.wt/feat"; nn_agent "$@" ); }
-  echo "PROBE $(nn_lk "$nn_main/src" "" "$nn_main/node_modules" path) | $(nn_lk "$nn_main/src" "" "$nn/linkroot/acme/node_modules" section)"
   check "noonoo: under a root that is a link, an agent in a checkout keeps its node_modules" "kept an agent works in acme" \
     "$(nn_lk "$nn_main/src" "" "$nn_main/node_modules" section) $(nn_lk "$nn_main/src" "" "$nn_main/node_modules" keep)"
   check "noonoo: and so does one that runs a process in it" "kept an agent started in code runs a process in acme" \

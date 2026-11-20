@@ -163,6 +163,30 @@ printf 'changed\n' >>"$GX/away/a.txt"
 GO=$("$GT" facts "$GX/roots")
 check "  and the next walk reads its status again, since no stream sees it" "1|1" "$(gf "$GX/away" dirty)|$(gs statusRuns)"
 
+echo "-- a root that is a link, issue #101"
+# A repo with a linked worktree and one in a hidden folder that only .git/worktrees names, under code, and a link root,
+# deeper than code as ~/Documents/github is deeper than the volume it leads to. The walk finds the first two by the
+# link's path and .git/worktrees names both worktrees by the resolved path git wrote. The stream names a change by the
+# resolved path too. Before, the index held the linked worktree twice and a new file in it marked nothing.
+GL="$G/lk"; mkdir -p "$GL/code" "$GL/my/docs"; ln -s "$GL/code" "$GL/my/docs/root"
+gq init -q "$GL/code/r"; gc "$GL/code/r" a.txt one "one"
+gq -C "$GL/code/r" worktree add -q -b a "$GL/code/r.wt/a"
+gq -C "$GL/code/r" worktree add -q -b h "$GL/code/r/.worktrees/h"
+printf '.worktrees/\n' >>"$GL/code/r/.git/info/exclude"
+gl_rel="replace('$GL/', '').replace('${GL#/private}/', '')"
+gl_trees() { printf '%s' "$GO" | json "' '.join(p.$gl_rel for p in j['worktrees'])"; }
+gl_lk="code/r/.worktrees/h my/docs/root/r my/docs/root/r.wt/a"
+GO=$("$GT" linked "$GL/code" "$GL/code/r.wt/a/a.txt")
+check "git: under the plain root, three checkouts" "code/r code/r.wt/a code/r/.worktrees/h" "$(gl_trees)"
+GO=$("$GT" linked "$GL/my/docs/root" "$GL/my/docs/root/r.wt/a/a.txt")
+check "git: under the link, one per folder, the deeper name kept" "$gl_lk" "$(gl_trees)"
+check "  and a new file, named by its resolved folder, reaches that checkout's status" "my/docs/root/r.wt/a yes" \
+  "$(printf '%s' "$GO" | json "'%s %s' % (j['at'].$gl_rel, 'yes' if j['untrackedAfter'] == j['untrackedBefore'] + 1 else j)")"
+GO=$("$GT" linked "$GL/code:$GL/my/docs/root" "$GL/code/r.wt/a/a.txt")
+check "git: with the link and its target both listed, one per folder, the same three" "$gl_lk" "$(gl_trees)"
+GO=$("$GT" linked "$GL/my/docs/root:$GL/code" "$GL/code/r.wt/a/a.txt")
+check "  in either order" "$gl_lk" "$(gl_trees)"
+
 echo "-- bench: about 100 worktrees"
 GB="$G/bench/roots"; mkdir -p "$GB"
 gb_t0=$(python3 -c 'import time; print(time.time())')
