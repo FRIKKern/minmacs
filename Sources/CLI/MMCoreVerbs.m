@@ -655,7 +655,7 @@ static int RemovalWaiting(MMArgs *a) {
     for (MMRemovalWaitingItem *i in items) {
         [a print:@"%@  %@, %@: %@%@.", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [NSString stringWithFormat:@" (%@)", i.detail] : @""];
         // What MinMacs may not act on is moved by hand: the exact path it waits at, and where it was.
-        [a print:@"    was at %@. %@", i.oldPath ?: @"a place its record does not say",
+        [a print:@"    %@ %@", i.wasWords,
                  i.canDelete && i.canPutBack ? @"Delete it with --delete, or put it back with --put-back." : i.canDelete ? @"Delete it with --delete."
                  : i.canPutBack ? @"Put it back with --put-back."
                  : [NSString stringWithFormat:@"MinMacs does not act on it. To keep it, move it by hand from %@%@.", i.stagedAt, i.oldPath ? [@" back to " stringByAppendingString:i.oldPath] : @""]];

@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 
 @interface MMRemovalWaitingItem ()
-@property (readwrite, copy) NSString *itemID, *name, *oldPath, *stagedAt, *detail, *wrapUpRid, *partRid;
+@property (readwrite, copy) NSString *itemID, *name, *oldPath, *listedOldPath, *stagedAt, *detail, *wrapUpRid, *partRid;
 @property (readwrite) int64_t bytes;
 @property (readwrite) MMRemovalWaitWhy why;
 @property (readwrite) BOOL canDelete, canPutBack;
@@ -27,10 +27,14 @@
     }
     return @"its record is damaged";
 }
+- (NSString *)wasWords {
+    if (self.listedOldPath) return [NSString stringWithFormat:@"The list of its staging folder holds this name for a file with another id, which was at %@. MinMacs cannot tell that this is that file.", self.listedOldPath];
+    return [NSString stringWithFormat:@"was at %@.", self.oldPath ?: @"a place its record does not say"];
+}
 - (NSString *)whyWord { return @[@"delete-failed", @"old-path-taken", @"put-back-failed", @"damaged", @"no-wrap-up"][self.why]; }
 - (NSDictionary *)json {
     id (^or)(id) = ^id(id v) { return v ?: NSNull.null; };
-    return @{@"id": self.itemID, @"name": self.name ?: @"", @"oldPath": or(self.oldPath), @"stagedAt": self.stagedAt, @"bytes": @(self.bytes),
+    return @{@"id": self.itemID, @"name": self.name ?: @"", @"oldPath": or(self.oldPath), @"listedOldPath": or(self.listedOldPath), @"stagedAt": self.stagedAt, @"bytes": @(self.bytes),
              @"why": self.whyWord, @"whyWords": self.whyWords, @"detail": or(self.detail), @"wrapUp": or(self.wrapUpRid), @"part": self.partRid,
              @"canDelete": @(self.canDelete), @"canPutBack": @(self.canPutBack)};
 }
@@ -115,10 +119,14 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
             // its record never named lies in a folder MMRemovalStranded found with MinMacs's marker for this Wrap Up.
             NSString *in = folder ?: (k >= staged.count ? MMRemovalRealPath(to.stringByDeletingLastPathComponent) : nil);
             if ((running && !damaged) || !There(to) || !In(in, to)) continue;
-            MMRemovalWaitingItem *i = Item(r, to, from);
+            // Another file than the one the folder's list names under this name, issue #79: the list's old path is
+            // that other file's, so it is not given as this one's own, and nothing is said to sit at "its old place".
+            NSString *listed = MMRemovalStagingListsAnother(to);
+            MMRemovalWaitingItem *i = Item(r, to, listed ? nil : from);
+            i.listedOldPath = listed;
             // A part whose Wrap Up has no record: nobody can tell that MinMacs staged it. It is listed, so the person
             // sees it, and MinMacs takes no act on it.
-            i.why = damaged ? MMRemovalWaitDamaged : !parent ? MMRemovalWaitNoWrapUp : began ? MMRemovalWaitDeleteFailed : There(from) ? MMRemovalWaitOldPathTaken : MMRemovalWaitPutBackFailed;
+            i.why = damaged ? MMRemovalWaitDamaged : !parent ? MMRemovalWaitNoWrapUp : began ? MMRemovalWaitDeleteFailed : !listed && There(from) ? MMRemovalWaitOldPathTaken : MMRemovalWaitPutBackFailed;
             // What the act itself would refuse is not offered: the list says so, and why.
             // That is also an old path other than the one the staging folder holds for the item: a put-back with no
             // path of the person's own would go there.
