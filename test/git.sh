@@ -164,6 +164,7 @@ GO=$("$GT" facts "$GX/roots")
 check "  and the next walk reads its status again, since no stream sees it" "1|1" "$(gf "$GX/away" dirty)|$(gs statusRuns)"
 
 . test/git/bytes.sh
+. test/git/config.sh
 
 echo "-- bench: about 100 worktrees"
 GB="$G/bench/roots"; mkdir -p "$GB"
