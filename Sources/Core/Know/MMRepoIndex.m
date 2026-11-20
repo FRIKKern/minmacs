@@ -13,6 +13,7 @@
 #import "Core/Runtime/MMWorker.h"
 #import "Core/Senses/MMFolders.h"
 #import "Core/Store/MMStore.h"
+#include <os/lock.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
 
@@ -42,9 +43,11 @@ static NSArray<NSString *> *SkipNames(void) {
              @".dart_tool"];
 }
 
+/// path is folder or inside it, as text. It allocates nothing: the holder lookups run it per checkout.
 static BOOL PathIn(NSString *path, NSString *folder) {
-    if (!path.length || !folder.length) return NO;
-    return [path isEqualToString:folder] || [path hasPrefix:[folder hasSuffix:@"/"] ? folder : [folder stringByAppendingString:@"/"]];
+    NSUInteger n = folder.length;
+    if (!path.length || !n || ![path hasPrefix:folder]) return NO;
+    return path.length == n || [folder characterAtIndex:n - 1] == '/' || [path characterAtIndex:n] == '/';
 }
 
 /// With MINMACS_HOME set, as in a test or the bench, git and size walks run only inside MINMACS_HOME or one of
@@ -113,9 +116,66 @@ NSString *MMWorktreeOtherForm(MMWorktree *w, NSString *path) {
     return [to stringByAppendingString:[path substringFromIndex:from.length]];
 }
 
+/// The checkouts of one array by name, so a holder lookup walks up path's folders, a few dictionary reads, rather
+/// than every checkout. Made once per array: the index and the facts hand out the same array until the next walk.
+@interface MMWorktreeNames : NSObject
+@property (copy) NSDictionary<NSString *, MMWorktree *> *named;            // path or realPath: the first such entry
+@property (copy) NSDictionary<NSString *, NSArray<MMWorktree *> *> *real;  // realPath: its entries, in order
+@end
+@implementation MMWorktreeNames
+@end
+
+static MMWorktreeNames *NamesOf(NSArray<MMWorktree *> *trees) {
+    static NSMapTable<NSArray *, MMWorktreeNames *> *made;
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    os_unfair_lock_lock(&lock);
+    if (!made) made = [NSMapTable weakToStrongObjectsMapTable];
+    MMWorktreeNames *x = [made objectForKey:trees];
+    os_unfair_lock_unlock(&lock);
+    if (x) return x;
+    NSMutableDictionary *named = [NSMutableDictionary new], *real = [NSMutableDictionary new];
+    for (MMWorktree *w in trees) {
+        if (w.path.length && !named[w.path]) named[w.path] = w;
+        if (w.realPath.length && !named[w.realPath]) named[w.realPath] = w;
+        if (!w.realPath.length) continue;
+        if (!real[w.realPath]) real[w.realPath] = [NSMutableArray new];
+        [real[w.realPath] addObject:w];
+    }
+    x = [MMWorktreeNames new];
+    x.named = named; x.real = real;
+    os_unfair_lock_lock(&lock);
+    [made setObject:x forKey:trees];
+    os_unfair_lock_unlock(&lock);
+    return x;
+}
+
+/// The folder above p, nil at the top.
+static NSString *Up(NSString *p) {
+    NSRange r = [p rangeOfString:@"/" options:NSBackwardsSearch];
+    return r.location == NSNotFound || r.location == 0 ? nil : [p substringToIndex:r.location];
+}
+
 MMWorktree *MMWorktreeHolding(NSArray<MMWorktree *> *trees, NSString *path) {
-    // path in resolved form, through the first checkout that holds it in either form. Then the deepest checkout by its
-    // resolved path, so a checkout that only .git/worktrees names, nested in one walked by a link, still wins.
+    // path in resolved form, through the deepest name of a checkout that holds it. Then the deepest checkout by its
+    // resolved path, so a checkout that only .git/worktrees names, nested in one walked by a link, still wins. Of two
+    // entries of one folder, the one named the way path is, as the graph picks. A mutable array may change under a
+    // cache, so it is scanned, below.
+    if (!path.length) return nil;
+    if (![trees isKindOfClass:NSMutableArray.class]) {
+        MMWorktreeNames *x = NamesOf(trees);
+        NSString *real = nil;
+        for (NSString *p = path; p.length && !real; p = Up(p)) {
+            MMWorktree *w = x.named[p];
+            if (w) real = [p isEqualToString:w.path] ? MMWorktreeOtherForm(w, path) : path;
+        }
+        for (NSString *p = real; p.length; p = Up(p)) {
+            NSArray<MMWorktree *> *c = x.real[p];
+            if (!c) continue;
+            for (MMWorktree *w in c) if (PathIn(path, w.path)) return w;
+            return c.firstObject;
+        }
+        return nil;
+    }
     NSString *real = nil;
     for (MMWorktree *w in trees) {
         NSString *f = MMWorktreeFolderFor(w, path);
@@ -537,9 +597,14 @@ static void MarkFor(NSString *d, NSArray<MMWorktree *> *trees, NSDictionary<NSSt
         }
         return;
     }
-    MMWorktree *in = nil;   // the deepest that holds it, with every other entry of that folder
-    for (MMWorktree *w in trees) if (PathIn(d, w.realPath) && w.realPath.length > in.realPath.length) in = w;
-    if (in) for (MMWorktree *w in trees) if ([w.realPath isEqualToString:in.realPath]) drop[w.path] = w;
+    // The deepest checkout that holds it, with every other entry of that folder: d's folders up, in the name table.
+    MMWorktreeNames *x = NamesOf(trees);
+    for (NSString *p = d; p.length; p = Up(p)) {
+        NSArray<MMWorktree *> *c = x.real[p];
+        if (!c) continue;
+        for (MMWorktree *w in c) drop[w.path] = w;
+        break;
+    }
     if (subtrees) for (MMWorktree *w in trees) if (PathIn(w.realPath, d)) drop[w.path] = w;
 }
 
@@ -592,7 +657,7 @@ static void MarkFor(NSString *d, NSArray<MMWorktree *> *trees, NSDictionary<NSSt
                 now = [MMWorktree path:path real:x.realPath repo:repo branch:branch locked:locked];   // no realpath in the lock
                 NSMutableArray *trees = [_trees mutableCopy];
                 trees[i] = now;
-                _trees = trees;
+                _trees = [trees copy];   // immutable, as the holder lookups' name table wants
                 break;
             }
             i++;

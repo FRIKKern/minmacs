@@ -106,6 +106,8 @@ lk_ids="$lk_dir/ids"
 case "$lk_ids" in /private/*) lk_ids="$ROOT/build/linked-ids.$$" ;; esac
 case "$lk_ids" in /private/*) echo "  SKIP  linked: the id checks need a folder outside /private, and the home and the checkout are both in it"; lk_ids= ;; esac
 if [ -n "$lk_ids" ]; then
+  # A folder in build/ is outside the home that test.sh's cleanup removes, so an interrupted run removes it too.
+  case "$lk_ids" in "$ROOT"/build/*) trap 'trash "$lk_ids" 2>/dev/null; cleanup' EXIT ;; esac
   mkdir -p "$lk_ids/code" "$lk_ids/my/docs" "$lk_ids/claude/sessions" "$lk_ids/claude/projects" "$lk_ids/codex" "$lk_ids/clutter"
   lk_x=$(cd "$lk_ids" && pwd -P)
   ln -s "$lk_x/code" "$lk_x/my/docs/github"; ln -s "$lk_x/code" "$lk_x/root"; ln -s "$lk_x/code" "$lk_x/g"; ln -s "$lk_x" "$lk_x/via"
@@ -161,6 +163,7 @@ $lk_shapes
 LKEOF
   for p in $lk_sleeps; do kill "$p" 2>/dev/null; done
   trash "$lk_ids" 2>/dev/null
+  trap cleanup EXIT
 fi
 
 # Stop the server this section started, by the pid its own pid file names, while its command line is still ours.
