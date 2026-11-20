@@ -357,7 +357,10 @@ static int Work(MMArgs *a) {
         NSString *path = [a word:0] ?: a.cwd;
         if (![path isAbsolutePath]) path = [a.cwd stringByAppendingPathComponent:path];
         path = path.stringByStandardizingPath;
-        MMWorkstream *w = [s workstreamAt:path];
+        // A workstream's folder is known as its root gave it and as the kernel names it, with every link resolved.
+        // The path typed here can be a third way to the same folder, so it is resolved first.
+        char real[PATH_MAX];
+        MMWorkstream *w = (realpath(path.fileSystemRepresentation, real) ? [s workstreamAt:@(real)] : nil) ?: [s workstreamAt:path];
         if (a.json) { [a printJSON:@{@"path": path, @"workstream": w ? WorkstreamJSON(w) : NSNull.null}]; return 0; }
         if (!w) { [a print:@"No workstream holds %@.", path]; return 0; }
         NSDictionary *j = WorkstreamJSON(w);

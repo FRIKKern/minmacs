@@ -287,11 +287,17 @@ static uint64_t FactsDigest(MMFacts *f) {
             NSString *k = NoSlash(w.path ?: @"");
             if (k.length && !by[k]) by[k] = w;   // deepest first, so the first of two equal paths stays
         }
+        // Then by the resolved path the index read: a process's folder and a WorkForest finding are named by it.
+        // A path as kept wins over an equal resolved one.
+        for (MMWorktree *w in self.trees) {
+            NSString *k = NoSlash(w.realPath ?: @"");
+            if (k.length && !by[k]) by[k] = w;
+        }
         self.treeByPath = by;
     }
     NSDictionary<NSString *, MMWorktree *> *by = self.treeByPath;
     MMWorktree *w = by[path];
-    if (w && PathIn(path, w.path)) return w;
+    if (w) return w;
     // Each folder above path, deepest first: the part before each slash.
     for (NSUInteger i = path.length; i > 0;) {
         NSRange r = [path rangeOfString:@"/" options:NSBackwardsSearch | NSLiteralSearch range:NSMakeRange(0, i)];
@@ -303,6 +309,14 @@ static uint64_t FactsDigest(MMFacts *f) {
 }
 
 @end
+
+/// How much of path the workstream's folder is: the length of the folder, as kept or resolved, that holds path, or 0
+/// when neither does. Text only.
+static NSUInteger HeldBy(MMWorkstream *w, NSString *path) {
+    if (PathIn(path, w.folder)) return w.folder.length;
+    NSString *real = w.worktree.realPath;
+    return PathIn(path, real) ? real.length : 0;
+}
 
 /// Higher ranks lead a worktree's workstream: a working agent, then any agent, then a session that still works.
 static NSInteger LinkRank(MMLink *l) {
@@ -516,7 +530,7 @@ static NSString *SizeBucket(uint64_t bytes) {
         for (MMFinding *f in all) if ([f.owner isWithin:w.owner]) { [fs addObject:f]; found += f.cost.diskFreed; }
         NSMutableArray *cl = [NSMutableArray new];
         for (MMClutterItem *c in facts.clutter)
-            if (PathIn(c.ownerPath.length ? c.ownerPath : c.path, w.folder)) { [cl addObject:c]; items += c.size.freedIfDeleted; }
+            if (HeldBy(w, c.ownerPath.length ? c.ownerPath : c.path)) { [cl addObject:c]; items += c.size.freedIfDeleted; }
         uint64_t bytes = MAX(found, items);
         w.findings = [fs copy];
         w.clutter = [cl copy];
@@ -552,8 +566,11 @@ static NSString *SizeBucket(uint64_t bytes) {
 
 - (MMWorkstream *)workstreamAt:(NSString *)path {
     MMWorkstream *best = nil;
-    for (MMWorkstream *w in self.workstreams)
-        if (PathIn(path, w.folder) && w.folder.length > best.folder.length) best = w;
+    NSUInteger most = 0;
+    for (MMWorkstream *w in self.workstreams) {
+        NSUInteger held = HeldBy(w, path);
+        if (held > most) { best = w; most = held; }
+    }
     return best;
 }
 
