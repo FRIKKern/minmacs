@@ -96,6 +96,8 @@ printf 'x\n' >>"$GYR/g3/wt/base.txt"; gq -C "$GYR/g3/wt" stash push -q -m locked
 chmod 000 "$GYR/g3/main/.git/logs/refs/stash"
 gy_case "$GYR" g4 open
 chmod 000 "$GYR/g4/main/.git/packed-refs"
+gy_case "$GYR" g5 open
+chmod 000 "$GYR/g5/main/.git/config"
 gy_case "$GYR" g6 open
 chmod 000 "$GYR/g6/main/.git/worktrees/wt/HEAD"
 
@@ -139,8 +141,10 @@ check "bytes: a stash log that cannot be opened is not known, and keeps" "-1|can
   "$(gy g3 stashes)|$(gy g3 smart)"
 check "bytes: packed-refs that cannot be opened: HEAD not known, the remote branch not gone" "None|-1|origin/g4|False" \
   "$(gy g4 head)|$(gy g4 unpushed)|$(gy g4 upstream)|$(gy g4 upstreamGone)"
-check "bytes: a HEAD that cannot be opened: nothing counted as 0" "None|-1|-1" \
-  "$(gy g6 head)|$(gy g6 unpushed)|$(gy g6 stashes)"
+check "bytes: a config that cannot be opened: the upstream is not known, not none" "None|True|False" \
+  "$(gy g5 upstream)|$(gy g5 upstreamUnknown)|$(gy g5 upstreamGone)"
+check "bytes: a HEAD that cannot be opened: nothing counted as 0" "None|-1|-1|True" \
+  "$(gy g6 head)|$(gy g6 unpushed)|$(gy g6 stashes)|$(gy g6 upstreamUnknown)"
 check "bytes: a repo with no stash log has 0 stashes" "0|0" "$(gy z stashes)|$(gy c stashes)"
 check "  and a merged clean worktree with none is Smart's to delete" "delete now" "$(gy z smart)"
 
@@ -155,4 +159,5 @@ check "bytes: a NUL in a .git file: the walk ends and finds the others" "0|0" \
   "$gy_st|$(gf "$GY/nul-gitfile/n3/wt" unpushed 2>/dev/null)"
 check "bytes: MMGitDirsOf reads no commondir that cannot be opened as a submodule's" None \
   "$(chmod 000 "$GYR/g1/main/.git/worktrees/wt/commondir"; "$GT" dirs "$GYR/g1/wt" | json "j['dirs']"; chmod 644 "$GYR/g1/main/.git/worktrees/wt/commondir")"
-chmod 644 "$GYR/g3/main/.git/logs/refs/stash" "$GYR/g4/main/.git/packed-refs" "$GYR/g6/main/.git/worktrees/wt/HEAD"
+chmod 644 "$GYR/g3/main/.git/logs/refs/stash" "$GYR/g4/main/.git/packed-refs" "$GYR/g5/main/.git/config" \
+  "$GYR/g6/main/.git/worktrees/wt/HEAD"
