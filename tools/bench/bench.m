@@ -951,6 +951,16 @@ static int Menus(NSArray<NSString *> *args) {
 /// It keeps its own frame: no inlining and no tail call, so the stack shows it above usleep.
 void MMBenchStallOnPurpose(double ms) __attribute__((noinline, disable_tail_calls));
 void MMBenchStallOnPurpose(double ms) { usleep((useconds_t)(ms * 1000)); }
+/// The same on the CPU: main works until it has used ms of CPU time.
+void MMBenchBusyOnPurpose(double ms) __attribute__((noinline, disable_tail_calls));
+void MMBenchBusyOnPurpose(double ms) {
+    uint64_t until = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) + (uint64_t)(ms * 1e6);
+    volatile uint64_t n = 0;
+    while (clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) < until) n++;
+}
+/// How long main held a pass: its wall time less the time main was ready to run and had no CPU, as the watchdog
+/// reads it. That time is the Mac's load and nothing main did, issue #84.
+static double HeldMs(NSDictionary *stall) { return [stall[@"ms"] doubleValue] - [stall[@"readyMs"] doubleValue]; }
 
 static void RunUntil(BOOL (^done)(void), double seconds) {
     NSDate *end = [NSDate dateWithTimeIntervalSinceNow:seconds];
@@ -972,7 +982,8 @@ static void HoverChain(NSArray<NSMenu *> *cards, NSUInteger k, void (^each)(void
 typedef void (^MMBenchStep)(dispatch_semaphore_t done);
 
 /// Every menu open and card hover runs as its own pass of main's run loop, 3 ms after the one before, with Core
-/// running beside it. The watchdog logs any pass over 50 ms with main's stack.
+/// running beside it. The watchdog logs any pass over 50 ms with main's stack. A pass main held for 50 ms is a stall.
+/// One that was over 50 ms only with the time main had no CPU is listed apart as waited.
 static int Hangs(NSArray<NSString *> *args) {
     int rounds = Option(args, @"--rounds", @"5").intValue;
     double limit = Option(args, @"--ms", @"50").doubleValue;
@@ -993,6 +1004,11 @@ static int Hangs(NSArray<NSString *> *args) {
         RunUntil(^BOOL { return MMWatchdogStalls().count > 0; }, 5);
     }
     NSDictionary *caught = MMWatchdogStalls().firstObject ?: @{};
+    MMWatchdogReset();
+    // And a pass that works for 120 ms of CPU time: its stall has that CPU, so none of it can count as ready.
+    dispatch_async(dispatch_get_main_queue(), ^{ MMBenchBusyOnPurpose(120); });
+    RunUntil(^BOOL { return MMWatchdogStalls().count > 0; }, 5);
+    NSDictionary *busy = MMWatchdogStalls().firstObject ?: @{};
     MMWatchdogReset();
 
     MMCoreStart();
@@ -1055,12 +1071,15 @@ static int Hangs(NSArray<NSString *> *args) {
     RunUntil(^BOOL { return finished; }, 600);
     RunMain(0.3);
     MMWatchdogStop();
-    NSArray *stalls = MMWatchdogStalls();
+    NSMutableArray *stalls = [NSMutableArray new], *waited = [NSMutableArray new];
+    for (NSDictionary *s in MMWatchdogStalls()) [(HeldMs(s) >= limit ? stalls : waited) addObject:s];
     MMCoreStop();
     PrintJSON(@{@"kind": @"hangs", @"rounds": @(rounds), @"limitMs": @(limit), @"finished": @(finished),
                 @"opens": @(opens), @"liveOpens": @(liveOpens), @"hovers": @(hovers), @"opensBy": opensBy, @"hoversBy": hoversBy,
-                @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls, @"startStalls": startStalls,
+                @"passes": @(MMWatchdogPasses() - passesBefore), @"stalls": stalls, @"waited": waited, @"startStalls": startStalls,
                 @"selfCheck": @{@"tries": @(tries), @"ms": caught[@"ms"] ?: @0, @"state": caught[@"state"] ?: @"", @"what": caught[@"what"] ?: @"",
+                                @"heldMs": @(round(HeldMs(caught) * 10) / 10),
+                                @"busy": @{@"ms": busy[@"ms"] ?: @0, @"cpuMs": busy[@"cpuMs"] ?: @0, @"heldMs": @(round(HeldMs(busy) * 10) / 10)},
                                 @"named": @([[caught[@"stack"] componentsJoinedByString:@"\n"] containsString:@"MMBenchStallOnPurpose"])},
                 @"logQueriesOnMain": @(MMLogMainThreadQueries()), @"keepReadsOnMain": @(MMKeepMainThreadReads())});
     return 0;

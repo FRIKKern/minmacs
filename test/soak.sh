@@ -86,7 +86,7 @@ mkdir -p "$sk/bad"
 cp test/soak/leaky.txt "$sk/bad/leaks-1.txt"; cp test/soak/leaky.txt "$sk/bad/leaks-2.txt"
 cp "$sk/run/host.txt" "$sk/bad/" 2>/dev/null
 printf '{"n": 1, "elapsed": 10, "proc": {"footprintBytes": 10485760, "peakFootprintBytes": 10485760, "residentBytes": 1, "cpuNs": 1, "threads": 6, "fds": 25}, "leaksExit": 1, "leaks": 875, "leakedBytes": 1, "leaksSeconds": 2, "leaksFrom": 1000, "leaksTo": 1002}\n{"n": 2, "elapsed": 20, "proc": {"footprintBytes": 10485760, "peakFootprintBytes": 10485760, "residentBytes": 1, "cpuNs": 2, "threads": 6, "fds": 25}, "leaksExit": 1, "leaks": 875, "leakedBytes": 1, "leaksSeconds": 2, "leaksFrom": 2000, "leaksTo": 2002}\n' >"$sk/bad/samples.jsonl"
-printf '{"stoppedBy": "SIGTERM", "notIdle": [], "undoRecords": 0, "peakAwakeHolds": 0, "stalls": [{"ms": 300, "cpuMs": 280, "at": 1500, "what": "fixture"}, {"ms": 900, "cpuMs": 0, "at": 2002, "what": "fixture"}, {"ms": 500, "cpuMs": 2, "state": "runs", "at": 1700, "what": "fixture"}]}\n' >"$sk/bad/summary.json"
+printf '{"stoppedBy": "SIGTERM", "notIdle": [], "undoRecords": 0, "peakAwakeHolds": 0, "stalls": [{"ms": 300, "cpuMs": 280, "at": 1500, "what": "fixture"}, {"ms": 900, "cpuMs": 0, "at": 2002, "what": "fixture"}, {"ms": 500, "cpuMs": 2, "readyMs": 470, "state": "runs", "at": 1700, "what": "fixture"}, {"ms": 400, "cpuMs": 2, "readyMs": 300, "state": "runs", "at": 1800, "what": "held"}, {"ms": 200, "cpuMs": 2, "state": "runs", "at": 1900, "what": "unread"}]}\n' >"$sk/bad/summary.json"
 printf '{"died": "", "soakExit": 0, "fixturesLeft": 2, "seconds": 20, "sampleEvery": 10, "churnEvery": 3, "tag": "fixture"}\n' >"$sk/bad/churn.json"
 printf 'mmsoakfixture-2026-10-28-000000.ips\n' >"$sk/bad/reports.txt"
 python3 tools/soak/report.py "$sk/bad" >"$sk/bad/report.md"
@@ -97,6 +97,10 @@ check "soak: a stall outside a leaks window fails, one inside it is listed apart
   "$(sk_row 'no pass of main over 50 ms') $(grep '^| passes over 50 ms while leaks' "$sk/bad/report.md" | cut -d'|' -f4 | cut -d: -f1 | tr -d ' ')"
 check "soak: a pass in which main waited for a core is listed apart" 1 \
   "$(grep '^| passes over 50 ms in which main waited' "$sk/bad/report.md" | cut -d'|' -f4 | cut -d: -f1 | tr -d ' ')"
+# Issue #84: only the time the watchdog read main as ready with no CPU comes off. A pass main still held for 50 ms
+# fails, and so does one with little CPU and no such reading.
+check "soak: a pass main held for 100 ms beside its wait for a core fails, and so does one with no reading" "1 1" \
+  "$(grep '^| no pass of main over 50 ms |' "$sk/bad/report.md" | grep -c 'in held') $(grep '^| no pass of main over 50 ms |' "$sk/bad/report.md" | grep -c 'in unread')"
 check "soak: a crash report and a fixture left fail" "FAIL FAIL" "$(sk_row 'no crash, hang or spin report') $(sk_row 'no fixture left running')"
 printf '    soak: %s\n' "$(ss '"; ".join("%d s %.2f MB %d threads %d fds %s leaks" % (s["elapsed"], s["proc"]["footprintBytes"] / 1048576, s["proc"]["threads"], s["proc"]["fds"], s["leaks"]) for s in j)')"
 printf '    soak: the section took %s s\n' "$(( $(date +%s) - sk_t0 ))"

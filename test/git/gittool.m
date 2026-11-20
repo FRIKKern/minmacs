@@ -7,6 +7,7 @@
 //   bench <root> <file> <repo>            cold scan, warm full scan, one file change, one default-branch commit, timed
 //   restart-a <root>                      cold scan with FSEvents on, then stop, which saves each root's event id
 //   restart-b <root> <path>               a new process: FSEvents from the saved ids, a walk, and what git ran for
+//   midpass <root> <path>                 a change that lands in the middle of an update pass: how often git status ran
 //   moves <root> <path> <branch>          FSEvents on, a branch switch and a lock in path: when the index shows each
 #import <Foundation/Foundation.h>
 #import "Core/Know/MMGit.h"
@@ -269,6 +270,41 @@ static int RestartB(NSString *root, NSString *path) {
     return 0;
 }
 
+/// Issue #84: a change to w that lands while an update pass is at that worktree, as the stream's callback would
+/// bring it. Returns how many times git status ran, or -1 when the pass never came to the step.
+static NSInteger LandAt(NSString *step, MMWorktree *w, void (^startPass)(void)) {
+    MMRepoIndex *ix = MMRepoIndex.shared;
+    NSSet *changed = [NSSet setWithObject:w.path];
+    NSInteger before = Stat(@"statusRuns");
+    __block BOOL landed = NO;
+    MMRepoIndexTestStep = ^(NSString *at, NSString *path) {
+        if (landed || ![at isEqualToString:step] || ![path isEqualToString:w.path]) return;
+        landed = YES;
+        [ix invalidate:changed subtrees:NO];
+    };
+    startPass();
+    Settle();
+    Settle();   // the pass the landed change queued started after the first wait, so a second wait covers it
+    MMRepoIndexTestStep = nil;
+    return landed ? Stat(@"statusRuns") - before : -1;
+}
+
+static int MidPass(NSString *root, NSString *path) {
+    MMRepoIndex *ix = MMRepoIndex.shared;
+    ix.roots = @[root.stringByStandardizingPath];
+    Scan();
+    MMWorktree *w = TreeAt(path);
+    // A walk's pass reads the worktree's fingerprints and runs no git. The change lands before the pass reads the
+    // cached status, so the pass itself answers it: one git status.
+    NSInteger beforeRead = LandAt(@"read", w, ^{ Scan(); });
+    // A first change makes the pass run git status. A second one lands after git ran, so the answer may be older
+    // than it: one git status for each.
+    NSInteger afterGit = LandAt(@"write", w, ^{ [ix invalidate:[NSSet setWithObject:w.path] subtrees:NO]; });
+    Drain();
+    Print(@{@"beforeRead": @(beforeRead), @"afterGit": @(afterGit)});
+    return 0;
+}
+
 /// Off main, as every git run must be.
 static void GitOff(NSString *dir, NSArray *args) {
     dispatch_semaphore_t s = dispatch_semaphore_create(0);
@@ -317,6 +353,7 @@ int main(int argc, const char **argv) {
         if ([cmd isEqualToString:@"bench"] && a.count == 3) return Bench(a[0], a[1], a[2]);
         if ([cmd isEqualToString:@"restart-a"] && a.count == 1) return RestartA(a[0]);
         if ([cmd isEqualToString:@"restart-b"] && a.count == 2) return RestartB(a[0], a[1]);
+        if ([cmd isEqualToString:@"midpass"] && a.count == 2) return MidPass(a[0], a[1]);
         if ([cmd isEqualToString:@"moves"] && a.count == 3) return Moves(a[0], a[1], a[2]);
         fprintf(stderr, "unknown command\n");
         return 2;

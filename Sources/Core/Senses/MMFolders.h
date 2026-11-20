@@ -8,6 +8,8 @@
 /// because FSEvents takes at most 8 exclusion paths.
 /// rescan is YES when FSEvents set MustScanSubDirs for a folder. Then only that folder is walked again.
 /// changed runs on MMQueue(@"core", name), never on main.
+/// FSEvents may deliver an event of the replay a second time, with the same id. The second one is not passed on,
+/// unless it asks for a rescan or says a volume or the root moved.
 @interface MMFolderWatch : NSObject
 + (instancetype)watch:(NSArray<NSString *> *)roots name:(NSString *)name skip:(NSArray<NSString *> *)skip
               changed:(void (^)(NSSet<NSString *> *dirs, BOOL rescan))changed;
@@ -15,3 +17,13 @@
 @property (readonly) NSArray<NSString *> *roots;
 - (void)stop;
 @end
+
+#ifdef MM_TESTS
+#import <CoreServices/CoreServices.h>
+/// Compiled only with -DMM_TESTS. A watch with no stream, as one is right after a start with a saved id, and the
+/// stream's callback, so a check hands it the batches FSEvents would. Issue #84.
+@interface MMFolderWatch (Checks)
++ (instancetype)replayingWatchNamed:(NSString *)name changed:(void (^)(NSSet<NSString *> *dirs, BOOL rescan))changed;
+- (void)handle:(size_t)n paths:(char **)paths flags:(const FSEventStreamEventFlags *)flags ids:(const FSEventStreamEventId *)ids;
+@end
+#endif
