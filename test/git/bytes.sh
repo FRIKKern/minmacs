@@ -65,6 +65,8 @@ open(p, 'wb').write(d)
 PYEOF
 printf 'ref: refs/heads/caf\351\n' >"$GYR/e/main/.git/worktrees/wt/HEAD"
 gy_stash_line "$GYR/e/main" 'On caf\351: by hand'
+# Another name that reads the same with U+FFFD, whose upstream is gone: it must not stand in for caf\351's.
+printf '[branch "caf\350"]\n\tremote = origin\n\tmerge = refs/heads/nothere\n' >>"$GYR/e/main/.git/config"
 check "bytes: git reads HEAD there, with 1 commit on no remote" "$(git -C "$GYR/e/main" rev-parse "$(printf 'caf\351')")|1" \
   "$(git -C "$GYR/e/wt" rev-parse HEAD)|$(git -C "$GYR/e/wt" rev-list --count HEAD --not --remotes)"
 
@@ -132,6 +134,8 @@ check "bytes: a Latin-1 config still gives the upstream" "origin/d|False|0/0" \
 check "bytes: a branch name that is not UTF-8 shows, with U+FFFD" "caf$FFFD|caf$FFFD" "$(gy e indexBranch)|$(gy e branch)"
 check "  its HEAD is not known, so its commits are not counted as 0" "None|-1|-1|none" \
   "$(gy e head)|$(gy e unpushed)|$(gy e notInDefault)|$(gy e merged)"
+check "  and no config section is read for it, not even one that reads the same" "None|True|False" \
+  "$(gy e upstream)|$(gy e upstreamUnknown)|$(gy e upstreamGone)"
 check "  its stash counts, and Smart keeps a way back" "1|cannot verify what git holds of it" "$(gy e stashes)|$(gy e smart)"
 check "bytes: a NUL byte in a stash line counts" 1 "$(gy f1 stashes)"
 check "bytes: a CRLF config gives the upstream, not gone" "origin/f2|False|its branch is not merged and its remote branch still exists" \

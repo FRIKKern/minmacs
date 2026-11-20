@@ -56,3 +56,7 @@ typedef NS_ENUM(NSInteger, MMPlainPart) {
 /// A file is read as long as it was when opened: one that shrinks gives what it still holds. A read error gives nil.
 /// MMPlainFile.m.
 NSData *MMReadPlain(NSString *path, NSUInteger max, MMPlainPart part);
+/// MMReadPlain that says why it gave nil, issue #116, so "missing" is told from "there and not read" with no second
+/// look. *why is 0 with bytes, else the errno of the stat, open or read that failed: ENOENT or ENOTDIR when nothing is
+/// there, EISDIR for a folder, EFTYPE for a named pipe, a socket or a device, EFBIG for a whole file past max.
+NSData *MMReadPlainWhy(NSString *path, NSUInteger max, MMPlainPart part, int *why);

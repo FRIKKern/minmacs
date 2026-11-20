@@ -133,7 +133,7 @@ The `.env` file and every other file content are never read for this. For an Erl
 | `unpushed_commits` | Commits on no remote and not in the default branch |
 | `commits_not_in_default` | Commits not in the default branch |
 | `merged` | How the branch reached the default branch: ancestor, tree, patch, squash, pr or merge-tree |
-| `upstream` | The remote branch, `gone` when it was deleted, `none` when it was never pushed |
+| `upstream` | The remote branch, `gone` when it was deleted, `none` when it was never pushed, `unknown` when git's files that say it cannot be read |
 | `on_remote` | Whether HEAD is on some remote |
 | `last_commit_days_ago` | Days since the last commit |
 | `git_facts` | "not read yet", when git facts are not known yet |

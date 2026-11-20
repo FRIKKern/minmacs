@@ -87,7 +87,7 @@ static const NSUInteger kGitFileMax = 256u * 1024 * 1024;
 // Issue #116: git's files are bytes, and a fact read from one that cannot be read is not known, never none.
 //
 //   the file is                                 what it gives
-//   missing                                     none: no stash, no such ref, no config section
+//   missing, or a link to nothing               none: no stash, no such ref, no config section
 //   there and read                              its lines, split on the byte \n, a \r before it dropped. A byte that
 //                                               starts no UTF-8 sequence, and a NUL, reads as U+FFFD, so the line
 //                                               still counts and a name in it still shows
@@ -100,15 +100,10 @@ static const NSUInteger kGitFileMax = 256u * 1024 * 1024;
 /// What a file that is there and cannot be read gives, and the sha of a ref that cannot be known. Compared by pointer.
 static NSString *const kUnread = @"(not read)";
 
-/// YES when nothing is at path, the one case a file git did not write is none. lstat, so a link to nothing is there.
-/// dirToo, for a loose ref: a folder there is no ref, as git reads it, since it holds refs below that name.
-static BOOL Missing(NSString *path, BOOL dirToo) {
-    const char *p = path.fileSystemRepresentation;
-    struct stat st;
-    if (!p) return NO;
-    if (lstat(p, &st) == 0) return dirToo && S_ISDIR(st.st_mode);
-    return errno == ENOENT || errno == ENOTDIR;
-}
+/// YES when why, the errno of the stat or read that found no file, says nothing is there: the one case a file git did
+/// not write is none. A link to nothing is none too, as git's own fopen finds it. dirToo, for a loose ref: a folder
+/// there is no ref, as git reads it, since it holds refs below that name.
+static BOOL Missing(int why, BOOL dirToo) { return why == ENOENT || why == ENOTDIR || (dirToo && why == EISDIR); }
 
 /// The length of the UTF-8 sequence at s, or 0 when none starts there: the strict rules Foundation decodes by, with
 /// no overlong form, no surrogate and nothing past U+10FFFF. A NUL counts as none.
@@ -188,11 +183,12 @@ static BOOL NameUsable(NSString *s) {
 /// and #96: through MMReadPlain, so only a plain file is opened, and a named pipe under one of those names, as a .git
 /// in a folder that is scanned can be, is not read.
 static NSString *Line(NSString *path, BOOL *unread, BOOL ref) {
-    NSData *d = MMReadPlain(path, kGitFileMax, MMPlainWhole);
+    int why = 0;
+    NSData *d = MMReadPlainWhy(path, kGitFileMax, MMPlainWhole, &why);
     BOOL lossy = NO;
     NSString *s = d ? Text(d.bytes, d.length, &lossy) : nil;
     if (lossy && !(d.length >= 5 && !memcmp(d.bytes, "ref: ", 5))) s = nil;
-    if (unread) *unread = d ? !s : !Missing(path, ref);
+    if (unread) *unread = d ? !s : !Missing(why, ref);
     return [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
 }
 
@@ -200,13 +196,17 @@ NSString *MMReadLine(NSString *path) { return Line(path, NULL, NO); }
 
 static NSString *ReadLine(NSString *path) { return Line(path, NULL, NO); }
 
-/// mtime, size and inode, or "-" when the file is missing. A rewrite of the file always moves it.
-static NSString *Stamp(NSString *path) {
+/// mtime, size and inode, or "-" when the file is missing. A rewrite of the file always moves it. *why, when given, is
+/// the errno of a stat that failed.
+static NSString *StampWhy(NSString *path, int *why) {
     struct stat st;
-    if (stat(path.fileSystemRepresentation, &st) != 0) return @"-";
+    const char *p = path.fileSystemRepresentation;
+    if (!p || stat(p, &st) != 0) { if (why) *why = p ? errno : EINVAL; return @"-"; }
     return [NSString stringWithFormat:@"%ld.%09ld:%lld:%llu", (long)st.st_mtimespec.tv_sec, st.st_mtimespec.tv_nsec,
             (long long)st.st_size, (unsigned long long)st.st_ino];
 }
+
+static NSString *Stamp(NSString *path) { return StampWhy(path, NULL); }
 
 static BOOL IsSha(NSString *s) {
     if (s.length != 40 && s.length != 64) return NO;
@@ -219,14 +219,15 @@ static BOOL IsSha(NSString *s) {
 static id Parsed(NSString *path, id (^parse)(NSArray<NSString *> *lines)) {
     static NSMutableDictionary<NSString *, NSArray *> *memo; static dispatch_once_t once;
     dispatch_once(&once, ^{ memo = [NSMutableDictionary new]; });
-    NSString *stamp = Stamp(path);
-    if ([stamp isEqualToString:@"-"]) return Missing(path, NO) ? parse(@[]) ?: NSNull.null : kUnread;
+    int why = 0;
+    NSString *stamp = StampWhy(path, &why);
+    if ([stamp isEqualToString:@"-"]) return Missing(why, NO) ? parse(@[]) ?: NSNull.null : kUnread;
     @synchronized (memo) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }
-    NSData *bytes = MMReadPlain(path, kGitFileMax, MMPlainWhole);
-    if (!bytes) return Missing(path, NO) ? parse(@[]) ?: NSNull.null : kUnread;
+    NSData *bytes = MMReadPlainWhy(path, kGitFileMax, MMPlainWhole, &why);
+    if (!bytes) return Missing(why, NO) ? parse(@[]) ?: NSNull.null : kUnread;
     id value = parse(FileLines(bytes)) ?: NSNull.null;
     @synchronized (memo) {
         if (memo.count > 512) [memo removeAllObjects];
@@ -372,9 +373,11 @@ NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
         break;
     }
 
-    // The upstream, from [branch "x"] remote and merge.
-    id cfg = f[@"branch"] ? BranchConfig(common) : nil;
-    if (cfg == kUnread || (headUnread && !f[@"branch"])) f[@"upUnread"] = @YES;
+    // The upstream, from [branch "x"] remote and merge. A branch whose name NameUsable refuses could read the section
+    // of another name that reads the same, so its upstream is not known.
+    BOOL named = f[@"branch"] && NameUsable(f[@"branch"]);
+    id cfg = named ? BranchConfig(common) : nil;
+    if (cfg == kUnread || (f[@"branch"] && !named) || (headUnread && !f[@"branch"])) f[@"upUnread"] = @YES;
     NSDictionary *b = [cfg isKindOfClass:NSDictionary.class] ? cfg[f[@"branch"]] : nil;
     NSString *remote = Str(b[@"remote"]), *merge = Str(b[@"merge"]);
     if (remote && [merge hasPrefix:@"refs/heads/"]) {

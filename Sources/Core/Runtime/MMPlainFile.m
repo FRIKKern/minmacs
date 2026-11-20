@@ -17,27 +17,38 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-NSData *MMReadPlain(NSString *path, NSUInteger max, MMPlainPart part) {
+NSData *MMReadPlain(NSString *path, NSUInteger max, MMPlainPart part) { return MMReadPlainWhy(path, max, part, NULL); }
+
+/// Not a plain file: EISDIR for a folder, EFTYPE for anything else.
+static int NotPlain(const struct stat *st) { return S_ISDIR(st->st_mode) ? EISDIR : EFTYPE; }
+
+NSData *MMReadPlainWhy(NSString *path, NSUInteger max, MMPlainPart part, int *why) {
+    int none = 0;
+    if (!why) why = &none;
+    *why = ENOENT;
     if (!path.length) return nil;
     const char *p = path.fileSystemRepresentation;
     struct stat st;
-    if (!p || stat(p, &st) != 0 || !S_ISREG(st.st_mode)) return nil;
+    if (!p) { *why = EINVAL; return nil; }
+    if (stat(p, &st) != 0) { *why = errno; return nil; }
+    if (!S_ISREG(st.st_mode)) { *why = NotPlain(&st); return nil; }
     int fd = open(p, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-    if (fd < 0) return nil;
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0) { close(fd); return nil; }
+    if (fd < 0) { *why = errno; return nil; }
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0) { *why = EFTYPE; close(fd); return nil; }
     unsigned long long size = (unsigned long long)st.st_size;
-    if (part == MMPlainWhole && size > max) { close(fd); return nil; }
+    if (part == MMPlainWhole && size > max) { *why = EFBIG; close(fd); return nil; }
     size_t want = (size_t)MIN(size, (unsigned long long)max);
     off_t from = part == MMPlainTail ? (off_t)(size - want) : 0;
     NSMutableData *d = [NSMutableData dataWithLength:want];
     size_t got = 0;
     while (got < want) {
         ssize_t n = pread(fd, (char *)d.mutableBytes + got, want - got, from + (off_t)got);
-        if (n < 0) { if (errno == EINTR) continue; close(fd); return nil; }
+        if (n < 0) { if (errno == EINTR) continue; *why = errno ?: EIO; close(fd); return nil; }
         if (n == 0) break;   // it shrank since the fstat
         got += (size_t)n;
     }
     close(fd);
     d.length = got;
+    *why = 0;
     return d;
 }
