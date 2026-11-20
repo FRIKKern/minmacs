@@ -177,6 +177,8 @@ def main():
     if hangs:
         out.append("Watchdog: %d menu opens and %d card hovers in %d passes of main, %d of them on the live snapshot. %d stalls over %s ms." % (
             hangs["opens"] + hangs["liveOpens"], hangs["hovers"], hangs["passes"], hangs["liveOpens"], len(hangs["stalls"]), hangs["limitMs"]))
+        if hangs.get("waited"):
+            out.append("%d more passes over %s ms that main held for less: the rest of the time it was ready to run and had no CPU." % (len(hangs["waited"]), hangs["limitMs"]))
         for st in hangs["stalls"]:
             out.append("- %s ms, %s ms CPU, %s, in %s" % (st["ms"], st["cpuMs"], st["state"], st["what"]))
         out.append("")

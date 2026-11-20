@@ -123,11 +123,17 @@ bn_env "$bn_bin" hangs --rounds 4 >"$bn/hangs.json" 2>"$bn/hangs.err"
 check "bench: the watchdog run exits 0 and finishes" "0 True" "$? $(json 'j["finished"]' <"$bn/hangs.json" 2>/dev/null)"
 bh() { json "$1" <"$bn/hangs.json" 2>/dev/null; }
 check "bench: the watchdog catches a stall made on purpose, with its stack" "yes True" "$(bh '"yes" if j["selfCheck"]["ms"] >= 100 else j["selfCheck"]["ms"]') $(bh 'j["selfCheck"]["named"]')"
+# Issue #84: the time main was ready to run and had no CPU comes off a pass. Main asleep is still a stall after that,
+# and main busy has its CPU in the stall, so none of it comes off.
+check "bench: a pass asleep on purpose is a stall with the time main had no CPU off, and a busy one has its CPU" "yes yes" \
+  "$(bh '"yes" if j["selfCheck"]["heldMs"] >= 50 else j["selfCheck"]["heldMs"]') $(bh '"yes" if j["selfCheck"]["busy"]["cpuMs"] >= 100 and j["selfCheck"]["busy"]["heldMs"] >= 100 else j["selfCheck"]["busy"]')"
 check "bench: the watchdog opens every expert's menu" "$bn_linked" "$(bh 'sum(1 for v in j["opensBy"].values() if v >= 4)')"
 check "bench: the watchdog hovers every expert's cards" "$bn_linked" "$(bh 'sum(1 for v in j["hoversBy"].values() if v >= 4)')"
 check "bench: the menus opened on Core's live snapshots too" yes "$(bh '"yes" if j["liveOpens"] >= 4 * len(j["opensBy"]) else j["liveOpens"]')"
 check "bench: no pass of main over 50 ms in menu opens and card hovers" 0 "$(bh 'len(j["stalls"])')"
-[ "$(bh 'len(j["stalls"])')" = 0 ] || bh '"\n".join("    stall %s ms, %s ms CPU, %s, in %s" % (s["ms"], s["cpuMs"], s["state"], s["what"]) for s in j["stalls"])'
+[ "$(bh 'len(j["stalls"])')" = 0 ] || bh '"\n".join("    stall %s ms, %s ms CPU, %s ms ready with no CPU, %s, in %s" % (s["ms"], s["cpuMs"], s["readyMs"], s["state"], s["what"]) for s in j["stalls"])'
+# A pass over 50 ms that main held for less: the rest of it main was ready to run and the Mac gave it no CPU.
+echo "  info  $(bh 'len(j["waited"])') passes over 50 ms that main held for less$(bh '"".join(", %s ms with %s ms ready and no CPU in %s" % (s["ms"], s["readyMs"], s["what"]) for s in j["waited"])')"
 # Core's start and first snapshot are counted apart and only reported: menu opens and hovers are what the gate reads.
 echo "  info  $(bh 'len(j.get("startStalls", []))') stalls over 50 ms in Core's start$(bh '"".join(", %s ms in %s" % (s["ms"], s["what"]) for s in j.get("startStalls", []))')"
 check "bench: the watchdog run ran no log query on main" 0 "$(bh 'j["logQueriesOnMain"]')"

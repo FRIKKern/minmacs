@@ -124,6 +124,9 @@ check "the pass does not run on main" False "$(sj 'j["readOnMain"]')"
 check "nil goes back to the real power source" 1 "$(sj 'j["realAgain"]')"
 check "nm reads the release build's Senses symbols" yes "$(nm "$BIN" 2>/dev/null | grep -q MMProcAlive && echo yes || echo no)"
 check "the release build has no fake power source" 0 "$(nm "$BIN" 2>/dev/null | grep -c MMUsePowerSource)"
+check "strings reads the release build's selectors" yes "$(strings -a -arch all "$BIN" 2>/dev/null | grep -q 'watch:name:skip:changed:' && echo yes || echo no)"
+check "the release build has no test step in the index and no test folder watch, issue #84" "0 0" \
+  "$(nm "$BIN" 2>/dev/null | grep -c MMRepoIndexTestStep) $(strings -a -arch all "$BIN" 2>/dev/null | grep -c replayingWatchNamed)"
 
 # P3. A turn past its budget skips the next one, and a watched task is ended at the deadline.
 sn_out=$(sn job)
@@ -152,6 +155,9 @@ check "stop saves the event id" 1 "$(sj 'j["savedId"]')"
 check "the next watch replays what changed while stopped" True "$(sj 'j["replayed"]')"
 check "it replays nothing from before the saved id" False "$(sj 'j["replayedBeforeSavedId"]')"
 check "callbacks run on the watch's queue" no.guerrilla.minmacs.core.fixture "$(sj 'j["label"]')"
+check "a replayed event that FSEvents delivers once more is passed on once, and no other is left out" \
+  "/w/five /w/seven /w/six /w/eight" "$(sj 'j["passedOn"]')"
+check "  and one that comes again with a call for a rescan is passed on" /w/seven "$(sj 'j["rescans"]')"
 
 # P4. The worker child: repo discovery, the Sizer call, a crash mid-request and a restart.
 sn_repos="$sn_dir/repos"; mkdir -p "$sn_repos" "$sn_dir/outside"
