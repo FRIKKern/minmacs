@@ -667,7 +667,18 @@ static NSDictionary *ItemJSON(MMFinding *f) {
             [out addObject:@{@"kindID": f.facts[@"kindID"], @"title": f.facts[@"kindTitle"], @"trend": t}];
         }
         MMNNView *v = [self viewFor:s];
-        if (a.json) { [a printJSON:@{@"trends": out, @"growthLine": v.growthLine ?: @""}]; return MMExitOK; }
+        // Issue #89: the whole volume beside the rows, so growth that no row names shows up as the difference.
+        MMClutterTrend vt = [MMClutterCatalog.shared volumeTrend];
+        double explained = 0;
+        for (NSDictionary *x in out) explained += [x[@"trend"][@"bytesPerDay"] doubleValue];
+        uint64_t swap = MMClutterSwapUsed();
+        if (a.json) {
+            NSMutableDictionary *j = [@{@"trends": out, @"growthLine": v.growthLine ?: @"", @"swapBytes": @(swap)} mutableCopy];
+            if (vt.ok) j[@"volume"] = @{@"bytesPerDay": @(vt.bytesPerDay), @"windowDays": @(vt.windowDays), @"firstBytes": @(vt.firstBytes),
+                                        @"lastBytes": @(vt.lastBytes), @"rowsBytesPerDay": @(explained)};
+            [a printJSON:j];
+            return MMExitOK;
+        }
         if (v.growthLine) [a print:@"%@", v.growthLine];
         for (NSDictionary *x in out) {
             NSDictionary *t = x[@"trend"];
@@ -676,6 +687,15 @@ static NSDictionary *ItemJSON(MMFinding *f) {
                      MMPlural([t[@"windowDays"] integerValue], @"day"), MMBytes((uint64_t)[t[@"lastBytes"] doubleValue])];
         }
         if (!out.count) [a print:@"Noo-Noo has fewer than two days of sizes for every row"];
+        if (vt.ok) {
+            [a print:@"  %-28@ %@%@ a day over %@, now %@ used", @"The whole disk", vt.bytesPerDay < 0 ? @"-" : @"+", MMBytes((uint64_t)fabs(vt.bytesPerDay)),
+                     MMPlural(vt.windowDays, @"day"), MMBytes((uint64_t)vt.lastBytes)];
+            if (vt.bytesPerDay > 0 && explained < vt.bytesPerDay) {
+                double rest = vt.bytesPerDay - MAX(0, explained);
+                [a print:@"The rows explain %@ a day of that. %@ a day grows in folders no row names.", MMBytes((uint64_t)MAX(0, explained)), MMBytes((uint64_t)rest)];
+            }
+        }
+        if (swap >= 1024ull * 1024 * 1024) [a print:@"Swap holds %@ of the disk now. It comes back when memory does.", MMBytes(swap)];
         return MMExitOK;
     }
     if ([sub isEqualToString:@"show"]) {

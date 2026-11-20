@@ -119,6 +119,8 @@ extern NSNotificationName const MMClutterDidChangeNotification;
 @property (readonly) NSDate *lastScan;
 /// The item at this path read again from disk, with its state and size, or nil when it is gone. Blocks.
 - (MMClutterItem *)inspect:(MMClutterItem *)item;
+/// The trend of the whole volume's used bytes over the trend window, from the points the scans wrote. Issue #89.
+- (MMClutterTrend)volumeTrend;
 /// The row that lists path, or nil when no row does.
 - (MMClutterKind *)kindFor:(NSString *)path;
 /// Why path must not be touched, or nil when it may. Only a path a listed row names may ever be acted on.
@@ -153,6 +155,15 @@ NSString *MMClutterToolPath(NSString *name);
 MMClutterTrend MMClutterTrendOf(NSData *points, NSDate *now);
 /// The trend series of one row in the log, such as "noonoo.disk.pnpm-store".
 NSString *MMClutterSeries(NSString *kindID);
+
+/// The row name of the series that holds the used bytes of the whole volume, one point a day, issue #89.
+/// Every scan writes it, so `clutter trends` can say how much of the disk's growth the rows explain.
+extern NSString *const MMClutterVolumeKind;
+/// The used bytes of the volume the home folder is on, from statfs, 0 when it fails. With MINMACS_HOME set it is
+/// $MINMACS_TEST_VOLUME_USED, or 0, so a test never records the person's disk.
+uint64_t MMClutterVolumeUsed(void);
+/// The bytes of swap in use now, from sysctl vm.swapusage. Swap files sit on the disk and go when memory comes back.
+uint64_t MMClutterSwapUsed(void);
 
 /// The paths among roots that a process of this user holds open, as its cwd, its executable or an open file.
 /// libproc's own reads, the in-process form of NN's `lsof +D`. Blocks, so only scans and actions call it.
