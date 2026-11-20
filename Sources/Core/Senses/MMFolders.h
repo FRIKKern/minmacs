@@ -8,7 +8,8 @@
 /// because FSEvents takes at most 8 exclusion paths.
 /// rescan is YES when FSEvents set MustScanSubDirs for a folder. Then only that folder is walked again.
 /// changed runs on MMQueue(@"core", name), never on main.
-/// FSEvents may deliver an event of the replay a second time, with the same id. The second one is not passed on.
+/// FSEvents may deliver an event of the replay a second time, with the same id. The second one is not passed on,
+/// unless it asks for a rescan or says a volume or the root moved.
 @interface MMFolderWatch : NSObject
 + (instancetype)watch:(NSArray<NSString *> *)roots name:(NSString *)name skip:(NSArray<NSString *> *)skip
               changed:(void (^)(NSSet<NSString *> *dirs, BOOL rescan))changed;

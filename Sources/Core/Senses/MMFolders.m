@@ -10,6 +10,10 @@ static const CFTimeInterval kLatency = 0.5;
 static const NSTimeInterval kSaveEvery = 2;   // seconds between event id writes while events flow
 static char kQueueKey;                         // marks a watch queue, so stop can tell it runs on one
 enum { kReplayKept = 256 };                    // how many of a replay's last event ids are kept, to tell a second delivery
+// An event with one of these is passed on whatever its id: it asks for a rescan, or says a volume or the root moved.
+static const FSEventStreamEventFlags kNeverFolded =
+    kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped |
+    kFSEventStreamEventFlagMount | kFSEventStreamEventFlagUnmount | kFSEventStreamEventFlagRootChanged;
 
 @interface MMFolderWatch ()
 @property (readwrite, copy) NSString *name;
@@ -78,7 +82,8 @@ static void Changed(ConstFSEventStreamRef s, void *info, size_t n, void *paths,
 }
 
 /// YES when the replay already delivered the event with this id, so this delivery is its second. Only the same id
-/// counts, never a lower one, so no change is ever left out. The replay's own events are noted here.
+/// counts, never a lower one, so no change is ever left out. The replay's own events are noted here, so the
+/// caller asks for every event, and still passes on one that carries a flag of kNeverFolded.
 /// A root change has id 0 and is never a second delivery.
 - (BOOL)deliveredBefore:(FSEventStreamEventId)eid {
     if (!eid) return NO;
@@ -110,7 +115,7 @@ static void Changed(ConstFSEventStreamRef s, void *info, size_t n, void *paths,
         FSEventStreamEventFlags f = flags[i];
         if (f & kFSEventStreamEventFlagHistoryDone) { _replaying = NO; continue; }
         if (f & kFSEventStreamEventFlagEventIdsWrapped) _replayedCount = 0;
-        if ([self deliveredBefore:ids[i]]) continue;
+        if ([self deliveredBefore:ids[i]] && !(f & kNeverFolded)) continue;
         NSString *path = [NSFileManager.defaultManager stringWithFileSystemRepresentation:paths[i] length:strlen(paths[i])];
         if (path.length > 1 && [path hasSuffix:@"/"]) path = [path substringToIndex:path.length - 1];
         if ([self skips:path]) continue;

@@ -4,7 +4,9 @@
 // Prints one line per check: name, want and got, split by tabs.
 #import <Foundation/Foundation.h>
 #import <mach/mach_time.h>
+#import <mach/mach.h>
 #import <libproc.h>
+#import <pthread.h>
 #import <stdatomic.h>
 #import "Core/Graph/MMGraph.h"
 #import "Core/MMExpert.h"
@@ -259,32 +261,67 @@ static void Spin(NSTimeInterval seconds, BOOL (^done)(void)) {
 }
 
 /// Main's longest stall, as Sources/Shell/MMWatchdog.m counts one for issue #55: the longest time main went without
-/// going back to wait in its run loop. Main blocked or busy in anything it runs counts in full. The time it sleeps
-/// in the loop does not, so a timer that fires late because the machine gave main no CPU is no stall. Issue #84: the
-/// gap between two fires of a 5 ms timer read 53 ms on a hosted runner, with nothing running on main.
-/// The time this process's threads were ready to run and had no CPU is taken off each stall, as the kernel counts
-/// it: on a Mac with every core busy, main went 268 ms with no CPU in the middle of 0.1 ms of work.
+/// going back to wait in its run loop. The time it sleeps in the loop does not count, so a timer that fires late
+/// because the machine gave main no CPU is no stall. Issue #84: the gap between two fires of a 5 ms timer read 53 ms
+/// on a hosted runner, with nothing running on main.
+/// Inside a stall, the time main was ready to run and had no CPU comes off: on a Mac with every core busy, main
+/// went 268 ms with no CPU in the middle of 0.1 ms of work. No call gives that time for one thread, so it is taken
+/// as the smaller of two numbers that are each too large at times:
+/// - what the kernel counts for the whole process, which holds the waiting of every other thread too;
+/// - what a watcher thread saw. About every millisecond it reads whether main is blocked. The time it saw main
+///   blocked never comes off. The time since it looked last counts as ready, since it may have had no CPU itself.
+/// The CPU main used never comes off. So main busy counts in full, and main asleep, on a semaphore or in
+/// dispatch_sync counts in full as long as the watcher gets to run, also beside busy threads of this process. When
+/// the watcher gets no CPU either, only the process's number holds, and other threads' waiting can hide a stall.
+/// One at a time: the watcher's numbers are shared.
 @interface TStalls : NSObject
 /// The longest stall. Of it: wallMs before the time with no CPU came off, that time, and the CPU main used.
 @property (readonly) double worstMs, worstWallMs, worstNoCPUMs, worstCPUMs;
 - (void)stop;
 @end
+static _Atomic uint64_t gSeenReady;   // how long the watcher saw main running or ready to, in mach time
+static _Atomic uint64_t gSeenAt;      // when it looked last
+static _Atomic bool gWatching;
 @implementation TStalls {
     CFRunLoopObserverRef _woke, _sleeps;
-    uint64_t _since, _cpuSince;
+    dispatch_semaphore_t _watcherDone;
+    uint64_t _since, _cpuSince, _seenReadySince;
     int64_t _noCPUSince;
-    BOOL _waiting;
+    BOOL _noCPUKnown, _waiting;
 }
 static uint64_t MainCPUNs(void) { return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID); }
-/// How long this process's threads have been ready to run with no CPU to run on, in mach time. 0 when unknown.
+/// How long this process's threads have been ready to run with no CPU to run on, in mach time. NO when unknown.
 /// The kernel's runnable time counts the time they ran too, so the CPU they used comes off.
-static int64_t NoCPUTicks(void) {
+static BOOL NoCPUTicks(int64_t *ticks) {
     struct rusage_info_v4 ri;
-    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) != 0) return 0;
-    return (int64_t)ri.ri_runnable_time - (int64_t)(ri.ri_user_time + ri.ri_system_time);
+    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) != 0) return NO;
+    *ticks = (int64_t)ri.ri_runnable_time - (int64_t)(ri.ri_user_time + ri.ri_system_time);
+    return YES;
 }
 - (instancetype)init {
     if ((self = [super init])) {
+        // The watcher. A read that fails counts as blocked, so it takes nothing off.
+        thread_act_t mainThread = pthread_mach_thread_np(pthread_self());
+        dispatch_semaphore_t done = _watcherDone = dispatch_semaphore_create(0);
+        atomic_store(&gSeenAt, mach_absolute_time());
+        atomic_store(&gWatching, true);
+        NSThread *watcher = [[NSThread alloc] initWithBlock:^{
+            uint64_t last = atomic_load(&gSeenAt);
+            while (atomic_load(&gWatching)) {
+                usleep(1000);
+                struct thread_basic_info info;
+                mach_msg_type_number_t n = THREAD_BASIC_INFO_COUNT;
+                BOOL ready = thread_info(mainThread, THREAD_BASIC_INFO, (thread_info_t)&info, &n) == KERN_SUCCESS &&
+                             info.run_state == TH_STATE_RUNNING;
+                uint64_t now = mach_absolute_time();
+                if (ready) atomic_fetch_add(&gSeenReady, now - last);   // before gSeenAt, so main never reads too little
+                atomic_store(&gSeenAt, now);
+                last = now;
+            }
+            dispatch_semaphore_signal(done);
+        }];
+        watcher.qualityOfService = NSQualityOfServiceUserInteractive;
+        [watcher start];
         __weak TStalls *weak = self;
         // First after a wait and last before one, so what other observers do counts too.
         _woke = CFRunLoopObserverCreateWithHandler(NULL, kCFRunLoopAfterWaiting, YES, LONG_MIN, ^(CFRunLoopObserverRef o, CFRunLoopActivity a) { [weak begin]; });
@@ -295,13 +332,25 @@ static int64_t NoCPUTicks(void) {
     }
     return self;
 }
-- (void)begin { _noCPUSince = NoCPUTicks(); _cpuSince = MainCPUNs(); _since = mach_absolute_time(); _waiting = NO; }
+- (void)begin {
+    _noCPUKnown = NoCPUTicks(&_noCPUSince);
+    _seenReadySince = atomic_load(&gSeenReady);
+    _cpuSince = MainCPUNs(); _since = mach_absolute_time(); _waiting = NO;
+}
 - (void)end {
     if (_waiting) return;
-    int64_t waited = NoCPUTicks() - _noCPUSince;
-    double wall = Ms(_since, mach_absolute_time()), noCPU = waited > 0 ? Ms(0, (uint64_t)waited) : 0;
-    double ms = MAX(0, wall - noCPU);
-    if (ms > _worstMs) { _worstMs = ms; _worstWallMs = wall; _worstNoCPUMs = noCPU; _worstCPUMs = (MainCPUNs() - _cpuSince) / 1e6; }
+    uint64_t now = mach_absolute_time();
+    double wall = Ms(_since, now), cpu = (MainCPUNs() - _cpuSince) / 1e6;
+    // The process's number. Unknown takes nothing off.
+    int64_t ticks = 0;
+    double process = _noCPUKnown && NoCPUTicks(&ticks) && ticks > _noCPUSince ? Ms(0, (uint64_t)(ticks - _noCPUSince)) : 0;
+    // The watcher's number: what it saw main ready for, plus the time since it looked last, less the CPU main used.
+    uint64_t seenAt = atomic_load(&gSeenAt);   // read before gSeenReady, for the same reason
+    if (seenAt < _since) seenAt = _since;
+    double ready = Ms(_seenReadySince, atomic_load(&gSeenReady)) + (seenAt < now ? Ms(seenAt, now) : 0) - cpu;
+    double noCPU = MAX(0, MIN(MIN(process, ready), wall - cpu));
+    double ms = wall - noCPU;
+    if (ms > _worstMs) { _worstMs = ms; _worstWallMs = wall; _worstNoCPUMs = noCPU; _worstCPUMs = cpu; }
     _waiting = YES;
 }
 - (void)stop {
@@ -311,6 +360,8 @@ static int64_t NoCPUTicks(void) {
     CFRunLoopRemoveObserver(CFRunLoopGetMain(), _sleeps, kCFRunLoopCommonModes);
     CFRelease(_woke); CFRelease(_sleeps);
     _woke = _sleeps = NULL;
+    atomic_store(&gWatching, false);
+    dispatch_semaphore_wait(_watcherDone, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
 }
 - (void)dealloc { [self stop]; }
 @end

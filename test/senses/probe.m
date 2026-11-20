@@ -334,10 +334,10 @@ static int Folders(NSString *dir) {
 
     // Issue #84: now and then FSEvents delivers an event of the replay once more, with the same id, after the replay
     // ended. A watch with no stream gets the batches by hand: the replay brings ids 5 and 7 and ends, then 7 comes
-    // once more, then 6, a lower id the replay never brought, and 8.
-    NSMutableArray<NSString *> *passedOn = [NSMutableArray new];
+    // once more, then 7 a third time with a call for a rescan, then 6, a lower id the replay never brought, and 8.
+    NSMutableArray<NSString *> *passedOn = [NSMutableArray new], *rescans = [NSMutableArray new];
     MMFolderWatch *again = [MMFolderWatch replayingWatchNamed:@"fixture.again" changed:^(NSSet<NSString *> *dirs, BOOL rescan) {
-        [passedOn addObjectsFromArray:dirs.allObjects];
+        [(rescan ? rescans : passedOn) addObjectsFromArray:dirs.allObjects];
     }];
     FSEventStreamEventId base = FSEventsGetCurrentEventId();
     void (^hand)(FSEventStreamEventId, const char *, FSEventStreamEventFlags) = ^(FSEventStreamEventId eid, const char *path, FSEventStreamEventFlags f) {
@@ -348,11 +348,12 @@ static int Folders(NSString *dir) {
     hand(base + 7, "/w/seven", 0);
     hand(base + 7, "/w", kFSEventStreamEventFlagHistoryDone);
     hand(base + 7, "/w/seven", 0);
+    hand(base + 7, "/w/seven", kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagUserDropped);
     hand(base + 6, "/w/six", 0);
     hand(base + 8, "/w/eight", 0);
     Out(@{@"savedAtStart": @(savedAtStart), @"live": @(live), @"sawSkipped": @(sawSkipped), @"savedId": @(saved > 0),
           @"replayed": @(replayed), @"replayedBeforeSavedId": @(replayedOld), @"label": label ?: @"",
-          @"passedOn": [passedOn componentsJoinedByString:@" "]});
+          @"passedOn": [passedOn componentsJoinedByString:@" "], @"rescans": [rescans componentsJoinedByString:@" "]});
     return 0;
 }
 
