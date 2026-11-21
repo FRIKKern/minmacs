@@ -319,9 +319,31 @@ static NSString *Short(NSString *ref) {
 /// The upstream of branch in the repo whose common dir is common, for the checkout whose git dir is gitDir: @{} for
 /// none, @{unknown: YES} when it cannot be known, else {ref, up}: the ref its remote branch is read from and the name
 /// git shows. load gives a config file's items, @[] for a missing file, anything else for one not read.
+static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSString *branch, id (^load)(NSString *path), BOOL *alone);
+
 NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *branch, id (^load)(NSString *path)) {
-    NSDictionary *unknown = @{@"unknown": @YES};
+    // The answer for a config that stands alone, with no include, no config.worktree and no .git/remotes looked at,
+    // depends on its items alone, which load hands back as the same object until the file's stamp moves. So a warm walk
+    // looks it up, per branch, kept as long as those items are.
+    static NSMapTable<id, NSMutableDictionary *> *memo; static dispatch_once_t once;
+    dispatch_once(&once, ^{ memo = [NSMapTable weakToStrongObjectsMapTable]; });
     id top = load([common stringByAppendingPathComponent:@"config"]);
+    if ([top isKindOfClass:NSArray.class]) {
+        @synchronized (memo) { NSDictionary *hit = [memo objectForKey:top][branch]; if (hit) return hit; }
+    }
+    BOOL alone = NO;
+    NSDictionary *up = Upstream(top, common, gitDir, branch, load, &alone);
+    if (alone) @synchronized (memo) {
+        NSMutableDictionary *m = [memo objectForKey:top];
+        if (!m) [memo setObject:(m = [NSMutableDictionary new]) forKey:top];
+        m[branch] = up;
+    }
+    return up;
+}
+
+/// MMGitConfigUpstream on config's items, top. *alone turns YES when the answer depends on them alone.
+static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSString *branch, id (^load)(NSString *path), BOOL *alone) {
+    NSDictionary *unknown = @{@"unknown": @YES};
     NSMutableArray<NSDictionary *> *segs = [NSMutableArray new];
     if (!Flatten(top, load, 0, segs)) return unknown;
     // extensions are read from config itself, includes left out, as read_repository_format reads them.
@@ -329,6 +351,8 @@ NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *
     for (id it in top) if ([it isKindOfClass:NSDictionary.class] && it[@"wt"]) wt = it[@"wt"];
     if (wt == kBad) return unknown;
     if ([wt boolValue] && !Flatten(load([gitDir stringByAppendingPathComponent:@"config.worktree"]), load, 0, segs)) return unknown;
+    *alone = ![wt boolValue];   // no config.worktree, and below, no include among config's items
+    for (id it in top) if (![it isKindOfClass:NSDictionary.class]) *alone = NO;
     NSString *remote = nil, *merge = nil;
     NSMutableArray *fetch = [NSMutableArray new];
     BOOL url = NO, dotRemote = NO;
@@ -353,6 +377,7 @@ NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *
     } else {
         // A remote with no url in config is read from .git/remotes or .git/branches too, which is not read here.
         if (!url && ![remote containsString:@"/"] && ![remote isEqualToString:@".."]) {
+            *alone = NO;   // those files are looked at each time
             struct stat st;
             for (NSString *dir in @[@"remotes", @"branches"])
                 if (lstat([[common stringByAppendingPathComponent:dir] stringByAppendingPathComponent:remote].fileSystemRepresentation, &st) == 0) return unknown;
