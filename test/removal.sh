@@ -180,4 +180,13 @@ if [ "$rm_r" = 0 ]; then
   rm_cli removal --close "$rm_unread" --dry-run >/dev/null; rm_y=$?
   rm_cli removal --waiting --close --dry-run >/dev/null; rm_z=$?
   check "removal: --close with --delete, without --waiting, or with a flag for an id is a usage error" "2 2 2" "$rm_x $rm_y $rm_z"
+
+  echo "-- what MinMacs sent to the Trash and no record names, issue #113"
+  rm_home="$rm_dir/cli-trash"; mkdir -p "$rm_home"
+  rm_part=$(MINMACS_HOME="$rm_home" "$rm_dir/removaltest" --leave-in-trash "$rm_home/fx" 2>/dev/null)
+  check "removal: --waiting lists an item in the Trash that no record names under its own line, each item on two lines, a newline in its name shown as \\n" \
+    "4|Nothing waits in MinMacs's staging folder.|1 item MinMacs sent to the Trash is named by no record:|$rm_part:trash:nl\\nname.env  nl\\nname.env" \
+    "$(rm_cli removal --waiting | wc -l | tr -d ' ')|$(rm_cli removal --waiting | sed -n 1p)|$(rm_cli removal --waiting | sed -n 2p)|$(rm_cli removal --waiting | sed -n 3p | cut -d, -f1)"
+  check "removal: --waiting --json gives it as in the Trash, with its true name, and offers no act on it" "in-trash|True|False False|yes" \
+    "$(rm_cli removal --waiting --json | json "j['waiting'][0]['why'] + '|' + str(j['waiting'][0]['name'] == 'nl\\nname.env') + '|' + str(j['waiting'][0]['canDelete']) + ' ' + str(j['waiting'][0]['canPutBack']) + '|' + ('yes' if '/Trash/' in j['waiting'][0]['stagedAt'] else 'no')")"
 fi

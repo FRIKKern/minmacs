@@ -118,8 +118,8 @@ static void TrashStopped(void) {
     Write(at, @"OTHER=1");
     T(@"trash stop, another file under its Trash name: --waiting does not take it for the item", @"not listed", WhyName(WaitingOfPart(partRid)));
     words = recover();
-    T(@"trash stop, another file under its Trash name: recovery's words do not name that file, never say put back, and say it is not known where the item is",
-      @"OTHER=1 no no yes", [NSString stringWithFormat:@"%@ %@ %@ %@", Read(at), Has(words, at), Has(words, @"put back"), Has(words, @"it is not known where")]);
+    T(@"trash stop, another file under its Trash name: recovery's words do not name that file, never say put back, and say MinMacs finds the item at neither place",
+      @"OTHER=1 no no yes", [NSString stringWithFormat:@"%@ %@ %@ %@", Read(at), Has(words, at), Has(words, @"put back"), Has(words, @"neither at its old path nor in the Trash")]);
     [fm removeItemAtPath:at error:nil];
     [fm moveItemAtPath:aside toPath:env error:nil];
 
@@ -230,3 +230,6 @@ static void TrashListLows(void) {
     if (Exists(at)) [fm removeItemAtPath:at error:nil];
     if (Exists(landing)) [fm removeItemAtPath:landing error:nil];
 }
+
+// Issue #113, second review.
+#import "trashreview.m"
