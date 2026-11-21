@@ -82,6 +82,8 @@ static BOOL Stage(NSString *real, MMUndoRecord *record, NSError **error);
 BOOL MMRemovalApply(NSString *path, MMRemovalDecision *d, MMUndoRecord *record, NSError **error) {
     if (!path.length || !d || !record) { if (error) *error = Problem(@"cannot verify what to remove"); return NO; }
     if (![path hasPrefix:@"/"]) { if (error) *error = Problem(@"it has no full path"); return NO; }
+    // Issue #113: never to the Trash by a path with a "." or ".." name, since MinMacs would not bring it back there.
+    if (!d.deleteNow && ([path.pathComponents containsObject:@".."] || [path.pathComponents containsObject:@"."])) { if (error) *error = Problem(@"its path is not a real path"); return NO; }
     if (!d.deleteNow) return [MMUndo.shared trash:[NSURL fileURLWithPath:path] record:record error:error] != nil;
     NSString *real = nil;
     NSString *why = WhyNot(path, record, nil, &real);

@@ -164,10 +164,12 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
         }
     }
     // Issue #113: what a record sent to the Trash and does not name, since MinMacs stopped between the move and the
-    // record. MinMacs's own list of what it sent there names it, and its id finds it there. Read only.
+    // record. MinMacs's own list of what it sent there names it, and its id finds it there. What any record names,
+    // by its Trash path or its id, is that record's, so it is left out. Read only.
+    NSSet<NSString *> *named = MMRemovalTrashNamed(records);
     for (MMUndoRecord *r in records) {
         if (StillActs(r, r.parentRid.length ? (all[r.parentRid] ?: [MMUndo.shared record:r.parentRid]) : nil)) continue;
-        for (NSDictionary *x in MMRemovalTrashStranded(r, NULL)) {
+        for (NSDictionary *x in MMRemovalTrashStranded(r, named, NULL)) {
             NSString *to = MMRecordString(x, @"to");
             if (!to || [claimed containsObject:to]) continue;
             [claimed addObject:to];

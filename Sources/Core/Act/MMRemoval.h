@@ -265,17 +265,24 @@ NSArray<NSDictionary *> *MMRemovalStranded(MMUndoRecord *r, MMUndoRecord *parent
 /// that runs r's Wrap Up lives, never for a Wrap Up that has no record, never into a record whose lists cannot be read
 /// or that was restored. Returns how many it wrote in.
 NSUInteger MMRemovalAdoptStranded(MMUndoRecord *r, MMUndoRecord *parent);
-/// An item record r sent to the Trash and its "trashed" list does not name, since MinMacs stopped between the move and
-/// the record's note, issue #113, MMRemovalTrashStranded.m. Each entry of MinMacs's own list of what r sent there,
-/// MMRemovalTrashListItems, whose old path r asked about and whose very file is not at that old path, as {from, ino,
-/// dev, vol, stranded}, with "to" when that file lies directly in a Trash by its inode and volume UUID, never by a
-/// name alone, and "several" when more than one name there has its id. Read only: nothing is moved, deleted or
-/// written. Empty for a record that is no removal or whose lists cannot be read. *unread is YES when r's list is
-/// there and is not believed: not a list MinMacs wrote, or one that names an old path r never asked about.
-NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, BOOL *unread);
-/// What recovery says of the parts' items MMRemovalTrashStranded finds, or nil when there are none: each one still in
-/// the Trash with its Trash path and its old path, each one there under more than one name, each one at neither place,
-/// of which it says it is not known where it is, and a list that is not believed. It never says put back.
+/// An item record r sent to the Trash, or was sending there, that no record names, since MinMacs stopped between the
+/// list's first write and the record's note, issue #113, MMRemovalTrashStranded.m. Each entry of MinMacs's own list
+/// of what r sent there, MMRemovalTrashListItems, whose old path r asked about, whose very file is not at that old
+/// path, and that is not where a record of named names it, as {from, ino, dev, vol, stranded}, with "sending"
+/// when the list never got a Trash path, so the move may not have run. Then where it is: "to" when that very file
+/// lies directly in a Trash by its inode and volume UUID, never by a name alone; "several" when more than one name
+/// there has its id; "unlooked", in words, when a look was refused or its id cannot be matched; and none of these
+/// when MinMacs looked everywhere and did not find it. Read only: nothing is moved, deleted or written. Empty for a
+/// record that is no removal or whose lists cannot be read. *unread is YES when r's list is there and is not
+/// believed: not a list MinMacs wrote, or one that names an old path r never asked about. named nil is r's own.
+NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, NSSet<NSString *> *named, BOOL *unread);
+/// What the records' "trashed" lists name, each Trash path with its id, for MMRemovalTrashStranded. A restored
+/// record names nothing: its Undo ran.
+NSSet<NSString *> *MMRemovalTrashNamed(NSArray<MMUndoRecord *> *records);
+/// What recovery says of the parts' items MMRemovalTrashStranded finds, or nil when there are none, one clause each:
+/// that MinMacs had sent it to the Trash, or was sending it there when it stopped, and then that it is in the Trash at
+/// its path, has more than one name there, could not be looked for and why, or is at neither place. A list that is
+/// not believed is said too. It never says put back.
 NSString *MMRemovalTrashStrandedWords(NSArray<MMUndoRecord *> *parts);
 #ifdef MM_TESTS
 /// Compiled only with -DMM_TESTS. Ends this process at once, as a crash would, when MINMACS_TEST_STOP_TRASH says point

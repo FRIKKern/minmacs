@@ -105,8 +105,9 @@ static NSString *Items(NSUInteger n) { return [NSString stringWithFormat:@"%lu i
 /// The error of a damaged Wrap Up that recovery fails, built only from what the records say: how many items went
 /// back now, the parts that were restored before wasBack, and what had been deleted, from the parts' "deleted" lists
 /// and the Wrap Up's "finishing". When a list or the flag cannot be read, it says so. A part that removed its thing
-/// and can still bring it back, as a merged worktree that git recreates, is counted as that, never as deleted.
-static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *parts, NSSet<NSString *> *wasBack) {
+/// and can still bring it back, as a merged worktree that git recreates, is counted as that, never as deleted. trash
+/// is what MMRemovalTrashStrandedWords says, or nil, so the words never say nothing needed to go back beside it.
+static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *parts, NSSet<NSString *> *wasBack, NSString *trash) {
     NSUInteger back = 0, gone = 0, kept = 0;
     // Only a true or false that MinMacs wrote says whether the deletes had begun. A number, even 0, says nothing.
     BOOL unknown = !parent.payload.count || (MMRecordHas(parent.payload, @"finishing") && !MMRecordIsFlag(parent.payload, @"finishing"));
@@ -120,7 +121,8 @@ static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *par
         else gone += n;
         if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count;
     }
-    NSString *moved = back ? [NSString stringWithFormat:@"%@ it had moved out of the worktree went back", Items(back)] : @"Nothing it had moved needed to go back";
+    NSString *moved = back ? [NSString stringWithFormat:@"%@ it had moved out of the worktree went back", Items(back)] : trash ?: @"Nothing it had moved needed to go back";
+    if (back && trash) moved = [moved stringByAppendingFormat:@". %@", trash];
     NSString *deleted = unknown ? @"Whether anything was deleted cannot be read from the record"
                       : gone ? [NSString stringWithFormat:@"%@ had already been deleted and cannot be brought back", Items(gone)]
                       : MMRecordFlag(parent.payload, @"finishing") ? @"Its deletes had begun, so an item may have been deleted before it stopped, and that cannot be brought back"
@@ -205,8 +207,7 @@ NSInteger MMRemovalRecoverStaged(void) {
             BOOL waits = notBack != nil || readable.count < parts.count;
             for (MMUndoRecord *part in readable) if (StillHolds([MMUndo.shared record:part.rid])) waits = YES;
             if (waits) continue;
-            NSString *trash = MMRemovalTrashStrandedWords(readable), *words = DamagedWords(parent, parts, wasBack);
-            [MMUndo.shared finish:parent ok:NO freed:0 error:trash ? [NSString stringWithFormat:@"%@. %@", words, trash] : words];
+            [MMUndo.shared finish:parent ok:NO freed:0 error:DamagedWords(parent, parts, wasBack, MMRemovalTrashStrandedWords(readable))];
             recovered++;
             continue;
         }
