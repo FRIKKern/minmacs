@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 
 NSString *MMGitText(const unsigned char *b, NSUInteger n, BOOL *lossy);   // MMGitFacts.m
+NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load)(NSString *path));   // MMGitOutside.m: #120
 
 /// What git refuses, as a value of the items or of the upstream. Compared by pointer.
 static NSString *const kBad = @"(git refuses it)";
@@ -409,7 +410,7 @@ NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *
     dispatch_once(&once, ^{ memo = [NSMapTable weakToStrongObjectsMapTable]; });
     id top = load([common stringByAppendingPathComponent:@"config"]);
     if ([top isKindOfClass:NSArray.class]) {
-        @synchronized (memo) { NSDictionary *hit = [memo objectForKey:top][branch]; if (hit) return hit; }
+        @synchronized (memo) { NSDictionary *hit = [memo objectForKey:top][branch]; if (hit) return MMGitOutsideUpstream(hit, branch, load); }
     }
     BOOL alone = NO;
     NSDictionary *up = Upstream(top, common, gitDir, branch, load, &alone);
@@ -418,7 +419,7 @@ NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *
         if (!m) [memo setObject:(m = [NSMutableDictionary new]) forKey:top];
         m[branch] = up;
     }
-    return up;
+    return MMGitOutsideUpstream(up, branch, load);
 }
 
 /// MMGitConfigUpstream on config's items, top. *alone turns YES when the answer depends on them alone.

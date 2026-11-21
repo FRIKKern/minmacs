@@ -51,7 +51,7 @@ od_case g13; od_put "$ODF/global" "$od_live"; chmod 000 "$ODF/global"
 od_case g14; od_put "$ODF/global" "[includeIf \"gitdir:$ODR/\"]\n\tpath = no-such.inc\n"
 od_case g15; od_put "$ODF/global" '[include]\n\tpath = /dev/null\n'
 od_case g16; od_put "$ODF/global" '[remote "origin"]\n\tfetch = ^refs/heads/g16\n'
-od_case s1;od_put "$ODF/system" "$od_live"
+od_case s1; od_put "$ODF/system" "$od_live"
 od_case s2; od_put "$ODF/system" "$od_live"
 od_case x1; od_put "$ODF/xdg/git/config" "$od_live"
 od_case x2; od_put "$ODH/.config/git/config" "$od_live"
@@ -114,7 +114,7 @@ od_row g13 "origin/g13|[gone] or elsewhere/g13|" "$od_unread" "$OD/files/g13/glo
 od_row g14 "origin/g14|[gone]" "$(od_gone g14)" "$OD/files/g14/global"     # an include that is not there is none
 od_row g15 "origin/g15|[gone]" "$(od_gone g15)" "$OD/files/g15/global"
 od_row g16 "origin/g16|[gone] or |" "$od_unread" "$OD/files/g16/global"   # git 2.39 maps past a negative line
-od_row s1"elsewhere/s1|" "$od_unread" "$OD/empty" GIT_CONFIG_SYSTEM="$OD/files/s1/system"
+od_row s1 "elsewhere/s1|" "$od_unread" "$OD/empty" GIT_CONFIG_SYSTEM="$OD/files/s1/system"
 od_row s2 "origin/s2|[gone]" "$(od_gone s2)" "$OD/empty" GIT_CONFIG_SYSTEM="$OD/files/s2/system" GIT_CONFIG_NOSYSTEM=1
 od_row x1 "elsewhere/x1|" "$od_unread" - XDG_CONFIG_HOME="$OD/files/x1/xdg"
 od_row x2 "elsewhere/x2|" "$od_unread" -
