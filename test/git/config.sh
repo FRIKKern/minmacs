@@ -173,15 +173,19 @@ cf_case n3; cf_moved n3; printf '[branch "n3"]\n\tremote = origin\n\tmerge = ref
 # Lines git takes, in another remote: no destination, an empty one, a pattern in the middle, "push = :" and a negative.
 cf_sec n4 '\tremote = origin\n\tmerge = refs/heads/n4\n[remote "other"]\n\turl = /nowhere\n\tfetch = refs/heads/main\n\tfetch = refs/heads/main:\n\tfetch = +refs/pull/*/head:refs/remotes/other/pr/*\n\tfetch = ^refs/heads/skip\n\tpush = :\n\tpush = refs/heads/main\n'
 # Issue #120's review, B1: git_config_bool reads a number as git_config_int does, as strtoimax reads it, then its k, m
-# or g, and refuses one past int range. So does every read of the remotes, over a bool in any remote.
+# or g, and refuses one past int range. So does every read of the remotes, over a bool in any remote. Round 2, B5: the
+# low end moved. git_parse_signed refused -max, INT_MIN, until git 2.50 (8f282bdff0b4, "parse: fix off-by-one for
+# minimum signed values"), which takes -max - 1: 2.39 refuses -2147483648 and -2g, 2.50 and later take them. So the
+# rows past the low end are one past it on both, and the row at INT_MIN takes either git's answer; MinMacs refuses it,
+# as 2.39 does, which on a later git keeps a worktree it could read.
 cf_bool() {
   cf_case "$1"; cf_moved "$1"
   printf '[branch "%s"]\n\tremote = origin\n\tmerge = refs/heads/%s\n[remote "x"]\n\turl = /nowhere\n\t%s = %s\n' "$1" "$1" "$2" "$3" >>"$CFC"
 }
-cf_bool ir1 prune 3000000000; cf_bool ir2 pruneTags -2147483648; cf_bool ir3 mirror 2g; cf_bool ir4 skipDefaultUpdate 2048m
-cf_bool ir5 skipFetchAll 99999999999999999999; cf_bool ir6 prune 0x80000000; cf_bool ir7 prune -2g; cf_bool ir8 prune 08
+cf_bool ir1 prune 3000000000; cf_bool ir2 pruneTags -2147483649; cf_bool ir3 mirror 2g; cf_bool ir4 skipDefaultUpdate 2048m
+cf_bool ir5 skipFetchAll 99999999999999999999; cf_bool ir6 prune 0x80000000; cf_bool ir7 prune -3g; cf_bool ir8 prune 08
 cf_bool ir9 prune 2147483647; cf_bool ir10 prune 2047m; cf_bool ir11 prune -2147483647; cf_bool ir12 prune 0x7fffffff
-cf_bool ir13 prune 010; cf_bool ir14 prune 1K
+cf_bool ir13 prune 010; cf_bool ir14 prune 1K; cf_bool ir15 pruneTags -2147483648
 
 GO=$("$GT" keeps "$CFR")
 # cf_row <id> <branch> <git's answer> <MinMacs's answer>. git's answer is for-each-ref's %(upstream:short) and
@@ -295,4 +299,5 @@ cf_row n3 n3 fatal "$cf_unread"
 cf_row n4 n4 "origin/n4|" "$(cf_live origin/n4)"
 for cf_i in 1 2 3 4 5 6 7 8; do cf_row ir$cf_i ir$cf_i fatal "$cf_unread"; done
 for cf_i in 9 10 11 12 13 14; do cf_row ir$cf_i ir$cf_i "origin/ir$cf_i|[gone]" "origin/ir$cf_i|True|False|delete now"; done
+cf_row ir15 ir15 "fatal or origin/ir15|[gone]" "$cf_unread"   # INT_MIN: git 2.39 refuses it, 2.50 and later take it
 check "config: Smart deletes no worktree whose upstream git says is live, or that git has none of" "" "$cf_lost"
