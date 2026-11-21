@@ -26,6 +26,8 @@
 //   in a file MinMacs's own git does not read,    not known for every branch. In a file it reads, such a line
 //   a line that may make every command refuse     makes its own git status fail as well, which keeps: "cannot
 //   the file, MMGitConfigValues.m                 verify"
+//   in any of them, a line only a git later than  not known for every branch, issue #126: the person's shell may
+//   2.39 refuses, MMGitConfigLaterOK              run that git, where MinMacs's own git status passes
 //   anything else                                 as the repo's own config says: the usual user, includeIf for an
 //                                                 email, a pull-request fetch line, another branch's keys
 //
@@ -95,16 +97,18 @@ static NSArray<NSString *> *Files(NSDictionary<NSString *, NSString *> *env) {
 /// The files of Files that MinMacs's own git, MMGitPath with MMGitEnvironment, reads as well: $GIT_CONFIG_SYSTEM; when
 /// it is Apple's git, its folder's share/git-core/gitconfig and, with no $GIT_CONFIG_SYSTEM, /etc/gitconfig;
 /// $GIT_CONFIG_GLOBAL, else the XDG file git picks and ~/.gitconfig. What they include counts as theirs. Another git's
-/// system file never does, nor, under MINMACS_TEST_GIT_ROOT, a fixed path.
+/// system file never does. Under MINMACS_TEST_GIT_ROOT the git and its share file are looked for under that folder, as
+/// a copy of Apple's git reads the share file beside itself, and /etc/gitconfig never counts: the copy reads the real one.
 static NSSet<NSString *> *Own(NSDictionary<NSString *, NSString *> *env) {
     NSMutableSet *own = [NSMutableSet new];
     NSString *git = MMGitPath(), *system = env[@"GIT_CONFIG_SYSTEM"], *home = env[@"HOME"], *xdg = env[@"XDG_CONFIG_HOME"];
+    NSString *root = env[@"MINMACS_TEST_GIT_ROOT"];
     if (![EnvBool(env[@"GIT_CONFIG_NOSYSTEM"]) boolValue]) {
         if (system) [own addObject:system];
         for (NSString *dev in @[@"/Library/Developer/CommandLineTools/", @"/Applications/Xcode.app/Contents/Developer/"])
-            if (!env[@"MINMACS_TEST_GIT_ROOT"] && [git isEqualToString:[dev stringByAppendingString:@"usr/bin/git"]]) {
-                [own addObject:[dev stringByAppendingString:@"usr/share/git-core/gitconfig"]];
-                if (!system) [own addObject:@"/etc/gitconfig"];
+            if ([git isEqualToString:[(root ?: @"") stringByAppendingFormat:@"%@usr/bin/git", dev]]) {
+                [own addObject:[(root ?: @"") stringByAppendingFormat:@"%@usr/share/git-core/gitconfig", dev]];
+                if (!system && !root) [own addObject:@"/etc/gitconfig"];
             }
     }
     if (env[@"GIT_CONFIG_GLOBAL"]) [own addObject:env[@"GIT_CONFIG_GLOBAL"]];
@@ -142,7 +146,8 @@ static NSDictionary *Summary(NSArray<NSString *> *files, NSSet *own, id (^load)(
     NSMutableDictionary *remotes = [NSMutableDictionary new];
     for (NSUInteger i = 0; i < segs.count; i++) {
         NSDictionary *seg = segs[i];
-        if (seg[@"bad"] || (seg[@"every"] && [theirs containsIndex:i]) || seg[@"wt"] || seg[@"version"]) return unknown;
+        if (seg[@"bad"] || (seg[@"every"] && [theirs containsIndex:i]) || seg[@"later"] || seg[@"wt"] || seg[@"version"])
+            return unknown;
         [branches addObjectsFromArray:[seg[@"b"] allKeys] ?: @[]];
         [seg[@"r"] enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSDictionary *r, BOOL *stop) {
             NSMutableDictionary *m = remotes[name] ?: (remotes[name] = [NSMutableDictionary new]);

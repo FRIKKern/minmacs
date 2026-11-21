@@ -102,3 +102,33 @@ BOOL MMGitConfigEveryOK(NSString *section, NSString *sub, NSString *key, NSStrin
     if (parts.count > 3 && [[parts[3] componentsSeparatedByString:@","] containsObject:value.lowercaseString]) return YES;
     return n && n.longLongValue >= parts[1].longLongValue && n.longLongValue <= parts[2].longLongValue;
 }
+
+/// Issue #126: NO when a git later than 2.39 refuses this line in every command while 2.39 ignores it, so that the
+/// person's git may stop where MinMacs's own git status passes. Each is git v2.56.1's git_default_config, which 2.39.5
+/// does not parse. In environment.c: core.checkstat other than default or minimal in any case, :335; core.commentstring
+/// with no value, empty or with a newline, :464; core.lockfilepid not a bool, :532; attr.tree with no value, :678;
+/// index.maxpathlen not git_parse_ulong's or past INT_MAX, :742. In advice.c:184, advice.<key> not a bool for the keys
+/// 2.39's advice_setting lacks. A value not read as git reads it may be refused.
+BOOL MMGitConfigLaterOK(NSString *section, NSString *sub, NSString *key, NSString *value, BOOL lossy) {
+    if (sub) return YES;
+    const char *v = lossy ? NULL : value.UTF8String;
+    if ([section isEqualToString:@"core"] && [key isEqualToString:@"checkstat"])
+        return v && (!strcasecmp(v, "default") || !strcasecmp(v, "minimal"));
+    if ([section isEqualToString:@"core"] && [key isEqualToString:@"commentstring"])
+        return value.length && ![value containsString:@"\n"];
+    if ([section isEqualToString:@"core"] && [key isEqualToString:@"lockfilepid"]) return !lossy && MMGitConfigBool(value);
+    if ([section isEqualToString:@"attr"] && [key isEqualToString:@"tree"]) return value != nil;
+    if ([section isEqualToString:@"index"] && [key isEqualToString:@"maxpathlen"]) {
+        if (!v || !*v || strchr(v, '-')) return NO;   // git_parse_unsigned
+        char *end;
+        errno = 0;
+        uintmax_t n = strtoumax(v, &end, 0);
+        uintmax_t f = !*end ? 1 : !strcasecmp(end, "k") ? 1 << 10 : !strcasecmp(end, "m") ? 1 << 20 : !strcasecmp(end, "g") ? 1 << 30 : 0;
+        return errno != ERANGE && end != v && f && n <= INT_MAX / f;
+    }
+    if ([section isEqualToString:@"advice"] && [@[@"defaultbranchname", @"diverging", @"fetchremoteheadwarn",
+            @"forcedeletebranch", @"mergeconflict", @"pushrepolookslikeref", @"rebasetodoerror", @"refsyntax",
+            @"sparseindexexpanded", @"submodulemergeconflict", @"worktreeaddorphan"] containsObject:key])
+        return !lossy && MMGitConfigBool(value);
+    return YES;
+}

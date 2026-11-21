@@ -35,6 +35,7 @@ NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load
 NSNumber *MMGitConfigBool(NSString *v);                                                             // MMGitConfigValues.m
 NSNumber *MMGitConfigInt(NSString *v);
 BOOL MMGitConfigEveryOK(NSString *section, NSString *sub, NSString *key, NSString *value, BOOL lossy);
+BOOL MMGitConfigLaterOK(NSString *section, NSString *sub, NSString *key, NSString *value, BOOL lossy);
 
 /// What git refuses, as a value of the items or of the upstream. Compared by pointer.
 static NSString *const kBad = @"(git refuses it)";
@@ -231,6 +232,8 @@ static void Emit(NSData *var, NSData *val, BOOL blank, NSMutableArray *items, NS
     // Issue #120: a line that may make every git command refuse the file, which counts in a file outside the repo
     // that MinMacs's own git does not read, MMGitOutside.m.
     if (!MMGitConfigEveryOK(section, sub, key, value, kept == kBad)) Segment(items)[@"every"] = @YES;
+    // Issue #126: one only a later git refuses counts in every file outside the repo: the person's git may be one.
+    if (!MMGitConfigLaterOK(section, sub, key, value, kept == kBad)) Segment(items)[@"later"] = @YES;
     if ([section isEqualToString:@"branch"] && sub) {
         BOOL needs = [@[@"remote", @"pushremote", @"merge"] containsObject:key];
         if (!sub.length || (needs && !value)) { Segment(items)[@"bad"] = @YES; return; }
