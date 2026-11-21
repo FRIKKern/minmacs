@@ -175,17 +175,19 @@ BOOL MMRemovalDeletesBegan(MMUndoRecord *parent, MMUndoRecord *part);
 
 #pragma mark What still waits
 
-/// Why an item still waits in a staging folder.
+/// Why an item still waits in a staging folder, or in the Trash with no record to name it.
 typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
     MMRemovalWaitDeleteFailed,  // its Wrap Up is done, and the delete failed, also when tried once more
     MMRemovalWaitOldPathTaken,  // its Wrap Up failed, and something sits at its old path now
     MMRemovalWaitPutBackFailed, // its Wrap Up failed, its old path is free, and the move back failed
     MMRemovalWaitDamaged,       // its record, or its Wrap Up's, cannot be read, so MinMacs does not act on it alone
     MMRemovalWaitNoWrapUp,      // its Wrap Up has no record, so nobody can tell MinMacs staged it: listed, never acted on
+    MMRemovalWaitInTrash,       // in the Trash, and its record does not name it, issue #113: listed, never acted on
 };
 /// One item in a staging folder that MinMacs cannot settle by itself.
 @interface MMRemovalWaitingItem : NSObject
-@property (readonly, copy) NSString *itemID;            // "<part rid>:<its name in the staging folder>", for the CLI
+@property (readonly, copy) NSString *itemID;            // "<part rid>:<its name in the staging folder>", for the CLI,
+                                                        // or "<rid>:trash:<its name in the Trash>"
 @property (readonly, copy) NSString *name;              // its own name, such as node_modules
 @property (readonly, copy) NSString *oldPath;           // where it was, or nil when the record does not say
 /// Set when the staging folder's list holds this name for a file with another id than the one that waits there now:
@@ -193,21 +195,24 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
 @property (readonly, copy) NSString *listedOldPath;
 /// "was at <old path>.", or what the list holds instead, as one line for the CLI.
 @property (readonly, copy) NSString *wasWords;
-@property (readonly, copy) NSString *stagedAt;          // where it waits now
+@property (readonly, copy) NSString *stagedAt;          // where it waits now: in the staging folder, or in the Trash
 @property (readonly) int64_t bytes;                     // what it takes on the disk
 @property (readonly) MMRemovalWaitWhy why;
 @property (readonly, copy) NSString *detail;            // the last failure or the damage, in words, or nil
 @property (readonly, copy) NSString *wrapUpRid, *partRid;
 @property (readonly) BOOL canDelete, canPutBack;        // what MMRemovalDeleteWaiting and MMRemovalPutBackWaiting allow
 /// "could not be deleted", "its old place is taken", "could not go back", "its record is damaged",
-/// "its Wrap Up has no record"
+/// "its Wrap Up has no record", "is in the Trash where no record MinMacs can undo names it"
 @property (readonly, copy) NSString *whyWords;
 - (NSDictionary *)json;
 @end
 /// What sits in a staging folder and cannot be settled, from the records and core/damaged-records.json. A Wrap Up
 /// that still runs, or that recovery will settle at the next start, is not listed. An item of a record whose staged
 /// list cannot be read is found in its staging folder, with no old path. Only what lies directly in a folder that
-/// MMRemovalStagingFolderOf accepts is listed, so a record never lists a file of the person's own.
+/// MMRemovalStagingFolderOf accepts is listed, so a record never lists a file of the person's own. Last, read only,
+/// what a record sent to the Trash and does not name, MMRemovalWaitInTrash: each item MMRemovalTrashStranded finds
+/// directly in a Trash by its id, unless the act that sent it there may still name it. MinMacs neither deletes nor
+/// moves one of those.
 NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void);
 /// The person deletes one listed item now. Only an item MinMacs staged itself, whose record and Wrap Up read, whose
 /// Wrap Up has a record and ended, and only through MMRemovalFinishStaged's own wall and identity check. nil when it is deleted, else
@@ -260,6 +265,40 @@ NSArray<NSDictionary *> *MMRemovalStranded(MMUndoRecord *r, MMUndoRecord *parent
 /// that runs r's Wrap Up lives, never for a Wrap Up that has no record, never into a record whose lists cannot be read
 /// or that was restored. Returns how many it wrote in.
 NSUInteger MMRemovalAdoptStranded(MMUndoRecord *r, MMUndoRecord *parent);
+/// An item record r sent to the Trash, or was sending there, that no record names, since MinMacs stopped between the
+/// list's first write and the record's note, issue #113, MMRemovalTrashStranded.m. Each entry of MinMacs's own list
+/// of what r sent there, MMRemovalTrashListItems, whose old path r asked about, whose very file is not at that old
+/// path, whose old path and id r itself does not name, and that is not where named names it, as {from, ino, dev, vol, stranded},
+/// with "sending"
+/// when the list never got a Trash path, so the move may not have run. Then where it is: "to" when that very file
+/// lies directly in a Trash by its inode and volume UUID, never by a name alone; "several" when more than one name
+/// there has its id; "unlooked", in words, when a look was refused or its id cannot be matched; and none of these
+/// when MinMacs looked everywhere and did not find it. Read only: nothing is moved, deleted or written. Empty for a
+/// record that is no removal or whose lists cannot be read. *unread is YES when r's list is there and is not
+/// believed: not a list MinMacs wrote, or one that names an old path r never asked about. named nil is r's own.
+NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, NSSet<NSString *> *named, BOOL *unread);
+/// What the records' "trashed" lists name, each Trash path with its id, for MMRemovalTrashStranded, and what the Trash
+/// list of a record that still acts, MMRemovalStillActs, names: it may have moved a file and not yet named it. A
+/// restored record names nothing: its Undo ran.
+NSSet<NSString *> *MMRemovalTrashNamed(NSArray<MMUndoRecord *> *records);
+/// YES while the act that sent something of r to the Trash may still be about to name it in r: r's Wrap Up, parent,
+/// still runs, or r is a pending record of its own from the last 15 minutes. MMRemovalWaiting.m.
+BOOL MMRemovalStillActs(MMUndoRecord *r, MMUndoRecord *parent);
+/// What recovery says of the parts' items MMRemovalTrashStranded finds, or nil when there are none, one clause each:
+/// that MinMacs had sent it to the Trash, or was sending it there when it stopped, and then that it is in the Trash at
+/// its path where no record MinMacs can undo names it, has more than one name there, could not be looked for and why, or is at neither place. A list that is
+/// not believed is said too. It never says put back.
+NSString *MMRemovalTrashStrandedWords(NSArray<MMUndoRecord *> *parts);
+#ifdef MM_TESTS
+/// Compiled only with -DMM_TESTS. Ends this process at once, as a crash would, when MINMACS_TEST_STOP_TRASH says point
+/// and MINMACS_HOME is set: "before-move", "after-move" or "after-list" in -[MMUndo trash:record:error:], or
+/// "list-write" between the Trash list's read and its write. When MINMACS_TEST_HOLD_TRASH says point it prints "held"
+/// once and waits until its input ends, so a check sees a record that still acts.
+void MMRemovalTestStopTrash(const char *point);
+#define MM_TEST_STOP_TRASH(point) MMRemovalTestStopTrash(point)
+#else
+#define MM_TEST_STOP_TRASH(point) ((void)0)
+#endif
 
 #pragma mark For MMRemovalApply.m: the staging folder's own files, MMRemovalStaging.m
 

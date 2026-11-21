@@ -105,8 +105,9 @@ static NSString *Items(NSUInteger n) { return [NSString stringWithFormat:@"%lu i
 /// The error of a damaged Wrap Up that recovery fails, built only from what the records say: how many items went
 /// back now, the parts that were restored before wasBack, and what had been deleted, from the parts' "deleted" lists
 /// and the Wrap Up's "finishing". When a list or the flag cannot be read, it says so. A part that removed its thing
-/// and can still bring it back, as a merged worktree that git recreates, is counted as that, never as deleted.
-static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *parts, NSSet<NSString *> *wasBack) {
+/// and can still bring it back, as a merged worktree that git recreates, is counted as that, never as deleted. trash
+/// is what MMRemovalTrashStrandedWords says, or nil, so the words never say nothing needed to go back beside it.
+static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *parts, NSSet<NSString *> *wasBack, NSString *trash) {
     NSUInteger back = 0, gone = 0, kept = 0;
     // Only a true or false that MinMacs wrote says whether the deletes had begun. A number, even 0, says nothing.
     BOOL unknown = !parent.payload.count || (MMRecordHas(parent.payload, @"finishing") && !MMRecordIsFlag(parent.payload, @"finishing"));
@@ -120,7 +121,8 @@ static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *par
         else gone += n;
         if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count;
     }
-    NSString *moved = back ? [NSString stringWithFormat:@"%@ it had moved out of the worktree went back", Items(back)] : @"Nothing it had moved needed to go back";
+    NSString *moved = back ? [NSString stringWithFormat:@"%@ it had moved out of the worktree went back", Items(back)] : trash ?: @"Nothing it had moved needed to go back";
+    if (back && trash) moved = [moved stringByAppendingFormat:@". %@", trash];
     NSString *deleted = unknown ? @"Whether anything was deleted cannot be read from the record"
                       : gone ? [NSString stringWithFormat:@"%@ had already been deleted and cannot be brought back", Items(gone)]
                       : MMRecordFlag(parent.payload, @"finishing") ? @"Its deletes had begun, so an item may have been deleted before it stopped, and that cannot be brought back"
@@ -205,7 +207,7 @@ NSInteger MMRemovalRecoverStaged(void) {
             BOOL waits = notBack != nil || readable.count < parts.count;
             for (MMUndoRecord *part in readable) if (StillHolds([MMUndo.shared record:part.rid])) waits = YES;
             if (waits) continue;
-            [MMUndo.shared finish:parent ok:NO freed:0 error:DamagedWords(parent, parts, wasBack)];
+            [MMUndo.shared finish:parent ok:NO freed:0 error:DamagedWords(parent, parts, wasBack, MMRemovalTrashStrandedWords(readable))];
             recovered++;
             continue;
         }
@@ -223,16 +225,26 @@ NSInteger MMRemovalRecoverStaged(void) {
             // It stopped between a rename into the staging folder and the record, issue #75: the folder's own list
             // names the item, and now its record does too, so it goes back with the rest.
             for (MMUndoRecord *part in parts) (void)MMRemovalAdoptStranded(part, parent);
+            NSMutableSet<NSString *> *wasBack = [NSMutableSet new];
+            for (MMUndoRecord *part in parts) if ([MMUndo.shared record:part.rid].state == MMUndoRestored) [wasBack addObject:part.rid];
             NSString *notBack = MMRemovalPutBack(parts);
             // The words say put back only of what went back. What still lies in its staging folder and no record
-            // names is said too, with where it waits.
+            // names is said too, with where it waits, and so is what it sent to the Trash and no record names, #113.
             NSMutableArray<NSString *> *except = [NSMutableArray new];
             if (notBack) [except addObject:notBack];
             NSArray<NSString *> *unnamed = Unnamed(parent, parts);
             if (unnamed.count) [except addObject:[NSString stringWithFormat:@"%@ that no record names still wait%@ in MinMacs's staging folder: %@",
                                                   Items(unnamed.count), unnamed.count == 1 ? @"s" : @"", [unnamed componentsJoinedByString:@", "]]];
-            [MMUndo.shared finish:parent ok:NO freed:0 error:[NSString stringWithFormat:@"MinMacs stopped before this Wrap Up ended. What it had moved out of the worktree was put back%@",
-                                                             except.count ? [@", except: " stringByAppendingString:[except componentsJoinedByString:@"; "]] : @""]];
+            NSString *trash = MMRemovalTrashStrandedWords(parts);
+            BOOL back = NO;
+            for (MMUndoRecord *part in parts) if ([MMUndo.shared record:part.rid].state == MMUndoRestored && ![wasBack containsObject:part.rid]) back = YES;
+            // When that is all and nothing went back, the words do not speak of a put-back at all.
+            if (trash && !back && !except.count) [MMUndo.shared finish:parent ok:NO freed:0 error:[@"MinMacs stopped before this Wrap Up ended. " stringByAppendingString:trash]];
+            else {
+                if (trash) [except addObject:trash];
+                [MMUndo.shared finish:parent ok:NO freed:0 error:[NSString stringWithFormat:@"MinMacs stopped before this Wrap Up ended. What it had moved out of the worktree was put back%@",
+                                                                 except.count ? [@", except: " stringByAppendingString:[except componentsJoinedByString:@"; "]] : @""]];
+            }
         }
         recovered++;
     } @catch (NSException *e) {
@@ -348,7 +360,9 @@ static BOOL UnreadWrapUp(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
 static NSArray<NSString *> *StillStaged(MMUndoRecord *r, NSArray<MMUndoRecord *> *parts) {
     NSMutableSet<NSString *> *at = [NSMutableSet new];
     struct stat st;
-    for (MMRemovalWaitingItem *i in MMRemovalWaiting()) if ([i.wrapUpRid isEqualToString:r.rid]) [at addObject:MMRemovalRealPath(i.stagedAt) ?: i.stagedAt];
+    // What waits in the Trash is the person's to put back from there, and no reason to keep the Wrap Up open.
+    for (MMRemovalWaitingItem *i in MMRemovalWaiting())
+        if ([i.wrapUpRid isEqualToString:r.rid] && i.why != MMRemovalWaitInTrash) [at addObject:MMRemovalRealPath(i.stagedAt) ?: i.stagedAt];
     for (MMUndoRecord *part in parts) {
         if (part.state == MMUndoRestored) continue;
         for (NSDictionary *x in MMRecordList(part.payload, @"staged")) {

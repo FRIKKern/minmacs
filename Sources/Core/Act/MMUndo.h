@@ -142,6 +142,10 @@ void MMRemovalTrashListDrop(NSString *rid, NSString *from, NSString *to);
 /// Why the "trashed" entry of record rid is not one MinMacs's own list names, or nil when it is: the same from and to,
 /// and the same file by inode and volume UUID. A record names a file in the Trash; this list says MinMacs put it there.
 NSString *MMRemovalTrashListWhyNot(NSString *rid, NSDictionary *entry);
+/// Every entry of rid's list, for MMRemovalTrashStranded, issue #113: an empty list when it has none, or nil, and
+/// *unread YES, when something is there that is not a list MinMacs wrote, or one of its entries is not one MinMacs
+/// writes: an old path or a Trash path that is no real path, or no inode. Then nothing in it is believed.
+NSArray<NSDictionary *> *MMRemovalTrashListItems(NSString *rid, BOOL *unread);
 
 /// P53. A tool's own cleanup command, run first in its dry-run form.
 /// New code. uv says direct edits to its cache are never safe, and Go's module cache is read-only on this Mac.
