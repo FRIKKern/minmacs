@@ -7,6 +7,10 @@
 # $MINMACS_HOME/git/config.
 
 CF="$G/config"; CFR="$CF/roots"; mkdir -p "$CFR"
+# git's answers must come from the rows' files alone, whatever config the person running this has: test.sh pins the
+# global one too, and this section does not lean on that.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1
+unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 # cf_case <id> [branch]: the row's repo, its branch section removed. CFC is its config, CFD its folder.
 cf_case() {
   CFD="$CFR/$1"; cf_b="${2:-$1}"; mkdir -p "$CFD"
@@ -126,13 +130,56 @@ cf_sec u1 '\tremote = origin\n\tmerge: refs/heads/u1\n'
 cf_sec u2 '\tremote = origin\n\tmerge = "refs/heads/u2\n'
 cf_sec u3 '\tremote = origin\n\tmerge = refs/heads/u3\n[branch ""]\n\tremote = origin\n'
 
+echo "-- the format version, which decides whether config.worktree is read"
+# cf_wv <id> [lines for config]: extensions.worktreeConfig on, core.repositoryformatversion taken out of config, and
+# config.worktree naming a remote whose branch is gone. git reads config.worktree only when config holds version 0 or 1.
+cf_wv() {
+  cf_sec "$1" "\tremote = origin\n\tmerge = refs/heads/$1\n"; gq -C "$CFD/main" config --unset core.repositoryformatversion
+  [ -z "${2-}" ] || printf "$2" >>"$CFC"; printf '[extensions]\n\tworktreeConfig = true\n' >>"$CFC"
+  printf '[branch "%s"]\n\tremote = gonee\n[remote "gonee"]\n\turl = %s\n\tfetch = +refs/heads/*:refs/remotes/gonee/*\n' \
+    "$1" "$CFD/origin.git" >"$CFD/main/.git/worktrees/wt/config.worktree"
+}
+cf_wv b1
+cf_wv b2 '[core]\n\trepositoryformatversion = -1\n'
+cf_wv b3 '[core]\n\trepositoryformatversion = 2\n'
+cf_wv b4 '[include]\n\tpath = version.inc\n'; printf '[core]\n\trepositoryformatversion = 1\n' >"$CFD/main/.git/version.inc"
+cf_wv b5 '[core]\n\trepositoryformatversion = 1\n'
+
+echo "-- a tab inside a value, and bytes that are not UTF-8"
+# git before 2.45 reads a tab inside a value as a space, and 2.45 on keeps the tab: "my<tab>origin" names a remote
+# called "my origin" to the one and "my<tab>origin" to the other.
+cf_my() { printf '[remote "my%sorigin"]\n\turl = %s\n\tfetch = +refs/heads/*:refs/remotes/%s/*\n' "$1" "$CFD/origin.git" "$2" >>"$CFC"; }
+cf_sec ws1 '\tremote = my\torigin\n\tmerge = refs/heads/ws1\n'; cf_my ' ' origin
+cf_sec ws2 '\tremote = my  origin\n\tmerge = refs/heads/ws2\n'; cf_my '  ' origin
+cf_sec ws3 '\tremote = my\torigin\n\tmerge = refs/heads/ws3\n'; cf_my ' ' origin; cf_my "$(printf '\t')" gonee
+# Two names that differ, each with a byte that is not UTF-8: no remote is called o\377, but o\376 maps to gone refs.
+cf_sec lo1 '\tremote = o\377\n\tmerge = refs/heads/lo1\n'
+printf '[remote "o\376"]\n\turl = %s\n\tfetch = +refs/heads/*:refs/remotes/gonee/*\n' "$CFD/origin.git" >>"$CFC"
+# An include whose path has a byte that is not UTF-8: git finds no file there; a file named with U+FFFD in its place
+# names a gone remote.
+cf_sec lo2 '\tremote = nothere\n\tmerge = refs/heads/lo2\n[include]\n\tpath = up\377.inc\n'
+printf '[branch "lo2"]\n\tremote = gonee\n[remote "gonee"]\n\turl = %s\n\tfetch = +refs/heads/*:refs/remotes/gonee/*\n' \
+  "$CFD/origin.git" >"$CFD/main/.git/up$(printf '\357\277\275').inc"
+
+echo "-- what makes git refuse to read any remote"
+# cf_moved: the branch's remote branch deleted, its commit kept on another remote ref, so Smart deletes on a gone.
+cf_moved() {
+  gq -C "$CFD/main" update-ref "refs/remotes/origin/kept-$1" "$(git -C "$CFD/wt" rev-parse HEAD)"
+  gq -C "$CFD/main" update-ref -d "refs/remotes/origin/$1"
+}
+cf_case n1; cf_moved n1; printf '[branch "n1"]\n\tremote = origin\n\tmerge = refs/heads/n1\n[url "https://example.invalid/"]\n\tinsteadOf\n' >>"$CFC"
+cf_case n2; cf_moved n2; printf '[branch "n2"]\n\tremote = origin\n\tmerge = refs/heads/n2\n[remote "other"]\n\turl = /nowhere\n\tfetch = refs/heads/*:refs/remotes/other/x\n' >>"$CFC"
+cf_case n3; cf_moved n3; printf '[branch "n3"]\n\tremote = origin\n\tmerge = refs/heads/n3\n[url "https://example.invalid/"]\n\tpushInsteadOf\n' >>"$CFC"
+# Lines git takes, in another remote: no destination, an empty one, a pattern in the middle, "push = :" and a negative.
+cf_sec n4 '\tremote = origin\n\tmerge = refs/heads/n4\n[remote "other"]\n\turl = /nowhere\n\tfetch = refs/heads/main\n\tfetch = refs/heads/main:\n\tfetch = +refs/pull/*/head:refs/remotes/other/pr/*\n\tfetch = ^refs/heads/skip\n\tpush = :\n\tpush = refs/heads/main\n'
+
 GO=$("$GT" keeps "$CFR")
 # cf_row <id> <branch> <git's answer> <MinMacs's answer>. git's answer is for-each-ref's %(upstream:short) and
 # %(upstream:track), or "fatal" when git refuses the config. MinMacs's is upstream|upstreamGone|upstreamUnknown|smart.
 cf_row() {
   cf_w="$CFR/$1/wt"
   cf_git=$(git -C "$cf_w" for-each-ref --format='%(upstream:short)|%(upstream:track)' "refs/heads/$2" 2>/dev/null) || cf_git=fatal
-  cf_git=$(printf '%s' "$cf_git" | tr '\t\n' '~~')   # a tab or a newline git reads into a name shows as ~
+  cf_git=$(printf '%s' "$cf_git" | LC_ALL=C tr '\t\n' '~~')   # a tab or a newline git reads into a name shows as ~
   cf_rp=$(git -C "$cf_w" rev-parse --abbrev-ref "$2@{upstream}" 2>/dev/null) || cf_rp=none
   cf_cm=$(git -C "$cf_w" config --get "branch.$2.merge" 2>/dev/null) || cf_cm=-
   cf_cr=$(git -C "$cf_w" config --get "branch.$2.remote" 2>/dev/null) || cf_cr=-
@@ -141,7 +188,7 @@ import json,sys; j=json.load(sys.stdin)['facts']; k=sys.argv[1]
 v=j.get(k) or j.get(k[len('/private'):]) or {}
 s=v.get('smart', '?'); s=s if s == 'delete now' else 'keep: ' + s
 print('%s|%s|%s|%s' % (v.get('upstream'), v.get('upstreamGone'), v.get('upstreamUnknown'), s))" "$cf_w")
-  printf '  row   %-4s git %-24s rev-parse %-18s config %s / %s\n        %-4s mm  %s\n' "$1" "$cf_git" "$cf_rp" "$cf_cr" "$cf_cm" "" "$cf_mm" | tr '\t\n' '~\n'
+  printf '  row   %-4s git %-24s rev-parse %-18s config %s / %s\n        %-4s mm  %s\n' "$1" "$cf_git" "$cf_rp" "$cf_cr" "$cf_cm" "" "$cf_mm" | LC_ALL=C tr '\t\n' '~\n'
   cf_want=$3; case " or $3 or " in *" or $cf_git or "*) cf_want=$cf_git ;; esac   # "a or b": either answer of git's
   check "config $1: git answers" "$cf_want" "$cf_git"
   check "config $1: MinMacs reads what git reads" "$4" "$cf_mm"
@@ -168,9 +215,10 @@ cf_row q3 'q;3' "origin/q;3|" "$(cf_live 'origin/q;3')"
 cf_row q4 'q#4' "origin/q#4|" "$(cf_live 'origin/q#4')"
 cf_row e1 'e"1' 'origin/e"1|' "$(cf_live 'origin/e"1')"
 cf_row e2 e2 fatal "$cf_refused"
-cf_row e3 e3 "origin/e3|[gone]" "$cf_unread"
+# A tab or a newline in a name: git 2.39 prints it as it is, which shows here as ~ after the name; later gits print ~.
+cf_row e3 e3 "origin/e3~|[gone] or origin/e3|[gone]" "$cf_unread"
 cf_row e4 e4 'origin/e4\|[gone]' "$cf_unread"
-cf_row e5 e5 "origin/e5|[gone]" "$cf_unread"
+cf_row e5 e5 "origin/e5~|[gone] or origin/e5|[gone]" "$cf_unread"
 cf_row w1 w1 "origin/w1|" "$(cf_live origin/w1)"
 cf_row w2 w2 "origin/w2|" "$(cf_live origin/w2)"
 cf_row w3 w3 "|" "$cf_none"
@@ -221,4 +269,18 @@ cf_row i8 i8 "origin/i8|" "$(cf_live origin/i8)"
 cf_row i9 i9 fatal "$cf_refused"
 cf_row wt3 wt3 "|" "$cf_none"
 cf_row u3 u3 fatal "$cf_unread"
+cf_row b1 b1 "origin/b1|" "$(cf_live origin/b1)"   # no version: git drops the extension
+cf_row b2 b2 "origin/b2|" "$(cf_live origin/b2)"   # -1 is no version
+cf_row b3 b3 fatal "$cf_refused"                    # past 1: git refuses the repo
+cf_row b4 b4 "origin/b4|" "$(cf_live origin/b4)"   # a version in an include is not read for the format
+cf_row b5 b5 "gonee/b5|[gone]" "gonee/b5|True|False|delete now"   # version 1: config.worktree is read
+cf_row ws1 ws1 "origin/ws1| or |" "$cf_unread"
+cf_row ws2 ws2 "origin/ws2|" "$(cf_live origin/ws2)"   # spaces inside stay as they are in every git
+cf_row ws3 ws3 "origin/ws3| or gonee/ws3|[gone]" "$cf_unread"
+cf_row lo1 lo1 "|" "$cf_unread"
+cf_row lo2 lo2 "|" "$cf_unread"
+cf_row n1 n1 fatal "$cf_unread"   # git status reads no remote, so only the upstream is not known
+cf_row n2 n2 fatal "$cf_unread"
+cf_row n3 n3 fatal "$cf_unread"
+cf_row n4 n4 "origin/n4|" "$(cf_live origin/n4)"
 check "config: Smart deletes no worktree whose upstream git says is live, or that git has none of" "" "$cf_lost"
