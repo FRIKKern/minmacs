@@ -14,7 +14,7 @@
 //                                                 NN_CMD_TIMEOUT sets its time limit. Prints the record as JSON, or the refusal
 //   tool freed <text>                             what MMClutterFreedFromOutput reads from text
 // NN_RUNNING_APPS names the bundle ids that count as running, comma separated, for the rows' quitFirst.
-// NN_PROJECTS names the checkouts, colon separated. NN_MERGED names the worktree whose git facts say squash-merged.
+// NN_PROJECTS names the checkouts, colon separated, as the index keeps them, each with its resolved path as realPath. NN_MERGED names the worktree whose git facts say squash-merged.
 // NN_AGENT_CWD adds a working agent session in that folder. With NN_AGENT_PID it runs as that process, and the facts
 // carry a process sample taken now.
 #import <Cocoa/Cocoa.h>
@@ -45,6 +45,8 @@ static NSArray<NSString *> *Projects(void) {
     for (NSString *p in Projects()) {
         MMWorktree *w = [MMWorktree new];
         [w setValue:p forKey:@"path"]; [w setValue:main forKey:@"repo"];
+        char real[PATH_MAX];   // as the index stores it: the path with every link resolved
+        [w setValue:(realpath(p.fileSystemRepresentation, real) ? @(real) : p) forKey:@"realPath"];
         [w setValue:@([p isEqualToString:main]) forKey:@"isMain"];
         [w setValue:p.lastPathComponent forKey:@"branch"];
         [trees addObject:w];

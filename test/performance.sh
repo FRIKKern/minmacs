@@ -38,6 +38,8 @@ if [ "$pf_r" = 0 ]; then
   pf_run calm
   echo "-- a worktree whose size is not measured yet"
   pf_run unmeasured
+  echo "-- the busy world under a root that is a link, issue #101"
+  pf_run linked
   echo "-- what one build costs"
   pf_run bench
   # docs/2.0/BENCH.md, section The Performance model, has the number. The ceiling is ten times it, for a loaded Mac.

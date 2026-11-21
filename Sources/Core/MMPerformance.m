@@ -28,6 +28,30 @@ static BOOL PathIn(NSString *path, NSString *folder) {
     return path.length == folder.length || [path characterAtIndex:folder.length] == '/';
 }
 
+/// Each checkout by both its names, issue #101: a WorkForest finding names it resolved, the index as its root gave it.
+/// Made once per model build; of two entries with one name the first in the index's order answers, as a scan would.
+static NSDictionary<NSString *, MMWorktree *> *TreesByName(MMFacts *facts) {
+    NSMutableDictionary<NSString *, MMWorktree *> *by = [NSMutableDictionary new];
+    for (MMWorktree *w in facts.worktrees) {
+        if (w.path.length && !by[w.path]) by[w.path] = w;
+        if (w.realPath.length && !by[w.realPath]) by[w.realPath] = w;
+    }
+    return by;
+}
+
+/// Every name of the checkouts at trees, once each: as given, and both forms of the index's checkout of that name. A
+/// path inside any of them lies in one of the checkouts, as text.
+static NSArray<NSString *> *FormsOf(NSArray<NSString *> *trees, NSDictionary<NSString *, MMWorktree *> *named) {
+    NSMutableOrderedSet<NSString *> *out = [NSMutableOrderedSet new];
+    for (NSString *t in trees) {
+        [out addObject:t];
+        MMWorktree *w = named[t];
+        if (w.path.length) [out addObject:w.path];
+        if (w.realPath.length) [out addObject:w.realPath];
+    }
+    return out.array;
+}
+
 static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:sizeof k]; return k; }
 
 #pragma mark - Rows and groups
@@ -277,6 +301,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
     MMPerformance *m = [MMPerformance new];
     MMFacts *facts = s.facts;
     MMSample *sample = facts.sample;
+    NSDictionary<NSString *, MMWorktree *> *named = TreesByName(facts);
     m.generation = s.generation;
     m.lookBack = lookBack ?: [MMPerformanceLookBack fromSummary:@{}];
     NSMutableDictionary<NSString *, NSMutableArray<MMPerformanceRow *> *> *groups = [NSMutableDictionary new];
@@ -308,8 +333,11 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
     NSMutableArray<MMPerformanceFix *> *fixes = [NSMutableArray new];
     NSMutableSet<NSString *> *inFix = [NSMutableSet new];
     NSMutableArray<NSString *> *removedTrees = [NSMutableArray new];
+    NSMutableSet<NSString *> *planned = [NSMutableSet new];   // issue #101: a folder the index names twice plans once
     for (MMWorktree *w in facts.worktrees) {
         if (w.isMain || w.missing || !w.path.length || [facts gitFor:w].merged == MMMergedNone) continue;
+        if ([planned containsObject:w.realPath ?: w.path]) continue;
+        [planned addObject:w.realPath ?: w.path];
         MMWrapUpPlan *plan = MMWrapUpPlanFor(w.path, s);
         if (plan.subject.whyNot) continue;
         for (MMWrapUpPart *p in plan.parts) {
@@ -342,8 +370,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
         NSString *kind = FixKind(f);
         if (!kind || f.kept || [inFix containsObject:f.findingID] || !byKey[RowKey(f)]) continue;
         if ([kind isEqualToString:@"remove"]) {
-            MMWorktree *tree = nil;
-            for (MMWorktree *w in facts.worktrees) if ([w.path isEqualToString:f.path]) tree = w;
+            MMWorktree *tree = f.path ? named[f.path] : nil;
             if (!tree || tree.isMain || [facts gitFor:tree].merged == MMMergedNone) continue;
         }
         id<MMExpert> e = MMExpertNamed(f.expert);
@@ -353,6 +380,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
         [byKind[kind] addObject:f];
     }
     for (MMFinding *f in byKind[@"remove"]) if (f.path) [removedTrees addObject:f.path];
+    NSArray<NSString *> *removedForms = FormsOf(removedTrees, named);
     for (NSString *kind in @[@"stop", @"quit", @"remove", @"trash", @"clean"]) {
         NSMutableArray<id<MMAction>> *actions = [NSMutableArray new];
         NSMutableArray<NSString *> *rows = [NSMutableArray new];
@@ -362,7 +390,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
             // What a removed worktree holds goes with it, so a cache inside one is not a fix of its own.
             BOOL inside = NO;
             if ([kind isEqualToString:@"trash"] || [kind isEqualToString:@"clean"])
-                for (NSString *t in removedTrees) if (PathIn(f.path, t)) inside = YES;
+                for (NSString *t in removedForms) if (PathIn(f.path, t)) { inside = YES; break; }
             if (inside) continue;
             id<MMExpert> e = MMExpertNamed(f.expert);
             [actions addObject:[e actionFor:f step:MMStopTerm]];
@@ -417,7 +445,13 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
     for (MMPerformanceRow *r in groups[MMPerformanceClutter]) clutter += r.number;
     for (MMPerformanceRow *t in groups[MMPerformanceWorktrees]) {
         uint64_t inside = 0;
-        for (MMPerformanceRow *c in groups[MMPerformanceClutter]) if (PathIn(c.finding.path, t.finding.path)) inside += c.number;
+        NSString *at = t.finding.path;   // the tree's names, looked up once: as the finding gives it, then both of the index's
+        MMWorktree *w = at ? named[at] : nil;
+        NSString *kept = [w.path isEqualToString:at] ? nil : w.path, *real = [w.realPath isEqualToString:at] || [w.realPath isEqualToString:kept] ? nil : w.realPath;
+        for (MMPerformanceRow *c in groups[MMPerformanceClutter]) {
+            NSString *p = c.finding.path;
+            if (PathIn(p, at) || (kept && PathIn(p, kept)) || (real && PathIn(p, real))) inside += c.number;
+        }
         trees += t.number > inside ? t.number - inside : 0;
     }
     // A worktree not measured yet adds nothing above, so the part is of the measured ones only.

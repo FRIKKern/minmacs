@@ -163,6 +163,30 @@ printf 'changed\n' >>"$GX/away/a.txt"
 GO=$("$GT" facts "$GX/roots")
 check "  and the next walk reads its status again, since no stream sees it" "1|1" "$(gf "$GX/away" dirty)|$(gs statusRuns)"
 
+echo "-- a root that is a link, issue #101"
+# A repo with a linked worktree and one in a hidden folder that only .git/worktrees names, under code, and a link root,
+# deeper than code as ~/Documents/github is deeper than the volume it leads to. The walk finds the first two by the
+# link's path and .git/worktrees names both worktrees by the resolved path git wrote. The index holds both names of
+# the linked worktree, as before, since the graph names owners by them. The stream names a change by the resolved path.
+# Before, a new file in the worktree marked neither name.
+GL="$G/lk"; mkdir -p "$GL/code" "$GL/my/docs"; ln -s "$GL/code" "$GL/my/docs/root"
+gq init -q "$GL/code/r"; gc "$GL/code/r" a.txt one "one"
+gq -C "$GL/code/r" worktree add -q -b a "$GL/code/r.wt/a"
+gq -C "$GL/code/r" worktree add -q -b h "$GL/code/r/.worktrees/h"
+printf '.worktrees/\n' >>"$GL/code/r/.git/info/exclude"
+gl_rel="replace('$GL/', '').replace('${GL#/private}/', '')"
+gl_trees() { printf '%s' "$GO" | json "' '.join(p.$gl_rel for p in j['$1'])"; }
+GO=$("$GT" linked "$GL/code" "$GL/code/r.wt/a/a.txt")
+check "git: under the plain root, three checkouts" "code/r code/r.wt/a code/r/.worktrees/h" "$(gl_trees worktrees)"
+check "  and a new file reaches the status of its checkout" "code/r.wt/a" "$(gl_trees grew)"
+GO=$("$GT" linked "$GL/my/docs/root" "$GL/my/docs/root/r.wt/a/a.txt")
+check "git: under the link, the worktree by both names, the others by the one they have" \
+  "code/r.wt/a code/r/.worktrees/h my/docs/root/r my/docs/root/r.wt/a" "$(gl_trees worktrees)"
+check "  and a new file, named by its resolved folder, reaches the status under both names" \
+  "code/r.wt/a my/docs/root/r.wt/a" "$(gl_trees grew)"
+GO=$("$GT" linked "$GL/code:$GL/my/docs/root" "$GL/code/r.wt/a/a.txt")
+check "git: with the link and its target both listed, a new file reaches every name of its checkout" \
+  "code/r.wt/a my/docs/root/r.wt/a" "$(gl_trees grew)"
 . test/git/bytes.sh
 . test/git/config.sh
 

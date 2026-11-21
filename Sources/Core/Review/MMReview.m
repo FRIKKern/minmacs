@@ -454,19 +454,24 @@ static BOOL Inside(NSString *path, NSString *folder) {
     return [path isEqualToString:folder] || [path hasPrefix:[folder stringByAppendingString:@"/"]];
 }
 
-/// The deepest worktree in facts that holds folder, or nil.
+/// YES when path is in w's folder, by its path as kept or its resolved one, issue #101.
+static BOOL InTree(NSString *path, MMWorktree *w) { return Inside(path, w.path) || Inside(path, w.realPath); }
+
+/// The deepest worktree in facts that holds folder, in either form, else as before with /private as /var and /tmp,
+/// or nil.
 static MMWorktree *WorktreeHolding(NSString *folder, MMFacts *facts) {
-    MMWorktree *best = nil;
+    MMWorktree *best = MMWorktreeHolding(facts.worktrees, folder);
+    if (best) return best;
     for (MMWorktree *w in facts.worktrees)
         if (Inside(folder, w.path) && (!best || w.path.length > best.path.length)) best = w;
     return best;
 }
 
-/// The newest session whose folder is folder or inside it, or nil.
-static MMSession *NewestSessionIn(NSString *folder, MMFacts *facts) {
+/// The newest session whose folder is in the worktree w, else in folder, or nil.
+static MMSession *NewestSessionIn(MMWorktree *w, NSString *folder, MMFacts *facts) {
     MMSession *best = nil;
     for (MMSession *x in facts.sessions) {
-        if (!Inside(x.cwd, folder)) continue;
+        if (w ? !InTree(x.cwd, w) : !Inside(x.cwd, folder)) continue;
         if (!best || (x.lastActive && (!best.lastActive || [x.lastActive compare:best.lastActive] == NSOrderedDescending))) best = x;
     }
     return best;
@@ -492,7 +497,7 @@ NSString *MMReviewContext(MMFinding *f, MMFacts *facts) {
     NSString *folder = TopOwner(f).path ?: f.path;
     MMWorktree *w = folder.length ? WorktreeHolding(folder, facts) : nil;
     NSString *head = w ? [facts gitFor:w].head : nil;
-    MMSession *x = folder.length ? NewestSessionIn(w.path ?: folder, facts) : nil;
+    MMSession *x = folder.length ? NewestSessionIn(w, folder, facts) : nil;
     return [NSString stringWithFormat:@"g%@|a%@|z%@", head.length > 12 ? [head substringToIndex:12] : head.length ? head : @"-",
             ActivityBucket(x), SizeBucketOf(f.cost.diskFreed)];
 }

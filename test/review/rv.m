@@ -32,7 +32,7 @@
 @end
 
 @interface RVWorktree : NSObject
-@property (copy) NSString *path;
+@property (copy) NSString *path, *realPath;
 @end
 @implementation RVWorktree @end
 
@@ -63,7 +63,7 @@ static RVFacts *Facts(NSDictionary *j) {
     NSMutableArray *ws = [NSMutableArray new], *ss = [NSMutableArray new];
     NSMutableDictionary *git = [NSMutableDictionary new];
     for (NSDictionary *w in j[@"worktrees"]) {
-        RVWorktree *t = [RVWorktree new]; t.path = w[@"path"]; [ws addObject:t];
+        RVWorktree *t = [RVWorktree new]; t.path = w[@"path"]; t.realPath = w[@"real"] ?: w[@"path"]; [ws addObject:t];
         RVGit *g = [RVGit new]; g.head = w[@"head"]; git[t.path] = g;
     }
     for (NSDictionary *w in j[@"sessions"]) {
@@ -211,6 +211,18 @@ static int Unit(void) {
     Out(@"the newest session decides the activity bucket", @"g0123456789ab|a1|z5", MMReviewContext(gf, (MMFacts *)(id)facts));
     g.cost = (MMCost){ .diskFreed = 1200ull << 20 };
     Out(@"a size past the next power of four moves the bucket", @"g0123456789ab|a1|z6", MMReviewContext(gf, (MMFacts *)(id)facts));
+    // Issue #101: under a root that is a link the index keeps the checkout by the link's path, while the session and a
+    // WorkForest finding name the resolved one. Before, the owner's path found the checkout but no session, and the
+    // resolved path found neither, so a verdict could carry over the agent's work.
+    RVFacts *linked = Facts(@{@"worktrees": @[@{@"path": @"/h/GitHub/shop", @"real": @"/Volumes/disk/github/shop", @"head": @"0123456789abcdef0123"}],
+                              @"sessions": @[@{@"cwd": @"/Volumes/disk/github/shop/src", @"ago": @60, @"working": @YES}]});
+    RVOwner *kept = [RVOwner new]; kept.kind = MMOwnerWorkstream; kept.key = @"/h/GitHub/shop"; kept.path = @"/h/GitHub/shop";
+    g.owner = kept; g.cost = (MMCost){ .diskFreed = 300ull << 20 };
+    NSString *byKept = MMReviewContext(gf, (MMFacts *)(id)linked);
+    g.owner = nil; g.path = @"/Volumes/disk/github/shop/node_modules";
+    Out(@"under a linked root the context finds the checkout and its session by either path", @"g0123456789ab|aw0|z5 g0123456789ab|aw0|z5",
+        [NSString stringWithFormat:@"%@ %@", byKept, MMReviewContext(gf, (MMFacts *)(id)linked)]);
+    g.cost = (MMCost){ .diskFreed = 1200ull << 20 };
     g.owner = nil; g.path = nil;
     Out(@"a finding with no folder has no HEAD and no session", @"g-|a-|z6", MMReviewContext(gf, (MMFacts *)(id)facts));
     Out(@"no facts give the empty context", @"g-|a-|z0", MMReviewContext((MMFinding *)(id)f, nil));

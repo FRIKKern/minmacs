@@ -36,8 +36,8 @@ typedef NS_ENUM(NSInteger, MMWorktreeMaker) { MMMakerPerson, MMMakerClaudeCode, 
 @property (readonly, copy) NSString *path, *repo, *branch;   // repo: the main checkout's path
 /// path with every link resolved, read once when the index stores the checkout, or path itself for a folder that is
 /// gone. The kernel names a process's folder this way and WorkForest names its finding this way, while path stays as
-/// the root gave it: /tmp for /private/tmp, or a root that is a link to another volume. The graph, asked which checkout
-/// holds a path, tries both, as text, and reads no file. worktreeAt: goes by path alone, issue #101.
+/// the root gave it: /tmp for /private/tmp, or a root that is a link to another volume. Every reader that asks which
+/// checkout holds a path tries both, as text, through the functions below, and reads no file. Issue #101.
 @property (readonly, copy) NSString *realPath;
 @property (readonly) BOOL isMain;
 @property (readonly) BOOL locked;                       // `git worktree lock`, which counts as in use
@@ -46,6 +46,18 @@ typedef NS_ENUM(NSInteger, MMWorktreeMaker) { MMMakerPerson, MMMakerClaudeCode, 
 @property (readonly, copy) NSString *makerSession;      // Claude Code's ownership marker, its session id
 @property (readonly) BOOL missing;                      // listed by git, gone from disk
 @end
+
+/// Issue #101. The form of w's folder that holds path: path as kept when it holds it, else realPath, else nil.
+/// Text only. A checkout under a root that is a link, or under /tmp, is one folder by two names.
+NSString *MMWorktreeFolderFor(MMWorktree *w, NSString *path);
+/// YES when path is w's own folder, in either form.
+BOOL MMWorktreeIsAt(MMWorktree *w, NSString *path);
+/// path, which w holds in one form, in w's other form: the same file named through realPath or through path.
+/// path itself when w does not hold it or both forms are one.
+NSString *MMWorktreeOtherForm(MMWorktree *w, NSString *path);
+/// The deepest checkout in trees, by its resolved path, whose folder holds path in either form; of two entries of one
+/// folder, the one named the way path is, else the first. nil when none does.
+MMWorktree *MMWorktreeHolding(NSArray<MMWorktree *> *trees, NSString *path);
 
 /// P26. How a branch reached the default branch. MMMergedNone means it did not, as far as the checks can tell.
 /// Starts from WF Trees.m:134-290 and NN worktrees.go:192, plus worktrunk's simulated merge with `git merge-tree`.
@@ -90,11 +102,14 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// nil walks every root. FSEvents passes what changed: only a .git folder, or a folder near a root outside every
 /// known checkout, starts a walk, and walks are at least 10 seconds apart. Never blocks.
 - (void)refresh:(NSSet<NSString *> *)changedDirs;
-- (NSArray<MMWorktree *> *)worktrees;                   // the last walk, deepest path first
+/// The last walk, deepest path first. A folder reached by two paths, as a root that is a link gives a linked worktree,
+/// is held under both, since the graph names owners by the form a process or session gives. Issue #101.
+- (NSArray<MMWorktree *> *)worktrees;
 /// YES once a walk of the roots has ended with an answer, so an empty list means none were found. NO before that,
 /// while the first walk runs, and after a walk the worker failed. Any queue, never blocks.
 - (BOOL)walked;
-/// The worktree that holds path, read from .git files with no spawn. nil outside any repo.
+/// The worktree that holds path: a walked one, by its path as kept and then by its resolved one, else one read from
+/// .git files with no spawn. nil outside any repo.
 - (MMWorktree *)worktreeAt:(NSString *)path;
 /// Through MMFactCache, in two layers that persist across launches. The status layer, dirty and untracked counts,
 /// is keyed by HEAD and the index file and dropped by a change inside the worktree. The history layer, upstream,

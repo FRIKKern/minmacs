@@ -503,10 +503,11 @@ static void Bench(void) {
 }
 
 #import "unsized.m"
+#import "linked.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: performance <dir> model|calm|lookback|bench|unmeasured\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: performance <dir> model|calm|lookback|bench|unmeasured|linked\n"); return 2; }
         gDir = @(argv[1]);
         Register();
         NSString *mode = @(argv[2]);
@@ -515,6 +516,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"lookback"]) LookBack();
         else if ([mode isEqualToString:@"bench"]) Bench();
         else if ([mode isEqualToString:@"unmeasured"]) PerformanceUnmeasured();
+        else if ([mode isEqualToString:@"linked"]) PerformanceLinked();
         else return 2;
         printf("END\n");
     }
