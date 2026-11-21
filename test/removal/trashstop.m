@@ -180,6 +180,20 @@ static void TrashListLows(void) {
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *base = Path(@"trashlows"), *cache = [base stringByAppendingPathComponent:@"cache/b.bin"];
 
+    // The one read of MinMacs's own lists: a plain file of this user's reads. A link to it, a named pipe and a folder
+    // read as nothing, and the pipe is never opened, so nothing waits on it.
+    NSString *own = [base stringByAppendingPathComponent:@"own.json"], *linked = [base stringByAppendingPathComponent:@"own-link.json"];
+    NSString *fifo = [base stringByAppendingPathComponent:@"own-fifo.json"];
+    Write(own, @"OWN");
+    symlink(own.fileSystemRepresentation, linked.fileSystemRepresentation);
+    mkfifo(fifo.fileSystemRepresentation, 0600);
+    int w1 = -1, w2 = -1, w3 = -1, w4 = -1;
+    NSData *d1 = MMReadOwnPlain(own, 64, &w1), *d2 = MMReadOwnPlain(linked, 64, &w2), *d3 = MMReadOwnPlain(fifo, 64, &w3), *d4 = MMReadOwnPlain(base, 64, &w4);
+    T(@"own read: a plain file of ours reads, and a link to it, a named pipe and a folder read as nothing", @"OWN 0 nil yes nil yes nil yes",
+      [NSString stringWithFormat:@"%@ %d %@ %@ %@ %@ %@ %@", [[NSString alloc] initWithData:d1 ?: NSData.data encoding:NSUTF8StringEncoding], w1, d2 ? @"data" : @"nil", YN(w2 == ELOOP),
+       d3 ? @"data" : @"nil", YN(w3 == EFTYPE), d4 ? @"data" : @"nil", YN(w4 == EISDIR)]);
+    [fm removeItemAtPath:linked error:nil]; [fm removeItemAtPath:fifo error:nil]; [fm removeItemAtPath:own error:nil];
+
     // core/trashed is a link: the lists would go wherever it points. MinMacs takes no list there, so the item stays.
     NSString *dir = TrashListOf(@"x").stringByDeletingLastPathComponent, *real = [base stringByAppendingPathComponent:@"lists-elsewhere"];
     [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
