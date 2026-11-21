@@ -10,8 +10,9 @@
 //
 // Each look ends one of three ways: the very file is there, by inode and volume UUID, never by a name alone; MinMacs
 // looked and it is not; or MinMacs could not look, as when the Trash refuses a look without Full Disk Access. Only
-// the second says "not there". The words say each of these as it is. What the record itself names, by its id, is its
-// own at any Trash name, as when the person renamed it in the Trash. An item found where another record names it, at
+// the second says "not there". The words say each of these as it is. What the record itself names, by its old path
+// and id, is its own at any Trash name, as when the person renamed it in the Trash. Two names of one file, hard links,
+// share an id and not an old path, so the first being named never hides the second. An item found where another record names it, at
 // that Trash path with that id, or where the Trash list of a record that still acts names it, is that record's. Each
 // is left out here. A record whose Undo ran names nothing any more.
 // Read only: nothing here moves, deletes or writes a file or a record. --waiting lists what is found in the Trash, and
@@ -146,13 +147,15 @@ NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, NSSet<NSString 
     for (NSDictionary *e in items) if (![asked containsObject:MMRecordString(e, @"from")]) { if (unread) *unread = YES; return @[]; }
     NSSet<NSString *> *names = named ?: MMRemovalTrashNamed(@[r]);
     // What r names itself is its own at any Trash name: the person may have renamed it in the Trash, or put it back
-    // and trashed it again by hand, issue #113's third review. Its list is never removed, so it still names it.
+    // and trashed it again by hand, issue #113's third review. Its list is never removed, so it still names it. By
+    // old path and id together, so a hard link's second name is not hidden by the first, the fourth review.
     NSMutableSet<NSString *> *own = [NSMutableSet new];
-    if (r.state != MMUndoRestored) for (NSDictionary *t in MMRecordList(r.payload, @"trashed")) if (IdKey(t)) [own addObject:IdKey(t)];
+    if (r.state != MMUndoRestored)
+        for (NSDictionary *t in MMRecordList(r.payload, @"trashed")) if (IdKey(t) && MMRecordString(t, @"from")) [own addObject:Named(MMRecordString(t, @"from"), IdKey(t))];
     NSMutableArray<NSDictionary *> *out = [NSMutableArray new];
     for (NSDictionary *e in items) {
         NSString *from = MMRecordString(e, @"from"), *key = IdKey(e);
-        if (key && [own containsObject:key]) continue;
+        if (key && from && [own containsObject:Named(from, key)]) continue;
         NSMutableDictionary *x = [@{@"from": from, @"stranded": @YES} mutableCopy];
         // Only once the list names a Trash path did the move happen. Before that, MinMacs was only sending it.
         if (!MMRecordHas(e, @"to")) x[@"sending"] = @YES;

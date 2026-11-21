@@ -268,7 +268,7 @@ NSUInteger MMRemovalAdoptStranded(MMUndoRecord *r, MMUndoRecord *parent);
 /// An item record r sent to the Trash, or was sending there, that no record names, since MinMacs stopped between the
 /// list's first write and the record's note, issue #113, MMRemovalTrashStranded.m. Each entry of MinMacs's own list
 /// of what r sent there, MMRemovalTrashListItems, whose old path r asked about, whose very file is not at that old
-/// path, whose id r itself does not name, and that is not where named names it, as {from, ino, dev, vol, stranded},
+/// path, whose old path and id r itself does not name, and that is not where named names it, as {from, ino, dev, vol, stranded},
 /// with "sending"
 /// when the list never got a Trash path, so the move may not have run. Then where it is: "to" when that very file
 /// lies directly in a Trash by its inode and volume UUID, never by a name alone; "several" when more than one name
