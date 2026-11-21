@@ -155,3 +155,6 @@ static void TrashedByMinMacs(void) {
     [MMUndo.shared finish:blocked ok:NO freed:0 error:@"test"];
     [fm removeItemAtPath:mine error:nil];
 }
+
+// Issue #113: a stop between the move to the Trash and the record.
+#import "trashstop.m"
