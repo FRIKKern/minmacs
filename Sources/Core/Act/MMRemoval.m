@@ -92,7 +92,9 @@ static NSString *WorktreeKeeps(MMRemovalFacts *f) {
     if (f.untracked > 0) return [Count(f.untracked, @"untracked file is", @"untracked files are") stringByAppendingString:@" not in git"];
     if (f.unpushed > 0) return [Count(f.unpushed, @"commit is", @"commits are") stringByAppendingString:@" on no remote"];
     if (f.stashes > 0) return [NSString stringWithFormat:@"it has %@", Count(f.stashes, @"stash", @"stashes")];
-    if (!f.merged && !f.upstreamGone) return @"its branch is not merged and its remote branch still exists";
+    if (!f.merged && f.upstreamUnknown) return @"its branch is not merged and its remote branch could not be read";
+    if (!f.merged && !f.upstreamGone) return f.upstreamNone ? @"its branch is not merged and it tracks no remote branch"
+                                                            : @"its branch is not merged and its remote branch still exists";
     return nil;
 }
 

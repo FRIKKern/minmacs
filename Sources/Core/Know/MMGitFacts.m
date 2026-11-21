@@ -17,6 +17,8 @@
 
 NSString *MMGitInput(NSString *dir, NSArray<NSString *> *args, NSData *input, NSTimeInterval timeout, int *status);
 NSString *MMGitPatchIds(NSString *dir, NSArray<NSString *> *args, NSData *input, NSTimeInterval timeout, int *status);
+NSArray *MMGitConfigItems(NSData *bytes, NSString *file);                                    // MMGitConfig.m
+NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *branch, id (^load)(NSString *path));
 
 static const NSTimeInterval kGitShort = 15;        // rev-list, merge-base, show
 static const NSTimeInterval kGitStatus = 30;       // status in a large checkout
@@ -142,6 +144,8 @@ static NSString *Text(const unsigned char *b, NSUInteger n, BOOL *lossy) {
     return [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: @"";
 }
 
+NSString *MMGitText(const unsigned char *b, NSUInteger n, BOOL *lossy) { return Text(b, n, lossy); }
+
 /// A file's lines, split on the byte \n, each with a \r before the \n dropped, as git's config reader drops it.
 static NSArray<NSString *> *FileLines(NSData *data) {
     const unsigned char *b = data.bytes;
@@ -213,22 +217,22 @@ static BOOL IsSha(NSString *s) {
     return [s rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"].invertedSet].location == NSNotFound;
 }
 
-/// A file git rewrites whole, parsed from its lines once per stamp and kept per path. A missing file parses as no
-/// lines. Issues #96 and #116: one that is there and cannot be read, a named pipe among them, gives kUnread and never
+/// A file git rewrites whole, parsed from its bytes once per stamp and kept per path. A missing file parses as no
+/// bytes. Issues #96 and #116: one that is there and cannot be read, a named pipe among them, gives kUnread and never
 /// waits, and is read again next time.
-static id Parsed(NSString *path, id (^parse)(NSArray<NSString *> *lines)) {
+static id Parsed(NSString *path, id (^parse)(NSData *bytes)) {
     static NSMutableDictionary<NSString *, NSArray *> *memo; static dispatch_once_t once;
     dispatch_once(&once, ^{ memo = [NSMutableDictionary new]; });
     int why = 0;
     NSString *stamp = StampWhy(path, &why);
-    if ([stamp isEqualToString:@"-"]) return Missing(why, NO) ? parse(@[]) ?: NSNull.null : kUnread;
+    if ([stamp isEqualToString:@"-"]) return Missing(why, NO) ? parse(NSData.data) ?: NSNull.null : kUnread;
     @synchronized (memo) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }
     NSData *bytes = MMReadPlainWhy(path, kGitFileMax, MMPlainWhole, &why);
-    if (!bytes) return Missing(why, NO) ? parse(@[]) ?: NSNull.null : kUnread;
-    id value = parse(FileLines(bytes)) ?: NSNull.null;
+    if (!bytes) return Missing(why, NO) ? parse(NSData.data) ?: NSNull.null : kUnread;
+    id value = parse(bytes) ?: NSNull.null;
     @synchronized (memo) {
         if (memo.count > 512) [memo removeAllObjects];
         memo[path] = @[stamp, value];
@@ -238,9 +242,9 @@ static id Parsed(NSString *path, id (^parse)(NSArray<NSString *> *lines)) {
 
 /// packed-refs as ref name to sha, or kUnread. A name that is not UTF-8 is kept with U+FFFD, and no lookup asks for it.
 static id PackedRefs(NSString *common) {
-    return Parsed([common stringByAppendingPathComponent:@"packed-refs"], ^id(NSArray<NSString *> *lines) {
+    return Parsed([common stringByAppendingPathComponent:@"packed-refs"], ^id(NSData *bytes) {
         NSMutableDictionary *refs = [NSMutableDictionary new];
-        for (NSString *line in lines) {
+        for (NSString *line in FileLines(bytes)) {
             if (line.length < 42 || [line hasPrefix:@"#"] || [line hasPrefix:@"^"]) continue;
             NSRange sp = [line rangeOfString:@" "];
             if (sp.location == NSNotFound) continue;
@@ -266,37 +270,10 @@ static NSString *Resolve(NSString *common, NSString *ref, int depth) {
     return !sha || IsSha(sha) ? sha : kUnread;
 }
 
-/// The [branch "x"] sections of config as {x: {remote, merge}}, or kUnread. Includes are not followed.
-static id BranchConfig(NSString *common) {
-    return Parsed([common stringByAppendingPathComponent:@"config"], ^id(NSArray<NSString *> *lines) {
-        NSMutableDictionary *out = [NSMutableDictionary new];
-        NSString *branch = nil;
-        NSRegularExpression *head = [NSRegularExpression regularExpressionWithPattern:@"^\\[\\s*([A-Za-z0-9.-]+)(?:\\s+\"((?:[^\"\\\\]|\\\\.)*)\")?\\s*\\]"
-                                                                              options:0 error:nil];
-        for (NSString *raw in lines) {
-            NSString *line = [raw stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-            if (!line.length || [line hasPrefix:@"#"] || [line hasPrefix:@";"]) continue;
-            if ([line hasPrefix:@"["]) {
-                NSTextCheckingResult *m = [head firstMatchInString:line options:0 range:NSMakeRange(0, line.length)];
-                branch = nil;
-                if (m && [[line substringWithRange:[m rangeAtIndex:1]].lowercaseString isEqualToString:@"branch"] &&
-                    [m rangeAtIndex:2].location != NSNotFound)
-                    branch = [[line substringWithRange:[m rangeAtIndex:2]] stringByReplacingOccurrencesOfString:@"\\\"" withString:@"\""];
-                continue;
-            }
-            if (!branch) continue;
-            NSRange eq = [line rangeOfString:@"="];
-            if (eq.location == NSNotFound) continue;
-            NSString *key = [[line substringToIndex:eq.location] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].lowercaseString;
-            NSString *val = [[line substringFromIndex:NSMaxRange(eq)] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-            if (val.length >= 2 && [val hasPrefix:@"\""] && [val hasSuffix:@"\""]) val = [val substringWithRange:NSMakeRange(1, val.length - 2)];
-            if (![key isEqualToString:@"remote"] && ![key isEqualToString:@"merge"]) continue;
-            NSMutableDictionary *b = out[branch] ?: [NSMutableDictionary new];
-            b[key] = val;
-            out[branch] = b;
-        }
-        return out;
-    });
+/// A config file's items, MMGitConfigItems, parsed once per stamp. NSNull for a file git refuses, kUnread for one
+/// that is there and not read, no items for a missing one.
+static id ConfigItems(NSString *path) {
+    return Parsed(path, ^id(NSData *bytes) { return MMGitConfigItems(bytes, path); });
 }
 
 /// The stash entries made on branch, from logs/refs/stash: "WIP on <branch>:" or "On <branch>:". -1 when the log is
@@ -305,9 +282,9 @@ static id BranchConfig(NSString *common) {
 /// never fewer.
 static NSInteger StashesOn(NSString *common, NSString *branch) {
     if (!branch.length) return 0;
-    id lines = Parsed([common stringByAppendingPathComponent:@"logs/refs/stash"], ^id(NSArray<NSString *> *lines) {
+    id lines = Parsed([common stringByAppendingPathComponent:@"logs/refs/stash"], ^id(NSData *bytes) {
         NSMutableArray *subjects = [NSMutableArray new];
-        for (NSString *line in lines) {
+        for (NSString *line in FileLines(bytes)) {
             NSRange tab = [line rangeOfString:@"\t"];
             if (tab.location != NSNotFound) [subjects addObject:[line substringFromIndex:NSMaxRange(tab)]];
         }
@@ -373,18 +350,15 @@ NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
         break;
     }
 
-    // The upstream, from [branch "x"] remote and merge. A branch whose name NameUsable refuses could read the section
-    // of another name that reads the same, so its upstream is not known.
+    // The upstream, as git's own config reader and @{upstream} give it, issue #118: MMGitConfig.m. A branch whose name
+    // NameUsable refuses could read the section of another name that reads the same, so its upstream is not known.
     BOOL named = f[@"branch"] && NameUsable(f[@"branch"]);
-    id cfg = named ? BranchConfig(common) : nil;
-    if (cfg == kUnread || (f[@"branch"] && !named) || (headUnread && !f[@"branch"])) f[@"upUnread"] = @YES;
-    NSDictionary *b = [cfg isKindOfClass:NSDictionary.class] ? cfg[f[@"branch"]] : nil;
-    NSString *remote = Str(b[@"remote"]), *merge = Str(b[@"merge"]);
-    if (remote && [merge hasPrefix:@"refs/heads/"]) {
-        NSString *name = [merge substringFromIndex:11];
-        NSString *ref = [remote isEqualToString:@"."] ? merge : [NSString stringWithFormat:@"refs/remotes/%@/%@", remote, name];
-        f[@"up"] = [remote isEqualToString:@"."] ? name : [NSString stringWithFormat:@"%@/%@", remote, name];
-        f[@"upRef"] = ref;
+    if ((f[@"branch"] && !named) || (headUnread && !f[@"branch"])) f[@"upUnread"] = @YES;
+    NSDictionary *up = named ? MMGitConfigUpstream(common, gitDir, f[@"branch"], ^id(NSString *p) { return ConfigItems(p); }) : nil;
+    if (up[@"unknown"]) f[@"upUnread"] = @YES;
+    else if (up[@"ref"]) {
+        NSString *ref = up[@"ref"];
+        f[@"up"] = up[@"up"]; f[@"upRef"] = ref;
         NSString *tip = Resolve(common, ref, 0);
         if (tip == kUnread) f[@"upUnread"] = @YES;
         else if (tip) f[@"upTip"] = tip;
