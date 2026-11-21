@@ -137,8 +137,9 @@ static MMWFTree *TreeFrom(MMWorktree *w, MMFacts *facts, NSArray *procs, MMSessi
     if (g) {
         t.gitKnown = YES;
         t.head = g.head; t.defaultBranch = g.defaultBranch;
-        // Issue #116: an upstream that cannot be read is "unknown", never "none", which says never pushed.
-        t.upstream = g.upstreamGone ? @"gone" : g.upstream.length ? g.upstream : g.upstreamUnknown ? @"unknown" : @"none";
+        // Issue #116: an upstream that cannot be read is "unknown", never "none", which says never pushed. Issue #118:
+        // nor its name, when its remote branch cannot be read.
+        t.upstream = g.upstreamGone ? @"gone" : g.upstreamUnknown ? @"unknown" : g.upstream.length ? g.upstream : @"none";
         t.merged = t.isMain ? nil : MergedWord(g.merged);
         t.dirty = g.dirty; t.untracked = g.untracked; t.stashes = g.stashes; t.unpushed = g.unpushed;
         t.notInDefault = g.notInDefault; t.onRemote = g.onRemote; t.lastCommit = g.lastCommit;
@@ -261,6 +262,8 @@ static MMWFTree *TreeFor(MMFinding *f, MMFacts *facts) {
     if (v.kind == MMVerdictKeep && v.keepEvidence.length) return [@"evidence: " stringByAppendingString:v.keepEvidence];
     if (m != MMModeProactive) return nil;
     MMWFTree *t = MMWFTreeOf(f);
+    if (!t.done && [t.upstream isEqualToString:@"unknown"]) return @"not merged and its remote branch could not be read";
+    if (!t.done && [t.upstream isEqualToString:@"none"]) return @"not merged and it tracks no remote branch";
     if (!t.done) return @"not merged and the remote branch still exists";
     if (t.quiet < MMWFProactiveQuiet())
         return [NSString stringWithFormat:@"quiet %@, and Proactive waits %@", MMDuration(t.quiet), MMDuration(MMWFProactiveQuiet())];
@@ -302,8 +305,11 @@ static MMRemovalFacts *RemovalFactsNow(NSString *path) {
     MMWorktree *w = path.length && !NSThread.isMainThread ? [MMRepoIndex.shared worktreeAt:path] : nil;
     MMGitFacts *g = w && [Real(w.path) isEqualToString:Real(path)] ? [MMRepoIndex.shared factsFor:w wait:YES] : nil;
     if (!g) return [MMRemovalFacts new];
-    return [MMRemovalFacts worktreeKnown:YES merged:!w.isMain && g.merged != MMMergedNone upstreamGone:g.upstreamGone
-                                   dirty:g.dirty untracked:g.untracked unpushed:g.unpushed stashes:g.stashes];
+    MMRemovalFacts *f = [MMRemovalFacts worktreeKnown:YES merged:!w.isMain && g.merged != MMMergedNone upstreamGone:g.upstreamGone
+                                                 dirty:g.dirty untracked:g.untracked unpushed:g.unpushed stashes:g.stashes];
+    f.upstreamUnknown = g.upstreamUnknown;   // issue #118
+    f.upstreamNone = !g.upstream.length && !g.upstreamGone && !g.upstreamUnknown;
+    return f;
 }
 
 - (NSString *)dryRun {

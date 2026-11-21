@@ -77,6 +77,13 @@ static void Worktrees(void) {
     T(@"smart worktree: a stash keeps it", @"keep: it has 1 stash", Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, 0, 1))));
     T(@"smart worktree: not merged with its remote branch keeps it", @"keep: its branch is not merged and its remote branch still exists",
       Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(NO, NO, 0, 0, 0, 0))));
+    // Issue #118: an upstream that could not be read keeps, even beside a gone flag, and says so; none says none.
+    MMRemovalFacts *unread = Tree(NO, YES, 0, 0, 0, 0), *untracked = Tree(NO, NO, 0, 0, 0, 0);
+    unread.upstreamUnknown = YES; untracked.upstreamNone = YES;
+    T(@"smart worktree: an upstream not read keeps it, and says so", @"keep: its branch is not merged and its remote branch could not be read",
+      Says(MMRemovalDecideWith(MMRemovalSmart, w, unread)));
+    T(@"smart worktree: a branch with no upstream keeps it, and says so", @"keep: its branch is not merged and it tracks no remote branch",
+      Says(MMRemovalDecideWith(MMRemovalSmart, w, untracked)));
     T(@"smart worktree: a count git could not give keeps it", @"keep keep keep keep", [NSString stringWithFormat:@"%@ %@ %@ %@",
       Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, -1, 0, 0, 0))), Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, -1, 0, 0))),
       Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, -1, 0))), Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, 0, -1)))]);
