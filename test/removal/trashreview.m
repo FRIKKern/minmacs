@@ -55,19 +55,37 @@ static void TrashReviewed(void) {
     [fm moveItemAtPath:aside toPath:env error:nil];
 
     // B1b. A Trash that refuses a look, as it may without Full Disk Access: the item is there, and nothing is said gone.
-    ino = MMFileIdentity(env)[@"ino"];
-    stop(env, @"after-list");
-    at = TrashedByIno(ino);
+    // Mode 0 refuses the folder's list too; 0444 lists the names and refuses a look at each. Each with and without a
+    // Trash path in the list.
     struct stat tst;
     lstat(MMTrashFolder().fileSystemRepresentation, &tst);
-    chmod(MMTrashFolder().fileSystemRepresentation, 0);
-    words = recover();
-    NSString *listed = WhyName(WaitingOfPart(partRid));
-    chmod(MMTrashFolder().fileSystemRepresentation, tst.st_mode & 07777);
+    NSMutableArray<NSString *> *refusedWant = [NSMutableArray new], *refusedGot = [NSMutableArray new];
+    for (NSNumber *mode in @[@0, @0444]) for (NSString *point in @[@"after-list", @"after-move"]) {
+        ino = MMFileIdentity(env)[@"ino"];
+        stop(env, point);
+        at = TrashedByIno(ino);
+        chmod(MMTrashFolder().fileSystemRepresentation, mode.unsignedShortValue);
+        words = recover();
+        NSString *listed = WhyName(WaitingOfPart(partRid));
+        chmod(MMTrashFolder().fileSystemRepresentation, tst.st_mode & 07777);
+        [refusedWant addObject:[NSString stringWithFormat:@"%o %@: no no yes EDITED=1 not listed", mode.intValue, point]];
+        [refusedGot addObject:[NSString stringWithFormat:@"%o %@: %@ %@ %@ %@ %@", mode.intValue, point, Has(words, @"is not where MinMacs left it"), Has(words, @"neither at its old path"),
+                               Has(words, @"the Trash could not be read"), Read(at), listed]];
+        [fm moveItemAtPath:at toPath:env error:nil];
+    }
     T(@"trash review, a Trash that cannot be read: the words never say the item is gone from where MinMacs left it, say the Trash could not be read, and it stays",
-      @"no no yes EDITED=1 not listed", [NSString stringWithFormat:@"%@ %@ %@ %@ %@", Has(words, @"is not where MinMacs left it"), Has(words, @"neither at its old path"),
-                                         Has(words, @"the Trash could not be read"), Read(at), listed]);
-    [fm moveItemAtPath:at toPath:env error:nil];
+      [refusedWant componentsJoinedByString:@" | "], [refusedGot componentsJoinedByString:@" | "]);
+
+    // B1b. An old path whose folder refuses a look: a stop before the move left the file there, unseen. The words never
+    // say it is at neither place.
+    struct stat wst;
+    lstat(tree.fileSystemRepresentation, &wst);
+    stop(env, @"before-move");
+    chmod(tree.fileSystemRepresentation, 0);
+    words = recover();
+    chmod(tree.fileSystemRepresentation, wst.st_mode & 07777);
+    T(@"trash review, an old path that cannot be read: the words never say MinMacs finds it at neither place, and say its old path could not be read", @"no yes EDITED=1",
+      [NSString stringWithFormat:@"%@ %@ %@", Has(words, @"neither at its old path"), Has(words, @"its old path could not be read"), Read(env)]);
 
     // B2. The person put it back by hand, as the words say, and a later record sent the same file to the Trash and
     // names it. It is that record's: the first neither lists it nor speaks of it, and the later Undo still brings it.
