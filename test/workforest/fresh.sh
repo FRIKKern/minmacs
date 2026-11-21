@@ -43,5 +43,8 @@ for fk_shape in long short; do
       CLAUDE_CONFIG_DIR="$fk/claude" CODEX_HOME="$fk/codex" "$MM" _freshkeep "$k" "$fk_wt" "$fk_named" "$(fk_change "$c" "$fk_wt")" 2>&1)
     fk_got=$(printf '%s' "$fk_out" | json "j['plan'] + ', then ' + j['fresh']" 2>/dev/null || printf '%s' "$fk_out" | tail -1)
     check "fresh keep: link $fk_shape, $k, finding $m, $c after the plan" "$(fk_want "$c")" "$fk_got"
+    # Both names of the folder, each once, hand over the one fresh answer.
+    check "  and both names hand over the fresh read, each once" "2 names, 1 answer" "$(printf '%s' "$fk_out" |
+      json "(lambda e: '%d names, %d answer' % (len(e), len(set(x.split(' ', 1)[1] for x in e))))(j['entries'].split(' | '))" 2>/dev/null)"
   done; done; done
 done
