@@ -19,6 +19,7 @@ NSString *MMGitInput(NSString *dir, NSArray<NSString *> *args, NSData *input, NS
 NSString *MMGitPatchIds(NSString *dir, NSArray<NSString *> *args, NSData *input, NSTimeInterval timeout, int *status);
 NSArray *MMGitConfigItems(NSData *bytes, NSString *file);                                    // MMGitConfig.m
 NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *branch, id (^load)(NSString *path));
+
 static const NSTimeInterval kGitShort = 15;        // rev-list, merge-base, show
 static const NSTimeInterval kGitStatus = 30;       // status in a large checkout
 static const NSTimeInterval kGitPatch = 120;       // patch ids for many commits, once per commit
