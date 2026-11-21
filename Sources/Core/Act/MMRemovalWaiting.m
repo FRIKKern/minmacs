@@ -24,6 +24,7 @@
         case MMRemovalWaitPutBackFailed: return @"could not go back";
         case MMRemovalWaitDamaged: return @"its record is damaged";
         case MMRemovalWaitNoWrapUp: return @"its Wrap Up has no record";
+        case MMRemovalWaitInTrash: return @"is in the Trash, and no record names it";
     }
     return @"its record is damaged";
 }
@@ -31,7 +32,7 @@
     if (self.listedOldPath) return [NSString stringWithFormat:@"The list of its staging folder holds this name for a file with another id, which was at %@. MinMacs cannot tell that this is that file.", self.listedOldPath];
     return [NSString stringWithFormat:@"was at %@.", self.oldPath ?: @"a place its record does not say"];
 }
-- (NSString *)whyWord { return @[@"delete-failed", @"old-path-taken", @"put-back-failed", @"damaged", @"no-wrap-up"][self.why]; }
+- (NSString *)whyWord { return @[@"delete-failed", @"old-path-taken", @"put-back-failed", @"damaged", @"no-wrap-up", @"in-trash"][self.why]; }
 - (NSDictionary *)json {
     id (^or)(id) = ^id(id v) { return v ?: NSNull.null; };
     return @{@"id": self.itemID, @"name": self.name ?: @"", @"oldPath": or(self.oldPath), @"listedOldPath": or(self.listedOldPath), @"stagedAt": self.stagedAt, @"bytes": @(self.bytes),
@@ -56,6 +57,15 @@ static BOOL There(NSString *path) { struct stat st; return path.length && lstat(
 static BOOL In(NSString *folder, NSString *to) {
     NSString *t = MMRemovalRealPath(to);
     return folder && t && [t.stringByDeletingLastPathComponent isEqualToString:folder];
+}
+
+/// YES while the act that sent something of r to the Trash may still be about to name it in r: r's Wrap Up still
+/// runs, or r is a pending record of its own, which names no process to ask, from the last 15 minutes.
+static BOOL StillActs(MMUndoRecord *r, MMUndoRecord *parent) {
+    MMUndoRecord *w = r.parentRid.length ? parent : r;
+    if (!w || w.state != MMUndoPending) return NO;
+    int alive = r.parentRid.length ? MMRemovalOwnerAlive(w) : -1;
+    return alive == 1 || (alive < 0 && -w.at.timeIntervalSinceNow < 15 * 60);
 }
 
 static MMRemovalWaitingItem *Item(MMUndoRecord *part, NSString *to, NSString *from) {
@@ -153,6 +163,21 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
             [out addObject:i];
         }
     }
+    // Issue #113: what a record sent to the Trash and does not name, since MinMacs stopped between the move and the
+    // record. MinMacs's own list of what it sent there names it, and its id finds it there. Read only.
+    for (MMUndoRecord *r in records) {
+        if (StillActs(r, r.parentRid.length ? (all[r.parentRid] ?: [MMUndo.shared record:r.parentRid]) : nil)) continue;
+        for (NSDictionary *x in MMRemovalTrashStranded(r, NULL)) {
+            NSString *to = MMRecordString(x, @"to");
+            if (!to || [claimed containsObject:to]) continue;
+            [claimed addObject:to];
+            MMRemovalWaitingItem *i = Item(r, to, MMRecordString(x, @"from"));
+            i.itemID = [NSString stringWithFormat:@"%@:trash:%@", r.rid, to.lastPathComponent];
+            i.why = MMRemovalWaitInTrash;
+            i.detail = @"MinMacs stopped before its record named it, and its own list of what it sent to the Trash says where it was";
+            [out addObject:i];
+        }
+    }
     return out;
 }
 
@@ -170,6 +195,7 @@ static NSString *Runs(MMRemovalWaitingItem *i) {
 
 NSString *MMRemovalDeleteWaitingWhyNot(MMRemovalWaitingItem *i) {
     if (!i) return @"nothing waits under that id";
+    if (i.why == MMRemovalWaitInTrash) return [NSString stringWithFormat:@"MinMacs never deletes from the Trash. It lies at %@", i.stagedAt];
     // What the delete itself would ask of the item's staging folder, so a dry run refuses as the real run does.
     if (i.canDelete) return MMRemovalStagedItemWhyNot([MMUndo.shared record:i.partRid], i.stagedAt);
     NSString *runs = Runs(i);
@@ -183,6 +209,8 @@ NSString *MMRemovalDeleteWaitingWhyNot(MMRemovalWaitingItem *i) {
 
 NSString *MMRemovalPutBackWaitingWhyNot(MMRemovalWaitingItem *i, NSString *path) {
     if (!i) return @"nothing waits under that id";
+    if (i.why == MMRemovalWaitInTrash)
+        return [NSString stringWithFormat:@"no record names it, so MinMacs does not move it. To keep it, put it back from the Trash, where it lies at %@", i.stagedAt];
     if (!i.canPutBack) {
         NSString *runs = Runs(i);
         if (runs) return runs;

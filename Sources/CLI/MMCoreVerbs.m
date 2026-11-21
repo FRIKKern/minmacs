@@ -662,9 +662,16 @@ static int RemovalWaiting(MMArgs *a) {
         [a printJSON:@{@"waiting": j, @"unread": MMRemovalUnreadWrapUps()}];
         return 0;
     }
-    if (!items.count) [a print:@"Nothing waits in MinMacs's staging folder."];
-    else [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)items.count, items.count == 1 ? @"item waits" : @"items wait"];
+    // What a record sent to the Trash and does not name comes last, under its own line, issue #113.
+    NSUInteger inTrash = 0, staged = 0;
+    for (MMRemovalWaitingItem *i in items) { if (i.why == MMRemovalWaitInTrash) inTrash++; else staged++; }
+    if (!staged) [a print:@"Nothing waits in MinMacs's staging folder."];
+    else [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)staged, staged == 1 ? @"item waits" : @"items wait"];
     for (MMRemovalWaitingItem *i in items) {
+        if (i.why == MMRemovalWaitInTrash && inTrash) {
+            [a print:@"%lu %@ MinMacs sent to the Trash %@ named by no record:", (unsigned long)inTrash, inTrash == 1 ? @"item" : @"items", inTrash == 1 ? @"is" : @"are"];
+            inTrash = 0;
+        }
         [a print:@"%@  %@, %@: %@%@.", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [NSString stringWithFormat:@" (%@)", i.detail] : @""];
         // What MinMacs may not act on is moved by hand: the exact path it waits at, and where it was.
         [a print:@"    %@ %@", i.wasWords,

@@ -22,7 +22,10 @@ NSData *MMReadPlain(NSString *path, NSUInteger max, MMPlainPart part) { return M
 /// Not a plain file: EISDIR for a folder, EFTYPE for anything else.
 static int NotPlain(const struct stat *st) { return S_ISDIR(st->st_mode) ? EISDIR : EFTYPE; }
 
-NSData *MMReadPlainWhy(NSString *path, NSUInteger max, MMPlainPart part, int *why) {
+/// The one read. own: one of MinMacs's own files, issue #113, so a link at its name is never followed, ELOOP, and a
+/// file of another user's is not read, EPERM. The open itself carries O_NOFOLLOW, so a link that takes the name after
+/// the lstat is not followed either.
+static NSData *ReadPlain(NSString *path, NSUInteger max, MMPlainPart part, BOOL own, int *why) {
     int none = 0;
     if (!why) why = &none;
     *why = ENOENT;
@@ -30,11 +33,13 @@ NSData *MMReadPlainWhy(NSString *path, NSUInteger max, MMPlainPart part, int *wh
     const char *p = path.fileSystemRepresentation;
     struct stat st;
     if (!p) { *why = EINVAL; return nil; }
-    if (stat(p, &st) != 0) { *why = errno; return nil; }
+    if ((own ? lstat(p, &st) : stat(p, &st)) != 0) { *why = errno; return nil; }
+    if (own && S_ISLNK(st.st_mode)) { *why = ELOOP; return nil; }
     if (!S_ISREG(st.st_mode)) { *why = NotPlain(&st); return nil; }
-    int fd = open(p, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    int fd = open(p, O_RDONLY | O_NONBLOCK | O_CLOEXEC | (own ? O_NOFOLLOW : 0));
     if (fd < 0) { *why = errno; return nil; }
     if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0) { *why = EFTYPE; close(fd); return nil; }
+    if (own && st.st_uid != getuid()) { *why = EPERM; close(fd); return nil; }
     unsigned long long size = (unsigned long long)st.st_size;
     if (part == MMPlainWhole && size > max) { *why = EFBIG; close(fd); return nil; }
     size_t want = (size_t)MIN(size, (unsigned long long)max);
@@ -52,3 +57,6 @@ NSData *MMReadPlainWhy(NSString *path, NSUInteger max, MMPlainPart part, int *wh
     *why = 0;
     return d;
 }
+
+NSData *MMReadPlainWhy(NSString *path, NSUInteger max, MMPlainPart part, int *why) { return ReadPlain(path, max, part, NO, why); }
+NSData *MMReadOwnPlain(NSString *path, NSUInteger max, int *why) { return ReadPlain(path, max, MMPlainWhole, YES, why); }
