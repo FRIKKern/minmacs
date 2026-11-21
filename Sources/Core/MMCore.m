@@ -110,15 +110,9 @@ static MMFacts *FactsFrom(uint64_t generation, MMSample *sample, MMPower *power,
     MMFacts *f = FactsFrom(MMGraph.shared.latest.generation, s, senses.power, YES);
     if (!f) return nil;
     MMWorktree *w = finding.path.length ? [MMRepoIndex.shared worktreeAt:finding.path] : nil;
-    MMGitFacts *g = w ? [MMRepoIndex.shared factsFor:w wait:YES] : nil;
-    if (!g) return f;
-    NSMutableDictionary *git = [NSMutableDictionary new];
-    for (MMWorktree *x in f.worktrees) { MMGitFacts *y = [f gitFor:x]; if (y && x.path) git[x.path] = y; }
-    git[w.path] = g;
-    NSArray *trees = f.worktrees;
-    if (![[trees valueForKey:@"path"] containsObject:w.path]) trees = [trees arrayByAddingObject:w];
-    return [MMFacts generation:f.generation sample:f.sample power:f.power agents:f.agents sessions:f.sessions
-                     worktrees:trees clutter:f.clutter git:git];
+    if (!w.path.length) return f;
+    // Issue #125: the answer goes in for every name of the folder, and none when the read gave none, as the CLI's.
+    return [f withFreshGit:[MMRepoIndex.shared factsFor:w wait:YES] of:w];
 }
 
 @end
