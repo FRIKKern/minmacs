@@ -217,16 +217,16 @@ static BOOL IsSha(NSString *s) {
     return [s rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"].invertedSet].location == NSNotFound;
 }
 
-/// A file git rewrites whole, parsed from its bytes once per stamp and kept per path. A missing file parses as no
-/// bytes. Issues #96 and #116: one that is there and cannot be read, a named pipe among them, gives kUnread and never
-/// waits, and is read again next time.
+/// A file git rewrites whole, parsed once per stamp and kept per path; a missing one parses as no bytes. #96, #116: one
+/// there and not read, a pipe among them, gives kUnread, never waits and is read again. #120: a rewrite in place can
+/// keep size, inode and mtime, so the fresh read before an action, on core.git.fresh, never takes the memo's answer.
 static id Parsed(NSString *path, id (^parse)(NSData *bytes)) {
     static NSMutableDictionary<NSString *, NSArray *> *memo; static dispatch_once_t once;
     dispatch_once(&once, ^{ memo = [NSMutableDictionary new]; });
     int why = 0;
     NSString *stamp = StampWhy(path, &why);
     if ([stamp isEqualToString:@"-"]) return Missing(why, NO) ? parse(NSData.data) ?: NSNull.null : kUnread;
-    @synchronized (memo) {
+    if (!MMGitOnFreshRead()) @synchronized (memo) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }
