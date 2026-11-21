@@ -19,11 +19,13 @@
 //   remote.<r>.url for this branch's remote, or   not known
 //   a fetch line of it that maps the merge to
 //   another ref than the repo's own lines do
-//   a line git refuses, or that may make every    not known for every branch: git refuses, or reads what is not
-//   command refuse the file, MMGitConfigValues.m;  read here. MinMacs's own git does not read the files of other
-//   a file there and not read, an include not     gits, so its git status cannot be what fails on them
-//   followed or too deep, extensions or
+//   a line git refuses for the remotes, a file    not known for every branch: git refuses, or reads what is not
+//   there and not read, an include not followed   read here
+//   or too deep, extensions or
 //   core.repositoryformatversion
+//   in a file MinMacs's own git does not read,    not known for every branch. In a file it reads, such a line
+//   a line that may make every command refuse     makes its own git status fail as well, which keeps: "cannot
+//   the file, MMGitConfigValues.m                 verify"
 //   anything else                                 as the repo's own config says: the usual user, includeIf for an
 //                                                 email, a pull-request fetch line, another branch's keys
 //
@@ -90,10 +92,34 @@ static NSArray<NSString *> *Files(NSDictionary<NSString *, NSString *> *env) {
     return files;
 }
 
+/// The files of Files that MinMacs's own git, MMGitPath with MMGitEnvironment, reads as well: $GIT_CONFIG_SYSTEM; when
+/// it is Apple's git, its folder's share/git-core/gitconfig and, with no $GIT_CONFIG_SYSTEM, /etc/gitconfig;
+/// $GIT_CONFIG_GLOBAL, else the XDG file git picks and ~/.gitconfig. What they include counts as theirs. Another git's
+/// system file never does, nor, under MINMACS_TEST_GIT_ROOT, a fixed path.
+static NSSet<NSString *> *Own(NSDictionary<NSString *, NSString *> *env) {
+    NSMutableSet *own = [NSMutableSet new];
+    NSString *git = MMGitPath(), *system = env[@"GIT_CONFIG_SYSTEM"], *home = env[@"HOME"], *xdg = env[@"XDG_CONFIG_HOME"];
+    if (![EnvBool(env[@"GIT_CONFIG_NOSYSTEM"]) boolValue]) {
+        if (system) [own addObject:system];
+        for (NSString *dev in @[@"/Library/Developer/CommandLineTools/", @"/Applications/Xcode.app/Contents/Developer/"])
+            if (!env[@"MINMACS_TEST_GIT_ROOT"] && [git isEqualToString:[dev stringByAppendingString:@"usr/bin/git"]]) {
+                [own addObject:[dev stringByAppendingString:@"usr/share/git-core/gitconfig"]];
+                if (!system) [own addObject:@"/etc/gitconfig"];
+            }
+    }
+    if (env[@"GIT_CONFIG_GLOBAL"]) [own addObject:env[@"GIT_CONFIG_GLOBAL"]];
+    else if (home.isAbsolutePath) {
+        [own addObject:xdg.length ? [xdg stringByAppendingPathComponent:@"git/config"]
+                                  : [home stringByAppendingPathComponent:@".config/git/config"]];
+        [own addObject:[home stringByAppendingPathComponent:@".gitconfig"]];
+    }
+    return own;
+}
+
 /// What the files say: @{unknown} when they cannot be followed, else {branches, remotes: {name: {url, fetch}}}. seen
 /// gets the items of each file read, in order, an empty one as NSNull: when they are the very objects of lastSeen,
 /// which the memo hands back until a stamp moves, the answer is last.
-static NSDictionary *Summary(NSArray<NSString *> *files, id (^load)(NSString *path), NSMutableArray *seen,
+static NSDictionary *Summary(NSArray<NSString *> *files, NSSet *own, id (^load)(NSString *path), NSMutableArray *seen,
                              NSArray *lastSeen, NSDictionary *last) {
     NSDictionary *unknown = @{@"unknown": @YES};
     if (!files) return unknown;
@@ -103,14 +129,20 @@ static NSDictionary *Summary(NSArray<NSString *> *files, id (^load)(NSString *pa
         return items;
     };
     NSMutableArray<NSDictionary *> *segs = [NSMutableArray new];
-    for (NSString *f in files) if (!MMGitConfigFlattenAll(read(f), read, segs)) return unknown;
+    NSMutableIndexSet *theirs = [NSMutableIndexSet new];   // the segments of files MinMacs's own git does not read
+    for (NSString *f in files) {
+        NSUInteger from = segs.count;
+        if (!MMGitConfigFlattenAll(read(f), read, segs)) return unknown;
+        if (![own containsObject:f]) [theirs addIndexesInRange:NSMakeRange(from, segs.count - from)];
+    }
     BOOL same = last && seen.count == lastSeen.count;
     for (NSUInteger i = 0; same && i < seen.count; i++) same = seen[i] == lastSeen[i];
     if (same) return last;
     NSMutableSet *branches = [NSMutableSet new];
     NSMutableDictionary *remotes = [NSMutableDictionary new];
-    for (NSDictionary *seg in segs) {
-        if (seg[@"bad"] || seg[@"every"] || seg[@"wt"] || seg[@"version"]) return unknown;
+    for (NSUInteger i = 0; i < segs.count; i++) {
+        NSDictionary *seg = segs[i];
+        if (seg[@"bad"] || (seg[@"every"] && [theirs containsIndex:i]) || seg[@"wt"] || seg[@"version"]) return unknown;
         [branches addObjectsFromArray:[seg[@"b"] allKeys] ?: @[]];
         [seg[@"r"] enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSDictionary *r, BOOL *stop) {
             NSMutableDictionary *m = remotes[name] ?: (remotes[name] = [NSMutableDictionary new]);
@@ -125,8 +157,8 @@ static NSDictionary *Summary(NSArray<NSString *> *files, id (^load)(NSString *pa
 /// can change it. load gives a config file's items as MMGitConfigUpstream's load does.
 NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load)(NSString *path)) {
     if (!up || up[@"unknown"]) return up;
-    static NSArray *files; static dispatch_once_t once;
-    dispatch_once(&once, ^{ files = Files(NSProcessInfo.processInfo.environment); });
+    static NSArray *files; static NSSet *own; static dispatch_once_t once;
+    dispatch_once(&once, ^{ NSDictionary *env = NSProcessInfo.processInfo.environment; files = Files(env); own = Own(env); });
     // A walk asks once per checkout, so the answer is kept for a second, which a pass of 1,500 checkouts fits in: no
     // file is looked at again for each. The fresh read before an action, on core.git.fresh, always looks again, and
     // Parsed then reads each file whatever its stamp. When it looks, the items load hands back stay the same objects
@@ -140,7 +172,7 @@ NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load
     @synchronized (lock) { wasSeen = lastSeen; was = last; if (!fresh && kept && now - keptAt < NSEC_PER_SEC) s = kept; }
     if (!s) {
         NSMutableArray *seen = [NSMutableArray new];
-        s = Summary(files, load, seen, wasSeen, was);
+        s = Summary(files, own, load, seen, wasSeen, was);
         @synchronized (lock) {
             kept = s; keptAt = now;
             if (!s[@"unknown"]) { last = s; lastSeen = seen; }

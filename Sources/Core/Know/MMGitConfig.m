@@ -228,7 +228,8 @@ static void Emit(NSData *var, NSData *val, BOOL blank, NSMutableArray *items, NS
     // Issue #118: a value with bytes that are not UTF-8 reads as U+FFFD, so two such values that differ can read the
     // same; and a tab inside one means what the git that reads it makes of it. Where the upstream is made of it, kBad.
     NSString *kept = value && (valLossy || blank) ? kBad : value;
-    // Issue #120: a line that may make every git command refuse the file, which counts in a file outside the repo.
+    // Issue #120: a line that may make every git command refuse the file, which counts in a file outside the repo
+    // that MinMacs's own git does not read, MMGitOutside.m.
     if (!MMGitConfigEveryOK(section, sub, key, value, kept == kBad)) Segment(items)[@"every"] = @YES;
     if ([section isEqualToString:@"branch"] && sub) {
         BOOL needs = [@[@"remote", @"pushremote", @"merge"] containsObject:key];

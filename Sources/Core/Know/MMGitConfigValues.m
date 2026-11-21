@@ -5,7 +5,9 @@
 // mailmap.*, advice.*, sparse.*, color.ui, color.pager, color.advice, pager.color and pack.compression and
 // packSizeLimit, and attr.* of later gits. A key there is taken only as listed below, in values git 2.39 takes and
 // later gits keep; any other key or value there, and a key with no value anywhere but a bool, may be refused.
-// That reads more as refused than git does, which costs a cleanup and never a removal.
+// That reads more as refused than git does, which costs a cleanup and never a removal. MMGitOutside.m asks it only of
+// the files MinMacs's own git does not read: where its own git reads the line, its own git status fails on one git
+// refuses, which keeps. The int range is git 2.39's, -INT_MAX to INT_MAX; git 2.50 and later also take INT_MIN.
 #import <Foundation/Foundation.h>
 #include <errno.h>
 #include <inttypes.h>
