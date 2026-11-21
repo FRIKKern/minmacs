@@ -290,3 +290,15 @@ check "outside cl2: git answers after it" "elsewhere/cl2|" "$od_git"
 check "outside cl2: the held pass wrote its old read after the fresh one" "yes gone" "$(od_sv released) $(od_sv index)"
 check "outside cl2: the CLI's fresh check is not gone" "$od_unread" "$(od_sv fresh)"
 unset MINMACS_TEST_GIT_ROOT
+
+echo "-- a build without MM_TESTS reads the real system files whatever MINMACS_TEST_GIT_ROOT says, issue #130"
+# The probe prints Files and Own of MMGitOutside.m for the environment it is handed; the process's own is not read.
+RP="$G/rootprobe"
+clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources \
+  $(find Sources/Core -name '*.m' ! -name MMGitOutside.m | LC_ALL=C sort) test/git/rootprobe.m -framework Cocoa -framework IOKit \
+  -framework UserNotifications -lsqlite3 -o "$RP" >"$G/rootprobe-clang.log" 2>&1
+check "outside: the probe builds without MM_TESTS" 0 "$?"
+rp_plain=$("$RP" HOME="$OD/files/o0/home")
+rp_root=$("$RP" HOME="$OD/files/o0/home" MINMACS_TEST_GIT_ROOT="$OD/root")
+check "outside: with no MM_TESTS the system files are the Mac's own" 1 "$(printf '%s\n' "$rp_plain" | grep -c ' /etc/gitconfig$')"
+check "outside: with no MM_TESTS, MINMACS_TEST_GIT_ROOT changes no file read" "$rp_plain" "$rp_root"
