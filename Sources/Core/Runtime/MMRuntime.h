@@ -60,3 +60,7 @@ NSData *MMReadPlain(NSString *path, NSUInteger max, MMPlainPart part);
 /// look. *why is 0 with bytes, else the errno of the stat, open or read that failed: ENOENT or ENOTDIR when nothing is
 /// there, EISDIR for a folder, EFTYPE for a named pipe, a socket or a device, EFBIG for a whole file past max.
 NSData *MMReadPlainWhy(NSString *path, NSUInteger max, MMPlainPart part, int *why);
+/// MMReadPlainWhy of a whole file of MinMacs's own, such as its list of what it sent to the Trash, issue #113: a link
+/// at that name is never followed, *why ELOOP, not even one that takes the name between the check and the open, and
+/// a file of another user's is not read, *why EPERM.
+NSData *MMReadOwnPlain(NSString *path, NSUInteger max, int *why);

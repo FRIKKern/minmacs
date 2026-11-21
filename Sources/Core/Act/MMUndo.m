@@ -333,16 +333,19 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
             @"MinMacs could not write its own list of what it sends to the Trash, so the item stays where it is"}];
         return nil;
     }
+    MM_TEST_STOP_TRASH("before-move");   // a check stops here, and at the two below, as a crash would, issue #113
     NSURL *to = nil;
     NSString *folder = MMTrashFolder();
     if (folder) to = MoveInto(folder, item, error);
     else if (![NSFileManager.defaultManager trashItemAtURL:item resultingItemURL:&to error:error]) to = nil;
     if (!to) { if (record.rid.length) MMRemovalTrashListDrop(record.rid, item.path, nil); return nil; }
+    MM_TEST_STOP_TRASH("after-move");
     // The identity in the Trash, written into the list after the move. The record's entry takes what the list holds,
     // so the two always agree. When that write fails the item is in the Trash and named in the record, and recovery
     // and an Undo leave it there and say why.
     NSDictionary *identity = MMFileIdentity(to.path);
     identity = (record.rid.length ? MMRemovalTrashListNote(record.rid, item.path, to.path, identity) : nil) ?: identity;
+    MM_TEST_STOP_TRASH("after-list");
     @synchronized (self) {
         NSMutableArray *t = [MMRecordList(record.payload, @"trashed") mutableCopy] ?: [NSMutableArray new];
         // The very file that now waits there, MMFileIdentity, so nothing else at that Trash path is ever taken for

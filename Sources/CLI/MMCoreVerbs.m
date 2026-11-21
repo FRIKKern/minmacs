@@ -606,6 +606,11 @@ static int Mode(MMArgs *a) {
 /// or --put-back the person's act on one. With --close the person closes a Wrap Up whose state cannot be read, once
 /// nothing of it waits: MMRemovalCloseUnread, which moves and deletes no file. The list reads only and runs cold. An
 /// act runs in the app, as restore does.
+/// One line of text: a newline or a return in a name or a path is shown as \n or \r, so each item stays two lines.
+static NSString *OneLine(NSString *s) {
+    return [[s stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"] stringByReplacingOccurrencesOfString:@"\r" withString:@"\\r"];
+}
+
 static int RemovalWaiting(MMArgs *a) {
     NSString *del = [a option:@"--delete"], *back = [a option:@"--put-back"], *to = [a option:@"--to"], *close = [a option:@"--close"];
     if ([a word:0] || (del != nil) + (back != nil) + (close != nil) > 1 || (to && !back) || [a has:@"--delete"] != (del != nil) || [a has:@"--put-back"] != (back != nil) ||
@@ -662,15 +667,22 @@ static int RemovalWaiting(MMArgs *a) {
         [a printJSON:@{@"waiting": j, @"unread": MMRemovalUnreadWrapUps()}];
         return 0;
     }
-    if (!items.count) [a print:@"Nothing waits in MinMacs's staging folder."];
-    else [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)items.count, items.count == 1 ? @"item waits" : @"items wait"];
+    // What a record sent to the Trash and does not name comes last, under its own line, issue #113.
+    NSUInteger inTrash = 0, staged = 0;
+    for (MMRemovalWaitingItem *i in items) { if (i.why == MMRemovalWaitInTrash) inTrash++; else staged++; }
+    if (!staged) [a print:@"Nothing waits in MinMacs's staging folder."];
+    else [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)staged, staged == 1 ? @"item waits" : @"items wait"];
     for (MMRemovalWaitingItem *i in items) {
-        [a print:@"%@  %@, %@: %@%@.", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [NSString stringWithFormat:@" (%@)", i.detail] : @""];
+        if (i.why == MMRemovalWaitInTrash && inTrash) {
+            [a print:@"%lu %@ MinMacs sent to the Trash %@ where no record MinMacs can undo names it:", (unsigned long)inTrash, inTrash == 1 ? @"item" : @"items", inTrash == 1 ? @"lies" : @"lie"];
+            inTrash = 0;
+        }
+        [a print:@"%@", OneLine([NSString stringWithFormat:@"%@  %@, %@: %@%@.", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [NSString stringWithFormat:@" (%@)", i.detail] : @""])];
         // What MinMacs may not act on is moved by hand: the exact path it waits at, and where it was.
-        [a print:@"    %@ %@", i.wasWords,
+        [a print:@"%@", OneLine([NSString stringWithFormat:@"    %@ %@", i.wasWords,
                  i.canDelete && i.canPutBack ? @"Delete it with --delete, or put it back with --put-back." : i.canDelete ? @"Delete it with --delete."
                  : i.canPutBack ? @"Put it back with --put-back."
-                 : [NSString stringWithFormat:@"MinMacs does not act on it. To keep it, move it by hand from %@%@.", i.stagedAt, i.oldPath ? [@" back to " stringByAppendingString:i.oldPath] : @""]];
+                 : [NSString stringWithFormat:@"MinMacs does not act on it. To keep it, move it by hand from %@%@.", i.stagedAt, i.oldPath ? [@" back to " stringByAppendingString:i.oldPath] : @""]])];
     }
     // A Wrap Up whose state cannot be read stays open until the person closes it.
     for (NSDictionary *u in MMRemovalUnreadWrapUps()) {

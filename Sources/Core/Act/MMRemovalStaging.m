@@ -14,6 +14,7 @@
 // written by anybody who can write the log. The folder's own list is what a put-back and a delete believe.
 #import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMUndo.h"
+#import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
 #include <sys/stat.h>
 
@@ -30,12 +31,20 @@ static BOOL OwnFile(NSString *path) {
     return lstat(path.fileSystemRepresentation, &st) == 0 && S_ISREG(st.st_mode) && st.st_uid == getuid();
 }
 
+/// The text of the folder's own file name: a plain file of this user's, read in one read that never follows a link
+/// and never opens a pipe, MMReadOwnPlain, issue #113. nil for anything else.
+static NSData *OwnRead(NSString *folder, NSString *name) {
+    return MMReadOwnPlain([folder stringByAppendingPathComponent:name], 16 << 20, NULL);
+}
+
 NSDictionary *MMRemovalStagingItems(NSString *folder) {
-    NSString *path = [folder stringByAppendingPathComponent:kItems];
-    if (!OwnFile(path)) return nil;
-    NSData *data = [NSData dataWithContentsOfFile:path];
+    NSData *data = OwnRead(folder, kItems);
     id j = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
     return [j isKindOfClass:NSDictionary.class] ? j : nil;
+}
+static NSString *OwnText(NSString *folder, NSString *name) {
+    NSData *data = OwnRead(folder, name);
+    return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
 }
 
 /// Writes all as the folder's list. Something else under that name, or a list nobody can read, is never written over.
@@ -84,9 +93,7 @@ void MMRemovalStagingForgetItem(NSString *folder, NSString *name) {
 }
 
 BOOL MMRemovalStagingMarkerSays(NSString *folder, NSString *rid) {
-    NSString *m = [folder stringByAppendingPathComponent:kMarker];
-    if (!OwnFile(m)) return NO;
-    return [[NSString stringWithContentsOfFile:m encoding:NSUTF8StringEncoding error:nil] isEqualToString:rid];
+    return rid.length && [OwnText(folder, kMarker) isEqualToString:rid];
 }
 
 BOOL MMRemovalStagingOwnFilesAreOurs(NSString *folder) {
@@ -95,7 +102,7 @@ BOOL MMRemovalStagingOwnFilesAreOurs(NSString *folder) {
     // link, or a file that says anything else is not MinMacs's.
     NSString *g = [folder stringByAppendingPathComponent:kIgnore];
     if (lstat(g.fileSystemRepresentation, &st) != 0) { if (errno != ENOENT) return NO; }
-    else if (!OwnFile(g) || ![[NSString stringWithContentsOfFile:g encoding:NSUTF8StringEncoding error:nil] isEqualToString:kIgnoreSays]) return NO;
+    else if (![OwnText(folder, kIgnore) isEqualToString:kIgnoreSays]) return NO;
     // Its own list of items the same way: a plain file of ours, or none.
     NSString *items = [folder stringByAppendingPathComponent:kItems];
     return lstat(items.fileSystemRepresentation, &st) == 0 ? OwnFile(items) : errno == ENOENT;

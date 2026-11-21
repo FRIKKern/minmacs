@@ -9,8 +9,11 @@
 // to and the identity it has in the Trash. A stop between the two leaves an entry with no to, which names nothing in
 // the Trash. Once the item is back at from, its entry goes, so a record written again never takes the same file out
 // of the Trash a second time. Nothing here moves or deletes a file: -[MMUndo trash:record:error:] moves an item there
-// and -[MMUndo untrash:of:] back. This file only ever writes the list.
+// and -[MMUndo untrash:of:] back. This file only ever writes the list. A stop between the move and the record's note
+// leaves an item only this list names, issue #113: MMRemovalTrashStranded.m reads it for that, and writes nothing.
+#import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMUndo.h"
+#import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
 #include <sys/stat.h>
 
@@ -23,21 +26,31 @@ static NSString *ListPath(NSString *rid) {
     return [[MMExpertDir(@"core") stringByAppendingPathComponent:@"trashed"] stringByAppendingPathComponent:[rid stringByAppendingPathExtension:@"json"]];
 }
 
-/// What the list at path holds: its entries, an empty list when there is no file, or nil when something is there that
-/// is not a list MinMacs wrote: a link, a folder, a file of another user's, or text that is no list.
-static NSMutableArray<NSDictionary *> *Read(NSString *path) {
+/// YES when the lists' folder is a folder of this user's, or not there yet. A link there would send every list
+/// wherever it points, issue #113, so then no list is read or written.
+static BOOL FolderIsOurs(NSString *dir) {
     struct stat st;
-    if (lstat(path.fileSystemRepresentation, &st) != 0) return errno == ENOENT ? [NSMutableArray new] : nil;
-    if (!S_ISREG(st.st_mode) || st.st_uid != getuid()) return nil;
-    NSData *data = [NSData dataWithContentsOfFile:path];
-    id j = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    if (lstat(dir.fileSystemRepresentation, &st) != 0) return errno == ENOENT;
+    return S_ISDIR(st.st_mode) && st.st_uid == getuid();
+}
+
+/// What the list at path holds: its entries, an empty list when there is no file, or nil when something is there that
+/// is not a list MinMacs wrote: a link, a folder, a file of another user's, or text that is no list. One read that
+/// never follows a link and never opens a pipe, MMReadOwnPlain, so nothing can take the name between a check and it.
+static NSMutableArray<NSDictionary *> *Read(NSString *path) {
+    if (!FolderIsOurs(path.stringByDeletingLastPathComponent)) return nil;
+    int why = 0;
+    NSData *data = MMReadOwnPlain(path, 4 << 20, &why);
+    if (!data) return why == ENOENT ? [NSMutableArray new] : nil;
+    id j = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     if (![j isKindOfClass:NSDictionary.class] || ![((NSDictionary *)j)[@"items"] isKindOfClass:NSArray.class]) return nil;
     return [MMRecordList(j, @"items") mutableCopy];
 }
 
 static BOOL Write(NSString *path, NSArray<NSDictionary *> *items) {
     NSString *dir = path.stringByDeletingLastPathComponent;
-    if (![NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions: @0700} error:nil]) return NO;
+    if (!FolderIsOurs(dir) || ![NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions: @0700} error:nil] ||
+        !FolderIsOurs(dir)) return NO;
     NSData *data = [NSJSONSerialization dataWithJSONObject:@{@"items": items} options:NSJSONWritingWithoutEscapingSlashes error:nil];
     return data && [data writeToFile:path atomically:YES];
 }
@@ -85,6 +98,7 @@ NSDictionary *MMRemovalTrashListNote(NSString *rid, NSString *from, NSString *to
             [entry addEntriesFromDictionary:identity];
             [items addObject:entry];
         }
+        MM_TEST_STOP_TRASH("list-write");   // a check holds here and turns the folder into a link, issue #113
         if (!Write(path, items)) return nil;
         NSMutableDictionary *said = [NSMutableDictionary new];
         for (NSString *k in @[@"ino", @"dev", @"vol"]) if (entry[k]) said[k] = entry[k];
@@ -107,8 +121,31 @@ void MMRemovalTrashListDrop(NSString *rid, NSString *from, NSString *to) {
     }
 }
 
+/// YES when path is spelled as a real path is: full, with no "." or ".." name in it and no slash at its end.
+static BOOL Spelled(NSString *path) {
+    if (![path hasPrefix:@"/"] || (path.length > 1 && [path hasSuffix:@"/"])) return NO;
+    for (NSString *c in [path componentsSeparatedByString:@"/"]) if ([c isEqualToString:@".."] || [c isEqualToString:@"."]) return NO;
+    return YES;
+}
+
+NSArray<NSDictionary *> *MMRemovalTrashListItems(NSString *rid, BOOL *unread) {
+    if (unread) *unread = NO;
+    NSString *path = ListPath(rid);
+    if (!path) return nil;
+    NSArray<NSDictionary *> *items = nil;
+    @synchronized (Lock()) { items = Read(path); }
+    // An entry MinMacs never writes: an old path that is no real path, no inode, or a Trash path that is no real
+    // path. Then nothing in the list is believed.
+    for (NSDictionary *e in items)
+        if (!Spelled(MMRecordString(e, @"from")) || !MMRecordNumber(e, @"ino") || (MMRecordHas(e, @"to") && !Spelled(MMRecordString(e, @"to")))) { items = nil; break; }
+    if (!items && unread) *unread = YES;
+    return items;
+}
+
 NSString *MMRemovalTrashListWhyNot(NSString *rid, NSDictionary *entry) {
     NSString *from = MMRecordString(entry, @"from"), *to = MMRecordString(entry, @"to"), *path = ListPath(rid);
+    // Issue #113: never to an old path with a "." or ".." name in it, whatever the record and the list say.
+    if (from.length && !Spelled(from)) return @"its old path is not a real path";
     NSArray<NSDictionary *> *items = nil;
     if (path) @synchronized (Lock()) { items = Read(path); }
     for (NSDictionary *e in items)
