@@ -6,6 +6,8 @@
 G="$MINMACS_HOME/git"
 mkdir -p "$G"
 G=$(cd "$G" && pwd -P)
+# HOME is this section's own while it runs, so neither git nor MinMacs finds a file in the real one. Back at the end.
+gt_home=$HOME; export HOME="$G/home"; mkdir -p "$HOME"
 GT="$G/gittool"
 clang -fobjc-arc -O1 -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=14.0 -DMM_TESTS -ISources \
   $(find Sources/Core -name '*.m' | LC_ALL=C sort) test/git/gittool.m -framework Cocoa -framework IOKit \
@@ -228,3 +230,4 @@ PYEOF
 )
 echo "  info  WorkForest's DefaultPatchIds over the 10 repos: $gb_wf"
 unset GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+export HOME="$gt_home"
