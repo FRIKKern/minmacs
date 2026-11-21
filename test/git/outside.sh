@@ -99,7 +99,7 @@ od_case n4r; od_put "$ODF/global" '[index]\n\tmaxPathLen = 3g\n'       # environ
 od_case n5; od_put "$ODF/global" '[core]\n\tcheckStat = Junk\n'        # environment.c:342
 od_case n6; od_put "$ODF/global" '[advice]\n\tdiverging = maybe\n'     # advice.c:187, a key 2.39 does not have
 # What both take: the values in another case, another attr key with no value, a unit.
-od_case n7; od_put "$ODF/global" '[core]\n\tcheckStat = MINIMAL\n\tcommentString = ;\n\tlockFilePid = 1\n[attr]\n\ttree = HEAD\n\tother\n[index]\n\tmaxPathLen = 4k\n[advice]\n\tdiverging = FALSE\n'
+od_case n7; od_put "$ODF/global" '[core]\n\tcheckStat = MINIMAL\n\tcommentString = //\n\tlockFilePid = 1\n[attr]\n\ttree = HEAD\n\tother\n[index]\n\tmaxPathLen = 4k\n[advice]\n\tdiverging = FALSE\n'
 # Issue #126, part 4: Own()'s branch for Apple's git, the one the shipped app takes. A copy of the Command Line Tools
 # git under a row's root reads the share file next to itself, as the real one reads its own. Skipped where there are
 # no Command Line Tools, or where the copy does not read that file.
