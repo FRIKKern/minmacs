@@ -16,7 +16,10 @@ MINMACS_HOME=$(mktemp -d "${TMPDIR:-/tmp}/minmacs-test.XXXXXX")
 export MINMACS_HOME
 # Agent session logs move into the temp folder, so the agent running the tests never feeds a fixture.
 export CLAUDE_CONFIG_DIR="$MINMACS_HOME/claude" CODEX_HOME="$MINMACS_HOME/codex"
-export GIT_CONFIG_GLOBAL=/dev/null
+# git and MinMacs's reader of the files git reads outside the repo see none of this Mac's: no global or XDG file, no
+# system file, no config in the environment. A section about those files names its own, test/git/outside.sh.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+unset GIT_CONFIG_SYSTEM XDG_CONFIG_HOME GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 APP="$MINMACS_HOME/build/MinMacs.app"
 BIN="$APP/Contents/MacOS/MinMacs"
 procs=""                      # pids a section started; cleanup stops these and nothing else

@@ -256,7 +256,17 @@ static MMWorktree *CheckoutAt(NSString *dir) {
 
 static dispatch_queue_t ReposQueue(void) { return MMQueue(@"core", @"repos", QOS_CLASS_UTILITY); }
 static dispatch_queue_t GitQueue(void) { return MMQueue(@"core", @"git", QOS_CLASS_UTILITY); }
-static dispatch_queue_t FreshQueue(void) { return MMQueue(@"core", @"git.fresh", QOS_CLASS_UTILITY); }
+static const void *const kFreshKey = &kFreshKey;
+/// core.git.fresh, with kFreshKey set on it, which MMGitOnFreshRead finds there.
+static dispatch_queue_t FreshQueue(void) {
+    static dispatch_queue_t q; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        q = MMQueue(@"core", @"git.fresh", QOS_CLASS_UTILITY);
+        dispatch_queue_set_specific(q, kFreshKey, (void *)kFreshKey, NULL);
+    });
+    return q;
+}
+BOOL MMGitOnFreshRead(void) { return dispatch_get_specific(kFreshKey) == kFreshKey; }
 
 /// The folders an FSEvents callback drops before it reaches the index. FSEvents takes at most 8 exclusion paths,
 /// so MMFolderWatch filters these names in the callback, per research track B.
@@ -819,8 +829,7 @@ static size_t UpdateWidth(void) {
             g = [self updateOne:w force:YES ran:&r changed:&c];
             if (c) [NSNotificationCenter.defaultCenter postNotificationName:MMRepoIndexFactsDidChangeNotification object:self];
         };
-        const char *label = dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL);
-        if (label && !strcmp(label, dispatch_queue_get_label(FreshQueue()))) work(); else dispatch_sync(FreshQueue(), work);
+        if (MMGitOnFreshRead()) work(); else dispatch_sync(FreshQueue(), work);
         return g;
     }
     id g;

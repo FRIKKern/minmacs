@@ -19,13 +19,18 @@ MMRunResult MMRunTask(NSTask *task, NSData *input, NSTimeInterval timeout, NSDat
 /// Starts from WF Common.m:71-105. Returns stdout without the trailing newline, or nil when git could not run
 /// or timed out. status is git's exit status, -1 when it did not run. status may be NULL.
 /// It runs through MMRun and never on main: called on main it returns nil with status -1.
-/// GIT_CONFIG_GLOBAL and GIT_CONFIG_NOSYSTEM pass through from our environment, so a test keeps the person's config out.
+/// HOME, XDG_CONFIG_HOME and GIT_CONFIG_GLOBAL, _SYSTEM and _NOSYSTEM pass through from our environment, so git reads
+/// the files MMGitOutside.m reads, and a test keeps the person's config out.
 NSString *MMGit(NSString *dir, NSArray<NSString *> *args, NSTimeInterval timeout, int *status);
 /// nil when no real git is installed, so the Xcode stub never prompts. $MINMACS_GIT names another git.
 NSString *MMGitPath(void);
 /// What every git child gets on top of MMRun's clean environment: LC_ALL=C, GIT_OPTIONAL_LOCKS=0, no prompts,
-/// no pager, and GIT_CONFIG_GLOBAL and GIT_CONFIG_NOSYSTEM from ours. For a caller that runs git through MMRun itself.
+/// no pager, and XDG_CONFIG_HOME and GIT_CONFIG_GLOBAL, _SYSTEM and _NOSYSTEM from ours; MMRun passes HOME. For a
+/// caller that runs git through MMRun itself.
 NSDictionary<NSString *, NSString *> *MMGitEnvironment(void);
+/// YES on core.git.fresh, the queue of factsFor:wait:YES: the read before an action, which takes no memo's answer and
+/// no answer kept for a second. A key set on that queue, so no name is compared.
+BOOL MMGitOnFreshRead(void);
 
 /// P25. Who made a worktree. Decision 6: MinMacs acts on Claude Code's agent worktrees once their session ended,
 /// and only shows Cursor's and Conductor's.
