@@ -193,7 +193,9 @@ static void ColdIndex(void) {
     os_unfair_lock_unlock(&lock);
 }
 
-static MMFacts *ColdFacts(uint64_t generation, MMSample *s) {
+/// The facts a cold run hands over: the index's memory of every worktree, which any update pass writes last. fresh, for
+/// the fresh check, is the worktree read again and freshGit what that read said, which is handed over in its place.
+static MMFacts *ColdFacts(uint64_t generation, MMSample *s, MMWorktree *fresh, MMGitFacts *freshGit) {
     MMPower *p = [MMSenses.shared power];
     NSArray *agents = s ? [MMRegistry.shared agentsIn:s power:p] : @[];
     [MMSessions.shared refresh];
@@ -203,6 +205,12 @@ static MMFacts *ColdFacts(uint64_t generation, MMSample *s) {
     for (MMWorktree *w in trees) {
         MMGitFacts *g = w.path ? [MMRepoIndex.shared factsFor:w wait:NO] : nil;
         if (g) git[w.path] = g;
+    }
+    if (fresh.path.length) {
+        // Round 2, B4: a pass still running from before, as one WaitForGit gave up on, may write this worktree's
+        // facts after the fresh read; the read's own answer is what counts. None: no facts, which keeps.
+        if (freshGit) git[fresh.path] = freshGit; else [git removeObjectForKey:fresh.path];
+        if (![[trees valueForKey:@"path"] containsObject:fresh.path]) trees = [trees arrayByAddingObject:fresh];
     }
     // The items of the last scan, the app's or a cold `clutter scan`, as the app's source hands them over. Issue #85.
     return [MMFacts generation:generation sample:s power:p agents:agents ?: @[] sessions:[MMSessions.shared all] ?: @[]
@@ -226,19 +234,21 @@ static void ColdClutterProjects(void) {
     });
 }
 
-- (MMFacts *)factsFor:(uint64_t)generation { return ColdFacts(generation, [MMSenses.shared sampleNow]); }
+- (MMFacts *)factsFor:(uint64_t)generation { return ColdFacts(generation, [MMSenses.shared sampleNow], nil, nil); }
 
 /// Principle 5, as the app's source does it: a new sample, and the finding's worktree read again from git with wait
 /// YES, on core.git.fresh, as MMCore's freshFactsFor: reads it: no memo's answer and none kept for a second, issue
-/// #120. It writes the index's facts, which ColdFacts then hands over.
+/// #120. Its answer goes into the facts handed over, as MMCore's does, not the index's memory of it.
 - (MMFacts *)freshFactsFor:(MMFinding *)finding {
     MMWorktree *w = finding.path.length ? [MMRepoIndex.shared worktreeAt:finding.path] : nil;
+    MMGitFacts *g = nil;
     if (w.path.length) {
         gColdReads = MMVerbReadsAll;   // a fresh check reads every worktree as the app knows them
         ColdIndex();
-        [MMRepoIndex.shared factsFor:[MMRepoIndex.shared worktreeAt:finding.path] ?: w wait:YES];   // the walked one
+        w = [MMRepoIndex.shared worktreeAt:finding.path] ?: w;   // the walked one
+        g = [MMRepoIndex.shared factsFor:w wait:YES];
     }
-    return ColdFacts(0, [MMSenses.shared sampleNow]);
+    return ColdFacts(0, [MMSenses.shared sampleNow], w.path.length ? w : nil, g);
 }
 @end
 
