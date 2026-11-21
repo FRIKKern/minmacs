@@ -19,6 +19,7 @@ NSString *MMGitInput(NSString *dir, NSArray<NSString *> *args, NSData *input, NS
 NSString *MMGitPatchIds(NSString *dir, NSArray<NSString *> *args, NSData *input, NSTimeInterval timeout, int *status);
 NSArray *MMGitConfigItems(NSData *bytes, NSString *file);                                    // MMGitConfig.m
 NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *branch, id (^load)(NSString *path));
+NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load)(NSString *path));       // MMGitOutside.m
 
 static const NSTimeInterval kGitShort = 15;        // rev-list, merge-base, show
 static const NSTimeInterval kGitStatus = 30;       // status in a large checkout
@@ -219,14 +220,16 @@ static BOOL IsSha(NSString *s) {
 
 /// A file git rewrites whole, parsed from its bytes once per stamp and kept per path. A missing file parses as no
 /// bytes. Issues #96 and #116: one that is there and cannot be read, a named pipe among them, gives kUnread and never
-/// waits, and is read again next time.
+/// waits, and is read again next time. Issue #120: a file rewritten in place can keep its size, inode and mtime, so the
+/// fresh read before an action, factsFor:wait:YES on core.git.fresh, never takes the memo's answer: it reads the file.
 static id Parsed(NSString *path, id (^parse)(NSData *bytes)) {
     static NSMutableDictionary<NSString *, NSArray *> *memo; static dispatch_once_t once;
     dispatch_once(&once, ^{ memo = [NSMutableDictionary new]; });
     int why = 0;
     NSString *stamp = StampWhy(path, &why);
     if ([stamp isEqualToString:@"-"]) return Missing(why, NO) ? parse(NSData.data) ?: NSNull.null : kUnread;
-    @synchronized (memo) {
+    const char *queue = dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL);
+    if (!(queue && !strcmp(queue, "no.guerrilla.minmacs.core.git.fresh"))) @synchronized (memo) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }
@@ -354,7 +357,8 @@ NSDictionary *MMGitReadFiles(NSString *gitDir, NSString *common) {
     // NameUsable refuses could read the section of another name that reads the same, so its upstream is not known.
     BOOL named = f[@"branch"] && NameUsable(f[@"branch"]);
     if ((f[@"branch"] && !named) || (headUnread && !f[@"branch"])) f[@"upUnread"] = @YES;
-    NSDictionary *up = named ? MMGitConfigUpstream(common, gitDir, f[@"branch"], ^id(NSString *p) { return ConfigItems(p); }) : nil;
+    id (^load)(NSString *) = ^id(NSString *p) { return ConfigItems(p); };
+    NSDictionary *up = named ? MMGitOutsideUpstream(MMGitConfigUpstream(common, gitDir, f[@"branch"], load), f[@"branch"], load) : nil;
     if (up[@"unknown"]) f[@"upUnread"] = @YES;
     else if (up[@"ref"]) {
         NSString *ref = up[@"ref"];

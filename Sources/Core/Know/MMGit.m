@@ -21,7 +21,7 @@ NSDictionary<NSString *, NSString *> *MMGitEnvironment(void) {
         NSMutableDictionary *e = [@{ @"GIT_OPTIONAL_LOCKS": @"0", @"GIT_TERMINAL_PROMPT": @"0", @"GIT_PAGER": @"cat",
                                      @"LC_ALL": @"C", @"GIT_ASKPASS": @"/usr/bin/false", @"SSH_ASKPASS": @"/usr/bin/false" } mutableCopy];
         NSDictionary *ours = NSProcessInfo.processInfo.environment;
-        for (NSString *k in @[@"GIT_CONFIG_GLOBAL", @"GIT_CONFIG_NOSYSTEM"]) if (ours[k]) e[k] = ours[k];
+        for (NSString *k in @[@"GIT_CONFIG_GLOBAL", @"GIT_CONFIG_SYSTEM", @"GIT_CONFIG_NOSYSTEM"]) if (ours[k]) e[k] = ours[k];
         env = e;
     });
     return env;

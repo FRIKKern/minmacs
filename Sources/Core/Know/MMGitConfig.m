@@ -24,7 +24,7 @@
 //   remote and merge                               the ref the remote's fetch lines map the FIRST merge to, as
 //                                                  git's @{upstream}; the LAST remote; none when no line maps it
 //
-// What is not read: the global and system config, which only the person's own git setup writes to.
+// The files outside the repo, the system, XDG and global ones, are read in MMGitOutside.m, issue #120.
 // Every function here reads no file: MMGitFacts.m hands each file over, parsed once per stamp.
 #import <Foundation/Foundation.h>
 #include <sys/stat.h>
@@ -280,7 +280,9 @@ static void Emit(NSData *var, NSData *val, BOOL blank, NSMutableArray *items, NS
         if (!value) { Segment(items)[@"bad"] = @YES; return; }
         [items addObject:kept == kBad ? kBad : IncludePath(value, file)];   // a string: what comes next is read after that file
     } else if ([section isEqualToString:@"includeif"] && sub && [key isEqualToString:@"path"]) {
-        Segment(items)[@"if"] = @YES;
+        NSMutableDictionary *seg = Segment(items);   // its path too, for a file outside the repo, issue #120
+        seg[@"if"] = @YES;
+        seg[@"ifs"] = [seg[@"ifs"] ?: @[] arrayByAddingObject:!value || kept == kBad ? kBad : IncludePath(value, file)];
     } else if ([section isEqualToString:@"extensions"] && !sub && [key isEqualToString:@"worktreeconfig"]) {
         Segment(items)[@"wt"] = Bool(value) ?: kBad;
     } else if ([section isEqualToString:@"core"] && !sub && [key isEqualToString:@"repositoryformatversion"]) {
@@ -344,15 +346,20 @@ NSArray *MMGitConfigItems(NSData *bytes, NSString *file) {
 
 /// The items of path and of every file it includes, as one run of dictionaries in the order git reads them. NO when
 /// the upstream cannot be known: a file there and not read, one git refuses, an include not followed or too deep.
-static BOOL Flatten(id items, id (^load)(NSString *path), NSUInteger depth, NSMutableArray *out) {
+/// ifs: an includeIf's file is read too, whatever its condition, issue #120.
+static BOOL Flatten(id items, id (^load)(NSString *path), NSUInteger depth, BOOL ifs, NSMutableArray *out) {
     if (![items isKindOfClass:NSArray.class]) return NO;
     for (id it in items) {
-        if ([it isKindOfClass:NSDictionary.class]) { [out addObject:it]; continue; }
-        if (it == kBad || depth >= 10) return NO;   // git's MAX_INCLUDE_DEPTH
-        if (!Flatten(load(it), load, depth + 1, out)) return NO;
+        if ([it isKindOfClass:NSDictionary.class]) [out addObject:it];
+        for (id p in [it isKindOfClass:NSDictionary.class] ? (ifs ? it[@"ifs"] : nil) : @[it]) {
+            if (p == kBad || depth >= 10) return NO;   // git's MAX_INCLUDE_DEPTH
+            if (!Flatten(load(p), load, depth + 1, ifs, out)) return NO;
+        }
     }
     return YES;
 }
+
+BOOL MMGitConfigFlattenAll(id items, id (^load)(NSString *path), NSMutableArray *out) { return Flatten(items, load, 0, YES, out); }
 
 /// YES for a ref name git would read: under refs/, shared by every worktree, and none of what check-ref-format refuses.
 static BOOL RefOK(NSString *ref) {
@@ -418,7 +425,7 @@ NSDictionary *MMGitConfigUpstream(NSString *common, NSString *gitDir, NSString *
 static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSString *branch, id (^load)(NSString *path), BOOL *alone) {
     NSDictionary *unknown = @{@"unknown": @YES};
     NSMutableArray<NSDictionary *> *segs = [NSMutableArray new];
-    if (!Flatten(top, load, 0, segs)) return unknown;
+    if (!Flatten(top, load, 0, NO, segs)) return unknown;
     // extensions are read from config itself, includes left out, as read_repository_format reads them.
     id wt = nil, version = nil;
     for (id it in top) if ([it isKindOfClass:NSDictionary.class] && it[@"wt"]) wt = it[@"wt"];
@@ -428,7 +435,7 @@ static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSStri
     if (version == kBad || (version && ([version longLongValue] < -1 || [version longLongValue] > 1))) return unknown;
     if (!version || [version longLongValue] == -1) wt = nil;
     if (wt == kBad) return unknown;
-    if ([wt boolValue] && !Flatten(load([gitDir stringByAppendingPathComponent:@"config.worktree"]), load, 0, segs)) return unknown;
+    if ([wt boolValue] && !Flatten(load([gitDir stringByAppendingPathComponent:@"config.worktree"]), load, 0, NO, segs)) return unknown;
     *alone = ![wt boolValue];   // no config.worktree, and below, no include among config's items
     for (id it in top) if (![it isKindOfClass:NSDictionary.class]) *alone = NO;
     NSString *remote = nil, *merge = nil;
@@ -441,7 +448,7 @@ static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSStri
         if (!merge && b[@"merge"]) merge = b[@"merge"];
     }
     if (remote == kBad || merge == kBad) return unknown;
-    if (!remote || !merge) return @{};
+    if (!remote || !merge) return remote ? @{@"remote": remote} : @{};   // the remote, for MMGitOutside.m
     if (!remote.length) return unknown;
     for (NSDictionary *seg in segs) {
         NSDictionary *r = seg[@"r"][remote];
@@ -463,8 +470,11 @@ static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSStri
         }
         ref = Track(fetch, merge);
         if (ref == kBad) return unknown;
-        if (!ref) return @{};
+        if (!ref) return @{@"remote": remote, @"merge": merge};
     }
     if (!RefOK(ref)) return unknown;
-    return @{@"ref": ref, @"up": Short(ref)};
+    return @{@"ref": ref, @"up": Short(ref), @"remote": remote, @"merge": merge};
 }
+
+/// Issue #120: NO only when no line of fetch maps src, so lines read before the repo's own leave git's answer as it is.
+BOOL MMGitConfigMayMap(NSArray *fetch, NSString *src) { return Track(fetch, src) != nil; }
