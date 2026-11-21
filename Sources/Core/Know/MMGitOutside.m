@@ -30,7 +30,9 @@
 // so it wins; when MinMacs's own environment holds any, as a CLI run from a shell that set it does, every upstream is
 // not known. A shell's environment the app cannot see is not guessed at.
 // Every file comes through load, parsed once per stamp, and what they say is worked out again only when one moved.
+// A walk looks at them at most once a second; the fresh read before an action always does.
 #import <Foundation/Foundation.h>
+#include <time.h>
 #include <unistd.h>
 
 BOOL MMGitConfigFlattenAll(id items, id (^load)(NSString *path), NSMutableArray *out);   // MMGitConfig.m
@@ -117,14 +119,25 @@ NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load
     if (!up || up[@"unknown"]) return up;
     static NSArray *files; static dispatch_once_t once;
     dispatch_once(&once, ^{ files = Files(NSProcessInfo.processInfo.environment); });
-    // The items load hands back stay the same objects until a file's stamp moves, so the summary is kept as long.
-    static NSArray *lastSeen; static NSDictionary *last; static NSObject *lock; static dispatch_once_t made;
+    // A walk asks once per checkout, so the answer is kept for a second, which a pass of 1,500 checkouts fits in: no
+    // file is looked at again for each. The fresh read before an action, on core.git.fresh, always looks again, and
+    // Parsed then reads each file whatever its stamp. When it looks, the items load hands back stay the same objects
+    // until a file's stamp moves, so what they say is worked out again only then.
+    static NSArray *lastSeen; static NSDictionary *last, *kept; static uint64_t keptAt; static NSObject *lock;
+    static dispatch_once_t made;
     dispatch_once(&made, ^{ lock = [NSObject new]; });
-    NSMutableArray *seen = [NSMutableArray new];
-    NSArray *wasSeen; NSDictionary *was;
-    @synchronized (lock) { wasSeen = lastSeen; was = last; }
-    NSDictionary *s = Summary(files, load, seen, wasSeen, was);
-    if (!s[@"unknown"] && s != was) @synchronized (lock) { last = s; lastSeen = seen; }
+    BOOL fresh = !strcmp(dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL), "no.guerrilla.minmacs.core.git.fresh");
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    NSArray *wasSeen; NSDictionary *was, *s = nil;
+    @synchronized (lock) { wasSeen = lastSeen; was = last; if (!fresh && kept && now - keptAt < NSEC_PER_SEC) s = kept; }
+    if (!s) {
+        NSMutableArray *seen = [NSMutableArray new];
+        s = Summary(files, load, seen, wasSeen, was);
+        @synchronized (lock) {
+            kept = s; keptAt = now;
+            if (!s[@"unknown"]) { last = s; lastSeen = seen; }
+        }
+    }
     NSDictionary *unknown = @{@"unknown": @YES};
     if (s[@"unknown"] || [s[@"branches"] containsObject:branch]) return unknown;
     NSString *remote = up[@"remote"];
