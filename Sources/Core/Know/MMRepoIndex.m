@@ -131,7 +131,9 @@ static MMWorktreeNames *NamesOf(NSArray<MMWorktree *> *trees) {
     static NSMapTable<NSArray *, MMWorktreeNames *> *made;
     static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
     os_unfair_lock_lock(&lock);
-    if (!made) made = [NSMapTable weakToStrongObjectsMapTable];
+    // By the array's address, not -isEqual:, which would compare every checkout of two lists of one length.
+    if (!made) made = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsWeakMemory | NSPointerFunctionsObjectPointerPersonality
+                                               valueOptions:NSPointerFunctionsStrongMemory capacity:4];
     MMWorktreeNames *x = [made objectForKey:trees];
     os_unfair_lock_unlock(&lock);
     if (x) return x;
