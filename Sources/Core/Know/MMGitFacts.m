@@ -226,7 +226,7 @@ static id Parsed(NSString *path, id (^parse)(NSData *bytes)) {
     int why = 0;
     NSString *stamp = StampWhy(path, &why);
     if ([stamp isEqualToString:@"-"]) return Missing(why, NO) ? parse(NSData.data) ?: NSNull.null : kUnread;
-    if (strcmp(dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL), "no.guerrilla.minmacs.core.git.fresh")) @synchronized (memo) {
+    if (!MMGitOnFreshRead()) @synchronized (memo) {
         NSArray *hit = memo[path];
         if ([hit[0] isEqualToString:stamp]) return hit[1];
     }

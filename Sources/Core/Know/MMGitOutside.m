@@ -6,8 +6,8 @@
 //   system                                        none with GIT_CONFIG_NOSYSTEM. Else the file of every git the
 //                                                 person may run: Apple's share/git-core/gitconfig of the Command
 //                                                 Line Tools, of Xcode and of the developer folder xcode-select names,
-//                                                 and $GIT_CONFIG_SYSTEM, or with none /etc/gitconfig, Homebrew's
-//                                                 and MacPorts' etc/gitconfig
+//                                                 $GIT_CONFIG_SYSTEM, or with none /etc/gitconfig, and Homebrew's,
+//                                                 /usr/local's and MacPorts' etc/gitconfig whatever it says
 //   XDG and global                                $GIT_CONFIG_GLOBAL alone when it is set, as git reads it. Else
 //                                                 $XDG_CONFIG_HOME/git/config, ~/.config/git/config and ~/.gitconfig,
 //                                                 ~ from $HOME
@@ -17,26 +17,31 @@
 //   what they hold                                the upstream
 //   branch.<b>.remote or merge for this branch    not known
 //   remote.<r>.url for this branch's remote, or   not known
-//   a fetch line of it that maps the merge
-//   a line git refuses, a file there and not      not known: git refuses, or reads what is not read here
-//   read, an include not followed or too deep,
-//   extensions or core.repositoryformatversion
+//   a fetch line of it that maps the merge to
+//   another ref than the repo's own lines do
+//   a line git refuses, or that may make every    not known for every branch: git refuses, or reads what is not
+//   command refuse the file, MMGitConfigValues.m;  read here. MinMacs's own git does not read the files of other
+//   a file there and not read, an include not     gits, so its git status cannot be what fails on them
+//   followed or too deep, extensions or
+//   core.repositoryformatversion
 //   anything else                                 as the repo's own config says: the usual user, includeIf for an
 //                                                 email, a pull-request fetch line, another branch's keys
 //
-// The environment: MinMacs's own git gets HOME, GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM and GIT_CONFIG_NOSYSTEM from
-// MinMacs's environment, MMGitEnvironment, and so do these reads. Config given in the environment,
-// GIT_CONFIG_COUNT or GIT_CONFIG_PARAMETERS, is never passed to MinMacs's git, and is read after the repo's config,
-// so it wins; when MinMacs's own environment holds any, as a CLI run from a shell that set it does, every upstream is
-// not known. A shell's environment the app cannot see is not guessed at.
+// The environment: MinMacs's own git gets HOME, XDG_CONFIG_HOME, GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM and
+// GIT_CONFIG_NOSYSTEM from MinMacs's environment, MMGitEnvironment, and so do these reads. Config given in the
+// environment, GIT_CONFIG_COUNT or GIT_CONFIG_PARAMETERS, is never passed to MinMacs's git, and is read after the
+// repo's config, so it wins; when MinMacs's own environment holds any, as a CLI run from a shell that set it does,
+// every upstream is not known. A shell's environment the app cannot see is not guessed at. MINMACS_TEST_GIT_ROOT, for
+// tests alone, is the folder the fixed system paths are read under, so a test never reads the Mac's own.
 // Every file comes through load, parsed once per stamp, and what they say is worked out again only when one moved.
 // A walk looks at them at most once a second; the fresh read before an action always does.
 #import <Foundation/Foundation.h>
+#import "Core/Know/MMGit.h"
 #include <time.h>
 #include <unistd.h>
 
 BOOL MMGitConfigFlattenAll(id items, id (^load)(NSString *path), NSMutableArray *out);   // MMGitConfig.m
-BOOL MMGitConfigMayMap(NSArray *fetch, NSString *src);                                  // MMGitConfig.m
+BOOL MMGitConfigMayMap(NSArray *fetch, NSString *src, NSString *ref);                   // MMGitConfig.m
 
 /// git_env_bool: @YES, @NO, or nil for a value git refuses.
 static NSNumber *EnvBool(NSString *v) {
@@ -58,15 +63,18 @@ static NSArray<NSString *> *Files(NSDictionary<NSString *, NSString *> *env) {
     NSNumber *nosystem = EnvBool(env[@"GIT_CONFIG_NOSYSTEM"]);
     if (!nosystem) return nil;
     if (!nosystem.boolValue) {
+        NSString *root = env[@"MINMACS_TEST_GIT_ROOT"] ?: @"";
         NSMutableArray *dev = [@[@"/Library/Developer/CommandLineTools", @"/Applications/Xcode.app/Contents/Developer"] mutableCopy];
         char link[PATH_MAX];
-        ssize_t n = readlink("/var/db/xcode_select_link", link, sizeof link - 1);
+        ssize_t n = readlink([root stringByAppendingString:@"/var/db/xcode_select_link"].fileSystemRepresentation, link, sizeof link - 1);
         if (n > 0) { link[n] = 0; [dev addObject:@(link)]; }
-        for (NSString *d in dev) [files addObject:[d stringByAppendingPathComponent:@"usr/share/git-core/gitconfig"]];
+        for (NSString *d in dev) [files addObject:[root stringByAppendingString:[d stringByAppendingPathComponent:@"usr/share/git-core/gitconfig"]]];
         NSString *system = env[@"GIT_CONFIG_SYSTEM"];
         if (system && !system.isAbsolutePath) return nil;
-        [files addObjectsFromArray:system ? @[system] : @[@"/etc/gitconfig", @"/opt/homebrew/etc/gitconfig",
-                                                         @"/usr/local/etc/gitconfig", @"/opt/local/etc/gitconfig"]];
+        [files addObject:system ?: [root stringByAppendingString:@"/etc/gitconfig"]];
+        // The other gits' own: the person's may be one of them, in a shell whose GIT_CONFIG_SYSTEM is not this one.
+        for (NSString *f in @[@"/opt/homebrew/etc/gitconfig", @"/usr/local/etc/gitconfig", @"/opt/local/etc/gitconfig"])
+            [files addObject:[root stringByAppendingString:f]];
     }
     NSString *global = env[@"GIT_CONFIG_GLOBAL"];
     if (global) {
@@ -102,7 +110,7 @@ static NSDictionary *Summary(NSArray<NSString *> *files, id (^load)(NSString *pa
     NSMutableSet *branches = [NSMutableSet new];
     NSMutableDictionary *remotes = [NSMutableDictionary new];
     for (NSDictionary *seg in segs) {
-        if (seg[@"bad"] || seg[@"wt"] || seg[@"version"]) return unknown;
+        if (seg[@"bad"] || seg[@"every"] || seg[@"wt"] || seg[@"version"]) return unknown;
         [branches addObjectsFromArray:[seg[@"b"] allKeys] ?: @[]];
         [seg[@"r"] enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSDictionary *r, BOOL *stop) {
             NSMutableDictionary *m = remotes[name] ?: (remotes[name] = [NSMutableDictionary new]);
@@ -126,7 +134,7 @@ NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load
     static NSArray *lastSeen; static NSDictionary *last, *kept; static uint64_t keptAt; static NSObject *lock;
     static dispatch_once_t made;
     dispatch_once(&made, ^{ lock = [NSObject new]; });
-    BOOL fresh = !strcmp(dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL), "no.guerrilla.minmacs.core.git.fresh");
+    BOOL fresh = MMGitOnFreshRead();
     uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     NSArray *wasSeen; NSDictionary *was, *s = nil;
     @synchronized (lock) { wasSeen = lastSeen; was = last; if (!fresh && kept && now - keptAt < NSEC_PER_SEC) s = kept; }
@@ -143,6 +151,6 @@ NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load
     NSString *remote = up[@"remote"];
     NSDictionary *r = remote ? s[@"remotes"][remote] : nil;
     if (r[@"url"] || (r && [remote isEqualToString:@"."])) return unknown;
-    if (r[@"fetch"] && (!up[@"merge"] || MMGitConfigMayMap(r[@"fetch"], up[@"merge"]))) return unknown;
+    if (r[@"fetch"] && (!up[@"merge"] || MMGitConfigMayMap(r[@"fetch"], up[@"merge"], up[@"ref"]))) return unknown;
     return up;
 }

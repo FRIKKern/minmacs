@@ -8,8 +8,9 @@
 //   a key with no = and more after it
 //   a value with no = where git needs one          not known: git refuses to read the remotes
 //   (branch.x.merge, remote, remote.r.fetch,
-//   url.x.insteadOf), or a fetch or push line
-//   git refuses, in any remote
+//   url.x.insteadOf), a fetch or push line git
+//   refuses, or a bool it refuses, past int
+//   range too, in any remote
 //   a remote, merge, fetch or include value with   not known: two such values that differ read the same here, and
 //   bytes that are not UTF-8, or a tab inside      gits before 2.45 read a tab inside as a space
 //   an [includeIf] path                            not known: its condition is not read here
@@ -31,6 +32,9 @@
 
 NSString *MMGitText(const unsigned char *b, NSUInteger n, BOOL *lossy);   // MMGitFacts.m
 NSDictionary *MMGitOutsideUpstream(NSDictionary *up, NSString *branch, id (^load)(NSString *path));   // MMGitOutside.m: #120
+NSNumber *MMGitConfigBool(NSString *v);                                                             // MMGitConfigValues.m
+NSNumber *MMGitConfigInt(NSString *v);
+BOOL MMGitConfigEveryOK(NSString *section, NSString *sub, NSString *key, NSString *value, BOOL lossy);
 
 /// What git refuses, as a value of the items or of the upstream. Compared by pointer.
 static NSString *const kBad = @"(git refuses it)";
@@ -141,21 +145,6 @@ static NSMutableDictionary *Sub(NSMutableDictionary *seg, NSString *kind, NSStri
     return all[name] ?: (all[name] = [NSMutableDictionary new]);
 }
 
-/// git_config_bool: no value is true, then true, yes, on, false, no, off and "" in any case, then a number with an
-/// optional k, m or g. nil for what git refuses.
-static NSNumber *Bool(NSString *v) {
-    if (!v) return @YES;
-    NSString *l = v.lowercaseString;
-    if ([@[@"true", @"yes", @"on"] containsObject:l]) return @YES;
-    if ([@[@"false", @"no", @"off", @""] containsObject:l]) return @NO;
-    NSScanner *sc = [NSScanner scannerWithString:l];
-    long long n = 0;
-    if (![sc scanLongLong:&n]) return nil;
-    NSString *rest = [l substringFromIndex:sc.scanLocation];
-    if (rest.length && ![@[@"k", @"m", @"g"] containsObject:rest]) return nil;
-    return @(n != 0);
-}
-
 /// The include path as handle_path_include makes it: ~/ from $HOME, a relative path from the folder of the file that
 /// holds it. kBad for what is not followed here: ~user, %(prefix) or an empty path.
 static NSString *IncludePath(NSString *v, NSString *file) {
@@ -213,17 +202,6 @@ static BOOL RefspecOK(NSString *spec, BOOL fetch) {
     return rhs ? rhs.length && RefnameOK(rhs, glob) : RefnameOK(lhs, glob);
 }
 
-/// git_config_int: a number with an optional k, m or g. nil for what git refuses.
-static NSNumber *Int(NSString *v) {
-    if (!v.length) return nil;
-    NSScanner *sc = [NSScanner scannerWithString:v.lowercaseString];
-    long long n = 0;
-    if (![sc scanLongLong:&n]) return nil;
-    NSString *rest = [v.lowercaseString substringFromIndex:sc.scanLocation];
-    NSUInteger at = [@[@"", @"k", @"m", @"g"] indexOfObject:rest];
-    return at == NSNotFound ? nil : @(n * (1LL << (10 * at)));
-}
-
 /// One key and its value, nil for a key with no =. Each is cut at a NUL, as git reads them as C strings. Only what
 /// the upstream depends on is kept: branch.<x>.remote and merge, remote.<x>.url and fetch, include.path, an
 /// includeIf path, extensions.worktreeConfig and core.repositoryformatversion, and every value git refuses to read
@@ -250,6 +228,8 @@ static void Emit(NSData *var, NSData *val, BOOL blank, NSMutableArray *items, NS
     // Issue #118: a value with bytes that are not UTF-8 reads as U+FFFD, so two such values that differ can read the
     // same; and a tab inside one means what the git that reads it makes of it. Where the upstream is made of it, kBad.
     NSString *kept = value && (valLossy || blank) ? kBad : value;
+    // Issue #120: a line that may make every git command refuse the file, which counts in a file outside the repo.
+    if (!MMGitConfigEveryOK(section, sub, key, value, kept == kBad)) Segment(items)[@"every"] = @YES;
     if ([section isEqualToString:@"branch"] && sub) {
         BOOL needs = [@[@"remote", @"pushremote", @"merge"] containsObject:key];
         if (!sub.length || (needs && !value)) { Segment(items)[@"bad"] = @YES; return; }
@@ -263,7 +243,7 @@ static void Emit(NSData *var, NSData *val, BOOL blank, NSMutableArray *items, NS
         NSArray *strings = @[@"url", @"pushurl", @"push", @"fetch", @"receivepack", @"uploadpack", @"tagopt", @"proxy",
                              @"proxyauthmethod", @"vcs", @"serveroption", @"followremotehead"];   // the last two: newer gits
         NSArray *bools = @[@"mirror", @"skipdefaultupdate", @"skipfetchall", @"prune", @"prunetags"];
-        BOOL refused = ([strings containsObject:key] && !value) || ([bools containsObject:key] && !Bool(value)) ||
+        BOOL refused = ([strings containsObject:key] && !value) || ([bools containsObject:key] && !MMGitConfigBool(value)) ||
                        (value && [key isEqualToString:@"fetch"] && !RefspecOK(value, YES)) ||
                        (value && [key isEqualToString:@"push"] && !RefspecOK(value, NO));
         if (refused) { Segment(items)[@"bad"] = @YES; return; }
@@ -285,9 +265,9 @@ static void Emit(NSData *var, NSData *val, BOOL blank, NSMutableArray *items, NS
         seg[@"if"] = @YES;
         seg[@"ifs"] = [seg[@"ifs"] ?: @[] arrayByAddingObject:!value || kept == kBad ? kBad : IncludePath(value, file)];
     } else if ([section isEqualToString:@"extensions"] && !sub && [key isEqualToString:@"worktreeconfig"]) {
-        Segment(items)[@"wt"] = Bool(value) ?: kBad;
+        Segment(items)[@"wt"] = MMGitConfigBool(value) ?: kBad;
     } else if ([section isEqualToString:@"core"] && !sub && [key isEqualToString:@"repositoryformatversion"]) {
-        Segment(items)[@"version"] = Int(value) ?: kBad;
+        Segment(items)[@"version"] = MMGitConfigInt(value) ?: kBad;
     }
 }
 
@@ -477,5 +457,12 @@ static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSStri
     return @{@"ref": ref, @"up": Short(ref), @"remote": remote, @"merge": merge};
 }
 
-/// Issue #120: NO only when no line of fetch maps src, so lines read before the repo's own leave git's answer as it is.
-BOOL MMGitConfigMayMap(NSArray *fetch, NSString *src) { return Track(fetch, src) != nil; }
+/// Issue #120: NO only when each line of fetch maps src to ref, or not at all. Read before the repo's own lines, and
+/// in any order or part, as the files of another git, they leave git's answer as it is.
+BOOL MMGitConfigMayMap(NSArray *fetch, NSString *src, NSString *ref) {
+    for (NSString *line in fetch) {
+        NSString *to = Track(@[line], src);
+        if (to && (to == kBad || ![to isEqualToString:ref])) return YES;
+    }
+    return NO;
+}
