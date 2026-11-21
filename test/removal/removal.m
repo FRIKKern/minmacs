@@ -5,6 +5,7 @@
 //        removaltest --leave-waiting <dir>        leaves two items in staging that MinMacs cannot settle, for the CLI
 //        removaltest --pipe <case> <dir>          one case of pipes.m, ended by an alarm when it waits on a pipe
 //        removaltest --stop-in-trash <tree> <path> sends path to the Trash and stops where MINMACS_TEST_STOP_TRASH says
+//        removaltest --stop-second <tree> <a> <b> <point>  sends a, then b, to the Trash for one part, stopping in b's move
 //        removaltest --leave-in-trash <dir>       leaves a file MinMacs sent to the Trash that no record names, for the CLI
 // <dir> is inside $MINMACS_HOME. The --wall form runs with MINMACS_HOME set to a folder inside the section's own
 // folder, so the path it is asked to delete is a fixture too, and would only cost a fixture if the wall failed.
@@ -343,6 +344,7 @@ int main(int argc, char **argv) {
         if (argc == 4 && !strcmp(argv[1], "--stop-after-rename")) return StopAfterRenameChild(@(argv[2]), @(argv[3]));
         if (argc == 4 && !strcmp(argv[1], "--pipe")) return PipeChild(@(argv[2]), @(argv[3]));
         if (argc == 4 && !strcmp(argv[1], "--stop-in-trash")) return StopInTrashChild(@(argv[2]), @(argv[3]));
+        if (argc == 6 && !strcmp(argv[1], "--stop-second")) return StopSecondChild(@(argv[2]), @(argv[3]), @(argv[4]), @(argv[5]));
         char me[PATH_MAX];
         gSelf = realpath(argv[0], me) ? @(me) : @(argv[0]);
         if (argc == 3 && !strcmp(argv[1], "--leave-in-trash")) return LeaveInTrash(@(argv[2]));
@@ -375,6 +377,7 @@ int main(int argc, char **argv) {
         TrashListLows();
         TrashReviewed();
         TrashOwnNames();
+        TrashLinkedNames();
         printf("END\n");
     }
     return 0;

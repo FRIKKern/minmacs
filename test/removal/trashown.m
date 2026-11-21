@@ -171,3 +171,6 @@ static void TrashOwnNames(void) {
     [fm removeItemAtPath:toFifo error:nil]; [fm removeItemAtPath:dangling error:nil]; [fm removeItemAtPath:fifo error:nil];
     unsetenv("MINMACS_STAGE_RECOVER_AFTER");
 }
+
+// Issue #113, fourth review.
+#import "trashlinks.m"
