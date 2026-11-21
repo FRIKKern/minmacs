@@ -674,7 +674,7 @@ static int RemovalWaiting(MMArgs *a) {
     else [a print:@"%lu %@ in MinMacs's staging folder for you to decide:", (unsigned long)staged, staged == 1 ? @"item waits" : @"items wait"];
     for (MMRemovalWaitingItem *i in items) {
         if (i.why == MMRemovalWaitInTrash && inTrash) {
-            [a print:@"%lu %@ MinMacs sent to the Trash %@ named by no record:", (unsigned long)inTrash, inTrash == 1 ? @"item" : @"items", inTrash == 1 ? @"is" : @"are"];
+            [a print:@"%lu %@ MinMacs sent to the Trash %@ where no record MinMacs can undo names it:", (unsigned long)inTrash, inTrash == 1 ? @"item" : @"items", inTrash == 1 ? @"lies" : @"lie"];
             inTrash = 0;
         }
         [a print:@"%@", OneLine([NSString stringWithFormat:@"%@  %@, %@: %@%@.", i.itemID, i.name, MMBytes((uint64_t)i.bytes), i.whyWords, i.detail.length ? [NSString stringWithFormat:@" (%@)", i.detail] : @""])];

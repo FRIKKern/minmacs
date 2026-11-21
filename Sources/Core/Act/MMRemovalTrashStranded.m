@@ -10,9 +10,10 @@
 //
 // Each look ends one of three ways: the very file is there, by inode and volume UUID, never by a name alone; MinMacs
 // looked and it is not; or MinMacs could not look, as when the Trash refuses a look without Full Disk Access. Only
-// the second says "not there". The words say each of these as it is. An item found where a record names it, this
-// one's or any other's, at that Trash path with that id, is that record's and left out here. A record whose Undo ran
-// names nothing any more: the same file sent to the same Trash name again is no longer its.
+// the second says "not there". The words say each of these as it is. What the record itself names, by its id, is its
+// own at any Trash name, as when the person renamed it in the Trash. An item found where another record names it, at
+// that Trash path with that id, or where the Trash list of a record that still acts names it, is that record's. Each
+// is left out here. A record whose Undo ran names nothing any more.
 // Read only: nothing here moves, deletes or writes a file or a record. --waiting lists what is found in the Trash, and
 // recovery's words say all of it, so the person puts it back from the Trash. Recovery never moves it, since the list
 // would then be the only witness for a move out of the Trash, and anyone who can write the support folder can write it.
@@ -21,8 +22,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static const int kThere = 1, kNotThere = 0, kUnlooked = -1;
+static const int kThere = 1, kNotThere = 0, kUnlooked = -1, kNoVolumeId = -2;
 static NSString *const kRefused = @"the Trash could not be read, so MinMacs cannot say whether it is there. macOS may refuse a look in the Trash without Full Disk Access";
+static NSString *const kNoId = @"its volume's id cannot be read now, so MinMacs cannot say whether it is there";
 
 /// The paths a fresh finding asked of r, spelled as -[MMUndo trash:record:error:] spells the item it moves.
 static NSSet<NSString *> *Asked(MMUndoRecord *r) {
@@ -44,9 +46,15 @@ static NSString *Named(NSString *to, NSString *key) { return [NSString stringWit
 
 NSSet<NSString *> *MMRemovalTrashNamed(NSArray<MMUndoRecord *> *records) {
     NSMutableSet<NSString *> *out = [NSMutableSet new];
+    NSMutableDictionary<NSString *, MMUndoRecord *> *all = [NSMutableDictionary new];
+    for (MMUndoRecord *r in records) if (r.rid.length) all[r.rid] = r;
     for (MMUndoRecord *r in records) {
         if (r.state == MMUndoRestored) continue;
-        for (NSDictionary *x in MMRecordList(r.payload, @"trashed")) {
+        NSMutableArray<NSDictionary *> *named = [MMRecordList(r.payload, @"trashed") mutableCopy] ?: [NSMutableArray new];
+        // A record that still acts may have moved a file and listed it, and not yet named it: issue #113's third review.
+        MMUndoRecord *parent = r.parentRid.length ? (all[r.parentRid] ?: [MMUndo.shared record:r.parentRid]) : nil;
+        if (MMRemovalStillActs(r, parent)) [named addObjectsFromArray:MMRemovalTrashListItems(r.rid, NULL) ?: @[]];
+        for (NSDictionary *x in named) {
             NSString *to = MMRecordString(x, @"to"), *key = IdKey(x);
             if (to.length && key) [out addObject:Named(to, key)];
         }
@@ -54,14 +62,14 @@ NSSet<NSString *> *MMRemovalTrashNamed(NSArray<MMUndoRecord *> *records) {
     return out;
 }
 
-/// Whether the very file e names is at path: kThere, kNotThere once MinMacs looked and it is not, or kUnlooked when
-/// the look was refused or the id cannot be told.
+/// Whether the very file e names is at path: kThere, kNotThere once MinMacs looked and it is not, kUnlooked when the
+/// look was refused or the entry gives no id, or kNoVolumeId when its volume's UUID cannot be read now.
 static int At(NSString *path, NSDictionary *e) {
     struct stat st;
     if (lstat(path.fileSystemRepresentation, &st) != 0) return errno == ENOENT || errno == ENOTDIR ? kNotThere : kUnlooked;
     BOOL unread = NO;
     int same = MMFileIsEntryCheck(path, e, &unread);
-    return same == 1 ? kThere : same < 0 || unread ? kUnlooked : kNotThere;
+    return same == 1 ? kThere : unread ? kNoVolumeId : same < 0 ? kUnlooked : kNotThere;
 }
 
 /// Whether the file at path lies directly in a Trash, by its real path: in a check, only in the test home's own.
@@ -94,6 +102,7 @@ static void LookInTrash(NSDictionary *e, NSMutableDictionary *x) {
         if (at == kThere) at = InATrash(to);
         if (at == kThere) { x[@"to"] = to; return; }
         if (at == kUnlooked) refused = kRefused;
+        if (at == kNoVolumeId) refused = kNoId;
     }
     // With no volume UUID an inode alone says nothing across a whole folder.
     NSNumber *ino = MMRecordNumber(e, @"ino");
@@ -104,11 +113,8 @@ static void LookInTrash(NSDictionary *e, NSMutableDictionary *x) {
     NSMutableArray<NSString *> *found = [NSMutableArray new];
     for (NSString *trash in TrashesFor(MMRecordString(e, @"from"))) {
         struct stat st;
-        if (lstat(trash.fileSystemRepresentation, &st) != 0) {
-            // A volume with no Trash of this user's has nothing in it. Any other answer is a refused look.
-            if (errno != ENOENT) refused = refused ?: kRefused;
-            continue;
-        }
+        // A volume with no Trash of this user's has nothing in it. Any other answer is a refused look, as below.
+        if (lstat(trash.fileSystemRepresentation, &st) != 0 && errno == ENOENT) continue;
         NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:trash error:nil];
         if (!names) { refused = refused ?: kRefused; continue; }
         for (NSString *name in names) {
@@ -117,7 +123,9 @@ static void LookInTrash(NSDictionary *e, NSMutableDictionary *x) {
             if (lstat(p.fileSystemRepresentation, &st) != 0) { if (errno != ENOENT) refused = refused ?: kRefused; continue; }
             if ((unsigned long long)st.st_ino != ino.unsignedLongLongValue) continue;
             // By its real path: a Trash folder that is a link to elsewhere is no Trash.
-            if (At(p, e) == kThere && InATrash(p) == kThere && ![found containsObject:p]) [found addObject:p];
+            int a = At(p, e);
+            if (a == kNoVolumeId) refused = refused ?: kNoId;
+            if (a == kThere && InATrash(p) == kThere && ![found containsObject:p]) [found addObject:p];
         }
     }
     if (found.count == 1) x[@"to"] = found.firstObject;
@@ -137,9 +145,14 @@ NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, NSSet<NSString 
     // A list that names an old path this record never asked about was not written for it: nothing in it is believed.
     for (NSDictionary *e in items) if (![asked containsObject:MMRecordString(e, @"from")]) { if (unread) *unread = YES; return @[]; }
     NSSet<NSString *> *names = named ?: MMRemovalTrashNamed(@[r]);
+    // What r names itself is its own at any Trash name: the person may have renamed it in the Trash, or put it back
+    // and trashed it again by hand, issue #113's third review. Its list is never removed, so it still names it.
+    NSMutableSet<NSString *> *own = [NSMutableSet new];
+    if (r.state != MMUndoRestored) for (NSDictionary *t in MMRecordList(r.payload, @"trashed")) if (IdKey(t)) [own addObject:IdKey(t)];
     NSMutableArray<NSDictionary *> *out = [NSMutableArray new];
     for (NSDictionary *e in items) {
         NSString *from = MMRecordString(e, @"from"), *key = IdKey(e);
+        if (key && [own containsObject:key]) continue;
         NSMutableDictionary *x = [@{@"from": from, @"stranded": @YES} mutableCopy];
         // Only once the list names a Trash path did the move happen. Before that, MinMacs was only sending it.
         if (!MMRecordHas(e, @"to")) x[@"sending"] = @YES;
@@ -150,8 +163,8 @@ NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, NSSet<NSString 
         // A record names that very file where it lies: issue #113's second review, as when the person put it back
         // and a later record sent it to the Trash again.
         if (x[@"to"] && key && [names containsObject:Named(x[@"to"], key)]) continue;
-        if (home == kUnlooked && !x[@"to"] && !x[@"several"] && !x[@"unlooked"])
-            x[@"unlooked"] = @"its old path could not be read, so MinMacs cannot say where it is";
+        if (home < 0 && !x[@"to"] && !x[@"several"] && !x[@"unlooked"])
+            x[@"unlooked"] = home == kNoVolumeId ? @"its volume's id cannot be read now, so MinMacs cannot say where it is" : @"its old path could not be read, so MinMacs cannot say where it is";
         for (NSString *k in @[@"ino", @"dev"]) if (MMRecordNumber(e, k)) x[k] = MMRecordNumber(e, k);
         if (MMRecordString(e, @"vol")) x[@"vol"] = MMRecordString(e, @"vol");
         [out addObject:x];
@@ -167,9 +180,10 @@ NSString *MMRemovalTrashStrandedWords(NSArray<MMUndoRecord *> *parts) {
         BOOL bad = NO;
         for (NSDictionary *x in MMRemovalTrashStranded([MMUndo.shared record:given.rid] ?: given, named, &bad)) {
             NSString *from = x[@"from"], *to = x[@"to"];
-            NSString *what = MMRecordFlag(x, @"sending") ? [NSString stringWithFormat:@"MinMacs was sending %@ to the Trash when it stopped, and no record names it", from]
-                                                        : [NSString stringWithFormat:@"MinMacs had sent %@ to the Trash, and no record names it", from];
-            NSString *where = to ? [NSString stringWithFormat:@"it is in the Trash at %@", to]
+            NSString *what = MMRecordFlag(x, @"sending") ? [NSString stringWithFormat:@"MinMacs was sending %@ to the Trash when it stopped", from]
+                                                        : [NSString stringWithFormat:@"MinMacs had sent %@ to the Trash", from];
+            // Only where it lies is it known that no record MinMacs can undo names it, issue #113's third review.
+            NSString *where = to ? [NSString stringWithFormat:@"it is in the Trash at %@, where no record MinMacs can undo names it", to]
                             : MMRecordFlag(x, @"several") ? @"more than one name in the Trash has its id, so MinMacs names none"
                             : MMRecordString(x, @"unlooked") ?: @"MinMacs finds it neither at its old path nor in the Trash";
             [said addObject:[NSString stringWithFormat:@"%@: %@", what, where]];
@@ -182,7 +196,17 @@ NSString *MMRemovalTrashStrandedWords(NSArray<MMUndoRecord *> *parts) {
 
 #ifdef MM_TESTS
 void MMRemovalTestStopTrash(const char *point) {
-    const char *at = getenv("MINMACS_TEST_STOP_TRASH");
-    if (at && point && !strcmp(at, point) && MMRemovalTestHome()) _exit(0);
+    const char *at = getenv("MINMACS_TEST_STOP_TRASH"), *hold = getenv("MINMACS_TEST_HOLD_TRASH");
+    if (!point || !MMRemovalTestHome()) return;
+    if (at && !strcmp(at, point)) _exit(0);
+    // Held once, until the check closes this process's input: it still acts, as a Wrap Up between two steps does.
+    static BOOL held;
+    if (hold && !held && !strcmp(hold, point)) {
+        held = YES;
+        printf("held\n");
+        fflush(stdout);
+        char c;
+        while (read(0, &c, 1) > 0) {}
+    }
 }
 #endif

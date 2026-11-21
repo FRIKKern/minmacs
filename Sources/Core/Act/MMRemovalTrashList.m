@@ -11,6 +11,7 @@
 // of the Trash a second time. Nothing here moves or deletes a file: -[MMUndo trash:record:error:] moves an item there
 // and -[MMUndo untrash:of:] back. This file only ever writes the list. A stop between the move and the record's note
 // leaves an item only this list names, issue #113: MMRemovalTrashStranded.m reads it for that, and writes nothing.
+#import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMUndo.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
@@ -97,6 +98,7 @@ NSDictionary *MMRemovalTrashListNote(NSString *rid, NSString *from, NSString *to
             [entry addEntriesFromDictionary:identity];
             [items addObject:entry];
         }
+        MM_TEST_STOP_TRASH("list-write");   // a check holds here and turns the folder into a link, issue #113
         if (!Write(path, items)) return nil;
         NSMutableDictionary *said = [NSMutableDictionary new];
         for (NSString *k in @[@"ino", @"dev", @"vol"]) if (entry[k]) said[k] = entry[k];

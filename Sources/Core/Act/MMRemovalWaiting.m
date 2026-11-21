@@ -24,7 +24,7 @@
         case MMRemovalWaitPutBackFailed: return @"could not go back";
         case MMRemovalWaitDamaged: return @"its record is damaged";
         case MMRemovalWaitNoWrapUp: return @"its Wrap Up has no record";
-        case MMRemovalWaitInTrash: return @"is in the Trash, and no record names it";
+        case MMRemovalWaitInTrash: return @"is in the Trash where no record MinMacs can undo names it";
     }
     return @"its record is damaged";
 }
@@ -59,9 +59,8 @@ static BOOL In(NSString *folder, NSString *to) {
     return folder && t && [t.stringByDeletingLastPathComponent isEqualToString:folder];
 }
 
-/// YES while the act that sent something of r to the Trash may still be about to name it in r: r's Wrap Up still
-/// runs, or r is a pending record of its own, which names no process to ask, from the last 15 minutes.
-static BOOL StillActs(MMUndoRecord *r, MMUndoRecord *parent) {
+/// MMRemoval.h. A pending record of its own names no process to ask, so its age decides.
+BOOL MMRemovalStillActs(MMUndoRecord *r, MMUndoRecord *parent) {
     MMUndoRecord *w = r.parentRid.length ? parent : r;
     if (!w || w.state != MMUndoPending) return NO;
     int alive = r.parentRid.length ? MMRemovalOwnerAlive(w) : -1;
@@ -168,7 +167,7 @@ NSArray<MMRemovalWaitingItem *> *MMRemovalWaiting(void) {
     // by its Trash path or its id, is that record's, so it is left out. Read only.
     NSSet<NSString *> *named = MMRemovalTrashNamed(records);
     for (MMUndoRecord *r in records) {
-        if (StillActs(r, r.parentRid.length ? (all[r.parentRid] ?: [MMUndo.shared record:r.parentRid]) : nil)) continue;
+        if (MMRemovalStillActs(r, r.parentRid.length ? (all[r.parentRid] ?: [MMUndo.shared record:r.parentRid]) : nil)) continue;
         for (NSDictionary *x in MMRemovalTrashStranded(r, named, NULL)) {
             NSString *to = MMRecordString(x, @"to");
             if (!to || [claimed containsObject:to]) continue;
@@ -212,7 +211,7 @@ NSString *MMRemovalDeleteWaitingWhyNot(MMRemovalWaitingItem *i) {
 NSString *MMRemovalPutBackWaitingWhyNot(MMRemovalWaitingItem *i, NSString *path) {
     if (!i) return @"nothing waits under that id";
     if (i.why == MMRemovalWaitInTrash)
-        return [NSString stringWithFormat:@"no record names it, so MinMacs does not move it. To keep it, put it back from the Trash, where it lies at %@", i.stagedAt];
+        return [NSString stringWithFormat:@"no record MinMacs can undo names it where it lies, so MinMacs does not move it. To keep it, put it back from the Trash, where it lies at %@", i.stagedAt];
     if (!i.canPutBack) {
         NSString *runs = Runs(i);
         if (runs) return runs;

@@ -202,7 +202,7 @@ typedef NS_ENUM(NSInteger, MMRemovalWaitWhy) {
 @property (readonly, copy) NSString *wrapUpRid, *partRid;
 @property (readonly) BOOL canDelete, canPutBack;        // what MMRemovalDeleteWaiting and MMRemovalPutBackWaiting allow
 /// "could not be deleted", "its old place is taken", "could not go back", "its record is damaged",
-/// "its Wrap Up has no record", "is in the Trash, and no record names it"
+/// "its Wrap Up has no record", "is in the Trash where no record MinMacs can undo names it"
 @property (readonly, copy) NSString *whyWords;
 - (NSDictionary *)json;
 @end
@@ -268,7 +268,8 @@ NSUInteger MMRemovalAdoptStranded(MMUndoRecord *r, MMUndoRecord *parent);
 /// An item record r sent to the Trash, or was sending there, that no record names, since MinMacs stopped between the
 /// list's first write and the record's note, issue #113, MMRemovalTrashStranded.m. Each entry of MinMacs's own list
 /// of what r sent there, MMRemovalTrashListItems, whose old path r asked about, whose very file is not at that old
-/// path, and that is not where a record of named names it, as {from, ino, dev, vol, stranded}, with "sending"
+/// path, whose id r itself does not name, and that is not where named names it, as {from, ino, dev, vol, stranded},
+/// with "sending"
 /// when the list never got a Trash path, so the move may not have run. Then where it is: "to" when that very file
 /// lies directly in a Trash by its inode and volume UUID, never by a name alone; "several" when more than one name
 /// there has its id; "unlooked", in words, when a look was refused or its id cannot be matched; and none of these
@@ -276,17 +277,23 @@ NSUInteger MMRemovalAdoptStranded(MMUndoRecord *r, MMUndoRecord *parent);
 /// record that is no removal or whose lists cannot be read. *unread is YES when r's list is there and is not
 /// believed: not a list MinMacs wrote, or one that names an old path r never asked about. named nil is r's own.
 NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, NSSet<NSString *> *named, BOOL *unread);
-/// What the records' "trashed" lists name, each Trash path with its id, for MMRemovalTrashStranded. A restored
-/// record names nothing: its Undo ran.
+/// What the records' "trashed" lists name, each Trash path with its id, for MMRemovalTrashStranded, and what the Trash
+/// list of a record that still acts, MMRemovalStillActs, names: it may have moved a file and not yet named it. A
+/// restored record names nothing: its Undo ran.
 NSSet<NSString *> *MMRemovalTrashNamed(NSArray<MMUndoRecord *> *records);
+/// YES while the act that sent something of r to the Trash may still be about to name it in r: r's Wrap Up, parent,
+/// still runs, or r is a pending record of its own from the last 15 minutes. MMRemovalWaiting.m.
+BOOL MMRemovalStillActs(MMUndoRecord *r, MMUndoRecord *parent);
 /// What recovery says of the parts' items MMRemovalTrashStranded finds, or nil when there are none, one clause each:
 /// that MinMacs had sent it to the Trash, or was sending it there when it stopped, and then that it is in the Trash at
-/// its path, has more than one name there, could not be looked for and why, or is at neither place. A list that is
+/// its path where no record MinMacs can undo names it, has more than one name there, could not be looked for and why, or is at neither place. A list that is
 /// not believed is said too. It never says put back.
 NSString *MMRemovalTrashStrandedWords(NSArray<MMUndoRecord *> *parts);
 #ifdef MM_TESTS
 /// Compiled only with -DMM_TESTS. Ends this process at once, as a crash would, when MINMACS_TEST_STOP_TRASH says point
-/// and MINMACS_HOME is set: "before-move", "after-move" or "after-list" in -[MMUndo trash:record:error:].
+/// and MINMACS_HOME is set: "before-move", "after-move" or "after-list" in -[MMUndo trash:record:error:], or
+/// "list-write" between the Trash list's read and its write. When MINMACS_TEST_HOLD_TRASH says point it prints "held"
+/// once and waits until its input ends, so a check sees a record that still acts.
 void MMRemovalTestStopTrash(const char *point);
 #define MM_TEST_STOP_TRASH(point) MMRemovalTestStopTrash(point)
 #else
