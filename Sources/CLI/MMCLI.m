@@ -228,14 +228,15 @@ static void ColdClutterProjects(void) {
 
 - (MMFacts *)factsFor:(uint64_t)generation { return ColdFacts(generation, [MMSenses.shared sampleNow]); }
 
-/// Principle 5, as the app's source does it: a new sample, and the finding's worktree read again from git.
+/// Principle 5, as the app's source does it: a new sample, and the finding's worktree read again from git with wait
+/// YES, on core.git.fresh, as MMCore's freshFactsFor: reads it: no memo's answer and none kept for a second, issue
+/// #120. It writes the index's facts, which ColdFacts then hands over.
 - (MMFacts *)freshFactsFor:(MMFinding *)finding {
     MMWorktree *w = finding.path.length ? [MMRepoIndex.shared worktreeAt:finding.path] : nil;
     if (w.path.length) {
         gColdReads = MMVerbReadsAll;   // a fresh check reads every worktree as the app knows them
         ColdIndex();
-        [MMRepoIndex.shared invalidate:[NSSet setWithObject:w.path] subtrees:NO];
-        WaitForGit();
+        [MMRepoIndex.shared factsFor:[MMRepoIndex.shared worktreeAt:finding.path] ?: w wait:YES];   // the walked one
     }
     return ColdFacts(0, [MMSenses.shared sampleNow]);
 }
