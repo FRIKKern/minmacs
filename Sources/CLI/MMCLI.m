@@ -206,15 +206,13 @@ static MMFacts *ColdFacts(uint64_t generation, MMSample *s, MMWorktree *fresh, M
         MMGitFacts *g = w.path ? [MMRepoIndex.shared factsFor:w wait:NO] : nil;
         if (g) git[w.path] = g;
     }
-    if (fresh.path.length) {
-        // Round 2, B4: a pass still running from before, as one WaitForGit gave up on, may write this worktree's
-        // facts after the fresh read; the read's own answer is what counts. None: no facts, which keeps.
-        if (freshGit) git[fresh.path] = freshGit; else [git removeObjectForKey:fresh.path];
-        if (![[trees valueForKey:@"path"] containsObject:fresh.path]) trees = [trees arrayByAddingObject:fresh];
-    }
     // The items of the last scan, the app's or a cold `clutter scan`, as the app's source hands them over. Issue #85.
-    return [MMFacts generation:generation sample:s power:p agents:agents ?: @[] sessions:[MMSessions.shared all] ?: @[]
-                     worktrees:trees clutter:MMClutterCatalog.shared.items ?: @[] git:git];
+    MMFacts *f = [MMFacts generation:generation sample:s power:p agents:agents ?: @[] sessions:[MMSessions.shared all] ?: @[]
+                           worktrees:trees clutter:MMClutterCatalog.shared.items ?: @[] git:git];
+    // Round 2, B4: a pass still running from before, as one WaitForGit gave up on, may write this worktree's facts
+    // after the fresh read; the read's own answer is what counts. None: no facts, which keeps. Issue #125: for every
+    // name of the folder.
+    return fresh.path.length ? [f withFreshGit:freshGit of:fresh] : f;
 }
 
 /// Issue #85. The app gives the clutter catalog its checkouts in StartClutter. A cold run has no MMCoreStart, so the

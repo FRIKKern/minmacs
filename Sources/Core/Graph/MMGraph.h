@@ -144,6 +144,10 @@ typedef NS_ENUM(NSInteger, MMReversibility) {
                     agents:(NSArray<MMAgent *> *)agents sessions:(NSArray<MMSession *> *)sessions
                  worktrees:(NSArray<MMWorktree *> *)worktrees clutter:(NSArray<MMClutterItem *> *)clutter
                        git:(NSDictionary<NSString *, MMGitFacts *> *)git;
+/// These facts with the fresh read of one checkout in place, for a fact source's -freshFactsFor:. g goes in for every
+/// entry of w's folder, its path or its realPath as text, so each name the index keeps for it reads now; none when
+/// the read gave none, which keeps. w is added when no entry has its path. Issue #125.
+- (MMFacts *)withFreshGit:(MMGitFacts *)g of:(MMWorktree *)w;
 @end
 
 /// Where the builder gets its facts. The app sets one source that reads Senses and Know.

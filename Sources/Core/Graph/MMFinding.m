@@ -253,4 +253,19 @@ static NSString *DefaultFingerprint(NSString *stableKey, NSDictionary *facts) {
 - (NSArray<MMClutterItem *> *)clutter { return _clutter; }
 - (MMGitFacts *)gitFor:(MMWorktree *)w { return w.path ? _git[w.path] : nil; }
 
+- (MMFacts *)withFreshGit:(MMGitFacts *)g of:(MMWorktree *)w {
+    if (!w.path.length) return self;
+    NSMutableDictionary *git = [_git mutableCopy];
+    BOOL listed = NO;
+    for (MMWorktree *x in _worktrees) {
+        BOOL same = [x.path isEqualToString:w.path];
+        listed = listed || same;
+        if (!x.path.length || !(same || (w.realPath.length && [x.realPath isEqualToString:w.realPath]))) continue;
+        if (g) git[x.path] = g; else [git removeObjectForKey:x.path];
+    }
+    if (g) git[w.path] = g; else [git removeObjectForKey:w.path];
+    return [MMFacts generation:_generation sample:_sample power:_power agents:_agents sessions:_sessions
+                     worktrees:listed ? _worktrees : [_worktrees arrayByAddingObject:w] clutter:_clutter git:git];
+}
+
 @end
