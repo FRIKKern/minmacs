@@ -234,3 +234,6 @@ static int LeaveInTrash(NSString *dir) {
     printf("%s\n", rids.count > 1 ? rids[1].UTF8String : "");
     return 0;
 }
+
+// Issue #113, third review.
+#import "trashown.m"

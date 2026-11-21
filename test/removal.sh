@@ -44,8 +44,8 @@ check "removal: that list, and what reads it for an item no record names, move, 
   "$(grep -cE 'rename\(|copyItemAt|moveItemAt|removeItemAt|unlink\(|trashItemAtURL|clonefile|copyfile' Sources/Core/Act/MMRemovalTrashList.m) $(grep -cE 'rename\(|copyItemAt|moveItemAt|removeItemAt|unlink\(|trashItemAtURL|clonefile|copyfile|writeTo|note:|finish:' Sources/Core/Act/MMRemovalTrashStranded.m)"
 check "removal: the Trash list and the staging folder's own files are read in one read that never follows a link, issue #113" "0 0 1 3" \
   "$(grep -cE 'dataWithContentsOfFile|stringWithContentsOfFile' Sources/Core/Act/MMRemovalTrashList.m) $(grep -cE 'dataWithContentsOfFile|stringWithContentsOfFile' Sources/Core/Act/MMRemovalStaging.m) $(grep -c 'MMReadOwnPlain(path, ' Sources/Core/Act/MMRemovalTrashList.m) $(grep -cE 'OwnRead\(folder, kItems\)|OwnText\(folder, kMarker\)|OwnText\(folder, kIgnore\)' Sources/Core/Act/MMRemovalStaging.m)"
-check "removal: what a check uses to stop in the move to the Trash is compiled only with MM_TESTS, issue #113" "3 1 0" \
-  "$(grep -c 'MM_TEST_STOP_TRASH("' Sources/Core/Act/MMUndo.m) $(grep -c 'getenv("MINMACS_TEST_STOP_TRASH")' Sources/Core/Act/MMRemovalTrashStranded.m) $(awk '/^#ifdef MM_TESTS/{t=1} /^#endif/{t=0} /MINMACS_TEST_/ && !t {n++} END{print n+0}' Sources/Core/Act/MMRemovalTrashStranded.m)"
+check "removal: what a check uses to stop or hold in the move to the Trash is compiled only with MM_TESTS, issue #113" "3 1 1 1 0" \
+  "$(grep -c 'MM_TEST_STOP_TRASH("' Sources/Core/Act/MMUndo.m) $(grep -c 'MM_TEST_STOP_TRASH("' Sources/Core/Act/MMRemovalTrashList.m) $(grep -c 'getenv("MINMACS_TEST_STOP_TRASH")' Sources/Core/Act/MMRemovalTrashStranded.m) $(grep -c 'getenv("MINMACS_TEST_HOLD_TRASH")' Sources/Core/Act/MMRemovalTrashStranded.m) $(awk '/^#ifdef MM_TESTS/{t=1} /^#endif/{t=0} /MINMACS_TEST_/ && !t {n++} END{print n+0}' Sources/Core/Act/MMRemovalTrashStranded.m)"
 check "removal: a crash is settled at Core's start and before the next Wrap Up, and the start also sweeps what was left staged" "1 1 1" \
   "$(grep -c 'MMRemovalRecoverStaged()' Sources/Core/MMCore.m) $(grep -c '(void)MMRemovalRecoverStaged();' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalSweepStaged(&orphans)' Sources/Core/MMCore.m)"
 check "removal: staging, finish, recovery, the sweep and the waiting list read a record only through the checked reader" "0 0 0 0 0" \
@@ -185,7 +185,7 @@ if [ "$rm_r" = 0 ]; then
   rm_home="$rm_dir/cli-trash"; mkdir -p "$rm_home"
   rm_part=$(MINMACS_HOME="$rm_home" "$rm_dir/removaltest" --leave-in-trash "$rm_home/fx" 2>/dev/null)
   check "removal: --waiting lists an item in the Trash that no record names under its own line, each item on two lines, a newline in its name shown as \\n" \
-    "4|Nothing waits in MinMacs's staging folder.|1 item MinMacs sent to the Trash is named by no record:|$rm_part:trash:nl\\nname.env  nl\\nname.env" \
+    "4|Nothing waits in MinMacs's staging folder.|1 item MinMacs sent to the Trash lies where no record MinMacs can undo names it:|$rm_part:trash:nl\\nname.env  nl\\nname.env" \
     "$(rm_cli removal --waiting | wc -l | tr -d ' ')|$(rm_cli removal --waiting | sed -n 1p)|$(rm_cli removal --waiting | sed -n 2p)|$(rm_cli removal --waiting | sed -n 3p | cut -d, -f1)"
   check "removal: --waiting --json gives it as in the Trash, with its true name, and offers no act on it" "in-trash|True|False False|yes" \
     "$(rm_cli removal --waiting --json | json "j['waiting'][0]['why'] + '|' + str(j['waiting'][0]['name'] == 'nl\\nname.env') + '|' + str(j['waiting'][0]['canDelete']) + ' ' + str(j['waiting'][0]['canPutBack']) + '|' + ('yes' if '/Trash/' in j['waiting'][0]['stagedAt'] else 'no')")"

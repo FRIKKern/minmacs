@@ -374,6 +374,7 @@ int main(int argc, char **argv) {
         TrashStopped();
         TrashListLows();
         TrashReviewed();
+        TrashOwnNames();
         printf("END\n");
     }
     return 0;
