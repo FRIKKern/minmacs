@@ -9,9 +9,12 @@
 #import "CLI/MMCLI.h"
 #import "Experts/WorkForest/MMWorkForest.h"
 
+int WFFreshKeep(int argc, const char **argv);   // test/workforest/freshkeep.m, issue #125
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         if (argc > 1 && !strcmp(argv[1], "_walk")) return MMWorkerChildMain();   // the worker child is this same binary
+        if (argc > 1 && !strcmp(argv[1], "_freshkeep")) return WFFreshKeep(argc - 2, argv + 2);
         MMRegisterExpert(MMWorkForestExpert.shared);
         if (argc > 1 && !strcmp(argv[1], "_verbs")) {
             for (MMVerbSpec *v in MMWorkForestExpert.shared.verbs) printf("%s\t%d\n", v.verb.UTF8String, v.mutates);

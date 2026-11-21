@@ -23,7 +23,7 @@ wf_src=$(find Sources -name '*.m' ! -path 'Sources/main.m' | LC_ALL=C sort)
 # shellcheck disable=SC2086
 clang -fobjc-arc -O1 -Wall -mmacosx-version-min=14.0 -ISources -DMM_VERSION='"2.0.0"' \
   -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3 \
-  $wf_src test/workforest/wfcli.m -o "$wf/bin/MinMacs" >"$wf/clang.log" 2>&1
+  $wf_src test/workforest/wfcli.m test/workforest/freshkeep.m -o "$wf/bin/MinMacs" >"$wf/clang.log" 2>&1
 check "test/workforest/wfcli.m builds" 0 "$?"
 check "the WorkForest sources have no warnings" 0 "$(grep -c 'warning:' "$wf/clang.log")"
 ln -sf "$wf/bin/MinMacs" "$wf/bin/workforest"
@@ -285,6 +285,8 @@ kill "$wf_busy" 2>/dev/null
 
 # The removal choice, issue #62, on worktrees of its own. It runs after the counts above.
 . ./test/workforest/removal.sh
+# The keep check's fresh read under a root that is a link, issue #125, on repos of its own.
+. ./test/workforest/fresh.sh
 
 echo "== the disk walk keeps a new walk once the old one is stale"
 # shellcheck disable=SC2086
