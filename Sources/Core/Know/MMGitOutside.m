@@ -35,8 +35,8 @@
 // GIT_CONFIG_NOSYSTEM from MinMacs's environment, MMGitEnvironment, and so do these reads. Config given in the
 // environment, GIT_CONFIG_COUNT or GIT_CONFIG_PARAMETERS, is never passed to MinMacs's git, and is read after the
 // repo's config, so it wins; when MinMacs's own environment holds any, as a CLI run from a shell that set it does,
-// every upstream is not known. A shell's environment the app cannot see is not guessed at. MINMACS_TEST_GIT_ROOT, for
-// tests alone, is the folder the fixed system paths are read under, so a test never reads the Mac's own.
+// every upstream is not known. A shell's environment the app cannot see is not guessed at. MINMACS_TEST_GIT_ROOT, read
+// only under MM_TESTS, is the folder the fixed system paths are read under, so a test never reads the Mac's own.
 // Every file comes through load, parsed once per stamp, and what they say is worked out again only when one moved.
 // A walk looks at them at most once a second; the fresh read before an action always does.
 #import <Foundation/Foundation.h>
@@ -58,6 +58,16 @@ static NSNumber *EnvBool(NSString *v) {
     return [sc scanLongLong:&n] && sc.isAtEnd ? @(n != 0) : nil;
 }
 
+/// MINMACS_TEST_GIT_ROOT, read only in a build with MM_TESTS, issue #130: the shipped app always reads the Mac's own.
+static NSString *TestRoot(NSDictionary<NSString *, NSString *> *env) {
+#ifdef MM_TESTS
+    return env[@"MINMACS_TEST_GIT_ROOT"];
+#else
+    (void)env;
+    return nil;
+#endif
+}
+
 /// The files outside the repo in git's order, or nil when what env says cannot be followed here.
 static NSArray<NSString *> *Files(NSDictionary<NSString *, NSString *> *env) {
     NSString *count = env[@"GIT_CONFIG_COUNT"];
@@ -67,7 +77,7 @@ static NSArray<NSString *> *Files(NSDictionary<NSString *, NSString *> *env) {
     NSNumber *nosystem = EnvBool(env[@"GIT_CONFIG_NOSYSTEM"]);
     if (!nosystem) return nil;
     if (!nosystem.boolValue) {
-        NSString *root = env[@"MINMACS_TEST_GIT_ROOT"] ?: @"";
+        NSString *root = TestRoot(env) ?: @"";
         NSMutableArray *dev = [@[@"/Library/Developer/CommandLineTools", @"/Applications/Xcode.app/Contents/Developer"] mutableCopy];
         char link[PATH_MAX];
         ssize_t n = readlink([root stringByAppendingString:@"/var/db/xcode_select_link"].fileSystemRepresentation, link, sizeof link - 1);
@@ -102,7 +112,7 @@ static NSArray<NSString *> *Files(NSDictionary<NSString *, NSString *> *env) {
 static NSSet<NSString *> *Own(NSDictionary<NSString *, NSString *> *env) {
     NSMutableSet *own = [NSMutableSet new];
     NSString *git = MMGitPath(), *system = env[@"GIT_CONFIG_SYSTEM"], *home = env[@"HOME"], *xdg = env[@"XDG_CONFIG_HOME"];
-    NSString *root = env[@"MINMACS_TEST_GIT_ROOT"];
+    NSString *root = TestRoot(env);
     if (![EnvBool(env[@"GIT_CONFIG_NOSYSTEM"]) boolValue]) {
         if (system) [own addObject:system];
         for (NSString *dev in @[@"/Library/Developer/CommandLineTools/", @"/Applications/Xcode.app/Contents/Developer/"])

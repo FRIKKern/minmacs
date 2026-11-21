@@ -186,6 +186,17 @@ cf_bool ir1 prune 3000000000; cf_bool ir2 pruneTags -2147483649; cf_bool ir3 mir
 cf_bool ir5 skipFetchAll 99999999999999999999; cf_bool ir6 prune 0x80000000; cf_bool ir7 prune -3g; cf_bool ir8 prune 08
 cf_bool ir9 prune 2147483647; cf_bool ir10 prune 2047m; cf_bool ir11 prune -2147483647; cf_bool ir12 prune 0x7fffffff
 cf_bool ir13 prune 010; cf_bool ir14 prune 1K; cf_bool ir15 pruneTags -2147483648
+# Issue #130: a line only a git later than 2.39 refuses, in the repo's own config, what it includes or config.worktree.
+# git 2.39.5 says gone and 2.56 stops, so the upstream is not known, which keeps. ev1 holds what every clone writes.
+cf_later() {
+  cf_case "$1"; cf_moved "$1"
+  printf '[branch "%s"]\n\tremote = origin\n\tmerge = refs/heads/%s\n%b' "$1" "$1" "$2" >>"$CFC"
+}
+cf_later la1 '[core]\n\tcheckStat = Junk\n'; cf_later la2 '[core]\n\tcommentString\n'
+cf_later la3 '[advice]\n\tdiverging = maybe\n'; cf_later la4 '[attr]\n\ttree\n'
+cf_later la5 '[include]\n\tpath = later.inc\n'; printf '[core]\n\tcheckStat = Junk\n' >"$CFD/main/.git/later.inc"
+cf_later la6 '[extensions]\n\tworktreeConfig = true\n'; printf '[advice]\n\tdiverging = maybe\n' >"$CFD/main/.git/worktrees/wt/config.worktree"
+cf_later ev1 '[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tfilemode = true\n\tignorecase = true\n\tprecomposeunicode = true\n\tlogallrefupdates = true\n'
 
 GO=$("$GT" keeps "$CFR")
 # cf_row <id> <branch> <git's answer> <MinMacs's answer>. git's answer is for-each-ref's %(upstream:short) and
@@ -205,7 +216,8 @@ print('%s|%s|%s|%s' % (v.get('upstream'), v.get('upstreamGone'), v.get('upstream
   printf '  row   %-4s git %-24s rev-parse %-18s config %s / %s\n        %-4s mm  %s\n' "$1" "$cf_git" "$cf_rp" "$cf_cr" "$cf_cm" "" "$cf_mm" | LC_ALL=C tr '\t\n' '~\n'
   cf_want=$3; case " or $3 or " in *" or $cf_git or "*) cf_want=$cf_git ;; esac   # "a or b": either answer of git's
   check "config $1: git answers" "$cf_want" "$cf_git"
-  check "config $1: MinMacs reads what git reads" "$4" "$cf_mm"
+  cf_mw=$4; case " or $4 or " in *" or $cf_mm or "*) cf_mw=$cf_mm ;; esac   # and of MinMacs's
+  check "config $1: MinMacs reads what git reads" "$cf_mw" "$cf_mm"
   case "$cf_mm|$cf_git" in *"delete now|"*"[gone]") ;; *"delete now|"*) cf_lost="$cf_lost $1" ;; esac
 }
 cf_lost=""
@@ -300,4 +312,7 @@ cf_row n4 n4 "origin/n4|" "$(cf_live origin/n4)"
 for cf_i in 1 2 3 4 5 6 7 8; do cf_row ir$cf_i ir$cf_i fatal "$cf_unread"; done
 for cf_i in 9 10 11 12 13 14; do cf_row ir$cf_i ir$cf_i "origin/ir$cf_i|[gone]" "origin/ir$cf_i|True|False|delete now"; done
 cf_row ir15 ir15 "fatal or origin/ir15|[gone]" "$cf_unread"   # INT_MIN: git 2.39 refuses it, 2.50 and later take it
+# git 2.39.5 says gone; 2.56 stops, and so does MinMacs's git status when it is that git.
+for cf_i in 1 2 3 4 5 6; do cf_row la$cf_i la$cf_i "origin/la$cf_i|[gone] or fatal" "$cf_unread or $cf_refused"; done
+cf_row ev1 ev1 "origin/ev1|[gone]" "origin/ev1|True|False|delete now"
 check "config: Smart deletes no worktree whose upstream git says is live, or that git has none of" "" "$cf_lost"

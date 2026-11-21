@@ -232,7 +232,7 @@ static void Emit(NSData *var, NSData *val, BOOL blank, NSMutableArray *items, NS
     // Issue #120: a line that may make every git command refuse the file, which counts in a file outside the repo
     // that MinMacs's own git does not read, MMGitOutside.m.
     if (!MMGitConfigEveryOK(section, sub, key, value, kept == kBad)) Segment(items)[@"every"] = @YES;
-    // Issue #126: one only a later git refuses counts in every file outside the repo: the person's git may be one.
+    // Issue #126: one only a later git refuses counts in every file outside the repo, and #130 in the repo's own.
     if (!MMGitConfigLaterOK(section, sub, key, value, kept == kBad)) Segment(items)[@"later"] = @YES;
     if ([section isEqualToString:@"branch"] && sub) {
         BOOL needs = [@[@"remote", @"pushremote", @"merge"] containsObject:key];
@@ -427,7 +427,8 @@ static NSDictionary *Upstream(id top, NSString *common, NSString *gitDir, NSStri
     NSMutableArray *fetch = [NSMutableArray new];
     BOOL url = NO, dotRemote = NO;
     for (NSDictionary *seg in segs) {
-        if (seg[@"bad"] || seg[@"if"]) return unknown;
+        // Issue #130: a line only a later git refuses, here too: git 2.39 reads past it, a later one stops.
+        if (seg[@"bad"] || seg[@"if"] || seg[@"later"]) return unknown;
         NSDictionary *b = seg[@"b"][branch];
         if (b[@"remote"]) remote = b[@"remote"];
         if (!merge && b[@"merge"]) merge = b[@"merge"];
