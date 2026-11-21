@@ -88,6 +88,35 @@ od_case b12; od_put "$ODF/global" '[core]\n\tfilemode = maybe\n'
 od_case b13; od_put "$ODF/root/opt/homebrew/etc/gitconfig" '[core]\n\tuntrackedCache = true\n'
 od_case b14; od_put "$ODH/.gitconfig" "$od_s4"
 od_case b15; od_put "$ODF/xdg/git/config" "$od_s4"
+# Issue #126: a line that a git later than MinMacs's own refuses in every command, while 2.39 ignores it, in a file
+# MinMacs's own git reads. The person's shell may run the later git, so the upstream is not known. git v2.56.1:
+od_case n1; od_put "$ODF/global" '[core]\n\tcommentString\n'           # environment.c:466, no value
+od_case n1e; od_put "$ODF/global" '[core]\n\tcommentString = ""\n'     # environment.c:482, empty
+od_case n2; od_put "$ODH/.gitconfig" '[core]\n\tlockFilePid = maybe\n' # environment.c:532, not a bool
+od_case n3; od_put "$ODF/xdg/git/config" '[attr]\n\ttree\n'            # environment.c:678, no value
+od_case n4; od_put "$ODF/global" '[index]\n\tmaxPathLen = junk\n'      # environment.c:743, not a number
+od_case n4r; od_put "$ODF/global" '[index]\n\tmaxPathLen = 3g\n'       # environment.c:745, past INT_MAX
+od_case n5; od_put "$ODF/global" '[core]\n\tcheckStat = Junk\n'        # environment.c:342
+od_case n6; od_put "$ODF/global" '[advice]\n\tdiverging = maybe\n'     # advice.c:187, a key 2.39 does not have
+# What both take: the values in another case, another attr key with no value, a unit.
+od_case n7; od_put "$ODF/global" '[core]\n\tcheckStat = MINIMAL\n\tcommentString = ;\n\tlockFilePid = 1\n[attr]\n\ttree = HEAD\n\tother\n[index]\n\tmaxPathLen = 4k\n[advice]\n\tdiverging = FALSE\n'
+# Issue #126, part 4: Own()'s branch for Apple's git, the one the shipped app takes. A copy of the Command Line Tools
+# git under a row's root reads the share file next to itself, as the real one reads its own. Skipped where there are
+# no Command Line Tools, or where the copy does not read that file.
+od_clt=/Library/Developer/CommandLineTools/usr/bin/git; od_cltok=""
+od_share=usr/share/git-core/gitconfig
+if [ -x "$od_clt" ]; then
+  od_case a1; od_cp="$ODF/root/Library/Developer/CommandLineTools/usr/bin"; mkdir -p "$od_cp"; cp "$od_clt" "$od_cp/git"
+  od_put "$ODF/root/Library/Developer/CommandLineTools/$od_share" '[marker]\n\tf = here\n'
+  [ "$(cd / && env -i PATH=/usr/bin:/bin HOME="$ODH" GIT_CONFIG_SYSTEM="$OD/empty" GIT_CONFIG_GLOBAL="$OD/empty" \
+    "$od_cp/git" config --show-origin --get marker.f 2>/dev/null)" = "file:$ODF/root/Library/Developer/CommandLineTools/$od_share	here" ] && od_cltok=yes
+  # A line every command refuses: in the share file of the git in use, and in Xcode's, which that git does not read.
+  od_put "$ODF/root/Library/Developer/CommandLineTools/$od_share" '[core]\n\tfilemode = maybe\n'
+  od_case a2; mkdir -p "$ODF/root/Library/Developer/CommandLineTools/usr/bin"
+  ln "$od_cp/git" "$ODF/root/Library/Developer/CommandLineTools/usr/bin/git" 2>/dev/null ||
+    cp "$od_clt" "$ODF/root/Library/Developer/CommandLineTools/usr/bin/git"
+  od_put "$ODF/root/Applications/Xcode.app/Contents/Developer/$od_share" '[core]\n\tfilemode = maybe\n'
+fi
 # S3: a global fetch line of origin that maps the merge to the very ref the repo's own line does.
 od_case b8; od_put "$ODF/global" '[remote "origin"]\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n'
 od_case b9; od_put "$ODF/global" '[remote "origin"]\n\tfetch = +refs/heads/b9:refs/remotes/origin/b9\n'
@@ -121,6 +150,7 @@ s=v.get('smart', '?'); s=s if s == 'delete now' else 'keep: ' + s
 print('%s|%s|%s|%s' % (v.get('upstream'), v.get('upstreamGone'), v.get('upstreamUnknown'), s))" "$od_w")
   printf '  row   %-4s git %-26s mm %s\n' "$od_id" "$od_git" "$od_mm"
   case " or $od_gw or " in *" or $od_git or "*) od_gw=$od_git ;; esac   # "a or b": either answer of git's
+  case " or $od_mw or " in *" or $od_mm or "*) od_mw=$od_mm ;; esac    # and of MinMacs's
   check "outside $od_id: git answers" "$od_gw" "$od_git"
   check "outside $od_id: MinMacs reads what it may" "$od_mw" "$od_mm"
   case "$od_mm|$od_git" in *"delete now|"*"[gone]") ;; *"delete now|"*) od_lost="$od_lost $od_id" ;; esac
@@ -128,6 +158,8 @@ print('%s|%s|%s|%s' % (v.get('upstream'), v.get('upstreamGone'), v.get('upstream
 od_lost=""
 od_gone() { echo "origin/$1|True|False|delete now"; }
 od_unread="None|False|True|keep: its branch is not merged and its remote branch could not be read"
+# Not known either way: MinMacs's own git status passes, as 2.39 does, or fails, as a later git does.
+od_unknown="$od_unread or None|False|True|keep: cannot verify what git holds of it"
 
 echo "-- config git reads outside the repo, row by row"
 # MinMacs may say gone only where git says gone. Where a file outside the repo, or the environment, holds what can
@@ -175,6 +207,22 @@ od_row b12 fatal "origin/b12|True|False|keep: cannot verify what git holds of it
 od_other=/opt/homebrew/etc/gitconfig; od_row b13 "origin/b13|[gone]" "$od_unread" "$OD/empty"; od_other=""
 od_row b14 "origin/b14|[gone]" "$(od_gone b14)" -
 od_row b15 "origin/b15|[gone]" "$(od_gone b15)" - XDG_CONFIG_HOME="$OD/files/b15/xdg"
+# Issue #126: git 2.39 says gone, git 2.56 is fatal.
+for od_n in n1 n1e n4 n4r n5 n6; do od_row $od_n "origin/$od_n|[gone] or fatal" "$od_unknown" "$OD/files/$od_n/global"; done
+od_row n2 "origin/n2|[gone] or fatal" "$od_unknown" -
+od_row n3 "origin/n3|[gone] or fatal" "$od_unknown" - XDG_CONFIG_HOME="$OD/files/n3/xdg"
+od_row n7 "origin/n7|[gone]" "$(od_gone n7)" "$OD/files/n7/global"
+if [ -n "$od_cltok" ]; then
+  # MinMacs's git is the copy: its own share file is read as the repo's, and its status fails there, which keeps.
+  od_other=/Library/Developer/CommandLineTools/$od_share
+  od_row a1 fatal "origin/a1|True|False|keep: cannot verify what git holds of it" "$OD/empty" \
+    MINMACS_GIT="$OD/files/a1/root/Library/Developer/CommandLineTools/usr/bin/git"
+  od_other=/Applications/Xcode.app/Contents/Developer/$od_share
+  od_row a2 fatal "$od_unread" "$OD/empty" MINMACS_GIT="$OD/files/a2/root/Library/Developer/CommandLineTools/usr/bin/git"
+  od_other=""
+else
+  echo "  skip  a1 a2: no Command Line Tools git at $od_clt, or a copy of it does not read the share file beside it"
+fi
 od_row e1 "elsewhere/e1|" "$od_unread" "$OD/empty" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=branch.e1.remote GIT_CONFIG_VALUE_0=elsewhere
 od_row e2 "elsewhere/e2|" "$od_unread" "$OD/empty" "GIT_CONFIG_PARAMETERS='branch.e2.remote'='elsewhere'"
 chmod 600 "$OD/files/g13/global"
