@@ -189,6 +189,7 @@ check "git: with the link and its target both listed, a new file reaches every n
   "code/r.wt/a my/docs/root/r.wt/a" "$(gl_trees grew)"
 . test/git/bytes.sh
 . test/git/config.sh
+. test/git/outside.sh
 
 echo "-- bench: about 100 worktrees"
 GB="$G/bench/roots"; mkdir -p "$GB"
