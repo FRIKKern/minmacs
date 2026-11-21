@@ -113,7 +113,9 @@ static void LookInTrash(NSDictionary *e, NSMutableDictionary *x) {
         if (!names) { refused = refused ?: kRefused; continue; }
         for (NSString *name in names) {
             NSString *p = [trash stringByAppendingPathComponent:name];
-            if (lstat(p.fileSystemRepresentation, &st) != 0 || (unsigned long long)st.st_ino != ino.unsignedLongLongValue) continue;
+            // A folder that lists its names and refuses a look at each, as one with no search right does.
+            if (lstat(p.fileSystemRepresentation, &st) != 0) { if (errno != ENOENT) refused = refused ?: kRefused; continue; }
+            if ((unsigned long long)st.st_ino != ino.unsignedLongLongValue) continue;
             // By its real path: a Trash folder that is a link to elsewhere is no Trash.
             if (At(p, e) == kThere && InATrash(p) == kThere && ![found containsObject:p]) [found addObject:p];
         }
