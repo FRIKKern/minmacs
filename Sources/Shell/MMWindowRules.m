@@ -79,9 +79,15 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
     for (NSString *rid in MMWindowRuleIDs()) if (RuleShows(rid)) [rules addObject:Rule(rid, p)];
     [rules addObject:RemovalRule()];
     st.rules = rules;
-    MMWindowSwitch *lid = MMWindowLidSwitch(extras.lidOn, extras.lidInert, extras.lidNote);
-    MMWindowSwitch *login = MMWindowLoginSwitch(extras.loginOn, extras.loginNote);
-    st.switches = @[lid, login];
+    // Keep this Mac awake comes first: Keep awake now, While agents work, then the lid. Then This Mac.
+    NSMutableArray *switches = [NSMutableArray new];
+    if (extras.awakeShown) {
+        [switches addObject:MMWindowAwakeSwitch(extras.awakeOn, nil)];
+        [switches addObject:MMWindowAgentsSwitch(extras.agentsOn, MMWindowAgentsNote(extras.agentsOn, extras.agentsHolding, extras.quietMinutes))];
+    }
+    [switches addObject:MMWindowLidSwitch(extras.lidOn, extras.lidInert, extras.lidNote)];
+    [switches addObject:MMWindowLoginSwitch(extras.loginOn, extras.loginNote)];
+    st.switches = switches;
     return st;
 }
 
@@ -158,11 +164,24 @@ void MMWindowWelcomeDone(NSInteger removal) {
     id st = nil;
     @try { st = [(id)e respondsToSelector:NSSelectorFromString(@"state")] ? [(id)e valueForKey:@"state"] : nil; }
     @catch (NSException *ex) { st = nil; }
+    x.awakeShown = e != nil;
+    x.quietMinutes = 10;
     if (!st) {
-        // Before the first pass, and in a cold CLI, the pref is all there is.
+        // Before the first pass, and in a cold CLI, the prefs are all there is. Their defaults are MMINPrefs's.
         x.lidOn = MMPrefBool(@"insomnia.lid", NO);
+        x.awakeOn = MMPrefBool(@"insomnia.awake", NO);
+        x.agentsOn = MMPrefBool(@"insomnia.agents", YES);
         return x;
     }
+    @try {
+        x.awakeOn = [[st valueForKeyPath:@"prefs.manual"] boolValue];
+        x.agentsOn = [[st valueForKeyPath:@"prefs.agents"] boolValue];
+        x.quietMinutes = [[st valueForKeyPath:@"prefs.quietMinutes"] integerValue];
+        // Agents and agent sessions, not a hold a script asked for: the line says "agents".
+        NSArray *holders = [st valueForKey:@"holders"];
+        if ([holders isKindOfClass:NSArray.class])
+            for (id h in holders) if (![[h valueForKey:@"kind"] isEqual:@"hold"]) x.agentsHolding++;
+    } @catch (NSException *ex) { x.awakeOn = NO; x.agentsOn = YES; }
     @try {
         x.lidOn = [[st valueForKeyPath:@"prefs.lid"] boolValue];
         NSString *paused = [st valueForKey:@"pauseReason"], *problem = [st valueForKey:@"lidProblem"];
@@ -172,7 +191,7 @@ void MMWindowWelcomeDone(NSInteger removal) {
         if (!laptop) x.lidNote = MMWindowNoLidNote;
         else if (!x.lidOn) x.lidNote = nil;
         else if (other) x.lidNote = @"Another app sets it now.";
-        else if (live) x.lidNote = @"On now. The Mac keeps running with the lid shut.";
+        else if (live) x.lidNote = @"On now. The Mac keeps working with the lid shut.";
         else if (paused.length) x.lidNote = [NSString stringWithFormat:@"Paused, %@.", paused];
         else if (problem.length) x.lidNote = [NSString stringWithFormat:@"Off, %@.", problem];
         else x.lidNote = @"Off until something keeps the Mac awake.";

@@ -236,8 +236,8 @@ static void WindowPolishChecks(void) {
           @"window dock: a long end note keeps whole sentences only and where removed things went first, its Skipped list shortened before that, and one that fits is whole",
           [NSString stringWithFormat:@"%@ / %@", drawn, longest]);
 
-    // Settings: no title touches its explanation, no empty band stands over the title when nobody asks, the six
-    // cards end level, and the first choices of a row stand level.
+    // Settings: no title touches its explanation, no empty band stands over the title when nobody asks, Keep this Mac
+    // awake stands first with its three switches, each rule is one switch in Clean up on its own, and This Mac follows.
     MMWindowView *sv = PolishView(@"calm");
     PolishHost *shost = [PolishHost new];
     sv.host = shost;
@@ -245,11 +245,12 @@ static void WindowPolishChecks(void) {
     MMWindowSettingsView *panel = PolishSettings(sv);
     CGFloat widest = 0, column = 1000;
     NSButton *lid = nil, *login = nil;
+    NSMutableDictionary<NSString *, NSButton *> *switches = [NSMutableDictionary new];
     NSMutableArray<NSButton *> *removal = [NSMutableArray new];
     NSMutableDictionary<NSString *, NSNumber *> *firstTop = [NSMutableDictionary new];
     for (NSView *sub in panel.subviews) {
         if (![sub isKindOfClass:NSButton.class] || ![sub respondsToSelector:NSSelectorFromString(@"explainX")]) continue;
-        if ([[sub valueForKey:@"isSwitch"] boolValue]) { if (!lid) lid = (NSButton *)sub; else login = (NSButton *)sub; continue; }
+        if ([[sub valueForKey:@"isSwitch"] boolValue]) { switches[[sub valueForKey:@"ownerID"]] = (NSButton *)sub; continue; }
         widest = MAX(widest, MMWindowWidth(MMWindowText([sub valueForKey:@"label"], 13, NSFontWeightMedium, NSColor.whiteColor)));
         column = MIN(column, [[sub valueForKey:@"explainX"] doubleValue]);
         if ([[sub valueForKey:@"ownerID"] isEqualToString:@"removal"]) [removal addObject:(NSButton *)sub];
@@ -257,9 +258,14 @@ static void WindowPolishChecks(void) {
     }
     Check(panel && widest > 30 && column >= 30 + widest + 8, @"window settings: every explanation starts past the widest title, with a gap",
           [NSString stringWithFormat:@"title %g, explanations at %g", widest, column]);
-    Check([firstTop[@"servers"] isEqual:firstTop[@"apps"]] && [firstTop[@"apps"] isEqual:firstTop[@"worktrees"]] && [firstTop[@"caches"] isEqual:firstTop[@"removal"]] &&
-          NSMaxY(lid.frame) < NSMinY(login.frame) && NSMaxY(login.frame) > NSMaxY(removal.lastObject.frame),
-          @"window settings: the first choices of a row of cards stand level, and This Mac's two switches share its card", [firstTop description]);
+    lid = switches[@"lid"]; login = switches[@"login"];
+    NSButton *awake = switches[@"awake"], *agents = switches[@"agents"], *servers = switches[@"rule:servers"], *caches = switches[@"rule:caches"];
+    Check(awake && agents && lid && login && servers && caches && switches.count == 8 && firstTop.count == 1 &&
+          NSMinX(awake.frame) == NSMinX(agents.frame) && NSMinX(agents.frame) == NSMinX(lid.frame) && NSMaxY(awake.frame) < NSMinY(agents.frame) && NSMaxY(agents.frame) < NSMinY(lid.frame) &&
+          NSMinY(awake.frame) == NSMinY(servers.frame) && NSMinX(awake.frame) < NSMinX(servers.frame) && NSMinX(servers.frame) == NSMinX(caches.frame) &&
+          NSMinY(login.frame) > NSMaxY(caches.frame) && NSMinY(removal.firstObject.frame) > NSMaxY(lid.frame),
+          @"window settings: Keep this Mac awake stands first with Keep awake now, While agents work and the lid, each rule is one switch beside it, and the removal choice and This Mac stand under them",
+          [switches.allKeys componentsJoinedByString:@","]);
     MMWindowView *asked = PolishView(@"busy");
     asked.showsSettings = YES;
     Check(panel.frame.origin.y == 12 && PolishSettings(asked).frame.origin.y == 40 && NSMaxY(panel.frame) == 702, @"window settings: with nobody asking, Settings starts at the top and no empty band stands over it",
@@ -268,7 +274,12 @@ static void WindowPolishChecks(void) {
     Check(lid && !lid.enabled && [[lid valueForKey:@"inert"] boolValue] && shost.switches == 0 && [lid.accessibilityLabel hasSuffix:@"This Mac has no lid, so it changes nothing here."],
           @"window settings: on a Mac with no lid the lid switch is not available, takes no press and says why", [NSString stringWithFormat:@"%ld calls, %@", (long)shost.switches, lid.accessibilityLabel]);
     [login performClick:nil];
-    Check(shost.switches == 1, @"window settings: the login switch beside it does take its press", @"");
+    Check(shost.switches == 1, @"window settings: the login switch does take its press", @"");
+    [awake performClick:nil];
+    [servers performClick:nil];
+    Check(shost.switches == 2 && shost.rules == 1 && [shost.lastRule isEqualToString:@"servers"] && shost.lastPicked == 0,
+          @"window settings: Keep awake now takes its press, and a rule's switch turns the rule off", [NSString stringWithFormat:@"%ld switches, %@ %ld", (long)shost.switches, shost.lastRule, (long)shost.lastPicked]);
+    shost.rules = 0;
     // The removal choice not made yet: no choice is drawn picked, and a press on any, Smart too, makes it.
     NSInteger drawnPicked = 0;
     for (NSButton *o in removal) if ([[o valueForKey:@"picked"] boolValue]) drawnPicked++;

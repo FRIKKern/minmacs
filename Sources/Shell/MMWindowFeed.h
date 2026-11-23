@@ -20,6 +20,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property BOOL lidOn;
 @property (copy, nullable) NSString *lidNote;
 @property BOOL lidInert;                                // this Mac has no lid, so the switch changes nothing here
+@property BOOL awakeShown;                              // a keep-awake expert runs, so Keep awake now and While agents work show
+@property BOOL awakeOn, agentsOn;                       // insomnia.awake and insomnia.agents
+@property NSInteger agentsHolding, quietMinutes;        // agents that keep the Mac awake now; minutes a quiet agent still holds
 @property BOOL loginOn;
 @property (copy, nullable) NSString *loginNote;
 @property (strong, nullable) MMWindowRun *run;

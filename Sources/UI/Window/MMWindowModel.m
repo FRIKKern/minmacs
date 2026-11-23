@@ -314,15 +314,66 @@ NSString *MMWindowWatchingNote(NSString *left) { return [NSString stringWithForm
 
 NSString *const MMWindowNoLidNote = @"This Mac has no lid, so it changes nothing here.";
 
-MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *note) {
+NSString *const MMWindowAwakeCard = @"Keep this Mac awake", *const MMWindowMacCard = @"This Mac",
+                *const MMWindowCleanupCard = @"Clean up on its own";
+
+static MMWindowSwitch *Switch(NSString *switchID, NSString *title, NSString *card, BOOL on, NSString *note) {
     MMWindowSwitch *s = [MMWindowSwitch new];
-    s.switchID = @"lid"; s.title = @"Keep working with the lid closed"; s.on = on; s.inert = inert; s.note = note;
+    s.switchID = switchID; s.title = title; s.card = card; s.on = on; s.note = note;
     return s;
+}
+
+NSString *MMWindowAwakeNote(BOOL on) {
+    return on ? @"On. The Mac does not sleep, as with caffeinate, until you turn this off."
+              : @"Keeps the Mac from sleeping, as caffeinate does, until you turn it off.";
+}
+
+NSString *MMWindowAgentsNote(BOOL on, NSInteger holding, NSInteger quietMinutes) {
+    if (on && holding > 0) return [NSString stringWithFormat:@"Awake now for %@.", MMWindowCount(holding, @"agent", @"agents")];
+    return [NSString stringWithFormat:@"The Mac stays awake while an agent works, and %ld min after.", (long)MAX(quietMinutes, 0)];
+}
+
+MMWindowSwitch *MMWindowAwakeSwitch(BOOL on, NSString *note) {
+    return Switch(@"awake", @"Keep awake now", MMWindowAwakeCard, on, note ?: MMWindowAwakeNote(on));
+}
+
+MMWindowSwitch *MMWindowAgentsSwitch(BOOL on, NSString *note) {
+    return Switch(@"agents", @"While agents work", MMWindowAwakeCard, on, note ?: MMWindowAgentsNote(on, 0, 10));
+}
+
+MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *note) {
+    MMWindowSwitch *s = Switch(@"lid", @"With the lid closed", MMWindowAwakeCard, on,
+                               note ?: @"Keeps working with the lid shut, while something keeps the Mac awake.");
+    s.inert = inert;
+    return s;
+}
+
+NSString *MMWindowRuleSwitchTitle(NSString *ruleID) {
+    return @{@"servers": @"Stop idle dev servers", @"apps": @"Quit apps when memory runs low",
+             @"worktrees": @"Remove finished worktrees", @"caches": @"Clean build output and leftovers"}[ruleID ?: @""];
+}
+
+/// Careful quits no app, so for apps only Eager is on.
+BOOL MMWindowRuleIsOn(NSString *ruleID, NSInteger picked) { return [ruleID isEqualToString:@"apps"] ? picked == 2 : picked > 0; }
+
+NSInteger MMWindowRuleOnChoice(NSString *ruleID) { return [ruleID isEqualToString:@"apps"] ? 2 : 1; }
+
+NSString *MMWindowRuleSwitchNote(NSString *ruleID, NSInteger picked) {
+    // The same rules as MMWindowRuleExplains, said short: Careful's and Eager's, by the mode it is in or would turn on to.
+    NSInteger mode = MMWindowRuleIsOn(ruleID, picked) ? picked : MMWindowRuleOnChoice(ruleID);
+    NSDictionary *careful = @{@"servers": @"After a review: a server quiet for 6 hours that no agent uses.",
+                              @"worktrees": @"After a review: merged or remote gone, and quiet for 7 days.",
+                              @"caches": @"After a review: build output of finished projects, and leftovers."};
+    NSDictionary *eager = @{@"servers": @"After a review: each idle server the review finds no use for.",
+                            @"apps": @"Only apps on your close list, and only while memory pressure or heat is high.",
+                            @"worktrees": @"After a review: each worktree the review finds no use for.",
+                            @"caches": @"After a review: caches too. A tool's own cleanup waits for your press."};
+    return (mode == 2 ? eager : careful)[ruleID ?: @""];
 }
 
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *note) {
     MMWindowSwitch *s = [MMWindowSwitch new];
-    s.switchID = @"login"; s.title = @"Open at login"; s.on = on;
+    s.switchID = @"login"; s.title = @"Open at login"; s.card = MMWindowMacCard; s.on = on;
     // The same sentence the welcome shows for this state of the switch.
     s.note = note ?: MMWindowLoginNote(on);
     return s;

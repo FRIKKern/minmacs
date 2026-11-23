@@ -171,7 +171,7 @@ check "window: --json rows say whether their size is measured, and one that is n
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if all((r['bytes'] is None) != r['measured'] for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json rows carry a kind and their own key" yes \
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
-check "window: --json has a rule per expert with modes, the removal choice, three choices each, and the two switches" "servers,apps,worktrees,caches,removal 3 lid,login" \
+check "window: --json has a rule per expert with modes, the removal choice, three choices each, and the four switches" "servers,apps,worktrees,caches,removal 3 awake,agents,lid,login" \
   "$(printf '%s' "$wn_json" | json "','.join(r['ruleID'] for r in j['settings']['rules']) + ' ' + str(max(len(r['choices']) for r in j['settings']['rules'])) + ' ' + ','.join(s['switchID'] for s in j['settings']['switches'])")"
 wn_text=$(MINMACS_HOME="$wn_home" "$BIN" window 2>/dev/null)
 check "window: the text form runs to its end" 0 "$?"
@@ -182,7 +182,7 @@ check "window: the text names no old app and claims no result" 0 "$(printf '%s\n
 wn_fresh="$wn_dir/fresh-home"; mkdir -p "$wn_fresh"
 wn_text=$(MINMACS_HOME="$wn_fresh" "$BIN" window 2>/dev/null)
 check "window: with no removal choice made the text form still exits 0" 0 "$?"
-check "window: and says the removal choice is not made, then prints the switches after it" "1 2" \
+check "window: and says the removal choice is not made, then prints the switches after it" "1 4" \
   "$(printf '%s\n' "$wn_text" | grep -c '^Rule    When MinMacs removes things *not chosen yet$') $(printf '%s\n' "$wn_text" | grep -c '^Switch ')"
 wn_json=$(MINMACS_HOME="$wn_fresh" "$BIN" window --json 2>/dev/null)
 check "window: with no removal choice made --json exits 0 and says picked -1" "0 -1" "$? $(printf '%s' "$wn_json" | json "[r['picked'] for r in j['settings']['rules'] if r['ruleID'] == 'removal'][0]")"

@@ -42,17 +42,20 @@ The layout is prototype 195-a, Dock Below:
 
 Settings is prototype 197-b. The gear turns the area under the top line into cards, in the same window, and back. Escape leaves Settings first. Opening MinMacs again and `minmacs://settings` bring MinMacs to the front and open the window turned over to Settings, or on the welcome until Start was pressed. A link that starts MinMacs waits for the launch.
 
-- One card for each rule: "Stop idle servers", "Quit apps", "Remove finished worktrees" and "Clean caches and leftovers". Each has three choices, Off, Careful and Eager, and each choice has one sentence that says what it does today. `test/window.sh` checks each sentence against the expert's own rule.
-- One card for the removal choice, "When MinMacs removes things": Smart, Trash or Delete, each with Core's own sentence.
-- One card for this Mac: "Keep working with the lid closed" and "Open at login".
+Four cards, two across:
+
+- **Keep this Mac awake** stands first, so it is never hunted for. Three switches: "Keep awake now" keeps the Mac from sleeping, as `caffeinate` does, until it is turned off (`insomnia.awake`); "While agents work" keeps it awake while an agent works and its quiet minutes after, and says for how many agents it does so now (`insomnia.agents`); "With the lid closed" keeps it working with the lid shut (`insomnia.lid`).
+- **Clean up on its own**: one switch a rule, "Stop idle dev servers", "Quit apps when memory runs low", "Remove finished worktrees" and "Clean build output and leftovers", each with one short sentence of what it does when on. On is the mode that acts on its own: Careful, or Eager for apps, where Careful acts on nothing. Off is Off. A rule set to Eager elsewhere shows on, with Eager's sentence. Core keeps its three modes, and `minmacs mode` still sets any of them.
+- **When MinMacs removes things**: Smart, Trash or Delete, each with Core's own sentence.
+- **This Mac**: "Open at login".
 - While no removal choice is made, none is drawn picked and the card's note says what holds until then. A press on any choice, Smart too, makes it.
-- In every card the explanations start past the widest title. With room in the cards the type is 13 points and the choices stand apart; when a card's words would not fit, all cards go back to 12. When nobody asks, Settings starts at the window's top, as the menu does. On a Mac with no lid the lid switch is drawn as not available and takes no press.
+- In a card of choices the explanations start past the widest title. With room in the cards the type is 13 points and the choices stand apart; when a card's words would not fit, all cards go back to 12. When nobody asks, Settings starts at the window's top, as the menu does. On a Mac with no lid the lid switch is drawn as not available and takes no press.
 
 A press applies at once. There is no Save.
 
 What the Settings window of before held, and where it is with the menu window:
 
-- **Keep working with the lid closed** is the switch on the card for this Mac. It is the one keep-awake control in the window.
+- **Keep Mac Awake, Awake While Agents Work and Keep Awake With Lid Closed** are the three switches of Keep this Mac awake.
 - **The model reviews ask** has no place in the window. `minmacs review --model auto|haiku|sonnet|opus|luna` sets it.
 - **Showing and hiding an icon, and One Icon,** mean nothing with one icon and one window, and are not there. The one icon is shown at every start, whatever was hidden before, since nothing in the window could bring it back.
 - **An expert's own pane,** such as the keep-awake timings, is not in the window. Those prefs keep their values, and the Settings window of before still edits them when `core.window` is off.

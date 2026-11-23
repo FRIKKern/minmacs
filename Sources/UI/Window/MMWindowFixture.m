@@ -48,7 +48,8 @@ static MMWindowSettings *SettingsLike(NSArray<NSNumber *> *picked, NSDictionary<
                      @[@"Trash", @"Everything goes to the Trash. The disk comes back when you empty it."],
                      @[@"Delete", @"Deletes everything it removes at once. Nothing can be brought back."]], notes[@"removal"])];
     s.rules = rules;
-    s.switches = @[MMWindowLidSwitch(YES, NO, @"On now. The Mac keeps running with the lid shut."), MMWindowLoginSwitch(YES, nil)];
+    s.switches = @[MMWindowAwakeSwitch(NO, nil), MMWindowAgentsSwitch(YES, MMWindowAgentsNote(YES, 2, 10)),
+                    MMWindowLidSwitch(YES, NO, @"On now. The Mac keeps working with the lid shut."), MMWindowLoginSwitch(YES, nil)];
     return s;
 }
 
@@ -116,7 +117,7 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         NSString *watching = MMWindowWatchingNote(@"23h");
         m.settings = SettingsLike(@[@1, @1, @1, @1, @-1], @{@"servers": watching, @"worktrees": watching, @"caches": watching,
             @"removal": @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash."});
-        m.settings.switches = @[MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil)];
+        m.settings.switches = @[MMWindowAwakeSwitch(YES, nil), MMWindowAgentsSwitch(YES, nil), MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil)];
     }
     if (empty) m.settings = SettingsLike(@[@0, @0, @0, @0, @1], @{});
     if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-trash"] ? 1 : [name isEqualToString:@"welcome-delete"] ? 2 : 0,

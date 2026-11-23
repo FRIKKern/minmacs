@@ -196,6 +196,14 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         [self sendSoon];
         return;
     }
+    // Keep awake now and While agents work are Insomnia's own settings, set with their record, off main.
+    NSString *setting = @{@"awake": @"manual", @"agents": @"agents"}[switchID ?: @""];
+    if (setting) {
+        id<MMWindowLidExpert> e = (id)MMExpertNamed(@"insomnia");
+        if (![e respondsToSelector:@selector(set:value:by:)]) return;
+        dispatch_async(Queue(), ^{ (void)[e set:setting value:@(on) by:@"manual"]; [self send]; });
+        return;
+    }
     if (![switchID isEqualToString:@"lid"]) return;
     id<MMWindowLidExpert> e = (id)MMExpertNamed(@"insomnia");
     if (!e) return;

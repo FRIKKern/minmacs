@@ -1,6 +1,8 @@
 // Every string the window can show for a model, for the render tool's word check: no old app name, no claimed result.
 #import "UI/Window/MMWindowParts.h"
 
+static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]; }
+
 @implementation MMWindowView (Words)
 
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)m {
@@ -10,6 +12,8 @@
         @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"fixes", @"memory, now", @"memory in use, as now", @"just now", @"biggest", @"minutes",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     for (NSInteger minutes = 1; minutes <= 60; minutes++) [s addObject:MMWindowHourSpanWords(minutes)];
+    [s addObjectsFromArray:@[MMWindowAwakeCard, MMWindowMacCard, MMWindowCleanupCard, MMWindowAwakeNote(YES), MMWindowAwakeNote(NO)]];
+    for (NSString *rid in MMWindowRuleIDs()) for (NSInteger c = 0; c < 3; c++) { add0(s, MMWindowRuleSwitchTitle(rid)); add0(s, MMWindowRuleSwitchNote(rid, c)); }
     for (NSString *key in @[@"worktrees", @"caches"]) for (NSNumber *looked in @[@(MMWindowLookedNotYet), @(MMWindowLookedNowhere)])
         [s addObject:MMWindowEmptyNote(key, looked.integerValue)];
     void (^add)(NSString *) = ^(NSString *x) { if (x.length) [s addObject:x]; };
