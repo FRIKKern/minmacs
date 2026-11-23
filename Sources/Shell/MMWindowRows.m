@@ -33,7 +33,14 @@ NSString *MMWindowNameOf(MMFinding *f) {
         NSString *what = Str(x[@"framework"]) ?: Str(x[@"project"]);
         return what ? [NSString stringWithFormat:@":%ld %@", (long)port, what] : [NSString stringWithFormat:@":%ld", (long)port];
     }
-    if (Is(f, @"workforest", @"worktree")) return Str(x[@"branch"]) ?: f.path.lastPathComponent ?: title;
+    if (Is(f, @"workforest", @"worktree")) {
+        // A branch name alone does not tell trees apart: every repo has a main. A repo's main checkout is named by its
+        // repo, a linked worktree by its repo and branch, "minmacs · seam-130". Without a repo, the branch as before.
+        NSString *repo = Str(Str(x[@"repo"]).lastPathComponent), *branch = Str(x[@"branch"]);
+        if (repo && [Num(x[@"main"]) boolValue]) return repo;
+        if (repo && branch) return [NSString stringWithFormat:@"%@ · %@", repo, branch];
+        return branch ?: repo ?: f.path.lastPathComponent ?: title;
+    }
     return Str(x[@"name"]) ?: title;
 }
 

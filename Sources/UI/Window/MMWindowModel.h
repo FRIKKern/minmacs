@@ -133,7 +133,7 @@ MMWindowFact *_Nullable MMWindowFactLeftBy(NSString *_Nullable worktree);       
 MMWindowFact *_Nullable MMWindowFactFolder(NSString *_Nullable folder);            // Folder, the path. Not for the second line
 MMWindowFact *_Nullable MMWindowFactOpenTabs(NSInteger tabs);                      // Open, "14 tabs"; "14 tabs open"
 MMWindowFact *_Nullable MMWindowFactOnPorts(NSArray *_Nullable ports);             // On, "port 3003"; "on port 3003"
-MMWindowFact *_Nullable MMWindowFactBranch(NSString *_Nullable branch);            // Branch, the name. Not for the second line: the row's name says it
+MMWindowFact *_Nullable MMWindowFactBranch(NSString *_Nullable branch);            // Branch, the name. Not for the second line: a linked worktree's row name says it
 MMWindowFact *_Nullable MMWindowFactFiles(NSInteger changed, NSInteger added);     // Files, "3 changed, 1 new"; "3 files changed, 1 new"
 MMWindowFact *_Nullable MMWindowFactNotPushed(NSInteger commits);                  // Not pushed, "2 commits"; "2 commits not pushed"
 MMWindowFact *_Nullable MMWindowFactUntouched(NSTimeInterval seconds);             // Untouched, "12 d"; "untouched for 12 d". "Changed", "just now" under ten seconds
