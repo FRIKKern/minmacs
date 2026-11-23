@@ -49,12 +49,14 @@ static NSAttributedString *End(NSString *when, double bytes, BOOL disk, NSColor 
 - (void)drawHour:(MMWindowHour *)hour in:(NSRect)r {
     NSColor *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
     NSColor *ink = MMWindowColor(hour.side == MMWindowDisk ? MMWindowInkDisk : MMWindowInkMemory);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(hour.title, 12.5, NSFontWeightMedium, NSColor.whiteColor), MMWindowText(@"  the last hour", 11.5, NSFontWeightSemibold, t2)]),
+    NSInteger a, b, filled, count = (NSInteger)hour.values.count;
+    NSArray *span = MMWindowHourSpanAtLeast(hour.values, MMWindowHourGraphLeast, &a, &b, &filled);
+    // The title says how long the line spans, so a young hour reads as what it is: "the last 4 min".
+    NSString *spans = [@"  " stringByAppendingString:span ? MMWindowHourSpanWords(b - a + 1) : @"the last hour"];
+    MMWindowDraw(MMWindowJoin(@[MMWindowText(hour.title, 12.5, NSFontWeightMedium, NSColor.whiteColor), MMWindowText(spans, 11.5, NSFontWeightSemibold, t2)]),
                  r.origin.x, r.origin.y + 8.5, -1);
     BOOL disk = hour.side == MMWindowDisk;
     MMWindowDrawBlock(hour.explain, 11, 10, NSFontWeightRegular, t2, r.origin.x, r.origin.y + 24, r.size.width, -1, 0, 26);
-    NSInteger a, b, filled, count = (NSInteger)hour.values.count;
-    NSArray *span = MMWindowHourSpan(hour.values, &a, &b, &filled);
     if (!span) { [self drawYoung:hour newest:b filled:filled in:r ink:ink]; return; }
     double first = [hour.values[a] doubleValue], last = [hour.values[b] doubleValue], moved = last - first;
     // A move too small for the unit to show reads as no move.

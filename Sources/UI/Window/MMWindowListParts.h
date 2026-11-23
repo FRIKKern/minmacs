@@ -10,7 +10,7 @@
     NSString *_scrolling;                                     // the group whose scroller shows
     NSMutableDictionary<NSString *, NSString *> *_anchors;    // the first row shown of each scrolled group, by the group's key
     NSTrackingArea *_tracking;
-    CGFloat _rowHeight;                                       // 24, or more on a side with room to spare
+    CGFloat _rowHeight;                                       // 24: a row is one line, also on a side with room to spare
     CGFloat _sumTop;                                          // where the side's closing lines start, or below 0 for none
     NSSet<NSString *> *_known;                                // the rows of the model before this one, to tell a new row
     NSInteger _flashed;

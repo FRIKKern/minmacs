@@ -102,7 +102,8 @@ static void WindowPolishChecks(void) {
     }
     Check(cut.count == 0, @"window lists: every group ends on a whole row, inside its side, on every day", [cut componentsJoinedByString:@" | "]);
 
-    // A side with room: taller rows with a second line, and what it holds in all at the foot. A full side has neither.
+    // A side with room stays compact: one line a row, and what it holds in all right under its rows. A full side has no
+    // closing lines.
     // What the rows hold is never summed: one row can hold another.
     NSArray<MMWindowListView *> *quiet = WindowLists(PolishView(@"quiet")), *busy = WindowLists(PolishView(@"busy")), *young = WindowLists(PolishView(@"young")),
                                 *real = WindowLists(PolishView(@"real"));
@@ -111,8 +112,8 @@ static void WindowPolishChecks(void) {
         for (NSArray<NSString *> *x in l.sumLines) [a addObject:[x componentsJoinedByString:@": "]];
         return [a componentsJoinedByString:@" | "];
     };
-    Check(quiet.count == 2 && quiet[1].rowHeight == 50 && quiet[1].showsSum && [lines(quiet[1]) isEqualToString:@"Free: 182 of 994 GB | In use: 812 GB"],
-          @"window lists: a disk side with room has rows of two lines and closes with what the disk holds in all", [NSString stringWithFormat:@"%g %@", quiet[1].rowHeight, lines(quiet[1])]);
+    Check(quiet.count == 2 && quiet[1].rowHeight == 24 && quiet[1].showsSum && [lines(quiet[1]) isEqualToString:@"Free: 182 of 994 GB | In use: 812 GB"],
+          @"window lists: a disk side with room keeps one line a row and closes with what the disk holds in all", [NSString stringWithFormat:@"%g %@", quiet[1].rowHeight, lines(quiet[1])]);
     Check(busy[0].rowHeight == 24 && busy[1].rowHeight == 24 && !busy[0].showsSum && !busy[1].showsSum, @"window lists: a full side keeps one line a row and no closing lines", @"");
     Check(young[1].showsSum && [lines(young[1]) isEqualToString:@"Free: 612 of 994 GB | In use: 382 GB"] && !young[0].showsSum,
           @"window lists: a disk side with no rows still says what the disk holds, so the side is not bare", lines(young[1]));

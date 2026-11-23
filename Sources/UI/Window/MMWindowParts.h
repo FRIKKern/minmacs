@@ -77,16 +77,24 @@ NSAttributedString *MMWindowNumber(uint64_t bytes, BOOL disk, CGFloat size, NSFo
 
 /// The filled values of an hour, as doubles with NAN for a gap. `filled` gets how many minutes hold a value.
 NSArray<NSNumber *> *MMWindowHourValues(NSArray *_Nullable values, NSInteger *_Nullable filled);
-/// An hour draws as a line only once this many of its minutes hold a value. Under that the window says so in words.
+/// A row's small hour draws as a line only once this many of its minutes hold a value. Under that it shows nothing.
 static const NSInteger MMWindowHourLeast = 5;
+/// The middle's large graph draws as soon as two minutes hold a value, the least that makes a line. It spans the
+/// minutes kept so far and its title says how long that is, "the last 4 min", so a young hour is a real line.
+static const NSInteger MMWindowHourGraphLeast = 2;
 /// The part of an hour from its first filled minute to its last, or nil when fewer than MMWindowHourLeast are filled.
 /// `first` and `last` get the two indexes, -1 when none, and `filled` how many minutes hold a value.
 NSArray *_Nullable MMWindowHourSpan(NSArray *_Nullable values, NSInteger *_Nullable first, NSInteger *_Nullable last, NSInteger *_Nullable filled);
+/// MMWindowHourSpan with its own least, for the large graph's MMWindowHourGraphLeast.
+NSArray *_Nullable MMWindowHourSpanAtLeast(NSArray *_Nullable values, NSInteger least, NSInteger *_Nullable first, NSInteger *_Nullable last, NSInteger *_Nullable filled);
+/// How long the kept part of a graph is, as its title says it: "the last hour" once it spans 60 minutes, else
+/// "the last 4 min".
+NSString *MMWindowHourSpanWords(NSInteger minutes);
 /// How an hour is drawn: the large graph, a row's small line, or the line in a row's story. Each spreads its filled
 /// part across its whole width. The small ones show a wobble as flat, on a scale of at least a quarter of their value.
 typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHourRow, MMWindowHourStory };
 /// An hour in the rect: the fill, the line, and a dot at the newest minute. Nothing when fewer than
-/// MMWindowHourLeast minutes are filled.
+/// MMWindowHourLeast minutes are filled, or MMWindowHourGraphLeast for the large graph.
 void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MMWindowHourLook look);
 
 /// The Mac as a ring around `center`: memory by holder inside, the disk as the thin outer track, each row an arc of

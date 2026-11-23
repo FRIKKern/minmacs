@@ -5,9 +5,9 @@
 #import "UI/MMFormat.h"
 
 // A header, a row, the gap between groups, and the two fades: 22 points at the foot where rows wait below, 16 under
-// the header once the group is scrolled. A side with room to spare makes its rows taller, up to 50 points, and from
-// 36 on a row has a second line. With more than 84 points still left, the side closes with what it holds in all.
-static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22, kTopFade = 16, kTall = 36, kTallest = 50, kSumLeast = 84, kSumRow = 22;
+// the header once the group is scrolled. A side with room to spare keeps its rows one line high, and with more than
+// 84 points still left it closes, right under its rows, with what it holds in all.
+static const CGFloat kHead = 24, kRow = 24, kGap = 2, kFade = 22, kTopFade = 16, kTall = 36, kSumLeast = 84, kSumRow = 22;
 
 static BOOL HasHour(MMWindowGroup *g) {
     for (MMWindowRow *r in g.rows) if (MMWindowHourSpan(r.hour, NULL, NULL, NULL)) return YES;
@@ -139,21 +139,15 @@ static BOOL HasHour(MMWindowGroup *g) {
     NSInteger n = (NSInteger)_groups.count;
     if (!n) return;
     CGFloat H = self.bounds.size.height, room = H - kGap * (n - 1) - kHead * n, gap = kGap, total = 0;
-    NSInteger rows = 0;
     NSMutableArray<NSNumber *> *give = [NSMutableArray new];
     // A group with no rows keeps one line under its header, for the words that say so.
     for (MMWindowGroup *g in _groups) {
         [_tops addObject:[self topsOf:g row:kRow]];
         CGFloat want = g.rows.count ? _tops.lastObject.lastObject.doubleValue : kRow;
-        [give addObject:@(want)]; total += want; rows += (NSInteger)g.rows.count;
+        [give addObject:@(want)]; total += want;
     }
-    if (total <= room) {
-        CGFloat spare = room - total;
-        if (spare > kRow && rows > 0) {
-            _rowHeight = MIN(kTallest, kRow + floor(spare / rows));
-            for (NSInteger i = 0; i < n; i++) if (_groups[i].rows.count) { _tops[i] = [self topsOf:_groups[i] row:_rowHeight]; give[i] = _tops[i].lastObject; }
-        }
-    } else {
+    // A side with room to spare stays compact: its rows keep one line each and the room is left under them.
+    if (total > room) {
         // The short groups get all their rows. The long ones share the rest, each as many whole rows as its share holds.
         NSArray<NSNumber *> *order = [give sortedArrayUsingSelector:@selector(compare:)];
         CGFloat left = MAX(room, 0), cap = 0, used = 0;
@@ -200,9 +194,9 @@ static BOOL HasHour(MMWindowGroup *g) {
         _offsets[g.key] = @(was);
     }
     CGFloat sum = kHead + kSumRow * self.sumLines.count;
-    // With rows above, the closing lines stand at the side's foot, as 195-a's. A side with no rows at all has them
-    // right under its notes, so the notes and the number read as one block and no blank stands between them.
-    if (self.ring && H - (y - gap) > MAX(kSumLeast, sum + 8)) _sumTop = rows ? H - sum - 2 : y - gap + 10;
+    // The closing lines stand right under the last group, so the side reads as one compact block with no blank
+    // between its rows and what it holds in all.
+    if (self.ring && H - (y - gap) > MAX(kSumLeast, sum + 8)) _sumTop = y - gap + 10;
 }
 
 /// What closes a side that has room left: what it holds in all. Only numbers that are true as they stand: what the

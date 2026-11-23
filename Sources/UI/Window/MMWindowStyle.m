@@ -193,6 +193,14 @@ NSArray<NSNumber *> *MMWindowHourValues(NSArray *values, NSInteger *filled) {
 }
 
 NSArray *MMWindowHourSpan(NSArray *values, NSInteger *first, NSInteger *last, NSInteger *filled) {
+    return MMWindowHourSpanAtLeast(values, MMWindowHourLeast, first, last, filled);
+}
+
+NSString *MMWindowHourSpanWords(NSInteger minutes) {
+    return minutes >= 60 ? @"the last hour" : [NSString stringWithFormat:@"the last %ld min", (long)MAX(minutes, 1)];
+}
+
+NSArray *MMWindowHourSpanAtLeast(NSArray *values, NSInteger least, NSInteger *first, NSInteger *last, NSInteger *filled) {
     NSInteger a = -1, b = -1, n = 0;
     for (NSInteger i = 0; i < (NSInteger)values.count; i++) {
         if (![values[i] isKindOfClass:NSNumber.class]) continue;
@@ -202,13 +210,13 @@ NSArray *MMWindowHourSpan(NSArray *values, NSInteger *first, NSInteger *last, NS
     if (first) *first = a;
     if (last) *last = b;
     if (filled) *filled = n;
-    return n >= MMWindowHourLeast ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a + 1))] : nil;
+    return n >= MAX(least, 1) ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a + 1))] : nil;
 }
 
 void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHourLook look) {
     BOOL graph = look == MMWindowHourGraph, small = look == MMWindowHourRow;
     // Only the filled part is drawn, across the whole width, so a young hour is a short line and never a stroke at the edge.
-    NSArray *span = MMWindowHourSpan(values, NULL, NULL, NULL);
+    NSArray *span = MMWindowHourSpanAtLeast(values, graph ? MMWindowHourGraphLeast : MMWindowHourLeast, NULL, NULL, NULL);
     if (!span) return;
     NSArray<NSNumber *> *v = MMWindowHourValues(span, NULL);
     double lo = INFINITY, hi = -INFINITY;
