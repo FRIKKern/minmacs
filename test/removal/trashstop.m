@@ -23,7 +23,7 @@ static NSArray<NSString *> *StopInTrash(NSString *tree, NSString *path, NSString
 }
 /// The other side: run as `removaltest --stop-in-trash <tree> <path>`.
 static int StopInTrashChild(NSString *tree, NSString *path) {
-    MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *keep = MMRemovalDecide(MMRemovalConfigFiles, nil, nil);
     MMUndoRecord *parent = Unfinished(@"stopped in the move to the Trash", tree, MMRemovalOwner());
     MMUndoRecord *part = Part(parent.rid, @"config, stopped in the move to the Trash");
     MMRemovalNote(part, keep, nil); MMRemovalAsk(part, @[path]);
@@ -204,7 +204,7 @@ static void TrashListLows(void) {
     MMUndoRecord *r = Begin(@"trash", @"trash, the list folder is a link");
     MMRemovalAsk(r, @[cache.stringByDeletingLastPathComponent]);
     NSError *e = nil;
-    BOOL went = MMRemovalApply(cache.stringByDeletingLastPathComponent, MMRemovalDecideWith(MMRemovalTrash, MMRemovalClutter, nil), r, &e);
+    BOOL went = MMRemovalApply(cache.stringByDeletingLastPathComponent, MMRemovalDecide(MMRemovalClutter, nil, nil), r, &e);
     T(@"trash list, a linked folder: MinMacs writes no list through it, and the item stays where it is", @"no CACHE no",
       [NSString stringWithFormat:@"%@ %@ %@", YN(went), Read(cache), YN(Exists([real stringByAppendingPathComponent:[r.rid stringByAppendingPathExtension:@"json"]]))]);
     [MMUndo.shared finish:r ok:NO freed:0 error:@"test"];

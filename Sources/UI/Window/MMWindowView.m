@@ -147,7 +147,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     if (!_welcome) {
         _welcome = [[MMWindowWelcomeView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
         __weak typeof(self) me = self;
-        _welcome.onStart = ^(BOOL login, NSInteger removal) { [me start:login removal:removal]; };
+        _welcome.onStart = ^(BOOL login) { [me start:login]; };
         [self addSubview:_welcome positioned:NSWindowBelow relativeTo:_gear];
     }
     _welcome.welcome = welcome;
@@ -166,13 +166,13 @@ BOOL MMWindowTakesPresses(NSView *view) {
 
 /// Start: the answers go to the host, the welcome leaves and the menu fades up in its place. With no numbers yet the
 /// window says it is looking, and the lists and the hour lines fill in as they come.
-- (void)start:(BOOL)login removal:(NSInteger)removal {
+- (void)start:(BOOL)login {
     if (_started) return;
     _started = YES;
     // A second press where Start was would land on the menu that arrives under it, Fix Everything among it.
     _quiet = YES;
     NSInteger run = ++_startRun;
-    [self.host windowWelcomeStart:login removal:removal];
+    [self.host windowWelcomeStart:login];
     _model.welcome = nil;
     if (!_model) _looking = YES;
     _gear.hidden = NO;

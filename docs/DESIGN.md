@@ -43,9 +43,8 @@ The layout is prototype 195-a, Dock Below:
 Settings is prototype 197-b. The gear turns the area under the top line into cards, in the same window, and back. Escape leaves Settings first. Opening MinMacs again and `minmacs://settings` bring MinMacs to the front and open the window turned over to Settings, or on the welcome until Start was pressed. A link that starts MinMacs waits for the launch.
 
 - One card for each rule: "Stop idle servers", "Quit apps", "Remove finished worktrees" and "Clean caches and leftovers". Each has three choices, Off, Careful and Eager, and each choice has one sentence that says what it does today. `test/window.sh` checks each sentence against the expert's own rule.
-- One card for the removal choice, "When MinMacs removes things": Smart, Trash or Delete, each with Core's own sentence.
 - One card for this Mac: "Keep working with the lid closed" and "Open at login".
-- While no removal choice is made, none is drawn picked and the card's note says what holds until then. A press on any choice, Smart too, makes it.
+- No card for where removed things go. There is nothing to choose: see "Where removed things go" below.
 - In every card the explanations start past the widest title. With room in the cards the type is 13 points and the choices stand apart; when a card's words would not fit, all cards go back to 12. When nobody asks, Settings starts at the window's top, as the menu does. On a Mac with no lid the lid switch is drawn as not available and takes no press.
 
 A press applies at once. There is no Save.
@@ -59,16 +58,15 @@ What the Settings window of before held, and where it is with the menu window:
 
 ### The welcome
 
-The first time the window opens it shows the welcome alone, prototype 199-a: what MinMacs is in two sentences, the Open at login switch, the removal choice, three facts and Start. Nothing is applied until Start, and Return presses Start. After Start the welcome never comes back.
+The first time the window opens it shows the welcome alone, prototype 199-a: what MinMacs is in two sentences, the Open at login switch, three facts and Start. It asks no removal choice. Nothing is applied until Start, and Return presses Start. After Start the welcome never comes back.
 
 - No login item is added before Start. For a person new to MinMacs the switch starts on. For a person who launched MinMacs before the welcome existed, it starts on what their login item is now.
 - After Start the menu takes no press for a moment, counted from when it is really shown, so a second press where Start was runs no fix.
-- The removal choice starts on the one the person already made, else on Smart.
 - Each fact is read from the code that makes it true, so it changes when the code does.
 
-### The removal choice
+### Where removed things go
 
-Where a removed thing goes is one setting, the pref `core.removal`, shown in the welcome, on its Settings card and by `minmacs removal`. Smart deletes what git or its tool can give back, and the rest goes to the Trash. Trash sends everything to the Trash. Delete deletes everything at once. Every word about a removal follows the choice. [AGENTS.md](../AGENTS.md) invariant 1 has the whole rule.
+There is no choice to make. MinMacs never deletes anything at once: everything it removes keeps a way back. A merged worktree is removed by `git worktree remove`, so git can give its files back, and its ignored files go to a recovery folder first. Caches, build output, leftovers and untracked config files go to the Trash. A tool's own cleanup runs after an APFS recovery copy. MinMacs never empties the Trash. The welcome and Settings offer no removal choice, and `minmacs removal` only says this. The old pref `core.removal`, which once held Smart, Trash or Delete, is read by nothing that decides and is cleared at Core's start. [AGENTS.md](../AGENTS.md) invariant 1 has the whole rule.
 
 ### Words in the window
 
@@ -139,7 +137,7 @@ The menu is an NSMenu. A popover was tried and felt slow next to the system's ow
 These hold for the window, the menus, the CLI and notifications.
 
 - **Plain words.** "Squash-merged", not "merged (squash)". "Remote branch deleted", not "upstream gone". "1 commit not in main", not "1 not in main".
-- **Say where a removed thing goes.** What a removal does follows the person's removal choice, so its words do too: "Move to Trash" and "Undo moves it back" when it goes to the Trash, "Delete" and "cannot be brought back" when it is deleted at once. Never promise an undo for a deleted thing. "For good" and "permanently" are not used.
+- **Say where a removed thing goes.** Everything MinMacs removes keeps a way back, so the words say where: "Move to Trash" and "Undo moves it back" when it goes to the Trash, "A recovery copy is made first" for a tool's own cleanup. Only a record an older MinMacs wrote under its Delete choice says "cannot be brought back". Never promise an undo for a deleted thing. "For good" and "permanently" are not used.
 - **No parentheses** as asides.
 - **Gray tails** carry only time, size, or why an action can't run: "Review Now   9m ago", "Close Idle   2 servers, 1.2 GB".
 - **Truncate** at the tail, never in the middle.

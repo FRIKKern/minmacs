@@ -16,8 +16,9 @@ check "act: the test binary builds with no warnings" 0 "$act_r"
 clang -Wall -Werror -o "$act_dir/fixture" test/act/fixture.c >>"$act_dir/build.log" 2>&1
 check "act: the fixture process builds" 0 "$?"
 
-# Nothing in Act empties the Trash, and nothing deletes a file but MMRemovalApply in MMRemovalApply.m, which acts
-# only on the person's removal choice and behind the wall. test/removal.sh checks that one place.
+# Nothing in Act empties the Trash, and nothing deletes a file but MMRemovalApply in MMRemovalApply.m. It deletes
+# nothing MMRemovalDecide answers for, since that answer always keeps a way back, and acts only behind the wall.
+# test/removal.sh checks that one place.
 check "act: no permanent delete in Sources/Core/Act outside MMRemovalApply.m" 0 \
   "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|emptyTrash|rm -rf' Sources/Core/Act/*.m | grep -vc '^Sources/Core/Act/MMRemovalApply.m:')"
 

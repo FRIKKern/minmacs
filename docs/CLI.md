@@ -159,10 +159,10 @@ Flags: `--json`.
 
 #### `removal`
 
-Show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits.
+Show what happens to a thing MinMacs removes, which always keeps a way back; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits.
 
 ```
-removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]
+removal [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]
 ```
 
 Flags: `--json`, `--waiting`, `--delete`, `--put-back`, `--to`, `--close`, `--dry-run`.
@@ -249,7 +249,7 @@ Flags: `--json`, `--dry-run`.
 
 #### `clean`
 
-Removes clutter as the removal choice says, to the Trash with undo or deleted at once, or with --command runs the row's own cleanup, which cannot be undone.
+Removes clutter to the Trash with undo, or with --command runs the row's own cleanup, which cannot be undone.
 
 ```
 clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]

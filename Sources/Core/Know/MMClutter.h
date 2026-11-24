@@ -36,8 +36,8 @@ NSString *MMClutterClassName(MMClutterClass c);          // cache, tool, build, 
 @property (readonly) BOOL reportOnly;                   // such as the root-owned simulator dyld cache
 @property (readonly) BOOL skipWhenTracked;              // dist and build are skipped when git tracks them
 /// YES only when the row says "rebuilt": a tool rebuilds or downloads all of it again, such as node_modules or the
-/// pip cache. Under the Smart removal choice of Act/MMRemoval.h such an item is deleted at once. A row with logs,
-/// hand-made content or a leftover never says it, so it keeps a way back.
+/// pip cache. It no longer decides where an item goes: everything MinMacs removes keeps a way back, Act/MMRemoval.h.
+/// A row with logs, hand-made content or a leftover never says it.
 @property (readonly) BOOL rebuilt;
 /// For a rebuilt row of folders inside projects: the files that prove its tool can rebuild this one, such as
 /// package-lock.json beside node_modules. One must sit beside the folder now. The row's "rebuiltFrom", or its

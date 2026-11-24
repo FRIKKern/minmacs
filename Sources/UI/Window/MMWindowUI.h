@@ -19,9 +19,9 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice;
 /// A switch changed in Settings.
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on;
-/// Start in the welcome, once: the two answers, applied now. Open at login is added or left out, the removal choice
-/// is written, and the welcome never shows again. removal is 0 Smart, 1 Trash, 2 Delete.
-- (void)windowWelcomeStart:(BOOL)openAtLogin removal:(NSInteger)removal;
+/// Start in the welcome, once: the answer, applied now. Open at login is added or left out, and the welcome never
+/// shows again.
+- (void)windowWelcomeStart:(BOOL)openAtLogin;
 /// The power icon, or Command and Q.
 - (void)windowQuit;
 @end
@@ -63,8 +63,8 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty",
 /// and three days that came from the first look at the real window: "young", "calm" and "long".
 /// "memory-only" and "disk-only" are the busy day with fixes that give only that side back.
-/// "welcome" is the young day with the welcome on it, and "welcome-off", "welcome-trash" and "welcome-delete" are the
-/// same with the switch off or another removal choice picked. "welcome-watched" is the welcome a person meets who
+/// "welcome" is the young day with the welcome on it, and "welcome-off" is the same with the switch off.
+/// "welcome-watched" is the welcome a person meets who
 /// used MinMacs for more than a day before.
 MMWindowModel *MMWindowFixture(NSString *name);
 

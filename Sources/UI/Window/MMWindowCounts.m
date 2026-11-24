@@ -31,15 +31,12 @@ NSString *MMWindowSkippedNote(NSInteger asks, NSInteger needYou, NSInteger kept,
     return [NSString stringWithFormat:@"Skipped %@.", list];
 }
 
-NSString *MMWindowFixCountTitle(NSString *kind, NSInteger n, NSInteger removal) {
+NSString *MMWindowFixCountTitle(NSString *kind, NSInteger n) {
     if ([kind isEqualToString:@"stop"]) return [@"Stop " stringByAppendingString:MMWindowCount(n, @"idle server", @"idle servers")];
     if ([kind isEqualToString:@"quit"]) return [@"Quit " stringByAppendingString:MMWindowCount(n, @"app", @"apps")];
     if ([kind isEqualToString:@"remove"]) return [@"Remove " stringByAppendingString:MMWindowCount(n, @"merged worktree", @"merged worktrees")];
-    // What the press does follows the removal choice. Under Smart some are deleted and the rest go to the Trash.
-    if ([kind isEqualToString:@"trash"]) {
-        NSString *what = MMWindowCount(n, @"leftover", @"leftovers");
-        return removal == 1 ? [NSString stringWithFormat:@"Move %@ to the Trash", what] : removal == 2 ? [@"Delete " stringByAppendingString:what] : [@"Clean up " stringByAppendingString:what];
-    }
+    // Everything MinMacs removes keeps a way back, Core/Act/MMRemoval.h, so a leftover goes to the Trash.
+    if ([kind isEqualToString:@"trash"]) return [NSString stringWithFormat:@"Move %@ to the Trash", MMWindowCount(n, @"leftover", @"leftovers")];
     if ([kind isEqualToString:@"clean"]) return [@"Run " stringByAppendingString:MMWindowCount(n, @"tool cleanup", @"tool cleanups")];
     return nil;
 }

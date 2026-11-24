@@ -12,7 +12,7 @@ static NSUInteger Holds(NSString *folder) { return [NSFileManager.defaultManager
 
 /// A part of parent that stages the file at path under Delete, as a config part does. Returns the finished record.
 static MMUndoRecord *StageOne(MMUndoRecord *parent, NSString *subject, NSString *path) {
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *del = MMRemovalTestDeleteDecision(MMRemovalConfigFiles);
     MMUndoRecord *part = Part(parent.rid, subject);
     MMRemovalNote(part, del, nil);
     MMRemovalAsk(part, @[path]);
@@ -104,7 +104,7 @@ static void Staged(void) {
         if (fake[1].length) Write([dir stringByAppendingPathComponent:@".minmacs"], fake[1]);
         struct stat st; lstat(file.fileSystemRepresentation, &st);
         MMUndoRecord *liar = Part(parent.rid, @"lookalike");
-        MMRemovalNote(liar, MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil), nil);
+        MMRemovalNote(liar, MMRemovalTestDeleteDecision(MMRemovalConfigFiles), nil);
         [MMUndo.shared note:liar payload:@{@"stagedIn": dir, @"staged": @[@{@"from": env, @"to": file, @"dev": @(st.st_dev), @"ino": @(st.st_ino)}]}];
         liar = Done(liar);
         (void)MMRemovalFinishStaged(@[liar]);
@@ -149,7 +149,7 @@ static void Staged(void) {
     [MMUndo.shared finish:lost ok:NO freed:0 error:@"test"];
 
     // A single action, with no Wrap Up around it, has no later part: it deletes at once, and stages nothing.
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *del = MMRemovalTestDeleteDecision(MMRemovalConfigFiles);
     MMUndoRecord *single = Begin(@"trash", @"single");
     MMRemovalNote(single, del, nil);
     MMRemovalAsk(single, @[env]);
@@ -184,7 +184,7 @@ static void Crash(void) {
     // 2. Stopped inside a part, right after its rename: that part's record is still pending.
     MMUndoRecord *mid = Begin(@"wrapup", @"crashed mid-part");
     [MMUndo.shared note:mid payload:@{@"path": tree}];
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *del = MMRemovalTestDeleteDecision(MMRemovalConfigFiles);
     MMUndoRecord *part = Part(mid.rid, @"config mid");
     MMRemovalNote(part, del, nil); MMRemovalAsk(part, @[env]);
     MMRemovalApply(env, del, part, nil);

@@ -273,16 +273,14 @@ print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('fre
   check "noonoo: no refused clean wrote an undo record" 0 "$(nn_undo 'len(j)')"
 
   echo "-- removal and undo"
-  # The checks from here to the removal choice at the end are about the Trash and its undo, so they run under the
-  # Trash choice. Smart, the default, deletes rebuilt items such as node_modules at once, and the last block of this
-  # section checks that, and Delete, on the same fixtures.
+  # Everything MinMacs removes keeps a way back, D2: the checks from here on are about the Trash and its undo. The
+  # last block of this section checks that an old smart or delete in the pref changes nothing, on the same fixtures.
   nn_removal() { MINMACS_HOME="$nn" "$BIN" removal "$@" 2>/dev/null; }
-  check "noonoo: the removal choice starts as smart" smart "$(nn_removal --json | json "j['removal']")"
-  check "noonoo: under smart a dry run says node_modules is deleted, and why" yes \
-    "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'would delete .*node_modules, since its tool rebuilds it. It cannot be brought back.' && echo yes || echo no)"
-  check "noonoo: under smart a dry run sends a leftover to the Trash" yes \
+  check "noonoo: the verb says trash" trash "$(nn_removal --json | json "j['removal']")"
+  check "noonoo: a dry run sends node_modules to the Trash too, though its tool rebuilds it" yes \
+    "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'node_modules to the Trash. Undo moves it back' && echo yes || echo no)"
+  check "noonoo: a dry run sends a leftover to the Trash" yes \
     "$(nnt verb clean "$nn_scr/$nn_dead" --dry-run 2>/dev/null | grep -q 'to the Trash. Undo moves it back' && echo yes || echo no)"
-  nn_removal trash >/dev/null
   # A dry run says what would happen and changes nothing.
   check "noonoo: a dry run says the item goes to the Trash" yes \
     "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'to the Trash. Undo moves it back' && echo yes || echo no)"
@@ -540,6 +538,6 @@ print(' '.join(sorted(i['kindID'] for i in j['items'] if i['path'].startswith(sy
     "$(nnc_bin status 2>/dev/null | grep 'Noo-Noo' | grep -q ' 2 items' && echo yes || echo no)"
   check "noonoo: cold, the scan left both folders in place" yes "$([ -f "$nnc_repo/node_modules/left-pad/index.js" ] && [ -f "$nnc_repo/.next/cache/page.html" ] && echo yes || echo no)"
 
-  # The removal choice, issue #62, on this section's fixtures. It runs last, since it deletes them.
+  # An old removal choice in the pref, issue #62 and D2, on this section's fixtures. It runs last.
   . ./test/noonoo/removal.sh
 fi

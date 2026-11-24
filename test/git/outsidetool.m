@@ -5,7 +5,7 @@
 //        outsidetool window <worktree> <config> <from> <to>
 //   a walk's read, as an update pass makes it; config rewritten, from replaced by to; a walk's read at once, a fresh
 //   read, and a walk's read 1.2 seconds later.
-//   Each read is given as upstream|upstreamGone|upstreamUnknown|smart, as gittool keeps gives it.
+//   Each read is given as upstream|upstreamGone|upstreamUnknown|gitBack, as gittool keeps gives it.
 #import <Foundation/Foundation.h>
 #import "Core/Act/MMRemoval.h"
 #import "Core/Know/MMGit.h"
@@ -18,15 +18,15 @@ static void Print(id j) {
     printf("%s\n", [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding].UTF8String);
 }
 
-/// The facts with Smart's answer on them.
+/// The facts with git's answer on them, MMRemovalGitWhyNot.
 static NSString *Say(MMWorktree *w, MMGitFacts *g) {
     if (!g) return @"no facts";
     MMRemovalFacts *f = [MMRemovalFacts worktreeKnown:YES merged:!w.isMain && g.merged != MMMergedNone upstreamGone:g.upstreamGone
                                                  dirty:g.dirty untracked:g.untracked unpushed:g.unpushed stashes:g.stashes];
     f.upstreamUnknown = g.upstreamUnknown; f.upstreamNone = !g.upstream.length && !g.upstreamGone && !g.upstreamUnknown;
-    MMRemovalDecision *d = MMRemovalDecideWith(MMRemovalSmart, MMRemovalWorktree, f);
+    NSString *no = MMRemovalGitWhyNot(f);
     return [NSString stringWithFormat:@"%@|%@|%@|%@", g.upstream.length ? g.upstream : @"None", g.upstreamGone ? @"True" : @"False",
-            g.upstreamUnknown ? @"True" : @"False", d.deleteNow ? @"delete now" : [@"keep: " stringByAppendingString:d.why ?: @""]];
+            g.upstreamUnknown ? @"True" : @"False", !no ? @"git gives back" : [@"keep: " stringByAppendingString:no]];
 }
 
 /// factsFor:wait:YES, off main as it must be.

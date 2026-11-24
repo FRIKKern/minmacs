@@ -5,29 +5,24 @@
 //        what MinMacs is, in two sentences
 //   +------------------------------------------+
 //   | Open at login                     (switch)|
-//   +------------------------------------------+
-//   | When MinMacs removes things               |
-//   |  (o) Smart   what happens                 |
-//   |  ( ) Trash   what happens                 |
-//   |  ( ) Delete  what happens                 |
-//   +------------------------------------------+
-//        Both can be changed later in Settings.
+//        It can be changed later in Settings.
 //      fact        |      fact       |     fact
 //                    [ Start ]
 //
-// It draws only what an MMWindowWelcome holds. Nothing is applied here: Start hands the two answers to onStart.
+// It draws only what an MMWindowWelcome holds. Nothing is applied here: Start hands the answer to onStart.
+// There is no removal choice to ask for: everything MinMacs removes keeps a way back, Core/Act/MMRemoval.h.
 // The parts rise in one after the other when the window opens, and stand still under Reduce Motion. A button takes
 // no press before it has landed, MMWindowTakesPresses.
-// An answer the person has not touched follows the model, so a choice made elsewhere meanwhile shows. One they
+// An answer the person has not touched follows the model, so a change made elsewhere meanwhile shows. One they
 // touched is theirs and stays, whatever a later model says.
 #import "UI/Window/MMWindowWelcomeParts.h"
 
 static const CGFloat kColumn = 600, kSay = 520, kMark = 60, kFact = 280, kRise = 14;
 // Each part starts 0.05 s after the one above it and takes half a second to land, slowing as it does. The last one,
-// Start, has landed 0.9 s after the window opened, and takes a press from then.
-static const NSTimeInterval kStep = 0.05, kPart = 0.5, kArrive = 0.05 + 7 * 0.05 + 0.5;
+// Start, has landed 0.85 s after the window opened, and takes a press from then.
+static const NSTimeInterval kStep = 0.05, kPart = 0.5, kArrive = 0.05 + 6 * 0.05 + 0.5;
 const NSTimeInterval MMWindowWelcomeRise = kArrive;
-enum { PartMark = 0, PartTitle, PartSay, PartLogin, PartRemoval, PartLater, PartFacts, PartStart, PartCount };
+enum { PartMark = 0, PartTitle, PartSay, PartLogin, PartLater, PartFacts, PartStart, PartCount };
 
 /// The narrowest width that keeps the same number of lines, so two lines come out about as long as each other and no
 /// word is left alone on the last one.
@@ -47,24 +42,19 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
 
 @implementation MMWindowWelcomeView {
     MMWelcomeControl *_login, *_start;
-    NSMutableArray<MMWelcomeControl *> *_options;
-    MMWelcomeGroup *_group;             // holds the options, at the removal card's place
     NSRect _parts[PartCount];
     NSString *_built;
-    BOOL _touchedLogin, _touchedRemoval;   // the person changed it here: it is theirs, and no later model moves it
+    BOOL _touchedLogin;                 // the person changed it here: it is theirs, and no later model moves it
     NSTimer *_timer;                    // runs only while the parts rise in or the knob slides
     NSDate *_arriving, *_stepped;       // when the rise began, nil once every part has landed
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
-        _options = [NSMutableArray new];
         _arrival = 1;
         _login = [self control:MMWelcomeSwitch];
         _login.accessibilityRole = NSAccessibilityCheckBoxRole;
         _login.accessibilitySubrole = NSAccessibilitySwitchSubrole;
-        _group = [[MMWelcomeGroup alloc] initWithFrame:NSZeroRect];
-        [self addSubview:_group];
         // Return presses Start through the window's view, -[MMWindowView keyDown:], so a hidden welcome takes no key.
         _start = [self control:MMWelcomeStart];
         self.accessibilityRole = NSAccessibilityGroupRole;
@@ -82,37 +72,20 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
 }
 
 - (BOOL)loginOn { return _login.on; }
-- (NSInteger)picked { for (MMWelcomeControl *o in _options) if (o.on) return o.index; return 0; }
 
 - (void)setWelcome:(MMWindowWelcome *)w {
     _welcome = w;
     if (!w) return;
-    // The cards are built again only when the words changed. What the person picked stays.
-    NSMutableString *sig = [NSMutableString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%@|%d;", w.title, w.say, w.loginTitle, w.loginOnNote, w.loginOffNote, w.removalTitle, w.later, w.start, MMWindowContrast()];
-    for (MMWindowChoice *c in w.removal) [sig appendFormat:@"%@=%@,", c.title, c.explain];
+    // The parts are laid out again only when the words changed. What the person set stays.
+    NSMutableString *sig = [NSMutableString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%d;", w.title, w.say, w.loginTitle, w.loginOnNote, w.loginOffNote, w.later, w.start, MMWindowContrast()];
     for (MMWindowFact *f in w.facts) [sig appendFormat:@"%@=%@,", f.label, f.value];
     BOOL on = _touchedLogin ? self.loginOn : w.loginOn;
-    NSInteger picked = _touchedRemoval ? self.picked : w.removalPicked;
     if ([sig isEqualToString:_built]) {
         // The same words. An answer the person left alone still follows the model.
         if (on != _login.on) { _login.on = on; [self sayLogin]; [self wake]; }
-        for (MMWelcomeControl *o in _options) if (o.on != (o.index == picked)) { o.on = o.index == picked; o.needsDisplay = YES; }
         return;
     }
     _built = sig;
-    NSInteger focus = -1;
-    for (MMWelcomeControl *o in _options) { if (self.window.firstResponder == o) focus = o.index; [o removeFromSuperview]; }
-    [_options removeAllObjects];
-    _group.accessibilityLabel = w.removalTitle;
-    for (NSInteger i = 0; i < (NSInteger)w.removal.count; i++) {
-        MMWelcomeControl *o = [self control:MMWelcomeOption];
-        [_group addSubview:o];
-        o.index = i; o.label = w.removal[i].title; o.explain = w.removal[i].explain;
-        o.accessibilityRole = NSAccessibilityRadioButtonRole;
-        o.accessibilityLabel = [NSString stringWithFormat:@"%@, %@. %@", w.removalTitle, o.label, o.explain];
-        o.on = i == picked;
-        [_options addObject:o];
-    }
     _login.label = w.loginTitle;
     _login.on = on;
     [self sayLogin];
@@ -122,7 +95,6 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
     for (MMWindowFact *f in w.facts) [read addObject:[NSString stringWithFormat:@"%@. %@", f.label, f.value]];
     self.accessibilityLabel = [read componentsJoinedByString:@" "];
     [self place];
-    if (focus >= 0 && focus < (NSInteger)_options.count) [self.window makeFirstResponder:_options[focus]];
 }
 
 /// The switch says what its state means, in the card and to VoiceOver.
@@ -133,22 +105,11 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
 }
 
 /// Start by a press or by Return. Nothing happens while Start has not landed, or once the welcome is on its way out.
-- (void)pressStart { if (self.welcome && self.onStart && MMWindowTakesPresses(_start)) self.onStart(self.loginOn, self.picked); }
+- (void)pressStart { if (self.welcome && self.onStart && MMWindowTakesPresses(_start)) self.onStart(self.loginOn); }
 
 - (void)pressed:(MMWelcomeControl *)c {
     if (c.kind == MMWelcomeStart) { [self pressStart]; return; }
-    if (c.kind == MMWelcomeSwitch) { _touchedLogin = YES; c.on = !c.on; [self sayLogin]; [self wake]; return; }
-    _touchedRemoval = YES;
-    for (MMWelcomeControl *o in _options) { o.on = o == c; o.needsDisplay = YES; }
-}
-
-/// An arrow key on a choice: the pick and the keyboard go to the next or the one before, around the ends.
-- (void)move:(NSInteger)by from:(NSInteger)index {
-    NSInteger n = (NSInteger)_options.count;
-    if (!n) return;
-    MMWelcomeControl *to = _options[(NSUInteger)(((index + by) % n + n) % n)];
-    [self pressed:to];
-    [self.window makeFirstResponder:to];
+    _touchedLogin = YES; c.on = !c.on; [self sayLogin]; [self wake];
 }
 
 #pragma mark Where each part sits
@@ -166,16 +127,15 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
 /// One centered column, with the same room above the mark as below Start.
 - (void)place {
     MMWindowWelcome *w = self.welcome;
-    CGFloat W = self.bounds.size.width, H = self.bounds.size.height, cx = round(W / 2), optionW = kColumn - 16;
-    CGFloat sayH = Height([self sayText], kSay), options = 0, factsH = 0;
-    for (MMWelcomeControl *o in _options) options += [MMWelcomeControl optionHeight:o.explain width:optionW] + 2;
+    CGFloat W = self.bounds.size.width, H = self.bounds.size.height, cx = round(W / 2);
+    CGFloat sayH = Height([self sayText], kSay), factsH = 0;
     for (MMWindowFact *f in w.facts) factsH = MAX(factsH, 18 + 4 + Height([self factText:f], kFact - 36));
-    CGFloat heights[PartCount] = {kMark, 36, sayH, 62, 14 + 19 + 9 + options + 8, 17, factsH, 46};
-    CGFloat gaps[PartCount] = {0, 20, 10, 28, 10, 12, 28, 30};
+    CGFloat heights[PartCount] = {kMark, 36, sayH, 62, 17, factsH, 46};
+    CGFloat gaps[PartCount] = {0, 20, 10, 28, 12, 28, 30};
     CGFloat total = 0;
     for (NSInteger i = 0; i < PartCount; i++) total += heights[i] + gaps[i];
     CGFloat y = floor((H - total) / 2);
-    CGFloat widths[PartCount] = {kMark, kColumn, kSay, kColumn, kColumn, kColumn, kFact * MAX(1, (CGFloat)w.facts.count), 200};
+    CGFloat widths[PartCount] = {kMark, kColumn, kSay, kColumn, kColumn, kFact * MAX(1, (CGFloat)w.facts.count), 200};
     for (NSInteger i = 0; i < PartCount; i++) {
         y += gaps[i];
         _parts[i] = NSMakeRect(cx - round(widths[i] / 2), y, widths[i], heights[i]);
@@ -183,14 +143,6 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
     }
     _login.home = _parts[PartLogin];
     _start.home = _parts[PartStart];
-    // The choices sit in the group, which sits at the card's place.
-    CGFloat oy = 14 + 19 + 9;
-    for (MMWelcomeControl *o in _options) {
-        CGFloat oh = [MMWelcomeControl optionHeight:o.explain width:optionW];
-        o.home = NSMakeRect(8, oy, optionW, oh);
-        o.frame = o.home;
-        oy += oh + 2;
-    }
     [self settle];
 }
 
@@ -200,7 +152,7 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
     return out;
 }
 
-- (NSArray<NSButton *> *)controls { return [[@[_login] arrayByAddingObjectsFromArray:_options] arrayByAddingObject:_start]; }
+- (NSArray<NSButton *> *)controls { return @[_login, _start]; }
 
 #pragma mark Arriving
 
@@ -218,9 +170,6 @@ static void DrawBalanced(NSAttributedString *s, NSRect r) {
         c.frame = NSOffsetRect(c.home, 0, round(kRise * (1 - e)));
         c.alphaValue = e;
     }
-    CGFloat e = [self eased:PartRemoval];
-    _group.frame = NSOffsetRect(_parts[PartRemoval], 0, round(kRise * (1 - e)));
-    _group.alphaValue = e;
     self.needsDisplay = YES;
 }
 
@@ -316,12 +265,6 @@ static void DrawMark(NSRect r) {
         DrawIn(t, r);
     }];
     [self part:PartSay draw:^(NSRect r) { DrawBalanced([self sayText], r); }];
-    [self part:PartRemoval draw:^(NSRect r) {
-        NSBezierPath *card = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(r, 0.5, 0.5) xRadius:14 yRadius:14];
-        [[NSColor colorWithWhite:1 alpha:0.055] setFill]; [card fill];
-        [[NSColor colorWithWhite:1 alpha:contrast ? 0.4 : 0.12] setStroke]; card.lineWidth = 0.5; [card stroke];
-        DrawIn(Para(w.removalTitle, 14.5, NSFontWeightMedium, NSColor.whiteColor, 19, NSTextAlignmentLeft), NSMakeRect(r.origin.x + 18, r.origin.y + 14, r.size.width - 36, 19));
-    }];
     [self part:PartLater draw:^(NSRect r) { DrawIn(Para(w.later, 12, NSFontWeightRegular, Soft(0.46), 17, NSTextAlignmentCenter), r); }];
     [self part:PartFacts draw:^(NSRect r) {
         for (NSInteger i = 0; i < (NSInteger)w.facts.count; i++) {

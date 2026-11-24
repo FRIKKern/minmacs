@@ -1,12 +1,12 @@
-# The removal choice on clutter, issue #62. Sourced at the end of test/noonoo.sh, inside its fixtures: every path
+# Where removed clutter goes, issue #62 and D2. Sourced at the end of test/noonoo.sh, inside its fixtures: every path
 # here is under $nn, which is inside $MINMACS_HOME, the Trash is $nn/Trash, and MMRemovalApply refuses any path
-# outside the tool's MINMACS_HOME. Each choice runs on the same items, made again before it:
+# outside the tool's MINMACS_HOME. Each old value of the pref runs on the same items, made again before it:
 #   node_modules of the merged worktree   build row, rebuilt, with a package-lock.json beside it
 #                                                                   the pip cache      cache row, rebuilt
 #   Cursor's Cache folder                 cache row, not rebuilt    a dead scratch     leak row
 #   six mktemp siblings                   leak row, a family        simulator Devices  tool row, not rebuilt
 #   the fake tool's cache                 tool row, rebuilt for this block
-echo "-- the removal choice: smart, trash and delete on the same items"
+echo "-- an old removal choice in the pref, on the same items"
 nnr_cur="$nnh/Library/Application Support/Cursor/Cache"
 nnr_pip="$nnh/Library/Caches/pip"
 nnr_fam="$nn_T/mv-test-a1B2c3"
@@ -44,89 +44,45 @@ nnr_back() {
 }
 nnr_trash() { ls -A "$nn/Trash" 2>/dev/null | wc -l | tr -d ' '; }
 
-echo "-- smart: what a tool rebuilds is deleted, the rest goes to the Trash"
-nn_removal smart >/dev/null
-nnr_fill
-nnr_t0=$(nnr_trash)
-check "noonoo smart: the row's action says Delete for node_modules and Move to Trash for a leftover" "Delete|Move to Trash" \
-  "$(nnx_show "$nn_wt/node_modules" 'j["action"]')|$(nnx_show "$nn_scr/$nn_dead" 'j["action"]')"
-check "noonoo smart: finished node_modules is deleted at once" "0 gone smart True 0 1 False" "$(nnr_go "$nn_wt/node_modules")"
-check "noonoo smart: its record says why and where, and holds the freed bytes" "its tool rebuilds it|$nn_wt/node_modules|int" \
-  "$(nn_undo '"%s|%s|%s" % (j[0]["payload"]["removal"]["why"], j[0]["payload"]["deleted"][0]["path"], type(j[0]["freedBytes"]).__name__)')"
-check "noonoo smart: undo of it is refused, and it stays gone" "1 missing yes" \
-  "$(nnr_back "$nn_wt/node_modules") $(grep -q 'it was deleted and cannot be brought back' "$nn/nnr-undo.txt" && echo yes || echo no)"
-# The row says rebuilt. Smart still needs the proof on the folder read now: a lockfile beside it, and nothing in it
-# that git tracks. Without either, it keeps a way back.
-nnr_fill
-mv "$nn_wt/package-lock.json" "$nn/lock.aside"
-nnx scan >/dev/null 2>&1
-check "noonoo smart: node_modules with no lockfile beside it goes to the Trash" "0 gone smart False 1 0 True" "$(nnr_go "$nn_wt/node_modules")"
-check "noonoo smart: its record says which file is missing" yes \
-  "$(nn_undo '"yes" if j[0]["payload"]["removal"]["why"].startswith("no package-lock.json or npm-shrinkwrap.json or pnpm-lock.yaml") else j[0]["payload"]["removal"]["why"]')"
-check "noonoo smart: and undo brings it back" "0 back" "$(nnr_back "$nn_wt/node_modules")"
-mv "$nn/lock.aside" "$nn_wt/package-lock.json"
-nn_git -C "$nn_wt" add -f node_modules/left-pad/index.js
-nnx scan >/dev/null 2>&1
-check "noonoo smart: node_modules with a file git tracks goes to the Trash" "0 gone smart False 1 0 True git tracks files in it, so it is part of the project" \
-  "$(nnr_go "$nn_wt/node_modules") $(nn_undo 'j[0]["payload"]["removal"]["why"]')"
-check "noonoo smart: and undo brings it back" "0 back" "$(nnr_back "$nn_wt/node_modules")"
-nn_git -C "$nn_wt" rm -q --cached node_modules/left-pad/index.js
-check "noonoo smart: the row's action says Move to Trash while the proof is missing, and Delete once it holds" "Move to Trash|Delete" \
-  "$(mv "$nn_wt/package-lock.json" "$nn/lock.aside"; nnx scan >/dev/null 2>&1; nnx_show "$nn_wt/node_modules" 'j["action"]'; mv "$nn/lock.aside" "$nn_wt/package-lock.json")|$(nnx scan >/dev/null 2>&1; nnx_show "$nn_wt/node_modules" 'j["action"]')"
-check "noonoo smart: the pip cache is deleted at once" "0 gone smart True 0 1 False" "$(nnr_go "$nnr_pip")"
-check "noonoo smart: a symlink inside it went as a link, and the notes it pointed at stay" notes "$(cat "$nnh/Documents/notes.txt" 2>/dev/null)"
-check "noonoo smart: nothing deleted went to the Trash" "$nnr_t0" "$(nnr_trash)"
-check "noonoo smart: a cache whose row does not say rebuilt goes to the Trash" "0 gone smart False 1 0 True" "$(nnr_go "$nnr_cur")"
-check "noonoo smart: its record says why it was kept" "its row does not say that a tool rebuilds it" "$(nn_undo 'j[0]["payload"]["removal"]["why"]')"
-check "noonoo smart: and undo brings it back" "0 back" "$(nnr_back "$nnr_cur")"
-check "noonoo smart: a leftover goes to the Trash" "0 gone smart False 1 0 True" "$(nnr_go "$nn_scr/$nn_dead")"
-check "noonoo smart: its record says it is a leftover" "it is a leftover, and nothing rebuilds a leftover" "$(nn_undo 'j[0]["payload"]["removal"]["why"]')"
-check "noonoo smart: and undo brings it back" "0 back" "$(nnr_back "$nn_scr/$nn_dead")"
-check "noonoo smart: every member of a leftover family goes to the Trash" "0 gone smart False 6 0 True" "$(nnr_go "$nnr_fam")"
-check "noonoo smart: and undo brings them back" "0 back" "$(nnr_back "$nnr_fam")"
-check "noonoo smart: a tool row that is not rebuilt still gets its recovery copy" "0 gone smart False 1 True" \
-  "$(nnx verb clean "$nn_dev" >/dev/null 2>&1; echo $?) $([ -e "$nn_dev/$nn_gone" ] && echo kept || echo gone) $(nn_undo '"%s %s %d %s" % (j[0]["payload"]["removal"]["choice"], j[0]["payload"]["removal"]["deleted"], len(j[0]["payload"]["recovery"]["saved"]), j[0]["canRestore"])')"
-check "noonoo smart: and undo copies the device back" "0 back" "$(nnr_back "$nn_dev/$nn_gone")"
-check "noonoo smart: a rebuilt tool row's dry run says no recovery copy is made" yes \
-  "$(nnx verb clean "$nnx_c" --dry-run 2>/dev/null | grep -q 'with no recovery copy, since its tool fetches it again. It cannot be brought back.' && echo yes || echo no)"
-nnx verb clean "$nnx_c" >/dev/null 2>&1
-check "noonoo smart: a rebuilt tool row runs its command with no recovery copy" "0 clean True no False" \
-  "$(nnx_files cache) $(nn_undo '"%s %s %s %s" % (j[0]["kind"], j[0]["payload"]["removal"]["deleted"], "yes" if "recovery" in j[0]["payload"] else "no", j[0]["canRestore"])')"
-check "noonoo smart: no recovery folder was made for it" no "$([ -e "$nn/noonoo/recovery/$(nn_undo 'j[0]["rid"]')" ] && echo yes || echo no)"
-check "noonoo smart: its record says it cannot be brought back" yes \
-  "$(nn_undo '"yes" if "no recovery copy" in j[0]["payload"].get("undo", "") and "cannot be brought back" in j[0]["payload"]["undo"] else "no"')"
-
-echo "-- trash: everything keeps a way back"
-nn_removal trash >/dev/null
-nnr_fill
-check "noonoo trash: the row's action says Move to Trash for node_modules" "Move to Trash" "$(nnx_show "$nn_wt/node_modules" 'j["action"]')"
-check "noonoo trash: finished node_modules goes to the Trash" "0 gone trash False 1 0 True" "$(nnr_go "$nn_wt/node_modules")"
-check "noonoo trash: and undo brings it back" "0 back" "$(nnr_back "$nn_wt/node_modules")"
-nnx verb clean "$nnx_c" >/dev/null 2>&1
-check "noonoo trash: a rebuilt tool row still gets its recovery copy" "0 trash False yes True" \
-  "$(nnx_files cache) $(nn_undo '"%s %s %s %s" % (j[0]["payload"]["removal"]["choice"], j[0]["payload"]["removal"]["deleted"], "yes" if "recovery" in j[0]["payload"] else "no", j[0]["canRestore"])')"
-
-echo "-- delete: everything it removes is deleted at once"
-nn_removal delete >/dev/null
-nnr_fill
-nnr_t0=$(nnr_trash)
-check "noonoo delete: a leftover's dry run says it is deleted, since you chose Delete" yes \
-  "$(nnx verb clean "$nn_scr/$nn_dead" --dry-run 2>/dev/null | grep -q 'would delete .*, since you chose Delete, so it is deleted at once. It cannot be brought back.' && echo yes || echo no)"
-check "noonoo delete: the row's action says Delete for a leftover" Delete "$(nnx_show "$nn_scr/$nn_dead" 'j["action"]')"
-check "noonoo delete: a leftover is deleted" "0 gone delete True 0 1 False" "$(nnr_go "$nn_scr/$nn_dead")"
-check "noonoo delete: undo of it is refused" "1 missing" "$(nnr_back "$nn_scr/$nn_dead")"
-check "noonoo delete: every member of a leftover family is deleted" "0 gone delete True 0 6 False" "$(nnr_go "$nnr_fam")"
-check "noonoo delete: a cache that is not rebuilt is deleted" "0 gone delete True 0 1 False" "$(nnr_go "$nnr_cur")"
-check "noonoo delete: finished node_modules is deleted" "0 gone delete True 0 1 False" "$(nnr_go "$nn_wt/node_modules")"
-check "noonoo delete: nothing went to the Trash" "$nnr_t0" "$(nnr_trash)"
-nnx verb clean "$nn_dev" >/dev/null 2>&1
-check "noonoo delete: a tool row runs with no recovery copy, and only its own target goes" "gone kept delete True no False" \
-  "$([ -e "$nn_dev/$nn_gone" ] && echo kept || echo gone) $([ -e "$nn_dev/$nn_keep" ] && echo kept || echo gone) $(nn_undo '"%s %s %s %s" % (j[0]["payload"]["removal"]["choice"], j[0]["payload"]["removal"]["deleted"], "yes" if "recovery" in j[0]["payload"] else "no", j[0]["canRestore"])')"
-check "noonoo delete: the walls still hold: an unlisted cache and the home folder stay" "1 1 yes yes" \
-  "$(nnx verb clean "$nnh/Library/Caches/random-app" >/dev/null 2>&1; echo $?) $(nnx verb clean "$nnh" >/dev/null 2>&1; echo $?) $([ -f "$nnh/Library/Caches/random-app/c" ] && echo yes || echo no) $([ -f "$nnh/Documents/notes.txt" ] && echo yes || echo no)"
-check "noonoo delete: a kept item stays: the transcripts and the tracked dist folder" "yes yes" \
-  "$(nnx verb clean "$nn/claude/projects/-code-acme" >/dev/null 2>&1; [ -d "$nn/claude/projects/-code-acme" ] && echo yes || echo no) $(nnx verb clean "$nn_main/dist" >/dev/null 2>&1; [ -f "$nn_main/dist/app.js" ] && echo yes || echo no)"
-check "noonoo: the CLI says a deleted item cannot be brought back" yes \
-  "$(nnr_fill; nnx verb clean "$nnr_cur" 2>/dev/null | grep -q '^deleted .*\. It cannot be brought back\.$' && echo yes || echo no)"
-nn_removal smart >/dev/null
+# D2: with an old smart or delete in the pref, as an older MinMacs wrote it, everything still keeps a way back.
+nnr_old() {   # the old value
+  echo "-- an old $1 in the pref: everything goes to the Trash or a recovery copy"
+  old_removal "$nn" "$1"
+  nnr_fill
+  nnr_t0=$(nnr_trash)
+  check "noonoo old $1: the row's action says Move to Trash for node_modules and for a leftover" "Move to Trash|Move to Trash" \
+    "$(nnx_show "$nn_wt/node_modules" 'j["action"]')|$(nnx_show "$nn_scr/$nn_dead" 'j["action"]')"
+  check "noonoo old $1: no dry run says delete or cannot be brought back" "no no no" \
+    "$(for p in "$nn_wt/node_modules" "$nn_scr/$nn_dead" "$nnx_c"; do nnx verb clean "$p" --dry-run 2>/dev/null | grep -qE 'would delete|cannot be brought back' && printf 'yes ' || printf 'no '; done | sed 's/ $//')"
+  check "noonoo old $1: finished node_modules, which a tool rebuilds, goes to the Trash" "0 gone trash False 1 0 True" "$(nnr_go "$nn_wt/node_modules")"
+  check "noonoo old $1: its record says so" "it goes to the Trash, so Restore moves it back" "$(nn_undo 'j[0]["payload"]["removal"]["why"]')"
+  check "noonoo old $1: and undo brings it back" "0 back" "$(nnr_back "$nn_wt/node_modules")"
+  check "noonoo old $1: the pip cache goes to the Trash" "0 gone trash False 1 0 True" "$(nnr_go "$nnr_pip")"
+  check "noonoo old $1: the notes a symlink inside it pointed at stay" notes "$(cat "$nnh/Documents/notes.txt" 2>/dev/null)"
+  check "noonoo old $1: and undo brings it back, the link as a link" "0 back yes" "$(nnr_back "$nnr_pip") $([ -L "$nnr_pip/docs-link" ] && echo yes || echo no)"
+  check "noonoo old $1: a cache whose row does not say rebuilt goes to the Trash" "0 gone trash False 1 0 True" "$(nnr_go "$nnr_cur")"
+  check "noonoo old $1: and undo brings it back" "0 back" "$(nnr_back "$nnr_cur")"
+  check "noonoo old $1: a leftover goes to the Trash" "0 gone trash False 1 0 True" "$(nnr_go "$nn_scr/$nn_dead")"
+  check "noonoo old $1: and undo brings it back" "0 back" "$(nnr_back "$nn_scr/$nn_dead")"
+  check "noonoo old $1: every member of a leftover family goes to the Trash" "0 gone trash False 6 0 True" "$(nnr_go "$nnr_fam")"
+  check "noonoo old $1: and undo brings them back" "0 back" "$(nnr_back "$nnr_fam")"
+  check "noonoo old $1: everything removed went to the Trash and came back out of it" "$nnr_t0" "$(nnr_trash)"
+  check "noonoo old $1: a tool row that is not rebuilt gets its recovery copy, and only its own target goes" "0 gone kept trash False 1 True" \
+    "$(nnx verb clean "$nn_dev" >/dev/null 2>&1; echo $?) $([ -e "$nn_dev/$nn_gone" ] && echo kept || echo gone) $([ -e "$nn_dev/$nn_keep" ] && echo kept || echo gone) $(nn_undo '"%s %s %d %s" % (j[0]["payload"]["removal"]["choice"], j[0]["payload"]["removal"]["deleted"], len(j[0]["payload"]["recovery"]["saved"]), j[0]["canRestore"])')"
+  check "noonoo old $1: and undo copies the device back" "0 back" "$(nnr_back "$nn_dev/$nn_gone")"
+  check "noonoo old $1: a rebuilt tool row's dry run says a recovery copy is made first" yes \
+    "$(nnx verb clean "$nnx_c" --dry-run 2>/dev/null | grep -q 'to the recovery folder, then run' && echo yes || echo no)"
+  nnx verb clean "$nnx_c" >/dev/null 2>&1
+  check "noonoo old $1: a rebuilt tool row still gets its recovery copy, and can restore" "0 clean False yes True" \
+    "$(nnx_files cache) $(nn_undo '"%s %s %s %s" % (j[0]["kind"], j[0]["payload"]["removal"]["deleted"], "yes" if "recovery" in j[0]["payload"] else "no", j[0]["canRestore"])')"
+  check "noonoo old $1: its recovery folder was made" yes "$([ -e "$nn/noonoo/recovery/$(nn_undo 'j[0]["rid"]')" ] && echo yes || echo no)"
+  check "noonoo old $1: the walls still hold: an unlisted cache and the home folder stay" "1 1 yes yes" \
+    "$(nnx verb clean "$nnh/Library/Caches/random-app" >/dev/null 2>&1; echo $?) $(nnx verb clean "$nnh" >/dev/null 2>&1; echo $?) $([ -f "$nnh/Library/Caches/random-app/c" ] && echo yes || echo no) $([ -f "$nnh/Documents/notes.txt" ] && echo yes || echo no)"
+  check "noonoo old $1: a kept item stays: the transcripts and the tracked dist folder" "yes yes" \
+    "$(nnx verb clean "$nn/claude/projects/-code-acme" >/dev/null 2>&1; [ -d "$nn/claude/projects/-code-acme" ] && echo yes || echo no) $(nnx verb clean "$nn_main/dist" >/dev/null 2>&1; [ -f "$nn_main/dist/app.js" ] && echo yes || echo no)"
+}
+nnr_old smart
+nnr_old delete
+check "noonoo: the CLI never says a removed item cannot be brought back" no \
+  "$(nnr_fill; nnx verb clean "$nnr_cur" 2>/dev/null | grep -q 'cannot be brought back' && echo yes || echo no)"
 nn_rowdirs=""

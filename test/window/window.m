@@ -3,10 +3,10 @@
 // The fixture helpers are test/performance/performance.m's own: its fake sample, worktrees, git facts, sessions,
 // agents and experts. That file is included below with its main renamed, so the two sections share one world maker.
 // Here the facts have the shape the real experts write, and the actions act: on files this tool made inside the
-// fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a trashed file lands in
-// $MINMACS_HOME/Trash and a deleted one is unlinked inside the fixture folder only. A stop or a quit only writes its
+// fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a removed file lands in
+// $MINMACS_HOME/Trash: MMRemovalDecide never deletes at once. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | trash | delete | welcome | unmeasured | planned
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -35,9 +35,9 @@ static NSMutableSet<NSString *> *gRefuses;      // finding ids whose action runs
     // A stop, a quit or a tab close ends nothing here. Only a removal touches the disk, and only inside the fixtures.
     if (![verb isEqualToString:@"remove"]) return YES;
     if (![f.path hasPrefix:gDir]) { if (error) *error = @"not a fixture path"; return NO; }
-    // Where it goes is the removal choice's one decision, on the fixture's own facts. A worktree here is merged and
+    // Where it goes is MMRemovalDecide's one answer, a way back, on the fixture's own facts. A worktree here is merged and
     // clean, node_modules is build output its tool rebuilds, and DerivedData stands for a cache whose row does not
-    // say rebuilt. git is not run: the worktree's folder goes the way the decision says.
+    // say rebuilt. git is not run: the worktree's folder goes to the Trash in git's place.
     MMRemovalDecision *d;
     if ([f.kind isEqualToString:@"worktree"]) {
         MMRemovalFacts *now = [MMRemovalFacts worktreeKnown:YES merged:YES upstreamGone:NO dirty:0 untracked:0 unpushed:0 stashes:0];
@@ -421,7 +421,7 @@ static void WindowModel(void) {
     // The fixes.
     T(@"window: the fixes are the Performance model's, in its order", [[p.fixes valueForKey:@"key"] componentsJoinedByString:@","], [[m.fixes valueForKey:@"key"] componentsJoinedByString:@","]);
     T(@"window: each fix has a title in plain words",
-      @"Clean pnpm store | Clean up 1 leftover | Quit 1 app | Remove 1 merged worktree | Stop 1 idle server | Wrap Up fix-auth-redirect",
+      @"Clean pnpm store | Move 1 leftover to the Trash | Quit 1 app | Remove 1 merged worktree | Stop 1 idle server | Wrap Up fix-auth-redirect",
       [[[m.fixes valueForKey:@"title"] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" | "]);
     uint64_t mb = 0, db2 = 0; NSInteger n = 0, needs = 0;
     for (MMPerformanceFix *f in p.fixes) { if (f.needsYou) { needs++; continue; } n++; mb += f.memoryBack; db2 += f.diskBack; }
@@ -438,21 +438,14 @@ static void WindowModel(void) {
 
     // Settings.
     MMWindowSettings *st = m.settings;
-    T(@"window: one rule per expert that has modes, then the removal choice", @"servers,apps,worktrees,caches,removal", [[st.rules valueForKey:@"ruleID"] componentsJoinedByString:@","]);
+    T(@"window: one rule per expert that has modes, and no removal card", @"servers,apps,worktrees,caches", [[st.rules valueForKey:@"ruleID"] componentsJoinedByString:@","]);
     BOOL three = YES;
     for (MMWindowRule *r in st.rules) {
-        if ([r.ruleID isEqualToString:MMWindowRemovalRuleID]) continue;
         if (![[[r.choices valueForKey:@"title"] componentsJoinedByString:@","] isEqualToString:@"Off,Careful,Eager"]) three = NO;
         for (MMWindowChoice *c in r.choices) if (!c.explain.length) three = NO;
     }
     T(@"window: each rule has three choices, each with what it does", @"yes", YN(three));
-    T(@"window: picked follows each expert's mode, and while no removal choice is made none is picked", @"2,0,1,1,-1", [[st.rules valueForKey:@"picked"] componentsJoinedByString:@","]);
-    MMWindowRule *removal = st.rules.lastObject;
-    T(@"window: the removal card's title and its three choices", @"When MinMacs removes things: Smart,Trash,Delete", [NSString stringWithFormat:@"%@: %@", removal.title,
-      [[removal.choices valueForKey:@"title"] componentsJoinedByString:@","]]);
-    T(@"window: each removal choice says what it means in one sentence",
-      @"Deletes what git or its tool can give back. The rest goes to the Trash.|Everything goes to the Trash. The disk comes back when you empty it.|Deletes everything it removes at once. Nothing can be brought back.",
-      [[removal.choices valueForKey:@"explain"] componentsJoinedByString:@"|"]);
+    T(@"window: picked follows each expert's mode", @"2,0,1,1", [[st.rules valueForKey:@"picked"] componentsJoinedByString:@","]);
     // The render's Settings fixtures hold what the feed makes: the same cards, titles, choices and sentences, and the
     // same switches. A card or a word that differs fails here.
     NSString *(^words)(MMWindowSettings *) = ^NSString *(MMWindowSettings *x) {
@@ -466,23 +459,21 @@ static void WindowModel(void) {
     };
     for (NSString *name in @[@"busy", @"removal", @"calm", @"empty", @"welcome"])
         T([NSString stringWithFormat:@"window: the render's %@ Settings says the feed's cards, word for word", name], words(st), words(MMWindowFixture(name).settings));
-    T(@"window: the fixtures' notes are the feed's own sentences", @"1 ready. It waits for your press. | It only watches for 23h more, then it may act. | This Mac has no lid, so it changes nothing here. | yes",
-      [NSString stringWithFormat:@"%@ | %@ | %@ | %@", MMWindowFixture(@"busy").settings.rules[1].note, MMWindowFixture(@"calm").settings.rules[0].note,
-       MMWindowFixture(@"calm").settings.switches[0].note, YN([MMWindowFixture(@"calm").settings.rules.lastObject.note isEqualToString:removal.note])]);
-    T(@"window: the removal card is no expert's mode", @"(null)", [NSString stringWithFormat:@"%@", MMWindowRuleExpert(MMWindowRemovalRuleID)]);
-    T(@"window: while nothing is chosen the card's note says what holds until then", @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash.", removal.note);
-    MMSetRemovalChoice(MMRemovalSmart);
-    T(@"window: once Smart is picked the note is gone", @"0 (nil)", [NSString stringWithFormat:@"%ld %@", (long)MMWindowModelFrom(s, p, nil).settings.rules.lastObject.picked,
-      MMWindowModelFrom(s, p, nil).settings.rules.lastObject.note ?: @"(nil)"]);
-    MMSetRemovalChoice(MMRemovalDelete);
-    MMWindowModel *m2 = MMWindowModelFrom(s, p, nil);
-    T(@"window: the card and the fix's title follow the pref", @"2 Delete 1 leftover", [NSString stringWithFormat:@"%ld %@", (long)m2.settings.rules.lastObject.picked,
-      [[[m2.fixes valueForKey:@"title"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF CONTAINS 'leftover'"]] firstObject]]);
-    MMSetRemovalChoice(MMRemovalTrash);
-    m2 = MMWindowModelFrom(s, p, nil);
-    T(@"window: under Trash the fix says Move to the Trash", @"1 Move 1 leftover to the Trash", [NSString stringWithFormat:@"%ld %@", (long)m2.settings.rules.lastObject.picked,
-      [[[m2.fixes valueForKey:@"title"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF CONTAINS 'leftover'"]] firstObject]]);
+    T(@"window: the fixtures' notes are the feed's own sentences", @"1 ready. It waits for your press. | It only watches for 23h more, then it may act. | This Mac has no lid, so it changes nothing here.",
+      [NSString stringWithFormat:@"%@ | %@ | %@", MMWindowFixture(@"busy").settings.rules[1].note, MMWindowFixture(@"calm").settings.rules[0].note,
+       MMWindowFixture(@"calm").settings.switches[0].note]);
+    // D2: an old smart or delete in the pref brings no card back and changes no title. A leftover goes to the Trash.
+    NSMutableArray *olds = [NSMutableArray new];
+    for (NSString *v in @[@"smart", @"delete", @"trash"]) {
+        MMSetPref(MMRemovalKey, v);
+        MMWindowModel *m2 = MMWindowModelFrom(s, p, nil);
+        [olds addObject:[NSString stringWithFormat:@"%@:%@:%@", v, [[m2.settings.rules valueForKey:@"ruleID"] componentsJoinedByString:@","],
+                         [[[m2.fixes valueForKey:@"title"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF CONTAINS 'leftover'"]] firstObject]]];
+    }
     MMSetPref(MMRemovalKey, nil);
+    T(@"window: an old removal choice in the pref brings no card back, and the fix still says the Trash",
+      @"smart:servers,apps,worktrees,caches:Move 1 leftover to the Trash delete:servers,apps,worktrees,caches:Move 1 leftover to the Trash trash:servers,apps,worktrees,caches:Move 1 leftover to the Trash",
+      [olds componentsJoinedByString:@" "]);
     T(@"window: a rule that is off says what waits for the press", @"1 ready. It waits for your press.", st.rules[1].note);
     T(@"window: a rule maps back to its expert", @"locohost minmacs workforest noonoo (null)", [NSString stringWithFormat:@"%@ %@ %@ %@ %@",
       MMWindowRuleExpert(@"servers"), MMWindowRuleExpert(@"apps"), MMWindowRuleExpert(@"worktrees"), MMWindowRuleExpert(@"caches"), MMWindowRuleExpert(@"icons")]);
@@ -579,7 +570,7 @@ static void RunAll(void) {
     NSMutableDictionary<NSString *, NSString *> *by = [NSMutableDictionary new];
     for (MMFixResult *x in res) by[x.name] = x.outcome;
     for (MMFixResult *x in res) if (![x.outcome isEqualToString:@"done"]) Info([NSString stringWithFormat:@"%@ %@: %@", x.outcome, x.name, x.why]);
-    T(@"run: each step in plain words", @"Cleaning up DerivedData | Quitting Chat | Removing old-spike | Stopping :3001 Next.js | Wrapping up fix-auth-redirect", Steps(seen));
+    T(@"run: each step in plain words", @"Moving DerivedData to the Trash | Quitting Chat | Removing old-spike | Stopping :3001 Next.js | Wrapping up fix-auth-redirect", Steps(seen));
     T(@"run: what each step did", @":3001 Next.js=done Chat=kept DerivedData=done fix-auth-redirect=done old-spike=done", ({
         NSMutableArray *a = [NSMutableArray new];
         for (NSString *k in [by.allKeys sortedArrayUsingSelector:@selector(compare:)]) [a addObject:[NSString stringWithFormat:@"%@=%@", k, by[k]]];
@@ -587,11 +578,10 @@ static void RunAll(void) {
     T(@"run: the thing that changed since the snapshot was kept, and its action never ran", @"no", YN([gRan containsObject:@"minmacs:app:com.example.chat"]));
     T(@"run: the fix that needs your own press was skipped", @"no", YN([gRan containsObject:@"noonoo:clutter:pnpm-store"]));
     T(@"run: the end", @"no 4 5 4 of 5 fixes done", [NSString stringWithFormat:@"%@ %ld %ld %@", YN(end.running), (long)end.done, (long)end.total, end.endTitle]);
-    // Under Smart, the default: node_modules and the two merged worktrees were deleted, and DerivedData, whose row does
-    // not say rebuilt here, went to the Trash.
+    // D2: node_modules, DerivedData and the two merged worktrees all went to the Trash. Nothing was deleted.
     T(@"run: the end note says what was skipped and where removed things went in this run",
       @"Skipped 1 agent that asks you, 1 fix that needs your own press and 1 kept since it changed or is in use. "
-      @"Deleted 3, moved 1 to the Trash. Files git ignores were saved in a recovery folder.", end.endNote);
+      @"Moved 4 to the Trash. Files git ignores were saved in a recovery folder.", end.endNote);
     // The note's two numbers, counted again here from each record of the run, a Wrap Up as its parts: a record with
     // something still in the Trash, and a record whose payload says its thing is gone and whose path is gone.
     NSInteger inTrashNow = 0, goneNow = 0;
@@ -608,7 +598,7 @@ static void RunAll(void) {
             if (held) inTrashNow++; else if (r.deletedNow && ![NSFileManager.defaultManager fileExistsAtPath:r.payload[@"asked"][0]]) goneNow++;
         }
     }
-    T(@"run: the note's counts match what the records and the disk say", @"Deleted 3, moved 1 to the Trash.", [NSString stringWithFormat:@"Deleted %ld, moved %ld to the Trash.", (long)goneNow, (long)inTrashNow]);
+    T(@"run: the note's counts match what the records and the disk say", @"Deleted 0, moved 4 to the Trash.", [NSString stringWithFormat:@"Deleted %ld, moved %ld to the Trash.", (long)goneNow, (long)inTrashNow]);
     T(@"run: the planned totals are the window's own, each side apart", @"yes", YN(end.memoryPlanned == m.memoryBack && end.diskPlanned == m.diskBack));
     // The server outside the Wrap Up, plus the Wrap Up's server and helper. The kept app gave nothing back.
     T(@"run: memory back counts only what ran", @(512 * MB + 364 * MB), @(end.memoryBack));
@@ -619,8 +609,7 @@ static void RunAll(void) {
     }
     T(@"run: progress only grows, and the plan holds still", @"yes yes", [NSString stringWithFormat:@"%@ %@", YN(grew), YN(steady)]);
 
-    // Invariant 1: every step left an undo record by "manual". What went to the Trash can come back, and what was
-    // deleted says so in its record.
+    // Invariant 1: every step left an undo record by "manual", and what went to the Trash can come back.
     BOOL records = YES; NSString *trashRid = nil, *treeRid = nil;
     for (MMFixResult *x in res) {
         if (![x.outcome isEqualToString:@"done"]) continue;
@@ -632,12 +621,12 @@ static void RunAll(void) {
     T(@"run: every step that ran has a finished undo record by manual", @"yes", YN(records));
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *trash = MMTrashFolder();
-    T(@"run: both folders left their place, and only DerivedData is in the test Trash", @"no no 1", [NSString stringWithFormat:@"%@ %@ %lu", YN([fm fileExistsAtPath:derived]),
+    T(@"run: both folders left their place, and all four removed things are in the test Trash", @"no no 4", [NSString stringWithFormat:@"%@ %@ %lu", YN([fm fileExistsAtPath:derived]),
       YN([fm fileExistsAtPath:spike]), (unsigned long)([fm contentsOfDirectoryAtPath:trash error:nil].count - trashBefore)]);
     MMUndoRecord *tree = treeRid ? [MMUndo.shared record:treeRid] : nil, *cache = trashRid ? [MMUndo.shared record:trashRid] : nil;
-    T(@"run: the worktree's record says deleted, since git can give it back, and its .env was not", @"smart 1 0", [NSString stringWithFormat:@"%@ %@ %@",
+    T(@"run: the worktree's record does not say deleted, and its .env was not", @"trash 0 0", [NSString stringWithFormat:@"%@ %@ %@",
       tree.payload[@"removal"][@"choice"], tree.payload[@"removal"][@"deleted"], tree.payload[@"removal"][@"ignored"][@"deleted"]]);
-    T(@"run: the cache's record says it went to the Trash and can restore", @"smart 0 yes", [NSString stringWithFormat:@"%@ %@ %@",
+    T(@"run: the cache's record says it went to the Trash and can restore", @"trash 0 yes", [NSString stringWithFormat:@"%@ %@ %@",
       cache.payload[@"removal"][@"choice"], cache.payload[@"removal"][@"deleted"], YN(cache.canRestore)]);
     NSString *saved = [tree.payload[@"recovery"] isKindOfClass:NSDictionary.class] ? tree.payload[@"recovery"][@"dir"] : nil;
     T(@"run: the worktree's ignored file is in its recovery folder", @"yes", YN(saved.length && [fm fileExistsAtPath:[saved stringByAppendingPathComponent:@".env"]]));
@@ -667,7 +656,7 @@ static void RunStopped(void) {
 
 // The stop inside a fix, the app that will not quit and the controller's checks.
 #import "controller.m"
-// Fix Everything under the Trash choice and under Delete.
+// Fix Everything with an old Smart or Delete in the pref: everything still keeps a way back.
 #import "removal.m"
 // The welcome of the first launch.
 #import "welcome.m"
@@ -696,8 +685,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"inside"]) RunStoppedInside();
         else if ([mode isEqualToString:@"refused"]) RunRefused();
         else if ([mode isEqualToString:@"controller"]) Controller();
-        else if ([mode isEqualToString:@"trash"]) RunChoice(MMRemovalTrash);
-        else if ([mode isEqualToString:@"delete"]) RunChoice(MMRemovalDelete);
+        else if ([mode isEqualToString:@"smart"]) RunChoice(@"smart");
+        else if ([mode isEqualToString:@"delete"]) RunChoice(@"delete");
         else if ([mode isEqualToString:@"welcome"]) Welcome();
         else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
         else if ([mode isEqualToString:@"planned"]) Planned();

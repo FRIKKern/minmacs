@@ -240,10 +240,9 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 /// view's own until Start, so a newer model never takes it back. One they left alone follows the model.
 @interface MMWindowWelcomeView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowWelcome *welcome;
-@property (copy, nullable) void (^onStart)(BOOL openAtLogin, NSInteger removal);
+@property (copy, nullable) void (^onStart)(BOOL openAtLogin);
 @property (nonatomic) CGFloat arrival;                               // 0 to 1: how far the parts have risen in
 @property (readonly) BOOL loginOn;
-@property (readonly) NSInteger picked;
 - (void)pressStart;                                                  // Start, as a press or Return
 - (void)rest;                                                        // the panel left: no timer
 - (void)willArrive;                                                  // the panel is about to come on screen

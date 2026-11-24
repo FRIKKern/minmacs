@@ -23,8 +23,7 @@
     for (MMWindowRule *r in m.settings.rules) { add(r.title); add(r.note); for (MMWindowChoice *c in r.choices) { add(c.title); add(c.explain); } }
     for (MMWindowSwitch *w in m.settings.switches) { add(w.title); add(w.note); }
     MMWindowWelcome *w = m.welcome;
-    for (NSString *x in @[w.title ?: @"", w.say ?: @"", w.loginTitle ?: @"", w.loginOnNote ?: @"", w.loginOffNote ?: @"", w.removalTitle ?: @"", w.later ?: @"", w.start ?: @""]) add(x);
-    for (MMWindowChoice *c in w.removal) { add(c.title); add(c.explain); }
+    for (NSString *x in @[w.title ?: @"", w.say ?: @"", w.loginTitle ?: @"", w.loginOnNote ?: @"", w.loginOffNote ?: @"", w.later ?: @"", w.start ?: @""]) add(x);
     for (MMWindowFact *f in w.facts) { add(f.label); add(f.value); }
     return s;
 }

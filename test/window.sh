@@ -3,8 +3,8 @@
 # controller files of Sources/Shell and the plain model of Sources/UI/Window, and runs it on fixture facts inside
 # $MINMACS_HOME.
 # The runner's actions are fakes that act only on files the tool made in its own fixture folder: a stop or a quit
-# writes its key to a list, and a removal goes where the removal choice says, through MMRemovalApply: into
-# $MINMACS_HOME/Trash, or deleted inside the fixture folder, which MMRemovalApply never leaves. No process starts.
+# writes its key to a list, and a removal goes through MMRemovalApply into $MINMACS_HOME/Trash, since everything
+# MinMacs removes keeps a way back. No process starts.
 # Fix Everything has no verb, so nothing here could act on a real server, worktree, cache or app.
 
 wn_dir="$(cd "$MINMACS_HOME" && pwd -P)/window.$$"
@@ -48,8 +48,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run refused
   echo "-- the controller: open and closed, generations, two presses, stop and what waits for the end"
   wn_run controller
-  echo "-- Fix Everything under the Trash choice and under Delete"
-  wn_run trash
+  echo "-- Fix Everything with an old Smart or Delete in the pref"
+  wn_run smart
   wn_run delete
   echo "-- the welcome of the first launch"
   wn_run welcome
@@ -104,11 +104,9 @@ wn_rules="$(wn_has LocoHost/MMLHScan.m 'EnvMinutes(@"LOCOHOST_PROACTIVE_MINUTES"
   wn_has MinMacs/MMMinMacsExpert.m 'if (m != MMModeEager) return @"Proactive never quits an app on its own";' 'return @"Eager quits apps only while memory pressure or heat is high";'
   wn_has NooNoo/MMNooNooExpert.m 'if ([sec isEqual:@"finished"] || [sec isEqual:@"leftovers"]) return nil;' 'if (m == MMModeEager && [f.facts[@"class"] isEqual:@"cache"]) return nil;' 'return @"Noo-Noo runs a tool'"'"'s own cleanup only when you ask";')"
 check "window: each mode rule is still what Settings says it is" "1 1 1 1 1 1 1 1 1 1 1" "${wn_rules% }"
-# The render's Settings fixture cannot link Core, so it holds the removal card's sentences as its own strings.
-check "window: the render's removal card says Core's three sentences and the feed's title" "1 1 1 1" \
-  "$(for wn_s in 'Deletes what git or its tool can give back. The rest goes to the Trash.' 'Everything goes to the Trash. The disk comes back when you empty it.' 'Deletes everything it removes at once. Nothing can be brought back.'; do
-       grep -qF "$wn_s" Sources/Core/Act/MMRemoval.m && grep -qF "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
-     grep -qF 'r.title = MMWindowRemovalTitle;' Sources/Shell/MMWindowRules.m && grep -qF 'Card(@"removal", MMWindowRemovalTitle,' Sources/UI/Window/MMWindowFixture.m && printf '1' || printf '0')"
+# D2: there is no removal choice to offer. Neither the feed nor the render's fixture draws a card for it.
+check "window: neither the feed's Settings nor the render's offers a removal card" "0 0 0" \
+  "$(grep -c 'RemovalRule\|MMWindowRemovalRuleID' Sources/Shell/MMWindowRules.m) $(grep -c 'Card(@"removal"' Sources/UI/Window/MMWindowFixture.m) $(grep -rc 'MMRemovalChoiceTitle\|MMRemovalChoiceExplain' Sources/Shell Sources/UI | awk -F: '{s+=$2} END {print s+0}')"
 # The render's made-up rows may only use the words the feed can put on a row. tools/render-window-words.m holds the
 # rows to these lists; here each word is held to the feed's own source, so a word the feed drops fails.
 wn_words=$(for wn_s in '@"kept"' '@"idle"' '@"asks"' '@"left behind"' '@"changed"' '@"merged"' '@"in use"' '@"will close"'; do
@@ -118,7 +116,7 @@ wn_words=$(for wn_s in '@"kept"' '@"idle"' '@"asks"' '@"left behind"' '@"changed
   grep -qF -- "Fact(@\"$wn_s\"," Sources/UI/Window/MMWindowModel.m && printf '1' || printf '0(%s)' "$wn_s"; done
   printf ' %s' "$(grep -cE 'MMWindowFact label:|\[MMWindowFact new\]' Sources/Shell/MMWindowRows.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m | awk -F: '{n += $2} END {print n}')")
 check "window: every state word is one the feed writes, every fact label is the model's, and neither the feed nor the made-up rows word a fact themselves" "1111111111111111111111111111111 0" "$wn_words"
-check "window: the removal title and the first-look line are each written once" "1 1" \
+check "window: the removal title is gone, and the first-look line is written once" "0 1" \
   "$(grep -rF '@"When MinMacs removes things"' Sources | grep -c .) $(grep -rF '@"MinMacs is taking its first look. It takes a few seconds."' Sources | grep -c .)"
 # The welcome: the login item is added in two places only, the old first launch and -setLogin:, and the window reaches
 # -setLogin: from the Settings switch and from Start alone. Under MINMACS_HOME -setLogin: returns before SMAppService.
@@ -140,7 +138,7 @@ check "window: SMAppService is registered in MMShell.m only" 0 "$(grep -lE 'regi
 check "window: the render's welcome says the feed's three facts for a new person" "1 1 1 1 1 1" \
   "$(for wn_s in '@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."' '@"You set every rule" value:' '@"Each rule can be Off, Careful or Eager. Each starts on Careful."' '@"No permission is asked at launch. The Mac stays awake while agents work."'; do
        grep -qF -- "$wn_s" Sources/Shell/MMWindowRules.m && grep -qF -- "$wn_s" Sources/UI/Window/MMWindowFixture.m && printf '1 ' || printf '0 '; done
-     grep -qF 'NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";' Sources/UI/Window/MMWindowModel.m && printf '1 ' || printf '0 '
+     grep -qF 'MMWindowRemovalTitle' Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowModel.h && printf '0 ' || printf '1 '
      grep -qF 'c requestAuthorizationWithOptions' Sources/Core/Act/MMAct.m && [ "$(grep -rl 'requestAuthorization' Sources | grep -c .)" = 1 ] && printf '1' || printf '0')"
 check "window: the render's watched welcome says what the feed says for every rule on Careful" "1 1" \
   "$(grep -cF '@"It has watched a day" value:@"MinMacs may now stop servers, remove worktrees and clean up leftovers on its own."' Sources/UI/Window/MMWindowFixture.m) $(grep -cF '@"It has watched a day: MinMacs may now stop servers, remove worktrees and clean up leftovers on its own."' test/window/welcome.m)"
@@ -171,25 +169,22 @@ check "window: --json rows say whether their size is measured, and one that is n
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if all((r['bytes'] is None) != r['measured'] for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json rows carry a kind and their own key" yes \
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
-check "window: --json has a rule per expert with modes, the removal choice, three choices each, and the two switches" "servers,apps,worktrees,caches,removal 3 lid,login" \
+check "window: --json has a rule per expert with modes, three choices each, no removal card, and the two switches" "servers,apps,worktrees,caches 3 lid,login" \
   "$(printf '%s' "$wn_json" | json "','.join(r['ruleID'] for r in j['settings']['rules']) + ' ' + str(max(len(r['choices']) for r in j['settings']['rules'])) + ' ' + ','.join(s['switchID'] for s in j['settings']['switches'])")"
 wn_text=$(MINMACS_HOME="$wn_home" "$BIN" window 2>/dev/null)
 check "window: the text form runs to its end" 0 "$?"
 check "window: the text prints memory and disk on their own lines" "1 1" \
   "$(printf '%s\n' "$wn_text" | grep -c '^Memory ') $(printf '%s\n' "$wn_text" | grep -c '^Disk ')"
 check "window: the text names no old app and claims no result" 0 "$(printf '%s\n' "$wn_text" | grep -ciE 'locohost|workforest|noo-noo|insomnia|is clean|all good')"
-# A home where no removal choice was ever made: the card has none picked, and the verb says so and does not stop there.
+# A home with an old removal choice in its pref, as an older MinMacs wrote it: no card shows, and the verb still runs.
 wn_fresh="$wn_dir/fresh-home"; mkdir -p "$wn_fresh"
+old_removal "$wn_fresh" delete
 wn_text=$(MINMACS_HOME="$wn_fresh" "$BIN" window 2>/dev/null)
-check "window: with no removal choice made the text form still exits 0" 0 "$?"
-check "window: and says the removal choice is not made, then prints the switches after it" "1 2" \
-  "$(printf '%s\n' "$wn_text" | grep -c '^Rule    When MinMacs removes things *not chosen yet$') $(printf '%s\n' "$wn_text" | grep -c '^Switch ')"
+check "window: with an old delete in the pref the text form still exits 0" 0 "$?"
+check "window: and names no removal rule, then prints the switches" "0 4 2" \
+  "$(printf '%s\n' "$wn_text" | grep -c 'When MinMacs removes things') $(printf '%s\n' "$wn_text" | grep -c '^Rule ') $(printf '%s\n' "$wn_text" | grep -c '^Switch ')"
 wn_json=$(MINMACS_HOME="$wn_fresh" "$BIN" window --json 2>/dev/null)
-check "window: with no removal choice made --json exits 0 and says picked -1" "0 -1" "$? $(printf '%s' "$wn_json" | json "[r['picked'] for r in j['settings']['rules'] if r['ruleID'] == 'removal'][0]")"
-MINMACS_HOME="$wn_fresh" "$BIN" removal trash >/dev/null 2>&1
-check "window: the removal verb runs in that home" 0 "$?"
-wn_text=$(MINMACS_HOME="$wn_fresh" "$BIN" window 2>/dev/null)
-check "window: once chosen, the text form names the choice" "0 1" "$? $(printf '%s\n' "$wn_text" | grep -c '^Rule    When MinMacs removes things *Trash$')"
+check "window: with an old delete in the pref --json exits 0 and has no removal rule" "0 0" "$? $(printf '%s' "$wn_json" | json "len([r for r in j['settings']['rules'] if r['ruleID'] == 'removal'])")"
 MINMACS_HOME="$wn_home" "$BIN" window fix --all >/dev/null 2>&1
 check "window: the verb has no form that runs a fix" 2 "$?"
 check "window: help --json lists it as a verb that reads only" "False []" \

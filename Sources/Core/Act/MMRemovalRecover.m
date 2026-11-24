@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: what happens after MinMacs stopped in the middle of a Wrap Up, and what an ended
+// Removal, MMRemoval.h: what happens after MinMacs stopped in the middle of a Wrap Up, and what an ended
 // Wrap Up left staged. Nothing here deletes a file itself: it calls MMRemovalFinishStaged and MMRemovalPutBack of
 // MMRemovalApply.m. Every field of a record is read through the checked reader of MMUndo.h, and a record that
 // cannot be read is skipped, named once in the log, and never acted on.

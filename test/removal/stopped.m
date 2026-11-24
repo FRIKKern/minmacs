@@ -24,7 +24,7 @@ static NSArray<NSString *> *StopAfterRename(NSString *tree, NSString *path) {
 }
 /// The other side: run as `removaltest --stop-after-rename <tree> <path>`.
 static int StopAfterRenameChild(NSString *tree, NSString *path) {
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *del = MMRemovalTestDeleteDecision(MMRemovalConfigFiles);
     MMUndoRecord *parent = Unfinished(@"stopped after the rename", tree, MMRemovalOwner());
     MMUndoRecord *part = Part(parent.rid, @"config, stopped after the rename");
     MMRemovalNote(part, del, nil); MMRemovalAsk(part, @[path]);

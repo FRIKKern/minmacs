@@ -36,7 +36,7 @@ NSString *MMWindowFixTitle(MMPerformanceFix *fix) {
     if ([kind isEqualToString:@"wrapup"]) return [@"Wrap Up " stringByAppendingString:TreeName(fix.wrapUp)];
     // One cleanup is named by what it cleans. The rest count what they act on, worded in the model.
     if ([kind isEqualToString:@"clean"] && n == 1) return [@"Clean " stringByAppendingString:MMWindowNameOf(fix.actions.firstObject.finding)];
-    return MMWindowFixCountTitle(kind ?: @"", n, [kind isEqualToString:@"trash"] ? MMRemovalChoiceNow() : 0) ?: MMCapitalized(kind ?: @"");
+    return MMWindowFixCountTitle(kind ?: @"", n) ?: MMCapitalized(kind ?: @"");
 }
 
 #pragma mark - The model

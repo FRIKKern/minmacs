@@ -104,7 +104,7 @@ static void WindowWordChecks(void) {
     WordDraw(PolishView(@"extreme"), @"extreme contrast");
     MMWindowForceContrast(NO);
     NSInteger before = strings;
-    for (NSString *name in @[@"welcome", @"welcome-off", @"welcome-delete", @"welcome-watched"]) {
+    for (NSString *name in @[@"welcome", @"welcome-off", @"welcome-watched"]) {
         MMWindowView *w = PolishView(name);
         w.welcomeView.arrival = 1;
         WordDraw(w, name);
@@ -113,7 +113,7 @@ static void WindowWordChecks(void) {
     }
     NSInteger welcomeStrings = strings - before;
     MMWindowWatchDraws(nil);
-    Check(welcomeStrings >= 4 * 12, @"window words: the welcome's strings are read by the same watch", [NSString stringWithFormat:@"%ld strings", (long)welcomeStrings]);
+    Check(welcomeStrings >= 3 * 9, @"window words: the welcome's strings are read by the same watch", [NSString stringWithFormat:@"%ld strings", (long)welcomeStrings]);
     Check(gWordFaults.count == 0 && strings > 20000 && states > 300,
           @"window words: on every day and in every state no drawn string holds an ellipsis, none is wider or taller than its box, and none leaves its view",
           [NSString stringWithFormat:@"%ld strings in %ld states. %@", (long)strings, (long)states, [gWordFaults componentsJoinedByString:@" | "]]);
@@ -236,14 +236,12 @@ static void WindowWordChecks(void) {
         @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, 0, 0, n, 0); }), @"none | Skipped 1 thing in the fix you stopped partway. | Skipped 2 things in the fix you stopped partway."],
         @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, 0, 0, 0, n); }), @"none | Skipped 1 fix you stopped. | Skipped 2 fixes you stopped."],
         @[three(^(NSInteger n) { return MMWindowSkippedNote(n, n, 0, 0, 0, 0); }), @"none | Skipped 1 agent that asks you and 1 fix that needs your own press. | Skipped 2 agents that ask you and 2 fixes that need your own press."],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"stop", n, 0); }), @"Stop 0 idle servers | Stop 1 idle server | Stop 2 idle servers"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"quit", n, 0); }), @"Quit 0 apps | Quit 1 app | Quit 2 apps"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"remove", n, 0); }), @"Remove 0 merged worktrees | Remove 1 merged worktree | Remove 2 merged worktrees"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 0); }), @"Clean up 0 leftovers | Clean up 1 leftover | Clean up 2 leftovers"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 1); }), @"Move 0 leftovers to the Trash | Move 1 leftover to the Trash | Move 2 leftovers to the Trash"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 2); }), @"Delete 0 leftovers | Delete 1 leftover | Delete 2 leftovers"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"stop", n); }), @"Stop 0 idle servers | Stop 1 idle server | Stop 2 idle servers"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"quit", n); }), @"Quit 0 apps | Quit 1 app | Quit 2 apps"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"remove", n); }), @"Remove 0 merged worktrees | Remove 1 merged worktree | Remove 2 merged worktrees"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n); }), @"Move 0 leftovers to the Trash | Move 1 leftover to the Trash | Move 2 leftovers to the Trash"],
         // One cleanup is named by what it cleans in the feed, Shell/MMWindowFeed.m; the count form stays right for it anyway.
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"clean", n, 0); }), @"Run 0 tool cleanups | Run 1 tool cleanup | Run 2 tool cleanups"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"clean", n); }), @"Run 0 tool cleanups | Run 1 tool cleanup | Run 2 tool cleanups"],
         @[three(^(NSInteger n) { return MMWindowAfterTitle(n); }), @"none | After the fix | After all 2 fixes"],
         @[three(^(NSInteger n) { return MMWindowMoreLine(n, 0); }), @"none | 1 more below | 2 more below"],
         @[three(^(NSInteger n) { return MMWindowMoreLine(0, n); }), @"none | 1 more above | 2 more above"],

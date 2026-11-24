@@ -12,12 +12,8 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     if ([kind isEqualToString:@"stop"]) return [@"Stopping " stringByAppendingString:name];
     if ([kind isEqualToString:@"quit"]) return [@"Quitting " stringByAppendingString:name];
     if ([kind isEqualToString:@"remove"]) return [@"Removing " stringByAppendingString:name];
-    if ([kind isEqualToString:@"trash"]) {
-        // Under Smart the step's own fresh check decides, so the step says neither before it ran.
-        MMRemovalChoice c = MMRemovalChoiceNow();
-        return c == MMRemovalTrash ? [NSString stringWithFormat:@"Moving %@ to the Trash", name]
-             : [(c == MMRemovalDelete ? @"Deleting " : @"Cleaning up ") stringByAppendingString:name];
-    }
+    // Everything MinMacs removes keeps a way back, MMRemoval.h.
+    if ([kind isEqualToString:@"trash"]) return [NSString stringWithFormat:@"Moving %@ to the Trash", name];
     return [@"Fixing " stringByAppendingString:name];
 }
 

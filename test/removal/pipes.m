@@ -78,7 +78,7 @@ static void SecondName(NSString *tree, NSString *other, NSString *item, void (^m
     again();
     MMUndoRecord *r = Begin(@"trash", @"pipes: a second name, deleted at once");
     MMRemovalAsk(r, @[item]);
-    BOOL ok = MMRemovalApply(item, MMRemovalDecideWith(MMRemovalDelete, MMRemovalClutter, nil), r, nil);
+    BOOL ok = MMRemovalApply(item, MMRemovalTestDeleteDecision(MMRemovalClutter), r, nil);
     NSArray<NSDictionary *> *deleted = MMRecordList(r.payload, @"deleted");
     Said([NSString stringWithFormat:@"%@ %@ %@ %@", YN(ok), KindAt(item), KindAt(other), YN(deleted.count == 1 && [MMRecordString(deleted.firstObject, @"path") isEqualToString:real])]);
     (void)Done(r);
@@ -127,7 +127,7 @@ static int PipeChild(NSString *which, NSString *dir) {
         MMUndoRecord *r = Begin(@"trash", @"pipes: deleted at once");
         MMRemovalAsk(r, @[pipe]);
         NSError *e = nil;
-        BOOL ok = MMRemovalApply(pipe, MMRemovalDecideWith(MMRemovalDelete, MMRemovalClutter, nil), r, &e);
+        BOOL ok = MMRemovalApply(pipe, MMRemovalTestDeleteDecision(MMRemovalClutter), r, &e);
         Said([NSString stringWithFormat:@"%@ %@ %lu %@", YN(ok), KindAt(pipe), (unsigned long)MMRecordList(r.payload, @"deleted").count, e.localizedDescription ?: @"no error"]);
         (void)Done(r);
     } else if ([which isEqualToString:@"socket"]) {
@@ -167,7 +167,7 @@ static int PipeChild(NSString *which, NSString *dir) {
         for (int i = 0; i < 2000; i++) if (![MMRemovalRealPath(second) isEqualToString:real]) wrong++;
         MMUndoRecord *r = Begin(@"trash", @"pipes: a file's second name, deleted at once");
         MMRemovalAsk(r, @[second]);
-        BOOL ok = MMRemovalApply(second, MMRemovalDecideWith(MMRemovalDelete, MMRemovalClutter, nil), r, nil);
+        BOOL ok = MMRemovalApply(second, MMRemovalTestDeleteDecision(MMRemovalClutter), r, nil);
         gAskStop = YES;
         if (asking) pthread_join(asker, NULL);
         Said([NSString stringWithFormat:@"%lu %@ %@ %@", (unsigned long)wrong, YN(ok), KindAt(second), Read(first)]);
@@ -179,7 +179,7 @@ static int PipeChild(NSString *which, NSString *dir) {
         r = Begin(@"trash", @"pipes: in a folder that cannot be listed");
         MMRemovalAsk(r, @[in]);
         NSError *e = nil;
-        ok = MMRemovalApply(in, MMRemovalDecideWith(MMRemovalDelete, MMRemovalClutter, nil), r, &e);
+        ok = MMRemovalApply(in, MMRemovalTestDeleteDecision(MMRemovalClutter), r, &e);
         Said([NSString stringWithFormat:@"%@ %@ %@", YN(ok), KindAt(in), e.localizedDescription ?: @"no error"]);
         (void)Done(r);
         chmod(locked.fileSystemRepresentation, 0700);
@@ -187,7 +187,7 @@ static int PipeChild(NSString *which, NSString *dir) {
         // Under the Trash choice it goes to the Trash by its name and comes back from there.
         MakePipe(pipe);
         unsigned long long ino = InodeAt(pipe);
-        MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalConfigFiles, nil);
+        MMRemovalDecision *keep = MMRemovalDecide(MMRemovalConfigFiles, nil, nil);
         MMUndoRecord *wrapUp = Unfinished(@"pipes: to the Trash", tree, nil);
         MMUndoRecord *part = Part(wrapUp.rid, @"pipes: to the Trash, part");
         MMRemovalNote(part, keep, nil); MMRemovalAsk(part, @[pipe]);

@@ -2,8 +2,8 @@
 // Findings come from MMFacts only: the clutter items Know's catalog found, the worktrees and their git facts, and the
 // sessions. Finished projects come first: build output whose worktree is merged, lost its remote branch or is gone.
 // Every action runs through MMRunAction with MMClutterAction, which checks fresh, writes the undo record first,
-// and removes the item or runs the tool's own command. Where a removed item goes is the person's removal choice,
-// Core/Act/MMRemoval.h: the Trash or a recovery copy, or deleted at once. The words here follow that one decision.
+// and removes the item or runs the tool's own command. Every removed item keeps a way back,
+// Core/Act/MMRemoval.h: the Trash, or a recovery copy for a tool's command.
 // Ported from Noo-Noo 0.7: the dev, caches and leaks modules, the trend and cache velocity math, and its CLI verbs.
 #import <AppKit/AppKit.h>
 #import "Experts/NooNoo/MMNooNoo.h"
@@ -225,9 +225,6 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
     MMMode mode = MMModeFor(kExpert);
     BOOL watched = MMWatchedLongEnough(kExpert);
     @synchronized (self) { _growthMin = MMPrefDouble(@"noonoo.growthMinBytes", 1024.0 * 1024 * 1024); }
-    // The removal choice as it is at this build, for each row's words, as a press would get it. The act asks again
-    // on fresh facts, and for a mode it keeps a way back while the person has not chosen.
-    MMRemovalChoice removal = MMRemovalChoiceNow();
     (void)[self undoNow];
     NSMutableArray *rows = [NSMutableArray new];
     for (MMClutterItem *i in facts.clutter) {
@@ -260,11 +257,10 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (until > now) [keep addObject:[NSString stringWithFormat:@"kept by you until %@", [NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:until] dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterNoStyle]]];
         if (keep.count && section != MMNNKept) section = MMNNKept;
         MMProposal *proposal = nil;
-        BOOL deletes = MMRemovalDecideWith(removal, k.klass == MMClutterTool ? MMRemovalToolCopy : MMRemovalClutter, [MMRemovalFacts clutter:i]).deleteNow;
         if (!k.reportOnly) {
             proposal = k.klass == MMClutterTool
                 ? [MMProposal verb:@"clean" title:[@"Clean with " stringByAppendingString:k.cleanupArgs.firstObject] reversibility:MMReversibleToolCommand]
-                : [MMProposal verb:@"remove" title:deletes ? @"Delete" : @"Move to Trash" reversibility:MMReversibleTrash];
+                : [MMProposal verb:@"remove" title:@"Move to Trash" reversibility:MMReversibleTrash];
         }
         BOOL goes = proposal && !keep.count && watched && mode != MMModeIdle && k.klass != MMClutterTool &&
                     (section == MMNNFinished || section == MMNNLeftovers || (mode == MMModeEager && k.klass == MMClutterCache));
@@ -273,7 +269,6 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
                                      @"members": @(i.members.count), @"state": i.state == MMClutterFree ? @"free" : i.state == MMClutterLive ? @"live" : @"kept",
                                      @"section": SectionName(section), @"allocated": @(i.size.allocated), @"freed": @(i.size.freedIfDeleted),
                                      @"name": RowName(i), @"goes": @(goes), @"reportOnly": @(k.reportOnly), @"folder": @(k.names.count > 0),
-                                     @"deletes": @(deletes),
                                      @"trend": @{@"ok": @(t.ok), @"bytesPerDay": @(t.bytesPerDay), @"windowDays": @(t.windowDays),
                                                  @"firstBytes": @(t.firstBytes), @"lastBytes": @(t.lastBytes), @"weekRatio": @(t.weekRatio)}} mutableCopy];
         if (i.why) fx[@"why"] = i.why;
@@ -341,7 +336,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
 }
 
 /// Wrap Up, issue #27: one part per cache or build folder the worktree owns, by back-link or by place, that goes to
-/// the Trash or is deleted, as the removal choice says. A tool's own cleanup is for the whole Mac, not one
+/// the Trash, MMRemoval.h. A tool's own cleanup is for the whole Mac, not one
 /// workstream, so it is never a part.
 - (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {
     NSMutableArray *parts = [NSMutableArray new];
@@ -349,7 +344,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (!f.proposal || f.proposal.reversibility != MMReversibleTrash) continue;
         if (![subject holds:f.ownerPath] && ![subject holds:f.path]) continue;
         id<MMAction> a = [self actionFor:f step:MMStopTerm];
-        NSString *title = [NSString stringWithFormat:[f.facts[@"deletes"] boolValue] ? @"Delete %@" : @"Move %@ to the Trash", f.facts[@"name"] ?: f.title];
+        NSString *title = [NSString stringWithFormat:@"Move %@ to the Trash", f.facts[@"name"] ?: f.title];
         MMWrapUpPart *p = a ? [MMWrapUpPart step:MMWrapUpCaches expert:kExpert title:title action:a policy:self.policy] : nil;
         if (p) [parts addObject:p];
     }
@@ -566,10 +561,8 @@ static void RunOffMain(dispatch_block_t block) {
     r.why = f.keepReasons.firstObject ?: x[@"why"];
     r.rebuild = x[@"rebuild"]; r.ownerSetting = x[@"ownerSetting"];
     r.actionTitle = f.proposal.title;
-    BOOL deletes = [x[@"deletes"] boolValue];
-    r.undoWords = f.proposal.reversibility == MMReversibleToolCommand
-        ? (deletes ? @"No recovery copy is made, and what the tool removes cannot be brought back." : @"A recovery copy is made first, and Undo copies back what the tool removed.")
-        : (deletes ? @"It is deleted at once and cannot be brought back." : @"It goes to the Trash, and Undo moves it back.");
+    r.undoWords = f.proposal.reversibility == MMReversibleToolCommand ? @"A recovery copy is made first, and Undo copies back what the tool removed."
+                                                                      : @"It goes to the Trash, and Undo moves it back.";
     r.goesOnItsOwn = [x[@"goes"] boolValue];
     r.members = [x[@"members"] integerValue];
     r.folder = [x[@"folder"] boolValue];
@@ -878,7 +871,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
     clutter.reads = MMVerbReadsCachedGit;
     return @[
         clutter,
-        [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]   removes clutter as the removal choice says, to the Trash with undo or deleted at once, or with --command runs the row's own cleanup, which cannot be undone" mutates:YES
+        [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]   removes clutter to the Trash with undo, or with --command runs the row's own cleanup, which cannot be undone" mutates:YES
                      run:^int(MMArgs *a) { return [me cleanVerb:a]; }],
     ];
 }
