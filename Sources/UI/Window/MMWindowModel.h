@@ -125,6 +125,7 @@ MMWindowFact *_Nullable MMWindowFactLastUsed(NSTimeInterval ago);               
 MMWindowFact *_Nullable MMWindowFactUp(NSTimeInterval seconds);                    // Running, "2 h 36 min"; "up 2 h 36 min"
 MMWindowFact *_Nullable MMWindowFactKept(NSTimeInterval left);                     // Kept, "1 h 20 min more"; "kept for 1 h 20 min more"
 MMWindowFact *_Nullable MMWindowFactAgent(NSString *_Nullable harness);            // Agent, "Claude Code"; "Claude Code"
+MMWindowFact *_Nullable MMWindowFactSession(NSString *_Nullable title);            // Session, the agent's session title; the same alone
 MMWindowFact *_Nullable MMWindowFactState(NSString *_Nullable state);              // State, "working". The story's first line says it
 MMWindowFact *_Nullable MMWindowFactUsedBy(NSString *_Nullable agent);             // Used by, "Claude Code"; "used by Claude Code"
 MMWindowFact *_Nullable MMWindowFactServes(NSArray *_Nullable ports);              // Serves, "ports 3000, 3001"; "serves ports 3000, 3001"

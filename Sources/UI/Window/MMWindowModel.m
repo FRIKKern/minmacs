@@ -120,6 +120,7 @@ MMWindowFact *MMWindowFactKept(NSTimeInterval left) {
 }
 
 MMWindowFact *MMWindowFactAgent(NSString *harness) { NSString *h = Trimmed(harness); return Fact(@"Agent", h, h); }
+MMWindowFact *MMWindowFactSession(NSString *title) { NSString *t = Trimmed(title); return Fact(@"Session", t, t); }
 MMWindowFact *MMWindowFactState(NSString *state) { return Fact(@"State", Trimmed(state), nil); }
 MMWindowFact *MMWindowFactUsedBy(NSString *agent) { NSString *a = Trimmed(agent); return Fact(@"Used by", a, [@"used by " stringByAppendingString:a]); }
 MMWindowFact *MMWindowFactServes(NSArray *ports) { NSString *p = Ports(ports); return Fact(@"Serves", p, [@"serves " stringByAppendingString:p ?: @""]); }

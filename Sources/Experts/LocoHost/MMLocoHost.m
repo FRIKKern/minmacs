@@ -72,6 +72,7 @@ static MMFinding *FindingFor(MMLHHost *h, NSDate *keptUntil) {
         [ev addObject:[MMEvidence label:@"State" value:MMLHStateWords(h) raw:MMLHStateName(h.state)]];
         [ev addObject:[MMEvidence label:@"Started by" value:h.launcher ?: @"" raw:h.launcher]];
         if (h.isDev) [ev addObject:[MMEvidence label:@"Agent" value:MMLHSessionWords(h.session) raw:h.session]];
+        else if (h.isAgent) [ev addObject:[MMEvidence label:@"Agent" value:MMLHAgentWords(h) raw:h.agent]];
         b.evidence = ev;
         b.proposal = [MMProposal verb:@"stop" title:@"Stop Server" reversibility:MMReversibleRestart];
         b.procs = StopKeys(h);
@@ -99,6 +100,8 @@ static MMLHHost *FreshHost(MMFinding *f, MMFacts *facts) {
 - (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts {
     MMLHHost *h = FreshHost(f, facts);
     if (!h) return @"cannot verify: it restarted or stopped since the plan";
+    // An agent that serves a port of its own is no dev server on any port: a stop would end the agent.
+    if (h.isAgent) return MMLHAgentPortWords(h);
     if (!h.isDev) return @"not a dev server";
     if (h.isProtected) return @"protected";
     if (h.state != MMLHIdle) return h.lastActive ? [NSString stringWithFormat:@"used %@", MMAgo(h.lastActive)] : @"in use";
@@ -536,6 +539,7 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
     service.decide = ^MMVerdict *(MMLHHost *h) {
         if ([h.kind isEqualToString:@"service"]) return Keep([NSString stringWithFormat:@"%@, a shared service", h.framework], @"No mode stops a shared service.");
         if ([h.kind isEqualToString:@"other"]) return Keep([NSString stringWithFormat:@"%@ on a high port", h.framework], @"A high-port listener is listed only.");
+        if (h.isAgent) return Keep(MMLHAgentPortWords(h), @"An agent's own port is listed only. No mode stops an agent.");
         return nil;
     };
     MMLHRule *active = [MMLHRule new];
@@ -650,7 +654,7 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
 - (NSString *)accessibilityStateFor:(MMSnapshot *)s { return MMLHAccessibilityState([self viewFor:s]); }
 
 - (BOOL)fieldEmptyIn:(MMSnapshot *)s {
-    for (MMFinding *f in [s findingsFor:kExpert]) if (![f.facts[@"kind"] isEqual:@"other"]) return NO;
+    for (MMFinding *f in [s findingsFor:kExpert]) if (![f.facts[@"kind"] isEqual:@"other"] && ![f.facts[@"kind"] isEqual:@"agent"]) return NO;
     return YES;
 }
 

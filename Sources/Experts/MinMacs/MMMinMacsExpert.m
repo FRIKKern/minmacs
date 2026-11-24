@@ -230,11 +230,14 @@ typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
     @synchronized (self) { if (_ownerApps == appList) _ownerOf = [ownerNow copy]; }   // processes that are gone leave
 
     // Loopback listeners, from the sample's socket table.
-    NSMutableDictionary<NSNumber *, NSMutableOrderedSet *> *ports = [NSMutableDictionary new];
+    // Every listener too, for an agent that serves a port of its own, as LocoHost lists it.
+    NSMutableDictionary<NSNumber *, NSMutableOrderedSet *> *ports = [NSMutableDictionary new], *listens = [NSMutableDictionary new];
     NSUInteger n = 0;
     const MMSocket *socks = [s sockets:&n];
     for (NSUInteger i = 0; socks && i < n; i++) {
-        if (socks[i].state != MMSocketListen || !Loopback(&socks[i])) continue;
+        if (socks[i].state != MMSocketListen) continue;
+        [listens[@(socks[i].pid)] ?: (listens[@(socks[i].pid)] = [NSMutableOrderedSet new]) addObject:@(socks[i].localPort)];
+        if (!Loopback(&socks[i])) continue;
         NSMutableOrderedSet *set = ports[@(socks[i].pid)] ?: (ports[@(socks[i].pid)] = [NSMutableOrderedSet new]);
         [set addObject:@(socks[i].localPort)];
     }
@@ -250,6 +253,7 @@ typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
         MMMinMacsAgent *m = [MMMinMacsAgent new];
         m.name = name; m.harnessID = a.harnessID; m.sessionID = a.sessionID; m.project = a.cwd; m.why = a.why;
         m.state = a.state; m.key = a.key; m.cpuPercent = a.treeCPU; m.memory = a.treeFootprint;
+        m.ports = [listens[@(a.key.pid)].array sortedArrayUsingSelector:@selector(compare:)];
         [agents addObject:m];
         NSMutableArray<MMAgent *> *working = [NSMutableArray new];
         if (a.state == MMAgentWorking || a.state == MMAgentWaiting) [working addObject:a];
@@ -388,9 +392,12 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
             b.title = m.name;
             b.cost = (MMCost){ .ramBytes = m.memory, .cpuPercent = m.cpuPercent };
             b.procs = @[KeyValue(m.key)];
-            b.facts = @{@"harnessID": m.harnessID ?: @"", @"name": m.name ?: @"", @"state": StateWord(m.state),
+            NSMutableDictionary *fx = [@{@"harnessID": m.harnessID ?: @"", @"name": m.name ?: @"", @"state": StateWord(m.state),
                         @"project": m.project ?: @"", @"why": m.why ?: @"", @"memoryBytes": @(m.memory), @"cpu": @(round(m.cpuPercent)),
-                        @"pid": @(m.key.pid)};
+                        @"pid": @(m.key.pid)} mutableCopy];
+            // The ports the agent's own process listens on, which LocoHost lists as that agent's server.
+            if (m.ports.count) fx[@"ports"] = m.ports;
+            b.facts = fx;
             b.fingerprint = StateWord(m.state);
         }]];
     }

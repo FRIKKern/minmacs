@@ -354,6 +354,7 @@ static int Who(MMLHArgs *a) {
     MMVerdict *v = MMLHVerdictFor(f, r);
     if (v) Outf("  review     %s %s, %.0f%%, %s: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, MMAgo(r.at).UTF8String, (v.reason ?: @"").UTF8String);
     if (h.isDev) Outf("  agent      %s\n", MMLHSessionWords(h.session).UTF8String);
+    else if (h.isAgent) Outf("  agent      %s, its own port\n", MMLHAgentWords(h).UTF8String);
     Outf("  waste      %s\n", MMLHWasteWords(h).UTF8String);
     if (h.duplicates.count) Outf("  duplicate  same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
     if (h.placeLabel) Outf("  where      %s\n", h.placeLabel.UTF8String);
@@ -434,7 +435,8 @@ static int Explain(MMLHArgs *a) {
     if (!p.count) Outf("  project   no package.json, README, mix.exs or pyproject.toml in its folders\n");
     Outf("  command   %s\n  started   %s, %s ago\n", h.command.UTF8String, (h.launcher ?: @"").UTF8String, MMDuration(-h.started.timeIntervalSinceNow).UTF8String);
     if (h.branch) Outf("  git       branch %s%s\n", h.branch.UTF8String, h.worktree ? [@", worktree " stringByAppendingString:h.worktree].UTF8String : "");
-    Outf("  session   %s\n", MMLHSessionWords(h.session).UTF8String);
+    if (h.isAgent) Outf("  agent     %s, its own port\n", MMLHAgentWords(h).UTF8String);
+    else Outf("  session   %s\n", MMLHSessionWords(h.session).UTF8String);
     if (h.placeLabel) Outf("  where     %s\n", h.placeLabel.UTF8String);
     if (h.duplicates.count) Outf("  duplicate same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
     Outf("  clients   %s\n  state     %s\n", h.clients.count ? [h.clients componentsJoinedByString:@", "].UTF8String : "none now", MMLHStateWords(h).UTF8String);

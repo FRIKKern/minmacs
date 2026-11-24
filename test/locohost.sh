@@ -198,6 +198,41 @@ r=$(lh_plan eager --dry-run);                                        check "and 
 unset LOCOHOST_IDLE_MINUTES LOCOHOST_MIN_UPTIME_MINUTES
 export CLAUDE_CONFIG_DIR="$CLAUDE_HOME_SAVED"
 
+echo "== an agent that serves a port of its own"
+# Claude Code's binary is named by its version and listens on a local port. A listener the registry knows as an agent
+# is that agent's own port: named by the agent, and never stopped as an idle dev server, whatever its port. Before,
+# such a listener below 49152 was a dev server named by its binary, and Eager and Close Idle stopped the agent.
+# The fixture agent runs under a name of this run's own, from a user row in this section's support folder.
+lh_an="lhagent$$"
+clang -O1 tools/fakeagent.c -o "$lh/bin/$lh_an"
+mkdir -p "$MINMACS_HOME/registry/agents"
+sed "s/\"fakeagent\"/\"$lh_an\"/; s/\"fake-agent\"/\"lh-agent\"/; s/\"Fake Agent\"/\"Fixture Agent\"/" tools/fixtures/fake-agent.json >"$MINMACS_HOME/registry/agents/lh-agent.json"
+check "the fixture agent's row passes the validator" 0 "$(python3 tools/validate_row.py "$MINMACS_HOME/registry/agents/lh-agent.json" >/dev/null 2>&1; echo $?)"
+AP=$("$LH" free $((P + 1)))
+( (cd "$lh/app" && exec "$lh/bin/$lh_an" --listen "$AP" --pidfile "$lh/agent.pid") >/dev/null 2>&1 & )
+"$LH" ready "$AP" --timeout 10 >/dev/null;                            check "the fixture agent listens on a port below 49152" "0 yes" "$? $([ "$AP" -lt 49152 ] && echo yes || echo no)"
+lh_apid=$(cat "$lh/agent.pid" 2>/dev/null); procs="$procs $lh_apid"
+lh_ah() { "$LH" list --json | json "(lambda h: ' | '.join(str(h[k]) for k in ('kind', 'framework', 'agent', 'agentPid', 'launcher')))([h for h in j['hosts'] if $AP in h['ports']][0])"; }
+r=$(lh_ah)
+check "it is listed as the agent's own port, named by the agent, its own agent, and not started by itself" "agent | Fixture Agent | Fixture Agent | $lh_apid | no" \
+  "$(printf '%s' "$r" | awk -F' [|] ' '{ printf "%s | %s | %s | %s | %s", $1, $2, $3, $4, (index($5, "Fixture Agent") ? "yes" : "no") }')"
+"$LH" who "$AP" | grep -q "Fixture Agent, its own port";              check "who says whose port it is" 0 "$?"
+export LOCOHOST_IDLE_MINUTES=0 LOCOHOST_MIN_UPTIME_MINUTES=0
+RV_TEST_SENT="$lh/sent-agent.json" RV_TEST_GO=":$AP" "$LH" review --mode eager --port "$AP" >/dev/null 2>&1; check "a review of it runs" 0 "$?"
+check "a rule keeps it before the model is asked" no "$([ -s "$lh/sent-agent.json" ] && grep -q "$AP" "$lh/sent-agent.json" && echo yes || echo no)"
+r=$("$LH" idle --json --port "$AP" | json "len(j['candidates'])");  check "it is never an idle candidate" 0 "$r"
+"$LH" mode eager >/dev/null
+r=$("$LH" auto --mode eager --port "$AP" --json | json "len([x for x in j['plan'] if x['stop']])"); check "Eager plans no stop of it" 0 "$r"
+"$LH" close-idle --yes --port "$AP" >/dev/null 2>&1
+"$LH" mode proactive >/dev/null
+check "and after Eager and Close Idle the agent still runs and listens" "yes yes" \
+  "$(kill -0 "$lh_apid" 2>/dev/null && echo yes || echo no) $(lh_listening "$AP")"
+unset LOCOHOST_IDLE_MINUTES LOCOHOST_MIN_UPTIME_MINUTES
+# Stop only the fixture: its pid, checked by its own name first.
+[ -n "$lh_apid" ] && [ "$(ps -o comm= -p "$lh_apid" 2>/dev/null | xargs basename 2>/dev/null)" = "$lh_an" ] && kill "$lh_apid" 2>/dev/null
+procs=$(printf '%s' "$procs" | sed "s/ $lh_apid\$//; s/ $lh_apid / /")
+rm -f "$MINMACS_HOME/registry/agents/lh-agent.json" "$lh/agent.pid"
+
 echo "== where a server runs"
 W=$("$LH" free $((P + 1)))
 # A shell that stays above the server, as a tmux pane's shell does. The fake tmux names that shell's pid as a pane.

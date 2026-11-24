@@ -13,6 +13,8 @@ Localhost servers on the shared core, issue #22. LocoHost lists every server, sa
 
 One finding per listening process, kind `server`, id `locohost:server:<stableKey>`. Decision 8 sets the stable key: the project folder and the package.json script, such as `~/code/app#dev`, else the folder and the port. A second server with the same key adds its port. The instance key is `pid:start`. The fingerprint holds the instance, the state, whether a client has it open, duplicates, the protect list, whether its agent session is fresh, and how long it has been quiet, in the graph's age buckets. The finding's facts are the whole host as JSON, for `--json` and the menu. The proposal is Stop Server, reversible by restart.
 
+A listener that the registry knows as an agent, by its command line as `-[MMRegistry rowMatching:sample:]` reads it, or that is an agent's own process in `MMFacts.agents`, is that agent's own port, kind `agent`. Claude Code is one: its binary is named by its version, such as `2.1.331`, and it listens on a local port. Its framework and its `agent` are the registry's name, so it reads ":49210 Claude Code", `agentPid` is the agent's pid and `agentTitle` its session's title from Know. Its launcher is who started the agent, and never the agent itself. MinMacs's agent finding names the same ports in its `ports`, so each row names the other.
+
 ## The idle tick, issue #52
 
 - `inputDigestFrom:` digests what the hosts are built from: the listeners and the connections to or from a listening port, each listener's tree with each process's start, a CPU band and its memory in 16 MB steps, the parents above it, each agent and its state, and the session, worktree and git objects. When it matches, the graph hands back the last findings. A server tree at 10 % CPU or more always builds, since two busy samples in a row mark a server busy, and so does a server that still waits for its first place.
@@ -21,7 +23,7 @@ One finding per listening process, kind `server`, id `locohost:server:<stableKey
 
 ## Keeps
 
-- **Every mode.** Not a dev server, protected, used within the quiet threshold, younger than 30 minutes, or its agent session active in the last hour. A server that restarted since the plan cannot be verified, so it stays.
+- **Every mode.** An agent's own port, whatever the port: a stop would end the agent. The rule `locohost.not-a-dev-server` keeps it before the model too. Not a dev server, protected, used within the quiet threshold, younger than 30 minutes, or its agent session active in the last hour. A server that restarted since the plan cannot be verified, so it stays.
 - **The review.** Used after the review. Core adds no review, a failed review, an old review, a changed fingerprint, a timed keep and the `protect` list.
 - **Proactive.** A live agent above it, or quiet for less than six hours.
 - **Judged evidence.** A judged keep with evidence stays in every mode, and the plan says what the evidence is.
@@ -41,7 +43,7 @@ The routine schema in LocoHost's words: `in_use`, `idle` and `unsure`. Per serve
 
 The project files are the package.json name, description and script, the README's first heading and paragraph, the mix.exs app, and the names of config files. The session is the agent, the title, when it started and was last active, and how it matched. The first prompt, the transcript path, `.env` files, other file contents and the environment are never read or sent. Core's `MMCompactFacts` redacts and clips every string again. docs/PRIVACY.md lists each field, and `./test.sh docs` checks that list against the code.
 
-Two rules decide before the model: `locohost.not-a-dev-server` keeps services and high-port listeners, and `locohost.in-use-now` keeps a server with a new request or real CPU work right now.
+Two rules decide before the model: `locohost.not-a-dev-server` keeps services, high-port listeners and an agent's own port, and `locohost.in-use-now` keeps a server with a new request or real CPU work right now.
 
 ## Verbs
 

@@ -97,6 +97,7 @@ void MMMinMacsAddTestBrowser(NSString *bundleID);
 @property MMProcKey key;
 @property double cpuPercent;
 @property uint64_t memory;
+@property (copy) NSArray<NSNumber *> *ports;            // the TCP ports its own process listens on
 @end
 
 /// What the expert reads from one MMFacts: apps, agents and the load.
