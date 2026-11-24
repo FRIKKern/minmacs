@@ -77,6 +77,18 @@ check "release: install of a folder that is not an app fails" 1 "$?"
 rl_inst --app "$APP" --prefix "$rl/missing"
 check "release: install to a prefix that does not exist fails" 1 "$?"
 
+echo "-- install.sh with a 1.x app, which has no version verb"
+# A 1.x app as install.sh sees one: version 1.2.0, a binary that answers no version verb, signed ad hoc again.
+rl_one="$rl/one/MinMacs.app"; mkdir -p "$rl/one"; ditto "$APP" "$rl_one"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.2.0" "$rl_one/Contents/Info.plist"
+printf '#!/bin/sh\n[ "$1" = version ] && { echo "usage: minmacs <command>" >&2; exit 2; }\nexit 0\n' >"$rl_one/Contents/MacOS/MinMacs"
+chmod +x "$rl_one/Contents/MacOS/MinMacs"
+codesign -s - --force "$rl_one" >/dev/null 2>&1
+rl_p1="$rl/prefix-one"; mkdir -p "$rl_p1"
+rl_inst --app "$rl_one" --prefix "$rl_p1"
+check "release: a 1.x app installs, though it answers no version verb" "0 1.2.0" "$? $(rl_id "$rl_p1/Applications/MinMacs.app" CFBundleShortVersionString)"
+check "release: and its minmacs link reaches its binary" yes "$([ -x "$rl_p1/.local/bin/minmacs" ] && echo yes || echo no)"
+
 echo "-- release.sh"
 cat >"$rl_fake/git" <<EOF
 #!/bin/sh

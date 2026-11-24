@@ -133,9 +133,10 @@ MMVerbSpec *MMFindVerb(NSString *program, NSString *verb) {
     return nil;
 }
 
-/// Verbs that always run in this process: they say who this binary is, or they are the worker of P4.
+/// Verbs that always run in this process: they say who this binary is, they are the worker of P4, or they measure
+/// the app from outside, as self does.
 static BOOL RunsHere(NSString *verb) {
-    return [@[@"version", @"help", @"_walk", @"_serve"] containsObject:verb] || [verb hasPrefix:@"_"];
+    return [@[@"version", @"help", @"self", @"_walk", @"_serve"] containsObject:verb] || [verb hasPrefix:@"_"];
 }
 
 BOOL MMWantsCLI(int argc, const char *argv[]) {

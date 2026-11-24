@@ -141,7 +141,12 @@ link() {
 }
 link minmacs
 if [ "$MAJOR" -ge 2 ] 2>/dev/null; then link locohost; fi
-"$BINDIR/minmacs" version >/dev/null 2>&1 || die "$BINDIR/minmacs version failed"
+# 1.x has no version verb, so a 1.x install is checked by its link reaching the binary. 2.x answers version.
+if [ "$MAJOR" -ge 2 ] 2>/dev/null; then
+  "$BINDIR/minmacs" version >/dev/null 2>&1 || die "$BINDIR/minmacs version failed"
+else
+  [ -x "$BINDIR/minmacs" ] || die "$BINDIR/minmacs does not reach the app's binary"
+fi
 case ":$PATH:" in *":$BINDIR:"*) ;; *) [ "$REAL" = 1 ] && warn "$BINDIR is not on your PATH" ;; esac
 
 # 5. Launch, for a real install only.

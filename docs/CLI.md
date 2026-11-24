@@ -169,6 +169,16 @@ Flags: `--json`, `--waiting`, `--delete`, `--put-back`, `--to`, `--close`, `--dr
 
 It changes things, so it runs only through the running app, unless `--dry-run` is given.
 
+#### `self`
+
+What the running MinMacs app costs this Mac: its CPU now and since launch, the tools it ran, memory, disk writes and wakeups, against its budgets.
+
+```
+self [--window <seconds>] [--json]
+```
+
+Flags: `--window`, `--json`.
+
 #### `version`
 
 The version.

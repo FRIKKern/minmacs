@@ -15,6 +15,7 @@ int MMInvestigateToolsVerb(MMArgs *a);
 int MMHistoryVerb(MMArgs *a);
 // From MMGainsCLI.m.
 int MMGainsVerb(MMArgs *a);
+int MMSelfVerb(MMArgs *a);
 // From MMPerformanceCLI.m.
 int MMPerformanceVerb(MMArgs *a);
 
@@ -746,6 +747,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"removal" usage:@"removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]   show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
                   MMVerbReadsNoWorktrees, @[@"--delete", @"--put-back", @"--close"]),
+            Reads([MMVerbSpec verb:@"self" usage:@"self [--window <seconds>] [--json]   what the running MinMacs app costs this Mac: its CPU now and since launch, the tools it ran, memory, disk writes and wakeups, against its budgets" mutates:NO run:^(MMArgs *a) { return MMSelfVerb(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }], MMVerbReadsNoWorktrees, nil),

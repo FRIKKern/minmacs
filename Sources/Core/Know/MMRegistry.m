@@ -9,6 +9,7 @@
 #import <glob.h>
 #import <sys/stat.h>
 #import <mach-o/dyld.h>
+#import <os/lock.h>
 
 
 @interface MMAgentRow ()
@@ -170,6 +171,14 @@ static NSString *StateWord(MMAgentState s) {
     id _eventToken;
     NSArray<NSNumber *> *_absent;        // under @synchronized (self): absentFlags and when it was read
     NSDate *_absentAt;
+    // Issue #52: which surfaces can match a command at all, so a rebuild does not try every surface of every row on
+    // every process. Matches gives 0 unless argv[0]'s base name is in the surface's names or argv[0] holds one of its
+    // path_contains, so only those surfaces are tried, in the same row and surface order, and the answer is the same.
+    NSArray<NSArray *> *_surfaces;       // every process surface, in row then surface order: @[@(row index), surface]
+    NSDictionary<NSString *, NSArray<NSNumber *> *> *_byName;   // a base name: the indexes into _surfaces naming it
+    NSArray<NSArray *> *_byPath;         // @[@(index into _surfaces), its path_contains strings]
+    NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *_tryFor;   // under _tryLock: argv[0]: the indexes to try
+    os_unfair_lock _tryLock;
 }
 
 + (instancetype)shared {
@@ -212,6 +221,7 @@ static NSString *StateWord(MMAgentState s) {
             }
         }
         _rows = [byID.allValues sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"harnessID" ascending:YES]]];
+        [self indexSurfaces];
         __weak MMRegistry *weak = self;
         _eventToken = [MMAgentEvents.shared observe:^(MMAgentEvent *e) { [weak noteEvent:e]; }];
     }
@@ -244,14 +254,60 @@ static NSString *StateWord(MMAgentState s) {
     return out;
 }
 
-- (MMAgentCand *)bestFor:(NSArray<NSString *> *)argv absent:(NSArray<NSNumber *> *)absent {
-    MMAgentCand *c = nil; NSInteger top = 0;
+- (void)indexSurfaces {
+    NSMutableArray *surfaces = [NSMutableArray new], *byPath = [NSMutableArray new];
+    NSMutableDictionary<NSString *, NSMutableArray *> *byName = [NSMutableDictionary new];
     for (NSUInteger i = 0; i < _rows.count; i++)
         for (NSDictionary *s in Strings(_rows[i].json[@"surfaces"])) {
             if (![s isKindOfClass:NSDictionary.class]) continue;
-            NSInteger score = Matches(s, argv, [absent[i] boolValue]);
-            if (score > top) { top = score; c = [MMAgentCand new]; c.row = _rows[i]; c.surface = s; c.absent = [absent[i] boolValue]; }
+            NSDictionary *spec = [s[@"process"] isKindOfClass:NSDictionary.class] ? s[@"process"] : nil;
+            if (!spec.count) continue;            // Matches gives such a surface 0
+            NSNumber *at = @(surfaces.count);
+            [surfaces addObject:@[@(i), s]];
+            for (NSString *n in Strings(spec[@"names"])) if ([n isKindOfClass:NSString.class]) {
+                if (!byName[n]) byName[n] = [NSMutableArray new];
+                if (![byName[n] containsObject:at]) [byName[n] addObject:at];
+            }
+            NSMutableArray *paths = [NSMutableArray new];
+            for (NSString *p in Strings(spec[@"path_contains"])) if ([p isKindOfClass:NSString.class]) [paths addObject:p];
+            if (paths.count) [byPath addObject:@[at, paths]];
         }
+    _surfaces = surfaces; _byName = byName; _byPath = byPath;
+    _tryFor = [NSMutableDictionary new];
+    _tryLock = OS_UNFAIR_LOCK_INIT;
+}
+
+/// The surfaces that can match a command whose argv[0] is arg0, ascending, so they are tried in row and surface order.
+/// Kept per arg0: the same programs run pass after pass. The memo is dropped whole when it grows past 4096 commands.
+- (NSArray<NSNumber *> *)surfacesFor:(NSString *)arg0 {
+    os_unfair_lock_lock(&_tryLock);
+    NSArray *known = _tryFor[arg0];
+    os_unfair_lock_unlock(&_tryLock);
+    if (known) return known;
+    NSMutableIndexSet *hit = [NSMutableIndexSet new];
+    for (NSNumber *n in _byName[arg0.lastPathComponent]) [hit addIndex:n.unsignedIntegerValue];
+    for (NSArray *e in _byPath)
+        for (NSString *p in e[1]) if ([arg0 containsString:p]) { [hit addIndex:[e[0] unsignedIntegerValue]]; break; }
+    NSMutableArray *out = [NSMutableArray new];
+    [hit enumerateIndexesUsingBlock:^(NSUInteger i, BOOL *stop) { [out addObject:@(i)]; }];
+    os_unfair_lock_lock(&_tryLock);
+    if (_tryFor.count >= 4096) [_tryFor removeAllObjects];
+    _tryFor[arg0] = out;
+    os_unfair_lock_unlock(&_tryLock);
+    return out;
+}
+
+- (MMAgentCand *)bestFor:(NSArray<NSString *> *)argv absent:(NSArray<NSNumber *> *)absent {
+    MMAgentCand *c = nil; NSInteger top = 0;
+    NSString *arg0 = argv.firstObject;
+    if (![arg0 isKindOfClass:NSString.class]) return nil;
+    for (NSNumber *k in [self surfacesFor:arg0]) {
+        NSArray *e = _surfaces[k.unsignedIntegerValue];
+        NSUInteger i = [e[0] unsignedIntegerValue];
+        NSDictionary *s = e[1];
+        NSInteger score = Matches(s, argv, [absent[i] boolValue]);
+        if (score > top) { top = score; c = [MMAgentCand new]; c.row = _rows[i]; c.surface = s; c.absent = [absent[i] boolValue]; }
+    }
     return c;
 }
 
