@@ -27,6 +27,17 @@ static NSString *Joined(NSArray<NSString *> *parts) {
 static NSString *Cap(NSString *s) { return s.length ? [[s substringToIndex:1].uppercaseString stringByAppendingString:[s substringFromIndex:1]] : s; }
 static NSString *Period(NSString *s) { return [s hasSuffix:@"."] ? s : [s stringByAppendingString:@"."]; }
 
+/// An ask of Ask MinMacs, MMAsk.h: the question in quotes and who answered it. The answer is the ask's own; the log
+/// says only that one was given, and that no model was asked.
+MMWindowLogEntry *MMWindowLogAskEntry(MMLogEntry *row, NSDate *now) {
+    NSDictionary *b = [row.body isKindOfClass:NSDictionary.class] ? row.body : @{};
+    NSString *q = Str(b[@"question"]) ?: @"", *kind = Str(b[@"kind"]) ?: @"unknown", *by = Str(b[@"by"]);
+    BOOL rules = [Str(b[@"answeredBy"]) ?: @"rules" isEqualToString:@"rules"];
+    NSString *said = [kind isEqualToString:@"unknown"] ? @"It had no answer without the model." : rules ? @"Answered from what MinMacs knows, with no model." : @"Answered.";
+    NSString *s = [NSString stringWithFormat:@"Asked \u201C%@\u201D. %@", q, said];
+    return MMWindowLogEntryOf(row, @"ask", s, MMWindowLogWho(by, nil), now);
+}
+
 MMWindowLogEntry *MMWindowLogRunEntry(MMLogEntry *row, NSDate *now) {
     NSDictionary *b = [row.body isKindOfClass:NSDictionary.class] ? row.body : @{};
     NSString *what = Str(b[@"what"]) ?: row.subject ?: @"";

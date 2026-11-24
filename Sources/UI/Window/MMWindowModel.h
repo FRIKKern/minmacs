@@ -539,7 +539,7 @@ extern NSString *const MMWindowLookingNote;
 @interface MMWindowLogEntry : NSObject
 @property (copy) NSString *key;                         // stable across reads: the record's rid, or the row's number
 /// What it is: "action", "restored", "failed", "began", "review", "reviews", "investigate", "setting", "keep",
-/// "quiet", "run" or "notice".
+/// "quiet", "run", "notice" or "ask".
 @property (copy) NSString *kind;
 @property (copy) NSString *sentence;                    // "Stopped :3000 Next.js. Undo starts it again."
 @property (copy) NSString *time;                        // "14:02", or "08:00 to 13:00" for folded reviews
@@ -580,6 +580,61 @@ NSString *MMWindowTokens(NSInteger tokens);
 /// left is how long the first day of watching still runs, 0 once it is over, and as MMWindowSpan says it.
 NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
 
+#pragma mark - Ask MinMacs
+
+/// One line of an answer: a log entry with its record's own why, a fix of the plan, or a fact of a row's story.
+@interface MMWindowAnswerEntry : NSObject
+@property (copy) NSString *sentence;                    // "Stopped :3000 Next.js. Undo starts it again."
+/// Why, in the record's own words and the review's: "Its reason: idle for 6 h. The review said: no requests in 6 h."
+@property (copy, nullable) NSString *why;
+@property (copy, nullable) NSString *detail;            // the quiet line: "14:02 · on its own, Careful"
+/// A press on the entry makes this row the active one, so its story shows. nil when the row is not in the window.
+@property (copy, nullable) NSString *row;
+/// Else a press shows this entry of the log, by its key. nil for an entry the log does not hold.
+@property (copy, nullable) NSString *logKey;
+@end
+
+/// What an answer offers to do: the action button that exists already, "Keep for 7 days" or "Undo". Nothing acts
+/// until a person presses it, and then it goes through the keep or the restore the rest of MinMacs uses.
+@interface MMWindowSuggest : NSObject
+@property (copy) NSString *action;                      // "keep" or "undo"
+@property (copy) NSString *title;                       // "Keep for 7 days", "Keep for 4 hours", "Undo"
+@property (copy) NSString *target;                      // the row's key for a keep, the record's rid for an undo
+/// The verb that does the same from the command line, "minmacs restore <rid>". nil when no verb does it.
+@property (copy, nullable) NSString *command;
+@property (copy, nullable) NSString *help;              // the button's tooltip and what VoiceOver says after its name
+/// Set once it was pressed: the button is away and this line stands in its place, "Taking it back.".
+@property (copy, nullable) NSString *note;
+@end
+
+/// One answer of Ask MinMacs, in the middle in place of the log. Tier 0 answers from what MinMacs knows: the log, the
+/// rows and the plan of Fix Everything. It never makes up an answer: what it cannot answer says so.
+@interface MMWindowAnswer : NSObject
+/// Counts the asks of one window, so a new answer is told from a note added to the same one.
+@property NSInteger serial;
+@property (copy) NSString *question;
+/// "why", "plan", "about", "keep", "undo" or "unknown".
+@property (copy) NSString *kind;
+@property (copy) NSString *answer;                      // the lead, one or two sentences
+@property (copy) NSArray<MMWindowAnswerEntry *> *entries;
+@property (strong, nullable) MMWindowSuggest *suggest;
+/// For a question it cannot answer: questions it can, each a press that asks it.
+@property (copy) NSArray<NSString *> *examples;
+/// For "about": the row the answer makes active, so its story shows.
+@property (copy, nullable) NSString *row;
+/// Who answered: "rules" for tier 0. The model of tier 1 will say its own name.
+@property (copy) NSString *answeredBy;
+/// The same answer with its suggestion pressed and this note in the button's place. The answer itself is not changed.
+- (MMWindowAnswer *)withNote:(NSString *)note;
+@end
+
+/// "Ask MinMacs", the field's placeholder and its VoiceOver name.
+extern NSString *const MMWindowAskTitle;
+/// "Back to the log", the press that puts the log back.
+extern NSString *const MMWindowAskBack;
+/// "I can't answer that without the model yet.", the answer to anything tier 0 has no rule for.
+extern NSString *const MMWindowAskCannot;
+
 #pragma mark - The whole window
 
 @interface MMWindowModel : NSObject
@@ -608,6 +663,8 @@ NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
 @property (strong, nullable) MMWindowWelcome *welcome;
 /// The log in the middle, read only while the window is open. nil before the first read, and in `minmacs window`.
 @property (strong, nullable) MMWindowLog *log;
+/// The answer to the last ask in the window, shown in the middle in place of the log. nil when none.
+@property (strong, nullable) MMWindowAnswer *answer;
 - (nullable MMWindowRow *)row:(NSString *)key;
 /// What Fix Everything gives back in memory with each process once, MMPerformance's memoryBackOnce, as the feed sets
 /// it: a stop of a server and a quit of the app it rolls up into end that server once. nil sums the fixes, as a

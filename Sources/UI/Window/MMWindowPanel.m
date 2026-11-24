@@ -93,7 +93,8 @@
 - (void)watch {
     __weak typeof(self) me = self;
     NSEventMask downs = NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown | NSEventMaskOtherMouseDown;
-    if (!_outside) _outside = [NSEvent addGlobalMonitorForEventsMatchingMask:downs handler:^(NSEvent *e) { [me close]; }];
+    // A press in an input method's own window, while it composes in Ask MinMacs, is not a press outside.
+    if (!_outside) _outside = [NSEvent addGlobalMonitorForEventsMatchingMask:downs handler:^(NSEvent *e) { if (!me.composing) [me close]; }];
     if (!_inside) _inside = [NSEvent addLocalMonitorForEventsMatchingMask:downs handler:^NSEvent *(NSEvent *e) {
         MMWindowPanel *panel = me;
         if (panel && e.window != panel && e.window != panel->_anchor) [panel close];
@@ -121,6 +122,8 @@
     for (id o in _own) [NSNotificationCenter.defaultCenter removeObserver:o];
     _others = nil; _own = nil;
 }
+
+- (BOOL)composing { NSTextView *t = (NSTextView *)self.firstResponder; return [t isKindOfClass:NSTextView.class] && t.hasMarkedText; }
 
 - (BOOL)watching { return _outside || _inside || _others.count || _own.count; }
 

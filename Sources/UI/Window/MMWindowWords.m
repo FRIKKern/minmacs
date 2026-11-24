@@ -31,6 +31,12 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
     add(m.settings.startsIn);
     add(m.log.note);
     for (MMWindowLogEntry *e in m.log.entries) { add(e.sentence); add(e.detail); add(e.day); add(e.more); add(e.undoHelp); }
+    [s addObjectsFromArray:@[MMWindowAskTitle, MMWindowAskBack, MMWindowAskCannot, @"It can answer questions like these:"]];
+    MMWindowAnswer *a = m.answer;
+    add(a.question); add(a.answer); add(a.suggest.title); add(a.suggest.help); add(a.suggest.note);
+    if (a.question.length) add([NSString stringWithFormat:@"You asked \u201C%@\u201D", a.question]);
+    for (NSString *x in a.examples) add(x);
+    for (MMWindowAnswerEntry *e in a.entries) { add(e.sentence); add(e.why); add(e.detail); }
     MMWindowWelcome *w = m.welcome;
     for (NSString *x in @[w.title ?: @"", w.say ?: @"", w.loginTitle ?: @"", w.loginOnNote ?: @"", w.loginOffNote ?: @"", w.later ?: @"", w.start ?: @""]) add(x);
     for (MMWindowFact *f in w.facts) { add(f.label); add(f.value); }

@@ -37,6 +37,14 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// A press on the strip's "hour" or "7 days": keep the choice, MMWindowWeekKey, and send a model with the 7 days read
 /// when they are chosen. The shell reads them off main and only while the window is open.
 - (void)windowStripWeek:(BOOL)week;
+/// Return in Ask MinMacs: answer this question, with the row whose story shows now for "keep this", or nil. The
+/// answer comes in a later model, as its answer. Nothing acts on an ask.
+- (void)windowAsk:(NSString *)question row:(nullable NSString *)rowKey;
+/// Back to the log, or Escape over an answer: the answer goes.
+- (void)windowAskBack;
+/// A press on an answer's Keep: keep this row as its own menu does, for 4 hours or 7 days. Only a person's press
+/// sends it.
+- (void)windowKeep:(NSString *)rowKey;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,

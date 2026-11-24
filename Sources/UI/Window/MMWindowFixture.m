@@ -92,6 +92,13 @@ static uint64_t LeftoversBack(NSArray<MMWindowRow *> *caches) {
 /// Each day with its log. "log-empty", "log-new", "log-busy" and "log-undo" are the young, the young, the busy and the
 /// young day with an empty log, a new Mac's first hour, 300 entries over a month and the Undo presses with two runs. The days of a new Mac show the first hour too.
 MMWindowModel *MMWindowFixture(NSString *name) {
+    // Ask MinMacs on the busy day: the field alone, or an answer in the log's place, MMWindowFixtureAsk.m.
+    if ([name hasPrefix:@"ask-"]) {
+        MMWindowModel *m = Day(@"busy");
+        m.log = MMWindowFixtureLog(@"day");
+        if (![name isEqualToString:@"ask-empty"] && ![name isEqualToString:@"ask-typing"]) m.answer = MMWindowFixtureAnswer(name);
+        return m;
+    }
     // "week", "week-young" and "week-gap": the calm day with its strip on the 7 days.
     BOOL week = [name hasPrefix:@"week"];
     NSString *day = week ? @"calm" : [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;

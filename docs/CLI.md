@@ -337,6 +337,28 @@ log [--limit <n>] [--json]
 
 Flags: `--limit`, `--json`.
 
+#### `ask`
+
+Ask MinMacs about what it did, would do or knows, answered from the log and the window with no model; it never acts.
+
+```
+ask <question> [--json]
+```
+
+Flags: `--json`.
+
+#### `keep`
+
+Keep a server, worktree or cache from every rule for a while: 4 hours for a server and 7 days for the rest unless --days says, 0 ends it.
+
+```
+keep <port|path|cache name> [--days <n>] [--json] [--dry-run]
+```
+
+Flags: `--days`, `--json`, `--dry-run`.
+
+It changes things, so it runs only through the running app, unless `--dry-run` is given.
+
 ### LocoHost
 
 #### `hosts`

@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MMLog, MMLogEntry, MMVerbSpec;
 
-/// The tables the log shows, in no order: undo, review, investigate, setting, keep, quiet and run.
+/// The tables the log shows, in no order: undo, review, investigate, setting, keep, quiet, run, notice and ask.
 NSArray<NSString *> *MMWindowLogTables(void);
 
 /// The entries of these rows, newest first. rows come newest first, as -[MMLog rows:before:limit:] gives them.

@@ -4,6 +4,7 @@
 #import "Shell/MMWindowFeed.h"
 #import "Shell/MMFixRunner.h"
 #import "Shell/MMWindowLog.h"
+#import "Shell/MMAsk.h"
 #import "Core/MMCore.h"
 
 static const NSTimeInterval kEndShows = 4;               // an ended run stays on the model this long, then lets go
@@ -42,6 +43,9 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
     NSUInteger _weekWrites;                              // MMHistoryWeekWrites at that read
     NSMutableSet<NSString *> *_undoing;                  // the records an Undo press is taking back now
     NSMutableDictionary<NSString *, NSString *> *_undoProblems;   // what a restore answered, by rid, while open
+    MMWindowModel *_built;                               // the last model sent, which an ask reads its rows and plan from
+    MMWindowAnswer *_answer;                             // the answer of the last ask, while open
+    NSInteger _asks;                                     // counts the asks, so the window tells a new answer
 }
 
 static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED); }
@@ -56,7 +60,8 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         _token = nil; _pulls = nil; _model = nil; _shown = 0;
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
-        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; self->_week = nil; });
+        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; self->_week = nil;
+                                     self->_built = nil; self->_answer = nil; });
         return;
     }
     atomic_store(&_loginOn, [self.shell loginEnabled]);
@@ -101,6 +106,8 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (x.stripWeek) [self readWeek:x];
     x.welcome = MMWindowWelcomeNow(x.loginOn);
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
+    m.answer = _answer;
+    _built = m;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (!self.open || m.generation < self->_shown) return;
         self->_shown = m.generation; self->_model = m;
@@ -308,15 +315,64 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         if ([self->_undoing containsObject:rid]) return;
         [self->_undoing addObject:rid];
         [self->_undoProblems removeObjectForKey:rid];
+        [self noteAnswer:@"undo" target:rid note:@"Taking it back."];
         [self send];
         dispatch_async(MMQueue(@"core", @"undo", QOS_CLASS_UTILITY), ^{
             NSString *problem = [MMUndo.shared restore:rid];
             dispatch_async(Queue(), ^{
                 [self->_undoing removeObject:rid];
                 if (problem) { if (!self->_undoProblems) self->_undoProblems = [NSMutableDictionary new]; self->_undoProblems[rid] = problem; }
+                [self noteAnswer:@"undo" target:rid note:problem ? [@"It did not go back: " stringByAppendingString:problem] : @"Taken back. The log has it."];
                 [self send];
             });
         });
+    });
+}
+
+#pragma mark - Ask MinMacs
+
+/// The window queue. The answer's suggestion was pressed: its button gives way to this line.
+- (void)noteAnswer:(NSString *)action target:(NSString *)target note:(NSString *)note {
+    MMWindowSuggest *s = _answer.suggest;
+    if ([s.action isEqualToString:action] && [s.target isEqualToString:target]) _answer = [_answer withNote:note];
+}
+
+/// Return in Ask MinMacs. Tier 0 answers on the window queue from the model last sent and the log's rows, writes the
+/// ask's row and sends a model with the answer. It acts on nothing.
+- (void)windowAsk:(NSString *)question row:(NSString *)rowKey {
+    NSString *q = MMAskQuestion(question);
+    if (!q) return;
+    NSString *row = [rowKey isKindOfClass:NSString.class] && rowKey.length ? [rowKey copy] : nil;
+    dispatch_async(Queue(), ^{
+        if (!self.open || !self->_built) return;
+        MMAskWorld *w = [MMAskWorld new];
+        w.model = self->_built;
+        w.rows = [MMAskWorld rowsOf:MMLog.shared];
+        w.targets = [MMAskWorld targetsOf:self->_built snapshot:self->_s];
+        w.row = row;
+        w.now = NSDate.date;
+        MMWindowAnswer *a = MMAskTier0(q, w);
+        a.serial = ++self->_asks;
+        MMAskLog(a, @"window");
+        self->_answer = a;
+        [self send];
+    });
+}
+
+- (void)windowAskBack { dispatch_async(Queue(), ^{ if (!self->_answer) return; self->_answer = nil; [self send]; }); }
+
+/// A press on an answer's Keep. The keep its row's own menu gives: MMKeep, by the expert's stable key, for 4 hours or
+/// 7 days, with its row in the log, then a rebuild so the rows say it. Read fresh from the snapshot at the press.
+- (void)windowKeep:(NSString *)rowKey {
+    if (![rowKey isKindOfClass:NSString.class] || !rowKey.length) return;
+    dispatch_async(Queue(), ^{
+        MMAskTarget *t = MMAskTargetOf([self->_s finding:rowKey]);
+        if (!t) return;
+        NSTimeInterval span = MMAskKeepFor(t.expert);
+        [MMKeep keep:t.stableKey expert:t.expert until:[NSDate dateWithTimeIntervalSinceNow:span] by:@"window" name:t.name];
+        [self noteAnswer:@"keep" target:rowKey note:[NSString stringWithFormat:@"Kept for %@. No rule acts on it until then.", span < 86400 ? @"4 hours" : @"7 days"]];
+        [self send];
+        [MMGraph.shared rebuild:@"window keep"];
     });
 }
 

@@ -216,9 +216,15 @@ No file contents, no folder path, no commit, no diff and nothing about other wor
 
 `minmacs trees prs off`, or the Pull requests switch in Settings under This Mac, turns it off. It is the pref `workforest.pullRequests`, on by default.
 
+## Ask MinMacs
+
+Ask MinMacs, the field at the foot of the window's middle and `minmacs ask`, sends nothing. It answers from what MinMacs already holds on this Mac: the log, the window's rows and the plan of Fix Everything, by matching the words of the question to them. It asks no model, runs no command and opens no connection. `test/ask.sh` holds its code to that.
+
+Each ask is stored locally, as a row of the log's `ask` table, `{question, kind, answer, answeredBy, by}`, so what was asked and answered can be followed. The question stays in `minmacs.sqlite` on this Mac and is never sent anywhere. An answer never acts: a keep or an undo it offers runs only on a person's press of its button, or as the verb it names when whoever asked runs it.
+
 ## Where it goes
 
-The log, `minmacs.sqlite` in the support folder, stays on this Mac. It holds each action and its undo record, each review with its verdicts and tokens, each look of Investigate, each setting that changed with who changed it, each keep with the name of what it keeps, and each quiet hold with the pid, its start time, the reason it was given and when it began and ended, and for the strip's 7 days the whole Mac's memory used and free disk once an hour, the last 8 days. The window's middle and `minmacs log` read it. No review or Investigate call sends it or its sentences.
+The log, `minmacs.sqlite` in the support folder, stays on this Mac. It holds each action and its undo record, each review with its verdicts and tokens, each look of Investigate, each setting that changed with who changed it, each keep with the name of what it keeps, each ask with its question and answer, and each quiet hold with the pid, its start time, the reason it was given and when it began and ended, and for the strip's 7 days the whole Mac's memory used and free disk once an hour, the last 8 days. The window's middle and `minmacs log` read it. No review or Investigate call sends it or its sentences.
 
 The quiet holds that are active now sit in `quiet/holds.json` in the support folder, so every MinMacs process obeys them: each held pid with its start time, the reason, who asked, when, and which MinMacs process keeps the Mac awake for it. An entry leaves the file when its hold ends. `minmacs device` writes nothing. It prints the Mac's name, model, power, displays, load, the agents that run and the names other processes give their sleep assertions to whoever runs it, and sends nothing anywhere.
 

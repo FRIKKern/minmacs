@@ -17,6 +17,7 @@
 #import "Shell/MMWindowController.h"
 #import "Shell/MMWindowFeed.h"
 #import "Shell/MMWindowLog.h"
+#import "Shell/MMAsk.h"
 
 NSString *const MMLoginNotice = @"MinMacs opens at login. Settings can turn that off.";
 static NSString *const kLaunchedKey = @"core.launched";          // set on the first launch
@@ -701,6 +702,8 @@ int MMMain(int argc, const char *argv[]) {
     // The window's feed lives in the shell, so the shell adds the verb that prints it, for the CLI and for the app.
     MMAddVerb(MMWindowVerbSpec());
     MMAddVerb(MMLogVerbSpec());
+    MMAddVerb(MMAskVerbSpec());
+    MMAddVerb(MMKeepVerbSpec());
     if (MMWantsCLI(argc, argv)) return MMRunCLI(argc, argv);
     NSApplication *app = NSApplication.sharedApplication;
     MMShell *delegate = [MMShell new];

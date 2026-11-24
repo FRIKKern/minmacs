@@ -6,7 +6,8 @@
 static NSArray<NSString *> *WordFixtures(void) {
     return @[@"quiet", @"busy", @"peak", @"young", @"calm", @"empty", @"long", @"running", @"done", @"memory-only", @"disk-only", @"real",
              @"extreme", @"extreme-running", @"extreme-done", @"measuring", @"caches", @"agents", @"log-new", @"log-busy", @"log-undo",
-             @"week", @"week-young", @"week-gap"];
+             @"week", @"week-young", @"week-gap",
+             @"ask-why", @"ask-keep", @"ask-plan", @"ask-fallback"];
 }
 
 static NSMutableArray<NSString *> *gWordFaults, *gWordSeen;
