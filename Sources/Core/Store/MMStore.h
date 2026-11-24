@@ -10,6 +10,19 @@ NSString *MMExpertDir(NSString *expert);
 /// Removes the support folder's files that an older build wrote and nothing reads now: repos.eventid, which one
 /// event id per root replaced. MMCoreStart calls it once, off main. Returns the names it removed.
 NSArray<NSString *> *MMRemoveStaleFiles(void);
+/// Sets every folder MinMacs makes in its support folder back to 0700 when it lacks any of the owner's read, write
+/// and search bits: the support folder, each folder at its top (core, every expert's, staged, running, registry...),
+/// core/trashed and each expert's recovery, bundles and investigate folders, each staging folder in staged and each
+/// recovery folder of a record. Only a real folder of this uid's: never a link, never a folder another user owns,
+/// never what such a folder holds, and never a mode wider than 0700. What a staging or recovery folder holds is the
+/// person's, and is left as it is. MMCoreStart calls it once, off main. Returns the paths it set, relative to the
+/// support folder, "." for the support folder itself.
+NSArray<NSString *> *MMRepairOwnFolders(void);
+#ifdef MM_TESTS
+/// A check's seam: the owner MMRepairOwnFolders sees for a folder, from its real owner, so a check can give a fixture
+/// folder another user without root. nil for the real owner.
+void MMUseFolderOwner(uid_t (^owner)(NSString *path, uid_t owner));
+#endif
 
 /// P35. The one prefs domain. The old apps' domains are read once by the migration in PLAN.md section 8.
 extern NSString *const MMPrefsDomain;                   // @"no.guerrilla.minmacs"

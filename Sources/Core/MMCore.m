@@ -249,6 +249,17 @@ static void StartReviews(void) {
     dispatch_resume(gReviewTimer);
 }
 
+void MMRepairedOwnFolders(NSArray<NSString *> *fixed) {
+    if (!fixed.count) return;
+    BOOL one = fixed.count == 1;
+    NSString *names = one ? fixed[0] : [[[fixed subarrayWithRange:NSMakeRange(0, fixed.count - 1)] componentsJoinedByString:@", "]
+                                         stringByAppendingFormat:@" and %@", fixed.lastObject];
+    os_log(CoreLog(), "set its own folders back to 0700: %{public}@", names);
+    MMNotice(@"core", one ? @"MinMacs Opened Its Own Folder Again" : @"MinMacs Opened Its Own Folders Again",
+             [NSString stringWithFormat:@"Its %@ %@ had lost the owner's permission to open %@, so nothing could be written there. MinMacs set %@ to 0700 again.",
+                                        one ? @"folder" : @"folders", names, one ? @"it" : @"them", one ? @"it" : @"them"]);
+}
+
 void MMCoreStart(void) {
     if (!NSThread.isMainThread) { dispatch_sync(dispatch_get_main_queue(), ^{ MMCoreStart(); }); return; }
     if (gStarted) return;
@@ -261,6 +272,9 @@ void MMCoreStart(void) {
     MMLogOpenOffMain();
     NSString *dir = MMSupportDir();
     dispatch_async(MMQueue(@"core", @"store", QOS_CLASS_UTILITY), ^{
+        // First, before anything below reads or writes there: a folder of MinMacs's own that lost its owner's bits is
+        // set back to 0700, and one notice says so. A core/ with no x bit once made every move to the Trash fail.
+        MMRepairedOwnFolders(MMRepairOwnFolders());
         for (NSString *name in MMRemoveStaleFiles()) os_log(CoreLog(), "removed the old %{public}@", name);
         // D2: there is no removal choice any more. An old Smart or Delete in the pref is cleared, so no build reads it.
         if (MMRemovalForgetOldChoice()) os_log(CoreLog(), "cleared the old removal choice: everything keeps a way back");

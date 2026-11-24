@@ -38,6 +38,30 @@ static BOOL Address(NSString *path, struct sockaddr_un *addr) {
     return YES;
 }
 
+/// Binds fd to path through a folder only this uid can enter, <support>/.s<pid>, made 0700 by mkdir with no change
+/// of the umask: the socket is bound there, set to 0600, and renamed over path. NO with *why when any step fails, and
+/// then nothing is left in that folder.
+static BOOL BindPrivately(int fd, NSString *path, NSString **why) {
+    NSString *dir = [path.stringByDeletingLastPathComponent stringByAppendingPathComponent:[NSString stringWithFormat:@".s%d", (int)getpid()]];
+    NSString *tmp = [dir stringByAppendingPathComponent:@"s"];
+    struct sockaddr_un at, to;
+    if (!Address(tmp, &at) || !Address(path, &to)) { *why = @"the support folder path is too long for core.sock"; return NO; }
+    // A folder left by a crashed process with this pid: only its socket is ever in it.
+    unlink(at.sun_path);
+    rmdir(dir.fileSystemRepresentation);
+    if (mkdir(dir.fileSystemRepresentation, 0700) != 0) { *why = [NSString stringWithFormat:@"core.sock folder: %s", strerror(errno)]; return NO; }
+    BOOL ok = NO;
+    struct stat st;
+    // The folder must be the one just made: a folder of this uid's with no way in for anyone else.
+    if (lstat(dir.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode) && st.st_uid == getuid() && (st.st_mode & 077) == 0) {
+        if (bind(fd, (struct sockaddr *)&at, at.sun_len) == 0 && chmod(at.sun_path, 0600) == 0 && rename(at.sun_path, to.sun_path) == 0) ok = YES;
+        else *why = [NSString stringWithFormat:@"core.sock: %s", strerror(errno)];
+    } else *why = @"core.sock folder is not the one MinMacs made";
+    unlink(at.sun_path);
+    rmdir(dir.fileSystemRepresentation);
+    return ok;
+}
+
 /// Waits until fd is readable or writable, at most until deadline. NO on timeout or error.
 static BOOL WaitFor(int fd, short events, NSDate *deadline) {
     for (;;) {
@@ -114,17 +138,17 @@ static int gLockFd = -1;
         NSString *path = MMCoreSocketPath();
         struct sockaddr_un addr;
         if (!Address(path, &addr)) { close(lock); if (error) *error = @"the support folder path is too long for core.sock"; return nil; }
-        // 2. The socket. A file left by a crash is removed, which is safe because the lock is ours.
-        unlink(addr.sun_path);
+        // 2. The socket. A file left by a crash is replaced, which is safe because the lock is ours.
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (fd < 0) { close(lock); if (error) *error = [NSString stringWithFormat:@"socket: %s", strerror(errno)]; return nil; }
         fcntl(fd, F_SETFD, FD_CLOEXEC);
-        // The umask makes the file 0600 from the start, so no other uid can connect between bind and chmod.
-        mode_t old = umask(0177);
-        int b = bind(fd, (struct sockaddr *)&addr, addr.sun_len);
-        umask(old);
-        if (b != 0 || chmod(addr.sun_path, 0600) != 0 || listen(fd, 16) != 0) {
-            NSString *why = [NSString stringWithFormat:@"core.sock: %s", strerror(errno)];
+        // Bound in a folder of its own that only this uid can enter, set to 0600 there, then renamed into place, so
+        // no other uid can connect before the chmod. Never through umask: the umask is the whole process's, and a
+        // folder another thread made in that moment was made 0600, with no way in, which is how core/ once lost
+        // its x bit and every move to the Trash was refused.
+        NSString *why = nil;
+        if (!BindPrivately(fd, path, &why) || listen(fd, 16) != 0) {
+            if (!why) why = [NSString stringWithFormat:@"core.sock: %s", strerror(errno)];
             close(fd); unlink(addr.sun_path); close(lock);
             if (error) *error = why;
             return nil;
