@@ -310,14 +310,19 @@ BOOL MMWindowTakesPresses(NSView *view) {
     comes.alphaValue = 0; goes.alphaValue = 0;
     comes.frame = NSOffsetRect(home, 0, 6);
     // Neither side takes a press while it rises. The gear and the keys still do, and the last of them wins.
+    // The hold ends when the fade ends, or a little after its time at the latest: an animation never completes while
+    // the display is off, and a window driven with the display asleep or the lid closed must not stay deaf to presses.
     _flips++;
+    __block BOOL held = YES;
+    void (^release)(void) = ^{ if (!held) return; held = NO; self->_flips--; };
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kFlip + 0.15) * NSEC_PER_SEC)), dispatch_get_main_queue(), release);
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
         c.duration = kFlip;
         c.timingFunction = [(id)NSClassFromString(@"CAMediaTimingFunction") functionWithControlPoints:0.3 :0.7 :0.2 :1.0];
         comes.animator.alphaValue = 1; comes.animator.frame = home;
     } completionHandler:^{
         if (comes.frame.origin.y != self.bandTop) comes.frame = NSMakeRect(0, self.bandTop, home.size.width, home.size.height);
-        self->_flips--;
+        release();
         // The welcome came meanwhile and put Settings away. Nothing of this fade is left to finish.
         if (self.showsWelcome) { self->_settings.hidden = YES; self->_settings.alphaValue = 1; self->_main.alphaValue = 1; return; }
         // A second press during the fade wins.
