@@ -48,8 +48,8 @@ static MMWindowSettings *SettingsLike(NSArray<NSNumber *> *picked, NSDictionary<
                      @[@"Trash", @"Everything goes to the Trash. The disk comes back when you empty it."],
                      @[@"Delete", @"Deletes everything it removes at once. Nothing can be brought back."]], notes[@"removal"])];
     s.rules = rules;
-    s.switches = @[MMWindowAwakeSwitch(NO, nil), MMWindowAgentsSwitch(YES, MMWindowAgentsNote(YES, 2, 10)),
-                    MMWindowLidSwitch(YES, NO, @"On now. The Mac keeps working with the lid shut."), MMWindowLoginSwitch(YES, nil)];
+    s.switches = @[MMWindowAwakeSwitch(NO, nil), MMWindowAgentsSwitch(YES, MMWindowAgentsNote(YES, 2)),
+                    MMWindowLidSwitch(YES, NO, @"Working with the lid shut now."), MMWindowLoginSwitch(YES, nil)];
     return s;
 }
 
@@ -113,10 +113,11 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     m.settings = Settings();
     if ([name isEqualToString:@"calm"]) {
         // The calm day is a new person's first hour on a Mac with no lid: every rule on Careful and still only watching,
-        // the removal choice not made yet, so none is picked, the lid switch not available and the login item left alone.
-        NSString *watching = MMWindowWatchingNote(@"23h");
-        m.settings = SettingsLike(@[@1, @1, @1, @1, @-1], @{@"servers": watching, @"worktrees": watching, @"caches": watching,
+        // so the cleanup card's badge says when they start, the removal choice not made yet, so none is picked, the lid
+        // switch not available and the login item left alone.
+        m.settings = SettingsLike(@[@1, @1, @1, @1, @-1], @{
             @"removal": @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash."});
+        m.settings.startsIn = MMWindowStartsNote(23 * 3600 + 7 * 60);
         m.settings.switches = @[MMWindowAwakeSwitch(YES, nil), MMWindowAgentsSwitch(YES, nil), MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil)];
     }
     if (empty) m.settings = SettingsLike(@[@0, @0, @0, @0, @1], @{});

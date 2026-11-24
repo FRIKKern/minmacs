@@ -4,7 +4,8 @@
 // as "Off", "Careful" and "Eager". Proactive is not "Ask": it acts on its own on clear cases, so a title that
 // promised a question first would be false. Each explain line below says what that expert's -modeKeeps: does today
 // for that mode. test/window.sh checks the lines against the experts' sources, so a changed rule fails there.
-// No mode acts in the first day of watching, MMWatchedLongEnough, and the note says so while that holds.
+// No mode acts in the first day of watching, MMWatchedLongEnough, and the badge of the cleanup card says so while that
+// holds, once for every rule: the day is one for every expert.
 #import "Shell/MMWindowFeed.h"
 #import "UI/MMFormat.h"
 
@@ -39,13 +40,13 @@ static NSInteger Ready(MMPerformance *p, NSString *expert) {
     return n;
 }
 
+/// A rule's note says only what waits for a press while the rule does not act on its own. That it still only watches
+/// is the card's badge, MMWindowSettingsFrom.
 static MMWindowRule *Rule(NSString *ruleID, MMPerformance *p) {
     NSString *expert = MMWindowRuleExpert(ruleID);
     MMMode mode = MMModeFor(expert);
-    BOOL acts = RuleActs(ruleID, mode);
     NSInteger ready = Ready(p, expert);
-    NSTimeInterval left = MMWatchingLeft(expert);
-    NSString *note = acts && left > 0 ? MMWindowWatchingNote(MMDuration(left)) : !acts && ready > 0 ? MMWindowReadyNote(ready) : nil;
+    NSString *note = !RuleActs(ruleID, mode) && ready > 0 ? MMWindowReadyNote(ready) : nil;
     return MMWindowRuleCard(ruleID, (NSInteger)mode, note);
 }
 
@@ -76,14 +77,25 @@ static MMWindowRule *RemovalRule(void) {
 MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras) {
     MMWindowSettings *st = [MMWindowSettings new];
     NSMutableArray *rules = [NSMutableArray new];
-    for (NSString *rid in MMWindowRuleIDs()) if (RuleShows(rid)) [rules addObject:Rule(rid, p)];
+    NSTimeInterval left = 0;
+    for (NSString *rid in MMWindowRuleIDs()) {
+        if (!RuleShows(rid)) continue;
+        [rules addObject:Rule(rid, p)];
+        NSString *expert = MMWindowRuleExpert(rid);
+        if (RuleActs(rid, MMModeFor(expert))) left = MAX(left, MMWatchingLeft(expert));
+    }
+    // The removal choice stays in the model and in --json, for `minmacs removal` and the welcome. Settings does not
+    // draw it: it says in one line that removed things go to the Trash.
     [rules addObject:RemovalRule()];
     st.rules = rules;
+    st.startsIn = MMWindowStartsNote(left);
     // Keep this Mac awake comes first: Keep awake now, While agents work, then the lid. Then This Mac.
     NSMutableArray *switches = [NSMutableArray new];
     if (extras.awakeShown) {
         [switches addObject:MMWindowAwakeSwitch(extras.awakeOn, nil)];
-        [switches addObject:MMWindowAgentsSwitch(extras.agentsOn, MMWindowAgentsNote(extras.agentsOn, extras.agentsHolding, extras.quietMinutes))];
+        MMWindowSwitch *agents = MMWindowAgentsSwitch(extras.agentsOn, MMWindowAgentsNote(extras.agentsOn, extras.agentsHolding));
+        agents.help = MMWindowAgentsHelp(extras.quietMinutes);
+        [switches addObject:agents];
     }
     [switches addObject:MMWindowLidSwitch(extras.lidOn, extras.lidInert, extras.lidNote)];
     [switches addObject:MMWindowLoginSwitch(extras.loginOn, extras.loginNote)];
@@ -191,7 +203,7 @@ void MMWindowWelcomeDone(NSInteger removal) {
         if (!laptop) x.lidNote = MMWindowNoLidNote;
         else if (!x.lidOn) x.lidNote = nil;
         else if (other) x.lidNote = @"Another app sets it now.";
-        else if (live) x.lidNote = @"On now. The Mac keeps working with the lid shut.";
+        else if (live) x.lidNote = @"Working with the lid shut now.";
         else if (paused.length) x.lidNote = [NSString stringWithFormat:@"Paused, %@.", paused];
         else if (problem.length) x.lidNote = [NSString stringWithFormat:@"Off, %@.", problem];
         else x.lidNote = @"Off until something keeps the Mac awake.";

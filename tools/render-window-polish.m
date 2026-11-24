@@ -236,42 +236,65 @@ static void WindowPolishChecks(void) {
           @"window dock: a long end note keeps whole sentences only and where removed things went first, its Skipped list shortened before that, and one that fits is whole",
           [NSString stringWithFormat:@"%@ / %@", drawn, longest]);
 
-    // Settings: no title touches its explanation, no empty band stands over the title when nobody asks, Keep this Mac
-    // awake stands first with its three switches, each rule is one switch in Clean up on its own, and This Mac follows.
+    // Settings: three cards that read at a glance. Keep this Mac awake stands first with its three switches, Clean up
+    // on its own beside it with one switch a rule, and This Mac under the first. Every row is one line high with a
+    // second line only for a state, no removal choice is drawn, and the watching note stands once, in a badge.
     MMWindowView *sv = PolishView(@"calm");
     PolishHost *shost = [PolishHost new];
     sv.host = shost;
     sv.showsSettings = YES;
     MMWindowSettingsView *panel = PolishSettings(sv);
-    CGFloat widest = 0, column = 1000;
-    NSButton *lid = nil, *login = nil;
     NSMutableDictionary<NSString *, NSButton *> *switches = [NSMutableDictionary new];
-    NSMutableArray<NSButton *> *removal = [NSMutableArray new];
-    NSMutableDictionary<NSString *, NSNumber *> *firstTop = [NSMutableDictionary new];
+    NSInteger others = 0, tall = 0, noted = 0, helped = 0;
     for (NSView *sub in panel.subviews) {
-        if (![sub isKindOfClass:NSButton.class] || ![sub respondsToSelector:NSSelectorFromString(@"explainX")]) continue;
-        if ([[sub valueForKey:@"isSwitch"] boolValue]) { switches[[sub valueForKey:@"ownerID"]] = (NSButton *)sub; continue; }
-        widest = MAX(widest, MMWindowWidth(MMWindowText([sub valueForKey:@"label"], 13, NSFontWeightMedium, NSColor.whiteColor)));
-        column = MIN(column, [[sub valueForKey:@"explainX"] doubleValue]);
-        if ([[sub valueForKey:@"ownerID"] isEqualToString:@"removal"]) [removal addObject:(NSButton *)sub];
-        if ([[sub valueForKey:@"index"] integerValue] == 0) firstTop[[sub valueForKey:@"ownerID"]] = @(sub.frame.origin.y);
+        if (![sub isKindOfClass:NSButton.class] || ![sub respondsToSelector:NSSelectorFromString(@"mark")]) continue;
+        if (![[sub valueForKey:@"isSwitch"] boolValue]) { others++; continue; }
+        switches[[sub valueForKey:@"ownerID"]] = (NSButton *)sub;
+        NSString *note = [sub valueForKey:@"note"];
+        if (note.length) noted++;
+        if (sub.frame.size.height < 36 || sub.frame.size.height > (note.length ? 56 : 44)) tall++;
+        if (((NSButton *)sub).toolTip.length > 20 && [((NSButton *)sub).toolTip isEqualToString:sub.accessibilityHelp]) helped++;
     }
-    Check(panel && widest > 30 && column >= 30 + widest + 8, @"window settings: every explanation starts past the widest title, with a gap",
-          [NSString stringWithFormat:@"title %g, explanations at %g", widest, column]);
-    lid = switches[@"lid"]; login = switches[@"login"];
+    NSButton *lid = switches[@"lid"], *login = switches[@"login"];
     NSButton *awake = switches[@"awake"], *agents = switches[@"agents"], *servers = switches[@"rule:servers"], *caches = switches[@"rule:caches"];
-    Check(awake && agents && lid && login && servers && caches && switches.count == 8 && firstTop.count == 1 &&
-          NSMinX(awake.frame) == NSMinX(agents.frame) && NSMinX(agents.frame) == NSMinX(lid.frame) && NSMaxY(awake.frame) < NSMinY(agents.frame) && NSMaxY(agents.frame) < NSMinY(lid.frame) &&
+    Check(awake && agents && lid && login && servers && caches && switches.count == 8 && others == 0 &&
+          NSMinX(awake.frame) == NSMinX(agents.frame) && NSMinX(agents.frame) == NSMinX(lid.frame) && NSMaxY(awake.frame) <= NSMinY(agents.frame) && NSMaxY(agents.frame) <= NSMinY(lid.frame) &&
           NSMinY(awake.frame) == NSMinY(servers.frame) && NSMinX(awake.frame) < NSMinX(servers.frame) && NSMinX(servers.frame) == NSMinX(caches.frame) &&
-          NSMinY(login.frame) > NSMaxY(caches.frame) && NSMinY(removal.firstObject.frame) > NSMaxY(lid.frame),
-          @"window settings: Keep this Mac awake stands first with Keep awake now, While agents work and the lid, each rule is one switch beside it, and the removal choice and This Mac stand under them",
-          [switches.allKeys componentsJoinedByString:@","]);
+          NSMinX(login.frame) == NSMinX(awake.frame) && NSMinY(login.frame) > NSMaxY(lid.frame) + 40,
+          @"window settings: Keep this Mac awake stands first with Keep awake now, While agents work and the lid, each rule is one switch beside it, This Mac stands under the first, and no removal choice is drawn",
+          [NSString stringWithFormat:@"%@, %ld others", [switches.allKeys componentsJoinedByString:@","], (long)others]);
+    Check(tall == 0 && noted == 1 && helped == 8 && [[lid valueForKey:@"note"] isEqualToString:MMWindowNoLidNote],
+          @"window settings: every row is one line high, a second line only says a state, here that the Mac has no lid, and what each switch does is its tooltip and VoiceOver's help",
+          [NSString stringWithFormat:@"%ld too tall, %ld with a second line, %ld with help", (long)tall, (long)noted, (long)helped]);
+    NSArray *cards = [panel valueForKey:@"cards"];
+    NSMutableSet *tints = [NSMutableSet new], *marks = [NSMutableSet new];
+    NSInteger badges = 0;
+    CGFloat lowest = 0;
+    for (id c in cards) {
+        [tints addObject:[[c valueForKey:@"tint"] description]]; [marks addObject:[c valueForKey:@"mark"]];
+        if ([[c valueForKey:@"badge"] length]) badges++;
+        lowest = MAX(lowest, NSMaxY([[c valueForKey:@"frame"] rectValue]));
+    }
+    Check(cards.count == 3 && tints.count == 3 && marks.count == 3 && lowest < panel.bounds.size.height - 60 &&
+          [[cards[0] valueForKey:@"title"] isEqualToString:MMWindowAwakeCard] && [[cards[1] valueForKey:@"title"] isEqualToString:MMWindowCleanupCard] &&
+          [[cards[2] valueForKey:@"footer"] isEqualToString:MMWindowTrashLine],
+          @"window settings: three cards, each with its own color and mark, as tall as their rows, and This Mac says removed things go to the Trash",
+          [NSString stringWithFormat:@"%lu cards, %lu colors, %lu marks, foot at %g", (unsigned long)cards.count, (unsigned long)tints.count, (unsigned long)marks.count, lowest]);
+    Check(badges == 1 && [[cards[1] valueForKey:@"badge"] isEqualToString:@"Starts in 23 h"] && [servers.toolTip hasSuffix:@" Starts in 23 h."],
+          @"window settings: the watching note stands once, as a badge on the cleanup card's head, and not on each rule", [NSString stringWithFormat:@"%ld badges", (long)badges]);
+    MMWindowView *busySettings = PolishView(@"busy");
+    busySettings.showsSettings = YES;
+    NSInteger busyBadges = 0, busyNoted = 0;
+    for (id c in [PolishSettings(busySettings) valueForKey:@"cards"]) if ([[c valueForKey:@"badge"] length]) busyBadges++;
+    for (NSView *sub in PolishSettings(busySettings).subviews) if ([sub respondsToSelector:NSSelectorFromString(@"mark")] && [[sub valueForKey:@"note"] length]) busyNoted++;
+    Check(busyBadges == 0 && busyNoted == 3, @"window settings: once the rules may act there is no badge, and the busy day's state lines are the agents held, the lid and the app that waits",
+          [NSString stringWithFormat:@"%ld badges, %ld state lines", (long)busyBadges, (long)busyNoted]);
     MMWindowView *asked = PolishView(@"busy");
     asked.showsSettings = YES;
     Check(panel.frame.origin.y == 12 && PolishSettings(asked).frame.origin.y == 40 && NSMaxY(panel.frame) == 702, @"window settings: with nobody asking, Settings starts at the top and no empty band stands over it",
           [NSString stringWithFormat:@"%g and %g", panel.frame.origin.y, PolishSettings(asked).frame.origin.y]);
     [lid performClick:nil];
-    Check(lid && !lid.enabled && [[lid valueForKey:@"inert"] boolValue] && shost.switches == 0 && [lid.accessibilityLabel hasSuffix:@"This Mac has no lid, so it changes nothing here."],
+    Check(lid && !lid.enabled && [[lid valueForKey:@"inert"] boolValue] && shost.switches == 0 && [lid.accessibilityLabel hasSuffix:MMWindowNoLidNote],
           @"window settings: on a Mac with no lid the lid switch is not available, takes no press and says why", [NSString stringWithFormat:@"%ld calls, %@", (long)shost.switches, lid.accessibilityLabel]);
     [login performClick:nil];
     Check(shost.switches == 1, @"window settings: the login switch does take its press", @"");
@@ -279,14 +302,11 @@ static void WindowPolishChecks(void) {
     [servers performClick:nil];
     Check(shost.switches == 2 && shost.rules == 1 && [shost.lastRule isEqualToString:@"servers"] && shost.lastPicked == 0,
           @"window settings: Keep awake now takes its press, and a rule's switch turns the rule off", [NSString stringWithFormat:@"%ld switches, %@ %ld", (long)shost.switches, shost.lastRule, (long)shost.lastPicked]);
-    shost.rules = 0;
-    // The removal choice not made yet: no choice is drawn picked, and a press on any, Smart too, makes it.
-    NSInteger drawnPicked = 0;
-    for (NSButton *o in removal) if ([[o valueForKey:@"picked"] boolValue]) drawnPicked++;
-    [removal.firstObject performClick:nil];
-    Check(removal.count == 3 && drawnPicked == 0 && sv.model.settings.rules.lastObject.note.length > 0 && shost.rules == 1 && [shost.lastRule isEqualToString:@"removal"] && shost.lastPicked == 0,
-          @"window settings: while no removal choice is made none is drawn picked, and a press on Smart makes the choice",
-          [NSString stringWithFormat:@"%ld picked, %ld calls, %@ %ld", (long)drawnPicked, (long)shost.rules, shost.lastRule, (long)shost.lastPicked]);
+    NSButton *apps = nil;
+    for (NSView *sub in PolishSettings(sv).subviews) if ([sub respondsToSelector:NSSelectorFromString(@"mark")] && [[sub valueForKey:@"ownerID"] isEqualToString:@"rule:apps"]) apps = (NSButton *)sub;
+    [apps performClick:nil];
+    Check(shost.rules == 2 && [shost.lastRule isEqualToString:@"apps"] && shost.lastPicked == MMWindowRuleOnChoice(@"apps"),
+          @"window settings: a rule's switch that is off turns the rule to the mode that acts on its own", [NSString stringWithFormat:@"%@ %ld", shost.lastRule, (long)shost.lastPicked]);
 
     // In a window that is ordered in, off screen: the glow around Fix Everything breathes only at rest with something
     // to fix, a new row gets its short light, and the turn to Settings ends with Settings in its place.

@@ -12,7 +12,7 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
         @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"fixes", @"memory, now", @"memory in use, as now", @"just now", @"biggest", @"minutes",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     for (NSInteger minutes = 1; minutes <= 60; minutes++) [s addObject:MMWindowHourSpanWords(minutes)];
-    [s addObjectsFromArray:@[MMWindowAwakeCard, MMWindowMacCard, MMWindowCleanupCard, MMWindowAwakeNote(YES), MMWindowAwakeNote(NO)]];
+    [s addObjectsFromArray:@[MMWindowAwakeCard, MMWindowMacCard, MMWindowCleanupCard, MMWindowTrashLine, MMWindowStartsHelp, MMWindowAwakeHelp()]];
     for (NSString *rid in MMWindowRuleIDs()) for (NSInteger c = 0; c < 3; c++) { add0(s, MMWindowRuleSwitchTitle(rid)); add0(s, MMWindowRuleSwitchNote(rid, c)); }
     for (NSString *key in @[@"worktrees", @"caches"]) for (NSNumber *looked in @[@(MMWindowLookedNotYet), @(MMWindowLookedNowhere)])
         [s addObject:MMWindowEmptyNote(key, looked.integerValue)];
@@ -26,7 +26,8 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
     for (MMWindowFix *f in m.fixes) add(f.title);
     add(m.run.step); add(m.run.endTitle); add(m.run.endNote);
     for (MMWindowRule *r in m.settings.rules) { add(r.title); add(r.note); for (MMWindowChoice *c in r.choices) { add(c.title); add(c.explain); } }
-    for (MMWindowSwitch *w in m.settings.switches) { add(w.title); add(w.note); }
+    for (MMWindowSwitch *w in m.settings.switches) { add(w.title); add(w.note); add(w.help); }
+    add(m.settings.startsIn);
     MMWindowWelcome *w = m.welcome;
     for (NSString *x in @[w.title ?: @"", w.say ?: @"", w.loginTitle ?: @"", w.loginOnNote ?: @"", w.loginOffNote ?: @"", w.removalTitle ?: @"", w.later ?: @"", w.start ?: @""]) add(x);
     for (MMWindowChoice *c in w.removal) { add(c.title); add(c.explain); }

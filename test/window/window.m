@@ -466,9 +466,13 @@ static void WindowModel(void) {
     };
     for (NSString *name in @[@"busy", @"removal", @"calm", @"empty", @"welcome"])
         T([NSString stringWithFormat:@"window: the render's %@ Settings says the feed's cards, word for word", name], words(st), words(MMWindowFixture(name).settings));
-    T(@"window: the fixtures' notes are the feed's own sentences", @"1 ready. It waits for your press. | It only watches for 23h more, then it may act. | This Mac has no lid, so it changes nothing here. | yes",
-      [NSString stringWithFormat:@"%@ | %@ | %@ | %@", MMWindowFixture(@"busy").settings.rules[1].note, MMWindowFixture(@"calm").settings.rules[0].note,
+    T(@"window: the fixtures' notes are the feed's own sentences", @"1 ready. It waits for your press. | (nil) | This Mac has no lid. | yes",
+      [NSString stringWithFormat:@"%@ | %@ | %@ | %@", MMWindowFixture(@"busy").settings.rules[1].note, MMWindowFixture(@"calm").settings.rules[0].note ?: @"(nil)",
        (([[MMWindowFixture(@"calm").settings.switches filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"switchID == %@", @"lid"]] firstObject]).note), YN([MMWindowFixture(@"calm").settings.rules.lastObject.note isEqualToString:removal.note])]);
+    // That the rules still only watch is one badge on the cleanup card, from the time left of the rules that act.
+    T(@"window: the watching badge says the time left short, once for the card", @"Starts in 23 h | Starts in 40 min | Starts in 2 d | (nil) | (nil)",
+      [NSString stringWithFormat:@"%@ | %@ | %@ | %@ | %@", MMWindowFixture(@"calm").settings.startsIn, MMWindowStartsNote(40 * 60), MMWindowStartsNote(2 * 86400 + 60),
+       MMWindowStartsNote(0) ?: @"(nil)", MMWindowFixture(@"busy").settings.startsIn ?: @"(nil)"]);
     T(@"window: the removal card is no expert's mode", @"(null)", [NSString stringWithFormat:@"%@", MMWindowRuleExpert(MMWindowRemovalRuleID)]);
     T(@"window: while nothing is chosen the card's note says what holds until then", @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash.", removal.note);
     MMSetRemovalChoice(MMRemovalSmart);
@@ -484,18 +488,21 @@ static void WindowModel(void) {
       [[[m2.fixes valueForKey:@"title"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF CONTAINS 'leftover'"]] firstObject]]);
     MMSetPref(MMRemovalKey, nil);
     T(@"window: a rule that is off says what waits for the press", @"1 ready. It waits for your press.", st.rules[1].note);
+    // The fixture home never launched, so the whole day is left.
+    T(@"window: the feed's watching is one badge for the card, and no rule's note", @"Starts in 24 h (nil) (nil) (nil)",
+      [NSString stringWithFormat:@"%@ %@ %@ %@", st.startsIn ?: @"(nil)", st.rules[0].note ?: @"(nil)", st.rules[2].note ?: @"(nil)", st.rules[3].note ?: @"(nil)"]);
     T(@"window: a rule maps back to its expert", @"locohost minmacs workforest noonoo (null)", [NSString stringWithFormat:@"%@ %@ %@ %@ %@",
       MMWindowRuleExpert(@"servers"), MMWindowRuleExpert(@"apps"), MMWindowRuleExpert(@"worktrees"), MMWindowRuleExpert(@"caches"), MMWindowRuleExpert(@"icons")]);
-    T(@"window: the switches are Keep awake now, While agents work, the lid and Open at login, and no other", @"awake=Keep awake now:0,agents=While agents work:1,lid=With the lid closed:1,login=Open at login:1", ({
+    T(@"window: the switches are Keep awake now, While agents work, the lid and Open at login, and no other", @"awake=Keep awake now:0,agents=While agents work:1,lid=Lid closed:1,login=Open at login:1", ({
         NSMutableArray *a = [NSMutableArray new];
         for (MMWindowSwitch *x in st.switches) [a addObject:[NSString stringWithFormat:@"%@=%@:%d", x.switchID, x.title, x.on]];
         [a componentsJoinedByString:@","]; }));
     T(@"window: the lid switch says the guard that pauses it", @"Paused, battery under 20%.", (([[st.switches filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"switchID == %@", @"lid"]] firstObject]).note));
     lid.pauseReason = nil; lid.lidLive = YES;
-    T(@"window: and when it is live", @"On now. The Mac keeps working with the lid shut.", [MMWindowExtras readWithLogin:NO].lidNote);
+    T(@"window: and when it is live", @"Working with the lid shut now.", [MMWindowExtras readWithLogin:NO].lidNote);
     lid.laptop = NO;
     MMWindowExtras *desk = [MMWindowExtras readWithLogin:NO];
-    T(@"window: on a Mac with no lid the switch is inert and says why", @"yes This Mac has no lid, so it changes nothing here. yes",
+    T(@"window: on a Mac with no lid the switch is inert and says why", @"yes This Mac has no lid. yes",
       [NSString stringWithFormat:@"%@ %@ %@", YN(desk.lidInert), desk.lidNote, YN((([[MMWindowSettingsFrom(p, desk).switches filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"switchID == %@", @"lid"]] firstObject]).inert))]);
     lid.laptop = YES;
     T(@"window: and with a lid it is not", @"no", YN([MMWindowExtras readWithLogin:NO].lidInert));

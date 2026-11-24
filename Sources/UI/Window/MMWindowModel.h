@@ -279,10 +279,13 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 
 /// One switch, such as the lid or Open at login.
 @interface MMWindowSwitch : NSObject
-@property (copy) NSString *switchID, *title;            // "lid", "With the lid closed"
+@property (copy) NSString *switchID, *title;            // "lid", "Lid closed"
 @property (copy) NSString *card;                        // the card it stands in: MMWindowAwakeCard or MMWindowMacCard
 @property BOOL on;
+/// The one short line under the title, only when it says a state: "Awake now for 2 agents". nil for most switches.
 @property (copy, nullable) NSString *note;
+/// What the switch does, in a sentence. Not drawn: the switch's tooltip and VoiceOver read it.
+@property (copy, nullable) NSString *help;
 /// The switch changes nothing on this Mac, such as the lid switch on a Mac with no lid. It is drawn as not
 /// available, takes no press, and its note says why.
 @property BOOL inert;
@@ -291,6 +294,9 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @interface MMWindowSettings : NSObject
 @property (copy) NSArray<MMWindowRule *> *rules;
 @property (copy) NSArray<MMWindowSwitch *> *switches;
+/// The badge in the head of "Clean up on its own" while the rules that are on still only watch: "Starts in 23 h".
+/// nil once they may act, or when no rule acts on its own. It stands once, not on every rule.
+@property (copy, nullable) NSString *startsIn;
 @end
 
 /// The words of Settings, written once: the feed in Shell/MMWindowRules.m and the render's fixtures both build their
@@ -310,29 +316,37 @@ MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *_Nu
 MMWindowRule *MMWindowChoiceCard(NSString *ruleID, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *_Nullable note);
 /// The note of a rule that does not act on its own while fixes of its kind wait: "1 ready. It waits for your press."
 NSString *_Nullable MMWindowReadyNote(NSInteger ready);
-/// The note of a rule that would act but still only watches: "It only watches for 5h more, then it may act."
-NSString *MMWindowWatchingNote(NSString *left);
+/// The badge of the rules that would act but still only watch: "Starts in 23 h", "Starts in 40 min". nil when no
+/// time is left. MMWindowStartsHelp says what it means, for its tooltip and VoiceOver.
+NSString *_Nullable MMWindowStartsNote(NSTimeInterval left);
+extern NSString *const MMWindowStartsHelp;
+/// The one line Settings shows where the removal choice was: everything MinMacs removes goes to the Trash.
+extern NSString *const MMWindowTrashLine;
 /// The cards of switches. "Keep this Mac awake" stands first in Settings, so keeping the Mac awake is never hunted for.
 extern NSString *const MMWindowAwakeCard, *const MMWindowMacCard, *const MMWindowCleanupCard;
 /// The three switches of "Keep this Mac awake": Keep awake now (insomnia.awake, as caffeinate does), While agents work
-/// (insomnia.agents) and With the lid closed (insomnia.lid). An inert lid switch is the one of a Mac with no lid.
+/// (insomnia.agents) and Lid closed (insomnia.lid). `note` is the state line under the title, or nil. An inert lid switch is the one of a Mac with no lid.
 MMWindowSwitch *MMWindowAwakeSwitch(BOOL on, NSString *_Nullable note);
 MMWindowSwitch *MMWindowAgentsSwitch(BOOL on, NSString *_Nullable note);
 MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *_Nullable note);
 /// The switch of the card "This Mac".
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *_Nullable note);
-/// What Keep awake now and While agents work say under their titles. `holding` is how many agents keep the Mac awake now.
-NSString *MMWindowAwakeNote(BOOL on);
-NSString *MMWindowAgentsNote(BOOL on, NSInteger holding, NSInteger quietMinutes);
+/// What Keep awake now and While agents work do, for their tooltips. MMWindowAgentsNote is the state line of While
+/// agents work: "Awake now for 2 agents", nil while no agent holds the Mac awake. `holding` is how many do now.
+NSString *MMWindowAwakeHelp(void);
+NSString *MMWindowAgentsHelp(NSInteger quietMinutes);
+NSString *_Nullable MMWindowAgentsNote(BOOL on, NSInteger holding);
 
-/// A rule as one switch in "Clean up on its own". On is a mode that acts on its own: Careful, or Eager where Careful
-/// acts on nothing, as for apps. Off is Off. A rule set to Eager elsewhere shows on, with Eager's words.
+/// A rule as one switch in "Clean up on its own", with a short title: "Idle dev servers". On is a mode that acts on
+/// its own: Careful, or Eager where Careful acts on nothing, as for apps. Off is Off. A rule set to Eager elsewhere
+/// shows on, with Eager's words.
 NSString *_Nullable MMWindowRuleSwitchTitle(NSString *ruleID);
 BOOL MMWindowRuleIsOn(NSString *ruleID, NSInteger picked);
 NSInteger MMWindowRuleOnChoice(NSString *ruleID);
-/// What the switch does when on, in the mode picked, or the mode it would turn on to: one short sentence.
+/// What the switch does when on, in the mode picked, or the mode it would turn on to: one short sentence. Not drawn:
+/// the switch's tooltip and VoiceOver read it.
 NSString *_Nullable MMWindowRuleSwitchNote(NSString *ruleID, NSInteger picked);
-/// "This Mac has no lid, so it changes nothing here."
+/// "This Mac has no lid.", the state line of an inert lid switch.
 extern NSString *const MMWindowNoLidNote;
 
 #pragma mark - The welcome
