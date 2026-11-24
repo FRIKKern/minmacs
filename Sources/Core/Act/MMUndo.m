@@ -965,9 +965,18 @@ static NSMutableSet<NSString *> *Restoring(void) {
 }
 
 - (NSArray<MMUndoRecord *> *)recent:(NSString *)expert limit:(NSUInteger)limit {
-    NSArray *all = LogLatest(nil);
+    // Issue #52. An expert's records come from its own rows, and the parents from the few bodies that name one, so an
+    // expert with no records reads none. Parsing every record of every expert took 35 to 45 ms a build in the field,
+    // with 373 records, 365 of them Noo-Noo's, when WorkForest's prepareFor: asked for its six.
+    NSArray *all = LogLatest(expert);
     NSMutableSet *parents = [NSMutableSet new];
-    for (NSDictionary *b in all) if (MMRecordString(b, @"parentRid")) [parents addObject:MMRecordString(b, @"parentRid")];
+    NSArray *withParent = all;
+    if (expert) {
+        NSMutableArray *bodies = [NSMutableArray new];
+        for (MMLogEntry *e in [MMLog.shared latest:kTable holding:@"\"parentRid\""]) if (e.body) [bodies addObject:e.body];
+        withParent = bodies;
+    }
+    for (NSDictionary *b in withParent) if (MMRecordString(b, @"parentRid")) [parents addObject:MMRecordString(b, @"parentRid")];
     NSMutableArray *out = [NSMutableArray new];
     for (NSDictionary *b in all) {
         if (expert && ![MMRecordString(b, @"expert") isEqualToString:expert]) continue;

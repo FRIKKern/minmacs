@@ -91,8 +91,23 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         if (!self->_lookBack) self->_lookBack = [MMPerformanceLookBack read:MMGains.shared now:NSDate.date];
         self->_p = [MMPerformance from:s history:s.history lookBack:self->_lookBack];
         self->_s = s;
+        [self askPlaces:s];
         [self send];
     });
+}
+
+/// The window queue, while open. Where each agent runs on screen is the window's alone, so the window asks Know for
+/// it and no build does, issue #52. Know answers on its own queue, at most once a minute a process, and the story
+/// reads the answer from Know's memory, so a place asked for now shows from the next snapshot on.
+- (void)askPlaces:(MMSnapshot *)s {
+    MMSample *sample = s.facts.sample;
+    if (!sample) return;
+    for (MMFinding *f in [s findingsFor:@"minmacs"]) {
+        if (![f.kind isEqualToString:@"agent"] || !f.procs.count) continue;
+        MMProcKey k = {0, 0};
+        [f.procs.firstObject getValue:&k size:sizeof k];
+        (void)MMWhereIs(k, sample, NO);
+    }
 }
 
 /// The window queue. A model of the snapshot held, with the switches and the run as they are now. It builds no

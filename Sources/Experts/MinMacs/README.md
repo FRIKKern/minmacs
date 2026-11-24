@@ -17,7 +17,7 @@ Performance: apps, agents, RAM, CPU, energy and heat. Issue #21. Ported from Min
 - Loopback listeners come from the sample's socket table. Remote debugging comes from the sample's arguments.
 - A working agent spares every app in its process tree. Agents come from `facts.agents`, hosted agents included, and from `facts.sessions` whose `stillWorking` is set. Waiting on the person counts as working.
 
-- An agent's finding holds where it runs on screen, `where`, `whereApp` and `whereGo`, from `MMWhereIs` with no wait: Know's last answer, asked again on Know's own queue, as LocoHost does for a server. The window's story shows it, and its Go to runs `MMGoTo` through the window's controller on a person's press only. None of the three is in `reviewFactsFor:`.
+- Where an agent runs on screen is the window's alone, so its finding does not hold it and a build asks nothing for it, issue #52. While the window is open its controller asks `MMWhereIs` with no wait for each agent, on the window queue, and the story reads Know's answer with `MMWhereKnown`, memory only. Its Go to runs `MMGoTo` through the window's controller on a person's press only. A finding that holds `where`, `whereApp` and `whereGo`, as the window's fixtures do, is shown as it is.
 
 ## What it does
 

@@ -1,7 +1,8 @@
 // An agent row's story, MMWindowFeed.h: what it has been doing, where it is, its worktrees and what it holds. The
 // owner asked: "On Agent we want to see what they been doing, where they are, what worktrees, their milestones etc,
 // what cache it hold". Every fact comes from the snapshot as it is: the session Know read from the transcript's head
-// and tail, the MinMacs finding with where it runs, WorkForest's worktrees, LocoHost's servers and Noo-Noo's caches.
+// and tail, the MinMacs finding, WorkForest's worktrees, LocoHost's servers and Noo-Noo's caches, and from Know's
+// memory of where it runs.
 // Nothing here reads a file, runs a process or asks gh. A fact that is missing leaves its line out. Nothing is guessed.
 #import "Shell/MMWindowFeed.h"
 
@@ -111,9 +112,18 @@ NSArray<MMWindowFact *> *MMWindowAgentFacts(MMFinding *f, MMSession *session, NS
     if (session.lastActive) Add(out, MMWindowFactLastActive(now - session.lastActive.timeIntervalSince1970));
     Add(out, RecentlyOf(session, now));
 
-    // Where it is on screen, with Go to when Know can bring that place forward.
-    Add(out, MMWindowFactRunsIn(Str(x[@"where"])));
-    if (goTo) *goTo = Str(x[@"where"]) && [Num(x[@"whereGo"]) boolValue] ? (Str(x[@"whereApp"]) ?: Str(x[@"where"])) : nil;
+    // Where it is on screen, with Go to when Know can bring that place forward. A finding that names its place says
+    // it; else Know's last answer, which the controller asks for while the window is open. Memory only.
+    NSString *where = Str(x[@"where"]), *whereApp = Str(x[@"whereApp"]);
+    BOOL whereGo = [Num(x[@"whereGo"]) boolValue];
+    if (!where && f.procs.count) {
+        MMProcKey k = {0, 0};
+        [f.procs.firstObject getValue:&k size:sizeof k];
+        MMPlace *place = MMWhereKnown(k);
+        where = Str(place.label); whereApp = Str(place.app); whereGo = place && MMPlaceGoable(place);
+    }
+    Add(out, MMWindowFactRunsIn(where));
+    if (goTo) *goTo = where && whereGo ? (whereApp ?: where) : nil;
 
     for (MMFinding *w in trees) {
         Add(out, MMWindowFactWorktree(MMWindowNameOf(w), w.findingID));

@@ -86,6 +86,23 @@ static BOOL PlainOrMissing(NSString *path, BOOL *exists) {
 /// with a regular expression on every write to it, which was most of a rebuild's CPU while an agent worked.
 /// The quotes and backslashes it looks for are ASCII, so no UTF-8 sequence holds one, and the value's bytes are the
 /// ones the text held. The value is decoded alone, as UTF-8 or else Latin-1, as Text decodes a whole read.
+/// memmem with a Horspool skip. Every needle here starts with a quote, which JSON holds every few bytes, and libc's
+/// memmem stops at each one, so a 512 KB tail took about 1 ms; this one skips by the needle's length, issue #52.
+static const char *Find(const char *h, size_t hn, const char *n, size_t nn) {
+    if (!nn || hn < nn) return NULL;
+    if (nn < 4) return memmem(h, hn, n, nn);
+    size_t skip[256];
+    for (int i = 0; i < 256; i++) skip[i] = nn;
+    for (size_t i = 0; i + 1 < nn; i++) skip[(unsigned char)n[i]] = nn - 1 - i;
+    const unsigned char last = (unsigned char)n[nn - 1];
+    for (size_t i = 0; i + nn <= hn; ) {
+        unsigned char c = (unsigned char)h[i + nn - 1];
+        if (c == last && !memcmp(h + i, n, nn - 1)) return h + i;
+        i += skip[c];
+    }
+    return NULL;
+}
+
 static NSString *JSONValueIn(NSData *d, const char *key, BOOL last, BOOL plain) {
     if (!d.length) return nil;
     char needle[64];
@@ -94,7 +111,7 @@ static NSString *JSONValueIn(NSData *d, const char *key, BOOL last, BOOL plain) 
     const char *b = d.bytes, *end = b + d.length;
     NSString *found = nil;
     for (const char *at = b; at < end; ) {
-        const char *hit = memmem(at, (size_t)(end - at), needle, (size_t)nl);
+        const char *hit = Find(at, (size_t)(end - at), needle, (size_t)nl);
         if (!hit) break;
         at = hit + 1;
         const char *q = hit + nl;
@@ -128,7 +145,49 @@ static NSString *Unescape(NSString *raw) {
     return [a.firstObject isKindOfClass:NSString.class] ? a.firstObject : raw;
 }
 
+/// The form every agent writes, 2026-11-24T21:47:01.123Z or with an offset, read with timegm. NSISO8601DateFormatter
+/// goes through ICU at about 20 us a call, and the tail of a transcript asks once for each line with a tool use.
+/// NO for any other form, which the formatter reads.
+static BOOL FastISO(NSString *s, double *out) {
+    char b[40];
+    if (s.length < 20 || s.length >= sizeof b || ![s getCString:b maxLength:sizeof b encoding:NSASCIIStringEncoding]) return NO;
+    size_t n = strlen(b);
+    int v[6]; const int at[6] = {0, 5, 8, 11, 14, 17}, len[6] = {4, 2, 2, 2, 2, 2};
+    if (b[4] != '-' || b[7] != '-' || (b[10] != 'T' && b[10] != 't') || b[13] != ':' || b[16] != ':') return NO;
+    for (int i = 0; i < 6; i++) {
+        v[i] = 0;
+        for (int j = 0; j < len[i]; j++) { char c = b[at[i] + j]; if (c < '0' || c > '9') return NO; v[i] = v[i] * 10 + (c - '0'); }
+    }
+    if (v[1] < 1 || v[1] > 12 || v[2] < 1 || v[2] > 31 || v[3] > 23 || v[4] > 59 || v[5] > 59) return NO;
+    size_t i = 19;
+    // Milliseconds, as the formatter keeps them: further digits are dropped.
+    double frac = 0;
+    if (i < n && b[i] == '.') {
+        if (++i >= n || b[i] < '0' || b[i] > '9') return NO;
+        int ms = 0, digits = 0;
+        for (; i < n && b[i] >= '0' && b[i] <= '9'; i++, digits++) if (digits < 3) ms = ms * 10 + (b[i] - '0');
+        for (int k = digits; k < 3; k++) ms *= 10;
+        frac = ms / 1000.0;
+    }
+    int offset = 0;
+    if (i < n && (b[i] == 'Z' || b[i] == 'z') && i + 1 == n) i++;
+    else if (i + 6 == n && (b[i] == '+' || b[i] == '-') && b[i + 3] == ':') {
+        for (int k = 1; k < 6; k++) if (k != 3 && (b[i + k] < '0' || b[i + k] > '9')) return NO;
+        int h = (b[i + 1] - '0') * 10 + (b[i + 2] - '0'), m = (b[i + 4] - '0') * 10 + (b[i + 5] - '0');
+        if (h > 23 || m > 59) return NO;
+        offset = (b[i] == '-' ? -1 : 1) * (h * 3600 + m * 60);
+        i += 6;
+    } else return NO;
+    struct tm t = { .tm_year = v[0] - 1900, .tm_mon = v[1] - 1, .tm_mday = v[2], .tm_hour = v[3], .tm_min = v[4], .tm_sec = v[5] };
+    time_t secs = timegm(&t);
+    if (secs == (time_t)-1 || t.tm_mday != v[2]) return NO;   // a day past the month's end, such as 02-30, is the formatter's
+    *out = (double)secs - offset + frac;
+    return YES;
+}
+
 static NSDate *ISODate(NSString *s) {
+    double fast;
+    if (s && FastISO(s, &fast)) return [NSDate dateWithTimeIntervalSince1970:fast];
     static NSISO8601DateFormatter *f, *g; static dispatch_once_t once;
     dispatch_once(&once, ^{
         f = [NSISO8601DateFormatter new];
@@ -241,9 +300,9 @@ static void TailActivity(NSData *tail, BOOL whole, NSMutableDictionary *f) {
         NSData *d = [NSData dataWithBytesNoCopy:(void *)line length:(NSUInteger)(nl - line) freeWhenDone:NO];
         if (!first && !whole) first = ISODate(JSONValueIn(d, "timestamp", YES, YES)).timeIntervalSince1970;
         if (nl > line) { lastLine = line; lastEnd = nl; }
-        if (memmem(line, (size_t)(nl - line), kTool, sizeof kTool - 1)) {
+        if (Find(line, (size_t)(nl - line), kTool, sizeof kTool - 1)) {
             double t = ISODate(JSONValueIn(d, "timestamp", YES, YES)).timeIntervalSince1970;
-            for (const char *at = line; t > 0 && (at = memmem(at, (size_t)(nl - at), kTool, sizeof kTool - 1)); at += sizeof kTool - 1) {
+            for (const char *at = line; t > 0 && (at = Find(at, (size_t)(nl - at), kTool, sizeof kTool - 1)); at += sizeof kTool - 1) {
                 if (!IsToolType(line, at)) continue;
                 [tools addObject:@(t)];
                 NSData *rest = [NSData dataWithBytesNoCopy:(void *)at length:(NSUInteger)(nl - at) freeWhenDone:NO];

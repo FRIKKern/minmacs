@@ -30,6 +30,9 @@ typedef struct { NSTimeInterval at; double value; } MMTrendPoint;
 /// The newest row of each rid, newest first. expert or subject nil means all; since nil means no limit in time.
 - (NSArray<MMLogEntry *> *)latest:(NSString *)table expert:(NSString *)expert subject:(NSString *)subject
                             since:(NSDate *)since limit:(NSUInteger)limit;
+/// The newest row of each rid in the table whose body holds `text`, newest first. A plain match on the JSON text, so
+/// the caller checks the value it wanted. Only the matching rows are parsed, so a key few records carry costs little.
+- (NSArray<MMLogEntry *> *)latest:(NSString *)table holding:(NSString *)text;
 /// Every row of one record, oldest first, such as an undo record from pending to done to restored.
 - (NSArray<MMLogEntry *> *)history:(NSString *)rid;
 /// The newest rows of these tables that came before row `before`, newest first, at most `limit`. `before` 0 means
