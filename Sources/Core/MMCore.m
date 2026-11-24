@@ -6,6 +6,7 @@
 // except right after an exit, when the last sample still lists the process that ended.
 #import "Core/MMCore.h"
 #import <os/log.h>
+#import <stdatomic.h>
 #import <unistd.h>
 
 static os_log_t CoreLog(void) {
@@ -191,6 +192,19 @@ static void WatchExitsIn(MMSnapshot *snap) {
     if (add.count) [MMSenses.shared watchExits:add];
 }
 
+/// Issue #52. An agent at work appends to its transcript every second or so, and each append asked for a build of
+/// every expert, forced: about one a second on top of the 5-second pass, which was most of the graph's CPU while
+/// agents worked. Only a session's title, start and last write come from its transcript, and the next pass's build
+/// reads the folders FSEvents named. So a change to transcripts alone asks for a build at most every 30 seconds,
+/// for a pass that backs off. A status file, Codex's databases, pi's sessions and a dropped event build at once.
+static void SessionsChanged(NSNotification *n) {
+    static _Atomic uint64_t last;
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW), was = atomic_load(&last);
+    if ([n.userInfo[MMSessionsTranscriptsOnlyKey] boolValue] && was && now - was < 30 * NSEC_PER_SEC) return;
+    atomic_store(&last, now);
+    [MMGraph.shared rebuild:@"sessions"];
+}
+
 /// The repo index: a walk now, one FSEvents stream per root, and a full walk every 10 minutes.
 /// A change marks the worktrees it touched, and the index runs git for those alone, then asks for a rebuild.
 /// A rebuild reads git facts from memory, so a 5-second pass never reads git's files or runs git.
@@ -310,7 +324,7 @@ void MMCoreStart(void) {
     [MMHistory.shared start];   // subagent starts from the events above; each graph build fills the rest
     [MMSessions.shared startWatching];
     gSessionsToken = [NSNotificationCenter.defaultCenter addObserverForName:MMSessionsDidChangeNotification object:MMSessions.shared
-                                                                    queue:nil usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"sessions"]; }];
+                                                                    queue:nil usingBlock:^(NSNotification *n) { SessionsChanged(n); }];
     StartRepos();
     StartClutter();
 

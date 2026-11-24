@@ -143,6 +143,24 @@ check "latestIn finds the newest session inside a folder" pi-uuid-1 "$(sj "j['la
 check "openAt finds a session open now in the folder" "$K/proj" "$(sj "j['openAt']['cwd']")"
 check "the sessions cache is kept in the support folder" yes "$([ -s "$MINMACS_HOME/sessions.json" ] && echo yes || echo no)"
 
+echo "-- a big transcript's facts come from its bytes, issue #52"
+# 1.5 MB with two-byte characters, so the 64 KB head and the 512 KB tail are cut inside a character, the last aiTitle
+# line is cut short, and the title that counts is the last whole one in the tail.
+python3 - "$CLAUDE_CONFIG_DIR/projects/fixture/sess-big.jsonl" "$K/proj/é dir" "$TS" <<'PY'
+import json, sys
+path, cwd, ts = sys.argv[1:4]
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(json.dumps({"type": "user", "cwd": cwd, "gitBranch": "br\"anch", "timestamp": ts}, ensure_ascii=False) + "\n")
+    f.write(json.dumps({"type": "ai-title", "aiTitle": "first title"}) + "\n")
+    for i in range(9000): f.write(json.dumps({"type": "assistant", "message": "é" * 77 + " \"aiTitle\": x"}, ensure_ascii=False) + "\n")
+    f.write(json.dumps({"type": "ai-title", "aiTitle": "Café \"nuit\" \\ fin"}, ensure_ascii=False) + "\n")
+    f.write('{"type":"ai-title","aiTitle":"cut sho')
+PY
+BS=$("$KT" sessions --id sess-big)
+check "  the cwd and branch from the head, escapes undone" "$K/proj/é dir|br\"anch" "$(printf '%s' "$BS" | json "j['withID']['cwd']+'|'+j['withID']['branch']")"
+check "  the last whole aiTitle in the tail, in UTF-8" 'Café "nuit" \ fin' "$(printf '%s' "$BS" | json "j['withID']['title']")"
+rm -f "$CLAUDE_CONFIG_DIR/projects/fixture/sess-big.jsonl"
+
 echo "-- a file Know reads that is a named pipe, a socket or a device, issue #96"
 . ./test/know/pipes.sh
 

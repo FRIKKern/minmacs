@@ -425,21 +425,56 @@ MMClutterTrend MMClutterTrendOf(NSData *data, NSDate *now) {
 
 #pragma mark - Open files
 
+/// One real root as bytes, for MMOpenUnder's search.
+typedef struct { char *path; size_t len; NSUInteger index; } MMOpenRoot;
+static int OpenRootCompare(const void *a, const void *b) { return strcmp(((const MMOpenRoot *)a)->path, ((const MMOpenRoot *)b)->path); }
+
+/// Issue #52. The roots sorted as bytes, so each path a process holds is looked up once for each of its parent
+/// folders, with no string made. Before, every path was compared with every root through -stringByAppendingString:,
+/// which on a Mac with 10,000 entries in its TMPDIR made millions of strings and a footprint of 1 GB in one scan.
+/// A root matches a path that is the root, or that goes on from it with a slash, as InsideOrSame says.
+static void OpenRootsHit(const MMOpenRoot *rs, size_t n, BOOL slashRoot, const char *cpath, void (^hit)(NSUInteger)) {
+    size_t plen = strlen(cpath);
+    if (slashRoot && cpath[0] == '/' && plen > 1)
+        for (size_t i = 0; i < n && rs[i].len == 1; i++) hit(rs[i].index);   // "/" sorts first and holds every path
+    for (size_t end = 1; end <= plen; end++) {
+        if (end < plen && cpath[end] != '/') continue;
+        // The parent folder cpath[0..end), or cpath itself: an exact match of those bytes among the roots.
+        size_t lo = 0, hi = n;
+        while (lo < hi) {
+            size_t mid = (lo + hi) / 2;
+            int c = strncmp(rs[mid].path, cpath, end);
+            if (c == 0 && rs[mid].len > end) c = 1;
+            if (c < 0) lo = mid + 1; else hi = mid;
+        }
+        for (size_t i = lo; i < n && rs[i].len == end && !strncmp(rs[i].path, cpath, end); i++) hit(rs[i].index);
+    }
+}
+
 NSSet<NSString *> *MMOpenUnder(NSArray<NSString *> *roots) {
     NSMutableSet *hit = [NSMutableSet new];
     if (!roots.count) return hit;
     NSMutableDictionary<NSString *, NSString *> *byReal = [NSMutableDictionary new];
     for (NSString *r in roots) byReal[Real(r)] = r;
-    NSArray *reals = byReal.allKeys;
+    NSArray<NSString *> *reals = byReal.allKeys;
+    size_t n = reals.count;
+    MMOpenRoot *rs = calloc(n + 1, sizeof(MMOpenRoot));
+    BOOL slashRoot = NO;
+    for (size_t i = 0; i < n; i++) {
+        const char *u = reals[i].UTF8String ?: "";
+        rs[i] = (MMOpenRoot){ strdup(u), strlen(u), i };
+        if (!strcmp(u, "/")) slashRoot = YES;
+    }
+    qsort(rs, n, sizeof(MMOpenRoot), OpenRootCompare);
+    NSMutableIndexSet *held = [NSMutableIndexSet new];
+    void (^mark)(NSUInteger) = ^(NSUInteger i) { [held addIndex:i]; };
     void (^see)(const char *) = ^(const char *cpath) {
         if (!cpath || !cpath[0]) return;
-        NSString *p = @(cpath);
-        for (NSString *r in reals) if (InsideOrSame(p, r)) [hit addObject:byReal[r]];
+        OpenRootsHit(rs, n, slashRoot, cpath, mark);
     };
     int count = proc_listallpids(NULL, 0);
-    if (count <= 0) return hit;
-    pid_t *pids = calloc((size_t)count + 64, sizeof(pid_t));
-    count = proc_listallpids(pids, (int)(((size_t)count + 64) * sizeof(pid_t)));
+    pid_t *pids = calloc((size_t)MAX(count, 0) + 64, sizeof(pid_t));
+    count = count > 0 ? proc_listallpids(pids, (int)(((size_t)count + 64) * sizeof(pid_t))) : 0;
     uid_t me = getuid();
     for (int i = 0; i < count; i++) {
         pid_t pid = pids[i];
@@ -462,6 +497,9 @@ NSSet<NSString *> *MMOpenUnder(NSArray<NSString *> *roots) {
         free(fds);
     }
     free(pids);
+    for (size_t i = 0; i < n; i++) free(rs[i].path);
+    free(rs);
+    [held enumerateIndexesUsingBlock:^(NSUInteger i, BOOL *stop) { [hit addObject:byReal[reals[i]]]; }];
     return hit;
 }
 
@@ -810,7 +848,7 @@ static BOOL NeverHits(NSString *never, NSString *p) {
     FTS *fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV | FTS_NOSTAT, NULL);
     if (!fts) return;
     FTSENT *e;
-    while ((e = fts_read(fts))) {
+    while ((e = fts_read(fts))) @autoreleasepool {
         if (e->fts_info != FTS_D) continue;
         if (e->fts_level == 0) continue;
         NSString *name = @(e->fts_name), *p = @(e->fts_path);
@@ -835,7 +873,7 @@ static BOOL NeverHits(NSString *never, NSString *p) {
     if (named.count) {
         NSMutableArray *found = [NSMutableArray new];
         for (NSString *proj in projects) [self walkProject:proj kinds:named projects:projects into:found];
-        for (NSString *p in [NSOrderedSet orderedSetWithArray:found]) {
+        for (NSString *p in [NSOrderedSet orderedSetWithArray:found]) @autoreleasepool {
             MMClutterKind *k = [self kindFor:p projects:projects];
             if (![named containsObject:k]) continue;
             MMClutterItem *i = [MMClutterItem new];
@@ -850,13 +888,17 @@ static BOOL NeverHits(NSString *never, NSString *p) {
             for (NSString *pat in k.leafPatterns)
                 for (NSString *root in Glob(pat)) {
                     NSMutableDictionary<NSString *, NSMutableArray *> *byKey = [NSMutableDictionary new];
-                    for (NSString *name in [[fm contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) {
+                    for (NSString *name in [[fm contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) @autoreleasepool {
+                        // Issue #52: a name with no family key is no member of any family row, so kindFor: could
+                        // never answer k for it. A TMPDIR holds thousands of such names, each a stat and every
+                        // row's patterns before.
+                        NSString *key = FamilyKey(name);
+                        if (!key) continue;
                         NSString *p = [root stringByAppendingPathComponent:name];
                         struct stat st;
                         if (lstat(p.fileSystemRepresentation, &st) != 0 || S_ISLNK(st.st_mode) || st.st_uid != getuid()) continue;
                         if (!S_ISDIR(st.st_mode) && !S_ISREG(st.st_mode)) continue;
                         if ([self kindFor:p projects:projects] != k) continue;
-                        NSString *key = FamilyKey(name);
                         if (!byKey[key]) byKey[key] = [NSMutableArray new];
                         [byKey[key] addObject:p];
                     }
@@ -870,7 +912,7 @@ static BOOL NeverHits(NSString *never, NSString *p) {
             continue;
         }
         for (NSString *pat in k.leafPatterns)
-            for (NSString *p in Glob(pat)) {
+            for (NSString *p in Glob(pat)) @autoreleasepool {
                 struct stat st;
                 if (lstat(p.fileSystemRepresentation, &st) != 0 || S_ISLNK(st.st_mode)) continue;
                 if ([self kindFor:p projects:projects] != k) continue;
@@ -1151,9 +1193,9 @@ static BOOL IsUUID(NSString *s) {
     NSArray<MMClutterItem *> *found = [self discover:kinds projects:projects];
     MMSample *sample = [self sampleForLiveness];
     NSMutableArray *candidates = [NSMutableArray new];
-    for (MMClutterItem *i in found) { [self linkOwner:i projects:projects]; [candidates addObjectsFromArray:i.members]; }
+    for (MMClutterItem *i in found) @autoreleasepool { [self linkOwner:i projects:projects]; [candidates addObjectsFromArray:i.members]; }
     NSSet *open = MMOpenUnder(candidates);
-    for (MMClutterItem *i in found) [self judge:i open:open sample:sample projects:projects];
+    for (MMClutterItem *i in found) @autoreleasepool { [self judge:i open:open sample:sample projects:projects]; }
     found = [found filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(MMClutterItem *i, id _) { return i.why != kWholeSession; }]];
     [self size:found];
     // Trends: one point a day per row, its total on disk, and the fit over the last 30 days.
