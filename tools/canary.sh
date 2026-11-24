@@ -199,7 +199,11 @@ GATED="skipped"
 if [ "$GATE" = 1 ]; then
   secs=$(gate_sections)
   render=0; case "$secs" in *+render*) render=1; secs=$(echo "$secs" | sed 's/+render//') ;; esac
-  say "Fast gate since $BASE: core ${secs}$( [ $render = 1 ] && echo '+ render checks')"
+  # test.sh with no section runs every section. That is what a publish wants: everything, once, before others take it.
+  # A canary with nothing changed runs core alone.
+  if [ "$PUBLISH" = 1 ]; then secs=""; render=1; BASE="everything"
+  elif [ -z "$(echo "$secs" | tr -d ' ')" ]; then secs="core"; fi
+  say "Gate since $BASE: ${secs:-every section}$( [ $render = 1 ] && echo ' + render checks')"
   # The render and window checks draw in a real window, and AppKit animations do not end while the display is off.
   # A display that slept (2 min idle here, always on a lid-closed or unattended Mac) would fail them, so the display is
   # kept awake for as long as the gate runs.
