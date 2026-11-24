@@ -1,6 +1,7 @@
 // MMTreeDisk, part of P16. See MMTreeDisk.h. Ported from WalkDisk in WorkForest's Trees.m, with an autorelease pool
 // per walk and Core's queue in place of the global queues WorkForest 0.1 used.
 #import "Core/Know/MMTreeDisk.h"
+#import <stdatomic.h>
 #import "Core/Know/MMSizer.h"
 #import "Core/Know/MMFactCache.h"
 #import "Core/Runtime/MMRuntime.h"
@@ -88,6 +89,7 @@ static MMTreeDiskFacts *Walk(NSString *root, NSSet<NSString *> *caches) {
     dispatch_queue_t _queue;
     NSMutableSet<NSString *> *_pending;
     NSArray<NSString *> *_caches;
+    _Atomic uint64_t _generation;
 }
 
 + (instancetype)shared {
@@ -126,6 +128,7 @@ static NSString *Stamp(NSString *path) {
     MMTreeDiskFacts *f;
     @autoreleasepool { f = Walk(path, [NSSet setWithArray:self.cacheNames]); }
     [_cache valueFor:path fingerprint:stamp orCompute:^id { return f.json; } wait:YES];
+    atomic_fetch_add(&_generation, 1);
     return f;
 }
 
@@ -153,5 +156,7 @@ static NSString *Stamp(NSString *path) {
 }
 
 - (void)forget:(NSSet<NSString *> *)livePaths { [_cache forget:livePaths ?: [NSSet set]]; }
+
+- (uint64_t)generation { return atomic_load(&_generation); }
 
 @end

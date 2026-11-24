@@ -9,6 +9,7 @@
 #import "UI/MMFormat.h"
 #import "UI/MMInvestigateUI.h"
 #include <stdlib.h>
+#include <sys/stat.h>
 
 static NSString *const kExpert = @"workforest";
 static const NSTimeInterval kEventGap = 30 * 60;   // reviews woken by events are at least this far apart
@@ -80,6 +81,9 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ProcessesIn(NSArray<NSSt
         return a.length > b.length ? NSOrderedAscending : a.length < b.length ? NSOrderedDescending : [a compare:b];
     }];
     NSMutableDictionary *out = [NSMutableDictionary new];
+    // Within, with each tree's "path/" made once rather than once per process and tree.
+    NSMutableArray<NSString *> *slashed = [NSMutableArray arrayWithCapacity:sorted.count];
+    for (NSString *t in sorted) [slashed addObject:[t stringByAppendingString:@"/"]];
     uid_t me = getuid(); pid_t self = getpid();
     for (NSNumber *n in s.procs) {
         MMProc *p = s.procs[n];
@@ -87,8 +91,9 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ProcessesIn(NSArray<NSSt
         if ([p.name isEqualToString:@"git"]) continue;   // short git commands, ours and the person's
         NSString *cwd = [s cwdOf:p.pid];
         if (cwd.length < 2) continue;
-        for (NSString *t in sorted) {
-            if (!Within(cwd, t)) continue;
+        for (NSUInteger i = 0; i < sorted.count; i++) {
+            NSString *t = sorted[i];
+            if (!t.length || !([cwd isEqualToString:t] || [cwd hasPrefix:slashed[i]])) continue;
             NSMutableArray *l = out[t] ?: (out[t] = [NSMutableArray new]);
             if (![l containsObject:p.name ?: @"?"]) [l addObject:p.name ?: @"?"];
             break;
@@ -156,6 +161,25 @@ static MMWFTree *TreeFrom(MMWorktree *w, MMFacts *facts, NSArray *procs, MMSessi
     return t;
 }
 
+/// Issue #52. The processes and sessions inputDigestFrom: read for each tree, kept for the findingsFrom: of the same
+/// facts that follows it when the digest moved, so a build reads them once.
+static NSObject *gDigestLock;
+static __weak MMFacts *gDigestFacts;
+static NSArray<NSString *> *gDigestPaths;
+static NSDictionary *gDigestProcs, *gDigestSessions;
+static void KeepDigestReads(MMFacts *facts, NSArray<NSString *> *paths, NSDictionary *procs, NSDictionary *sessions) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ gDigestLock = [NSObject new]; });
+    @synchronized (gDigestLock) { gDigestFacts = facts; gDigestPaths = paths; gDigestProcs = procs; gDigestSessions = sessions; }
+}
+static void TakeDigestReads(MMFacts *facts, NSArray<NSString *> *paths, NSDictionary **procs, NSDictionary **sessions) {
+    if (!gDigestLock) return;
+    @synchronized (gDigestLock) {
+        if (facts && gDigestFacts == facts && [gDigestPaths isEqualToArray:paths]) { *procs = gDigestProcs; *sessions = gDigestSessions; }
+        gDigestFacts = nil; gDigestPaths = nil; gDigestProcs = gDigestSessions = nil;
+    }
+}
+
 /// Every tree in these facts. read says how fresh the disk facts must be.
 static NSArray<MMWFTree *> *TreesFrom(MMFacts *facts, MMTreeDiskRead read, NSString *only) {
     NSMutableArray *ws = [NSMutableArray new], *paths = [NSMutableArray new];
@@ -167,8 +191,10 @@ static NSArray<MMWFTree *> *TreesFrom(MMFacts *facts, MMTreeDiskRead read, NSStr
         [ws addObject:w]; [paths addObject:p];
     }
     if (!ws.count) return @[];
-    NSDictionary *procs = ProcessesIn(paths, facts.sample);
-    NSDictionary *sessions = SessionsIn(paths, facts.sessions);
+    NSDictionary *procs = nil, *sessions = nil;
+    if (!only) TakeDigestReads(facts, paths, &procs, &sessions);
+    if (!procs) procs = ProcessesIn(paths, facts.sample);
+    if (!sessions) sessions = SessionsIn(paths, facts.sessions);
     NSArray *branches = [MMWFRules() entries:@"protect.branches"] ?: @[];
     NSMutableArray *out = [NSMutableArray new];
     for (NSUInteger i = 0; i < ws.count; i++)
@@ -788,6 +814,55 @@ static NSString *ModelWords(MMReview *r) {
         if (!_hooked) { _hooked = YES; dispatch_async(dispatch_get_main_queue(), ^{ [self hook]; }); }
     }
     return out;
+}
+
+/// Issue #52. What findingsFrom: reads, so the graph hands back the last findings when none of it moved: each
+/// worktree and its git facts, which the repo index replaces when they change, so their identity is the index's
+/// generation; each checkout folder's own stat, which says whether it is there and whether its disk walk is stale;
+/// the disk walks' generation; the protected branches; and what ProcessesIn and SessionsIn give each tree, which
+/// findingsFrom: of the same facts then reads from here rather than again. Ages, such as the
+/// quiet time and the day of recent work, move only at the heartbeat build, at most 30 seconds later.
+static uint64_t WFMix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t WFObj(id o, uint64_t salt) { return WFMix((uint64_t)(uintptr_t)(__bridge void *)o ^ WFMix(salt)); }
+static uint64_t WFStr(NSString *s, uint64_t salt) { return WFMix((s ? s.hash ^ ((uint64_t)s.length << 40) : 0x5bd1e995ull) ^ WFMix(salt)); }
+
+- (uint64_t)inputDigestFrom:(MMFacts *)facts {
+    if (MMWFReadNow) return WFMix(facts.generation ^ 0x5a5a);   // the CLI walks now, and never reuses
+    uint64_t h = WFMix(facts.worktrees.count + 1) ^ WFMix(MMTreeDisk.shared.generation + 2);
+    // The trees as TreesFrom lists them, each folder once.
+    NSMutableArray<NSString *> *paths = [NSMutableArray new];
+    for (MMWorktree *w in facts.worktrees) {
+        h += WFObj(w, 3) + WFObj([facts gitFor:w], 4);
+        if (!w.path.length) continue;
+        NSString *p = Real(w.path);
+        if (![paths containsObject:p]) [paths addObject:p];
+    }
+    for (NSString *p in paths) {
+        struct stat st;
+        BOOL there = stat(p.fileSystemRepresentation, &st) == 0;
+        h += WFStr(p, 5) ^ (there ? WFMix((uint64_t)st.st_mtimespec.tv_sec * NSEC_PER_SEC + (uint64_t)st.st_mtimespec.tv_nsec + 6) : 7);
+    }
+    for (NSString *b in [MMWFRules() entries:@"protect.branches"]) h += WFStr([b description], 8);
+    // What each tree reads from the sample and the sessions: the names of the processes inside, and the newest
+    // session that ran there, with what its JSON holds. Sessions elsewhere, whose transcripts an agent at work
+    // writes every second, change nothing.
+    NSDictionary<NSString *, NSArray<NSString *> *> *procs = paths.count ? ProcessesIn(paths, facts.sample) : @{};
+    NSDictionary<NSString *, MMSession *> *sessions = paths.count ? SessionsIn(paths, facts.sessions) : @{};
+    for (NSString *p in paths) {
+        uint64_t t = WFStr(p, 9);
+        for (NSString *name in procs[p]) h += WFStr(name, t);
+        MMSession *x = sessions[p];
+        if (x) h += t ^ WFStr(x.agent, 10) ^ WFStr(x.sessionID, 11) ^ WFStr(x.title, 12) ^ WFMix((uint64_t)x.stillWorking + 13) ^
+                    WFMix((uint64_t)(x.lastActive.timeIntervalSince1970 * 1000) + 14) ^ WFMix((uint64_t)(x.started.timeIntervalSince1970 * 1000) + 15);
+    }
+    KeepDigestReads(facts, paths, procs, sessions);
+    // A build that reuses these findings reads them as built from these facts, so a plan on the snapshot reads
+    // each finding's tree and walks nothing, as after findingsFrom:.
+    gBuiltFacts = facts;
+    return h;
 }
 
 /// The broker saves each review to the log. The graph carries the newest one, so menus read it without a query.

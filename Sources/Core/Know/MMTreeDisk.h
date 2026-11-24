@@ -35,6 +35,9 @@ typedef NS_ENUM(NSInteger, MMTreeDiskRead) {
 - (MMTreeDiskFacts *)lastWalkOf:(NSString *)path;
 /// Drops the walks of checkouts that are gone.
 - (void)forget:(NSSet<NSString *> *)livePaths;
+/// Issue #52. Moves each time a walk stores its answer, so an expert's input digest knows the disk facts changed.
+/// forget: does not move it, since it drops only checkouts no finding names.
+@property (readonly) uint64_t generation;
 @end
 /// Posted on the disk queue when a background walk finished with new facts.
 extern NSNotificationName const MMTreeDiskDidChangeNotification;
