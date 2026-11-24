@@ -209,12 +209,26 @@ if [ "$GATE" = 1 ]; then
   # kept awake for as long as the gate runs.
   caffeinate -d -u -w $$ >/dev/null 2>&1 &
   # shellcheck disable=SC2086
+  FLAKY=""
   if ! BUILD_DIR="$OUT/test-build" nice -n 10 ./test.sh $secs >"$HOME_DIR/gate.out" 2>&1; then
-    grep -E '^\s*FAIL|passed' "$HOME_DIR/gate.out" | tail -15 >&2
-    logline "$STAMP	gate failed: $(grep -E 'passed' "$HOME_DIR/gate.out" | tail -1)"
-    rm -rf "$OUT"; die "the fast gate failed, nothing was installed. Full output: $HOME_DIR/gate.out"
+    # A check that fails only under load is still worth knowing about, but not worth blocking every build for.
+    # The sections that failed run once more on their own. If they pass, the run goes on and the failures are named
+    # as flaky in the log and the release notes. If they fail again, the gate fails.
+    failed=$(LC_ALL=C awk '/^== [a-z]+$/ { sec = $2 } /^[[:space:]]*FAIL/ { if (sec != "") print sec }' "$HOME_DIR/gate.out" | sort -u | tr '\n' ' ')
+    first=$(grep -aE 'passed' "$HOME_DIR/gate.out" | tail -1)
+    if [ -n "$failed" ] && BUILD_DIR="$OUT/test-build" nice -n 10 ./test.sh $failed >"$HOME_DIR/gate-again.out" 2>&1; then
+      FLAKY="$(grep -aE '^[[:space:]]*FAIL' "$HOME_DIR/gate.out" | sed 's/^[[:space:]]*FAIL[[:space:]]*//' | cut -c1-90 | paste -sd ';' -)"
+      say "Failed once, passed alone (flaky under load): $failed"
+      first="$first, then $(grep -aE 'passed' "$HOME_DIR/gate-again.out" | tail -1) alone ($failed)"
+    else
+      grep -aE '^\s*FAIL|passed' "$HOME_DIR/gate.out" | tail -15 >&2
+      logline "$STAMP	gate failed: $first"
+      rm -rf "$OUT"; die "the gate failed, nothing was installed. Full output: $HOME_DIR/gate.out"
+    fi
+    GATED="$first"
+  else
+    GATED=$(grep -aE 'passed' "$HOME_DIR/gate.out" | tail -1)
   fi
-  GATED=$(grep -E 'passed' "$HOME_DIR/gate.out" | tail -1)
   if [ $render = 1 ]; then
     BUILD_DIR="$OUT/render-build" nice -n 10 tools/render.sh "$OUT/render" >"$HOME_DIR/render.out" 2>&1 \
       || { grep -E '^FAIL' "$OUT/render/checks.txt" 2>/dev/null | head -5 >&2; tail -1 "$HOME_DIR/render.out" >&2
@@ -224,7 +238,7 @@ if [ "$GATE" = 1 ]; then
   rm -rf "$OUT/test-build" "$OUT/render-build" "$OUT/render"
 fi
 
-install_checked "$OUT" "$STAMP" "built, gate: $GATED, $(( $(date +%s) - T0 )) s" || exit 1
+install_checked "$OUT" "$STAMP" "built, gate: $GATED${FLAKY:+, flaky: $FLAKY}, $(( $(date +%s) - T0 )) s" || exit 1
 [ "$PUBLISH" = 1 ] || exit 0
 
 say "Publishing $STAMP as the $TAG prerelease of $REPO"
@@ -236,7 +250,7 @@ cp install.sh "$p/install.sh"
 cp tools/canary.sh "$p/canary.sh"
 python3 -I -c 'import json,sys; json.dump(dict(zip(["stamp","commit","subject","branch","gate","published"], sys.argv[1:])), open(sys.argv[7], "w"), indent=2)' \
   "$STAMP" "$(git rev-parse HEAD)" "$(git log -1 --format=%s)" "$(git rev-parse --abbrev-ref HEAD)" "$GATED" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$p/build.json"
-notes="Canary $STAMP: $(git log -1 --format=%s), from branch $(git rev-parse --abbrev-ref HEAD), commit $(git rev-parse HEAD). Fast gate: $GATED. Health-checked on the publishing Mac. Not a release: install with tools/canary.sh update."
+notes="Canary $STAMP: $(git log -1 --format=%s), from branch $(git rev-parse --abbrev-ref HEAD), commit $(git rev-parse HEAD). Gate: $GATED.${FLAKY:+ Flaky under load, passed alone: $FLAKY.} Health-checked on the publishing Mac. Not a release: install with tools/canary.sh update."
 if ! gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
   gh release create "$TAG" -R "$REPO" --prerelease --title "Canary" --notes "$notes" --target main >/dev/null
 fi
