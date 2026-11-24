@@ -91,6 +91,7 @@ MMGraph snapshot --> MMPerformance --> MMWindowModelFrom --> MMWindowModel --> M
 - **The controller**, `Sources/Shell/MMWindowController.h`, works only while the window is open. It builds one model per snapshot, applies a press that comes through `MMWindowHost`, and sends a new model. Fix Everything runs through `MMFixRunner`, which acts only through `MMRunAction` and `MMRunWrapUp`.
 - **The log**, `Sources/Shell/MMWindowLog.h`, makes the middle's entries from the rows of `minmacs.sqlite`, off main. The controller reads it on its queue while the window is open, and again only when `MMLogStamp` moved. `minmacs log` prints the same entries.
 - **The views**, `Sources/UI/Window`, run on main and read only the model: no disk, no process, no graph.
+- **The holder**, `MMWindowHolder` in `Sources/UI/Window/MMWindowHolder.m`, owns the panel. Drawn once, the panel, its views and their layers hold tens of MB, so once the window has stayed closed for 45 seconds the panel is let go, and never while a run of Fix Everything plays. A quick reopen keeps the same panel. The next open makes it again from the last model, and its first frame is drawn and committed before it comes on screen, as at every open.
 
 ### Checked, not assumed
 

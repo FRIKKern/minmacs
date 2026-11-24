@@ -432,9 +432,42 @@ A second pair of runs, the clutter fix alone against the base, read 1049 MB and 
 
 ### What is left
 
-- The menu window. The installed app's `footprint` after the peak read 58 MB of IOSurface and 41 MB of owned graphics memory, about half of its 192 MB. The window list showed the menu panel, 1020 by 728 points, off screen: `MMWindowPanel` is made at the first open and kept with its layers after it closes. Letting it go some time after it closes, and making it again at the next open, would take most of that back. It is not done here, since its first frame then needs a new model, and the bench draws no window.
+- The menu window. The installed app's `footprint` after the peak read 58 MB of IOSurface and 41 MB of owned graphics memory, about half of its 192 MB. The window list showed the menu panel, 1020 by 728 points, off screen: `MMWindowPanel` is made at the first open and kept with its layers after it closes. Done since: [The closed menu window](#the-closed-menu-window-2026-11-24).
 - The idle CPU is still over the 0.3 % budget on this Mac: 0.56 % in the window above. Most builds come from passes whose facts changed, since 789 processes move between CPU bands. Noo-Noo and WorkForest have no input digest, so each build makes their findings again: 1.1 and 0.8 ms.
 - The clutter scan still stats and judges every member each hour, about 0.6 s of CPU in the fixture, most of it `wallFor:` and `NeverHits`, which glob each never path for each member.
+
+## The closed menu window, 2026-11-24
+
+The field sampler read the latest build at 0.18 % CPU over 4.4 hours, but with a footprint that swung between 16.5 and 159 MB, peaking at 193 MB, against a budget of 45 MB. The window was the cause: `MMWindowPanel` was made at the first open and only ordered out at a close, so the panel, its views and their layer backing stores stayed, about 100 MB in the field. Three things kept it:
+
+1. The shell held the panel for the life of the app.
+2. Let go, the panel still held its views, and AppKit keeps an ordered-out window that was key last, with the window server's backing at its full size.
+3. Nothing else: the controller holds only plain models, the panel's monitors and observers end at the close, and the view's timers stop at `-rest`. The app icons the window caches are 32-point images, and letting them go too changed nothing measurable.
+
+`MMWindowHolder`, in `Sources/UI/Window/MMWindowHolder.m`, now owns the panel for the shell. After the window has stayed closed for 45 seconds it empties the panel, its views gone and the window one point square, and lets it go. A reopen inside the 45 seconds takes the same panel. While a run of Fix Everything plays the panel is kept, and asked again a while later. The next open makes the panel again and shows it the last model before it comes on screen. The panel is no longer deferred, and it commits its first frame with `CATransaction flush` before it is ordered in: a deferred window drew nothing at `displayIfNeeded`, so even the first open of before handed the screen views that still had to draw.
+
+**How it was measured.** The app built as build.sh builds it, for arm64 with `-DMM_TESTS`, in a fixture `MINMACS_HOME` with every mode Idle and the welcome done, never installed. A build with `MM_TESTS` answers `_window` on core.sock: open as the icon does, close, and the state. The footprint is `ri_phys_footprint` from `proc_pid_rusage`, as the field sampler and `tools/soak/procstat` read it. An open's time runs from the press to the first frame committed, `CATransaction flush` included. "Before" is `HEAD` at 74b53d7 with only that hook added. One run each, one after the other, at a load average near 2, at 11:38 local time. The fixture home has few rows, so the window holds less than with a real day.
+
+| Footprint, MB | Before | After |
+|---|---|---|
+| After launch | 16.0 | 16.2 |
+| Window open | 66.1 | 65.8 to 116.1 |
+| 1 s after it closed | 66.0 | 65.8 |
+| 50 s after it closed | 62.0, the panel held | 30.7 to 33.0, the panel gone |
+| Reopened | 65.9 | 65.9 to 116.9 |
+
+The open window reads 66 or 117 MB from one open to the next in both builds, as the window server hands back its buffers. Four rounds of open, close and a rest of 3 s read 33.0, 33.4, 36.0 and 33.1 MB after each rest, so nothing piles up. Of the 17 MB that stays over the launch, 8.5 MB is IOAccelerator and 3.8 MB IOSurface, what a process keeps once it has drawn a window this large through the GPU, and about 5 MB malloc. In the field, where the panel held about 100 MB, the closed app should come back near 33 MB.
+
+| Open, ms to the first frame committed | Before | After |
+|---|---|---|
+| The first open | 26.8 | 22.7 to 25.1 |
+| A reopen 1 s after a close, 10 each | 9.5 to 13.4 | 6.0 to 11.4 |
+| A reopen once the panel was let go, 10 | none, the panel was kept | 17.0 to 19.1, median 18.2 |
+| A reopen 50 s after a close | 13.4 | 18.0 and 21.1 |
+
+A reopen after a rest makes the panel and draws a new view, about 6 ms more than a warm reopen and under #53's 30 ms. `tools/render.sh` on the same Mac, which times the view alone into a bitmap, read cold p95 26.1 to 29.0 ms and warm p95 24.8 to 28.2 ms over its three fixtures, within the earlier runs of [The menu window's first frame](#the-menu-windows-first-frame-2026-11-12).
+
+**The check.** `test/window/memory.m`, in `./test.sh window`, makes the holder as the shell does, with the busy fixture, and opens its panel far off every screen, with a rest of 3 s. It never starts the app or Core. It checks that each first frame, the first open's and the reopen's after a let-go, is drawn and committed before the panel is ordered in, that a quick reopen takes the same panel, that a run in play keeps it, that nothing holds the panel that was let go, and its own footprint. Its baseline is read after a plain window drew the same view once and went, since a process pays about 15 MB the first time it draws a window this large. On this Mac it read a baseline of 18.9 MB, 57.9 open, 33.7 after the rest and 38.8 after a second one, and eight more rounds stayed at 39.6 to 39.8 MB. With the panel kept it read 77.3 and 78.7 MB, 58 to 60 MB over the baseline. So the check asks for less than 35 MB over the baseline after each rest, at least 20 MB given back by the second rest, and less than 8 MB added by the second round.
 
 ## The last hour in memory
 

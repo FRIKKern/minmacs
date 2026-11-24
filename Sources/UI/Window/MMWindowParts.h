@@ -297,6 +297,17 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 - (NSArray<NSButton *> *)controls;
 @end
 
+@interface MMWindowPanel ()
+/// What -toggleUnder: does once it knows where: the first frame drawn, then on screen. key NO orders it in without
+/// the keyboard, for the checks, which open it far off every screen.
+- (void)openInFrame:(NSRect)frame key:(BOOL)key;
+/// For the checks: called right before the panel comes on screen, after its first frame was drawn.
+@property (copy, nullable) void (^onWillShow)(void);
+/// Closed for good: the views and their layers go now. AppKit may hold on to an ordered-out window for a while, as
+/// the window that was key last, so the panel does not wait for its own end to let them go. MMWindowHolder calls it.
+- (void)emptyOut;
+@end
+
 @interface MMWindowView ()
 /// The render tool sets this: an opaque dark base under the glass, since no blur is behind it there.
 @property (nonatomic) BOOL drawsBacking;

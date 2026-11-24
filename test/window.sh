@@ -66,6 +66,34 @@ if [ "$wn_r" = 0 ]; then
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
 fi
 
+echo "-- what the closed window holds, and its first frame after it was let go"
+# test/window/memory.m makes the panel through MMWindowHolder as the shell does, with a fixture model, and opens it far
+# off every screen, so nobody sees it. It reads its own footprint, as the field sampler reads the app, and never starts
+# the app, Core or a scan. The panel takes the keyboard for the second each open lasts, as it does for the person.
+wn_mem="$wn_dir/windowmemory-$$"
+$wn_cc $(find Sources/UI -name '*.m' | LC_ALL=C sort) Sources/Core/MMSpecs.m test/window/memory.m -framework Cocoa -framework QuartzCore \
+  -o "$wn_mem" >"$wn_dir/memory-build.log" 2>&1
+wn_mr=$?
+check "window: the memory check builds with no warnings" 0 "$wn_mr"
+[ "$wn_mr" = 0 ] || tail -20 "$wn_dir/memory-build.log"
+if [ "$wn_mr" = 0 ]; then
+  # A rest of 3 seconds in place of the app's 45, so the section stays short.
+  MINMACS_HOME="$wn_home" "$wn_mem" 3 >"$wn_dir/memory.out" 2>"$wn_dir/memory.err"
+  wn_x=$?
+  check "window: the memory check ran to the end" "0 END" "$wn_x $(tail -1 "$wn_dir/memory.out")"
+  [ "$wn_x" = 0 ] || tail -10 "$wn_dir/memory.err"
+  while IFS="$wn_tab" read -r wn_tag wn_name wn_want wn_got; do
+    case "$wn_tag" in
+      CHECK) check "$wn_name" "$wn_want" "$wn_got" ;;
+      info) echo "  info  $wn_name" ;;
+    esac
+  done <"$wn_dir/memory.out"
+fi
+check "window: the shell holds the panel through MMWindowHolder, which keeps it while a run plays and lets it go 45 s after a close" "1 1 1 0" \
+  "$(grep -c 'self.windowHolder = \[\[MMWindowHolder alloc\] initWithHost:self.windowController\];' Sources/Shell/MMShell.m) $(grep -c 'self.windowHolder.busy = ^BOOL { return weak.windowController.running; };' Sources/Shell/MMShell.m) $(grep -c '^const NSTimeInterval MMWindowRestSeconds = 45;$' Sources/UI/Window/MMWindowHolder.m) $(grep -c 'MMWindowPanel alloc' Sources/Shell/MMShell.m)"
+check "window: the panel is made with its window, and draws and commits its first frame before it is ordered in" "1 1" \
+  "$(grep -c 'backing:NSBackingStoreBuffered defer:NO\]' Sources/UI/Window/MMWindowPanel.m) $(awk '/^- \(void\)openInFrame:/,/^}/' Sources/UI/Window/MMWindowPanel.m | grep -A3 'displayIfNeeded' | grep -c 'CATransaction") flush')"
+
 echo "-- the sources"
 wn_new="Sources/Shell/MMWindowFeed.h Sources/Shell/MMWindowLog.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h Sources/Shell/MMWindowController.h Sources/Shell/MMWindowController.m Sources/Shell/MMWindowCLI.h Sources/Shell/MMWindowCLI.m"
 check "window: the feed, the JSON and the runner import no AppKit" 0 \

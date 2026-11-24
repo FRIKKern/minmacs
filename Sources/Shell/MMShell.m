@@ -2,6 +2,9 @@
 // and the URL handlers of LocoHost and MinMacs 1.2, now one router in Sources/CLI/MMRouter.
 #import "Shell/MMShell.h"
 #import <ServiceManagement/ServiceManagement.h>
+#ifdef MM_TESTS
+#import <QuartzCore/CATransaction.h>
+#endif
 #import "Core/MMCore.h"
 #import "CLI/MMCLI.h"
 #import "CLI/MMRouter.h"
@@ -182,7 +185,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property BOOL sawSnapshot;
 @property BOOL launched;                                // -launch has made the items; a way to Settings waits for it
 @property BOOL settingsWaits;                           // Settings was asked for before that
-@property (strong) MMWindowPanel *windowPanel;         // made at the first click on the icon, in window mode
+@property (strong) MMWindowHolder *windowHolder;       // made at the first click on the icon, in window mode
+@property (readonly) MMWindowPanel *windowPanel;       // the holder's panel, made again when it was let go
 @property (strong) MMWindowController *windowController;
 - (void)toggleWindow:(NSStatusBarButton *)button;
 - (BOOL)showWindow;
@@ -347,6 +351,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         return @{@"ok": @YES};
     });
     MMCoreServe(@"cli", ^NSDictionary *(NSDictionary *req) { return MMCLIReply(req); });
+#ifdef MM_TESTS
+    // Only in a build with MM_TESTS: the window checks open and close the window and ask what it holds.
+    MMCoreServe(@"_window", ^NSDictionary *(NSDictionary *req) {
+        __block NSDictionary *reply = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{ reply = [self testWindow:req[@"do"]]; });
+        return reply;
+    });
+#endif
     MMCoreStart();
     Mark(@"core");
 
@@ -512,15 +524,41 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 }
 
 /// The panel and its controller, made once, at the first click on the icon or the first way to Settings.
+/// The holder lets the panel go once the window stayed closed a while, never while a run plays, and makes it again.
 - (void)makeWindow {
-    if (self.windowPanel) return;
+    if (self.windowHolder) return;
     self.windowController = [MMWindowController new];
     self.windowController.shell = self;
-    self.windowPanel = [[MMWindowPanel alloc] initWithHost:self.windowController];
+    self.windowHolder = [[MMWindowHolder alloc] initWithHost:self.windowController];
     __weak MMShell *weak = self;
-    self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowPanel show:model]; };
-    self.windowPanel.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
+    self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowHolder show:model]; };
+    self.windowHolder.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
+    self.windowHolder.busy = ^BOOL { return weak.windowController.running; };
+#ifdef MM_TESTS
+    NSString *rest = NSProcessInfo.processInfo.environment[@"MINMACS_TEST_WINDOW_REST"];
+    if (rest.length) self.windowHolder.rest = rest.doubleValue;
+#endif
 }
+
+- (MMWindowPanel *)windowPanel { return self.windowHolder.panel; }
+
+#ifdef MM_TESTS
+/// Main. "open" opens the window as the icon does and says how long that took, "close" closes it, and "state" says
+/// whether it is open and whether a panel is held.
+- (NSDictionary *)testWindow:(NSString *)what {
+    if ([what isEqualToString:@"open"] && !self.windowHolder.isOpen) {
+        uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        BOOL had = self.windowHolder.madePanel != nil;
+        if (![self showWindow]) [self toggleWindow:nil];
+        [CATransaction flush];   // the time runs to the first frame handed to the screen
+        double ms = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - t0) / 1e6;
+        return @{@"ok": @YES, @"ms": @(ms), @"made": @(!had), @"open": @(self.windowHolder.isOpen)};
+    }
+    if ([what isEqualToString:@"close"]) [self.windowHolder.madePanel close];
+    return @{@"ok": @YES, @"open": @(self.windowHolder.isOpen), @"panel": @(self.windowHolder.madePanel != nil),
+             @"made": @(self.windowHolder.made), @"letGoAlive": @(self.windowHolder.lastLetGo != nil)};
+}
+#endif
 
 - (BOOL)loginEnabled { return SMAppService.mainAppService.status == SMAppServiceStatusEnabled; }
 
