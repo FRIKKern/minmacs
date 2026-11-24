@@ -56,7 +56,7 @@ NSArray<MMPlanEntry *> *MMPlan(NSArray<MMFinding *> *findings, MMFacts *facts, M
 /// An expert reads it in -findingsFrom:, on the graph queue in the app.
 + (NSDate *)keptUntil:(NSString *)stableKey expert:(NSString *)expert;
 /// until nil ends the keep. Each keep given or ended is a row of the log's keep table, MMLogKeepTable, with who gave
-/// it, "menu" or "cli", and the name the person knows it by.
+/// it, "manual" from a menu or "cli", the words MMRunAction takes, and the name the person knows it by.
 + (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until by:(NSString *)by name:(NSString *)name;
 /// P50. The protect list in the expert's rules file of P36, matched with its wildcards.
 + (BOOL)isProtected:(NSString *)value expert:(NSString *)expert;

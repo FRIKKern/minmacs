@@ -421,7 +421,7 @@ static void RunOffMain(dispatch_block_t block) {
     NSString *key = f.stableKey, *name = f.title;
     dispatch_async(ActQueue(), ^{
         // Core's timed keep, in <noonoo>/keeps.json, which findingsFrom reads once per rebuild when it changed.
-        [MMKeep keep:key expert:kExpert until:[NSDate dateWithTimeIntervalSinceNow:kKeepFor] by:@"menu" name:name];
+        [MMKeep keep:key expert:kExpert until:[NSDate dateWithTimeIntervalSinceNow:kKeepFor] by:@"manual" name:name];
         [MMGraph.shared rebuild:@"noonoo.keep"];
     });
 }

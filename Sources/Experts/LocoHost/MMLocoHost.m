@@ -745,7 +745,7 @@ static void Copy(NSString *s) {
         BOOL kept = [f.facts[@"keptUntil"] doubleValue] > NSDate.date.timeIntervalSince1970;
         NSString *key = f.stableKey, *name = f.title;
         dispatch_async(ActQueue(), ^{
-            [MMKeep keep:key expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600] by:@"menu" name:name];
+            [MMKeep keep:key expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600] by:@"manual" name:name];
             [MMGraph.shared rebuild:@"locohost keep"];
         });
         _view = nil;
