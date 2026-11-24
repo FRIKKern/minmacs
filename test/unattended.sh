@@ -38,14 +38,15 @@ check "D3: each expert's failure helper writes a notice" "1 1 1 1 1" \
 un_reads=$(grep -rnE 'fgets\([^)]*stdin|getchar\(|scanf\(|getline\([^)]*stdin|read\(0,|readDataToEndOfFile|fileHandleWithStandardInput' Sources | cut -d: -f1 | LC_ALL=C sort | uniq -c | awk '{print $2 ":" $1}' | paste -sd' ' -)
 check "D3: stdin is read in four places only" "Sources/CLI/MMInvestigateCLI.m:1 Sources/Core/Act/MMRemovalTrashStranded.m:1 Sources/Core/Runtime/MMWorker.m:1 Sources/Experts/LocoHost/MMLHCLI.m:1" "$un_reads"
 check "D3: and the y/N reads only when a person is at a TTY" 1 "$(grep -c 'if (raw.inApp || !isatty(STDIN_FILENO)) {' Sources/Experts/LocoHost/MMLHCLI.m)"
-check "D3: the CLI hands the app whether a person is at its terminal" "1 1" \
+# Two cold runs pass it: the one with no app, and the one for an app older than this CLI that lacks a read verb.
+check "D3: the CLI hands the app whether a person is at its terminal" "1 2" \
   "$(grep -c '@"noPerson": @(MMNoPersonAtTerminal())' Sources/CLI/MMCLI.m) $(grep -c 'return Run(spec, resolved, program, cwd, NO, MMNoPersonAtTerminal(), nil, nil);' Sources/CLI/MMCLI.m)"
 check "D3: only an explicit turn of the lid to on writes the sudoers rule, behind macOS's prompt" "1 1" \
   "$(grep -rl 'installRule:' Sources --include='*.m' | grep -vc '^Sources/Core/Act/MMLid.m$') $(grep -c 'if (\[what isEqualToString:@"lid"\] && \[value boolValue\] && !\[MMLidOverride ruleInstalled\]) {' Sources/Experts/Insomnia/MMInsomniaExpert.m)"
 
 echo "-- the tool: notices, each former alert path, and the welcome"
 un_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-un_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowController.m"
+un_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowController.m"
 # shellcheck disable=SC2086
 $un_cc $(find Sources/Core Sources/UI Sources/CLI Sources/Experts -name '*.m' | LC_ALL=C sort) $un_shell test/unattended/tool.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -framework QuartzCore -framework ServiceManagement -lsqlite3 \
