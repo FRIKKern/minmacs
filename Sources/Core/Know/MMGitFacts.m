@@ -31,9 +31,10 @@ static const NSUInteger kBranchCommits = 200;      // branch commits compared on
 @interface MMGitFacts ()
 @property (readwrite, copy) NSString *branch, *head, *defaultBranch, *upstream;
 @property (readwrite) MMMergeKind merged;
-@property (readwrite) NSInteger dirty, untracked, stashes, notInDefault, unpushed, ahead, behind;
+@property (readwrite) NSInteger dirty, untracked, stashes, notInDefault, behindDefault, unpushed, ahead, behind;
 @property (readwrite) BOOL onRemote, upstreamGone, upstreamUnknown;
 @property (readwrite) NSDate *lastCommit;
+@property (readwrite, copy) NSString *subject;
 @end
 
 static NSArray<NSString *> *MergeWords(void) {
@@ -58,6 +59,7 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
     g.stashes = Int(f[@"stashes"], -1);   // issue #116: not known keeps
     g.dirty = Int(s[@"dirty"], -1); g.untracked = Int(s[@"untracked"], -1);   // not known yet counts as dirty
     g.notInDefault = Int(h[@"notInDefault"], -1); g.unpushed = Int(h[@"unpushed"], -1);
+    g.behindDefault = Int(h[@"behindDefault"], -1); g.subject = Str(h[@"subject"]);
     g.ahead = Int(h[@"ahead"], 0); g.behind = Int(h[@"behind"], 0);
     g.onRemote = [h[@"onRemote"] boolValue];
     NSUInteger m = [MergeWords() indexOfObject:Str(h[@"merged"]) ?: @"none"];
@@ -72,9 +74,9 @@ static NSInteger Int(id v, NSInteger dflt) { return [v isKindOfClass:NSNumber.cl
              @"defaultBranch": self.defaultBranch ?: NSNull.null, @"upstream": self.upstream ?: NSNull.null,
              @"upstreamGone": @(self.upstreamGone), @"upstreamUnknown": @(self.upstreamUnknown), @"merged": m < MergeWords().count ? MergeWords()[m] : @"none",
              @"dirty": @(self.dirty), @"untracked": @(self.untracked), @"stashes": @(self.stashes),
-             @"notInDefault": @(self.notInDefault), @"unpushed": @(self.unpushed), @"ahead": @(self.ahead),
+             @"notInDefault": @(self.notInDefault), @"behindDefault": @(self.behindDefault), @"unpushed": @(self.unpushed), @"ahead": @(self.ahead),
              @"behind": @(self.behind), @"onRemote": @(self.onRemote),
-             @"lastCommit": self.lastCommit ? @(self.lastCommit.timeIntervalSince1970) : NSNull.null};
+             @"lastCommit": self.lastCommit ? @(self.lastCommit.timeIntervalSince1970) : NSNull.null, @"subject": self.subject ?: NSNull.null};
 }
 
 - (NSString *)description { return [NSString stringWithFormat:@"<MMGitFacts %@>", self.json]; }
@@ -378,7 +380,9 @@ NSString *MMGitStatusFingerprint(NSDictionary *files) {
 
 /// The history layer's fingerprint: everything the counts and the merge kind depend on.
 NSString *MMGitHistoryFingerprint(NSDictionary *files, BOOL isMain) {
-    return [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%d", files[@"head"] ?: (files[@"headUnread"] ? @"?" : @"-"), files[@"defRef"] ?: @"-",
+    // "h2": the layer holds the last commit's subject and the count behind the default branch since then, so a value
+    // kept by an older build is read again once.
+    return [NSString stringWithFormat:@"h2|%@|%@|%@|%@|%@|%@|%@|%d", files[@"head"] ?: (files[@"headUnread"] ? @"?" : @"-"), files[@"defRef"] ?: @"-",
             files[@"defTip"] ?: @"-", files[@"upRef"] ?: @"-", files[@"upTip"] ?: @"-", files[@"fetched"] ?: @"-",
             files[@"packed"] ?: @"-", isMain];
 }
@@ -500,11 +504,21 @@ NSDictionary *MMGitHistoryOf(NSString *dir, NSDictionary *files, BOOL isMain, MM
                                                        : @{@"merged": @"none", @"notInDefault": @0, @"unpushed": @0};
     NSMutableDictionary *h = [NSMutableDictionary new];
     int st = -1;
-    NSString *ct = Git(dir, @[@"show", @"-s", @"--format=%ct", head, @"--"], kGitShort, &st, counts);
+    // The time and the subject in one run: the subject is the rest of the line after the time.
+    NSString *ct = Git(dir, @[@"show", @"-s", @"--format=%ct %s", head, @"--"], kGitShort, &st, counts);
     if (st == 0 && ct.longLongValue > 0) h[@"lastCommit"] = @(ct.longLongValue);
+    NSRange space = [ct rangeOfString:@" "];
+    if (st == 0 && space.location != NSNotFound) {
+        NSString *subject = [[ct substringFromIndex:NSMaxRange(space)] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (subject.length) h[@"subject"] = subject.length > 200 ? [subject substringToIndex:200] : subject;
+    }
     NSInteger left = 0, right = 0;
     NSString *def = files[@"defTip"];
-    if (def) h[@"notInDefault"] = LeftRight(dir, [NSString stringWithFormat:@"%@...%@", def, head], &left, &right, counts) ? @(right) : @(-1);
+    if (def) {
+        BOOL ok = LeftRight(dir, [NSString stringWithFormat:@"%@...%@", def, head], &left, &right, counts);
+        h[@"notInDefault"] = ok ? @(right) : @(-1);
+        h[@"behindDefault"] = ok ? @(left) : @(-1);
+    }
     if (files[@"upTip"] && LeftRight(dir, [NSString stringWithFormat:@"%@...%@", files[@"upTip"], head], &left, &right, counts)) {
         h[@"behind"] = @(left); h[@"ahead"] = @(right);
     }

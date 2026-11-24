@@ -12,6 +12,12 @@
 - (void)setLogin:(BOOL)on { [self.asked addObject:@(on)]; self.enabled = on; }
 @end
 
+/// The Open at login switch of Settings, by its id: This Mac holds Pull requests under it.
+static MMWindowSwitch *LoginOf(MMWindowSettings *st) {
+    for (MMWindowSwitch *s in st.switches) if ([s.switchID isEqualToString:@"login"]) return s;
+    return nil;
+}
+
 static NSString *Asked(WLogin *l) { return l.asked.count ? [l.asked componentsJoinedByString:@","] : @"none"; }
 
 /// A person new to MinMacs: nothing welcomed, every rule where it starts, no day watched.
@@ -44,7 +50,7 @@ static void Welcome(void) {
     T(@"welcome: Open at login says what each state means, as the Settings switch does", @"Open at login: MinMacs starts when you sign in. / MinMacs starts only when you open it.",
       [NSString stringWithFormat:@"%@: %@ / %@", w.loginTitle, w.loginOnNote, w.loginOffNote]);
     T(@"welcome: the Settings switch has the same two sentences, as its tooltip, and no line under it", [NSString stringWithFormat:@"%@: %@ / %@ (nil)", w.loginTitle, w.loginOnNote, w.loginOffNote],
-      [NSString stringWithFormat:@"%@: %@ / %@ %@", st.switches.lastObject.title, st.switches.lastObject.help, off.switches.lastObject.help, st.switches.lastObject.note ?: @"(nil)"]);
+      [NSString stringWithFormat:@"%@: %@ / %@ %@", LoginOf(st).title, LoginOf(st).help, LoginOf(off).help, LoginOf(st).note ?: @"(nil)"]);
     NSString *(^facts)(MMWindowWelcome *) = ^NSString *(MMWindowWelcome *x) {
         NSMutableArray *out = [NSMutableArray new];
         for (MMWindowFact *f in x.facts) [out addObject:[NSString stringWithFormat:@"%@: %@", f.label, f.value]];
@@ -117,7 +123,7 @@ static void Welcome(void) {
     settle();
     got = Spin(20, ^BOOL { return models.lastObject.welcome == nil; });
     T(@"welcome: the next model holds no welcome, and Settings shows the switch off", @"yes no", [NSString stringWithFormat:@"%@ %@", YN(got),
-      YN(models.lastObject.settings.switches.lastObject.on)]);
+      YN(LoginOf(models.lastObject.settings).on)]);
     [c windowWelcomeStart:YES];
     T(@"welcome: a second Start changes nothing", @"none nil", [NSString stringWithFormat:@"%@ %@", Asked(login), MMPref(MMRemovalKey) ?: @"nil"]);
     T(@"welcome: it never comes back", @"yes", YN(MMWindowWelcomeNow(NO) == nil));
@@ -131,9 +137,9 @@ static void Welcome(void) {
     // Open at login stays changeable in Settings, through the same seam.
     [c windowSetSwitch:@"login" on:YES];
     settle();
-    Spin(20, ^BOOL { return models.lastObject.settings.switches.lastObject.on; });
+    Spin(20, ^BOOL { return LoginOf(models.lastObject.settings).on; });
     T(@"welcome: the Settings switch adds the login item later, and the model shows it on with its sentence as its tooltip", @"1 yes MinMacs starts when you sign in.",
-      [NSString stringWithFormat:@"%@ %@ %@", Asked(login), YN(models.lastObject.settings.switches.lastObject.on), models.lastObject.settings.switches.lastObject.help]);
+      [NSString stringWithFormat:@"%@ %@ %@", Asked(login), YN(LoginOf(models.lastObject.settings).on), LoginOf(models.lastObject.settings).help]);
     [c windowSetSwitch:@"login" on:NO];
     T(@"welcome: and takes it away again", @"1,0 no", [NSString stringWithFormat:@"%@ %@", Asked(login), YN(login.enabled)]);
     [c setOpen:NO];
@@ -202,7 +208,7 @@ static void Welcome(void) {
         [k take:SnapshotAt(2000)];
         Spin(20, ^BOOL { return got.lastObject.generation > 0; });
         MMWindowModel *m = got.lastObject;
-        T(@"welcome: for them the welcome's switch and the Settings switch agree, both off", @"no no", [NSString stringWithFormat:@"%@ %@", YN(m.welcome.loginOn), YN(m.settings.switches.lastObject.on)]);
+        T(@"welcome: for them the welcome's switch and the Settings switch agree, both off", @"no no", [NSString stringWithFormat:@"%@ %@", YN(m.welcome.loginOn), YN(LoginOf(m.settings).on)]);
         [k windowWelcomeStart:m.welcome.loginOn];
         T(@"welcome: their untouched Start asks nothing of the login item, and it stays off", @"none no yes", [NSString stringWithFormat:@"%@ %@ %@", Asked(was), YN(was.enabled), YN(MMPrefBool(MMWindowWelcomedKey, NO))]);
         dispatch_sync(window, ^{});

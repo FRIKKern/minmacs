@@ -53,7 +53,7 @@ A worktree's card lists the servers LocoHost finds inside it, such as ":3000 Vit
 
 ## Verbs
 
-`trees` and its other name `worktrees`, registered through `MMExpert`: `list [--all]`, `explain <path>`, `review [--model] [--mode] [--fresh] [--path]`, `plan`, `auto [--mode] [--path] [--review]`, `clean-up [--merged] [--yes]`, `remove <path> --yes`, `restore <id|path>`, `removed`, `keep <path> [--days n] [--off]`, `protect <path> [--off]`, `prune <path>` and `rules`. Every command takes `--json` and `--dry-run`. A command that changes things needs the app, unless it is given `--dry-run`. That holds for `keep` and `protect` too, since a keep and the protect list change what the modes may remove. The verb is registered with `mutates:NO` because `list`, `explain` and the other reads run anywhere, so each changing command calls `needsApp` itself. `--fresh` sends every worktree to the model past the fingerprint cache.
+`trees` and its other name `worktrees`, registered through `MMExpert`: `list [--all]`, `explain <path>`, `review [--model] [--mode] [--fresh] [--path]`, `plan`, `auto [--mode] [--path] [--review]`, `clean-up [--merged] [--yes]`, `remove <path> --yes`, `restore <id|path>`, `removed`, `keep <path> [--days n] [--off]`, `protect <path> [--off]`, `prune <path>`, `rules` and `prs on|off`. Every command takes `--json` and `--dry-run`. A command that changes things needs the app, unless it is given `--dry-run`. That holds for `keep` and `protect` too, since a keep and the protect list change what the modes may remove. The verb is registered with `mutates:NO` because `list`, `explain` and the other reads run anywhere, so each changing command calls `needsApp` itself. `--fresh` sends every worktree to the model past the fingerprint cache.
 
 WorkForest 0.1's syntax works under the `workforest` name through the shim in `Sources/CLI/MMCLI.m`: `list`, `explain`, `review`, `summary`, `auto`, `clean-up`, `remove`, `restore`, `removed`, `keep`, `prune`, `rules` and `fetch` become `trees` commands, and `mode` becomes Core's `mode workforest`. `openURL:` handles `workforest://review`, `clean-up` and `rescan`.
 
@@ -63,12 +63,12 @@ WorkForest 0.1's syntax works under the `workforest` name through the shim in `S
 
 ## Left open
 
-- `MMGitFacts` has no last commit subject, so the subject is neither shown nor sent. WorkForest 0.1's check that a secret in the subject is redacted is run on the session title instead.
+- `MMGitFacts` reads the last commit's subject, in the same git run as its time, and the tree carries it as `subject` for the window's story and `--json`. It is not in the review's facts, so it is not sent. WorkForest 0.1's check that a secret in the subject is redacted is run on the session title instead.
 - The disk walk of `MMTreeDisk` runs in process on `no.guerrilla.minmacs.core.disk`, with an autorelease pool per walk. It belongs in the worker of P4, next to `sizeTrees:`.
 - Process folders come from `-[MMSample cwdOf:]` for every process of the person's uid on each rebuild. A rebuild with a thousand processes reads a thousand folders.
 - On a snapshot made by hand, with nothing prepared, `viewFor:` on main reads the undo log, the keeps and the rules, as LocoHost's does. It leaves out the Wrap Up tails and the server links, which only `prepareFor:` on the graph queue makes.
 - Sessions that only named a worktree in a parent folder's log, WorkForest 0.1's "a session named this folder", are not matched. Know's session index matches by working folder only.
-- `fetch` is gone: MinMacs never fetches. The merged pull request check through `gh` is gone too.
+- `fetch` is gone: MinMacs never fetches. The merged pull request check through `gh` is gone too. What `gh` is still asked is a worktree's pull request for the window's story, on demand only, by `MMPulls` in `Sources/Core/Know`, which the window's controller asks and nothing in WorkForest does. `trees prs on|off` sets whether it may, and `trees explain <path> --json` shows the last answer as `pullRequest`.
 
 ## Investigate, issue #35
 

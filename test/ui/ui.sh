@@ -63,9 +63,11 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # project's most active worktree and one line at the group's foot, and, shorter still, the three most active projects.
 # The three caches pictures are DESIGN rule 16: 169 temp-folder families and four sessions' scratch as one row each, and
 # the stories of both.
+# The four busy-pr pictures are a worktree's story with its pull request open with checks passing, merged, none and
+# still being looked for.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 114 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 122 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
                young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main measuring-main measuring-worktree measuring-measured measuring-fix welcome-main welcome-off-main  welcome-watched-main welcome-started \

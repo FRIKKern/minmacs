@@ -144,6 +144,18 @@ MMWindowFact *_Nullable MMWindowFactFiles(NSInteger changed, NSInteger added);  
 MMWindowFact *_Nullable MMWindowFactNotPushed(NSInteger commits);                  // Not pushed, "2 commits"; "2 commits not pushed"
 MMWindowFact *_Nullable MMWindowFactUntouched(NSTimeInterval seconds);             // Untouched, "12 d"; "untouched for 12 d". "Changed", "just now" under ten seconds
 MMWindowFact *_Nullable MMWindowFactKind(NSString *_Nullable kind);                // Kind, "Xcode build output"; the same alone
+// A worktree's git, from WorkForest's facts. None of these is for the second line: the row already says its state.
+/// Last commit, "Fix the ranking · a1b2c3d · 2 h ago": its subject, short hash and age, each only when known.
+MMWindowFact *_Nullable MMWindowFactLastCommit(NSString *_Nullable subject, NSString *_Nullable head, NSTimeInterval ago);
+/// Against, "3 ahead, 1 behind main", or "2 ahead of main". nil when both are 0 or not known. -1 is not known.
+MMWindowFact *_Nullable MMWindowFactAgainst(NSInteger ahead, NSInteger behind, NSString *_Nullable defaultBranch);
+/// Merged, "Squash-merged into main", from WorkForest's merge word: ancestor, tree, patch, squash, pr or merge-tree.
+MMWindowFact *_Nullable MMWindowFactMerged(NSString *_Nullable how, NSString *_Nullable defaultBranch);
+/// Remote, "Branch deleted on the remote" for gone, "Never pushed" for none. nil for any other upstream.
+MMWindowFact *_Nullable MMWindowFactRemote(NSString *_Nullable upstream);
+/// Made by, "Claude Code" for the registry id claude-code, with the session it ran when its title is known:
+/// "Claude Code · Tune the ranking". nil for the person, who needs no line.
+MMWindowFact *_Nullable MMWindowFactMadeBy(NSString *_Nullable maker, NSString *_Nullable session);
 /// Holds, of a row that stands for several, MMWindowCollapsed: "45,282 folders in 169 groups" when each member holds
 /// things of its own, else "4 projects"; the same alone. nil under two members.
 MMWindowFact *_Nullable MMWindowFactHolds(NSInteger members, NSString *one, NSString *many, NSInteger inner, NSString *_Nullable innerOne, NSString *_Nullable innerMany);
@@ -154,6 +166,29 @@ MMWindowFact *_Nullable MMWindowFactSplit(NSString *_Nullable split);
 /// "a running process has a file open in it, and 2 other reasons". With `all` the label is "Why they stay". Not for
 /// the second line. nil with no reason.
 MMWindowFact *_Nullable MMWindowFactWhyStay(NSArray<NSString *> *reasons, BOOL all);
+
+/// A worktree's pull request, as the person's gh told it, for the row's story. The window shows its line, its title
+/// and an Open pull request press that opens url in the default browser. Only a worktree row has one, and only while
+/// something is known: gh missing, not logged in, a failure or the pref off leave it nil.
+typedef NS_ENUM(NSInteger, MMWindowPullKnown) { MMWindowPullLooking = 1, MMWindowPullNone, MMWindowPullFound };
+@interface MMWindowPull : NSObject
+@property MMWindowPullKnown known;
+@property NSInteger number;
+@property (copy, nullable) NSString *state;             // open, merged or closed
+@property BOOL draft;
+@property (copy, nullable) NSString *review;            // approved, changes requested, review requested
+@property NSInteger checksPassing, checksFailing, checksPending;
+/// How long ago it was merged, in seconds. Below 0 when not merged or not known.
+@property NSTimeInterval mergedAgo;
+@property (copy, nullable) NSString *title, *url;
+/// "PR #142 · open · checks passing · review requested", "PR #98 · merged 2 d ago", "Looking for a pull request",
+/// "No pull request for this branch". Each part only when it is known.
+@property (readonly) NSString *line;
+/// YES when the story shows the press: a pull request with a web address.
+@property (readonly) BOOL opens;
+@end
+/// "Open pull request", the press under the title.
+extern NSString *const MMWindowOpenPull;
 
 /// How a row's story opens: one line that says whether it stays, goes or waits, and why. The window draws the lead
 /// in bold with a mark: a dot for what stays, an orange triangle for what goes, a white diamond for what asks.
@@ -229,6 +264,8 @@ extern const NSInteger MMWindowCollapseLeast;
 @property (readonly) BOOL showsSize;
 /// The word that stands where the size would while it is not measured, MMWindowMeasuring. nil for any other row.
 @property (readonly, nullable) NSString *sizeWord;
+/// A worktree's pull request, or nil while nothing is known of one. The feed sets it from MMPulls, memory only.
+@property (strong, nullable) MMWindowPull *pull;
 /// The kin it may stand with, or nil for a row that always stands alone.
 @property (strong, nullable) MMWindowKin *kin;
 /// A row that stands for several, MMWindowCollapsed: its members, biggest first. nil for any other row.
@@ -409,6 +446,10 @@ MMWindowSwitch *MMWindowAgentsSwitch(BOOL on, NSString *_Nullable note);
 MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *_Nullable note);
 /// The switch of the card "This Mac".
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *_Nullable note);
+/// Pull requests, in "This Mac": whether the window may ask the person's gh about a worktree's pull request, the pref
+/// workforest.pullRequests. MMWindowPullsHelp is its tooltip.
+MMWindowSwitch *MMWindowPullsSwitch(BOOL on);
+extern NSString *const MMWindowPullsHelp;
 /// What Keep awake now and While agents work do, for their tooltips. MMWindowAgentsNote is the state line of While
 /// agents work: "Awake now for 2 agents", nil while no agent holds the Mac awake. `holding` is how many do now.
 NSString *MMWindowAwakeHelp(void);

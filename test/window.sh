@@ -67,6 +67,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run collapse
   wn_run collapse-helpers
   wn_run collapse-run
+  echo "-- a worktree's pull request through a fake gh, only on demand"
+  wn_run pulls
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
@@ -192,6 +194,18 @@ check "window: the code still makes each welcome fact true" "1 1 1 1 1 1" \
 check "window: the keep-awake state still has the keys the lid switch reads" 8 \
   "$(grep -cE '^@property (BOOL (lid|lidLive|laptop|otherApp);|\(copy\) (MMINPrefs \*prefs|NSString \*(pauseReason|lidProblem));)' Sources/Experts/Insomnia/MMInsomnia.h)"
 
+# A pull request is asked for on demand only: the controller asks MMPulls for a story that shows, and nothing else asks
+# it. gh runs on its own queue, through MMRun with a time limit, and nowhere else.
+check "window: only the controller asks gh for a pull request, on the prs queue, through MMRun with a time limit" "Sources/Shell/MMWindowController.m 1 1 0" \
+  "$(grep -rl 'MMPulls.shared want:' Sources | tr '\n' ' ' | sed 's/ $//') $(grep -c 'MMQueue(@"workforest", @"prs", QOS_CLASS_UTILITY)' Sources/Core/Know/MMPulls.m) $(grep -c 'r = MMRun(gh, MMPullArguments(w\[@"branch"\]), nil, GhEnvironment(gh), w\[@"folder"\], self.timeout, &out, &err);' Sources/Core/Know/MMPulls.m) $(grep -rlE 'MMPullArguments\(' Sources | grep -vc 'Core/Know/MMPulls')"
+wn_p1=$(MINMACS_HOME="$wn_home" "$BIN" trees prs off 2>/dev/null)
+wn_p2=$(MINMACS_HOME="$wn_home" "$BIN" trees prs --json 2>/dev/null | json "j['pullRequests']")
+MINMACS_HOME="$wn_home" "$BIN" trees prs on >/dev/null 2>&1
+wn_p3=$(MINMACS_HOME="$wn_home" "$BIN" trees prs --json 2>/dev/null | json "j['pullRequests']")
+check "window: trees prs off and on set the pref, and --json says it" "off: MinMacs asks GitHub nothing about pull requests|False|True" "$wn_p1|$wn_p2|$wn_p3"
+MINMACS_HOME="$wn_home" "$BIN" trees prs maybe >/dev/null 2>&1
+check "window: trees prs takes on or off only" 2 "$?"
+
 echo "-- minmacs window"
 # The verb runs cold here, read only, as performance does: the Mac's own processes, and no worktree walk.
 wn_json=$(MINMACS_HOME="$wn_home" "$BIN" window --json 2>/dev/null)
@@ -208,7 +222,7 @@ check "window: --json rows say whether their size is measured, and one that is n
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if all((r['bytes'] is None) != r['measured'] for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json rows carry a kind and their own key" yes \
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
-check "window: --json has a rule per expert with modes, three choices each, no removal card, and the four switches" "servers,apps,worktrees,caches 3 awake,agents,lid,login" \
+check "window: --json has a rule per expert with modes, three choices each, no removal card, and the five switches" "servers,apps,worktrees,caches 3 awake,agents,lid,login,prs" \
   "$(printf '%s' "$wn_json" | json "','.join(r['ruleID'] for r in j['settings']['rules']) + ' ' + str(max(len(r['choices']) for r in j['settings']['rules'])) + ' ' + ','.join(s['switchID'] for s in j['settings']['switches'])")"
 wn_text=$(MINMACS_HOME="$wn_home" "$BIN" window 2>/dev/null)
 check "window: the text form runs to its end" 0 "$?"
@@ -220,7 +234,7 @@ wn_fresh="$wn_dir/fresh-home"; mkdir -p "$wn_fresh"
 old_removal "$wn_fresh" delete
 wn_text=$(MINMACS_HOME="$wn_fresh" "$BIN" window 2>/dev/null)
 check "window: with an old delete in the pref the text form still exits 0" 0 "$?"
-check "window: and names no removal rule, then prints the switches" "0 4 4" \
+check "window: and names no removal rule, then prints the switches" "0 4 5" \
   "$(printf '%s\n' "$wn_text" | grep -c 'When MinMacs removes things') $(printf '%s\n' "$wn_text" | grep -c '^Rule ') $(printf '%s\n' "$wn_text" | grep -c '^Switch ')"
 wn_json=$(MINMACS_HOME="$wn_fresh" "$BIN" window --json 2>/dev/null)
 check "window: with an old delete in the pref --json exits 0 and has no removal rule" "0 0" "$? $(printf '%s' "$wn_json" | json "len([r for r in j['settings']['rules'] if r['ruleID'] == 'removal'])")"

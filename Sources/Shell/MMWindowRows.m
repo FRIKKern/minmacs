@@ -178,15 +178,25 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             Add(out, MMWindowFactLeftBy(Str(x[@"worktree"]).lastPathComponent));
             break;
         }
-        case MMWindowWorktree:
-            // Merged is the row's own word, so it is no fact here.
+        case MMWindowWorktree: {
+            // Its git, from WorkForest's facts as Know read them: no git runs here. Merged is the row's own word; the
+            // story says how and into what. Each fact only when it is known.
+            BOOL git = [Num(x[@"gitKnown"]) boolValue], main = [Num(x[@"main"]) boolValue];
+            NSString *def = Str(x[@"defaultBranch"]);
             Add(out, MMWindowFactBranch(Str(x[@"branch"])));
+            if (git && Date(x[@"lastCommitAt"])) Add(out, MMWindowFactLastCommit(Str(x[@"subject"]), Str(x[@"head"]), -Date(x[@"lastCommitAt"]).timeIntervalSinceNow));
+            if (git && !main) Add(out, MMWindowFactAgainst([Num(x[@"notInDefault"]) integerValue], Num(x[@"behindDefault"]) ? [x[@"behindDefault"] integerValue] : -1, def));
+            if (git && !main) Add(out, MMWindowFactMerged(Str(x[@"merged"]), def));
+            if (git && !main && Str(x[@"branch"])) Add(out, MMWindowFactRemote(Str(x[@"upstream"])));
             Add(out, MMWindowFactFiles([Num(x[@"dirty"]) integerValue], [Num(x[@"untracked"]) integerValue]));
             Add(out, MMWindowFactNotPushed([Num(x[@"unpushed"]) integerValue]));
             // The time of the last work, to the second: quietDays is rounded to tenths of a day, so 0 can be 72 minutes.
             if (Date(x[@"lastWorkAt"])) Add(out, MMWindowFactUntouched(-Date(x[@"lastWorkAt"]).timeIntervalSinceNow));
+            NSDictionary *session = [x[@"session"] isKindOfClass:NSDictionary.class] ? x[@"session"] : nil;
+            Add(out, MMWindowFactMadeBy(Str(x[@"maker"]), [Str(session[@"agent"]) isEqualToString:Str(x[@"maker"])] ? SessionTitle(Str(session[@"title"])) : nil));
             Add(out, MMWindowFactFolder(Folder(f.path ?: Str(x[@"path"]))));
             break;
+        }
         case MMWindowCache:
             Add(out, MMWindowFactKind(Str(x[@"kindTitle"])));
             Add(out, MMWindowFactOwner(Str(x[@"owner"])));
@@ -198,6 +208,30 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
     }
     Add(out, MMWindowFactStays(stays));
     return out;
+}
+
+#pragma mark - The pull request
+
+/// What MMPulls knows of a linked worktree's branch, from memory alone: no gh runs here. Only the window's story asks
+/// gh, through MMWindowController. nil while nothing is known, and for a main checkout or a detached HEAD.
+MMWindowPull *MMWindowPullOf(NSDictionary *x) {
+    NSString *repo = Str(x[@"repo"]), *branch = Str(x[@"branch"]);
+    if (!repo || !branch || [Num(x[@"main"]) boolValue] || [Num(x[@"protected"]) boolValue]) return nil;
+    return MMWindowPullFrom([MMPulls.shared knownFor:repo branch:branch head:Str(x[@"head"])]);
+}
+
+MMWindowPull *MMWindowPullFrom(MMPullAnswer *a) {
+    if (!a || a.known == MMPullNothing) return nil;
+    MMWindowPull *p = [MMWindowPull new];
+    p.known = a.known == MMPullLooking ? MMWindowPullLooking : a.known == MMPullNone ? MMWindowPullNone : MMWindowPullFound;
+    MMPull *pr = a.pull;
+    if (pr) {
+        p.number = pr.number; p.state = pr.stateWord; p.draft = pr.draft; p.review = pr.review;
+        p.checksPassing = pr.checksPassing; p.checksFailing = pr.checksFailing; p.checksPending = pr.checksPending;
+        p.mergedAgo = pr.mergedAt ? MAX(0, -pr.mergedAt.timeIntervalSinceNow) : -1;
+        p.title = pr.title.length ? OneLine(pr.title) : nil; p.url = pr.url.length ? pr.url : nil;
+    }
+    return p;
 }
 
 #pragma mark - The kin
@@ -282,6 +316,7 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
         row.workedAt = [Num(x[@"lastWorkAt"]) doubleValue] > 0 ? [x[@"lastWorkAt"] doubleValue] : 0;
     }
     row.facts = FactsOf(f, row.kind);
+    if (row.kind == MMWindowWorktree) row.pull = MMWindowPullOf(x);
     row.kin = KinOf(f, row);
     return row;
 }

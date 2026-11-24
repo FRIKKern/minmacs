@@ -100,6 +100,23 @@ check "a process inside is found" True "$(get busy "['processes'] != []")"
 check "the agent session is found" "Claude Code" "$(get agent "['session']['agent']")"
 r=$("$MM" trees list --json | json "len(j['trees'])");                    check "minmacs trees list reads the same worktrees" 12 "$r"
 
+echo "== a worktree's story: its last commit, where it stands against main, and its pull request"
+check "the last commit's subject is read in the same git run as its time" "squash part two|try a thing" "$(get squash "['subject']")|$(get judged "['subject']")"
+check "the commits main has that a branch does not are counted" "2 0" "$(get squash "['behindDefault']") $(get judged "['behindDefault']")"
+# What the window last heard from gh, as MMPulls keeps it. The CLI reads it and never runs gh.
+wf_repo=$(get judged "['repo']"); wf_head=$(get judged "['head']"); mkdir -p "$MINMACS_HOME/workforest"
+python3 - "$MINMACS_HOME/workforest/pulls.json" "$wf_repo" "$wf_head" <<'PY'
+import json, sys, time
+pull = {"number": 7, "title": "Try a thing", "url": "https://github.com/acme/app/pull/7", "state": "open", "draft": False,
+        "review": None, "checks": {"passing": 2, "failing": 0, "pending": 0}}
+json.dump({sys.argv[2] + "\njudged": {"at": time.time(), "head": sys.argv[3], "pull": pull},
+           sys.argv[2] + "\nunpushed": {"at": time.time(), "head": "an older head", "pull": None}}, open(sys.argv[1], "w"))
+PY
+check "explain --json shows the pull request the window last heard of" "found 7 open 2" \
+  "$("$MM" trees explain "$W/judged" --json | json "' '.join(str(x) for x in [j['pullRequest']['known'], j['pullRequest']['pull']['number'], j['pullRequest']['pull']['state'], j['pullRequest']['pull']['checks']['passing']])")"
+check "a worktree gh was not asked about, or was asked at another head, has no pullRequest" "False False" \
+  "$("$MM" trees explain "$W/merged" --json | json "'pullRequest' in j") $("$MM" trees explain "$W/unpushed" --json | json "'pullRequest' in j")"
+
 echo "== clean-up with no review, issue #88"
 wf_cu=$("$WF" clean-up --dry-run 2>&1)
 check "clean-up with no review says so, and names the merged worktrees that pass every keep" "1 1" \

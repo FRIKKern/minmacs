@@ -27,6 +27,10 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// A press on Undo in the log: take back the record rid, as the notification's Undo does. Only an entry that can
 /// still be taken back carries the press.
 - (void)windowUndo:(NSString *)rid;
+@optional
+/// The middle shows this row's story now, while the pointer rests on the row or it is the active one; nil when no
+/// story shows. A worktree's story asks the shell, off main, for its pull request, which comes in a later model.
+- (void)windowShowsStory:(nullable NSString *)rowKey;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,

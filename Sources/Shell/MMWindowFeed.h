@@ -25,6 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property NSInteger agentsHolding, quietMinutes;        // agents that keep the Mac awake now; minutes a quiet agent still holds
 @property BOOL loginOn;
 @property (copy, nullable) NSString *loginNote;
+@property BOOL pullsOn;                                 // workforest.pullRequests: the window may ask gh about a pull request
 @property (strong, nullable) MMWindowRun *run;
 /// How far the look for worktrees and for caches went, for the line of an empty group. Worktrees: nowhere with no
 /// folder to look in, which is MMRepoIndex's roots being empty, and not yet until its first walk ended. Caches:
@@ -49,6 +50,10 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
 /// The row of one MMPerformanceRow, with its finding's facts as the story. inFix is left NO; the feed sets it.
 /// An agent is named by its session's title, else by its project folder, so fifteen rows do not all read "Claude Code".
 MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s);
+/// A worktree's pull request as MMPulls knows it now, from its finding's facts, or nil. Memory only: it never runs gh.
+MMWindowPull *_Nullable MMWindowPullOf(NSDictionary *facts);
+/// The window's words for one answer of MMPulls. nil when nothing is known.
+MMWindowPull *_Nullable MMWindowPullFrom(MMPullAnswer *_Nullable answer);
 /// The name the window shows for a finding: ":3000 Next.js" for a server, the branch for a worktree, else its title.
 NSString *MMWindowNameOf(MMFinding *f);
 /// 60 values, bytes or NSNull, oldest first. megabytes of the ring are MiB. nil when ring is nil.

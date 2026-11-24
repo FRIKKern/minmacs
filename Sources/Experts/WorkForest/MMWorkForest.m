@@ -150,6 +150,7 @@ static MMWFTree *TreeFrom(MMWorktree *w, MMFacts *facts, NSArray *procs, MMSessi
         t.merged = t.isMain ? nil : MergedWord(g.merged);
         t.dirty = g.dirty; t.untracked = g.untracked; t.stashes = g.stashes; t.unpushed = g.unpushed;
         t.notInDefault = g.notInDefault; t.onRemote = g.onRemote; t.lastCommit = g.lastCommit;
+        t.subject = g.subject; t.behindDefault = g.behindDefault;
     }
     MMTreeDiskFacts *d = t.missing ? nil : [MMTreeDisk.shared factsFor:t.path read:read];
     if (d) {
