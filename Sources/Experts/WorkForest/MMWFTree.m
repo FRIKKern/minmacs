@@ -304,7 +304,7 @@ MMMenuSpec *MMWFMenu(MMWFView *v) {
     NSMutableArray *more = [NSMutableArray new];
     for (NSDictionary *x in [v.removed subarrayWithRange:NSMakeRange(0, MIN(v.removed.count, (NSUInteger)6))]) {
         NSString *by = Str(x[@"by"]);
-        by = [by isEqualToString:@"manual"] || [by isEqualToString:@"cli"] || [by isEqualToString:@"you"] || !by.length ? @"you" : MMWFModeLabel(by);
+        by = [by isEqualToString:@"url"] ? @"a link" : [by isEqualToString:@"manual"] || [by isEqualToString:@"cli"] || [by isEqualToString:@"you"] || !by.length ? @"you" : MMWFModeLabel(by);
         NSString *title = [NSString stringWithFormat:@"Restore %@", MMCut([Str(x[@"path"]) lastPathComponent] ?: @"worktree", 36)];
         MMActionSpec *a = Action(v, title, [NSString stringWithFormat:@"%@ by %@", MMAgo(Date(x[@"at"])), by], @"restore", Str(x[@"rid"]));
         if ([x[@"taken"] boolValue]) a.disabledReason = @"its folder exists again";

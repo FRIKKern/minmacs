@@ -8,6 +8,7 @@
 #import "UI/MMFormat.h"
 #import "UI/MMInvestigateUI.h"
 #import "Core/Act/MMNotice.h"
+#import "UI/MMConfirm.h"
 
 static NSString *const kExpert = @"locohost";
 static const NSTimeInterval kGrace = 6;                  // seconds a server gets to stop after SIGTERM
@@ -663,10 +664,8 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
 
 - (BOOL)openURL:(NSURL *)url {
     NSString *c = url.host.lowercaseString ?: @"";
-    // D3: a link asks nobody, and runs as the command line does. Close Idle sends SIGTERM only, and Undo starts each
-    // server again.
     if ([c isEqualToString:@"review"]) { [self act:@"review" key:nil option:NO snapshot:MMGraph.shared.current present:NO]; return YES; }
-    if ([c isEqualToString:@"close-idle"]) { [self act:@"close-idle" key:nil option:NO snapshot:MMGraph.shared.current present:NO]; return YES; }
+    if ([c isEqualToString:@"close-idle"]) { [self closeIdleFromLink:MMGraph.shared.current]; return YES; }
     return NO;
 }
 
@@ -678,6 +677,33 @@ static void Notice(NSString *title, NSString *text) { MMNotice(kExpert, title, t
 static void Copy(NSString *s) {
     [NSPasteboard.generalPasteboard clearContents];
     [NSPasteboard.generalPasteboard setString:s ?: @"" forType:NSPasteboardTypeString];
+}
+
+/// Stops each server on the act queue with SIGTERM only, checked fresh by MMRunAction, then says what did not stop.
+- (void)closeIdle:(NSArray<MMFinding *> *)c by:(NSString *)by why:(NSString *)why {
+    dispatch_async(ActQueue(), ^{
+        NSMutableArray *failed = [NSMutableArray new];
+        for (MMFinding *x in c) {
+            NSString *err = nil;
+            MMUndoRecord *r = MMRunAction(MMLHStopAction(x, MMStopTerm), MMLHManualPolicy(), nil, by, why, &err);
+            if (!r || r.state != MMUndoDone) [failed addObject:[NSString stringWithFormat:@"%@: %@", x.title, err ?: r.error ?: @"it did not stop"]];
+        }
+        if (failed.count) Notice(@"Some Servers Did Not Stop", [failed componentsJoinedByString:@"\n"]);
+        [MMGraph.shared rebuild:@"locohost close idle"];
+    });
+}
+
+/// locohost://close-idle, on main. A link can come from any web page, so with a person at the Mac it asks first and
+/// never acts unasked. On a Mac that runs unattended, D3, nobody could answer, so it runs as `locohost close-idle`
+/// does with nobody at the terminal: SIGTERM only, each stop with its record by "url", which Undo starts again.
+- (void)closeIdleFromLink:(MMSnapshot *)s {
+    NSArray<MMFinding *> *c = MMLHCandidates([s findingsFor:kExpert], [s reviewFor:kExpert]);
+    if (!c.count) return;
+    NSMutableString *list = [NSMutableString new];
+    for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
+    [list appendString:@"\nEach is checked again first and sent SIGTERM, and Recently Stopped can start each one again."];
+    if (!MMUnattended() && !MMAskPerson([NSString stringWithFormat:@"Stop %@?", MMPlural(c.count, @"Idle Server")], list, @"Stop Them", nil)) return;
+    [self closeIdle:c by:@"url" why:@"Close Idle from a link"];
 }
 
 /// Main thread, from the menu: whether a person is plainly there is read now, at the press.
@@ -708,17 +734,7 @@ static void Copy(NSString *s) {
             [MMGraph.shared rebuild:@"locohost stop"];
         });
     } else if ([what isEqualToString:@"close-idle"]) {
-        NSArray *c = MMLHCandidates([s findingsFor:kExpert], [s reviewFor:kExpert]);
-        dispatch_async(ActQueue(), ^{
-            NSMutableArray *failed = [NSMutableArray new];
-            for (MMFinding *x in c) {
-                NSString *err = nil;
-                MMUndoRecord *r = MMRunAction(MMLHStopAction(x, MMStopTerm), MMLHManualPolicy(), nil, present ? @"manual" : @"cli", present ? @"Close Idle" : @"Close Idle from a link", &err);
-                if (!r || r.state != MMUndoDone) [failed addObject:[NSString stringWithFormat:@"%@: %@", x.title, err ?: r.error ?: @"it did not stop"]];
-            }
-            if (failed.count) Notice(@"Some Servers Did Not Stop", [failed componentsJoinedByString:@"\n"]);
-            [MMGraph.shared rebuild:@"locohost close idle"];
-        });
+        [self closeIdle:MMLHCandidates([s findingsFor:kExpert], [s reviewFor:kExpert]) by:@"manual" why:@"Close Idle"];
     } else if ([what isEqualToString:@"review"]) {
         _reviewing = YES; _view = nil;
         [MMReviewBroker.shared wake:@"manual" expert:kExpert];

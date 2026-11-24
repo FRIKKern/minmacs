@@ -8,6 +8,7 @@
 #import "UI/MMUI.h"
 #import "UI/MMSettings.h"
 #import "UI/MMSpecMenu.h"
+#import "UI/MMConfirm.h"
 #import "Shell/MMWatchdog.h"
 #import "Shell/MMWindowCLI.h"
 #import "Shell/MMWindowController.h"
@@ -609,6 +610,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     [self.settings show:MMSettingsOverview];
 }
 
+/// The words of a link that act on something: tidy stops, removes and cleans. review and restore do not.
+BOOL MMURLWordsAct(NSArray<NSString *> *words) { return [words.firstObject isEqualToString:@"tidy"]; }
+
 - (void)application:(NSApplication *)app openURLs:(NSArray<NSURL *> *)urls {
     for (NSURL *u in urls) {
         MMRoute *r = MMRouteURL(u, nil);
@@ -621,6 +625,12 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
                 id<MMExpert> e = MMExpertNamed(r.expert);
                 BOOL handled = [e respondsToSelector:@selector(openURL:)] && [e openURL:r.url];
                 if (!handled && r.words) {
+                    // A link can come from any web page. One that acts, such as run-now, which runs tidy, asks a
+                    // person who is here first, and never acts unasked. Unattended, D3, it runs as it is.
+                    if (MMURLWordsAct(r.words) && !MMUnattended() &&
+                        !MMAskPerson(@"Run the Rules Now?",
+                                     @"A link asks MinMacs to act on what its rules find now. Each thing is checked again first, "
+                                     @"and everything it removes keeps a way back.", @"Run Now", nil)) break;
                     // A verb that blocks, such as a review, runs off main, as it does for the CLI.
                     NSArray *words = r.words;
                     dispatch_async(MMQueue(@"core", @"url", QOS_CLASS_USER_INITIATED), ^{ MMCLIReply(@{@"cli": words}); });

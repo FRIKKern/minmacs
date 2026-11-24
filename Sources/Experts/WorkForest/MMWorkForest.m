@@ -961,9 +961,7 @@ static NSDictionary *WrapUpsIn(MMSnapshot *s, NSArray<MMFinding *> *findings) {
 - (BOOL)openURL:(NSURL *)url {
     NSString *c = url.host.lowercaseString ?: @"";
     if ([c isEqualToString:@"review"]) { [self act:@"review" key:nil option:NO snapshot:MMGraph.shared.current]; return YES; }
-    // D3: a link asks nobody. Clean Up runs as `trees clean-up` does with nobody at the terminal: each worktree is
-    // checked fresh, keeps a way back and has its record, and nothing is confirmed.
-    if ([c isEqualToString:@"clean-up"]) { [self act:@"clean-up" key:nil option:NO snapshot:MMGraph.shared.current present:NO]; return YES; }
+    if ([c isEqualToString:@"clean-up"]) { [self cleanUpFromLink:MMGraph.shared.current]; return YES; }
     if ([c isEqualToString:@"rescan"]) { [MMRepoIndex.shared refresh:nil]; return YES; }
     return NO;
 }
@@ -977,6 +975,29 @@ static void Notice(NSString *title, NSString *text) { MMNotice(kExpert, title, t
 /// yes: every removal here keeps a way back, as `trees remove` with nobody at the terminal answers.
 static BOOL Confirm(BOOL present, NSString *title, NSString *text, NSString *button) {
     return !present || MMAskPerson(title, text, button, nil);
+}
+
+/// The stale worktrees Clean Up would remove now, and the confirm's text that names them.
+static NSArray<MMFinding *> *CleanUpCandidates(MMSnapshot *s, NSString **text) {
+    NSArray *c = MMWFCandidates([s findingsFor:kExpert], s.facts, [s reviewFor:kExpert]);
+    NSMutableString *list = [NSMutableString new];
+    for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
+    [list appendString:@"\nEach is checked again first. Branches stay unless merged, ignored files such as .env are saved, "
+                       @"and Recently Removed can restore each one."];
+    if (text) *text = list;
+    return c;
+}
+
+/// workforest://clean-up, on main. A link can come from any web page, so with a person at the Mac it shows the same
+/// confirm a press of Clean Up gets and never acts unasked. On a Mac that runs unattended, D3, nobody could answer,
+/// so it runs as `trees clean-up` does with nobody at the terminal: each worktree checked fresh, each keeping a way
+/// back, each with its record by "url".
+- (void)cleanUpFromLink:(MMSnapshot *)s {
+    NSString *text = nil;
+    NSArray *c = CleanUpCandidates(s, &text);
+    if (!c.count) return;
+    if (!MMUnattended() && !MMAskPerson([NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], text, @"Remove Them", nil)) return;
+    [self remove:c why:@"Clean Up from a link" by:@"url"];
 }
 
 /// Removes on the act queue, each one checked fresh by MMRunAction, then says what stayed.
@@ -1023,14 +1044,10 @@ static BOOL Confirm(BOOL present, NSString *title, NSString *text, NSString *but
         _reviewing = YES; _view = nil;
         [MMReviewBroker.shared wake:@"manual" expert:kExpert];
     } else if ([what isEqualToString:@"clean-up"]) {
-        NSArray *c = MMWFCandidates([s findingsFor:kExpert], s.facts, [s reviewFor:kExpert]);
+        NSString *list = nil;
+        NSArray *c = CleanUpCandidates(s, &list);
         if (!c.count) return;
-        NSMutableString *list = [NSMutableString new];
-        for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
-        [list appendString:@"\nEach is checked again first. Branches stay unless merged, ignored files such as .env are saved, "
-                           @"and Recently Removed can restore each one."];
-        if (!present) [self remove:c why:@"Clean Up with nobody to confirm it, as from a link" by:@"cli"];
-        else if (Confirm(present, [NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], list, @"Remove Them")) [self remove:c why:@"Clean Up"];
+        if (Confirm(present, [NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], list, @"Remove Them")) [self remove:c why:@"Clean Up"];
     } else if ([what isEqualToString:@"restore"] && key) {
         dispatch_async(ActQueue(), ^{
             NSString *problem = [MMUndo.shared restore:key];

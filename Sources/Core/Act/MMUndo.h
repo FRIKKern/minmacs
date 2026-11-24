@@ -11,7 +11,7 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 @interface MMUndoRecord : NSObject
 @property (readonly, copy) NSString *rid;               // the log's record id
 @property (readonly, copy) NSString *expert, *kind;     // kind: "stop", "remove", "trash", "tool", "quit"
-@property (readonly, copy) NSString *findingID, *subject, *why, *by;   // by: "manual", "cli", "proactive", "eager", "guard"
+@property (readonly, copy) NSString *findingID, *subject, *why, *by;   // by: "manual", "cli", "url", "proactive", "eager", "migration", "guard"
 /// The record of a Wrap Up that this record is one part of, PLAN.md section 6. nil for a single action.
 @property (readonly, copy) NSString *parentRid;
 @property (readonly) MMUndoState state;

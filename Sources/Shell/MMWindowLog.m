@@ -24,7 +24,7 @@ static BOOL IsBool(id v) { return v && CFGetTypeID((__bridge CFTypeRef)v) == CFB
 static NSString *Who(NSString *by, NSString *why) {
     if ([by isEqualToString:@"manual"]) return [why isEqualToString:@"Fix Everything"] ? @"by you, in Fix Everything" : @"by you";
     NSDictionary *w = @{@"window": @"by you in the window", @"settings": @"by you in Settings",
-                        @"welcome": @"by you in the welcome", @"cli": @"from the command line", @"migration": @"by the move from the old apps",
+                        @"welcome": @"by you in the welcome", @"cli": @"from the command line", @"url": @"from a link", @"migration": @"by the move from the old apps",
                         @"unattended": @"on its own, unattended",
                         @"proactive": @"on its own, Careful", @"eager": @"on its own, Eager", @"guard": @"by its own rule", @"run": @"in a Wrap Up"};
     return w[by ?: @""];
