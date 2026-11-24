@@ -5,6 +5,11 @@ cd "$(dirname "$0")"
 OUT=${OUT:-${TMPDIR:-/tmp}/minmacs-settling}
 WF=${WF:-$HOME/Documents/GitHub/workforest/Sources/Trees.m}
 mkdir -p "$OUT/sessions-flat" "$OUT/sessions-inner"
+# clang with two -arch flags leaves an empty folder per input in TMPDIR. Its TMPDIR is a private folder, removed at exit.
+CC_TMP=$(mktemp -d "$OUT/clang-tmp.XXXXXX")
+trap 'rm -rf "$CC_TMP"' EXIT
+trap 'exit 1' HUP INT TERM
+clang() { TMPDIR="$CC_TMP" command clang "$@"; }
 # Sessions() and the helpers it calls run from ISODate to the end of Sessions().
 from=$(grep -n '^static NSDate \*ISODate' "$WF" | cut -d: -f1)
 to=$(awk -v f="$from" 'NR>f && /^#pragma mark - Scanner/ {print NR-1; exit}' "$WF")

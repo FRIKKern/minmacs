@@ -9,10 +9,15 @@ OUT="${BUILD_DIR:-build}/bench"
 rm -rf "$OUT/obj" && mkdir -p "$OUT/obj"
 LOG="$OUT/clang.log"
 : >"$LOG"
+# clang with two -arch flags leaves an empty folder per input in TMPDIR. Its TMPDIR is a private folder, removed at exit.
+CC_TMP=$(mktemp -d "$OUT/clang-tmp.XXXXXX")
+trap 'rm -rf "$CC_TMP"' EXIT
+trap 'exit 1' HUP INT TERM
+clang() { TMPDIR="$CC_TMP" command clang "$@"; }
 FLAGS="-fobjc-arc -O2 -Wall -mmacosx-version-min=14.0 -arch $(uname -m) -ISources -DMM_VERSION=\"bench\""
 export FLAGS OUT
 if ! { find Sources -name '*.m' ! -path 'Sources/main.m'; echo tools/bench/bench.m; } | LC_ALL=C sort |
-    xargs -P 8 -I{} sh -c 'o="$OUT/obj/$(echo "{}" | tr / _).o"; clang $FLAGS -c "{}" -o "$o" >"$o.log" 2>&1 || { cat "$o.log"; exit 1; }' >>"$LOG" 2>&1; then
+    TMPDIR="$CC_TMP" xargs -P 8 -I{} sh -c 'o="$OUT/obj/$(echo "{}" | tr / _).o"; clang $FLAGS -c "{}" -o "$o" >"$o.log" 2>&1 || { cat "$o.log"; exit 1; }' >>"$LOG" 2>&1; then
   cat "$OUT"/obj/*.log >&2; echo "bench build failed" >&2; exit 1
 fi
 cat "$OUT"/obj/*.log >>"$LOG"

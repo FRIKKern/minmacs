@@ -10,6 +10,11 @@ cd "$(dirname "$0")/.."
 OUT="${1:-build/render}"
 BIN="${BUILD_DIR:-build}/render-bin"
 mkdir -p "$BIN" "$OUT"
+# clang with two -arch flags leaves an empty folder per input in TMPDIR. Its TMPDIR is a private folder, removed at exit.
+CC_TMP=$(mktemp -d "$BIN/clang-tmp.XXXXXX")
+trap 'rm -rf "$CC_TMP"' EXIT
+trap 'exit 1' HUP INT TERM
+clang() { TMPDIR="$CC_TMP" command clang "$@"; }
 LOG="$BIN/clang.log"
 # shellcheck disable=SC2046
 if ! clang -fobjc-arc -O0 -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa \
