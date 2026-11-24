@@ -75,14 +75,16 @@ static void WindowPolishChecks(void) {
     Check([busyModel.diskHour.explain containsString:@"the 994 GB disk"] && [diskSide.sumLines.firstObject.lastObject hasSuffix:@"of 994 GB"],
           @"window sizes: the disk has one size, in the graph's line and in This disk", [NSString stringWithFormat:@"%@ / %@", busyModel.diskHour.explain, diskSide.sumLines.firstObject.lastObject]);
 
-    // Nothing to fix: the dimmed button says it. No line claims it, on screen or to VoiceOver.
+    // Nothing to fix: the button rests, calm, takes no press and says only what a press does: no fixes to run. No
+    // line claims the Mac is clean, on screen or to VoiceOver, and no gain is made up.
     NSMutableArray<NSString *> *claims = [NSMutableArray new];
     for (NSString *name in @[@"young", @"calm", @"empty", @"busy"])
         for (NSString *x in [MMWindowView shownStrings:MMWindowFixture(name)])
             for (NSString *no in @[@"Nothing to fix", @"nothing to fix", @"Nothing needs", @"is clean", @"is fine"]) if ([x containsString:no]) [claims addObject:x];
     MMWindowDockView *still = PolishDock(PolishView(@"young"));
-    Check(claims.count == 0 && [still.fix.accessibilityLabel isEqualToString:@"Fix Everything, dimmed"] && !still.fix.enabled && still.stop.hidden,
-          @"window dock: with nothing to fix the button is dimmed and no line says so", [NSString stringWithFormat:@"%@ %@", still.fix.accessibilityLabel, [claims componentsJoinedByString:@" | "]]);
+    Check(claims.count == 0 && [still.fix.accessibilityLabel isEqualToString:@"Fix Everything, no fixes to run"] && [still.buttonWords isEqualToString:@"No fixes to run"] &&
+          !still.fix.enabled && still.stop.hidden && still.gainLines.count == 0,
+          @"window dock: with nothing to fix the button rests calm, takes no press and says only that no fix waits to run", [NSString stringWithFormat:@"%@ / %@ %@", still.fix.accessibilityLabel, still.buttonWords, [claims componentsJoinedByString:@" | "]]);
 
     // No group ever ends on half a row, on any day, with the band or without, also where a name wraps and its row is taller.
     NSMutableArray<NSString *> *cut = [NSMutableArray new];
@@ -192,7 +194,8 @@ static void WindowPolishChecks(void) {
           @"window dock: the Mac after Fix Everything counts only the fixes that need nobody, each side on its own, and the ring drops exactly the rows a press acts on",
           [NSString stringWithFormat:@"%@, %lu of %lu rows gone, %lu marked", then, (unsigned long)gone.count, (unsigned long)all.count, (unsigned long)marked.count]);
 
-    // While a run plays, Stop sits under the button, and a press on it stops the run once. At rest it is not there.
+    // While a run plays, Stop sits right of the button beside "Fix 3 of 5", inside the slim dock, and a press on it
+    // stops the run once. At rest it is not there.
     BOOL restHidden = dock.stop.hidden;
     [dock.stop performClick:nil];
     MMWindowView *r = PolishView(@"running");
@@ -201,11 +204,22 @@ static void WindowPolishChecks(void) {
     MMWindowDockView *rdock = PolishDock(r);
     NSRect at = rdock.stop.frame;
     [rdock.stop performClick:nil];
-    Check(restHidden && host.stops == 0 && !rdock.stop.hidden && rhost.stops == 1 && rhost.fixes == 0 && NSMinY(at) > NSMaxY(rdock.fix.frame) && NSMaxY(at) <= rdock.bounds.size.height &&
-          fabs(NSMidX(at) - NSMidX(rdock.fix.frame)) < 60 && [rdock.stop.accessibilityLabel isEqualToString:@"Stop after this step"],
-          @"window dock: Stop shows under the button only while a run plays, and a press stops the run", [NSString stringWithFormat:@"%ld stops, %@", (long)rhost.stops, NSStringFromRect(at)]);
+    Check(restHidden && host.stops == 0 && !rdock.stop.hidden && rhost.stops == 1 && rhost.fixes == 0 && NSMinX(at) > NSMaxX(rdock.fix.frame) && NSMinY(at) >= 0 && NSMaxY(at) <= rdock.bounds.size.height &&
+          NSMinX(at) - NSMaxX(rdock.fix.frame) < 140 && NSMaxX(at) <= rdock.bounds.size.width && [rdock.stop.accessibilityLabel isEqualToString:@"Stop after this step"],
+          @"window dock: Stop shows beside the run's count, right of the button, only while a run plays, and a press stops the run", [NSString stringWithFormat:@"%ld stops, %@", (long)rhost.stops, NSStringFromRect(at)]);
     [rdock.fix performClick:nil];
     Check(rhost.stops == 2 && rhost.fixes == 0, @"window dock: the large button stops the run too", @"");
+    // The slim dock: one band of 64 points at the window's foot, the gear and the power icon level with its middle,
+    // right of it. The running button is filled as far as fixes landed, 2 of 5, and the gains count "so far".
+    MMWindowButton *rgear = nil;
+    for (MMWindowButton *b in WindowButtons(r)) if (b.kind == MMWindowButtonGear) rgear = b;
+    NSRect dockIn = [rdock convertRect:rdock.bounds toView:r];
+    MMWindowDockView *ended = PolishDock(PolishView(@"done"));
+    Check(rdock.bounds.size.height == 64 && NSMaxY(dockIn) == MMWindowSize.height && fabs(NSMidY(rgear.frame) - NSMidY(dockIn)) < 0.5 && NSMinX(rgear.frame) >= NSMaxX(dockIn) &&
+          fabs(rdock.progress - 0.4) < 0.001 && [rdock.gainWord isEqualToString:@"so far"] && [rdock.buttonWords isEqualToString:@"Stopping :4321 Astro"] &&
+          [dock.buttonWords isEqualToString:@"Fix Everything"] && dock.gainWord == nil && [ended.buttonWords isEqualToString:@"5 fixes done"] && ended.gainLines.count == 2,
+          @"window dock: one slim band at the foot with the gear beside it, the running button filled as far as fixes landed, and the end on the button's face",
+          [NSString stringWithFormat:@"%@, gear %@, %g filled, %@ / %@ / %@", NSStringFromRect(dockIn), NSStringFromRect(rgear.frame), rdock.progress, rdock.buttonWords, dock.buttonWords, ended.buttonWords]);
     // VoiceOver hears how far the run is, in the button's label and as it moves on.
     NSString *heard = rdock.announced;
     MMWindowModel *next = MMWindowFixture(@"running");
@@ -291,7 +305,7 @@ static void WindowPolishChecks(void) {
           [NSString stringWithFormat:@"%ld badges, %ld state lines", (long)busyBadges, (long)busyNoted]);
     MMWindowView *asked = PolishView(@"busy");
     asked.showsSettings = YES;
-    Check(panel.frame.origin.y == 12 && PolishSettings(asked).frame.origin.y == 40 && NSMaxY(panel.frame) == 702, @"window settings: with nobody asking, Settings starts at the top and no empty band stands over it",
+    Check(panel.frame.origin.y == 12 && PolishSettings(asked).frame.origin.y == 40 && NSMaxY(panel.frame) == 688, @"window settings: with nobody asking, Settings starts at the top and no empty band stands over it",
           [NSString stringWithFormat:@"%g and %g", panel.frame.origin.y, PolishSettings(asked).frame.origin.y]);
     [lid performClick:nil];
     Check(lid && !lid.enabled && [[lid valueForKey:@"inert"] boolValue] && shost.switches == 0 && [lid.accessibilityLabel hasSuffix:MMWindowNoLidNote],

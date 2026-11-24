@@ -98,7 +98,7 @@ typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHo
 void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MMWindowHourLook look);
 
 /// The Mac as a ring around `center`: memory by holder inside, the disk as the thin outer track, each row an arc of
-/// its own. Large in the dock, 108 points across, or small in a row's story, 62. With `lit`, that row's arc is white
+/// its own. In the dock, 45 points across, or in a row's story, 62 (`small`). With `lit`, that row's arc is white
 /// and lifted and the rest step back. With `after`, the rows Fix Everything touches are left out: the Mac after it.
 void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindowRow *_Nullable lit, BOOL after);
 /// The keys of the rows the ring gives an arc, for the checks: all of them, or with `after` all but the rows Fix
@@ -114,6 +114,11 @@ CALayer *_Nullable MMWindowBreathLayer(NSView *view, NSBitmapImageRep *glow, NSR
 /// A short light under a rect of the view that fades over 0.7 s and takes itself away: a row that is new.
 /// Nothing under Reduce Motion, for a view with no layer, or in a window that does not show.
 void MMWindowFlash(NSView *view, NSRect rect);
+/// Fix Everything's two short moments, each once and gone in under a second: `MMWindowPulse` sends a soft ring of
+/// the button's ink out from its pill as a press starts a run, and `MMWindowShine` runs one light across the pill as
+/// the run ends. Nothing under Reduce Motion, for a view with no layer, or in a window that does not show.
+void MMWindowPulse(NSView *view, NSRect pill, NSColor *color);
+void MMWindowShine(NSView *view, NSRect pill);
 
 #pragma mark Presses
 
@@ -212,11 +217,12 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 + (instancetype)kind:(MMWindowButtonKind)kind title:(NSString *)title target:(nullable id)target action:(nullable SEL)action;
 @end
 
-/// The dock: the ring, the two numbers beside it, Fix Everything with its two lines, and the gains.
+/// The dock, one slim band at the window's foot: a small ring with memory and disk as two quiet numbers at left,
+/// Fix Everything in the middle, and at right what it gives back, or how far a run is and how it ended.
 @interface MMWindowDockView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowModel *model;
 @property (nonatomic) MMWindowDockPhase phase;
-@property (nonatomic) double memoryShare, diskShare;                 // how far the two lines are filled, 0 to 1
+@property (nonatomic) double progress;                               // how far the running button is filled, 0 to 1: fixes landed of all
 @property (nonatomic) double memoryShown, diskShown;                 // the gains while they count up, in bytes
 @property (nonatomic) double glow;                                   // 1 right as a run ends, then down to 0
 @property (nonatomic) double stepIn;                                 // 0 as a new step's words arrive in the button, up to 1
@@ -226,16 +232,19 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (readonly) BOOL breathes;
 - (void)wake;                                                        // the window came on screen
 - (void)rest;                                                        // the window closed: nothing breathes
-@property (readonly) MMWindowButton *stop;                           // the small Stop under the button, there only while a run plays
-/// The gains as the dock draws them now, top to bottom, such as "2.9 GB memory back". A side that is zero is not
-/// there, so the list holds two lines, one, or none.
+@property (readonly) MMWindowButton *stop;                           // the small Stop beside "Fix 3 of 7", there only while a run plays
+/// The gains as the dock draws them now, one side each, such as "+2.9 GB memory". A side that is zero is not there,
+/// so the list holds two, one, or none. `gainWord` is what stands with them: "back today", "so far", or nil.
 @property (readonly) NSArray<NSString *> *gainLines;
-/// The lines beside the ring as the dock draws them now, top to bottom: "42.4 / 64 GB", "memory in use",
-/// "182 GB disk free", or a pointed row's, or the Mac after the fixes.
+@property (readonly, nullable) NSString *gainWord;
+/// The lines beside the ring as the dock says them now, top to bottom: "42.4 / 64 GB", "memory in use",
+/// "182 GB disk free", or a pointed row's, or the Mac after the fixes. The number and its label share a drawn line.
 @property (readonly) NSArray<NSString *> *macLines;
+/// What the button says now, as drawn: "Fix Everything", "No fixes to run", the step, or how the run ended.
+@property (readonly) NSString *buttonWords;
 /// How the run ended as it is drawn: whole sentences only, with trailing ones left out when the place is too small.
 @property (readonly) NSString *endNote;
-/// The step as the running button holds it: whole, or its action and the count when a name is too long for two lines.
+/// The step as the running button holds it: whole, or its action alone when a name is too long for two lines.
 @property (readonly) NSString *stepWords;
 /// The run's count as VoiceOver last heard it, "Fix 3 of 7", for the checks.
 @property (readonly, nullable) NSString *announced;

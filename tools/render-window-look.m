@@ -64,14 +64,16 @@ static void WindowLookChecks(void) {
 
     // The gains: a side that is zero is not shown as a gain, before a press, while a run plays and once it ended.
     NSString *(^gains)(MMWindowModel *, MMWindowDockPhase) = ^NSString *(MMWindowModel *model, MMWindowDockPhase phase) {
-        MMWindowDockView *d = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, 132)];
+        MMWindowDockView *d = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width - 70, 64)];
         d.model = model; d.phase = phase;
         d.memoryShown = model.run.memoryBack; d.diskShown = model.run.diskBack;
-        return [d.gainLines componentsJoinedByString:@" | "];
+        NSString *word = d.gainWord;
+        NSString *sides = [d.gainLines componentsJoinedByString:@" | "];
+        return word ? [NSString stringWithFormat:@"%@: %@", word, sides] : sides;
     };
     MMWindowModel *memoryOnly = MMWindowFixture(@"memory-only"), *diskOnly = MMWindowFixture(@"disk-only"), *none = MMWindowFixture(@"young");
     NSString *both = gains(busy, MMWindowDockCalm), *mem = gains(memoryOnly, MMWindowDockCalm), *dsk = gains(diskOnly, MMWindowDockCalm);
-    Check([both isEqualToString:@"3.16 GB memory back | 19.1 GB disk back"] && [mem isEqualToString:@"1.36 GB memory back"] && [dsk isEqualToString:@"17.2 GB disk back"],
+    Check([both isEqualToString:@"+3.16 GB memory | +19.1 GB disk"] && [mem isEqualToString:@"+1.36 GB memory"] && [dsk isEqualToString:@"+17.2 GB disk"],
           @"window gains: both sides when both are above zero, and one side alone when the other is zero", [NSString stringWithFormat:@"%@ / %@ / %@", both, mem, dsk]);
     Check(memoryOnly.fixCount > 0 && memoryOnly.diskBack == 0 && diskOnly.fixCount > 0 && diskOnly.memoryBack == 0 && gains(none, MMWindowDockCalm).length == 0,
           @"window gains: with nothing to fix and nothing back today no gain is shown", gains(none, MMWindowDockCalm));
@@ -80,7 +82,7 @@ static void WindowLookChecks(void) {
     calm.diskBackTodayPartial = YES;
     NSString *todayOrMore = gains(calm, MMWindowDockCalm);
     calm.diskBackTodayPartial = NO;
-    Check([today isEqualToString:@"250 MB memory back today | 3.2 GB disk back today"] && [todayOrMore isEqualToString:@"250 MB memory back today | 3.2 GB or more disk back today"],
+    Check([today isEqualToString:@"today: +250 MB memory | +3.2 GB disk"] && [todayOrMore isEqualToString:@"today: +250 MB memory | +3.2 GB or more disk"],
           @"window gains: nothing to fix shows what came back today", [NSString stringWithFormat:@"%@ / %@", today, todayOrMore]);
     // A run that set out to give back memory only, and one that ended with nothing on one side.
     MMWindowRun *run = [MMWindowRun new];
@@ -91,12 +93,12 @@ static void WindowLookChecks(void) {
     NSString *nothing = gains(memoryOnly, MMWindowDockEnded);
     run.memoryBack = run.memoryPlanned;
     NSString *ended = gains(memoryOnly, MMWindowDockEnded);
-    Check([atStart isEqualToString:@"0 MB memory back so far"] && nothing.length == 0 && [ended isEqualToString:@"1.36 GB memory back"],
+    Check([atStart isEqualToString:@"so far: +0 MB memory"] && nothing.length == 0 && [ended isEqualToString:@"+1.36 GB memory"],
           @"window gains: a run counts up only the side it set out to give back, and its end shows only what came back", [NSString stringWithFormat:@"%@ / %@ / %@", atStart, nothing, ended]);
     NSMutableArray<NSString *> *zeros = [NSMutableArray new];
     for (NSString *name in @[@"busy", @"quiet", @"peak", @"done", @"empty", @"young", @"calm", @"long", @"memory-only", @"disk-only"]) {
         MMWindowModel *x = MMWindowFixture(name);
-        for (NSString *line in [gains(x, x.run ? MMWindowDockEnded : MMWindowDockCalm) componentsSeparatedByString:@" | "]) if ([line hasPrefix:@"0 "]) [zeros addObject:[NSString stringWithFormat:@"%@: %@", name, line]];
+        for (NSString *line in [gains(x, x.run ? MMWindowDockEnded : MMWindowDockCalm) componentsSeparatedByString:@" | "]) if ([line hasPrefix:@"+0 "] || [line containsString:@": +0 "]) [zeros addObject:[NSString stringWithFormat:@"%@: %@", name, line]];
     }
     Check(zeros.count == 0, @"window gains: no resting fixture shows a zero as a gain", [zeros componentsJoinedByString:@" | "]);
 
@@ -106,10 +108,10 @@ static void WindowLookChecks(void) {
     CGFloat with = WindowLists(v).firstObject.frame.size.height, top = WindowLists(v).firstObject.superview.frame.origin.y;
     v.model = young;
     MMWindowListView *left = WindowLists(v).firstObject;
-    Check(with == 538 && top == 40 && left.frame.size.height == 566 && left.superview.frame.origin.y == 12 && NSEqualSizes(v.frame.size, MMWindowSize),
+    Check(with == 617 && top == 40 && left.frame.size.height == 645 && left.superview.frame.origin.y == 12 && NSEqualSizes(v.frame.size, MMWindowSize),
           @"window: with nobody asking the top band folds away and the lists get its height", [NSString stringWithFormat:@"%g then %g", with, left.frame.size.height]);
     v.model = busy;
-    Check(WindowLists(v).firstObject.frame.size.height == 538, @"window: the band comes back when an agent asks", @"");
+    Check(WindowLists(v).firstObject.frame.size.height == 617, @"window: the band comes back when an agent asks", @"");
 
     // A group rests on a whole row: after the pointer goes to its last row, and at its top once the window closed.
     left = WindowLists(v).firstObject;
@@ -208,9 +210,10 @@ static void WindowWelcomeGuardChecks(void) {
     Check(dock && host.fixes == 0 && !v.showsSettings && !dock.fix.canBecomeKeyView && !gear.canBecomeKeyView && WelcomeHit(v, gear.frame, v) != gear,
           @"welcome guard: until the menu has arrived, no press, key or VoiceOver press reaches Fix Everything or the gear, and Tab reaches neither", @"");
     Check(WelcomeHit(v, power.frame, v) == power && power.canBecomeKeyView, @"welcome guard: Quit stays pressable all the way", @"");
-    // The guard is the time the menu takes to arrive and a moment more. Then the menu is the menu.
-    SpinUntil(^BOOL { return WelcomeHit(v, at, w) == dock.fix; });
-    NSView *later = WelcomeHit(v, at, w);
+    // The guard is the time the menu takes to arrive and a moment more. Then the menu is the menu. Fix Everything sits
+    // low in the slim dock, under where Start was, so it is pressed where it is.
+    SpinUntil(^BOOL { return WelcomeHit(v, dock.fix.frame, dock) == dock.fix; });
+    NSView *later = WelcomeHit(v, dock.fix.frame, dock);
     Check(later == dock.fix && dock.fix.canBecomeKeyView && gear.canBecomeKeyView && WelcomeHit(v, gear.frame, v) == gear, @"welcome guard: after the guard time Fix Everything and the gear take a press again", NSStringFromClass(later.class));
     WelcomePress(later);
     Check(host.fixes == 1, @"welcome guard: and a press on Fix Everything then runs it once", [NSString stringWithFormat:@"%ld", (long)host.fixes]);

@@ -7,8 +7,8 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
 
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)m {
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
-        @"Fix Everything", @"Stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
-        @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"This disk", @"Memory", @"Free", @"In use",
+        @"Fix Everything", @"No fixes to run", @"Stop", @"memory in use", @"disk free", @"memory", @"disk", @"or more disk", @"today", @"so far",
+        @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"This disk", @"Memory", @"Free", @"In use",
         @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"fixes", @"memory, now", @"memory in use, as now", @"just now", @"biggest", @"minutes",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     for (NSInteger minutes = 1; minutes <= 60; minutes++) [s addObject:MMWindowHourSpanWords(minutes)];

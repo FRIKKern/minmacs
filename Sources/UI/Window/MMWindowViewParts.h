@@ -16,7 +16,7 @@
     NSString *_stepWords;               // the step the button shows, and when it came
     NSDate *_stepCame;
     BOOL _letGo;                        // the end was shown long enough
-    double _memoryShare, _diskShare, _memoryShown, _diskShown;
+    double _progress, _memoryShown, _diskShown;      // the button's fill and the gains, as they move toward the run's numbers
     MMWindowWelcomeView *_welcome;      // made the first time a model holds a welcome
     BOOL _started;                      // Start was pressed here: a model built before that brings no welcome back
     BOOL _looking;                      // no model came for a moment, so the window says it is taking its first look

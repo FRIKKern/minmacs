@@ -7,8 +7,13 @@
 #import <QuartzCore/CAMediaTimingFunction.h>
 
 static const NSTimeInterval kFlip = 0.3, kBeat = 0.26;      // 197-b's turn to Settings, and 195-a's wait before the graphs come back
-// The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference.
-static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
+// The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference. The dock
+// is one slim band at the foot, with a hairline and a little air over it, and the gear and the power icon stand at
+// its right end. The lists and the middle get the rest. The gear and the power icon stay in one place in both views:
+// Settings ends 4 points under the gear's top, and its cards keep 8 points of air at their foot, so they end over it.
+static const CGFloat kBand = 40, kNoBand = 12, kDock = 64, kOverDock = 7;
+static CGFloat SettingsFoot(void) { return MMWindowSize.height - kDock / 2 - 12 + 4; }
+static CGFloat Lists(CGFloat top) { return MMWindowSize.height - top - kDock - kOverDock; }
 
 @implementation MMWindowView
 
@@ -46,27 +51,30 @@ BOOL MMWindowTakesPresses(NSView *view) {
     if ((self = [super initWithFrame:NSMakeRect(frame.origin.x, frame.origin.y, MMWindowSize.width, MMWindowSize.height)])) {
         CGFloat W = MMWindowSize.width, H = MMWindowSize.height;
         _main = [[MMWindowFlipped alloc] initWithFrame:NSMakeRect(0, 40, W, H - 40)];
-        _left = [[MMWindowListView alloc] initWithFrame:NSMakeRect(0, 0, 320, 538)];
-        _middle = [[MMWindowMiddleView alloc] initWithFrame:NSMakeRect(320, 0, 380, 538)];
-        _right = [[MMWindowListView alloc] initWithFrame:NSMakeRect(700, 0, 320, 538)];
-        _rule = [[NSBox alloc] initWithFrame:NSMakeRect(14, 545, W - 28, 1)];
+        CGFloat lists = Lists(kBand);
+        _left = [[MMWindowListView alloc] initWithFrame:NSMakeRect(0, 0, 320, lists)];
+        _middle = [[MMWindowMiddleView alloc] initWithFrame:NSMakeRect(320, 0, 380, lists)];
+        _right = [[MMWindowListView alloc] initWithFrame:NSMakeRect(700, 0, 320, lists)];
+        _rule = [[NSBox alloc] initWithFrame:NSMakeRect(14, lists + kOverDock - 1, W - 28, 1)];
         _rule.boxType = NSBoxCustom; _rule.borderWidth = 0; _rule.fillColor = MMWindowColor(MMWindowInkLine);
-        _dock = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, 551, W, 137)];
+        _dock = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, lists + kOverDock, W - 70, kDock)];
         _dock.fix.target = self; _dock.fix.action = @selector(pressFix:);
         _dock.stop.target = self; _dock.stop.action = @selector(pressFix:);
         for (NSView *v in @[_left, _middle, _right, _rule, _dock]) [_main addSubview:v];
         [self addSubview:_main];
 
-        _settings = [[MMWindowSettingsView alloc] initWithFrame:NSMakeRect(0, 40, W, 662)];
+        _settings = [[MMWindowSettingsView alloc] initWithFrame:NSMakeRect(0, 40, W, SettingsFoot() - 40)];
         _settings.hidden = YES;
         [self addSubview:_settings];
 
         _gear = [MMWindowButton kind:MMWindowButtonGear title:@"Settings" target:self action:@selector(pressGear:)];
-        _gear.frame = NSMakeRect(W - 62, 702, 26, 24);
+        // Level with the middle of the dock, right of it.
+        CGFloat icons = H - kDock / 2 - 12;
+        _gear.frame = NSMakeRect(W - 62, icons, 26, 24);
         _gear.toolTip = @"Settings  ⌘,";
         _gear.accessibilityLabel = @"Settings, Command comma";
         _power = [MMWindowButton kind:MMWindowButtonPower title:@"Quit MinMacs" target:self action:@selector(pressPower:)];
-        _power.frame = NSMakeRect(W - 32, 702, 26, 24);
+        _power.frame = NSMakeRect(W - 32, icons, 26, 24);
         _power.toolTip = @"Quit MinMacs  ⌘Q";
         _power.accessibilityLabel = @"Quit MinMacs, Command Q";
         [self addSubview:_gear]; [self addSubview:_power];
@@ -81,20 +89,20 @@ BOOL MMWindowTakesPresses(NSView *view) {
 }
 
 /// The top line folds away when nobody asks. The window keeps its size: the lists grow by the band's height, and the
-/// dock stays where it is.
+/// dock stays where it is, at the foot.
 - (CGFloat)bandTop { return _model && !_model.asks.length ? kNoBand : kBand; }
 
 - (void)layBand {
     CGFloat top = self.bandTop, W = MMWindowSize.width, H = MMWindowSize.height;
     if (_main.frame.origin.y == top) return;
-    CGFloat lists = kLists + kBand - top;
-    _settings.frame = NSMakeRect(0, top, W, 702 - top);
+    CGFloat lists = Lists(top);
+    _settings.frame = NSMakeRect(0, top, W, SettingsFoot() - top);
     _main.frame = NSMakeRect(0, top, W, H - top);
     _left.frame = NSMakeRect(0, 0, 320, lists);
     _middle.frame = NSMakeRect(320, 0, 380, lists);
     _right.frame = NSMakeRect(700, 0, 320, lists);
-    _rule.frame = NSMakeRect(14, lists + 7, W - 28, 1);
-    _dock.frame = NSMakeRect(0, lists + 13, W, 137);
+    _rule.frame = NSMakeRect(14, lists + kOverDock - 1, W - 28, 1);
+    _dock.frame = NSMakeRect(0, lists + kOverDock, W - 70, kDock);
     self.needsDisplay = YES;
 }
 

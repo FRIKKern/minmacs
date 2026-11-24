@@ -27,7 +27,7 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,
-/// the dock and the strip with the gear and the power icon. The gear flips it to Settings in place and back.
+/// and the slim dock with the gear and the power icon at its right end. The gear flips it to Settings in place and back.
 @interface MMWindowView : NSView
 @property (weak, nullable) id<MMWindowHost> host;
 @property (nonatomic, strong, nullable) MMWindowModel *model;   // setting it redraws, keeping hover and scroll
