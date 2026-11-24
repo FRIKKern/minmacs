@@ -2,7 +2,7 @@
 # test/git.sh after config.sh, with gq, gc, check and the tool $GT. One repo per row, as config.sh makes them, whose own
 # config names origin/<id>, a remote branch that is deleted, its commit kept on two other remote refs:
 # refs/remotes/origin/kept-<id> and refs/remotes/elsewhere/<id>. So by the repo's own config the remote branch is gone,
-# and Smart deletes the worktree. Each row puts one spelling into a file outside the repo, or the environment, and
+# and git is said to give the worktree back. Each row puts one spelling into a file outside the repo, or the environment, and
 # asks git and MinMacs under that row's environment alone: a fake HOME, and GIT_CONFIG_SYSTEM and GIT_CONFIG_GLOBAL
 # named, the same for both. Nothing reads the real ~/.gitconfig or /etc/gitconfig of the Mac it runs on.
 # Every fixture lies in $MINMACS_HOME/git/outside.
@@ -129,7 +129,7 @@ done
 # od_row <id> <git's answer> <MinMacs's answer> <global file, or - for none named> [VAR=value ...]: git and the tool
 # under the same environment: HOME the row's fake home, GIT_CONFIG_SYSTEM the empty file unless the row names one,
 # and nothing else from outside. git's answer is for-each-ref's %(upstream:short)|%(upstream:track), or fatal.
-# MinMacs's is upstream|upstreamGone|upstreamUnknown|smart. A row about the system file of a git MinMacs does not run
+# MinMacs's is upstream|upstreamGone|upstreamUnknown|gitBack. A row about the system file of a git MinMacs does not run
 # sets od_other to it: the tool finds it under its own MINMACS_TEST_GIT_ROOT, and git reads it as GIT_CONFIG_SYSTEM,
 # as that git reads its own.
 od_other=""
@@ -146,17 +146,17 @@ od_row() {
   od_mm=$(printf '%s' "$od_out" | python3 -c "
 import json,sys; j=json.load(sys.stdin)['facts']; k=sys.argv[1]
 v=j.get(k) or j.get(k[len('/private'):]) or {}
-s=v.get('smart', '?'); s=s if s == 'delete now' else 'keep: ' + s
+s=v.get('gitBack', '?'); s=s if s == 'git gives back' else 'keep: ' + s
 print('%s|%s|%s|%s' % (v.get('upstream'), v.get('upstreamGone'), v.get('upstreamUnknown'), s))" "$od_w")
   printf '  row   %-4s git %-26s mm %s\n' "$od_id" "$od_git" "$od_mm"
   case " or $od_gw or " in *" or $od_git or "*) od_gw=$od_git ;; esac   # "a or b": either answer of git's
   case " or $od_mw or " in *" or $od_mm or "*) od_mw=$od_mm ;; esac    # and of MinMacs's
   check "outside $od_id: git answers" "$od_gw" "$od_git"
   check "outside $od_id: MinMacs reads what it may" "$od_mw" "$od_mm"
-  case "$od_mm|$od_git" in *"delete now|"*"[gone]") ;; *"delete now|"*) od_lost="$od_lost $od_id" ;; esac
+  case "$od_mm|$od_git" in *"git gives back|"*"[gone]") ;; *"git gives back|"*) od_lost="$od_lost $od_id" ;; esac
 }
 od_lost=""
-od_gone() { echo "origin/$1|True|False|delete now"; }
+od_gone() { echo "origin/$1|True|False|git gives back"; }
 od_unread="None|False|True|keep: its branch is not merged and its remote branch could not be read"
 # Not known either way: MinMacs's own git status passes, as 2.39 does, or fails, as a later git does.
 od_unknown="$od_unread or None|False|True|keep: cannot verify what git holds of it"
@@ -226,11 +226,11 @@ fi
 od_row e1 "elsewhere/e1|" "$od_unread" "$OD/empty" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=branch.e1.remote GIT_CONFIG_VALUE_0=elsewhere
 od_row e2 "elsewhere/e2|" "$od_unread" "$OD/empty" "GIT_CONFIG_PARAMETERS='branch.e2.remote'='elsewhere'"
 chmod 600 "$OD/files/g13/global"
-check "outside: Smart deletes no worktree whose upstream git says is live, or that git refuses" "" "$od_lost"
+check "outside: git is never said to give back a worktree whose upstream git says is live, or that git refuses" "" "$od_lost"
 
 echo "-- the fresh check before a removal reads config again"
 # config rewritten in place with the same size, inode and mtime to the nanosecond: origin's heads now map to
-# mirror/*, where the branch's commit is. A read that trusts the memo still says gone, and Smart deletes.
+# mirror/*, where the branch's commit is. A read that trusts the memo still says gone, and git is said to give it back.
 od_case st1; gq -C "$ODD/main" update-ref refs/remotes/mirror/st1 "$od_tip"
 OT="$G/outsidetool"
 clang -fobjc-arc -O1 -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=14.0 -DMM_TESTS -ISources \
@@ -243,7 +243,7 @@ od_sv() { printf '%s' "$od_out" | json "j['$1']"; }
 od_git=$(git -C "$ODD/wt" for-each-ref --format='%(upstream:short)|%(upstream:track)' refs/heads/st1)
 printf '  row   st1  git %-26s before %s, after %s\n' "$od_git" "$(od_sv before)" "$(od_sv after)"
 check "outside st1: the rewrite keeps size, inode and mtime" yes "$(od_sv sameStamp)"
-check "outside st1: before it, gone" "origin/st1|True|False|delete now" "$(od_sv before)"
+check "outside st1: before it, gone" "origin/st1|True|False|git gives back" "$(od_sv before)"
 check "outside st1: git answers after it" "mirror/st1|" "$od_git"
 check "outside st1: the fresh read after it says what git says" "mirror/st1|False|False|keep: its branch is not merged and its remote branch still exists" "$(od_sv after)"
 

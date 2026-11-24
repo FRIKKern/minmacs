@@ -6,8 +6,8 @@
 # tool's fake tab bridge reads and changes, so no Apple event reaches a real browser. MINMACS_ROOTS and
 # MINMACS_CLUTTER_ROOT point inside the fixture, so no real worktree, server or cache is read or touched.
 # With MINMACS_HOME set, items go to $wu/Trash, never the person's Trash, and MMRemovalApply deletes nothing outside
-# $wu. The first run is under the Trash choice and restores everything. test/wrapup/removal.sh then runs Smart and
-# Delete on the same worktree.
+# $wu. The first run restores everything. test/wrapup/removal.sh then runs with an old Smart and an old Delete in
+# the pref on the same worktree, and every part still keeps a way back.
 # Cleanup stops only the pids this section started or restored, read from its own pid files and its own port.
 
 wu=$(cd "$MINMACS_HOME" && pwd -P)/wu$$
@@ -152,13 +152,13 @@ check "wrapup: Wrap Up sits among the card's first four actions" yes "$(echo "$C
 check "wrapup: no Wrap Up when an untracked file is work" no "$("$T" card "$W/notes" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 check "wrapup: no Wrap Up on an unmerged branch" no "$("$T" card "$W/open" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 
-# The removal choice, issue #62: under Smart, the default, the plan says where each thing goes.
+# D2: everything goes to the Trash. The plan says where each thing goes.
 J=$("$T" verb work wrap-up "$F" --dry-run --json)
-check "wrapup: under smart the plan deletes node_modules and sends the config files to the Trash" \
-  "Delete node_modules|Move untracked config files to the Trash" \
+check "wrapup: the plan sends node_modules and the config files to the Trash" \
+  "Move node_modules to the Trash|Move untracked config files to the Trash" \
   "$(echo "$J" | json "'|'.join(p['title'] for p in j['parts'] if p['step'] in ('caches', 'config'))")"
-check "wrapup: under smart the caches part's dry run says why it is deleted" yes \
-  "$(echo "$J" | json "(lambda d: 'yes' if 'would delete' in d and 'since its tool rebuilds it. It cannot be brought back.' in d else d)([p['dryRun'] for p in j['parts'] if p['step'] == 'caches'][0])")"
+check "wrapup: the caches part's dry run says it goes to the Trash" yes \
+  "$(echo "$J" | json "(lambda d: 'yes' if 'would move' in d and 'to the Trash. Undo moves it back.' in d else d)([p['dryRun'] for p in j['parts'] if p['step'] == 'caches'][0])")"
 
 echo "-- the tabs part on main, as a menu builds the plan"
 wu_tabs_file true
@@ -172,10 +172,9 @@ check "wrapup: one the person allowed is read in the background, and the next pl
   "$(echo "$J" | json "'yes' if 'tabs Close 3 localhost tabs in Fixture Browser' in j[2] else j")"
 
 echo "-- Wrap Up runs as one step"
-# Under the Trash choice, so every part can come back and the restore below checks all six.
+# Every part can come back, and the restore below checks all six.
 . ./test/wrapup/removal.sh
-"$T" verb removal trash >/dev/null
-check "wrapup: under trash the plan sends node_modules to the Trash" "Move node_modules to the Trash" \
+check "wrapup: the plan sends node_modules to the Trash" "Move node_modules to the Trash" \
   "$("$T" verb work wrap-up "$F" --dry-run --json | json "[p['title'] for p in j['parts'] if p['step'] == 'caches'][0]")"
 WU_MOVE_URL="http://[::1]:$P/admin" "$T" verb work wrap-up "$F" --json >"$wu/run.json"; r=$?
 J=$(cat "$wu/run.json")
@@ -261,7 +260,7 @@ check "wrapup: they reopened once the server part was back" yes \
 check "wrapup: and the server listened when they opened" yes "$(wu_listening "$P")"
 "$T" verb restore "$RID" >/dev/null 2>&1; check "wrapup: a second restore is refused, exit 1" 1 "$?"
 
-wu_removal_smart
+wu_removal_old smart
 
 echo "-- a part that fails stops the rest, and the record says which"
 for f in "$F" "$F/node_modules" "$F/.env.local"; do touch -h -t 202601010000 "$f"; done
@@ -290,16 +289,15 @@ wu_ours() {
 # run has no part that refuses.
 wu_ours "$WU_STUB" && kill -9 "$WU_STUB" 2>/dev/null
 wu_wait "! kill -0 '$WU_STUB' 2>/dev/null"
-wu_removal_delete
-# The must-fix of the review of #64: under Delete, and under Smart, a Wrap Up that git refuses deletes nothing.
+wu_removal_old delete
+# The must-fix of the review of #64: with an old Delete or Smart in the pref, a Wrap Up that git refuses deletes nothing.
 wu_refused_fixture
 wu_removal_refused delete
 check "wrapup refused delete: the config part went back from the Trash, and the caches part too" "restored restored" \
   "$(echo "$U" | json "j['parts']['config']['state'] + ' ' + j['parts']['caches']['state']")"
 wu_removal_refused smart
-check "wrapup refused smart: node_modules, which Smart would delete, went back, and .env.local too" "restored restored" \
+check "wrapup refused smart: node_modules, which the old Smart would delete, went back, and .env.local too" "restored restored" \
   "$(echo "$U" | json "j['parts']['caches']['state'] + ' ' + j['parts']['config']['state']")"
-"$T" verb removal smart >/dev/null
 wu_removal_waiting
 
 echo "-- the invariants"

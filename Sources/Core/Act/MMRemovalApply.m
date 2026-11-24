@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: the wall and the only place Act deletes a file. What a Wrap Up stages, and how
+// Removal, MMRemoval.h: the wall and the only place Act deletes a file. What a Wrap Up stages, and how
 // it is finished, put back and recovered after a crash, is below, since it deletes through the same one call.
 // The real path of an item and the wall's places are in MMRemovalPath.m.
 #import "Core/Act/MMRemoval.h"

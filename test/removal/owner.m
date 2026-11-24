@@ -3,7 +3,7 @@
 
 /// A part of parent that sends the file at path to the test home's Trash, as under the Trash choice.
 static MMUndoRecord *TrashOne(MMUndoRecord *parent, NSString *subject, NSString *path) {
-    MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *keep = MMRemovalDecide(MMRemovalConfigFiles, nil, nil);
     MMUndoRecord *part = Part(parent.rid, subject);
     MMRemovalNote(part, keep, nil);
     MMRemovalAsk(part, @[path]);
@@ -55,7 +55,7 @@ static void Owners(void) {
     MMUndoRecord *oddParent = Unfinished(@"ended, with a damaged part", tree, nil);
     [MMUndo.shared finish:oddParent ok:NO freed:0 error:@"test"];
     MMUndoRecord *odd = Part(oddParent.rid, @"damaged entry");
-    MMRemovalNote(odd, MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil), nil);
+    MMRemovalNote(odd, MMRemovalTestDeleteDecision(MMRemovalConfigFiles), nil);
     [MMUndo.shared note:odd payload:@{@"stagedIn": @7, @"staged": @[@{@"from": plain, @"to": @[], @"dev": @"x", @"ino": NSNull.null}, @"not an entry", @{@"from": @3}]}];
     odd = Done(odd);
     NSInteger young = MMRemovalRecoverStaged();

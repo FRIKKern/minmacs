@@ -203,9 +203,9 @@ echo "== ignored files are saved, caches are not"
 RV_TEST_GO=/envy "$WF" review --model haiku --mode eager --fresh >/dev/null 2>&1
 "$WF" auto --mode eager --path "$W/envy" >/dev/null
 check "envy is removed" no "$(wf_has "$W/envy")"
-# Nobody has chosen what happens to removed things yet, and Eager removed this on its own: a way back is kept.
-check "a mode's removal before the person chose keeps a way back, and says why" "False you have not chosen what happens to removed things yet, so a way back is kept" \
-  "$("$MM" restore --list --json --limit 6 | json "(lambda r: '%s %s' % (r['removal']['wants'], r['removal']['why']))([r for r in j['records'] if r['kind'] == 'remove'][0])")"
+# Eager removed this on its own, and it keeps a way back, as everything MinMacs removes does.
+check "a mode's removal keeps a way back" "False trash" \
+  "$("$MM" restore --list --json --limit 6 | json "(lambda r: '%s %s' % (r['removal']['wants'], r['removal']['choice']))([r for r in j['records'] if r['kind'] == 'remove'][0])")"
 REC=$("$WF" removed --json)
 check ".env is saved" True "$(echo "$REC" | json "'.env' in j[0]['saved']")"
 check "node_modules is not" False "$(echo "$REC" | json "any('node_modules' in s for s in j[0]['saved'])")"
@@ -283,7 +283,7 @@ G -C "$A" worktree remove --force "$W/cm1" 2>/dev/null; G -C "$A" worktree remov
 G -C "$A" branch -q -D cm1 cm2 2>/dev/null
 kill "$wf_busy" 2>/dev/null
 
-# The removal choice, issue #62, on worktrees of its own. It runs after the counts above.
+# Where a removed worktree goes, issue #62 and D2, on worktrees of its own. It runs after the counts above.
 . ./test/workforest/removal.sh
 # The keep check's fresh read under a root that is a link, issue #125, on repos of its own.
 . ./test/workforest/fresh.sh

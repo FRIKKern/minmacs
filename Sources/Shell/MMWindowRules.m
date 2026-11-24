@@ -13,8 +13,6 @@ NSString *MMWindowRuleExpert(NSString *ruleID) {
     return @{@"servers": @"locohost", @"apps": @"minmacs", @"worktrees": @"workforest", @"caches": @"noonoo"}[ruleID ?: @""];
 }
 
-NSString *const MMWindowRemovalRuleID = @"removal";
-
 /// What each mode does today, for Idle, Proactive and Eager. Every claim is the expert's own rule:
 /// servers: MMLHModeKeeps in MMLocoHost.m, with Proactive's wait of MMLHProactiveQuiet, 6 hours.
 /// apps: MMMinMacsPolicy in MMMinMacsExpert.m. Proactive never quits an app.
@@ -50,30 +48,6 @@ static MMWindowRule *Rule(NSString *ruleID, MMPerformance *p) {
     return MMWindowRuleCard(ruleID, (NSInteger)mode, note);
 }
 
-/// Smart, Trash and Delete with Core's one sentence each. The Settings card and the welcome show the same three.
-static NSArray<MMWindowChoice *> *RemovalChoices(void) {
-    NSMutableArray *choices = [NSMutableArray new];
-    for (NSInteger i = MMRemovalSmart; i <= MMRemovalDelete; i++) {
-        MMWindowChoice *c = [MMWindowChoice new];
-        c.title = MMRemovalChoiceTitle((MMRemovalChoice)i); c.explain = MMRemovalChoiceExplain((MMRemovalChoice)i);
-        [choices addObject:c];
-    }
-    return choices;
-}
-
-/// "When MinMacs removes things": the removal choice of Core/Act/MMRemoval.h, with Core's own words for each choice.
-/// It is no expert's mode, so it shows whatever experts run, after their rules.
-static MMWindowRule *RemovalRule(void) {
-    MMWindowRule *r = [MMWindowRule new];
-    r.ruleID = MMWindowRemovalRuleID; r.title = MMWindowRemovalTitle;
-    r.choices = RemovalChoices();
-    // While nothing is chosen no choice is picked, so a press on any of them, Smart too, makes the choice. The note
-    // says what holds until then.
-    r.picked = MMRemovalChosen() ? (NSInteger)MMRemovalChoiceNow() : -1;
-    r.note = MMRemovalNotChosenNote();
-    return r;
-}
-
 MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras) {
     MMWindowSettings *st = [MMWindowSettings new];
     NSMutableArray *rules = [NSMutableArray new];
@@ -84,9 +58,6 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
         NSString *expert = MMWindowRuleExpert(rid);
         if (RuleActs(rid, MMModeFor(expert))) left = MAX(left, MMWatchingLeft(expert));
     }
-    // The removal choice stays in the model and in --json, for `minmacs removal` and the welcome. Settings does not
-    // draw it: it says in one line that removed things go to the Trash.
-    [rules addObject:RemovalRule()];
     st.rules = rules;
     st.startsIn = MMWindowStartsNote(left);
     // Keep this Mac awake comes first: Keep awake now, While agents work, then the lid. Then This Mac.
@@ -146,7 +117,7 @@ MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
     BOOL awake = MMExpertNamed(@"insomnia") != nil && MMPrefBool(@"insomnia.agents", YES);
     [facts addObject:[MMWindowFact label:@"It starts quietly" value:awake ? @"No permission is asked at launch. The Mac stays awake while agents work."
                                                                           : @"No permission is asked at launch."]];
-    MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
+    MMWindowWelcome *w = [MMWindowWelcome welcomeWithFacts:facts];
     // New to MinMacs: never launched, or a first launch that left the login item for this welcome to ask about.
     // Anyone else launched it before, so the login item as it is now is their answer, whatever was watched.
     BOOL fresh = !MMPrefBool(@"core.launched", NO) || MMPrefBool(MMWindowLoginNotAskedKey, NO);
@@ -154,8 +125,7 @@ MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
     return w;
 }
 
-void MMWindowWelcomeDone(NSInteger removal) {
-    if (removal >= MMRemovalSmart && removal <= MMRemovalDelete) MMSetRemovalChoice((MMRemovalChoice)removal);
+void MMWindowWelcomeDone(void) {
     MMSetPref(MMWindowWelcomedKey, @YES);
     MMSetPref(MMWindowLoginNotAskedKey, nil);
 }

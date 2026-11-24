@@ -91,9 +91,9 @@ NSString *_Nullable MMWindowAsksLine(NSInteger agents);
 NSString *MMWindowEndTitle(NSInteger done, NSInteger total);
 /// "Skipped 1 agent that asks you and 2 blocked.", or nil when nothing was skipped.
 NSString *_Nullable MMWindowSkippedNote(NSInteger asks, NSInteger needYou, NSInteger kept, NSInteger blocked, NSInteger notReached, NSInteger notRun);
-/// A fix's title by its kind and how many it acts on, "Stop 1 idle server". `removal` is the removal choice:
-/// 0 Smart, 1 Trash, 2 Delete. nil for a kind with no count in its title.
-NSString *_Nullable MMWindowFixCountTitle(NSString *kind, NSInteger n, NSInteger removal);
+/// A fix's title by its kind and how many it acts on, "Stop 1 idle server", "Move 2 leftovers to the Trash". nil for
+/// a kind with no count in its title.
+NSString *_Nullable MMWindowFixCountTitle(NSString *kind, NSInteger n);
 /// What the dock's numbers stand for while the pointer rests on Fix Everything, "After the fix", "After all 2 fixes".
 NSString *_Nullable MMWindowAfterTitle(NSInteger fixes);
 /// A group's header where rows wait out of view, "1 more below", "3 more above". nil when all show.
@@ -312,7 +312,7 @@ NSString *_Nullable MMWindowRuleTitle(NSString *ruleID);
 NSArray<NSString *> *_Nullable MMWindowRuleExplains(NSString *ruleID);
 /// One rule's card with these words, the choice picked and the note at its foot.
 MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *_Nullable note);
-/// A card with choices of its own, such as the removal choice: each entry is a title and its sentence.
+/// A card with choices of its own: each entry is a title and its sentence.
 MMWindowRule *MMWindowChoiceCard(NSString *ruleID, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *_Nullable note);
 /// The note of a rule that does not act on its own while fixes of its kind wait: "1 ready. It waits for your press."
 NSString *_Nullable MMWindowReadyNote(NSInteger ready);
@@ -320,7 +320,7 @@ NSString *_Nullable MMWindowReadyNote(NSInteger ready);
 /// time is left. MMWindowStartsHelp says what it means, for its tooltip and VoiceOver.
 NSString *_Nullable MMWindowStartsNote(NSTimeInterval left);
 extern NSString *const MMWindowStartsHelp;
-/// The one line Settings shows where the removal choice was: everything MinMacs removes goes to the Trash.
+/// The one line at the foot of This Mac in Settings: everything MinMacs removes goes to the Trash.
 extern NSString *const MMWindowTrashLine;
 /// The cards of switches. "Keep this Mac awake" stands first in Settings, so keeping the Mac awake is never hunted for.
 extern NSString *const MMWindowAwakeCard, *const MMWindowMacCard, *const MMWindowCleanupCard;
@@ -352,28 +352,23 @@ extern NSString *const MMWindowNoLidNote;
 #pragma mark - The welcome
 
 /// The first time the window opens, prototype 199-a: the welcome alone, in the same window. It holds every string the
-/// welcome shows and the two choices as they stand before the person touches them. Nothing is applied until Start.
+/// welcome shows and the switch as it stands before the person touches it. Nothing is applied until Start.
 @interface MMWindowWelcome : NSObject
 @property (copy) NSString *title;                       // "Welcome to MinMacs"
 @property (copy) NSString *say;                         // what MinMacs is, in two sentences
 @property (copy) NSString *loginTitle;                  // "Open at login"
 @property (copy) NSString *loginOnNote, *loginOffNote;  // what each state of the switch means
 @property BOOL loginOn;                                 // where the switch stands before the person touches it
-@property (copy) NSString *removalTitle;                // "When MinMacs removes things"
-@property (copy) NSArray<MMWindowChoice *> *removal;    // Smart, Trash, Delete, with Core's sentence each
-@property NSInteger removalPicked;                      // Smart, until the person picks
-@property (copy) NSString *later;                       // "Both can be changed later in Settings."
+@property (copy) NSString *later;                       // "It can be changed later in Settings."
 @property (copy) NSArray<MMWindowFact *> *facts;        // a few calm facts: label is the title, value the sentence
 @property (copy) NSString *start;                       // "Start"
-/// A welcome with the words that never change, the switch on, and these choices and facts.
-+ (instancetype)welcomeWithRemoval:(NSArray<MMWindowChoice *> *)removal picked:(NSInteger)picked facts:(NSArray<MMWindowFact *> *)facts;
+/// A welcome with the words that never change, the switch on, and these facts.
++ (instancetype)welcomeWithFacts:(NSArray<MMWindowFact *> *)facts;
 @end
 
 /// What Open at login means in each state, for the welcome and for Settings: "MinMacs starts when you sign in." and
 /// "MinMacs starts only when you open it."
 NSString *MMWindowLoginNote(BOOL on);
-/// The title of the removal choice, in the welcome and on its Settings card.
-extern NSString *const MMWindowRemovalTitle;
 /// What the window and the menus say before the first numbers: "MinMacs is taking its first look. It takes a few seconds."
 extern NSString *const MMWindowLookingNote;
 

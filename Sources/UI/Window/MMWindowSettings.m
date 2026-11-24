@@ -3,7 +3,7 @@
 // rows as System Settings does: a small tile, a short title and the switch, one line high. A row has a second line
 // only when it says a state, such as "Awake now for 2 agents". What a switch does is its tooltip and VoiceOver's help,
 // not a sentence under it. That the cleanup rules still only watch is said once, in a badge on their card's head.
-// The removal choice is not drawn: one line says removed things go to the Trash. A press applies at once, through the host.
+// There is no removal choice: one line says removed things go to the Trash. A press applies at once, through the host.
 #import "UI/Window/MMWindowParts.h"
 
 static const CGFloat kHead = 48, kRow = 44, kRowWithNote = 54, kTile = 24, kCardPad = 6;
@@ -174,7 +174,7 @@ static NSString *RowMark(NSString *ownerID) {
         o.inert = sw.inert; o.enabled = !sw.inert;
         [self explain:o help:sw.help];
     }
-    // One switch a rule. The removal choice has no switch and is not drawn.
+    // One switch a rule.
     for (MMWindowRule *rule in st.rules) {
         NSString *title = MMWindowRuleSwitchTitle(rule.ruleID);
         if (!title) continue;
@@ -190,7 +190,7 @@ static NSString *RowMark(NSString *ownerID) {
         o.inert = sw.inert; o.enabled = !sw.inert;
         [self explain:o help:sw.help];
     }
-    // Everything MinMacs removes goes to the Trash: one line at the foot of This Mac, where the removal choice was.
+    // Everything MinMacs removes goes to the Trash: one line at the foot of This Mac.
     cardFor(MMWindowMacCard).footer = MMWindowTrashLine;
 
     CGFloat top = 44, gap = 12, w = floor((self.bounds.size.width - 28 - gap) / 2);

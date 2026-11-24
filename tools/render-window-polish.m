@@ -8,7 +8,7 @@
 static NSArray<NSArray *> *WindowPolishShots(void) {
     return @[@[@"busy", @"agent", @"agent:4"], @[@"busy", @"asks", @"agent:0"], @[@"busy", @"app", @"app:7"], @[@"busy", @"cache", @"cache:0"],
              @[@"busy", @"fix", @""], @[@"calm", @"cache", @"cache:1"], @[@"young", @"server", @"server:6006"],
-             // Settings with nobody asking, on a Mac with no lid, every rule still watching and no removal choice made.
+             // Settings with nobody asking, on a Mac with no lid, and every rule still watching.
              @[@"calm", @"settings", @""],
              @[@"real", @"main", @""], @[@"real", @"agent", @"agent:0"], @[@"real", @"server", @"server:56784"], @[@"real", @"fix", @""],
              @[@"extreme", @"main", @""], @[@"extreme", @"server", @"server:3000"], @[@"extreme", @"asks", @"agent:0"], @[@"extreme", @"tree", @"worktree:0"],
@@ -28,7 +28,7 @@ static NSArray<NSArray *> *WindowPolishShots(void) {
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice { self.rules++; self.lastRule = ruleID; self.lastPicked = choice; }
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on { self.switches++; }
 - (void)windowQuit {}
-- (void)windowWelcomeStart:(BOOL)openAtLogin removal:(NSInteger)removal {}
+- (void)windowWelcomeStart:(BOOL)openAtLogin {}
 @end
 
 static MMWindowDockView *PolishDock(MMWindowView *v) {
@@ -271,7 +271,7 @@ static void WindowPolishChecks(void) {
     }
     NSButton *lid = switches[@"lid"], *login = switches[@"login"];
     NSButton *awake = switches[@"awake"], *agents = switches[@"agents"], *servers = switches[@"rule:servers"], *caches = switches[@"rule:caches"];
-    Check(awake && agents && lid && login && servers && caches && switches.count == 8 && others == 0 &&
+    Check(awake && agents && lid && login && servers && caches && switches.count == 8 && others == 0 && sv.model.settings.rules.count == 4 &&
           NSMinX(awake.frame) == NSMinX(agents.frame) && NSMinX(agents.frame) == NSMinX(lid.frame) && NSMaxY(awake.frame) <= NSMinY(agents.frame) && NSMaxY(agents.frame) <= NSMinY(lid.frame) &&
           NSMinY(awake.frame) == NSMinY(servers.frame) && NSMinX(awake.frame) < NSMinX(servers.frame) && NSMinX(servers.frame) == NSMinX(caches.frame) &&
           NSMinX(login.frame) == NSMinX(awake.frame) && NSMinY(login.frame) > NSMaxY(lid.frame) + 40,

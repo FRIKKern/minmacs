@@ -97,8 +97,8 @@ static NSDictionary *RecordJSON(MMUndoRecord *r) {
     return @{@"rid": r.rid ?: @"", @"expert": Or(r.expert), @"kind": Or(r.kind), @"subject": Or(r.subject), @"why": Or(r.why),
              @"by": Or(r.by), @"state": UndoStateWord(r.state), @"at": Or(r.at), @"canRestore": @(r.canRestore),
              @"freedBytes": @(r.freedBytes), @"error": Or(r.error),
-             // The removal choice the action ran under and where its thing went, Core/Act/MMRemoval.h. null for a
-             // stop, a quit or a record written before the choice existed.
+             // Where its thing went, Core/Act/MMRemoval.h, with the choice it ran under: "trash" now, and "smart" or
+             // "delete" in a record an older MinMacs wrote. null for a stop, a quit or a record older than that.
              @"deleted": @(r.deletedNow), @"removal": Or([r.payload[@"removal"] isKindOfClass:NSDictionary.class] ? r.payload[@"removal"] : nil)};
 }
 
@@ -694,24 +694,15 @@ static int RemovalWaiting(MMArgs *a) {
     return 0;
 }
 
-/// removal [smart|trash|delete]: what happens to a thing MinMacs removes, the pref of Core/Act/MMRemoval.h.
-/// It writes a pref only, as mode does, so it runs cold.
+/// removal: what happens to a thing MinMacs removes, Core/Act/MMRemoval.h. It only reads: there is no choice to set,
+/// since everything MinMacs removes keeps a way back.
 static int Removal(MMArgs *a) {
     if ([a has:@"--waiting"]) return RemovalWaiting(a);
-    // An act on a waiting item needs --waiting, so "removal delete <id>" can never set the choice by mistake.
-    if ([a has:@"--delete"] || [a has:@"--put-back"] || [a has:@"--to"] || [a has:@"--close"] || [a word:1]) return [a usageError];
-    NSString *name = [a word:0].lowercaseString;
-    if (name) {
-        NSInteger c = MMRemovalChoiceFrom(name);
-        if (c < 0) { [a error:@"the choices are smart, trash and delete"]; return [a usageError]; }
-        if (!a.dryRun) MMSetRemovalChoice((MMRemovalChoice)c);
-    }
-    MMRemovalChoice now = name && a.dryRun ? (MMRemovalChoice)MMRemovalChoiceFrom(name) : MMRemovalChoiceNow();
-    // Until the person sets it, what MinMacs removes on its own keeps a way back. The answer says so.
-    BOOL chosen = MMRemovalChosen() || (name && a.dryRun);
-    NSString *note = chosen ? nil : MMRemovalNotChosenNote();
-    if (a.json) [a printJSON:@{@"removal": MMRemovalChoiceName(now), @"explain": MMRemovalChoiceExplain(now), @"chosen": chosen ? @YES : @NO, @"note": Or(note)}];
-    else [a print:@"%@: %@%@", MMRemovalChoiceName(now), MMRemovalChoiceExplain(now), note ? [@" " stringByAppendingString:note] : @""];
+    // An act on a waiting item needs --waiting, so "removal delete <id>" can never do anything.
+    if ([a has:@"--delete"] || [a has:@"--put-back"] || [a has:@"--to"] || [a has:@"--close"]) return [a usageError];
+    if ([a word:0]) { [a error:@"there is nothing to choose: everything MinMacs removes keeps a way back"]; return [a usageError]; }
+    if (a.json) [a printJSON:@{@"removal": MMRemovalChoiceName(MMRemovalChoiceNow()), @"explain": MMRemovalExplain()}];
+    else [a print:@"%@", MMRemovalExplain()];
     return 0;
 }
 
@@ -745,7 +736,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsCachedGit, nil),
             Reads([MMVerbSpec verb:@"mode" usage:@"mode <expert> [idle|proactive|eager] [--json]   show or set an expert's mode" mutates:NO run:^(MMArgs *a) { return Mode(a); }],
                   MMVerbReadsNoWorktrees, nil),
-            Reads([MMVerbSpec verb:@"removal" usage:@"removal [smart|trash|delete] [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]   show or set what happens to a thing MinMacs removes: smart, the Trash for everything, or deleted at once; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
+            Reads([MMVerbSpec verb:@"removal" usage:@"removal [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]   show what happens to a thing MinMacs removes, which always keeps a way back; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
                   MMVerbReadsNoWorktrees, @[@"--delete", @"--put-back", @"--close"]),
             Reads([MMVerbSpec verb:@"self" usage:@"self [--window <seconds>] [--json]   what the running MinMacs app costs this Mac: its CPU now and since launch, the tools it ran, memory, disk writes and wakeups, against its budgets" mutates:NO run:^(MMArgs *a) { return MMSelfVerb(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),

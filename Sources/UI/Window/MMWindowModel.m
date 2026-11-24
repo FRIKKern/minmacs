@@ -386,21 +386,18 @@ MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *note) {
     return Switch(@"login", @"Open at login", MMWindowMacCard, on, note, MMWindowLoginNote(on));
 }
 
-NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";
 NSString *const MMWindowLookingNote = @"MinMacs is taking its first look. It takes a few seconds.";
 
 NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sign in." : @"MinMacs starts only when you open it."; }
 
 @implementation MMWindowWelcome
-+ (instancetype)welcomeWithRemoval:(NSArray<MMWindowChoice *> *)removal picked:(NSInteger)picked facts:(NSArray<MMWindowFact *> *)facts {
++ (instancetype)welcomeWithFacts:(NSArray<MMWindowFact *> *)facts {
     MMWindowWelcome *w = [MMWindowWelcome new];
     w.title = @"Welcome to MinMacs";
     w.say = @"MinMacs watches what your agents, servers and apps hold. Press Fix Everything and it gives memory and disk back.";
     w.loginTitle = @"Open at login"; w.loginOn = YES;
     w.loginOnNote = MMWindowLoginNote(YES); w.loginOffNote = MMWindowLoginNote(NO);
-    w.removalTitle = MMWindowRemovalTitle;
-    w.removal = removal ?: @[]; w.removalPicked = picked;
-    w.later = @"Both can be changed later in Settings.";
+    w.later = @"It can be changed later in Settings.";
     w.facts = facts ?: @[];
     w.start = @"Start";
     return w;

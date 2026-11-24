@@ -1,36 +1,7 @@
-// Included by removal.m. Who is asked before Smart deletes, and the wall as a rule on strings. What a Wrap Up stages
+// Included by removal.m. The wall as a rule on strings. What a Wrap Up stages
 // is in staged.m, included at the end.
 // The wall checks name / and the real home folder as strings only. MMRemovalWallWhyNot reads no disk and deletes
 // nothing, so they are safe to ask about.
-
-#pragma mark - Chosen or not
-
-static void Chosen(void) {
-    MMRemovalFacts *cache = Clutter(MMClutterCache, YES, YES, NO);
-    MMRemovalFacts *tree = Tree(YES, NO, 0, 0, 0, 0);
-    MMSetPref(MMRemovalKey, nil);
-    T(@"chosen: with no value nothing is chosen, and the note says what holds until then", @"no Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash.",
-      [NSString stringWithFormat:@"%@ %@", YN(MMRemovalChosen()), MMRemovalNotChosenNote()]);
-    // Not chosen: what MinMacs starts on its own keeps a way back. The person's own press follows Smart.
-    T(@"not chosen: a mode's act never deletes", @"keep keep keep", [NSString stringWithFormat:@"%@ %@ %@", Word(MMRemovalDecide(MMRemovalClutter, cache, @"proactive")),
-      Word(MMRemovalDecide(MMRemovalClutter, cache, @"eager")), Word(MMRemovalDecide(MMRemovalWorktree, tree, @"guard"))]);
-    T(@"not chosen: it says why", @"you have not chosen what happens to removed things yet, so a way back is kept", MMRemovalDecide(MMRemovalClutter, cache, @"proactive").why);
-    T(@"not chosen: a press, the CLI and words shown before an act follow Smart", @"delete delete delete", [NSString stringWithFormat:@"%@ %@ %@",
-      Word(MMRemovalDecide(MMRemovalClutter, cache, @"manual")), Word(MMRemovalDecide(MMRemovalClutter, cache, @"cli")), Word(MMRemovalDecide(MMRemovalClutter, cache, nil))]);
-    T(@"not chosen: a who nobody knows counts as MinMacs's own act", @"keep", Word(MMRemovalDecide(MMRemovalClutter, cache, @"somebody")));
-    T(@"not chosen: the same as a pure answer, for each choice a default could be", @"keep keep delete", [NSString stringWithFormat:@"%@ %@ %@",
-      Word(MMRemovalDecideAs(MMRemovalSmart, NO, @"proactive", MMRemovalClutter, cache)), Word(MMRemovalDecideAs(MMRemovalDelete, NO, @"eager", MMRemovalClutter, cache)),
-      Word(MMRemovalDecideAs(MMRemovalSmart, NO, @"manual", MMRemovalClutter, cache))]);
-    // Chosen: Smart applies to everything, a mode's act too.
-    MMSetRemovalChoice(MMRemovalSmart);
-    T(@"chosen: once the person set Smart it is chosen, and the note is gone", @"yes nil", [NSString stringWithFormat:@"%@ %@", YN(MMRemovalChosen()), Or(MMRemovalNotChosenNote())]);
-    T(@"chosen smart: a mode's act deletes what a tool rebuilds", @"delete delete", [NSString stringWithFormat:@"%@ %@", Word(MMRemovalDecide(MMRemovalClutter, cache, @"proactive")),
-      Word(MMRemovalDecide(MMRemovalClutter, cache, @"eager"))]);
-    T(@"chosen smart: and still keeps a leftover", @"keep", Word(MMRemovalDecide(MMRemovalClutter, Clutter(MMClutterLeak, NO, YES, NO), @"proactive")));
-    MMSetRemovalChoice(MMRemovalTrash);
-    T(@"chosen trash: nobody's act deletes", @"keep keep", [NSString stringWithFormat:@"%@ %@", Word(MMRemovalDecide(MMRemovalClutter, cache, @"manual")), Word(MMRemovalDecide(MMRemovalClutter, cache, @"eager"))]);
-    MMSetPref(MMRemovalKey, nil);
-}
 
 #pragma mark - The wall, on strings
 

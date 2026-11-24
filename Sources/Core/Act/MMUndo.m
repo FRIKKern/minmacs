@@ -1,7 +1,8 @@
 // The one undo engine: records, the Trash, the recovery folder, git bundles, restore and tool commands.
 // Ported from WorkForest's WFRemove and WFRestore, LocoHost's restart command and Noo-Noo's Grave.
 // Records go to the log of P38 as append-only rows. Nothing here deletes a file, and nothing empties the Trash.
-// The one place Act deletes is MMRemovalApply in MMRemoval.m, and only where the person's removal choice says so.
+// The one place Act deletes is MMRemovalApply in MMRemovalApply.m, and MMRemovalDecide never asks it to: everything
+// MinMacs removes keeps a way back.
 #import <AppKit/AppKit.h>
 #import "Core/Act/MMUndo.h"
 #import "Core/Act/MMRemoval.h"
@@ -190,7 +191,8 @@ static NSString *PayloadDamage(NSDictionary *p) {
     if (self.state != MMUndoDone && self.state != MMUndoFailed) return NO;
     if ([self.kind isEqualToString:@"tool"]) return NO;
     NSDictionary *p = self.payload;
-    // Under the Delete choice the person asked for no way back. A git bundle is still taken, and restore names it.
+    // A record an older MinMacs wrote under the Delete choice kept no way back. A git bundle was still taken, and
+    // restore names it.
     // Only once the thing is gone: what a Wrap Up part staged in MinMacs's folder can still come back.
     if (self.state == MMUndoDone && self.deletedNow && [MMRecordString(MMRecordDict(p, @"removal"), @"choice") isEqualToString:@"delete"]) return NO;
     // Every field through the checked reader: a field of another shape reads as absent.

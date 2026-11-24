@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: what a staging folder holds about itself, and what its own list says of an item
+// Removal, MMRemoval.h: what a staging folder holds about itself, and what its own list says of an item
 // no record names. Nothing here moves or deletes a person's file: MMRemovalApply.m does both, behind the one check
 // MMRemovalStagedItemWhyNot. Every field of a record is read through the checked reader of MMUndo.h.
 //

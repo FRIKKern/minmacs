@@ -666,8 +666,8 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
                                   // From the first look at the real window: one minute in with an empty disk side and nobody asking,
                                   // twelve minutes in with nothing to fix and a look-back, and names longer than their column.
                                   @[@"young", @"main", @""], @[@"calm", @"main", @""], @[@"long", @"main", @""], @[@"long", @"agent", @"agent:long"],
-                                  // The first launch: the welcome alone, with the switch on and off and each removal choice picked.
-                                  @[@"welcome", @"main", @""], @[@"welcome-off", @"main", @""], @[@"welcome-trash", @"main", @""], @[@"welcome-delete", @"main", @""],
+                                  // The first launch: the welcome alone, with the switch on and off.
+                                  @[@"welcome", @"main", @""], @[@"welcome-off", @"main", @""],
                                   // The welcome a person meets who used MinMacs for more than a day before it.
                                   @[@"welcome-watched", @"main", @""]];
     shots = [shots arrayByAddingObjectsFromArray:WindowPolishShots()];
