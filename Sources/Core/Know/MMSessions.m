@@ -63,7 +63,7 @@ static NSString *Text(NSData *d) {
 }
 
 /// The last bytes of a file, for keys an agent appends late, such as Claude Code's aiTitle.
-static NSString *TailText(NSString *path, NSUInteger max) { return Text(MMReadPlain(path, max, MMPlainTail)); }
+static NSData *Tail(NSString *path, NSUInteger max) { return MMReadPlain(path, max, MMPlainTail); }
 
 /// A status file is a few hundred bytes. One past this is no status file of Claude Code's.
 static const NSUInteger kStatusFileMax = 1024 * 1024;
@@ -77,12 +77,44 @@ static BOOL PlainOrMissing(NSString *path, BOOL *exists) {
     return S_ISREG(st.st_mode);
 }
 
-static NSString *Match(NSString *s, NSString *pattern, BOOL last) {
-    if (!s) return nil;
-    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
-    NSArray<NSTextCheckingResult *> *all = [re matchesInString:s options:0 range:NSMakeRange(0, s.length)];
-    NSTextCheckingResult *m = last ? all.lastObject : all.firstObject;
-    return m && [m rangeAtIndex:1].location != NSNotFound ? [s substringWithRange:[m rangeAtIndex:1]] : nil;
+/// Issue #52. The value of the first or last `"key":` in d whose string value is whole, as the pattern
+/// "key":\s*"((?:[^"\\]|\\.)*)" found it in the decoded text before, or with plain "key":\s*"([^"]+)". It reads the
+/// bytes where they lie: before, a transcript's 64 KB head and 512 KB tail were each decoded to a string and searched
+/// with a regular expression on every write to it, which was most of a rebuild's CPU while an agent worked.
+/// The quotes and backslashes it looks for are ASCII, so no UTF-8 sequence holds one, and the value's bytes are the
+/// ones the text held. The value is decoded alone, as UTF-8 or else Latin-1, as Text decodes a whole read.
+static NSString *JSONValueIn(NSData *d, const char *key, BOOL last, BOOL plain) {
+    if (!d.length) return nil;
+    char needle[64];
+    int nl = snprintf(needle, sizeof needle, "\"%s\":", key);
+    if (nl <= 0 || nl >= (int)sizeof needle) return nil;
+    const char *b = d.bytes, *end = b + d.length;
+    NSString *found = nil;
+    for (const char *at = b; at < end; ) {
+        const char *hit = memmem(at, (size_t)(end - at), needle, (size_t)nl);
+        if (!hit) break;
+        at = hit + 1;
+        const char *q = hit + nl;
+        while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r' || *q == '\f' || *q == '\v')) q++;
+        if (q >= end || *q != '"') continue;
+        const char *v = ++q;
+        BOOL whole = NO;
+        while (q < end) {
+            if (*q == '"') { whole = plain ? q > v : YES; break; }
+            if (!plain && *q == '\\') {
+                if (q + 1 >= end || q[1] == '\n' || q[1] == '\r') break;   // a regex's . takes no line end
+                q += 2;
+                continue;
+            }
+            q++;
+        }
+        if (!whole) continue;
+        NSData *raw = [NSData dataWithBytesNoCopy:(void *)v length:(NSUInteger)(q - v) freeWhenDone:NO];
+        found = Text(raw);
+        if (!last) return found;
+        at = q + 1;   // a key inside a matched value always follows a backslash, so it can be no match
+    }
+    return found;
 }
 
 /// A JSON string value as written, with its escapes undone.
@@ -173,16 +205,16 @@ static NSArray<NSString *> *Names(NSString *dir) {
 
 /// One transcript's facts, read once per change of size or time through the fact cache.
 static NSDictionary *ClaudeTranscriptFacts(NSString *path) {
-    NSString *head = Text(Head(path, 64 * 1024));
+    NSData *head = Head(path, 64 * 1024);
     NSMutableDictionary *f = [NSMutableDictionary new];
     f[@"id"] = path.lastPathComponent.stringByDeletingPathExtension;
-    NSString *cwd = Unescape(Match(head, @"\"cwd\":\\s*\"((?:[^\"\\\\]|\\\\.)*)\"", NO));
+    NSString *cwd = Unescape(JSONValueIn(head, "cwd", NO, NO));
     if (cwd) f[@"cwd"] = cwd;
-    NSString *branch = Unescape(Match(head, @"\"gitBranch\":\\s*\"((?:[^\"\\\\]|\\\\.)*)\"", NO));
+    NSString *branch = Unescape(JSONValueIn(head, "gitBranch", NO, NO));
     if (branch) f[@"branch"] = branch;
-    NSDate *start = ISODate(Match(head, @"\"timestamp\":\\s*\"([^\"]+)\"", NO));
+    NSDate *start = ISODate(JSONValueIn(head, "timestamp", NO, YES));
     if (start) f[@"started"] = @(start.timeIntervalSince1970);
-    NSString *title = Unescape(Match(TailText(path, 512 * 1024), @"\"aiTitle\":\\s*\"((?:[^\"\\\\]|\\\\.)*)\"", YES));
+    NSString *title = Unescape(JSONValueIn(Tail(path, 512 * 1024), "aiTitle", YES, NO));
     if (title) f[@"title"] = title;
     return f;
 }
@@ -304,6 +336,7 @@ static NSArray<MMSession *> *CodexSessions(NSString **modeOut) {
 #pragma mark The index
 
 NSNotificationName const MMSessionsDidChangeNotification = @"MMSessionsDidChangeNotification";
+NSString *const MMSessionsTranscriptsOnlyKey = @"transcriptsOnly";
 
 static NSString *Plain(NSString *p);
 
@@ -412,15 +445,22 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
         any = Matters(@(paths[i]), dirs, missing);   // the watch queue is serial, so missing needs no lock
     }
     if (!any) return;
+    // Issue #52. The post says whether only Claude Code's transcripts changed, so Core can leave such a change to the
+    // next pass's build: an agent at work appends to its transcript every second or so.
+    NSString *projects = [dirs[0] stringByAppendingString:@"/"];
+    BOOL transcriptsOnly = YES;
     @synchronized (self) {
         for (size_t i = 0; i < n; i++) {
+            NSString *p = Plain(@(paths[i]));
             if (flags[i] & (kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagRootChanged |
-                            kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped)) _allDirty = YES;
-            [_dirtyDirs addObject:Plain(@(paths[i]))];
+                            kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped)) { _allDirty = YES; transcriptsOnly = NO; }
+            if (![p hasPrefix:projects]) transcriptsOnly = NO;
+            [_dirtyDirs addObject:p];
         }
     }
     atomic_store(&_dirty, true);
-    [NSNotificationCenter.defaultCenter postNotificationName:MMSessionsDidChangeNotification object:self];
+    [NSNotificationCenter.defaultCenter postNotificationName:MMSessionsDidChangeNotification object:self
+                                                      userInfo:@{MMSessionsTranscriptsOnlyKey: @(transcriptsOnly)}];
 }
 
 - (void)startWatching {

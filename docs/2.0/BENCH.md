@@ -385,6 +385,57 @@ It passes on the same rules: no leak in MinMacs code, footprint growth under 5 M
 
 On the macos-26-arm64 runner the short soak's Senses holds each fixture server's process, with the soak's own uid, and reads no socket for it. The status line on 44c994d read `"inSample":1,"uid":501,"me":501,"sockets":0`, and no sample held a listener. On the same runner the minmacs CLI reads those servers in the locohost section, and on a Mac the soak reads them. Signing the soak binary with codesign did not change it. The cause is not found. On CI the check prints LocoHost's peak fixture findings and does not gate on them; on a Mac it gates.
 
+## The startup peak and the steady tick, 2026-11-24
+
+Issue #52. The installed app on a MacBook Air M5 with 16 GB and about 770 processes, read once a minute with `proc_pid_rusage`, peaked at 479, 857, 1229 and 1521 MB in four runs, each time 4 to 6 minutes after launch, with 18 to 23 seconds of CPU in that minute. It then sat at 75 to 230 MB, against the 45 MB budget, and averaged 2.3 to 7.3 % CPU.
+
+### What made the peak
+
+The peak is the clutter catalog's first scan. Its timer first fires 300 seconds after launch. `footprint` on the app after a peak read 1.1 GB of empty malloc regions still resident, and `vmmap` 857 MB of them, so the memory was taken and given back inside one block. A clutter scan alone, `minmacs clutter scan --json` in a fixture home whose TMPDIR holds 10,000 loose entries and 560 family members, as this Mac's did, reproduced it:
+
+| One clutter scan in the fixture | Before | After |
+| --- | --- | --- |
+| Peak footprint | 1006 MB | 11.9 MB |
+| Wall time | 3.2 s | 1.3 s |
+| Instructions | 41.4 G | 10.7 G |
+| Items found | the same JSON, byte for byte | |
+
+`sample` of the scan put two thirds of it in three places, all inside one autorelease pool that drained only when the scan ended:
+1. `MMOpenUnder` compared every path any process of this user holds, its executable, cwd and each open file, with every candidate root through `-[NSString stringByAppendingString:]`: tens of thousands of paths times hundreds of roots, each comparison a new string.
+2. `discover:` asked `kindFor:` of every name in a family row's folder, 10,000 in TMPDIR, and each asked every row's patterns through `fnmatch` with two `fileSystemRepresentation` buffers, also autoreleased.
+3. `judge:` and `whyNot:` for each member, smaller.
+
+What changed: `MMOpenUnder` sorts the roots once as bytes and looks up each held path's parent folders in them, with no string made. A family folder's name with no family key, which no family row can claim, is skipped before `kindFor:`. The walk, discovery, owner and judge loops each drain their own autorelease pool.
+
+### What the steady tick did
+
+With agents at work, each append to a Claude Code transcript, about one a second, posted a sessions change, and Core asked for a forced build of every expert for it, on top of the build after each 5-second pass. Each read of a changed transcript decoded its 64 KB head and 512 KB tail to strings and ran four regular expressions over them. In a 10-second `sample` of the installed app this was the largest part of the graph queue, in `__CFFromUTF8` under `-[MMSessions factsFor:reader:mtime:]`.
+
+What changed: the four values are found in the bytes with `memmem`, and only each value is decoded. A change to transcripts alone asks for a build at most every 30 seconds, and the next pass's build reads it. A status file, Codex's databases, pi's sessions and a dropped event still build at once. A head or tail read that ends inside a UTF-8 character no longer turns the whole read into Latin-1, so a title or cwd with an accent keeps it. `./test.sh know` checks a 1.8 MB transcript for both.
+
+### Before and after
+
+`bench idle --seconds 420 --warmup 0`, the base and this branch side by side, each in a fixture home: the TMPDIR and agent scratch of the scan above as the clutter root, four git checkouts as the roots, and 12 fake Claude Code transcripts of 47 MB in all, the largest 20 MB, as on this Mac. A script appended a line to the two largest every 2 seconds, as two working agents do. 789 processes, load average 3 to 6, with other agents building.
+
+| | Before | After |
+| --- | --- | --- |
+| Peak footprint | 1061 MB, at the scan at 300 s | 18.9 MB |
+| Footprint after the scan | 530 MB for a while, 21 MB at the end | 13.9 MB |
+| CPU over the 420 s | 2.15 % | 0.99 % |
+| CPU from 60 to 240 s, before the scan | 1.07 % | 0.56 % |
+| The busiest minute | 8.1 %, the scan | 2.9 % |
+| Builds | 542 | 345 |
+| CPU a tick, from one pass to the next, median and mean | 55.6 and 105.9 ms | 29.8 and 48.4 ms |
+| The facts of a build | 4.17 ms | 2.14 ms |
+
+A second pair of runs, the clutter fix alone against the base, read 1049 MB and 21.8 MB at the peak, and the same 0.97 % before the scan, so the CPU before the scan comes from the sessions change.
+
+### What is left
+
+- The menu window. The installed app's `footprint` after the peak read 58 MB of IOSurface and 41 MB of owned graphics memory, about half of its 192 MB. The window list showed the menu panel, 1020 by 728 points, off screen: `MMWindowPanel` is made at the first open and kept with its layers after it closes. Letting it go some time after it closes, and making it again at the next open, would take most of that back. It is not done here, since its first frame then needs a new model, and the bench draws no window.
+- The idle CPU is still over the 0.3 % budget on this Mac: 0.56 % in the window above. Most builds come from passes whose facts changed, since 789 processes move between CPU bands. Noo-Noo and WorkForest have no input digest, so each build makes their findings again: 1.1 and 0.8 ms.
+- The clutter scan still stats and judges every member each hour, about 0.6 s of CPU in the fixture, most of it `wallFor:` and `NeverHits`, which glob each never path for each member.
+
 ## The last hour in memory
 
 `bench history` fills `Graph/MMHistory.h` to its caps: 250 trees for 60 minutes, so 198 tree rings plus the Mac and the disk, with every state slot and all 256 subagent slots full. Then it makes 20 copies, as 20 builds would, and holds the last two. The app holds two as well: the graph's latest snapshot and main's current one, one build apart. The budget `historyKB` in `tools/bench/budgets.json` is 1 MB of footprint growth.

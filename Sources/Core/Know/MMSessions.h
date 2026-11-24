@@ -49,6 +49,9 @@
 
 /// Posted on the sessions watch queue after FSEvents saw a change in a session folder. Core asks for a rebuild.
 extern NSNotificationName const MMSessionsDidChangeNotification;
+/// In the post's userInfo: @YES when every change was inside Claude Code's projects folder, its transcripts, and no
+/// event was dropped. Issue #52: Core then leaves the change to the next pass's build, at most 30 seconds apart.
+extern NSString *const MMSessionsTranscriptsOnlyKey;
 
 /// P22. One agent event, kept small: the event name, session id, cwd, parent pid and time. Nothing else is kept.
 @interface MMAgentEvent : NSObject
