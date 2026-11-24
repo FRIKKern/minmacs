@@ -94,12 +94,32 @@ static void PrintJSON(id obj) {
 
 static int Usage(NSString *usage) { Err([@"usage: " stringByAppendingString:usage]); return 2; }
 
-static BOOL Confirm(NSString *q) {
-    // A verb handed to the app has no terminal to ask on.
-    if (CurrentArgs().inApp) { Err(@"add --yes, since MinMacs cannot ask from here"); return NO; }
+/// What a confirm on the command line came to.
+typedef NS_ENUM(NSInteger, MMLHAnswer) { MMLHYes, MMLHNo, MMLHRefused };
+
+/// Asks y/N on the terminal, only when a person sits at it. D3: with nobody there nothing is read and nothing waits.
+/// A plain stop sends SIGTERM and keeps a way back, since Undo starts the server again, so it goes ahead as --yes
+/// would. --force sends SIGKILL, which takes what the server held with it, so it is refused until --yes says so.
+static MMLHAnswer Confirm(NSString *q, BOOL force) {
+    MMArgs *raw = CurrentArgs();
+    BOOL noPerson = raw ? raw.noPerson : MMNoPersonAtTerminal();
+    if (noPerson) {
+        if (!force) return MMLHYes;
+        Err(@"not stopped: --force sends SIGKILL, and nobody is at the terminal to confirm it. Add --yes to send it");
+        return MMLHRefused;
+    }
+    // A verb handed to the app has no terminal to ask on, and with MINMACS_UNATTENDED=0 and no TTY nothing is read.
+    if (raw.inApp || !isatty(STDIN_FILENO)) { Err(@"not stopped: add --yes, since MinMacs cannot ask from here"); return MMLHRefused; }
     printf("%s [y/N] ", q.UTF8String); fflush(stdout);
     char buf[8] = {0};
-    return fgets(buf, sizeof buf, stdin) && (buf[0] == 'y' || buf[0] == 'Y');
+    return fgets(buf, sizeof buf, stdin) && (buf[0] == 'y' || buf[0] == 'Y') ? MMLHYes : MMLHNo;
+}
+
+/// The exit of a confirm that did not say yes: 2 for a refusal that names what to add, 1 for a person's no.
+static int NotConfirmed(MMLHAnswer answer) {
+    if (answer == MMLHRefused) return 2;
+    Print(@"aborted");
+    return 1;
 }
 
 #pragma mark - Ports
@@ -646,8 +666,11 @@ static int Idle(MMLHArgs *a, BOOL close) {
     }
     if (!c.count) { if (a.json) PrintJSON(@{@"results": @[]}); else Print(@"nothing confirmed idle"); return 0; }
     if (!close) { Outf("%s confirmed idle · %s\n", MMPlural(c.count, @"server").UTF8String, MMBytes(mem).UTF8String); return 0; }
-    if (!a.yes && !a.dry && !Confirm([NSString stringWithFormat:@"Stop %@, %@?%@", MMPlural(c.count, @"server"), MMBytes(mem),
-                                      a.force ? @" Servers that ignored SIGTERM before get SIGKILL." : @""])) { Print(@"aborted"); return 1; }
+    if (!a.yes && !a.dry) {
+        MMLHAnswer answer = Confirm([NSString stringWithFormat:@"Stop %@, %@?%@", MMPlural(c.count, @"server"), MMBytes(mem),
+                                     a.force ? @" Servers that ignored SIGTERM before get SIGKILL." : @""], a.force);
+        if (answer != MMLHYes) return NotConfirmed(answer);
+    }
     return Stop(c, a, @"Close Idle");
 }
 
@@ -657,7 +680,10 @@ static int Close(MMLHArgs *a) {
     MMFinding *f = FindPort(s, a.arg1);
     if (!f) { Err([@"no localhost on " stringByAppendingString:a.arg1]); return 1; }
     MMLHHost *h = Host(f);
-    if (!a.yes && !a.dry && !Confirm([NSString stringWithFormat:@"Stop :%ld %@ in %@, pid %d?", (long)h.port, h.framework, h.project, h.pid])) { Print(@"aborted"); return 1; }
+    if (!a.yes && !a.dry) {
+        MMLHAnswer answer = Confirm([NSString stringWithFormat:@"Stop :%ld %@ in %@, pid %d?", (long)h.port, h.framework, h.project, h.pid], a.force);
+        if (answer != MMLHYes) return NotConfirmed(answer);
+    }
     return Stop(@[f], a, @"stopped from the CLI");
 }
 

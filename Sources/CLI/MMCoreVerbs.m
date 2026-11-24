@@ -1,5 +1,5 @@
 // Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore, history, gains, mode,
-// removal, self, device and quiet.
+// removal, self, device, unattended and quiet.
 // Each reads the snapshot and the Store through Core. None samples, scans or asks the model on its own.
 // Experts add hosts, apps and their other verbs through -[MMExpert verbs].
 #import "CLI/MMCLI.h"
@@ -708,6 +708,26 @@ static int Removal(MMArgs *a) {
     return 0;
 }
 
+/// unattended: D3, whether this Mac runs with nobody at it, the pref core.unattended. A pref, as mode is, so it needs
+/// no app. Run in the app, it also skips a welcome nobody will answer, MMUnattendedChangedNotification.
+static int Unattended(MMArgs *a) {
+    NSString *w = [a word:0].lowercaseString;
+    if (w && ![w isEqualToString:@"on"] && ![w isEqualToString:@"off"]) return [a usageError];
+    if (w && !a.dryRun) {
+        MMSetSetting(MMUnattendedKey, [w isEqualToString:@"on"] ? @YES : @NO, @"cli");
+        if (a.inApp) [NSNotificationCenter.defaultCenter postNotificationName:MMUnattendedChangedNotification object:nil];
+    }
+    BOOL pref = w && a.dryRun ? [w isEqualToString:@"on"] : MMPrefBool(MMUnattendedKey, NO);
+    NSString *env = NSProcessInfo.processInfo.environment[@"MINMACS_UNATTENDED"];
+    BOOL now = [env isEqualToString:@"1"] ? YES : [env isEqualToString:@"0"] ? NO : pref;
+    if (a.json) { [a printJSON:@{@"unattended": @(now), @"pref": @(pref), @"env": env.length ? env : NSNull.null}]; return 0; }
+    [a print:@"%@", now ? @"on: nothing waits for a person, no confirm is shown and the welcome is skipped"
+                        : @"off: a person's own press in the window or a menu may still be confirmed"];
+    if (env.length && ([env isEqualToString:@"1"] || [env isEqualToString:@"0"]) && now != pref)
+        [a print:@"MINMACS_UNATTENDED=%@ in this environment decides over the pref, which is %@.", env, pref ? @"on" : @"off"];
+    return 0;
+}
+
 /// The spec with what a cold run reads and the forms that change things.
 static MMVerbSpec *Reads(MMVerbSpec *v, MMVerbReads reads, NSArray<NSString *> *forms) { v.reads = reads; v.mutatingForms = forms; return v; }
 
@@ -743,6 +763,8 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsNoWorktrees, @[@"--delete", @"--put-back", @"--close"]),
             Reads([MMVerbSpec verb:@"self" usage:@"self [--window <seconds>] [--json]   what the running MinMacs app costs this Mac: its CPU now and since launch, the tools it ran, memory, disk writes and wakeups, against its budgets" mutates:NO run:^(MMArgs *a) { return MMSelfVerb(a); }], MMVerbReadsNoWorktrees, nil),
             device[0], device[1],
+            Reads([MMVerbSpec verb:@"unattended" usage:@"unattended [on|off] [--json]   show or set whether this Mac runs with nobody at it: then nothing waits for a person, no confirm is shown and the welcome is skipped; MINMACS_UNATTENDED=1 or 0 decides over it for one process" mutates:NO run:^(MMArgs *a) { return Unattended(a); }],
+                  MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }], MMVerbReadsNoWorktrees, nil),

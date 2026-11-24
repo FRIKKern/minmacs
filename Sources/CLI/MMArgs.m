@@ -56,6 +56,7 @@ static NSSet<NSString *> *ValueFlags(NSString *usage) {
 - (BOOL)dryRun { return [self.flags containsObject:@"--dry-run"]; }
 - (NSString *)word:(NSUInteger)i { return i < self.words.count ? self.words[i] : nil; }
 - (BOOL)has:(NSString *)flag { return [self.flags containsObject:flag]; }
+- (BOOL)yesKeepingAWayBack { return [self has:@"--yes"] || self.noPerson; }
 - (NSString *)option:(NSString *)flag { return self.values[flag]; }
 
 - (MMSnapshot *)snapshot {
