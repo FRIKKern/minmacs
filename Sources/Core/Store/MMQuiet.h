@@ -37,7 +37,7 @@ extern NSString *const MMLogQuietTable;                // @"quiet"
 /// The holds whose process still runs, by its start time, oldest first. Reads holds.json again only when it changed.
 /// Safe from any queue; never blocks on another process.
 NSArray<MMQuietHolder *> *MMQuietHolders(void);
-/// nil when no quiet hold is active, else "a quiet hold is active for <reason> (pid N)", naming the oldest and how
+/// nil when no quiet hold is active, else "a quiet hold is active for <reason>, pid N", naming the oldest and how
 /// many more. MMPlan and MMRunAction read it.
 NSString *MMQuietWhy(void);
 

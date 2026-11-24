@@ -76,7 +76,7 @@ check "quiet: a cold device run says the hold keeps the Mac awake" True \
 
 qt_tool auto locohost "$qt_P" >"$qt/lh.json" 2>"$qt/lh.err"
 check "quiet: Eager plans no stop of the server" False "$(json "j['act']" <"$qt/lh.json")"
-check "quiet: and says why" True "$(json "'a quiet hold is active for $qt_reason (pid $qt_s1)' in j['why']" <"$qt/lh.json")"
+check "quiet: and says why" True "$(json "'a quiet hold is active for $qt_reason, pid $qt_s1' in j['why']" <"$qt/lh.json")"
 check "quiet: an Eager run of the stop is refused in MMRunAction" "False True" \
   "$(json "'%s %s' % (j['ran'], j['error'].startswith('kept: a quiet hold is active'))" <"$qt/lh.json")"
 check "quiet: the server still listens" 0 "$("$PORT" listening "$qt_P"; echo $?)"
@@ -106,6 +106,9 @@ qt_until "j['active'] and j['holders'][0]['pid'] == $qt_s2"
 check "quiet: a second hold is active" 0 "$?"
 qt_wait_asserts PreventUserIdleDisplaySleep 1
 check "quiet: its assertions are there" "1 1" "$(qt_asserts PreventUserIdleSystemSleep) $(qt_asserts PreventUserIdleDisplaySleep)"
+qt_env MINMACS_COLD=1 "$BIN" log --json --limit 100 >"$qt/log-held.json" 2>/dev/null
+check "quiet: the log says a hold lasts, with its pid set off by commas" 1 \
+  "$(json "len([e for e in j['entries'] if e['kind'] == 'quiet' and __import__('re').match(r'Quiet for $qt_reason, pid $qt_s2, since [0-9]{2}:[0-9]{2}\. It lasts while that process runs\.$', e['sentence'])])" <"$qt/log-held.json")"
 # Fix Everything presses still run: a manual stop of the fixture server goes through, and the run says why it may.
 qt_tool auto locohost "$qt_P" --by manual >"$qt/manual.json" 2>"$qt/manual.err"
 check "quiet: a stop the person asks for still runs" True "$(json "j['ran']" <"$qt/manual.json")"
@@ -125,7 +128,9 @@ echo "-- the log"
 qt_env MINMACS_COLD=1 "$BIN" log --json --limit 100 >"$qt/log.json" 2>"$qt/log.err"
 check "quiet: log --json reads the test home" 0 "$?"
 check "quiet: one entry per hold, from its start to its end" 2 \
-  "$(json "len([e for e in j['entries'] if e['kind'] == 'quiet' and __import__('re').match(r'Quiet for $qt_reason \(pid [0-9]+\), [0-9]{2}:[0-9]{2} to [0-9]{2}:[0-9]{2}\.$', e['sentence'])])" <"$qt/log.json")"
+  "$(json "len([e for e in j['entries'] if e['kind'] == 'quiet' and __import__('re').match(r'Quiet for $qt_reason, pid [0-9]+, [0-9]{2}:[0-9]{2} to [0-9]{2}:[0-9]{2}\.$', e['sentence'])])" <"$qt/log.json")"
+check "quiet: no quiet sentence holds a parenthesis, as docs/DESIGN.md asks" 0 \
+  "$(json "len([e for e in j['entries'] if e['kind'] == 'quiet' and ('(' in e['sentence'] or ')' in e['sentence'])])" <"$qt/log.json")"
 check "quiet: who ended each" "from the command line|when its process ended" \
   "$(json "'|'.join(sorted(e['who'] for e in j['entries'] if e['kind'] == 'quiet'))" <"$qt/log.json")"
 check "quiet: each hold has an undo record of kind quiet" 2 \

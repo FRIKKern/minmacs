@@ -234,7 +234,7 @@ static void PrintHolders(MMArgs *a) {
     }
     if (!hs.count) { [a print:@"No quiet hold. Every expert acts as its mode says."]; return; }
     for (MMQuietHolder *h in hs)
-        [a print:@"Quiet for %@ (pid %d) since %@%@", h.reason, h.key.pid, MMAgo(h.since),
+        [a print:@"Quiet for %@, pid %d, since %@%@", h.reason, h.key.pid, MMAgo(h.since),
                  h.awake ? @", the Mac and display held awake" : @", nothing holds the Mac awake: MinMacs is not running"];
 }
 

@@ -156,7 +156,11 @@ static MMWindowLogEntry *UndoEntry(MMLogEntry *row, NSDictionary<NSString *, NSN
     if ([r.kind isEqualToString:@"quiet"] && r.state == MMUndoDone) {
         if ([newer containsObject:[r.rid stringByAppendingString:@"#quiet-ended"]]) return nil;
         NSString *s = r.subject.length ? r.subject : @"Quiet";
-        return Entry(row, @"quiet", [NSString stringWithFormat:@"%@ since %@. It lasts while that process runs.", s, Clock(row.at)], who, now);
+        // A hold taken by an older MinMacs named its pid in parentheses, which the window's words never hold.
+        s = [s stringByReplacingOccurrencesOfString:@" \\(pid ([0-9]+)\\)" withString:@", pid $1"
+                                            options:NSRegularExpressionSearch range:NSMakeRange(0, s.length)];
+        NSString *comma = [s rangeOfString:@", pid "].location != NSNotFound ? @"," : @"";
+        return Entry(row, @"quiet", [NSString stringWithFormat:@"%@%@ since %@. It lasts while that process runs.", s, comma, Clock(row.at)], who, now);
     }
     switch (r.state) {
         case MMUndoRestored: return Entry(row, @"restored", Sentence(back), who, now);
@@ -252,13 +256,13 @@ static MMWindowLogEntry *KeepEntry(MMLogEntry *row, NSDate *now) {
     return Entry(row, @"keep", s, [by isEqualToString:@"manual"] ? @"by you in a menu" : Who(by, nil), now);
 }
 
-/// A quiet hold that ended: "Quiet for a screen recording (pid 4123), 12:03 to 12:41."
+/// A quiet hold that ended: "Quiet for a screen recording, pid 4123, 12:03 to 12:41." No parentheses: docs/DESIGN.md.
 static MMWindowLogEntry *QuietEndEntry(MMLogEntry *row, NSDate *now) {
     NSDictionary *b = row.body;
     NSString *reason = Str(b[@"reason"]) ?: @"a task";
     NSInteger pid = [b[@"pid"] integerValue];
     NSNumber *since = [b[@"since"] isKindOfClass:NSNumber.class] ? b[@"since"] : nil, *until = [b[@"until"] isKindOfClass:NSNumber.class] ? b[@"until"] : nil;
-    NSString *what = [NSString stringWithFormat:@"Quiet for %@ (pid %ld)", reason, (long)pid];
+    NSString *what = [NSString stringWithFormat:@"Quiet for %@, pid %ld", reason, (long)pid];
     NSString *how = Str(b[@"how"]), *s, *who;
     NSString *from = since ? Clock([NSDate dateWithTimeIntervalSince1970:since.doubleValue]) : nil;
     if (from && until) s = [NSString stringWithFormat:@"%@, %@ to %@.", what, from, Clock([NSDate dateWithTimeIntervalSince1970:until.doubleValue])];
