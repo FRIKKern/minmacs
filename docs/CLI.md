@@ -8,6 +8,10 @@ python3 -I test/docs/clidoc.py build/MinMacs.app/Contents/MacOS/MinMacs > docs/C
 
 The app binary is also the command line tool. `install.sh` and `build.sh --install` link it as `~/.local/bin/minmacs`. When the app runs, the CLI hands each verb to it over `core.sock` in the support folder. When no app answers, it builds a snapshot itself and answers from that.
 
+## Nobody at the terminal
+
+No verb ever waits for a person, decision D3. When stdin is not a TTY, or `MINMACS_UNATTENDED=1` is set, or `minmacs unattended on` was run, the CLI reads nothing from stdin. A change that keeps a way back, such as a worktree removal or a plain stop that Undo starts again, goes ahead as `--yes` would. One that does not is not done without `--yes`: `locohost close --force`, a SIGKILL, is refused with a message that names what to add and exit 2, and `investigate` only shows what a run would cost. `MINMACS_UNATTENDED=0` says a person is here: then nothing is read without a TTY either, and a verb that would ask refuses instead.
+
 ## Exit codes
 
 - **0.** OK.
@@ -274,6 +278,22 @@ A quiet hold gives one task peace while its process runs, such as a screen recor
 - Every hold and its end is in `minmacs log`: "Quiet for screen recording (pid 4123), 12:03 to 12:41.", and while it lasts "Quiet for screen recording (pid 4123) since 12:03. It lasts while that process runs."
 
 `quiet --json` prints `{active, holders, kept}`. Each holder is `{pid, reason, since, by, rid, awake}`: `since` in seconds since 1970, `by` who asked, `rid` its undo record, and `awake` whether the MinMacs process that took it still runs and holds the Mac and display awake. `kept` is what this process holds assertions for, in the app, or null. `device --json` gives the same holders as `quiet`.
+
+#### `unattended`
+
+Show or set whether this Mac runs with nobody at it: then nothing waits for a person, no confirm is shown and the welcome is skipped; MINMACS_UNATTENDED=1 or 0 decides over it for one process.
+
+```
+unattended [on|off] [--json]
+```
+
+Flags: `--json`.
+
+`on` is for a Mac that runs with nobody at it, driven by an agent such as BarkBot. Then no confirm is shown, even for a press in the window or a menu, a failure is a notice in the log with at most one notification, and the welcome is skipped, at once when the app runs and else at its next launch: Open at login is turned on and the log says the welcome was skipped. The pref is `core.unattended`, and each change is a row of the log by `cli`.
+
+`MINMACS_UNATTENDED=1` in a process's environment makes that process unattended whatever the pref holds, and `MINMACS_UNATTENDED=0` makes it attended. `--json` prints `{"unattended", "pref", "env"}`: what holds now, the pref, and the environment's word or null.
+
+The one prompt MinMacs cannot take away is macOS's own: the administrator password for the lid rule, the first time lid mode is turned on, and only on that explicit turn, such as `insomnia lid on`. A fleet Mac takes it once at setup.
 
 #### `version`
 
