@@ -4,7 +4,7 @@
 #import <sys/file.h>
 #import <sys/stat.h>
 #import <sys/sysctl.h>
-#import "Core/Act/MMQuiet.h"
+#import "Core/Store/MMQuiet.h"
 #import "Core/Act/MMAct.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"

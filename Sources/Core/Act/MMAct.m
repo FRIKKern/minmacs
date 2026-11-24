@@ -8,7 +8,7 @@
 #import <sys/mount.h>
 #import <sys/sysctl.h>
 #import "Core/Act/MMAct.h"
-#import "Core/Act/MMQuiet.h"
+#import "Core/Store/MMQuiet.h"
 #import "Core/Store/MMGains.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"

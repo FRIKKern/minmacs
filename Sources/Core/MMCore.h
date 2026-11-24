@@ -26,7 +26,7 @@
 #import "Core/Act/MMUndo.h"
 #import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMAct.h"
-#import "Core/Act/MMQuiet.h"
+#import "Core/Store/MMQuiet.h"
 #import "Core/Act/MMWorktreeAct.h"
 #import "Core/Act/MMClutterAct.h"
 #import "Core/MMExpert.h"

@@ -136,7 +136,7 @@ echo "-- invariants in the source"
 check "quiet: the check sits in the shared plan and run, not in an expert" "1 1" \
   "$(grep -c 'if (act && quiet)' Sources/Core/Act/MMAct.m) $(grep -c 'problem = \[@"kept: " stringByAppendingString:quiet\]' Sources/Core/Act/MMAct.m)"
 check "quiet: no expert asks for quiet itself" 0 "$(grep -ln 'MMQuiet' Sources/Experts/*/*.m | grep -c .)"
-check "quiet: it never signals" 0 "$(grep -nE 'kill\(|MMStop\(|MMQuitApps\(|terminate' Sources/Core/Act/MMQuiet.m | grep -c .)"
-check "quiet: it never runs pmset" 0 "$(grep -n 'pmset' Sources/Core/Act/MMQuiet.m | grep -c .)"
+check "quiet: it never signals" 0 "$(grep -nE 'kill\(|MMStop\(|MMQuitApps\(|terminate' Sources/Core/Store/MMQuiet.m | grep -c .)"
+check "quiet: it never runs pmset" 0 "$(grep -n 'pmset' Sources/Core/Store/MMQuiet.m | grep -c .)"
 kill "$qt_s1" 2>/dev/null; qt_unproc "$qt_s1"
 # ===== end of quiet =====

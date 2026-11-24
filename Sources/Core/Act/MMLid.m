@@ -2,7 +2,7 @@
 // The rule file and the two commands it allows are the same as Insomnia's, so a Mac that has the rule keeps it.
 // Nothing here reads the override. MMPower.lidOverride reads it from IOKit.
 #import "Core/Act/MMAct.h"
-#import "Core/Act/MMQuiet.h"
+#import "Core/Store/MMQuiet.h"
 #import "Core/Know/MMGit.h"
 #include <fcntl.h>
 #include <spawn.h>
