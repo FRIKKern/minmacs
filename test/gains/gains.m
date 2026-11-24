@@ -312,15 +312,23 @@ static void Seeded(void) {
 
 // A removal whose size was not measured.
 #import "unsized.m"
+#import "twice.m"
 
 int main(int argc, char **argv) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: gainstest <fixture> <dir> [unsized]\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: gainstest <fixture> <dir> [unsized|twice]\n"); return 2; }
         gFixture = @(argv[1]); gDir = @(argv[2]);
         gStarted = [NSMutableArray new];
         if (!NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) { fprintf(stderr, "MINMACS_HOME is not set\n"); return 2; }
         MMGraph.shared.source = [GNSource new];
         if (argc > 3 && !strcmp(argv[3], "unsized")) { Unsized(); printf("END\n"); return 0; }
+        if (argc > 3 && !strcmp(argv[3], "twice")) {
+            Twice();
+            for (NSValue *v in gStarted) { MMProcKey k; [v getValue:&k size:sizeof k]; if (MMProcAlive(k)) kill(k.pid, SIGKILL); }
+            Reap();
+            printf("END\n");
+            return 0;
+        }
         Actions();
         Seeded();
         // Stop only what this test started, and only while its start time still matches.

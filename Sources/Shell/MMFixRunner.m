@@ -105,10 +105,12 @@ NSString *MMFixStepAction(NSString *kind) {
     for (MMPerformanceFix *f in _p.fixes) {
         if (f.needsYou) { needYou++; continue; }
         [fixes addObject:f];
-        _memoryPlanned += f.memoryBack; _diskPlanned += f.diskBack;
+        _diskPlanned += f.diskBack;
         // A fix with a part not measured yet adds only its measured parts, so until it landed the sum is no total.
         if (f.diskPartial) _unmeasuredLeft++;
     }
+    // Memory planned counts each process once: a server's stop and its app's quit would end that server once.
+    _memoryPlanned = _p.memoryBackOnce;
     _total = (NSInteger)fixes.count;
     BOOL treesMoved = NO;
     NSInteger notRun = 0, notReached = 0;

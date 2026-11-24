@@ -59,6 +59,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run planned
   echo "-- an agent that serves a port of its own"
   wn_run agentport
+  echo "-- a server under an app, both in fixes: memory back counts it once"
+  wn_run overlap
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null

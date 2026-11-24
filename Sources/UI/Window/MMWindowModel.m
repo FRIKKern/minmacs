@@ -451,7 +451,10 @@ NSString *MMWindowLogNote(BOOL empty, NSString *left) {
     return nil;
 }
 
-- (uint64_t)memoryBack { uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.memoryBack; return n; }
+- (uint64_t)memoryBack {
+    if (self.memoryBackOnce) return self.memoryBackOnce.unsignedLongLongValue;
+    uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.memoryBack; return n;
+}
 - (uint64_t)diskBack { uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.diskBack; return n; }
 - (BOOL)diskBackPartial { for (MMWindowFix *f in self.fixes) if (!f.needsYou && f.diskPartial) return YES; return NO; }
 - (NSInteger)fixCount { NSInteger n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n++; return n; }

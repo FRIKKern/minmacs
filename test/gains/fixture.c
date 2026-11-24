@@ -1,6 +1,7 @@
-// A fixture process for test/gains.sh. Usage: fixture <megabytes> [seconds]
+// A fixture process for test/gains.sh. Usage: fixture <megabytes> [seconds] [child megabytes]
 // It touches the given megabytes, so its footprint is known, then sleeps. It exits on its own after the given
-// seconds or as soon as its parent goes away, so a crashed test never leaves it running.
+// seconds or as soon as its parent goes away, so a crashed test never leaves it running. With child megabytes it
+// first forks one child that does the same with those, as a dev server runs under the app it rolls up into.
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -9,6 +10,7 @@
 int main(int argc, char **argv) {
     size_t mb = argc > 1 ? (size_t)atoi(argv[1]) : 0;
     int seconds = argc > 2 ? atoi(argv[2]) : 30;
+    if (argc > 3 && atoi(argv[3]) > 0 && fork() == 0) mb = (size_t)atoi(argv[3]);   // the child, which watches its own parent
     char *block = mb ? malloc(mb << 20) : NULL;
     if (block) memset(block, 1, mb << 20);
     pid_t parent = getppid();
