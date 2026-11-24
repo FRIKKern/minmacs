@@ -32,10 +32,11 @@ NSString *MMFixStepAction(NSString *kind) {
     NSInteger _unmeasuredLeft;                  // fixes with a part not measured yet that have not landed
     BOOL _recovered;
     NSMutableArray<MMUndoRecord *> *_removed;   // each finished record of the run, a Wrap Up as its parts
+    NSMutableArray<NSDictionary *> *_notReached; // what a stop left, as the run row's skips
 }
 
 - (instancetype)initWithPerformance:(MMPerformance *)p {
-    if ((self = [super init])) { _p = p; _results = [NSMutableArray new]; _removed = [NSMutableArray new]; }
+    if ((self = [super init])) { _p = p; _results = [NSMutableArray new]; _removed = [NSMutableArray new]; _notReached = [NSMutableArray new]; }
     return self;
 }
 
@@ -113,7 +114,7 @@ NSString *MMFixStepAction(NSString *kind) {
     BOOL treesMoved = NO;
     NSInteger notRun = 0, notReached = 0;
     for (MMPerformanceFix *f in fixes) {
-        if (atomic_load(&_stop)) { notRun++; continue; }
+        if (atomic_load(&_stop)) { notRun++; [self notReached:f from:0]; continue; }
         BOOL landed = NO, sizeUnknown = NO;   // sizeUnknown: a thing not measured was kept or failed, so its size is still not known
         uint64_t diskWas = _diskBack;
         if (f.wrapUp) {
@@ -146,6 +147,7 @@ NSString *MMFixStepAction(NSString *kind) {
             // Stopped inside the fix: it is not done. What it did stays in the results, and the rest is counted as not reached.
             NSInteger left = (NSInteger)f.actions.count - reached;
             if (left > 0) {
+                [self notReached:f from:reached];
                 landed = NO;
                 if (reached) notReached += left; else notRun++;
             }
@@ -169,11 +171,45 @@ NSString *MMFixStepAction(NSString *kind) {
     end.running = NO;
     end.endTitle = MMWindowEndTitle(_done, _total);
     end.endNote = [self endNote:needYou notRun:notRun notReached:notReached];
+    [self logRun];
     // A stop asked for before the run began is kept, so it ends the run at once. It is spent here, at the end.
     atomic_store(&_stop, false);
     atomic_store(&_running, false);
     [self tell:end];
     return end;
+}
+
+/// The things of a fix from its index on, which a stop left. A Wrap Up is one thing.
+- (void)notReached:(MMPerformanceFix *)f from:(NSInteger)index {
+    if (f.wrapUp) {
+        NSString *name = f.wrapUp.subject.worktree.branch.length ? f.wrapUp.subject.worktree.branch : f.wrapUp.subject.path.lastPathComponent;
+        [_notReached addObject:MMLogRunSkip(name, @"the run was stopped before it", @"stopped")];
+        return;
+    }
+    for (NSInteger i = index; i < (NSInteger)f.actions.count; i++)
+        [_notReached addObject:MMLogRunSkip(MMWindowNameOf(f.actions[(NSUInteger)i].finding), @"the run was stopped before it", @"stopped")];
+}
+
+/// The run's row in the log, MMLogRun: what it planned, what it did, and each thing it skipped with why. The agents
+/// that ask and the fixes that wait for their own press are skipped as the end note says.
+- (void)logRun {
+    NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
+    NSInteger planned = 0, done = 0;
+    for (MMPerformanceGroup *g in _p.memoryGroups) for (MMPerformanceRow *r in g.rows)
+        if (r.needsYou) [skipped addObject:MMLogRunSkip(r.name, @"it asks you", @"asks")];
+    for (MMPerformanceFix *f in _p.fixes) {
+        planned += f.wrapUp ? 1 : (NSInteger)f.actions.count;
+        if (!f.needsYou) continue;
+        for (id<MMAction> a in f.actions) [skipped addObject:MMLogRunSkip(MMWindowNameOf(a.finding), @"it waits for your own press", @"press")];
+    }
+    for (MMFixResult *x in self.results) {
+        if ([x.outcome isEqualToString:@"done"]) { done++; continue; }
+        NSString *why = x.why.length ? x.why : nil;
+        if ([why hasPrefix:@"kept: "]) why = [why substringFromIndex:6];
+        [skipped addObject:MMLogRunSkip(x.name, why, x.outcome)];
+    }
+    [skipped addObjectsFromArray:_notReached];
+    MMLogRun(MMLogRunFixEverything, @"manual", planned, done, skipped, _memoryBack, _diskBack);
 }
 
 /// One or two short sentences: what was skipped and why, then where removed things went in this run, counted from the

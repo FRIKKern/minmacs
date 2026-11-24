@@ -19,7 +19,8 @@ static NSArray<NSArray *> *WindowPolishShots(void) {
 }
 
 @interface PolishHost : NSObject <MMWindowHost>
-@property NSInteger stops, fixes, rules, switches, lastPicked;
+@property NSInteger stops, fixes, rules, switches, lastPicked, undos;
+@property (copy) NSString *lastUndo;
 @property (copy) NSString *lastRule;
 @end
 @implementation PolishHost
@@ -28,6 +29,7 @@ static NSArray<NSArray *> *WindowPolishShots(void) {
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice { self.rules++; self.lastRule = ruleID; self.lastPicked = choice; }
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on { self.switches++; }
 - (void)windowQuit {}
+- (void)windowUndo:(NSString *)rid { self.undos++; self.lastUndo = rid; }
 - (void)windowWelcomeStart:(BOOL)openAtLogin {}
 @end
 

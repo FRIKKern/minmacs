@@ -474,12 +474,20 @@ static void RunOffMain(dispatch_block_t block) {
         NSMutableArray<MMUndoRecord *> *recs = [NSMutableArray new];
         uint64_t freed = 0;
         NSString *lastRid = nil;
+        NSInteger planned = 0;
+        NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
         for (MMPlanEntry *e in MMPlan(findings, facts, r, mode, self.policy)) {
             if (!e.act) continue;
+            planned++;
             id<MMAction> a = [self actionFor:e.finding step:MMStopTerm];
             NSString *err = nil;
             MMUndoRecord *rec = a ? MMRunAction(a, self.policy, r, MMModeName(mode), e.why, &err) : nil;
-            if (rec.state != MMUndoDone) continue;
+            if (rec.state != MMUndoDone) {
+                NSString *why = !a ? @"MinMacs has no action for it" : rec ? (rec.error ?: err) : err;
+                BOOL kept = !rec && [why hasPrefix:@"kept: "];
+                [skipped addObject:MMLogRunSkip(e.finding.title, kept ? [why substringFromIndex:6] : why, kept ? @"kept" : rec ? @"failed" : @"blocked")];
+                continue;
+            }
             [done addObject:e.finding.title];
             [recs addObject:rec];
             freed += e.finding.cost.diskFreed;
@@ -487,6 +495,8 @@ static void RunOffMain(dispatch_block_t block) {
             if (rec.canRestore) lastRid = rec.rid;
         }
         [self forgetUndo];
+        // The pass's row in the log, when it planned anything: what it did and what it skipped, with why.
+        if (planned) MMLogRun(kExpert, MMModeName(mode), planned, (NSInteger)done.count, skipped, 0, freed);
         if (!done.count) return;
         // The words say where each thing went in this run, from its record: deleted, or to the Trash.
         NSString *title = [NSString stringWithFormat:@"Cleaned Up %@", MMPlural((NSInteger)done.count, @"Item").capitalizedString];

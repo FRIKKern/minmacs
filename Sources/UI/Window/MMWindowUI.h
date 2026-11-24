@@ -24,6 +24,9 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 - (void)windowWelcomeStart:(BOOL)openAtLogin;
 /// The power icon, or Command and Q.
 - (void)windowQuit;
+/// A press on Undo in the log: take back the record rid, as the notification's Undo does. Only an entry that can
+/// still be taken back carries the press.
+- (void)windowUndo:(NSString *)rid;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,

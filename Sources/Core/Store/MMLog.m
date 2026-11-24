@@ -296,6 +296,23 @@ void MMSetSetting(NSString *key, id value, NSString *by) {
     MMLogSetting(key, old, value, by);
 }
 
+#pragma mark - Runs
+
+NSString *const MMLogRunTable = @"run";
+NSString *const MMLogRunFixEverything = @"fix-everything";
+
+NSDictionary *MMLogRunSkip(NSString *subject, NSString *why, NSString *as) {
+    return @{@"subject": subject.length ? subject : @"something", @"why": why.length ? why : @"it did not run", @"as": as.length ? as : @"blocked"};
+}
+
+void MMLogRun(NSString *what, NSString *by, NSInteger planned, NSInteger done, NSArray<NSDictionary *> *skipped, uint64_t memoryBack, uint64_t diskBack) {
+    if (!what.length) return;
+    NSDictionary *body = @{@"what": what, @"by": by.length ? by : @"unknown", @"planned": @(MAX(planned, 0)), @"done": @(MAX(done, 0)),
+                           @"skipped": skipped ?: @[], @"gains": @{@"memory": @(memoryBack), @"disk": @(diskBack)}};
+    NSString *expert = [what isEqualToString:MMLogRunFixEverything] ? @"core" : what;
+    MMLogWhenOpen(^(MMLog *log) { [log append:MMLogRunTable rid:nil expert:expert subject:what state:@"ended" body:body]; });
+}
+
 NSString *MMLogStamp(void) {
     NSString *base = [MMSupportDir() stringByAppendingPathComponent:@"minmacs.sqlite"];
     NSMutableString *out = [NSMutableString new];

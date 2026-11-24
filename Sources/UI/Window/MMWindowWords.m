@@ -29,7 +29,7 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
     for (MMWindowSwitch *w in m.settings.switches) { add(w.title); add(w.note); add(w.help); }
     add(m.settings.startsIn);
     add(m.log.note);
-    for (MMWindowLogEntry *e in m.log.entries) { add(e.sentence); add(e.detail); add(e.day); }
+    for (MMWindowLogEntry *e in m.log.entries) { add(e.sentence); add(e.detail); add(e.day); add(e.more); add(e.undoHelp); }
     MMWindowWelcome *w = m.welcome;
     for (NSString *x in @[w.title ?: @"", w.say ?: @"", w.loginTitle ?: @"", w.loginOnNote ?: @"", w.loginOffNote ?: @"", w.later ?: @"", w.start ?: @""]) add(x);
     for (MMWindowFact *f in w.facts) { add(f.label); add(f.value); }

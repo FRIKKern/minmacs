@@ -61,7 +61,6 @@ static void LogWords(void) {
     for (MMWindowLogEntry *e in l.entries) [got addObject:[NSString stringWithFormat:@"%@ [%@]", e.sentence, e.who ?: @"-"]];
     NSArray *want = @[
         @"Began to stop :5173 Vite site. No end is written yet. [on its own, Careful]",
-        @"Moved back from the Trash: leftovers in atlas. [from the command line]",
         @":3000 Next.js atlas is no longer kept. The rules decide for it again. [from the command line]",
         @"Kept :3000 Next.js atlas for 4 h. No rule acts on it until then. [by you in a menu]",
         @"Start was pressed in the welcome. The welcome does not come back. [by you in the welcome]",
@@ -84,10 +83,14 @@ static void LogWords(void) {
     for (MMWindowLogEntry *e in es) if (e.canUndo) [can addObject:[e.sentence componentsSeparatedByString:@"."].firstObject];
     T(@"log words: only records that can still be taken back say Undo", [@[@"Wrapped up fix-auth in 2 steps", @"Quit Chat", @"Stopped :3000 Next"] componentsJoinedByString:@" | "],
       [can componentsJoinedByString:@" | "]);
-    MMWindowLogEntry *folded = es.count > 9 ? es[9] : nil, *review = es.count > 10 ? es[10] : nil, *look = es.count > 8 ? es[8] : nil;
+    MMWindowLogEntry *folded = es.count > 8 ? es[8] : nil, *review = es.count > 9 ? es[9] : nil, *look = es.count > 7 ? es[7] : nil;
     T(@"log words: the tokens of a review, of folded reviews and of a look", @"1200 300 34000", [NSString stringWithFormat:@"%ld %ld %ld", (long)review.tokens, (long)folded.tokens, (long)look.tokens]);
+    MMWindowLogEntry *moved = es.count > 13 ? es[13] : nil;
+    T(@"log words: the restore of leftovers is told in its action's entry, with both times", @"restored yes no",
+      [NSString stringWithFormat:@"%@ %@ %@", moved.kind, YN([moved.time containsString:@", moved back "]), YN(moved.canUndo)]);
     T(@"log words: the quiet line says the time, who and the tokens", @"yes yes", [NSString stringWithFormat:@"%@ %@",
-      YN([review.detail isEqualToString:[review.time stringByAppendingString:@" · asked by you · 1,200 tokens"]]), YN([folded.time containsString:@" to "])]);
+      YN([review.detail isEqualToString:[review.time stringByAppendingString:@" · asked by you · 1,200 tokens"]]), ({ NSArray *ends = [folded.time componentsSeparatedByString:@" to "];
+          YN(folded.time.length && (ends.count == 1 || ![ends[0] isEqualToString:ends[1]])); })]);
     T(@"log words: every entry is today, with the newest row first", @"yes yes", [NSString stringWithFormat:@"%@ %@",
       YN([[NSSet setWithArray:[es valueForKey:@"day"]] isEqualToSet:[NSSet setWithObject:@"Today"]]), YN(es.firstObject.row > es.lastObject.row)]);
     NSMutableArray *shown = [NSMutableArray new];

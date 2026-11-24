@@ -72,6 +72,22 @@ void MMLogSetting(NSString *key, id old, id now, NSString *by);
 /// MMSetPref, and its row through MMLogSetting with the value it held before.
 void MMSetSetting(NSString *key, id value, NSString *by);
 
+#pragma mark Runs
+
+/// The table of runs, one row per Fix Everything run and per automatic mode pass that planned anything:
+/// {what, by, planned, done, skipped: [{subject, why, as}], gains: {memory, disk}}. Append-only, as every row.
+extern NSString *const MMLogRunTable;                   // @"run"
+/// What a run is: "fix-everything", or the expert whose mode pass it was, such as "locohost".
+extern NSString *const MMLogRunFixEverything;           // @"fix-everything"
+/// One thing a run planned and did not do. subject names it as the window does, why says why in plain words, and
+/// as is one of "asks" (an agent asks the person), "press" (it waits for the person's own press), "kept" (MustKeep
+/// held it on fresh facts), "blocked" (it could not start), "failed" or "stopped" (the run was stopped before it).
+NSDictionary *MMLogRunSkip(NSString *subject, NSString *why, NSString *as);
+/// The one writer of a run row. planned and done count things, a Wrap Up as one. by is the words MMRunAction takes:
+/// "manual" for Fix Everything, the mode's name for a mode pass. Memory and disk back are two numbers. Safe from any
+/// queue: from main in the app the write goes to the log's own queue.
+void MMLogRun(NSString *what, NSString *by, NSInteger planned, NSInteger done, NSArray<NSDictionary *> *skipped, uint64_t memoryBack, uint64_t diskBack);
+
 /// How many queries this process ran on the main thread. A menu reads what the graph already holds, so the checks
 /// hold menus and cards to zero.
 NSUInteger MMLogMainThreadQueries(void);

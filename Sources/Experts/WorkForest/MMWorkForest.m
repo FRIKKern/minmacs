@@ -1170,17 +1170,25 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     uint64_t freed = 0;
     NSString *lastRid = nil;
     NSMutableArray *lines = [NSMutableArray new];
+    NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
     for (NSArray *t in todo) {
         MMFinding *f = t[0];
         NSString *err = nil;
         MMUndoRecord *rec = MMRunAction(MMWFRemoveAction(f), MMWFModePolicy(), r, MMModeName(mode), t[1], &err);
-        if (!rec || rec.state != MMUndoDone) continue;
+        if (!rec || rec.state != MMUndoDone) {
+            NSString *why = rec ? (rec.error ?: err) : err;
+            BOOL kept = !rec && [why hasPrefix:@"kept: "];
+            [skipped addObject:MMLogRunSkip(MMWFTreeOf(f).branch ?: f.title, kept ? [why substringFromIndex:6] : why, kept ? @"kept" : rec ? @"failed" : @"blocked")];
+            continue;
+        }
         MMWFTree *tree = MMWFTreeOf(f);
         freed += rec.freedBytes > 0 ? (uint64_t)rec.freedBytes : tree.freedBytes;
         lastRid = rec.rid;
         [lines addObject:[NSString stringWithFormat:@"%@ %@", tree.repoName, tree.branch ?: tree.name]];
     }
     dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
+    // The pass's row in the log: what it planned, what it did and what it skipped, with why.
+    MMLogRun(kExpert, MMModeName(mode), (NSInteger)todo.count, (NSInteger)lines.count, skipped, 0, freed);
     if (!lines.count) return;
     NSString *title = [NSString stringWithFormat:@"Removed %@, Freed %@", MMCapitalized(MMPlural(lines.count, @"worktree")).capitalizedString, MMBytes(freed)];
     NSString *body = [NSString stringWithFormat:@"%@ removed %@. Undo recreates %@ at its commit with its saved files.",

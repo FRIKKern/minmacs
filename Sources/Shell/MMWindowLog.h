@@ -3,7 +3,7 @@
 //
 //   MMLog rows:before:limit: ──► MMWindowLogFrom ──► MMWindowLog ──► the window's middle, on main
 //   undo, review, investigate,       off main            plain values
-//   setting, keep and quiet rows
+//   setting, keep, quiet and run rows
 //
 // The window's controller reads it on its own queue, only while the window is open, and again only when
 // MMLogStamp moved. Nothing here runs on main, and nothing here acts: an entry says what happened in words.
@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MMLog, MMLogEntry, MMVerbSpec;
 
-/// The tables the log shows, in no order: undo, review, investigate, setting, keep and quiet.
+/// The tables the log shows, in no order: undo, review, investigate, setting, keep, quiet and run.
 NSArray<NSString *> *MMWindowLogTables(void);
 
 /// The entries of these rows, newest first. rows come newest first, as -[MMLog rows:before:limit:] gives them.
@@ -27,6 +27,12 @@ MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUIntege
 MMWindowLog *MMWindowLogRead(MMLog *log, NSDate *now, NSUInteger most, NSTimeInterval maxAge);
 /// How many times this process read the log for the window or the verb, for the checks.
 NSUInteger MMWindowLogReads(void);
+
+/// The log with what the window's own Undo presses changed since it was read, for the controller: an entry whose
+/// record in `undoing` is being taken back shows no press and says so, and one whose Undo did not go through says why,
+/// from `problems`, rid to what -[MMUndo restore:] answered. The entries of log are never changed: an entry that
+/// differs is a new one. Pure, and the same log when nothing differs.
+MMWindowLog *MMWindowLogWithUndo(MMWindowLog *log, NSSet<NSString *> *undoing, NSDictionary<NSString *, NSString *> *problems);
 
 /// What the window shows: the newest 300 entries, and none older than 30 days.
 extern const NSUInteger MMWindowLogMost;
