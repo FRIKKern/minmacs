@@ -6,7 +6,7 @@
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)m {
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
         @"Fix Everything", @"Stop", @"memory in use", @"disk free", @"memory back", @"disk back", @"so far",
-        @"the last hour", @"an hour ago", @"now", @"The line fills in as the hour passes.", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"This disk", @"Memory", @"Free", @"In use",
+        @"the last hour", @"an hour ago", @"now", @"Fills in as the hour passes.", @"the last", @"Today", @"Yesterday", @"min ago", @"memory back today", @"disk back today", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"This disk", @"Memory", @"Free", @"In use",
         @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"fixes", @"memory, now", @"memory in use, as now", @"just now", @"biggest", @"minutes",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     for (NSString *key in @[@"worktrees", @"caches"]) for (NSNumber *looked in @[@(MMWindowLookedNotYet), @(MMWindowLookedNowhere)])
@@ -22,6 +22,8 @@
     add(m.run.step); add(m.run.endTitle); add(m.run.endNote);
     for (MMWindowRule *r in m.settings.rules) { add(r.title); add(r.note); for (MMWindowChoice *c in r.choices) { add(c.title); add(c.explain); } }
     for (MMWindowSwitch *w in m.settings.switches) { add(w.title); add(w.note); }
+    add(m.log.note);
+    for (MMWindowLogEntry *e in m.log.entries) { add(e.sentence); add(e.detail); add(e.day); }
     MMWindowWelcome *w = m.welcome;
     for (NSString *x in @[w.title ?: @"", w.say ?: @"", w.loginTitle ?: @"", w.loginOnNote ?: @"", w.loginOffNote ?: @"", w.later ?: @"", w.start ?: @""]) add(x);
     for (MMWindowFact *f in w.facts) { add(f.label); add(f.value); }

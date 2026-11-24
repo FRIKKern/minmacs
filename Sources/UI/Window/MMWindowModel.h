@@ -4,9 +4,10 @@
 //   +-----------------------------------------------------------------+
 //   | 2 agents ask you             (folded away when nobody asks)     |
 //   +------------------+--------------------------+-------------------+
-//   | Servers      20  | Memory in use, last hour | Worktrees     16  |
-//   | Agents       16  | Disk free, last hour     | Caches         5  |
-//   | Apps, helpers 15 | (or a pointed row's story)|                   |
+//   | Servers      20  | Memory ~^~    Disk ___   | Worktrees     16  |
+//   | Agents       16  | Today                    | Caches         5  |
+//   | Apps, helpers 15 | Stopped :3000 Next.js.   |                   |
+//   |                  | (or a pointed row's story)|                   |
 //   +------------------+--------------------------+-------------------+
 //   | ring  42.4 / 64 GB   [ Fix Everything ]   3.9 GB memory back    |
 //   |       182 GB free    7 fixes, x first     31.1 GB disk back     |
@@ -340,6 +341,42 @@ NSString *MMWindowLoginNote(BOOL on);
 /// What the window and the menus say before the first numbers: "MinMacs is taking its first look. It takes a few seconds."
 extern NSString *const MMWindowLookingNote;
 
+#pragma mark - The log
+
+/// One entry of the log in the middle: one plain sentence in the window's words, and under it a quiet line with the
+/// time, who acted and the tokens a model call took. Shell/MMWindowLog.m makes them from the log's rows, off main.
+@interface MMWindowLogEntry : NSObject
+@property (copy) NSString *key;                         // stable across reads: the record's rid, or the row's number
+/// What it is: "action", "restored", "failed", "began", "review", "reviews", "investigate", "setting" or "keep".
+@property (copy) NSString *kind;
+@property (copy) NSString *sentence;                    // "Stopped :3000 Next.js. Undo starts it again."
+@property (copy) NSString *time;                        // "14:02", or "08:00 to 13:00" for folded reviews
+@property (copy, nullable) NSString *who;               // "by you in the window", "on its own, Careful". nil when not known
+@property NSInteger tokens;                             // uncached tokens of the model calls behind it, 0 for none
+@property (copy) NSString *day;                         // "Today", "Yesterday", "Monday 23 November"
+@property double at;                                    // seconds since 1970, of its newest row
+@property int64_t row;                                  // the log's newest row behind it
+/// The record can still be taken back, so the sentence says how. Words only in this slice: no button.
+@property BOOL canUndo;
+/// The quiet line: "14:02 · by you in the window · 1,240 tokens".
+@property (readonly) NSString *detail;
+@end
+
+/// "1,240 tokens", "1 token".
+NSString *MMWindowTokens(NSInteger tokens);
+
+/// The log as the middle shows it: newest first, grouped by day, at most 300 entries and none older than 30 days.
+@interface MMWindowLog : NSObject
+@property (copy) NSArray<MMWindowLogEntry *> *entries;
+/// A quiet line over the entries. With none, what MinMacs watches and that the log fills as it acts. In the first day
+/// of watching, that it acts on nothing on its own until the day is over. Never a result.
+@property (copy, nullable) NSString *note;
+@end
+
+/// "Nothing is in the log yet." and the rest of an empty log's words, worded once for the feed and the fixtures.
+/// left is how long the first day of watching still runs, 0 once it is over, and as MMWindowSpan says it.
+NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
+
 #pragma mark - The whole window
 
 @interface MMWindowModel : NSObject
@@ -362,6 +399,8 @@ extern NSString *const MMWindowLookingNote;
 /// The welcome, until the person pressed Start once. nil ever after. A model with a welcome and generation 0 was made
 /// before the first snapshot: only its welcome is real, and the window shows nothing else of it.
 @property (strong, nullable) MMWindowWelcome *welcome;
+/// The log in the middle, read only while the window is open. nil before the first read, and in `minmacs window`.
+@property (strong, nullable) MMWindowLog *log;
 - (nullable MMWindowRow *)row:(NSString *)key;
 /// What Fix Everything gives back: the fixes that do not need the person, each side summed on its own.
 - (uint64_t)memoryBack;

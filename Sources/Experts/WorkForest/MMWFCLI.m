@@ -320,7 +320,7 @@ static int Keep(MMArgs *a, NSString *arg) {
     // A keep changes what the modes may remove, so it runs in the app, as remove and restore do.
     int needs = [a needsApp];
     if (needs) return needs;
-    [MMKeep keep:path expert:kExpert until:off ? nil : [NSDate dateWithTimeIntervalSinceNow:days * 86400]];
+    [MMKeep keep:path expert:kExpert until:off ? nil : [NSDate dateWithTimeIntervalSinceNow:days * 86400] by:@"cli" name:path.lastPathComponent];
     if (a.json) [a printJSON:@{@"path": path, @"kept": @(!off), @"days": @(off ? 0 : days)}];
     else [a print:off ? @"%@ is no longer kept" : @"%@ is kept for %ld days", path.stringByAbbreviatingWithTildeInPath, (long)days];
     return 0;

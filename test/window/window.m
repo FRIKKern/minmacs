@@ -258,7 +258,7 @@ static NSString *Bad(NSArray<NSString *> *shown) {
 
 static void WindowModel(void) {
     World();
-    MMSetMode(@"locohost", MMModeEager); MMSetMode(@"minmacs", MMModeIdle);
+    MMSetMode(@"locohost", MMModeEager, @"test"); MMSetMode(@"minmacs", MMModeIdle, @"test");
     WLidState *lid = [WLidState new]; lid.prefs = [WLidPrefs new]; lid.prefs.lid = YES; lid.laptop = YES; lid.pauseReason = @"battery under 20%";
     gLid.state = lid;
     MMSnapshot *s = WorldSnapshot();
@@ -501,7 +501,7 @@ static void WindowModel(void) {
     T(@"window: the JSON is valid and keeps the ring's sides apart", @"yes disk memory", [NSString stringWithFormat:@"%@ %@", YN([NSJSONSerialization isValidJSONObject:j]),
       [[[j[@"ring"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]]);
     T(@"window: no shown string names an old app or claims a result", @"", Bad(Shown(m)));
-    MMSetMode(@"locohost", MMModeProactive); MMSetMode(@"minmacs", MMModeProactive);
+    MMSetMode(@"locohost", MMModeProactive, @"test"); MMSetMode(@"minmacs", MMModeProactive, @"test");
 }
 
 static void WindowCalm(void) {
@@ -665,6 +665,9 @@ static void RunStopped(void) {
 // Fix Everything's planned disk with such a worktree.
 #import "planned.m"
 
+#import "Shell/MMWindowLog.h"
+#import "log.m"
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|trash|delete|welcome|unmeasured|planned\n"); return 2; }
@@ -690,6 +693,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"welcome"]) Welcome();
         else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
         else if ([mode isEqualToString:@"planned"]) Planned();
+        else if ([mode isEqualToString:@"log-words"]) LogWords();
+        else if ([mode isEqualToString:@"log-controller"]) LogController();
         else return 2;
         printf("END\n");
     }

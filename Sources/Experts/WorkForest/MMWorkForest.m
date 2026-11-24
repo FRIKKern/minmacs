@@ -1078,10 +1078,10 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     } else if ([what isEqualToString:@"keep"]) {
         // The keeps and rules files are read and written on the act queue, so main never waits on disk.
         // The rebuild after it carries the change to the menu.
-        NSString *stable = f.stableKey;
+        NSString *stable = f.stableKey, *name = f.title;
         dispatch_async(ActQueue(), ^{
             BOOL kept = [MMKeep keptUntil:stable expert:kExpert] != nil;
-            [MMKeep keep:stable expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400]];
+            [MMKeep keep:stable expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400] by:@"menu" name:name];
             [MMGraph.shared rebuild:@"workforest keep"];
         });
         _view = nil;

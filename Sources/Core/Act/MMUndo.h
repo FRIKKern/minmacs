@@ -42,6 +42,9 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// YES when the record names a state that is no text, or text that is none of the four MinMacs writes. Such a record
 /// reads as pending, and is damage too: whether it had ended cannot be told.
 @property (readonly) BOOL stateUnread;
+/// The record one row of the log holds, read as -recent: reads it. parts says whether a part names it as its Wrap Up,
+/// which decides canRestore for a Wrap Up. For a reader of the log's rows, such as the menu window's log.
++ (instancetype)fromBody:(NSDictionary *)body hasParts:(BOOL)parts;
 @end
 
 /// P52. The one undo engine for every expert.

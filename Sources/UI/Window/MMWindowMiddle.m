@@ -1,23 +1,47 @@
-// The middle of the window: the two last-hour graphs, or the story of the row the pointer rests on.
+// The middle of the window: a strip with memory in use and disk free over the last hour, small, and the log under
+// it. Or the story of the row the pointer rests on, over all of it.
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
 
+static const CGFloat kStrip = 80;                    // the strip, from the middle's top to the hairline under it
+
 @implementation MMWindowMiddleView
 
+- (instancetype)initWithFrame:(NSRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        _logView = [[MMWindowLogView alloc] initWithFrame:[self logFrame]];
+        [self addSubview:_logView];
+    }
+    return self;
+}
+
+- (CGFloat)stripHeight { return kStrip; }
+- (NSRect)logFrame { return NSMakeRect(0, kStrip + 1, self.bounds.size.width, MAX(self.bounds.size.height - kStrip - 1, 0)); }
+- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; _logView.frame = [self logFrame]; }
+
+- (void)setModel:(MMWindowModel *)model { _model = model; _logView.log = model.log; self.needsDisplay = YES; }
 - (void)setMemoryHour:(MMWindowHour *)h { _memoryHour = h; self.needsDisplay = YES; }
 - (void)setDiskHour:(MMWindowHour *)h { _diskHour = h; self.needsDisplay = YES; }
-- (void)setRow:(MMWindowRow *)row { if (_row == row) return; _row = row; self.needsDisplay = YES; }
+- (void)setRow:(MMWindowRow *)row {
+    if (_row == row) return;
+    _row = row;
+    // A row's story stands over the whole middle, so the log is away while it shows.
+    _logView.hidden = row != nil;
+    self.needsDisplay = YES;
+}
 
 - (void)drawRect:(NSRect)dirty {
     MMWindowCrisp();
     if (self.row) { [self drawStory:self.row]; return; }
-    CGFloat h = floor((self.bounds.size.height - 34) / 2);
+    CGFloat gap = 16, w = floor((self.bounds.size.width - 28 - gap) / 2);
     MMWindowHour *memory = self.memoryHour ?: [self before:MMWindowMemory], *disk = self.diskHour ?: [self before:MMWindowDisk];
-    if (memory) [self drawHour:memory in:NSMakeRect(18, 17, self.bounds.size.width - 36, h - 17)];
-    if (disk) [self drawHour:disk in:NSMakeRect(18, 17 + h + 17, self.bounds.size.width - 36, h - 17)];
+    if (memory) [self drawStrip:memory in:NSMakeRect(14, 6, w, kStrip - 12)];
+    if (disk) [self drawStrip:disk in:NSMakeRect(14 + w + gap, 6, w, kStrip - 12)];
+    [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.07] setFill];
+    NSRectFillUsingOperation(NSMakeRect(14, kStrip, self.bounds.size.width - 28, 1), NSCompositingOperationSourceOver);
 }
 
-/// Before Core has kept a first minute there is no hour. The middle still stands: the same frame with no minute
+/// Before Core has kept a first minute there is no hour. The strip still stands: the same frame with no minute
 /// filled, and the number the ring holds now. Nothing in it is a reading of the past.
 - (MMWindowHour *)before:(MMWindowSide)side {
     MMWindowRing *ring = self.model.ring;
@@ -33,64 +57,54 @@
     return h;
 }
 
-/// How long ago the minute at this index was, as an end of the graph says it. The newest minute is "now".
+/// How long ago the minute at this index was, as an end of a line says it. The newest minute is "now".
 static NSString *Ago(NSInteger index, NSInteger count) {
     NSInteger minutes = count - 1 - index;
-    return minutes <= 0 ? @"now" : minutes >= 59 ? @"an hour ago" : [NSString stringWithFormat:@"%ld min ago", (long)minutes];
+    if (minutes <= 0) return @"now";
+    if (minutes >= 59) return @"an hour ago";
+    return [NSString stringWithFormat:@"%ld min ago", (long)minutes];
 }
 
-static NSAttributedString *End(NSString *when, double bytes, BOOL disk, NSColor *quiet, NSColor *value) {
-    return MMWindowJoin(@[MMWindowText([when stringByAppendingString:@", "], 10.5, NSFontWeightRegular, quiet),
-                          MMWindowText(MMWindowBytes((uint64_t)bytes, disk), 10.5, NSFontWeightRegular, value)]);
+/// How much of the hour the line holds, from its first filled minute to now: "the last 12 min", "the last hour".
+/// A young hour is never called an hour.
+static NSString *Last(NSInteger first, NSInteger count) {
+    NSInteger minutes = count - 1 - first;
+    return minutes >= 59 ? @"the last hour" : [NSString stringWithFormat:@"the last %ld min", (long)MAX(minutes, 1)];
 }
 
-/// One graph: its title, "the last hour", how far it moved, what the height means, the filled line and both ends in words.
-/// The filled part spans the whole width, and each end says how old it is, so a young hour reads as what it is.
-- (void)drawHour:(MMWindowHour *)hour in:(NSRect)r {
-    NSColor *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
+/// One side of the strip: its title and how much of the hour it holds, the newest value and how far it moved, and the
+/// filled line small under them. In the first minutes, the newest value over an empty track, with words for what
+/// will come. No value is made up.
+- (void)drawStrip:(MMWindowHour *)hour in:(NSRect)r {
+    NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
     NSColor *ink = MMWindowColor(hour.side == MMWindowDisk ? MMWindowInkDisk : MMWindowInkMemory);
-    MMWindowDraw(MMWindowJoin(@[MMWindowText(hour.title, 12.5, NSFontWeightMedium, NSColor.whiteColor), MMWindowText(@"  the last hour", 11.5, NSFontWeightSemibold, t2)]),
-                 r.origin.x, r.origin.y + 8.5, -1);
     BOOL disk = hour.side == MMWindowDisk;
-    MMWindowDrawBlock(hour.explain, 11, 10, NSFontWeightRegular, t2, r.origin.x, r.origin.y + 24, r.size.width, -1, 0, 26);
     NSInteger a, b, filled, count = (NSInteger)hour.values.count;
     NSArray *span = MMWindowHourSpan(hour.values, &a, &b, &filled);
-    if (!span) { [self drawYoung:hour newest:b filled:filled in:r ink:ink]; return; }
-    double first = [hour.values[a] doubleValue], last = [hour.values[b] doubleValue], moved = last - first;
-    // A move too small for the unit to show reads as no move.
-    uint64_t by = (uint64_t)fabs(moved);
-    NSString *move = by < (1 << 20) || by < MAX(first, last) * 0.002 ? @"about the same"
-        : [NSString stringWithFormat:@"%@ %@", moved > 0 ? @"up" : @"down", MMWindowBytes(by, disk)];
-    MMWindowDraw(MMWindowText(move, 12, NSFontWeightSemibold, [NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 1 : 0.86]), NSMaxX(r), r.origin.y + 8.5, 1);
-    MMWindowDrawHour(hour.values, NSMakeRect(r.origin.x, r.origin.y + 36, r.size.width, r.size.height - 36 - 16), ink, MMWindowHourGraph);
-    CGFloat y = NSMaxY(r) - 6.5;
-    MMWindowDraw(End(Ago(a, count), first, disk, t3, t2), r.origin.x, y, -1);
-    MMWindowDraw(End(Ago(b, count), last, disk, t3, t2), NSMaxX(r), y, 1);
-}
-
-/// The first minutes, before there is a line to draw. The block is a graph's whole frame, so nothing looks missing:
-/// the title above, the newest value large in the middle, and at the foot, where a graph's floor and its two ends
-/// stand, an empty track with the minutes that have passed filled in at its right end, where "now" is, and the words
-/// that say what will come. No value is made up.
-- (void)drawYoung:(MMWindowHour *)hour newest:(NSInteger)b filled:(NSInteger)filled in:(NSRect)r ink:(NSColor *)ink {
-    NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
-    BOOL disk = hour.side == MMWindowDisk;
-    CGFloat floorY = NSMaxY(r) - 20, left = NSMinX(r) + 1, right = NSMaxX(r) - 3, middle = round((r.origin.y + 36 + floorY) / 2);
-    NSInteger count = (NSInteger)hour.values.count;
-    // With no minute kept yet, the number is the one the ring holds now.
+    MMWindowDraw(MMWindowText(hour.title, 11.5, NSFontWeightMedium, NSColor.whiteColor), r.origin.x, r.origin.y + 8, -1);
+    MMWindowDraw(MMWindowText(span ? Last(a, count) : @"now", 10.5, NSFontWeightRegular, t3), NSMaxX(r), r.origin.y + 8, 1);
     MMWindowRing *ring = self.model.ring;
+    BOOL known = b >= 0 || ring;
     uint64_t newest = b >= 0 ? [hour.values[b] unsignedLongLongValue] : disk ? ring.diskFree : ring.memoryUsed;
-    if (b >= 0 || ring) {
-        MMWindowDraw(MMWindowNumber(newest, disk, 34, NSFontWeightMedium, text, 14), r.origin.x, middle - 4, -1);
-        MMWindowDraw(MMWindowText(@"now", 11.5, NSFontWeightRegular, t2), r.origin.x, middle + 22, -1);
+    if (known) MMWindowDraw(MMWindowNumber(newest, disk, 15, NSFontWeightMedium, text, 10.5), r.origin.x, r.origin.y + 27, -1);
+    if (span) {
+        double first = [hour.values[a] doubleValue], last = [hour.values[b] doubleValue], moved = last - first;
+        // A move too small for the unit to show reads as no move.
+        uint64_t by = (uint64_t)fabs(moved);
+        NSString *move = by < (1 << 20) || by < MAX(first, last) * 0.002 ? @"about the same"
+            : [NSString stringWithFormat:@"%@ %@", moved > 0 ? @"up" : @"down", MMWindowBytes(by, disk)];
+        MMWindowDraw(MMWindowText(move, 10.5, NSFontWeightRegular, t2), NSMaxX(r), r.origin.y + 27, 1);
+        MMWindowDrawHour(hour.values, NSMakeRect(r.origin.x, r.origin.y + 38, r.size.width, NSMaxY(r) - r.origin.y - 38), ink, MMWindowHourRow);
+        return;
     }
+    // The first minutes: an empty track with the minutes that passed filled in at its right end, where now is.
+    CGFloat floorY = NSMaxY(r) - 3, left = NSMinX(r) + 1, right = NSMaxX(r) - 3;
     NSBezierPath *track = [NSBezierPath bezierPath];
     [track moveToPoint:NSMakePoint(left, floorY)]; [track lineToPoint:NSMakePoint(right, floorY)];
     track.lineWidth = 1.5; track.lineCapStyle = NSLineCapStyleRound;
     [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.24 : 0.09] setStroke];
     [track stroke];
     if (b >= 0 && count > 1) {
-        // The newest minute is the right end, as on a full graph. Each minute that has passed is a sixtieth of the track.
         CGFloat end = left + (right - left) * b / (count - 1), start = end - (right - left) * MAX(filled - 1, 0) / (count - 1);
         NSBezierPath *line = [NSBezierPath bezierPath];
         [line moveToPoint:NSMakePoint(start, floorY)]; [line lineToPoint:NSMakePoint(end, floorY)];
@@ -99,8 +113,7 @@ static NSAttributedString *End(NSString *when, double bytes, BOOL disk, NSColor 
         [ink setFill];
         [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(end - 2.4, floorY - 2.4, 4.8, 4.8)] fill];
     }
-    MMWindowDraw(MMWindowText(@"The line fills in as the hour passes.", 10.5, NSFontWeightRegular, t3), r.origin.x, NSMaxY(r) - 6.5, -1);
-    if (filled > 0) MMWindowDraw(MMWindowText(MMWindowCount(filled, @"minute", @"minutes"), 10.5, NSFontWeightRegular, t3), NSMaxX(r), NSMaxY(r) - 6.5, 1);
+    MMWindowDraw(MMWindowText(@"Fills in as the hour passes.", 10.5, NSFontWeightRegular, t3), r.origin.x, floorY - 11, -1);
 }
 
 #pragma mark A row's story

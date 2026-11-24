@@ -10,7 +10,9 @@
 /// Eager also acts on what the judge lets go. Starts from WF Forest.m:22-56.
 typedef NS_ENUM(NSInteger, MMMode) { MMModeIdle = 0, MMModeProactive = 1, MMModeEager = 2 };
 MMMode MMModeFor(NSString *expert);                     // the <expert>.mode pref, Proactive by default
-void MMSetMode(NSString *expert, MMMode mode);
+/// Sets the mode and writes its row in the log's setting table, MMLogSetting. by says who: "window", "settings",
+/// "cli", "migration".
+void MMSetMode(NSString *expert, MMMode mode, NSString *by);
 NSString *MMModeName(MMMode mode);                      // idle, proactive, eager
 NSInteger MMModeFrom(NSString *name);                   // -1 when unknown
 /// P48. YES once MinMacs has watched for a day after its first launch. No mode acts on its own before that.
@@ -53,7 +55,9 @@ NSArray<MMPlanEntry *> *MMPlan(NSArray<MMFinding *> *findings, MMFacts *facts, M
 /// menu never waits on disk, and reads the file only when nothing was read yet, as in a CLI.
 /// An expert reads it in -findingsFrom:, on the graph queue in the app.
 + (NSDate *)keptUntil:(NSString *)stableKey expert:(NSString *)expert;
-+ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until;   // nil ends the keep
+/// until nil ends the keep. Each keep given or ended is a row of the log's keep table, MMLogKeepTable, with who gave
+/// it, "menu" or "cli", and the name the person knows it by.
++ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until by:(NSString *)by name:(NSString *)name;
 /// P50. The protect list in the expert's rules file of P36, matched with its wildcards.
 + (BOOL)isProtected:(NSString *)value expert:(NSString *)expert;
 @end

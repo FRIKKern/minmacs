@@ -128,6 +128,7 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
 
     m.run = extras.run;
     m.welcome = extras.welcome;
+    m.log = extras.log;
     m.settings = MMWindowSettingsFrom(p, extras);
     return m;
 }

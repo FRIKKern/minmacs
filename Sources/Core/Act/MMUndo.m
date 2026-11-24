@@ -176,6 +176,11 @@ static NSString *PayloadDamage(NSDictionary *p) {
     if (!r.bodyDamage && r.stateUnread) r.bodyDamage = @"its state is none MinMacs writes";
     return r;
 }
++ (instancetype)fromBody:(NSDictionary *)body hasParts:(BOOL)parts {
+    MMUndoRecord *r = [self fromBody:body];
+    r.hasParts = parts;
+    return r;
+}
 - (NSDictionary *)body {
     NSMutableDictionary *b = [NSMutableDictionary new];
     b[@"rid"] = self.rid; b[@"state"] = StateName(self.state); b[@"at"] = @(self.at.timeIntervalSince1970);

@@ -332,6 +332,36 @@ NSString *const MMWindowLookingNote = @"MinMacs is taking its first look. It tak
 
 NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sign in." : @"MinMacs starts only when you open it."; }
 
+@implementation MMWindowLogEntry
+- (NSString *)detail {
+    NSMutableArray *parts = [NSMutableArray arrayWithObject:self.time ?: @""];
+    if (self.who.length) [parts addObject:self.who];
+    if (self.tokens > 0) [parts addObject:MMWindowTokens(self.tokens)];
+    return [parts componentsJoinedByString:@" · "];
+}
+@end
+
+NSString *MMWindowTokens(NSInteger tokens) {
+    static NSNumberFormatter *f; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        f = [NSNumberFormatter new];
+        f.numberStyle = NSNumberFormatterDecimalStyle;
+        f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US"];
+    });
+    NSString *n;
+    @synchronized (f) { n = [f stringFromNumber:@(tokens)]; }
+    return [NSString stringWithFormat:@"%@ %@", n, tokens == 1 ? @"token" : @"tokens"];
+}
+
+@implementation MMWindowLog @end
+
+NSString *MMWindowLogNote(BOOL empty, NSString *left) {
+    NSString *watch = @"MinMacs watches your servers, agents, apps, worktrees and caches.";
+    NSString *day = left.length ? [NSString stringWithFormat:@" For its first day it stops, quits and removes nothing on its own. That day ends in %@.", left] : @"";
+    if (!empty) return left.length ? [watch stringByAppendingString:day] : nil;
+    return [NSString stringWithFormat:@"Nothing is in the log yet. %@%@ What it does, and each setting that changes, is written here.", watch, day];
+}
+
 @implementation MMWindowWelcome
 + (instancetype)welcomeWithFacts:(NSArray<MMWindowFact *> *)facts {
     MMWindowWelcome *w = [MMWindowWelcome new];

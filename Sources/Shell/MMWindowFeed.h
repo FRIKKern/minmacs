@@ -29,6 +29,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property MMWindowLooked worktreesLooked, cachesLooked;
 /// The welcome, from MMWindowWelcomeNow, while the person has not pressed Start. The controller sets it. nil in the CLI.
 @property (strong, nullable) MMWindowWelcome *welcome;
+/// The log for the middle, Shell/MMWindowLog.h. The controller reads it while open. nil in the CLI.
+@property (strong, nullable) MMWindowLog *log;
 /// The lid switch as the keep-awake expert holds it now, and Open at login as given. Any queue.
 /// It reads the expert's last published state, or its pref before the first pass. It never runs pmset.
 /// The two looks are read from the repo index and the clutter catalog as they stand, with no walk and no scan.
@@ -66,6 +68,8 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *_Nullable p, MMWindowExtra
 
 /// @"core.welcomed": YES once the person pressed Start in the welcome. The welcome shows while it has no value.
 extern NSString *const MMWindowWelcomedKey;
+/// @"core.login": the key the log's setting rows give Open at login. No pref holds it: the system's login item does.
+extern NSString *const MMWindowLoginKey;
 /// @"core.loginNotAsked": YES from a first launch that left the login item alone, since the welcome asks. Start and
 /// any -setLogin: take it away. While it holds, a login item that is off is nobody's answer yet.
 extern NSString *const MMWindowLoginNotAskedKey;

@@ -3,6 +3,7 @@
 #import "Shell/MMWindowController.h"
 #import "Shell/MMWindowFeed.h"
 #import "Shell/MMFixRunner.h"
+#import "Shell/MMWindowLog.h"
 #import "Core/MMCore.h"
 
 static const NSTimeInterval kEndShows = 4;               // an ended run stays on the model this long, then lets go
@@ -31,6 +32,8 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
     MMWindowRun *_run;
     MMFixRunner *_runner;
     NSDate *_endedAt;                                    // when the last run ended: a plan built before it is spent
+    MMWindowLog *_log;                                   // the log as last read, while open
+    NSString *_logStamp;                                 // MMLogStamp and the day at that read
 }
 
 static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED); }
@@ -44,7 +47,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         _token = nil; _model = nil; _shown = 0;
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
-        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; });
+        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; });
         return;
     }
     atomic_store(&_loginOn, [self.shell loginEnabled]);
@@ -81,6 +84,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (!_s || !_p || !self.open) return;
     MMWindowExtras *x = [MMWindowExtras readWithLogin:atomic_load(&_loginOn)];
     x.run = _run;
+    x.log = [self readLog];
     x.welcome = MMWindowWelcomeNow(x.loginOn);
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -88,6 +92,18 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         self->_shown = m.generation; self->_model = m;
         if (self.onModel) self.onModel(m);
     });
+}
+
+/// The window queue, while open. The log is read again only when MMLogStamp moved, two stats and no query, or the
+/// day turned, which changes the words "Today" and "Yesterday". No timer: a new snapshot or a press asks.
+- (MMWindowLog *)readLog {
+    NSString *stamp = [MMLogStamp() stringByAppendingString:[NSCalendar.currentCalendar startOfDayForDate:NSDate.date].description];
+    if (_log && [stamp isEqualToString:_logStamp]) return _log;
+    MMLog *log = MMLog.shared;
+    if (!log) return _log;
+    _log = MMWindowLogRead(log, NSDate.date, MMWindowLogMost, MMWindowLogDays);
+    _logStamp = stamp;
+    return _log;
 }
 
 - (void)sendSoon { dispatch_async(Queue(), ^{ [self send]; }); }
@@ -156,7 +172,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     NSString *expert = MMWindowRuleExpert(ruleID);
     if (!expert || choice < MMModeIdle || choice > MMModeEager) return;
     dispatch_async(Queue(), ^{
-        MMSetMode(expert, (MMMode)choice);
+        MMSetMode(expert, (MMMode)choice, @"window");
         [self send];
         // Each expert reads its mode when the graph prepares a snapshot, so its plan follows at the next build.
         [MMGraph.shared rebuild:@"window mode"];
@@ -170,16 +186,26 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (MMPrefBool(MMWindowWelcomedKey, NO)) return;
     MMWindowWelcomeDone();
     // Only a change is asked for: a person whose answer is what the login item already is gets nothing touched.
-    if ([self.shell loginEnabled] != openAtLogin) [self.shell setLogin:openAtLogin];
-    atomic_store(&_loginOn, [self.shell loginEnabled]);
-    dispatch_async(Queue(), ^{ [self send]; });
+    BOOL before = [self.shell loginEnabled];
+    if (before != openAtLogin) [self.shell setLogin:openAtLogin];
+    BOOL after = [self.shell loginEnabled];
+    atomic_store(&_loginOn, after);
+    // The rows go in on the window queue, never on main, and before the model they show in. The log holds what the
+    // login item became, which is what the system took, not only what was asked.
+    dispatch_async(Queue(), ^{
+        MMLogSetting(MMWindowWelcomedKey, @NO, @YES, @"welcome");
+        MMLogSetting(MMWindowLoginKey, @(before), @(after), @"welcome");
+        [self send];
+    });
 }
 
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on {
     if ([switchID isEqualToString:@"login"]) {
+        BOOL before = [self.shell loginEnabled];
         [self.shell setLogin:on];
-        atomic_store(&_loginOn, [self.shell loginEnabled]);
-        [self sendSoon];
+        BOOL after = [self.shell loginEnabled];
+        atomic_store(&_loginOn, after);
+        dispatch_async(Queue(), ^{ MMLogSetting(MMWindowLoginKey, @(before), @(after), @"window"); [self send]; });
         return;
     }
     if (![switchID isEqualToString:@"lid"]) return;

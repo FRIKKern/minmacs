@@ -233,13 +233,13 @@ static void SetSince(double ago) {
 static void Modes(void) {
     for (NSString *e in @[@"minmacs", @"locohost", @"workforest", @"noonoo", @"insomnia"])
         T([NSString stringWithFormat:@"%@ starts in Proactive", e], @"proactive", MMModeName(MMModeFor(e)));
-    MMSetMode(gExpert, MMModeEager);
+    MMSetMode(gExpert, MMModeEager, @"test");
     T(@"a mode set is the mode read", @"eager", MMModeName(MMModeFor(gExpert)));
-    MMSetMode(gExpert, MMModeIdle);
+    MMSetMode(gExpert, MMModeIdle, @"test");
     T(@"Idle reads back", @"idle", MMModeName(MMModeFor(gExpert)));
     T(@"mode names parse in any case", @"2", @(MMModeFrom(@"Eager")).stringValue);
     T(@"an unknown mode name is -1", @"-1", @(MMModeFrom(@"lazy")).stringValue);
-    MMSetMode(gExpert, MMModeProactive);
+    MMSetMode(gExpert, MMModeProactive, @"test");
 
     T(@"before the first launch no mode may act", @"no", YN(MMWatchedLongEnough(gExpert)));
     T(@"before the first launch a whole day is left", @"86400", @((NSInteger)MMWatchingLeft(gExpert)).stringValue);
@@ -306,13 +306,13 @@ static void MustKeep(void) {
     T(@"MustKeep: the expert's review keep holds", @"worked on after the last review", Or(MMMustKeep(ff, Gather(ff), r, p)));
 
     ff = FileFinding(file);
-    [MMKeep keep:ff.stableKey expert:gExpert until:[NSDate dateWithTimeIntervalSinceNow:7 * 86400 + 60]];
+    [MMKeep keep:ff.stableKey expert:gExpert until:[NSDate dateWithTimeIntervalSinceNow:7 * 86400 + 60] by:@"test" name:@"fixture"];
     T(@"MustKeep: a timed keep holds by stable key", @"kept by you for 7 days more", Or(MMMustKeep(ff, Gather(ff), nil, p)));
     MMFinding *again = Remake(FileFinding(file), ^(MMFindingBuilder *b) { b.instanceKey = @"another-instance"; });
     T(@"MustKeep: the timed keep survives a new instance", @"yes", YN([Or(MMMustKeep(again, Gather(again), nil, p)) hasPrefix:@"kept by you"]));
-    [MMKeep keep:ff.stableKey expert:gExpert until:nil];
+    [MMKeep keep:ff.stableKey expert:gExpert until:nil by:@"test" name:@"fixture"];
     T(@"MustKeep: an ended keep no longer holds", @"nil", Or(MMMustKeep(ff, Gather(ff), nil, p)));
-    [MMKeep keep:ff.stableKey expert:gExpert until:[NSDate dateWithTimeIntervalSinceNow:-1]];
+    [MMKeep keep:ff.stableKey expert:gExpert until:[NSDate dateWithTimeIntervalSinceNow:-1] by:@"test" name:@"fixture"];
     T(@"MustKeep: a passed keep no longer holds", @"nil", Or(MMMustKeep(ff, Gather(ff), nil, p)));
 
     NSString *rules = [MMExpertDir(gExpert) stringByAppendingPathComponent:@"rules.json"];
@@ -426,7 +426,7 @@ static void Runs(void) {
       (run(a, nil, @"manual", &err), Or(err)));
     gGather = ^MMFacts *(MMFinding *x) { return Gather(x); };
 
-    MMSetMode(gExpert, MMModeProactive);
+    MMSetMode(gExpert, MMModeProactive, @"test");
     MMReview *r = Review(@[Verdict(f, MMVerdictGo, 0.9)]);
     run(a, r, @"eager", &err);
     T(@"run: a mode run checks the mode again", @"kept: the mode is now proactive", Or(err));

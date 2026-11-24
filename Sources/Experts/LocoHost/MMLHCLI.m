@@ -590,7 +590,7 @@ static int Mode(MMLHArgs *a) {
     if (a.arg1) {
         NSInteger m = MMModeFrom(a.arg1);
         if (m < 0) return Usage(@"locohost mode [idle|proactive|eager]");
-        if (!a.dry) MMSetMode(kExpert, (MMMode)m);
+        if (!a.dry) MMSetMode(kExpert, (MMMode)m, @"cli");
     }
     if (a.json) PrintJSON(@{@"mode": MMModeName(MMModeFor(kExpert))}); else Print(MMModeName(MMModeFor(kExpert)));
     return 0;
@@ -753,7 +753,7 @@ static int Keep(MMLHArgs *a) {
     if (!f) { Err([@"no localhost on " stringByAppendingString:a.arg1]); return 1; }
     MMLHHost *h = Host(f);
     double hours = a.arg2 ? a.arg2.doubleValue : [a opt:@"--hours"] ? [a opt:@"--hours"].doubleValue : 4;
-    if (!a.dry) [MMKeep keep:f.stableKey expert:kExpert until:hours > 0 ? [NSDate dateWithTimeIntervalSinceNow:hours * 3600] : nil];
+    if (!a.dry) [MMKeep keep:f.stableKey expert:kExpert until:hours > 0 ? [NSDate dateWithTimeIntervalSinceNow:hours * 3600] : nil by:@"cli" name:f.title];
     if (a.json) { PrintJSON(@{@"findingID": f.findingID, @"hours": @(hours)}); return 0; }
     if (hours > 0) Outf("no mode stops :%ld %s for %s\n", (long)h.port, h.framework.UTF8String, MMDuration(hours * 3600).UTF8String);
     else Outf(":%ld %s is up to the mode again\n", (long)h.port, h.framework.UTF8String);

@@ -131,7 +131,7 @@ int main(int argc, const char *argv[]) {
         NSUInteger experts = MMRegisterBuiltInExperts();
         NSMutableArray *notIdle = [NSMutableArray new];
         for (id<MMExpert> e in MMExperts()) {
-            MMSetMode(e.expertID, MMModeIdle);
+            MMSetMode(e.expertID, MMModeIdle, @"soak");
             if (MMModeFor(e.expertID) != MMModeIdle) [notIdle addObject:e.expertID];
         }
         if (notIdle.count) { fprintf(stderr, "soak: not Idle: %s\n", [notIdle componentsJoinedByString:@" "].UTF8String); return 1; }

@@ -77,7 +77,21 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
     return h;
 }
 
+static MMWindowModel *Day(NSString *name);
+
+/// Each day with its log. "log-empty", "log-new" and "log-busy" are the young, the young and the busy day with an
+/// empty log, a new Mac's first hour and 300 entries over a month. The days of a new Mac show the first hour too.
 MMWindowModel *MMWindowFixture(NSString *name) {
+    NSString *day = [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;
+    MMWindowModel *m = Day(day);
+    NSString *log = [name isEqualToString:@"log-empty"] || [name isEqualToString:@"empty"] ? @"empty"
+                  : [name isEqualToString:@"log-busy"] ? @"busy"
+                  : [name isEqualToString:@"log-new"] || [name isEqualToString:@"young"] || [name isEqualToString:@"calm"] || [name hasPrefix:@"welcome"] ? @"new" : @"day";
+    m.log = MMWindowFixtureLog(log);
+    return m;
+}
+
+static MMWindowModel *Day(NSString *name) {
     MMWindowModel *other = MMWindowFixtureMore(name);
     if (other) { other.settings = Settings(); return other; }
     BOOL quiet = [name isEqualToString:@"quiet"], peak = [name isEqualToString:@"peak"], empty = [name isEqualToString:@"empty"];

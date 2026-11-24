@@ -648,7 +648,14 @@ NSDictionary *MMImportLegacy(NSString *home) {
     }
     NSDictionary *plan = Merge(plans, todo);
 
-    [plan[@"prefs"] enumerateKeysAndObjectsUsingBlock:^(NSString *k, id v, BOOL *stop) { MMSetPref(k, v); }];
+    // A mode or the review's model the old apps had is a setting the person did not set here, so each such change is
+    // a row of the log's setting table, by the migration. A mode with no pref is Proactive, and the model auto.
+    [plan[@"prefs"] enumerateKeysAndObjectsUsingBlock:^(NSString *k, id v, BOOL *stop) {
+        BOOL mode = [k hasSuffix:@".mode"], model = [k isEqualToString:MMReviewModelKey];
+        id old = MMPref(k) ?: (mode ? @"proactive" : model ? @"auto" : nil);
+        MMSetPref(k, v);
+        if (mode || model) MMLogSetting(k, old, v, @"migration");
+    }];
     [plan[@"files"] enumerateKeysAndObjectsUsingBlock:^(NSString *path, id json, BOOL *stop) {
         MMStateFile *f = [MMStateFile fileNamed:path.lastPathComponent.stringByDeletingPathExtension expert:path.stringByDeletingLastPathComponent];
         [f update:^id(id disk) { return disk ? nil : json; }];   // a file 2.0 already wrote stays as it is

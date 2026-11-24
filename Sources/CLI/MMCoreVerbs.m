@@ -387,7 +387,7 @@ static int Review(MMArgs *a) {
     if ([a has:@"--model"]) {
         NSString *model = [a option:@"--model"].lowercaseString;
         if (![MMReviewModelNames() containsObject:model ?: @""]) { [a error:@"the models are %@", [MMReviewModelNames() componentsJoinedByString:@", "]]; return [a usageError]; }
-        if (!a.dryRun) MMSetPref(MMReviewModelKey, model);
+        if (!a.dryRun) MMSetSetting(MMReviewModelKey, model, @"cli");
         if (a.json) [a printJSON:@{@"model": model}]; else [a print:@"Reviews ask %@.", model];
         return 0;
     }
@@ -595,7 +595,7 @@ static int Mode(MMArgs *a) {
     if (name) {
         NSInteger m = MMModeFrom(name.lowercaseString);
         if (m < 0) { [a error:@"modes are idle, proactive and eager"]; return [a usageError]; }
-        if (!a.dryRun) MMSetMode(expert, (MMMode)m);
+        if (!a.dryRun) MMSetMode(expert, (MMMode)m, @"cli");
     }
     NSString *now = name && a.dryRun ? name.lowercaseString : MMModeName(MMModeFor(expert));
     if (a.json) [a printJSON:@{@"expert": expert, @"mode": now}]; else [a print:@"%@", now];
