@@ -74,7 +74,7 @@ check "removal: no setter of the old choice is left in the code" 0 \
   "$(grep -rnE 'MMSetRemovalChoice|MMRemovalSmart|MMRemovalDelete[^a-zA-Z]|MMRemovalNotChosenNote|MMRemovalChosen' Sources --include='*.m' --include='*.h' | grep -c .)"
 check "removal: only MMRemoval.m reads the pref" 0 \
   "$(grep -rnE 'core\.removal|MMRemovalKey' Sources --include='*.m' | grep -vc '^Sources/Core/Act/MMRemoval\.m:')"
-check "removal: each path lists what the fresh finding named before anything goes, and says deleted only after" "2 3" \
+check "removal: each path lists what the fresh finding named before anything goes, and says deleted only after" "3 4" \
   "$(cat Sources/Core/Act/MMClutterAct.m Sources/Experts/WorkForest/MMWorkForest.m | grep -c 'MMRemovalAsk(record, ') $(cat Sources/Core/Act/MMClutterAct.m Sources/Experts/WorkForest/MMWorkForest.m | grep -c 'MMRemovalDone(record, nil);')"
 check "removal: a Wrap Up deletes what its parts staged only after the last part, and puts it back when one fails" "1 1" \
   "$(grep -c 'freed += MMRemovalFinishStaged(ran);' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalPutBack(ran);' Sources/Core/Act/MMWrapUp.m)"

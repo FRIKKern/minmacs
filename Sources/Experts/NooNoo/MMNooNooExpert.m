@@ -272,6 +272,8 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
                                      @"trend": @{@"ok": @(t.ok), @"bytesPerDay": @(t.bytesPerDay), @"windowDays": @(t.windowDays),
                                                  @"firstBytes": @(t.firstBytes), @"lastBytes": @(t.lastBytes), @"weekRatio": @(t.weekRatio)}} mutableCopy];
         if (i.why) fx[@"why"] = i.why;
+        // A family is judged member by member: how many of its members go, the rest stay. Core/Know/MMClutter.h.
+        if ([k.signature isEqualToString:@"family"]) fx[@"leftovers"] = @(i.leftovers.count);
         if (keep.count) fx[@"keep"] = keep.firstObject;
         if (ownerState) fx[@"ownerState"] = ownerState;
         if (i.ownerPath) fx[@"ownerPath"] = i.ownerPath;
@@ -706,7 +708,7 @@ static void RunOffMain(dispatch_block_t block) {
 
 static NSDictionary *ItemJSON(MMFinding *f) {
     NSMutableDictionary *j = [NSMutableDictionary new];
-    for (NSString *k in @[@"kindID", @"class", @"section", @"state", @"path", @"owner", @"ownerState", @"why", @"keep", @"members", @"allocated", @"freed", @"lastUsed", @"trend", @"command"])
+    for (NSString *k in @[@"kindID", @"class", @"section", @"state", @"path", @"owner", @"ownerState", @"why", @"keep", @"members", @"leftovers", @"allocated", @"freed", @"lastUsed", @"trend", @"command"])
         if (f.facts[k]) j[k] = f.facts[k];
     j[@"id"] = f.findingID; j[@"title"] = f.title ?: @"";
     if (f.proposal) j[@"action"] = f.proposal.title;

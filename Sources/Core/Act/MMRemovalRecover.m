@@ -119,7 +119,7 @@ static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *par
         // Restore can still bring it back, or already did: that is no loss. A record that cannot be read restores nothing.
         if (n && (r.state == MMUndoRestored || (r.canRestore && !r.damage))) kept += r.state == MMUndoRestored ? 0 : n;
         else gone += n;
-        if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count;
+        if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count + MMRecordList(MMRecordDict(r.payload, @"held"), @"members").count;
     }
     NSString *moved = back ? [NSString stringWithFormat:@"%@ it had moved out of the worktree went back", Items(back)] : trash ?: @"Nothing it had moved needed to go back";
     if (back && trash) moved = [moved stringByAppendingFormat:@". %@", trash];

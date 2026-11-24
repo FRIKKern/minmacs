@@ -10,6 +10,7 @@
   "minAge": 43200,
   "family": {
     "minMembers": 5,
+    "emptyMinAge": 3600,
     "exclude": [
       "com.apple."
     ]

@@ -304,7 +304,8 @@ print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('fre
   check "noonoo: the pip cache goes to the Trash and comes back" "gone back" "$(nn_undo_one "$nnh/Library/Caches/pip")"
   check "noonoo: a dead session's scratch goes and comes back" "gone back" "$(nn_undo_one "$nn_scr/$nn_dead")"
   check "noonoo: a family's members go and come back" "gone back" "$(nn_undo_one "$nn_T/mv-test-a1B2c3")"
-  check "noonoo: every member of the family was in the one record" 6 "$(nn_undo 'len(j[0]["payload"]["trashed"])')"
+  check "noonoo: every member of the family was in the one record, as one folder in the Trash" "6 0" \
+    "$(nn_undo '"%d %d" % (len(j[0]["payload"]["held"]["members"]), len(j[0]["payload"].get("trashed", [])))')"
   nnt scan >/dev/null 2>&1
   check "noonoo: a finished project's .next goes and comes back" "gone back" "$(nn_undo_one "$nn_wt/.next")"
 
@@ -537,6 +538,9 @@ print(' '.join(sorted(i['kindID'] for i in j['items'] if i['path'].startswith(sy
   check "noonoo: cold, status counts the items of the last scan" yes \
     "$(nnc_bin status 2>/dev/null | grep 'Noo-Noo' | grep -q ' 2 items' && echo yes || echo no)"
   check "noonoo: cold, the scan left both folders in place" yes "$([ -f "$nnc_repo/node_modules/left-pad/index.js" ] && [ -f "$nnc_repo/.next/cache/page.html" ] && echo yes || echo no)"
+
+  # A temp-folder family judged member by member, in a home of its own: test/noonoo/families.sh.
+  . ./test/noonoo/families.sh
 
   # An old removal choice in the pref, issue #62 and D2, on this section's fixtures. It runs last.
   . ./test/noonoo/removal.sh

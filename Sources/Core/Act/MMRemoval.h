@@ -113,6 +113,12 @@ void MMRemovalDone(MMUndoRecord *record, NSString *key);
 /// or the staging folder would lie where the wall lets nothing be deleted, the item stays where it is and is listed
 /// under "unstaged". Nothing waits in the person's Trash.
 BOOL MMRemovalApply(NSString *path, MMRemovalDecision *decision, MMUndoRecord *record, NSError **error);
+/// The same for the members of one temp-folder family, siblings in one folder: to the Trash as one folder named name,
+/// -[MMUndo trashMembers:asFolder:record:refused:error:], so a family of 45,000 is one item in the Trash and one record.
+/// Only a decision that keeps a way back moves anything, and nothing is deleted here. A path with a "." or ".." name
+/// is refused, as by MMRemovalApply. refused gets "name: why" for each member left where it is. Returns how many went.
+NSInteger MMRemovalApplyHeld(NSArray<NSString *> *paths, NSString *name, MMRemovalDecision *decision, MMUndoRecord *record,
+                             NSMutableArray<NSString *> *refused, NSError **error);
 /// Every part went through: deletes what these parts staged, each checked to be the same file, in the staging folder
 /// MinMacs made for this Wrap Up, then removes the empty folder and marks each part deleted. An item that cannot be
 /// deleted stays staged with "why" in its entry, and its part can still restore. Returns the bytes the volume got back.

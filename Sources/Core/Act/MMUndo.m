@@ -7,6 +7,7 @@
 #import "Core/Act/MMUndo.h"
 #import "Core/Act/MMRemoval.h"
 #include <sys/stat.h>
+#include <stdio.h>
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Store/MMGains.h"
@@ -79,6 +80,14 @@ static NSArray *ListOf(id from, NSString *key, Class kind) {
 }
 NSArray<NSDictionary *> *MMRecordList(id from, NSString *key) { return ListOf(from, key, NSDictionary.class); }
 NSArray<NSString *> *MMRecordStrings(id from, NSString *key) { return ListOf(from, key, NSString.class); }
+NSArray<NSDictionary *> *MMRecordTrashed(id payload) {
+    NSArray<NSDictionary *> *t = MMRecordList(payload, @"trashed") ?: @[];
+    NSDictionary *h = MMRecordDict(payload, @"held");
+    if (!h) return t;
+    NSMutableDictionary *e = [NSMutableDictionary new];
+    for (NSString *k in @[@"from", @"to", @"ino", @"dev", @"vol"]) if (h[k]) e[k] = h[k];
+    return [t arrayByAddingObject:e];
+}
 
 /// The UUID of the volume that holds the folder of path, or nil when it has none. The folder is asked, not the item,
 /// so a symlink is never followed to another volume.
@@ -131,9 +140,27 @@ static NSString *ListDamage(NSDictionary *p, NSString *k) {
     return nil;
 }
 
+/// Why a family's "held" folder cannot be read, or nil when it reads or is not there.
+static NSString *HeldDamage(NSDictionary *p) {
+    id v = p[@"held"];
+    if (!v) return nil;
+    if (![v isKindOfClass:NSDictionary.class]) return @"held is no dictionary";
+    NSDictionary *h = v;
+    if (!MMRecordString(h, @"from").length || !MMRecordString(h, @"to").length) return @"held does not say where its folder was";
+    for (NSString *n in @[@"dev", @"ino", @"memberDev"]) if (h[n] && !MMRecordNumber(h, n)) return [NSString stringWithFormat:@"held's %@ is no number", n];
+    for (NSString *n in @[@"vol", @"memberVol"]) if (h[n] && !MMRecordString(h, n)) return [NSString stringWithFormat:@"held's %@ is no text", n];
+    id m = h[@"members"];
+    if (![m isKindOfClass:NSArray.class]) return @"held's members are no list";
+    for (id x in (NSArray *)m)
+        if (![x isKindOfClass:NSDictionary.class] || !MMRecordString(x, @"name").length || !MMRecordNumber(x, @"ino")) return @"held names a member that does not say which file it is";
+    return nil;
+}
+
 /// Why a payload cannot be read, or nil. Only fields Act acts on, and only when they are there.
 static NSString *PayloadDamage(NSDictionary *p) {
     for (NSString *k in @[@"staged", @"trashed", @"deleted", @"unstaged"]) { NSString *d = ListDamage(p, k); if (d) return d; }
+    NSString *hd = HeldDamage(p);
+    if (hd) return hd;
     if (p[@"asked"] && (![p[@"asked"] isKindOfClass:NSArray.class] || [MMRecordStrings(p, @"asked") count] != [p[@"asked"] count])) return @"asked is no list of paths";
     for (NSString *k in @[@"removal", @"bundle", @"recovery", @"worktree", @"restart", @"relaunch"]) if (p[k] && !MMRecordDict(p, k)) return [k stringByAppendingString:@" is no dictionary"];
     for (NSString *k in @[@"stagedIn", @"path"]) if (p[k] && !MMRecordString(p, k)) return [k stringByAppendingString:@" is no text"];
@@ -190,7 +217,7 @@ static NSString *PayloadDamage(NSDictionary *p) {
     return b;
 }
 - (NSString *)damage { return self.bodyDamage ?: PayloadDamage(self.payload); }
-- (NSString *)moveDamage { return self.bodyDamage ?: ListDamage(self.payload, @"staged") ?: ListDamage(self.payload, @"trashed"); }
+- (NSString *)moveDamage { return self.bodyDamage ?: ListDamage(self.payload, @"staged") ?: ListDamage(self.payload, @"trashed") ?: HeldDamage(self.payload); }
 - (BOOL)deletedNow { return MMRecordFlag(MMRecordDict(self.payload, @"removal"), @"deleted"); }
 - (BOOL)canRestore {
     if (self.state != MMUndoDone && self.state != MMUndoFailed) return NO;
@@ -201,7 +228,7 @@ static NSString *PayloadDamage(NSDictionary *p) {
     // Only once the thing is gone: what a Wrap Up part staged in MinMacs's folder can still come back.
     if (self.state == MMUndoDone && self.deletedNow && [MMRecordString(MMRecordDict(p, @"removal"), @"choice") isEqualToString:@"delete"]) return NO;
     // Every field through the checked reader: a field of another shape reads as absent.
-    BOOL moved = MMRecordList(p, @"trashed").count || MMRecordList(p, @"staged").count;
+    BOOL moved = MMRecordList(p, @"trashed").count || MMRecordList(p, @"staged").count || MMRecordList(MMRecordDict(p, @"held"), @"members").count;
     // A failed action may have moved some files aside before it stopped, and those come back. A failed stop or quit
     // left its server or app running, so its restart or relaunch would start a second copy: it restores nothing.
     if (self.state == MMUndoFailed) return self.hasParts || moved || MMRecordDict(p, @"bundle") || MMRecordDict(p, @"recovery");
@@ -331,6 +358,24 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
 }
 
 - (NSURL *)trash:(NSURL *)item record:(MMUndoRecord *)record error:(NSError **)error {
+    NSDictionary *identity = nil;
+    NSURL *to = [self moveToTrash:item record:record identity:&identity error:error];
+    if (!to) return nil;
+    @synchronized (self) {
+        NSMutableArray *t = [MMRecordList(record.payload, @"trashed") mutableCopy] ?: [NSMutableArray new];
+        // The very file that now waits there, MMFileIdentity, so nothing else at that Trash path is ever taken for
+        // it when it goes back.
+        NSMutableDictionary *entry = [@{@"from": item.path, @"to": to.path} mutableCopy];
+        [entry addEntriesFromDictionary:identity ?: @{}];
+        [t addObject:entry];
+        [self note:record payload:@{@"trashed": t}];
+    }
+    return to;
+}
+
+/// The move to the Trash and MinMacs's own list of it, before and after, for -trash:record:error: and for a family's
+/// folder. *identity is the identity the list holds for it in the Trash. The record is not written here.
+- (NSURL *)moveToTrash:(NSURL *)item record:(MMUndoRecord *)record identity:(NSDictionary **)identityOut error:(NSError **)error {
     // Issue #74: MinMacs's own list names the item before it moves, so only what MinMacs sent there ever comes back
     // from the Trash. When that list cannot be written the item stays where it is. With nothing at the path the move
     // below fails and says so in its own words, and should something come there in between, no list names it.
@@ -353,16 +398,120 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     NSDictionary *identity = MMFileIdentity(to.path);
     identity = (record.rid.length ? MMRemovalTrashListNote(record.rid, item.path, to.path, identity) : nil) ?: identity;
     MM_TEST_STOP_TRASH("after-list");
-    @synchronized (self) {
-        NSMutableArray *t = [MMRecordList(record.payload, @"trashed") mutableCopy] ?: [NSMutableArray new];
-        // The very file that now waits there, MMFileIdentity, so nothing else at that Trash path is ever taken for
-        // it when it goes back.
-        NSMutableDictionary *entry = [@{@"from": item.path, @"to": to.path} mutableCopy];
-        [entry addEntriesFromDictionary:identity ?: @{}];
-        [t addObject:entry];
-        [self note:record payload:@{@"trashed": t}];
-    }
+    if (identityOut) *identityOut = identity;
     return to;
+}
+
+#pragma mark A family's members, in one folder in the Trash
+
+/// The members' entries of a "held" folder, each {from, to, ino, vol | dev} as -moveBack:from: takes them: from is
+/// the folder's old place's own folder plus the member's name, to the folder in the Trash plus that name. A name that
+/// is not one plain name, or an entry with no inode, gives none, so a record can only ever move a file out of that
+/// one folder into the one folder the family lay in.
+static NSArray<NSDictionary *> *HeldMembers(NSDictionary *h) {
+    NSString *from = MMRecordString(h, @"from"), *to = MMRecordString(h, @"to");
+    if (!from.length || !to.length) return @[];
+    NSString *root = from.stringByDeletingLastPathComponent, *vol = MMRecordString(h, @"memberVol");
+    NSNumber *dev = MMRecordNumber(h, @"memberDev");
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSDictionary *m in MMRecordList(h, @"members")) @autoreleasepool {
+        NSString *name = MMRecordString(m, @"name");
+        NSNumber *ino = MMRecordNumber(m, @"ino");
+        if (!name.length || !ino || [name rangeOfString:@"/"].location != NSNotFound || [name isEqualToString:@"."] || [name isEqualToString:@".."]) continue;
+        NSMutableDictionary *e = [@{@"from": [root stringByAppendingPathComponent:name], @"to": [to stringByAppendingPathComponent:name], @"ino": ino} mutableCopy];
+        if (vol) e[@"vol"] = vol; else if (dev) e[@"dev"] = dev;
+        [out addObject:e];
+    }
+    return out;
+}
+
+- (NSInteger)trashMembers:(NSArray<NSString *> *)paths asFolder:(NSString *)name record:(MMUndoRecord *)record
+                  refused:(NSMutableArray<NSString *> *)refused error:(NSError **)error {
+    NSError *(^problem)(NSString *) = ^NSError *(NSString *w) { return [NSError errorWithDomain:@"MMUndo" code:1 userInfo:@{NSLocalizedDescriptionKey: w}]; };
+    NSString *root = paths.firstObject.stringByDeletingLastPathComponent;
+    if (!paths.count || !root.length || !name.length || [name rangeOfString:@"/"].location != NSNotFound || !record.rid.length) {
+        if (error) *error = problem(@"cannot verify what to move");
+        return 0;
+    }
+    for (NSString *p in paths)
+        if (![p.stringByDeletingLastPathComponent isEqualToString:root]) { if (error) *error = problem(@"the members do not lie in one folder"); return 0; }
+    NSFileManager *fm = NSFileManager.defaultManager;
+    // A new folder of MinMacs's own beside the members, under a name nothing there holds yet. It goes to the Trash
+    // empty, through the same list as any item, and the members follow it there one rename each.
+    NSString *holder = [root stringByAppendingPathComponent:name];
+    for (NSUInteger n = 2; [fm fileExistsAtPath:holder] || [fm destinationOfSymbolicLinkAtPath:holder error:nil]; n++)
+        holder = [root stringByAppendingPathComponent:[NSString stringWithFormat:@"%@ %lu", name, (unsigned long)n]];
+    if (mkdir(holder.fileSystemRepresentation, 0700) != 0) { if (error) *error = problem([NSString stringWithFormat:@"no folder could be made for them: %s", strerror(errno)]); return 0; }
+    NSDictionary *identity = nil;
+    NSURL *to = [self moveToTrash:[NSURL fileURLWithPath:holder] record:record identity:&identity error:error];
+    // An empty folder MinMacs just made stays where it is when the Trash refuses it. Nothing is deleted.
+    if (!to) return 0;
+    struct stat ts;
+    if (lstat(to.path.fileSystemRepresentation, &ts) != 0 || !S_ISDIR(ts.st_mode)) { if (error) *error = problem(@"the folder in the Trash cannot be read"); return 0; }
+    // The record names the folder and every member before the first one moves, each by its id where it lies now.
+    // A rename keeps the id, so the same entry names it in the Trash.
+    NSMutableArray<NSDictionary *> *planned = [NSMutableArray arrayWithCapacity:paths.count];
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:paths.count];
+    for (NSString *p in paths) @autoreleasepool {
+        struct stat st;
+        NSString *n = p.lastPathComponent;
+        if ([p.pathComponents containsObject:@".."] || [p.pathComponents containsObject:@"."] || lstat(p.fileSystemRepresentation, &st) != 0) {
+            [refused addObject:[n stringByAppendingString:@": it is gone or its path is not a real path"]]; continue;
+        }
+        [planned addObject:@{@"name": n, @"ino": @(st.st_ino)}];
+        [names addObject:p];
+    }
+    NSMutableDictionary *held = [@{@"from": holder, @"to": to.path, @"members": planned, @"memberDev": @(ts.st_dev)} mutableCopy];
+    [held addEntriesFromDictionary:identity ?: @{}];
+    NSString *vol = VolumeOf([to.path stringByAppendingPathComponent:@"x"]);
+    if (vol) held[@"memberVol"] = vol;
+    [self note:record payload:@{@"held": held}];
+    // One rename each, never over a name the folder holds, and only for the very file the record names.
+    NSMutableArray<NSDictionary *> *moved = [NSMutableArray arrayWithCapacity:planned.count];
+    for (NSUInteger i = 0; i < planned.count; i++) @autoreleasepool {
+        NSString *p = names[i], *n = planned[i][@"name"];
+        struct stat st;
+        if (lstat(p.fileSystemRepresentation, &st) != 0 || st.st_ino != [planned[i][@"ino"] unsignedLongLongValue]) {
+            [refused addObject:[n stringByAppendingString:@": it changed since MinMacs looked"]]; continue;
+        }
+        NSString *dst = [to.path stringByAppendingPathComponent:n];
+        // A member on another volume than the Trash fails here with EXDEV and stays where it is: never a copy.
+        if (renamex_np(p.fileSystemRepresentation, dst.fileSystemRepresentation, RENAME_EXCL) != 0) {
+            [refused addObject:[NSString stringWithFormat:@"%@: %s", n, strerror(errno)]]; continue;
+        }
+        [moved addObject:planned[i]];
+    }
+    // The record names what went, so an Undo looks for no member that never left.
+    if (moved.count != planned.count) {
+        held[@"members"] = moved;
+        [self note:record payload:@{@"held": held}];
+    }
+    return (NSInteger)moved.count;
+}
+
+/// Why the "held" folder h of record r may not give back its members, or nil: it waits directly in a Trash, it is the
+/// very folder MinMacs made, and MinMacs's own list of what r sent to the Trash names it, as for a "trashed" entry.
+static NSString *TrashedWhyNot(MMUndoRecord *r, NSDictionary *x);
+static NSString *HeldWhyNot(MMUndoRecord *r, NSDictionary *h) {
+    NSString *to = MMRecordString(h, @"to");
+    struct stat st;
+    if (!to.length || lstat(to.fileSystemRepresentation, &st) != 0) return @"the Trash no longer holds the folder they went to";
+    return TrashedWhyNot(r, h);
+}
+
+/// Back from the folder in the Trash: each member to its old name, as -moveBack:from: moves a "trashed" item. The
+/// folder stays in the Trash, empty, and leaves MinMacs's list, so nothing names it any more. Returns nil, or what is
+/// not back, in words: the first three reasons and how many more.
+- (NSString *)unhold:(NSDictionary *)h of:(MMUndoRecord *)r {
+    NSString *why = HeldWhyNot(r, h);
+    if (why) return [NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(h, @"to") ?: @"the folder", why];
+    NSArray *items = HeldMembers(h);
+    if (items.count != MMRecordList(h, @"members").count) return @"the record names a member it does not say how to put back, so MinMacs moves none";
+    NSString *problem = [self moveBack:items from:@"the Trash"];
+    if (!problem) { MMRemovalTrashListDrop(r.rid, MMRecordString(h, @"from"), MMRecordString(h, @"to")); return nil; }
+    NSArray *all = [problem componentsSeparatedByString:@"; "];
+    if (all.count <= 3) return problem;
+    return [NSString stringWithFormat:@"%@; and %lu more", [[all subarrayWithRange:NSMakeRange(0, 3)] componentsJoinedByString:@"; "], (unsigned long)(all.count - 3)];
 }
 
 - (NSString *)recover:(NSArray<NSString *> *)files from:(NSString *)root record:(MMUndoRecord *)record error:(NSString **)error {
@@ -502,6 +651,11 @@ static NSString *TrashedWhyNot(MMUndoRecord *r, NSDictionary *x) {
     for (NSDictionary *x in MMRecordList(r.payload, @"staged")) {
         NSString *why = MMRemovalStagedEntryWhyNot(r, x);
         if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(x, @"to") ?: @"one item", why]];
+    }
+    NSDictionary *held = MMRecordDict(r.payload, @"held");
+    if (held) {
+        NSString *why = HeldWhyNot(r, held);
+        if (why) [problems addObject:[NSString stringWithFormat:@"%@ stays where it is: %@", MMRecordString(held, @"to") ?: @"the folder", why]];
     }
     return problems.count ? [problems componentsJoinedByString:@"; "] : nil;
 }
@@ -700,10 +854,13 @@ static NSMutableSet<NSString *> *Restoring(void) {
     // Only the body and the two lists are read here, so another damaged field does not hold these items.
     if (r.moveDamage) return [@"its record is damaged, so MinMacs does not act on it: " stringByAppendingString:r.moveDamage];
     NSArray<NSDictionary *> *trashed = MMRecordList(r.payload, @"trashed"), *staged = MMRecordList(r.payload, @"staged");
-    if (!trashed.count && !staged.count) return @"the record holds nothing to move back";
+    NSDictionary *held = MMRecordDict(r.payload, @"held");
+    if (!trashed.count && !staged.count && !held) return @"the record holds nothing to move back";
     NSString *a = trashed.count ? [self untrash:trashed of:r] : nil;
     NSString *b = staged.count ? [self unstage:staged of:r] : nil;
-    if (a || b) return a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
+    NSString *c = held ? [self unhold:held of:r] : nil;
+    NSArray *ps = [@[a ?: @"", b ?: @"", c ?: @""] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]];
+    if (ps.count) return [ps componentsJoinedByString:@"; "];
     @synchronized (self) {
         // The payload is written back as it was read, damaged field and all, so the damage is still named.
         NSMutableDictionary *np = [r.payload mutableCopy];
@@ -770,12 +927,16 @@ static NSMutableSet<NSString *> *Restoring(void) {
         if (pid) done[@"restartedPid"] = @(pid);
     }
     NSArray<NSDictionary *> *trashed = MMRecordList(p, @"trashed"), *staged = MMRecordList(p, @"staged");
-    if (!problem && (trashed.count || staged.count)) {
-        // Both are tried, so what waits in one place does not hold what waits in the other.
+    NSDictionary *held = MMRecordDict(p, @"held");
+    if (!problem && (trashed.count || staged.count || held)) {
+        // All are tried, so what waits in one place does not hold what waits in another.
         NSString *a = trashed.count ? [self untrash:trashed of:r] : nil;
         // What a Wrap Up part staged for a delete that never came: back from MinMacs's staging folder, MMRemoval.h.
         NSString *b = staged.count ? [self unstage:staged of:r] : nil;
-        problem = a && b ? [NSString stringWithFormat:@"%@; %@", a, b] : a ?: b;
+        // A family's members, from the one folder they went to in the Trash.
+        NSString *c = held ? [self unhold:held of:r] : nil;
+        NSArray *ps = [@[a ?: @"", b ?: @"", c ?: @""] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]];
+        problem = ps.count ? [ps componentsJoinedByString:@"; "] : nil;
     }
     if (!problem && MMRecordDict(p, @"bundle")) problem = [self unbundle:MMRecordDict(p, @"bundle")];
     // A removed worktree with no bundle: its commit is still in the repo, so it is recreated from there.

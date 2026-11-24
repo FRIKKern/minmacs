@@ -35,14 +35,16 @@ nnr_fill() {
 # deleted count and canRestore.
 nnr_go() {
   nnx verb clean "$1" >/dev/null 2>&1; nnr_x=$?
-  echo "$nnr_x $([ -e "$1" ] && echo kept || echo gone) $(nn_undo '"%s %s %d %d %s" % (j[0]["payload"]["removal"]["choice"], j[0]["payload"]["removal"]["deleted"], len(j[0]["payload"].get("trashed", [])), len(j[0]["payload"].get("deleted", [])), j[0]["canRestore"])')"
+  echo "$nnr_x $([ -e "$1" ] && echo kept || echo gone) $(nn_undo '"%s %s %d %d %s" % (j[0]["payload"]["removal"]["choice"], j[0]["payload"]["removal"]["deleted"], len(j[0]["payload"].get("trashed", [])) + len(j[0]["payload"].get("held", {}).get("members", [])), len(j[0]["payload"].get("deleted", [])), j[0]["canRestore"])')"
 }
 # Undoes the newest record and prints: exit, then back or missing for the path.
 nnr_back() {
   nnx verb clean --undo "$(nn_undo 'j[0]["rid"]')" >"$nn/nnr-undo.txt" 2>&1; nnr_x=$?
   echo "$nnr_x $([ -e "$1" ] && echo back || echo missing)"
 }
-nnr_trash() { ls -A "$nn/Trash" 2>/dev/null | wc -l | tr -d ' '; }
+# What waits in the Trash. A family goes there as one folder, and its Undo leaves that folder there empty, so an
+# empty entry holds nothing that did not come back.
+nnr_trash() { find "$nn/Trash" -mindepth 1 -maxdepth 1 ! -empty 2>/dev/null | wc -l | tr -d ' '; }
 
 # D2: with an old smart or delete in the pref, as an older MinMacs wrote it, everything still keeps a way back.
 nnr_old() {   # the old value

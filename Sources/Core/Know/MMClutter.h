@@ -73,6 +73,12 @@ typedef struct {
 @property (readonly) MMClutterKind *kind;
 @property (readonly, copy) NSString *path;              // a family is named root/prefix-*, its members are in members
 @property (readonly) NSArray<NSString *> *members;      // what a family holds, or the one path
+/// A family's members judged one by one, -[MMClutterCatalog judge...]: the ones that may go now, each past the walls,
+/// older than its quiet period (an empty folder 1 hour, family.emptyMinAge; anything else the row's minAge) and held
+/// by no process. Empty for any other row. Read on the scan and again by inspect:, right before an action.
+@property (readonly) NSArray<NSString *> *leftovers;
+/// What an action on this item removes: a family's leftovers, or the members of any other row.
+- (NSArray<NSString *> *)actOn;
 /// P29. The project or install this item belongs to, from a back-link in the tool's own files:
 /// DerivedData info.plist WorkspacePath, Playwright .links, pnpm .modules.yaml storeDir, simulator device.plist.
 /// For build output the checkout that holds it. nil when the tool keeps no back-link.
@@ -130,6 +136,9 @@ extern NSNotificationName const MMClutterDidChangeNotification;
 /// support folder, a symlink, a path of another user and anything a row's "never" protects are always refused.
 /// kind nil looks the row up with kindFor:.
 - (NSString *)whyNot:(NSString *)path kind:(MMClutterKind *)kind;
+/// whyNot:kind: of each path, read now in one pass, so a family's thousands of members resolve the walls' folders
+/// and the checkouts once. Only the refused paths are keys, each with why.
+- (NSDictionary<NSString *, NSString *> *)whyNotEach:(NSArray<NSString *> *)paths kind:(MMClutterKind *)kind;
 /// Starts the scan timer on MMQueue(@"core", @"clutter"): due rows a few minutes after launch, then every 5 minutes.
 - (void)start;
 - (void)stop;
