@@ -1,5 +1,5 @@
-// Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore, history, gains, mode
-// and removal.
+// Core's own verbs: version, help, status, net, work, review, investigate, tidy, where, restore, history, gains, mode,
+// removal, self, device and quiet.
 // Each reads the snapshot and the Store through Core. None samples, scans or asks the model on its own.
 // Experts add hosts, apps and their other verbs through -[MMExpert verbs].
 #import "CLI/MMCLI.h"
@@ -18,6 +18,8 @@ int MMGainsVerb(MMArgs *a);
 int MMSelfVerb(MMArgs *a);
 // From MMPerformanceCLI.m.
 int MMPerformanceVerb(MMArgs *a);
+// From MMDeviceCLI.m: device and quiet.
+NSArray<MMVerbSpec *> *MMDeviceVerbs(void);
 
 #pragma mark - Words
 
@@ -713,6 +715,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
     static NSArray *verbs;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
+        NSArray<MMVerbSpec *> *device = MMDeviceVerbs();
         verbs = @[
             Reads([MMVerbSpec verb:@"status" usage:@"status [--json]   what each expert sees, as its menu header says it" mutates:NO run:^(MMArgs *a) { return Status(a); }],
                   MMVerbReadsCachedGit, nil),
@@ -739,6 +742,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
             Reads([MMVerbSpec verb:@"removal" usage:@"removal [--json] | removal --waiting [--delete <id> | --put-back <id> [--to <path>] | --close <wrap-up>] [--dry-run] [--json]   show what happens to a thing MinMacs removes, which always keeps a way back; with --waiting, what MinMacs could not delete or put back, and delete one or put it back; --close ends a Wrap Up whose state cannot be read, once nothing of it waits" mutates:NO run:^(MMArgs *a) { return Removal(a); }],
                   MMVerbReadsNoWorktrees, @[@"--delete", @"--put-back", @"--close"]),
             Reads([MMVerbSpec verb:@"self" usage:@"self [--window <seconds>] [--json]   what the running MinMacs app costs this Mac: its CPU now and since launch, the tools it ran, memory, disk writes and wakeups, against its budgets" mutates:NO run:^(MMArgs *a) { return MMSelfVerb(a); }], MMVerbReadsNoWorktrees, nil),
+            device[0], device[1],
             Reads([MMVerbSpec verb:@"version" usage:@"version [--json]   the version" mutates:NO run:^(MMArgs *a) { return Version(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"help" usage:@"help [--json]   every verb" mutates:NO run:^(MMArgs *a) { return Help(a); }], MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"_walk" usage:@"_walk" mutates:NO run:^(MMArgs *a) { return Walk(a); }], MMVerbReadsNoWorktrees, nil),

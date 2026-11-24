@@ -8,6 +8,7 @@
 #import <sys/mount.h>
 #import <sys/sysctl.h>
 #import "Core/Act/MMAct.h"
+#import "Core/Act/MMQuiet.h"
 #import "Core/Store/MMGains.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
@@ -230,11 +231,14 @@ static NSString *ModeDecides(MMFinding *f, MMReview *r, MMMode m, id<MMExpertPol
 NSArray<MMPlanEntry *> *MMPlan(NSArray<MMFinding *> *findings, MMFacts *facts, MMReview *r, MMMode m,
                                id<MMExpertPolicy> policy) {
     NSMutableArray *plan = [NSMutableArray new];
+    // D9: while a quiet hold is active no mode acts on anything, for every expert. Read once for the whole plan.
+    NSString *quiet = findings.count ? MMQuietWhy() : nil;
     for (MMFinding *f in findings) {
         BOOL act = NO;
         NSString *why = MMMustKeep(f, facts, r, policy);
         if (!why) why = ModeDecides(f, r, m, policy, &act);
         if (act && !MMWatchedLongEnough(f.expert)) { act = NO; why = [NSString stringWithFormat:@"would act (%@), but %@", why, WatchingWords(f.expert)]; }
+        if (act && quiet) { act = NO; why = [NSString stringWithFormat:@"would act (%@), but %@", why, quiet]; }
         MMPlanEntry *e = [MMPlanEntry new];
         e.finding = f; e.act = act; e.why = why;
         [plan addObject:e];
@@ -266,6 +270,8 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
         else if (!MMWatchedLongEnough(f.expert)) problem = [@"kept: " stringByAppendingString:WatchingWords(f.expert)];
         else if (!review) problem = @"kept: no review yet";
         else if (f.proposal.needsForce) problem = @"kept: a mode never makes a second request";
+        // D9: a quiet hold gives its task peace. A mode acts on nothing, whatever its plan said, until the hold ends.
+        else { NSString *quiet = MMQuietWhy(); if (quiet) problem = [@"kept: " stringByAppendingString:quiet]; }
     }
     // The rules files are read from disk for this check, never from the last second's cache, issue #52.
     if (!problem) MMRulesCheckNow();

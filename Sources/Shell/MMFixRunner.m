@@ -185,6 +185,10 @@ NSString *MMFixStepAction(NSString *kind) {
         else if (![x.outcome isEqualToString:@"done"]) stuck++;
     }
     NSMutableArray<NSString *> *out = [NSMutableArray new];
+    // D9: a press still runs during a quiet hold, and the note says the hold is there, so nobody is surprised.
+    NSString *quiet = MMQuietWhy();
+    if (quiet) [out addObject:[NSString stringWithFormat:@"%@%@. MinMacs acts on nothing on its own until it ends; what you press still runs.",
+                               [quiet substringToIndex:1].uppercaseString, [quiet substringFromIndex:1]]];
     NSString *skipped = MMWindowSkippedNote(_p.needsYou, needYou, kept, stuck, notReached, notRun);
     if (skipped) [out addObject:skipped];
     NSString *where = MMRemovalWhereWords(_removed);

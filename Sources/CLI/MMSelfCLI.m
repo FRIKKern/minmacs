@@ -105,3 +105,18 @@ int MMSelfVerb(MMArgs *a) {
     [a print:@"Disk:           %.1f MB written, %.1f MB read since launch", second.written / 1e6, second.read / 1e6];
     return 0;
 }
+
+/// One read of a MinMacs process, for `device`: since launch only, so it costs one proc_pid_rusage and no wait.
+/// {pid, runningSeconds, sinceLaunch: {cpuPercent, idleWakeupsPerSecond}, memory: {footprintBytes, peakBytes},
+/// budgets, over}, or nil when pid does not answer.
+NSDictionary *MMSelfSinceLaunch(pid_t pid) {
+    MMSelfRead r = MMSelfReadPid(pid);
+    if (!r.ok) return nil;
+    NSDictionary *full = MMSelfReport(pid, r, r, 0);
+    NSMutableArray *over = [NSMutableArray new];
+    for (NSString *o in full[@"over"]) if ([o hasSuffix:@"SinceLaunch"]) [over addObject:o];
+    NSDictionary *all = full[@"sinceLaunch"];
+    return @{@"pid": @(pid), @"runningSeconds": full[@"runningSeconds"],
+             @"sinceLaunch": @{@"cpuPercent": all[@"cpuPercent"], @"idleWakeupsPerSecond": all[@"idleWakeupsPerSecond"]},
+             @"memory": full[@"memory"], @"budgets": full[@"budgets"], @"over": over};
+}
