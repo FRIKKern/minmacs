@@ -34,7 +34,7 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 - (NSDictionary *)json {
     NSString *known = self.known == MMWindowPullLooking ? @"looking" : self.known == MMWindowPullNone ? @"none" : @"found";
     return @{@"known": known, @"line": self.line, @"number": self.number > 0 ? @(self.number) : NSNull.null, @"state": Or(self.state),
-             @"draft": @(self.draft), @"review": Or(self.review), @"title": Or(self.title), @"url": Or(self.url),
+             @"draft": @(self.draft), @"review": Or(self.review), @"title": Or(self.title), @"url": Or(self.url), @"milestone": Or(self.milestone),
              @"checks": @{@"passing": @(self.checksPassing), @"failing": @(self.checksFailing), @"pending": @(self.checksPending)}};
 }
 @end

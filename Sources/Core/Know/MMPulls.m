@@ -30,11 +30,13 @@ static NSDate *ISODate(id v) {
 @implementation MMPull
 
 - (NSDictionary *)json {
-    return @{@"number": @(self.number), @"title": self.title ?: @"", @"url": self.url ?: @"", @"state": self.stateWord ?: @"",
+    NSMutableDictionary *j = [@{@"number": @(self.number), @"title": self.title ?: @"", @"url": self.url ?: @"", @"state": self.stateWord ?: @"",
              @"draft": @(self.draft), @"review": self.review ?: NSNull.null,
              @"checks": @{@"passing": @(self.checksPassing), @"failing": @(self.checksFailing), @"pending": @(self.checksPending)},
              @"mergedAt": self.mergedAt ? @(self.mergedAt.timeIntervalSince1970) : NSNull.null,
-             @"updatedAt": self.updatedAt ? @(self.updatedAt.timeIntervalSince1970) : NSNull.null};
+             @"updatedAt": self.updatedAt ? @(self.updatedAt.timeIntervalSince1970) : NSNull.null} mutableCopy];
+    if (self.milestone.length) j[@"milestone"] = self.milestone;
+    return j;
 }
 
 + (instancetype)fromJSON:(NSDictionary *)j {
@@ -45,6 +47,7 @@ static NSDate *ISODate(id v) {
     NSDictionary *c = [j[@"checks"] isKindOfClass:NSDictionary.class] ? j[@"checks"] : @{};
     p.checksPassing = [Num(c[@"passing"]) integerValue]; p.checksFailing = [Num(c[@"failing"]) integerValue]; p.checksPending = [Num(c[@"pending"]) integerValue];
     if ([Num(j[@"mergedAt"]) doubleValue] > 0) p.mergedAt = [NSDate dateWithTimeIntervalSince1970:[j[@"mergedAt"] doubleValue]];
+    p.milestone = Str(j[@"milestone"]);
     if ([Num(j[@"updatedAt"]) doubleValue] > 0) p.updatedAt = [NSDate dateWithTimeIntervalSince1970:[j[@"updatedAt"] doubleValue]];
     return p;
 }
@@ -106,6 +109,10 @@ MMPullAnswer *MMPullParse(NSData *json) {
     }
     p.mergedAt = ISODate(j[@"mergedAt"]);
     p.updatedAt = ISODate(j[@"updatedAt"]);
+    // gh gives the milestone as an object, {number, title, description, dueOn}, or null.
+    NSDictionary *milestone = [j[@"milestone"] isKindOfClass:NSDictionary.class] ? j[@"milestone"] : nil;
+    p.milestone = [Str(milestone[@"title"]) stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!p.milestone.length) p.milestone = nil;
     answer.pull = p;
     answer.known = MMPullFound;
     return answer;
@@ -113,7 +120,7 @@ MMPullAnswer *MMPullParse(NSData *json) {
 
 NSArray<NSString *> *MMPullArguments(NSString *branch) {
     return @[@"pr", @"list", @"--head", branch ?: @"", @"--state", @"all", @"--limit", @"1",
-             @"--json", @"number,title,state,isDraft,url,reviewDecision,statusCheckRollup,mergedAt,updatedAt"];
+             @"--json", @"number,title,state,isDraft,url,reviewDecision,statusCheckRollup,mergedAt,updatedAt,milestone"];
 }
 
 #pragma mark - The knower

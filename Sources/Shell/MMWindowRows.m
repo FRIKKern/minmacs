@@ -230,6 +230,7 @@ MMWindowPull *MMWindowPullFrom(MMPullAnswer *a) {
         p.checksPassing = pr.checksPassing; p.checksFailing = pr.checksFailing; p.checksPending = pr.checksPending;
         p.mergedAgo = pr.mergedAt ? MAX(0, -pr.mergedAt.timeIntervalSinceNow) : -1;
         p.title = pr.title.length ? OneLine(pr.title) : nil; p.url = pr.url.length ? pr.url : nil;
+        p.milestone = pr.milestone.length ? OneLine(pr.milestone) : nil;
     }
     return p;
 }

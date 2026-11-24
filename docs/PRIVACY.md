@@ -202,7 +202,7 @@ This is the one ask that goes to GitHub and not to a model. MinMacs asks about a
 `MMPullArguments` in `Sources/Core/Know/MMPulls.m` builds the call, which runs in the worktree's folder:
 
 ```
-gh pr list --head <branch> --state all --limit 1 --json number,title,state,isDraft,url,reviewDecision,statusCheckRollup,mergedAt,updatedAt
+gh pr list --head <branch> --state all --limit 1 --json number,title,state,isDraft,url,reviewDecision,statusCheckRollup,mergedAt,updatedAt,milestone
 ```
 
 | What GitHub gets | Where it comes from |
@@ -210,7 +210,7 @@ gh pr list --head <branch> --state all --limit 1 --json number,title,state,isDra
 | The repo | gh reads it from the git remote of the worktree's folder, such as github.com/acme/atlas |
 | The branch name | The worktree's branch |
 | Who asks | The person's own gh login |
-| The fields asked for | Those after `--json` above: the pull request's number, title, state, draft, address, review decision, checks and times |
+| The fields asked for | Those after `--json` above: the pull request's number, title, state, draft, address, review decision, checks, times and the title of its milestone |
 
 No file contents, no folder path, no commit, no diff and nothing about other worktrees is sent. gh adds its own version and the usual web headers. One call runs at a time, with a limit of 5 seconds. An answer is kept for five minutes per repo and branch and asked again sooner only when the branch's head moved. After a failure the repo waits a minute, then longer each time, up to 30 minutes, before it is asked again, and gh that is not logged in is left alone for 10 minutes. The answers stay on this Mac, in `workforest/pulls.json` in the support folder, so `minmacs trees explain <path> --json` can show the last one as `pullRequest`. No review or Investigate call sends them.
 

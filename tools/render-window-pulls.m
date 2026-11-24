@@ -28,6 +28,7 @@ static MMWindowModel *PullsModel(NSString *which, NSString **key) {
     if ([which isEqualToString:@"open"]) {
         p.known = MMWindowPullFound; p.number = 142; p.state = @"open"; p.review = @"review requested"; p.checksPassing = 6;
         p.title = @"Read the review answer before the plan runs, and say so in the log"; p.url = @"https://github.com/acme/minmacs/pull/142";
+        p.milestone = @"Phase 6: Bench and polish";
     } else if (merged) {
         p.known = MMWindowPullFound; p.number = 98; p.state = @"merged"; p.mergedAgo = 2 * 86400 + 300;
         p.title = @"Fix the auth redirect"; p.url = @"https://github.com/acme/atlas/pull/98";
@@ -90,7 +91,7 @@ static void WindowPullsChecks(void) {
         if (cut || press != wantsPress || !inside || !clear || ![all containsString:row.pull.line])
             [bad addObject:[NSString stringWithFormat:@"%@: cut %@ press %@ inside %@ clear %@", which, PullsYN(cut), PullsYN(press), PullsYN(inside), PullsYN(clear)]];
         [told addObject:row.pull.line];
-        if ([which isEqualToString:@"open"] && !([all containsString:@"3 ahead, 1 behind main"] && [all containsString:@"Claude Code · Tune the ranking"] && [all containsString:@"4be81c0"]))
+        if ([which isEqualToString:@"open"] && !([all containsString:@"3 ahead, 1 behind main"] && [all containsString:@"Claude Code · Tune the ranking"] && [all containsString:@"4be81c0"] && [all containsString:@"Milestone"] && [all containsString:@"Phase 6: Bench and polish"]))
             [bad addObject:@"open: the git facts are not all drawn"];
         if ([which isEqualToString:@"merged"] && !([all containsString:@"Squash-merged into main"] && [all containsString:@"Branch deleted on the remote"]))
             [bad addObject:@"merged: the merge and the remote are not drawn"];

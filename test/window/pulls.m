@@ -58,7 +58,8 @@ static NSString *const kOpen = @"[{\"number\":142,\"title\":\"Tune the ranking\"
     @"\"url\":\"https://github.com/acme/atlas/pull/142\",\"reviewDecision\":\"REVIEW_REQUIRED\","
     @"\"statusCheckRollup\":[{\"__typename\":\"CheckRun\",\"status\":\"COMPLETED\",\"conclusion\":\"SUCCESS\"},"
     @"{\"__typename\":\"CheckRun\",\"status\":\"COMPLETED\",\"conclusion\":\"SKIPPED\"},{\"__typename\":\"StatusContext\",\"state\":\"SUCCESS\"}],"
-    @"\"mergedAt\":\"0001-01-01T00:00:00Z\",\"updatedAt\":\"2026-11-20T10:00:00Z\"}]";
+    @"\"mergedAt\":\"0001-01-01T00:00:00Z\",\"updatedAt\":\"2026-11-20T10:00:00Z\","
+    @"\"milestone\":{\"number\":6,\"title\":\"Phase 6: Bench and polish\",\"description\":\"\",\"dueOn\":null}}]";
 
 /// gh's answers, each state as the story says it.
 static void PullsParse(void) {
@@ -67,6 +68,13 @@ static void PullsParse(void) {
       [NSString stringWithFormat:@"%@ %ld %@ %@ %ld %ld %ld %@ %@ %@", a.known == MMPullFound ? @"found" : @"other", (long)a.pull.number, a.pull.stateWord, YN(a.pull.draft),
        (long)a.pull.checksPassing, (long)a.pull.checksFailing, (long)a.pull.checksPending, a.pull.review, a.pull.url, YN(a.pull.mergedAt != nil)]);
     T(@"pulls: its line", @"PR #142 · open · checks passing · review requested", Line(kOpen));
+    // The milestone: its title, kept and in the JSON other readers take, and left out when there is none.
+    MMPullAnswer *none = MMPullParse([@"[{\"number\":11,\"state\":\"OPEN\",\"milestone\":null}]" dataUsingEncoding:NSUTF8StringEncoding]);
+    MMPull *back = [MMPull fromJSON:a.pull.json];
+    T(@"pulls: a milestone's title is parsed, kept and named milestone, and a pull request with none has no key",
+      @"Phase 6: Bench and polish|Phase 6: Bench and polish|Phase 6: Bench and polish|no|no|142 open https://github.com/acme/atlas/pull/142 Tune the ranking",
+      [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@ %@ %@ %@", a.pull.milestone, MMWindowPullFrom(a).milestone, back.milestone,
+       YN(none.pull.milestone != nil), YN(none.pull.json[@"milestone"] != nil), a.pull.json[@"number"], a.pull.json[@"state"], a.pull.json[@"url"], a.pull.json[@"title"]]);
     T(@"pulls: two checks failing, one passing", @"PR #7 · open · 2 checks failing",
       Line(@"[{\"number\":7,\"title\":\"x\",\"state\":\"OPEN\",\"url\":\"https://github.com/a/b/pull/7\",\"statusCheckRollup\":["
            @"{\"status\":\"COMPLETED\",\"conclusion\":\"FAILURE\"},{\"__typename\":\"StatusContext\",\"state\":\"ERROR\"},{\"status\":\"COMPLETED\",\"conclusion\":\"SUCCESS\"}]}]"));
@@ -92,7 +100,7 @@ static void PullsParse(void) {
     MMWindowPull *look = [MMWindowPull new]; look.known = MMWindowPullLooking;
     T(@"pulls: the words hold no ellipsis", @"no Looking for a pull request", [NSString stringWithFormat:@"%@ %@", YN([all containsString:@"…"] || [all containsString:@"..."]), look.line]);
     T(@"pulls: gh is asked for the newest pull request of the branch, in every state, with only the fields the story needs",
-      @"pr list --head fix-auth --state all --limit 1 --json number,title,state,isDraft,url,reviewDecision,statusCheckRollup,mergedAt,updatedAt",
+      @"pr list --head fix-auth --state all --limit 1 --json number,title,state,isDraft,url,reviewDecision,statusCheckRollup,mergedAt,updatedAt,milestone",
       [MMPullArguments(@"fix-auth") componentsJoinedByString:@" "]);
 }
 

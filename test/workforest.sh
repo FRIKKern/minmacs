@@ -108,12 +108,12 @@ wf_repo=$(get judged "['repo']"); wf_head=$(get judged "['head']"); mkdir -p "$M
 python3 - "$MINMACS_HOME/workforest/pulls.json" "$wf_repo" "$wf_head" <<'PY'
 import json, sys, time
 pull = {"number": 7, "title": "Try a thing", "url": "https://github.com/acme/app/pull/7", "state": "open", "draft": False,
-        "review": None, "checks": {"passing": 2, "failing": 0, "pending": 0}}
+        "review": None, "checks": {"passing": 2, "failing": 0, "pending": 0}, "milestone": "Phase 6: Bench and polish"}
 json.dump({sys.argv[2] + "\njudged": {"at": time.time(), "head": sys.argv[3], "pull": pull},
            sys.argv[2] + "\nunpushed": {"at": time.time(), "head": "an older head", "pull": None}}, open(sys.argv[1], "w"))
 PY
-check "explain --json shows the pull request the window last heard of" "found 7 open 2" \
-  "$("$MM" trees explain "$W/judged" --json | json "' '.join(str(x) for x in [j['pullRequest']['known'], j['pullRequest']['pull']['number'], j['pullRequest']['pull']['state'], j['pullRequest']['pull']['checks']['passing']])")"
+check "explain --json shows the pull request the window last heard of, with its milestone" "found 7 open 2 Phase 6: Bench and polish" \
+  "$("$MM" trees explain "$W/judged" --json | json "' '.join(str(x) for x in [j['pullRequest']['known'], j['pullRequest']['pull']['number'], j['pullRequest']['pull']['state'], j['pullRequest']['pull']['checks']['passing'], j['pullRequest']['pull']['milestone']])")"
 check "a worktree gh was not asked about, or was asked at another head, has no pullRequest" "False False" \
   "$("$MM" trees explain "$W/merged" --json | json "'pullRequest' in j") $("$MM" trees explain "$W/unpushed" --json | json "'pullRequest' in j")"
 

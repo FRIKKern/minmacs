@@ -181,6 +181,8 @@ typedef NS_ENUM(NSInteger, MMWindowPullKnown) { MMWindowPullLooking = 1, MMWindo
 /// How long ago it was merged, in seconds. Below 0 when not merged or not known.
 @property NSTimeInterval mergedAgo;
 @property (copy, nullable) NSString *title, *url;
+/// The title of its milestone, shown as a fact row under the title: "Milestone   Phase 6: Bench and polish". nil for none.
+@property (copy, nullable) NSString *milestone;
 /// "PR #142 · open · checks passing · review requested", "PR #98 · merged 2 d ago", "Looking for a pull request",
 /// "No pull request for this branch". Each part only when it is known.
 @property (readonly) NSString *line;

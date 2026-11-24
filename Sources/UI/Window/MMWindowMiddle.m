@@ -203,6 +203,15 @@ static CGFloat PullBlock(MMWindowPull *pull, CGFloat x, CGFloat y, CGFloat w, BO
         at += 2;
         at += draw ? MMWindowDrawBlock(pull.title, 12.5, 10, NSFontWeightRegular, t2, x, at, w, -1, -1, 0) : MMWindowBlockHeight(pull.title, 12.5, 10, NSFontWeightRegular, w);
     }
+    // Its milestone as a fact row, label left and the title beside it, in the facts' own column and type.
+    if (found && pull.milestone.length) {
+        CGFloat column = MIN(MAX(MMWindowWidth(MMWindowText(@"Milestone", 12, NSFontWeightRegular, t2)) + 16, 100), 150);
+        at += 6;
+        CGFloat h = draw ? MMWindowDrawBlock(pull.milestone, 12.5, 10, NSFontWeightRegular, text, x + column, at, w - column, -1, -1, 0)
+                         : MMWindowBlockHeight(pull.milestone, 12.5, 10, NSFontWeightRegular, w - column);
+        if (draw) MMWindowDrawBlock(@"Milestone", 12, 12, NSFontWeightRegular, t2, x, at, column, -1, -1, 0);
+        at += MAX(h, 16);
+    }
     if (pull.opens) {
         CGFloat bw = ceil(MMWindowWidth(MMWindowText(MMWindowOpenPull, 12, NSFontWeightRegular, text))) + 28;
         at += 8;

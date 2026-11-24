@@ -29,6 +29,10 @@ extern NSNotificationName const MMPullsDidChangeNotification;
 /// The checks of its newest commit, from statusCheckRollup.
 @property NSInteger checksPassing, checksFailing, checksPending;
 @property (strong, nullable) NSDate *mergedAt, *updatedAt;
+/// The title of its milestone, such as "Phase 6: Bench and polish". nil when it has none.
+@property (copy, nullable) NSString *milestone;
+/// {number, title, url, state, draft, review, checks, mergedAt, updatedAt, milestone}. milestone is left out when there
+/// is none. Other readers take number, title, state, url and milestone by these names.
 - (NSDictionary *)json;
 + (nullable instancetype)fromJSON:(NSDictionary *)json;
 @end
