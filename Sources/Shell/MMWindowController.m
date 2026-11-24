@@ -20,6 +20,7 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
 
 @implementation MMWindowController {
     id _token;                                           // main
+    id _pulls;                                           // main: the observer of MMPulls while open
     uint64_t _shown;                                     // main: the generation of the last model sent
     _Atomic uint64_t _wanted;                            // the newest generation asked for
     atomic_bool _open, _loginOn;
@@ -48,7 +49,8 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (atomic_exchange(&_open, open) == open) return;
     if (!open) {
         [MMGraph.shared stopObserving:_token];
-        _token = nil; _model = nil; _shown = 0;
+        if (_pulls) [NSNotificationCenter.defaultCenter removeObserver:_pulls];
+        _token = nil; _pulls = nil; _model = nil; _shown = 0;
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
         dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; });
@@ -57,6 +59,9 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     atomic_store(&_loginOn, [self.shell loginEnabled]);
     __weak MMWindowController *weak = self;
     _token = [MMGraph.shared observe:^(MMSnapshot *s) { [weak take:s]; }];
+    // A pull request gh told about, or a look that ended: the same snapshot again, with what is known now.
+    _pulls = [NSNotificationCenter.defaultCenter addObserverForName:MMPullsDidChangeNotification object:nil queue:nil
+                                                         usingBlock:^(NSNotification *n) { [weak sendSoon]; }];
     MMSnapshot *now = MMGraph.shared.current;
     if (now) { [self take:now]; return; }
     // The first launch: no snapshot yet. The welcome needs none, so it is there with the window.
@@ -228,6 +233,11 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         dispatch_async(Queue(), ^{ MMLogSetting(MMWindowLoginKey, @(before), @(after), @"window"); [self send]; });
         return;
     }
+    // Asking gh about a worktree's pull request: a pref, with its row in the log.
+    if ([switchID isEqualToString:@"prs"]) {
+        dispatch_async(Queue(), ^{ MMSetSetting(MMPullsPrefKey, @(on), @"window"); [self send]; });
+        return;
+    }
     // Keep awake now and While agents work are Insomnia's own settings, set with their record, off main.
     NSString *setting = @{@"awake": @"manual", @"agents": @"agents"}[switchID ?: @""];
     if (setting) {
@@ -280,6 +290,27 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
                 [self send];
             });
         });
+    });
+}
+
+/// The story of a row shows in the window. For a linked worktree on a branch, MMPulls asks the person's gh for its pull
+/// request: on demand only, never for a tick or a snapshot, and never while the window is closed. A look that began is
+/// shown at once, and once more past the time gh may take, so a look that got no answer leaves the story.
+- (void)windowShowsStory:(NSString *)key {
+    if (!self.open || ![key isKindOfClass:NSString.class] || !key.length) return;
+    dispatch_async(Queue(), ^{
+        if (!self.open || !self->_p) return;
+        MMPerformanceRow *r = [self->_p row:key];
+        MMFinding *f = r.finding ?: [self->_s finding:r.findingID];
+        if (![f.expert isEqualToString:@"workforest"] || ![f.kind isEqualToString:@"worktree"]) return;
+        NSDictionary *x = f.facts;
+        NSString *repo = [x[@"repo"] isKindOfClass:NSString.class] ? x[@"repo"] : nil, *branch = [x[@"branch"] isKindOfClass:NSString.class] ? x[@"branch"] : nil;
+        NSString *head = [x[@"head"] isKindOfClass:NSString.class] ? x[@"head"] : nil, *folder = f.path ?: x[@"path"];
+        if (!repo.length || !branch.length || [x[@"main"] boolValue] || [x[@"protected"] boolValue] || [x[@"missing"] boolValue]) return;
+        if (![MMPulls.shared want:folder repo:repo branch:branch head:head]) return;
+        [self send];
+        __weak MMWindowController *weak = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((MMPulls.shared.timeout + 1.2) * NSEC_PER_SEC)), Queue(), ^{ [weak send]; });
     });
 }
 

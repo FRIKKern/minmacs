@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a removed file lands in
 // $MINMACS_HOME/Trash: MMRemovalDecide never deletes at once. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport | overlap | log-words | log-controller | log-undo
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport | overlap | log-words | log-controller | log-undo | pulls
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -486,7 +486,7 @@ static void WindowModel(void) {
       [NSString stringWithFormat:@"%@ %@ %@ %@", st.startsIn ?: @"(nil)", st.rules[0].note ?: @"(nil)", st.rules[2].note ?: @"(nil)", st.rules[3].note ?: @"(nil)"]);
     T(@"window: a rule maps back to its expert", @"locohost minmacs workforest noonoo (null)", [NSString stringWithFormat:@"%@ %@ %@ %@ %@",
       MMWindowRuleExpert(@"servers"), MMWindowRuleExpert(@"apps"), MMWindowRuleExpert(@"worktrees"), MMWindowRuleExpert(@"caches"), MMWindowRuleExpert(@"icons")]);
-    T(@"window: the switches are Keep awake now, While agents work, the lid and Open at login, and no other", @"awake=Keep awake now:0,agents=While agents work:1,lid=Lid closed:1,login=Open at login:1", ({
+    T(@"window: the switches are Keep awake now, While agents work, the lid, Open at login and Pull requests, and no other", @"awake=Keep awake now:0,agents=While agents work:1,lid=Lid closed:1,login=Open at login:1,prs=Pull requests:1", ({
         NSMutableArray *a = [NSMutableArray new];
         for (MMWindowSwitch *x in st.switches) [a addObject:[NSString stringWithFormat:@"%@=%@:%d", x.switchID, x.title, x.on]];
         [a componentsJoinedByString:@","]; }));
@@ -686,10 +686,11 @@ static void RunStopped(void) {
 #import "log.m"
 #import "logundo.m"
 #import "trashlist.m"
+#import "pulls.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|collapse|collapse-helpers|collapse-run|log-words|log-controller|log-undo|trash-list|log-fold\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|collapse|collapse-helpers|collapse-run|log-words|log-controller|log-undo|trash-list|log-fold|pulls\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -723,6 +724,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"log-undo"]) LogUndo();
         else if ([mode isEqualToString:@"trash-list"]) TrashList();
         else if ([mode isEqualToString:@"log-fold"]) LogFold();
+        else if ([mode isEqualToString:@"pulls"]) Pulls();
         else return 2;
         printf("END\n");
     }

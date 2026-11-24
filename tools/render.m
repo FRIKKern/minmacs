@@ -654,6 +654,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-log.m"
 #include "render-window-caches.m"
 #include "render-window-press.m"
+#include "render-window-pulls.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -717,6 +718,8 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
         }
         MMWindowForceContrast(NO);
     }
+    // A worktree's story with its pull request: open with checks passing, merged, none and still looking.
+    RenderWindowPulls(dir, appearances, unwritten);
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
@@ -745,6 +748,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowLogChecks();
     WindowCachesChecks();
     WindowPressChecks();
+    WindowPullsChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
 }
 

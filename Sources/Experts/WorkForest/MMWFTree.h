@@ -21,6 +21,8 @@
 @property NSInteger dirty, untracked, stashes, unpushed, notInDefault;   // -1 when git could not tell
 @property BOOL onRemote;                                 // HEAD is on some remote ref
 @property (strong) NSDate *lastCommit;
+@property (copy) NSString *subject;                      // the last commit's subject line, nil when not known
+@property NSInteger behindDefault;                       // default-branch commits HEAD does not hold, -1 when not known
 // Disk, from Know's walk. sized is NO until the first walk ends.
 @property BOOL sized;
 @property uint64_t diskBytes, freedBytes, cacheBytes;

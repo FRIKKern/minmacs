@@ -259,6 +259,10 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 @property (readonly) MMWindowLogView *logView;
 /// How high the strip of the two hours stands, from the middle's top to the log.
 @property (readonly) CGFloat stripHeight;
+/// Open pull request, under a worktree's pull request in its story. Hidden while the story has none to open.
+@property (readonly) MMWindowButton *pullButton;
+/// Called on main when the story shown changes to another row, with its key, or nil when no story shows.
+@property (copy, nullable) void (^onStory)(NSString *_Nullable rowKey);
 @end
 
 typedef NS_ENUM(NSInteger, MMWindowDockPhase) { MMWindowDockCalm = 0, MMWindowDockRunning, MMWindowDockEnded };

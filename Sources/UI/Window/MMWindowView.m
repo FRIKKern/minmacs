@@ -86,6 +86,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
         _right.onPress = ^(NSString *key) { [me pressRow:key]; };
         _settings.onDone = ^{ me.showsSettings = NO; };
         _middle.logView.onUndo = ^(NSString *rid) { [me.host windowUndo:rid]; };
+        // A story that shows may ask the shell for more of it, such as a worktree's pull request, off main.
+        _middle.onStory = ^(NSString *key) { id<MMWindowHost> h = me.host; if ([h respondsToSelector:@selector(windowShowsStory:)]) [h windowShowsStory:key]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
     }
     return self;

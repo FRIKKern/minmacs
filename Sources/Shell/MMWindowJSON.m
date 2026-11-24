@@ -30,6 +30,15 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 - (NSDictionary *)json { return @{@"label": self.label ?: @"", @"value": self.value ?: @""}; }
 @end
 
+@implementation MMWindowPull (MMJSON)
+- (NSDictionary *)json {
+    NSString *known = self.known == MMWindowPullLooking ? @"looking" : self.known == MMWindowPullNone ? @"none" : @"found";
+    return @{@"known": known, @"line": self.line, @"number": self.number > 0 ? @(self.number) : NSNull.null, @"state": Or(self.state),
+             @"draft": @(self.draft), @"review": Or(self.review), @"title": Or(self.title), @"url": Or(self.url), @"milestone": Or(self.milestone),
+             @"checks": @{@"passing": @(self.checksPassing), @"failing": @(self.checksFailing), @"pending": @(self.checksPending)}};
+}
+@end
+
 @implementation MMWindowRow (MMJSON)
 - (NSDictionary *)json {
     NSDictionary *j = @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
@@ -37,6 +46,11 @@ NSString *MMWindowKindName(MMWindowKind kind) {
              // A size not measured yet is null, never 0.
              @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": self.unmeasured ? @NO : @YES, @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
              @"hour": Or(self.hour), @"facts": All(self.facts), @"project": Or(self.project), @"workedAt": self.workedAt > 0 ? @(self.workedAt) : NSNull.null};
+    if (self.pull) {
+        NSMutableDictionary *x = [j mutableCopy];
+        x[@"pullRequest"] = self.pull.json;
+        j = x;
+    }
     if (!self.members) return j;
     // A row that stands for several, DESIGN rule 16, says so and holds each member whole, as the rows it stands for.
     NSMutableDictionary *x = [j mutableCopy];

@@ -1,0 +1,17 @@
+#!/bin/sh
+# A fake gh for test/window/pulls.m. Never the real gh and never the network: test/window.sh copies it into the test
+# home, where MMPulls finds it on the PATH, and it answers from the files beside it.
+#   calls    one line per run: the folder it ran in, then its arguments
+#   mode     answer (the default): prints answer.json; sleep: never answers in time; auth: says to log in, exit 4;
+#            fail: exit 1
+#   answer.json   what `gh pr list --json ...` prints, milestone among its fields, as an object or null.
+#            With no answer.json it prints one open pull request with no milestone.
+here=$(cd "$(dirname "$0")" && pwd -P)
+printf '%s %s\n' "$(pwd -P)" "$*" >>"$here/calls"
+mode=$(cat "$here/mode" 2>/dev/null || echo answer)
+case "$mode" in
+  sleep) exec sleep 30 ;;
+  auth) echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4 ;;
+  fail) echo "none of the git remotes configured for this repository point to a known GitHub host" >&2; exit 1 ;;
+esac
+cat "$here/answer.json" 2>/dev/null || echo '[{"number":1,"title":"x","state":"OPEN","isDraft":false,"url":"https://github.com/acme/app/pull/1","reviewDecision":"","statusCheckRollup":[],"milestone":null}]'

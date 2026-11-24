@@ -157,6 +157,84 @@ MMWindowFact *MMWindowFactUntouched(NSTimeInterval seconds) {
 
 MMWindowFact *MMWindowFactKind(NSString *kind) { NSString *k = Trimmed(kind); return Fact(@"Kind", k, k); }
 
+#pragma mark A worktree's git
+
+static NSString *BranchName(NSString *defaultBranch) {
+    NSString *d = Trimmed(defaultBranch).lastPathComponent;
+    return d.length ? d : @"the default branch";
+}
+
+MMWindowFact *MMWindowFactLastCommit(NSString *subject, NSString *head, NSTimeInterval ago) {
+    NSMutableArray<NSString *> *parts = [NSMutableArray new];
+    // A subject is one line; a long one wraps in the story and is never cut.
+    NSString *s = [[Trimmed(subject) componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet] componentsJoinedByString:@" "];
+    if (s.length) [parts addObject:s];
+    NSString *h = Trimmed(head);
+    if (h.length >= 7) [parts addObject:[h substringToIndex:7]];
+    if (ago >= 0 && parts.count) { NSString *span = MMWindowSpan(ago); [parts addObject:span ? [span stringByAppendingString:@" ago"] : @"just now"]; }
+    return Fact(@"Last commit", [parts componentsJoinedByString:@" · "], nil);
+}
+
+MMWindowFact *MMWindowFactAgainst(NSInteger ahead, NSInteger behind, NSString *defaultBranch) {
+    NSString *d = BranchName(defaultBranch);
+    BOOL a = ahead > 0, b = behind > 0;
+    if (a && b) return Fact(@"Against", [NSString stringWithFormat:@"%ld ahead, %ld behind %@", (long)ahead, (long)behind, d], nil);
+    if (a) return Fact(@"Against", [NSString stringWithFormat:@"%ld ahead of %@", (long)ahead, d], nil);
+    if (b) return Fact(@"Against", [NSString stringWithFormat:@"%ld behind %@", (long)behind, d], nil);
+    return nil;
+}
+
+MMWindowFact *MMWindowFactMerged(NSString *how, NSString *defaultBranch) {
+    NSString *h = Trimmed(how), *d = BranchName(defaultBranch);
+    if (!h.length) return nil;
+    NSDictionary<NSString *, NSString *> *words = @{
+        @"ancestor": [@"Merged into " stringByAppendingString:d], @"squash": [@"Squash-merged into " stringByAppendingString:d],
+        @"patch": [NSString stringWithFormat:@"Each of its commits is in %@", d], @"tree": [NSString stringWithFormat:@"Its files match %@", d],
+        @"pr": @"Its pull request was merged", @"merge-tree": [@"Merges cleanly into " stringByAppendingString:d]};
+    return Fact(@"Merged", words[h] ?: [@"Merged into " stringByAppendingString:d], nil);
+}
+
+MMWindowFact *MMWindowFactRemote(NSString *upstream) {
+    NSString *u = Trimmed(upstream);
+    if ([u isEqualToString:@"gone"]) return Fact(@"Remote", @"Branch deleted on the remote", nil);
+    if ([u isEqualToString:@"none"]) return Fact(@"Remote", @"Never pushed", nil);
+    return nil;
+}
+
+MMWindowFact *MMWindowFactMadeBy(NSString *maker, NSString *session) {
+    NSString *m = Trimmed(maker), *t = Trimmed(session);
+    if (!m.length || [m isEqualToString:@"person"]) return nil;
+    NSDictionary *names = @{@"claude-code": @"Claude Code", @"codex": @"Codex", @"cursor": @"Cursor", @"conductor": @"Conductor"};
+    NSString *who = names[m] ?: m;
+    return Fact(@"Made by", t.length ? [NSString stringWithFormat:@"%@ · %@", who, t] : who, nil);
+}
+
+#pragma mark A worktree's pull request
+
+NSString *const MMWindowOpenPull = @"Open pull request";
+
+@implementation MMWindowPull
+- (instancetype)init { if ((self = [super init])) _mergedAgo = -1; return self; }
+- (BOOL)opens { return self.known == MMWindowPullFound && [self.url hasPrefix:@"https://"]; }
+- (NSString *)line {
+    if (self.known == MMWindowPullLooking) return @"Looking for a pull request";
+    if (self.known == MMWindowPullNone || self.number <= 0) return @"No pull request for this branch";
+    NSMutableArray<NSString *> *p = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"PR #%ld", (long)self.number]];
+    if ([self.state isEqualToString:@"merged"]) {
+        NSString *span = self.mergedAgo >= 0 ? MMWindowSpan(self.mergedAgo) : nil;
+        [p addObject:self.mergedAgo < 0 ? @"merged" : span ? [NSString stringWithFormat:@"merged %@ ago", span] : @"merged just now"];
+        return [p componentsJoinedByString:@" · "];
+    }
+    if ([self.state isEqualToString:@"closed"]) { [p addObject:@"closed"]; return [p componentsJoinedByString:@" · "]; }
+    [p addObject:self.draft ? @"draft" : @"open"];
+    if (self.checksFailing > 0) [p addObject:[NSString stringWithFormat:@"%ld %@ failing", (long)self.checksFailing, self.checksFailing == 1 ? @"check" : @"checks"]];
+    else if (self.checksPending > 0) [p addObject:@"checks running"];
+    else if (self.checksPassing > 0) [p addObject:@"checks passing"];
+    if (Trimmed(self.review).length) [p addObject:Trimmed(self.review)];
+    return [p componentsJoinedByString:@" · "];
+}
+@end
+
 /// A count with its thousands set apart, as a person writes it: "45,282".
 static NSString *Grouped(NSInteger n) {
     NSString *digits = [NSString stringWithFormat:@"%ld", (long)MAX(n, 0)];
@@ -443,6 +521,13 @@ NSString *MMWindowRuleSwitchNote(NSString *ruleID, NSInteger picked) {
                             @"caches": @"After a review, cleans up caches too. A tool's own cleanup waits for your press."};
     return (mode == 2 ? eager : careful)[ruleID ?: @""];
 }
+
+MMWindowSwitch *MMWindowPullsSwitch(BOOL on) {
+    return Switch(@"prs", @"Pull requests", MMWindowMacCard, on, nil, MMWindowPullsHelp);
+}
+
+NSString *const MMWindowPullsHelp = @"When you point at a worktree, asks GitHub about its pull request through your own gh login. "
+                                    @"That sends the repo and the branch name.";
 
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *note) {
     // No state line: the switch says it. The welcome's sentence for this state is its tooltip.

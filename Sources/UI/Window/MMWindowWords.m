@@ -21,7 +21,8 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
     for (MMWindowHour *h in @[m.memoryHour ?: [MMWindowHour new], m.diskHour ?: [MMWindowHour new]]) { add(h.title); add(h.explain); }
     for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) {
         add(g.title); add(g.emptyNote);
-        for (MMWindowRow *r in g.rows) { add(r.name); add(r.nameInProject); add(r.project); add(r.state); for (MMWindowFact *f in r.facts) { add(f.label); add(f.value); } }
+        for (MMWindowRow *r in g.rows) { add(r.name); add(r.nameInProject); add(r.project); add(r.state); for (MMWindowFact *f in r.facts) { add(f.label); add(f.value); }
+            if (r.pull) { add(r.pull.line); add(r.pull.title); if (r.pull.milestone.length) { add(@"Milestone"); add(r.pull.milestone); } if (r.pull.opens) add(MMWindowOpenPull); } }
     }
     for (MMWindowFix *f in m.fixes) add(f.title);
     add(m.run.step); add(m.run.endTitle); add(m.run.endNote);

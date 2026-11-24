@@ -46,6 +46,13 @@ python3 -I test/docs/privacy.py "$dc_fx" >"$dc_dir/privacy-fx2.txt" 2>&1
 check "docs: privacy.py fails on a merged dictionary" 1 "$?"
 check "docs: privacy.py names the merge" 1 "$(grep -c 'WorkForest: every key in .* found addEntriesFromDictionary' "$dc_dir/privacy-fx2.txt")"
 
+# The one ask to GitHub, a worktree's pull request through gh, has its own section: the command as MMPullArguments
+# builds it, the fields it asks for and the pref that turns it off. A field added to the call fails here.
+dc_fields=$(grep -o '@"number,[A-Za-z,]*"' Sources/Core/Know/MMPulls.m | tr -d '@"')
+dc_args=$(grep -A1 '^NSArray<NSString \*> \*MMPullArguments' Sources/Core/Know/MMPulls.m | tr -d '\n' | grep -c '@\[@"pr", @"list", @"--head", branch ?: @"", @"--state", @"all", @"--limit", @"1",')
+check "docs: PRIVACY.md says what the pull request ask sends: its section, gh's call with every field, and the pref" "1 1 1 1" \
+  "$dc_args $(grep -c '^## Pull requests$' docs/PRIVACY.md) $(grep -cF -- "gh pr list --head <branch> --state all --limit 1 --json $dc_fields" docs/PRIVACY.md) $(grep -cF '`workforest.pullRequests`' docs/PRIVACY.md)"
+
 # The field list lives in PRIVACY.md, so no comment or README in Sources sends the reader elsewhere for it.
 check "docs: Sources points to PRIVACY.md for the review fields" 0 "$(grep -rlE 'REVIEW\.md (does not exist|lists)' Sources | grep -c .)"
 

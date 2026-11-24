@@ -89,6 +89,10 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 @property (readonly) BOOL upstreamGone;                 // the remote branch was deleted
 @property (readonly) BOOL upstreamUnknown;              // the upstream or its tip cannot be read, so it is not gone
 @property (readonly) NSDate *lastCommit;
+/// The last commit's subject line, cut at 200 characters, read in the same git run as its time. nil when not known.
+@property (readonly, copy) NSString *subject;
+/// Commits on the default branch that HEAD does not hold, from the same count as notInDefault. -1 when not known.
+@property (readonly) NSInteger behindDefault;
 /// The facts as JSON, with merged as a word: none, ancestor, tree, patch, squash, pr or merge-tree.
 - (NSDictionary *)json;
 @end

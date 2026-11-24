@@ -141,6 +141,9 @@ static int Explain(MMArgs *a, NSString *arg) {
     if (a.json) {
         NSMutableDictionary *j = [TreeJSON(f, s, r) mutableCopy];
         j[@"sentToModel"] = [MMWorkForestExpert.shared reviewFactsFor:f];
+        // What the window last heard from gh about its branch, when that is known. The CLI never asks gh itself.
+        MMPullAnswer *pr = t.isMain || !t.branch.length ? nil : [MMPulls.shared knownFor:t.repo branch:t.branch head:t.head];
+        if (pr.known == MMPullFound || pr.known == MMPullNone) j[@"pullRequest"] = pr.json;
         [a printJSON:j];
         return 0;
     }
@@ -405,6 +408,19 @@ static int CleanUp(MMArgs *a) {
     return status;
 }
 
+/// prs on|off: whether the window may ask the person's gh about a worktree's pull request, the pref
+/// workforest.pullRequests, on by default. A pref, as unattended is, so it needs no app. PRIVACY.md says what it sends.
+static int Prs(MMArgs *a) {
+    NSString *w = [a word:1].lowercaseString;
+    if (w && ![w isEqualToString:@"on"] && ![w isEqualToString:@"off"]) return [a usageError];
+    if (w && !a.dryRun) MMSetSetting(MMPullsPrefKey, @([w isEqualToString:@"on"]), @"cli");
+    BOOL on = w && a.dryRun ? [w isEqualToString:@"on"] : [MMPulls enabled];
+    if (a.json) { [a printJSON:@{@"pullRequests": @(on)}]; return 0; }
+    [a print:@"%@", on ? @"on: pointing at a worktree in the window asks GitHub about its pull request through your own gh login, which sends the repo and the branch name"
+                       : @"off: MinMacs asks GitHub nothing about pull requests"];
+    return 0;
+}
+
 static int Trees(MMArgs *a) {
     NSString *cmd = [a word:0] ?: @"list";
     NSString *arg = [a word:1];
@@ -421,6 +437,7 @@ static int Trees(MMArgs *a) {
     if ([cmd isEqualToString:@"protect"]) return Protect(a, arg);
     if ([cmd isEqualToString:@"prune"]) return Prune(a, arg);
     if ([cmd isEqualToString:@"rules"]) return RulesCommand(a);
+    if ([cmd isEqualToString:@"prs"]) return Prs(a);
     if ([cmd isEqualToString:@"fetch"]) {
         [a error:@"MinMacs never fetches. Run git fetch --all --prune in the repo, and the next walk reads the new state."];
         return MMExitFailed;
@@ -431,7 +448,7 @@ static int Trees(MMArgs *a) {
 }
 
 static NSString *const kUsage =
-    @"trees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|path>|removed|keep <path>|protect <path>|prune <path>|rules] "
+    @"trees [list|explain <path>|review|plan|auto|clean-up|remove <path>|restore <id|path>|removed|keep <path>|protect <path>|prune <path>|rules|prs on|off] "
     @"[--all] [--mode <mode>] [--model <model>] [--path <path>] [--days <n>] [--off] [--fresh] [--review] [--merged] [--yes] [--dry-run] [--json]"
     @"   every git worktree, whether it is merged, and what removing it frees";
 

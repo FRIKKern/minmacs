@@ -404,7 +404,9 @@ static void WindowWelcomeChecks(void) {
     MMWindowSettings *st = MMWindowFixture(@"welcome").settings;
     BOOL none = YES;
     for (MMWindowRule *r in st.rules) if ([r.ruleID isEqualToString:@"removal"]) none = NO;
-    Check(none && [st.switches.lastObject.title isEqualToString:words.loginTitle] && [st.switches.lastObject.help isEqualToString:words.loginOnNote] && !st.switches.lastObject.note &&
+    MMWindowSwitch *loginSwitch = nil;
+    for (MMWindowSwitch *sw in st.switches) if ([sw.switchID isEqualToString:@"login"]) loginSwitch = sw;
+    Check(none && [loginSwitch.title isEqualToString:words.loginTitle] && [loginSwitch.help isEqualToString:words.loginOnNote] && !loginSwitch.note &&
           [MMWindowLoginNote(NO) isEqualToString:words.loginOffNote],
           @"welcome: Open at login says the same words as its Settings switch's tooltip, and Settings has no removal card", @"");
     NSMutableArray<NSString *> *bad = [NSMutableArray new];
