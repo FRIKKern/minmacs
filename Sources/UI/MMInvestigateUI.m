@@ -1,8 +1,9 @@
-// The Investigate card words and alerts, issue #35. MMInvestigateUI.h says what each does.
+// The Investigate card words and its confirm, issue #35. MMInvestigateUI.h says what each does.
 #import <Cocoa/Cocoa.h>
 #import "UI/MMInvestigateUI.h"
 #import "UI/MMFormat.h"
 #import "UI/MMMenuKit.h"
+#import "UI/MMConfirm.h"
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] ? v : nil; }
 
@@ -25,7 +26,7 @@ BOOL MMInvestigateNote(NSDictionary *run, NSString **noteBy, NSString **note) {
     NSString *answer = Str(run[@"answer"]);
     if (!answer.length) { *noteBy = @"Investigate failed"; *note = MMSentence(Str(run[@"error"]) ?: @"the model did not answer"); return YES; }
     // The note holds two lines, so it keeps the whole sentences that fit, as MMCard draws it. The full answer
-    // is in the Investigate alert and in `minmacs investigate`. The width and size are MMCard's card text.
+    // is in the Investigate confirm and in `minmacs investigate`. The width and size are MMCard's card text.
     *noteBy = [model stringByAppendingString:@" investigated"];
     NSString *by = [*noteBy stringByAppendingString:@": "];
     NSString *fit = MMFitSentences([by stringByAppendingString:MMSentence(answer)], [NSFont systemFontOfSize:11.5], MMMenuWidth - 32, MMMaxCardNoteLines);
@@ -34,24 +35,9 @@ BOOL MMInvestigateNote(NSDictionary *run, NSString **noteBy, NSString **note) {
 }
 
 NSString *MMInvestigateConfirm(NSString *title, NSString *text, NSString *placeholder) {
-    NSAlert *a = [NSAlert new];
-    a.messageText = title ?: @"Investigate?";
-    a.informativeText = text ?: @"";
     NSTextField *q = [NSTextField textFieldWithString:@""];
     q.placeholderString = placeholder;
     q.frame = NSMakeRect(0, 0, 340, 24);
-    a.accessoryView = q;
-    [a addButtonWithTitle:@"Investigate"]; [a addButtonWithTitle:@"Cancel"];
-    a.window.initialFirstResponder = q;
-    [NSApp activateIgnoringOtherApps:YES];
-    if ([a runModal] != NSAlertFirstButtonReturn) return nil;
+    if (!MMAskPerson(title ?: @"Investigate?", text, @"Investigate", q)) return nil;
     return [q.stringValue stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] ?: @"";
-}
-
-void MMInvestigateFailed(NSString *error) {
-    NSAlert *a = [NSAlert new];
-    a.messageText = @"Investigate Failed";
-    a.informativeText = MMSentence(error ?: @"the model did not answer");
-    [NSApp activateIgnoringOtherApps:YES];
-    [a runModal];
 }

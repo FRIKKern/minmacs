@@ -8,6 +8,10 @@ python3 -I test/docs/clidoc.py build/MinMacs.app/Contents/MacOS/MinMacs > docs/C
 
 The app binary is also the command line tool. `install.sh` and `build.sh --install` link it as `~/.local/bin/minmacs`. When the app runs, the CLI hands each verb to it over `core.sock` in the support folder. When no app answers, it builds a snapshot itself and answers from that.
 
+## Nobody at the terminal
+
+No verb ever waits for a person, decision D3. When stdin is not a TTY, or `MINMACS_UNATTENDED=1` is set, or `minmacs unattended on` was run, the CLI reads nothing from stdin. A change that keeps a way back, such as a worktree removal or a plain stop that Undo starts again, goes ahead as `--yes` would. One that does not is not done without `--yes`: `locohost close --force`, a SIGKILL, is refused with a message that names what to add and exit 2, and `investigate` only shows what a run would cost. `MINMACS_UNATTENDED=0` says a person is here: then nothing is read without a TTY either, and a verb that would ask refuses instead.
+
 ## Exit codes
 
 - **0.** OK.
@@ -189,7 +193,7 @@ device [--json]
 
 Flags: `--json`.
 
-`device` is the one read a remote orchestrator, such as BarkBot, makes to choose a Mac for a task now. It reads what Core already holds, the last Senses pass and the graph in the app, or one sample when no app runs. On the verb itself it reads the hardware by sysctl, the displays from CoreGraphics, the display-sleep setting from IOKit, memory by `host_statistics`, swap by `vm.swapusage` and MinMacs's own accounting by one `proc_pid_rusage`. It runs no process and adds nothing to any tick. It writes nothing.
+`device` is the one read a remote orchestrator, such as BarkBot, makes to choose a Mac for a task now. It reads what Core already holds, the last Senses pass and the graph in the app, or one sample when no app runs. On the verb itself it reads the hardware by sysctl, the displays from CoreGraphics, the display-sleep setting from IOKit, memory by `host_statistics`, swap by `vm.swapusage` and MinMacs's own accounting by one `proc_pid_rusage`. It runs one process, `sudo -n -l` through `MMLidOverride`, which never prompts, for `provision.lidRuleInstalled`, and adds nothing to any tick. It writes nothing.
 
 `device --json` prints one object. `schema` is 1, and a field is added, never changed in meaning, while it stays 1.
 
@@ -228,6 +232,7 @@ Flags: `--json`.
 | `agents.list` | Each agent: `pid`, `name`, `harness`, `state` (`working`, `waiting`, `idle` or `unknown`), `working`, and the TCP `ports` its process tree listens on |
 | `quiet.active`, `quiet.holders` | Whether a quiet hold is active, and each one as `quiet --json` gives it |
 | `minmacs` | What the app costs, since its launch: `pid`, `runningSeconds`, `sinceLaunch.cpuPercent` and `sinceLaunch.idleWakeupsPerSecond`, `memory.footprintBytes` and `memory.peakBytes`, the `budgets` and the budgets it is `over`. In the app it reads itself; from the CLI it reads the pid the app gives on core.sock. Null with no app |
+| `provision` | D3: what this Mac still needs a person for once, read without asking anything. `unattended`; `lidRuleInstalled`, whether the sudoers rule lid mode needs is in place; `notificationsAuthorized`, null outside the app, which alone can read it; `loginItem`, `enabled`, `requiresApproval`, `notRegistered` or `notFound`, and `loginItemApproved`, null where it cannot be read; `needsPerson`, the names of what is missing: `lidRule`, `notifications`, `loginItem` |
 
 An example of the shape, for a Mac with the lid shut, Insomnia's lid mode live, the screen left on and a quiet hold for a screen recording. `test/device.sh` checks these cases on fixture power facts and displays:
 
@@ -250,7 +255,8 @@ An example of the shape, for a Mac with the lid shut, Insomnia's lid mode live, 
              "list": [{"pid": 2767, "name": "Claude Code", "harness": "claude-code", "state": "working", "working": true, "ports": [49210]}]},
   "quiet": {"active": true, "holders": [{"pid": 4989, "reason": "screen recording", "since": 1795506000, "by": "cli", "rid": "25537f7a3643", "awake": true}]},
   "minmacs": {"pid": 812, "runningSeconds": 86400, "sinceLaunch": {"cpuPercent": 0.21, "idleWakeupsPerSecond": 0.6},
-              "memory": {"footprintBytes": 41943040, "peakBytes": 62914560}, "budgets": {"cpuPercent": 0.3, "idleWakeupsPerSecond": 1}, "over": []}
+              "memory": {"footprintBytes": 41943040, "peakBytes": 62914560}, "budgets": {"cpuPercent": 0.3, "idleWakeupsPerSecond": 1}, "over": []},
+  "provision": {"unattended": true, "lidRuleInstalled": true, "notificationsAuthorized": true, "loginItem": "enabled", "loginItemApproved": true, "needsPerson": []}
 }
 ```
 
@@ -274,6 +280,22 @@ A quiet hold gives one task peace while its process runs, such as a screen recor
 - Every hold and its end is in `minmacs log`: "Quiet for screen recording, pid 4123, 12:03 to 12:41.", and while it lasts "Quiet for screen recording, pid 4123, since 12:03. It lasts while that process runs."
 
 `quiet --json` prints `{active, holders, kept}`. Each holder is `{pid, reason, since, by, rid, awake}`: `since` in seconds since 1970, `by` who asked, `rid` its undo record, and `awake` whether the MinMacs process that took it still runs and holds the Mac and display awake. `kept` is what this process holds assertions for, in the app, or null. `device --json` gives the same holders as `quiet`.
+
+#### `unattended`
+
+Show or set whether this Mac runs with nobody at it: then nothing waits for a person, no confirm is shown and the welcome is skipped; MINMACS_UNATTENDED=1 or 0 decides over it for one process.
+
+```
+unattended [on|off] [--json]
+```
+
+Flags: `--json`.
+
+`on` is for a Mac that runs with nobody at it, driven by an agent such as BarkBot. Then no confirm is shown, even for a press in the window or a menu, a failure is a notice in the log with at most one notification, and the welcome is skipped, at once when the app runs and else at its next launch: Open at login is turned on and the log says the welcome was skipped. The pref is `core.unattended`, and each change is a row of the log by `cli`.
+
+`MINMACS_UNATTENDED=1` in a process's environment makes that process unattended whatever the pref holds, and `MINMACS_UNATTENDED=0` makes it attended. `--json` prints `{"unattended", "pref", "env"}`: what holds now, the pref, and the environment's word or null.
+
+The one prompt MinMacs cannot take away is macOS's own: the administrator password for the lid rule, the first time lid mode is turned on, and only on that explicit turn with a person here, such as `insomnia lid on`. Unattended, lid on without the rule is refused at once with a notice. A fleet Mac takes it once at setup, and `device --json` names what is still missing in `provision.needsPerson`. A link that acts, such as `workforest://clean-up`, asks a person who is here first, and runs unasked only while unattended.
 
 #### `version`
 

@@ -11,6 +11,7 @@
 #import "UI/MMUI.h"
 #import "UI/MMSettings.h"
 #import "UI/MMSpecMenu.h"
+#import "UI/MMConfirm.h"
 #import "Shell/MMWatchdog.h"
 #import "Shell/MMWindowCLI.h"
 #import "Shell/MMWindowController.h"
@@ -378,7 +379,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     }
     [self rebuildItems];
     MMSetPref(kLaunchedKey, @YES);
-    // Issue #37. The import ran in MMCoreStart. What follows it may ask the person, so it waits for the menu bar.
+    // D3: on a Mac that runs unattended nobody presses Start, so the welcome's defaults apply now, and again when
+    // `minmacs unattended on` runs in this app.
+    if (!self.headless) {
+        [self skipWelcomeIfUnattended];
+        [NSNotificationCenter.defaultCenter addObserverForName:MMUnattendedChangedNotification object:nil queue:NSOperationQueue.mainQueue
+                                                    usingBlock:^(NSNotification *n) { [self skipWelcomeIfUnattended]; }];
+    }
+    // Issue #37. The import ran in MMCoreStart. The follow-up asks nobody, D3, and waits for the menu bar.
     if (!self.headless && MMMigrateWanted(NSProcessInfo.processInfo.environment)) [self followUpMigration];
     __weak MMShell *weak = self;
     // Every card's link rows open through here, whichever expert drew the card.
@@ -395,37 +403,18 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     if (self.settingsWaits) { self.settingsWaits = NO; [self showSettings:nil]; }
 }
 
-/// PLAN.md section 8, once: a lid override the old Insomnia left on goes off, then one confirm for Noo-Noo's
-/// LaunchAgent and one for the old apps. It runs on its own queue. Each confirm is an alert on main, and main
-/// waits only on the person there. What failed goes in one alert, DESIGN.md "Notifications".
+/// PLAN.md section 8, once: a lid override the old Insomnia left on goes off, then Noo-Noo's LaunchAgent and the old
+/// apps go to the Trash, each with its undo record. D3: nobody is asked, since each keeps a way back, and what stayed
+/// is one notice in the log. It runs on its own queue and never touches main.
 - (void)followUpMigration {
     dispatch_queue_t q = MMQueue(@"core", @"migrate", QOS_CLASS_UTILITY);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kMigrateDelay * NSEC_PER_SEC)), q, ^{
-        NSDictionary *done = MMMigrateFollowUp(nil, ^BOOL(NSString *title, NSString *body, NSString *yes, NSString *no) {
-            __block BOOL answer = NO;
-            dispatch_sync(dispatch_get_main_queue(), ^{
-                NSAlert *a = [NSAlert new];
-                a.messageText = title; a.informativeText = body ?: @"";
-                [a addButtonWithTitle:yes]; [a addButtonWithTitle:no];
-                [NSApp activateIgnoringOtherApps:YES];
-                answer = [a runModal] == NSAlertFirstButtonReturn;
-            });
-            return answer;
-        });
-        NSMutableArray *failed = [NSMutableArray new];
-        NSDictionary *agent = done[@"noonoo.agent"];
-        if ([agent[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"Noo-Noo's agent: %@.", agent[@"why"]]];
-        for (NSDictionary *app in done[@"apps"])
-            if ([app[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"%@: %@.", app[@"name"], app[@"why"]]];
-        if (!failed.count) return;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            NSAlert *a = [NSAlert new];
-            a.messageText = @"Some Old Apps Stayed";
-            a.informativeText = [failed componentsJoinedByString:@"\n"];
-            [NSApp activateIgnoringOtherApps:YES];
-            [a runModal];
-        });
-    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kMigrateDelay * NSEC_PER_SEC)), q, ^{ (void)MMMigrateFollowUpUnasked(nil); });
+}
+
+/// D3, on main. With the menu window and the Mac unattended, the welcome is skipped and its defaults applied.
+- (void)skipWelcomeIfUnattended {
+    if (!MMWindowMode()) return;
+    [MMWindowController skipWelcomeUnattended:self];
 }
 
 /// A run of Fix Everything is never cut in the middle of a step. Quit, from the window, the Dock, a URL or a log out,
@@ -659,6 +648,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     [self.settings show:MMSettingsOverview];
 }
 
+/// The words of a link that act on something: tidy stops, removes and cleans. review and restore do not.
+BOOL MMURLWordsAct(NSArray<NSString *> *words) { return [words.firstObject isEqualToString:@"tidy"]; }
+
 - (void)application:(NSApplication *)app openURLs:(NSArray<NSURL *> *)urls {
     for (NSURL *u in urls) {
         MMRoute *r = MMRouteURL(u, nil);
@@ -671,6 +663,12 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
                 id<MMExpert> e = MMExpertNamed(r.expert);
                 BOOL handled = [e respondsToSelector:@selector(openURL:)] && [e openURL:r.url];
                 if (!handled && r.words) {
+                    // A link can come from any web page. One that acts, such as run-now, which runs tidy, asks a
+                    // person who is here first, and never acts unasked. Unattended, D3, it runs as it is.
+                    if (MMURLWordsAct(r.words) && !MMUnattended() &&
+                        !MMAskPerson(@"Run the Rules Now?",
+                                     @"A link asks MinMacs to act on what its rules find now. Each thing is checked again first, "
+                                     @"and everything it removes keeps a way back.", @"Run Now", nil)) break;
                     // A verb that blocks, such as a review, runs off main, as it does for the CLI.
                     NSArray *words = r.words;
                     dispatch_async(MMQueue(@"core", @"url", QOS_CLASS_USER_INITIATED), ^{ MMCLIReply(@{@"cli": words}); });

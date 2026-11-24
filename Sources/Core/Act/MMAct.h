@@ -80,7 +80,8 @@ NSUInteger MMKeepMainThreadReads(void);
 /// P51. Runs one action the safe way, in this order:
 /// recheck, then MMMustKeep on -[MMGraph freshFactsFor:], then the undo record, then perform, then finish.
 /// review is the review a mode acted on, so work after it keeps. Pass nil for an action the person asked for.
-/// by says who asked: "manual" from a menu, "cli" from the command line, "proactive" or "eager" from a mode,
+/// by says who asked: "manual" from a menu, "cli" from the command line, "url" from a link such as
+/// workforest://clean-up, "proactive" or "eager" from a mode, "migration" from the move from the old apps,
 /// or "guard" from an expert's own rule that follows the state, such as Insomnia's lid override. Blocks. Never on main.
 /// Returns the finished record, or nil with *error when the action did not start.
 MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review,

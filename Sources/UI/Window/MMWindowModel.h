@@ -381,7 +381,7 @@ extern NSString *const MMWindowLookingNote;
 @interface MMWindowLogEntry : NSObject
 @property (copy) NSString *key;                         // stable across reads: the record's rid, or the row's number
 /// What it is: "action", "restored", "failed", "began", "review", "reviews", "investigate", "setting", "keep",
-/// "quiet" or "run".
+/// "quiet", "run" or "notice".
 @property (copy) NSString *kind;
 @property (copy) NSString *sentence;                    // "Stopped :3000 Next.js. Undo starts it again."
 @property (copy) NSString *time;                        // "14:02", or "08:00 to 13:00" for folded reviews

@@ -8,6 +8,8 @@
 #import "Core/Act/MMWorktreeAct.h"
 #import "UI/MMFormat.h"
 #import "UI/MMInvestigateUI.h"
+#import "UI/MMConfirm.h"
+#import "Core/Act/MMNotice.h"
 #include <stdlib.h>
 
 static NSString *const kExpert = @"workforest";
@@ -959,55 +961,81 @@ static NSDictionary *WrapUpsIn(MMSnapshot *s, NSArray<MMFinding *> *findings) {
 - (BOOL)openURL:(NSURL *)url {
     NSString *c = url.host.lowercaseString ?: @"";
     if ([c isEqualToString:@"review"]) { [self act:@"review" key:nil option:NO snapshot:MMGraph.shared.current]; return YES; }
-    if ([c isEqualToString:@"clean-up"]) { [self act:@"clean-up" key:nil option:NO snapshot:MMGraph.shared.current]; return YES; }
+    if ([c isEqualToString:@"clean-up"]) { [self cleanUpFromLink:MMGraph.shared.current]; return YES; }
     if ([c isEqualToString:@"rescan"]) { [MMRepoIndex.shared refresh:nil]; return YES; }
     return NO;
 }
 
 #pragma mark Actions from the menu
 
-static void Alert(NSString *title, NSString *text) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSAlert *a = [NSAlert new];
-        a.messageText = title; a.informativeText = text ?: @"";
-        [NSApp activateIgnoringOtherApps:YES];
-        [a runModal];
-    });
+/// D3: what failed goes to the log as a notice, with at most one notification. No alert waits for a person.
+static void Notice(NSString *title, NSString *text) { MMNotice(kExpert, title, text); }
+
+/// A confirm only for a press a person plainly made, MMPersonPresses at the press. With nobody there the answer is
+/// yes: every removal here keeps a way back, as `trees remove` with nobody at the terminal answers.
+static BOOL Confirm(BOOL present, NSString *title, NSString *text, NSString *button) {
+    return !present || MMAskPerson(title, text, button, nil);
 }
 
-static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
-    NSAlert *a = [NSAlert new];
-    a.messageText = title; a.informativeText = text ?: @"";
-    [a addButtonWithTitle:button]; [a addButtonWithTitle:@"Cancel"];
-    [NSApp activateIgnoringOtherApps:YES];
-    return [a runModal] == NSAlertFirstButtonReturn;
+/// The stale worktrees Clean Up would remove now, and the confirm's text that names them.
+static NSArray<MMFinding *> *CleanUpCandidates(MMSnapshot *s, NSString **text) {
+    NSArray *c = MMWFCandidates([s findingsFor:kExpert], s.facts, [s reviewFor:kExpert]);
+    NSMutableString *list = [NSMutableString new];
+    for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
+    [list appendString:@"\nEach is checked again first. Branches stay unless merged, ignored files such as .env are saved, "
+                       @"and Recently Removed can restore each one."];
+    if (text) *text = list;
+    return c;
+}
+
+/// workforest://clean-up, on main. A link can come from any web page, so with a person at the Mac it shows the same
+/// confirm a press of Clean Up gets and never acts unasked. On a Mac that runs unattended, D3, nobody could answer,
+/// so it runs as `trees clean-up` does with nobody at the terminal: each worktree checked fresh, each keeping a way
+/// back, each with its record by "url".
+- (void)cleanUpFromLink:(MMSnapshot *)s {
+    NSString *text = nil;
+    NSArray *c = CleanUpCandidates(s, &text);
+    if (!c.count) return;
+    if (!MMUnattended() && !MMAskPerson([NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], text, @"Remove Them", nil)) return;
+    [self remove:c why:@"Clean Up from a link" by:@"url"];
 }
 
 /// Removes on the act queue, each one checked fresh by MMRunAction, then says what stayed.
-- (void)remove:(NSArray<MMFinding *> *)fs why:(NSString *)why {
+- (void)remove:(NSArray<MMFinding *> *)fs why:(NSString *)why { [self remove:fs why:why by:@"manual"]; }
+
+- (void)remove:(NSArray<MMFinding *> *)fs why:(NSString *)why by:(NSString *)by {
     if (_removing || !fs.count) return;
     _removing = YES;
     dispatch_async(ActQueue(), ^{
         NSMutableArray *failed = [NSMutableArray new];
         for (MMFinding *f in fs) {
             NSString *err = nil;
-            MMUndoRecord *r = MMRunAction(MMWFRemoveAction(f), MMWFManualPolicy(), nil, @"manual", why, &err);
+            MMUndoRecord *r = MMRunAction(MMWFRemoveAction(f), MMWFManualPolicy(), nil, by, why, &err);
             if (!r || r.state != MMUndoDone) [failed addObject:[NSString stringWithFormat:@"%@: %@", f.title, err ?: r.error ?: @"it was not removed"]];
         }
         dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
-        if (failed.count) Alert([NSString stringWithFormat:@"%@ Kept", MMCapitalized(MMPlural(failed.count, @"worktree"))], [failed componentsJoinedByString:@"\n"]);
+        if (failed.count) Notice([NSString stringWithFormat:@"%@ Kept", MMCapitalized(MMPlural(failed.count, @"worktree"))], [failed componentsJoinedByString:@"\n"]);
         [MMRepoIndex.shared refresh:nil];
         [MMGraph.shared rebuild:@"workforest remove"];
     });
 }
 
-/// Main thread. Anything that changes a worktree runs on the act queue, through MMRunAction or MMUndo.
+/// Main thread, from the menu: whether a person is plainly there is read now, at the press.
 - (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s {
+    [self act:what key:key option:option snapshot:s present:MMPersonPresses()];
+}
+
+/// Main thread. Anything that changes a worktree runs on the act queue, through MMRunAction or MMUndo.
+/// present: a person made this press and is there to answer a confirm. NO for a link and while unattended.
+- (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s present:(BOOL)present {
     if ([what isEqualToString:@"investigate"] && key) {
-        // Issue #35. The cost and the model show first, and only a confirmed run starts.
+        // Issue #35. The cost and the model show first, and only a confirmed run starts. A run costs tokens and has
+        // no way back, so with nobody there to confirm it nothing runs, and the notice says how to run it.
         [MMInvestigations.shared ask:key snapshot:s confirm:^NSString *(NSString *title, NSString *text, NSString *placeholder) {
-            return MMInvestigateConfirm(title, text, placeholder);
-        } failed:^(NSString *error) { MMInvestigateFailed(error); }];
+            if (present) return MMInvestigateConfirm(title, text, placeholder);
+            Notice(@"Investigate Did Not Run", [NSString stringWithFormat:@"Nobody was there to confirm what it costs. minmacs investigate %@ --yes runs it.", key]);
+            return nil;
+        } failed:^(NSString *error) { Notice(@"Investigate Failed", MMSentence(error ?: @"the model did not answer")); }];
         return;
     }
     MMFinding *f = key ? [s finding:key] : nil;
@@ -1016,17 +1044,14 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         _reviewing = YES; _view = nil;
         [MMReviewBroker.shared wake:@"manual" expert:kExpert];
     } else if ([what isEqualToString:@"clean-up"]) {
-        NSArray *c = MMWFCandidates([s findingsFor:kExpert], s.facts, [s reviewFor:kExpert]);
+        NSString *list = nil;
+        NSArray *c = CleanUpCandidates(s, &list);
         if (!c.count) return;
-        NSMutableString *list = [NSMutableString new];
-        for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
-        [list appendString:@"\nEach is checked again first. Branches stay unless merged, ignored files such as .env are saved, "
-                           @"and Recently Removed can restore each one."];
-        if (Confirm([NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], list, @"Remove Them")) [self remove:c why:@"Clean Up"];
+        if (Confirm(present, [NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], list, @"Remove Them")) [self remove:c why:@"Clean Up"];
     } else if ([what isEqualToString:@"restore"] && key) {
         dispatch_async(ActQueue(), ^{
             NSString *problem = [MMUndo.shared restore:key];
-            if (problem) Alert(@"Could Not Restore", MMSentence(problem));
+            if (problem) Notice(@"Could Not Restore", MMSentence(problem));
             [MMRepoIndex.shared refresh:nil];
             [MMGraph.shared rebuild:@"workforest restore"];
         });
@@ -1040,7 +1065,7 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     } else if (!t) {
         return;
     } else if ([what isEqualToString:@"remove"]) {
-        if (Confirm([NSString stringWithFormat:@"Remove the Worktree %@?", t.name],
+        if (Confirm(present, [NSString stringWithFormat:@"Remove the Worktree %@?", t.name],
                     @"It is checked again first. The branch stays unless it is merged, ignored files such as .env are saved, "
                     @"and Recently Removed can restore it.", @"Remove")) [self remove:@[f] why:@"removed from the menu"];
     } else if ([what isEqualToString:@"wrap-up"]) {
@@ -1049,17 +1074,17 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         dispatch_async(ActQueue(), ^{
             MMWrapUpPlan *plan = MMWrapUpPlanFor(path, s);
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (plan.whyNot) { Alert(@"Cannot Wrap Up", MMSentence(plan.whyNot)); return; }
+                if (plan.whyNot) { Notice(@"Cannot Wrap Up", MMSentence(plan.whyNot)); return; }
                 NSMutableString *list = [NSMutableString new];
                 for (MMWrapUpPart *p in plan.parts) [list appendFormat:@"%@\n", p.title];
                 [list appendString:@"\nEach part is checked again first, and again right before it runs. A part that fails stops the rest. "
                                    @"Recently Removed restores it all in one step."];
-                if (self->_removing || !Confirm([NSString stringWithFormat:@"Wrap Up %@?", name], list, @"Wrap Up")) return;
+                if (self->_removing || !Confirm(present, [NSString stringWithFormat:@"Wrap Up %@?", name], list, @"Wrap Up")) return;
                 self->_removing = YES;
                 dispatch_async(ActQueue(), ^{
                     NSString *err = nil;
                     MMUndoRecord *r = MMRunWrapUp(plan, @"manual", &err);
-                    if (!r || r.state != MMUndoDone) Alert(@"Wrap Up Stopped", MMSentence(err ?: r.error ?: @"it did not run"));
+                    if (!r || r.state != MMUndoDone) Notice(@"Wrap Up Stopped", MMSentence(err ?: r.error ?: @"it did not run"));
                     dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
                     [MMRepoIndex.shared refresh:nil];
                     [MMGraph.shared rebuild:@"workforest wrap up"];

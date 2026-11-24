@@ -6,6 +6,7 @@
 #import <AppKit/AppKit.h>
 #import "Experts/Insomnia/MMInsomnia.h"
 #import "UI/MMFormat.h"
+#import "UI/MMConfirm.h"
 #include <sys/sysctl.h>
 
 static NSString *const kExpert = @"insomnia";
@@ -329,6 +330,10 @@ static MMPower *PowerFor(MMSnapshot *s) {
 
 #pragma mark Settings
 
+/// D3: why lid mode cannot turn on while unattended without the sudoers rule. It is the notice, and the problem.
+static NSString *const kLidSetup = @"Lid mode needs a one-time setup: run minmacs insomnia lid on with a person present, "
+                                   @"or install /etc/sudoers.d/insomnia. Turn unattended off first with minmacs unattended off.";
+
 static NSString *PrefKey(NSString *what) {
     return @{@"manual": @"insomnia.awake", @"agents": @"insomnia.agents", @"lid": @"insomnia.lid", @"screen": @"insomnia.lid.screenOff",
              @"heat": @"insomnia.lid.thermalGuard", @"battery": @"insomnia.lid.minBattery", @"unplugged": @"insomnia.lid.graceMinutes",
@@ -339,8 +344,13 @@ static NSString *PrefKey(NSString *what) {
     if (NSThread.isMainThread) return @"it never runs on the main thread";
     NSString *key = PrefKey(what);
     if (!key || !value) return [NSString stringWithFormat:@"no setting named %@", what];
-    // Lid mode needs the sudoers rule. The first time, macOS asks for the person's password once.
+    // Lid mode needs the sudoers rule. The first time, macOS asks for the person's password once. D3: on a Mac that
+    // runs unattended nobody could type it, so the turn is refused at once rather than waiting on the prompt.
     if ([what isEqualToString:@"lid"] && [value boolValue] && ![MMLidOverride ruleInstalled]) {
+        if (MMUnattended()) {
+            MMNotice(kExpert, @"Lid Mode Needs a One-Time Setup", kLidSetup);
+            return kLidSetup;
+        }
         NSString *err = nil;
         if (![MMLidOverride installRule:&err]) return [@"the sudoers rule is not in place: " stringByAppendingString:err ?: @"no answer"];
     }
@@ -429,17 +439,16 @@ static NSString *PrefKey(NSString *what) {
 
 - (NSArray<MMVerbSpec *> *)verbs { return MMINVerbs(); }
 
-static void Alert(NSString *title, NSString *text) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSAlert *a = [NSAlert new];
-        a.messageText = title; a.informativeText = text ?: @"";
-        [NSApp activateIgnoringOtherApps:YES];
-        [a runModal];
-    });
-}
+/// D3: what failed goes to the log as a notice, with at most one notification. No alert waits for a person.
+static void Notice(NSString *title, NSString *text) { MMNotice(kExpert, title, text); }
 
-/// From the menu, on main. The change runs on the act queue.
-- (void)act:(NSString *)what key:(NSString *)key {
+/// From the menu, on main: whether a person is plainly there is read now, at the press.
+- (void)act:(NSString *)what key:(NSString *)key { [self act:what key:key present:MMPersonPresses()]; }
+
+/// On main. The change runs on the act queue. present: a person made this press and is there to answer the lid
+/// confirm. With nobody there, as from a link or while unattended, the lid is set as `insomnia lid on` sets it.
+/// Either way only this explicit turn to on can bring macOS's one administrator prompt, -set:value:by:.
+- (void)act:(NSString *)what key:(NSString *)key present:(BOOL)present {
     if ([what isEqualToString:@"skip"]) {
         for (MMINHolder *h in self.state.holders) if ([h.findingID isEqualToString:key]) [self skip:h.keyString];
         return;
@@ -448,22 +457,17 @@ static void Alert(NSString *title, NSString *text) {
     NSDictionary *now = @{@"manual": @(p.manual), @"agents": @(p.agents), @"lid": @(p.lid), @"screen": @(p.screenOff), @"heat": @(p.thermalGuard)};
     if (!now[what]) return;
     BOOL to = ![now[what] boolValue];
-    if ([what isEqualToString:@"lid"] && to) {
-        NSAlert *a = [NSAlert new];
-        a.messageText = @"Keep the Mac awake with the lid closed?";
-        a.informativeText = @"It keeps running with the lid shut, also inside a bag, and can get warm.\n\n"
+    if ([what isEqualToString:@"lid"] && to && present) {
+        NSString *text = @"It keeps running with the lid shut, also inside a bag, and can get warm.\n\n"
                              "On battery, MinMacs pauses this when the battery gets low, the charger has been out for a while, "
                              "the network has been gone for a while, or the Mac runs hot with the lid shut. "
                              "It clears when nothing keeps the Mac awake and when MinMacs quits. "
                              "The first time, macOS asks for your password to allow the change.";
-        [a addButtonWithTitle:@"Keep Awake"];
-        [a addButtonWithTitle:@"Cancel"];
-        [NSApp activateIgnoringOtherApps:YES];
-        if ([a runModal] != NSAlertFirstButtonReturn) return;
+        if (!MMAskPerson(@"Keep the Mac awake with the lid closed?", text, @"Keep Awake", nil)) return;
     }
     dispatch_async(ActQueue(), ^{
         NSString *problem = [self set:what value:@(to) by:@"manual"];
-        if (problem) Alert(@"Could Not Change Insomnia", MMSentence(problem));
+        if (problem && ![problem isEqualToString:kLidSetup]) Notice(@"Could Not Change Keep Awake", MMSentence(problem));
     });
 }
 
@@ -475,7 +479,7 @@ static void Alert(NSString *title, NSString *text) {
     if (![@[@"battery", @"unplugged", @"offline", @"heat", @"quiet"] containsObject:key ?: @""] || !value) return;
     dispatch_async(ActQueue(), ^{
         NSString *problem = [self set:key value:value by:@"manual"];
-        if (problem) Alert(@"Could Not Change Insomnia", MMSentence(problem));
+        if (problem && ![problem isEqualToString:kLidSetup]) Notice(@"Could Not Change Keep Awake", MMSentence(problem));
     });
 }
 
@@ -487,7 +491,7 @@ static void Alert(NSString *title, NSString *text) {
     NSArray *m = map[c];
     if ([c isEqualToString:@"toggle"]) m = @[@"manual", @(!self.state.prefs.manual)];
     if (!m) return NO;
-    dispatch_async(ActQueue(), ^{ (void)[self set:m[0] value:m[1] by:@"manual"]; });
+    dispatch_async(ActQueue(), ^{ (void)[self set:m[0] value:m[1] by:@"url"]; });
     return YES;
 }
 

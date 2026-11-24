@@ -268,6 +268,30 @@ check "still listening" yes "$(lh_listening "$P")"
 "$LH" close "$P" --yes --force >/dev/null;                           check "close --force kills it, exit 0" 0 "$?"
 check "and the port is free" no "$(lh_listening "$P")"
 
+echo "== D3: nobody at the terminal, and nothing waits"
+# script gives a command a TTY of its own, so a check can tell a person at a terminal from none. Its input stays
+# open a few seconds with nothing in it, since script ends its command when its own input ends. Each run has a limit.
+lh_t() { perl -e 'alarm shift; exec @ARGV' 30 "$@"; }
+lh_up() { lh_stop_all; lh_serve "$P"; "$LH" ready "$P" --timeout 10 >/dev/null; }
+lh_up
+lh_t "$LH" close "$P" </dev/null >/dev/null 2>&1;                    check "D3: close with no TTY and no --yes stops it as --yes does" "0 no" "$? $(lh_listening "$P")"
+lh_up
+lh_t "$LH" close "$P" --force </dev/null >"$lh/force.out" 2>&1;      check "D3: close --force with nobody there is refused, exit 2, and the server runs" "2 yes" "$? $(lh_listening "$P")"
+check "D3: and it says to add --yes for SIGKILL" 1 "$(grep -c 'nobody is at the terminal to confirm it. Add --yes' "$lh/force.out")"
+lh_t env MINMACS_UNATTENDED=0 "$LH" close "$P" </dev/null >/dev/null 2>&1
+                                                                     check "D3: MINMACS_UNATTENDED=0 with no TTY reads nothing and refuses, exit 2" "2 yes" "$? $(lh_listening "$P")"
+sleep 10 | lh_t script -q /dev/null "$LH" close "$P" >"$lh/tty.out" 2>&1; lh_rc=$?
+# The minmacs binary asks at its own TTY. test/locohost/lhcli.m runs the verb as the app does, where no TTY is at hand,
+# so a person there is told to add --yes.
+if [ "$LH" = "$lh/bin/locohost" ]; then lh_want="2 0 yes"; else lh_want="1 1 yes"; fi
+check "D3: a person at a TTY is still asked, or told to add --yes, and nothing stops" "$lh_want" "$lh_rc $(grep -c 'y/N' "$lh/tty.out") $(lh_listening "$P")"
+sleep 10 | lh_t env MINMACS_UNATTENDED=1 script -q /dev/null "$LH" close "$P" >"$lh/tty1.out" 2>&1
+check "D3: MINMACS_UNATTENDED=1 at a TTY asks nothing and stops it" "0 0 no" "$? $(grep -c 'y/N' "$lh/tty1.out") $(lh_listening "$P")"
+lh_up
+lh_t env LOCOHOST_IDLE_MINUTES=0 "$LH" close-idle --port "$P" </dev/null >/dev/null 2>&1
+check "D3: close-idle with no TTY and no --yes ends within its limit" yes "$([ $? -lt 128 ] && echo yes || echo no)"
+lh_stop_all
+
 echo "== 2.0: verbs, restore and the core"
 "$LH" verbs >"$lh/verbs.txt" 2>/dev/null || "$lh/bin/locohost" verbs >"$lh/verbs.txt" 2>/dev/null
 for v in hosts where review restore; do

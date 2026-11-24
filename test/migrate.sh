@@ -220,6 +220,29 @@ check "migrate: the LocoHost and Insomnia apps are still there" "yes yes" \
 (MIGRATE_AGENT_STATUS=2 mg followup "$mg_old" yes "$mg_dir/asked-no.log") >/dev/null 2>&1
 check "migrate: no is asked once too" 2 "$(grep -c . "$mg_dir/asked-no.log")"
 
+# ----- D3: the app asks nobody. Each part keeps a way back, so the answer is yes, and what stayed is a notice -----
+mg_home="$mg_dir/new-unasked"; mkdir -p "$mg_home/migrate-fake"; echo 0 >"$mg_home/migrate-fake/lid"
+mg import "$mg_old" >/dev/null 2>&1
+(MIGRATE_AGENT_STATUS=1 perl -e 'alarm shift; exec @ARGV' 60 env MINMACS_HOME="$mg_home" MINMACS_INSOMNIA_CMD="$ROOT/test/migrate/fakecmd.sh" \
+  MINMACS_LAUNCHCTL_CMD="$ROOT/test/migrate/fakecmd.sh" sandbox-exec -p "$mg_profile" "$mg_tool" followup-unasked "$mg_old" </dev/null) >"$mg_dir/follow-unasked.json" 2>/dev/null
+check "D3: the unasked follow-up ends on its own, within a minute" 0 "$?"
+check "D3: it moves the agent and the old apps to the Trash, asking nobody" "removed trashed,trashed,trashed" \
+  "$(json 'j["noonoo.agent"]["state"] + " " + ",".join(a["state"] for a in j["apps"])' <"$mg_dir/follow-unasked.json")"
+check "D3: each record says the move from the old apps did it, not a person" "migration migration migration" \
+  "$(for mg_rid in $(json '" ".join(a["rid"] for a in j["apps"])' <"$mg_dir/follow-unasked.json"); do mg record "$mg_rid" | json 'j["by"]'; done | xargs)"
+mg_ok=""
+for mg_rid in $(json '" ".join([a["rid"] for a in j["apps"]] + [j["noonoo.agent"]["rid"]])' <"$mg_dir/follow-unasked.json"); do mg_ok="$mg_ok $(mg restore "$mg_rid")"; done
+check "D3: and Undo puts each back" " ok ok ok ok" "$mg_ok"
+# A Trash that cannot take them: what stayed is one row of the log's notice table.
+mg_home="$mg_dir/new-unasked-fail"; mkdir -p "$mg_home/migrate-fake"; echo 0 >"$mg_home/migrate-fake/lid"; : >"$mg_home/Trash"
+mg import "$mg_old" >/dev/null 2>&1
+(MIGRATE_AGENT_STATUS=1 perl -e 'alarm shift; exec @ARGV' 60 env MINMACS_HOME="$mg_home" MINMACS_INSOMNIA_CMD="$ROOT/test/migrate/fakecmd.sh" \
+  MINMACS_LAUNCHCTL_CMD="$ROOT/test/migrate/fakecmd.sh" sandbox-exec -p "$mg_profile" "$mg_tool" followup-unasked "$mg_old" </dev/null) >"$mg_dir/follow-fail-unasked.json" 2>/dev/null
+check "D3: with a Trash that takes nothing the apps stay" "failed,failed,failed" "$(json '",".join(a["state"] for a in j["apps"])' <"$mg_dir/follow-fail-unasked.json")"
+check "D3: and what stayed is one notice, with no alert" "1 Some Old Apps Stayed" \
+  "$(sqlite3 "$mg_home/minmacs.sqlite" "SELECT COUNT(*) FROM rows WHERE tbl='notice';") $(sqlite3 "$mg_home/minmacs.sqlite" "SELECT json_extract(body, '$.title') FROM rows WHERE tbl='notice';")"
+check "D3: the old apps are still in place" "yes yes yes" "$(for a in LocoHost WorkForest Insomnia; do [ -d "$mg_old/Applications/$a.app" ] && echo yes || echo no; done | xargs)"
+
 # ----- A lid the old lid mode never set, and a failed write -----
 mg_home="$mg_dir/new-other"; mkdir -p "$mg_home/migrate-fake" "$mg_dir/other/Library/Preferences"; echo 1 >"$mg_home/migrate-fake/lid"
 printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>insomnia.lid</key><false/></dict></plist>\n' \
@@ -249,7 +272,8 @@ check "migrate: only the real app migrates, never a test home" "yes no no" "$(mg
 check "migrate: Info.plist adds the insomnia scheme" insomnia \
   "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:2' "$APP/Contents/Info.plist" 2>/dev/null)"
 check "migrate: insomnia:// goes to the Insomnia expert" "expert insomnia" "$(mg route 'insomnia://lid-off')"
-check "migrate: the shell runs the follow-up off main" 1 "$(grep -c 'MMMigrateFollowUp(nil' Sources/Shell/MMShell.m)"
+check "migrate: the shell runs the follow-up off main, asking nobody" 1 "$(grep -c 'MMMigrateFollowUpUnasked(nil)' Sources/Shell/MMShell.m)"
+check "D3: the shell shows no alert for the migration" 0 "$(grep -cE 'NSAlert|runModal' Sources/Shell/MMShell.m)"
 check "migrate: the shell skips it in a test home and headless" 1 "$(grep -c '!self.headless && MMMigrateWanted' Sources/Shell/MMShell.m)"
 check "migrate: nothing in the migration deletes a file for good" 0 \
   "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|emptyTrash|rm -rf' Sources/Core/Store/MMMigrate.m | grep -c .)"

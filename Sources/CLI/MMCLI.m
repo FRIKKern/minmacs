@@ -335,10 +335,10 @@ static NSArray<NSString *> *Resolve(NSString *program, NSArray<NSString *> *word
     return words;
 }
 
-static int Run(MMVerbSpec *spec, NSArray<NSString *> *words, NSString *program, NSString *cwd, BOOL inApp,
+static int Run(MMVerbSpec *spec, NSArray<NSString *> *words, NSString *program, NSString *cwd, BOOL inApp, BOOL noPerson,
                NSMutableString *out, NSMutableString *err) {
     MMArgs *args = [MMArgs verb:spec.verb words:[words subarrayWithRange:NSMakeRange(1, words.count - 1)] usage:spec.usage];
-    args.program = program; args.inApp = inApp; args.outBuffer = out; args.errBuffer = err;
+    args.program = program; args.inApp = inApp; args.noPerson = noPerson; args.outBuffer = out; args.errBuffer = err;
     if (cwd.length) args.cwd = cwd;
     // A verb that changes things runs in the app. With --dry-run it only reads, so it runs anywhere.
     // A verb whose mutatingForms change things checks those forms itself, after its usage checks.
@@ -356,6 +356,9 @@ NSDictionary *MMCLIReply(NSDictionary *request) {
     for (id w in words) if (![w isKindOfClass:NSString.class]) return @{@"status": @(MMExitUsage), @"out": @"", @"err": @"bad request\n"};
     NSString *program = [request[@"program"] isKindOfClass:NSString.class] ? request[@"program"] : @"minmacs";
     NSString *cwd = [request[@"cwd"] isKindOfClass:NSString.class] ? request[@"cwd"] : nil;
+    // D3: whether a person sits at the CLI's terminal, as the CLI saw it. A URL sends no such word, so a link never
+    // gets the yes that nobody at a terminal gets: a verb that wants --yes refuses one from a link without it.
+    BOOL noPerson = [request[@"noPerson"] isKindOfClass:NSNumber.class] && [request[@"noPerson"] boolValue];
     MMVerbSpec *spec = nil;
     words = Resolve(program, words, &spec);
     NSMutableString *out = [NSMutableString new], *err = [NSMutableString new];
@@ -367,7 +370,7 @@ NSDictionary *MMCLIReply(NSDictionary *request) {
         [err appendFormat:@"%@: unknown verb '%@'. Try '%@ help'.\n", program, words.firstObject, program];
         return @{@"status": @(MMExitUsage), @"out": out, @"err": err, @"inApp": @YES, @"unknownVerb": @YES};
     }
-    status = Run(spec, words, program, cwd, YES, out, err);
+    status = Run(spec, words, program, cwd, YES, noPerson, out, err);
     return @{@"status": @(status), @"out": out, @"err": err, @"inApp": @YES};
 }
 
@@ -424,13 +427,14 @@ int MMRunCLI(int argc, const char *argv[]) {
     BOOL cold = [NSProcessInfo.processInfo.environment[@"MINMACS_COLD"] isEqualToString:@"1"];
     NSDictionary *ping = RunsHere(spec.verb) || cold ? nil : [MMCoreSocket ask:@{@"verb": @"ping"} timeout:0.2];
     if ([ping[@"ok"] boolValue]) {
-        NSDictionary *r = [MMCoreSocket ask:@{@"verb": @"cli", @"cli": words, @"program": program, @"cwd": cwd ?: @""} timeout:600];
+        NSDictionary *r = [MMCoreSocket ask:@{@"verb": @"cli", @"cli": words, @"program": program, @"cwd": cwd ?: @"",
+                                              @"noPerson": @(MMNoPersonAtTerminal())} timeout:600];
         // An app older than this CLI, as on a canary rollout, lacks the verb. A form that only reads runs here cold.
         // One that changes things never does: changes go through the app, so it says to update the app.
         if ([r[@"status"] isKindOfClass:NSNumber.class] && AppLacksVerb(r)) {
             if (!FormMutates(spec, resolved)) {
                 fprintf(stderr, "%s: the running app is an older build; read without it\n", program.UTF8String);
-                return Run(spec, resolved, program, cwd, NO, nil, nil);
+                return Run(spec, resolved, program, cwd, NO, MMNoPersonAtTerminal(), nil, nil);
             }
             NSString *app = BuildName(ping[@"version"], ping[@"build"]) ?: @"an older build";
             NSString *mine = BuildName(@MM_VERSION, NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"]);
@@ -448,5 +452,5 @@ int MMRunCLI(int argc, const char *argv[]) {
         fprintf(stderr, "%s: MinMacs did not answer. Try again, or set MINMACS_COLD=1 to run without it.\n", program.UTF8String);
         return MMExitFailed;
     }
-    return Run(spec, resolved, program, cwd, NO, nil, nil);
+    return Run(spec, resolved, program, cwd, NO, MMNoPersonAtTerminal(), nil, nil);
 }

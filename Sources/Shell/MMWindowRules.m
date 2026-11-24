@@ -91,7 +91,8 @@ static NSString *Listed(NSArray<NSString *> *words) {
 
 /// Each fact is true of the code named beside it, and is left out or said another way when it would not be.
 MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
-    if (MMPrefBool(MMWindowWelcomedKey, NO)) return nil;
+    // D3: on a Mac that runs unattended nobody would press Start. The shell applies its defaults instead.
+    if (MMPrefBool(MMWindowWelcomedKey, NO) || MMUnattended()) return nil;
     NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
     // MMPlan and MMRunAction in Core/Act/MMAct.m: no mode acts before MMWatchedLongEnough, a day after the first launch.
     // The day is one for every expert. Before the first launch nothing is written, and the whole day is left.

@@ -392,7 +392,7 @@ static void RunOffMain(dispatch_block_t block) {
     return [MMGraph.shared.latest finding:fid] ?: [[self snapshotNow] finding:fid];
 }
 
-/// Menu actions: run off main, then rebuild the graph. A failure the person should see goes in an alert.
+/// Menu actions: run off main, then rebuild the graph. A failure goes to the log as a notice.
 - (void)menuClean:(NSArray<NSString *> *)ids {
     MMSnapshot *s = MMGraph.shared.current;
     NSMutableArray *fs = [NSMutableArray new];
@@ -406,12 +406,11 @@ static void RunOffMain(dispatch_block_t block) {
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             [MMGraph.shared rebuild:@"noonoo.action"];
-            if (!problems.count || !NSApp) return;
-            NSAlert *alert = [NSAlert new];
-            alert.messageText = problems.count == 1 ? @"Noo-Noo Could Not Clean It" : [NSString stringWithFormat:@"Noo-Noo Could Not Clean %lu Items", (unsigned long)problems.count];
-            alert.informativeText = [problems componentsJoinedByString:@"\n"];
-            [alert runModal];
         });
+        // D3: a failure is a notice in the log, with at most one notification. No alert waits for a person.
+        if (problems.count)
+            MMNotice(kExpert, problems.count == 1 ? @"MinMacs Could Not Clean It" : [NSString stringWithFormat:@"MinMacs Could Not Clean %lu Items", (unsigned long)problems.count],
+                     [problems componentsJoinedByString:@"\n"]);
     });
 }
 

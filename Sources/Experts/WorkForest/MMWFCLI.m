@@ -257,7 +257,8 @@ static int Remove(MMArgs *a, NSString *arg) {
         else [a print:@"%@", keep ? [@"kept: " stringByAppendingString:keep] : [action dryRun]];
         return keep ? MMExitFailed : 0;
     }
-    if (![a has:@"--yes"]) { [a error:@"remove asks no questions on the command line. Add --yes to remove %@.", arg]; return MMExitUsage; }
+    // D3: with nobody at the terminal the answer is the yes --yes gives, since a removed worktree keeps a way back.
+    if (![a yesKeepingAWayBack]) { [a error:@"remove asks no questions on the command line. Add --yes to remove %@.", arg]; return MMExitUsage; }
     int needs = [a needsApp];
     if (needs) return needs;
     NSString *err = nil;
@@ -389,7 +390,7 @@ static int CleanUp(MMArgs *a) {
     if (!c.count) { [a print:@"Nothing to clean up."]; return 0; }
     for (MMFinding *f in c) [a print:@"  %@%@", Pad(f.title, 44), merged ? MMWFStateWords(MMWFTreeOf(f)) : r.verdicts[f.findingID].reason ?: @""];
     if (a.dryRun) return 0;
-    if (![a has:@"--yes"]) { [a error:@"clean-up asks no questions on the command line. Add --yes to remove %@.", MMPlural(c.count, @"worktree")]; return MMExitUsage; }
+    if (![a yesKeepingAWayBack]) { [a error:@"clean-up asks no questions on the command line. Add --yes to remove %@.", MMPlural(c.count, @"worktree")]; return MMExitUsage; }
     int needs = [a needsApp];
     if (needs) return needs;
     int status = 0;

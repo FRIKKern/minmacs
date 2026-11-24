@@ -6,6 +6,7 @@
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Act/MMAct.h"
+#import "Core/Act/MMNotice.h"
 #import "Core/Know/MMGit.h"
 #import <objc/message.h>
 #include <sqlite3.h>
@@ -945,7 +946,7 @@ NSDictionary *MMMigrateFollowUp(NSString *home, MMMigrateAsk ask) {
                 MMMigrateAgentAction *a = [MMMigrateAgentAction new];
                 a.finding = Subject(@"core", @"agent", MMNooNooAgentLabel, @"Noo-Noo's agent", path, MMReversibleTrash);
                 NSString *err = nil;
-                MMUndoRecord *rec = MMRunAction(a, [MMMigratePolicy new], nil, @"manual", @"replaced by MinMacs", &err);
+                MMUndoRecord *rec = MMRunAction(a, [MMMigratePolicy new], nil, @"migration", @"replaced by MinMacs", &err);
                 if (rec.state == MMUndoDone) r[@"rid"] = rec.rid;
                 else { r[@"state"] = @"failed"; r[@"why"] = err ?: rec.error ?: @"it failed"; }
             }
@@ -972,7 +973,7 @@ NSDictionary *MMMigrateFollowUp(NSString *home, MMMigrateAsk ask) {
                     act.bundleID = a.bundleID;
                     act.finding = Subject(@"core", @"app", a.path, a.name, a.path, MMReversibleTrash);
                     NSString *err = nil;
-                    MMUndoRecord *rec = MMRunAction(act, [MMMigratePolicy new], nil, @"manual", @"replaced by MinMacs", &err);
+                    MMUndoRecord *rec = MMRunAction(act, [MMMigratePolicy new], nil, @"migration", @"replaced by MinMacs", &err);
                     if (rec.state == MMUndoDone) r[@"rid"] = rec.rid;
                     else { r[@"state"] = @"failed"; r[@"why"] = err ?: rec.error ?: @"it failed"; }
                 }
@@ -987,4 +988,16 @@ NSDictionary *MMMigrateFollowUp(NSString *home, MMMigrateAsk ask) {
         if (quit && !Marks()[@"insomnia.lid"]) out[@"insomnia.lid"] = LidPart(home);
     }
     return out;
+}
+
+NSDictionary *MMMigrateFollowUpUnasked(NSString *home) {
+    // D3: nobody is asked. Each part keeps a way back, the Trash and an undo record, so the answer is yes.
+    NSDictionary *done = MMMigrateFollowUp(home, ^BOOL(NSString *title, NSString *body, NSString *yes, NSString *no) { return YES; });
+    NSMutableArray *failed = [NSMutableArray new];
+    NSDictionary *agent = [done[@"noonoo.agent"] isKindOfClass:NSDictionary.class] ? done[@"noonoo.agent"] : nil;
+    if ([agent[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"The old cleaner's background agent: %@.", agent[@"why"]]];
+    for (NSDictionary *app in [done[@"apps"] isKindOfClass:NSArray.class] ? done[@"apps"] : @[])
+        if ([app[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"%@: %@.", app[@"name"], app[@"why"]]];
+    if (failed.count) MMNotice(@"core", @"Some Old Apps Stayed", [failed componentsJoinedByString:@"\n"]);
+    return done;
 }

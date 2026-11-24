@@ -49,8 +49,8 @@ NSInteger MMNooNooAgentStatus(NSString *home);
 /// The old apps found in home. Never on main.
 NSArray<MMLegacyApp *> *MMLegacyApps(NSString *home);
 
-/// The confirm the follow-up shows. YES when the person chose the first button. The app shows an alert on main;
-/// a test answers with a fake.
+/// The answer to each of the follow-up's two questions. YES for the first button. The app answers yes with nobody
+/// asked, MMMigrateFollowUpUnasked; a test answers with a fake.
 typedef BOOL (^MMMigrateAsk)(NSString *title, NSString *body, NSString *yesButton, NSString *noButton);
 
 /// The follow-up, once per part, each part recorded in MMMigratedKey when it is done:
@@ -66,6 +66,10 @@ typedef BOOL (^MMMigrateAsk)(NSString *title, NSString *body, NSString *yesButto
 /// the whole command line. The Trash is MMTrashFolder() in a test. Blocks. Never on main.
 /// Returns what it did: {"insomnia.lid": ..., "noonoo.agent": ..., "apps": [...], "asked": [titles]}.
 NSDictionary *MMMigrateFollowUp(NSString *home, MMMigrateAsk ask);
+/// D3: the follow-up as the app runs it, asking nobody. Every part keeps a way back, so each confirm is answered yes,
+/// and the agent and the apps move to the Trash, each with its undo record by "migration". What stayed is one notice,
+/// MMNotice in Core/Act/MMNotice.h. Blocks. Never on main.
+NSDictionary *MMMigrateFollowUpUnasked(NSString *home);
 
 #ifdef MM_TESTS
 /// Stands in for +[SMAppService statusForLegacyURL:] in tests. nil goes back to the real call.

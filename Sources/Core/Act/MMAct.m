@@ -529,7 +529,7 @@ static BOOL DiskNearlyFull(void) {
 void MMNotify(NSString *expert, NSString *title, NSString *body, NSString *undoRid) {
     if (undoRid) {
         MMUndoRecord *r = [MMUndo.shared record:undoRid];
-        if ([r.by isEqualToString:@"manual"] || [r.by isEqualToString:@"cli"]) return;   // the person asked, so they know
+        if ([r.by isEqualToString:@"manual"] || [r.by isEqualToString:@"cli"] || [r.by isEqualToString:@"url"]) return;   // someone asked, so they know
     }
     // One per review across every expert: reviews are at least 10 minutes apart, so one per 10 minutes.
     double now = NSDate.date.timeIntervalSince1970, gap = kNotifyGap;

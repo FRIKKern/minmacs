@@ -365,7 +365,7 @@ MMMenuSpec *MMLHMenu(MMLHView *v) {
     // Recently Stopped lives under More: one Restart per stop, newest first, with when and by whom as the tail.
     NSMutableArray *more = [NSMutableArray new];
     for (NSDictionary *c in [v.stopped subarrayWithRange:NSMakeRange(0, MIN(v.stopped.count, (NSUInteger)6))]) {
-        NSString *by = [Str(c[@"by"]) isEqualToString:@"manual"] || [Str(c[@"by"]) isEqualToString:@"cli"] ? @"you" : MMLHModeLabel(Str(c[@"by"]));
+        NSString *by = [Str(c[@"by"]) isEqualToString:@"url"] ? @"a link" : [Str(c[@"by"]) isEqualToString:@"manual"] || [Str(c[@"by"]) isEqualToString:@"cli"] ? @"you" : MMLHModeLabel(Str(c[@"by"]));
         NSString *title = [NSString stringWithFormat:@"Restart :%@ %@", c[@"port"] ?: @"", Str(c[@"framework"]) ?: @""];
         MMActionSpec *a = Action(v, title, [NSString stringWithFormat:@"%@ by %@", MMAgo(Date(c[@"at"])), by], @"restart", Str(c[@"rid"]));
         if ([c[@"taken"] boolValue]) a.disabledReason = @"the port is in use again";

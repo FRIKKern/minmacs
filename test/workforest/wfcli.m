@@ -27,7 +27,9 @@ int main(int argc, const char *argv[]) {
         NSMutableArray *words = [NSMutableArray new];
         for (int i = 1; i < argc; i++) [words addObject:@(argv[i])];
         if (!words.count) [words addObject:@"list"];
-        NSDictionary *req = @{@"cli": words, @"program": MMProgramName(argv[0]), @"cwd": NSFileManager.defaultManager.currentDirectoryPath};
+        NSDictionary *req = @{@"cli": words, @"program": MMProgramName(argv[0]), @"cwd": NSFileManager.defaultManager.currentDirectoryPath,
+                              // D3: as the CLI does, it says whether a person sits at this terminal.
+                              @"noPerson": @(MMNoPersonAtTerminal())};
         __block NSDictionary *reply;
         // As in the app: the verb runs off main, where MMRunAction may gather fresh facts.
         dispatch_semaphore_t done = dispatch_semaphore_create(0);

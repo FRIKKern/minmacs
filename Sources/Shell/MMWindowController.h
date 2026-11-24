@@ -41,6 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Main only. With no run under way it returns NO and does nothing. With one, it asks the run to stop after the step
 /// it is in and calls the block on main once the run ended.
 - (BOOL)stopRunThen:(void (^)(void))then;
+/// D3. Main only. While MMUnattended holds and Start was never pressed, it skips the welcome: it marks it done, turns
+/// Open at login on through login, and writes both setting rows by "unattended". YES when it skipped it now; NO when
+/// the Mac is attended or the welcome is done already. The shell calls it at launch and when unattended turns on.
++ (BOOL)skipWelcomeUnattended:(nullable id<MMWindowLogin>)login;
 @end
 
 NS_ASSUME_NONNULL_END

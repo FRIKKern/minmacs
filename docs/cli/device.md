@@ -1,4 +1,4 @@
-`device` is the one read a remote orchestrator, such as BarkBot, makes to choose a Mac for a task now. It reads what Core already holds, the last Senses pass and the graph in the app, or one sample when no app runs. On the verb itself it reads the hardware by sysctl, the displays from CoreGraphics, the display-sleep setting from IOKit, memory by `host_statistics`, swap by `vm.swapusage` and MinMacs's own accounting by one `proc_pid_rusage`. It runs no process and adds nothing to any tick. It writes nothing.
+`device` is the one read a remote orchestrator, such as BarkBot, makes to choose a Mac for a task now. It reads what Core already holds, the last Senses pass and the graph in the app, or one sample when no app runs. On the verb itself it reads the hardware by sysctl, the displays from CoreGraphics, the display-sleep setting from IOKit, memory by `host_statistics`, swap by `vm.swapusage` and MinMacs's own accounting by one `proc_pid_rusage`. It runs one process, `sudo -n -l` through `MMLidOverride`, which never prompts, for `provision.lidRuleInstalled`, and adds nothing to any tick. It writes nothing.
 
 `device --json` prints one object. `schema` is 1, and a field is added, never changed in meaning, while it stays 1.
 
@@ -37,6 +37,7 @@
 | `agents.list` | Each agent: `pid`, `name`, `harness`, `state` (`working`, `waiting`, `idle` or `unknown`), `working`, and the TCP `ports` its process tree listens on |
 | `quiet.active`, `quiet.holders` | Whether a quiet hold is active, and each one as `quiet --json` gives it |
 | `minmacs` | What the app costs, since its launch: `pid`, `runningSeconds`, `sinceLaunch.cpuPercent` and `sinceLaunch.idleWakeupsPerSecond`, `memory.footprintBytes` and `memory.peakBytes`, the `budgets` and the budgets it is `over`. In the app it reads itself; from the CLI it reads the pid the app gives on core.sock. Null with no app |
+| `provision` | D3: what this Mac still needs a person for once, read without asking anything. `unattended`; `lidRuleInstalled`, whether the sudoers rule lid mode needs is in place; `notificationsAuthorized`, null outside the app, which alone can read it; `loginItem`, `enabled`, `requiresApproval`, `notRegistered` or `notFound`, and `loginItemApproved`, null where it cannot be read; `needsPerson`, the names of what is missing: `lidRule`, `notifications`, `loginItem` |
 
 An example of the shape, for a Mac with the lid shut, Insomnia's lid mode live, the screen left on and a quiet hold for a screen recording. `test/device.sh` checks these cases on fixture power facts and displays:
 
@@ -59,6 +60,7 @@ An example of the shape, for a Mac with the lid shut, Insomnia's lid mode live, 
              "list": [{"pid": 2767, "name": "Claude Code", "harness": "claude-code", "state": "working", "working": true, "ports": [49210]}]},
   "quiet": {"active": true, "holders": [{"pid": 4989, "reason": "screen recording", "since": 1795506000, "by": "cli", "rid": "25537f7a3643", "awake": true}]},
   "minmacs": {"pid": 812, "runningSeconds": 86400, "sinceLaunch": {"cpuPercent": 0.21, "idleWakeupsPerSecond": 0.6},
-              "memory": {"footprintBytes": 41943040, "peakBytes": 62914560}, "budgets": {"cpuPercent": 0.3, "idleWakeupsPerSecond": 1}, "over": []}
+              "memory": {"footprintBytes": 41943040, "peakBytes": 62914560}, "budgets": {"cpuPercent": 0.3, "idleWakeupsPerSecond": 1}, "over": []},
+  "provision": {"unattended": true, "lidRuleInstalled": true, "notificationsAuthorized": true, "loginItem": "enabled", "loginItemApproved": true, "needsPerson": []}
 }
 ```

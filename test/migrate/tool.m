@@ -5,6 +5,7 @@
 //   tool import <home>                     prints MMImportLegacy(home) as JSON
 //   tool followup <home> <yes|no> [log]    runs MMMigrateFollowUp with a fake confirm that answers yes or no, prints
 //                                          its report, and appends each confirm's title and body to log
+//   tool followup-unasked <home>          runs MMMigrateFollowUpUnasked, which answers yes asking nobody, D3
 //   tool record <rid>                      prints the undo record as JSON with canRestore
 //   tool restore <rid>                     -[MMUndo restore:], prints ok or the problem
 //   tool readable <path>                   yes when this process may read the file, for the sandbox check
@@ -93,6 +94,16 @@ int main(int argc, const char *argv[]) {
         NSString *arg = argc > 2 ? @(argv[2]) : @"";
         if ([verb isEqualToString:@"plan"]) { PrintJSON(Printable(MMLegacyPlan(arg))); return 0; }
         if ([verb isEqualToString:@"import"]) { PrintJSON(Printable(MMImportLegacy(arg))); return 0; }
+        if ([verb isEqualToString:@"followup-unasked"]) {
+            // D3: the follow-up as the app runs it, asking nobody. The same fakes as followup.
+            MMUsePowerSource([MGPower new]);
+            MMGraph.shared.source = [MGSource new];
+            NSString *status = NSProcessInfo.processInfo.environment[@"MIGRATE_AGENT_STATUS"];
+            MMUseNooNooAgentStatus(^NSInteger(NSURL *plist) { return status.length ? status.integerValue : 3; });
+            MMUseLegacyRunningApps(^NSArray<MMApp *> *{ return @[]; });
+            PrintJSON(Printable(OffMain(^id{ return MMMigrateFollowUpUnasked(arg); })));
+            return 0;
+        }
         if ([verb isEqualToString:@"followup"] && argc > 3) {
             BOOL yes = !strcmp(argv[3], "yes");
             NSString *log = argc > 4 ? @(argv[4]) : nil;

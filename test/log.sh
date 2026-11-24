@@ -115,7 +115,7 @@ check "log: one function writes setting rows, and one writes keep rows" "1 1" \
   "$(grep -rc 'append:MMLogSettingTable' Sources | awk -F: '{s+=$2} END {print s+0}') $(grep -rc 'append:MMLogKeepTable' Sources | awk -F: '{s+=$2} END {print s+0}')"
 check "log: every pref of review.model is written through MMSetSetting, with who" 0 \
   "$(grep -rn 'MMSetPref(MMReviewModelKey' Sources | grep -c .)"
-check "log: the login switch, Start and the old Settings window log the login item" "2 1" \
+check "log: the login switch, Start, the unattended skip of the welcome and the old Settings window log the login item" "3 1" \
   "$(grep -c 'MMLogSetting(MMWindowLoginKey' Sources/Shell/MMWindowController.m) $(grep -c 'MMLogSetting(MMWindowLoginKey' Sources/Shell/MMShell.m)"
 check "log: the keep-awake switches write undo records, so they need no setting row" "2 0" \
   "$(grep -c 'MMRunAction(a, self->_policy, nil, by\|MMRunAction(a, _policy, nil, @"guard"' Sources/Experts/Insomnia/MMInsomniaExpert.m) $(grep -c 'MMLogSetting' Sources/Experts/Insomnia/MMInsomniaExpert.m)"

@@ -62,7 +62,9 @@ What the Settings window of before held, and where it is with the menu window:
 
 The first time the window opens it shows the welcome alone, prototype 199-a: what MinMacs is in two sentences, the Open at login switch, three facts and Start. It asks no removal choice. Nothing is applied until Start, and Return presses Start. After Start the welcome never comes back.
 
-- No login item is added before Start. For a person new to MinMacs the switch starts on. For a person who launched MinMacs before the welcome existed, it starts on what their login item is now.
+On a Mac that runs unattended, decision D3, nobody would press Start, so there is no welcome. Unattended is the pref `core.unattended`, which `minmacs unattended on|off` sets, or `MINMACS_UNATTENDED=1` in the app's environment. At launch, and when `minmacs unattended on` reaches the running app, the welcome's defaults apply: Open at login is turned on and the welcome is marked done. Two setting rows by `unattended` say so, and the log reads "The welcome was skipped, since this Mac runs unattended. Its defaults apply." With a person at the Mac the welcome is as above.
+
+- No login item is added before Start, unless the Mac runs unattended. For a person new to MinMacs the switch starts on. For a person who launched MinMacs before the welcome existed, it starts on what their login item is now.
 - After Start the menu takes no press for a moment, counted from when it is really shown, so a second press where Start was runs no fix.
 - Each fact is read from the code that makes it true, so it changes when the code does.
 
@@ -160,7 +162,11 @@ A notification is sent only after an expert acted without being asked, one per r
 - **The title** is short, in title case, with no app name and no final period, such as "Stopped 2 Servers, Freed 1.2 GB".
 - **The body** is full sentences in sentence case. It never sends the person somewhere in the menu.
 - **One Undo action,** and the passive interruption level unless the disk is nearly full.
-- **An error** goes in an alert, not a notification.
+- **An error** is never an alert, D3: these Macs run with nobody at them. It is a notice, one plain sentence in the log, "Could not restore. The record is gone.", and at most one notification of it, inside the same limit of one per review, with no button.
+
+## Nothing waits for a person
+
+MinMacs shows no modal alert. A confirm guards only a press a person made in the window or a menu while plainly there, such as Remove on a worktree's card or lid mode turned on. It is never shown for the command line, an agent, the migration or anything an expert starts on its own, and never while the Mac runs unattended. A link can come from any web page, so a link that stops, removes or cleans, such as `workforest://clean-up`, `locohost://close-idle` or `run-now`, shows the same confirm while a person is at the Mac, and acts unasked only while it runs unattended. Then an action that keeps a way back runs as `--yes` would, and one that does not, such as an Investigate that costs tokens, does not run and a notice says how to run it. The one prompt left is macOS's own: the administrator password for the lid rule, the first time lid mode is turned on, and only on that explicit turn with a person here. On a Mac that runs unattended, lid mode turned on without the rule is refused at once with the notice "Lid mode needs a one-time setup", and `minmacs device --json` names it in `provision.needsPerson`.
 
 ## The menus, checked
 
