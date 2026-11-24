@@ -20,7 +20,8 @@ extern NSString *const MMPhase;
 /// Finder and launchd may pass flags such as -psn_0_123, which are not verbs.
 BOOL MMWantsCLI(int argc, const char *argv[]);
 
-/// Runs the verb in argv[1] and returns the exit status. 2 means an unknown verb.
+/// Runs the verb in argv[1] and returns the exit status. 2 means an unknown verb. 3 means the verb changes things and
+/// no app runs that can do it: none answers, or the one that answers is older and does not know the verb.
 int MMRunCLI(int argc, const char *argv[]);
 
 /// The program a path names: "locohost" for a symlink named locohost, "minmacs" for anything else.
@@ -48,7 +49,9 @@ void MMAddVerb(MMVerbSpec *verb);
 NSArray<MMVerbSpec *> *MMAddedVerbs(void);
 
 /// The app's side of core.sock, for a request of {"cli": [words], "program", "cwd"}, or {"ping": 1}.
-/// Runs the verb with its output collected and replies {"status", "out", "err"}. nil for any other request,
+/// Runs the verb with its output collected and replies {"status", "out", "err"}. A verb it does not know adds
+/// "unknownVerb": true, so a newer CLI knows the app is older: it runs a form that only reads cold, with a note, and
+/// refuses one that changes things, naming both builds. nil for any other request,
 /// so another handler on the socket can answer it. Runs on the socket queue.
 NSDictionary *MMCLIReply(NSDictionary *request);
 

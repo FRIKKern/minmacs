@@ -112,6 +112,7 @@ check "  worktreeAt finds the walked worktree for a path inside it" "$(wj 'j["re
 check "  worktreeAt reads .git files for a worktree outside the roots" \
   "$(norm "$wi_far")|$(norm "$wi_other")|far-branch" "$(wj 'j["outside"]')"
 check "  core.sock answers ping from the running Core" "1 1" "$(wj '"%d %d" % (j["ping"], j["pingPid"])')"
+check "  and names the running build's version" yes "$(wj '"yes" if j["pingVersion"] not in ("none", "") else j["pingVersion"]')"
 check "  status lists the registered experts" wiretest "$(wj '",".join(j["statusExperts"])')"
 check "  an unknown verb gets an error" "no verb no-such in the running app" "$(wj 'j["unknownVerb"]')"
 check "  the running Core holds its own lock, which is not another instance" 0 "$(wj 'int(j["anotherInstance"])')"

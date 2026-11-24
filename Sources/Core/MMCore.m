@@ -145,7 +145,10 @@ NSDictionary *MMCoreHandleRequest(NSDictionary *request) {
 /// The verbs Core answers itself: ping, so the CLI knows an app runs, and status, a short summary of the graph.
 static void ServeCoreVerbs(void) {
     MMCoreServe(@"ping", ^NSDictionary *(NSDictionary *r) {
-        return @{@"ok": @YES, @"pid": @(getpid()), @"version": @MM_VERSION};
+        // The build stamp too, where the bundle has one, so a newer CLI can name the app it talks to.
+        NSString *build = [NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"] description];
+        return build.length ? @{@"ok": @YES, @"pid": @(getpid()), @"version": @MM_VERSION, @"build": build}
+                            : @{@"ok": @YES, @"pid": @(getpid()), @"version": @MM_VERSION};
     });
     MMCoreServe(@"status", ^NSDictionary *(NSDictionary *r) {
         MMSnapshot *s = MMGraph.shared.latest;
