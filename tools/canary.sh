@@ -200,6 +200,10 @@ if [ "$GATE" = 1 ]; then
   secs=$(gate_sections)
   render=0; case "$secs" in *+render*) render=1; secs=$(echo "$secs" | sed 's/+render//') ;; esac
   say "Fast gate since $BASE: core ${secs}$( [ $render = 1 ] && echo '+ render checks')"
+  # The render and window checks draw in a real window, and AppKit animations do not end while the display is off.
+  # A display that slept (2 min idle here, always on a lid-closed or unattended Mac) would fail them, so the display is
+  # kept awake for as long as the gate runs.
+  caffeinate -d -u -w $$ >/dev/null 2>&1 &
   # shellcheck disable=SC2086
   if ! BUILD_DIR="$OUT/test-build" nice -n 10 ./test.sh $secs >"$HOME_DIR/gate.out" 2>&1; then
     grep -E '^\s*FAIL|passed' "$HOME_DIR/gate.out" | tail -15 >&2
