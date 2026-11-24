@@ -279,7 +279,7 @@ static void WindowWordChecks(void) {
     }
     NSString *dockLines = [dockSaid componentsJoinedByString:@" | "];
     Check(miscounted.count == 0 && [oneTab.shownName isEqualToString:@"1 localhost tab in Safari"] &&
-          [dockLines isEqualToString:@"Fix Everything, dimmed / - / - | Fix Everything, 1 fix / After the fix / - | Fix Everything, 2 fixes / After all 2 fixes / 2 fixes, Wrap Up fix-auth-redirect first"],
+          [dockLines isEqualToString:@"Fix Everything, no fixes to run / - / - | Fix Everything, 1 fix / After the fix / - | Fix Everything, 2 fixes / After all 2 fixes / 2 fixes, Wrap Up fix-auth-redirect first"],
           @"window words: every counted phrase reads right at 0, 1 and 2, one of a thing is never plural, in the model and as the dock draws it",
           [NSString stringWithFormat:@"%@ / %@. %@", oneTab.shownName, dockLines, [miscounted componentsJoinedByString:@" | "]]);
 

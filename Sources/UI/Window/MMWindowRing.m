@@ -1,5 +1,5 @@
-// The Mac as a ring, 195-a's: memory by holder inside, the disk as the thin outer track. The dock draws it large and
-// a row's story draws it small. Each row is an arc of its own with a hair of a gap, so the ring reads as many things;
+// The Mac as a ring, 195-a's: memory by holder inside, the disk as the thin outer track. The dock draws it small, as
+// a quiet mark beside its two numbers, and a row's story draws it a little larger. Each row is an arc of its own with a hair of a gap, so the ring reads as many things;
 // a row Fix Everything touches is orange. With a row pointed at, that row's arc is white and lifted and the rest step back.
 #import "UI/Window/MMWindowParts.h"
 
@@ -68,10 +68,10 @@ void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindow
     MMWindowRing *ring = model.ring;
     if (!ring) return;
     BOOL hc = MMWindowContrast();
-    // 195-a's ring is 108 points across in the dock: memory at radius 37.6, 7 wide, the disk at 48.1, 2.4 wide.
+    // The slim dock's ring is 45 points across: memory at radius 15.5, 5.5 wide, the disk at 21.5, 2 wide.
     // The one in a row's story is 62 across: 20 and 6, 27.5 and 2.5.
-    Track(ring.memory, model.memoryGroups, ring.memoryTotal, center, small ? 20 : 37.6, small ? 6 : 7.04, lit, after,
+    Track(ring.memory, model.memoryGroups, ring.memoryTotal, center, small ? 20 : 15.5, small ? 6 : 5.5, lit, after,
           [NSColor colorWithSRGBRed:0.92 green:0.92 blue:0.96 alpha:hc ? 0.45 : 0.2]);
-    Track(ring.disk, model.diskGroups, ring.diskTotal, center, small ? 27.5 : 48.1, small ? 2.5 : 2.35, lit, after,
+    Track(ring.disk, model.diskGroups, ring.diskTotal, center, small ? 27.5 : 21.5, small ? 2.5 : 2, lit, after,
           [NSColor colorWithSRGBRed:242 / 255.0 green:181 / 255.0 blue:68 / 255.0 alpha:hc ? 0.55 : 0.3]);
 }

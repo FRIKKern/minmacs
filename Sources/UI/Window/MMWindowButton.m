@@ -50,7 +50,7 @@
             return;
         }
         case MMWindowButtonOutline: {
-            // A small outlined pill, such as Stop under the button while a run plays.
+            // A small outlined pill, such as Stop beside the run's count while a run plays.
             NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.5, 0.5) xRadius:b.size.height / 2 - 0.5 yRadius:b.size.height / 2 - 0.5];
             if (on) { [[NSColor colorWithWhite:1 alpha:0.14] setFill]; [pill fill]; }
             [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.5 : 0.2] setStroke]; pill.lineWidth = 1; [pill stroke];

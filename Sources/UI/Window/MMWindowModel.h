@@ -246,15 +246,15 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @property BOOL running;                                 // NO once it ended; the window shows the end, then lets go
 @property (copy, nullable) NSString *step;              // "Stopping :3001", shown in the button while it runs
 /// The step without the name it acts on, "Stopping". When a name is too long for the button, the button says this
-/// alone, and never a cut name. The count stands under the button.
+/// alone, and never a cut name. The count stands beside the button.
 @property (copy, nullable) NSString *stepAction;
 @property NSInteger done, total;                        // fixes landed, fixes planned
 @property uint64_t memoryBack, diskBack;                // what has come back so far
-@property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back; the two lines fill to these
+@property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back
 /// YES while a fix that has not landed has a part not measured yet, issue #83: diskPlanned is then no total, and
-/// the disk line does not fill toward it. Once such a fix landed, what it gave back is counted into diskPlanned.
+/// diskShare does not count toward it. Once such a fix landed, what it gave back is counted into diskPlanned.
 @property BOOL diskPlannedPartial;
-/// How far each line is filled, 0 to 1: what came back of what was planned. 0 while the plan is no total.
+/// What came back of what was planned, 0 to 1, each side on its own. 0 while the plan is no total.
 - (double)memoryShare;
 - (double)diskShare;
 @property (copy, nullable) NSString *endTitle;          // "7 fixes done"
@@ -373,7 +373,7 @@ extern NSString *const MMWindowLookingNote;
 @property (strong, nullable) MMWindowHour *memoryHour, *diskHour;
 @property (copy) NSArray<MMWindowGroup *> *memoryGroups, *diskGroups;
 @property (strong) MMWindowRing *ring;
-/// In Fix Everything's order. Empty when there is nothing to fix: then the button is dimmed in place.
+/// In Fix Everything's order. Empty when there is nothing to fix: then the button rests in place, calm, and takes no press.
 @property (copy) NSArray<MMWindowFix *> *fixes;
 @property (strong, nullable) MMWindowRun *run;
 /// What came back today, from the look-back. Two numbers. The dock shows a side only when it is above zero, and

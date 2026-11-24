@@ -82,8 +82,8 @@ static void WindowShownChecks(void) {
     WelcomePress(hit); [dock.fix performClick:nil];
     NSInteger early = host.fixes;
     BOOL there = !dock.superview.hidden && dock.superview.alphaValue == 1 && !v.showsWelcome;
-    SpinUntil(^BOOL { return WelcomeHit(v, at, w) == dock.fix; });
-    WelcomePress(WelcomeHit(v, at, w));
+    SpinUntil(^BOOL { return WelcomeHit(v, dock.fix.frame, dock) == dock.fix; });
+    WelcomePress(WelcomeHit(v, dock.fix.frame, dock));
     Check(host.starts == 1 && there && early == 0 && host.fixes == 1,
           @"window shown: closed inside the guard after Start and opened again, the menu is there and takes no press until the guard has run from the opening",
           [NSString stringWithFormat:@"%ld starts, there %d, %ld at once, %ld after", (long)host.starts, there, (long)early, (long)host.fixes]);
