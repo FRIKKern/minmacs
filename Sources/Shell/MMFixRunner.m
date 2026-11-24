@@ -115,8 +115,17 @@ NSString *MMFixStepAction(NSString *kind) {
     _total = (NSInteger)fixes.count;
     BOOL treesMoved = NO;
     NSInteger notRun = 0, notReached = 0;
+    // Before acting, what the acts need. A move to the Trash needs MinMacs's own list of what it sends there, issue
+    // #74, so when that list cannot be written no item is tried: each would fail the same way, and one notice says why.
+    NSString *noTrash = nil;
+    for (MMPerformanceFix *f in fixes) if ([f.kind isEqualToString:@"trash"] && !f.wrapUp) { noTrash = MMRemovalTrashListCannot(); break; }
+    NSMutableArray<NSString *> *unmoved = [NSMutableArray new];
     for (MMPerformanceFix *f in fixes) {
         if (atomic_load(&_stop)) { notRun++; [self notReached:f from:0]; continue; }
+        if (noTrash && [f.kind isEqualToString:@"trash"] && !f.wrapUp) {
+            for (id<MMAction> a in f.actions) { [self note:f name:MMWindowNameOf(a.finding) record:nil error:noTrash]; [unmoved addObject:a.finding.path ?: @""]; }
+            continue;
+        }
         BOOL landed = NO, sizeUnknown = NO;   // sizeUnknown: a thing not measured was kept or failed, so its size is still not known
         uint64_t diskWas = _diskBack;
         if (f.wrapUp) {
@@ -164,6 +173,7 @@ NSString *MMFixStepAction(NSString *kind) {
             _unmeasuredLeft--;
         }
     }
+    if (unmoved.count) MMNoticeTrashUnwritten(@"core", unmoved, @"Fix Everything");
     self.endedAt = NSDate.date;
     // What the menus do after a removal: the repo index reads the worktrees again, then the graph builds anew.
     if (treesMoved) [MMRepoIndex.shared refresh:nil];

@@ -13,4 +13,15 @@ NSString *_Nullable MMWindowLogRuleTitle(NSString *_Nullable expert);
 /// A run row, MMLogRunTable: "Fix Everything: 5 done, 2 skipped. 2 agents ask you.", with each skip and why in more.
 MMWindowLogEntry *MMWindowLogRunEntry(MMLogEntry *row, NSDate *now);
 
+/// Failed records folded so far into one entry, MMWindowLogFold.m.
+@class MMWindowLogFold;
+/// Identical failures one after another, as a run gives when each thing fails the same way, are one entry: "Could not
+/// move 169 groups to the Trash. MinMacs could not write its own list of what it sends to the Trash, so they stay
+/// where they are." e is the entry of a failed record's row, read newest first, and last the entry the list ends on.
+/// YES when e went into the fold that last is, which then says them all: e is then not listed. NO when e starts a
+/// fold of its own, *fold, and is listed. The same kind, the same words why, the same who and the same day fold, and
+/// any entry between ends a fold.
+BOOL MMWindowLogFoldFailed(MMWindowLogFold *_Nullable *_Nonnull fold, MMWindowLogEntry *e, MMLogEntry *row, NSString *day,
+                           MMWindowLogEntry *_Nullable last);
+
 NS_ASSUME_NONNULL_END

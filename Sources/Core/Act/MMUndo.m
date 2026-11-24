@@ -381,8 +381,7 @@ static NSURL *MoveInto(NSString *folder, NSURL *item, NSError **error) {
     // below fails and says so in its own words, and should something come there in between, no list names it.
     NSDictionary *before = MMFileIdentity(item.path);
     if (record.rid.length && before && !MMRemovalTrashListNote(record.rid, item.path, nil, before)) {
-        if (error) *error = [NSError errorWithDomain:@"MMUndo" code:1 userInfo:@{NSLocalizedDescriptionKey:
-            @"MinMacs could not write its own list of what it sends to the Trash, so the item stays where it is"}];
+        if (error) *error = [NSError errorWithDomain:@"MMUndo" code:1 userInfo:@{NSLocalizedDescriptionKey: MMRemovalTrashListUnwritten}];
         return nil;
     }
     MM_TEST_STOP_TRASH("before-move");   // a check stops here, and at the two below, as a crash would, issue #113

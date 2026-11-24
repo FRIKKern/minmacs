@@ -62,6 +62,60 @@ NSArray<NSString *> *MMRemoveStaleFiles(void) {
     return gone;
 }
 
+/// YES when path is a real folder of this uid's, not a link. *repaired says whether it lacked an owner bit and was
+/// set to 0700 now. NO for anything else, which is then neither changed nor looked into.
+#ifdef MM_TESTS
+static uid_t (^gOwnerOf)(NSString *path, uid_t owner);
+void MMUseFolderOwner(uid_t (^owner)(NSString *path, uid_t owner)) { gOwnerOf = [owner copy]; }
+#endif
+
+static BOOL OwnFolder(NSString *path, BOOL *repaired) {
+    *repaired = NO;
+    struct stat st;
+    if (lstat(path.fileSystemRepresentation, &st) != 0 || !S_ISDIR(st.st_mode)) return NO;
+    uid_t owner = st.st_uid;
+#ifdef MM_TESTS
+    if (gOwnerOf) owner = gOwnerOf(path, owner);
+#endif
+    if (owner != getuid()) return NO;
+    if ((st.st_mode & S_IRWXU) == S_IRWXU) return YES;
+    // AT_SYMLINK_NOFOLLOW: should a link take the name after the lstat, the link's own mode is what changes.
+    if (fchmodat(AT_FDCWD, path.fileSystemRepresentation, S_IRWXU, AT_SYMLINK_NOFOLLOW) != 0) return NO;
+    *repaired = YES;
+    return YES;
+}
+
+/// The names of the folders in dir, which must be a folder OwnFolder said yes to.
+static NSArray<NSString *> *FolderNames(NSString *dir) {
+    return [[NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:nil] sortedArrayUsingSelector:@selector(compare:)] ?: @[];
+}
+
+NSArray<NSString *> *MMRepairOwnFolders(void) {
+    NSMutableArray<NSString *> *fixed = [NSMutableArray new];
+    NSString *support = MMSupportDir();
+    // Each folder is set before it is looked into, since a folder with no x bit can be neither listed nor entered.
+    BOOL (^own)(NSString *) = ^BOOL(NSString *rel) {
+        BOOL repaired = NO;
+        BOOL ok = OwnFolder(rel.length ? [support stringByAppendingPathComponent:rel] : support, &repaired);
+        if (repaired) [fixed addObject:rel.length ? rel : @"."];
+        return ok;
+    };
+    if (!own(@"")) return fixed;
+    for (NSString *top in FolderNames(support)) @autoreleasepool {
+        // The Trash of a test home holds what was sent there, which is not MinMacs's own.
+        if (!own(top) || [top isEqualToString:@"Trash"]) continue;
+        BOOL staged = [top isEqualToString:@"staged"];
+        for (NSString *name in FolderNames([support stringByAppendingPathComponent:top])) {
+            if (!staged && ![@[@"trashed", @"recovery", @"bundles", @"investigate", @"agents", @"clutter"] containsObject:name]) continue;
+            NSString *rel = [top stringByAppendingPathComponent:name];
+            if (!own(rel) || ![name isEqualToString:@"recovery"]) continue;
+            // A record's own recovery folder, and never what it saved there.
+            for (NSString *rid in FolderNames([support stringByAppendingPathComponent:rel])) own([rel stringByAppendingPathComponent:rid]);
+        }
+    }
+    return fixed;
+}
+
 #pragma mark Prefs
 
 NSString *MMPrefsTarget(void) {

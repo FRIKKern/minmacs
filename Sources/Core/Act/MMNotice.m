@@ -46,3 +46,24 @@ void MMNotice(NSString *expert, NSString *title, NSString *text) {
     MMLogWhenOpen(^(MMLog *log) { [log append:MMLogNoticeTable rid:nil expert:e subject:t state:@"notice" body:body]; });
     MMNotify(e, t, text ?: @"", nil);
 }
+
+NSString *MMNoticeLines(NSArray<NSArray<NSString *> *> *failures) {
+    NSMutableArray<NSString *> *order = [NSMutableArray new];
+    NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *by = [NSMutableDictionary new];
+    for (NSArray<NSString *> *x in failures) {
+        if (x.count < 2) continue;
+        NSString *why = x[1].length ? x[1] : @"it failed";
+        if (!by[why]) { by[why] = [NSMutableArray new]; [order addObject:why]; }
+        [by[why] addObject:x[0].length ? x[0] : @"something"];
+    }
+    NSMutableArray<NSString *> *lines = [NSMutableArray new];
+    for (NSString *why in order) {
+        NSArray<NSString *> *names = by[why];
+        NSString *who;
+        if (names.count == 1) who = names[0];
+        else if (names.count <= 3) who = [[[names subarrayWithRange:NSMakeRange(0, names.count - 1)] componentsJoinedByString:@", "] stringByAppendingFormat:@" and %@", names.lastObject];
+        else who = [[[names subarrayWithRange:NSMakeRange(0, 2)] componentsJoinedByString:@", "] stringByAppendingFormat:@" and %lu more", (unsigned long)(names.count - 2)];
+        [lines addObject:[NSString stringWithFormat:@"%@: %@", who, why]];
+    }
+    return [lines componentsJoinedByString:@"\n"];
+}

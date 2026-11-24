@@ -37,6 +37,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Starts Core in order: Store, Senses, Know, the graph with its fact source, the review broker and the core socket.
 /// Call once on the main thread, after the experts are registered. Safe to call twice.
 void MMCoreStart(void);
+/// One notice, and one notification at most, for the folders MMRepairOwnFolders set back to 0700. Nothing for none.
+/// MMCoreStart calls it with what the repair returned. Any queue.
+void MMRepairedOwnFolders(NSArray<NSString *> *fixed);
 /// Stops the timers, streams and socket that MMCoreStart started.
 void MMCoreStop(void);
 
