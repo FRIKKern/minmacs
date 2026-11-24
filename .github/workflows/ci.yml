@@ -10,52 +10,49 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  # The sections of test/ in six shards, balanced by their time on CI. Each shard runs ./test.sh with its sections,
+  # The sections of test/ in five shards, balanced by their time on CI, since GitHub runs five macOS jobs at once on
+  # this plan: a sixth job waits for a whole shard to end. Shard 1 also runs the renders.
+  # Each shard runs ./test.sh with its sections,
   # and test.sh runs core first, which builds the copy that shard tests. Every section but core and soak is in exactly
   # one shard: the gate fails when a section in test/ is in none. soak runs in soak.yml, nightly and by hand.
   # Times are seconds on macos-latest; rebalance from a run's log when a shard grows past the others.
   test:
     name: test ${{ matrix.shard }}
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
         include:
           - shard: 1
-            sections: locohost
+            sections: locohost ask
+            render: true
           - shard: 2
-            sections: git graph idle links net performance removal
+            sections: git graph idle links net performance removal fixes headers log
           - shard: 3
-            sections: investigate linked migrate quiet settling shell wire workforest
+            sections: investigate linked migrate quiet settling shell wire workforest provision release review
           - shard: 4
-            sections: docs gains know noonoo senses window wrapup
+            sections: docs gains know noonoo senses window wrapup store ui unsized
           - shard: 5
             sections: act bench device history insomnia minmacs polish unattended
-          - shard: 6
-            sections: fixes headers log provision release review store ui unsized
     steps:
       - uses: actions/checkout@v7
       - name: Test core, ${{ matrix.sections }}
         run: ./test.sh ${{ matrix.sections }}
-
-  # The menu kit's renders and their DESIGN.md checks, kept as the render artifact.
-  render:
-    runs-on: macos-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
+      # The menu kit's and the window's renders and their DESIGN.md checks, kept as the render artifact.
       - name: Render the menus and check them
+        if: always() && matrix.render
         run: tools/render.sh
       - name: Check the install scripts parse
+        if: always() && matrix.render
         run: sh -n install.sh && sh -n uninstall.sh
       - name: Find rendered menus
         id: render
-        if: always()
+        if: always() && matrix.render
         run: |
           if ls build/render/*.png build/render/window/*.png >/dev/null 2>&1; then echo "found=yes" >> "$GITHUB_OUTPUT"; fi
       - name: Keep rendered menus
-        if: always() && steps.render.outputs.found == 'yes'
+        if: always() && matrix.render && steps.render.outputs.found == 'yes'
         uses: actions/upload-artifact@v7
         with:
           name: render
@@ -63,7 +60,7 @@ jobs:
 
   # The one check to require: green only when every shard and the renders passed, and every section has a shard.
   gate:
-    needs: [test, render]
+    needs: [test]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -80,5 +77,5 @@ jobs:
           [ -z "$missing$twice" ]
       - name: Every shard and the renders passed
         run: |
-          echo "test: ${{ needs.test.result }}, render: ${{ needs.render.result }}"
-          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.render.result }}" = success ]
+          echo "test: ${{ needs.test.result }}"
+          [ "${{ needs.test.result }}" = success ]
