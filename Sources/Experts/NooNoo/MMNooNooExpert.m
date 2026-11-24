@@ -168,6 +168,21 @@ static NSString *RowName(MMClutterItem *i) {
     return i.kind.title;
 }
 
+/// The words the window uses when it shows a row's items as one, DESIGN rule 16: the row's `collapse` object where it
+/// has one, such as tmpdir-families' "Temp folders left by tools", else the row's title and what each item
+/// is by how the row finds it. Each noun has both forms written out.
+static NSDictionary *CollapseWords(MMClutterKind *k) {
+    NSMutableDictionary *w = [NSMutableDictionary dictionaryWithObject:k.title forKey:@"title"];
+    if ([k.signature isEqualToString:@"family"]) [w addEntriesFromDictionary:@{@"one": @"group", @"many": @"groups", @"innerOne": @"folder", @"innerMany": @"folders"}];
+    else if (k.names.count) [w addEntriesFromDictionary:@{@"one": @"project", @"many": @"projects"}];
+    else if ([k.owner isEqualToString:@"session"]) [w addEntriesFromDictionary:@{@"one": @"session", @"many": @"sessions"}];
+    else [w addEntriesFromDictionary:@{@"one": @"folder", @"many": @"folders"}];
+    NSDictionary *own = [k.json[@"collapse"] isKindOfClass:NSDictionary.class] ? k.json[@"collapse"] : @{};
+    for (NSString *key in @[@"title", @"one", @"many", @"innerOne", @"innerMany"])
+        if ([own[key] isKindOfClass:NSString.class] && [own[key] length]) w[key] = own[key];
+    return w;
+}
+
 /// For a row whose paths end in a wildcard, the part the wildcard matched, so two items of one row read apart:
 /// a session id cut to 8 characters, a project folder, a browser revision.
 static NSString *WildPart(MMClutterItem *i) {
@@ -272,6 +287,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
                                      @"trend": @{@"ok": @(t.ok), @"bytesPerDay": @(t.bytesPerDay), @"windowDays": @(t.windowDays),
                                                  @"firstBytes": @(t.firstBytes), @"lastBytes": @(t.lastBytes), @"weekRatio": @(t.weekRatio)}} mutableCopy];
         if (i.why) fx[@"why"] = i.why;
+        fx[@"collapse"] = CollapseWords(k);
         // A family is judged member by member: how many of its members go, the rest stay. Core/Know/MMClutter.h.
         if ([k.signature isEqualToString:@"family"]) fx[@"leftovers"] = @(i.leftovers.count);
         if (keep.count) fx[@"keep"] = keep.firstObject;

@@ -144,6 +144,16 @@ MMWindowFact *_Nullable MMWindowFactFiles(NSInteger changed, NSInteger added);  
 MMWindowFact *_Nullable MMWindowFactNotPushed(NSInteger commits);                  // Not pushed, "2 commits"; "2 commits not pushed"
 MMWindowFact *_Nullable MMWindowFactUntouched(NSTimeInterval seconds);             // Untouched, "12 d"; "untouched for 12 d". "Changed", "just now" under ten seconds
 MMWindowFact *_Nullable MMWindowFactKind(NSString *_Nullable kind);                // Kind, "Xcode build output"; the same alone
+/// Holds, of a row that stands for several, MMWindowCollapsed: "45,282 folders in 169 groups" when each member holds
+/// things of its own, else "4 projects"; the same alone. nil under two members.
+MMWindowFact *_Nullable MMWindowFactHolds(NSInteger members, NSString *one, NSString *many, NSInteger inner, NSString *_Nullable innerOne, NSString *_Nullable innerMany);
+/// Now, of such a row: how many of its members can go and how many stay, MMWindowCollapsedSplit. Its story's first line
+/// says it after the lead, so it is not for the second line.
+MMWindowFact *_Nullable MMWindowFactSplit(NSString *_Nullable split);
+/// Why some stay, of such a row: the reason of the biggest member that stays, and how many other reasons there are,
+/// "a running process has a file open in it, and 2 other reasons". With `all` the label is "Why they stay". Not for
+/// the second line. nil with no reason.
+MMWindowFact *_Nullable MMWindowFactWhyStay(NSArray<NSString *> *reasons, BOOL all);
 
 /// How a row's story opens: one line that says whether it stays, goes or waits, and why. The window draws the lead
 /// in bold with a mark: a dot for what stays, an orange triangle for what goes, a white diamond for what asks.
@@ -153,6 +163,27 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (copy) NSString *lead;                        // "Stays.", "Goes with Fix Everything.", "Asks you.", "Working."
 @property (copy, nullable) NSString *note;              // the sentence after it: "In use."
 @end
+
+/// What lets near-identical rows stand as one, DESIGN rule 16. A cache's kin is the registry row it was found by, and
+/// a helper's is its name and the worktree that left it. Rows of one kin, MMWindowCollapseLeast of them or more and none
+/// holding another, are one row in the window, MMWindowCollapsed. The CLI's own verbs keep every member apart.
+@interface MMWindowKin : NSObject
+@property (copy) NSString *key;                         // "noonoo:tmpdir-families", "helper:node|/code/atlas-trees/wip"
+@property (copy) NSString *title;                       // the one row's name, "Temp folders left by tools"
+@property (copy) NSString *one, *many;                  // what each member is in it: "group" and "groups"
+/// What a member holds when it holds things of its own, as a temp-folder family holds folders: "folder", "folders".
+@property (copy, nullable) NSString *innerOne, *innerMany;
+@property NSInteger inner;                              // how many of those this member holds
+/// Where the member is. Two members of which one holds the other are never summed, so their kin stays apart.
+@property (copy, nullable) NSString *path;
+/// The member has something that may go now: a cache that is free and kept by nothing, a helper Fix Everything ends.
+@property BOOL canGo;
+/// Why it stays, in plain words, when it does.
+@property (copy, nullable) NSString *why;
+@end
+
+/// Three of one kin or more become one row: two rows of one kind still read as two things, a third as a list.
+extern const NSInteger MMWindowCollapseLeast;
 
 /// One thing that holds memory or disk.
 @interface MMWindowRow : NSObject
@@ -198,7 +229,24 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (readonly) BOOL showsSize;
 /// The word that stands where the size would while it is not measured, MMWindowMeasuring. nil for any other row.
 @property (readonly, nullable) NSString *sizeWord;
+/// The kin it may stand with, or nil for a row that always stands alone.
+@property (strong, nullable) MMWindowKin *kin;
+/// A row that stands for several, MMWindowCollapsed: its members, biggest first. nil for any other row.
+@property (copy, nullable) NSArray<MMWindowRow *> *members;
 @end
+
+/// The rows with each kin of MMWindowCollapseLeast members or more, none of which holds another, made one row by
+/// MMWindowCollapsedRow, in the place of its first member. Every other row as it came. The order is the caller's.
+NSArray<MMWindowRow *> *MMWindowCollapsed(NSArray<MMWindowRow *> *rows);
+/// The one row of these members, which share a kin. Its key is "kin:" and the kin's key; its size is the members'
+/// sum, true since none holds another; it goes with Fix Everything when any member does, and is quiet when all are.
+/// Its quiet word is the one all members share, else "in use" when any is in use, else "kept" when any is kept: a
+/// member in use stops none of the others. Its story says how many can go and why the rest stay.
+MMWindowRow *MMWindowCollapsedRow(NSArray<MMWindowRow *> *members);
+/// The split of such a row's members, "168 groups can go, 1 in use", "3 sessions can go, 1 kept", "4 processes stay".
+NSString *MMWindowCollapsedSplit(NSInteger go, NSInteger inUse, NSInteger kept, NSInteger other, NSString *one, NSString *many);
+/// Over the members in its story: "Its 4 projects", "The 5 biggest of its 169 groups".
+NSString *MMWindowMembersLine(NSInteger shown, NSInteger count, NSString *one, NSString *many);
 
 /// "measuring": a row's size slot while its size is not measured yet.
 extern NSString *const MMWindowMeasuring;

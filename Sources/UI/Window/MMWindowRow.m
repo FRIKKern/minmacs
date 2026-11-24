@@ -67,7 +67,8 @@ NSArray<NSString *> *MMWindowRowNameAs(MMWindowRow *row, NSString *name, MMWindo
 NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
     NSDictionary *at = @{NSFontAttributeName: MMWindowFont(11, NSFontWeightRegular)};
     BOOL byWhy = row.kind == MMWindowCache || row.kind == MMWindowApp || row.kind == MMWindowHelper || row.kind == MMWindowTabs;
-    NSString *note = row.fate.note;
+    // A row that stands for several says its totals here, DESIGN rule 16: its split is its story's first line.
+    NSString *note = row.members ? nil : row.fate.note;
     if (byWhy && note.length) {
         NSString *plain = [note hasSuffix:@"."] ? [note substringToIndex:note.length - 1] : note;
         if (ceil([plain sizeWithAttributes:at].width) <= width) return plain;

@@ -679,6 +679,8 @@ static void RunStopped(void) {
 #import "agentport.m"
 // Fix Everything's memory with a server under an app in two fixes.
 #import "overlap.m"
+// Near-identical rows as one, DESIGN rule 16.
+#import "collapse.m"
 
 #import "Shell/MMWindowLog.h"
 #import "log.m"
@@ -686,7 +688,7 @@ static void RunStopped(void) {
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|log-words|log-controller|log-undo\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|collapse|collapse-helpers|collapse-run|log-words|log-controller|log-undo\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -712,6 +714,9 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"planned"]) Planned();
         else if ([mode isEqualToString:@"agentport"]) AgentPort();
         else if ([mode isEqualToString:@"overlap"]) WindowOverlap();
+        else if ([mode isEqualToString:@"collapse"]) Collapse();
+        else if ([mode isEqualToString:@"collapse-helpers"]) CollapseHelpers();
+        else if ([mode isEqualToString:@"collapse-run"]) CollapseRun();
         else if ([mode isEqualToString:@"log-words"]) LogWords();
         else if ([mode isEqualToString:@"log-controller"]) LogController();
         else if ([mode isEqualToString:@"log-undo"]) LogUndo();

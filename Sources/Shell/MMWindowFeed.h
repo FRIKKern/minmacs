@@ -59,6 +59,8 @@ NSArray *_Nullable MMWindowRingHour(MMHistoryRing *_Nullable ring);
 /// "Wrap Up fix-auth-redirect", "Stop 3 idle servers", "Quit 2 apps", "Remove 2 merged worktrees",
 /// "Move 10 leftovers to the Trash", "Clean pnpm store".
 NSString *MMWindowFixTitle(MMPerformanceFix *fix);
+/// The same, counting `shown` things: a fix of the members of a row that stands for several counts that row once.
+NSString *MMWindowFixTitleShown(MMPerformanceFix *fix, NSInteger shown);
 
 #pragma mark Settings, MMWindowRules.m
 

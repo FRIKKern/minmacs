@@ -32,11 +32,16 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 
 @implementation MMWindowRow (MMJSON)
 - (NSDictionary *)json {
-    return @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
+    NSDictionary *j = @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
              @"state": Or(self.state), @"cpuPercent": self.cpuPercent >= 0 ? @(round(self.cpuPercent * 10) / 10) : NSNull.null,
              // A size not measured yet is null, never 0.
              @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": self.unmeasured ? @NO : @YES, @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
              @"hour": Or(self.hour), @"facts": All(self.facts), @"project": Or(self.project), @"workedAt": self.workedAt > 0 ? @(self.workedAt) : NSNull.null};
+    if (!self.members) return j;
+    // A row that stands for several, DESIGN rule 16, says so and holds each member whole, as the rows it stands for.
+    NSMutableDictionary *x = [j mutableCopy];
+    x[@"collapsed"] = @{@"count": @(self.members.count), @"kin": self.kin.key ?: @"", @"members": All(self.members)};
+    return x;
 }
 @end
 

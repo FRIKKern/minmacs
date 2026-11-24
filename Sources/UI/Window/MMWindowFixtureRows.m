@@ -192,6 +192,50 @@ NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count) {
     return rows;
 }
 
+NSArray<MMWindowRow *> *MMWindowFixtureLeftovers(void) {
+    // As Noo-Noo and the feed make them, Shell/MMWindowRows.m: one row a temp-folder family, named by its prefix, in one
+    // temp folder, each with its split as its why. 169 families of the owner's Mac, three of them in use.
+    NSArray<NSString *> *names = @[@"MMArgs", @"MMAct", @"MMRepoIndex", @"MMUndo", @"MMSizer", @"MMGitFacts", @"swift-build", @"clang-module", @"vite-deps",
+                                   @"tsc-watch", @"jest-cache", @"esbuild-meta", @"go-link", @"pytest-run", @"cargo-install"];
+    NSString *folder = @"/private/var/folders/x4/k7_2l9qn1s5c/T";
+    NSMutableArray<MMWindowRow *> *rows = [NSMutableArray new];
+    NSInteger folders = 0;
+    for (NSInteger i = 0; i < 169; i++) {
+        NSString *prefix = i < (NSInteger)names.count ? names[(NSUInteger)i] : [NSString stringWithFormat:@"build-%03ld", (long)i];
+        BOOL live = i == 4 || i == 61 || i == 130;
+        NSInteger members = i == 168 ? 45282 - folders : 240 + (i * 37) % 40;
+        folders += members;
+        MMWindowRow *r = MMWindowFixtureRow(MMWindowCache, [NSString stringWithFormat:@"noonoo:clutter:tmpdir-families:%@-", prefix], [prefix stringByAppendingString:@"-* folders"], nil,
+                                            live ? @"in use" : nil, (uint64_t)(2400 - i * 13) * 2000, -1);
+        r.inFix = !live; r.quiet = !live;
+        NSString *why = live ? @"a running process has a file open in it" : [NSString stringWithFormat:@"%ld old and empty", (long)members];
+        r.facts = Facts(@[MMWindowFactKind(@"Temp folder families"), MMWindowFactFolder(folder), MMWindowFactStays(why)]);
+        MMWindowKin *k = [MMWindowKin new];
+        k.key = @"noonoo:tmpdir-families"; k.title = @"Temp folders left by tools"; k.one = @"group"; k.many = @"groups";
+        k.innerOne = @"folder"; k.innerMany = @"folders"; k.inner = members;
+        k.path = [NSString stringWithFormat:@"%@/%@-*", folder, prefix]; k.canGo = !live; k.why = live ? why : nil;
+        r.kin = k;
+        [rows addObject:r];
+    }
+    // Claude Code's scratch of four sessions, one of them still running.
+    NSArray<NSString *> *sessions = @[@"3f9a21c0", @"b71e0d44", @"c02f9e1a", @"e8d4a7b2"];
+    for (NSUInteger i = 0; i < sessions.count; i++) {
+        BOOL live = i == 2;
+        MMWindowRow *r = MMWindowFixtureRow(MMWindowCache, [@"noonoo:clutter:claude-code-scratch:" stringByAppendingString:sessions[i]], @"Claude Code scratch", nil,
+                                            live ? @"in use" : nil, (uint64_t)(1200 - 260 * i) * DMB, -1);
+        r.inFix = !live; r.quiet = !live;
+        NSString *why = live ? @"its session is still running" : @"its session ended 9 d ago";
+        r.facts = Facts(@[MMWindowFactKind(@"Claude Code scratch"), MMWindowFactOwner([@"session " stringByAppendingString:sessions[i]]),
+                          MMWindowFactFolder([NSString stringWithFormat:@"/private/tmp/claude-501/-Users-sam-code/%@", sessions[i]]), MMWindowFactStays(why)]);
+        MMWindowKin *k = [MMWindowKin new];
+        k.key = @"noonoo:claude-code-scratch"; k.title = @"Claude Code scratch"; k.one = @"session"; k.many = @"sessions";
+        k.path = [@"/private/tmp/claude-501/-Users-sam-code/" stringByAppendingString:sessions[i]]; k.canGo = !live; k.why = live ? why : nil;
+        r.kin = k;
+        [rows addObject:r];
+    }
+    return rows;
+}
+
 MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows) {
     MMWindowGroup *g = [MMWindowGroup new];
     g.key = key; g.title = title; g.side = side;

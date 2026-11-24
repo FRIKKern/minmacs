@@ -5,7 +5,7 @@
 /// Every made-up day, the real-shaped one and the three of extremes among them.
 static NSArray<NSString *> *WordFixtures(void) {
     return @[@"quiet", @"busy", @"peak", @"young", @"calm", @"empty", @"long", @"running", @"done", @"memory-only", @"disk-only", @"real",
-             @"extreme", @"extreme-running", @"extreme-done", @"measuring", @"log-new", @"log-busy", @"log-undo"];
+             @"extreme", @"extreme-running", @"extreme-done", @"measuring", @"caches", @"log-new", @"log-busy", @"log-undo"];
 }
 
 static NSMutableArray<NSString *> *gWordFaults, *gWordSeen;
@@ -49,9 +49,9 @@ static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedStates(void) {
 static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedLabels(void) {
     return @{@(MMWindowServer): @[@"Port", @"Agent", @"Session", @"Project", @"Runs in", @"Started by", @"Idle", @"Last used", @"Running", @"Kept", @"Stays"],
              @(MMWindowAgent): @[@"Agent", @"Project", @"Serves", @"State", @"Stays"], @(MMWindowApp): @[@"Used by", @"Serves", @"Stays"],
-             @(MMWindowHelper): @[@"Left by", @"Folder", @"Stays"], @(MMWindowTabs): @[@"Open", @"On", @"Left by", @"Stays"],
+             @(MMWindowHelper): @[@"Left by", @"Folder", @"Stays", @"Holds", @"Now", @"Why some stay", @"Why they stay"], @(MMWindowTabs): @[@"Open", @"On", @"Left by", @"Stays"],
              @(MMWindowWorktree): @[@"Branch", @"Files", @"Not pushed", @"Untouched", @"Changed", @"Folder", @"Stays"],
-             @(MMWindowCache): @[@"Kind", @"Project", @"Last used", @"Folder", @"Stays"]};
+             @(MMWindowCache): @[@"Kind", @"Project", @"Last used", @"Folder", @"Stays", @"Holds", @"Now", @"Why some stay", @"Why they stay"]};
 }
 
 static void WindowWordChecks(void) {

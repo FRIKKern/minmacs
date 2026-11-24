@@ -200,6 +200,39 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
     return out;
 }
 
+#pragma mark - The kin
+
+/// What lets rows that read alike stand as one, DESIGN rule 16: a cache's registry row, with the words its expert
+/// gives for it, or a helper's name and the worktree that left it. nil for every other row.
+static MMWindowKin *KinOf(MMFinding *f, MMWindowRow *row) {
+    NSDictionary *x = f.facts;
+    MMWindowKin *k = [MMWindowKin new];
+    if (row.kind == MMWindowCache) {
+        NSString *kindID = Str(x[@"kindID"]);
+        if (!kindID) return nil;
+        NSDictionary *words = [x[@"collapse"] isKindOfClass:NSDictionary.class] ? x[@"collapse"] : @{};
+        k.key = [NSString stringWithFormat:@"%@:%@", f.expert ?: @"", kindID];
+        k.title = Str(words[@"title"]) ?: Str(x[@"kindTitle"]) ?: row.name;
+        k.one = Str(words[@"one"]) ?: @"folder"; k.many = Str(words[@"many"]) ?: @"folders";
+        k.innerOne = Str(words[@"innerOne"]); k.innerMany = Str(words[@"innerMany"]);
+        if (k.innerOne && k.innerMany) k.inner = [Num(x[@"members"]) integerValue];
+        k.path = Str(x[@"path"]) ?: f.path;
+        // It may go when it is free and nothing keeps it: what Noo-Noo would act on. A report row never goes.
+        k.canGo = [Str(x[@"state"]) isEqualToString:@"free"] && !f.keepReasons.count && ![Num(x[@"reportOnly"]) boolValue];
+        if (!k.canGo) k.why = f.keepReasons.firstObject ?: Str(x[@"keep"]) ?: Str(x[@"why"]);
+        return k;
+    }
+    if (row.kind == MMWindowHelper) {
+        // The feed sets canGo once it knows which helpers Fix Everything ends, and leaves helpers apart whose process
+        // trees hold one another, MMWindowFeed.m.
+        NSString *worktree = Str(x[@"worktree"]) ?: @"";
+        k.key = [NSString stringWithFormat:@"helper:%@|%@", row.name, worktree];
+        k.title = row.name; k.one = @"process"; k.many = @"processes";
+        return k;
+    }
+    return nil;
+}
+
 #pragma mark - The row
 
 MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
@@ -249,5 +282,6 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
         row.workedAt = [Num(x[@"lastWorkAt"]) doubleValue] > 0 ? [x[@"lastWorkAt"] doubleValue] : 0;
     }
     row.facts = FactsOf(f, row.kind);
+    row.kin = KinOf(f, row);
     return row;
 }

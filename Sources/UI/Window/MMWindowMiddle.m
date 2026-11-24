@@ -218,6 +218,10 @@ static NSString *GroupKey(MMWindowKind kind) {
         y += h + 6;
     }
 
+    // A row that stands for several lists its biggest members under a hairline, DESIGN rule 16, in the place of the
+    // others of its group: what it holds is what the person wants to see.
+    if (row.members.count) { [self drawMembers:row from:y in:NSMakeRect(x, 0, w, bottom) disk:disk]; return; }
+
     // Where it stands in its group, with the biggest of the others, under a hairline. The worktrees come by activity,
     // so the place is counted by size here.
     NSArray<MMWindowRow *> *bySize = !group.byProject ? group.rows
@@ -239,6 +243,46 @@ static NSString *GroupKey(MMWindowKind kind) {
         MMWindowDrawBlock(other.shownName, 12.5, 12.5, NSFontWeightRegular, text, x, y + 2, room, -1, -1, 0);
         if (size) MMWindowDraw(size, x + w, y + 10.5, 1);
         y += h; shown++;
+    }
+}
+
+/// What tells a member from the others: its name, or, where every member has the row's own name, as the scratch of
+/// one session has, the project or session it is for, then its folder's name.
+static NSString *MemberName(MMWindowRow *m, MMWindowRow *row) {
+    if (![m.shownName isEqualToString:row.name]) return m.shownName;
+    for (NSString *label in @[@"Project", @"Folder"])
+        for (MMWindowFact *f in m.facts) if ([f.label isEqualToString:label] && f.value.length) return [label isEqualToString:@"Folder"] ? f.value.lastPathComponent : f.value;
+    return m.shownName;
+}
+
+/// The biggest members of a row that stands for several, five at most and as many as fit whole: each name with its
+/// quiet word and its size, under a line that says how many of how many they are.
+- (void)drawMembers:(MMWindowRow *)row from:(CGFloat)y in:(NSRect)r disk:(BOOL)disk {
+    NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2);
+    CGFloat x = r.origin.x, w = r.size.width, bottom = NSMaxY(r);
+    if (y + 12 + 26 + 21 > bottom) return;
+    NSMutableArray<NSArray *> *lines = [NSMutableArray new];   // name, size, height
+    CGFloat at = y + 6 + 28;
+    for (MMWindowRow *m in row.members) {
+        NSString *name = m.state.length ? [NSString stringWithFormat:@"%@ · %@", MemberName(m, row), m.state] : MemberName(m, row);
+        NSAttributedString *size = m.showsSize ? MMWindowText(MMWindowBytes(m.bytes, disk), 11.5, NSFontWeightRegular, t2)
+                                 : m.sizeWord ? MMWindowText(m.sizeWord, 11.5, NSFontWeightRegular, t2) : nil;
+        CGFloat room = w - (size ? MMWindowWidth(size) + 12 : 0), h = MAX(21, MMWindowBlockHeight(name, 12.5, 12.5, NSFontWeightRegular, room) + 4);
+        if (lines.count >= 5 || at + h > bottom) break;
+        [lines addObject:@[name, size ?: (id)NSNull.null, @(h), @(room)]];
+        at += h;
+    }
+    if (!lines.count) return;
+    y += 6;
+    [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.07] setFill];
+    NSRectFillUsingOperation(NSMakeRect(x, y, w, 1), NSCompositingOperationSourceOver);
+    MMWindowKin *kin = row.kin;
+    MMWindowDraw(MMWindowText(MMWindowMembersLine((NSInteger)lines.count, (NSInteger)row.members.count, kin.one, kin.many), 11, NSFontWeightRegular, t2), x, y + 17, -1);
+    y += 28;
+    for (NSArray *l in lines) {
+        MMWindowDrawBlock(l[0], 12.5, 12.5, NSFontWeightRegular, text, x, y + 2, [l[3] doubleValue], -1, -1, 0);
+        if (l[1] != NSNull.null) MMWindowDraw(l[1], x + w, y + 10.5, 1);
+        y += [l[2] doubleValue];
     }
 }
 

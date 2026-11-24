@@ -31,6 +31,8 @@ static void PrintGroup(MMArgs *a, MMWindowGroup *g) {
         if (r.state) [tail addObject:r.state];
         if (r.needsYou) [tail addObject:@"asks you"];
         if (r.inFix) [tail addObject:@"in a fix"];
+        // A row that stands for several, DESIGN rule 16, says how many. `clutter list` keeps each one apart.
+        if (r.members) for (MMWindowFact *f in r.facts) if ([f.label isEqualToString:@"Holds"]) [tail addObject:f.value];
         [a print:@"  %@ %@", MMColumn(r.name, 34), [tail componentsJoinedByString:@", "]];
     }
 }

@@ -170,6 +170,11 @@ if [ "$nn_r" = 0 ]; then
     "$(nn_item "$nn_T/dev-chrome-*" section) $(nn_item "$nn_T/dev-chrome-*" members)"
   check "noonoo: a 3-digit tail is no suffix, so those five form no family" absent "$(nn_item "$nn_T/build-out-*" section)"
   check "noonoo: a family written just now stays" "kept" "$(nn_item "$nn_T/fresh-run-*" section)"
+  # DESIGN rule 16: only the window shows a row's items as one. The CLI keeps each family and each item apart.
+  check "noonoo: clutter list keeps every family its own item, and says nothing of a collapsed row" "3 0" \
+    "$(printf '%s' "$nn_list" | python3 -c "
+import json,sys; j=json.load(sys.stdin); t=sys.argv[1]
+print(len([i for i in j['items'] if i['path'] in (t+'/mv-test-*', t+'/dev-chrome-*', t+'/fresh-run-*')]), len([i for i in j['items'] if 'collapsed' in i]))" "$nn_T")"
   check "noonoo: a Chrome code-sign clone nothing holds open is a leftover" leftovers "$(nn_item "$nn_clone" section)"
   check "noonoo: Claude Code transcripts are data, kept with their owner's setting" "kept data" \
     "$(nn_item "$nn/claude/projects/-code-acme" section) $(nn_item "$nn/claude/projects/-code-acme" class)"

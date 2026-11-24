@@ -17,6 +17,13 @@
   },
   "advice": "dirhelper sweeps files older than 3 days",
   "ownerNote": "family prefix, then code search",
+  "collapse": {
+    "title": "Temp folders left by tools",
+    "one": "group",
+    "many": "groups",
+    "innerOne": "folder",
+    "innerMany": "folders"
+  },
   "every": 3600,
   "rebuild": "none",
   "measured_gib": 0.49,

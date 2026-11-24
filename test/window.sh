@@ -13,7 +13,7 @@ mkdir -p "$wn_dir/home"
 wn_home="$wn_dir/home"
 wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -63,6 +63,10 @@ if [ "$wn_r" = 0 ]; then
   wn_run agentport
   echo "-- a server under an app, both in fixes: memory back counts it once"
   wn_run overlap
+  echo "-- near-identical rows as one, DESIGN rule 16: 169 temp-folder families, helpers, and Fix Everything over them"
+  wn_run collapse
+  wn_run collapse-helpers
+  wn_run collapse-run
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
@@ -101,7 +105,7 @@ wn_new="Sources/Shell/MMWindowFeed.h Sources/Shell/MMWindowLog.h $wn_shell Sourc
 check "window: the feed, the JSON and the runner import no AppKit" 0 \
   "$(cat Sources/Shell/MMWindowFeed.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h | grep -cE '#import <(Cocoa|AppKit)')"
 check "window: each file stays under 500 lines" 0 "$(wc -l $wn_new | awk '$2 != "total" && $1 >= 500' | grep -c .)"
-check "window: the model stays plain: no Core and no AppKit" 0 "$(grep -cE '#import (<(Cocoa|AppKit)|"Core/)' Sources/UI/Window/MMWindowModel.h Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m | awk -F: '{s+=$2} END {print s+0}')"
+check "window: the model stays plain: no Core and no AppKit" 0 "$(grep -cE '#import (<(Cocoa|AppKit)|"Core/)' Sources/UI/Window/MMWindowModel.h Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m | awk -F: '{s+=$2} END {print s+0}')"
 check "window: the runner acts only through MMRunAction and MMRunWrapUp" "1 1 0" \
   "$(grep -c 'MMRunAction(a, f.policy, nil, @"manual"' Sources/Shell/MMFixRunner.m) $(grep -c 'MMRunWrapUp(f.wrapUp, @"manual"' Sources/Shell/MMFixRunner.m) $(grep -cE '[^a-zA-Z_]kill\(|removeItemAt|trashItemAt|unlink\(|rmdir\(|NSTask|terminate\]|perform:' Sources/Shell/MMFixRunner.m)"
 check "window: the runner and the controller each have a labeled queue" "1 1" \
@@ -130,8 +134,8 @@ wn_strings="$(wn_has LocoHost/MMLHHost.m '@"port": @(self.port)' '@"framework": 
   wn_has MinMacs/MMMinMacsExpert.m '@"harnessID": m.harnessID' '@"name": m.name' '@"state": StateWord(m.state)' '@"project": m.project' '@"why": m.why' 'return @"waits on you"' '@"bundleID": a.bundleID' '@"group": GroupName(g)' 'fx[@"reason"] = reason' 'fx[@"agent"] = a.agentName' 'fx[@"ports"] = a.loopbackPorts' 'fx[@"ports"] = m.ports'
   wn_has MinMacs/MMMinMacsWrapUp.m '@"cwd": cwd' '@"worktree": subject.path' '@"urls": urls' '@"ports": on.array' '@"bundleID": bid'
   wn_has WorkForest/MMWFTree.m '@"branch": Or(self.branch)' '@"merged": Or(self.merged)' '@"dirty": @(self.dirty)' '@"untracked": @(self.untracked)' '@"unpushed": @(self.unpushed)' '@"lastWorkAt": Time(self.lastWork)' '@"protected": @(self.isProtected)' '@"sized": @(self.sized)' '@"missing": @(self.missing)'
-  wn_has NooNoo/MMNooNooExpert.m '@"kindTitle": k.title' '@"name": RowName(i)' '? @"free" : i.state == MMClutterLive ? @"live" : @"kept"' 'fx[@"owner"] = ownerName' 'fx[@"lastUsed"]' 'fx[@"keep"]' 'fx[@"why"]')"
-check "window: the experts still write the facts the rows read" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${wn_strings% }"
+  wn_has NooNoo/MMNooNooExpert.m '@"kindTitle": k.title' '@"name": RowName(i)' '? @"free" : i.state == MMClutterLive ? @"live" : @"kept"' 'fx[@"owner"] = ownerName' 'fx[@"lastUsed"]' 'fx[@"keep"]' 'fx[@"why"]' 'fx[@"collapse"] = CollapseWords(k)' '@"kindID": k.kindID' '@"members": @(i.members.count)' '@"path": i.path')"
+check "window: the experts still write the facts the rows read" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${wn_strings% }"
 wn_rules="$(wn_has LocoHost/MMLHScan.m 'EnvMinutes(@"LOCOHOST_PROACTIVE_MINUTES", 6 * 60)'
   wn_has LocoHost/MMLocoHost.m 'if (m != MMModeProactive) return nil;' 'if (h.agent.length && !h.orphaned) return'
   wn_has WorkForest/MMWFTree.m 'EnvHours("WORKFOREST_PROACTIVE_HOURS", 7 * 24)' 'self.merged.length > 0 || [self.upstream isEqualToString:@"gone"]'

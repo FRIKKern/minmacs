@@ -157,6 +157,37 @@ MMWindowFact *MMWindowFactUntouched(NSTimeInterval seconds) {
 
 MMWindowFact *MMWindowFactKind(NSString *kind) { NSString *k = Trimmed(kind); return Fact(@"Kind", k, k); }
 
+/// A count with its thousands set apart, as a person writes it: "45,282".
+static NSString *Grouped(NSInteger n) {
+    NSString *digits = [NSString stringWithFormat:@"%ld", (long)MAX(n, 0)];
+    NSMutableString *out = [NSMutableString new];
+    for (NSUInteger i = 0; i < digits.length; i++) {
+        if (i && (digits.length - i) % 3 == 0) [out appendString:@","];
+        [out appendString:[digits substringWithRange:NSMakeRange(i, 1)]];
+    }
+    return out;
+}
+
+MMWindowFact *MMWindowFactHolds(NSInteger members, NSString *one, NSString *many, NSInteger inner, NSString *innerOne, NSString *innerMany) {
+    if (members < 2 || !one.length || !many.length) return nil;
+    NSString *of = [NSString stringWithFormat:@"%@ %@", Grouped(members), members == 1 ? one : many];
+    if (innerOne.length && innerMany.length && inner > 0)
+        of = [NSString stringWithFormat:@"%@ %@ in %@", Grouped(inner), inner == 1 ? innerOne : innerMany, of];
+    return Fact(@"Holds", of, of);
+}
+
+MMWindowFact *MMWindowFactSplit(NSString *split) { return Fact(@"Now", Trimmed(split), nil); }
+
+MMWindowFact *MMWindowFactWhyStay(NSArray<NSString *> *reasons, BOOL all) {
+    NSMutableOrderedSet<NSString *> *distinct = [NSMutableOrderedSet new];
+    for (NSString *r in reasons) if (Trimmed(r).length) [distinct addObject:Trimmed(r)];
+    if (!distinct.count) return nil;
+    NSString *v = distinct.firstObject;
+    NSInteger more = (NSInteger)distinct.count - 1;
+    if (more > 0) v = [NSString stringWithFormat:@"%@, and %@", v, MMWindowCount(more, @"other reason", @"other reasons")];
+    return Fact(all ? @"Why they stay" : @"Why some stay", v, nil);
+}
+
 NSString *MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked) {
     if ([groupKey isEqualToString:@"worktrees"])
         return looked == MMWindowLookedNowhere ? @"No folders to look in" : looked == MMWindowLookedNotYet ? @"Looking for worktrees" : @"No worktrees found";
@@ -229,13 +260,16 @@ static NSString *Sentence(NSString *words) {
 /// a raw fact of its processes, such as "child caffeinate": it stays in the fact list and is never the sentence.
 - (MMWindowFate *)fateFrom:(MMWindowFact *__autoreleasing *)source saysState:(BOOL *)saysState {
     MMWindowFact *stays = [self factLabelled:@"Stays"], *state = [self factLabelled:@"State"], *from = nil;
+    MMWindowFact *now = self.members ? [self factLabelled:@"Now"] : nil;
     MMWindowFate *f = [MMWindowFate new];
     BOOL says = NO;
     if (self.needsYou) { f.kind = MMWindowFateAsks; f.lead = @"Asks you."; says = YES; }
     else if (self.inFix) { f.kind = MMWindowFateGoes; f.lead = @"Goes with Fix Everything."; }
-    else if (stays) { f.lead = @"Stays."; from = stays; }
+    else if (stays || now) { f.lead = @"Stays."; from = stays; }
     else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); says = YES; }
     else return nil;
+    // A row that stands for several says under any lead how many of them can go and how many stay.
+    if (now) from = now;
     f.note = Sentence(from.value);
     if (source) *source = from;
     if (saysState) *saysState = says;

@@ -93,3 +93,26 @@ NSString *MMWindowPlaceLine(NSInteger place, NSInteger count, NSInteger unmeasur
     }
     return [NSString stringWithFormat:@"%@ of %ld %@%@", rank, (long)known, title, unmeasured > 0 ? @" measured so far" : @""];
 }
+
+NSString *MMWindowCollapsedSplit(NSInteger go, NSInteger inUse, NSInteger kept, NSInteger other, NSString *one, NSString *many) {
+    // The unit stands once, at the first count, as a person says it: "168 groups can go, 1 in use".
+    NSMutableArray<NSString *> *parts = [NSMutableArray new];
+    __block BOOL unit = NO;
+    NSString *(^count)(NSInteger, NSString *) = ^NSString *(NSInteger n, NSString *what) {
+        NSString *c = unit ? [NSString stringWithFormat:@"%ld", (long)n] : MMWindowCount(n, one, many);
+        // The verb takes its number from the count: "1 group stays", "2 groups stay".
+        if ([what isEqualToString:@"stay"] && n == 1) what = @"stays";
+        unit = YES;
+        return [NSString stringWithFormat:@"%@ %@", c, what];
+    };
+    if (go > 0) [parts addObject:count(go, @"can go")];
+    if (inUse > 0) [parts addObject:count(inUse, @"in use")];
+    if (kept > 0) [parts addObject:count(kept, @"kept")];
+    if (other > 0) [parts addObject:count(other, @"stay")];
+    return [parts componentsJoinedByString:@", "];
+}
+
+NSString *MMWindowMembersLine(NSInteger shown, NSInteger count, NSString *one, NSString *many) {
+    if (shown >= count) return [@"Its " stringByAppendingString:MMWindowCount(count, one, many)];
+    return [NSString stringWithFormat:@"The %ld biggest of its %@", (long)shown, MMWindowCount(count, one, many)];
+}

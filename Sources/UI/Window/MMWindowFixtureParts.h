@@ -17,6 +17,9 @@ NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count);
 /// The worktrees of five made-up projects, or with `projects` 1 all of one repo, as a Mac with one project has them.
 NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count, NSInteger projects);
 NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count);
+/// The leftovers of the day named "caches": 169 temp-folder families of one registry row, three in use, and Claude
+/// Code's scratch of four sessions, one running. Each row with its kin, as the feed gives it, before MMWindowCollapsed.
+NSArray<MMWindowRow *> *MMWindowFixtureLeftovers(void);
 /// A group with the feed's words for when it is empty, its rows biggest first.
 MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows);
 /// The ring of a model: its groups as slices, and the rest.

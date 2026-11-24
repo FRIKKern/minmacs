@@ -82,6 +82,13 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
 
 static MMWindowModel *Day(NSString *name);
 
+/// What the families and the scratch that may go give back, in disk megabytes.
+static uint64_t LeftoversBack(NSArray<MMWindowRow *> *caches) {
+    uint64_t n = 0;
+    for (MMWindowRow *r in caches) for (MMWindowRow *m in r.members) if (m.kin.canGo) n += m.bytes;
+    return n / DMB;
+}
+
 /// Each day with its log. "log-empty", "log-new", "log-busy" and "log-undo" are the young, the young, the busy and the
 /// young day with an empty log, a new Mac's first hour, 300 entries over a month and the Undo presses with two runs. The days of a new Mac show the first hour too.
 MMWindowModel *MMWindowFixture(NSString *name) {
@@ -137,6 +144,10 @@ static MMWindowModel *Day(NSString *name) {
         if (r.inFix && [r.state isEqualToString:@"will close"]) r.state = nil;
         r.inFix = NO;
     }
+    // "caches": the busy day whose Caches also holds 169 temp-folder families and four sessions' scratch, as the owner's
+    // Mac had them, each kin one row as the feed shows it, DESIGN rule 16.
+    BOOL leftovers = [name isEqualToString:@"caches"];
+    if (leftovers) caches = MMWindowCollapsed([caches arrayByAddingObjectsFromArray:MMWindowFixtureLeftovers()]);
     if (measuring) for (NSUInteger i = 1; i < trees.count; i++) { trees[i].unmeasured = YES; trees[i].bytes = 0; }
     if (longNames) {
         servers = [servers arrayByAddingObject:Long(servers[1], @"server:9366", @":9366 Google Chrome for Testing", 565 * MB)];
@@ -163,7 +174,8 @@ static MMWindowModel *Day(NSString *name) {
     // The fixes, titled as the feed titles them, MMWindowFixTitle. The last one waits for its own press.
     NSMutableArray *fixes = [NSMutableArray arrayWithArray:@[
         Fix(@"wrapup:fix-auth-redirect", @"Wrap Up fix-auth-redirect", (412 + 1434) * MB, 1905 * DMB, NO),
-        Fix(@"trash:leftovers", @"Move 1 leftover to the Trash", 0, 14541 * DMB, NO),
+        // On the caches day the families and the scratch go too: one row each, as the feed counts them.
+        Fix(@"trash:leftovers", leftovers ? @"Move 3 leftovers to the Trash" : @"Move 1 leftover to the Trash", 0, (14541 + (leftovers ? LeftoversBack(caches) : 0)) * DMB, NO),
         Fix(@"stop:idle", quiet ? @"Stop 3 idle servers" : @"Stop 5 idle servers", (quiet ? 720 : 816) * MB, 0, NO),
         Fix(@"quit:apps", @"Quit 1 app", 578 * MB, 0, NO)]];
     if (!quiet) [fixes addObject:Fix(@"remove:merged", @"Remove 3 merged worktrees", 0, 2616 * DMB, NO)];
