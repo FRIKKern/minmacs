@@ -656,6 +656,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-agents.m"
 #include "render-window-press.m"
 #include "render-window-pulls.m"
+#include "render-window-week.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -683,6 +684,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     shots = [shots arrayByAddingObjectsFromArray:WindowPolishShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowLogShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowPressShots()];
+    shots = [shots arrayByAddingObjectsFromArray:WindowWeekShots()];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -696,6 +698,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
             v.pointsAtFix = [shot[1] isEqualToString:@"fix"];
             LogShotState(v, shot[1]);
             PressShotState(v, shot[1]);
+            WeekShotState(v, shot[1]);
             NSString *path = [dir stringByAppendingFormat:@"/%@-%@-%@.png", shot[0], shot[1], mode];
             if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
         }
@@ -726,7 +729,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"agents", @"log-empty", @"log-new", @"log-busy", @"log-undo"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"agents", @"log-empty", @"log-new", @"log-busy", @"log-undo", @"week", @"week-young", @"week-gap"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])
@@ -753,6 +756,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowAgentChecks();
     WindowPressChecks();
     WindowPullsChecks();
+    WindowWeekChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
 }
 

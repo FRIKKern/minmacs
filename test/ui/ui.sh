@@ -66,14 +66,16 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # The two row pictures are a row under the pointer with its white wash, and an active row, blue with its story pinned,
 # while the pointer rests on another row.
 # The four busy-pr pictures are a worktree's story with its pull request open with checks passing, merged, none and
-# still being looked for.
+# still being looked for. The five week pictures are the strip on 7 days: full, two days young, with a gap, and the
+# pointer on its line and in its gap.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 130 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 140 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
                young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main measuring-main measuring-worktree measuring-measured measuring-fix welcome-main welcome-off-main  welcome-watched-main welcome-started \
-               caches-main caches-families caches-scratch log-empty-main log-new-main log-busy-main log-busy-scrolled log-busy-end log-busy-server log-undo-main log-undo-undo-hover; do
+               caches-main caches-families caches-scratch log-empty-main log-new-main log-busy-main log-busy-scrolled log-busy-end log-busy-server log-undo-main log-undo-undo-hover \
+               week-main week-young-main week-gap-main week-gap-hover week-gap-hover-gap; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
@@ -82,7 +84,7 @@ check "every window PNG is 1020 by 728 points, two pixels each" "2040x1456 " "$u
 ui_md() { md5 -q "$ui_win/$1.png" 2>/dev/null; }
 check "the window differs under Increase Contrast, with a pointed row and in Settings" "yes yes yes" \
   "$([ "$(ui_md busy-main-dark)" != "$(ui_md busy-main-contrast-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-server-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-settings-dark)" ] && echo yes || echo no)"
-check "no window fixture shows a banned phrase or an old app name" 19 \
+check "no window fixture shows a banned phrase or an old app name" 22 \
   "$(grep -c '^ok    window .*: no shown string holds a banned phrase or an old app name' "$ui_out/checks.txt" 2>/dev/null)"
 
 ui_look() { grep -c "^ok    window$1" "$ui_out/checks.txt" 2>/dev/null; }

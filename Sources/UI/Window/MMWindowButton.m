@@ -65,6 +65,16 @@
             MMWindowDraw(MMWindowText(self.title, 10.5, NSFontWeightSemibold, on ? NSColor.whiteColor : MMWindowColor(MMWindowInkText)), NSMidX(b), NSMidY(b), 0);
             return;
         }
+        case MMWindowButtonSegment: {
+            // One word of a choice of two: the chosen one bright on a quiet pill, the other quiet until the pointer is on it.
+            NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.5, 0.5) xRadius:b.size.height / 2 - 0.5 yRadius:b.size.height / 2 - 0.5];
+            BOOL contrast = MMWindowContrast();
+            if (self.lit || self.hovered) { [[NSColor colorWithWhite:1 alpha:self.lit ? (contrast ? 0.24 : 0.14) : 0.06] setFill]; [pill fill]; }
+            if (self.lit && contrast) { [[NSColor colorWithWhite:1 alpha:0.6] setStroke]; pill.lineWidth = 1; [pill stroke]; }
+            NSColor *ink = self.lit ? NSColor.whiteColor : MMWindowColor(self.hovered ? MMWindowInkText : MMWindowInkText2);
+            MMWindowDraw(MMWindowText(self.title, 10.5, self.lit ? NSFontWeightSemibold : NSFontWeightRegular, ink), NSMidX(b), NSMidY(b), 0);
+            return;
+        }
         case MMWindowButtonPill: {
             [[NSColor colorWithWhite:1 alpha:on ? 0.14 : 0.07] setFill];
             [[NSBezierPath bezierPathWithRoundedRect:b xRadius:b.size.height / 2 yRadius:b.size.height / 2] fill];

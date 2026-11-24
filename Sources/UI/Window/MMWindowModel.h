@@ -65,7 +65,25 @@ NSString *MMWindowHourTitle(BOOL disk);
 @property (copy) NSString *explain;                     // "Higher means more of the 64 GB is in use"
 @property (copy) NSArray *values;                       // NSNumber bytes or NSNull, 60 of them
 @property MMWindowSide side;
+/// A week only: the start of the first value's hour, seconds since 1970. Each value is one hour, and 0 means the hour's
+/// minutes, as above.
+@property NSTimeInterval firstAt;
 @end
+
+#pragma mark - The last 7 days
+
+/// The pref that remembers what the strip shows: NO the last hour, YES the last 7 days. A look, not a rule, so a change
+/// writes no row to the log.
+extern NSString *const MMWindowWeekKey;                 // @"core.window.week"
+/// How many hours a week holds: 7 x 24, the newest the last hour that ended.
+static const NSInteger MMWindowWeekHours = 7 * 24;
+/// The part of a week the strip draws: from its first hour that holds a value to its newest hour, gaps and all, so an
+/// hour the Mac was off or asleep stays where it was. nil while fewer than two hours hold one. `first` gets where it
+/// starts, `filled` how many hours hold a value.
+NSArray *_Nullable MMWindowWeekSpan(NSArray *_Nullable values, NSInteger *_Nullable first, NSInteger *_Nullable filled);
+/// How long the drawn part of a week is, as the strip says it: "the last 7 days", "the last 3 days", "the last day",
+/// "the last 5 h" or "the last hour". Days are rounded, so a span never reads as longer than half a day more than it is.
+NSString *MMWindowWeekSpanWords(NSInteger hours);
 
 #pragma mark - Rows
 
@@ -570,6 +588,10 @@ NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
 /// get its height.
 @property (copy, nullable) NSString *asks;
 @property (strong, nullable) MMWindowHour *memoryHour, *diskHour;
+/// The strip's choice, MMWindowWeekKey: YES shows the last 7 days. The two weeks are read only while the window is
+/// open and this is YES, so they are nil otherwise, and nil before the first read.
+@property BOOL stripWeek;
+@property (strong, nullable) MMWindowHour *memoryWeek, *diskWeek;
 @property (copy) NSArray<MMWindowGroup *> *memoryGroups, *diskGroups;
 @property (strong) MMWindowRing *ring;
 /// In Fix Everything's order. Empty when there is nothing to fix: then the button rests in place, calm, and takes no press.

@@ -94,7 +94,9 @@ NSString *MMWindowHourSpanWords(NSInteger minutes);
 /// How an hour is drawn: the large graph, a row's small line, the line in a row's story, or one side of the middle's
 /// strip. Each spreads its filled part across its whole width. The small ones, a row's and the strip's, show a wobble
 /// as flat, on a scale of at least a quarter of their value.
-typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHourRow, MMWindowHourStory, MMWindowHourStrip };
+/// MMWindowHourWeek is the strip's 7 days: it spreads MMWindowWeekSpan, from the first hour that holds a value to the
+/// newest hour, so hours with none at its end stay a gap there, and an hour alone between two gaps is a dot.
+typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHourRow, MMWindowHourStory, MMWindowHourStrip, MMWindowHourWeek };
 /// An hour in the rect: the fill, the line, and a dot at the newest minute. Nothing when fewer than
 /// MMWindowHourLeast minutes are filled, or MMWindowHourGraphLeast for the large graph and the strip.
 void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MMWindowHourLook look);
@@ -250,7 +252,12 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 - (void)rest;                                                        // the window closed: back at the newest entry
 @end
 
-/// The middle: a strip with the two last hours small, and the log under it. Or one row's story, over all of it.
+/// How long ago the minute at this index of an hour was: "now", "12 min ago", "an hour ago".
+NSString *MMWindowAgo(NSInteger index, NSInteger count);
+/// How high the middle's strip stands: the two sides, then the row of its two words "hour · 7 days".
+static const CGFloat MMWindowStripHeight = 92;
+
+/// The middle: a strip with the two last hours or 7 days small, and the log under it. Or one row's story, over all of it.
 @interface MMWindowMiddleView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowHour *memoryHour, *diskHour;
 @property (nonatomic, strong, nullable) MMWindowRow *row;
@@ -273,11 +280,42 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 @property (readonly) NSArray<MMWindowButton *> *storyPresses;
 @end
 
+@class MMWindowStripState;
+/// The strip's own state, made and used by MMWindowStrip.m alone.
+@interface MMWindowMiddleView ()
+@property (strong, nullable) MMWindowStripState *strip;
+@end
+
+/// The strip, MMWindowStrip.m: its two sides, its two words and the reading under the pointer.
+@interface MMWindowMiddleView (MMWindowStrip)
+/// The 7 days of each side, one value an hour, MMWindowWeekSpan. nil until the shell has read them.
+@property (nonatomic, strong, nullable) MMWindowHour *memoryWeek, *diskWeek;
+/// What the strip shows: NO the last hour, YES the last 7 days, as the model's stripWeek says. A press on one of its
+/// two words sets it at once and tells onWeek, and a model that still says the other keeps the press's choice until
+/// one says the same.
+@property (nonatomic) BOOL stripWeek;
+/// The two words, real buttons: "hour" and "7 days", the one shown bright. Hidden while a story shows.
+@property (readonly) MMWindowButton *hourPress, *weekPress;
+/// A press on one of the two words, with the choice: the window tells its host, which keeps it as a pref.
+@property (copy, nullable) void (^onWeek)(BOOL week);
+/// The reading under the pointer, as the strip draws it, "Tue 14:00 · 41.2 GB", or nil when the pointer is off the lines.
+@property (readonly, nullable) NSString *stripReading;
+- (void)makeStripPresses;
+- (void)placeStripPresses;
+- (void)drawStrips;
+/// A model's choice, unless a press asked for the other and no model has said so yet.
+- (void)takeStripWeek:(BOOL)week;
+/// The pointer at p, in the middle's points: over a side's line it shows the reading there. Off the lines it shows none.
+- (void)pointStripAt:(NSPoint)p;
+@end
+
 typedef NS_ENUM(NSInteger, MMWindowDockPhase) { MMWindowDockCalm = 0, MMWindowDockRunning, MMWindowDockEnded };
 
 /// A button the window draws itself: a real NSButton, so keyboard, tooltips and accessibility come with it.
 /// Link is the log's small Undo press, in the quiet line's size.
-typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWindowButtonGear, MMWindowButtonPower, MMWindowButtonPill, MMWindowButtonOutline, MMWindowButtonLink };
+/// Segment is one word of a choice of two, such as the strip's "hour" and "7 days": lit is the one chosen, bright on a
+/// quiet pill, and the other is quiet type.
+typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWindowButtonGear, MMWindowButtonPower, MMWindowButtonPill, MMWindowButtonOutline, MMWindowButtonLink, MMWindowButtonSegment };
 @interface MMWindowButton : NSButton
 @property (nonatomic) MMWindowButtonKind kind;
 @property (nonatomic) BOOL lit;                                      // the gear while Settings shows

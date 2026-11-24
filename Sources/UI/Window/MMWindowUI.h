@@ -34,6 +34,9 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// A press on Go to in an agent's story: bring forward the terminal tab, pane or app the agent of this row runs in.
 /// Only a person's press sends it. The shell goes there off main.
 - (void)windowGoTo:(NSString *)rowKey;
+/// A press on the strip's "hour" or "7 days": keep the choice, MMWindowWeekKey, and send a model with the 7 days read
+/// when they are chosen. The shell reads them off main and only while the window is open.
+- (void)windowStripWeek:(BOOL)week;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,

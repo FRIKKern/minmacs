@@ -217,7 +217,8 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - It has no timer. `-[MMGraph buildNow]` calls `-fillFrom:` once per build, before it publishes, and the snapshot carries the copy as `history`. The fill reads the host's CPU ticks and VM counters with two `host_statistics` calls. A build the graph skips adds nothing, and the graph builds at least every 30 seconds.
 - The caps are fixed arrays: 200 rings, the Mac and the disk among them, at 928 bytes a ring. A ring whose process is gone is dropped 10 minutes after it went, or sooner when a new tree needs its room. Each pass that finds 200 live rings for a new tree counts it as refused.
 - A copy is one memcpy into a buffer with room for the caps. The store keeps two such buffers that no view reads any more, so a build every 5 seconds reuses the same memory. `bench history` measures the footprint at the caps, with the store and two copies held, against the `historyKB` budget of 1 MB.
-- `minmacs history [--json]` prints the copy. A cold CLI has none, since nothing is kept on disk.
+- `minmacs history [--json]` prints the copy. A cold CLI has none, since the hour is kept in memory only.
+- The last 7 days, `MMHistoryWeek`: at each hour's turn the first Mac value of the new hour hands the hour that ended to `onHour`, memory used and free disk each as the mean of the minutes filled in it, before that value takes the first of its cells. `MMHistoryWeekStart` points `onHour` at the log, and the write runs on `no.guerrilla.minmacs.core.history.week`, never on main and never in the build: one `INSERT OR REPLACE` per series an hour into the points table, `core.memory.used` and `core.disk.free`, then a prune of the points past 8 days. Nothing new is sampled. An hour with no filled minute, the Mac off or asleep, has no point. The window reads them only while open and on 7 days, and `minmacs history --days 7` reads them cold.
 
 ## The Performance model, wave 8
 

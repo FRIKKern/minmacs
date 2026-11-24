@@ -5,7 +5,8 @@
 /// Every made-up day, the real-shaped one and the three of extremes among them.
 static NSArray<NSString *> *WordFixtures(void) {
     return @[@"quiet", @"busy", @"peak", @"young", @"calm", @"empty", @"long", @"running", @"done", @"memory-only", @"disk-only", @"real",
-             @"extreme", @"extreme-running", @"extreme-done", @"measuring", @"caches", @"agents", @"log-new", @"log-busy", @"log-undo"];
+             @"extreme", @"extreme-running", @"extreme-done", @"measuring", @"caches", @"agents", @"log-new", @"log-busy", @"log-undo",
+             @"week", @"week-young", @"week-gap"];
 }
 
 static NSMutableArray<NSString *> *gWordFaults, *gWordSeen;

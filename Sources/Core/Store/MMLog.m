@@ -266,6 +266,20 @@ NSUInteger MMLogMainThreadQueries(void) { return gMainQueries; }
     return out;
 }
 
+- (NSUInteger)prunePoints:(NSString *)series before:(NSDate *)before {
+    if (!_db || !series.length || !before) return 0;
+    __block NSUInteger gone = 0;
+    dispatch_sync(_q, ^{
+        sqlite3_stmt *st = NULL;
+        if (sqlite3_prepare_v2(self->_db, "DELETE FROM points WHERE series = ? AND at < ?", -1, &st, NULL) != SQLITE_OK) return;
+        BindText(st, 1, series); sqlite3_bind_double(st, 2, before.timeIntervalSince1970);
+        if (sqlite3_step(st) == SQLITE_DONE) gone = (NSUInteger)sqlite3_changes(self->_db);
+        else NSLog(@"MinMacs: log prune: %s", sqlite3_errmsg(self->_db));
+        sqlite3_finalize(st);
+    });
+    return gone;
+}
+
 @end
 
 #pragma mark - Settings and keeps

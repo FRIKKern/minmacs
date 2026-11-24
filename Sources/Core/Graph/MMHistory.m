@@ -305,6 +305,7 @@ static NSString *StateWord(MMAgentState st) {
     NSUInteger _subCount, _subNext;
     NSUInteger _refused, _dropped, _fills;
     MMHostLoad _lastLoad;
+    uint32_t _hour;                                     // the hour of the last Mac value noted, hours since 1970
     MMHistoryView *_latest;
     id _eventsToken;
 }
@@ -336,8 +337,30 @@ static NSString *StateWord(MMAgentState st) {
 
 static NSUInteger StoreBytes(void) { return MMHistoryMaxRings * sizeof(MMHistorySlot) + MMHistoryMaxSubagents * sizeof(MMHistorySubagent); }
 
+/// Lock held. The mean of a slot's filled minutes in one hour, in bytes, or -1 when none is filled. The 60 cells hold
+/// exactly one hour, so the hour that just ended is still whole when the first value of a later hour comes.
+static double HourMean(const MMHistorySlot *s, uint32_t hour) {
+    double sum = 0; NSUInteger n = 0;
+    for (uint32_t m = hour * 60; m < hour * 60 + 60; m++) {
+        MMHistoryCell x = s->cells[m % MMHistoryMinutes];
+        if (x.minute != (uint16_t)m || !x.passes) continue;
+        sum += x.megabytes; n++;
+    }
+    return n ? sum / n * 1048576.0 : -1;
+}
+
 - (void)noteMacCPU:(double)cpuPercent memoryUsed:(uint64_t)used diskFree:(uint64_t)free at:(NSTimeInterval)t {
     os_unfair_lock_lock(&_lock);
+    // The hour turned: the one that ended is read before this value takes the first of its cells.
+    uint32_t hour = t > 0 ? (uint32_t)(t / 3600) : 0, ended = 0;
+    double memoryMean = -1, diskMean = -1;
+    if (_hour && hour > _hour) {
+        ended = _hour;
+        if (_slots[kMacSlot].kind) memoryMean = HourMean(&_slots[kMacSlot], ended);
+        if (_slots[kDiskSlot].kind) diskMean = HourMean(&_slots[kDiskSlot], ended);
+    }
+    if (hour) _hour = hour;                             // a clock set back starts from the hour it says now
+    MMHistoryHourDone done = (memoryMean >= 0 || diskMean >= 0) ? self.onHour : nil;
     if (cpuPercent >= 0) {
         _slots[kMacSlot].kind = MMHistoryMac;
         AddValue(&_slots[kMacSlot], t, MIN(cpuPercent, 100), used / 1048576.0);
@@ -347,6 +370,7 @@ static NSUInteger StoreBytes(void) { return MMHistoryMaxRings * sizeof(MMHistory
         AddValue(&_slots[kDiskSlot], t, -1, free / 1048576.0);
     }
     os_unfair_lock_unlock(&_lock);
+    if (done) done((NSTimeInterval)ended * 3600, memoryMean, diskMean);
 }
 
 /// Lock held. The slot of a tree with this kind and key, or a new one. -1 when 200 rings are live.

@@ -37,6 +37,9 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
     NSDate *_endedAt;                                    // when the last run ended: a plan built before it is spent
     MMWindowLog *_log;                                   // the log as last read, while open
     NSString *_logStamp;                                 // MMLogStamp and the day at that read
+    NSArray *_week;                                      // the 7 days as last read, while open: memory, disk, first hour
+    long long _weekHour;                                 // the hour of that read
+    NSUInteger _weekWrites;                              // MMHistoryWeekWrites at that read
     NSMutableSet<NSString *> *_undoing;                  // the records an Undo press is taking back now
     NSMutableDictionary<NSString *, NSString *> *_undoProblems;   // what a restore answered, by rid, while open
 }
@@ -53,7 +56,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         _token = nil; _pulls = nil; _model = nil; _shown = 0;
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
-        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; });
+        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; self->_week = nil; });
         return;
     }
     atomic_store(&_loginOn, [self.shell loginEnabled]);
@@ -94,6 +97,8 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     MMWindowExtras *x = [MMWindowExtras readWithLogin:atomic_load(&_loginOn)];
     x.run = _run;
     x.log = MMWindowLogWithUndo([self readLog], _undoing, _undoProblems);
+    x.stripWeek = MMPrefBool(MMWindowWeekKey, NO);
+    if (x.stripWeek) [self readWeek:x];
     x.welcome = MMWindowWelcomeNow(x.loginOn);
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -113,6 +118,28 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     _log = MMWindowLogRead(log, NSDate.date, MMWindowLogMost, MMWindowLogDays);
     _logStamp = stamp;
     return _log;
+}
+
+/// The window queue, while open and while the strip shows the 7 days. The points are read again only when the hour
+/// turned or this process wrote an hour since: one read an hour, two at most, and none while the strip shows the hour.
+- (void)readWeek:(MMWindowExtras *)x {
+    NSTimeInterval now = NSDate.date.timeIntervalSince1970;
+    long long hour = (long long)floor(now / 3600);
+    NSUInteger writes = MMHistoryWeekWrites();
+    if (!_week || hour != _weekHour || writes != _weekWrites) {
+        MMLog *log = MMLog.shared;
+        if (!log) return;
+        NSTimeInterval first = 0;
+        NSArray *memory = MMHistoryWeekHours(log, MMHistoryWeekMemory, now, MMHistoryWeekDays, &first);
+        _week = @[memory, MMHistoryWeekHours(log, MMHistoryWeekDisk, now, MMHistoryWeekDays, NULL), @(first)];
+        _weekHour = hour; _weekWrites = writes;
+    }
+    x.memoryWeek = _week[0]; x.diskWeek = _week[1]; x.weekFirstAt = [_week[2] doubleValue];
+}
+
+/// The strip's choice, from its two words. A look, kept as a pref with no row in the log, off main.
+- (void)windowStripWeek:(BOOL)week {
+    dispatch_async(Queue(), ^{ MMSetPref(MMWindowWeekKey, @(week)); [self send]; });
 }
 
 - (void)sendSoon { dispatch_async(Queue(), ^{ [self send]; }); }

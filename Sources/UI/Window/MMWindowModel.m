@@ -33,6 +33,27 @@ NSString *MMWindowHourTitle(BOOL disk) { return disk ? @"Disk free" : @"Memory i
 - (instancetype)init { if ((self = [super init])) { _title = @""; _explain = @""; _values = @[]; _side = MMWindowMemory; } return self; }
 @end
 
+NSString *const MMWindowWeekKey = @"core.window.week";
+
+NSArray *MMWindowWeekSpan(NSArray *values, NSInteger *first, NSInteger *filled) {
+    NSInteger a = -1, n = 0;
+    for (NSInteger i = 0; i < (NSInteger)values.count; i++) {
+        if (![values[i] isKindOfClass:NSNumber.class]) continue;
+        if (a < 0) a = i;
+        n++;
+    }
+    if (first) *first = a;
+    if (filled) *filled = n;
+    return n >= 2 ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, values.count - (NSUInteger)a)] : nil;
+}
+
+NSString *MMWindowWeekSpanWords(NSInteger hours) {
+    if (hours <= 1) return @"the last hour";
+    if (hours < 24) return [NSString stringWithFormat:@"the last %ld h", (long)hours];
+    NSInteger days = MIN((hours + 12) / 24, 7);
+    return days <= 1 ? @"the last day" : [NSString stringWithFormat:@"the last %ld days", (long)days];
+}
+
 @implementation MMWindowFact
 + (instancetype)label:(NSString *)label value:(NSString *)value {
     MMWindowFact *f = [MMWindowFact new]; f.label = label; f.value = value; return f;

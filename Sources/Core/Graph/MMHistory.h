@@ -1,6 +1,8 @@
 // The last hour, in memory only. One value a minute for 60 minutes, for the 2.0 UI to draw later.
 // New code, for the "Proposed facts" of the ui-prototypes pages: load and memory strips, server pulses and agent lanes.
-// Nothing here is ever written to disk. A restart starts an empty hour.
+// Nothing here is ever written to disk. A restart starts an empty hour. At each hour's turn the store hands the hour
+// that ended, the Mac's memory used and the disk's free space each as the mean of its filled minutes, to onHour.
+// MMHistoryWeek.h keeps those, one point an hour, for the window's 7 days.
 //
 // Which pass fills each ring. There is no timer of its own:
 // - The Mac ring, whole-Mac CPU percent and memory used: each graph build, from two host_statistics calls the build
@@ -94,8 +96,16 @@ typedef struct { NSTimeInterval at; MMAgentState state; } MMHistoryStateChange;
 - (NSDictionary *)json;
 @end
 
+/// One hour that ended: its start, seconds since 1970, and the means of its filled minutes, in bytes. -1 for a side
+/// with no minute filled in that hour.
+typedef void (^MMHistoryHourDone)(NSTimeInterval hourStart, double memoryUsed, double diskFree);
+
 /// The one store. Every method takes a lock for microseconds, so any queue may call it, main included.
 @interface MMHistory : NSObject
+/// Called once for each hour that ended, by the first Mac value noted in a later hour, on the queue that noted it
+/// and outside the lock. An hour the Mac slept through has no value and is never handed over. nil keeps nothing,
+/// which is how a test's own store starts. MMHistoryWeekStart sets it on the shared store.
+@property (copy) MMHistoryHourDone onHour;
 + (instancetype)shared;
 /// The graph queue calls this once per build, before the snapshot is published, and the snapshot carries the copy
 /// it returns. It reads the host's CPU ticks and VM counters, then the agents, servers and disk of snap's facts.
