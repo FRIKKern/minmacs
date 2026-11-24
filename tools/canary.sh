@@ -1,6 +1,7 @@
 #!/bin/sh
 # The canary loop for MinMacs: build, gate fast, install, check it lives, roll back if not, and share the build.
-# For rapid iteration on development and fleet Macs. CI and the full ./test.sh (about 17 min) still decide a merge.
+# For rapid iteration on development and fleet Macs. The gate tests the blast radius: the sections the changed files
+# reach. Every MINMACS_FULL_EVERY seconds (default 7200, two hours) the next gate runs every section but soak instead.
 #
 # On any Mac, no checkout needed:
 #   canary.sh update            install the newest published canary, if it is not the one running; roll back if it
@@ -11,7 +12,9 @@
 # In a checkout:
 #   canary.sh                   build this checkout, gate, install here, health check (roll back on failure)
 #   canary.sh publish           the same, then upload the healthy build as the canary everyone's update gets
-#   options: --no-gate, --base <ref> (what the gate diffs against; default the commit that runs here, else origin/main)
+#   options: --no-gate, --full (every section but soak now), --quick (the blast radius even when a full run is due),
+#            --base <ref> (what the gate diffs against; default the commit that runs here, else origin/main; a publish
+#            diffs against the newest published canary, so what it shares was tested since the last one)
 #
 # A build is stamped CFBundleVersion <version>+<commit>[-dirty] and signed ad hoc again, so the commit that runs is
 # always known. The newest 5 builds are kept in $MINMACS_CANARY_HOME (default ~/.local/share/minmacs-canary), with a
@@ -136,10 +139,12 @@ esac
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || die "run it inside a MinMacs checkout, or use update"
 [ -f build.sh ] && [ -d Sources ] || die "$(pwd) is not a MinMacs checkout"
 PUBLISH=0; [ "${1:-}" = publish ] && { PUBLISH=1; shift; }
-GATE=1; BASE=""
+GATE=1; BASE=""; FULL=auto
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-gate) GATE=0; shift ;;
+    --full) FULL=yes; shift ;;
+    --quick) FULL=no; shift ;;
     --base) [ $# -ge 2 ] || die "--base needs a ref"; BASE="$2"; shift 2 ;;
     -h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1. Try --help." ;;
@@ -150,6 +155,14 @@ done
 
 # The gate diffs against the commit that runs here, when this checkout holds it, so a canary after a canary tests only
 # what changed since. Else against origin/main.
+if [ -z "$BASE" ] && [ "$PUBLISH" = 1 ]; then
+  t=$(mktemp -d "$HOME_DIR/pub.XXXXXX")
+  if download build.json "$t/build.json" 2>/dev/null; then
+    pub=$(python3 -I -c 'import sys,json; print(json.load(open(sys.argv[1]))["commit"])' "$t/build.json" 2>/dev/null)
+    [ -n "$pub" ] && git merge-base --is-ancestor "$pub" HEAD 2>/dev/null && BASE="$pub"
+  fi
+  rm -rf "$t"
+fi
 if [ -z "$BASE" ]; then
   ran=$(installed_stamp | sed -n 's/.*+\([0-9a-f]\{7,\}\).*/\1/p')
   if [ -n "$ran" ] && git merge-base --is-ancestor "$ran" HEAD 2>/dev/null; then BASE="$ran"; else BASE=origin/main; fi
@@ -168,6 +181,8 @@ gate_sections() {
     /^Sources\/Core\/Senses\// { s["senses"] }
     /^Sources\/Core\/Graph\// { s["graph"]; s["history"] }
     /^Sources\/Core\/Store\// { s["store"] }
+    /^Sources\/Core\/.*\.h$|^test\/headers\// { s["headers"] }
+    /^Sources\/Experts\/|^Sources\/Core\/Graph\// { s["idle"] }
     /^Sources\/Core\/Review\// { s["review"] }
     /^Sources\/CLI\/|^docs\/CLI.md/ { s["docs"] }
     /^Sources\/Experts\/MinMacs\// { s["minmacs"] }
@@ -199,11 +214,16 @@ GATED="skipped"
 if [ "$GATE" = 1 ]; then
   secs=$(gate_sections)
   render=0; case "$secs" in *+render*) render=1; secs=$(echo "$secs" | sed 's/+render//') ;; esac
-  # test.sh with no section runs every section. That is what a publish wants: everything, once, before others take it.
   # A canary with nothing changed runs core alone.
   # soak is left out: it is a stability run of 40 minutes or more with its own milestone, and Apple's leaks tool
   # hangs on its fixture on some Macs. It runs on its own, never as part of a gate.
-  if [ "$PUBLISH" = 1 ]; then secs=$(ls test/*.sh | sed 's|test/||; s|\.sh$||' | grep -v -x -e core -e soak | tr '\n' ' '); render=1; BASE="everything but soak"
+  # Every other hour the gate runs every section once, so what the blast radius misses is found within two hours.
+  last=$(cat "$HOME_DIR/last-full" 2>/dev/null || echo 0)
+  [ "$FULL" = auto ] && { [ $(( $(date +%s) - last )) -ge "${MINMACS_FULL_EVERY:-7200}" ] && FULL=yes || FULL=no; }
+  # The time is kept when a full run starts, pass or fail, so one failing full run doesn't make every canary after it
+  # a full run too: the failure is reported, fixed forward, and the next full run comes two hours later.
+  [ "$FULL" = yes ] && date +%s >"$HOME_DIR/last-full"
+  if [ "$FULL" = yes ]; then secs=$(ls test/*.sh | sed 's|test/||; s|\.sh$||' | grep -v -x -e core -e soak | tr '\n' ' '); render=1; BASE="everything but soak"
   elif [ -z "$(echo "$secs" | tr -d ' ')" ]; then secs="core"; fi
   say "Gate since $BASE: ${secs:-every section}$( [ $render = 1 ] && echo ' + render checks')"
   # The render and window checks draw in a real window, and AppKit animations do not end while the display is off.
@@ -231,6 +251,7 @@ if [ "$GATE" = 1 ]; then
   else
     GATED=$(grep -aE 'passed' "$HOME_DIR/gate.out" | tail -1)
   fi
+  [ "$FULL" = yes ] && GATED="full: $GATED" || GATED="blast radius ($(echo $secs)): $GATED"
   if [ $render = 1 ]; then
     BUILD_DIR="$OUT/render-build" nice -n 10 tools/render.sh "$OUT/render" >"$HOME_DIR/render.out" 2>&1 \
       || { grep -E '^FAIL' "$OUT/render/checks.txt" 2>/dev/null | head -5 >&2; tail -1 "$HOME_DIR/render.out" >&2
