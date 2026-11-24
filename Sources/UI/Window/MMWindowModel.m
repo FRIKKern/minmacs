@@ -176,6 +176,33 @@ NSComparisonResult MMWindowRowOrder(MMWindowRow *a, MMWindowRow *b) {
     return [a.key compare:b.key];
 }
 
+NSComparisonResult MMWindowActivityOrder(MMWindowRow *a, MMWindowRow *b) {
+    if ((a.workedAt > 0) != (b.workedAt > 0)) return a.workedAt > 0 ? NSOrderedAscending : NSOrderedDescending;
+    if (a.workedAt != b.workedAt) return a.workedAt > b.workedAt ? NSOrderedAscending : NSOrderedDescending;
+    return MMWindowRowOrder(a, b);
+}
+
+NSString *const MMWindowNoProject = @"Other";
+NSString *const MMWindowMainCheckout = @"main checkout";
+
+NSArray<NSString *> *MMWindowProjectsOf(NSArray<MMWindowRow *> *rows) {
+    NSMutableOrderedSet<NSString *> *out = [NSMutableOrderedSet new];
+    for (MMWindowRow *r in rows) [out addObject:r.project ?: @""];
+    return out.array;
+}
+
+NSArray<MMWindowRow *> *MMWindowByProject(NSArray<MMWindowRow *> *rows) {
+    // The most active row of all leads its project, the next project is the one of the most active row left, and so on.
+    NSArray<MMWindowRow *> *all = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) {
+        if (!a.project != !b.project) return a.project ? NSOrderedAscending : NSOrderedDescending;
+        return MMWindowActivityOrder(a, b);
+    }];
+    NSMutableArray<MMWindowRow *> *out = [NSMutableArray arrayWithCapacity:all.count];
+    for (NSString *p in MMWindowProjectsOf(all))
+        for (MMWindowRow *r in all) if ([(r.project ?: @"") isEqualToString:p]) [out addObject:r];
+    return out;
+}
+
 @implementation MMWindowRow
 - (instancetype)init { if ((self = [super init])) { _key = @""; _name = @""; _cpuPercent = -1; _facts = @[]; } return self; }
 - (NSString *)shownName {
@@ -234,6 +261,7 @@ static NSString *Sentence(NSString *words) {
 @implementation MMWindowGroup
 - (instancetype)init { if ((self = [super init])) { _key = @""; _title = @""; _side = MMWindowMemory; _rows = @[]; } return self; }
 - (NSInteger)unmeasured { NSInteger n = 0; for (MMWindowRow *r in self.rows) if (r.unmeasured) n++; return n; }
+- (BOOL)grouped { return self.byProject && MMWindowProjectsOf(self.rows).count > 1; }
 @end
 
 @implementation MMWindowSlice

@@ -51,6 +51,14 @@ NSString *MMWindowMoreLine(NSInteger below, NSInteger above) {
     return above > 0 ? [NSString stringWithFormat:@"%ld more above", (long)above] : nil;
 }
 
+NSString *MMWindowProjectMoreLine(NSInteger hidden, NSString *project) {
+    return project.length ? [NSString stringWithFormat:@"%ld more in %@", (long)hidden, project] : [NSString stringWithFormat:@"%ld more", (long)hidden];
+}
+
+NSString *MMWindowProjectsMoreLine(NSInteger hidden, NSInteger projects) {
+    return [NSString stringWithFormat:@"%ld more in %@", (long)hidden, MMWindowCount(projects, @"project", @"projects")];
+}
+
 NSString *MMWindowTabsName(NSInteger tabs, NSString *browser) {
     if (tabs <= 0) return browser ?: @"";
     NSString *count = MMWindowCount(tabs, @"localhost tab", @"localhost tabs");

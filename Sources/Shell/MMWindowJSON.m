@@ -36,13 +36,13 @@ NSString *MMWindowKindName(MMWindowKind kind) {
              @"state": Or(self.state), @"cpuPercent": self.cpuPercent >= 0 ? @(round(self.cpuPercent * 10) / 10) : NSNull.null,
              // A size not measured yet is null, never 0.
              @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": self.unmeasured ? @NO : @YES, @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
-             @"hour": Or(self.hour), @"facts": All(self.facts)};
+             @"hour": Or(self.hour), @"facts": All(self.facts), @"project": Or(self.project), @"workedAt": self.workedAt > 0 ? @(self.workedAt) : NSNull.null};
 }
 @end
 
 @implementation MMWindowGroup (MMJSON)
 - (NSDictionary *)json { return @{@"key": self.key, @"title": self.title, @"side": SideName(self.side), @"rows": All(self.rows),
-                                 @"emptyNote": Or(self.emptyNote)}; }
+                                 @"emptyNote": Or(self.emptyNote), @"byProject": @(self.byProject)}; }
 @end
 
 @implementation MMWindowRing (MMJSON)

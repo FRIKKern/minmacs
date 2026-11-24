@@ -99,6 +99,10 @@ NSString *_Nullable MMWindowFixCountTitle(NSString *kind, NSInteger n);
 NSString *_Nullable MMWindowAfterTitle(NSInteger fixes);
 /// A group's header where rows wait out of view, "1 more below", "3 more above". nil when all show.
 NSString *_Nullable MMWindowMoreLine(NSInteger below, NSInteger above);
+/// Under a project in the Worktrees group, where its rows wait out of view: "3 more in barkbot". `project` nil or empty
+/// says "3 more". Where a line a project does not fit, one line at the group's foot: "12 more in 4 projects".
+NSString *MMWindowProjectMoreLine(NSInteger hidden, NSString *_Nullable project);
+NSString *MMWindowProjectsMoreLine(NSInteger hidden, NSInteger projects);
 /// What `count` things hold together when `unmeasured` of them have no size yet: "456 MB" with none missing,
 /// "456 MB so far" with some, and "measuring" when none is measured. `size` is the measured sum as its words.
 NSString *MMWindowSumText(NSString *size, NSInteger count, NSInteger unmeasured);
@@ -182,6 +186,13 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (readonly) NSArray<MMWindowFact *> *storyFacts;
 /// The name as every view draws it: a tabs row's is its count and its browser, "3 localhost tabs in Safari".
 @property (readonly) NSString *shownName;
+/// A worktree's project, its repo's folder name, "minmacs". nil for any other row, and for a worktree with no repo.
+@property (copy, nullable) NSString *project;
+/// A worktree's name under its project's sub-header, where the header names the project: a linked worktree's
+/// branch, "seam-130", or "main checkout". nil keeps the name.
+@property (copy, nullable) NSString *nameInProject;
+/// When work last happened in a worktree, in seconds since 1970. 0 when not known, and for any other row.
+@property NSTimeInterval workedAt;
 /// NO for a tabs row that holds no bytes: its count in the name is its number, and no size of 0 is drawn or read out.
 /// NO for a row whose size is not measured yet, too.
 @property (readonly) BOOL showsSize;
@@ -196,6 +207,18 @@ extern NSString *const MMWindowNotMeasured;
 /// The order of a group's rows: the measured ones biggest first, then by tabs, then by key, and after them the rows
 /// whose size is not measured yet, by key. The order holds between snapshots.
 NSComparisonResult MMWindowRowOrder(MMWindowRow *a, MMWindowRow *b);
+/// The order of the worktrees: the newest work first, then as MMWindowRowOrder. A row whose last work is not known
+/// comes after the ones whose is.
+NSComparisonResult MMWindowActivityOrder(MMWindowRow *a, MMWindowRow *b);
+/// The worktrees by project: each project's rows by activity, and the projects by their most active row, newest
+/// first. A project is a row's `project`; the rows with none are one project of their own, after the rest.
+NSArray<MMWindowRow *> *MMWindowByProject(NSArray<MMWindowRow *> *rows);
+/// The projects of these rows in their order, each once. A row with no project counts as the project "".
+NSArray<NSString *> *MMWindowProjectsOf(NSArray<MMWindowRow *> *rows);
+/// What a project with no name is called under its sub-header: "Other".
+extern NSString *const MMWindowNoProject;
+/// What a repo's main checkout is called under its project's sub-header: "main checkout".
+extern NSString *const MMWindowMainCheckout;
 
 /// How far the look behind a group's empty line went. Only a look that ended may say "found".
 typedef NS_ENUM(NSInteger, MMWindowLooked) {
@@ -215,6 +238,11 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @property (copy, nullable) NSString *emptyNote;
 /// How many of its rows have no measured size yet.
 @property (readonly) NSInteger unmeasured;
+/// The Worktrees group: its rows come by project, MMWindowByProject, and its header says "by activity". With two
+/// projects or more the list shows each project under a sub-header of its own.
+@property BOOL byProject;
+/// YES when the list shows sub-headers: the group comes by project and holds more than one.
+@property (readonly) BOOL grouped;
 @end
 
 #pragma mark - The ring

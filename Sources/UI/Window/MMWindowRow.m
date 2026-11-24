@@ -31,7 +31,10 @@ static CGFloat NameEdge(CGFloat start, const CGFloat *width, const BOOL *held) {
 }
 
 NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *columns) {
-    NSString *name = row.shownName;
+    return MMWindowRowNameAs(row, row.shownName, side, hasHour, rect, columns);
+}
+
+NSArray<NSString *> *MMWindowRowNameAs(MMWindowRow *row, NSString *name, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *columns) {
     BOOL disk = side == MMWindowDisk;
     // The size column holds a number and its unit. The word of a size not measured yet is never wider than it is given.
     CGFloat nameLeft = NSMinX(rect) + 31, right = NSMaxX(rect) - 9, sizeWidth = MAX(disk ? 58 : 50, row.sizeWord ? ceil(Wide(row.sizeWord, 11.5)) : 0);
@@ -84,10 +87,14 @@ NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
 }
 
 void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall) {
+    MMWindowDrawRowAs(row, row.shownName, r, side, hasHour, hot, tall);
+}
+
+void MMWindowDrawRowAs(MMWindowRow *row, NSString *shown, NSRect r, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall) {
     // Nothing going on in it, no fix touches it and it asks nothing: its name steps back, so the busy rows lead.
     BOOL calm = row.quiet && !row.inFix && !row.needsYou && !hot, disk = side == MMWindowDisk;
     MMWindowRowColumns col;
-    NSArray<NSString *> *name = MMWindowRowName(row, side, hasHour, r, &col);
+    NSArray<NSString *> *name = MMWindowRowNameAs(row, shown, side, hasHour, r, &col);
     CGFloat nameLeft = NSMinX(col.name);
     NSString *second = tall ? MMWindowRowSecondLine(row, NSMaxX(col.size) - nameLeft) : nil;
     // The name's first line stands where a one-line row has it. More lines and the second line follow under it.

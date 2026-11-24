@@ -55,6 +55,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run welcome
   echo "-- a worktree whose size is not measured yet"
   wn_run unmeasured
+  echo "-- the worktrees by project, the most active first"
+  wn_run projects
   echo "-- Fix Everything's planned disk with a worktree not measured, issue #83"
   wn_run planned
   echo "-- an agent that serves a port of its own"

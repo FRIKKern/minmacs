@@ -61,7 +61,10 @@ static MMWindowGroup *Group(NSString *key, NSString *title, MMWindowLooked looke
         }
     }
     MMWindowGroup *g = [MMWindowGroup new];
-    g.key = key; g.title = title; g.emptyNote = MMWindowEmptyNote(key, looked); g.side = side; g.rows = Sorted(rows);
+    g.key = key; g.title = title; g.emptyNote = MMWindowEmptyNote(key, looked); g.side = side;
+    // The worktrees come by project, the most active first: the owner asked for the most active of each project.
+    g.byProject = [key isEqualToString:MMPerformanceWorktrees];
+    g.rows = g.byProject ? MMWindowByProject(rows) : Sorted(rows);
     return g;
 }
 

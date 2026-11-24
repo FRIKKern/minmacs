@@ -59,9 +59,11 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # not measured, the measured one, and the pointer on Fix Everything.
 # The eight log pictures are the middle's log empty, on a new Mac and busy with 300 entries, scrolled, at its end,
 # under a pointed row, and with its Undo presses and runs, at rest and with the pointer on Undo.
+# The two busy-projects pictures are the worktrees of five projects with too little room for a line a project: each
+# project's most active worktree and one line at the group's foot, and, shorter still, the three most active projects.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 104 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 108 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
                young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main measuring-main measuring-worktree measuring-measured measuring-fix welcome-main welcome-off-main  welcome-watched-main welcome-started \

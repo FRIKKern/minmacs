@@ -650,6 +650,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-open.m"
 #include "render-window-shown.m"
 #include "render-window-polish.m"
+#include "render-window-projects.m"
 #include "render-window-log.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
@@ -697,6 +698,17 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
         [v.welcomeView pressStart];
         NSString *path = [dir stringByAppendingFormat:@"/welcome-started-%@.png", mode];
         if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
+        // The busy day's disk side with too little room for one line a project: the rows that wait are told once, at
+        // the foot. The side ends where the list was cut, so the window shows the list a little above its dock.
+        for (NSNumber *height in @[@330, @410]) {
+            MMWindowView *tight = [[MMWindowView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
+            tight.drawsBacking = YES;
+            tight.model = MMWindowFixture(@"busy");
+            MMWindowListView *disk = WindowLists(tight).lastObject;
+            disk.frame = NSMakeRect(disk.frame.origin.x, disk.frame.origin.y, disk.frame.size.width, height.doubleValue);
+            NSString *tightPath = [dir stringByAppendingFormat:@"/busy-projects-%@-%@.png", height, mode];
+            if (!MMRenderView(tight, tightPath, ap)) [unwritten addObject:tightPath.lastPathComponent];
+        }
         MMWindowForceContrast(NO);
     }
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
@@ -720,6 +732,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
           @"window: the empty day has no fix, the running day runs, the done day ended", @"");
     WindowLookChecks();
     WindowPolishChecks();
+    WindowProjectsChecks();
     WindowWelcomeChecks();
     WindowWelcomeGuardChecks();
     WindowShownChecks();

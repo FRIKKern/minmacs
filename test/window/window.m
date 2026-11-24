@@ -177,11 +177,13 @@ static void World(void) {
         Finding(@"minmacs", @"tabs", [w1 stringByAppendingString:@"#com.example.browser"], @"Browser", nil, 0, 0, 0,
                 P(@"close-tabs", MMReversibleRelaunch), @{@"bundleID": @"com.example.browser", @"name": @"Browser", @"ports": @[@3000], @"worktree": w1,
                                                          @"urls": @[@"http://localhost:3000/", @"http://localhost:3000/a", @"http://127.0.0.1:3000/b"]})];
-    // The repo was worked on 72 minutes ago, which Core's quietDays rounds to 0.0 days; the others 12 days ago.
+    // The repo was worked on 72 minutes ago, which Core's quietDays rounds to 0.0 days; the others 12 days ago, all at
+    // one time, so the window orders them by size.
+    NSTimeInterval now = floor(NSDate.date.timeIntervalSince1970);
     NSDictionary *(^tree)(NSString *, id, NSInteger, NSInteger) = ^(NSString *path, id merged, NSInteger dirty, NSInteger unpushed) {
         BOOL recent = [path isEqualToString:w3];
         return @{@"path": path, @"branch": path.lastPathComponent, @"merged": merged, @"dirty": @(dirty), @"untracked": @0, @"unpushed": @(unpushed),
-                 @"lastWorkAt": @(NSDate.date.timeIntervalSince1970 - (recent ? 72 * 60 + 20 : 12 * 86400 + 20)), @"quietDays": recent ? @0.0 : @12.0};
+                 @"lastWorkAt": @(now - (recent ? 72 * 60 + 20 : 12 * 86400 + 20)), @"quietDays": recent ? @0.0 : @12.0};
     };
     gFindings[@"workforest"] = @[
         Finding(@"workforest", @"worktree", w1, @"repo/fix-auth-redirect", w1, 0, 0, 2500 * MB, P(@"remove", MMReversibleRestart), tree(w1, @"squash", 0, 0)),
@@ -279,7 +281,7 @@ static void WindowModel(void) {
     for (MMWindowGroup *g in m.diskGroups) if (g.side != MMWindowDisk) sides = NO;
     for (MMWindowGroup *g in [m.memoryGroups arrayByAddingObjectsFromArray:m.diskGroups])
         for (NSUInteger i = 1; i < g.rows.count; i++) if (g.rows[i - 1].bytes < g.rows[i].bytes) sorted = NO;
-    T(@"window: each group sits on its side, rows biggest first", @"yes yes", [NSString stringWithFormat:@"%@ %@", YN(sides), YN(sorted)]);
+    T(@"window: each group sits on its side, rows biggest first, and the worktrees most active first, then biggest", @"yes yes", [NSString stringWithFormat:@"%@ %@", YN(sides), YN(sorted)]);
     T(@"window: apps, helpers and tabs share a group and keep their kinds", @"app,app,helper,tabs",
       [[[m.memoryGroups[2].rows valueForKey:@"json"] valueForKey:@"kind"] componentsJoinedByString:@","]);
 
@@ -503,7 +505,7 @@ static void WindowModel(void) {
     // The JSON and the words.
     T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings",
       [[j.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
-    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind measured name needsYou quiet state tabs",
+    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind measured name needsYou project quiet state tabs workedAt",
       [[[next.json allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"window: the JSON is valid and keeps the ring's sides apart", @"yes disk memory", [NSString stringWithFormat:@"%@ %@", YN([NSJSONSerialization isValidJSONObject:j]),
       [[[j[@"ring"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]]);
@@ -669,6 +671,8 @@ static void RunStopped(void) {
 #import "welcome.m"
 // A worktree whose size is not measured yet.
 #import "unmeasured.m"
+// The worktrees by project.
+#import "projects.m"
 // Fix Everything's planned disk with such a worktree.
 #import "planned.m"
 // An agent that serves a port of its own.
@@ -682,7 +686,7 @@ static void RunStopped(void) {
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|planned|agentport|overlap|log-words|log-controller|log-undo\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|log-words|log-controller|log-undo\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -704,6 +708,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"delete"]) RunChoice(@"delete");
         else if ([mode isEqualToString:@"welcome"]) Welcome();
         else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
+        else if ([mode isEqualToString:@"projects"]) Projects();
         else if ([mode isEqualToString:@"planned"]) Planned();
         else if ([mode isEqualToString:@"agentport"]) AgentPort();
         else if ([mode isEqualToString:@"overlap"]) WindowOverlap();

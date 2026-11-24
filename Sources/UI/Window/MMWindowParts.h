@@ -161,12 +161,15 @@ typedef struct { NSRect size, hour, cpu, state, name; NSInteger lines; } MMWindo
 /// room of a column with nothing to show in this row, then of the state word, then of the row's own hour, then of
 /// CPU, and wraps when it is still too long. `rect` is the row's. MMWindowRow.m.
 NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *_Nullable columns);
+/// The same for the name the row shows under its project's sub-header, `name` in place of its shown name.
+NSArray<NSString *> *MMWindowRowNameAs(MMWindowRow *row, NSString *name, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *_Nullable columns);
 /// The height each line of a name beyond its first adds to a row.
 extern const CGFloat MMWindowNameLine;
 /// A row's second line, where its side has the room: why it stays, or its first facts that the name does not say
 /// already, each as the phrase a person would say. Whole phrases only: one that does not fit is left out. nil for none.
 NSString *_Nullable MMWindowRowSecondLine(MMWindowRow *row, CGFloat width);
 void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall);
+void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall);
 
 /// One side: its groups, each with a still header and its own scrolling. Drawn in one drawRect.
 @interface MMWindowListView : MMWindowFlipped
@@ -181,6 +184,7 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasH
 - (void)rest;                                                        // the window closed: no pending calls, every group back at its top
 /// Each row's name as it is drawn at this width, in order, for the checks: whole, its lines joined by a newline.
 - (NSArray<NSString *> *)drawnNames;
+
 /// How far each group is scrolled, by its key, for the checks.
 - (NSDictionary<NSString *, NSNumber *> *)offsets;
 /// For the checks: a row's height on this side now, each group's frame with its header, whether the side closes
@@ -195,6 +199,21 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasH
 - (NSArray<NSArray<NSString *> *> *)sumLines;
 /// How many rows got the short light of a new row at the last change of the groups, for the checks.
 @property (readonly) NSInteger flashed;
+@end
+
+/// What a list says of its groups with projects, for the checks. MMWindowListProjects.m.
+@interface MMWindowListView (ProjectChecks)
+/// Each row's name as the list shows it, in the order of drawnNames: under a project's sub-header a worktree leaves
+/// out its repo.
+- (NSArray<NSString *> *)listNames;
+/// A group's rows in the order they are drawn, top to bottom, each by its key. A group with projects shows each
+/// project's most active rows first, and the rest of each project under them.
+- (NSArray<NSString *> *)drawnOrder:(NSInteger)group;
+/// The rows of a group that show now, by key, and the lines under its projects, "3 more in barkbot", top to bottom.
+- (NSArray<NSString *> *)shownKeys:(NSInteger)group;
+- (NSArray<NSString *> *)moreLines:(NSInteger)group;
+/// The heights a group's box may take, each ending on a whole row, smallest first.
+- (NSArray<NSNumber *> *)steps:(NSInteger)group;
 @end
 
 @class MMWindowButton;

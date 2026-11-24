@@ -57,9 +57,13 @@
         MMWindowGroup *g = _groups[i];
         NSRect box = [self boxOf:i];
         CGFloat off = _offsets[g.key].doubleValue;
+        // In the order they are drawn, so VoiceOver goes down the list as the eye does. A row under a project's
+        // sub-header says its project, which its name there leaves out.
         for (NSInteger r = 0; r < (NSInteger)g.rows.count; r++) {
-            MMWindowRow *row = g.rows[r];
-            NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, row.shownName, nil];
+            MMWindowRow *row = [self drawn:r in:i];
+            NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, nil];
+            if (g.grouped) [say addObject:row.project ?: MMWindowNoProject];
+            [say addObject:[self nameOf:row in:g]];
             if (row.state.length) [say addObject:row.state];
             if (row.showsSize) [say addObject:MMWindowBytes(row.bytes, g.side == MMWindowDisk)];
             else if (row.sizeWord) [say addObject:@"size not measured yet"];

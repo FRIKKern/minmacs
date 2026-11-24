@@ -9,6 +9,8 @@ static const uint64_t MB = MMFixMB, GB = MMFixGB, DMB = MMFixDiskMB, DGB = MMFix
 static MMWindowRow *Long(MMWindowRow *like, NSString *key, NSString *name, uint64_t bytes) {
     MMWindowRow *r = MMWindowFixtureRow(like.kind, key, name, like.iconHint, like.state, bytes, like.cpuPercent);
     r.hour = like.hour; r.facts = like.facts; r.quiet = like.quiet;
+    // A worktree keeps its project, and is named in it as the feed names it.
+    if (like.project) { r.project = like.project; r.workedAt = like.workedAt; r.nameInProject = name; r.name = [NSString stringWithFormat:@"%@ · %@", like.project, name]; }
     return r;
 }
 
@@ -124,7 +126,8 @@ static MMWindowModel *Day(NSString *name) {
     NSArray<MMWindowRow *> *servers = Young(MMWindowFixtureServers(empty ? 0 : quiet || calm ? 7 : peak ? 26 : 20), minutes);
     NSArray<MMWindowRow *> *agents = Young(MMWindowFixtureAgents(empty ? 0 : quiet || calm ? 3 : peak ? 22 : 16, asking), minutes);
     NSArray<MMWindowRow *> *apps = MMWindowFixtureApps(empty ? 0 : quiet || calm ? 12 : 15);
-    NSArray<MMWindowRow *> *trees = MMWindowFixtureWorktrees(empty || young ? 0 : quiet || calm ? 4 : peak ? 18 : 16);
+    // The calm day has two projects, the quiet day one, so its list is flat. The busy days have five.
+    NSArray<MMWindowRow *> *trees = MMWindowFixtureWorktrees(empty || young ? 0 : quiet || calm ? 4 : peak ? 18 : 16, quiet ? 1 : 5);
     NSArray<MMWindowRow *> *caches = MMWindowFixtureCaches(empty || young ? 0 : quiet || calm ? 2 : 5);
     // Nothing is in Fix Everything on the young and the calm day, and on a one-side day only that side's fixes are.
     // A row no fix touches carries no mark, and an app or tabs row loses the word the mark gave it.

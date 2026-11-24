@@ -218,8 +218,11 @@ static NSString *GroupKey(MMWindowKind kind) {
         y += h + 6;
     }
 
-    // Where it stands in its group, with the biggest of the others, under a hairline.
-    NSInteger place = group ? (NSInteger)[group.rows indexOfObject:row] : NSNotFound;
+    // Where it stands in its group, with the biggest of the others, under a hairline. The worktrees come by activity,
+    // so the place is counted by size here.
+    NSArray<MMWindowRow *> *bySize = !group.byProject ? group.rows
+                                   : [group.rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) { return MMWindowRowOrder(a, b); }];
+    NSInteger place = group ? (NSInteger)[bySize indexOfObject:row] : NSNotFound;
     if (place == NSNotFound || group.rows.count < 2 || y + 12 + 26 + 21 > bottom) return;
     y += 6;
     [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.07] setFill];
@@ -227,7 +230,7 @@ static NSString *GroupKey(MMWindowKind kind) {
     MMWindowDraw(MMWindowText(MMWindowPlaceLine(place + 1, (NSInteger)group.rows.count, group.unmeasured, !row.unmeasured, group.title.lowercaseString), 11, NSFontWeightRegular, t2), x, y + 17, -1);
     y += 28;
     NSInteger shown = 0;
-    for (MMWindowRow *other in group.rows) {
+    for (MMWindowRow *other in bySize) {
         if (other == row) continue;
         NSAttributedString *size = other.showsSize ? MMWindowText(MMWindowBytes(other.bytes, disk), 11.5, NSFontWeightRegular, t2)
                                  : other.sizeWord ? MMWindowText(other.sizeWord, 11.5, NSFontWeightRegular, t2) : nil;

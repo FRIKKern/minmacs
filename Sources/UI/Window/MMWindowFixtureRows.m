@@ -135,26 +135,37 @@ NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count) {
     return rows;
 }
 
-NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count) {
-    // name, state, megabytes of disk, in Fix Everything
-    NSArray *t = @[@[@"dogfood", @"", @3144, @NO], @[@"fix-auth-redirect", @"merged", @1905, @YES], @[@"parity", @"kept", @1884, @NO],
-                   @[@"media-scope", @"changed", @1393, @NO], @[@"speed-3-base", @"changed", @1331, @NO], @[@"bundle-split", @"merged", @1126, @YES],
-                   @[@"sweep-403", @"", @1085, @NO], @[@"judge-scoring", @"changed", @990, @NO], @[@"fieldsets", @"merged", @900, @YES],
-                   @[@"search-index", @"changed", @850, @NO], @[@"perf-budget", @"changed", @710, @NO], @[@"uploader-v2", @"", @690, @NO],
-                   @[@"lane-c", @"changed", @650, @NO], @[@"icons-v1", @"merged", @590, @YES], @[@"glossary-import", @"changed", @490, @NO],
-                   @[@"schema-diff", @"changed", @410, @NO], @[@"billing-cents", @"changed", @388, @NO], @[@"notes-export", @"", @342, @NO]];
+NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count, NSInteger projects) {
+    // branch, state, megabytes of disk, in Fix Everything, project, main checkout, seconds since the last work. Five
+    // projects, as on a Mac where agents work in several repos at once: the first four rows are two of them.
+    NSArray *t = @[@[@"dogfood", @"changed", @3144, @NO, @"minmacs", @NO, @40], @[@"fix-auth-redirect", @"merged", @1905, @YES, @"atlas", @NO, @(6 * 86400)],
+                   @[@"main", @"kept", @1884, @NO, @"atlas", @YES, @(50 * 60)], @[@"media-scope", @"changed", @1393, @NO, @"minmacs", @NO, @(12 * 60)],
+                   @[@"speed-3-base", @"changed", @1331, @NO, @"barkbot", @NO, @(2 * 3600)], @[@"bundle-split", @"merged", @1126, @YES, @"studio", @NO, @(11 * 86400)],
+                   @[@"sweep-403", @"", @1085, @NO, @"gateway", @NO, @(3 * 86400)], @[@"judge-scoring", @"changed", @990, @NO, @"barkbot", @NO, @(25 * 60)],
+                   @[@"fieldsets", @"merged", @900, @YES, @"studio", @NO, @(14 * 86400)], @[@"search-index", @"changed", @850, @NO, @"atlas", @NO, @(3 * 3600)],
+                   @[@"perf-budget", @"changed", @710, @NO, @"minmacs", @NO, @(5 * 3600)], @[@"uploader-v2", @"", @690, @NO, @"gateway", @NO, @(4 * 86400)],
+                   @[@"lane-c", @"changed", @650, @NO, @"barkbot", @NO, @86400], @[@"icons-v1", @"merged", @590, @YES, @"studio", @NO, @(20 * 86400)],
+                   @[@"glossary-import", @"changed", @490, @NO, @"atlas", @NO, @(7 * 3600)], @[@"schema-diff", @"changed", @410, @NO, @"gateway", @NO, @(9 * 3600)],
+                   @[@"billing-cents", @"changed", @388, @NO, @"barkbot", @NO, @(2 * 86400)], @[@"notes-export", @"", @342, @NO, @"studio", @NO, @(30 * 86400)]];
+    // The made-up now that every last work is counted back from, so a render is the same on every run.
+    const NSTimeInterval now = 1800000000;
     NSMutableArray *rows = [NSMutableArray new];
     for (NSInteger i = 0; i < MIN(count, (NSInteger)t.count); i++) {
         NSArray *w = t[i];
-        NSString *state = w[1];
-        BOOL changed = [state isEqualToString:@"changed"], merged = [state isEqualToString:@"merged"];
-        MMWindowRow *r = MMWindowFixtureRow(MMWindowWorktree, [@"worktree:" stringByAppendingString:w[0]], w[0], nil, state.length ? state : nil, [w[2] unsignedLongLongValue] * DMB, -1);
+        NSString *state = w[1], *branch = w[0], *project = projects == 1 ? @"atlas" : w[4];
+        BOOL changed = [state isEqualToString:@"changed"], main = [w[5] boolValue] && projects != 1;
+        NSTimeInterval ago = [w[6] doubleValue];
+        // As MMWindowNameOf names them: a main checkout by its repo, a linked worktree by its repo and branch.
+        NSString *key = main ? [@"worktree:" stringByAppendingString:project] : [@"worktree:" stringByAppendingString:branch];
+        NSString *name = main ? project : [NSString stringWithFormat:@"%@ · %@", project, branch];
+        MMWindowRow *r = MMWindowFixtureRow(MMWindowWorktree, key, name, nil, state.length ? state : nil, [w[2] unsignedLongLongValue] * DMB, -1);
+        r.project = project; r.nameInProject = main ? MMWindowMainCheckout : branch; r.workedAt = now - ago;
         r.inFix = [w[3] boolValue];
         r.quiet = !changed;
-        r.facts = Facts(@[MMWindowFactBranch(w[0]), OR_NONE(changed ? MMWindowFactFiles(i % 2 ? 3 : 2, i % 2 ? 1 : 0) : nil), OR_NONE(changed ? MMWindowFactNotPushed(2) : nil),
-                          MMWindowFactUntouched(changed && i % 4 == 3 ? 3 : 86400.0 * (1 + i)), MMWindowFactFolder([NSString stringWithFormat:@"~/code/%@-worktrees/%@", i % 2 ? @"studio" : @"atlas", w[0]]),
-                          OR_NONE([state isEqualToString:@"kept"] ? MMWindowFactStays(@"you asked to keep it") : nil)]);
-        (void)merged;
+        NSString *folder = main ? [@"~/code/" stringByAppendingString:project] : [NSString stringWithFormat:@"~/code/%@-worktrees/%@", project, branch];
+        r.facts = Facts(@[MMWindowFactBranch(branch), OR_NONE(changed ? MMWindowFactFiles(i % 2 ? 3 : 2, i % 2 ? 1 : 0) : nil), OR_NONE(changed ? MMWindowFactNotPushed(2) : nil),
+                          MMWindowFactUntouched(ago), MMWindowFactFolder(folder),
+                          OR_NONE([state isEqualToString:@"kept"] ? MMWindowFactStays(main ? @"it is the repo's main checkout" : @"you asked to keep it") : nil)]);
         [rows addObject:r];
     }
     return rows;
@@ -185,6 +196,8 @@ MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide
     MMWindowGroup *g = [MMWindowGroup new];
     g.key = key; g.title = title; g.side = side;
     g.emptyNote = MMWindowEmptyNote(key, MMWindowLookedDone);
+    // The worktrees as the feed orders them: by project, the most active first.
+    if ([key isEqualToString:@"worktrees"]) { g.byProject = YES; g.rows = MMWindowByProject(rows); return g; }
     // As the feed orders them: the measured rows biggest first, then the ones not measured yet.
     g.rows = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) {
         if (a.unmeasured != b.unmeasured) return a.unmeasured ? NSOrderedDescending : NSOrderedAscending;

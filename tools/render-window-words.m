@@ -86,7 +86,9 @@ static void WindowWordChecks(void) {
                 v.pointedRow = g.rows[i].key;
                 NSString *where = [NSString stringWithFormat:@"%@ %@", name, g.rows[i].key];
                 WordDraw(middle, where); WordDraw(dock, where); states++;
-                if ([name isEqualToString:@"peak"] && i + 1 == g.rows.count && [g.key isEqualToString:@"worktrees"]) smallest = [gWordSeen containsObject:@"The smallest of 18 worktrees"];
+                // The worktrees come by activity, so their smallest is the one of fewest bytes, wherever it stands.
+                if ([name isEqualToString:@"peak"] && [g.key isEqualToString:@"worktrees"] && g.rows[i].bytes == [[g.rows valueForKeyPath:@"@min.bytes"] unsignedLongLongValue])
+                    smallest = [gWordSeen containsObject:@"The smallest of 18 worktrees"];
             }
         }
         // The scrolled lists too: the last row of each group is in view after the pointing above.
@@ -126,14 +128,26 @@ static void WindowWordChecks(void) {
         MMWindowView *v = PolishView(name);
         MMWindowModel *m = v.model;
         NSMutableArray<NSString *> *whole = [NSMutableArray new], *drawn = [NSMutableArray new];
-        for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) [whole addObjectsFromArray:[g.rows valueForKey:@"shownName"]];
+        (void)m;
         for (MMWindowListView *l in WindowLists(v)) {
+            // The names as the list shows them: under a project's sub-header a worktree leaves its repo out.
+            NSArray<NSString *> *listed = l.listNames;
+            [whole addObjectsFromArray:listed];
             [drawn addObjectsFromArray:l.drawnNames];
-            for (NSUInteger gi = 0; gi < l.groups.count; gi++) for (NSUInteger ri = 0; ri < l.groups[gi].rows.count; ri++) {
-                NSInteger lines = (NSInteger)[MMWindowRowName(l.groups[gi].rows[ri], l.groups[gi].side, YES, NSMakeRect(5, 0, 310, 24), NULL) count];
-                CGFloat height = l.rowTops[gi][ri + 1].doubleValue - l.rowTops[gi][ri].doubleValue;
-                if (lines > 1) wrapped++;
-                if (height < l.rowHeight + MMWindowNameLine * (lines - 1) - 0.5) [broken addObject:[NSString stringWithFormat:@"%@ row too low: %@", name, l.groups[gi].rows[ri].shownName]];
+            NSMutableDictionary<NSString *, NSString *> *named = [NSMutableDictionary new];
+            NSUInteger at = 0;
+            for (MMWindowGroup *g in l.groups) for (MMWindowRow *r in g.rows) named[r.key] = listed[at++];
+            // Each row in the order it is drawn: its place holds its lines, and a project's sub-header and line too.
+            for (NSUInteger gi = 0; gi < l.groups.count; gi++) {
+                NSArray<NSString *> *order = [l drawnOrder:(NSInteger)gi];
+                for (NSUInteger d = 0; d < order.count; d++) {
+                    MMWindowRow *row = nil;
+                    for (MMWindowRow *r in l.groups[gi].rows) if ([r.key isEqualToString:order[d]]) row = r;
+                    NSInteger lines = (NSInteger)[MMWindowRowNameAs(row, named[row.key], l.groups[gi].side, YES, NSMakeRect(5, 0, 310, 24), NULL) count];
+                    CGFloat height = l.rowTops[gi][d + 1].doubleValue - l.rowTops[gi][d].doubleValue;
+                    if (lines > 1) wrapped++;
+                    if (height < l.rowHeight + MMWindowNameLine * (lines - 1) - 0.5) [broken addObject:[NSString stringWithFormat:@"%@ row too low: %@", name, named[row.key]]];
+                }
             }
         }
         for (NSUInteger i = 0; i < whole.count && i < drawn.count; i++) {

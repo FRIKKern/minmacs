@@ -8,7 +8,7 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
 + (NSArray<NSString *> *)shownStrings:(MMWindowModel *)m {
     NSMutableArray<NSString *> *s = [NSMutableArray arrayWithArray:@[
         @"Fix Everything", @"No fixes to run", @"Stop", @"memory in use", @"disk free", @"memory", @"disk", @"or more disk", @"today", @"so far",
-        @"the last hour", @"an hour ago", @"now", @"Fills in as the hour passes.", @"Today", @"Yesterday", @"min ago", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"This disk", @"Memory", @"Free", @"In use",
+        @"the last hour", @"an hour ago", @"now", @"Fills in as the hour passes.", @"Today", @"Yesterday", @"min ago", @"more above", @"about the same", @"more below", @"Its last hour", @"by memory", @"by disk", @"by activity", MMWindowMainCheckout, MMWindowNoProject, @"This disk", @"Memory", @"Free", @"In use",
         @"By these holders", @"macOS and the rest", @"Asks you.", @"Goes with Fix Everything.", @"Stays.", @"After the fix", @"After all", @"fixes", @"memory, now", @"memory in use, as now", @"just now", @"biggest", @"minutes",
         @"Settings", @"Each change applies at once.", @"Done", @"This Mac", @"Quit MinMacs", MMWindowLookingNote]];
     for (NSInteger minutes = 1; minutes <= 60; minutes++) [s addObject:MMWindowHourSpanWords(minutes)];
@@ -21,7 +21,7 @@ static void add0(NSMutableArray *s, NSString *x) { if (x.length) [s addObject:x]
     for (MMWindowHour *h in @[m.memoryHour ?: [MMWindowHour new], m.diskHour ?: [MMWindowHour new]]) { add(h.title); add(h.explain); }
     for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) {
         add(g.title); add(g.emptyNote);
-        for (MMWindowRow *r in g.rows) { add(r.name); add(r.state); for (MMWindowFact *f in r.facts) { add(f.label); add(f.value); } }
+        for (MMWindowRow *r in g.rows) { add(r.name); add(r.nameInProject); add(r.project); add(r.state); for (MMWindowFact *f in r.facts) { add(f.label); add(f.value); } }
     }
     for (MMWindowFix *f in m.fixes) add(f.title);
     add(m.run.step); add(m.run.endTitle); add(m.run.endNote);

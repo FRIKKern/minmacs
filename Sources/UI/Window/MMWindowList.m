@@ -21,6 +21,7 @@ static BOOL HasHour(MMWindowGroup *g) {
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
         _groups = @[]; _offsets = [NSMutableDictionary new]; _anchors = [NSMutableDictionary new]; _frames = [NSMutableArray new]; _tops = [NSMutableArray new];
+        _order = [NSMutableArray new]; _leads = [NSMutableArray new]; _trails = [NSMutableArray new]; _steps = [NSMutableArray new];
         _rowHeight = kRow; _sumTop = -1;
         self.accessibilityElement = YES;
         self.accessibilityRole = NSAccessibilityListRole;
@@ -51,7 +52,7 @@ static BOOL HasHour(MMWindowGroup *g) {
         NSRect box = [self boxOf:i];
         CGFloat off = _offsets[g.key].doubleValue;
         for (NSInteger r = 0; r < (NSInteger)g.rows.count; r++) {
-            NSString *key = g.rows[r].key;
+            NSString *key = [self drawn:r in:i].key;
             [now addObject:key];
             if (!may || [_known containsObject:key] || _flashed >= 8) continue;
             NSRect row = [self rowRect:r in:i box:box offset:off];
@@ -70,22 +71,6 @@ static BOOL HasHour(MMWindowGroup *g) {
 }
 
 #pragma mark Layout
-
-/// Where each row of a group starts, with the end of the last one: a row is `row` points high, and a name that wraps
-/// adds a line for each line more.
-- (NSArray<NSNumber *> *)topsOf:(MMWindowGroup *)g row:(CGFloat)row {
-    NSMutableArray<NSNumber *> *tops = [NSMutableArray arrayWithCapacity:g.rows.count + 1];
-    BOOL hasHour = HasHour(g);
-    CGFloat y = 0;
-    for (MMWindowRow *r in g.rows) {
-        [tops addObject:@(y)];
-        // Every name is measured with the real font. The widths are kept, so a model that brings the same names costs little.
-        NSInteger lines = (NSInteger)MMWindowRowName(r, g.side, hasHour, NSMakeRect(5, y, self.bounds.size.width - 10, row), NULL).count;
-        y += row + MMWindowNameLine * (lines - 1);
-    }
-    [tops addObject:@(y)];
-    return tops;
-}
 
 /// How far a group can scroll: to the row that brings its last row fully into the box.
 - (CGFloat)maxOffset:(NSInteger)i box:(CGFloat)boxHeight {
@@ -106,7 +91,7 @@ static BOOL HasHour(MMWindowGroup *g) {
 - (void)anchor:(NSInteger)i at:(CGFloat)off {
     MMWindowGroup *g = _groups[i];
     NSUInteger r = [_tops[i] indexOfObject:@(off)];
-    if (off > 0 && r != NSNotFound && r < g.rows.count) _anchors[g.key] = g.rows[r].key; else [_anchors removeObjectForKey:g.key];
+    if (off > 0 && r != NSNotFound && r < g.rows.count) _anchors[g.key] = [self drawn:(NSInteger)r in:i].key; else [_anchors removeObjectForKey:g.key];
 }
 
 /// Rows differ in height, so a scrolled box does not always end on a row's foot. At rest the rows that show share
@@ -128,53 +113,104 @@ static BOOL HasHour(MMWindowGroup *g) {
 - (NSRect)rowRect:(NSInteger)r in:(NSInteger)i box:(NSRect)box offset:(CGFloat)off shown:(NSRange)shown stretch:(CGFloat)stretch {
     NSArray<NSNumber *> *tops = _tops[i];
     CGFloat more = r >= (NSInteger)shown.location && r < (NSInteger)NSMaxRange(shown) ? stretch : 0;
-    return NSMakeRect(5, box.origin.y + tops[r].doubleValue - off + more * (r - (NSInteger)shown.location), self.bounds.size.width - 10, tops[r + 1].doubleValue - tops[r].doubleValue + more);
+    // A project's sub-header stands above the row and the line of what waits under it: the row is what is left.
+    CGFloat lead = _leads[i][r].doubleValue, trail = _trails[i][r] == NSNull.null ? 0 : MMListMore;
+    return NSMakeRect(5, box.origin.y + tops[r].doubleValue - off + more * (r - (NSInteger)shown.location) + lead, self.bounds.size.width - 10,
+                      tops[r + 1].doubleValue - tops[r].doubleValue - lead - trail + more);
 }
 
 /// Each group gets the height its rows need. When they do not all fit, the long ones share what the short ones leave,
-/// in whole rows: no group ever ends on half a row. What is left over goes between the groups.
+/// in whole rows: no group ever ends on half a row. What is left over goes between the groups. A group with projects
+/// shows each project's most active row first, and the space left goes to the most active rows that wait.
 - (void)place {
-    [_frames removeAllObjects]; [_tops removeAllObjects];
+    [_frames removeAllObjects]; [_tops removeAllObjects]; [_order removeAllObjects]; [_leads removeAllObjects]; [_trails removeAllObjects]; [_steps removeAllObjects];
     _rowHeight = kRow; _sumTop = -1;
     NSInteger n = (NSInteger)_groups.count;
     if (!n) return;
     CGFloat H = self.bounds.size.height, room = H - kGap * (n - 1) - kHead * n, gap = kGap, total = 0;
-    NSMutableArray<NSNumber *> *give = [NSMutableArray new];
-    // A group with no rows keeps one line under its header, for the words that say so.
-    for (MMWindowGroup *g in _groups) {
-        [_tops addObject:[self topsOf:g row:kRow]];
-        CGFloat want = g.rows.count ? _tops.lastObject.lastObject.doubleValue : kRow;
-        [give addObject:@(want)]; total += want;
+    NSMutableArray<NSNumber *> *give = [NSMutableArray new], *pick = [NSMutableArray new], *least = [NSMutableArray new];
+    NSMutableArray *plans = [NSMutableArray new], *projects = [NSMutableArray new], *heights = [NSMutableArray new];
+    for (NSInteger i = 0; i < n; i++) {
+        MMWindowGroup *g = _groups[i];
+        BOOL hasHour = HasHour(g);
+        NSMutableArray<NSNumber *> *rowH = [NSMutableArray arrayWithCapacity:g.rows.count];
+        for (MMWindowRow *r in g.rows) [rowH addObject:@([self heightOf:r in:g hasHour:hasHour row:kRow])];
+        NSArray<NSArray<NSNumber *> *> *byProject = g.grouped ? MMWindowListProjectsOf(g) : nil;
+        NSMutableArray<NSNumber *> *steps = [NSMutableArray new];
+        NSArray<NSData *> *groupPlans = byProject ? [self plansOf:g projects:byProject heights:rowH out:steps] : nil;
+        [_order addObject:@[]]; [_leads addObject:@[]]; [_trails addObject:@[]]; [_tops addObject:@[]];
+        [self arrange:i plan:groupPlans.lastObject projects:byProject heights:rowH];
+        // A group with no rows keeps one line under its header, for the words that say so. Any other ends on a row.
+        if (!byProject) for (NSUInteger k = 1; k < _tops[i].count; k++) [steps addObject:_tops[i][k]];
+        if (!steps.count) [steps addObject:@(kRow)];
+        [_steps addObject:steps]; [plans addObject:groupPlans ?: NSNull.null]; [projects addObject:byProject ?: NSNull.null]; [heights addObject:rowH];
+        [pick addObject:@(steps.count - 1)];
+        // The least a group with projects takes: every project with its first row, where the plans have that one.
+        NSUInteger all = 0;
+        for (NSUInteger k = 0; k < groupPlans.count; k++) {
+            const NSInteger *shown = groupPlans[k].bytes;
+            BOOL every = YES;
+            for (NSUInteger p = 0; p < byProject.count; p++) if (shown[p] < 1) every = NO;
+            if (every) { all = k; break; }
+        }
+        [least addObject:@(all)];
+        total += steps.lastObject.doubleValue;
     }
     // A side with room to spare stays compact: its rows keep one line each and the room is left under them.
     if (total > room) {
         // The short groups get all their rows. The long ones share the rest, each as many whole rows as its share holds.
-        NSArray<NSNumber *> *order = [give sortedArrayUsingSelector:@selector(compare:)];
+        NSMutableArray<NSNumber *> *wants = [NSMutableArray new];
+        for (NSArray<NSNumber *> *s in _steps) [wants addObject:s.lastObject];
+        NSArray<NSNumber *> *order = [wants sortedArrayUsingSelector:@selector(compare:)];
         CGFloat left = MAX(room, 0), cap = 0, used = 0;
         for (NSInteger i = 0; i < n; i++) {
             cap = left / (n - i);
             if (order[i].doubleValue <= cap) left -= order[i].doubleValue; else break;
         }
-        NSMutableArray<NSNumber *> *shown = [NSMutableArray new];
         for (NSInteger i = 0; i < n; i++) {
-            NSArray<NSNumber *> *tops = _tops[i];
-            NSInteger k = _groups[i].rows.count ? 1 : 0;
-            while (k < (NSInteger)_groups[i].rows.count && tops[k + 1].doubleValue <= cap) k++;
-            [shown addObject:@(k)];
-            give[i] = @(_groups[i].rows.count ? tops[k].doubleValue : kRow); used += give[i].doubleValue;
+            NSArray<NSNumber *> *steps = _steps[i];
+            NSInteger k = 0;
+            while (k + 1 < (NSInteger)steps.count && steps[k + 1].doubleValue <= cap) k++;
+            pick[i] = @(k); used += steps[k].doubleValue;
+        }
+        // Each project shows its most active worktree before another group shows more than its first row: where its
+        // share holds fewer, the group takes that much, and the other groups give a row each, the longest first, as
+        // long as the side holds every group's least.
+        CGFloat floors = 0;
+        for (NSInteger i = 0; i < n; i++) floors += _steps[i][least[i].unsignedIntegerValue].doubleValue;
+        if (floors <= room) for (NSInteger i = 0; i < n; i++) {
+            NSInteger want = least[i].integerValue;
+            if (pick[i].integerValue >= want) continue;
+            used += _steps[i][want].doubleValue - _steps[i][pick[i].integerValue].doubleValue;
+            pick[i] = @(want);
+            while (used > room) {
+                NSInteger longest = -1;
+                for (NSInteger j = 0; j < n; j++)
+                    if (pick[j].integerValue > least[j].integerValue && (longest < 0 || _steps[j][pick[j].integerValue].doubleValue > _steps[longest][pick[longest].integerValue].doubleValue)) longest = j;
+                if (longest < 0) break;
+                NSInteger k = pick[longest].integerValue;
+                used -= _steps[longest][k].doubleValue - _steps[longest][k - 1].doubleValue;
+                pick[longest] = @(k - 1);
+            }
         }
         // What the shares left over goes to the groups that can show one more row with it.
         for (BOOL any = YES; any;) {
             any = NO;
             for (NSInteger i = 0; i < n; i++) {
-                NSInteger k = shown[i].integerValue;
-                if (k >= (NSInteger)_groups[i].rows.count) continue;
-                CGFloat more = _tops[i][k + 1].doubleValue - _tops[i][k].doubleValue;
+                NSArray<NSNumber *> *steps = _steps[i];
+                NSInteger k = pick[i].integerValue;
+                if (k + 1 >= (NSInteger)steps.count) continue;
+                CGFloat more = steps[k + 1].doubleValue - steps[k].doubleValue;
                 if (used + more > room) continue;
-                shown[i] = @(k + 1); give[i] = _tops[i][k + 1]; used += more; any = YES;
+                pick[i] = @(k + 1); used += more; any = YES;
             }
         }
         if (n > 1) gap += floor(MAX(room - used, 0) / (n - 1));
+    }
+    for (NSInteger i = 0; i < n; i++) {
+        NSInteger k = pick[i].integerValue;
+        [give addObject:_steps[i][k]];
+        if (plans[i] != NSNull.null) [self arrange:i plan:plans[i][k] projects:projects[i] heights:heights[i]];
     }
     CGFloat y = 0;
     for (NSInteger i = 0; i < n; i++) {
@@ -187,8 +223,8 @@ static BOOL HasHour(MMWindowGroup *g) {
         CGFloat most = [self maxOffset:i box:h - kHead], was = MIN(MAX(_offsets[g.key].doubleValue, 0), most);
         if (![_scrolling isEqualToString:g.key]) {
             NSString *anchor = _anchors[g.key];
-            NSUInteger at = anchor ? [g.rows indexOfObjectPassingTest:^BOOL(MMWindowRow *r, NSUInteger idx, BOOL *stop) { return [r.key isEqualToString:anchor]; }] : NSNotFound;
-            was = at != NSNotFound && was > 0 ? MIN(_tops[i][at].doubleValue, most) : [self snap:was in:i];
+            NSInteger at = anchor ? [self drawnIndexOf:anchor in:i] : -1;
+            was = at >= 0 && was > 0 ? MIN(_tops[i][(NSUInteger)at].doubleValue, most) : [self snap:was in:i];
             [self anchor:i at:was];
         }
         _offsets[g.key] = @(was);
@@ -237,15 +273,15 @@ static BOOL HasHour(MMWindowGroup *g) {
     // Only a row that is drawn can be pointed at, where it is drawn.
     NSRange shown = [self shown:i moving:[_scrolling isEqualToString:g.key]];
     CGFloat off = _offsets[g.key].doubleValue;
-    for (NSUInteger r = shown.location; r < NSMaxRange(shown); r++) if (NSPointInRect(p, [self rowRect:(NSInteger)r in:i box:box offset:off])) return g.rows[r];
+    for (NSUInteger r = shown.location; r < NSMaxRange(shown); r++) if (NSPointInRect(p, [self rowRect:(NSInteger)r in:i box:box offset:off])) return [self drawn:(NSInteger)r in:i];
     return nil;
 }
 
 - (void)reveal:(NSString *)key {
     for (NSInteger i = 0; i < (NSInteger)_groups.count && i < (NSInteger)_frames.count; i++) {
         MMWindowGroup *g = _groups[i];
-        NSInteger at = [g.rows indexOfObjectPassingTest:^BOOL(MMWindowRow *r, NSUInteger idx, BOOL *stop) { return [r.key isEqualToString:key]; }];
-        if (at == NSNotFound) continue;
+        NSInteger at = [self drawnIndexOf:key in:i];
+        if (at < 0) continue;
         NSArray<NSNumber *> *tops = _tops[i];
         CGFloat boxH = [self boxOf:i].size.height, off = _offsets[g.key].doubleValue, top = tops[at].doubleValue, end = tops[at + 1].doubleValue;
         if (top < off) off = top;
@@ -326,7 +362,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
     MMWindowDraw(head, 14, f.origin.y + kHead / 2, -1);
     // Rows wait under the fold, or, once the group is scrolled to its end, above it. With all of them in view the
     // header says what they are sorted by.
-    NSString *more = MMWindowMoreLine(below, above) ?: (g.rows.count ? (disk ? @"by disk" : @"by memory") : nil);
+    NSString *more = MMWindowMoreLine(below, above) ?: (g.rows.count ? (g.byProject ? @"by activity" : disk ? @"by disk" : @"by memory") : nil);
     if (more) MMWindowDraw(MMWindowText(more, 11, NSFontWeightRegular, below > 0 || above > 0 ? t2 : t3), f.size.width - 14, f.origin.y + kHead / 2, 1);
     if (box.size.height <= 0) return;
     if (!g.rows.count) {
@@ -343,15 +379,23 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
     BOOL fadeFoot = below > 0, fadeHead = off > 0.5;
     if (fadeFoot || fadeHead) CGContextBeginTransparencyLayer(cg, NULL);
     CGFloat foot = NSMaxY(box), stretch = [self stretch:i shown:shown box:box offset:off];
+    NSMutableArray<NSArray *> *lines = [NSMutableArray new];
     for (NSUInteger r = shown.location; r < NSMaxRange(shown); r++) {
         NSRect at = [self rowRect:(NSInteger)r in:i box:box offset:off shown:shown stretch:stretch];
-        MMWindowDrawRow(g.rows[r], at, g.side, hasHour, [g.rows[r].key isEqualToString:_hotKey], _rowHeight >= kTall);
+        MMWindowRow *row = [self drawn:(NSInteger)r in:i];
+        CGFloat lead = _leads[i][r].doubleValue;
+        if (lead > 0) [self drawProjectOf:row in:g top:NSMinY(at) - lead];
+        MMWindowDrawRowAs(row, [self nameOf:row in:g], at, g.side, hasHour, [row.key isEqualToString:_hotKey], _rowHeight >= kTall);
         foot = NSMaxY(at);
+        if (_trails[i][r] != NSNull.null) [lines addObject:@[_trails[i][r], @(foot)]];
     }
     // Where rows wait below, the last row shown fades as a whole. Once scrolled, so does the edge under the header.
     if (fadeFoot) Fade(cg, (moving ? NSMaxY(box) : foot) - kFade, moving ? NSMaxY(box) : foot);
     if (fadeHead) Fade(cg, NSMinY(box) + kTopFade, NSMinY(box));
     if (fadeFoot || fadeHead) CGContextEndTransparencyLayer(cg);
+    // How many rows of a project wait below, under its last row shown: not faded, since it is what the fade means.
+    for (NSArray *line in lines)
+        MMWindowDraw(MMWindowText(line[0], 11, NSFontWeightRegular, t3), 36, [line[1] doubleValue] + MMListMore / 2 - 1, -1);
     CGContextRestoreGState(cg);
 
     // The overlay scroller shows only while the group moves.
@@ -367,7 +411,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
     NSMutableArray *out = [NSMutableArray new];
     for (MMWindowGroup *g in _groups) {
         BOOL hasHour = HasHour(g);
-        for (MMWindowRow *row in g.rows) [out addObject:[MMWindowRowName(row, g.side, hasHour, NSMakeRect(5, 0, self.bounds.size.width - 10, kRow), NULL) componentsJoinedByString:@"\n"]];
+        for (MMWindowRow *row in g.rows) [out addObject:[MMWindowRowNameAs(row, [self nameOf:row in:g], g.side, hasHour, NSMakeRect(5, 0, self.bounds.size.width - 10, kRow), NULL) componentsJoinedByString:@"\n"]];
     }
     return out;
 }
@@ -377,7 +421,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
         MMWindowGroup *g = _groups[i];
         NSRange shown = [self shown:i moving:[_scrolling isEqualToString:g.key]];
         for (NSUInteger r = shown.location; r < NSMaxRange(shown); r++)
-            if ([g.rows[r].key isEqualToString:key]) return [self rowRect:(NSInteger)r in:i box:[self boxOf:i] offset:_offsets[g.key].doubleValue];
+            if ([[self drawn:(NSInteger)r in:i].key isEqualToString:key]) return [self rowRect:(NSInteger)r in:i box:[self boxOf:i] offset:_offsets[g.key].doubleValue];
     }
     return NSZeroRect;
 }

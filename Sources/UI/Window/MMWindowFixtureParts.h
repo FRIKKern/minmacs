@@ -14,7 +14,8 @@ MMWindowRow *MMWindowFixtureRow(MMWindowKind kind, NSString *key, NSString *name
 NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count);
 NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking);
 NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count);
-NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count);
+/// The worktrees of five made-up projects, or with `projects` 1 all of one repo, as a Mac with one project has them.
+NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count, NSInteger projects);
 NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count);
 /// A group with the feed's words for when it is empty, its rows biggest first.
 MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows);

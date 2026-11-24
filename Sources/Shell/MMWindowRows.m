@@ -241,6 +241,13 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
         [f.procs.firstObject getValue:&k size:sizeof k];
         row.hour = MMWindowRingHour([s.history treeFor:k]);
     }
+    // A worktree's project is its repo. Under the project's sub-header the header names the repo, so the row needs only
+    // its branch, or says it is the main checkout. Its last work orders the group, MMWindowByProject.
+    if (row.kind == MMWindowWorktree) {
+        row.project = Str(Str(x[@"repo"]).lastPathComponent);
+        row.nameInProject = !row.project ? nil : [Num(x[@"main"]) boolValue] ? MMWindowMainCheckout : Str(x[@"branch"]);
+        row.workedAt = [Num(x[@"lastWorkAt"]) doubleValue] > 0 ? [x[@"lastWorkAt"] doubleValue] : 0;
+    }
     row.facts = FactsOf(f, row.kind);
     return row;
 }

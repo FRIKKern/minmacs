@@ -18,8 +18,8 @@ static void WindowLookChecks(void) {
         MMWindowModel *m = MMWindowFixture(name);
         v.model = m;
         NSMutableArray<NSString *> *drawn = [NSMutableArray new], *whole = [NSMutableArray new], *bad = [NSMutableArray new];
-        for (MMWindowListView *l in WindowLists(v)) [drawn addObjectsFromArray:l.drawnNames];
-        for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) [whole addObjectsFromArray:[g.rows valueForKey:@"shownName"]];
+        // The names as the list shows them: under a project's sub-header a worktree leaves out its repo, which the header says.
+        for (MMWindowListView *l in WindowLists(v)) { [drawn addObjectsFromArray:l.drawnNames]; [whole addObjectsFromArray:l.listNames]; }
         // Every name is whole: its lines, put together, are the name. A name longer than its row wraps.
         NSInteger wrapped = 0;
         for (NSUInteger i = 0; i < drawn.count && i < whole.count; i++) {
