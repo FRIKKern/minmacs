@@ -110,6 +110,8 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
         if (!f.needsYou) [inFix addObjectsFromArray:f.rows];
     }
     m.fixes = fixes;
+    // The total counts each process once, though each fix shows its own.
+    m.memoryBackOnce = @(p.memoryBackOnce);
 
     // The groups. Apps, helpers and localhost tabs share one title, and each row keeps its own kind.
     m.memoryGroups = @[

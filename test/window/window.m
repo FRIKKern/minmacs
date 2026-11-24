@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a removed file lands in
 // $MINMACS_HOME/Trash: MMRemovalDecide never deletes at once. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport | log-words | log-controller | log-undo
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport | overlap | log-words | log-controller | log-undo
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -673,6 +673,8 @@ static void RunStopped(void) {
 #import "planned.m"
 // An agent that serves a port of its own.
 #import "agentport.m"
+// Fix Everything's memory with a server under an app in two fixes.
+#import "overlap.m"
 
 #import "Shell/MMWindowLog.h"
 #import "log.m"
@@ -680,7 +682,7 @@ static void RunStopped(void) {
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|planned|agentport|log-words|log-controller|log-undo\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|planned|agentport|overlap|log-words|log-controller|log-undo\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -704,6 +706,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
         else if ([mode isEqualToString:@"planned"]) Planned();
         else if ([mode isEqualToString:@"agentport"]) AgentPort();
+        else if ([mode isEqualToString:@"overlap"]) WindowOverlap();
         else if ([mode isEqualToString:@"log-words"]) LogWords();
         else if ([mode isEqualToString:@"log-controller"]) LogController();
         else if ([mode isEqualToString:@"log-undo"]) LogUndo();

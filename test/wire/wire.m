@@ -151,6 +151,8 @@ static int Start(NSString *sleepCopy, NSString *repoArg, NSString *outsideArg) {
     NSDictionary *ping = [MMCoreSocket ask:@{@"verb": @"ping"} timeout:1];
     out[@"ping"] = ping[@"ok"] ?: @"none";
     out[@"pingPid"] = @([ping[@"pid"] intValue] == getpid());
+    // Its version, so a newer CLI can name the app that does not know a verb.
+    out[@"pingVersion"] = ping[@"version"] ?: @"none";
     NSDictionary *status = [MMCoreSocket ask:@{@"verb": @"status"} timeout:1];
     out[@"statusExperts"] = status[@"experts"] ?: @[];
     out[@"unknownVerb"] = [MMCoreSocket ask:@{@"verb": @"no-such"} timeout:1][@"error"] ?: @"none";

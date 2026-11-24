@@ -40,6 +40,8 @@ if [ "$pf_r" = 0 ]; then
   pf_run unmeasured
   echo "-- the busy world under a root that is a link, issue #101"
   pf_run linked
+  echo "-- a server under an app, both in fixes: the total counts it once"
+  pf_run overlap
   echo "-- what one build costs"
   pf_run bench
   # docs/2.0/BENCH.md, section The Performance model, has the number. The ceiling is ten times it, for a loaded Mac.
@@ -74,7 +76,7 @@ echo "-- minmacs performance"
 # read only, as status does. With MINMACS_HOME set and no MINMACS_ROOTS it walks no worktree.
 pf_json=$(MINMACS_HOME="$pf_home" "$BIN" performance --json 2>/dev/null)
 check "performance: performance --json runs" 0 "$?"
-check "performance: --json has the ring, both sides, the fixes and the look-back" "app disk fixes generation lookBack memory needsYou ring" \
+check "performance: --json has the ring, both sides, the fixes and the look-back" "app disk fixes generation lookBack memory memoryBackOnce needsYou ring" \
   "$(printf '%s' "$pf_json" | json "' '.join(sorted(j))")"
 check "performance: --json keeps the ring's memory and disk apart" "disk memory" "$(printf '%s' "$pf_json" | json "' '.join(sorted(j['ring']))")"
 check "performance: --json memory parts and other add up to memory used" yes \

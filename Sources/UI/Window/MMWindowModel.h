@@ -447,7 +447,12 @@ NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
 /// The log in the middle, read only while the window is open. nil before the first read, and in `minmacs window`.
 @property (strong, nullable) MMWindowLog *log;
 - (nullable MMWindowRow *)row:(NSString *)key;
-/// What Fix Everything gives back: the fixes that do not need the person, each side summed on its own.
+/// What Fix Everything gives back in memory with each process once, MMPerformance's memoryBackOnce, as the feed sets
+/// it: a stop of a server and a quit of the app it rolls up into end that server once. nil sums the fixes, as a
+/// fixture's model does.
+@property (strong, nullable) NSNumber *memoryBackOnce;
+/// What Fix Everything gives back: the fixes that do not need the person, each side on its own. Memory is
+/// memoryBackOnce when set, else the fixes' sum.
 - (uint64_t)memoryBack;
 - (uint64_t)diskBack;
 /// YES when a fix in that sum has a part not measured yet: then diskBack is no total, and is shown as "or more".

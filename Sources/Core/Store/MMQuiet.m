@@ -132,7 +132,7 @@ NSString *MMQuietWhy(void) {
     if (!hs.count) return nil;
     MMQuietHolder *h = hs.firstObject;
     NSString *more = hs.count > 1 ? [NSString stringWithFormat:@", and %lu more", (unsigned long)hs.count - 1] : @"";
-    return [NSString stringWithFormat:@"a quiet hold is active for %@ (pid %d)%@", h.reason.length ? h.reason : @"a task", h.key.pid, more];
+    return [NSString stringWithFormat:@"a quiet hold is active for %@, pid %d%@", h.reason.length ? h.reason : @"a task", h.key.pid, more];
 }
 
 #pragma mark - What this process keeps
@@ -297,7 +297,7 @@ NSString *MMQuietHold(pid_t pid, NSString *reason, NSString *by, NSString **rid)
     reason = reason.length ? reason : @"a task";
     MMQuietHoldAction *a = [MMQuietHoldAction new];
     a.key = key; a.reason = reason; a.by = by;
-    NSString *title = [NSString stringWithFormat:@"Quiet for %@ (pid %d)", reason, pid];
+    NSString *title = [NSString stringWithFormat:@"Quiet for %@, pid %d", reason, pid];
     a.finding = [MMFinding expert:kExpert kind:@"quiet" stableKey:ks build:^(MMFindingBuilder *b) {
         b.title = title; b.facts = @{@"pid": @(pid), @"process": ks};
         b.proposal = [MMProposal verb:@"quiet" title:title reversibility:MMReversibleNotNeeded];

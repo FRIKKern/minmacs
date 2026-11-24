@@ -145,6 +145,12 @@ NSInteger MMPerformanceFold(NSString *group);
 @property (readonly) NSArray<MMPerformanceGroup *> *memoryGroups, *diskGroups;
 /// Biggest share first. Fix Everything runs them in this order.
 @property (readonly) NSArray<MMPerformanceFix *> *fixes;
+/// What Fix Everything gives back in memory: the fixes that do not need the person, with each process once. Each
+/// fix's memoryBack is its own, and two fixes can end one process: a stop of a server and a quit of the app it rolls
+/// up into, such as Terminal. Here the processes they would end are one union, claimed as the ring claims them:
+/// servers and helpers each process tree once, then each app less what those took of it. Without a sample, each
+/// finding's cost once. Never more than the sum of the fixes' memoryBack.
+@property (readonly) uint64_t memoryBackOnce;
 @property (readonly) MMPerformanceLookBack *lookBack;
 /// The rows that need the person, such as agents that ask.
 @property (readonly) NSInteger needsYou;
