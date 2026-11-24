@@ -20,6 +20,7 @@
 #import "Core/Know/MMPulls.h"
 #import "Core/Graph/MMGraph.h"
 #import "Core/Graph/MMHistory.h"
+#import "Core/Graph/MMHistoryWeek.h"
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Store/MMGains.h"
