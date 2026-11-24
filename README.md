@@ -61,6 +61,8 @@ git clone https://github.com/FRIKKern/minmacs.git && cd minmacs
 curl -fsSL https://raw.githubusercontent.com/FRIKKern/minmacs/main/install.sh | sh
 ```
 
+A fleet Mac that BarkBot drives is set up with `tools/provision.sh --fleet`, which installs the newest canary, turns unattended and Insomnia's lid and agent modes on, and lists what still needs a person once. [docs/PROVISION.md](docs/PROVISION.md) says what it does and what it reports.
+
 ## The CLI
 
 The app binary is also the command line tool. When the app runs, the CLI hands each verb to it over a socket in the support folder. When no app answers, it builds a snapshot itself. A verb that changes things needs the running app, unless `--dry-run` is given. Every verb takes `--json`.

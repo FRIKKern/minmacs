@@ -1,0 +1,14 @@
+#!/bin/sh
+# A fake minmacs for test/provision.sh. It answers from the fixture Mac in $PV_MAC and writes each call to calls.log,
+# so a check sees which verbs provision ran. It changes nothing but files in $PV_MAC.
+printf '%s\n' "$*" >>"$PV_MAC/calls.log"
+case "$1" in
+  version) echo "MinMacs $(cat "$PV_MAC/version" 2>/dev/null || echo 2.0.0) (phase 1)" ;;
+  device) cat "$PV_MAC/device.json" ;;
+  unattended) case "${2:-}" in
+                on|off) printf '{"unattended": %s, "pref": %s, "env": null}\n' "$([ "$2" = on ] && echo true || echo false)" "$([ "$2" = on ] && echo true || echo false)" >"$PV_MAC/unattended.json" ;;
+                *) cat "$PV_MAC/unattended.json" ;;
+              esac ;;
+  insomnia) [ "$(cat "$PV_MAC/in-app" 2>/dev/null)" = 1 ] || { echo "MinMacs is not running" >&2; exit 4; } ;;
+  *) echo "fake minmacs: no verb $1" >&2; exit 2 ;;
+esac
