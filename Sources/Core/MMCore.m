@@ -261,6 +261,8 @@ void MMCoreStart(void) {
         for (NSString *name in MMRemoveStaleFiles()) os_log(CoreLog(), "removed the old %{public}@", name);
         // D2: there is no removal choice any more. An old Smart or Delete in the pref is cleared, so no build reads it.
         if (MMRemovalForgetOldChoice()) os_log(CoreLog(), "cleared the old removal choice: everything keeps a way back");
+        // D9: a quiet hold the last run kept, whose process still runs, is kept awake again by this run.
+        MMQuietResume();
         // A Wrap Up the last run stopped in the middle of: what it had staged goes back to where it was, MMRemoval.h.
         // Then what an ended Wrap Up left staged is deleted once more or goes back, MMRemovalSweepStaged, and a staging
         // folder no record names is named once.

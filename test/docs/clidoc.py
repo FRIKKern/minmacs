@@ -2,6 +2,7 @@
 # Writes docs/CLI.md from `help --json` of the built binary, under each of its program names.
 # Usage: python3 -I test/docs/clidoc.py <path to MinMacs binary> [repo root]   prints the page on stdout
 # test/docs.sh runs it and checks that docs/CLI.md matches, so the page cannot drift from the verb registry.
+# A verb of minmacs with a docs/cli/<verb>.md gets that page's text after its usage, for what help cannot hold.
 # It runs the binary only for help, with MINMACS_HOME in a fresh temp folder, so it reads no real state.
 import json, os, re, subprocess, sys, tempfile
 
@@ -61,7 +62,16 @@ def aliases(root):
     return out
 
 
-def verb_block(v):
+def more_of(root, verb):
+    """docs/cli/<verb>.md, the part of a verb's entry that help cannot hold, such as its JSON shape."""
+    path = os.path.join(root, "docs", "cli", verb + ".md")
+    if not os.path.exists(path):
+        return []
+    lines = open(path).read().rstrip("\n").split("\n")
+    return lines + [""]
+
+
+def verb_block(v, root=None):
     usage, about = split_usage(v["usage"])
     lines = ["#### `%s`" % v["verb"], ""]
     if about:
@@ -72,6 +82,8 @@ def verb_block(v):
         lines += ["Flags: " + ", ".join("`%s`" % f for f in fl) + ".", ""]
     if v["mutates"]:
         lines += ["It changes things, so it runs only through the running app, unless `--dry-run` is given.", ""]
+    if root:
+        lines += more_of(root, v["verb"])
     return lines
 
 
@@ -104,7 +116,7 @@ def main():
         out += ["### %s" % s, ""]
         for v in helps["minmacs"]["verbs"]:
             if v["section"] == s:
-                out += verb_block(v)
+                out += verb_block(v, root)
 
     out += ["## The old names", "",
             "The binary looks at the name it was started under. A link named `locohost`, `workforest`, `noo-noo` or `insomnia` "

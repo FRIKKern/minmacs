@@ -11,7 +11,7 @@ const NSTimeInterval MMWindowLogDays = 30 * 86400;
 static const NSUInteger kPage = 600;                 // rows per read
 static const NSUInteger kMostRows = 6000;            // what one read of the window looks at, at the most
 
-NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable]; }
+NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable, MMLogQuietTable]; }
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v length] ? v : nil; }
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
@@ -114,6 +114,7 @@ static void ActionWords(MMUndoRecord *r, NSInteger parts, NSString **done, NSStr
         *todo = on ? @"keep the Mac running with the lid shut" : @"let the Mac sleep when the lid shuts"; *undo = @"Undo sets it back."; *back = @"The lid setting was set back";
     }
     else if ([k isEqualToString:@"setting"]) { *done = AwakeSetting(r.payload); *todo = @"change a keep-awake setting"; *undo = @"Undo sets it back."; *back = @"A keep-awake setting was set back"; }
+    else if ([k isEqualToString:@"quiet"]) { *done = [s stringByAppendingString:@" began"]; *todo = [@"keep quiet: " stringByAppendingString:s]; *undo = @""; *back = @"The quiet hold ended"; }
     else if ([k isEqualToString:@"hold"]) { *done = [@"Kept the Mac awake for " stringByAppendingString:s]; *todo = [@"keep the Mac awake for " stringByAppendingString:s]; *undo = @""; *back = @"The hold ended"; }
     else { *done = [@"Acted on " stringByAppendingString:s]; *todo = [@"act on " stringByAppendingString:s]; *undo = @"It can be undone."; *back = [@"Took back what was done to " stringByAppendingString:s]; }
 }
@@ -151,6 +152,12 @@ static MMWindowLogEntry *UndoEntry(MMLogEntry *row, NSDictionary<NSString *, NSN
     NSString *done = @"", *todo = @"", *undo = @"", *back = @"";
     ActionWords(r, [parts[r.rid] integerValue], &done, &todo, &undo, &back);
     NSString *who = Who(r.by, r.why);
+    // A quiet hold that ended is told once, by its end row, from its start to its end.
+    if ([r.kind isEqualToString:@"quiet"] && r.state == MMUndoDone) {
+        if ([newer containsObject:[r.rid stringByAppendingString:@"#quiet-ended"]]) return nil;
+        NSString *s = r.subject.length ? r.subject : @"Quiet";
+        return Entry(row, @"quiet", [NSString stringWithFormat:@"%@ since %@. It lasts while that process runs.", s, Clock(row.at)], who, now);
+    }
     switch (r.state) {
         case MMUndoRestored: return Entry(row, @"restored", Sentence(back), who, now);
         case MMUndoFailed: {
@@ -245,6 +252,25 @@ static MMWindowLogEntry *KeepEntry(MMLogEntry *row, NSDate *now) {
     return Entry(row, @"keep", s, [by isEqualToString:@"manual"] ? @"by you in a menu" : Who(by, nil), now);
 }
 
+/// A quiet hold that ended: "Quiet for a screen recording (pid 4123), 12:03 to 12:41."
+static MMWindowLogEntry *QuietEndEntry(MMLogEntry *row, NSDate *now) {
+    NSDictionary *b = row.body;
+    NSString *reason = Str(b[@"reason"]) ?: @"a task";
+    NSInteger pid = [b[@"pid"] integerValue];
+    NSNumber *since = [b[@"since"] isKindOfClass:NSNumber.class] ? b[@"since"] : nil, *until = [b[@"until"] isKindOfClass:NSNumber.class] ? b[@"until"] : nil;
+    NSString *what = [NSString stringWithFormat:@"Quiet for %@ (pid %ld)", reason, (long)pid];
+    NSString *how = Str(b[@"how"]), *s, *who;
+    NSString *from = since ? Clock([NSDate dateWithTimeIntervalSince1970:since.doubleValue]) : nil;
+    if (from && until) s = [NSString stringWithFormat:@"%@, %@ to %@.", what, from, Clock([NSDate dateWithTimeIntervalSince1970:until.doubleValue])];
+    else if (from) s = [NSString stringWithFormat:@"%@ from %@. It ended while MinMacs did not run.", what, from];
+    else s = [what stringByAppendingString:@" ended."];
+    if ([how isEqualToString:@"released"]) who = Who(Str(b[@"by"]), nil) ?: @"when it was released";
+    else if ([how isEqualToString:@"exited"]) who = @"when its process ended";
+    else who = @"when MinMacs started again";
+    MMWindowLogEntry *e = Entry(row, @"quiet", s, who, now);
+    return e;
+}
+
 MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUInteger most, NSTimeInterval maxAge, NSTimeInterval watchingLeft) {
     now = now ?: NSDate.date;
     // What each record holds in these rows: how many parts a Wrap Up has, and which records have a newer row.
@@ -288,6 +314,11 @@ MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUIntege
         else if ([r.table isEqualToString:@"investigate"]) e = InvestigateEntry(r, now);
         else if ([r.table isEqualToString:MMLogSettingTable]) e = SettingEntry(r, now);
         else if ([r.table isEqualToString:MMLogKeepTable]) e = KeepEntry(r, now);
+        else if ([r.table isEqualToString:MMLogQuietTable]) {
+            e = QuietEndEntry(r, now);
+            NSString *hold = Str(r.body[@"holdRid"]);
+            if (hold) [newer addObject:[hold stringByAppendingString:@"#quiet-ended"]];
+        }
         if (e) [out addObject:e];
     }
     if (out.count < most) flush();

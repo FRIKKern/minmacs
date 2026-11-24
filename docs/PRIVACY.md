@@ -197,7 +197,9 @@ So unlike a review, Investigate sends the contents of files in the folders it ma
 
 ## Where it goes
 
-The log, `minmacs.sqlite` in the support folder, stays on this Mac. It holds each action and its undo record, each review with its verdicts and tokens, each look of Investigate, each setting that changed with who changed it, and each keep with the name of what it keeps. The window's middle and `minmacs log` read it. No review or Investigate call sends it or its sentences.
+The log, `minmacs.sqlite` in the support folder, stays on this Mac. It holds each action and its undo record, each review with its verdicts and tokens, each look of Investigate, each setting that changed with who changed it, each keep with the name of what it keeps, and each quiet hold with the pid, its start time, the reason it was given and when it began and ended. The window's middle and `minmacs log` read it. No review or Investigate call sends it or its sentences.
+
+The quiet holds that are active now sit in `quiet/holds.json` in the support folder, so every MinMacs process obeys them: each held pid with its start time, the reason, who asked, when, and which MinMacs process keeps the Mac awake for it. An entry leaves the file when its hold ends. `minmacs device` writes nothing. It prints the Mac's name, model, power, displays, load, the agents that run and the names other processes give their sleep assertions to whoever runs it, and sends nothing anywhere.
 
 A search of `Sources` for `http://` and `https://` strings finds only localhost URLs, which LocoHost uses to open or check a local server. `NSURLSession` appears only in LocoHost's port check. The code holds no telemetry. The model calls go out through the `claude` or `codex` CLI.
 

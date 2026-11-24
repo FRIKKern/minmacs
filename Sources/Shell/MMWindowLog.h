@@ -3,7 +3,7 @@
 //
 //   MMLog rows:before:limit: ──► MMWindowLogFrom ──► MMWindowLog ──► the window's middle, on main
 //   undo, review, investigate,       off main            plain values
-//   setting and keep rows
+//   setting, keep and quiet rows
 //
 // The window's controller reads it on its own queue, only while the window is open, and again only when
 // MMLogStamp moved. Nothing here runs on main, and nothing here acts: an entry says what happened in words.
@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MMLog, MMLogEntry, MMVerbSpec;
 
-/// The tables the log shows, in no order: undo, review, investigate, setting and keep.
+/// The tables the log shows, in no order: undo, review, investigate, setting, keep and quiet.
 NSArray<NSString *> *MMWindowLogTables(void);
 
 /// The entries of these rows, newest first. rows come newest first, as -[MMLog rows:before:limit:] gives them.
