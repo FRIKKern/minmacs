@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: what happens after MinMacs stopped in the middle of a Wrap Up, and what an ended
+// Removal, MMRemoval.h: what happens after MinMacs stopped in the middle of a Wrap Up, and what an ended
 // Wrap Up left staged. Nothing here deletes a file itself: it calls MMRemovalFinishStaged and MMRemovalPutBack of
 // MMRemovalApply.m. Every field of a record is read through the checked reader of MMUndo.h, and a record that
 // cannot be read is skipped, named once in the log, and never acted on.
@@ -119,7 +119,7 @@ static NSString *DamagedWords(MMUndoRecord *parent, NSArray<MMUndoRecord *> *par
         // Restore can still bring it back, or already did: that is no loss. A record that cannot be read restores nothing.
         if (n && (r.state == MMUndoRestored || (r.canRestore && !r.damage))) kept += r.state == MMUndoRestored ? 0 : n;
         else gone += n;
-        if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count;
+        if (r.state == MMUndoRestored && ![wasBack containsObject:r.rid]) back += MMRecordList(r.payload, @"staged").count + MMRecordList(r.payload, @"trashed").count + MMRecordList(MMRecordDict(r.payload, @"held"), @"members").count;
     }
     NSString *moved = back ? [NSString stringWithFormat:@"%@ it had moved out of the worktree went back", Items(back)] : trash ?: @"Nothing it had moved needed to go back";
     if (back && trash) moved = [moved stringByAppendingFormat:@". %@", trash];

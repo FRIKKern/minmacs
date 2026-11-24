@@ -2,16 +2,21 @@
 // and the URL handlers of LocoHost and MinMacs 1.2, now one router in Sources/CLI/MMRouter.
 #import "Shell/MMShell.h"
 #import <ServiceManagement/ServiceManagement.h>
+#ifdef MM_TESTS
+#import <QuartzCore/CATransaction.h>
+#endif
 #import "Core/MMCore.h"
 #import "CLI/MMCLI.h"
 #import "CLI/MMRouter.h"
 #import "UI/MMUI.h"
 #import "UI/MMSettings.h"
 #import "UI/MMSpecMenu.h"
+#import "UI/MMConfirm.h"
 #import "Shell/MMWatchdog.h"
 #import "Shell/MMWindowCLI.h"
 #import "Shell/MMWindowController.h"
 #import "Shell/MMWindowFeed.h"
+#import "Shell/MMWindowLog.h"
 
 NSString *const MMLoginNotice = @"MinMacs opens at login. Settings can turn that off.";
 static NSString *const kLaunchedKey = @"core.launched";          // set on the first launch
@@ -181,7 +186,8 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 @property BOOL sawSnapshot;
 @property BOOL launched;                                // -launch has made the items; a way to Settings waits for it
 @property BOOL settingsWaits;                           // Settings was asked for before that
-@property (strong) MMWindowPanel *windowPanel;         // made at the first click on the icon, in window mode
+@property (strong) MMWindowHolder *windowHolder;       // made at the first click on the icon, in window mode
+@property (readonly) MMWindowPanel *windowPanel;       // the holder's panel, made again when it was let go
 @property (strong) MMWindowController *windowController;
 - (void)toggleWindow:(NSStatusBarButton *)button;
 - (BOOL)showWindow;
@@ -346,6 +352,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
         return @{@"ok": @YES};
     });
     MMCoreServe(@"cli", ^NSDictionary *(NSDictionary *req) { return MMCLIReply(req); });
+#ifdef MM_TESTS
+    // Only in a build with MM_TESTS: the window checks open and close the window and ask what it holds.
+    MMCoreServe(@"_window", ^NSDictionary *(NSDictionary *req) {
+        __block NSDictionary *reply = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{ reply = [self testWindow:req[@"do"]]; });
+        return reply;
+    });
+#endif
     MMCoreStart();
     Mark(@"core");
 
@@ -365,7 +379,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     }
     [self rebuildItems];
     MMSetPref(kLaunchedKey, @YES);
-    // Issue #37. The import ran in MMCoreStart. What follows it may ask the person, so it waits for the menu bar.
+    // D3: on a Mac that runs unattended nobody presses Start, so the welcome's defaults apply now, and again when
+    // `minmacs unattended on` runs in this app.
+    if (!self.headless) {
+        [self skipWelcomeIfUnattended];
+        [NSNotificationCenter.defaultCenter addObserverForName:MMUnattendedChangedNotification object:nil queue:NSOperationQueue.mainQueue
+                                                    usingBlock:^(NSNotification *n) { [self skipWelcomeIfUnattended]; }];
+    }
+    // Issue #37. The import ran in MMCoreStart. The follow-up asks nobody, D3, and waits for the menu bar.
     if (!self.headless && MMMigrateWanted(NSProcessInfo.processInfo.environment)) [self followUpMigration];
     __weak MMShell *weak = self;
     // Every card's link rows open through here, whichever expert drew the card.
@@ -382,37 +403,18 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     if (self.settingsWaits) { self.settingsWaits = NO; [self showSettings:nil]; }
 }
 
-/// PLAN.md section 8, once: a lid override the old Insomnia left on goes off, then one confirm for Noo-Noo's
-/// LaunchAgent and one for the old apps. It runs on its own queue. Each confirm is an alert on main, and main
-/// waits only on the person there. What failed goes in one alert, DESIGN.md "Notifications".
+/// PLAN.md section 8, once: a lid override the old Insomnia left on goes off, then Noo-Noo's LaunchAgent and the old
+/// apps go to the Trash, each with its undo record. D3: nobody is asked, since each keeps a way back, and what stayed
+/// is one notice in the log. It runs on its own queue and never touches main.
 - (void)followUpMigration {
     dispatch_queue_t q = MMQueue(@"core", @"migrate", QOS_CLASS_UTILITY);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kMigrateDelay * NSEC_PER_SEC)), q, ^{
-        NSDictionary *done = MMMigrateFollowUp(nil, ^BOOL(NSString *title, NSString *body, NSString *yes, NSString *no) {
-            __block BOOL answer = NO;
-            dispatch_sync(dispatch_get_main_queue(), ^{
-                NSAlert *a = [NSAlert new];
-                a.messageText = title; a.informativeText = body ?: @"";
-                [a addButtonWithTitle:yes]; [a addButtonWithTitle:no];
-                [NSApp activateIgnoringOtherApps:YES];
-                answer = [a runModal] == NSAlertFirstButtonReturn;
-            });
-            return answer;
-        });
-        NSMutableArray *failed = [NSMutableArray new];
-        NSDictionary *agent = done[@"noonoo.agent"];
-        if ([agent[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"Noo-Noo's agent: %@.", agent[@"why"]]];
-        for (NSDictionary *app in done[@"apps"])
-            if ([app[@"state"] isEqual:@"failed"]) [failed addObject:[NSString stringWithFormat:@"%@: %@.", app[@"name"], app[@"why"]]];
-        if (!failed.count) return;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            NSAlert *a = [NSAlert new];
-            a.messageText = @"Some Old Apps Stayed";
-            a.informativeText = [failed componentsJoinedByString:@"\n"];
-            [NSApp activateIgnoringOtherApps:YES];
-            [a runModal];
-        });
-    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kMigrateDelay * NSEC_PER_SEC)), q, ^{ (void)MMMigrateFollowUpUnasked(nil); });
+}
+
+/// D3, on main. With the menu window and the Mac unattended, the welcome is skipped and its defaults applied.
+- (void)skipWelcomeIfUnattended {
+    if (!MMWindowMode()) return;
+    [MMWindowController skipWelcomeUnattended:self];
 }
 
 /// A run of Fix Everything is never cut in the middle of a step. Quit, from the window, the Dock, a URL or a log out,
@@ -511,15 +513,41 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
 }
 
 /// The panel and its controller, made once, at the first click on the icon or the first way to Settings.
+/// The holder lets the panel go once the window stayed closed a while, never while a run plays, and makes it again.
 - (void)makeWindow {
-    if (self.windowPanel) return;
+    if (self.windowHolder) return;
     self.windowController = [MMWindowController new];
     self.windowController.shell = self;
-    self.windowPanel = [[MMWindowPanel alloc] initWithHost:self.windowController];
+    self.windowHolder = [[MMWindowHolder alloc] initWithHost:self.windowController];
     __weak MMShell *weak = self;
-    self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowPanel show:model]; };
-    self.windowPanel.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
+    self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowHolder show:model]; };
+    self.windowHolder.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
+    self.windowHolder.busy = ^BOOL { return weak.windowController.running; };
+#ifdef MM_TESTS
+    NSString *rest = NSProcessInfo.processInfo.environment[@"MINMACS_TEST_WINDOW_REST"];
+    if (rest.length) self.windowHolder.rest = rest.doubleValue;
+#endif
 }
+
+- (MMWindowPanel *)windowPanel { return self.windowHolder.panel; }
+
+#ifdef MM_TESTS
+/// Main. "open" opens the window as the icon does and says how long that took, "close" closes it, and "state" says
+/// whether it is open and whether a panel is held.
+- (NSDictionary *)testWindow:(NSString *)what {
+    if ([what isEqualToString:@"open"] && !self.windowHolder.isOpen) {
+        uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        BOOL had = self.windowHolder.madePanel != nil;
+        if (![self showWindow]) [self toggleWindow:nil];
+        [CATransaction flush];   // the time runs to the first frame handed to the screen
+        double ms = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - t0) / 1e6;
+        return @{@"ok": @YES, @"ms": @(ms), @"made": @(!had), @"open": @(self.windowHolder.isOpen)};
+    }
+    if ([what isEqualToString:@"close"]) [self.windowHolder.madePanel close];
+    return @{@"ok": @YES, @"open": @(self.windowHolder.isOpen), @"panel": @(self.windowHolder.madePanel != nil),
+             @"made": @(self.windowHolder.made), @"letGoAlive": @(self.windowHolder.lastLetGo != nil)};
+}
+#endif
 
 - (BOOL)loginEnabled { return SMAppService.mainAppService.status == SMAppServiceStatusEnabled; }
 
@@ -593,10 +621,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
             // An item made just now shows its state and badge from the current snapshot, not only at the next one.
             if (visible && i.item && i.expert && MMGraph.shared.current) [i label:MMGraph.shared.current];
         };
-        st.onMode = ^(NSString *expert, NSString *mode) { NSInteger m = MMModeFrom(mode); if (m >= 0) MMSetMode(expert, (MMMode)m); };
-        st.onModel = ^(NSString *model) { MMSetPref(MMReviewModelKey, model); };
+        st.onMode = ^(NSString *expert, NSString *mode) { NSInteger m = MMModeFrom(mode); if (m >= 0) MMSetMode(expert, (MMMode)m, @"settings"); };
+        st.onModel = ^(NSString *model) { MMSetSetting(MMReviewModelKey, model, @"settings"); };
         st.onOneIcon = ^(BOOL on) { MMSetPref(MMOneIconKey, @(on)); [weak rebuildItems]; };
-        st.onOpenAtLogin = ^(BOOL on) { [weak setLogin:on]; };
+        st.onOpenAtLogin = ^(BOOL on) {
+            BOOL before = weak.loginEnabled;
+            [weak setLogin:on];
+            MMLogSetting(MMWindowLoginKey, @(before), @(weak.loginEnabled), @"settings");
+        };
         st.onPref = ^(NSString *expert, NSString *key, NSNumber *value) {
             id<MMExpert> e = MMExpertNamed(expert);
             if ([e respondsToSelector:@selector(setPref:value:)]) [e setPref:key value:value];
@@ -616,6 +648,9 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     [self.settings show:MMSettingsOverview];
 }
 
+/// The words of a link that act on something: tidy stops, removes and cleans. review and restore do not.
+BOOL MMURLWordsAct(NSArray<NSString *> *words) { return [words.firstObject isEqualToString:@"tidy"]; }
+
 - (void)application:(NSApplication *)app openURLs:(NSArray<NSURL *> *)urls {
     for (NSURL *u in urls) {
         MMRoute *r = MMRouteURL(u, nil);
@@ -628,6 +663,12 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
                 id<MMExpert> e = MMExpertNamed(r.expert);
                 BOOL handled = [e respondsToSelector:@selector(openURL:)] && [e openURL:r.url];
                 if (!handled && r.words) {
+                    // A link can come from any web page. One that acts, such as run-now, which runs tidy, asks a
+                    // person who is here first, and never acts unasked. Unattended, D3, it runs as it is.
+                    if (MMURLWordsAct(r.words) && !MMUnattended() &&
+                        !MMAskPerson(@"Run the Rules Now?",
+                                     @"A link asks MinMacs to act on what its rules find now. Each thing is checked again first, "
+                                     @"and everything it removes keeps a way back.", @"Run Now", nil)) break;
                     // A verb that blocks, such as a review, runs off main, as it does for the CLI.
                     NSArray *words = r.words;
                     dispatch_async(MMQueue(@"core", @"url", QOS_CLASS_USER_INITIATED), ^{ MMCLIReply(@{@"cli": words}); });
@@ -659,6 +700,7 @@ int MMMain(int argc, const char *argv[]) {
     MMStartupBegin();
     // The window's feed lives in the shell, so the shell adds the verb that prints it, for the CLI and for the app.
     MMAddVerb(MMWindowVerbSpec());
+    MMAddVerb(MMLogVerbSpec());
     if (MMWantsCLI(argc, argv)) return MMRunCLI(argc, argv);
     NSApplication *app = NSApplication.sharedApplication;
     MMShell *delegate = [MMShell new];

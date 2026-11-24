@@ -13,6 +13,9 @@ NSString *MMWindowKindName(MMWindowKind kind);
 @interface MMWindowFact (MMJSON)
 - (NSDictionary *)json;        // {label, value}
 @end
+@interface MMWindowPull (MMJSON)
+- (NSDictionary *)json;
+@end
 @interface MMWindowRow (MMJSON)
 - (NSDictionary *)json;        // {key, kind, iconHint, name, state, cpuPercent, bytes or null while not measured, measured, tabs, needsYou, inFix, hour, facts}
 @end

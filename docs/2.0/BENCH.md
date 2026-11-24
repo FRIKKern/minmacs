@@ -73,7 +73,7 @@ The first profile, five experts on `main` at f04a47b, 60 seconds, 1.064 % CPU: 1
 
 **Senses.** A sample takes from the last one what holds for the same process: args, responsible pid and app lookups for the same pid, start, parent and name, and the cwd for a pass in which the process used no CPU time, otherwise for 30 seconds from its read. An exec changes the name, so its args are read again. A process that used no CPU time keeps its sockets for 45 to 60 seconds. One that ran but holds the same socket fds has only its TCP fds read again. `MMRunningApps()` reads each app once. An exit drops the process from the last sample with no pass. The pass backs off to 10 seconds on battery, 15 when the person is away 5 minutes, and 30 for both.
 
-**Graph.** A build after a new sample is skipped when the facts digest matches: each of our processes at a CPU band and 16 MB of memory, sockets, power, agents and the identity of Know's objects. It builds at least every 30 seconds, and always for any other reason. An expert that answers `inputDigestFrom:` gets its last findings back when its inputs did not change. Exits within 0.3 seconds share one build.
+**Graph.** A build after a new sample is skipped when the facts digest matches: each of our processes at a CPU band and 16 MB of memory, sockets, power, agents and the identity of Know's objects. It builds at least every 30 seconds, and always for any other reason but an exit. An expert that answers `inputDigestFrom:` gets its last findings back when its inputs did not change. Exits within 0.3 seconds share one build.
 
 **Know.** The session index reads only the folders FSEvents named, and all of them every 10 minutes. The registry reads its presence paths every 30 seconds, not on every match.
 
@@ -384,6 +384,139 @@ It passes on the same rules: no leak in MinMacs code, footprint growth under 5 M
 ### On the GitHub runner
 
 On the macos-26-arm64 runner the short soak's Senses holds each fixture server's process, with the soak's own uid, and reads no socket for it. The status line on 44c994d read `"inSample":1,"uid":501,"me":501,"sockets":0`, and no sample held a listener. On the same runner the minmacs CLI reads those servers in the locohost section, and on a Mac the soak reads them. Signing the soak binary with codesign did not change it. The cause is not found. On CI the check prints LocoHost's peak fixture findings and does not gate on them; on a Mac it gates.
+
+## The startup peak and the steady tick, 2026-11-24
+
+Issue #52. The installed app on a MacBook Air M5 with 16 GB and about 770 processes, read once a minute with `proc_pid_rusage`, peaked at 479, 857, 1229 and 1521 MB in four runs, each time 4 to 6 minutes after launch, with 18 to 23 seconds of CPU in that minute. It then sat at 75 to 230 MB, against the 45 MB budget, and averaged 2.3 to 7.3 % CPU.
+
+### What made the peak
+
+The peak is the clutter catalog's first scan. Its timer first fires 300 seconds after launch. `footprint` on the app after a peak read 1.1 GB of empty malloc regions still resident, and `vmmap` 857 MB of them, so the memory was taken and given back inside one block. A clutter scan alone, `minmacs clutter scan --json` in a fixture home whose TMPDIR holds 10,000 loose entries and 560 family members, as this Mac's did, reproduced it:
+
+| One clutter scan in the fixture | Before | After |
+| --- | --- | --- |
+| Peak footprint | 1006 MB | 11.9 MB |
+| Wall time | 3.2 s | 1.3 s |
+| Instructions | 41.4 G | 10.7 G |
+| Items found | the same JSON, byte for byte | |
+
+`sample` of the scan put two thirds of it in three places, all inside one autorelease pool that drained only when the scan ended:
+1. `MMOpenUnder` compared every path any process of this user holds, its executable, cwd and each open file, with every candidate root through `-[NSString stringByAppendingString:]`: tens of thousands of paths times hundreds of roots, each comparison a new string.
+2. `discover:` asked `kindFor:` of every name in a family row's folder, 10,000 in TMPDIR, and each asked every row's patterns through `fnmatch` with two `fileSystemRepresentation` buffers, also autoreleased.
+3. `judge:` and `whyNot:` for each member, smaller.
+
+What changed: `MMOpenUnder` sorts the roots once as bytes and looks up each held path's parent folders in them, with no string made. A family folder's name with no family key, which no family row can claim, is skipped before `kindFor:`. The walk, discovery, owner and judge loops each drain their own autorelease pool.
+
+### What the steady tick did
+
+With agents at work, each append to a Claude Code transcript, about one a second, posted a sessions change, and Core asked for a forced build of every expert for it, on top of the build after each 5-second pass. Each read of a changed transcript decoded its 64 KB head and 512 KB tail to strings and ran four regular expressions over them. In a 10-second `sample` of the installed app this was the largest part of the graph queue, in `__CFFromUTF8` under `-[MMSessions factsFor:reader:mtime:]`.
+
+What changed: the four values are found in the bytes with `memmem`, and only each value is decoded. A change to transcripts alone asks for a build at most every 30 seconds, and the next pass's build reads it. A status file, Codex's databases, pi's sessions and a dropped event still build at once. A head or tail read that ends inside a UTF-8 character no longer turns the whole read into Latin-1, so a title or cwd with an accent keeps it. `./test.sh know` checks a 1.8 MB transcript for both.
+
+### Before and after
+
+`bench idle --seconds 420 --warmup 0`, the base and this branch side by side, each in a fixture home: the TMPDIR and agent scratch of the scan above as the clutter root, four git checkouts as the roots, and 12 fake Claude Code transcripts of 47 MB in all, the largest 20 MB, as on this Mac. A script appended a line to the two largest every 2 seconds, as two working agents do. 789 processes, load average 3 to 6, with other agents building.
+
+| | Before | After |
+| --- | --- | --- |
+| Peak footprint | 1061 MB, at the scan at 300 s | 18.9 MB |
+| Footprint after the scan | 530 MB for a while, 21 MB at the end | 13.9 MB |
+| CPU over the 420 s | 2.15 % | 0.99 % |
+| CPU from 60 to 240 s, before the scan | 1.07 % | 0.56 % |
+| The busiest minute | 8.1 %, the scan | 2.9 % |
+| Builds | 542 | 345 |
+| CPU a tick, from one pass to the next, median and mean | 55.6 and 105.9 ms | 29.8 and 48.4 ms |
+| The facts of a build | 4.17 ms | 2.14 ms |
+
+A second pair of runs, the clutter fix alone against the base, read 1049 MB and 21.8 MB at the peak, and the same 0.97 % before the scan, so the CPU before the scan comes from the sessions change.
+
+### What is left
+
+- The menu window. The installed app's `footprint` after the peak read 58 MB of IOSurface and 41 MB of owned graphics memory, about half of its 192 MB. The window list showed the menu panel, 1020 by 728 points, off screen: `MMWindowPanel` is made at the first open and kept with its layers after it closes. Done since: [The closed menu window](#the-closed-menu-window-2026-11-24).
+- The idle CPU is still over the 0.3 % budget on this Mac: 0.56 % in the window above. Most builds come from passes whose facts changed, since 789 processes move between CPU bands. Noo-Noo and WorkForest have no input digest, so each build makes their findings again: 1.1 and 0.8 ms.
+- The clutter scan still stats and judges every member each hour, about 0.6 s of CPU in the fixture, most of it `wallFor:` and `NeverHits`, which glob each never path for each member.
+
+## The closed menu window, 2026-11-24
+
+The field sampler read the latest build at 0.18 % CPU over 4.4 hours, but with a footprint that swung between 16.5 and 159 MB, peaking at 193 MB, against a budget of 45 MB. The window was the cause: `MMWindowPanel` was made at the first open and only ordered out at a close, so the panel, its views and their layer backing stores stayed, about 100 MB in the field. Three things kept it:
+
+1. The shell held the panel for the life of the app.
+2. Let go, the panel still held its views, and AppKit keeps an ordered-out window that was key last, with the window server's backing at its full size.
+3. Nothing else: the controller holds only plain models, the panel's monitors and observers end at the close, and the view's timers stop at `-rest`. The app icons the window caches are 32-point images, and letting them go too changed nothing measurable.
+
+`MMWindowHolder`, in `Sources/UI/Window/MMWindowHolder.m`, now owns the panel for the shell. After the window has stayed closed for 45 seconds it empties the panel, its views gone and the window one point square, and lets it go. A reopen inside the 45 seconds takes the same panel. While a run of Fix Everything plays the panel is kept, and asked again a while later. The next open makes the panel again and shows it the last model before it comes on screen. The panel is no longer deferred, and it commits its first frame with `CATransaction flush` before it is ordered in: a deferred window drew nothing at `displayIfNeeded`, so even the first open of before handed the screen views that still had to draw.
+
+**How it was measured.** The app built as build.sh builds it, for arm64 with `-DMM_TESTS`, in a fixture `MINMACS_HOME` with every mode Idle and the welcome done, never installed. A build with `MM_TESTS` answers `_window` on core.sock: open as the icon does, close, and the state. The footprint is `ri_phys_footprint` from `proc_pid_rusage`, as the field sampler and `tools/soak/procstat` read it. An open's time runs from the press to the first frame committed, `CATransaction flush` included. "Before" is `HEAD` at 74b53d7 with only that hook added. One run each, one after the other, at a load average near 2, at 11:38 local time. The fixture home has few rows, so the window holds less than with a real day.
+
+| Footprint, MB | Before | After |
+|---|---|---|
+| After launch | 16.0 | 16.2 |
+| Window open | 66.1 | 65.8 to 116.1 |
+| 1 s after it closed | 66.0 | 65.8 |
+| 50 s after it closed | 62.0, the panel held | 30.7 to 33.0, the panel gone |
+| Reopened | 65.9 | 65.9 to 116.9 |
+
+The open window reads 66 or 117 MB from one open to the next in both builds, as the window server hands back its buffers. Four rounds of open, close and a rest of 3 s read 33.0, 33.4, 36.0 and 33.1 MB after each rest, so nothing piles up. Of the 17 MB that stays over the launch, 8.5 MB is IOAccelerator and 3.8 MB IOSurface, what a process keeps once it has drawn a window this large through the GPU, and about 5 MB malloc. In the field, where the panel held about 100 MB, the closed app should come back near 33 MB.
+
+| Open, ms to the first frame committed | Before | After |
+|---|---|---|
+| The first open | 26.8 | 22.7 to 25.1 |
+| A reopen 1 s after a close, 10 each | 9.5 to 13.4 | 6.0 to 11.4 |
+| A reopen once the panel was let go, 10 | none, the panel was kept | 17.0 to 19.1, median 18.2 |
+| A reopen 50 s after a close | 13.4 | 18.0 and 21.1 |
+
+A reopen after a rest makes the panel and draws a new view, about 6 ms more than a warm reopen and under #53's 30 ms. `tools/render.sh` on the same Mac, which times the view alone into a bitmap, read cold p95 26.1 to 29.0 ms and warm p95 24.8 to 28.2 ms over its three fixtures, within the earlier runs of [The menu window's first frame](#the-menu-windows-first-frame-2026-11-12).
+
+**The check.** `test/window/memory.m`, in `./test.sh window`, makes the holder as the shell does, with the busy fixture, and opens its panel far off every screen, with a rest of 3 s. It never starts the app or Core. It checks that each first frame, the first open's and the reopen's after a let-go, is drawn and committed before the panel is ordered in, that a quick reopen takes the same panel, that a run in play keeps it, that nothing holds the panel that was let go, and its own footprint. Its baseline is read after a plain window drew the same view once and went, since a process pays about 15 MB the first time it draws a window this large. On this Mac it read a baseline of 18.9 MB, 57.9 open, 33.7 after the rest and 38.8 after a second one, and eight more rounds stayed at 39.6 to 39.8 MB. With the panel kept it read 77.3 and 78.7 MB, 58 to 60 MB over the baseline. So the check asks for less than 35 MB over the baseline after each rest, at least 20 MB given back by the second rest, and less than 8 MB added by the second round.
+
+## Digests for Noo-Noo and WorkForest, 2026-11-24
+
+Issue #52, the three items left above.
+
+### What changed
+
+- **Noo-Noo and WorkForest answer `inputDigestFrom:`**, so the graph hands back their last findings when nothing they read moved. Noo-Noo's digest holds the identity of each clutter item and its row, worktree and git fact; each session's id, folder, pid and whether it works, but not its last write or title; the checkouts a working session started above them runs a process in; the keeps that hold now; the mode, the day of watching, the growth threshold and each tool row's last dry run. WorkForest's holds each worktree and git fact, a stat of each checkout folder, `-[MMTreeDisk generation]`, which moves with every walk, the protected branches, and what `ProcessesIn` and `SessionsIn` give each tree. Its `findingsFrom:` of the same facts takes those two from the digest, so a build that does not reuse reads them once. `./test.sh idle` changes each input in turn and checks that the digest moves, and that a second process of a name in a checkout, a process or session outside every checkout, or a transcript write leave it.
+- **An exit no longer forces a build.** An exit changes only the sample, which the facts digest and every expert's digest read, so it builds when they moved and reuses findings as a new sample does. In the trace below, 114 of 167 builds were exits: compilers, shells and git of the agents at work on this Mac, each a forced build of every expert.
+- **A clutter scan resolves its walls once.** `wallFor:` resolved the home folder, the clutter root and home, the support folder and `MINMACS_HOME` twice for each member, and `NeverHits` ran each never glob again for each member. The judge pass now keeps them in a memo on its own thread, so an action's `whyNot:` on another queue still reads the disk.
+
+### The clutter scan
+
+`minmacs clutter scan --json` in a fixture home whose TMPDIR holds 10,000 loose entries and 8 families of 70 members, with 4 checkouts and 12 transcripts. Two runs each, alternating, load average near 2:
+
+| | Before | After |
+| --- | --- | --- |
+| Instructions | 10.30 to 10.42 G | 6.68 to 6.78 G |
+| User CPU | 0.39 to 0.65 s | 0.26 to 0.45 s |
+| `clutter scan --json`, `clutter list --json` and `core/clutter.json` without its scan times | | the same, byte for byte |
+
+### The idle tick
+
+`bench idle --seconds 240 --warmup 30`, base and branch alternating, base, branch, branch, base, each in a fresh copy of one fixture home: the clutter root above, scanned before the run, four checkouts and a linked worktree as the roots, and 12 transcripts of 47 MB, two of them written every 2 seconds by one long-lived process, so the fixture itself makes no exits. About 595 processes, load average 1.4 to 2.2, other agents building. CPU ms are per build.
+
+| | Before | | After | |
+| --- | --- | --- | --- | --- |
+| CPU | 0.373 % | 0.309 % | 0.337 % | 0.344 % |
+| CPU a tick, median and mean | 17.2, 18.7 ms | 11.9, 15.5 ms | 14.2, 17.0 ms | 13.6, 17.8 ms |
+| Builds a minute | 39.0 | 28.5 | 37.0 | 39.2 |
+| Builds that reused both experts' findings | | | 138 of 148 | 146 of 157 |
+| Facts | 1.53 | 1.44 | 1.68 | 1.61 |
+| Findings and the snapshot, digests included | 2.80 | 3.19 | 2.33 | 2.26 |
+| Noo-Noo: findings, digest | 0.318, none | 0.380, none | 0.025, 0.087 | 0.024, 0.085 |
+| WorkForest: findings, digest | 0.723, none | 0.831, none | 0.027, 0.399 | 0.027, 0.378 |
+
+Each snapshot held 16 Noo-Noo findings, 6 WorkForest, 6 MinMacs, 3 LocoHost and 1 Insomnia. A build costs about 0.5 to 0.9 ms less. The CPU in percent is within the noise of other agents' work: the two base runs differ by more than base and branch. On the owner's Mac Noo-Noo's findings took about 1.1 ms a build, against 0.35 here, so the field should gain more.
+
+A first try hashed each session's identity, as LocoHost does. The session index makes new session objects at each read, and a transcript write asks for one, so with two agents at work only 53 of 144 builds reused the findings.
+
+### The CPU band
+
+A trace of each build's facts, 240 seconds in the same fixture, read what changed from one build to the next. 114 of the 167 builds were exits, forced. Every one of the other 53 had a process that started or ended, and none changed only a CPU band. Replaying the trace with hysteresis at the band edges of 10, 25 and 50 %, and with no CPU band at all, gave the same 167 builds. So the band has no hysteresis: what builds is processes that come and go.
+
+### What is left
+
+- WorkForest's digest is 0.4 ms, almost all `ProcessesIn`: the cwd of each of this user's processes, checked against each checkout. Senses carries the cwd of a process that did not change, so most of it is the lookup and the match.
+- Builds still come from processes that start and end, about 37 a minute with agents at work here. LocoHost and MinMacs build their findings for most of them: 0.5 and 0.4 ms. MinMacs has no digest.
+- The menu window, as above.
 
 ## The last hour in memory
 

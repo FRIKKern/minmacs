@@ -10,7 +10,7 @@
 //   midpass <root> <path>                 a change that lands in the middle of an update pass: how often git status ran
 //   moves <root> <path> <branch>          FSEvents on, a branch switch and a lock in path: when the index shows each
 //   linked <roots> <file>                 a walk, then a new file beside file handed over by its resolved folder
-//   keeps <root>                          facts as facts gives them, with the index's branch and Smart's answer, issue #116
+//   keeps <root>                          facts as facts gives them, with the index's branch and git's answer, issue #116
 //   dirs <path>                           the git dir and common dir MMGitDirsOf reads for path, or null
 #import <Foundation/Foundation.h>
 #import "Core/Act/MMRemoval.h"
@@ -97,8 +97,8 @@ static int Facts(NSString *root) {
     return 0;
 }
 
-/// Issue #116: what each worktree's facts make of the removal choice. The facts go to Smart as WorkForest's
-/// RemovalFactsNow hands them over, and smart is "delete now" or Smart's reason to keep a way back.
+/// Issue #116: what each worktree's facts make of git's way back. The facts go to MMRemovalGitWhyNot as WorkForest's
+/// RemovalFactsNow hands them over, and gitBack is "git gives back" or the reason git alone could not.
 static int Keeps(NSString *root) {
     MMRepoIndex.shared.roots = @[root.stringByStandardizingPath];
     Scan();
@@ -109,9 +109,9 @@ static int Keeps(NSString *root) {
             : [MMRemovalFacts worktreeKnown:YES merged:!w.isMain && g.merged != MMMergedNone upstreamGone:g.upstreamGone
                                       dirty:g.dirty untracked:g.untracked unpushed:g.unpushed stashes:g.stashes];
         f.upstreamUnknown = g.upstreamUnknown; f.upstreamNone = g && !g.upstream.length && !g.upstreamGone && !g.upstreamUnknown;
-        MMRemovalDecision *d = MMRemovalDecideWith(MMRemovalSmart, MMRemovalWorktree, f);
+        NSString *no = MMRemovalGitWhyNot(f);
         NSMutableDictionary *j = [(g ? g.json : @{}) mutableCopy];
-        j[@"smart"] = d.deleteNow ? @"delete now" : d.why ?: @"";
+        j[@"gitBack"] = no ?: @"git gives back";
         j[@"indexBranch"] = w.branch ?: NSNull.null;
         out[w.path] = j;
     }

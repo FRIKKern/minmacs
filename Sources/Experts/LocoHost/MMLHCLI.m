@@ -94,12 +94,32 @@ static void PrintJSON(id obj) {
 
 static int Usage(NSString *usage) { Err([@"usage: " stringByAppendingString:usage]); return 2; }
 
-static BOOL Confirm(NSString *q) {
-    // A verb handed to the app has no terminal to ask on.
-    if (CurrentArgs().inApp) { Err(@"add --yes, since MinMacs cannot ask from here"); return NO; }
+/// What a confirm on the command line came to.
+typedef NS_ENUM(NSInteger, MMLHAnswer) { MMLHYes, MMLHNo, MMLHRefused };
+
+/// Asks y/N on the terminal, only when a person sits at it. D3: with nobody there nothing is read and nothing waits.
+/// A plain stop sends SIGTERM and keeps a way back, since Undo starts the server again, so it goes ahead as --yes
+/// would. --force sends SIGKILL, which takes what the server held with it, so it is refused until --yes says so.
+static MMLHAnswer Confirm(NSString *q, BOOL force) {
+    MMArgs *raw = CurrentArgs();
+    BOOL noPerson = raw ? raw.noPerson : MMNoPersonAtTerminal();
+    if (noPerson) {
+        if (!force) return MMLHYes;
+        Err(@"not stopped: --force sends SIGKILL, and nobody is at the terminal to confirm it. Add --yes to send it");
+        return MMLHRefused;
+    }
+    // A verb handed to the app has no terminal to ask on, and with MINMACS_UNATTENDED=0 and no TTY nothing is read.
+    if (raw.inApp || !isatty(STDIN_FILENO)) { Err(@"not stopped: add --yes, since MinMacs cannot ask from here"); return MMLHRefused; }
     printf("%s [y/N] ", q.UTF8String); fflush(stdout);
     char buf[8] = {0};
-    return fgets(buf, sizeof buf, stdin) && (buf[0] == 'y' || buf[0] == 'Y');
+    return fgets(buf, sizeof buf, stdin) && (buf[0] == 'y' || buf[0] == 'Y') ? MMLHYes : MMLHNo;
+}
+
+/// The exit of a confirm that did not say yes: 2 for a refusal that names what to add, 1 for a person's no.
+static int NotConfirmed(MMLHAnswer answer) {
+    if (answer == MMLHRefused) return 2;
+    Print(@"aborted");
+    return 1;
 }
 
 #pragma mark - Ports
@@ -354,6 +374,7 @@ static int Who(MMLHArgs *a) {
     MMVerdict *v = MMLHVerdictFor(f, r);
     if (v) Outf("  review     %s %s, %.0f%%, %s: %s\n", ModelOf(r).UTF8String, v.word.UTF8String, v.confidence * 100, MMAgo(r.at).UTF8String, (v.reason ?: @"").UTF8String);
     if (h.isDev) Outf("  agent      %s\n", MMLHSessionWords(h.session).UTF8String);
+    else if (h.isAgent) Outf("  agent      %s, its own port\n", MMLHAgentWords(h).UTF8String);
     Outf("  waste      %s\n", MMLHWasteWords(h).UTF8String);
     if (h.duplicates.count) Outf("  duplicate  same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
     if (h.placeLabel) Outf("  where      %s\n", h.placeLabel.UTF8String);
@@ -434,7 +455,8 @@ static int Explain(MMLHArgs *a) {
     if (!p.count) Outf("  project   no package.json, README, mix.exs or pyproject.toml in its folders\n");
     Outf("  command   %s\n  started   %s, %s ago\n", h.command.UTF8String, (h.launcher ?: @"").UTF8String, MMDuration(-h.started.timeIntervalSinceNow).UTF8String);
     if (h.branch) Outf("  git       branch %s%s\n", h.branch.UTF8String, h.worktree ? [@", worktree " stringByAppendingString:h.worktree].UTF8String : "");
-    Outf("  session   %s\n", MMLHSessionWords(h.session).UTF8String);
+    if (h.isAgent) Outf("  agent     %s, its own port\n", MMLHAgentWords(h).UTF8String);
+    else Outf("  session   %s\n", MMLHSessionWords(h.session).UTF8String);
     if (h.placeLabel) Outf("  where     %s\n", h.placeLabel.UTF8String);
     if (h.duplicates.count) Outf("  duplicate same folder and branch as :%s\n", [[h.duplicates valueForKey:@"stringValue"] componentsJoinedByString:@", :"].UTF8String);
     Outf("  clients   %s\n  state     %s\n", h.clients.count ? [h.clients componentsJoinedByString:@", "].UTF8String : "none now", MMLHStateWords(h).UTF8String);
@@ -590,7 +612,7 @@ static int Mode(MMLHArgs *a) {
     if (a.arg1) {
         NSInteger m = MMModeFrom(a.arg1);
         if (m < 0) return Usage(@"locohost mode [idle|proactive|eager]");
-        if (!a.dry) MMSetMode(kExpert, (MMMode)m);
+        if (!a.dry) MMSetMode(kExpert, (MMMode)m, @"cli");
     }
     if (a.json) PrintJSON(@{@"mode": MMModeName(MMModeFor(kExpert))}); else Print(MMModeName(MMModeFor(kExpert)));
     return 0;
@@ -644,8 +666,11 @@ static int Idle(MMLHArgs *a, BOOL close) {
     }
     if (!c.count) { if (a.json) PrintJSON(@{@"results": @[]}); else Print(@"nothing confirmed idle"); return 0; }
     if (!close) { Outf("%s confirmed idle · %s\n", MMPlural(c.count, @"server").UTF8String, MMBytes(mem).UTF8String); return 0; }
-    if (!a.yes && !a.dry && !Confirm([NSString stringWithFormat:@"Stop %@, %@?%@", MMPlural(c.count, @"server"), MMBytes(mem),
-                                      a.force ? @" Servers that ignored SIGTERM before get SIGKILL." : @""])) { Print(@"aborted"); return 1; }
+    if (!a.yes && !a.dry) {
+        MMLHAnswer answer = Confirm([NSString stringWithFormat:@"Stop %@, %@?%@", MMPlural(c.count, @"server"), MMBytes(mem),
+                                     a.force ? @" Servers that ignored SIGTERM before get SIGKILL." : @""], a.force);
+        if (answer != MMLHYes) return NotConfirmed(answer);
+    }
     return Stop(c, a, @"Close Idle");
 }
 
@@ -655,7 +680,10 @@ static int Close(MMLHArgs *a) {
     MMFinding *f = FindPort(s, a.arg1);
     if (!f) { Err([@"no localhost on " stringByAppendingString:a.arg1]); return 1; }
     MMLHHost *h = Host(f);
-    if (!a.yes && !a.dry && !Confirm([NSString stringWithFormat:@"Stop :%ld %@ in %@, pid %d?", (long)h.port, h.framework, h.project, h.pid])) { Print(@"aborted"); return 1; }
+    if (!a.yes && !a.dry) {
+        MMLHAnswer answer = Confirm([NSString stringWithFormat:@"Stop :%ld %@ in %@, pid %d?", (long)h.port, h.framework, h.project, h.pid], a.force);
+        if (answer != MMLHYes) return NotConfirmed(answer);
+    }
     return Stop(@[f], a, @"stopped from the CLI");
 }
 
@@ -753,7 +781,7 @@ static int Keep(MMLHArgs *a) {
     if (!f) { Err([@"no localhost on " stringByAppendingString:a.arg1]); return 1; }
     MMLHHost *h = Host(f);
     double hours = a.arg2 ? a.arg2.doubleValue : [a opt:@"--hours"] ? [a opt:@"--hours"].doubleValue : 4;
-    if (!a.dry) [MMKeep keep:f.stableKey expert:kExpert until:hours > 0 ? [NSDate dateWithTimeIntervalSinceNow:hours * 3600] : nil];
+    if (!a.dry) [MMKeep keep:f.stableKey expert:kExpert until:hours > 0 ? [NSDate dateWithTimeIntervalSinceNow:hours * 3600] : nil by:@"cli" name:f.title];
     if (a.json) { PrintJSON(@{@"findingID": f.findingID, @"hours": @(hours)}); return 0; }
     if (hours > 0) Outf("no mode stops :%ld %s for %s\n", (long)h.port, h.framework.UTF8String, MMDuration(hours * 3600).UTF8String);
     else Outf(":%ld %s is up to the mode again\n", (long)h.port, h.framework.UTF8String);

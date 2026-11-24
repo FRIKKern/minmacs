@@ -103,15 +103,19 @@ extern const NSInteger MMGainsKeepDays;     // 30
 /// check read. Writes nothing when the action failed, when it gives nothing back, such as the lid override or a
 /// keep-awake hold, or when it was the migration's. Returns the row written, or nil.
 /// diskBefore is MMGainsDiskBefore's answer, read before the action ran. nil logs the disk as not measured.
+/// counted is what MMGainsMemoryBefore gave with memoryBefore: once the row is written, those processes count no more.
 MMGain *_Nullable MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding *finding,
-                                      uint64_t memoryBefore, NSNumber *_Nullable diskBefore);
+                                      uint64_t memoryBefore, NSSet<NSString *> *_Nullable counted, NSNumber *_Nullable diskBefore);
 /// What deleting the finding's thing frees, as a reading taken before the action runs: its cost.diskFreed, or for a
 /// finding not measured yet the last walk MMTreeDisk keeps of its folder, such as the one its policy took on fresh
 /// facts a moment ago. nil when there is no reading. It walks nothing itself.
 NSNumber *_Nullable MMGainsDiskBefore(id<MMAction> action, MMFinding *finding);
 /// The memory back of a stop or a quit: the footprint of each process tree of the finding in the fresh sample,
-/// with a pid counted once. Falls back to the finding's cost.ramBytes when the facts have no sample. 0 for any
-/// other kind of action.
-uint64_t MMGainsMemoryBefore(id<MMAction> action, MMFinding *finding, MMFacts *_Nullable fresh);
+/// with a pid counted once. A process an earlier gain row counted, by pid and start time, counts no more, unless that
+/// row was taken back: a quit of an app counts the server that runs in it, and a stop of that server after counts
+/// it no more. counted gets the "pid:start" of each process it counted, for MMGainsRecordAction. Falls back to the
+/// finding's cost.ramBytes when the facts have no sample. 0 for any other kind of action.
+uint64_t MMGainsMemoryBefore(id<MMAction> action, MMFinding *finding, MMFacts *_Nullable fresh,
+                             NSSet<NSString *> *_Nullable *_Nullable counted);
 
 NS_ASSUME_NONNULL_END

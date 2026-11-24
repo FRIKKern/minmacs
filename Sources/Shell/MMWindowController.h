@@ -7,7 +7,7 @@
 // Until the person pressed Start once, every model holds the welcome, MMWindowWelcomeNow. Opened before the first
 // snapshot, the controller hands over a model of generation 0 that holds the welcome alone, so the welcome is there
 // at once. Its switch starts on for a person whose first launch had the window, and on what the login item is now
-// for anyone who had MinMacs before. Start applies the two answers: the login item through the shell, the removal choice and the done mark.
+// for anyone who had MinMacs before. Start applies the answer: the login item through the shell, and the done mark.
 //
 // It works only while the window is open: -setOpen:NO ends the observing and lets the last snapshot go. A snapshot
 // that arrives while an older one is still being built replaces it, so only the newest generation reaches main.
@@ -41,6 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Main only. With no run under way it returns NO and does nothing. With one, it asks the run to stop after the step
 /// it is in and calls the block on main once the run ended.
 - (BOOL)stopRunThen:(void (^)(void))then;
+/// D3. Main only. While MMUnattended holds and Start was never pressed, it skips the welcome: it marks it done, turns
+/// Open at login on through login, and writes both setting rows by "unattended". YES when it skipped it now; NO when
+/// the Mac is attended or the welcome is done already. The shell calls it at launch and when unattended turns on.
++ (BOOL)skipWelcomeUnattended:(nullable id<MMWindowLogin>)login;
 @end
 
 NS_ASSUME_NONNULL_END

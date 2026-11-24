@@ -320,6 +320,17 @@ static BOOL Activate(MMPlace *w, NSString **error) {
     return YES;
 }
 
+BOOL MMPlaceGoable(MMPlace *w) {
+    switch (w.kind) {
+        case MMPlaceCmux: return w.surface.length > 0 || w.workspace.length > 0;
+        case MMPlaceTmux: return w.target.length > 0;
+        case MMPlaceTerminal: case MMPlaceITerm: return w.tty.length > 0 || w.appPid > 0;
+        case MMPlaceApp: return w.appPid > 0;
+        case MMPlaceUnknown: return NO;
+    }
+    return NO;
+}
+
 BOOL MMGoTo(MMPlace *w, NSString **error) {
     if (!w) { if (error) *error = @"nowhere to go"; return NO; }
     if (w.kind == MMPlaceCmux) {

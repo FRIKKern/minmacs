@@ -1,9 +1,9 @@
 # Issue #118: the upstream as git's own config reader gives it. Sourced by test/git.sh, after the tool is built, with
 # gq, gc and check. One repo per row, each with a bare origin, a main checkout and one linked worktree on the row's
-# branch, with one commit of its own that is pushed: clean, on a remote and not merged. So Smart deletes it only when
-# its remote branch is gone, and a reading that makes a live upstream look gone shows as "delete now".
+# branch, with one commit of its own that is pushed: clean, on a remote and not merged. So git gives it back only when
+# its remote branch is gone, and a reading that makes a live upstream look gone shows as "git gives back".
 # Each row writes the branch's section, or the files around it, in one spelling git accepts or refuses, then compares
-# what git answers with what MinMacs's facts say and what Smart decides on them. Every fixture lies in
+# what git answers with what MinMacs's facts say and what MMRemovalGitWhyNot says of them. Every fixture lies in
 # $MINMACS_HOME/git/config.
 
 CF="$G/config"; CFR="$CF/roots"; mkdir -p "$CFR"
@@ -162,7 +162,7 @@ printf '[branch "lo2"]\n\tremote = gonee\n[remote "gonee"]\n\turl = %s\n\tfetch 
   "$CFD/origin.git" >"$CFD/main/.git/up$(printf '\357\277\275').inc"
 
 echo "-- what makes git refuse to read any remote"
-# cf_moved: the branch's remote branch deleted, its commit kept on another remote ref, so Smart deletes on a gone.
+# cf_moved: the branch's remote branch deleted, its commit kept on another remote ref, so git gives it back on a gone.
 cf_moved() {
   gq -C "$CFD/main" update-ref "refs/remotes/origin/kept-$1" "$(git -C "$CFD/wt" rev-parse HEAD)"
   gq -C "$CFD/main" update-ref -d "refs/remotes/origin/$1"
@@ -200,7 +200,7 @@ cf_later ev1 '[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tfilemode 
 
 GO=$("$GT" keeps "$CFR")
 # cf_row <id> <branch> <git's answer> <MinMacs's answer>. git's answer is for-each-ref's %(upstream:short) and
-# %(upstream:track), or "fatal" when git refuses the config. MinMacs's is upstream|upstreamGone|upstreamUnknown|smart.
+# %(upstream:track), or "fatal" when git refuses the config. MinMacs's is upstream|upstreamGone|upstreamUnknown|gitBack.
 cf_row() {
   cf_w="$CFR/$1/wt"
   cf_git=$(git -C "$cf_w" for-each-ref --format='%(upstream:short)|%(upstream:track)' "refs/heads/$2" 2>/dev/null) || cf_git=fatal
@@ -211,14 +211,14 @@ cf_row() {
   cf_mm=$(printf '%s' "$GO" | python3 -c "
 import json,sys; j=json.load(sys.stdin)['facts']; k=sys.argv[1]
 v=j.get(k) or j.get(k[len('/private'):]) or {}
-s=v.get('smart', '?'); s=s if s == 'delete now' else 'keep: ' + s
+s=v.get('gitBack', '?'); s=s if s == 'git gives back' else 'keep: ' + s
 print('%s|%s|%s|%s' % (v.get('upstream'), v.get('upstreamGone'), v.get('upstreamUnknown'), s))" "$cf_w")
   printf '  row   %-4s git %-24s rev-parse %-18s config %s / %s\n        %-4s mm  %s\n' "$1" "$cf_git" "$cf_rp" "$cf_cr" "$cf_cm" "" "$cf_mm" | LC_ALL=C tr '\t\n' '~\n'
   cf_want=$3; case " or $3 or " in *" or $cf_git or "*) cf_want=$cf_git ;; esac   # "a or b": either answer of git's
   check "config $1: git answers" "$cf_want" "$cf_git"
   cf_mw=$4; case " or $4 or " in *" or $cf_mm or "*) cf_mw=$cf_mm ;; esac   # and of MinMacs's
   check "config $1: MinMacs reads what git reads" "$cf_mw" "$cf_mm"
-  case "$cf_mm|$cf_git" in *"delete now|"*"[gone]") ;; *"delete now|"*) cf_lost="$cf_lost $1" ;; esac
+  case "$cf_mm|$cf_git" in *"git gives back|"*"[gone]") ;; *"git gives back|"*) cf_lost="$cf_lost $1" ;; esac
 }
 cf_lost=""
 
@@ -264,7 +264,7 @@ cf_row h8 h8 "origin/h8|" "$(cf_live origin/h8)"
 cf_row h9 h9 fatal "$cf_refused"
 cf_row h10 h10 fatal "$cf_refused"
 # git's @{upstream} is the FIRST merge line, though git config --get gives the last: d1's is gone, by git's own answer.
-cf_row d1 d1 "origin/nothere|[gone]" "origin/nothere|True|False|delete now"
+cf_row d1 d1 "origin/nothere|[gone]" "origin/nothere|True|False|git gives back"
 cf_row d2 d2 "origin/d2|" "$(cf_live origin/d2)"
 cf_row d3 d3 "origin/d3|" "$(cf_live origin/d3)"
 cf_row d4 d4 "|" "$cf_none"
@@ -299,7 +299,7 @@ cf_row b1 b1 "origin/b1|" "$(cf_live origin/b1)"   # no version: git drops the e
 cf_row b2 b2 "origin/b2|" "$(cf_live origin/b2)"   # -1 is no version
 cf_row b3 b3 fatal "$cf_refused"                    # past 1: git refuses the repo
 cf_row b4 b4 "origin/b4|" "$(cf_live origin/b4)"   # a version in an include is not read for the format
-cf_row b5 b5 "gonee/b5|[gone]" "gonee/b5|True|False|delete now"   # version 1: config.worktree is read
+cf_row b5 b5 "gonee/b5|[gone]" "gonee/b5|True|False|git gives back"   # version 1: config.worktree is read
 cf_row ws1 ws1 "origin/ws1| or |" "$cf_unread"
 cf_row ws2 ws2 "origin/ws2|" "$(cf_live origin/ws2)"   # spaces inside stay as they are in every git
 cf_row ws3 ws3 "origin/ws3| or gonee/ws3|[gone]" "$cf_unread"
@@ -310,9 +310,9 @@ cf_row n2 n2 fatal "$cf_unread"
 cf_row n3 n3 fatal "$cf_unread"
 cf_row n4 n4 "origin/n4|" "$(cf_live origin/n4)"
 for cf_i in 1 2 3 4 5 6 7 8; do cf_row ir$cf_i ir$cf_i fatal "$cf_unread"; done
-for cf_i in 9 10 11 12 13 14; do cf_row ir$cf_i ir$cf_i "origin/ir$cf_i|[gone]" "origin/ir$cf_i|True|False|delete now"; done
+for cf_i in 9 10 11 12 13 14; do cf_row ir$cf_i ir$cf_i "origin/ir$cf_i|[gone]" "origin/ir$cf_i|True|False|git gives back"; done
 cf_row ir15 ir15 "fatal or origin/ir15|[gone]" "$cf_unread"   # INT_MIN: git 2.39 refuses it, 2.50 and later take it
 # git 2.39.5 says gone; 2.56 stops, and so does MinMacs's git status when it is that git.
 for cf_i in 1 2 3 4 5 6; do cf_row la$cf_i la$cf_i "origin/la$cf_i|[gone] or fatal" "$cf_unread or $cf_refused"; done
-cf_row ev1 ev1 "origin/ev1|[gone]" "origin/ev1|True|False|delete now"
-check "config: Smart deletes no worktree whose upstream git says is live, or that git has none of" "" "$cf_lost"
+cf_row ev1 ev1 "origin/ev1|[gone]" "origin/ev1|True|False|git gives back"
+check "config: git is never said to give back a worktree whose upstream git says is live, or that git has none of" "" "$cf_lost"

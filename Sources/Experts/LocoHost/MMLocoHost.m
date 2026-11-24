@@ -7,6 +7,8 @@
 #import "Experts/LocoHost/MMLHScan.h"
 #import "UI/MMFormat.h"
 #import "UI/MMInvestigateUI.h"
+#import "Core/Act/MMNotice.h"
+#import "UI/MMConfirm.h"
 
 static NSString *const kExpert = @"locohost";
 static const NSTimeInterval kGrace = 6;                  // seconds a server gets to stop after SIGTERM
@@ -72,6 +74,7 @@ static MMFinding *FindingFor(MMLHHost *h, NSDate *keptUntil) {
         [ev addObject:[MMEvidence label:@"State" value:MMLHStateWords(h) raw:MMLHStateName(h.state)]];
         [ev addObject:[MMEvidence label:@"Started by" value:h.launcher ?: @"" raw:h.launcher]];
         if (h.isDev) [ev addObject:[MMEvidence label:@"Agent" value:MMLHSessionWords(h.session) raw:h.session]];
+        else if (h.isAgent) [ev addObject:[MMEvidence label:@"Agent" value:MMLHAgentWords(h) raw:h.agent]];
         b.evidence = ev;
         b.proposal = [MMProposal verb:@"stop" title:@"Stop Server" reversibility:MMReversibleRestart];
         b.procs = StopKeys(h);
@@ -99,6 +102,8 @@ static MMLHHost *FreshHost(MMFinding *f, MMFacts *facts) {
 - (NSString *)workKeeps:(MMFinding *)f facts:(MMFacts *)facts {
     MMLHHost *h = FreshHost(f, facts);
     if (!h) return @"cannot verify: it restarted or stopped since the plan";
+    // An agent that serves a port of its own is no dev server on any port: a stop would end the agent.
+    if (h.isAgent) return MMLHAgentPortWords(h);
     if (!h.isDev) return @"not a dev server";
     if (h.isProtected) return @"protected";
     if (h.state != MMLHIdle) return h.lastActive ? [NSString stringWithFormat:@"used %@", MMAgo(h.lastActive)] : @"in use";
@@ -536,6 +541,7 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
     service.decide = ^MMVerdict *(MMLHHost *h) {
         if ([h.kind isEqualToString:@"service"]) return Keep([NSString stringWithFormat:@"%@, a shared service", h.framework], @"No mode stops a shared service.");
         if ([h.kind isEqualToString:@"other"]) return Keep([NSString stringWithFormat:@"%@ on a high port", h.framework], @"A high-port listener is listed only.");
+        if (h.isAgent) return Keep(MMLHAgentPortWords(h), @"An agent's own port is listed only. No mode stops an agent.");
         return nil;
     };
     MMLHRule *active = [MMLHRule new];
@@ -650,7 +656,7 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
 - (NSString *)accessibilityStateFor:(MMSnapshot *)s { return MMLHAccessibilityState([self viewFor:s]); }
 
 - (BOOL)fieldEmptyIn:(MMSnapshot *)s {
-    for (MMFinding *f in [s findingsFor:kExpert]) if (![f.facts[@"kind"] isEqual:@"other"]) return NO;
+    for (MMFinding *f in [s findingsFor:kExpert]) if (![f.facts[@"kind"] isEqual:@"other"] && ![f.facts[@"kind"] isEqual:@"agent"]) return NO;
     return YES;
 }
 
@@ -658,34 +664,64 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
 
 - (BOOL)openURL:(NSURL *)url {
     NSString *c = url.host.lowercaseString ?: @"";
-    if ([c isEqualToString:@"review"]) { [self act:@"review" key:nil option:NO snapshot:MMGraph.shared.current]; return YES; }
-    if ([c isEqualToString:@"close-idle"]) { [self act:@"close-idle" key:nil option:NO snapshot:MMGraph.shared.current]; return YES; }
+    if ([c isEqualToString:@"review"]) { [self act:@"review" key:nil option:NO snapshot:MMGraph.shared.current present:NO]; return YES; }
+    if ([c isEqualToString:@"close-idle"]) { [self closeIdleFromLink:MMGraph.shared.current]; return YES; }
     return NO;
 }
 
 #pragma mark Actions from the menu
 
-static void Alert(NSString *title, NSString *text) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSAlert *a = [NSAlert new];
-        a.messageText = title; a.informativeText = text ?: @"";
-        [NSApp activateIgnoringOtherApps:YES];
-        [a runModal];
-    });
-}
+/// D3: what failed goes to the log as a notice, with at most one notification. No alert waits for a person.
+static void Notice(NSString *title, NSString *text) { MMNotice(kExpert, title, text); }
 
 static void Copy(NSString *s) {
     [NSPasteboard.generalPasteboard clearContents];
     [NSPasteboard.generalPasteboard setString:s ?: @"" forType:NSPasteboardTypeString];
 }
 
-/// Main thread. Anything that signals or restarts runs on the act queue, through MMRunAction or MMUndo.
+/// Stops each server on the act queue with SIGTERM only, checked fresh by MMRunAction, then says what did not stop.
+- (void)closeIdle:(NSArray<MMFinding *> *)c by:(NSString *)by why:(NSString *)why {
+    dispatch_async(ActQueue(), ^{
+        NSMutableArray *failed = [NSMutableArray new];
+        for (MMFinding *x in c) {
+            NSString *err = nil;
+            MMUndoRecord *r = MMRunAction(MMLHStopAction(x, MMStopTerm), MMLHManualPolicy(), nil, by, why, &err);
+            if (!r || r.state != MMUndoDone) [failed addObject:[NSString stringWithFormat:@"%@: %@", x.title, err ?: r.error ?: @"it did not stop"]];
+        }
+        if (failed.count) Notice(@"Some Servers Did Not Stop", [failed componentsJoinedByString:@"\n"]);
+        [MMGraph.shared rebuild:@"locohost close idle"];
+    });
+}
+
+/// locohost://close-idle, on main. A link can come from any web page, so with a person at the Mac it asks first and
+/// never acts unasked. On a Mac that runs unattended, D3, nobody could answer, so it runs as `locohost close-idle`
+/// does with nobody at the terminal: SIGTERM only, each stop with its record by "url", which Undo starts again.
+- (void)closeIdleFromLink:(MMSnapshot *)s {
+    NSArray<MMFinding *> *c = MMLHCandidates([s findingsFor:kExpert], [s reviewFor:kExpert]);
+    if (!c.count) return;
+    NSMutableString *list = [NSMutableString new];
+    for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
+    [list appendString:@"\nEach is checked again first and sent SIGTERM, and Recently Stopped can start each one again."];
+    if (!MMUnattended() && !MMAskPerson([NSString stringWithFormat:@"Stop %@?", MMPlural(c.count, @"Idle Server")], list, @"Stop Them", nil)) return;
+    [self closeIdle:c by:@"url" why:@"Close Idle from a link"];
+}
+
+/// Main thread, from the menu: whether a person is plainly there is read now, at the press.
 - (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s {
+    [self act:what key:key option:option snapshot:s present:MMPersonPresses()];
+}
+
+/// Main thread. Anything that signals or restarts runs on the act queue, through MMRunAction or MMUndo.
+/// present: a person made this press and is there to answer a confirm. NO for a link and while unattended.
+- (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s present:(BOOL)present {
     if ([what isEqualToString:@"investigate"] && key) {
-        // Issue #35. The cost and the model show first, and only a confirmed run starts.
+        // Issue #35. The cost and the model show first, and only a confirmed run starts. A run costs tokens and has
+        // no way back, so with nobody there to confirm it nothing runs, and the notice says how to run it.
         [MMInvestigations.shared ask:key snapshot:s confirm:^NSString *(NSString *title, NSString *text, NSString *placeholder) {
-            return MMInvestigateConfirm(title, text, placeholder);
-        } failed:^(NSString *error) { MMInvestigateFailed(error); }];
+            if (present) return MMInvestigateConfirm(title, text, placeholder);
+            Notice(@"Investigate Did Not Run", [NSString stringWithFormat:@"Nobody was there to confirm what it costs. minmacs investigate %@ --yes runs it.", key]);
+            return nil;
+        } failed:^(NSString *error) { Notice(@"Investigate Failed", MMSentence(error ?: @"the model did not answer")); }];
         return;
     }
     MMFinding *f = key ? [s finding:key] : nil;
@@ -694,28 +730,18 @@ static void Copy(NSString *s) {
         dispatch_async(ActQueue(), ^{
             NSString *err = nil;
             MMUndoRecord *r = MMRunAction(MMLHStopAction(f, option ? MMStopKill : MMStopTerm), MMLHManualPolicy(), nil, @"manual", @"stopped from the menu", &err);
-            if (!r || r.state != MMUndoDone) Alert([NSString stringWithFormat:@"Could Not Stop :%ld", (long)h.port], MMSentence(err ?: r.error));
+            if (!r || r.state != MMUndoDone) Notice([NSString stringWithFormat:@"Could Not Stop :%ld", (long)h.port], MMSentence(err ?: r.error));
             [MMGraph.shared rebuild:@"locohost stop"];
         });
     } else if ([what isEqualToString:@"close-idle"]) {
-        NSArray *c = MMLHCandidates([s findingsFor:kExpert], [s reviewFor:kExpert]);
-        dispatch_async(ActQueue(), ^{
-            NSMutableArray *failed = [NSMutableArray new];
-            for (MMFinding *x in c) {
-                NSString *err = nil;
-                MMUndoRecord *r = MMRunAction(MMLHStopAction(x, MMStopTerm), MMLHManualPolicy(), nil, @"manual", @"Close Idle", &err);
-                if (!r || r.state != MMUndoDone) [failed addObject:[NSString stringWithFormat:@"%@: %@", x.title, err ?: r.error ?: @"it did not stop"]];
-            }
-            if (failed.count) Alert(@"Some Servers Did Not Stop", [failed componentsJoinedByString:@"\n"]);
-            [MMGraph.shared rebuild:@"locohost close idle"];
-        });
+        [self closeIdle:MMLHCandidates([s findingsFor:kExpert], [s reviewFor:kExpert]) by:@"manual" why:@"Close Idle"];
     } else if ([what isEqualToString:@"review"]) {
         _reviewing = YES; _view = nil;
         [MMReviewBroker.shared wake:@"manual" expert:kExpert];
     } else if ([what isEqualToString:@"restart"] && key) {
         dispatch_async(ActQueue(), ^{
             NSString *problem = [MMUndo.shared restore:key];
-            if (problem) Alert(@"Could Not Restart", MMSentence(problem));
+            if (problem) Notice(@"Could Not Restart", MMSentence(problem));
             [MMGraph.shared rebuild:@"locohost restart"];
         });
     } else if (!h) {
@@ -723,10 +749,10 @@ static void Copy(NSString *s) {
     } else if ([what isEqualToString:@"go"]) {
         MMPlace *p = MMWhereIs(Key(h.pid, h.startSec), s.facts.sample, NO);
         if (!p) return;
-        // MMGoTo runs cmux, tmux or AppleScript and can take seconds, so it runs off main. Alert goes back to main.
+        // MMGoTo runs cmux, tmux or AppleScript and can take seconds, so it runs off main. A failure is a notice.
         dispatch_async(MMQueue(kExpert, @"go", QOS_CLASS_USER_INITIATED), ^{
             NSString *err = nil;
-            if (!MMGoTo(p, &err) && err) Alert([NSString stringWithFormat:@"Could Not Go to %@", p.app ?: @"It"], err);
+            if (!MMGoTo(p, &err) && err) Notice([NSString stringWithFormat:@"Could Not Go to %@", p.app ?: @"It"], err);
         });
     } else if ([what isEqualToString:@"open"]) {
         [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:h.url]];
@@ -739,9 +765,9 @@ static void Copy(NSString *s) {
     } else if ([what isEqualToString:@"keep"]) {
         // The keeps file is read and written on the act queue. The rebuild after it carries the new keep to the menu.
         BOOL kept = [f.facts[@"keptUntil"] doubleValue] > NSDate.date.timeIntervalSince1970;
-        NSString *key = f.stableKey;
+        NSString *key = f.stableKey, *name = f.title;
         dispatch_async(ActQueue(), ^{
-            [MMKeep keep:key expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600]];
+            [MMKeep keep:key expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600] by:@"manual" name:name];
             [MMGraph.shared rebuild:@"locohost keep"];
         });
         _view = nil;
@@ -824,16 +850,24 @@ static void Copy(NSString *s) {
     NSInteger stopped = 0;
     NSString *lastRid = nil;
     NSMutableArray *lines = [NSMutableArray new];
+    NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
     for (NSArray *t in todo) {
         MMFinding *f = t[0];
         NSString *err = nil;
         MMUndoRecord *rec = MMRunAction(MMLHStopAction(f, MMStopTerm), MMLHModePolicy(), r, MMModeName(mode), t[1], &err);
-        if (!rec) continue;
         MMLHHost *h = HostOf(f);
+        NSString *name = [NSString stringWithFormat:@":%ld %@", (long)h.port, h.project ?: @""];
+        if (!rec) {
+            [skipped addObject:MMLogRunSkip(name, [err hasPrefix:@"kept: "] ? [err substringFromIndex:6] : err, [err hasPrefix:@"kept: "] ? @"kept" : @"blocked")];
+            continue;
+        }
         BOOL ok = rec.state == MMUndoDone;
         if (ok) { stopped++; freed += h.memory; lastRid = rec.rid; }
+        else [skipped addObject:MMLogRunSkip(name, @"it ignored SIGTERM and still runs", @"failed")];
         [lines addObject:[NSString stringWithFormat:@":%ld %@%@", (long)h.port, h.project, ok ? @"" : @" is still running, since it ignored SIGTERM"]];
     }
+    // The pass's row in the log: what it planned, what it did and what it skipped, with why.
+    MMLogRun(kExpert, MMModeName(mode), (NSInteger)todo.count, stopped, skipped, freed, 0);
     if (!lines.count) return;
     NSString *title = [NSString stringWithFormat:@"Stopped %@, Freed %@", MMCapitalized(MMPlural(stopped, @"server")).capitalizedString, MMBytes(freed)];
     NSString *body = [NSString stringWithFormat:@"%@ stopped %@. Undo starts %@ again from its recorded command.",

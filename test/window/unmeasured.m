@@ -8,9 +8,11 @@ static void Unmeasured(void) {
     NSString *w1 = Dir(@"trees/fix-auth-redirect"), *w2 = Dir(@"trees/old-spike"), *w3 = Dir(@"repo"), *w4 = Dir(@"trees/wip"), *w5 = Dir(@"trees/gone");
     Tree(w5, NO, MMMergedNone);
     // As MMWFTree's json writes them: sized is NO until the first walk ends, and a folder that is gone is never walked.
+    // All last worked on at one time, so the window orders them by size.
+    NSTimeInterval now = floor(NSDate.date.timeIntervalSince1970);
     NSDictionary *(^tree)(NSString *, id, BOOL, BOOL) = ^(NSString *path, id merged, BOOL sized, BOOL missing) {
         return @{@"path": path, @"branch": path.lastPathComponent, @"merged": merged, @"dirty": @0, @"untracked": @0, @"unpushed": @0,
-                 @"sized": @(sized), @"missing": @(missing), @"lastWorkAt": @(NSDate.date.timeIntervalSince1970 - 12 * 86400)};
+                 @"sized": @(sized), @"missing": @(missing), @"lastWorkAt": @(now - 12 * 86400)};
     };
     const uint64_t DMB = 1000 * 1000;
     gFindings[@"workforest"] = @[

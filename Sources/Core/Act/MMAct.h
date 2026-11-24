@@ -10,7 +10,9 @@
 /// Eager also acts on what the judge lets go. Starts from WF Forest.m:22-56.
 typedef NS_ENUM(NSInteger, MMMode) { MMModeIdle = 0, MMModeProactive = 1, MMModeEager = 2 };
 MMMode MMModeFor(NSString *expert);                     // the <expert>.mode pref, Proactive by default
-void MMSetMode(NSString *expert, MMMode mode);
+/// Sets the mode and writes its row in the log's setting table, MMLogSetting. by says who: "window", "settings",
+/// "cli", "migration".
+void MMSetMode(NSString *expert, MMMode mode, NSString *by);
 NSString *MMModeName(MMMode mode);                      // idle, proactive, eager
 NSInteger MMModeFrom(NSString *name);                   // -1 when unknown
 /// P48. YES once MinMacs has watched for a day after its first launch. No mode acts on its own before that.
@@ -53,7 +55,9 @@ NSArray<MMPlanEntry *> *MMPlan(NSArray<MMFinding *> *findings, MMFacts *facts, M
 /// menu never waits on disk, and reads the file only when nothing was read yet, as in a CLI.
 /// An expert reads it in -findingsFrom:, on the graph queue in the app.
 + (NSDate *)keptUntil:(NSString *)stableKey expert:(NSString *)expert;
-+ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until;   // nil ends the keep
+/// until nil ends the keep. Each keep given or ended is a row of the log's keep table, MMLogKeepTable, with who gave
+/// it, "manual" from a menu or "cli", the words MMRunAction takes, and the name the person knows it by.
++ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until by:(NSString *)by name:(NSString *)name;
 /// P50. The protect list in the expert's rules file of P36, matched with its wildcards.
 + (BOOL)isProtected:(NSString *)value expert:(NSString *)expert;
 @end
@@ -76,7 +80,8 @@ NSUInteger MMKeepMainThreadReads(void);
 /// P51. Runs one action the safe way, in this order:
 /// recheck, then MMMustKeep on -[MMGraph freshFactsFor:], then the undo record, then perform, then finish.
 /// review is the review a mode acted on, so work after it keeps. Pass nil for an action the person asked for.
-/// by says who asked: "manual" from a menu, "cli" from the command line, "proactive" or "eager" from a mode,
+/// by says who asked: "manual" from a menu, "cli" from the command line, "url" from a link such as
+/// workforest://clean-up, "proactive" or "eager" from a mode, "migration" from the move from the old apps,
 /// or "guard" from an expert's own rule that follows the state, such as Insomnia's lid override. Blocks. Never on main.
 /// Returns the finished record, or nil with *error when the action did not start.
 MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review,

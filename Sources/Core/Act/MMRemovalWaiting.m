@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: what still waits in a staging folder that MinMacs cannot settle by itself, and the
+// Removal, MMRemoval.h: what still waits in a staging folder that MinMacs cannot settle by itself, and the
 // person's two ways out, delete it now or put it back. Nothing here deletes or moves a file itself: the one delete is
 // MMRemovalDeleteStagedItem and the one move is MMRemovalPutBackStagedItem, both in MMRemovalApply.m. Every field of a
 // record is read through the checked reader of MMUndo.h.

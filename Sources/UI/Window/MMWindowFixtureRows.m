@@ -41,7 +41,7 @@ NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count) {
     // port, framework, megabytes, CPU in tenths or -1, state, project
     NSArray *t = @[@[@3001, @"Next.js", @412, @6, @"", @"atlas"], @[@6006, @"Storybook", @520, @3, @"", @"icons"],
                    @[@3000, @"Next.js", @412, @-1, @"", @"studio"], @[@4000, @"Phoenix", @260, @-1, @"kept", @"lexicon"],
-                   @[@8888, @"Jupyter", @290, @-1, @"", @"scoring"], @[@1313, @"Hugo", @60, @-1, @"idle", @"handbook"],
+                   @[@49210, @"Claude Code", @306, @-1, @"", @"scoring"], @[@1313, @"Hugo", @60, @-1, @"idle", @"handbook"],
                    @[@4100, @"Phoenix", @260, @5, @"", @"lexicon"], @[@3334, @"Astro", @240, @-1, @"idle", @"parity"],
                    @[@4321, @"Astro", @240, @4, @"idle", @"parity"], @[@4322, @"Astro", @240, @2, @"idle", @"parity"],
                    @[@9000, @"Django", @210, @-1, @"", @"uploader"], @[@5180, @"Vite", @188, @4, @"", @"speed"],
@@ -61,6 +61,14 @@ NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count) {
                                             [s[1] lowercaseString], [s[4] length] ? s[4] : nil, [s[2] unsignedLongLongValue] * MB, [s[3] integerValue] < 0 ? -1 : [s[3] integerValue] / 10.0);
         r.hour = MMWindowFixtureHour(r.bytes, r.key, i % 4);
         r.inFix = idle; r.quiet = idle;
+        // An agent's own port: Claude Code listens on it itself, so the server is named by the agent and says which
+        // session it is, as the agent "Score answers" says it serves this port.
+        if ([s[1] isEqualToString:@"Claude Code"]) {
+            r.facts = Facts(@[MMWindowFactPort(port), MMWindowFactAgent(s[1]), MMWindowFactSession(@"Score answers"), MMWindowFactProject(s[5]),
+                              MMWindowFactStartedBy(@"Terminal"), MMWindowFactLastUsed(180), MMWindowFactUp(2640)]);
+            [rows addObject:r];
+            continue;
+        }
         r.facts = Facts(@[MMWindowFactPort(port), MMWindowFactProject(i % 5 == 4 ? [NSString stringWithFormat:@"/Users/sam/code/%@-worktrees/review/apps/web", s[5]] : s[5]),
                           MMWindowFactRunsIn(i % 3 ? @"Ghostty, tab 2" : @"Terminal"), MMWindowFactStartedBy(i % 4 == 3 ? @"cmux · parent exited" : i % 2 ? @"Claude Code" : @"launchd"),
                           idle ? MMWindowFactIdle(7800) : MMWindowFactLastUsed(i % 6 ? 180 : 4), MMWindowFactUp(i % 2 ? 108000 : 9360),
@@ -87,10 +95,28 @@ NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking)
                                             asks ? @"asks" : idle ? @"idle" : @"working", [a[1] unsignedLongLongValue] * MB, [a[2] integerValue] < 0 ? -1 : [a[2] integerValue] / 10.0);
         r.needsYou = asks; r.quiet = idle;
         r.hour = MMWindowFixtureHour(r.bytes, r.key, (i + 1) % 4);
-        r.facts = Facts(@[MMWindowFactAgent(i % 3 == 2 ? @"Codex" : @"Claude Code"), MMWindowFactProject(a[3]), MMWindowFactState(asks ? @"waits on you" : idle ? @"idle" : @"working")]);
+        r.facts = Facts(@[MMWindowFactAgent(i % 3 == 2 ? @"Codex" : @"Claude Code"), MMWindowFactProject(a[3]), OR_NONE(i == 1 ? MMWindowFactServes(@[@49210]) : nil), MMWindowFactState(asks ? @"waits on you" : idle ? @"idle" : @"working")]);
         [rows addObject:r];
     }
     return rows;
+}
+
+void MMWindowFixtureAgentStories(NSArray<MMWindowRow *> *agents) {
+    // As MMWindowAgentFacts tells them, Shell/MMWindowAgent.m. "Sort lane C by due" has every fact: its folder and
+    // branch, how long it runs, what it did in the last hour, its cmux tab with Go to, its worktree with the pull
+    // request, the server it started, its session's scratch and the processes under it. "Match studio views", Codex,
+    // has no session facts: only what is known is said.
+    if (agents.count > 3) {
+        MMWindowRow *r = agents[3];
+        r.goTo = @"cmux";
+        r.facts = Facts(@[MMWindowFactAgent(@"Claude Code"), MMWindowFactProject(@"~/code/barkbot-worktrees/lane-c"), MMWindowFactBranch(@"lane-c"),
+                          MMWindowFactUp(2 * 3600 + 36 * 60), MMWindowFactLastActive(5), MMWindowFactRecently(42, 6, 3600),
+                          MMWindowFactRunsIn(@"cmux, barkbot, lane C"), MMWindowFactWorktree(@"barkbot · lane-c", @"worktree:lane-c"),
+                          MMWindowFactPullRequest(142, @"open", NO, @"Phase 6"), MMWindowFactServes(@[@49211]),
+                          MMWindowFactServer(@":5175 Vite", @"server:5175"), MMWindowFactCache(@"Claude Code scratch", 112 * DMB, YES, @"kin:noonoo:claude-code-scratch"),
+                          MMWindowFactProcesses(14, 820 * MB), MMWindowFactState(@"working")]);
+    }
+    if (agents.count > 2) agents[2].facts = Facts(@[MMWindowFactAgent(@"Codex"), MMWindowFactState(@"idle")]);
 }
 
 NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count) {
@@ -127,26 +153,37 @@ NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count) {
     return rows;
 }
 
-NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count) {
-    // name, state, megabytes of disk, in Fix Everything
-    NSArray *t = @[@[@"dogfood", @"", @3144, @NO], @[@"fix-auth-redirect", @"merged", @1905, @YES], @[@"parity", @"kept", @1884, @NO],
-                   @[@"media-scope", @"changed", @1393, @NO], @[@"speed-3-base", @"changed", @1331, @NO], @[@"bundle-split", @"merged", @1126, @YES],
-                   @[@"sweep-403", @"", @1085, @NO], @[@"judge-scoring", @"changed", @990, @NO], @[@"fieldsets", @"merged", @900, @YES],
-                   @[@"search-index", @"changed", @850, @NO], @[@"perf-budget", @"changed", @710, @NO], @[@"uploader-v2", @"", @690, @NO],
-                   @[@"lane-c", @"changed", @650, @NO], @[@"icons-v1", @"merged", @590, @YES], @[@"glossary-import", @"changed", @490, @NO],
-                   @[@"schema-diff", @"changed", @410, @NO], @[@"billing-cents", @"changed", @388, @NO], @[@"notes-export", @"", @342, @NO]];
+NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count, NSInteger projects) {
+    // branch, state, megabytes of disk, in Fix Everything, project, main checkout, seconds since the last work. Five
+    // projects, as on a Mac where agents work in several repos at once: the first four rows are two of them.
+    NSArray *t = @[@[@"dogfood", @"changed", @3144, @NO, @"minmacs", @NO, @40], @[@"fix-auth-redirect", @"merged", @1905, @YES, @"atlas", @NO, @(6 * 86400)],
+                   @[@"main", @"kept", @1884, @NO, @"atlas", @YES, @(50 * 60)], @[@"media-scope", @"changed", @1393, @NO, @"minmacs", @NO, @(12 * 60)],
+                   @[@"speed-3-base", @"changed", @1331, @NO, @"barkbot", @NO, @(2 * 3600)], @[@"bundle-split", @"merged", @1126, @YES, @"studio", @NO, @(11 * 86400)],
+                   @[@"sweep-403", @"", @1085, @NO, @"gateway", @NO, @(3 * 86400)], @[@"judge-scoring", @"changed", @990, @NO, @"barkbot", @NO, @(25 * 60)],
+                   @[@"fieldsets", @"merged", @900, @YES, @"studio", @NO, @(14 * 86400)], @[@"search-index", @"changed", @850, @NO, @"atlas", @NO, @(3 * 3600)],
+                   @[@"perf-budget", @"changed", @710, @NO, @"minmacs", @NO, @(5 * 3600)], @[@"uploader-v2", @"", @690, @NO, @"gateway", @NO, @(4 * 86400)],
+                   @[@"lane-c", @"changed", @650, @NO, @"barkbot", @NO, @86400], @[@"icons-v1", @"merged", @590, @YES, @"studio", @NO, @(20 * 86400)],
+                   @[@"glossary-import", @"changed", @490, @NO, @"atlas", @NO, @(7 * 3600)], @[@"schema-diff", @"changed", @410, @NO, @"gateway", @NO, @(9 * 3600)],
+                   @[@"billing-cents", @"changed", @388, @NO, @"barkbot", @NO, @(2 * 86400)], @[@"notes-export", @"", @342, @NO, @"studio", @NO, @(30 * 86400)]];
+    // The made-up now that every last work is counted back from, so a render is the same on every run.
+    const NSTimeInterval now = 1800000000;
     NSMutableArray *rows = [NSMutableArray new];
     for (NSInteger i = 0; i < MIN(count, (NSInteger)t.count); i++) {
         NSArray *w = t[i];
-        NSString *state = w[1];
-        BOOL changed = [state isEqualToString:@"changed"], merged = [state isEqualToString:@"merged"];
-        MMWindowRow *r = MMWindowFixtureRow(MMWindowWorktree, [@"worktree:" stringByAppendingString:w[0]], w[0], nil, state.length ? state : nil, [w[2] unsignedLongLongValue] * DMB, -1);
+        NSString *state = w[1], *branch = w[0], *project = projects == 1 ? @"atlas" : w[4];
+        BOOL changed = [state isEqualToString:@"changed"], main = [w[5] boolValue] && projects != 1;
+        NSTimeInterval ago = [w[6] doubleValue];
+        // As MMWindowNameOf names them: a main checkout by its repo, a linked worktree by its repo and branch.
+        NSString *key = main ? [@"worktree:" stringByAppendingString:project] : [@"worktree:" stringByAppendingString:branch];
+        NSString *name = main ? project : [NSString stringWithFormat:@"%@ · %@", project, branch];
+        MMWindowRow *r = MMWindowFixtureRow(MMWindowWorktree, key, name, nil, state.length ? state : nil, [w[2] unsignedLongLongValue] * DMB, -1);
+        r.project = project; r.nameInProject = main ? MMWindowMainCheckout : branch; r.workedAt = now - ago;
         r.inFix = [w[3] boolValue];
         r.quiet = !changed;
-        r.facts = Facts(@[MMWindowFactBranch(w[0]), OR_NONE(changed ? MMWindowFactFiles(i % 2 ? 3 : 2, i % 2 ? 1 : 0) : nil), OR_NONE(changed ? MMWindowFactNotPushed(2) : nil),
-                          MMWindowFactUntouched(changed && i % 4 == 3 ? 3 : 86400.0 * (1 + i)), MMWindowFactFolder([NSString stringWithFormat:@"~/code/%@-worktrees/%@", i % 2 ? @"studio" : @"atlas", w[0]]),
-                          OR_NONE([state isEqualToString:@"kept"] ? MMWindowFactStays(@"you asked to keep it") : nil)]);
-        (void)merged;
+        NSString *folder = main ? [@"~/code/" stringByAppendingString:project] : [NSString stringWithFormat:@"~/code/%@-worktrees/%@", project, branch];
+        r.facts = Facts(@[MMWindowFactBranch(branch), OR_NONE(changed ? MMWindowFactFiles(i % 2 ? 3 : 2, i % 2 ? 1 : 0) : nil), OR_NONE(changed ? MMWindowFactNotPushed(2) : nil),
+                          MMWindowFactUntouched(ago), MMWindowFactFolder(folder),
+                          OR_NONE([state isEqualToString:@"kept"] ? MMWindowFactStays(main ? @"it is the repo's main checkout" : @"you asked to keep it") : nil)]);
         [rows addObject:r];
     }
     return rows;
@@ -173,10 +210,56 @@ NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count) {
     return rows;
 }
 
+NSArray<MMWindowRow *> *MMWindowFixtureLeftovers(void) {
+    // As Noo-Noo and the feed make them, Shell/MMWindowRows.m: one row a temp-folder family, named by its prefix, in one
+    // temp folder, each with its split as its why. 169 families of the owner's Mac, three of them in use.
+    NSArray<NSString *> *names = @[@"MMArgs", @"MMAct", @"MMRepoIndex", @"MMUndo", @"MMSizer", @"MMGitFacts", @"swift-build", @"clang-module", @"vite-deps",
+                                   @"tsc-watch", @"jest-cache", @"esbuild-meta", @"go-link", @"pytest-run", @"cargo-install"];
+    NSString *folder = @"/private/var/folders/x4/k7_2l9qn1s5c/T";
+    NSMutableArray<MMWindowRow *> *rows = [NSMutableArray new];
+    NSInteger folders = 0;
+    for (NSInteger i = 0; i < 169; i++) {
+        NSString *prefix = i < (NSInteger)names.count ? names[(NSUInteger)i] : [NSString stringWithFormat:@"build-%03ld", (long)i];
+        BOOL live = i == 4 || i == 61 || i == 130;
+        NSInteger members = i == 168 ? 45282 - folders : 240 + (i * 37) % 40;
+        folders += members;
+        MMWindowRow *r = MMWindowFixtureRow(MMWindowCache, [NSString stringWithFormat:@"noonoo:clutter:tmpdir-families:%@-", prefix], [prefix stringByAppendingString:@"-* folders"], nil,
+                                            live ? @"in use" : nil, (uint64_t)(2400 - i * 13) * 2000, -1);
+        r.inFix = !live; r.quiet = !live;
+        NSString *why = live ? @"a running process has a file open in it" : [NSString stringWithFormat:@"%ld old and empty", (long)members];
+        r.facts = Facts(@[MMWindowFactKind(@"Temp folder families"), MMWindowFactFolder(folder), MMWindowFactStays(why)]);
+        MMWindowKin *k = [MMWindowKin new];
+        k.key = @"noonoo:tmpdir-families"; k.title = @"Temp folders left by tools"; k.one = @"group"; k.many = @"groups";
+        k.innerOne = @"folder"; k.innerMany = @"folders"; k.inner = members;
+        k.path = [NSString stringWithFormat:@"%@/%@-*", folder, prefix]; k.canGo = !live; k.why = live ? why : nil;
+        r.kin = k;
+        [rows addObject:r];
+    }
+    // Claude Code's scratch of four sessions, one of them still running.
+    NSArray<NSString *> *sessions = @[@"3f9a21c0", @"b71e0d44", @"c02f9e1a", @"e8d4a7b2"];
+    for (NSUInteger i = 0; i < sessions.count; i++) {
+        BOOL live = i == 2;
+        MMWindowRow *r = MMWindowFixtureRow(MMWindowCache, [@"noonoo:clutter:claude-code-scratch:" stringByAppendingString:sessions[i]], @"Claude Code scratch", nil,
+                                            live ? @"in use" : nil, (uint64_t)(1200 - 260 * i) * DMB, -1);
+        r.inFix = !live; r.quiet = !live;
+        NSString *why = live ? @"its session is still running" : @"its session ended 9 d ago";
+        r.facts = Facts(@[MMWindowFactKind(@"Claude Code scratch"), MMWindowFactOwner([@"session " stringByAppendingString:sessions[i]]),
+                          MMWindowFactFolder([NSString stringWithFormat:@"/private/tmp/claude-501/-Users-sam-code/%@", sessions[i]]), MMWindowFactStays(why)]);
+        MMWindowKin *k = [MMWindowKin new];
+        k.key = @"noonoo:claude-code-scratch"; k.title = @"Claude Code scratch"; k.one = @"session"; k.many = @"sessions";
+        k.path = [@"/private/tmp/claude-501/-Users-sam-code/" stringByAppendingString:sessions[i]]; k.canGo = !live; k.why = live ? why : nil;
+        r.kin = k;
+        [rows addObject:r];
+    }
+    return rows;
+}
+
 MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows) {
     MMWindowGroup *g = [MMWindowGroup new];
     g.key = key; g.title = title; g.side = side;
     g.emptyNote = MMWindowEmptyNote(key, MMWindowLookedDone);
+    // The worktrees as the feed orders them: by project, the most active first.
+    if ([key isEqualToString:@"worktrees"]) { g.byProject = YES; g.rows = MMWindowByProject(rows); return g; }
     // As the feed orders them: the measured rows biggest first, then the ones not measured yet.
     g.rows = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) {
         if (a.unmeasured != b.unmeasured) return a.unmeasured ? NSOrderedDescending : NSOrderedAscending;

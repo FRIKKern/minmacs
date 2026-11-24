@@ -8,9 +8,11 @@
 #import <sys/mount.h>
 #import <sys/sysctl.h>
 #import "Core/Act/MMAct.h"
+#import "Core/Store/MMQuiet.h"
 #import "Core/Store/MMGains.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
+#import "Core/Store/MMLog.h"
 
 static const double kSureConfidence = 0.8;               // Proactive acts only on a go this sure
 static const double kMinConfidence = 0.6;                // Eager acts on a go this sure, or one the judge made
@@ -46,7 +48,13 @@ MMMode MMModeFor(NSString *expert) {
     NSInteger m = [v isKindOfClass:NSString.class] ? MMModeFrom(v) : -1;
     return m < 0 ? MMModeProactive : (MMMode)m;
 }
-void MMSetMode(NSString *expert, MMMode mode) { MMSetPref([expert stringByAppendingString:@".mode"], MMModeName(mode)); }
+void MMSetMode(NSString *expert, MMMode mode, NSString *by) {
+    NSString *key = [expert stringByAppendingString:@".mode"];
+    // The mode as it stood, Proactive when the pref has none, so the row says what changed for the person.
+    NSString *old = MMModeName(MMModeFor(expert));
+    MMSetPref(key, MMModeName(mode));
+    MMLogSetting(key, old, MMModeName(mode), by);
+}
 
 #pragma mark - The day of watching
 
@@ -128,8 +136,12 @@ static BOOL ProtectedIn(NSString *expert, NSString *value) {
     else { @synchronized (self) { n = KeepsAll(expert)[stableKey]; } }
     return [n isKindOfClass:NSNumber.class] && n.doubleValue > NSDate.date.timeIntervalSince1970 ? [NSDate dateWithTimeIntervalSince1970:n.doubleValue] : nil;
 }
-+ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until {
++ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until by:(NSString *)by name:(NSString *)name {
     if (!stableKey.length || !expert.length) return;
+    // The log's row first, so the keep can be followed: who gave it, for what and until when.
+    NSDictionary *row = @{@"key": stableKey, @"name": name.length ? name : stableKey, @"by": by.length ? by : @"unknown",
+                          @"until": until ? @(until.timeIntervalSince1970) : NSNull.null};
+    MMLogWhenOpen(^(MMLog *log) { [log append:MMLogKeepTable rid:nil expert:expert subject:stableKey state:until ? @"kept" : @"ended" body:row]; });
     @synchronized (self) {
         NSMutableDictionary *all = KeepsAll(expert);
         double now = NSDate.date.timeIntervalSince1970;
@@ -219,11 +231,14 @@ static NSString *ModeDecides(MMFinding *f, MMReview *r, MMMode m, id<MMExpertPol
 NSArray<MMPlanEntry *> *MMPlan(NSArray<MMFinding *> *findings, MMFacts *facts, MMReview *r, MMMode m,
                                id<MMExpertPolicy> policy) {
     NSMutableArray *plan = [NSMutableArray new];
+    // D9: while a quiet hold is active no mode acts on anything, for every expert. Read once for the whole plan.
+    NSString *quiet = findings.count ? MMQuietWhy() : nil;
     for (MMFinding *f in findings) {
         BOOL act = NO;
         NSString *why = MMMustKeep(f, facts, r, policy);
         if (!why) why = ModeDecides(f, r, m, policy, &act);
         if (act && !MMWatchedLongEnough(f.expert)) { act = NO; why = [NSString stringWithFormat:@"would act (%@), but %@", why, WatchingWords(f.expert)]; }
+        if (act && quiet) { act = NO; why = [NSString stringWithFormat:@"would act (%@), but %@", why, quiet]; }
         MMPlanEntry *e = [MMPlanEntry new];
         e.finding = f; e.act = act; e.why = why;
         [plan addObject:e];
@@ -255,6 +270,8 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
         else if (!MMWatchedLongEnough(f.expert)) problem = [@"kept: " stringByAppendingString:WatchingWords(f.expert)];
         else if (!review) problem = @"kept: no review yet";
         else if (f.proposal.needsForce) problem = @"kept: a mode never makes a second request";
+        // D9: a quiet hold gives its task peace. A mode acts on nothing, whatever its plan said, until the hold ends.
+        else { NSString *quiet = MMQuietWhy(); if (quiet) problem = [@"kept: " stringByAppendingString:quiet]; }
     }
     // The rules files are read from disk for this check, never from the last second's cache, issue #52.
     if (!problem) MMRulesCheckNow();
@@ -263,12 +280,13 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
         if (r.length) problem = [@"cannot run now: " stringByAppendingString:r];
     }
     uint64_t memoryBefore = 0;
+    NSSet<NSString *> *counted = nil;
     if (!problem) {
         MMFacts *fresh = [MMGraph.shared freshFactsFor:f];
         NSString *keep = MMMustKeep(f, fresh, review, policy);
         if (keep) problem = [@"kept: " stringByAppendingString:keep];
         // What a stop or a quit gives back is the footprint it ends, read on the same fresh facts, before it runs.
-        else memoryBefore = MMGainsMemoryBefore(action, f, fresh);
+        else memoryBefore = MMGainsMemoryBefore(action, f, fresh, &counted);
     }
     if (problem) {
         if (error) *error = problem;
@@ -288,7 +306,7 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
     [MMUndo.shared finish:record ok:ok freed:freed error:ok ? nil : (err ?: @"the action failed")];
     if (!ok && error) *error = err ?: @"the action failed";
     // A finished action writes what came back. A failed one records nothing there.
-    if (ok) MMGainsRecordAction(action, record, f, memoryBefore, diskBefore);
+    if (ok) MMGainsRecordAction(action, record, f, memoryBefore, counted, diskBefore);
     return [MMUndo.shared record:record.rid] ?: record;
 }
 
@@ -511,7 +529,7 @@ static BOOL DiskNearlyFull(void) {
 void MMNotify(NSString *expert, NSString *title, NSString *body, NSString *undoRid) {
     if (undoRid) {
         MMUndoRecord *r = [MMUndo.shared record:undoRid];
-        if ([r.by isEqualToString:@"manual"] || [r.by isEqualToString:@"cli"]) return;   // the person asked, so they know
+        if ([r.by isEqualToString:@"manual"] || [r.by isEqualToString:@"cli"] || [r.by isEqualToString:@"url"]) return;   // someone asked, so they know
     }
     // One per review across every expert: reviews are at least 10 minutes apart, so one per 10 minutes.
     double now = NSDate.date.timeIntervalSince1970, gap = kNotifyGap;

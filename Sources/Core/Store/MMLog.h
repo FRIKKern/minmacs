@@ -32,6 +32,11 @@ typedef struct { NSTimeInterval at; double value; } MMTrendPoint;
                             since:(NSDate *)since limit:(NSUInteger)limit;
 /// Every row of one record, oldest first, such as an undo record from pending to done to restored.
 - (NSArray<MMLogEntry *> *)history:(NSString *)rid;
+/// The newest rows of these tables that came before row `before`, newest first, at most `limit`. `before` 0 means
+/// from the newest row. One range read of the (tbl, row) index per table, each of `limit` rows at most, so what it
+/// costs does not grow with the log, unlike -latest:, which groups the whole table. The menu window's log and
+/// `minmacs log` read through this.
+- (NSArray<MMLogEntry *> *)rows:(NSArray<NSString *> *)tables before:(int64_t)before limit:(NSUInteger)limit;
 /// Trends, such as "noonoo.disk.~/Library/Caches". Points sit in their own table, outside the append-only rows.
 /// One point per bucket is kept, and a newer value in the same bucket replaces it.
 - (void)addPoint:(NSString *)series value:(double)value at:(NSDate *)at bucket:(NSTimeInterval)bucket;
@@ -48,6 +53,40 @@ typedef void (^MMLogWork)(MMLog *log);
 void MMLogWhenOpen(MMLogWork work);
 /// How many logs this process opened on the main thread. The app holds this to zero.
 NSUInteger MMLogMainThreadOpens(void);
+
+/// How many rows this process wrote on the main thread, while MMLogOpenOffMain holds. The app holds this to zero:
+/// a write from main goes through MMLogWhenOpen.
+NSUInteger MMLogMainThreadWrites(void);
+
+#pragma mark Settings and keeps
+
+/// The table of setting changes, one row per change: {key, old, new, by}. Append-only, as every row.
+extern NSString *const MMLogSettingTable;               // @"setting"
+/// The table of keeps, one row per keep given or ended: {key, name, until, by}.
+extern NSString *const MMLogKeepTable;                  // @"keep"
+/// The one writer of a setting row. key is the pref, such as "locohost.mode", or "core.login" for the login item.
+/// old and now are plain values, nil for none. by says who: "window", "settings", "cli", "migration", "welcome".
+/// A change to the same value writes nothing. Safe from any queue: from main in the app the write goes to the log's
+/// own queue, MMLogWhenOpen, so main never touches SQLite.
+void MMLogSetting(NSString *key, id old, id now, NSString *by);
+/// MMSetPref, and its row through MMLogSetting with the value it held before.
+void MMSetSetting(NSString *key, id value, NSString *by);
+
+#pragma mark Runs
+
+/// The table of runs, one row per Fix Everything run and per automatic mode pass that planned anything:
+/// {what, by, planned, done, skipped: [{subject, why, as}], gains: {memory, disk}}. Append-only, as every row.
+extern NSString *const MMLogRunTable;                   // @"run"
+/// What a run is: "fix-everything", or the expert whose mode pass it was, such as "locohost".
+extern NSString *const MMLogRunFixEverything;           // @"fix-everything"
+/// One thing a run planned and did not do. subject names it as the window does, why says why in plain words, and
+/// as is one of "asks" (an agent asks the person), "press" (it waits for the person's own press), "kept" (MustKeep
+/// held it on fresh facts), "blocked" (it could not start), "failed" or "stopped" (the run was stopped before it).
+NSDictionary *MMLogRunSkip(NSString *subject, NSString *why, NSString *as);
+/// The one writer of a run row. planned and done count things, a Wrap Up as one. by is the words MMRunAction takes:
+/// "manual" for Fix Everything, the mode's name for a mode pass. Memory and disk back are two numbers. Safe from any
+/// queue: from main in the app the write goes to the log's own queue.
+void MMLogRun(NSString *what, NSString *by, NSInteger planned, NSInteger done, NSArray<NSDictionary *> *skipped, uint64_t memoryBack, uint64_t diskBack);
 
 /// How many queries this process ran on the main thread. A menu reads what the graph already holds, so the checks
 /// hold menus and cards to zero.

@@ -120,6 +120,7 @@ MMWindowFact *MMWindowFactKept(NSTimeInterval left) {
 }
 
 MMWindowFact *MMWindowFactAgent(NSString *harness) { NSString *h = Trimmed(harness); return Fact(@"Agent", h, h); }
+MMWindowFact *MMWindowFactSession(NSString *title) { NSString *t = Trimmed(title); return Fact(@"Session", t, t); }
 MMWindowFact *MMWindowFactState(NSString *state) { return Fact(@"State", Trimmed(state), nil); }
 MMWindowFact *MMWindowFactUsedBy(NSString *agent) { NSString *a = Trimmed(agent); return Fact(@"Used by", a, [@"used by " stringByAppendingString:a]); }
 MMWindowFact *MMWindowFactServes(NSArray *ports) { NSString *p = Ports(ports); return Fact(@"Serves", p, [@"serves " stringByAppendingString:p ?: @""]); }
@@ -156,6 +157,170 @@ MMWindowFact *MMWindowFactUntouched(NSTimeInterval seconds) {
 
 MMWindowFact *MMWindowFactKind(NSString *kind) { NSString *k = Trimmed(kind); return Fact(@"Kind", k, k); }
 
+#pragma mark A worktree's git
+
+static NSString *BranchName(NSString *defaultBranch) {
+    NSString *d = Trimmed(defaultBranch).lastPathComponent;
+    return d.length ? d : @"the default branch";
+}
+
+MMWindowFact *MMWindowFactLastCommit(NSString *subject, NSString *head, NSTimeInterval ago) {
+    NSMutableArray<NSString *> *parts = [NSMutableArray new];
+    // A subject is one line; a long one wraps in the story and is never cut.
+    NSString *s = [[Trimmed(subject) componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet] componentsJoinedByString:@" "];
+    if (s.length) [parts addObject:s];
+    NSString *h = Trimmed(head);
+    if (h.length >= 7) [parts addObject:[h substringToIndex:7]];
+    if (ago >= 0 && parts.count) { NSString *span = MMWindowSpan(ago); [parts addObject:span ? [span stringByAppendingString:@" ago"] : @"just now"]; }
+    return Fact(@"Last commit", [parts componentsJoinedByString:@" · "], nil);
+}
+
+MMWindowFact *MMWindowFactAgainst(NSInteger ahead, NSInteger behind, NSString *defaultBranch) {
+    NSString *d = BranchName(defaultBranch);
+    BOOL a = ahead > 0, b = behind > 0;
+    if (a && b) return Fact(@"Against", [NSString stringWithFormat:@"%ld ahead, %ld behind %@", (long)ahead, (long)behind, d], nil);
+    if (a) return Fact(@"Against", [NSString stringWithFormat:@"%ld ahead of %@", (long)ahead, d], nil);
+    if (b) return Fact(@"Against", [NSString stringWithFormat:@"%ld behind %@", (long)behind, d], nil);
+    return nil;
+}
+
+MMWindowFact *MMWindowFactMerged(NSString *how, NSString *defaultBranch) {
+    NSString *h = Trimmed(how), *d = BranchName(defaultBranch);
+    if (!h.length) return nil;
+    NSDictionary<NSString *, NSString *> *words = @{
+        @"ancestor": [@"Merged into " stringByAppendingString:d], @"squash": [@"Squash-merged into " stringByAppendingString:d],
+        @"patch": [NSString stringWithFormat:@"Each of its commits is in %@", d], @"tree": [NSString stringWithFormat:@"Its files match %@", d],
+        @"pr": @"Its pull request was merged", @"merge-tree": [@"Merges cleanly into " stringByAppendingString:d]};
+    return Fact(@"Merged", words[h] ?: [@"Merged into " stringByAppendingString:d], nil);
+}
+
+MMWindowFact *MMWindowFactRemote(NSString *upstream) {
+    NSString *u = Trimmed(upstream);
+    if ([u isEqualToString:@"gone"]) return Fact(@"Remote", @"Branch deleted on the remote", nil);
+    if ([u isEqualToString:@"none"]) return Fact(@"Remote", @"Never pushed", nil);
+    return nil;
+}
+
+MMWindowFact *MMWindowFactMadeBy(NSString *maker, NSString *session) {
+    NSString *m = Trimmed(maker), *t = Trimmed(session);
+    if (!m.length || [m isEqualToString:@"person"]) return nil;
+    NSDictionary *names = @{@"claude-code": @"Claude Code", @"codex": @"Codex", @"cursor": @"Cursor", @"conductor": @"Conductor"};
+    NSString *who = names[m] ?: m;
+    return Fact(@"Made by", t.length ? [NSString stringWithFormat:@"%@ · %@", who, t] : who, nil);
+}
+
+#pragma mark A worktree's pull request
+
+NSString *const MMWindowOpenPull = @"Open pull request";
+
+@implementation MMWindowPull
+- (instancetype)init { if ((self = [super init])) _mergedAgo = -1; return self; }
+- (BOOL)opens { return self.known == MMWindowPullFound && [self.url hasPrefix:@"https://"]; }
+- (NSString *)line {
+    if (self.known == MMWindowPullLooking) return @"Looking for a pull request";
+    if (self.known == MMWindowPullNone || self.number <= 0) return @"No pull request for this branch";
+    NSMutableArray<NSString *> *p = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"PR #%ld", (long)self.number]];
+    if ([self.state isEqualToString:@"merged"]) {
+        NSString *span = self.mergedAgo >= 0 ? MMWindowSpan(self.mergedAgo) : nil;
+        [p addObject:self.mergedAgo < 0 ? @"merged" : span ? [NSString stringWithFormat:@"merged %@ ago", span] : @"merged just now"];
+        return [p componentsJoinedByString:@" · "];
+    }
+    if ([self.state isEqualToString:@"closed"]) { [p addObject:@"closed"]; return [p componentsJoinedByString:@" · "]; }
+    [p addObject:self.draft ? @"draft" : @"open"];
+    if (self.checksFailing > 0) [p addObject:[NSString stringWithFormat:@"%ld %@ failing", (long)self.checksFailing, self.checksFailing == 1 ? @"check" : @"checks"]];
+    else if (self.checksPending > 0) [p addObject:@"checks running"];
+    else if (self.checksPassing > 0) [p addObject:@"checks passing"];
+    if (Trimmed(self.review).length) [p addObject:Trimmed(self.review)];
+    return [p componentsJoinedByString:@" · "];
+}
+@end
+#pragma mark An agent's story
+
+MMWindowFact *MMWindowFactLastActive(NSTimeInterval ago) {
+    NSString *span = MMWindowSpan(ago), *when = span ? [span stringByAppendingString:@" ago"] : @"just now";
+    return Fact(@"Last active", when, [@"last active " stringByAppendingString:when]);
+}
+
+MMWindowFact *MMWindowFactRecently(NSInteger tools, NSInteger files, NSTimeInterval span) {
+    if (tools < 0) return nil;
+    // The span is an hour, or shorter where the part of the transcript MinMacs read starts later.
+    NSString *over = span >= 3540 ? @"in the last hour" : [NSString stringWithFormat:@"in the last %@", MMWindowSpan(MAX(span, 60)) ?: @"minute"];
+    NSString *v = tools == 0 ? [@"no tool use " stringByAppendingString:over]
+                : files > 0 ? [NSString stringWithFormat:@"%@, %@ edited %@", MMWindowCount(tools, @"tool use", @"tool uses"),
+                               MMWindowCount(files, @"file", @"files"), over]
+                            : [NSString stringWithFormat:@"%@ %@", MMWindowCount(tools, @"tool use", @"tool uses"), over];
+    return Fact(@"Recently", v, nil);
+}
+
+MMWindowFact *MMWindowFactWorktree(NSString *name, NSString *link) {
+    NSString *n = Trimmed(name);
+    MMWindowFact *f = Fact(@"Worktree", n, nil);
+    f.link = link.length ? link : nil;
+    return f;
+}
+
+MMWindowFact *MMWindowFactPullRequest(NSInteger number, NSString *state, BOOL draft, NSString *milestone) {
+    if (number <= 0) return nil;
+    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"#%ld", (long)number]];
+    NSString *st = Trimmed(state).lowercaseString;
+    if (draft && (!st.length || [st isEqualToString:@"open"])) [parts addObject:@"draft"];
+    else if (st.length) [parts addObject:st];
+    if (Trimmed(milestone).length) [parts addObject:[@"milestone: " stringByAppendingString:Trimmed(milestone)]];
+    return Fact(@"Pull request", [parts componentsJoinedByString:@" · "], nil);
+}
+
+MMWindowFact *MMWindowFactServer(NSString *name, NSString *link) {
+    MMWindowFact *f = Fact(@"Server", Trimmed(name), nil);
+    f.link = link.length ? link : nil;
+    return f;
+}
+
+MMWindowFact *MMWindowFactCache(NSString *name, uint64_t bytes, BOOL measured, NSString *link) {
+    NSString *n = Trimmed(name);
+    if (!n.length) return nil;
+    MMWindowFact *f = Fact(@"Cache", measured ? [NSString stringWithFormat:@"%@ · %@", n, MMWindowSizeText(bytes, YES)] : n, nil);
+    f.link = link.length ? link : nil;
+    return f;
+}
+
+MMWindowFact *MMWindowFactProcesses(NSInteger children, uint64_t bytes) {
+    if (children <= 0) return nil;
+    NSString *v = [MMWindowCount(children, @"process", @"processes") stringByAppendingString:@" under it"];
+    if (bytes > 0) v = [NSString stringWithFormat:@"%@ · %@", v, MMWindowSizeText(bytes, NO)];
+    return Fact(@"Processes", v, nil);
+}
+
+/// A count with its thousands set apart, as a person writes it: "45,282".
+static NSString *Grouped(NSInteger n) {
+    NSString *digits = [NSString stringWithFormat:@"%ld", (long)MAX(n, 0)];
+    NSMutableString *out = [NSMutableString new];
+    for (NSUInteger i = 0; i < digits.length; i++) {
+        if (i && (digits.length - i) % 3 == 0) [out appendString:@","];
+        [out appendString:[digits substringWithRange:NSMakeRange(i, 1)]];
+    }
+    return out;
+}
+
+MMWindowFact *MMWindowFactHolds(NSInteger members, NSString *one, NSString *many, NSInteger inner, NSString *innerOne, NSString *innerMany) {
+    if (members < 2 || !one.length || !many.length) return nil;
+    NSString *of = [NSString stringWithFormat:@"%@ %@", Grouped(members), members == 1 ? one : many];
+    if (innerOne.length && innerMany.length && inner > 0)
+        of = [NSString stringWithFormat:@"%@ %@ in %@", Grouped(inner), inner == 1 ? innerOne : innerMany, of];
+    return Fact(@"Holds", of, of);
+}
+
+MMWindowFact *MMWindowFactSplit(NSString *split) { return Fact(@"Now", Trimmed(split), nil); }
+
+MMWindowFact *MMWindowFactWhyStay(NSArray<NSString *> *reasons, BOOL all) {
+    NSMutableOrderedSet<NSString *> *distinct = [NSMutableOrderedSet new];
+    for (NSString *r in reasons) if (Trimmed(r).length) [distinct addObject:Trimmed(r)];
+    if (!distinct.count) return nil;
+    NSString *v = distinct.firstObject;
+    NSInteger more = (NSInteger)distinct.count - 1;
+    if (more > 0) v = [NSString stringWithFormat:@"%@, and %@", v, MMWindowCount(more, @"other reason", @"other reasons")];
+    return Fact(all ? @"Why they stay" : @"Why some stay", v, nil);
+}
+
 NSString *MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked) {
     if ([groupKey isEqualToString:@"worktrees"])
         return looked == MMWindowLookedNowhere ? @"No folders to look in" : looked == MMWindowLookedNotYet ? @"Looking for worktrees" : @"No worktrees found";
@@ -173,6 +338,33 @@ NSComparisonResult MMWindowRowOrder(MMWindowRow *a, MMWindowRow *b) {
     if (a.bytes != b.bytes) return a.bytes > b.bytes ? NSOrderedAscending : NSOrderedDescending;
     if (a.tabs != b.tabs) return a.tabs > b.tabs ? NSOrderedAscending : NSOrderedDescending;
     return [a.key compare:b.key];
+}
+
+NSComparisonResult MMWindowActivityOrder(MMWindowRow *a, MMWindowRow *b) {
+    if ((a.workedAt > 0) != (b.workedAt > 0)) return a.workedAt > 0 ? NSOrderedAscending : NSOrderedDescending;
+    if (a.workedAt != b.workedAt) return a.workedAt > b.workedAt ? NSOrderedAscending : NSOrderedDescending;
+    return MMWindowRowOrder(a, b);
+}
+
+NSString *const MMWindowNoProject = @"Other";
+NSString *const MMWindowMainCheckout = @"main checkout";
+
+NSArray<NSString *> *MMWindowProjectsOf(NSArray<MMWindowRow *> *rows) {
+    NSMutableOrderedSet<NSString *> *out = [NSMutableOrderedSet new];
+    for (MMWindowRow *r in rows) [out addObject:r.project ?: @""];
+    return out.array;
+}
+
+NSArray<MMWindowRow *> *MMWindowByProject(NSArray<MMWindowRow *> *rows) {
+    // The most active row of all leads its project, the next project is the one of the most active row left, and so on.
+    NSArray<MMWindowRow *> *all = [rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) {
+        if (!a.project != !b.project) return a.project ? NSOrderedAscending : NSOrderedDescending;
+        return MMWindowActivityOrder(a, b);
+    }];
+    NSMutableArray<MMWindowRow *> *out = [NSMutableArray arrayWithCapacity:all.count];
+    for (NSString *p in MMWindowProjectsOf(all))
+        for (MMWindowRow *r in all) if ([(r.project ?: @"") isEqualToString:p]) [out addObject:r];
+    return out;
 }
 
 @implementation MMWindowRow
@@ -201,14 +393,18 @@ static NSString *Sentence(NSString *words) {
 /// a raw fact of its processes, such as "child caffeinate": it stays in the fact list and is never the sentence.
 - (MMWindowFate *)fateFrom:(MMWindowFact *__autoreleasing *)source saysState:(BOOL *)saysState {
     MMWindowFact *stays = [self factLabelled:@"Stays"], *state = [self factLabelled:@"State"], *from = nil;
+    MMWindowFact *now = self.members ? [self factLabelled:@"Now"] : nil;
     MMWindowFate *f = [MMWindowFate new];
     BOOL says = NO;
     if (self.needsYou) { f.kind = MMWindowFateAsks; f.lead = @"Asks you."; says = YES; }
     else if (self.inFix) { f.kind = MMWindowFateGoes; f.lead = @"Goes with Fix Everything."; }
-    else if (stays) { f.lead = @"Stays."; from = stays; }
-    else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); says = YES; }
+    else if (stays || now) { f.lead = @"Stays."; from = stays; }
+    else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); says = YES; from = [self factLabelled:@"Last active"]; }
     else return nil;
-    f.note = Sentence(from.value);
+    // A row that stands for several says under any lead how many of them can go and how many stay.
+    if (now) from = now;
+    // An agent's line says when it was last active, "Working. Last active just now.", in the fact's own phrase.
+    f.note = [from.label isEqualToString:@"Last active"] ? Sentence(from.phrase) : Sentence(from.value);
     if (source) *source = from;
     if (saysState) *saysState = says;
     return f;
@@ -233,6 +429,7 @@ static NSString *Sentence(NSString *words) {
 @implementation MMWindowGroup
 - (instancetype)init { if ((self = [super init])) { _key = @""; _title = @""; _side = MMWindowMemory; _rows = @[]; } return self; }
 - (NSInteger)unmeasured { NSInteger n = 0; for (MMWindowRow *r in self.rows) if (r.unmeasured) n++; return n; }
+- (BOOL)grouped { return self.byProject && MMWindowProjectsOf(self.rows).count > 1; }
 @end
 
 @implementation MMWindowSlice
@@ -310,39 +507,133 @@ MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *not
     return MMWindowChoiceCard(ruleID, MMWindowRuleTitle(ruleID), picked, choices, note);
 }
 
-NSString *MMWindowWatchingNote(NSString *left) { return [NSString stringWithFormat:@"It only watches for %@ more, then it may act.", left]; }
+NSString *MMWindowStartsNote(NSTimeInterval left) {
+    if (left <= 0) return nil;
+    // A badge, so short: whole hours past an hour, "Starts in 23 h", and minutes under it.
+    long t = (long)left;
+    if (t >= 3600 && t <= 86400) return [NSString stringWithFormat:@"Starts in %ld h", MAX(1L, (t + 1800) / 3600)];
+    NSString *span = MMWindowSpan(left);
+    return span ? [@"Starts in " stringByAppendingString:span] : @"Starts soon";
+}
 
-NSString *const MMWindowNoLidNote = @"This Mac has no lid, so it changes nothing here.";
+NSString *const MMWindowStartsHelp = @"For its first day MinMacs only watches. Then the rules that are on may act.";
+NSString *const MMWindowTrashLine = @"Removed things go to the Trash.";
+
+NSString *const MMWindowNoLidNote = @"This Mac has no lid.";
+
+NSString *const MMWindowAwakeCard = @"Keep this Mac awake", *const MMWindowMacCard = @"This Mac",
+                *const MMWindowCleanupCard = @"Clean up on its own";
+
+static MMWindowSwitch *Switch(NSString *switchID, NSString *title, NSString *card, BOOL on, NSString *note, NSString *help) {
+    MMWindowSwitch *s = [MMWindowSwitch new];
+    s.switchID = switchID; s.title = title; s.card = card; s.on = on; s.note = note; s.help = help;
+    return s;
+}
+
+NSString *MMWindowAwakeHelp(void) { return @"Keeps the Mac from sleeping, as caffeinate does, until you turn it off."; }
+
+NSString *MMWindowAgentsHelp(NSInteger quietMinutes) {
+    return [NSString stringWithFormat:@"Keeps the Mac awake while an agent works, and %ld min after.", (long)MAX(quietMinutes, 0)];
+}
+
+NSString *MMWindowAgentsNote(BOOL on, NSInteger holding) {
+    return on && holding > 0 ? [NSString stringWithFormat:@"Awake now for %@", MMWindowCount(holding, @"agent", @"agents")] : nil;
+}
+
+MMWindowSwitch *MMWindowAwakeSwitch(BOOL on, NSString *note) {
+    return Switch(@"awake", @"Keep awake now", MMWindowAwakeCard, on, note, MMWindowAwakeHelp());
+}
+
+MMWindowSwitch *MMWindowAgentsSwitch(BOOL on, NSString *note) {
+    return Switch(@"agents", @"While agents work", MMWindowAwakeCard, on, note, MMWindowAgentsHelp(10));
+}
 
 MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *note) {
-    MMWindowSwitch *s = [MMWindowSwitch new];
-    s.switchID = @"lid"; s.title = @"Keep working with the lid closed"; s.on = on; s.inert = inert; s.note = note;
+    MMWindowSwitch *s = Switch(@"lid", @"Lid closed", MMWindowAwakeCard, on, note,
+                               @"Keeps the Mac working with the lid shut, while something keeps it awake.");
+    s.inert = inert;
     return s;
 }
+
+NSString *MMWindowRuleSwitchTitle(NSString *ruleID) {
+    return @{@"servers": @"Idle dev servers", @"apps": @"Apps when memory is low",
+             @"worktrees": @"Finished worktrees", @"caches": @"Build output and leftovers"}[ruleID ?: @""];
+}
+
+/// Careful quits no app, so for apps only Eager is on.
+BOOL MMWindowRuleIsOn(NSString *ruleID, NSInteger picked) { return [ruleID isEqualToString:@"apps"] ? picked == 2 : picked > 0; }
+
+NSInteger MMWindowRuleOnChoice(NSString *ruleID) { return [ruleID isEqualToString:@"apps"] ? 2 : 1; }
+
+NSString *MMWindowRuleSwitchNote(NSString *ruleID, NSInteger picked) {
+    // The same rules as MMWindowRuleExplains, said short: Careful's and Eager's, by the mode it is in or would turn on to.
+    NSInteger mode = MMWindowRuleIsOn(ruleID, picked) ? picked : MMWindowRuleOnChoice(ruleID);
+    NSDictionary *careful = @{@"servers": @"After a review, stops a dev server quiet for 6 hours that no agent uses.",
+                              @"worktrees": @"After a review, removes a worktree that is merged or whose remote is gone, and quiet for 7 days.",
+                              @"caches": @"After a review, cleans up the build output of finished projects, and leftovers."};
+    NSDictionary *eager = @{@"servers": @"After a review, stops each idle dev server the review finds no use for.",
+                            @"apps": @"Quits only apps on your close list, and only while memory pressure or heat is high.",
+                            @"worktrees": @"After a review, removes each worktree the review finds no use for.",
+                            @"caches": @"After a review, cleans up caches too. A tool's own cleanup waits for your press."};
+    return (mode == 2 ? eager : careful)[ruleID ?: @""];
+}
+
+MMWindowSwitch *MMWindowPullsSwitch(BOOL on) {
+    return Switch(@"prs", @"Pull requests", MMWindowMacCard, on, nil, MMWindowPullsHelp);
+}
+
+NSString *const MMWindowPullsHelp = @"When you point at a worktree, asks GitHub about its pull request through your own gh login. "
+                                    @"That sends the repo and the branch name.";
 
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *note) {
-    MMWindowSwitch *s = [MMWindowSwitch new];
-    s.switchID = @"login"; s.title = @"Open at login"; s.on = on;
-    // The same sentence the welcome shows for this state of the switch.
-    s.note = note ?: MMWindowLoginNote(on);
-    return s;
+    // No state line: the switch says it. The welcome's sentence for this state is its tooltip.
+    return Switch(@"login", @"Open at login", MMWindowMacCard, on, note, MMWindowLoginNote(on));
 }
 
-NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";
 NSString *const MMWindowLookingNote = @"MinMacs is taking its first look. It takes a few seconds.";
 
 NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sign in." : @"MinMacs starts only when you open it."; }
 
+@implementation MMWindowLogEntry
+- (NSString *)detail {
+    NSMutableArray *parts = [NSMutableArray arrayWithObject:self.time ?: @""];
+    if (self.who.length) [parts addObject:self.who];
+    if (self.tokens > 0) [parts addObject:MMWindowTokens(self.tokens)];
+    if (self.undoing) [parts addObject:@"taking it back"];
+    return [parts componentsJoinedByString:@" · "];
+}
+- (NSArray *)skipped { return _skipped ?: @[]; }
+@end
+
+NSString *MMWindowTokens(NSInteger tokens) {
+    static NSNumberFormatter *f; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        f = [NSNumberFormatter new];
+        f.numberStyle = NSNumberFormatterDecimalStyle;
+        f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US"];
+    });
+    NSString *n;
+    @synchronized (f) { n = [f stringFromNumber:@(tokens)]; }
+    return [NSString stringWithFormat:@"%@ %@", n, tokens == 1 ? @"token" : @"tokens"];
+}
+
+@implementation MMWindowLog @end
+
+NSString *MMWindowLogNote(BOOL empty, NSString *left) {
+    NSString *watch = @"MinMacs watches your servers, agents, apps, worktrees and caches.";
+    NSString *day = left.length ? [NSString stringWithFormat:@" For its first day it stops, quits and removes nothing on its own. That day ends in %@.", left] : @"";
+    if (!empty) return left.length ? [watch stringByAppendingString:day] : nil;
+    return [NSString stringWithFormat:@"Nothing is in the log yet. %@%@ What it does, and each setting that changes, is written here.", watch, day];
+}
+
 @implementation MMWindowWelcome
-+ (instancetype)welcomeWithRemoval:(NSArray<MMWindowChoice *> *)removal picked:(NSInteger)picked facts:(NSArray<MMWindowFact *> *)facts {
++ (instancetype)welcomeWithFacts:(NSArray<MMWindowFact *> *)facts {
     MMWindowWelcome *w = [MMWindowWelcome new];
     w.title = @"Welcome to MinMacs";
     w.say = @"MinMacs watches what your agents, servers and apps hold. Press Fix Everything and it gives memory and disk back.";
     w.loginTitle = @"Open at login"; w.loginOn = YES;
     w.loginOnNote = MMWindowLoginNote(YES); w.loginOffNote = MMWindowLoginNote(NO);
-    w.removalTitle = MMWindowRemovalTitle;
-    w.removal = removal ?: @[]; w.removalPicked = picked;
-    w.later = @"Both can be changed later in Settings.";
+    w.later = @"It can be changed later in Settings.";
     w.facts = facts ?: @[];
     w.start = @"Start";
     return w;
@@ -365,7 +656,10 @@ NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sig
     return nil;
 }
 
-- (uint64_t)memoryBack { uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.memoryBack; return n; }
+- (uint64_t)memoryBack {
+    if (self.memoryBackOnce) return self.memoryBackOnce.unsignedLongLongValue;
+    uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.memoryBack; return n;
+}
 - (uint64_t)diskBack { uint64_t n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n += f.diskBack; return n; }
 - (BOOL)diskBackPartial { for (MMWindowFix *f in self.fixes) if (!f.needsYou && f.diskPartial) return YES; return NO; }
 - (NSInteger)fixCount { NSInteger n = 0; for (MMWindowFix *f in self.fixes) if (!f.needsYou) n++; return n; }

@@ -31,6 +31,8 @@ static void PrintGroup(MMArgs *a, MMWindowGroup *g) {
         if (r.state) [tail addObject:r.state];
         if (r.needsYou) [tail addObject:@"asks you"];
         if (r.inFix) [tail addObject:@"in a fix"];
+        // A row that stands for several, DESIGN rule 16, says how many. `clutter list` keeps each one apart.
+        if (r.members) for (MMWindowFact *f in r.facts) if ([f.label isEqualToString:@"Holds"]) [tail addObject:f.value];
         [a print:@"  %@ %@", MMColumn(r.name, 34), [tail componentsJoinedByString:@", "]];
     }
 }
@@ -65,7 +67,7 @@ static int Window(MMArgs *a) {
     for (MMWindowFix *f in m.fixes)
         [a print:@"%2ld  %@ memory %@, disk %@%@", (long)++i, MMColumn(f.title, 38), Mem(f.memoryBack),
                  MMWindowBackText(Disk(f.diskBack), f.diskBack == 0, f.diskPartial), f.needsYou ? @", needs your own press" : @""];
-    // A rule with nothing picked yet, the removal choice before the person made it, says so.
+    // A rule with nothing picked yet says so.
     for (MMWindowRule *r in m.settings.rules)
         [a print:@"Rule    %@ %@", MMColumn(r.title, 30), r.picked >= 0 && r.picked < (NSInteger)r.choices.count ? r.choices[(NSUInteger)r.picked].title : @"not chosen yet"];
     for (MMWindowSwitch *w in m.settings.switches) [a print:@"Switch  %@ %@", MMColumn(w.title, 34), w.on ? @"on" : @"off"];

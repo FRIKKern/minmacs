@@ -176,6 +176,7 @@ static MMProcKey KeyOf(NSValue *v) { MMProcKey k = {0, 0}; [v getValue:&k size:s
 @property (readwrite) MMPerformanceSideRing *memory, *disk;
 @property (readwrite) NSArray<MMPerformanceGroup *> *memoryGroups, *diskGroups;
 @property (readwrite) NSArray<MMPerformanceFix *> *fixes;
+@property (readwrite) uint64_t memoryBackOnce;
 @property (readwrite) MMPerformanceLookBack *lookBack;
 @property (readwrite) NSInteger needsYou;
 @property NSDictionary<NSString *, MMPerformanceRow *> *byKey;
@@ -233,6 +234,53 @@ static uint64_t AppClaim(MMSample *sample, MMFinding *f, NSDictionary<NSNumber *
     if (!app || app.startSec != k.startSec) return f.cost.ramBytes;
     uint64_t taken = [held[@(k.pid)] unsignedLongLongValue];
     return f.cost.ramBytes > taken ? f.cost.ramBytes - taken : 0;
+}
+
+/// The findings a fix ends whose memory comes back: a Wrap Up's servers and helpers, or a stop's or a quit's findings.
+static NSArray<MMFinding *> *MemoryFindingsOf(MMPerformanceFix *x) {
+    NSMutableArray *out = [NSMutableArray new];
+    for (MMWrapUpPart *p in x.wrapUp.parts)
+        if ((p.step == MMWrapUpServers || p.step == MMWrapUpHelpers) && p.action.finding.findingID) [out addObject:p.action.finding];
+    if ([x.kind isEqualToString:@"stop"] || [x.kind isEqualToString:@"quit"])
+        for (id<MMAction> a in x.actions) if (a.finding) [out addObject:a.finding];
+    return out;
+}
+
+static NSString *RowKey(MMFinding *f);
+
+/// Fix Everything's memory back with each process once, MMPerformance.h memoryBackOnce: every finding once by its row
+/// key, the servers and helpers each process tree once by Claim, then each app by AppClaim, less what rolls up into it.
+static uint64_t MemoryBackOnce(MMSample *sample, NSArray<MMPerformanceFix *> *fixes) {
+    NSMutableSet<NSString *> *seen = [NSMutableSet new];
+    NSMutableArray<MMFinding *> *others = [NSMutableArray new], *apps = [NSMutableArray new];
+    for (MMPerformanceFix *x in fixes) {
+        if (x.needsYou) continue;
+        for (MMFinding *f in MemoryFindingsOf(x)) {
+            if ([seen containsObject:RowKey(f)]) continue;
+            [seen addObject:RowKey(f)];
+            [[f.kind isEqualToString:@"app"] ? apps : others addObject:f];
+        }
+    }
+    NSMutableSet<NSNumber *> *claimed = [NSMutableSet new];
+    uint64_t n = 0;
+    for (MMFinding *f in others) n += Claim(sample, f, claimed);
+    NSMutableSet<NSNumber *> *appPids = [NSMutableSet new];
+    for (MMFinding *f in apps) if (f.procs.count) [appPids addObject:@(KeyOf(f.procs.firstObject).pid)];
+    NSMutableDictionary<NSNumber *, NSNumber *> *held = [NSMutableDictionary new];
+    if (sample && appPids.count)
+        for (NSNumber *t in claimed) {
+            pid_t owner = AppOwner(sample, t.intValue, appPids);
+            if (owner > 0) held[@(owner)] = @([held[@(owner)] unsignedLongLongValue] + [sample proc:t.intValue].footprint);
+        }
+    // An app whose own pid sits in a claimed tree is counted whole there already.
+    for (MMFinding *f in apps) {
+        if (sample && f.procs.count && [claimed containsObject:@(KeyOf(f.procs.firstObject).pid)]) continue;
+        n += AppClaim(sample, f, held);
+    }
+    // A tree's footprint now can pass the cost a finding was listed with. The union never says more than the sum.
+    uint64_t sum = 0;
+    for (MMPerformanceFix *x in fixes) if (!x.needsYou) sum += x.memoryBack;
+    return MIN(n, sum);
 }
 
 static NSString *RowKey(MMFinding *f) {
@@ -465,6 +513,8 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
     // A fix that removes a thing not measured yet gives back more disk than its number holds.
     for (MMPerformanceFix *x in fixes) for (NSString *k in x.rows) if (byKey[k].unmeasured) x.diskPartial = YES;
 
+    m.memoryBackOnce = MemoryBackOnce(sample, fixes);
+
     // The order: the larger share of what comes back, memory and disk apart.
     double mw = PressureWeight(power), dw = df < 100ull * 1000 * 1000 * 1000 ? 3 : 1;
     uint64_t mt = m.memory.total, dtt = m.disk.total;
@@ -488,6 +538,7 @@ static double PressureWeight(MMPower *p) { return p.memoryPressure >= 4 ? 2.5 : 
     for (MMPerformanceGroup *g in self.diskGroups) [dg addObject:g.json];
     for (MMPerformanceFix *f in self.fixes) [fx addObject:f.json];
     return @{@"generation": @(self.generation), @"ring": @{@"memory": self.memory.json ?: @{}, @"disk": self.disk.json ?: @{}},
-             @"memory": mg, @"disk": dg, @"fixes": fx, @"lookBack": self.lookBack.json ?: @{}, @"needsYou": @(self.needsYou)};
+             @"memory": mg, @"disk": dg, @"fixes": fx, @"memoryBackOnce": @(self.memoryBackOnce), @"lookBack": self.lookBack.json ?: @{},
+             @"needsYou": @(self.needsYou)};
 }
 @end

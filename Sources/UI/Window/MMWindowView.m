@@ -7,8 +7,13 @@
 #import <QuartzCore/CAMediaTimingFunction.h>
 
 static const NSTimeInterval kFlip = 0.3, kBeat = 0.26;      // 197-b's turn to Settings, and 195-a's wait before the graphs come back
-// The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference.
-static const CGFloat kBand = 40, kNoBand = 12, kLists = 538;
+// The top line's band when someone asks, and the bare edge when nobody does. The lists get the difference. The dock
+// is one slim band at the foot, with a hairline and a little air over it, and the gear and the power icon stand at
+// its right end. The lists and the middle get the rest. The gear and the power icon stay in one place in both views:
+// Settings ends 4 points under the gear's top, and its cards keep 8 points of air at their foot, so they end over it.
+static const CGFloat kBand = 40, kNoBand = 12, kDock = 64, kOverDock = 7;
+static CGFloat SettingsFoot(void) { return MMWindowSize.height - kDock / 2 - 12 + 4; }
+static CGFloat Lists(CGFloat top) { return MMWindowSize.height - top - kDock - kOverDock; }
 
 @implementation MMWindowView
 
@@ -46,27 +51,30 @@ BOOL MMWindowTakesPresses(NSView *view) {
     if ((self = [super initWithFrame:NSMakeRect(frame.origin.x, frame.origin.y, MMWindowSize.width, MMWindowSize.height)])) {
         CGFloat W = MMWindowSize.width, H = MMWindowSize.height;
         _main = [[MMWindowFlipped alloc] initWithFrame:NSMakeRect(0, 40, W, H - 40)];
-        _left = [[MMWindowListView alloc] initWithFrame:NSMakeRect(0, 0, 320, 538)];
-        _middle = [[MMWindowMiddleView alloc] initWithFrame:NSMakeRect(320, 0, 380, 538)];
-        _right = [[MMWindowListView alloc] initWithFrame:NSMakeRect(700, 0, 320, 538)];
-        _rule = [[NSBox alloc] initWithFrame:NSMakeRect(14, 545, W - 28, 1)];
+        CGFloat lists = Lists(kBand);
+        _left = [[MMWindowListView alloc] initWithFrame:NSMakeRect(0, 0, 320, lists)];
+        _middle = [[MMWindowMiddleView alloc] initWithFrame:NSMakeRect(320, 0, 380, lists)];
+        _right = [[MMWindowListView alloc] initWithFrame:NSMakeRect(700, 0, 320, lists)];
+        _rule = [[NSBox alloc] initWithFrame:NSMakeRect(14, lists + kOverDock - 1, W - 28, 1)];
         _rule.boxType = NSBoxCustom; _rule.borderWidth = 0; _rule.fillColor = MMWindowColor(MMWindowInkLine);
-        _dock = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, 551, W, 137)];
+        _dock = [[MMWindowDockView alloc] initWithFrame:NSMakeRect(0, lists + kOverDock, W - 70, kDock)];
         _dock.fix.target = self; _dock.fix.action = @selector(pressFix:);
         _dock.stop.target = self; _dock.stop.action = @selector(pressFix:);
         for (NSView *v in @[_left, _middle, _right, _rule, _dock]) [_main addSubview:v];
         [self addSubview:_main];
 
-        _settings = [[MMWindowSettingsView alloc] initWithFrame:NSMakeRect(0, 40, W, 662)];
+        _settings = [[MMWindowSettingsView alloc] initWithFrame:NSMakeRect(0, 40, W, SettingsFoot() - 40)];
         _settings.hidden = YES;
         [self addSubview:_settings];
 
         _gear = [MMWindowButton kind:MMWindowButtonGear title:@"Settings" target:self action:@selector(pressGear:)];
-        _gear.frame = NSMakeRect(W - 62, 702, 26, 24);
+        // Level with the middle of the dock, right of it.
+        CGFloat icons = H - kDock / 2 - 12;
+        _gear.frame = NSMakeRect(W - 62, icons, 26, 24);
         _gear.toolTip = @"Settings  ⌘,";
         _gear.accessibilityLabel = @"Settings, Command comma";
         _power = [MMWindowButton kind:MMWindowButtonPower title:@"Quit MinMacs" target:self action:@selector(pressPower:)];
-        _power.frame = NSMakeRect(W - 32, 702, 26, 24);
+        _power.frame = NSMakeRect(W - 32, icons, 26, 24);
         _power.toolTip = @"Quit MinMacs  ⌘Q";
         _power.accessibilityLabel = @"Quit MinMacs, Command Q";
         [self addSubview:_gear]; [self addSubview:_power];
@@ -74,27 +82,35 @@ BOOL MMWindowTakesPresses(NSView *view) {
         __weak typeof(self) me = self;
         _left.onPoint = ^(NSString *key) { [me point:key]; };
         _right.onPoint = ^(NSString *key) { [me point:key]; };
+        _left.onPress = ^(NSString *key) { [me pressRow:key]; };
+        _right.onPress = ^(NSString *key) { [me pressRow:key]; };
         _settings.onDone = ^{ me.showsSettings = NO; };
+        _middle.logView.onUndo = ^(NSString *rid) { [me.host windowUndo:rid]; };
+        // A story that shows may ask the shell for more of it, such as a worktree's pull request, off main.
+        _middle.onStory = ^(NSString *key) { id<MMWindowHost> h = me.host; if ([h respondsToSelector:@selector(windowShowsStory:)]) [h windowShowsStory:key]; };
+        _middle.onLink = ^(NSString *key) { [me showRow:key]; };
+        _middle.onGoTo = ^(NSString *key) { [me goTo:key]; };
+        _middle.onPointer = ^(BOOL over) { [me pointMiddle:over]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
     }
     return self;
 }
 
 /// The top line folds away when nobody asks. The window keeps its size: the lists grow by the band's height, and the
-/// dock stays where it is.
+/// dock stays where it is, at the foot.
 - (CGFloat)bandTop { return _model && !_model.asks.length ? kNoBand : kBand; }
 
 - (void)layBand {
     CGFloat top = self.bandTop, W = MMWindowSize.width, H = MMWindowSize.height;
     if (_main.frame.origin.y == top) return;
-    CGFloat lists = kLists + kBand - top;
-    _settings.frame = NSMakeRect(0, top, W, 702 - top);
+    CGFloat lists = Lists(top);
+    _settings.frame = NSMakeRect(0, top, W, SettingsFoot() - top);
     _main.frame = NSMakeRect(0, top, W, H - top);
     _left.frame = NSMakeRect(0, 0, 320, lists);
     _middle.frame = NSMakeRect(320, 0, 380, lists);
     _right.frame = NSMakeRect(700, 0, 320, lists);
-    _rule.frame = NSMakeRect(14, lists + 7, W - 28, 1);
-    _dock.frame = NSMakeRect(0, lists + 13, W, 137);
+    _rule.frame = NSMakeRect(14, lists + kOverDock - 1, W - 28, 1);
+    _dock.frame = NSMakeRect(0, lists + kOverDock, W - 70, kDock);
     self.needsDisplay = YES;
 }
 
@@ -127,6 +143,9 @@ BOOL MMWindowTakesPresses(NSView *view) {
     _dock.model = model;
     _settings.settings = model.settings;
     if (_hovered && ![model row:_hovered]) _hovered = nil;
+    // The active row left the model, its process ended or it went into a row of its kin: nothing stays pinned, and
+    // the middle shows what the pointer rests on, or the log.
+    if (_active && ![model row:_active]) _active = nil;
     [self showPointed];
     [self followRun:hadRun];
     self.needsDisplay = YES;
@@ -147,7 +166,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     if (!_welcome) {
         _welcome = [[MMWindowWelcomeView alloc] initWithFrame:NSMakeRect(0, 0, MMWindowSize.width, MMWindowSize.height)];
         __weak typeof(self) me = self;
-        _welcome.onStart = ^(BOOL login, NSInteger removal) { [me start:login removal:removal]; };
+        _welcome.onStart = ^(BOOL login) { [me start:login]; };
         [self addSubview:_welcome positioned:NSWindowBelow relativeTo:_gear];
     }
     _welcome.welcome = welcome;
@@ -166,13 +185,13 @@ BOOL MMWindowTakesPresses(NSView *view) {
 
 /// Start: the answers go to the host, the welcome leaves and the menu fades up in its place. With no numbers yet the
 /// window says it is looking, and the lists and the hour lines fill in as they come.
-- (void)start:(BOOL)login removal:(NSInteger)removal {
+- (void)start:(BOOL)login {
     if (_started) return;
     _started = YES;
     // A second press where Start was would land on the menu that arrives under it, Fix Everything among it.
     _quiet = YES;
     NSInteger run = ++_startRun;
-    [self.host windowWelcomeStart:login removal:removal];
+    [self.host windowWelcomeStart:login];
     _model.welcome = nil;
     if (!_model) _looking = YES;
     _gear.hidden = NO;
@@ -231,29 +250,99 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self showPointed];
 }
 
-/// The middle shows the story of the row under the pointer, or of the row the render tool names.
+/// The middle shows the story of the row under the pointer, or of the row the render tool names, and else the active
+/// row's. The pointer on the middle keeps whichever story shows, so its presses can be reached. The dock's ring and
+/// numbers follow the same row. The active row is blue and the one under the pointer has a white wash.
 - (void)showPointed {
     NSString *key = _hovered ?: _pointedRow;
-    MMWindowRow *row = key ? [_model row:key] : nil;
-    _left.hotKey = row.key; _right.hotKey = row.key;
+    MMWindowRow *hover = key ? [_model row:key] : nil, *active = _active ? [_model row:_active] : nil, *story = hover ?: active;
+    NSString *wash = [hover.key isEqualToString:active.key] ? nil : hover.key;
+    _left.hotKey = active.key; _right.hotKey = active.key;
+    _left.hoverKey = wash; _right.hoverKey = wash;
     _middle.model = _model;
-    _middle.row = row;
-    _dock.pointed = row;
+    _middle.row = story;
+    _dock.pointed = story;
+}
+
+- (NSString *)activeRow { return _active; }
+
+- (void)setActiveRow:(NSString *)key {
+    _active = key && [_model row:key] ? [key copy] : nil;
+    [self showPointed];
+}
+
+/// A press on a fact of a story that names another row: that row becomes the active one, in view in its list, and
+/// the middle tells its story.
+- (void)showRow:(NSString *)key {
+    if (_quiet || _flips > 0 || ![_model row:key]) return;
+    [_left reveal:key]; [_right reveal:key];
+    // The press asked for that row's story: the row the pointer came from no longer stands over it.
+    _hovered = nil; _pointedRow = nil;
+    self.activeRow = key;
+}
+
+- (void)goTo:(NSString *)key {
+    if (_quiet || _flips > 0 || ![_model row:key].goTo) return;
+    if ([self.host respondsToSelector:@selector(windowGoTo:)]) [self.host windowGoTo:key];
+}
+
+- (void)pressRow:(NSString *)key {
+    if (_quiet || _flips > 0) return;
+    self.activeRow = !key || [key isEqualToString:_active] ? nil : key;
+}
+
+/// The arrow keys move the active row: up and down in its side, group after group, left and right to the row of
+/// the other side at its height. With none active, the first row of the side the key points to. Scrolls it in view.
+- (BOOL)arrow:(unsigned short)code {
+    if (code < 123 || code > 126) return NO;
+    NSArray<NSString *> *left = _left.rowKeys, *right = _right.rowKeys;
+    BOOL onLeft = _active && [left containsObject:_active], onRight = _active && [right containsObject:_active];
+    NSString *next = nil;
+    if (!onLeft && !onRight) next = code == 124 ? right.firstObject ?: left.firstObject : left.firstObject ?: right.firstObject;
+    else if (code == 125 || code == 126) {
+        NSArray<NSString *> *side = onLeft ? left : right;
+        NSInteger at = (NSInteger)[side indexOfObject:_active] + (code == 125 ? 1 : -1);
+        next = side[(NSUInteger)MIN(MAX(at, 0), (NSInteger)side.count - 1)];
+    } else if ((code == 123 && onRight) || (code == 124 && onLeft)) {
+        MMWindowListView *from = onLeft ? _left : _right, *to = onLeft ? _right : _left;
+        CGFloat y = NSMidY([from frameOfRow:_active]), best = CGFLOAT_MAX;
+        for (NSString *k in to.rowKeys) {
+            NSRect f = [to frameOfRow:k];
+            if (NSIsEmptyRect(f) || fabs(NSMidY(f) - y) >= best) continue;
+            best = fabs(NSMidY(f) - y); next = k;
+        }
+        next = next ?: to.rowKeys.firstObject ?: _active;
+    } else next = _active;
+    if (next) { [_left reveal:next]; [_right reveal:next]; }
+    // The keyboard picks what the middle tells: the row under the pointer gives it back once the pointer moves again.
+    _hovered = nil;
+    self.activeRow = next;
+    return YES;
 }
 
 - (void)point:(NSString *)key {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
+    _onRow = key != nil;
     if (key) {
         if ([key isEqualToString:_hovered]) return;
         _hovered = [key copy];
         [self showPointed];
     } else if (_hovered) {
-        // A short beat after the pointer leaves, the graphs come back.
+        // A short beat after the pointer leaves the rows, the middle goes back to the active row's story, or the log.
         [self performSelector:@selector(unpoint) withObject:nil afterDelay:kBeat inModes:@[NSRunLoopCommonModes]];
     }
 }
 
-- (void)unpoint { _hovered = nil; [self showPointed]; }
+/// The pointer on the middle keeps the story that shows, the row it came from or the active row, so its presses,
+/// Open pull request, Go to and the links, stay where the pointer goes. Leaving it for anything but a row lets the
+/// beat run, whichever of the two views hears of the move first.
+- (void)pointMiddle:(BOOL)over {
+    _overMiddle = over;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
+    if (!over && !_onRow && _hovered) [self performSelector:@selector(unpoint) withObject:nil afterDelay:kBeat inModes:@[NSRunLoopCommonModes]];
+}
+
+- (void)unpoint { if (_overMiddle) return; _hovered = nil; [self showPointed]; }
 
 #pragma mark Opening and closing
 
@@ -274,9 +363,9 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [_timer invalidate]; _timer = nil;
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(sayLooking) object:nil];
-    [_left rest]; [_right rest]; [_welcome rest]; [_dock rest];
+    [_left rest]; [_right rest]; [_welcome rest]; [_dock rest]; [_middle.logView rest];
     [self settleStart];
-    _hovered = nil;
+    _hovered = nil; _active = nil; _overMiddle = NO; _onRow = NO;
     [self showPointed];
 }
 
@@ -292,7 +381,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     self.needsDisplay = YES;
     _gear.accessibilityValue = on ? @"on" : @"off";
     NSView *comes = on ? _settings : _main, *goes = on ? _main : _settings;
-    if (on) { _hovered = nil; [self showPointed]; }
+    if (on) { _hovered = nil; _active = nil; _overMiddle = NO; _onRow = NO; [self showPointed]; }
     BOOL fade = self.window.isVisible && self.layer && !MMWindowReduceMotion();
     comes.hidden = NO;
     if (!fade) { comes.alphaValue = 1; goes.alphaValue = 1; goes.hidden = YES; return; }
@@ -302,14 +391,19 @@ BOOL MMWindowTakesPresses(NSView *view) {
     comes.alphaValue = 0; goes.alphaValue = 0;
     comes.frame = NSOffsetRect(home, 0, 6);
     // Neither side takes a press while it rises. The gear and the keys still do, and the last of them wins.
+    // The hold ends when the fade ends, or a little after its time at the latest: an animation never completes while
+    // the display is off, and a window driven with the display asleep or the lid closed must not stay deaf to presses.
     _flips++;
+    __block BOOL held = YES;
+    void (^release)(void) = ^{ if (!held) return; held = NO; self->_flips--; };
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kFlip + 0.15) * NSEC_PER_SEC)), dispatch_get_main_queue(), release);
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *c) {
         c.duration = kFlip;
         c.timingFunction = [(id)NSClassFromString(@"CAMediaTimingFunction") functionWithControlPoints:0.3 :0.7 :0.2 :1.0];
         comes.animator.alphaValue = 1; comes.animator.frame = home;
     } completionHandler:^{
         if (comes.frame.origin.y != self.bandTop) comes.frame = NSMakeRect(0, self.bandTop, home.size.width, home.size.height);
-        self->_flips--;
+        release();
         // The welcome came meanwhile and put Settings away. Nothing of this fade is left to finish.
         if (self.showsWelcome) { self->_settings.hidden = YES; self->_settings.alphaValue = 1; self->_main.alphaValue = 1; return; }
         // A second press during the fade wins.
@@ -346,14 +440,24 @@ BOOL MMWindowTakesPresses(NSView *view) {
     if (self.showsWelcome && !_started && (e.keyCode == 36 || e.keyCode == 76)) { [_welcome pressStart]; return; }
     // Until the menu has arrived no key reaches it, Tab among them. Escape still closes the window.
     if (_quiet && e.keyCode != 53) return;
-    if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil]; else [super keyDown:e];
+    if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil];
+    else if (!(_model && !self.showsWelcome && !self.showsSettings && [self arrow:e.keyCode])) [super keyDown:e];
 }
 
-/// Escape leaves Settings first, and closes the window when Settings does not show.
+/// Escape leaves Settings first, then lets go of the active row, and closes the window when neither is there.
 - (void)cancelOperation:(id)sender {
     if (!self.window.isKeyWindow) return;
-    if (self.showsSettings) self.showsSettings = NO; else [self.window close];
+    [self escape];
 }
+
+- (void)escape {
+    if (self.showsSettings) self.showsSettings = NO;
+    else if (_active) self.activeRow = nil;
+    else [self.window close];
+}
+
+/// A press that no button, row or story took, on the top line, the dock or the lists' empty space: no row stays active.
+- (void)mouseDown:(NSEvent *)e { [self pressRow:nil]; }
 
 #pragma mark Drawing
 

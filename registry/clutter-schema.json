@@ -19,7 +19,7 @@
     "signature": {"enum": ["agent-scratch", "open", "aged", "family"], "description": "Noo-Noo's leak signatures"},
     "minAge": {"type": "number", "description": "seconds the newest file must be old"},
     "session": {"type": "object", "description": "agent-scratch: deadAfter, entryIdle, transcriptWindow in seconds, scratchDir"},
-    "family": {"type": "object", "description": "family: minMembers, exclude name prefixes"},
+    "family": {"type": "object", "description": "family: minMembers, exclude name prefixes, emptyMinAge, the quiet period in seconds of an empty member (1 hour when absent, at least 600, never past minAge). Members are judged one by one, and a member that is not empty needs minAge"},
     "cleanup": {"type": "array", "items": {"type": "string"}, "description": "a tool row's own command as argv"},
     "dryRun": {"description": "the command's dry-run argv, or null when it has none"},
     "owner": {"enum": ["project", "session", "derived-data", "playwright-links", "pnpm-store", "simulator-device"]},
@@ -30,6 +30,7 @@
     "rebuild": {"type": "string"},
     "rebuilt": {"type": "boolean", "description": "true only when a tool rebuilds or downloads all of it again from what the project or a registry still holds. Under the Smart removal choice such a cache or build row is deleted at once, and a tool row runs with no recovery copy. Rows with logs, hand-made content or anything a tool cannot fetch again leave it out and keep a way back. A row with names is deleted only when the fresh check also proves it: git tracks nothing in the folder and one rebuiltFrom file sits beside it"},
     "rebuiltFrom": {"type": "array", "items": {"type": "string"}, "description": "for a rebuilt row with names: the files its tool rebuilds the folder from, one of which must sit beside it, such as a lockfile. Without it, beside is used"},
+    "collapse": {"type": "object", "description": "the words the menu window uses when three or more of this row's items stand as one row, DESIGN rule 16: title, the one row's name in plain words where the row's own title is a pattern or says too little; one and many, what each item is, such as group and groups; innerOne and innerMany, what an item holds when it holds things of its own, such as folder and folders. Without it the title is the row's and the nouns follow from how the row finds its items"},
     "every": {"type": "number", "description": "the shortest time in seconds between two scans of the row, at least 600"},
     "measured_gib": {"type": "number"},
     "sources": {"type": "array", "items": {"type": "string"}}

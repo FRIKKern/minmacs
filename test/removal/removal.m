@@ -1,4 +1,5 @@
-// The removal choice, issue #62: the pref, the one decision, the one place that deletes, and what a record says.
+// Removal, issue #62 and D2: the old pref ignored, the one decision that always keeps a way back, the one place
+// that deletes, which only a check's seam reaches now, and what a record says.
 // test/removal.sh builds this with all of Sources/Core and runs it twice.
 // Usage: removaltest <dir> <registry/clutter>     every check, on fixtures it makes in <dir>
 //        removaltest --wall <path>                asks MMRemovalApply to delete <path> and prints why it refused
@@ -43,103 +44,81 @@ static MMRemovalFacts *Clutter(MMClutterClass klass, BOOL rebuilt, BOOL free, BO
 
 #pragma mark - The pref
 
+/// Every thing, on the given facts, asked by each who can ask: the words of each answer, joined.
+static NSString *EveryAnswer(MMRemovalFacts *f) {
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSNumber *t in @[@(MMRemovalWorktree), @(MMRemovalIgnoredFiles), @(MMRemovalConfigFiles), @(MMRemovalClutter), @(MMRemovalToolCopy)])
+        for (NSString *by in @[@"manual", @"cli", @"proactive", @"eager", @"guard", @""])
+            [out addObject:Word(MMRemovalDecide((MMRemovalThing)t.integerValue, f, by.length ? by : nil))];
+    return [[NSSet setWithArray:out].allObjects componentsJoinedByString:@" "];
+}
+
+/// D2: there is no choice. Whatever core.removal holds, an old "smart" or "delete" too, every answer keeps a way back.
 static void Pref(void) {
-    MMSetPref(MMRemovalKey, nil);
-    T(@"pref: with no value the choice is smart", @"smart", MMRemovalChoiceName(MMRemovalChoiceNow()));
-    MMSetRemovalChoice(MMRemovalTrash);
-    T(@"pref: trash is kept as the word trash under core.removal", @"trash trash", [NSString stringWithFormat:@"%@ %@", MMPref(@"core.removal"), MMRemovalChoiceName(MMRemovalChoiceNow())]);
-    MMSetRemovalChoice(MMRemovalDelete);
-    T(@"pref: it is read again at each ask", @"delete", MMRemovalChoiceName(MMRemovalChoiceNow()));
-    // A value nobody can read must never delete: it counts as the Trash, not as the default.
-    MMSetPref(MMRemovalKey, @"shred");
-    T(@"pref: a word that is no choice counts as trash", @"trash", MMRemovalChoiceName(MMRemovalChoiceNow()));
-    MMSetPref(MMRemovalKey, @2);
-    T(@"pref: a number counts as trash", @"trash", MMRemovalChoiceName(MMRemovalChoiceNow()));
-    MMSetPref(MMRemovalKey, @"Delete");
-    T(@"pref: case does not matter", @"delete", MMRemovalChoiceName(MMRemovalChoiceNow()));
-    MMSetPref(MMRemovalKey, nil);
-    T(@"pref: the three names", @"smart trash delete -1", [NSString stringWithFormat:@"%@ %@ %@ %ld", MMRemovalChoiceName(MMRemovalSmart),
-      MMRemovalChoiceName(MMRemovalTrash), MMRemovalChoiceName(MMRemovalDelete), (long)MMRemovalChoiceFrom(@"for good")]);
-    T(@"pref: Smart's sentence", @"Deletes what git or its tool can give back. The rest goes to the Trash.", MMRemovalChoiceExplain(MMRemovalSmart));
-    T(@"pref: Trash's sentence", @"Everything goes to the Trash. The disk comes back when you empty it.", MMRemovalChoiceExplain(MMRemovalTrash));
-    T(@"pref: Delete's sentence", @"Deletes everything it removes at once. Nothing can be brought back.", MMRemovalChoiceExplain(MMRemovalDelete));
+    MMRemovalFacts *best = Tree(YES, NO, 0, 0, 0, 0), *cache = Clutter(MMClutterCache, YES, YES, NO), *tool = Clutter(MMClutterTool, YES, YES, NO);
+    NSMutableArray *got = [NSMutableArray new];
+    for (id v in @[NSNull.null, @"smart", @"trash", @"delete", @"Delete", @"shred", @2]) {
+        MMSetPref(MMRemovalKey, v == NSNull.null ? nil : v);
+        [got addObject:[NSString stringWithFormat:@"%@:%@/%@/%@/%@", v == NSNull.null ? @"none" : v, MMRemovalChoiceName(MMRemovalChoiceNow()),
+                        EveryAnswer(best), EveryAnswer(cache), EveryAnswer(tool)]];
+    }
+    T(@"pref: whatever core.removal holds, an old smart or delete too, the choice is trash and every answer keeps a way back",
+      @"none:trash/keep/keep/keep smart:trash/keep/keep/keep trash:trash/keep/keep/keep delete:trash/keep/keep/keep Delete:trash/keep/keep/keep shred:trash/keep/keep/keep 2:trash/keep/keep/keep",
+      [got componentsJoinedByString:@" "]);
+    MMSetPref(MMRemovalKey, @"delete");
+    BOOL cleared = MMRemovalForgetOldChoice();
+    T(@"pref: Core's start clears an old value, once, and then finds nothing to clear", @"yes nil no",
+      [NSString stringWithFormat:@"%@ %@ %@", YN(cleared), Or(MMPref(MMRemovalKey)), YN(MMRemovalForgetOldChoice())]);
+    T(@"pref: the one name and the one sentence", @"trash|Everything MinMacs removes keeps a way back: a worktree through git, the rest in the Trash or a recovery folder. MinMacs never deletes anything at once and never empties the Trash.",
+      [NSString stringWithFormat:@"%@|%@", MMRemovalChoiceName(MMRemovalTrash), MMRemovalExplain()]);
 }
 
 #pragma mark - The decision
 
 static void Worktrees(void) {
     MMRemovalThing w = MMRemovalWorktree;
-    T(@"smart worktree: merged and clean is deleted", @"delete: its branch is merged and every commit is on a remote, so git can give it back",
-      Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, 0, 0))));
-    T(@"smart worktree: remote branch gone and clean is deleted", @"delete: its remote branch is gone and every commit is on a remote, so git can give it back",
-      Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(NO, YES, 0, 0, 0, 0))));
-    // The strict cases: each one alone keeps a way back, even on a merged branch.
-    T(@"smart worktree: an uncommitted change keeps it", @"keep: 1 change is not committed", Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 1, 0, 0, 0))));
-    T(@"smart worktree: an untracked file keeps it", @"keep: 1 untracked file is not in git", Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 1, 0, 0))));
-    T(@"smart worktree: an unpushed commit keeps it", @"keep: 2 commits are on no remote", Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, 2, 0))));
-    T(@"smart worktree: a stash keeps it", @"keep: it has 1 stash", Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, 0, 1))));
-    T(@"smart worktree: not merged with its remote branch keeps it", @"keep: its branch is not merged and its remote branch still exists",
-      Says(MMRemovalDecideWith(MMRemovalSmart, w, Tree(NO, NO, 0, 0, 0, 0))));
-    // Issue #118: an upstream that could not be read keeps, even beside a gone flag, and says so; none says none.
+    // A worktree keeps a way back on any facts. The words say whether git alone could give it back, MMRemovalGitWhyNot.
+    T(@"worktree: merged and clean keeps a way back, and git can give it back", @"keep: git can give it back: its branch is merged and every commit is on a remote",
+      Says(MMRemovalDecide(w, Tree(YES, NO, 0, 0, 0, 0), @"manual")));
+    T(@"worktree: remote branch gone and clean keeps a way back", @"keep: git can give it back: its remote branch is gone and every commit is on a remote",
+      Says(MMRemovalDecide(w, Tree(NO, YES, 0, 0, 0, 0), @"manual")));
+    T(@"worktree: an uncommitted change says so", @"keep: a way back is kept, since 1 change is not committed", Says(MMRemovalDecide(w, Tree(YES, NO, 1, 0, 0, 0), @"manual")));
+    T(@"worktree: an untracked file says so", @"keep: a way back is kept, since 1 untracked file is not in git", Says(MMRemovalDecide(w, Tree(YES, NO, 0, 1, 0, 0), nil)));
+    T(@"worktree: an unpushed commit says so", @"keep: a way back is kept, since 2 commits are on no remote", Says(MMRemovalDecide(w, Tree(YES, NO, 0, 0, 2, 0), @"cli")));
+    T(@"worktree: a stash says so", @"keep: a way back is kept, since it has 1 stash", Says(MMRemovalDecide(w, Tree(YES, NO, 0, 0, 0, 1), @"proactive")));
+    T(@"worktree: not merged with its remote branch says so", @"keep: a way back is kept, since its branch is not merged and its remote branch still exists",
+      Says(MMRemovalDecide(w, Tree(NO, NO, 0, 0, 0, 0), @"eager")));
+    // Issue #118: an upstream that could not be read is not one git gives back, even beside a gone flag; none says none.
     MMRemovalFacts *unread = Tree(NO, YES, 0, 0, 0, 0), *untracked = Tree(NO, NO, 0, 0, 0, 0);
     unread.upstreamUnknown = YES; untracked.upstreamNone = YES;
-    T(@"smart worktree: an upstream not read keeps it, and says so", @"keep: its branch is not merged and its remote branch could not be read",
-      Says(MMRemovalDecideWith(MMRemovalSmart, w, unread)));
-    T(@"smart worktree: a branch with no upstream keeps it, and says so", @"keep: its branch is not merged and it tracks no remote branch",
-      Says(MMRemovalDecideWith(MMRemovalSmart, w, untracked)));
-    T(@"smart worktree: a count git could not give keeps it", @"keep keep keep keep", [NSString stringWithFormat:@"%@ %@ %@ %@",
-      Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, -1, 0, 0, 0))), Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, -1, 0, 0))),
-      Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, -1, 0))), Word(MMRemovalDecideWith(MMRemovalSmart, w, Tree(YES, NO, 0, 0, 0, -1)))]);
+    T(@"git words: an upstream not read is not one git gives back, and says so", @"its branch is not merged and its remote branch could not be read", Or(MMRemovalGitWhyNot(unread)));
+    T(@"git words: a branch with no upstream says so", @"its branch is not merged and it tracks no remote branch", Or(MMRemovalGitWhyNot(untracked)));
+    T(@"git words: a count git could not give is not one git gives back", @"cannot verify what git holds of it|cannot verify what git holds of it|cannot verify what git holds of it|cannot verify what git holds of it",
+      [NSString stringWithFormat:@"%@|%@|%@|%@", Or(MMRemovalGitWhyNot(Tree(YES, NO, -1, 0, 0, 0))), Or(MMRemovalGitWhyNot(Tree(YES, NO, 0, -1, 0, 0))),
+       Or(MMRemovalGitWhyNot(Tree(YES, NO, 0, 0, -1, 0))), Or(MMRemovalGitWhyNot(Tree(YES, NO, 0, 0, 0, -1)))]);
     MMRemovalFacts *unknown = Tree(YES, NO, 0, 0, 0, 0);
     unknown.gitKnown = NO;
-    T(@"smart worktree: unknown git facts keep it", @"keep: cannot verify its git facts", Says(MMRemovalDecideWith(MMRemovalSmart, w, unknown)));
-    T(@"smart worktree: facts nobody set keep it", @"keep keep", [NSString stringWithFormat:@"%@ %@",
-      Word(MMRemovalDecideWith(MMRemovalSmart, w, [MMRemovalFacts new])), Word(MMRemovalDecideWith(MMRemovalSmart, w, nil))]);
-    T(@"trash worktree: merged and clean keeps a way back", @"keep: you chose the Trash, so a way back is kept", Says(MMRemovalDecideWith(MMRemovalTrash, w, Tree(YES, NO, 0, 0, 0, 0))));
-    T(@"delete worktree: deleted whatever its facts", @"delete: you chose Delete, so it is deleted at once", Says(MMRemovalDecideWith(MMRemovalDelete, w, Tree(NO, NO, 0, 0, 3, 1))));
-    // Files git does not hold are never Smart's to delete, on the best facts there are.
+    T(@"git words: unknown git facts, or none set, are never ones git gives back", @"cannot verify its git facts|cannot verify its git facts|cannot verify its git facts",
+      [NSString stringWithFormat:@"%@|%@|%@", Or(MMRemovalGitWhyNot(unknown)), Or(MMRemovalGitWhyNot([MMRemovalFacts new])), Or(MMRemovalGitWhyNot(nil))]);
+    T(@"git words: merged and clean is one git gives back", @"nil", Or(MMRemovalGitWhyNot(Tree(YES, NO, 0, 0, 0, 0))));
     MMRemovalFacts *best = Tree(YES, NO, 0, 0, 0, 0);
-    T(@"ignored files: smart and trash keep them, delete does not", @"keep keep delete", [NSString stringWithFormat:@"%@ %@ %@",
-      Word(MMRemovalDecideWith(MMRemovalSmart, MMRemovalIgnoredFiles, best)), Word(MMRemovalDecideWith(MMRemovalTrash, MMRemovalIgnoredFiles, best)),
-      Word(MMRemovalDecideWith(MMRemovalDelete, MMRemovalIgnoredFiles, best))]);
-    T(@"ignored files: smart says why", @"git does not hold the files it ignores", MMRemovalDecideWith(MMRemovalSmart, MMRemovalIgnoredFiles, best).why);
-    T(@"config files: smart and trash keep them, delete does not", @"keep keep delete", [NSString stringWithFormat:@"%@ %@ %@",
-      Word(MMRemovalDecideWith(MMRemovalSmart, MMRemovalConfigFiles, best)), Word(MMRemovalDecideWith(MMRemovalTrash, MMRemovalConfigFiles, best)),
-      Word(MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, best))]);
+    T(@"ignored files: kept, to the recovery folder", @"keep: git does not hold the files it ignores, so they go to the recovery folder", Says(MMRemovalDecide(MMRemovalIgnoredFiles, best, @"eager")));
+    T(@"config files: kept, to the Trash", @"keep: it goes to the Trash, so Restore moves it back", Says(MMRemovalDecide(MMRemovalConfigFiles, best, @"manual")));
 }
 
 static void Clutters(NSString *rows) {
     MMRemovalThing c = MMRemovalClutter;
-    T(@"smart clutter: a rebuilt cache is deleted", @"delete: its tool rebuilds it", Says(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterCache, YES, YES, NO))));
-    T(@"smart clutter: rebuilt build output is deleted", @"delete", Word(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterBuild, YES, YES, NO))));
-    T(@"smart clutter: a cache whose row does not say rebuilt is kept", @"keep: its row does not say that a tool rebuilds it",
-      Says(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterCache, NO, YES, NO))));
-    T(@"smart clutter: a leftover is kept, whatever else is set", @"keep: it is a leftover, and nothing rebuilds a leftover",
-      Says(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterLeak, YES, YES, NO))));
-    T(@"smart clutter: an item in use is kept", @"keep: cannot verify that nothing uses it", Says(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterBuild, YES, NO, NO))));
-    T(@"smart clutter: build output whose project is gone is kept", @"keep: its project is gone, so nothing can rebuild it",
-      Says(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterBuild, YES, YES, YES))));
-    T(@"smart clutter: tool, data and report rows are never deleted as clutter", @"keep keep keep", [NSString stringWithFormat:@"%@ %@ %@",
-      Word(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterTool, YES, YES, NO))), Word(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterData, YES, YES, NO))),
-      Word(MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterReport, YES, YES, NO)))]);
-    T(@"smart clutter: facts nobody set keep it", @"keep keep", [NSString stringWithFormat:@"%@ %@",
-      Word(MMRemovalDecideWith(MMRemovalSmart, c, [MMRemovalFacts new])), Word(MMRemovalDecideWith(MMRemovalSmart, c, nil))]);
-    T(@"trash clutter: a rebuilt cache keeps a way back", @"keep", Word(MMRemovalDecideWith(MMRemovalTrash, c, Clutter(MMClutterCache, YES, YES, NO))));
-    T(@"delete clutter: a leftover is deleted", @"delete", Word(MMRemovalDecideWith(MMRemovalDelete, c, Clutter(MMClutterLeak, NO, YES, NO))));
-    T(@"tool copy: smart keeps no copy only for a rebuilt tool row", @"delete keep keep", [NSString stringWithFormat:@"%@ %@ %@",
-      Word(MMRemovalDecideWith(MMRemovalSmart, MMRemovalToolCopy, Clutter(MMClutterTool, YES, YES, NO))),
-      Word(MMRemovalDecideWith(MMRemovalSmart, MMRemovalToolCopy, Clutter(MMClutterTool, NO, YES, NO))),
-      Word(MMRemovalDecideWith(MMRemovalSmart, MMRemovalToolCopy, Clutter(MMClutterCache, YES, YES, NO)))]);
-    T(@"tool copy: trash keeps the copy and delete does not", @"keep delete", [NSString stringWithFormat:@"%@ %@",
-      Word(MMRemovalDecideWith(MMRemovalTrash, MMRemovalToolCopy, Clutter(MMClutterTool, YES, YES, NO))),
-      Word(MMRemovalDecideWith(MMRemovalDelete, MMRemovalToolCopy, Clutter(MMClutterTool, NO, YES, NO)))]);
-    T(@"the answer as json wants the delete, and says nothing is deleted yet", @"smart 1 0 its tool rebuilds it", ({ NSDictionary *j = MMRemovalDecideWith(MMRemovalSmart, c, Clutter(MMClutterCache, YES, YES, NO)).json;
+    // What Smart once deleted at once now goes to the Trash: a rebuilt cache, build output, a leftover, on any facts.
+    T(@"clutter: a rebuilt, free cache goes to the Trash", @"keep: it goes to the Trash, so Restore moves it back", Says(MMRemovalDecide(c, Clutter(MMClutterCache, YES, YES, NO), @"manual")));
+    T(@"clutter: build output, a leftover, a tool, data and report row, and facts nobody set all keep a way back", @"keep keep keep keep keep keep keep",
+      [NSString stringWithFormat:@"%@ %@ %@ %@ %@ %@ %@", Word(MMRemovalDecide(c, Clutter(MMClutterBuild, YES, YES, NO), @"manual")), Word(MMRemovalDecide(c, Clutter(MMClutterLeak, NO, YES, NO), @"eager")),
+       Word(MMRemovalDecide(c, Clutter(MMClutterTool, YES, YES, NO), nil)), Word(MMRemovalDecide(c, Clutter(MMClutterData, YES, YES, NO), @"cli")),
+       Word(MMRemovalDecide(c, Clutter(MMClutterReport, YES, YES, NO), @"guard")), Word(MMRemovalDecide(c, [MMRemovalFacts new], nil)), Word(MMRemovalDecide(c, nil, nil))]);
+    T(@"tool copy: a recovery copy is always kept, a rebuilt tool row too", @"keep: a recovery copy is kept, so Restore copies back what the tool removed|keep",
+      [NSString stringWithFormat:@"%@|%@", Says(MMRemovalDecide(MMRemovalToolCopy, Clutter(MMClutterTool, YES, YES, NO), @"manual")),
+       Word(MMRemovalDecide(MMRemovalToolCopy, Clutter(MMClutterTool, NO, YES, NO), @"proactive"))]);
+    T(@"the answer as json wants no delete, and says nothing is deleted", @"trash 0 0 it goes to the Trash, so Restore moves it back", ({ NSDictionary *j = MMRemovalDecide(c, Clutter(MMClutterCache, YES, YES, NO), nil).json;
       [NSString stringWithFormat:@"%@ %@ %@ %@", j[@"choice"], j[@"wants"], j[@"deleted"], j[@"why"]]; }));
-    // The row says rebuilt, and the fresh check could not prove it for this folder: a way back is kept, with that reason.
-    MMRemovalFacts *unproven = Clutter(MMClutterBuild, YES, YES, NO);
-    unproven.unproven = @"no package-lock.json sits beside it";
-    T(@"smart clutter: a rebuilt row whose rebuild is not proven now is kept", @"keep: no package-lock.json sits beside it", Says(MMRemovalDecideWith(MMRemovalSmart, c, unproven)));
-    T(@"delete clutter: an unproven one is deleted, since the person chose so", @"delete", Word(MMRemovalDecideWith(MMRemovalDelete, c, unproven)));
 
     // The rows: only a cache, build or tool row with "rebuilt": true says so. A leftover that claims it does not.
     NSString *mine = Path(@"rows");
@@ -172,8 +151,8 @@ static MMUndoRecord *Begin(NSString *kind, NSString *subject) {
 static MMUndoRecord *Done(MMUndoRecord *r) { [MMUndo.shared finish:r ok:YES freed:0 error:nil]; return [MMUndo.shared record:r.rid]; }
 
 static void Apply(void) {
-    MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalClutter, nil);
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalClutter, nil);
+    MMRemovalDecision *keep = MMRemovalDecide(MMRemovalClutter, nil, nil);
+    MMRemovalDecision *del = MMRemovalTestDeleteDecision(MMRemovalClutter);
     NSError *e = nil;
 
     NSString *kept = Path(@"apply/kept/cache");
@@ -267,33 +246,33 @@ static void Apply(void) {
 #pragma mark - Records
 
 static void Records(void) {
-    MMRemovalDecision *smartTree = MMRemovalDecideWith(MMRemovalSmart, MMRemovalWorktree, Tree(YES, NO, 0, 0, 0, 0));
     NSDictionary *where = @{@"repo": Path(@"repo"), @"worktree": Path(@"wt"), @"head": @"0123456789abcdef", @"branch": @"feat"};
-    // A merged worktree under Smart: the record says deleted, and restore still works, since git holds it.
+    // A merged worktree an older MinMacs removed under Smart: the record says deleted, and restore still works, since
+    // git holds it. MinMacs makes no such record now, so its "removal" is written as that MinMacs wrote it.
     MMUndoRecord *a = Begin(@"remove", @"smart tree");
-    MMRemovalNote(a, smartTree, nil);
-    MMRemovalNote(a, MMRemovalDecideWith(MMRemovalSmart, MMRemovalIgnoredFiles, nil), @"ignored");
+    [MMUndo.shared note:a payload:@{@"removal": @{@"choice": @"smart", @"wants": @YES, @"deleted": @NO, @"why": @"git can give it back",
+                                                  @"ignored": @{@"choice": @"smart", @"wants": @NO, @"deleted": @NO, @"why": @"git does not hold the files it ignores"}}}];
     [MMUndo.shared note:a payload:@{@"worktree": where}];
     MMRemovalDone(a, nil); MMRemovalDone(a, @"ignored");
     a = Done(a);
-    T(@"record: a smart worktree says deleted and can still restore from git", @"yes yes 0", [NSString stringWithFormat:@"%@ %@ %@", YN(a.deletedNow), YN(a.canRestore),
+    T(@"record: an old smart worktree says deleted and can still restore from git", @"yes yes 0", [NSString stringWithFormat:@"%@ %@ %@", YN(a.deletedNow), YN(a.canRestore),
       a.payload[@"removal"][@"ignored"][@"deleted"]]);
-    // Under Delete nothing restores, and the refusal names the bundle that was still taken.
+    // An old record under Delete restores nothing, and the refusal names the bundle that was still taken.
     MMUndoRecord *b = Begin(@"remove", @"delete tree");
-    MMRemovalNote(b, MMRemovalDecideWith(MMRemovalDelete, MMRemovalWorktree, nil), nil);
+    MMRemovalNote(b, MMRemovalTestDeleteDecision(MMRemovalWorktree), nil);
     MMRemovalDone(b, nil);
     [MMUndo.shared note:b payload:@{@"bundle": @{@"path": Path(@"b.bundle"), @"repo": where[@"repo"], @"worktree": where[@"worktree"], @"head": where[@"head"]}}];
     b = Done(b);
     T(@"record: a worktree under Delete cannot restore, bundle or not", @"yes no", [NSString stringWithFormat:@"%@ %@", YN(b.deletedNow), YN(b.canRestore)]);
     T(@"record: its refusal names the bundle", [@"it was deleted and cannot be brought back. Its commits on no remote are in the git bundle " stringByAppendingString:Path(@"b.bundle")],
       Or([MMUndo.shared restore:b.rid]));
-    // A worktree under the Trash choice keeps its way back.
+    // A worktree removed now keeps its way back.
     MMUndoRecord *c = Begin(@"remove", @"trash tree");
-    MMRemovalNote(c, MMRemovalDecideWith(MMRemovalTrash, MMRemovalWorktree, nil), nil);
+    MMRemovalNote(c, MMRemovalDecide(MMRemovalWorktree, nil, nil), nil);
     MMRemovalDone(c, nil);
     [MMUndo.shared note:c payload:@{@"worktree": where}];
     c = Done(c);
-    T(@"record: a worktree under Trash is not deleted and can restore", @"no yes", [NSString stringWithFormat:@"%@ %@", YN(c.deletedNow), YN(c.canRestore)]);
+    T(@"record: a worktree removed now is not deleted and can restore", @"no yes", [NSString stringWithFormat:@"%@ %@", YN(c.deletedNow), YN(c.canRestore)]);
     // A record written before the choice existed reads as before.
     MMUndoRecord *old = Begin(@"trash", @"old");
     [MMUndo.shared note:old payload:@{@"trashed": @[@{@"from": Path(@"old/from"), @"to": Path(@"old/to")}]}];
@@ -301,12 +280,13 @@ static void Records(void) {
     T(@"record: one with no removal entry is not deleted and can restore", @"no yes", [NSString stringWithFormat:@"%@ %@", YN(old.deletedNow), YN(old.canRestore)]);
 
     MMUndoRecord *gone = Begin(@"trash", @"gone cache");
-    MMRemovalNote(gone, MMRemovalDecideWith(MMRemovalSmart, MMRemovalClutter, Clutter(MMClutterCache, YES, YES, NO)), nil);
+    // An old record of a cache Smart deleted at once.
+    [MMUndo.shared note:gone payload:@{@"removal": @{@"choice": @"smart", @"wants": @YES, @"deleted": @NO, @"why": @"its tool rebuilds it"}}];
     MMRemovalDone(gone, nil);
     gone = Done(gone);
     // A removal under Delete that failed before the thing went: it wanted the delete, and nothing says deleted.
     MMUndoRecord *never = Begin(@"remove", @"refused tree");
-    MMRemovalNote(never, MMRemovalDecideWith(MMRemovalDelete, MMRemovalWorktree, nil), nil);
+    MMRemovalNote(never, MMRemovalTestDeleteDecision(MMRemovalWorktree), nil);
     [MMUndo.shared finish:never ok:NO freed:0 error:@"git worktree remove refused"];
     never = [MMUndo.shared record:never.rid];
     T(@"record: a failed removal under Delete does not say deleted", @"delete 1 0 no", [NSString stringWithFormat:@"%@ %@ %@ %@", never.payload[@"removal"][@"choice"],
@@ -325,7 +305,7 @@ static void Records(void) {
     T(@"where: a failed record counts nowhere", @"nil", Or(MMRemovalWhereWords(@[[MMUndo.shared record:failed.rid]])));
 }
 
-// Who is asked, the wall as a rule on strings, and what a Wrap Up stages.
+// The wall as a rule on strings, and what a Wrap Up stages.
 #import "wall.m"
 
 int main(int argc, char **argv) {
@@ -336,7 +316,7 @@ int main(int argc, char **argv) {
             // The path is named, as a fresh finding would name it, so the answer is the wall's and not "nobody asked".
             MMRemovalAsk(r, @[@(argv[2])]);
             NSError *e = nil;
-            BOOL ok = MMRemovalApply(@(argv[2]), MMRemovalDecideWith(MMRemovalDelete, MMRemovalClutter, nil), r, &e);
+            BOOL ok = MMRemovalApply(@(argv[2]), MMRemovalTestDeleteDecision(MMRemovalClutter), r, &e);
             printf("%s: %s\n", ok ? "deleted" : "refused", e.localizedDescription.UTF8String ?: "");
             return ok ? 0 : 1;
         }
@@ -355,7 +335,6 @@ int main(int argc, char **argv) {
         Clutters(@(argv[2]));
         Apply();
         Records();
-        Chosen();
         Wall();
         Staged();
         Crash();

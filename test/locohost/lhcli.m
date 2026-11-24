@@ -68,7 +68,9 @@ int main(int argc, const char *argv[]) {
         if ([verb isEqualToString:@"_project"] && argc > 2) return Project(@(argv[2]));
         NSMutableArray *words = [NSMutableArray new];
         for (int i = 1; i < argc; i++) [words addObject:@(argv[i])];
-        NSDictionary *r = MMCLIReply(@{@"cli": words, @"program": @"locohost", @"cwd": NSFileManager.defaultManager.currentDirectoryPath});
+        NSDictionary *r = MMCLIReply(@{@"cli": words, @"program": @"locohost", @"cwd": NSFileManager.defaultManager.currentDirectoryPath,
+                                         // D3: as the CLI does, it says whether a person sits at this terminal.
+                                         @"noPerson": @(MMNoPersonAtTerminal())});
         fputs([r[@"out"] UTF8String] ?: "", stdout);
         fputs([r[@"err"] UTF8String] ?: "", stderr);
         fflush(stdout);

@@ -27,22 +27,48 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 @end
 
 @implementation MMWindowFact (MMJSON)
-- (NSDictionary *)json { return @{@"label": self.label ?: @"", @"value": self.value ?: @""}; }
+- (NSDictionary *)json {
+    if (!self.link.length) return @{@"label": self.label ?: @"", @"value": self.value ?: @""};
+    return @{@"label": self.label ?: @"", @"value": self.value ?: @"", @"link": self.link};
+}
+@end
+
+@implementation MMWindowPull (MMJSON)
+- (NSDictionary *)json {
+    NSString *known = self.known == MMWindowPullLooking ? @"looking" : self.known == MMWindowPullNone ? @"none" : @"found";
+    return @{@"known": known, @"line": self.line, @"number": self.number > 0 ? @(self.number) : NSNull.null, @"state": Or(self.state),
+             @"draft": @(self.draft), @"review": Or(self.review), @"title": Or(self.title), @"url": Or(self.url), @"milestone": Or(self.milestone),
+             @"checks": @{@"passing": @(self.checksPassing), @"failing": @(self.checksFailing), @"pending": @(self.checksPending)}};
+}
 @end
 
 @implementation MMWindowRow (MMJSON)
 - (NSDictionary *)json {
-    return @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
+    NSDictionary *j = @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
              @"state": Or(self.state), @"cpuPercent": self.cpuPercent >= 0 ? @(round(self.cpuPercent * 10) / 10) : NSNull.null,
              // A size not measured yet is null, never 0.
              @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": self.unmeasured ? @NO : @YES, @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
-             @"hour": Or(self.hour), @"facts": All(self.facts)};
+             @"hour": Or(self.hour), @"facts": All(self.facts), @"project": Or(self.project), @"workedAt": self.workedAt > 0 ? @(self.workedAt) : NSNull.null};
+    if (self.pull) {
+        NSMutableDictionary *x = [j mutableCopy];
+        x[@"pullRequest"] = self.pull.json;
+        j = x;
+    }
+    if (self.goTo.length) { NSMutableDictionary *g = [j mutableCopy]; g[@"goTo"] = self.goTo; j = g; }
+    if (!self.members) return j;
+    // A row that stands for several, DESIGN rule 16, says so and holds each member whole, as the rows it stands for.
+    NSMutableDictionary *x = [j mutableCopy];
+    // inside: the members that lie inside another member, whose size is in that one's and is not counted again.
+    NSInteger inside = 0;
+    for (MMWindowRow *m in self.members) if (m.kin.within) inside++;
+    x[@"collapsed"] = @{@"count": @(self.members.count), @"inside": @(inside), @"kin": self.kin.key ?: @"", @"members": All(self.members)};
+    return x;
 }
 @end
 
 @implementation MMWindowGroup (MMJSON)
 - (NSDictionary *)json { return @{@"key": self.key, @"title": self.title, @"side": SideName(self.side), @"rows": All(self.rows),
-                                 @"emptyNote": Or(self.emptyNote)}; }
+                                 @"emptyNote": Or(self.emptyNote), @"byProject": @(self.byProject)}; }
 @end
 
 @implementation MMWindowRing (MMJSON)
@@ -82,8 +108,9 @@ NSString *MMWindowKindName(MMWindowKind kind) {
         [rules addObject:@{@"ruleID": r.ruleID, @"title": r.title, @"choices": choices, @"picked": @(r.picked), @"note": Or(r.note)}];
     }
     for (MMWindowSwitch *s in self.switches)
-        [switches addObject:@{@"switchID": s.switchID ?: @"", @"title": s.title ?: @"", @"on": @(s.on), @"inert": @(s.inert), @"note": Or(s.note)}];
-    return @{@"rules": rules, @"switches": switches};
+        [switches addObject:@{@"switchID": s.switchID ?: @"", @"title": s.title ?: @"", @"on": @(s.on), @"inert": @(s.inert), @"note": Or(s.note),
+                                @"help": Or(s.help)}];
+    return @{@"rules": rules, @"switches": switches, @"startsIn": Or(self.startsIn)};
 }
 @end
 

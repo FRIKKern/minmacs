@@ -41,7 +41,7 @@ static void WindowShownChecks(void) {
     for (NSView *sub in WindowLists(v).firstObject.superview.subviews) if ([sub isKindOfClass:MMWindowDockView.class]) dock = (MMWindowDockView *)sub;
     v.showsSettings = YES;
     NSButton *option = nil;
-    for (NSButton *o in Options(v)) if (![[o valueForKey:@"picked"] boolValue] && ![[o valueForKey:@"isSwitch"] boolValue]) { option = o; break; }
+    for (NSButton *o in Options(v)) if ([[o valueForKey:@"ownerID"] hasPrefix:@"rule:"]) { option = o; break; }
     BOOL heldOption = !MMWindowTakesPresses(option), heldFix = !MMWindowTakesPresses(dock.fix);
     [option performClick:nil]; [dock.fix performClick:nil];
     NSInteger during = host.rules + host.fixes;
@@ -49,7 +49,7 @@ static void WindowShownChecks(void) {
     BOOL freeOption = MMWindowTakesPresses(option);
     [option performClick:nil];
     Check(win.isVisible && option && dock && (!motion || (heldOption && heldFix)) && during == (motion ? 0 : 1) && freeOption && host.rules == (motion ? 1 : 2) && host.fixes == 0,
-          @"window shown: while the window turns to Settings no choice and no Fix Everything takes a press, and right after a choice does",
+          @"window shown: while the window turns to Settings no rule's switch and no Fix Everything takes a press, and right after a switch does",
           [NSString stringWithFormat:@"visible %d, held %d %d, %ld during, %ld rules, %ld fixes", win.isVisible, heldOption, heldFix, (long)during, (long)host.rules, (long)host.fixes]);
     // Back to the menu: the same hold, then Fix Everything takes its press.
     v.showsSettings = NO;
@@ -82,8 +82,8 @@ static void WindowShownChecks(void) {
     WelcomePress(hit); [dock.fix performClick:nil];
     NSInteger early = host.fixes;
     BOOL there = !dock.superview.hidden && dock.superview.alphaValue == 1 && !v.showsWelcome;
-    SpinUntil(^BOOL { return WelcomeHit(v, at, w) == dock.fix; });
-    WelcomePress(WelcomeHit(v, at, w));
+    SpinUntil(^BOOL { return WelcomeHit(v, dock.fix.frame, dock) == dock.fix; });
+    WelcomePress(WelcomeHit(v, dock.fix.frame, dock));
     Check(host.starts == 1 && there && early == 0 && host.fixes == 1,
           @"window shown: closed inside the guard after Start and opened again, the menu is there and takes no press until the guard has run from the opening",
           [NSString stringWithFormat:@"%ld starts, there %d, %ld at once, %ld after", (long)host.starts, there, (long)early, (long)host.fixes]);

@@ -15,6 +15,13 @@
 @property (readonly, copy) NSString *liveStatus;
 /// YES while liveStatus says a turn runs: busy, waiting or inProgress. "shell" is not working.
 @property (readonly) BOOL stillWorking;
+/// Claude Code only, from the transcript's tail that the title is read from, nil for other agents: what it did in the
+/// hour before its newest line. The time of each tool use, and each file an edit tool wrote with when it last did.
+/// activityFrom is the time of the tail's first whole line when the tail is not the whole file: nothing before it
+/// was read, so a count over a span that starts earlier is a count since then. nil when the whole file was read.
+@property (readonly, copy) NSArray<NSNumber *> *toolUseTimes;
+@property (readonly, copy) NSDictionary<NSString *, NSNumber *> *edits;
+@property (readonly) NSDate *activityFrom;
 @end
 
 /// P19, P20 and P21. One index of every session for every folder, built in one pass and refreshed by FSEvents.
@@ -49,6 +56,9 @@
 
 /// Posted on the sessions watch queue after FSEvents saw a change in a session folder. Core asks for a rebuild.
 extern NSNotificationName const MMSessionsDidChangeNotification;
+/// In the post's userInfo: @YES when every change was inside Claude Code's projects folder, its transcripts, and no
+/// event was dropped. Issue #52: Core then leaves the change to the next pass's build, at most 30 seconds apart.
+extern NSString *const MMSessionsTranscriptsOnlyKey;
 
 /// P22. One agent event, kept small: the event name, session id, cwd, parent pid and time. Nothing else is kept.
 @interface MMAgentEvent : NSObject

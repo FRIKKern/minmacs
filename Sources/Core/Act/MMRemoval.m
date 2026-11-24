@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: the pref, the one decision and what a record says of it.
+// Removal, MMRemoval.h: the old pref, the one decision and what a record says of it.
 // The wall and the only place Act deletes a file are in MMRemovalApply.m.
 #import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMUndo.h"
@@ -7,37 +7,18 @@
 
 NSString *const MMRemovalKey = @"core.removal";
 
-static NSArray<NSString *> *Names(void) { return @[@"smart", @"trash", @"delete"]; }
+MMRemovalChoice MMRemovalChoiceNow(void) { return MMRemovalTrash; }
 
-NSString *MMRemovalChoiceName(MMRemovalChoice c) { return c >= 0 && c < (NSInteger)Names().count ? Names()[(NSUInteger)c] : @"trash"; }
+NSString *MMRemovalChoiceName(MMRemovalChoice c) { return @"trash"; }
 
-NSInteger MMRemovalChoiceFrom(NSString *name) {
-    NSUInteger i = [name isKindOfClass:NSString.class] ? [Names() indexOfObject:name.lowercaseString] : NSNotFound;
-    return i == NSNotFound ? -1 : (NSInteger)i;
+NSString *MMRemovalExplain(void) {
+    return @"Everything MinMacs removes keeps a way back: a worktree through git, the rest in the Trash or a recovery folder. MinMacs never deletes anything at once and never empties the Trash.";
 }
 
-MMRemovalChoice MMRemovalChoiceNow(void) {
-    id v = MMPref(MMRemovalKey);
-    if (!v) return MMRemovalSmart;
-    // A value nobody can read must not delete anything, so it counts as the Trash.
-    NSInteger c = MMRemovalChoiceFrom(v);
-    return c < 0 ? MMRemovalTrash : (MMRemovalChoice)c;
-}
-
-void MMSetRemovalChoice(MMRemovalChoice c) { MMSetPref(MMRemovalKey, MMRemovalChoiceName(c)); }
-
-BOOL MMRemovalChosen(void) { return MMPref(MMRemovalKey) != nil; }
-
-NSString *MMRemovalNotChosenNote(void) {
-    return MMRemovalChosen() ? nil : @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash.";
-}
-
-NSString *MMRemovalChoiceTitle(MMRemovalChoice c) { return @[@"Smart", @"Trash", @"Delete"][(NSUInteger)MAX(0, MIN(2, c))]; }
-
-NSString *MMRemovalChoiceExplain(MMRemovalChoice c) {
-    return @[@"Deletes what git or its tool can give back. The rest goes to the Trash.",
-             @"Everything goes to the Trash. The disk comes back when you empty it.",
-             @"Deletes everything it removes at once. Nothing can be brought back."][(NSUInteger)MAX(0, MIN(2, c))];
+BOOL MMRemovalForgetOldChoice(void) {
+    if (!MMPref(MMRemovalKey)) return NO;
+    MMSetPref(MMRemovalKey, nil);
+    return YES;
 }
 
 #pragma mark - Facts
@@ -79,13 +60,13 @@ NSString *MMRemovalChoiceExplain(MMRemovalChoice c) {
 
 @implementation MMRemovalDecision
 /// "deleted" starts NO. MMRemovalDone turns it into "wants" once the thing is gone.
-- (NSDictionary *)json { return @{@"choice": MMRemovalChoiceName(self.choice), @"wants": self.deleteNow ? @YES : @NO, @"deleted": @NO, @"why": self.why ?: @""}; }
+/// A decision that deletes is only the checks' seam, as an older MinMacs's Delete made it, so it says "delete".
+- (NSDictionary *)json { return @{@"choice": self.deleteNow ? @"delete" : MMRemovalChoiceName(self.choice), @"wants": self.deleteNow ? @YES : @NO, @"deleted": @NO, @"why": self.why ?: @""}; }
 @end
 
 static NSString *Count(NSInteger n, NSString *one, NSString *many) { return [NSString stringWithFormat:@"%ld %@", (long)n, n == 1 ? one : many]; }
 
-/// Why Smart keeps a way back for this worktree, or nil when git can give all of it back.
-static NSString *WorktreeKeeps(MMRemovalFacts *f) {
+NSString *MMRemovalGitWhyNot(MMRemovalFacts *f) {
     if (!f || !f.gitKnown) return @"cannot verify its git facts";
     if (f.dirty < 0 || f.untracked < 0 || f.unpushed < 0 || f.stashes < 0) return @"cannot verify what git holds of it";
     if (f.dirty > 0) return [Count(f.dirty, @"change is", @"changes are") stringByAppendingString:@" not committed"];
@@ -98,61 +79,32 @@ static NSString *WorktreeKeeps(MMRemovalFacts *f) {
     return nil;
 }
 
-/// Why Smart keeps a way back for this clutter, or nil when its tool rebuilds it.
-static NSString *ClutterKeeps(MMRemovalFacts *f) {
-    if (!f) return @"cannot verify what it is";
-    if (f.klass == MMClutterLeak) return @"it is a leftover, and nothing rebuilds a leftover";
-    if (f.klass != MMClutterCache && f.klass != MMClutterBuild) return @"its row is neither a cache nor build output";
-    if (!f.rebuilt) return @"its row does not say that a tool rebuilds it";
-    if (f.unproven.length) return f.unproven;
-    if (!f.free) return @"cannot verify that nothing uses it";
-    if (f.ownerGone) return @"its project is gone, so nothing can rebuild it";
-    return nil;
-}
-
-/// YES for an act MinMacs starts on its own: a mode or an expert's own rule. A press, the CLI and words shown before
-/// anybody acts are the person's.
-static BOOL OnItsOwn(NSString *by) { return by.length && ![by isEqualToString:@"manual"] && ![by isEqualToString:@"cli"]; }
-
-MMRemovalDecision *MMRemovalDecideWith(MMRemovalChoice choice, MMRemovalThing thing, MMRemovalFacts *facts) {
-    return MMRemovalDecideAs(choice, YES, nil, thing, facts);
-}
-
-MMRemovalDecision *MMRemovalDecideAs(MMRemovalChoice choice, BOOL chosen, NSString *by, MMRemovalThing thing, MMRemovalFacts *facts) {
+MMRemovalDecision *MMRemovalDecide(MMRemovalThing thing, MMRemovalFacts *facts, NSString *by) {
     MMRemovalDecision *d = [MMRemovalDecision new];
-    d.choice = choice; d.thing = thing;
-    // Nobody was asked yet, so what MinMacs does unasked loses nothing, whatever the default would allow.
-    if (!chosen && OnItsOwn(by)) { d.deleteNow = NO; d.why = @"you have not chosen what happens to removed things yet, so a way back is kept"; return d; }
-    if (choice == MMRemovalDelete) { d.deleteNow = YES; d.why = @"you chose Delete, so it is deleted at once"; return d; }
-    if (choice != MMRemovalSmart) { d.deleteNow = NO; d.why = @"you chose the Trash, so a way back is kept"; return d; }
-    NSString *keeps = nil;
+    d.choice = MMRemovalTrash; d.thing = thing; d.deleteNow = NO;
     switch (thing) {
-        case MMRemovalWorktree:
-            keeps = WorktreeKeeps(facts);
-            if (!keeps) d.why = facts.merged ? @"its branch is merged and every commit is on a remote, so git can give it back"
-                                             : @"its remote branch is gone and every commit is on a remote, so git can give it back";
+        case MMRemovalWorktree: {
+            // git worktree remove takes the folder. What git holds comes back through git, and the record says so.
+            NSString *no = MMRemovalGitWhyNot(facts);
+            d.why = !no ? (facts.merged ? @"git can give it back: its branch is merged and every commit is on a remote"
+                                        : @"git can give it back: its remote branch is gone and every commit is on a remote")
+                        : [@"a way back is kept, since " stringByAppendingString:no];
             break;
-        case MMRemovalIgnoredFiles: keeps = @"git does not hold the files it ignores"; break;
-        case MMRemovalConfigFiles: keeps = @"git does not hold untracked files"; break;
-        case MMRemovalClutter:
-            keeps = ClutterKeeps(facts);
-            if (!keeps) d.why = @"its tool rebuilds it";
-            break;
-        case MMRemovalToolCopy:
-            if (!facts || facts.klass != MMClutterTool) keeps = @"cannot verify that a tool owns it";
-            else if (!facts.rebuilt) keeps = @"its row does not say that the tool fetches it again";
-            else d.why = @"its tool fetches it again";
-            break;
-        default: keeps = @"cannot verify what it is"; break;
+        }
+        case MMRemovalIgnoredFiles: d.why = @"git does not hold the files it ignores, so they go to the recovery folder"; break;
+        case MMRemovalToolCopy: d.why = @"a recovery copy is kept, so Restore copies back what the tool removed"; break;
+        default: d.why = @"it goes to the Trash, so Restore moves it back"; break;
     }
-    d.deleteNow = keeps == nil;
-    if (keeps) d.why = keeps;
     return d;
 }
 
-MMRemovalDecision *MMRemovalDecide(MMRemovalThing thing, MMRemovalFacts *facts, NSString *by) {
-    return MMRemovalDecideAs(MMRemovalChoiceNow(), MMRemovalChosen(), by, thing, facts);
+#ifdef MM_TESTS
+MMRemovalDecision *MMRemovalTestDeleteDecision(MMRemovalThing thing) {
+    MMRemovalDecision *d = [MMRemovalDecision new];
+    d.choice = MMRemovalTrash; d.thing = thing; d.deleteNow = YES; d.why = @"a check deletes it, as an older MinMacs did";
+    return d;
 }
+#endif
 
 #pragma mark - The record
 
@@ -197,7 +149,7 @@ NSString *MMRemovalWhereWords(NSArray<MMUndoRecord *> *records) {
         BOOL removes = [r.kind isEqualToString:@"remove"] || [r.kind isEqualToString:@"trash"] || [r.kind isEqualToString:@"clean"];
         if (!removes) continue;
         NSDictionary *p = r.payload;
-        if ([p[@"trashed"] isKindOfClass:NSArray.class] && [p[@"trashed"] count]) trashed++;
+        if (MMRecordTrashed(p).count) trashed++;
         else if (r.deletedNow) deleted++;
         else kept++;
     }

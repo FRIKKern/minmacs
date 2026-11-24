@@ -8,7 +8,6 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
 static NSNumber *Num(id v) { return [v isKindOfClass:NSNumber.class] ? v : nil; }
 static NSDate *Date(id v) { return Num(v) && [v doubleValue] > 0 ? [NSDate dateWithTimeIntervalSince1970:[v doubleValue]] : nil; }
 static NSString *Folder(NSString *path) { return path.length ? path.stringByAbbreviatingWithTildeInPath : nil; }
-static BOOL HomeOrTop(NSString *path) { NSString *p = path.stringByStandardizingPath; return [p isEqualToString:NSHomeDirectory()] || [p isEqualToString:@"/"]; }
 
 static BOOL Is(MMFinding *f, NSString *expert, NSString *kind) { return [f.expert isEqualToString:expert] && [f.kind isEqualToString:kind]; }
 
@@ -33,7 +32,14 @@ NSString *MMWindowNameOf(MMFinding *f) {
         NSString *what = Str(x[@"framework"]) ?: Str(x[@"project"]);
         return what ? [NSString stringWithFormat:@":%ld %@", (long)port, what] : [NSString stringWithFormat:@":%ld", (long)port];
     }
-    if (Is(f, @"workforest", @"worktree")) return Str(x[@"branch"]) ?: f.path.lastPathComponent ?: title;
+    if (Is(f, @"workforest", @"worktree")) {
+        // A branch name alone does not tell trees apart: every repo has a main. A repo's main checkout is named by its
+        // repo, a linked worktree by its repo and branch, "minmacs · seam-130". Without a repo, the branch as before.
+        NSString *repo = Str(Str(x[@"repo"]).lastPathComponent), *branch = Str(x[@"branch"]);
+        if (repo && [Num(x[@"main"]) boolValue]) return repo;
+        if (repo && branch) return [NSString stringWithFormat:@"%@ · %@", repo, branch];
+        return branch ?: repo ?: f.path.lastPathComponent ?: title;
+    }
     return Str(x[@"name"]) ?: title;
 }
 
@@ -127,11 +133,18 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
     NSArray *ports = [x[@"ports"] isKindOfClass:NSArray.class] ? x[@"ports"] : nil;
     switch (kind) {
         case MMWindowServer: {
+            // An agent's own port, kind agent: the server is that agent, so its facts name the agent and its session,
+            // and who started the agent. LocoHost names such a server by the agent, as MMWindowNameOf shows it.
+            BOOL agentOwn = [Str(x[@"kind"]) isEqualToString:@"agent"];
             Add(out, MMWindowFactPort([Num(x[@"port"]) integerValue]));
+            if (agentOwn) {
+                Add(out, MMWindowFactAgent(Str(x[@"agent"])));
+                Add(out, MMWindowFactSession(SessionTitle(Str(x[@"agentTitle"]))));
+            }
             // With no folder of its own, Core names a server's project by its process, "node": that is no folder.
             Add(out, MMWindowFactProject(Str(x[@"repo"]) || Str(x[@"worktree"]) || ![Str(x[@"project"]) isEqualToString:Str(x[@"name"])] ? Str(x[@"project"]) : nil));
             Add(out, MMWindowFactRunsIn(Str(x[@"where"]) ?: Str(x[@"whereApp"])));
-            Add(out, MMWindowFactStartedBy(Str(x[@"agent"]) ?: Str(x[@"launcher"])));
+            Add(out, MMWindowFactStartedBy(agentOwn ? Str(x[@"launcher"]) : Str(x[@"agent"]) ?: Str(x[@"launcher"])));
             NSDate *last = Date(x[@"lastActive"]);
             if (last) Add(out, [Str(x[@"state"]) isEqualToString:@"idle"] ? MMWindowFactIdle(-last.timeIntervalSinceNow) : MMWindowFactLastUsed(-last.timeIntervalSinceNow));
             if ([Num(x[@"uptimeSeconds"]) doubleValue] > 0) Add(out, MMWindowFactUp([x[@"uptimeSeconds"] doubleValue]));
@@ -140,10 +153,7 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             break;
         }
         case MMWindowAgent:
-            Add(out, MMWindowFactAgent(Str(x[@"name"])));
-            // An agent that runs in the home folder or at the disk's top has no project.
-            Add(out, MMWindowFactProject(HomeOrTop(Str(x[@"project"])) ? nil : Str(x[@"project"]).lastPathComponent));
-            Add(out, MMWindowFactState(Str(x[@"state"])));
+            // MMWindowAgentFacts tells an agent's story, from the whole snapshot. MMWindowRowFrom calls it.
             break;
         case MMWindowApp:
             Add(out, MMWindowFactUsedBy(Str(x[@"agent"])));
@@ -162,15 +172,25 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             Add(out, MMWindowFactLeftBy(Str(x[@"worktree"]).lastPathComponent));
             break;
         }
-        case MMWindowWorktree:
-            // Merged is the row's own word, so it is no fact here.
+        case MMWindowWorktree: {
+            // Its git, from WorkForest's facts as Know read them: no git runs here. Merged is the row's own word; the
+            // story says how and into what. Each fact only when it is known.
+            BOOL git = [Num(x[@"gitKnown"]) boolValue], main = [Num(x[@"main"]) boolValue];
+            NSString *def = Str(x[@"defaultBranch"]);
             Add(out, MMWindowFactBranch(Str(x[@"branch"])));
+            if (git && Date(x[@"lastCommitAt"])) Add(out, MMWindowFactLastCommit(Str(x[@"subject"]), Str(x[@"head"]), -Date(x[@"lastCommitAt"]).timeIntervalSinceNow));
+            if (git && !main) Add(out, MMWindowFactAgainst([Num(x[@"notInDefault"]) integerValue], Num(x[@"behindDefault"]) ? [x[@"behindDefault"] integerValue] : -1, def));
+            if (git && !main) Add(out, MMWindowFactMerged(Str(x[@"merged"]), def));
+            if (git && !main && Str(x[@"branch"])) Add(out, MMWindowFactRemote(Str(x[@"upstream"])));
             Add(out, MMWindowFactFiles([Num(x[@"dirty"]) integerValue], [Num(x[@"untracked"]) integerValue]));
             Add(out, MMWindowFactNotPushed([Num(x[@"unpushed"]) integerValue]));
             // The time of the last work, to the second: quietDays is rounded to tenths of a day, so 0 can be 72 minutes.
             if (Date(x[@"lastWorkAt"])) Add(out, MMWindowFactUntouched(-Date(x[@"lastWorkAt"]).timeIntervalSinceNow));
+            NSDictionary *session = [x[@"session"] isKindOfClass:NSDictionary.class] ? x[@"session"] : nil;
+            Add(out, MMWindowFactMadeBy(Str(x[@"maker"]), [Str(session[@"agent"]) isEqualToString:Str(x[@"maker"])] ? SessionTitle(Str(session[@"title"])) : nil));
             Add(out, MMWindowFactFolder(Folder(f.path ?: Str(x[@"path"]))));
             break;
+        }
         case MMWindowCache:
             Add(out, MMWindowFactKind(Str(x[@"kindTitle"])));
             Add(out, MMWindowFactOwner(Str(x[@"owner"])));
@@ -182,6 +202,64 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
     }
     Add(out, MMWindowFactStays(stays));
     return out;
+}
+
+#pragma mark - The pull request
+
+/// What MMPulls knows of a linked worktree's branch, from memory alone: no gh runs here. Only the window's story asks
+/// gh, through MMWindowController. nil while nothing is known, and for a main checkout or a detached HEAD.
+MMWindowPull *MMWindowPullOf(NSDictionary *x) {
+    NSString *repo = Str(x[@"repo"]), *branch = Str(x[@"branch"]);
+    if (!repo || !branch || [Num(x[@"main"]) boolValue] || [Num(x[@"protected"]) boolValue]) return nil;
+    return MMWindowPullFrom([MMPulls.shared knownFor:repo branch:branch head:Str(x[@"head"])]);
+}
+
+MMWindowPull *MMWindowPullFrom(MMPullAnswer *a) {
+    if (!a || a.known == MMPullNothing) return nil;
+    MMWindowPull *p = [MMWindowPull new];
+    p.known = a.known == MMPullLooking ? MMWindowPullLooking : a.known == MMPullNone ? MMWindowPullNone : MMWindowPullFound;
+    MMPull *pr = a.pull;
+    if (pr) {
+        p.number = pr.number; p.state = pr.stateWord; p.draft = pr.draft; p.review = pr.review;
+        p.checksPassing = pr.checksPassing; p.checksFailing = pr.checksFailing; p.checksPending = pr.checksPending;
+        p.mergedAgo = pr.mergedAt ? MAX(0, -pr.mergedAt.timeIntervalSinceNow) : -1;
+        p.title = pr.title.length ? OneLine(pr.title) : nil; p.url = pr.url.length ? pr.url : nil;
+        p.milestone = pr.milestone.length ? OneLine(pr.milestone) : nil;
+    }
+    return p;
+}
+
+#pragma mark - The kin
+
+/// What lets rows that read alike stand as one, DESIGN rule 16: a cache's registry row, with the words its expert
+/// gives for it, or a helper's name and the worktree that left it. nil for every other row.
+static MMWindowKin *KinOf(MMFinding *f, MMWindowRow *row) {
+    NSDictionary *x = f.facts;
+    MMWindowKin *k = [MMWindowKin new];
+    if (row.kind == MMWindowCache) {
+        NSString *kindID = Str(x[@"kindID"]);
+        if (!kindID) return nil;
+        NSDictionary *words = [x[@"collapse"] isKindOfClass:NSDictionary.class] ? x[@"collapse"] : @{};
+        k.key = [NSString stringWithFormat:@"%@:%@", f.expert ?: @"", kindID];
+        k.title = Str(words[@"title"]) ?: Str(x[@"kindTitle"]) ?: row.name;
+        k.one = Str(words[@"one"]) ?: @"folder"; k.many = Str(words[@"many"]) ?: @"folders";
+        k.innerOne = Str(words[@"innerOne"]); k.innerMany = Str(words[@"innerMany"]);
+        if (k.innerOne && k.innerMany) k.inner = [Num(x[@"members"]) integerValue];
+        k.path = Str(x[@"path"]) ?: f.path;
+        // It may go when it is free and nothing keeps it: what Noo-Noo would act on. A report row never goes.
+        k.canGo = [Str(x[@"state"]) isEqualToString:@"free"] && !f.keepReasons.count && ![Num(x[@"reportOnly"]) boolValue];
+        if (!k.canGo) k.why = f.keepReasons.firstObject ?: Str(x[@"keep"]) ?: Str(x[@"why"]);
+        return k;
+    }
+    if (row.kind == MMWindowHelper) {
+        // The feed sets canGo once it knows which helpers Fix Everything ends, and leaves helpers apart whose process
+        // trees hold one another, MMWindowFeed.m.
+        NSString *worktree = Str(x[@"worktree"]) ?: @"";
+        k.key = [NSString stringWithFormat:@"helper:%@|%@", row.name, worktree];
+        k.title = row.name; k.one = @"process"; k.many = @"processes";
+        return k;
+    }
+    return nil;
 }
 
 #pragma mark - The row
@@ -225,6 +303,21 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
         [f.procs.firstObject getValue:&k size:sizeof k];
         row.hour = MMWindowRingHour([s.history treeFor:k]);
     }
+    // A worktree's project is its repo. Under the project's sub-header the header names the repo, so the row needs only
+    // its branch, or says it is the main checkout. Its last work orders the group, MMWindowByProject.
+    if (row.kind == MMWindowWorktree) {
+        row.project = Str(Str(x[@"repo"]).lastPathComponent);
+        row.nameInProject = !row.project ? nil : [Num(x[@"main"]) boolValue] ? MMWindowMainCheckout : Str(x[@"branch"]);
+        row.workedAt = [Num(x[@"lastWorkAt"]) doubleValue] > 0 ? [x[@"lastWorkAt"] doubleValue] : 0;
+    }
     row.facts = FactsOf(f, row.kind);
+    if (row.kind == MMWindowWorktree) row.pull = MMWindowPullOf(x);
+    if (row.kind == MMWindowAgent) {
+        NSString *goTo = nil;
+        NSArray<MMWindowFact *> *story = MMWindowAgentFacts(f, SessionOf(f, s), row.name, s, &goTo);
+        row.facts = [story arrayByAddingObjectsFromArray:row.facts];
+        row.goTo = goTo;
+    }
+    row.kin = KinOf(f, row);
     return row;
 }

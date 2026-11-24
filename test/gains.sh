@@ -52,6 +52,19 @@ check "gains: the text says memory and disk are never added" 1 "$(printf '%s\n' 
 check "gains: the text has today's line" 1 "$(printf '%s\n' "$gn_text" | grep -c '^Today .* 5 actions')"
 check "gains: the text lists by who did it" 1 "$(printf '%s\n' "$gn_text" | grep -c '^By who did it')"
 
+# A server under an app, both ended by fixes: its memory came back once. In a home of its own, so the counts above hold.
+if [ -x "$gn_dir/gainstest-$$" ]; then
+  echo "-- a process two fixes end counts once"
+  gn_tw="$(cd "$gn_dir" && pwd -P)/twice-home"; mkdir -p "$gn_tw/fixtures"
+  MINMACS_HOME="$gn_tw" "$gn_dir/gainstest-$$" "$gn_dir/gainsfixture-$$" "$gn_tw/fixtures" twice >"$gn_dir/twice.txt" 2>"$gn_dir/twice-err.txt"
+  gn_r=$?
+  check "gains: the twice checks ran to the end" "0 END" "$gn_r $(tail -1 "$gn_dir/twice.txt")"
+  [ "$gn_r" = 0 ] || tail -10 "$gn_dir/twice-err.txt"
+  while IFS="$gn_tab" read -r gn_tag gn_name gn_want gn_got; do
+    [ "$gn_tag" = CHECK ] && check "$gn_name" "$gn_want" "$gn_got"
+  done <"$gn_dir/twice.txt"
+fi
+
 # A removal whose size was not measured, issue #83, in a home of its own, so the counts above hold. The fake removal
 # deletes nothing. The verb then reads the one row not measured that the binary left in that home's log.
 if [ -x "$gn_dir/gainstest-$$" ]; then

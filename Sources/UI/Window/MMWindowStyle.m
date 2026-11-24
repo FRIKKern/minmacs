@@ -29,6 +29,7 @@ NSColor *MMWindowColor(MMWindowInk ink) {
         case MMWindowInkText2:  return RGBA(235, 235, 245, hc ? 0.86 : 0.56);
         case MMWindowInkText3:  return RGBA(235, 235, 245, hc ? 0.72 : 0.44);
         case MMWindowInkHot:    return RGBA(11, 99, 216, 1);
+        case MMWindowInkHover:  return RGBA(255, 255, 255, hc ? 0.15 : 0.07);
         case MMWindowInkMemory: return RGBA(158, 194, 255, 1);
         case MMWindowInkDisk:   return RGBA(242, 196, 107, 1);
         case MMWindowInkFix:    return RGBA(255, 159, 69, 1);
@@ -193,6 +194,14 @@ NSArray<NSNumber *> *MMWindowHourValues(NSArray *values, NSInteger *filled) {
 }
 
 NSArray *MMWindowHourSpan(NSArray *values, NSInteger *first, NSInteger *last, NSInteger *filled) {
+    return MMWindowHourSpanAtLeast(values, MMWindowHourLeast, first, last, filled);
+}
+
+NSString *MMWindowHourSpanWords(NSInteger minutes) {
+    return minutes >= 60 ? @"the last hour" : [NSString stringWithFormat:@"the last %ld min", (long)MAX(minutes, 1)];
+}
+
+NSArray *MMWindowHourSpanAtLeast(NSArray *values, NSInteger least, NSInteger *first, NSInteger *last, NSInteger *filled) {
     NSInteger a = -1, b = -1, n = 0;
     for (NSInteger i = 0; i < (NSInteger)values.count; i++) {
         if (![values[i] isKindOfClass:NSNumber.class]) continue;
@@ -202,13 +211,13 @@ NSArray *MMWindowHourSpan(NSArray *values, NSInteger *first, NSInteger *last, NS
     if (first) *first = a;
     if (last) *last = b;
     if (filled) *filled = n;
-    return n >= MMWindowHourLeast ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a + 1))] : nil;
+    return n >= MAX(least, 1) ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a + 1))] : nil;
 }
 
 void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHourLook look) {
-    BOOL graph = look == MMWindowHourGraph, small = look == MMWindowHourRow;
+    BOOL graph = look == MMWindowHourGraph, small = look == MMWindowHourRow || look == MMWindowHourStrip;
     // Only the filled part is drawn, across the whole width, so a young hour is a short line and never a stroke at the edge.
-    NSArray *span = MMWindowHourSpan(values, NULL, NULL, NULL);
+    NSArray *span = MMWindowHourSpanAtLeast(values, graph || look == MMWindowHourStrip ? MMWindowHourGraphLeast : MMWindowHourLeast, NULL, NULL, NULL);
     if (!span) return;
     NSArray<NSNumber *> *v = MMWindowHourValues(span, NULL);
     double lo = INFINITY, hi = -INFINITY;

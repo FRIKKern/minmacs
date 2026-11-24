@@ -8,7 +8,7 @@
 //   round 2, B4: the cold plan's facts; then an update pass on core.git.N reads the worktree and is held before it
 //   writes the index; config rewritten, from replaced by to; then freshFactsFor:, during which the held pass is let go
 //   once the fresh read is done (at the sessions' refresh, which ColdFacts runs next) and writes its old answer.
-//   Each read is given as upstream|upstreamGone|upstreamUnknown|smart, as gittool keeps gives it.
+//   Each read is given as upstream|upstreamGone|upstreamUnknown|gitBack, as gittool keeps gives it.
 //   Built with MM_TESTS, for MMRepoIndexTestStep, which only orders the threads.
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
@@ -33,9 +33,9 @@ static NSString *Say(MMFacts *facts, NSString *path) {
     MMRemovalFacts *f = [MMRemovalFacts worktreeKnown:YES merged:!w.isMain && g.merged != MMMergedNone upstreamGone:g.upstreamGone
                                                  dirty:g.dirty untracked:g.untracked unpushed:g.unpushed stashes:g.stashes];
     f.upstreamUnknown = g.upstreamUnknown; f.upstreamNone = !g.upstream.length && !g.upstreamGone && !g.upstreamUnknown;
-    MMRemovalDecision *d = MMRemovalDecideWith(MMRemovalSmart, MMRemovalWorktree, f);
+    NSString *no = MMRemovalGitWhyNot(f);
     return [NSString stringWithFormat:@"%@|%@|%@|%@", g.upstream.length ? g.upstream : @"None", g.upstreamGone ? @"True" : @"False",
-            g.upstreamUnknown ? @"True" : @"False", d.deleteNow ? @"delete now" : [@"keep: " stringByAppendingString:d.why ?: @""]];
+            g.upstreamUnknown ? @"True" : @"False", !no ? @"git gives back" : [@"keep: " stringByAppendingString:no]];
 }
 
 static NSString *StampOf(struct stat st) {

@@ -7,6 +7,11 @@ OUT=${1:-${TMPDIR:-/tmp}/minmacs-settling/xpc}
 APP="$OUT/MMXPCProbe.app"
 SVC="$APP/Contents/XPCServices/MMProbeWorker.xpc"
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$SVC/Contents/MacOS"
+# clang with two -arch flags leaves an empty folder per input in TMPDIR. Its TMPDIR is a private folder, removed at exit.
+CC_TMP=$(mktemp -d "$OUT/clang-tmp.XXXXXX")
+trap 'rm -rf "$CC_TMP"' EXIT
+trap 'exit 1' HUP INT TERM
+clang() { TMPDIR="$CC_TMP" command clang "$@"; }
 F="-fobjc-arc -O2 -Wall -Wextra -mmacosx-version-min=14.0 -arch arm64 -arch x86_64 -framework Foundation"
 # shellcheck disable=SC2086
 clang $F host.m -o "$APP/Contents/MacOS/host"

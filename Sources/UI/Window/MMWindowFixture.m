@@ -9,6 +9,8 @@ static const uint64_t MB = MMFixMB, GB = MMFixGB, DMB = MMFixDiskMB, DGB = MMFix
 static MMWindowRow *Long(MMWindowRow *like, NSString *key, NSString *name, uint64_t bytes) {
     MMWindowRow *r = MMWindowFixtureRow(like.kind, key, name, like.iconHint, like.state, bytes, like.cpuPercent);
     r.hour = like.hour; r.facts = like.facts; r.quiet = like.quiet;
+    // A worktree keeps its project, and is named in it as the feed names it.
+    if (like.project) { r.project = like.project; r.workedAt = like.workedAt; r.nameInProject = name; r.name = [NSString stringWithFormat:@"%@ · %@", like.project, name]; }
     return r;
 }
 
@@ -29,41 +31,28 @@ static MMWindowFix *Fix(NSString *key, NSString *title, uint64_t memory, uint64_
     return f;
 }
 
-static MMWindowRule *Card(NSString *rid, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *note) {
-    return MMWindowChoiceCard(rid, title, picked, choices, note);
-}
-
-/// Settings as the feed fills it, Shell/MMWindowRules.m: the four rules from the same words the feed uses, the card
-/// for the removal choice with Core's own three sentences, then This Mac. The render cannot link Core, so the three
-/// removal sentences are written here too, and test/window.sh and test/window/window.m hold them to Core's.
-/// `picked` is the choice of each of the four rules and of the removal card.
+/// Settings as the feed fills it, Shell/MMWindowRules.m: the four rules from the same words the feed uses, then This
+/// Mac. There is no removal card: everything MinMacs removes keeps a way back. `picked` is the choice of each rule.
 static MMWindowSettings *SettingsLike(NSArray<NSNumber *> *picked, NSDictionary<NSString *, NSString *> *notes) {
     MMWindowSettings *s = [MMWindowSettings new];
     NSMutableArray<MMWindowRule *> *rules = [NSMutableArray new];
     NSArray<NSString *> *ids = MMWindowRuleIDs();
     for (NSUInteger i = 0; i < ids.count; i++) [rules addObject:MMWindowRuleCard(ids[i], picked[i].integerValue, notes[ids[i]])];
-    [rules addObject:
-                Card(@"removal", MMWindowRemovalTitle, picked[4].integerValue, @[
-                     @[@"Smart", @"Deletes what git or its tool can give back. The rest goes to the Trash."],
-                     @[@"Trash", @"Everything goes to the Trash. The disk comes back when you empty it."],
-                     @[@"Delete", @"Deletes everything it removes at once. Nothing can be brought back."]], notes[@"removal"])];
     s.rules = rules;
-    s.switches = @[MMWindowLidSwitch(YES, NO, @"On now. The Mac keeps running with the lid shut."), MMWindowLoginSwitch(YES, nil)];
+    s.switches = @[MMWindowAwakeSwitch(NO, nil), MMWindowAgentsSwitch(YES, MMWindowAgentsNote(YES, 2)),
+                    MMWindowLidSwitch(YES, NO, @"Working with the lid shut now."), MMWindowLoginSwitch(YES, nil), MMWindowPullsSwitch(YES)];
     return s;
 }
 
 /// A working day: servers and worktrees on Careful, caches on Eager, apps Off with one app ready for a press.
 static MMWindowSettings *Settings(void) {
-    return SettingsLike(@[@1, @0, @1, @2, @0], @{@"apps": MMWindowReadyNote(1)});
+    return SettingsLike(@[@1, @0, @1, @2], @{@"apps": MMWindowReadyNote(1)});
 }
 
-/// "removal": the same day. It keeps its name from when only it had the removal card.
-static MMWindowSettings *SettingsWithRemoval(void) { return Settings(); }
-
 /// The welcome as the feed makes it for a person new to MinMacs, MMWindowWelcomeNow in Shell/MMWindowRules.m, with
-/// the switch on or off and one removal choice picked. test/window.sh checks its facts against the feed's.
-static MMWindowWelcome *Welcome(BOOL login, NSInteger picked, BOOL watched) {
-    MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:SettingsWithRemoval().rules.lastObject.choices picked:picked facts:@[
+/// the switch on or off. test/window.sh checks its facts against the feed's.
+static MMWindowWelcome *Welcome(BOOL login, BOOL watched) {
+    MMWindowWelcome *w = [MMWindowWelcome welcomeWithFacts:@[
         // "welcome-watched": a person who used MinMacs for more than a day before the welcome, with every rule on Careful.
         watched ? [MMWindowFact label:@"It has watched a day" value:@"MinMacs may now stop servers, remove worktrees and clean up leftovers on its own."]
                 : [MMWindowFact label:@"It waits a day" value:@"For its first day MinMacs stops, quits and removes nothing on its own."],
@@ -91,7 +80,28 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
     return h;
 }
 
+static MMWindowModel *Day(NSString *name);
+
+/// What the families and the scratch that may go give back, in disk megabytes.
+static uint64_t LeftoversBack(NSArray<MMWindowRow *> *caches) {
+    uint64_t n = 0;
+    for (MMWindowRow *r in caches) for (MMWindowRow *m in r.members) if (m.kin.canGo) n += m.bytes;
+    return n / DMB;
+}
+
+/// Each day with its log. "log-empty", "log-new", "log-busy" and "log-undo" are the young, the young, the busy and the
+/// young day with an empty log, a new Mac's first hour, 300 entries over a month and the Undo presses with two runs. The days of a new Mac show the first hour too.
 MMWindowModel *MMWindowFixture(NSString *name) {
+    NSString *day = [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;
+    MMWindowModel *m = Day(day);
+    NSString *log = [name isEqualToString:@"log-empty"] || [name isEqualToString:@"empty"] ? @"empty"
+                  : [name isEqualToString:@"log-busy"] ? @"busy" : [name isEqualToString:@"log-undo"] ? @"undo"
+                  : [name isEqualToString:@"log-new"] || [name isEqualToString:@"young"] || [name isEqualToString:@"calm"] || [name hasPrefix:@"welcome"] ? @"new" : @"day";
+    m.log = MMWindowFixtureLog(log);
+    return m;
+}
+
+static MMWindowModel *Day(NSString *name) {
     MMWindowModel *other = MMWindowFixtureMore(name);
     if (other) { other.settings = Settings(); return other; }
     BOOL quiet = [name isEqualToString:@"quiet"], peak = [name isEqualToString:@"peak"], empty = [name isEqualToString:@"empty"];
@@ -112,20 +122,19 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     m.settings = Settings();
     if ([name isEqualToString:@"calm"]) {
         // The calm day is a new person's first hour on a Mac with no lid: every rule on Careful and still only watching,
-        // the removal choice not made yet, so none is picked, the lid switch not available and the login item left alone.
-        NSString *watching = MMWindowWatchingNote(@"23h");
-        m.settings = SettingsLike(@[@1, @1, @1, @1, @-1], @{@"servers": watching, @"worktrees": watching, @"caches": watching,
-            @"removal": @"Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash."});
-        m.settings.switches = @[MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil)];
+        // so the cleanup card's badge says when they start, the lid switch not available and the login item left alone.
+        m.settings = SettingsLike(@[@1, @1, @1, @1], @{});
+        m.settings.startsIn = MMWindowStartsNote(23 * 3600 + 7 * 60);
+        m.settings.switches = @[MMWindowAwakeSwitch(YES, nil), MMWindowAgentsSwitch(YES, nil), MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil), MMWindowPullsSwitch(YES)];
     }
-    if (empty) m.settings = SettingsLike(@[@0, @0, @0, @0, @1], @{});
-    if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-trash"] ? 1 : [name isEqualToString:@"welcome-delete"] ? 2 : 0,
-                                     [name isEqualToString:@"welcome-watched"]);
+    if (empty) m.settings = SettingsLike(@[@0, @0, @0, @0], @{});
+    if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-watched"]);
     NSInteger asking = empty || young || calm ? 0 : quiet ? 1 : peak ? 3 : 2;
     NSArray<MMWindowRow *> *servers = Young(MMWindowFixtureServers(empty ? 0 : quiet || calm ? 7 : peak ? 26 : 20), minutes);
     NSArray<MMWindowRow *> *agents = Young(MMWindowFixtureAgents(empty ? 0 : quiet || calm ? 3 : peak ? 22 : 16, asking), minutes);
     NSArray<MMWindowRow *> *apps = MMWindowFixtureApps(empty ? 0 : quiet || calm ? 12 : 15);
-    NSArray<MMWindowRow *> *trees = MMWindowFixtureWorktrees(empty || young ? 0 : quiet || calm ? 4 : peak ? 18 : 16);
+    // The calm day has two projects, the quiet day one, so its list is flat. The busy days have five.
+    NSArray<MMWindowRow *> *trees = MMWindowFixtureWorktrees(empty || young ? 0 : quiet || calm ? 4 : peak ? 18 : 16, quiet ? 1 : 5);
     NSArray<MMWindowRow *> *caches = MMWindowFixtureCaches(empty || young ? 0 : quiet || calm ? 2 : 5);
     // Nothing is in Fix Everything on the young and the calm day, and on a one-side day only that side's fixes are.
     // A row no fix touches carries no mark, and an app or tabs row loses the word the mark gave it.
@@ -135,6 +144,13 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         if (r.inFix && [r.state isEqualToString:@"will close"]) r.state = nil;
         r.inFix = NO;
     }
+    // "caches": the busy day whose Caches also holds 169 temp-folder families and four sessions' scratch, as the owner's
+    // Mac had them, each kin one row as the feed shows it, DESIGN rule 16.
+    // "agents": the same, with an agent whose story holds every fact and one whose holds almost none.
+    BOOL stories = [name isEqualToString:@"agents"];
+    if (stories) MMWindowFixtureAgentStories(agents);
+    BOOL leftovers = [name isEqualToString:@"caches"] || stories;
+    if (leftovers) caches = MMWindowCollapsed([caches arrayByAddingObjectsFromArray:MMWindowFixtureLeftovers()]);
     if (measuring) for (NSUInteger i = 1; i < trees.count; i++) { trees[i].unmeasured = YES; trees[i].bytes = 0; }
     if (longNames) {
         servers = [servers arrayByAddingObject:Long(servers[1], @"server:9366", @":9366 Google Chrome for Testing", 565 * MB)];
@@ -161,7 +177,8 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     // The fixes, titled as the feed titles them, MMWindowFixTitle. The last one waits for its own press.
     NSMutableArray *fixes = [NSMutableArray arrayWithArray:@[
         Fix(@"wrapup:fix-auth-redirect", @"Wrap Up fix-auth-redirect", (412 + 1434) * MB, 1905 * DMB, NO),
-        Fix(@"trash:leftovers", @"Clean up 1 leftover", 0, 14541 * DMB, NO),
+        // On the caches day the families and the scratch go too: one row each, as the feed counts them.
+        Fix(@"trash:leftovers", leftovers ? @"Move 3 leftovers to the Trash" : @"Move 1 leftover to the Trash", 0, (14541 + (leftovers ? LeftoversBack(caches) : 0)) * DMB, NO),
         Fix(@"stop:idle", quiet ? @"Stop 3 idle servers" : @"Stop 5 idle servers", (quiet ? 720 : 816) * MB, 0, NO),
         Fix(@"quit:apps", @"Quit 1 app", 578 * MB, 0, NO)]];
     if (!quiet) [fixes addObject:Fix(@"remove:merged", @"Remove 3 merged worktrees", 0, 2616 * DMB, NO)];

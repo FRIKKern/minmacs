@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: an item MinMacs sent to the Trash, or was sending there, that no record names,
+// Removal, MMRemoval.h: an item MinMacs sent to the Trash, or was sending there, that no record names,
 // issue #113. -[MMUndo trash:record:error:] writes MinMacs's own list of what a record sent to the Trash,
 // MMRemovalTrashList.m, before the move, moves, writes the list again with the Trash path, and only then the record's
 // entry. A stop in between leaves an entry only that list names:
@@ -51,7 +51,7 @@ NSSet<NSString *> *MMRemovalTrashNamed(NSArray<MMUndoRecord *> *records) {
     for (MMUndoRecord *r in records) if (r.rid.length) all[r.rid] = r;
     for (MMUndoRecord *r in records) {
         if (r.state == MMUndoRestored) continue;
-        NSMutableArray<NSDictionary *> *named = [MMRecordList(r.payload, @"trashed") mutableCopy] ?: [NSMutableArray new];
+        NSMutableArray<NSDictionary *> *named = [MMRecordTrashed(r.payload) mutableCopy] ?: [NSMutableArray new];
         // A record that still acts may have moved a file and listed it, and not yet named it: issue #113's third review.
         MMUndoRecord *parent = r.parentRid.length ? (all[r.parentRid] ?: [MMUndo.shared record:r.parentRid]) : nil;
         if (MMRemovalStillActs(r, parent)) [named addObjectsFromArray:MMRemovalTrashListItems(r.rid, NULL) ?: @[]];
@@ -151,7 +151,7 @@ NSArray<NSDictionary *> *MMRemovalTrashStranded(MMUndoRecord *r, NSSet<NSString 
     // old path and id together, so a hard link's second name is not hidden by the first, the fourth review.
     NSMutableSet<NSString *> *own = [NSMutableSet new];
     if (r.state != MMUndoRestored)
-        for (NSDictionary *t in MMRecordList(r.payload, @"trashed")) if (IdKey(t) && MMRecordString(t, @"from")) [own addObject:Named(MMRecordString(t, @"from"), IdKey(t))];
+        for (NSDictionary *t in MMRecordTrashed(r.payload)) if (IdKey(t) && MMRecordString(t, @"from")) [own addObject:Named(MMRecordString(t, @"from"), IdKey(t))];
     NSMutableArray<NSDictionary *> *out = [NSMutableArray new];
     for (NSDictionary *e in items) {
         NSString *from = MMRecordString(e, @"from"), *key = IdKey(e);

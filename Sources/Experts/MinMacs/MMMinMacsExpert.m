@@ -230,11 +230,14 @@ typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
     @synchronized (self) { if (_ownerApps == appList) _ownerOf = [ownerNow copy]; }   // processes that are gone leave
 
     // Loopback listeners, from the sample's socket table.
-    NSMutableDictionary<NSNumber *, NSMutableOrderedSet *> *ports = [NSMutableDictionary new];
+    // Every listener too, for an agent that serves a port of its own, as LocoHost lists it.
+    NSMutableDictionary<NSNumber *, NSMutableOrderedSet *> *ports = [NSMutableDictionary new], *listens = [NSMutableDictionary new];
     NSUInteger n = 0;
     const MMSocket *socks = [s sockets:&n];
     for (NSUInteger i = 0; socks && i < n; i++) {
-        if (socks[i].state != MMSocketListen || !Loopback(&socks[i])) continue;
+        if (socks[i].state != MMSocketListen) continue;
+        [listens[@(socks[i].pid)] ?: (listens[@(socks[i].pid)] = [NSMutableOrderedSet new]) addObject:@(socks[i].localPort)];
+        if (!Loopback(&socks[i])) continue;
         NSMutableOrderedSet *set = ports[@(socks[i].pid)] ?: (ports[@(socks[i].pid)] = [NSMutableOrderedSet new]);
         [set addObject:@(socks[i].localPort)];
     }
@@ -250,6 +253,7 @@ typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
         MMMinMacsAgent *m = [MMMinMacsAgent new];
         m.name = name; m.harnessID = a.harnessID; m.sessionID = a.sessionID; m.project = a.cwd; m.why = a.why;
         m.state = a.state; m.key = a.key; m.cpuPercent = a.treeCPU; m.memory = a.treeFootprint;
+        m.ports = [listens[@(a.key.pid)].array sortedArrayUsingSelector:@selector(compare:)];
         [agents addObject:m];
         NSMutableArray<MMAgent *> *working = [NSMutableArray new];
         if (a.state == MMAgentWorking || a.state == MMAgentWaiting) [working addObject:a];
@@ -388,9 +392,18 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
             b.title = m.name;
             b.cost = (MMCost){ .ramBytes = m.memory, .cpuPercent = m.cpuPercent };
             b.procs = @[KeyValue(m.key)];
-            b.facts = @{@"harnessID": m.harnessID ?: @"", @"name": m.name ?: @"", @"state": StateWord(m.state),
+            NSMutableDictionary *fx = [@{@"harnessID": m.harnessID ?: @"", @"name": m.name ?: @"", @"state": StateWord(m.state),
                         @"project": m.project ?: @"", @"why": m.why ?: @"", @"memoryBytes": @(m.memory), @"cpu": @(round(m.cpuPercent)),
-                        @"pid": @(m.key.pid)};
+                        @"pid": @(m.key.pid)} mutableCopy];
+            // The ports the agent's own process listens on, which LocoHost lists as that agent's server.
+            if (m.ports.count) fx[@"ports"] = m.ports;
+            // Where it runs on screen, for the window's story and its Go to. MMWhereIs with no wait gives the last
+            // answer Know holds, or nothing, and asks again on Know's own queue, as LocoHost does for a server.
+            MMPlace *place = facts.sample ? MMWhereIs(m.key, facts.sample, NO) : nil;
+            if (place.label.length) fx[@"where"] = place.label;
+            if (place.app.length) fx[@"whereApp"] = place.app;
+            if (place && MMPlaceGoable(place)) fx[@"whereGo"] = @YES;
+            b.facts = fx;
             b.fingerprint = StateWord(m.state);
         }]];
     }
@@ -437,23 +450,22 @@ static void RunOffMain(dispatch_block_t block) {
     return r;
 }
 
-/// Menu actions: run off main, then rebuild the graph. A failure the person should see goes in an alert.
+/// Menu actions: run off main, then rebuild the graph. A failure goes to the log as a notice.
 - (void)menuRun:(NSArray<id<MMAction>> *)actions {
     dispatch_async(MMQueue(kExpert, @"act", QOS_CLASS_USER_INITIATED), ^{
         NSMutableArray *problems = [NSMutableArray new];
         for (id<MMAction> a in actions) {
             NSString *err = nil;
             MMUndoRecord *r = MMRunAction(a, self.policy, nil, @"manual", @"asked from the menu", &err);
-            if (!r || r.state == MMUndoFailed) [problems addObject:[NSString stringWithFormat:@"%@: %@", a.finding.title, err ?: r.error ?: @"it failed"]];
+            if (!r || r.state == MMUndoFailed) [problems addObject:@[a.finding.title ?: @"", err ?: r.error ?: @"it failed"]];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             [MMGraph.shared rebuild:@"minmacs.action"];
-            if (!problems.count || !NSApp) return;
-            NSAlert *alert = [NSAlert new];
-            alert.messageText = problems.count == 1 ? @"MinMacs Could Not Do It" : [NSString stringWithFormat:@"MinMacs Could Not Do %ld Things", (long)problems.count];
-            alert.informativeText = [problems componentsJoinedByString:@"\n"];
-            [alert runModal];
         });
+        // D3: a failure is a notice in the log, with at most one notification. No alert waits for a person.
+        if (problems.count)
+            MMNotice(kExpert, problems.count == 1 ? @"MinMacs Could Not Do It" : [NSString stringWithFormat:@"MinMacs Could Not Do %ld Things", (long)problems.count],
+                     MMNoticeLines(problems));
     });
 }
 

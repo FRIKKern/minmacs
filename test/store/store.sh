@@ -120,7 +120,11 @@ check "a relaunch row names its app for Act's restore" "com.google.Chrome quit d
 check "the last LocoHost review joins the review history" 1 "$(sqlite3 "$st_db" "SELECT COUNT(*) FROM rows WHERE tbl='review';")"
 MINMACS_HOME="$st_new" "$st_bin" import "$st_old" >"$st_dir/import2.json"
 check "a second import does nothing" "0 0 0" "$(json '"%d %d %d" % (len(j["prefs"]), len(j["files"]), len(j["rows"]))' <"$st_dir/import2.json")"
-check "a second import adds no row" 5 "$(sqlite3 "$st_db" 'SELECT COUNT(*) FROM rows;')"
+check "a second import adds no row" 5 "$(sqlite3 "$st_db" "SELECT COUNT(*) FROM rows WHERE tbl != 'setting';")"
+# The modes and the review's model the old apps had are settings the person did not set here: the import writes a
+# row of the log's setting table for each, by the migration, once.
+check "the import writes a setting row by the migration for each mode and the model it brings, once" "2 2" \
+  "$(sqlite3 "$st_db" "SELECT COUNT(*) FROM rows WHERE tbl = 'setting';") $(sqlite3 "$st_db" "SELECT COUNT(*) FROM rows WHERE tbl = 'setting' AND json_extract(body, '\$.by') = 'migration' AND (subject = 'review.model' OR subject LIKE '%.mode');")"
 # A 2.0 file that exists already wins over the old one.
 st_new2="$st_home/new2"; mkdir -p "$st_new2/locohost"
 printf '{"protect.ports":[1]}' >"$st_new2/locohost/rules.json"

@@ -14,6 +14,8 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
 
 @implementation MMWFTree
 
+- (instancetype)init { if ((self = [super init])) _behindDefault = -1; return self; }
+
 - (NSString *)name { return self.path.lastPathComponent; }
 - (NSString *)repoName { return self.repo.lastPathComponent ?: @""; }
 - (BOOL)detached { return !self.branch.length; }
@@ -36,6 +38,7 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
              @"defaultBranch": Or(self.defaultBranch), @"merged": Or(self.merged), @"upstream": Or(self.upstream),
              @"dirty": @(self.dirty), @"untracked": @(self.untracked), @"stashes": @(self.stashes), @"unpushed": @(self.unpushed),
              @"notInDefault": @(self.notInDefault), @"onRemote": @(self.onRemote), @"lastCommitAt": Time(self.lastCommit),
+             @"subject": Or(self.subject), @"behindDefault": @(self.behindDefault),
              @"sized": @(self.sized), @"diskBytes": @(self.diskBytes), @"freedBytes": @(self.freedBytes), @"cacheBytes": @(self.cacheBytes),
              @"files": @(self.files), @"touchedAt": Time(self.touched), @"createdAt": Time(self.created),
              @"processes": self.processes ?: @[], @"session": Or(self.session), @"protected": @(self.isProtected),
@@ -52,7 +55,8 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
     t.merged = Str(j[@"merged"]); t.upstream = Str(j[@"upstream"]);
     t.dirty = [j[@"dirty"] integerValue]; t.untracked = [j[@"untracked"] integerValue]; t.stashes = [j[@"stashes"] integerValue];
     t.unpushed = [j[@"unpushed"] integerValue]; t.notInDefault = [j[@"notInDefault"] integerValue]; t.onRemote = [j[@"onRemote"] boolValue];
-    t.lastCommit = Date(j[@"lastCommitAt"]);
+    t.lastCommit = Date(j[@"lastCommitAt"]); t.subject = Str(j[@"subject"]);
+    t.behindDefault = [j[@"behindDefault"] isKindOfClass:NSNumber.class] ? [j[@"behindDefault"] integerValue] : -1;
     t.sized = [j[@"sized"] boolValue]; t.diskBytes = [j[@"diskBytes"] unsignedLongLongValue];
     t.freedBytes = [j[@"freedBytes"] unsignedLongLongValue]; t.cacheBytes = [j[@"cacheBytes"] unsignedLongLongValue];
     t.files = [j[@"files"] integerValue]; t.touched = Date(j[@"touchedAt"]); t.created = Date(j[@"createdAt"]);
@@ -304,11 +308,11 @@ MMMenuSpec *MMWFMenu(MMWFView *v) {
     NSMutableArray *more = [NSMutableArray new];
     for (NSDictionary *x in [v.removed subarrayWithRange:NSMakeRange(0, MIN(v.removed.count, (NSUInteger)6))]) {
         NSString *by = Str(x[@"by"]);
-        by = [by isEqualToString:@"manual"] || [by isEqualToString:@"cli"] || [by isEqualToString:@"you"] || !by.length ? @"you" : MMWFModeLabel(by);
+        by = [by isEqualToString:@"url"] ? @"a link" : [by isEqualToString:@"manual"] || [by isEqualToString:@"cli"] || [by isEqualToString:@"you"] || !by.length ? @"you" : MMWFModeLabel(by);
         NSString *title = [NSString stringWithFormat:@"Restore %@", MMCut([Str(x[@"path"]) lastPathComponent] ?: @"worktree", 36)];
         MMActionSpec *a = Action(v, title, [NSString stringWithFormat:@"%@ by %@", MMAgo(Date(x[@"at"])), by], @"restore", Str(x[@"rid"]));
         if ([x[@"taken"] boolValue]) a.disabledReason = @"its folder exists again";
-        // A worktree removed under the Delete choice has no way back. One that went in a Wrap Up restores with the rest.
+        // A worktree an older MinMacs removed under the Delete choice has no way back. One that went in a Wrap Up restores with the rest.
         else if (x[@"canRestore"] && ![x[@"canRestore"] boolValue] && ![x[@"wrapUp"] boolValue]) a.disabledReason = @"it was deleted and cannot be brought back";
         [more addObject:a];
     }

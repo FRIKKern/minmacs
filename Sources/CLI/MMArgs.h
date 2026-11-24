@@ -29,6 +29,12 @@ enum {
 @property (copy) NSString *cwd;
 /// YES when the verb runs inside the app, handed over core.sock.
 @property BOOL inApp;
+/// D3: YES when no person can answer at the terminal the verb came from: MMNoPersonAtTerminal in Core/Act/MMNotice.h
+/// in the CLI process, sent to the app with the request. A verb never reads stdin then, and never waits. A change
+/// that keeps a way back goes ahead as --yes would; anything else refuses, says how to run it and exits non-zero.
+@property BOOL noPerson;
+/// YES for --yes, or with no person to ask. Only for a change that keeps a way back, such as a removal to the Trash.
+- (BOOL)yesKeepingAWayBack;
 
 /// The word at i, or nil.
 - (NSString *)word:(NSUInteger)i;

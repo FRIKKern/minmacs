@@ -2,6 +2,7 @@
 # Writes docs/CLI.md from `help --json` of the built binary, under each of its program names.
 # Usage: python3 -I test/docs/clidoc.py <path to MinMacs binary> [repo root]   prints the page on stdout
 # test/docs.sh runs it and checks that docs/CLI.md matches, so the page cannot drift from the verb registry.
+# A verb of minmacs with a docs/cli/<verb>.md gets that page's text after its usage, for what help cannot hold.
 # It runs the binary only for help, with MINMACS_HOME in a fresh temp folder, so it reads no real state.
 import json, os, re, subprocess, sys, tempfile
 
@@ -61,7 +62,16 @@ def aliases(root):
     return out
 
 
-def verb_block(v):
+def more_of(root, verb):
+    """docs/cli/<verb>.md, the part of a verb's entry that help cannot hold, such as its JSON shape."""
+    path = os.path.join(root, "docs", "cli", verb + ".md")
+    if not os.path.exists(path):
+        return []
+    lines = open(path).read().rstrip("\n").split("\n")
+    return lines + [""]
+
+
+def verb_block(v, root=None):
     usage, about = split_usage(v["usage"])
     lines = ["#### `%s`" % v["verb"], ""]
     if about:
@@ -72,6 +82,8 @@ def verb_block(v):
         lines += ["Flags: " + ", ".join("`%s`" % f for f in fl) + ".", ""]
     if v["mutates"]:
         lines += ["It changes things, so it runs only through the running app, unless `--dry-run` is given.", ""]
+    if root:
+        lines += more_of(root, v["verb"])
     return lines
 
 
@@ -92,6 +104,12 @@ def main():
            "```", "",
            "The app binary is also the command line tool. `install.sh` and `build.sh --install` link it as `~/.local/bin/minmacs`. "
            "When the app runs, the CLI hands each verb to it over `core.sock` in the support folder. When no app answers, it builds a snapshot itself and answers from that.", "",
+           "## Nobody at the terminal", "",
+           "No verb ever waits for a person, decision D3. When stdin is not a TTY, or `MINMACS_UNATTENDED=1` is set, or `minmacs unattended on` was run, "
+           "the CLI reads nothing from stdin. A change that keeps a way back, such as a worktree removal or a plain stop that Undo starts again, "
+           "goes ahead as `--yes` would. One that does not is not done without `--yes`: `locohost close --force`, a SIGKILL, "
+           "is refused with a message that names what to add and exit 2, and `investigate` only shows what a run would cost. `MINMACS_UNATTENDED=0` says a person is here: "
+           "then nothing is read without a TTY either, and a verb that would ask refuses instead.", "",
            "## Exit codes", ""]
     for num, name, note in exit_codes(root):
         out.append("- **%d.** %s" % (num, (note[0].upper() + note[1:] + ".") if note else name[len("MMExit"):] + "."))
@@ -104,7 +122,7 @@ def main():
         out += ["### %s" % s, ""]
         for v in helps["minmacs"]["verbs"]:
             if v["section"] == s:
-                out += verb_block(v)
+                out += verb_block(v, root)
 
     out += ["## The old names", "",
             "The binary looks at the name it was started under. A link named `locohost`, `workforest`, `noo-noo` or `insomnia` "

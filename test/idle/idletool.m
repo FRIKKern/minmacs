@@ -304,7 +304,13 @@ static int Graph(void) {
     src.sample = Fixture(6, 30);
     [g rebuild:@"sample"]; Settle();
     uint64_t gen5 = g.latest.generation;
-    Print(@{@"firstBuilt": @(gen0 > 0 && s0 == 1 && p0 == 1), @"sameSkipped": @(gen1 == gen0 && skipped1 == skipped0 + 1 && s1 == s0 && p1 == p0),
+    NSUInteger s5 = same.calls, p5 = plain.calls;
+    // An exit changes only the sample: a build, where the expert with the same inputs hands back its findings.
+    src.sample = Fixture(5, 30);
+    [g rebuild:@"exit"]; Settle();
+    uint64_t gen6 = g.latest.generation;
+    NSUInteger s6 = same.calls, p6 = plain.calls;
+    Print(@{@"exitBuilt": @(gen6 == gen5 + 1), @"exitReused": @(s6 == s5 && p6 == p5 + 1),@"firstBuilt": @(gen0 > 0 && s0 == 1 && p0 == 1), @"sameSkipped": @(gen1 == gen0 && skipped1 == skipped0 + 1 && s1 == s0 && p1 == p0),
             @"bandSkipped": @(gen2 == gen0), @"changeBuilt": @(gen3 == gen0 + 1), @"reused": @(s3 == s0 && p3 == p0 + 1),
             @"reusedFindings": @(found), @"forcedBuilt": @(gen4 == gen3 + 1 && s4 == s3 + 1 && p4 == p3 + 1),
             @"bandBuilt": @(gen5 == gen4 + 1), @"reusedCounted": @(Cost(@"reused.idlesame") >= 1),

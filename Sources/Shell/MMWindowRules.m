@@ -4,15 +4,14 @@
 // as "Off", "Careful" and "Eager". Proactive is not "Ask": it acts on its own on clear cases, so a title that
 // promised a question first would be false. Each explain line below says what that expert's -modeKeeps: does today
 // for that mode. test/window.sh checks the lines against the experts' sources, so a changed rule fails there.
-// No mode acts in the first day of watching, MMWatchedLongEnough, and the note says so while that holds.
+// No mode acts in the first day of watching, MMWatchedLongEnough, and the badge of the cleanup card says so while that
+// holds, once for every rule: the day is one for every expert.
 #import "Shell/MMWindowFeed.h"
 #import "UI/MMFormat.h"
 
 NSString *MMWindowRuleExpert(NSString *ruleID) {
     return @{@"servers": @"locohost", @"apps": @"minmacs", @"worktrees": @"workforest", @"caches": @"noonoo"}[ruleID ?: @""];
 }
-
-NSString *const MMWindowRemovalRuleID = @"removal";
 
 /// What each mode does today, for Idle, Proactive and Eager. Every claim is the expert's own rule:
 /// servers: MMLHModeKeeps in MMLocoHost.m, with Proactive's wait of MMLHProactiveQuiet, 6 hours.
@@ -39,49 +38,40 @@ static NSInteger Ready(MMPerformance *p, NSString *expert) {
     return n;
 }
 
+/// A rule's note says only what waits for a press while the rule does not act on its own. That it still only watches
+/// is the card's badge, MMWindowSettingsFrom.
 static MMWindowRule *Rule(NSString *ruleID, MMPerformance *p) {
     NSString *expert = MMWindowRuleExpert(ruleID);
     MMMode mode = MMModeFor(expert);
-    BOOL acts = RuleActs(ruleID, mode);
     NSInteger ready = Ready(p, expert);
-    NSTimeInterval left = MMWatchingLeft(expert);
-    NSString *note = acts && left > 0 ? MMWindowWatchingNote(MMDuration(left)) : !acts && ready > 0 ? MMWindowReadyNote(ready) : nil;
+    NSString *note = !RuleActs(ruleID, mode) && ready > 0 ? MMWindowReadyNote(ready) : nil;
     return MMWindowRuleCard(ruleID, (NSInteger)mode, note);
-}
-
-/// Smart, Trash and Delete with Core's one sentence each. The Settings card and the welcome show the same three.
-static NSArray<MMWindowChoice *> *RemovalChoices(void) {
-    NSMutableArray *choices = [NSMutableArray new];
-    for (NSInteger i = MMRemovalSmart; i <= MMRemovalDelete; i++) {
-        MMWindowChoice *c = [MMWindowChoice new];
-        c.title = MMRemovalChoiceTitle((MMRemovalChoice)i); c.explain = MMRemovalChoiceExplain((MMRemovalChoice)i);
-        [choices addObject:c];
-    }
-    return choices;
-}
-
-/// "When MinMacs removes things": the removal choice of Core/Act/MMRemoval.h, with Core's own words for each choice.
-/// It is no expert's mode, so it shows whatever experts run, after their rules.
-static MMWindowRule *RemovalRule(void) {
-    MMWindowRule *r = [MMWindowRule new];
-    r.ruleID = MMWindowRemovalRuleID; r.title = MMWindowRemovalTitle;
-    r.choices = RemovalChoices();
-    // While nothing is chosen no choice is picked, so a press on any of them, Smart too, makes the choice. The note
-    // says what holds until then.
-    r.picked = MMRemovalChosen() ? (NSInteger)MMRemovalChoiceNow() : -1;
-    r.note = MMRemovalNotChosenNote();
-    return r;
 }
 
 MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras) {
     MMWindowSettings *st = [MMWindowSettings new];
     NSMutableArray *rules = [NSMutableArray new];
-    for (NSString *rid in MMWindowRuleIDs()) if (RuleShows(rid)) [rules addObject:Rule(rid, p)];
-    [rules addObject:RemovalRule()];
+    NSTimeInterval left = 0;
+    for (NSString *rid in MMWindowRuleIDs()) {
+        if (!RuleShows(rid)) continue;
+        [rules addObject:Rule(rid, p)];
+        NSString *expert = MMWindowRuleExpert(rid);
+        if (RuleActs(rid, MMModeFor(expert))) left = MAX(left, MMWatchingLeft(expert));
+    }
     st.rules = rules;
-    MMWindowSwitch *lid = MMWindowLidSwitch(extras.lidOn, extras.lidInert, extras.lidNote);
-    MMWindowSwitch *login = MMWindowLoginSwitch(extras.loginOn, extras.loginNote);
-    st.switches = @[lid, login];
+    st.startsIn = MMWindowStartsNote(left);
+    // Keep this Mac awake comes first: Keep awake now, While agents work, then the lid. Then This Mac.
+    NSMutableArray *switches = [NSMutableArray new];
+    if (extras.awakeShown) {
+        [switches addObject:MMWindowAwakeSwitch(extras.awakeOn, nil)];
+        MMWindowSwitch *agents = MMWindowAgentsSwitch(extras.agentsOn, MMWindowAgentsNote(extras.agentsOn, extras.agentsHolding));
+        agents.help = MMWindowAgentsHelp(extras.quietMinutes);
+        [switches addObject:agents];
+    }
+    [switches addObject:MMWindowLidSwitch(extras.lidOn, extras.lidInert, extras.lidNote)];
+    [switches addObject:MMWindowLoginSwitch(extras.loginOn, extras.loginNote)];
+    [switches addObject:MMWindowPullsSwitch(extras.pullsOn)];
+    st.switches = switches;
     return st;
 }
 
@@ -90,6 +80,8 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
 NSString *const MMWindowWelcomedKey = @"core.welcomed";
 
 NSString *const MMWindowLoginNotAskedKey = @"core.loginNotAsked";
+
+NSString *const MMWindowLoginKey = @"core.login";
 
 /// "servers and worktrees", "servers, worktrees and leftovers".
 static NSString *Listed(NSArray<NSString *> *words) {
@@ -100,7 +92,8 @@ static NSString *Listed(NSArray<NSString *> *words) {
 
 /// Each fact is true of the code named beside it, and is left out or said another way when it would not be.
 MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
-    if (MMPrefBool(MMWindowWelcomedKey, NO)) return nil;
+    // D3: on a Mac that runs unattended nobody would press Start. The shell applies its defaults instead.
+    if (MMPrefBool(MMWindowWelcomedKey, NO) || MMUnattended()) return nil;
     NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
     // MMPlan and MMRunAction in Core/Act/MMAct.m: no mode acts before MMWatchedLongEnough, a day after the first launch.
     // The day is one for every expert. Before the first launch nothing is written, and the whole day is left.
@@ -128,7 +121,7 @@ MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
     BOOL awake = MMExpertNamed(@"insomnia") != nil && MMPrefBool(@"insomnia.agents", YES);
     [facts addObject:[MMWindowFact label:@"It starts quietly" value:awake ? @"No permission is asked at launch. The Mac stays awake while agents work."
                                                                           : @"No permission is asked at launch."]];
-    MMWindowWelcome *w = [MMWindowWelcome welcomeWithRemoval:RemovalChoices() picked:(NSInteger)MMRemovalChoiceNow() facts:facts];
+    MMWindowWelcome *w = [MMWindowWelcome welcomeWithFacts:facts];
     // New to MinMacs: never launched, or a first launch that left the login item for this welcome to ask about.
     // Anyone else launched it before, so the login item as it is now is their answer, whatever was watched.
     BOOL fresh = !MMPrefBool(@"core.launched", NO) || MMPrefBool(MMWindowLoginNotAskedKey, NO);
@@ -136,8 +129,7 @@ MMWindowWelcome *MMWindowWelcomeNow(BOOL loginNow) {
     return w;
 }
 
-void MMWindowWelcomeDone(NSInteger removal) {
-    if (removal >= MMRemovalSmart && removal <= MMRemovalDelete) MMSetRemovalChoice((MMRemovalChoice)removal);
+void MMWindowWelcomeDone(void) {
     MMSetPref(MMWindowWelcomedKey, @YES);
     MMSetPref(MMWindowLoginNotAskedKey, nil);
 }
@@ -151,6 +143,7 @@ void MMWindowWelcomeDone(NSInteger removal) {
 + (instancetype)readWithLogin:(BOOL)loginOn {
     MMWindowExtras *x = [MMWindowExtras new];
     x.loginOn = loginOn;
+    x.pullsOn = [MMPulls enabled];
     MMRepoIndex *index = MMRepoIndex.shared;
     x.worktreesLooked = !index.roots.count ? MMWindowLookedNowhere : index.walked ? MMWindowLookedDone : MMWindowLookedNotYet;
     x.cachesLooked = !MMClutterRoot() ? MMWindowLookedNowhere : MMClutterCatalog.shared.lastScan ? MMWindowLookedDone : MMWindowLookedNotYet;
@@ -158,11 +151,24 @@ void MMWindowWelcomeDone(NSInteger removal) {
     id st = nil;
     @try { st = [(id)e respondsToSelector:NSSelectorFromString(@"state")] ? [(id)e valueForKey:@"state"] : nil; }
     @catch (NSException *ex) { st = nil; }
+    x.awakeShown = e != nil;
+    x.quietMinutes = 10;
     if (!st) {
-        // Before the first pass, and in a cold CLI, the pref is all there is.
+        // Before the first pass, and in a cold CLI, the prefs are all there is. Their defaults are MMINPrefs's.
         x.lidOn = MMPrefBool(@"insomnia.lid", NO);
+        x.awakeOn = MMPrefBool(@"insomnia.awake", NO);
+        x.agentsOn = MMPrefBool(@"insomnia.agents", YES);
         return x;
     }
+    @try {
+        x.awakeOn = [[st valueForKeyPath:@"prefs.manual"] boolValue];
+        x.agentsOn = [[st valueForKeyPath:@"prefs.agents"] boolValue];
+        x.quietMinutes = [[st valueForKeyPath:@"prefs.quietMinutes"] integerValue];
+        // Agents and agent sessions, not a hold a script asked for: the line says "agents".
+        NSArray *holders = [st valueForKey:@"holders"];
+        if ([holders isKindOfClass:NSArray.class])
+            for (id h in holders) if (![[h valueForKey:@"kind"] isEqual:@"hold"]) x.agentsHolding++;
+    } @catch (NSException *ex) { x.awakeOn = NO; x.agentsOn = YES; }
     @try {
         x.lidOn = [[st valueForKeyPath:@"prefs.lid"] boolValue];
         NSString *paused = [st valueForKey:@"pauseReason"], *problem = [st valueForKey:@"lidProblem"];
@@ -172,7 +178,7 @@ void MMWindowWelcomeDone(NSInteger removal) {
         if (!laptop) x.lidNote = MMWindowNoLidNote;
         else if (!x.lidOn) x.lidNote = nil;
         else if (other) x.lidNote = @"Another app sets it now.";
-        else if (live) x.lidNote = @"On now. The Mac keeps running with the lid shut.";
+        else if (live) x.lidNote = @"Working with the lid shut now.";
         else if (paused.length) x.lidNote = [NSString stringWithFormat:@"Paused, %@.", paused];
         else if (problem.length) x.lidNote = [NSString stringWithFormat:@"Off, %@.", problem];
         else x.lidNote = @"Off until something keeps the Mac awake.";

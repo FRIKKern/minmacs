@@ -261,10 +261,18 @@ static TAgent *Agent(pid_t pid, uint64_t start, MMAgentState st, double cpu, uin
 /// One build through the shared graph, waited for on main until main's snapshot shows what the check set up.
 /// A build that was already running when the world changed can land first, so a new generation alone is not
 /// enough. 30 seconds, since five agents build on this Mac at once.
+/// Builds until a new snapshot is ready, for up to 30 s. A build that lands before what it needs has moved, such as
+/// the host's CPU ticks on a loaded Mac, asks for another one, so the check never hangs on a single early build.
 static MMSnapshot *Build(MMGraph *g, BOOL (^ready)(MMSnapshot *s)) {
     uint64_t before = g.latest.generation;
-    [g rebuild:@"history test"];
-    Spin(30, ^BOOL { return g.current.generation > before && ready(g.current); });
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:30];
+    while ([until timeIntervalSinceNow] > 0) {
+        uint64_t asked = g.current.generation;
+        [g rebuild:@"history test"];
+        Spin(2, ^BOOL { return g.current.generation > asked; });
+        if (g.current.generation > before && ready(g.current)) break;
+        Spin(0.2, nil);
+    }
     return g.current;
 }
 

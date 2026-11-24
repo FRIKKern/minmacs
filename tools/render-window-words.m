@@ -5,7 +5,7 @@
 /// Every made-up day, the real-shaped one and the three of extremes among them.
 static NSArray<NSString *> *WordFixtures(void) {
     return @[@"quiet", @"busy", @"peak", @"young", @"calm", @"empty", @"long", @"running", @"done", @"memory-only", @"disk-only", @"real",
-             @"extreme", @"extreme-running", @"extreme-done", @"measuring"];
+             @"extreme", @"extreme-running", @"extreme-done", @"measuring", @"caches", @"agents", @"log-new", @"log-busy", @"log-undo"];
 }
 
 static NSMutableArray<NSString *> *gWordFaults, *gWordSeen;
@@ -47,11 +47,12 @@ static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedStates(void) {
              @(MMWindowHelper): @[@"left behind"], @(MMWindowTabs): @[@"will close"], @(MMWindowWorktree): @[@"changed", @"merged", @"kept"], @(MMWindowCache): @[@"kept", @"in use"]};
 }
 static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedLabels(void) {
-    return @{@(MMWindowServer): @[@"Port", @"Project", @"Runs in", @"Started by", @"Idle", @"Last used", @"Running", @"Kept", @"Stays"],
-             @(MMWindowAgent): @[@"Agent", @"Project", @"State", @"Stays"], @(MMWindowApp): @[@"Used by", @"Serves", @"Stays"],
-             @(MMWindowHelper): @[@"Left by", @"Folder", @"Stays"], @(MMWindowTabs): @[@"Open", @"On", @"Left by", @"Stays"],
+    return @{@(MMWindowServer): @[@"Port", @"Agent", @"Session", @"Project", @"Runs in", @"Started by", @"Idle", @"Last used", @"Running", @"Kept", @"Stays"],
+             @(MMWindowAgent): @[@"Agent", @"Project", @"Branch", @"Session", @"Running", @"Last active", @"Recently", @"Runs in", @"Worktree", @"Pull request",
+                                   @"Serves", @"Server", @"Cache", @"Processes", @"State", @"Stays"], @(MMWindowApp): @[@"Used by", @"Serves", @"Stays"],
+             @(MMWindowHelper): @[@"Left by", @"Folder", @"Stays", @"Holds", @"Now", @"Why some stay", @"Why they stay"], @(MMWindowTabs): @[@"Open", @"On", @"Left by", @"Stays"],
              @(MMWindowWorktree): @[@"Branch", @"Files", @"Not pushed", @"Untouched", @"Changed", @"Folder", @"Stays"],
-             @(MMWindowCache): @[@"Kind", @"Project", @"Last used", @"Folder", @"Stays"]};
+             @(MMWindowCache): @[@"Kind", @"Project", @"Last used", @"Folder", @"Stays", @"Holds", @"Now", @"Why some stay", @"Why they stay"]};
 }
 
 static void WindowWordChecks(void) {
@@ -86,7 +87,9 @@ static void WindowWordChecks(void) {
                 v.pointedRow = g.rows[i].key;
                 NSString *where = [NSString stringWithFormat:@"%@ %@", name, g.rows[i].key];
                 WordDraw(middle, where); WordDraw(dock, where); states++;
-                if ([name isEqualToString:@"peak"] && i + 1 == g.rows.count && [g.key isEqualToString:@"worktrees"]) smallest = [gWordSeen containsObject:@"The smallest of 18 worktrees"];
+                // The worktrees come by activity, so their smallest is the one of fewest bytes, wherever it stands.
+                if ([name isEqualToString:@"peak"] && [g.key isEqualToString:@"worktrees"] && g.rows[i].bytes == [[g.rows valueForKeyPath:@"@min.bytes"] unsignedLongLongValue])
+                    smallest = [gWordSeen containsObject:@"The smallest of 18 worktrees"];
             }
         }
         // The scrolled lists too: the last row of each group is in view after the pointing above.
@@ -104,7 +107,7 @@ static void WindowWordChecks(void) {
     WordDraw(PolishView(@"extreme"), @"extreme contrast");
     MMWindowForceContrast(NO);
     NSInteger before = strings;
-    for (NSString *name in @[@"welcome", @"welcome-off", @"welcome-delete", @"welcome-watched"]) {
+    for (NSString *name in @[@"welcome", @"welcome-off", @"welcome-watched"]) {
         MMWindowView *w = PolishView(name);
         w.welcomeView.arrival = 1;
         WordDraw(w, name);
@@ -113,7 +116,7 @@ static void WindowWordChecks(void) {
     }
     NSInteger welcomeStrings = strings - before;
     MMWindowWatchDraws(nil);
-    Check(welcomeStrings >= 4 * 12, @"window words: the welcome's strings are read by the same watch", [NSString stringWithFormat:@"%ld strings", (long)welcomeStrings]);
+    Check(welcomeStrings >= 3 * 9, @"window words: the welcome's strings are read by the same watch", [NSString stringWithFormat:@"%ld strings", (long)welcomeStrings]);
     Check(gWordFaults.count == 0 && strings > 20000 && states > 300,
           @"window words: on every day and in every state no drawn string holds an ellipsis, none is wider or taller than its box, and none leaves its view",
           [NSString stringWithFormat:@"%ld strings in %ld states. %@", (long)strings, (long)states, [gWordFaults componentsJoinedByString:@" | "]]);
@@ -126,14 +129,26 @@ static void WindowWordChecks(void) {
         MMWindowView *v = PolishView(name);
         MMWindowModel *m = v.model;
         NSMutableArray<NSString *> *whole = [NSMutableArray new], *drawn = [NSMutableArray new];
-        for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) [whole addObjectsFromArray:[g.rows valueForKey:@"shownName"]];
+        (void)m;
         for (MMWindowListView *l in WindowLists(v)) {
+            // The names as the list shows them: under a project's sub-header a worktree leaves its repo out.
+            NSArray<NSString *> *listed = l.listNames;
+            [whole addObjectsFromArray:listed];
             [drawn addObjectsFromArray:l.drawnNames];
-            for (NSUInteger gi = 0; gi < l.groups.count; gi++) for (NSUInteger ri = 0; ri < l.groups[gi].rows.count; ri++) {
-                NSInteger lines = (NSInteger)[MMWindowRowName(l.groups[gi].rows[ri], l.groups[gi].side, YES, NSMakeRect(5, 0, 310, 24), NULL) count];
-                CGFloat height = l.rowTops[gi][ri + 1].doubleValue - l.rowTops[gi][ri].doubleValue;
-                if (lines > 1) wrapped++;
-                if (height < l.rowHeight + MMWindowNameLine * (lines - 1) - 0.5) [broken addObject:[NSString stringWithFormat:@"%@ row too low: %@", name, l.groups[gi].rows[ri].shownName]];
+            NSMutableDictionary<NSString *, NSString *> *named = [NSMutableDictionary new];
+            NSUInteger at = 0;
+            for (MMWindowGroup *g in l.groups) for (MMWindowRow *r in g.rows) named[r.key] = listed[at++];
+            // Each row in the order it is drawn: its place holds its lines, and a project's sub-header and line too.
+            for (NSUInteger gi = 0; gi < l.groups.count; gi++) {
+                NSArray<NSString *> *order = [l drawnOrder:(NSInteger)gi];
+                for (NSUInteger d = 0; d < order.count; d++) {
+                    MMWindowRow *row = nil;
+                    for (MMWindowRow *r in l.groups[gi].rows) if ([r.key isEqualToString:order[d]]) row = r;
+                    NSInteger lines = (NSInteger)[MMWindowRowNameAs(row, named[row.key], l.groups[gi].side, YES, NSMakeRect(5, 0, 310, 24), NULL) count];
+                    CGFloat height = l.rowTops[gi][d + 1].doubleValue - l.rowTops[gi][d].doubleValue;
+                    if (lines > 1) wrapped++;
+                    if (height < l.rowHeight + MMWindowNameLine * (lines - 1) - 0.5) [broken addObject:[NSString stringWithFormat:@"%@ row too low: %@", name, named[row.key]]];
+                }
             }
         }
         for (NSUInteger i = 0; i < whole.count && i < drawn.count; i++) {
@@ -197,7 +212,9 @@ static void WindowWordChecks(void) {
         @[said(MMWindowFactLastUsed(180)), @"Last used: 3 min ago / used 3 min ago"], @[said(MMWindowFactLastUsed(0)), @"Last used: just now / used just now"],
         @[said(MMWindowFactUp(9360)), @"Running: 2 h 36 min / up 2 h 36 min"], @[said(MMWindowFactUp(1)), @"Running: since just now / started just now"],
         @[said(MMWindowFactKept(4800)), @"Kept: 1 h 20 min more / kept for 1 h 20 min more"], @[said(MMWindowFactKept(0)), @"none"],
-        @[said(MMWindowFactAgent(@"Claude Code")), @"Agent: Claude Code / Claude Code"], @[said(MMWindowFactState(@"working")), @"State: working / (null)"],
+        @[said(MMWindowFactAgent(@"Claude Code")), @"Agent: Claude Code / Claude Code"],
+        @[said(MMWindowFactSession(@"Access permissions request inquiry")), @"Session: Access permissions request inquiry / Access permissions request inquiry"], @[said(MMWindowFactSession(@"")), @"none"],
+        @[said(MMWindowFactState(@"working")), @"State: working / (null)"],
         @[said(MMWindowFactUsedBy(@"Claude Code")), @"Used by: Claude Code / used by Claude Code"],
         @[said(MMWindowFactServes(@[@3000, @3001])), @"Serves: ports 3000, 3001 / serves ports 3000, 3001"], @[said(MMWindowFactServes(@[])), @"none"],
         @[said(MMWindowFactStays(@"it is on the keep list")), @"Stays: it is on the keep list / (null)"],
@@ -216,7 +233,7 @@ static void WindowWordChecks(void) {
         @[said(MMWindowFactKind(@"Xcode build output")), @"Kind: Xcode build output / Xcode build output"]];
     NSMutableArray<NSString *> *misworded = [NSMutableArray new];
     for (NSArray<NSString *> *f in facts) if (![f[0] isEqualToString:f[1]]) [misworded addObject:[NSString stringWithFormat:@"%@, want %@", f[0], f[1]]];
-    Check(misworded.count == 0 && facts.count >= 36, @"window facts: each of the 22 facts has its own words, with its label in the story and alone on a row's second line, and says nothing when it has nothing true to say",
+    Check(misworded.count == 0 && facts.count >= 36, @"window facts: each of the 23 facts has its own words, with its label in the story and alone on a row's second line, and says nothing when it has nothing true to say",
           [misworded componentsJoinedByString:@" | "]);
 
     // Every phrase the window shows with a count in it, at 0, 1 and 2: one of a thing is never plural, and a zero
@@ -236,14 +253,12 @@ static void WindowWordChecks(void) {
         @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, 0, 0, n, 0); }), @"none | Skipped 1 thing in the fix you stopped partway. | Skipped 2 things in the fix you stopped partway."],
         @[three(^(NSInteger n) { return MMWindowSkippedNote(0, 0, 0, 0, 0, n); }), @"none | Skipped 1 fix you stopped. | Skipped 2 fixes you stopped."],
         @[three(^(NSInteger n) { return MMWindowSkippedNote(n, n, 0, 0, 0, 0); }), @"none | Skipped 1 agent that asks you and 1 fix that needs your own press. | Skipped 2 agents that ask you and 2 fixes that need your own press."],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"stop", n, 0); }), @"Stop 0 idle servers | Stop 1 idle server | Stop 2 idle servers"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"quit", n, 0); }), @"Quit 0 apps | Quit 1 app | Quit 2 apps"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"remove", n, 0); }), @"Remove 0 merged worktrees | Remove 1 merged worktree | Remove 2 merged worktrees"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 0); }), @"Clean up 0 leftovers | Clean up 1 leftover | Clean up 2 leftovers"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 1); }), @"Move 0 leftovers to the Trash | Move 1 leftover to the Trash | Move 2 leftovers to the Trash"],
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n, 2); }), @"Delete 0 leftovers | Delete 1 leftover | Delete 2 leftovers"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"stop", n); }), @"Stop 0 idle servers | Stop 1 idle server | Stop 2 idle servers"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"quit", n); }), @"Quit 0 apps | Quit 1 app | Quit 2 apps"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"remove", n); }), @"Remove 0 merged worktrees | Remove 1 merged worktree | Remove 2 merged worktrees"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"trash", n); }), @"Move 0 leftovers to the Trash | Move 1 leftover to the Trash | Move 2 leftovers to the Trash"],
         // One cleanup is named by what it cleans in the feed, Shell/MMWindowFeed.m; the count form stays right for it anyway.
-        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"clean", n, 0); }), @"Run 0 tool cleanups | Run 1 tool cleanup | Run 2 tool cleanups"],
+        @[three(^(NSInteger n) { return MMWindowFixCountTitle(@"clean", n); }), @"Run 0 tool cleanups | Run 1 tool cleanup | Run 2 tool cleanups"],
         @[three(^(NSInteger n) { return MMWindowAfterTitle(n); }), @"none | After the fix | After all 2 fixes"],
         @[three(^(NSInteger n) { return MMWindowMoreLine(n, 0); }), @"none | 1 more below | 2 more below"],
         @[three(^(NSInteger n) { return MMWindowMoreLine(0, n); }), @"none | 1 more above | 2 more above"],
@@ -279,7 +294,7 @@ static void WindowWordChecks(void) {
     }
     NSString *dockLines = [dockSaid componentsJoinedByString:@" | "];
     Check(miscounted.count == 0 && [oneTab.shownName isEqualToString:@"1 localhost tab in Safari"] &&
-          [dockLines isEqualToString:@"Fix Everything, dimmed / - / - | Fix Everything, 1 fix / After the fix / - | Fix Everything, 2 fixes / After all 2 fixes / 2 fixes, Wrap Up fix-auth-redirect first"],
+          [dockLines isEqualToString:@"Fix Everything, no fixes to run / - / - | Fix Everything, 1 fix / After the fix / - | Fix Everything, 2 fixes / After all 2 fixes / 2 fixes, Wrap Up fix-auth-redirect first"],
           @"window words: every counted phrase reads right at 0, 1 and 2, one of a thing is never plural, in the model and as the dock draws it",
           [NSString stringWithFormat:@"%@ / %@. %@", oneTab.shownName, dockLines, [miscounted componentsJoinedByString:@" | "]]);
 

@@ -1,4 +1,4 @@
-// The removal choice, MMRemoval.h: the real path of an item, and the places the wall asks about. Nothing here moves
+// Removal, MMRemoval.h: the real path of an item, and the places the wall asks about. Nothing here moves
 // or deletes a file.
 //
 //   the item is                          its real path comes from                         held open across the rename

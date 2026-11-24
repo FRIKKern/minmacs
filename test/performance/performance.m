@@ -2,7 +2,7 @@
 // Every fact is a fixture: a fake sample, fake worktrees, git facts, sessions and agents, and five fake experts whose
 // findings, policies and actions are data. No action runs, no process starts, and the only folders it reads are the
 // ones it made inside $MINMACS_HOME. The gains rows go to the table in $MINMACS_HOME.
-// Usage: performance <fixture dir> model | calm | lookback | bench | unmeasured
+// Usage: performance <fixture dir> model | calm | lookback | bench | unmeasured | linked | overlap
 // Prints one line per check, CHECK<tab>name<tab>want<tab>got, or info<tab>text.
 #import <mach/mach.h>
 #import "Core/MMCore.h"
@@ -66,6 +66,7 @@ static NSValue *V(pid_t pid, uint64_t start) { MMProcKey k = { pid, start }; ret
 @interface TSession : NSObject
 @property NSString *agent, *sessionID, *title, *cwd, *branch, *transcript, *liveStatus; @property NSDate *started, *lastActive;
 @property pid_t pid; @property BOOL stillWorking;
+@property NSArray *toolUseTimes; @property NSDictionary *edits; @property NSDate *activityFrom;
 @end
 @implementation TSession @end
 
@@ -306,8 +307,12 @@ static void Model(void) {
       [NSString stringWithFormat:@"%llu %llu", [p.disk.parts[MMPerformanceWorktrees] unsignedLongLongValue] / GB,
        [p.disk.parts[MMPerformanceClutter] unsignedLongLongValue] / GB]);
     T(@"performance: nothing was cut", @"0 0", [NSString stringWithFormat:@"%llu %llu", p.memory.cut, p.disk.cut]);
-    // Memory and disk are never summed: no number in the JSON equals memory plus disk.
-    NSString *w = Words(j);
+    // Memory and disk are never summed: no number in the JSON equals memory plus disk. memoryBackOnce is memory alone,
+    // the servers, helper and app the fixes end, and here 2412 MB is by chance the Wrap Up's 364 MB of memory and
+    // 2048 MB of disk, so it is left out of the search. overlap.m checks what it counts.
+    NSMutableDictionary *jw = [j mutableCopy];
+    [jw removeObjectForKey:@"memoryBackOnce"];
+    NSString *w = Words(jw);
     uint64_t sums[] = { p.memory.used + p.disk.used, p.memory.total + p.disk.total };
     BOOL summed = NO;
     for (int i = 0; i < 2; i++) if ([w rangeOfString:[NSString stringWithFormat:@":%llu", sums[i]]].location != NSNotFound) summed = YES;
@@ -504,10 +509,11 @@ static void Bench(void) {
 
 #import "unsized.m"
 #import "linked.m"
+#import "overlap.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: performance <dir> model|calm|lookback|bench|unmeasured|linked\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: performance <dir> model|calm|lookback|bench|unmeasured|linked|overlap\n"); return 2; }
         gDir = @(argv[1]);
         Register();
         NSString *mode = @(argv[2]);
@@ -517,6 +523,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"bench"]) Bench();
         else if ([mode isEqualToString:@"unmeasured"]) PerformanceUnmeasured();
         else if ([mode isEqualToString:@"linked"]) PerformanceLinked();
+        else if ([mode isEqualToString:@"overlap"]) PerformanceOverlap();
         else return 2;
         printf("END\n");
     }

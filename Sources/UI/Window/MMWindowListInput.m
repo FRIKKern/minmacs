@@ -1,7 +1,23 @@
-// A side's list under the pointer: which row it rests on, a group scrolled by the fingers and how it comes to rest,
-// and a row for VoiceOver each. MMWindowList.m lays the side out and draws it.
+// A side's list under the pointer: which row it rests on, which row a press picks, a group scrolled by the fingers
+// and how it comes to rest, and a row for VoiceOver each. MMWindowList.m lays the side out and draws it.
+// A press here only selects: it names no host and runs nothing.
 #import "UI/Window/MMWindowListParts.h"
 #import "UI/MMFormat.h"
+
+/// A row as VoiceOver reads it: selected when it is the active row, and a press on it picks it as a click does.
+@interface MMWindowRowElement : NSAccessibilityElement
+@property (copy) NSString *key;
+@property (weak) MMWindowListView *list;
+@end
+
+@implementation MMWindowRowElement
+- (BOOL)accessibilityPerformPress {
+    MMWindowListView *list = self.list;
+    if (!list.onPress) return NO;
+    list.onPress(self.key);
+    return YES;
+}
+@end
 
 @implementation MMWindowListView (Input)
 
@@ -20,6 +36,17 @@
 }
 
 - (void)mouseMoved:(NSEvent *)e { [self pointAt:[self convertPoint:e.locationInWindow fromView:nil]]; }
+
+/// A press picks the row under it, and a press on the list's empty space, a header or the gap between groups, picks
+/// none. The window decides what that means: MMWindowView -pressRow:.
+- (void)pressAt:(NSPoint)p {
+    MMWindowRow *row = NSPointInRect(p, self.bounds) ? [self rowAt:p] : nil;
+    if (self.onPress) self.onPress(row.key);
+}
+
+- (void)mouseDown:(NSEvent *)e { [self pressAt:[self convertPoint:e.locationInWindow fromView:nil]]; }
+/// The panel does not take the keyboard from the app in front, so the first press already picks a row.
+- (BOOL)acceptsFirstMouse:(NSEvent *)e { return YES; }
 - (void)mouseEntered:(NSEvent *)e { [self mouseMoved:e]; }
 - (void)mouseExited:(NSEvent *)e { if (self.onPoint) self.onPoint(nil); }
 
@@ -57,9 +84,13 @@
         MMWindowGroup *g = _groups[i];
         NSRect box = [self boxOf:i];
         CGFloat off = _offsets[g.key].doubleValue;
+        // In the order they are drawn, so VoiceOver goes down the list as the eye does. A row under a project's
+        // sub-header says its project, which its name there leaves out.
         for (NSInteger r = 0; r < (NSInteger)g.rows.count; r++) {
-            MMWindowRow *row = g.rows[r];
-            NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, row.shownName, nil];
+            MMWindowRow *row = [self drawn:r in:i];
+            NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, nil];
+            if (g.grouped) [say addObject:row.project ?: MMWindowNoProject];
+            [say addObject:[self nameOf:row in:g]];
             if (row.state.length) [say addObject:row.state];
             if (row.showsSize) [say addObject:MMWindowBytes(row.bytes, g.side == MMWindowDisk)];
             else if (row.sizeWord) [say addObject:@"size not measured yet"];
@@ -69,11 +100,21 @@
             if (cpu) [say addObject:[NSString stringWithFormat:@"CPU %@ percent", cpu]];
             NSRect rr = NSIntersectionRect([self rowRect:r in:i box:box offset:off], box);
             NSRect screen = self.window ? NSAccessibilityFrameInView(self, rr) : NSZeroRect;
-            [out addObject:[NSAccessibilityElement accessibilityElementWithRole:NSAccessibilityStaticTextRole frame:screen
-                                                                          label:[say componentsJoinedByString:@", "] parent:self]];
+            MMWindowRowElement *el = [MMWindowRowElement accessibilityElementWithRole:NSAccessibilityStaticTextRole frame:screen
+                                                                                label:[say componentsJoinedByString:@", "] parent:self];
+            el.key = row.key; el.list = self;
+            el.accessibilitySelected = [row.key isEqualToString:self.hotKey];
+            [out addObject:el];
         }
     }
     return out;
+}
+
+/// The active row, as VoiceOver asks for the list's selection.
+- (NSArray *)accessibilitySelectedChildren {
+    if (!self.hotKey) return @[];
+    for (NSAccessibilityElement *el in self.accessibilityChildren) if (el.isAccessibilitySelected) return @[el];
+    return @[];
 }
 
 @end

@@ -8,7 +8,7 @@ static NSString *TrashListOf(NSString *rid) { return [[MMExpertDir(@"core") stri
 
 /// A record of its own that sends path to the test home's Trash, as under the Trash choice. Returns it done.
 static MMUndoRecord *TrashAlone(NSString *subject, NSString *path) {
-    MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalClutter, nil);
+    MMRemovalDecision *keep = MMRemovalDecide(MMRemovalClutter, nil, nil);
     MMUndoRecord *r = Begin(@"trash", subject);
     MMRemovalNote(r, keep, nil);
     MMRemovalAsk(r, @[path]);
@@ -147,7 +147,7 @@ static void TrashedByMinMacs(void) {
     [fm createDirectoryAtPath:TrashListOf(blocked.rid) withIntermediateDirectories:YES attributes:nil error:nil];
     NSUInteger inTrash = [fm contentsOfDirectoryAtPath:MMTrashFolder() error:nil].count;
     NSError *e = nil;
-    BOOL went = MMRemovalApply(cache.stringByDeletingLastPathComponent, MMRemovalDecideWith(MMRemovalTrash, MMRemovalClutter, nil), blocked, &e);
+    BOOL went = MMRemovalApply(cache.stringByDeletingLastPathComponent, MMRemovalDecide(MMRemovalClutter, nil, nil), blocked, &e);
     T(@"trash, no list: when MinMacs cannot write its own list the item stays where it is, and the words say why", @"no CACHE 0 0 MinMacs could not write its own list of what it sends to the Trash, so the item stays where it is",
       [NSString stringWithFormat:@"%@ %@ %lu %lu %@", YN(went), Read(cache), (unsigned long)MMRecordList([MMUndo.shared record:blocked.rid].payload, @"trashed").count,
        (unsigned long)([fm contentsOfDirectoryAtPath:MMTrashFolder() error:nil].count - inTrash), e.localizedDescription]);

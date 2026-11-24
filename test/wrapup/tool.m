@@ -131,7 +131,7 @@ static NSString *StagedFor(NSString *path, BOOL done) {
     MMUndoRecord *parent = [MMUndo.shared begin:@"core" kind:@"wrapup" finding:@"tool:waiting" subject:@"Wrap Up waiting" why:@"test" by:@"manual" parent:nil
                                         payload:@{@"path": path.stringByDeletingLastPathComponent}];
     MMUndoRecord *part = [MMUndo.shared begin:@"tool" kind:@"trash" finding:@"tool:waiting:part" subject:path.lastPathComponent why:@"test" by:@"manual" parent:parent.rid payload:@{@"part": @0}];
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *del = MMRemovalTestDeleteDecision(MMRemovalConfigFiles);
     MMRemovalNote(part, del, nil);
     MMRemovalAsk(part, @[path]);
     MMRemovalApply(path, del, part, nil);

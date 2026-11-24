@@ -27,8 +27,21 @@ procs=""                      # pids a section started; cleanup stops these and 
 pass=0; fail=0
 check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); printf '  ok    %-56s %s\n' "$1" "$3"; else fail=$((fail+1)); printf '  FAIL  %-56s got %s, want %s\n' "$1" "$3" "$2"; fi; }
 json() { python3 -c "import json,sys; j=json.load(sys.stdin); print($1)"; }
+# old_removal <home> <value>: writes core.removal into that test home's prefs as an older MinMacs did, smart, trash or
+# delete, so a check can see that nothing reads it any more. Only ever a plist inside a test home.
+old_removal() {
+  case "$1" in "$MINMACS_HOME"|"$MINMACS_HOME"/*|"$(cd "$MINMACS_HOME" && pwd -P)"|"$(cd "$MINMACS_HOME" && pwd -P)"/*) ;; *) echo "old_removal: $1 is outside MINMACS_HOME" >&2; return 2 ;; esac
+  python3 -I -c 'import os,plistlib,sys
+p=sys.argv[1]; os.makedirs(os.path.dirname(p), exist_ok=True)
+d=plistlib.load(open(p,"rb")) if os.path.exists(p) else {}
+d["core.removal"]=sys.argv[2]; plistlib.dump(d, open(p,"wb"))' "$1/Preferences/no.guerrilla.minmacs.plist" "$2"
+}
 cleanup() { for p in $procs; do kill "$p" 2>/dev/null; done; rm -rf "$MINMACS_HOME"; }
 trap cleanup EXIT
+# clang with two -arch flags leaves an empty folder per input in TMPDIR. Every clang a section runs, through this
+# function, uses a private folder inside MINMACS_HOME, which cleanup removes. Scripts the sections run do the same.
+CC_TMP="$MINMACS_HOME/clang-tmp"; mkdir -p "$CC_TMP"
+clang() { TMPDIR="$CC_TMP" command clang "$@"; }
 # Issue #58: nc run from the shell against local ports reads as a reverse shell to an endpoint security agent.
 PORT="$MINMACS_HOME/port"
 clang -O1 -Wall -mmacosx-version-min=14.0 test/port.c -o "$PORT" || { echo "test/port.c does not build"; exit 1; }

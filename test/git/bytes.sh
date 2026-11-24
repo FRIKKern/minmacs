@@ -122,13 +122,13 @@ printf 'gitdir: %s\000x\n' "$GY/nul-gitfile/n3/main/.git/worktrees/wt2" >"$GY/nu
 
 GO=$("$GT" keeps "$GYR")
 gy() { gf "$GYR/$1/wt" "$2"; }
-check "bytes: a Latin-1 stash message counts" "1|it has 1 stash" "$(gy a stashes)|$(gy a smart)"
-check "bytes: a stash by a Latin-1 author counts" "1|it has 1 stash" "$(gy b stashes)|$(gy b smart)"
+check "bytes: a Latin-1 stash message counts" "1|it has 1 stash" "$(gy a stashes)|$(gy a gitBack)"
+check "bytes: a stash by a Latin-1 author counts" "1|it has 1 stash" "$(gy b stashes)|$(gy b gitBack)"
 check "bytes: Latin-1 names in packed-refs leave the others" "$(git -C "$GYR/c/wt" rev-parse HEAD)|origin/main|0" \
   "$(gy c head)|$(gy c defaultBranch)|$(gy c unpushed)"
 check "  so the remote branch is not gone and the branch stays" \
   "origin/c|False|none|its branch is not merged and its remote branch still exists" \
-  "$(gy c upstream)|$(gy c upstreamGone)|$(gy c merged)|$(gy c smart)"
+  "$(gy c upstream)|$(gy c upstreamGone)|$(gy c merged)|$(gy c gitBack)"
 check "bytes: a Latin-1 config still gives the upstream" "origin/d|False|0/0" \
   "$(gy d upstream)|$(gy d upstreamGone)|$(gy d ahead)/$(gy d behind)"
 check "bytes: a branch name that is not UTF-8 shows, with U+FFFD" "caf$FFFD|caf$FFFD" "$(gy e indexBranch)|$(gy e branch)"
@@ -136,20 +136,20 @@ check "  its HEAD is not known, so its commits are not counted as 0" "None|-1|-1
   "$(gy e head)|$(gy e unpushed)|$(gy e notInDefault)|$(gy e merged)"
 check "  and no config section is read for it, not even one that reads the same" "None|True|False" \
   "$(gy e upstream)|$(gy e upstreamUnknown)|$(gy e upstreamGone)"
-check "  its stash counts, and Smart keeps a way back" "1|cannot verify what git holds of it" "$(gy e stashes)|$(gy e smart)"
+check "  its stash counts, and git alone could not give it back" "1|cannot verify what git holds of it" "$(gy e stashes)|$(gy e gitBack)"
 check "bytes: a NUL byte in a stash line counts" 1 "$(gy f1 stashes)"
 check "bytes: a CRLF config gives the upstream, not gone" "origin/f2|False|its branch is not merged and its remote branch still exists" \
-  "$(gy f2 upstream)|$(gy f2 upstreamGone)|$(gy f2 smart)"
+  "$(gy f2 upstream)|$(gy f2 upstreamGone)|$(gy f2 gitBack)"
 check "bytes: CRLF stash lines and no trailing newline count" 2 "$(gy f3 stashes)"
 check "bytes: a BOM in config and stash log" "origin/f4|1" "$(gy f4 upstream)|$(gy f4 stashes)"
 check "bytes: a config with no trailing newline" "origin/f5|False" "$(gy f5 upstream)|$(gy f5 upstreamGone)"
 check "bytes: an upstream whose name is now a folder of refs is gone" "origin/h|True" "$(gy h upstream)|$(gy h upstreamGone)"
 check "bytes: a stash log that is a named pipe is not known, and keeps" "-1|cannot verify what git holds of it" \
-  "$(gy g1 stashes)|$(gy g1 smart)"
+  "$(gy g1 stashes)|$(gy g1 gitBack)"
 check "bytes: a stash log past the cap is not known, and keeps" "-1|cannot verify what git holds of it" \
-  "$(gy g2 stashes)|$(gy g2 smart)"
+  "$(gy g2 stashes)|$(gy g2 gitBack)"
 check "bytes: a stash log that cannot be opened is not known, and keeps" "-1|cannot verify what git holds of it" \
-  "$(gy g3 stashes)|$(gy g3 smart)"
+  "$(gy g3 stashes)|$(gy g3 gitBack)"
 check "bytes: packed-refs that cannot be opened: HEAD not known, the remote branch not gone" "None|-1|origin/g4|False" \
   "$(gy g4 head)|$(gy g4 unpushed)|$(gy g4 upstream)|$(gy g4 upstreamGone)"
 check "bytes: a config that cannot be opened: the upstream is not known, not none" "None|True|False" \
@@ -157,7 +157,7 @@ check "bytes: a config that cannot be opened: the upstream is not known, not non
 check "bytes: a HEAD that cannot be opened: nothing counted as 0" "None|-1|-1|True" \
   "$(gy g6 head)|$(gy g6 unpushed)|$(gy g6 stashes)|$(gy g6 upstreamUnknown)"
 check "bytes: a repo with no stash log has 0 stashes" "0|0" "$(gy z stashes)|$(gy c stashes)"
-check "  and a merged clean worktree with none is Smart's to delete" "delete now" "$(gy z smart)"
+check "  and a merged clean worktree with none is one git gives back" "git gives back" "$(gy z gitBack)"
 
 GO=$("$GT" keeps "$GY/nul-config"); gy_st=$?
 check "bytes: a NUL in config's merge value: the remote branch is not gone" "0|False" \

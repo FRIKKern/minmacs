@@ -19,21 +19,35 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice;
 /// A switch changed in Settings.
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on;
-/// Start in the welcome, once: the two answers, applied now. Open at login is added or left out, the removal choice
-/// is written, and the welcome never shows again. removal is 0 Smart, 1 Trash, 2 Delete.
-- (void)windowWelcomeStart:(BOOL)openAtLogin removal:(NSInteger)removal;
+/// Start in the welcome, once: the answer, applied now. Open at login is added or left out, and the welcome never
+/// shows again.
+- (void)windowWelcomeStart:(BOOL)openAtLogin;
 /// The power icon, or Command and Q.
 - (void)windowQuit;
+/// A press on Undo in the log: take back the record rid, as the notification's Undo does. Only an entry that can
+/// still be taken back carries the press.
+- (void)windowUndo:(NSString *)rid;
+@optional
+/// The middle shows this row's story now, while the pointer rests on the row or it is the active one; nil when no
+/// story shows. A worktree's story asks the shell, off main, for its pull request, which comes in a later model.
+- (void)windowShowsStory:(nullable NSString *)rowKey;
+/// A press on Go to in an agent's story: bring forward the terminal tab, pane or app the agent of this row runs in.
+/// Only a person's press sends it. The shell goes there off main.
+- (void)windowGoTo:(NSString *)rowKey;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,
-/// the dock and the strip with the gear and the power icon. The gear flips it to Settings in place and back.
+/// and the slim dock with the gear and the power icon at its right end. The gear flips it to Settings in place and back.
 @interface MMWindowView : NSView
 @property (weak, nullable) id<MMWindowHost> host;
 @property (nonatomic, strong, nullable) MMWindowModel *model;   // setting it redraws, keeping hover and scroll
 @property (nonatomic) BOOL showsSettings;               // the gear's state
 /// For the render tool: draw as if the pointer rested on this row, so its story shows in the middle. nil for none.
 @property (nonatomic, copy, nullable) NSString *pointedRow;
+/// The active row: the one a press or the arrow keys picked. It is drawn in blue, the middle tells its story whenever
+/// the pointer rests on no other row, and it stays until it is pressed again, a press lands on empty space, Escape, the
+/// window closes or the row leaves the model. nil for none. The render tool sets it too.
+@property (nonatomic, copy, nullable) NSString *activeRow;
 /// Moving numbers and lines advance on this, so the shell ticks it only while the window is open.
 - (void)tick:(NSDate *)now;
 @end
@@ -60,11 +74,36 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 @property (copy, nullable) void (^onOpenChange)(BOOL open);
 @end
 
+/// Who holds the panel, for the shell. Drawn once, the panel, its views and their layers hold about 100 MB, and a
+/// panel only ordered out keeps it all. So after the window stayed closed for `rest` seconds the panel is let go, and
+/// the next ask for it makes it again, given the last model first, so its first frame is drawn before it comes on
+/// screen. Nothing is let go while it is open, nor while `busy` answers YES: then it is asked again a while later.
+extern const NSTimeInterval MMWindowRestSeconds;        // 45 s: a quick reopen keeps the same panel
+@interface MMWindowHolder : NSObject
+- (instancetype)initWithHost:(nullable id<MMWindowHost>)host;
+/// The panel, made when there is none.
+@property (readonly) MMWindowPanel *panel;
+/// The panel when there is one, nil once it was let go. Asks for nothing to be made.
+@property (readonly, nullable) MMWindowPanel *madePanel;
+@property (readonly) BOOL isOpen;
+/// A new model: shown now when there is a panel, and kept for the first frame of the next.
+- (void)show:(MMWindowModel *)model;
+/// Called on main after the panel opened or closed, as -[MMWindowPanel onOpenChange].
+@property (copy, nullable) void (^onOpenChange)(BOOL open);
+/// YES keeps the panel past its rest, as while a run of Fix Everything plays.
+@property (copy, nullable) BOOL (^busy)(void);
+/// How long the window stays closed before its panel goes. Below 0, never. Set it before the first close.
+@property NSTimeInterval rest;
+/// How many panels were made, and the last one let go while anything still holds it, for the checks.
+@property (readonly) NSUInteger made;
+@property (readonly, weak, nullable) MMWindowPanel *lastLetGo;
+@end
+
 /// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty",
 /// and three days that came from the first look at the real window: "young", "calm" and "long".
 /// "memory-only" and "disk-only" are the busy day with fixes that give only that side back.
-/// "welcome" is the young day with the welcome on it, and "welcome-off", "welcome-trash" and "welcome-delete" are the
-/// same with the switch off or another removal choice picked. "welcome-watched" is the welcome a person meets who
+/// "welcome" is the young day with the welcome on it, and "welcome-off" is the same with the switch off.
+/// "welcome-watched" is the welcome a person meets who
 /// used MinMacs for more than a day before.
 MMWindowModel *MMWindowFixture(NSString *name);
 

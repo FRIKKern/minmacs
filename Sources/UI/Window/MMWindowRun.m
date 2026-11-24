@@ -1,20 +1,24 @@
-// The run of Fix Everything as the window shows it move: the two lines around the button and the gains follow the
+// The run of Fix Everything as the window shows it move: the button fills as fixes land, the gains count up with the
 // run's numbers, a step's words rise in, and the end shows with a burst and then lets go. One timer, which runs only
-// while the window shows and something still moves.
+// while the window shows and something still moves. The pulse at a press and the shine at the end are layer
+// animations of the dock's own, MMWindowMotion.m.
 #import "UI/Window/MMWindowViewParts.h"
 
-// 195-a's times: a run's end shows for 2.9 s with a burst that
-// settles over 1.8 s, the two lines follow their numbers about as its 0.9 s ease does, and a step's words rise in over 0.5 s.
+// 195-a's times: a run's end shows for 2.9 s with a burst that settles over 1.8 s, the fill and the gains follow their
+// numbers about as its 0.9 s ease does, and a step's words rise in over 0.5 s.
 static const NSTimeInterval kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 0.5;
 
 @implementation MMWindowView (Run)
 
-/// Takes the run's numbers as the place the lines and the gains move toward.
+/// How much of the run has landed: the button is filled this far.
+static double Landed(MMWindowRun *run) { return run.total > 0 ? MIN(MAX((double)run.done / run.total, 0), 1) : 0; }
+
+/// Takes the run's numbers as the place the fill and the gains move toward.
 - (void)followRun:(BOOL)hadRun {
     MMWindowRun *run = self.model.run;
     if (!run) {
         _endSeen = nil; _letGo = NO; _stepWords = nil; _stepCame = nil;
-        _memoryShare = _diskShare = _memoryShown = _diskShown = 0;
+        _progress = _memoryShown = _diskShown = 0;
         _dock.phase = MMWindowDockCalm;
         [self push];
         return;
@@ -23,7 +27,7 @@ static const NSTimeInterval kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 
     else if (!_endSeen) _endSeen = [NSDate date];
     if (!hadRun || MMWindowReduceMotion()) {
         // The first frame of a run shows where it stands. Only later changes move.
-        _memoryShare = run.memoryShare; _diskShare = run.diskShare;
+        _progress = Landed(run);
         _memoryShown = run.memoryBack; _diskShown = run.diskBack;
         _stepWords = run.step; _stepCame = nil;
     } else if (run.running && run.step != _stepWords && ![run.step isEqualToString:_stepWords]) {
@@ -40,12 +44,11 @@ static const NSTimeInterval kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 
     NSTimeInterval dt = _stepped ? MIN(MAX([now timeIntervalSinceDate:_stepped], 0), 0.1) : 1.0 / 60;
     _stepped = now;
     double k = MMWindowReduceMotion() ? 1 : 1 - exp(-dt / kEase);
-    double tm = run.memoryShare, td = run.diskShare;
-    _memoryShare += (tm - _memoryShare) * k; _diskShare += (td - _diskShare) * k;
+    double tp = Landed(run);
+    _progress += (tp - _progress) * k;
     _memoryShown += (run.memoryBack - _memoryShown) * k; _diskShown += (run.diskBack - _diskShown) * k;
-    BOOL moving = fabs(tm - _memoryShare) > 0.002 || fabs(td - _diskShare) > 0.002 ||
-                  fabs(run.memoryBack - _memoryShown) > 524288 || fabs(run.diskBack - _diskShown) > 524288;
-    if (!moving) { _memoryShare = tm; _diskShare = td; _memoryShown = run.memoryBack; _diskShown = run.diskBack; }
+    BOOL moving = fabs(tp - _progress) > 0.002 || fabs(run.memoryBack - _memoryShown) > 524288 || fabs(run.diskBack - _diskShown) > 524288;
+    if (!moving) { _progress = tp; _memoryShown = run.memoryBack; _diskShown = run.diskBack; }
     if (run.running) {
         _dock.phase = MMWindowDockRunning; _dock.glow = 0;
         double x = _stepCame && !MMWindowReduceMotion() ? MIN(MAX([now timeIntervalSinceDate:_stepCame] / kStepIn, 0), 1) : 1;
@@ -64,7 +67,7 @@ static const NSTimeInterval kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 
 }
 
 - (void)push {
-    _dock.memoryShare = _memoryShare; _dock.diskShare = _diskShare;
+    _dock.progress = _progress;
     _dock.memoryShown = _memoryShown; _dock.diskShown = _diskShown;
 }
 
@@ -76,7 +79,7 @@ static const NSTimeInterval kEndHold = 2.9, kGlow = 1.8, kEase = 0.2, kStepIn = 
 /// The timer runs only while the window shows and something moves or the end still shows.
 - (void)wake {
     MMWindowRun *run = self.model.run;
-    BOOL need = run && self.window.isVisible && (run.running ? (_memoryShare != run.memoryShare || _diskShare != run.diskShare ||
+    BOOL need = run && self.window.isVisible && (run.running ? (_progress != Landed(run) ||
                                                                  _memoryShown != run.memoryBack || _diskShown != run.diskBack || _stepCame != nil) : !_letGo);
     if (need && !_timer) {
         _timer = [NSTimer timerWithTimeInterval:1.0 / 60 target:self selector:@selector(frame:) userInfo:nil repeats:YES];

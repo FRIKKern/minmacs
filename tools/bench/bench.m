@@ -225,7 +225,7 @@ static BOOL SafeEnvironment(void) {
 static NSArray<NSString *> *AllIdle(void) {
     NSMutableArray *notIdle = [NSMutableArray new];
     for (id<MMExpert> e in MMExperts()) {
-        MMSetMode(e.expertID, MMModeIdle);
+        MMSetMode(e.expertID, MMModeIdle, @"bench");
         if (MMModeFor(e.expertID) != MMModeIdle) [notIdle addObject:e.expertID];
     }
     return notIdle;

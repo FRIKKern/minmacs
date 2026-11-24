@@ -21,6 +21,11 @@ APP="$BUILD_DIR/MinMacs.app"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Info.plist)
 
 rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+# clang with two -arch flags leaves an empty folder per input in TMPDIR. Its TMPDIR is a private folder, removed at exit.
+CC_TMP=$(mktemp -d "$BUILD_DIR/clang-tmp.XXXXXX")
+trap 'rm -rf "$CC_TMP"' EXIT
+trap 'exit 1' HUP INT TERM
+clang() { TMPDIR="$CC_TMP" command clang "$@"; }
 # Sorted, so the link order is the same on every machine. Source paths must not hold spaces.
 SOURCES=$(find Sources -name '*.m' | LC_ALL=C sort)
 LOG="$BUILD_DIR/clang.log"

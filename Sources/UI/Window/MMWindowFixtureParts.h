@@ -14,12 +14,21 @@ MMWindowRow *MMWindowFixtureRow(MMWindowKind kind, NSString *key, NSString *name
 NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count);
 NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking);
 NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count);
-NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count);
+/// The day "agents": the fourth agent with every fact of an agent's story and the third with almost none.
+void MMWindowFixtureAgentStories(NSArray<MMWindowRow *> *agents);
+/// The worktrees of five made-up projects, or with `projects` 1 all of one repo, as a Mac with one project has them.
+NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count, NSInteger projects);
 NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count);
+/// The leftovers of the day named "caches": 169 temp-folder families of one registry row, three in use, and Claude
+/// Code's scratch of four sessions, one running. Each row with its kin, as the feed gives it, before MMWindowCollapsed.
+NSArray<MMWindowRow *> *MMWindowFixtureLeftovers(void);
 /// A group with the feed's words for when it is empty, its rows biggest first.
 MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows);
 /// The ring of a model: its groups as slices, and the rest.
 void MMWindowFixtureRing(MMWindowModel *m, uint64_t memoryUsed, uint64_t memoryTotal, uint64_t diskFree, uint64_t diskTotal);
+/// A made-up log, MMWindowFixtureLog.m: "empty", "new", "busy" with 300 entries, "undo" with the Undo presses and
+/// two runs, or "day".
+MMWindowLog *MMWindowFixtureLog(NSString *kind);
 /// "real" and "extreme", MMWindowFixtureMore.m. nil for any other name.
 MMWindowModel *_Nullable MMWindowFixtureMore(NSString *name);
 

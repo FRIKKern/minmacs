@@ -5,11 +5,17 @@
 //   tool import <home>                     prints MMImportLegacy(home) as JSON
 //   tool followup <home> <yes|no> [log]    runs MMMigrateFollowUp with a fake confirm that answers yes or no, prints
 //                                          its report, and appends each confirm's title and body to log
+//   tool followup-unasked <home>          runs MMMigrateFollowUpUnasked, which answers yes asking nobody, D3
 //   tool record <rid>                      prints the undo record as JSON with canRestore
 //   tool restore <rid>                     -[MMUndo restore:], prints ok or the problem
 //   tool readable <path>                   yes when this process may read the file, for the sandbox check
 //   tool wanted                            prints MMMigrateWanted for a few environments
 //   tool route <url>                       prints the expert a URL goes to
+//   tool import-serve <home> <rounds>      MMImportLegacy(home) while another thread serves and stops core.sock rounds
+//                                          times, as the app's start does, and makes folders in the support folder
+//                                          meanwhile; then serves once more and prints the socket's mode and a ping
+//   tool repair                            the repair of Core's start twice, as two starts would run it, with a folder
+//                                          named "others" seen as another user's; prints what each set and the notices
 // The follow-up's power facts come from a fake power source that reads $MINMACS_HOME/migrate-fake/lid, which
 // test/migrate/fakecmd.sh writes in place of pmset. Noo-Noo's agent status is MIGRATE_AGENT_STATUS, and the running
 // apps are the bundle ids in MIGRATE_RUNNING, so the person's own running apps never count.
@@ -17,6 +23,7 @@
 #import "Core/MMCore.h"
 #import "Core/Store/MMMigrate.h"
 #import "CLI/MMRouter.h"
+#include <sys/stat.h>
 
 static void PrintJSON(id j) {
     NSData *d = [NSJSONSerialization dataWithJSONObject:j options:NSJSONWritingSortedKeys error:nil];
@@ -93,6 +100,49 @@ int main(int argc, const char *argv[]) {
         NSString *arg = argc > 2 ? @(argv[2]) : @"";
         if ([verb isEqualToString:@"plan"]) { PrintJSON(Printable(MMLegacyPlan(arg))); return 0; }
         if ([verb isEqualToString:@"import"]) { PrintJSON(Printable(MMImportLegacy(arg))); return 0; }
+        if ([verb isEqualToString:@"repair"]) {
+            MMUseFolderOwner(^uid_t(NSString *path, uid_t owner) { return [path.lastPathComponent isEqualToString:@"others"] ? owner + 1 : owner; });
+            NSArray *(^start)(void) = ^NSArray *{ NSArray *f = MMRepairOwnFolders(); MMRepairedOwnFolders(f); return f; };
+            NSArray *first = OffMain(start), *second = OffMain(start);
+            NSMutableArray *notices = [NSMutableArray new];
+            for (MMLogEntry *e in [MMLog.shared rows:@[MMLogNoticeTable] before:0 limit:50])
+                [notices addObject:[NSString stringWithFormat:@"%@ %@", e.body[@"title"], e.body[@"text"]]];
+            PrintJSON(@{@"first": first, @"second": second, @"notices": notices});
+            return 0;
+        }
+        if ([verb isEqualToString:@"import-serve"] && argc > 3) {
+            int rounds = atoi(argv[3]);
+            dispatch_group_t g = dispatch_group_create();
+            dispatch_group_async(g, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                for (int i = 0; i < rounds; i++) @autoreleasepool {
+                    MMCoreSocket *s = [MMCoreSocket serve:^NSDictionary *(NSDictionary *r) { return @{@"ok": @YES}; } error:nil];
+                    [s stop];
+                }
+            });
+            // What other queues do at the app's start: each makes the folder it needs on first use.
+            dispatch_group_async(g, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                for (int i = 0; i < rounds * 4; i++) @autoreleasepool { MMExpertDir([NSString stringWithFormat:@"race/f%d", i]); }
+            });
+            (void)MMImportLegacy(arg);
+            dispatch_group_wait(g, DISPATCH_TIME_FOREVER);
+            MMCoreSocket *s = [MMCoreSocket serve:^NSDictionary *(NSDictionary *r) { return @{@"ok": @YES}; } error:nil];
+            struct stat st;
+            int mode = lstat(MMCoreSocketPath().fileSystemRepresentation, &st) == 0 ? (int)(st.st_mode & 07777) : -1;
+            NSDictionary *pong = [MMCoreSocket ask:@{@"verb": @"ping"} timeout:3];
+            printf("socket %o %s\n", mode, [pong[@"ok"] boolValue] ? "answers" : "silent");
+            [s stop];
+            return 0;
+        }
+        if ([verb isEqualToString:@"followup-unasked"]) {
+            // D3: the follow-up as the app runs it, asking nobody. The same fakes as followup.
+            MMUsePowerSource([MGPower new]);
+            MMGraph.shared.source = [MGSource new];
+            NSString *status = NSProcessInfo.processInfo.environment[@"MIGRATE_AGENT_STATUS"];
+            MMUseNooNooAgentStatus(^NSInteger(NSURL *plist) { return status.length ? status.integerValue : 3; });
+            MMUseLegacyRunningApps(^NSArray<MMApp *> *{ return @[]; });
+            PrintJSON(Printable(OffMain(^id{ return MMMigrateFollowUpUnasked(arg); })));
+            return 0;
+        }
         if ([verb isEqualToString:@"followup"] && argc > 3) {
             BOOL yes = !strcmp(argv[3], "yes");
             NSString *log = argc > 4 ? @(argv[4]) : nil;

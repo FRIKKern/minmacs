@@ -1,4 +1,4 @@
-# ===== The removal choice, issue #62: smart, trash or delete =====
+# ===== Removal, issue #62 and D2: everything MinMacs removes keeps a way back, and there is no choice =====
 # Sourced by test.sh after core. It builds test/removal/removal.m with all of Sources/Core and runs it on fixtures it
 # makes inside $MINMACS_HOME/removal<pid>. With MINMACS_HOME set, MMRemovalApply refuses every path outside it, and
 # the Trash is $MINMACS_HOME/Trash, so nothing here can reach a real file or the person's Trash.
@@ -66,9 +66,15 @@ check "removal: only MMRemovalApply and the migration send a thing to the Trash"
 check "removal: the cache, config-file and worktree paths each ask MMRemovalDecide" "yes yes yes yes" \
   "$(for p in 'MMRemovalDecide(MMRemovalClutter' 'MMRemovalDecide(MMRemovalToolCopy'; do grep -q "$p" Sources/Core/Act/MMClutterAct.m && printf 'yes ' || printf 'no '; done
      for p in 'MMRemovalDecide(MMRemovalWorktree' 'MMRemovalDecide(MMRemovalConfigFiles'; do grep -q "$p" Sources/Experts/WorkForest/MMWorkForest.m && printf 'yes ' || printf 'no '; done | sed 's/ $//')"
+# D2: nothing is deleted at once. MMRemovalDecide says no delete in one place, and only the checks' own seam, compiled
+# with MM_TESTS alone, makes a decision that deletes, to leave what an older MinMacs staged.
+check "removal: MMRemovalDecide never answers delete now, and only an MM_TESTS seam does" "1 1 0" \
+  "$(grep -c 'd.choice = MMRemovalTrash; d.thing = thing; d.deleteNow = NO;' Sources/Core/Act/MMRemoval.m) $(grep -c 'deleteNow = YES' Sources/Core/Act/MMRemoval.m) $(awk '/^#ifdef MM_TESTS/{t=1} /^#endif/{t=0} /deleteNow = YES/ && !t {n++} END{print n+0}' Sources/Core/Act/MMRemoval.m)"
+check "removal: no setter of the old choice is left in the code" 0 \
+  "$(grep -rnE 'MMSetRemovalChoice|MMRemovalSmart|MMRemovalDelete[^a-zA-Z]|MMRemovalNotChosenNote|MMRemovalChosen' Sources --include='*.m' --include='*.h' | grep -c .)"
 check "removal: only MMRemoval.m reads the pref" 0 \
   "$(grep -rnE 'core\.removal|MMRemovalKey' Sources --include='*.m' | grep -vc '^Sources/Core/Act/MMRemoval\.m:')"
-check "removal: each path lists what the fresh finding named before anything goes, and says deleted only after" "2 4" \
+check "removal: each path lists what the fresh finding named before anything goes, and says deleted only after" "3 4" \
   "$(cat Sources/Core/Act/MMClutterAct.m Sources/Experts/WorkForest/MMWorkForest.m | grep -c 'MMRemovalAsk(record, ') $(cat Sources/Core/Act/MMClutterAct.m Sources/Experts/WorkForest/MMWorkForest.m | grep -c 'MMRemovalDone(record, nil);')"
 check "removal: a Wrap Up deletes what its parts staged only after the last part, and puts it back when one fails" "1 1" \
   "$(grep -c 'freed += MMRemovalFinishStaged(ran);' Sources/Core/Act/MMWrapUp.m) $(grep -c 'MMRemovalPutBack(ran);' Sources/Core/Act/MMWrapUp.m)"
@@ -120,19 +126,22 @@ if [ "$rm_r" = 0 ]; then
   echo "-- the CLI"
   rm_home="$rm_dir/cli"; mkdir -p "$rm_home"
   rm_cli() { MINMACS_HOME="$rm_home" "$BIN" "$@" 2>&1; }
-  check "removal: the verb shows smart before anything is set, and says nothing is chosen yet" \
-    "smart: Deletes what git or its tool can give back. The rest goes to the Trash. Not chosen yet. Until you pick one, what MinMacs removes on its own goes to the Trash." "$(rm_cli removal)"
-  check "removal: --json says not chosen" "smart False" "$(rm_cli removal --json | json "j['removal'] + ' ' + str(j['chosen'])")"
-  check "removal: setting smart chooses it" "smart True smart: Deletes what git or its tool can give back. The rest goes to the Trash." \
-    "$(rm_cli removal smart --json | json "j['removal'] + ' ' + str(j['chosen'])") $(rm_cli removal)"
-  check "removal: it sets trash and reads it back" "trash trash" "$(rm_cli removal trash --json | json "j['removal']") $(rm_cli removal --json | json "j['removal']")"
-  check "removal: it sets delete" "delete: Deletes everything it removes at once. Nothing can be brought back." "$(rm_cli removal delete)"
-  check "removal: a dry run names the choice and changes nothing" "smart delete" "$(rm_cli removal smart --dry-run --json | json "j['removal']") $(rm_cli removal --json | json "j['removal']")"
-  rm_cli removal shred >/dev/null; rm_x=$?
-  check "removal: an unknown word is a usage error and changes nothing" "2 delete" "$rm_x $(rm_cli removal --json | json "j['removal']")"
+  rm_explain="Everything MinMacs removes keeps a way back: a worktree through git, the rest in the Trash or a recovery folder. MinMacs never deletes anything at once and never empties the Trash."
+  check "removal: the verb only reads, and says everything keeps a way back" "$rm_explain" "$(rm_cli removal)"
+  check "removal: --json says trash and the same sentence" "trash True" "$(rm_cli removal --json | json "j['removal'] + ' ' + str(j['explain'] == '$rm_explain')")"
+  rm_x=""
+  for rm_w in smart trash delete Delete shred; do rm_cli removal "$rm_w" >/dev/null; rm_x="$rm_x $?"; done
+  check "removal: no word sets a choice any more: smart, trash, delete and any other are usage errors" " 2 2 2 2 2" "$rm_x"
+  rm_cli removal delete --dry-run >/dev/null; rm_x=$?
+  check "removal: a dry run of a setter is a usage error too" 2 "$rm_x"
+  # An old value of the pref, as an older MinMacs wrote it, changes nothing that is said.
+  old_removal "$rm_home" delete
+  check "removal: an old delete in the pref changes nothing the verb says" "$rm_explain trash" "$(rm_cli removal) $(rm_cli removal --json | json "j['removal']")"
+  old_removal "$rm_home" smart
+  check "removal: nor does an old smart" "$rm_explain" "$(rm_cli removal)"
   check "removal: help lists the verb" 1 "$("$BIN" help --json 2>/dev/null | json "sum(v['verb'] == 'removal' for v in j['verbs'])")"
   rm_cli removal delete abc:0.x >/dev/null; rm_x=$?
-  check "removal: a second word is a usage error, so an id never sets the choice" "2 delete" "$rm_x $(rm_cli removal --json | json "j['removal']")"
+  check "removal: a second word is a usage error, so an id never does anything" 2 "$rm_x"
   rm_cli removal --delete abc:0.x >/dev/null; rm_x=$?
   check "removal: --delete without --waiting is a usage error" 2 "$rm_x"
   check "removal: help names the forms that change things" "--delete --put-back --close" "$("$BIN" help --json 2>/dev/null | json "' '.join([v for v in j['verbs'] if v['verb'] == 'removal'][0]['mutatingForms'])")"

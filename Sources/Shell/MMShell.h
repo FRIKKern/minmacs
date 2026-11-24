@@ -21,6 +21,9 @@ int MMMain(int argc, const char *argv[]);
 /// Whether the one icon opens the menu window, issue #62: the pref core.window, YES while it has no value.
 /// With NO the icons open the menus of before, five icons or One Icon.
 BOOL MMWindowMode(void);
+/// D3: YES when a link's CLI words act on something, such as tidy for run-now. Such a link asks a person who is
+/// here first, MMAskPerson, and runs unasked only while the Mac runs unattended.
+BOOL MMURLWordsAct(NSArray<NSString *> *words);
 /// Whether the first launch adds the login item by itself, decision 18. With the menu window, the default, it does
 /// not: the window's welcome asks first, and Start adds it when the person left the switch on.
 BOOL MMFirstLaunchAddsLogin(BOOL windowMode);

@@ -2,8 +2,8 @@
 // Findings come from MMFacts only: the clutter items Know's catalog found, the worktrees and their git facts, and the
 // sessions. Finished projects come first: build output whose worktree is merged, lost its remote branch or is gone.
 // Every action runs through MMRunAction with MMClutterAction, which checks fresh, writes the undo record first,
-// and removes the item or runs the tool's own command. Where a removed item goes is the person's removal choice,
-// Core/Act/MMRemoval.h: the Trash or a recovery copy, or deleted at once. The words here follow that one decision.
+// and removes the item or runs the tool's own command. Every removed item keeps a way back,
+// Core/Act/MMRemoval.h: the Trash, or a recovery copy for a tool's command.
 // Ported from Noo-Noo 0.7: the dev, caches and leaks modules, the trend and cache velocity math, and its CLI verbs.
 #import <AppKit/AppKit.h>
 #import "Experts/NooNoo/MMNooNoo.h"
@@ -61,6 +61,7 @@ static NSString *SectionName(MMNNSection s) { return @[@"finished", @"leftovers"
     NSDate *_undoRead, *_reviewRead;
     BOOL _hooked;
     NSDate *_actedOn;
+    BOOL _toldNoTrash;      // a mode pass said once that the Trash list cannot be written; set again once it can
     double _growthMin;
 }
 
@@ -168,6 +169,21 @@ static NSString *RowName(MMClutterItem *i) {
     return i.kind.title;
 }
 
+/// The words the window uses when it shows a row's items as one, DESIGN rule 16: the row's `collapse` object where it
+/// has one, such as tmpdir-families' "Temp folders left by tools", else the row's title and what each item
+/// is by how the row finds it. Each noun has both forms written out.
+static NSDictionary *CollapseWords(MMClutterKind *k) {
+    NSMutableDictionary *w = [NSMutableDictionary dictionaryWithObject:k.title forKey:@"title"];
+    if ([k.signature isEqualToString:@"family"]) [w addEntriesFromDictionary:@{@"one": @"group", @"many": @"groups", @"innerOne": @"folder", @"innerMany": @"folders"}];
+    else if (k.names.count) [w addEntriesFromDictionary:@{@"one": @"project", @"many": @"projects"}];
+    else if ([k.owner isEqualToString:@"session"]) [w addEntriesFromDictionary:@{@"one": @"session", @"many": @"sessions"}];
+    else [w addEntriesFromDictionary:@{@"one": @"folder", @"many": @"folders"}];
+    NSDictionary *own = [k.json[@"collapse"] isKindOfClass:NSDictionary.class] ? k.json[@"collapse"] : @{};
+    for (NSString *key in @[@"title", @"one", @"many", @"innerOne", @"innerMany"])
+        if ([own[key] isKindOfClass:NSString.class] && [own[key] length]) w[key] = own[key];
+    return w;
+}
+
 /// For a row whose paths end in a wildcard, the part the wildcard matched, so two items of one row read apart:
 /// a session id cut to 8 characters, a project folder, a browser revision.
 static NSString *WildPart(MMClutterItem *i) {
@@ -225,9 +241,6 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
     MMMode mode = MMModeFor(kExpert);
     BOOL watched = MMWatchedLongEnough(kExpert);
     @synchronized (self) { _growthMin = MMPrefDouble(@"noonoo.growthMinBytes", 1024.0 * 1024 * 1024); }
-    // The removal choice as it is at this build, for each row's words, as a press would get it. The act asks again
-    // on fresh facts, and for a mode it keeps a way back while the person has not chosen.
-    MMRemovalChoice removal = MMRemovalChoiceNow();
     (void)[self undoNow];
     NSMutableArray *rows = [NSMutableArray new];
     for (MMClutterItem *i in facts.clutter) {
@@ -260,11 +273,10 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (until > now) [keep addObject:[NSString stringWithFormat:@"kept by you until %@", [NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:until] dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterNoStyle]]];
         if (keep.count && section != MMNNKept) section = MMNNKept;
         MMProposal *proposal = nil;
-        BOOL deletes = MMRemovalDecideWith(removal, k.klass == MMClutterTool ? MMRemovalToolCopy : MMRemovalClutter, [MMRemovalFacts clutter:i]).deleteNow;
         if (!k.reportOnly) {
             proposal = k.klass == MMClutterTool
                 ? [MMProposal verb:@"clean" title:[@"Clean with " stringByAppendingString:k.cleanupArgs.firstObject] reversibility:MMReversibleToolCommand]
-                : [MMProposal verb:@"remove" title:deletes ? @"Delete" : @"Move to Trash" reversibility:MMReversibleTrash];
+                : [MMProposal verb:@"remove" title:@"Move to Trash" reversibility:MMReversibleTrash];
         }
         BOOL goes = proposal && !keep.count && watched && mode != MMModeIdle && k.klass != MMClutterTool &&
                     (section == MMNNFinished || section == MMNNLeftovers || (mode == MMModeEager && k.klass == MMClutterCache));
@@ -273,10 +285,12 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
                                      @"members": @(i.members.count), @"state": i.state == MMClutterFree ? @"free" : i.state == MMClutterLive ? @"live" : @"kept",
                                      @"section": SectionName(section), @"allocated": @(i.size.allocated), @"freed": @(i.size.freedIfDeleted),
                                      @"name": RowName(i), @"goes": @(goes), @"reportOnly": @(k.reportOnly), @"folder": @(k.names.count > 0),
-                                     @"deletes": @(deletes),
                                      @"trend": @{@"ok": @(t.ok), @"bytesPerDay": @(t.bytesPerDay), @"windowDays": @(t.windowDays),
                                                  @"firstBytes": @(t.firstBytes), @"lastBytes": @(t.lastBytes), @"weekRatio": @(t.weekRatio)}} mutableCopy];
         if (i.why) fx[@"why"] = i.why;
+        fx[@"collapse"] = CollapseWords(k);
+        // A family is judged member by member: how many of its members go, the rest stay. Core/Know/MMClutter.h.
+        if ([k.signature isEqualToString:@"family"]) fx[@"leftovers"] = @(i.leftovers.count);
         if (keep.count) fx[@"keep"] = keep.firstObject;
         if (ownerState) fx[@"ownerState"] = ownerState;
         if (i.ownerPath) fx[@"ownerPath"] = i.ownerPath;
@@ -327,6 +341,52 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
     return out;
 }
 
+/// Issue #52. What findingsFrom: reads, so the graph hands back the last findings when none of it moved. Know replaces
+/// a clutter item when a scan changed it, a worktree when the repo index walked it again and a git fact when it moved,
+/// and arrays may be copied, so each element's identity counts: that is the catalog scan's generation and the index's.
+/// Then each session's id, folder, pid and whether it works, the checkouts that a working
+/// session started above them runs a process in, the timed keeps that hold now with their dates, the mode, the day of
+/// watching, the growth threshold and each tool row's last dry run. Ages, such as "last used 3 days ago", move only
+/// at the heartbeat build, at most 30 seconds later, as LocoHost's do.
+static uint64_t NNMix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t NNObj(id o, uint64_t salt) { return NNMix((uint64_t)(uintptr_t)(__bridge void *)o ^ NNMix(salt)); }
+static uint64_t NNStr(NSString *s, uint64_t salt) { return NNMix((s ? s.hash ^ ((uint64_t)s.length << 40) : 0x5bd1e995ull) ^ NNMix(salt)); }
+
+- (uint64_t)inputDigestFrom:(MMFacts *)facts {
+    uint64_t h = NNMix(facts.clutter.count + 1);
+    for (MMClutterItem *i in facts.clutter) {
+        h += NNObj(i, 1) + NNObj(i.kind, 2);
+        MMClutterKind *k = i.kind;
+        if (k.cleanupArgs.count && !k.reportOnly) {
+            NSDictionary *last = MMClutterLastDryRun(k.kindID);
+            if (last) h += NNMix([last[@"at"] doubleValue] * 1000 + 3) ^ NNMix([last[@"exit"] longLongValue] + 4) ^ NNMix([last[@"wouldFree"] longLongValue] + 5);
+        }
+    }
+    h += NNMix(facts.worktrees.count + 6);
+    for (MMWorktree *w in facts.worktrees) h += NNObj(w, 7) + NNObj([facts gitFor:w], 8);
+    // Of a session, only what the owner state and the agent keeps read: not its last activity or title, which an
+    // agent at work moves with every append to its transcript.
+    h += NNMix(facts.sessions.count + 9);
+    for (MMSession *x in facts.sessions)
+        h += NNStr(x.sessionID, 10) ^ NNStr(x.cwd, 18) ^ NNMix(((uint64_t)(uint32_t)x.pid << 1 | (uint64_t)x.stillWorking) + 19);
+    // The one input from the sample: the checkouts a working session started above them runs a process in.
+    NSDictionary<NSString *, MMSession *> *runs = AgentRuns(facts);
+    for (NSString *path in runs) h += NNStr(path, 11) ^ NNObj(runs[path], 12);
+    NSDictionary *keeps = [self keepsNow];
+    double now = NSDate.date.timeIntervalSince1970;
+    for (NSString *key in keeps) {
+        double until = [keeps[key] doubleValue];
+        if (until > now) h += NNStr(key, 13) ^ NNMix((uint64_t)until + 14);
+    }
+    h ^= NNMix((uint64_t)MMModeFor(kExpert) + 15);
+    h ^= NNMix((uint64_t)MMWatchedLongEnough(kExpert) + 16);
+    h ^= NNMix((uint64_t)MMPrefDouble(@"noonoo.growthMinBytes", 1024.0 * 1024 * 1024) + 17);
+    return h;
+}
+
 - (MMClutterItem *)itemFor:(MMFinding *)f facts:(MMFacts *)facts {
     for (MMClutterItem *i in facts.clutter ?: self.catalog.items) if ([i.key isEqualToString:f.stableKey]) return i;
     return nil;
@@ -341,7 +401,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
 }
 
 /// Wrap Up, issue #27: one part per cache or build folder the worktree owns, by back-link or by place, that goes to
-/// the Trash or is deleted, as the removal choice says. A tool's own cleanup is for the whole Mac, not one
+/// the Trash, MMRemoval.h. A tool's own cleanup is for the whole Mac, not one
 /// workstream, so it is never a part.
 - (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {
     NSMutableArray *parts = [NSMutableArray new];
@@ -349,7 +409,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (!f.proposal || f.proposal.reversibility != MMReversibleTrash) continue;
         if (![subject holds:f.ownerPath] && ![subject holds:f.path]) continue;
         id<MMAction> a = [self actionFor:f step:MMStopTerm];
-        NSString *title = [NSString stringWithFormat:[f.facts[@"deletes"] boolValue] ? @"Delete %@" : @"Move %@ to the Trash", f.facts[@"name"] ?: f.title];
+        NSString *title = [NSString stringWithFormat:@"Move %@ to the Trash", f.facts[@"name"] ?: f.title];
         MMWrapUpPart *p = a ? [MMWrapUpPart step:MMWrapUpCaches expert:kExpert title:title action:a policy:self.policy] : nil;
         if (p) [parts addObject:p];
     }
@@ -397,36 +457,42 @@ static void RunOffMain(dispatch_block_t block) {
     return [MMGraph.shared.latest finding:fid] ?: [[self snapshotNow] finding:fid];
 }
 
-/// Menu actions: run off main, then rebuild the graph. A failure the person should see goes in an alert.
+/// Menu actions: run off main, then rebuild the graph. A failure goes to the log as a notice.
 - (void)menuClean:(NSArray<NSString *> *)ids {
     MMSnapshot *s = MMGraph.shared.current;
     NSMutableArray *fs = [NSMutableArray new];
     for (NSString *fid in ids) { MMFinding *f = [s finding:fid]; if (f) [fs addObject:f]; }
     dispatch_async(ActQueue(), ^{
         NSMutableArray *problems = [NSMutableArray new];
+        // A move to the Trash needs MinMacs's own list of it. When that list cannot be written, none is tried, and one
+        // notice says why.
+        NSMutableArray<NSString *> *unmoved = [NSMutableArray new];
+        NSString *noTrash = nil;
+        for (MMFinding *f in fs) if ([[self actionFor:f step:MMStopTerm].kind isEqualToString:@"trash"]) { noTrash = MMRemovalTrashListCannot(); break; }
         for (MMFinding *f in fs) {
+            if (noTrash && [[self actionFor:f step:MMStopTerm].kind isEqualToString:@"trash"]) { [unmoved addObject:f.path ?: @""]; continue; }
             NSString *err = nil;
             MMUndoRecord *r = [self clean:f by:@"manual" error:&err];
-            if (!r || r.state == MMUndoFailed) [problems addObject:[NSString stringWithFormat:@"%@: %@", f.title, err ?: @"it failed"]];
+            if (!r || r.state == MMUndoFailed) [problems addObject:@[f.title ?: @"", err ?: @"it failed"]];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             [MMGraph.shared rebuild:@"noonoo.action"];
-            if (!problems.count || !NSApp) return;
-            NSAlert *alert = [NSAlert new];
-            alert.messageText = problems.count == 1 ? @"Noo-Noo Could Not Clean It" : [NSString stringWithFormat:@"Noo-Noo Could Not Clean %lu Items", (unsigned long)problems.count];
-            alert.informativeText = [problems componentsJoinedByString:@"\n"];
-            [alert runModal];
         });
+        // D3: a failure is a notice in the log, with at most one notification. No alert waits for a person.
+        if (unmoved.count) MMNoticeTrashUnwritten(kExpert, unmoved, @"MinMacs");
+        if (problems.count)
+            MMNotice(kExpert, problems.count == 1 ? @"MinMacs Could Not Clean It" : [NSString stringWithFormat:@"MinMacs Could Not Clean %lu Items", (unsigned long)problems.count],
+                     MMNoticeLines(problems));
     });
 }
 
 - (void)keepForAWeek:(NSString *)fid {
     MMFinding *f = [MMGraph.shared.current finding:fid];
     if (!f) return;
-    NSString *key = f.stableKey;
+    NSString *key = f.stableKey, *name = f.title;
     dispatch_async(ActQueue(), ^{
         // Core's timed keep, in <noonoo>/keeps.json, which findingsFrom reads once per rebuild when it changed.
-        [MMKeep keep:key expert:kExpert until:[NSDate dateWithTimeIntervalSinceNow:kKeepFor]];
+        [MMKeep keep:key expert:kExpert until:[NSDate dateWithTimeIntervalSinceNow:kKeepFor] by:@"manual" name:name];
         [MMGraph.shared rebuild:@"noonoo.keep"];
     });
 }
@@ -479,12 +545,36 @@ static void RunOffMain(dispatch_block_t block) {
         NSMutableArray<MMUndoRecord *> *recs = [NSMutableArray new];
         uint64_t freed = 0;
         NSString *lastRid = nil;
-        for (MMPlanEntry *e in MMPlan(findings, facts, r, mode, self.policy)) {
+        NSInteger planned = 0;
+        NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
+        // Before acting, what the acts need: a move to the Trash needs MinMacs's own list of it. When that list cannot
+        // be written no move is tried, and one notice says why, once until the list can be written again.
+        NSArray<MMPlanEntry *> *plan = MMPlan(findings, facts, r, mode, self.policy);
+        NSMutableDictionary<NSString *, id<MMAction>> *acts = [NSMutableDictionary new];
+        BOOL trashes = NO;
+        for (MMPlanEntry *e in plan) {
+            id<MMAction> a = e.act ? [self actionFor:e.finding step:MMStopTerm] : nil;
+            if (a && e.finding.findingID) { acts[e.finding.findingID] = a; if ([a.kind isEqualToString:@"trash"]) trashes = YES; }
+        }
+        NSString *noTrash = trashes ? MMRemovalTrashListCannot() : nil;
+        NSMutableArray<NSString *> *unmoved = [NSMutableArray new];
+        for (MMPlanEntry *e in plan) {
             if (!e.act) continue;
-            id<MMAction> a = [self actionFor:e.finding step:MMStopTerm];
+            planned++;
+            id<MMAction> a = e.finding.findingID ? acts[e.finding.findingID] : nil;
+            if (noTrash && [a.kind isEqualToString:@"trash"]) {
+                [skipped addObject:MMLogRunSkip(e.finding.title, noTrash, @"blocked")];
+                [unmoved addObject:e.finding.path ?: @""];
+                continue;
+            }
             NSString *err = nil;
             MMUndoRecord *rec = a ? MMRunAction(a, self.policy, r, MMModeName(mode), e.why, &err) : nil;
-            if (rec.state != MMUndoDone) continue;
+            if (rec.state != MMUndoDone) {
+                NSString *why = !a ? @"MinMacs has no action for it" : rec ? (rec.error ?: err) : err;
+                BOOL kept = !rec && [why hasPrefix:@"kept: "];
+                [skipped addObject:MMLogRunSkip(e.finding.title, kept ? [why substringFromIndex:6] : why, kept ? @"kept" : rec ? @"failed" : @"blocked")];
+                continue;
+            }
             [done addObject:e.finding.title];
             [recs addObject:rec];
             freed += e.finding.cost.diskFreed;
@@ -492,6 +582,12 @@ static void RunOffMain(dispatch_block_t block) {
             if (rec.canRestore) lastRid = rec.rid;
         }
         [self forgetUndo];
+        // The pass's row in the log, when it planned anything: what it did and what it skipped, with why.
+        if (planned) MMLogRun(kExpert, MMModeName(mode), planned, (NSInteger)done.count, skipped, 0, freed);
+        @synchronized (self) {
+            if (unmoved.count && !self->_toldNoTrash) MMNoticeTrashUnwritten(kExpert, unmoved, MMCapitalized(MMModeName(mode)));
+            if (trashes) self->_toldNoTrash = noTrash != nil;
+        }
         if (!done.count) return;
         // The words say where each thing went in this run, from its record: deleted, or to the Trash.
         NSString *title = [NSString stringWithFormat:@"Cleaned Up %@", MMPlural((NSInteger)done.count, @"Item").capitalizedString];
@@ -566,10 +662,8 @@ static void RunOffMain(dispatch_block_t block) {
     r.why = f.keepReasons.firstObject ?: x[@"why"];
     r.rebuild = x[@"rebuild"]; r.ownerSetting = x[@"ownerSetting"];
     r.actionTitle = f.proposal.title;
-    BOOL deletes = [x[@"deletes"] boolValue];
-    r.undoWords = f.proposal.reversibility == MMReversibleToolCommand
-        ? (deletes ? @"No recovery copy is made, and what the tool removes cannot be brought back." : @"A recovery copy is made first, and Undo copies back what the tool removed.")
-        : (deletes ? @"It is deleted at once and cannot be brought back." : @"It goes to the Trash, and Undo moves it back.");
+    r.undoWords = f.proposal.reversibility == MMReversibleToolCommand ? @"A recovery copy is made first, and Undo copies back what the tool removed."
+                                                                      : @"It goes to the Trash, and Undo moves it back.";
     r.goesOnItsOwn = [x[@"goes"] boolValue];
     r.members = [x[@"members"] integerValue];
     r.folder = [x[@"folder"] boolValue];
@@ -658,7 +752,7 @@ static void RunOffMain(dispatch_block_t block) {
 
 static NSDictionary *ItemJSON(MMFinding *f) {
     NSMutableDictionary *j = [NSMutableDictionary new];
-    for (NSString *k in @[@"kindID", @"class", @"section", @"state", @"path", @"owner", @"ownerState", @"why", @"keep", @"members", @"allocated", @"freed", @"lastUsed", @"trend", @"command"])
+    for (NSString *k in @[@"kindID", @"class", @"section", @"state", @"path", @"owner", @"ownerState", @"why", @"keep", @"members", @"leftovers", @"allocated", @"freed", @"lastUsed", @"trend", @"command"])
         if (f.facts[k]) j[k] = f.facts[k];
     j[@"id"] = f.findingID; j[@"title"] = f.title ?: @"";
     if (f.proposal) j[@"action"] = f.proposal.title;
@@ -878,7 +972,7 @@ static NSDictionary *ItemJSON(MMFinding *f) {
     clutter.reads = MMVerbReadsCachedGit;
     return @[
         clutter,
-        [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]   removes clutter as the removal choice says, to the Trash with undo or deleted at once, or with --command runs the row's own cleanup, which cannot be undone" mutates:YES
+        [MMVerbSpec verb:@"clean" usage:@"clean <id|path|row> ... [--command] | --finished | --leftovers | --undo [rid] [--json] [--dry-run]   removes clutter to the Trash with undo, or with --command runs the row's own cleanup, which cannot be undone" mutates:YES
                      run:^int(MMArgs *a) { return [me cleanVerb:a]; }],
     ];
 }

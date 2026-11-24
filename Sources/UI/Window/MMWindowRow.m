@@ -31,7 +31,10 @@ static CGFloat NameEdge(CGFloat start, const CGFloat *width, const BOOL *held) {
 }
 
 NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *columns) {
-    NSString *name = row.shownName;
+    return MMWindowRowNameAs(row, row.shownName, side, hasHour, rect, columns);
+}
+
+NSArray<NSString *> *MMWindowRowNameAs(MMWindowRow *row, NSString *name, MMWindowSide side, BOOL hasHour, NSRect rect, MMWindowRowColumns *columns) {
     BOOL disk = side == MMWindowDisk;
     // The size column holds a number and its unit. The word of a size not measured yet is never wider than it is given.
     CGFloat nameLeft = NSMinX(rect) + 31, right = NSMaxX(rect) - 9, sizeWidth = MAX(disk ? 58 : 50, row.sizeWord ? ceil(Wide(row.sizeWord, 11.5)) : 0);
@@ -64,7 +67,8 @@ NSArray<NSString *> *MMWindowRowName(MMWindowRow *row, MMWindowSide side, BOOL h
 NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
     NSDictionary *at = @{NSFontAttributeName: MMWindowFont(11, NSFontWeightRegular)};
     BOOL byWhy = row.kind == MMWindowCache || row.kind == MMWindowApp || row.kind == MMWindowHelper || row.kind == MMWindowTabs;
-    NSString *note = row.fate.note;
+    // A row that stands for several says its totals here, DESIGN rule 16: its split is its story's first line.
+    NSString *note = row.members ? nil : row.fate.note;
     if (byWhy && note.length) {
         NSString *plain = [note hasSuffix:@"."] ? [note substringToIndex:note.length - 1] : note;
         if (ceil([plain sizeWithAttributes:at].width) <= width) return plain;
@@ -83,11 +87,18 @@ NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
     return line.length ? [[line substringToIndex:1].localizedUppercaseString stringByAppendingString:[line substringFromIndex:1]] : nil;
 }
 
-void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall) {
+void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour, MMWindowRowLook look, BOOL tall) {
+    MMWindowDrawRowAs(row, row.shownName, r, side, hasHour, look, tall);
+}
+
+void MMWindowDrawRowAs(MMWindowRow *row, NSString *shown, NSRect r, MMWindowSide side, BOOL hasHour, MMWindowRowLook look, BOOL tall) {
+    // The active row is solid blue with white text. The row under the pointer only gets a quiet wash: its text stays
+    // as at rest, so a calm name stays calm.
+    BOOL hot = look == MMWindowRowActive;
     // Nothing going on in it, no fix touches it and it asks nothing: its name steps back, so the busy rows lead.
     BOOL calm = row.quiet && !row.inFix && !row.needsYou && !hot, disk = side == MMWindowDisk;
     MMWindowRowColumns col;
-    NSArray<NSString *> *name = MMWindowRowName(row, side, hasHour, r, &col);
+    NSArray<NSString *> *name = MMWindowRowNameAs(row, shown, side, hasHour, r, &col);
     CGFloat nameLeft = NSMinX(col.name);
     NSString *second = tall ? MMWindowRowSecondLine(row, NSMaxX(col.size) - nameLeft) : nil;
     // The name's first line stands where a one-line row has it. More lines and the second line follow under it.
@@ -98,6 +109,16 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour
     if (hot) {
         [MMWindowColor(MMWindowInkHot) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:r xRadius:6 yRadius:6] fill];
+    } else if (look == MMWindowRowHover) {
+        [MMWindowColor(MMWindowInkHover) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:r xRadius:6 yRadius:6] fill];
+        // Increase Contrast: the wash is stronger and has an edge, so the row under the pointer reads without color.
+        if (MMWindowContrast()) {
+            NSBezierPath *edge = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(r, 0.5, 0.5) xRadius:5.5 yRadius:5.5];
+            edge.lineWidth = 1;
+            [[NSColor colorWithWhite:1 alpha:0.42] setStroke];
+            [edge stroke];
+        }
     }
     MMWindowDrawIcon(row, NSMakeRect(r.origin.x + 9, (col.lines > 1 ? mid : NSMidY(r)) - 8, 16, 16), hot ? MMWindowColor(MMWindowInkHot) : [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1]);
 

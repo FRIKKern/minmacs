@@ -146,8 +146,51 @@ check "the record is restored" restored "$(fx restore --list --json | jq_ 'j["re
 fx restore "$sh_rid" >/dev/null 2>&1
 check "restoring it again fails" 1 "$?"
 check "restore with nothing left says so" "Nothing to restore." "$(fx restore)"
+sh_askj() { python3 -I -c 'import json,socket,sys
+s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(5); s.connect(sys.argv[1])
+s.sendall((sys.argv[2]+"\n").encode()); s.shutdown(socket.SHUT_WR); d=b""
+while True:
+    b=s.recv(65536)
+    if not b: break
+    d+=b
+print(json.dumps(json.loads(d)))' "$MINMACS_HOME/core.sock" "$1"; }
+check "the app marks a verb it does not know apart from a usage error" "2 True" \
+  "$(sh_askj '{"verb":"cli","cli":["nosuch"]}' | jq_ 'j["status"], j["unknownVerb"]' | tr '\n' ' ' | sed 's/ $//')"
+check "a usage error carries no unknown verb mark" "2 False" \
+  "$(sh_askj '{"verb":"cli","cli":["mode","locohost","loud"]}' | jq_ 'j["status"], j.get("unknownVerb", False)' | tr '\n' ' ' | sed 's/ $//')"
 kill "$sh_srv" 2>/dev/null; wait "$sh_srv" 2>/dev/null
 check "with the app gone the CLI runs cold again" False "$(fx status --json | jq_ 'j["app"]')"
+
+echo "  -- a newer CLI against an older app"
+# A fake app of an older build answers ping and says every verb is unknown, as an app from before unknownVerb did.
+# The app before left its socket file behind, so wait for the fake's own.
+rm -f "$MINMACS_HOME/core.sock"
+python3 -I test/shell/oldapp.py "$MINMACS_HOME/core.sock" "$sh_dir/oldapp.log" >/dev/null 2>"$sh_dir/oldapp.err" &
+sh_old=$!; procs="$procs $sh_old"
+sh_i=0; while [ ! -S "$MINMACS_HOME/core.sock" ] && [ $sh_i -lt 50 ]; do sleep 0.1; sh_i=$((sh_i+1)); done
+check "the fake older app serves core.sock" yes "$([ -S "$MINMACS_HOME/core.sock" ] && echo yes || echo no)"
+fx hosts --json >"$sh_dir/old-hosts.json" 2>"$sh_dir/old-hosts.err"
+check "a verb that reads runs cold when the app does not know it" "0 False" "$? $(jq_ 'j["inApp"]' <"$sh_dir/old-hosts.json")"
+check "it reads what a cold run reads" "$(MINMACS_COLD=1 fx hosts --json | jq_ 'j["hosts"]')" "$(jq_ 'j["hosts"]' <"$sh_dir/old-hosts.json")"
+check "it says so in one line on stderr" "1 1" \
+  "$(wc -l <"$sh_dir/old-hosts.err" | tr -d ' ') $(grep -c '^minmacs: the running app is an older build; read without it$' "$sh_dir/old-hosts.err")"
+check "it asked the app first" 1 "$(grep -c '"cli": \["hosts", "--json"\]' "$sh_dir/oldapp.log")"
+check "the read form of a verb with mutating forms runs cold too" 0 "$(fx quiet --json >/dev/null 2>&1; echo $?)"
+fx quiet hold "$sh_old" >"$sh_dir/old-hold.out" 2>"$sh_dir/old-hold.err"
+check "a mutating form never runs cold, and needs an app that knows it" 3 "$?"
+check "it names the app's build and the verb" 1 \
+  "$(grep -c '^minmacs: the running MinMacs (1.9.0, build 41) does not know quiet; update it\. This minmacs is 2\.0\.0\.$' "$sh_dir/old-hold.err")"
+check "it held nothing" no "$([ -s "$MINMACS_HOME/quiet/holds.json" ] && grep -q '"pid"' "$MINMACS_HOME/quiet/holds.json" && echo yes || echo no)"
+fx tidy locohost >/dev/null 2>"$sh_dir/old-tidy.err"
+check "a verb that mutates is refused the same way" "3 1" "$? $(grep -c 'does not know tidy; update it' "$sh_dir/old-tidy.err")"
+fx tidy locohost --dry-run >/dev/null 2>&1
+check "with --dry-run too, since only mutates: NO runs cold" 3 "$?"
+check "the refusals stopped nothing" no "$([ -e "$MINMACS_HOME/fx/stopped-3000" ] && echo yes || echo no)"
+fx nosuch >/dev/null 2>&1
+check "a verb this CLI does not know is still unknown here" 2 "$?"
+kill "$sh_old" 2>/dev/null; wait "$sh_old" 2>/dev/null
+procs=$(printf ' %s ' "$procs" | sed "s/ $sh_old / /")
+rm -f "$MINMACS_HOME/core.sock"
 
 echo "  -- the real binary, cold"
 # Where asks cmux and tmux through their CLIs. Fakes that answer nothing keep this Mac's own sessions out.
@@ -173,9 +216,12 @@ rm -f "$sh_dir/bin/locohost" "$sh_dir/bin/locohost-real"
 sh_port=""; sh_l=""
 for sh_try in 0 1 2 3 4 5 6 7; do
   sh_p=$(( 40000 + ($$ * 7 + sh_try * 131) % 20000 ))
-  "$sh_dir/bin/${sh_tag}-listen" "$sh_p" & sh_l=$!
-  sleep 0.3
-  if kill -0 "$sh_l" 2>/dev/null; then sh_port=$sh_p; procs="$procs $sh_l"; break; fi
+  rm -f "$sh_dir/listen.ready"
+  "$sh_dir/bin/${sh_tag}-listen" "$sh_p" "$sh_dir/listen.ready" & sh_l=$!
+  # A live pid is not yet a listener: wait, 5 s at most, until it says it listens or it exits on a taken port.
+  for sh_w in $(seq 50); do [ -e "$sh_dir/listen.ready" ] || ! kill -0 "$sh_l" 2>/dev/null && break; sleep 0.1; done
+  if [ -e "$sh_dir/listen.ready" ] && kill -0 "$sh_l" 2>/dev/null; then sh_port=$sh_p; procs="$procs $sh_l"; break; fi
+  kill "$sh_l" 2>/dev/null; wait "$sh_l" 2>/dev/null
 done
 check "the fixture listener holds a high port" yes "$([ -n "$sh_port" ] && echo yes || echo no)"
 check "where --port finds the listener's pid" "$sh_l" "$("$BIN" where --port "$sh_port" --json | jq_ 'j["pid"]')"

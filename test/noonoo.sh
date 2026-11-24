@@ -170,6 +170,11 @@ if [ "$nn_r" = 0 ]; then
     "$(nn_item "$nn_T/dev-chrome-*" section) $(nn_item "$nn_T/dev-chrome-*" members)"
   check "noonoo: a 3-digit tail is no suffix, so those five form no family" absent "$(nn_item "$nn_T/build-out-*" section)"
   check "noonoo: a family written just now stays" "kept" "$(nn_item "$nn_T/fresh-run-*" section)"
+  # DESIGN rule 16: only the window shows a row's items as one. The CLI keeps each family and each item apart.
+  check "noonoo: clutter list keeps every family its own item, and says nothing of a collapsed row" "3 0" \
+    "$(printf '%s' "$nn_list" | python3 -c "
+import json,sys; j=json.load(sys.stdin); t=sys.argv[1]
+print(len([i for i in j['items'] if i['path'] in (t+'/mv-test-*', t+'/dev-chrome-*', t+'/fresh-run-*')]), len([i for i in j['items'] if 'collapsed' in i]))" "$nn_T")"
   check "noonoo: a Chrome code-sign clone nothing holds open is a leftover" leftovers "$(nn_item "$nn_clone" section)"
   check "noonoo: Claude Code transcripts are data, kept with their owner's setting" "kept data" \
     "$(nn_item "$nn/claude/projects/-code-acme" section) $(nn_item "$nn/claude/projects/-code-acme" class)"
@@ -273,16 +278,14 @@ print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('fre
   check "noonoo: no refused clean wrote an undo record" 0 "$(nn_undo 'len(j)')"
 
   echo "-- removal and undo"
-  # The checks from here to the removal choice at the end are about the Trash and its undo, so they run under the
-  # Trash choice. Smart, the default, deletes rebuilt items such as node_modules at once, and the last block of this
-  # section checks that, and Delete, on the same fixtures.
+  # Everything MinMacs removes keeps a way back, D2: the checks from here on are about the Trash and its undo. The
+  # last block of this section checks that an old smart or delete in the pref changes nothing, on the same fixtures.
   nn_removal() { MINMACS_HOME="$nn" "$BIN" removal "$@" 2>/dev/null; }
-  check "noonoo: the removal choice starts as smart" smart "$(nn_removal --json | json "j['removal']")"
-  check "noonoo: under smart a dry run says node_modules is deleted, and why" yes \
-    "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'would delete .*node_modules, since its tool rebuilds it. It cannot be brought back.' && echo yes || echo no)"
-  check "noonoo: under smart a dry run sends a leftover to the Trash" yes \
+  check "noonoo: the verb says trash" trash "$(nn_removal --json | json "j['removal']")"
+  check "noonoo: a dry run sends node_modules to the Trash too, though its tool rebuilds it" yes \
+    "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'node_modules to the Trash. Undo moves it back' && echo yes || echo no)"
+  check "noonoo: a dry run sends a leftover to the Trash" yes \
     "$(nnt verb clean "$nn_scr/$nn_dead" --dry-run 2>/dev/null | grep -q 'to the Trash. Undo moves it back' && echo yes || echo no)"
-  nn_removal trash >/dev/null
   # A dry run says what would happen and changes nothing.
   check "noonoo: a dry run says the item goes to the Trash" yes \
     "$(nnt verb clean "$nn_wt/node_modules" --dry-run 2>/dev/null | grep -q 'to the Trash. Undo moves it back' && echo yes || echo no)"
@@ -306,7 +309,8 @@ print('yes' if M <= o.get('freed',0) < 2*M else 'no', 'yes' if 2*M <= d.get('fre
   check "noonoo: the pip cache goes to the Trash and comes back" "gone back" "$(nn_undo_one "$nnh/Library/Caches/pip")"
   check "noonoo: a dead session's scratch goes and comes back" "gone back" "$(nn_undo_one "$nn_scr/$nn_dead")"
   check "noonoo: a family's members go and come back" "gone back" "$(nn_undo_one "$nn_T/mv-test-a1B2c3")"
-  check "noonoo: every member of the family was in the one record" 6 "$(nn_undo 'len(j[0]["payload"]["trashed"])')"
+  check "noonoo: every member of the family was in the one record, as one folder in the Trash" "6 0" \
+    "$(nn_undo '"%d %d" % (len(j[0]["payload"]["held"]["members"]), len(j[0]["payload"].get("trashed", [])))')"
   nnt scan >/dev/null 2>&1
   check "noonoo: a finished project's .next goes and comes back" "gone back" "$(nn_undo_one "$nn_wt/.next")"
 
@@ -540,6 +544,9 @@ print(' '.join(sorted(i['kindID'] for i in j['items'] if i['path'].startswith(sy
     "$(nnc_bin status 2>/dev/null | grep 'Noo-Noo' | grep -q ' 2 items' && echo yes || echo no)"
   check "noonoo: cold, the scan left both folders in place" yes "$([ -f "$nnc_repo/node_modules/left-pad/index.js" ] && [ -f "$nnc_repo/.next/cache/page.html" ] && echo yes || echo no)"
 
-  # The removal choice, issue #62, on this section's fixtures. It runs last, since it deletes them.
+  # A temp-folder family judged member by member, in a home of its own: test/noonoo/families.sh.
+  . ./test/noonoo/families.sh
+
+  # An old removal choice in the pref, issue #62 and D2, on this section's fixtures. It runs last.
   . ./test/noonoo/removal.sh
 fi

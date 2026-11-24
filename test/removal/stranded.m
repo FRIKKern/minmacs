@@ -8,7 +8,7 @@ static NSString *LinkOf(NSString *path) { return [NSFileManager.defaultManager d
 
 /// A part of parent that stages each path under Delete. Returns the finished record, or the pending one.
 static MMUndoRecord *StageMany(MMUndoRecord *parent, NSString *subject, NSArray<NSString *> *paths, BOOL finish) {
-    MMRemovalDecision *del = MMRemovalDecideWith(MMRemovalDelete, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *del = MMRemovalTestDeleteDecision(MMRemovalConfigFiles);
     MMUndoRecord *part = Part(parent.rid, subject);
     MMRemovalNote(part, del, nil);
     MMRemovalAsk(part, paths);
@@ -125,7 +125,7 @@ static void Stranded(void) {
 
     // 4. A crash with things in the Trash: they are moved back out, never deleted, never over something, and no
     // record stays pending.
-    MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *keep = MMRemovalDecide(MMRemovalConfigFiles, nil, nil);
     parent = Unfinished(@"trash crash", tree, GoneOwner());
     MMUndoRecord *trashed = Part(parent.rid, @"config to the Trash");
     MMRemovalNote(trashed, keep, nil); MMRemovalAsk(trashed, @[plain]);

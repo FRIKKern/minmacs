@@ -4,9 +4,10 @@
 //   +-----------------------------------------------------------------+
 //   | 2 agents ask you             (folded away when nobody asks)     |
 //   +------------------+--------------------------+-------------------+
-//   | Servers      20  | Memory in use, last hour | Worktrees     16  |
-//   | Agents       16  | Disk free, last hour     | Caches         5  |
-//   | Apps, helpers 15 | (or a pointed row's story)|                   |
+//   | Servers      20  | Memory ~^~    Disk ___   | Worktrees     16  |
+//   | Agents       16  | Today                    | Caches         5  |
+//   | Apps, helpers 15 | Stopped :3000 Next.js.   |                   |
+//   |                  | (or a pointed row's story)|                   |
 //   +------------------+--------------------------+-------------------+
 //   | ring  42.4 / 64 GB   [ Fix Everything ]   3.9 GB memory back    |
 //   |       182 GB free    7 fixes, x first     31.1 GB disk back     |
@@ -74,6 +75,9 @@ NSString *MMWindowHourTitle(BOOL disk);
 @interface MMWindowFact : NSObject
 @property (copy) NSString *label, *value;
 @property (copy, nullable) NSString *phrase;
+/// The key of another row this fact names, such as an agent's worktree: in the story its value is a press that makes
+/// that row the active one. nil for a fact that names no row.
+@property (copy, nullable) NSString *link;
 + (instancetype)label:(NSString *)label value:(NSString *)value;
 @end
 
@@ -91,13 +95,17 @@ NSString *_Nullable MMWindowAsksLine(NSInteger agents);
 NSString *MMWindowEndTitle(NSInteger done, NSInteger total);
 /// "Skipped 1 agent that asks you and 2 blocked.", or nil when nothing was skipped.
 NSString *_Nullable MMWindowSkippedNote(NSInteger asks, NSInteger needYou, NSInteger kept, NSInteger blocked, NSInteger notReached, NSInteger notRun);
-/// A fix's title by its kind and how many it acts on, "Stop 1 idle server". `removal` is the removal choice:
-/// 0 Smart, 1 Trash, 2 Delete. nil for a kind with no count in its title.
-NSString *_Nullable MMWindowFixCountTitle(NSString *kind, NSInteger n, NSInteger removal);
+/// A fix's title by its kind and how many it acts on, "Stop 1 idle server", "Move 2 leftovers to the Trash". nil for
+/// a kind with no count in its title.
+NSString *_Nullable MMWindowFixCountTitle(NSString *kind, NSInteger n);
 /// What the dock's numbers stand for while the pointer rests on Fix Everything, "After the fix", "After all 2 fixes".
 NSString *_Nullable MMWindowAfterTitle(NSInteger fixes);
 /// A group's header where rows wait out of view, "1 more below", "3 more above". nil when all show.
 NSString *_Nullable MMWindowMoreLine(NSInteger below, NSInteger above);
+/// Under a project in the Worktrees group, where its rows wait out of view: "3 more in barkbot". `project` nil or empty
+/// says "3 more". Where a line a project does not fit, one line at the group's foot: "12 more in 4 projects".
+NSString *MMWindowProjectMoreLine(NSInteger hidden, NSString *_Nullable project);
+NSString *MMWindowProjectsMoreLine(NSInteger hidden, NSInteger projects);
 /// What `count` things hold together when `unmeasured` of them have no size yet: "456 MB" with none missing,
 /// "456 MB so far" with some, and "measuring" when none is measured. `size` is the measured sum as its words.
 NSString *MMWindowSumText(NSString *size, NSInteger count, NSInteger unmeasured);
@@ -125,6 +133,7 @@ MMWindowFact *_Nullable MMWindowFactLastUsed(NSTimeInterval ago);               
 MMWindowFact *_Nullable MMWindowFactUp(NSTimeInterval seconds);                    // Running, "2 h 36 min"; "up 2 h 36 min"
 MMWindowFact *_Nullable MMWindowFactKept(NSTimeInterval left);                     // Kept, "1 h 20 min more"; "kept for 1 h 20 min more"
 MMWindowFact *_Nullable MMWindowFactAgent(NSString *_Nullable harness);            // Agent, "Claude Code"; "Claude Code"
+MMWindowFact *_Nullable MMWindowFactSession(NSString *_Nullable title);            // Session, the agent's session title; the same alone
 MMWindowFact *_Nullable MMWindowFactState(NSString *_Nullable state);              // State, "working". The story's first line says it
 MMWindowFact *_Nullable MMWindowFactUsedBy(NSString *_Nullable agent);             // Used by, "Claude Code"; "used by Claude Code"
 MMWindowFact *_Nullable MMWindowFactServes(NSArray *_Nullable ports);              // Serves, "ports 3000, 3001"; "serves ports 3000, 3001"
@@ -133,11 +142,70 @@ MMWindowFact *_Nullable MMWindowFactLeftBy(NSString *_Nullable worktree);       
 MMWindowFact *_Nullable MMWindowFactFolder(NSString *_Nullable folder);            // Folder, the path. Not for the second line
 MMWindowFact *_Nullable MMWindowFactOpenTabs(NSInteger tabs);                      // Open, "14 tabs"; "14 tabs open"
 MMWindowFact *_Nullable MMWindowFactOnPorts(NSArray *_Nullable ports);             // On, "port 3003"; "on port 3003"
-MMWindowFact *_Nullable MMWindowFactBranch(NSString *_Nullable branch);            // Branch, the name. Not for the second line: the row's name says it
+MMWindowFact *_Nullable MMWindowFactBranch(NSString *_Nullable branch);            // Branch, the name. Not for the second line: a linked worktree's row name says it
 MMWindowFact *_Nullable MMWindowFactFiles(NSInteger changed, NSInteger added);     // Files, "3 changed, 1 new"; "3 files changed, 1 new"
 MMWindowFact *_Nullable MMWindowFactNotPushed(NSInteger commits);                  // Not pushed, "2 commits"; "2 commits not pushed"
 MMWindowFact *_Nullable MMWindowFactUntouched(NSTimeInterval seconds);             // Untouched, "12 d"; "untouched for 12 d". "Changed", "just now" under ten seconds
 MMWindowFact *_Nullable MMWindowFactKind(NSString *_Nullable kind);                // Kind, "Xcode build output"; the same alone
+// A worktree's git, from WorkForest's facts. None of these is for the second line: the row already says its state.
+/// Last commit, "Fix the ranking · a1b2c3d · 2 h ago": its subject, short hash and age, each only when known.
+MMWindowFact *_Nullable MMWindowFactLastCommit(NSString *_Nullable subject, NSString *_Nullable head, NSTimeInterval ago);
+/// Against, "3 ahead, 1 behind main", or "2 ahead of main". nil when both are 0 or not known. -1 is not known.
+MMWindowFact *_Nullable MMWindowFactAgainst(NSInteger ahead, NSInteger behind, NSString *_Nullable defaultBranch);
+/// Merged, "Squash-merged into main", from WorkForest's merge word: ancestor, tree, patch, squash, pr or merge-tree.
+MMWindowFact *_Nullable MMWindowFactMerged(NSString *_Nullable how, NSString *_Nullable defaultBranch);
+/// Remote, "Branch deleted on the remote" for gone, "Never pushed" for none. nil for any other upstream.
+MMWindowFact *_Nullable MMWindowFactRemote(NSString *_Nullable upstream);
+/// Made by, "Claude Code" for the registry id claude-code, with the session it ran when its title is known:
+/// "Claude Code · Tune the ranking". nil for the person, who needs no line.
+MMWindowFact *_Nullable MMWindowFactMadeBy(NSString *_Nullable maker, NSString *_Nullable session);
+// An agent's story. Each says only what its facts hold, and nil where they hold nothing.
+MMWindowFact *_Nullable MMWindowFactLastActive(NSTimeInterval ago);              // Last active, "3 min ago"; "last active 3 min ago". An agent's first line says it
+/// Recently, "42 tool uses, 6 files edited in the last hour", or "in the last 40 min" where the part of the transcript
+/// read spans less. tools below 0 is not known: nil. Not for the second line.
+MMWindowFact *_Nullable MMWindowFactRecently(NSInteger tools, NSInteger files, NSTimeInterval span);
+MMWindowFact *_Nullable MMWindowFactWorktree(NSString *_Nullable name, NSString *_Nullable link);   // Worktree, "minmacs · agent-story", a press to its row
+/// Pull request, "#142 · open · milestone: Phase 6", or "draft" for an open draft. nil without a number.
+MMWindowFact *_Nullable MMWindowFactPullRequest(NSInteger number, NSString *_Nullable state, BOOL draft, NSString *_Nullable milestone);
+MMWindowFact *_Nullable MMWindowFactServer(NSString *_Nullable name, NSString *_Nullable link);     // Server, ":3000 Next.js", a press to its row
+/// Cache, "Claude Code scratch · 112 MB", a press to its row. With measured NO, the name alone.
+MMWindowFact *_Nullable MMWindowFactCache(NSString *_Nullable name, uint64_t bytes, BOOL measured, NSString *_Nullable link);
+MMWindowFact *_Nullable MMWindowFactProcesses(NSInteger children, uint64_t bytes); // Processes, "14 processes under it · 820 MB". nil with none
+/// Holds, of a row that stands for several, MMWindowCollapsed: "45,282 folders in 169 groups" when each member holds
+/// things of its own, else "4 projects"; the same alone. nil under two members.
+MMWindowFact *_Nullable MMWindowFactHolds(NSInteger members, NSString *one, NSString *many, NSInteger inner, NSString *_Nullable innerOne, NSString *_Nullable innerMany);
+/// Now, of such a row: how many of its members can go and how many stay, MMWindowCollapsedSplit. Its story's first line
+/// says it after the lead, so it is not for the second line.
+MMWindowFact *_Nullable MMWindowFactSplit(NSString *_Nullable split);
+/// Why some stay, of such a row: the reason of the biggest member that stays, and how many other reasons there are,
+/// "a running process has a file open in it, and 2 other reasons". With `all` the label is "Why they stay". Not for
+/// the second line. nil with no reason.
+MMWindowFact *_Nullable MMWindowFactWhyStay(NSArray<NSString *> *reasons, BOOL all);
+
+/// A worktree's pull request, as the person's gh told it, for the row's story. The window shows its line, its title
+/// and an Open pull request press that opens url in the default browser. Only a worktree row has one, and only while
+/// something is known: gh missing, not logged in, a failure or the pref off leave it nil.
+typedef NS_ENUM(NSInteger, MMWindowPullKnown) { MMWindowPullLooking = 1, MMWindowPullNone, MMWindowPullFound };
+@interface MMWindowPull : NSObject
+@property MMWindowPullKnown known;
+@property NSInteger number;
+@property (copy, nullable) NSString *state;             // open, merged or closed
+@property BOOL draft;
+@property (copy, nullable) NSString *review;            // approved, changes requested, review requested
+@property NSInteger checksPassing, checksFailing, checksPending;
+/// How long ago it was merged, in seconds. Below 0 when not merged or not known.
+@property NSTimeInterval mergedAgo;
+@property (copy, nullable) NSString *title, *url;
+/// The title of its milestone, shown as a fact row under the title: "Milestone   Phase 6: Bench and polish". nil for none.
+@property (copy, nullable) NSString *milestone;
+/// "PR #142 · open · checks passing · review requested", "PR #98 · merged 2 d ago", "Looking for a pull request",
+/// "No pull request for this branch". Each part only when it is known.
+@property (readonly) NSString *line;
+/// YES when the story shows the press: a pull request with a web address.
+@property (readonly) BOOL opens;
+@end
+/// "Open pull request", the press under the title.
+extern NSString *const MMWindowOpenPull;
 
 /// How a row's story opens: one line that says whether it stays, goes or waits, and why. The window draws the lead
 /// in bold with a mark: a dot for what stays, an orange triangle for what goes, a white diamond for what asks.
@@ -147,6 +215,30 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (copy) NSString *lead;                        // "Stays.", "Goes with Fix Everything.", "Asks you.", "Working."
 @property (copy, nullable) NSString *note;              // the sentence after it: "In use."
 @end
+
+/// What lets near-identical rows stand as one, DESIGN rule 16. A cache's kin is the registry row it was found by, and
+/// a helper's is its name and the worktree that left it. Rows of one kin, MMWindowCollapseLeast of them or more, are
+/// one row in the window, MMWindowCollapsed. The CLI's own verbs keep every member apart.
+@interface MMWindowKin : NSObject
+@property (copy) NSString *key;                         // "noonoo:tmpdir-families", "helper:node|/code/atlas-trees/wip"
+@property (copy) NSString *title;                       // the one row's name, "Temp folders left by tools"
+@property (copy) NSString *one, *many;                  // what each member is in it: "group" and "groups"
+/// What a member holds when it holds things of its own, as a temp-folder family holds folders: "folder", "folders".
+@property (copy, nullable) NSString *innerOne, *innerMany;
+@property NSInteger inner;                              // how many of those this member holds
+/// Where the member is. A member inside another by path is never summed with it: MMWindowCollapsedRow marks it within.
+@property (copy, nullable) NSString *path;
+/// Set by MMWindowCollapsedRow: this member lies inside another member, so its size and count are in that one's
+/// already. The row's size, its count and its split leave it out, and its story does not list it. --json keeps it.
+@property BOOL within;
+/// The member has something that may go now: a cache that is free and kept by nothing, a helper Fix Everything ends.
+@property BOOL canGo;
+/// Why it stays, in plain words, when it does.
+@property (copy, nullable) NSString *why;
+@end
+
+/// Three of one kin or more become one row: two rows of one kind still read as two things, a third as a list.
+extern const NSInteger MMWindowCollapseLeast;
 
 /// One thing that holds memory or disk.
 @interface MMWindowRow : NSObject
@@ -180,12 +272,41 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @property (readonly) NSArray<MMWindowFact *> *storyFacts;
 /// The name as every view draws it: a tabs row's is its count and its browser, "3 localhost tabs in Safari".
 @property (readonly) NSString *shownName;
+/// A worktree's project, its repo's folder name, "minmacs". nil for any other row, and for a worktree with no repo.
+@property (copy, nullable) NSString *project;
+/// A worktree's name under its project's sub-header, where the header names the project: a linked worktree's
+/// branch, "seam-130", or "main checkout". nil keeps the name.
+@property (copy, nullable) NSString *nameInProject;
+/// When work last happened in a worktree, in seconds since 1970. 0 when not known, and for any other row.
+@property NSTimeInterval workedAt;
 /// NO for a tabs row that holds no bytes: its count in the name is its number, and no size of 0 is drawn or read out.
 /// NO for a row whose size is not measured yet, too.
 @property (readonly) BOOL showsSize;
 /// The word that stands where the size would while it is not measured, MMWindowMeasuring. nil for any other row.
 @property (readonly, nullable) NSString *sizeWord;
+/// A worktree's pull request, or nil while nothing is known of one. The feed sets it from MMPulls, memory only.
+@property (strong, nullable) MMWindowPull *pull;
+/// The kin it may stand with, or nil for a row that always stands alone.
+@property (strong, nullable) MMWindowKin *kin;
+/// A row that stands for several, MMWindowCollapsed: its members, biggest first. nil for any other row.
+@property (copy, nullable) NSArray<MMWindowRow *> *members;
+/// An agent whose terminal tab, pane or app MinMacs can bring forward: the app's name, "Ghostty". Its story then has a
+/// Go to press beside where it runs, which only a person's press runs, through MMWindowHost. nil for any other row.
+@property (copy, nullable) NSString *goTo;
 @end
+
+/// The rows with each kin of MMWindowCollapseLeast members or more made one row by MMWindowCollapsedRow, in the place
+/// of its first member. Every other row as it came. The order is the caller's.
+NSArray<MMWindowRow *> *MMWindowCollapsed(NSArray<MMWindowRow *> *rows);
+/// The one row of these members, which share a kin. Its key is "kin:" and the kin's key; its size is the sum of the
+/// members that lie inside no other member, so nothing is counted twice, and its count and split are of those too; it goes with Fix Everything when any member does, and is quiet when all are.
+/// Its quiet word is the one all members share, else "in use" when any is in use, else "kept" when any is kept: a
+/// member in use stops none of the others. Its story says how many can go and why the rest stay.
+MMWindowRow *MMWindowCollapsedRow(NSArray<MMWindowRow *> *members);
+/// The split of such a row's members, "168 groups can go, 1 in use", "3 sessions can go, 1 kept", "4 processes stay".
+NSString *MMWindowCollapsedSplit(NSInteger go, NSInteger inUse, NSInteger kept, NSInteger other, NSString *one, NSString *many);
+/// Over the members in its story: "Its 4 projects", "The 5 biggest of its 169 groups".
+NSString *MMWindowMembersLine(NSInteger shown, NSInteger count, NSString *one, NSString *many);
 
 /// "measuring": a row's size slot while its size is not measured yet.
 extern NSString *const MMWindowMeasuring;
@@ -194,6 +315,18 @@ extern NSString *const MMWindowNotMeasured;
 /// The order of a group's rows: the measured ones biggest first, then by tabs, then by key, and after them the rows
 /// whose size is not measured yet, by key. The order holds between snapshots.
 NSComparisonResult MMWindowRowOrder(MMWindowRow *a, MMWindowRow *b);
+/// The order of the worktrees: the newest work first, then as MMWindowRowOrder. A row whose last work is not known
+/// comes after the ones whose is.
+NSComparisonResult MMWindowActivityOrder(MMWindowRow *a, MMWindowRow *b);
+/// The worktrees by project: each project's rows by activity, and the projects by their most active row, newest
+/// first. A project is a row's `project`; the rows with none are one project of their own, after the rest.
+NSArray<MMWindowRow *> *MMWindowByProject(NSArray<MMWindowRow *> *rows);
+/// The projects of these rows in their order, each once. A row with no project counts as the project "".
+NSArray<NSString *> *MMWindowProjectsOf(NSArray<MMWindowRow *> *rows);
+/// What a project with no name is called under its sub-header: "Other".
+extern NSString *const MMWindowNoProject;
+/// What a repo's main checkout is called under its project's sub-header: "main checkout".
+extern NSString *const MMWindowMainCheckout;
 
 /// How far the look behind a group's empty line went. Only a look that ended may say "found".
 typedef NS_ENUM(NSInteger, MMWindowLooked) {
@@ -213,6 +346,11 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @property (copy, nullable) NSString *emptyNote;
 /// How many of its rows have no measured size yet.
 @property (readonly) NSInteger unmeasured;
+/// The Worktrees group: its rows come by project, MMWindowByProject, and its header says "by activity". With two
+/// projects or more the list shows each project under a sub-header of its own.
+@property BOOL byProject;
+/// YES when the list shows sub-headers: the group comes by project and holds more than one.
+@property (readonly) BOOL grouped;
 @end
 
 #pragma mark - The ring
@@ -246,15 +384,15 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @property BOOL running;                                 // NO once it ended; the window shows the end, then lets go
 @property (copy, nullable) NSString *step;              // "Stopping :3001", shown in the button while it runs
 /// The step without the name it acts on, "Stopping". When a name is too long for the button, the button says this
-/// alone, and never a cut name. The count stands under the button.
+/// alone, and never a cut name. The count stands beside the button.
 @property (copy, nullable) NSString *stepAction;
 @property NSInteger done, total;                        // fixes landed, fixes planned
 @property uint64_t memoryBack, diskBack;                // what has come back so far
-@property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back; the two lines fill to these
+@property uint64_t memoryPlanned, diskPlanned;          // what the run set out to give back
 /// YES while a fix that has not landed has a part not measured yet, issue #83: diskPlanned is then no total, and
-/// the disk line does not fill toward it. Once such a fix landed, what it gave back is counted into diskPlanned.
+/// diskShare does not count toward it. Once such a fix landed, what it gave back is counted into diskPlanned.
 @property BOOL diskPlannedPartial;
-/// How far each line is filled, 0 to 1: what came back of what was planned. 0 while the plan is no total.
+/// What came back of what was planned, 0 to 1, each side on its own. 0 while the plan is no total.
 - (double)memoryShare;
 - (double)diskShare;
 @property (copy, nullable) NSString *endTitle;          // "7 fixes done"
@@ -279,9 +417,13 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 
 /// One switch, such as the lid or Open at login.
 @interface MMWindowSwitch : NSObject
-@property (copy) NSString *switchID, *title;            // "lid", "Keep working with the lid closed"
+@property (copy) NSString *switchID, *title;            // "lid", "Lid closed"
+@property (copy) NSString *card;                        // the card it stands in: MMWindowAwakeCard or MMWindowMacCard
 @property BOOL on;
+/// The one short line under the title, only when it says a state: "Awake now for 2 agents". nil for most switches.
 @property (copy, nullable) NSString *note;
+/// What the switch does, in a sentence. Not drawn: the switch's tooltip and VoiceOver read it.
+@property (copy, nullable) NSString *help;
 /// The switch changes nothing on this Mac, such as the lid switch on a Mac with no lid. It is drawn as not
 /// available, takes no press, and its note says why.
 @property BOOL inert;
@@ -290,6 +432,9 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 @interface MMWindowSettings : NSObject
 @property (copy) NSArray<MMWindowRule *> *rules;
 @property (copy) NSArray<MMWindowSwitch *> *switches;
+/// The badge in the head of "Clean up on its own" while the rules that are on still only watch: "Starts in 23 h".
+/// nil once they may act, or when no rule acts on its own. It stands once, not on every rule.
+@property (copy, nullable) NSString *startsIn;
 @end
 
 /// The words of Settings, written once: the feed in Shell/MMWindowRules.m and the render's fixtures both build their
@@ -305,45 +450,117 @@ NSString *_Nullable MMWindowRuleTitle(NSString *ruleID);
 NSArray<NSString *> *_Nullable MMWindowRuleExplains(NSString *ruleID);
 /// One rule's card with these words, the choice picked and the note at its foot.
 MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *_Nullable note);
-/// A card with choices of its own, such as the removal choice: each entry is a title and its sentence.
+/// A card with choices of its own: each entry is a title and its sentence.
 MMWindowRule *MMWindowChoiceCard(NSString *ruleID, NSString *title, NSInteger picked, NSArray<NSArray<NSString *> *> *choices, NSString *_Nullable note);
 /// The note of a rule that does not act on its own while fixes of its kind wait: "1 ready. It waits for your press."
 NSString *_Nullable MMWindowReadyNote(NSInteger ready);
-/// The note of a rule that would act but still only watches: "It only watches for 5h more, then it may act."
-NSString *MMWindowWatchingNote(NSString *left);
-/// The two switches of the card "This Mac". An inert lid switch is the one of a Mac with no lid.
+/// The badge of the rules that would act but still only watch: "Starts in 23 h", "Starts in 40 min". nil when no
+/// time is left. MMWindowStartsHelp says what it means, for its tooltip and VoiceOver.
+NSString *_Nullable MMWindowStartsNote(NSTimeInterval left);
+extern NSString *const MMWindowStartsHelp;
+/// The one line at the foot of This Mac in Settings: everything MinMacs removes goes to the Trash.
+extern NSString *const MMWindowTrashLine;
+/// The cards of switches. "Keep this Mac awake" stands first in Settings, so keeping the Mac awake is never hunted for.
+extern NSString *const MMWindowAwakeCard, *const MMWindowMacCard, *const MMWindowCleanupCard;
+/// The three switches of "Keep this Mac awake": Keep awake now (insomnia.awake, as caffeinate does), While agents work
+/// (insomnia.agents) and Lid closed (insomnia.lid). `note` is the state line under the title, or nil. An inert lid switch is the one of a Mac with no lid.
+MMWindowSwitch *MMWindowAwakeSwitch(BOOL on, NSString *_Nullable note);
+MMWindowSwitch *MMWindowAgentsSwitch(BOOL on, NSString *_Nullable note);
 MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *_Nullable note);
+/// The switch of the card "This Mac".
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *_Nullable note);
-/// "This Mac has no lid, so it changes nothing here."
+/// Pull requests, in "This Mac": whether the window may ask the person's gh about a worktree's pull request, the pref
+/// workforest.pullRequests. MMWindowPullsHelp is its tooltip.
+MMWindowSwitch *MMWindowPullsSwitch(BOOL on);
+extern NSString *const MMWindowPullsHelp;
+/// What Keep awake now and While agents work do, for their tooltips. MMWindowAgentsNote is the state line of While
+/// agents work: "Awake now for 2 agents", nil while no agent holds the Mac awake. `holding` is how many do now.
+NSString *MMWindowAwakeHelp(void);
+NSString *MMWindowAgentsHelp(NSInteger quietMinutes);
+NSString *_Nullable MMWindowAgentsNote(BOOL on, NSInteger holding);
+
+/// A rule as one switch in "Clean up on its own", with a short title: "Idle dev servers". On is a mode that acts on
+/// its own: Careful, or Eager where Careful acts on nothing, as for apps. Off is Off. A rule set to Eager elsewhere
+/// shows on, with Eager's words.
+NSString *_Nullable MMWindowRuleSwitchTitle(NSString *ruleID);
+BOOL MMWindowRuleIsOn(NSString *ruleID, NSInteger picked);
+NSInteger MMWindowRuleOnChoice(NSString *ruleID);
+/// What the switch does when on, in the mode picked, or the mode it would turn on to: one short sentence. Not drawn:
+/// the switch's tooltip and VoiceOver read it.
+NSString *_Nullable MMWindowRuleSwitchNote(NSString *ruleID, NSInteger picked);
+/// "This Mac has no lid.", the state line of an inert lid switch.
 extern NSString *const MMWindowNoLidNote;
 
 #pragma mark - The welcome
 
 /// The first time the window opens, prototype 199-a: the welcome alone, in the same window. It holds every string the
-/// welcome shows and the two choices as they stand before the person touches them. Nothing is applied until Start.
+/// welcome shows and the switch as it stands before the person touches it. Nothing is applied until Start.
 @interface MMWindowWelcome : NSObject
 @property (copy) NSString *title;                       // "Welcome to MinMacs"
 @property (copy) NSString *say;                         // what MinMacs is, in two sentences
 @property (copy) NSString *loginTitle;                  // "Open at login"
 @property (copy) NSString *loginOnNote, *loginOffNote;  // what each state of the switch means
 @property BOOL loginOn;                                 // where the switch stands before the person touches it
-@property (copy) NSString *removalTitle;                // "When MinMacs removes things"
-@property (copy) NSArray<MMWindowChoice *> *removal;    // Smart, Trash, Delete, with Core's sentence each
-@property NSInteger removalPicked;                      // Smart, until the person picks
-@property (copy) NSString *later;                       // "Both can be changed later in Settings."
+@property (copy) NSString *later;                       // "It can be changed later in Settings."
 @property (copy) NSArray<MMWindowFact *> *facts;        // a few calm facts: label is the title, value the sentence
 @property (copy) NSString *start;                       // "Start"
-/// A welcome with the words that never change, the switch on, and these choices and facts.
-+ (instancetype)welcomeWithRemoval:(NSArray<MMWindowChoice *> *)removal picked:(NSInteger)picked facts:(NSArray<MMWindowFact *> *)facts;
+/// A welcome with the words that never change, the switch on, and these facts.
++ (instancetype)welcomeWithFacts:(NSArray<MMWindowFact *> *)facts;
 @end
 
 /// What Open at login means in each state, for the welcome and for Settings: "MinMacs starts when you sign in." and
 /// "MinMacs starts only when you open it."
 NSString *MMWindowLoginNote(BOOL on);
-/// The title of the removal choice, in the welcome and on its Settings card.
-extern NSString *const MMWindowRemovalTitle;
 /// What the window and the menus say before the first numbers: "MinMacs is taking its first look. It takes a few seconds."
 extern NSString *const MMWindowLookingNote;
+
+#pragma mark - The log
+
+/// One entry of the log in the middle: one plain sentence in the window's words, and under it a quiet line with the
+/// time, who acted and the tokens a model call took. Shell/MMWindowLog.m makes them from the log's rows, off main.
+@interface MMWindowLogEntry : NSObject
+@property (copy) NSString *key;                         // stable across reads: the record's rid, or the row's number
+/// What it is: "action", "restored", "failed", "began", "review", "reviews", "investigate", "setting", "keep",
+/// "quiet", "run" or "notice".
+@property (copy) NSString *kind;
+@property (copy) NSString *sentence;                    // "Stopped :3000 Next.js. Undo starts it again."
+@property (copy) NSString *time;                        // "14:02", or "08:00 to 13:00" for folded reviews
+@property (copy, nullable) NSString *who;               // "by you in the window", "on its own, Careful". nil when not known
+@property NSInteger tokens;                             // uncached tokens of the model calls behind it, 0 for none
+@property (copy) NSString *day;                         // "Today", "Yesterday", "Monday 23 November"
+@property double at;                                    // seconds since 1970, of its newest row
+@property int64_t row;                                  // the log's newest row behind it
+/// The record can still be taken back, so the sentence says how and the quiet line has an Undo press.
+@property BOOL canUndo;
+/// The record an Undo press takes back, set only while canUndo.
+@property (copy, nullable) NSString *undoRid;
+/// How Undo takes it back, "Undo starts it again.", for the press's tooltip and what VoiceOver says after its name.
+@property (copy, nullable) NSString *undoHelp;
+/// The press went in and the record is being taken back: no press shows, and the quiet line says so.
+@property BOOL undoing;
+/// The whole story where the sentence is short, such as each thing a run skipped and why: the entry's tooltip, and
+/// what VoiceOver reads after the quiet line. nil for none.
+@property (copy, nullable) NSString *more;
+/// What a run skipped, each {subject, why, as}, as the run row holds it. Empty for any other entry.
+@property (nonatomic, copy) NSArray<NSDictionary<NSString *, NSString *> *> *skipped;
+/// The quiet line: "14:02 · by you in the window · 1,240 tokens", and "taking it back" while undoing.
+@property (readonly) NSString *detail;
+@end
+
+/// "1,240 tokens", "1 token".
+NSString *MMWindowTokens(NSInteger tokens);
+
+/// The log as the middle shows it: newest first, grouped by day, at most 300 entries and none older than 30 days.
+@interface MMWindowLog : NSObject
+@property (copy) NSArray<MMWindowLogEntry *> *entries;
+/// A quiet line over the entries. With none, what MinMacs watches and that the log fills as it acts. In the first day
+/// of watching, that it acts on nothing on its own until the day is over. Never a result.
+@property (copy, nullable) NSString *note;
+@end
+
+/// "Nothing is in the log yet." and the rest of an empty log's words, worded once for the feed and the fixtures.
+/// left is how long the first day of watching still runs, 0 once it is over, and as MMWindowSpan says it.
+NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
 
 #pragma mark - The whole window
 
@@ -355,7 +572,7 @@ extern NSString *const MMWindowLookingNote;
 @property (strong, nullable) MMWindowHour *memoryHour, *diskHour;
 @property (copy) NSArray<MMWindowGroup *> *memoryGroups, *diskGroups;
 @property (strong) MMWindowRing *ring;
-/// In Fix Everything's order. Empty when there is nothing to fix: then the button is dimmed in place.
+/// In Fix Everything's order. Empty when there is nothing to fix: then the button rests in place, calm, and takes no press.
 @property (copy) NSArray<MMWindowFix *> *fixes;
 @property (strong, nullable) MMWindowRun *run;
 /// What came back today, from the look-back. Two numbers. The dock shows a side only when it is above zero, and
@@ -367,8 +584,15 @@ extern NSString *const MMWindowLookingNote;
 /// The welcome, until the person pressed Start once. nil ever after. A model with a welcome and generation 0 was made
 /// before the first snapshot: only its welcome is real, and the window shows nothing else of it.
 @property (strong, nullable) MMWindowWelcome *welcome;
+/// The log in the middle, read only while the window is open. nil before the first read, and in `minmacs window`.
+@property (strong, nullable) MMWindowLog *log;
 - (nullable MMWindowRow *)row:(NSString *)key;
-/// What Fix Everything gives back: the fixes that do not need the person, each side summed on its own.
+/// What Fix Everything gives back in memory with each process once, MMPerformance's memoryBackOnce, as the feed sets
+/// it: a stop of a server and a quit of the app it rolls up into end that server once. nil sums the fixes, as a
+/// fixture's model does.
+@property (strong, nullable) NSNumber *memoryBackOnce;
+/// What Fix Everything gives back: the fixes that do not need the person, each side on its own. Memory is
+/// memoryBackOnce when set, else the fixes' sum.
 - (uint64_t)memoryBack;
 - (uint64_t)diskBack;
 /// YES when a fix in that sum has a part not measured yet: then diskBack is no total, and is shown as "or more".

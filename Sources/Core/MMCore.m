@@ -6,6 +6,7 @@
 // except right after an exit, when the last sample still lists the process that ended.
 #import "Core/MMCore.h"
 #import <os/log.h>
+#import <stdatomic.h>
 #import <unistd.h>
 
 static os_log_t CoreLog(void) {
@@ -144,7 +145,10 @@ NSDictionary *MMCoreHandleRequest(NSDictionary *request) {
 /// The verbs Core answers itself: ping, so the CLI knows an app runs, and status, a short summary of the graph.
 static void ServeCoreVerbs(void) {
     MMCoreServe(@"ping", ^NSDictionary *(NSDictionary *r) {
-        return @{@"ok": @YES, @"pid": @(getpid()), @"version": @MM_VERSION};
+        // The build stamp too, where the bundle has one, so a newer CLI can name the app it talks to.
+        NSString *build = [NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"] description];
+        return build.length ? @{@"ok": @YES, @"pid": @(getpid()), @"version": @MM_VERSION, @"build": build}
+                            : @{@"ok": @YES, @"pid": @(getpid()), @"version": @MM_VERSION};
     });
     MMCoreServe(@"status", ^NSDictionary *(NSDictionary *r) {
         MMSnapshot *s = MMGraph.shared.latest;
@@ -191,6 +195,19 @@ static void WatchExitsIn(MMSnapshot *snap) {
     if (add.count) [MMSenses.shared watchExits:add];
 }
 
+/// Issue #52. An agent at work appends to its transcript every second or so, and each append asked for a build of
+/// every expert, forced: about one a second on top of the 5-second pass, which was most of the graph's CPU while
+/// agents worked. Only a session's title, start and last write come from its transcript, and the next pass's build
+/// reads the folders FSEvents named. So a change to transcripts alone asks for a build at most every 30 seconds,
+/// for a pass that backs off. A status file, Codex's databases, pi's sessions and a dropped event build at once.
+static void SessionsChanged(NSNotification *n) {
+    static _Atomic uint64_t last;
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW), was = atomic_load(&last);
+    if ([n.userInfo[MMSessionsTranscriptsOnlyKey] boolValue] && was && now - was < 30 * NSEC_PER_SEC) return;
+    atomic_store(&last, now);
+    [MMGraph.shared rebuild:@"sessions"];
+}
+
 /// The repo index: a walk now, one FSEvents stream per root, and a full walk every 10 minutes.
 /// A change marks the worktrees it touched, and the index runs git for those alone, then asks for a rebuild.
 /// A rebuild reads git facts from memory, so a 5-second pass never reads git's files or runs git.
@@ -232,6 +249,17 @@ static void StartReviews(void) {
     dispatch_resume(gReviewTimer);
 }
 
+void MMRepairedOwnFolders(NSArray<NSString *> *fixed) {
+    if (!fixed.count) return;
+    BOOL one = fixed.count == 1;
+    NSString *names = one ? fixed[0] : [[[fixed subarrayWithRange:NSMakeRange(0, fixed.count - 1)] componentsJoinedByString:@", "]
+                                         stringByAppendingFormat:@" and %@", fixed.lastObject];
+    os_log(CoreLog(), "set its own folders back to 0700: %{public}@", names);
+    MMNotice(@"core", one ? @"MinMacs Opened Its Own Folder Again" : @"MinMacs Opened Its Own Folders Again",
+             [NSString stringWithFormat:@"Its %@ %@ had lost the owner's permission to open %@, so nothing could be written there. MinMacs set %@ to 0700 again.",
+                                        one ? @"folder" : @"folders", names, one ? @"it" : @"them", one ? @"it" : @"them"]);
+}
+
 void MMCoreStart(void) {
     if (!NSThread.isMainThread) { dispatch_sync(dispatch_get_main_queue(), ^{ MMCoreStart(); }); return; }
     if (gStarted) return;
@@ -244,7 +272,14 @@ void MMCoreStart(void) {
     MMLogOpenOffMain();
     NSString *dir = MMSupportDir();
     dispatch_async(MMQueue(@"core", @"store", QOS_CLASS_UTILITY), ^{
+        // First, before anything below reads or writes there: a folder of MinMacs's own that lost its owner's bits is
+        // set back to 0700, and one notice says so. A core/ with no x bit once made every move to the Trash fail.
+        MMRepairedOwnFolders(MMRepairOwnFolders());
         for (NSString *name in MMRemoveStaleFiles()) os_log(CoreLog(), "removed the old %{public}@", name);
+        // D2: there is no removal choice any more. An old Smart or Delete in the pref is cleared, so no build reads it.
+        if (MMRemovalForgetOldChoice()) os_log(CoreLog(), "cleared the old removal choice: everything keeps a way back");
+        // D9: a quiet hold the last run kept, whose process still runs, is kept awake again by this run.
+        MMQuietResume();
         // A Wrap Up the last run stopped in the middle of: what it had staged goes back to where it was, MMRemoval.h.
         // Then what an ended Wrap Up left staged is deleted once more or goes back, MMRemovalSweepStaged, and a staging
         // folder no record names is named once.
@@ -310,7 +345,7 @@ void MMCoreStart(void) {
     [MMHistory.shared start];   // subagent starts from the events above; each graph build fills the rest
     [MMSessions.shared startWatching];
     gSessionsToken = [NSNotificationCenter.defaultCenter addObserverForName:MMSessionsDidChangeNotification object:MMSessions.shared
-                                                                    queue:nil usingBlock:^(NSNotification *n) { [MMGraph.shared rebuild:@"sessions"]; }];
+                                                                    queue:nil usingBlock:^(NSNotification *n) { SessionsChanged(n); }];
     StartRepos();
     StartClutter();
 

@@ -3,6 +3,7 @@
 #import "Shell/MMWindowController.h"
 #import "Shell/MMWindowFeed.h"
 #import "Shell/MMFixRunner.h"
+#import "Shell/MMWindowLog.h"
 #import "Core/MMCore.h"
 
 static const NSTimeInterval kEndShows = 4;               // an ended run stays on the model this long, then lets go
@@ -11,12 +12,15 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
 @protocol MMWindowLidExpert <NSObject>
 /// The menu's own toggle, on main: it asks first when the lid mode turns on, then changes it off main.
 - (void)act:(NSString *)what key:(nullable NSString *)key;
+/// The same, told whether a person made the press, read at the press: only then is there a confirm, D3.
+- (void)act:(NSString *)what key:(nullable NSString *)key present:(BOOL)present;
 /// The change itself, with its undo record. Never on main.
 - (NSString *)set:(NSString *)what value:(id)value by:(NSString *)by;
 @end
 
 @implementation MMWindowController {
     id _token;                                           // main
+    id _pulls;                                           // main: the observer of MMPulls while open
     uint64_t _shown;                                     // main: the generation of the last model sent
     _Atomic uint64_t _wanted;                            // the newest generation asked for
     atomic_bool _open, _loginOn;
@@ -31,6 +35,10 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
     MMWindowRun *_run;
     MMFixRunner *_runner;
     NSDate *_endedAt;                                    // when the last run ended: a plan built before it is spent
+    MMWindowLog *_log;                                   // the log as last read, while open
+    NSString *_logStamp;                                 // MMLogStamp and the day at that read
+    NSMutableSet<NSString *> *_undoing;                  // the records an Undo press is taking back now
+    NSMutableDictionary<NSString *, NSString *> *_undoProblems;   // what a restore answered, by rid, while open
 }
 
 static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED); }
@@ -41,15 +49,19 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (atomic_exchange(&_open, open) == open) return;
     if (!open) {
         [MMGraph.shared stopObserving:_token];
-        _token = nil; _model = nil; _shown = 0;
+        if (_pulls) [NSNotificationCenter.defaultCenter removeObserver:_pulls];
+        _token = nil; _pulls = nil; _model = nil; _shown = 0;
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
-        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; });
+        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; });
         return;
     }
     atomic_store(&_loginOn, [self.shell loginEnabled]);
     __weak MMWindowController *weak = self;
     _token = [MMGraph.shared observe:^(MMSnapshot *s) { [weak take:s]; }];
+    // A pull request gh told about, or a look that ended: the same snapshot again, with what is known now.
+    _pulls = [NSNotificationCenter.defaultCenter addObserverForName:MMPullsDidChangeNotification object:nil queue:nil
+                                                         usingBlock:^(NSNotification *n) { [weak sendSoon]; }];
     MMSnapshot *now = MMGraph.shared.current;
     if (now) { [self take:now]; return; }
     // The first launch: no snapshot yet. The welcome needs none, so it is there with the window.
@@ -81,6 +93,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (!_s || !_p || !self.open) return;
     MMWindowExtras *x = [MMWindowExtras readWithLogin:atomic_load(&_loginOn)];
     x.run = _run;
+    x.log = MMWindowLogWithUndo([self readLog], _undoing, _undoProblems);
     x.welcome = MMWindowWelcomeNow(x.loginOn);
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -88,6 +101,18 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         self->_shown = m.generation; self->_model = m;
         if (self.onModel) self.onModel(m);
     });
+}
+
+/// The window queue, while open. The log is read again only when MMLogStamp moved, two stats and no query, or the
+/// day turned, which changes the words "Today" and "Yesterday". No timer: a new snapshot or a press asks.
+- (MMWindowLog *)readLog {
+    NSString *stamp = [MMLogStamp() stringByAppendingString:[NSCalendar.currentCalendar startOfDayForDate:NSDate.date].description];
+    if (_log && [stamp isEqualToString:_logStamp]) return _log;
+    MMLog *log = MMLog.shared;
+    if (!log) return _log;
+    _log = MMWindowLogRead(log, NSDate.date, MMWindowLogMost, MMWindowLogDays);
+    _logStamp = stamp;
+    return _log;
 }
 
 - (void)sendSoon { dispatch_async(Queue(), ^{ [self send]; }); }
@@ -153,20 +178,10 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 - (void)windowStopRun { dispatch_async(Queue(), ^{ [self->_runner stop]; }); }
 
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice {
-    if ([ruleID isEqualToString:MMWindowRemovalRuleID]) {
-        if (choice < MMRemovalSmart || choice > MMRemovalDelete) return;
-        dispatch_async(Queue(), ^{
-            MMSetRemovalChoice((MMRemovalChoice)choice);
-            [self send];
-            // Each row's words follow the choice, so the experts build their findings again.
-            [MMGraph.shared rebuild:@"window removal"];
-        });
-        return;
-    }
     NSString *expert = MMWindowRuleExpert(ruleID);
     if (!expert || choice < MMModeIdle || choice > MMModeEager) return;
     dispatch_async(Queue(), ^{
-        MMSetMode(expert, (MMMode)choice);
+        MMSetMode(expert, (MMMode)choice, @"window");
         [self send];
         // Each expert reads its mode when the graph prepares a snapshot, so its plan follows at the next build.
         [MMGraph.shared rebuild:@"window mode"];
@@ -176,37 +191,76 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 /// Start in the welcome, on main. This and the Settings switch are the only places the window changes the login item,
 /// so nothing is added before the person answered. The prefs are written here, before anything else can build a
 /// model, so no later model brings the welcome back.
-- (void)windowWelcomeStart:(BOOL)openAtLogin removal:(NSInteger)removal {
+- (void)windowWelcomeStart:(BOOL)openAtLogin {
     if (MMPrefBool(MMWindowWelcomedKey, NO)) return;
-    MMWindowWelcomeDone(removal);
+    MMWindowWelcomeDone();
     // Only a change is asked for: a person whose answer is what the login item already is gets nothing touched.
-    if ([self.shell loginEnabled] != openAtLogin) [self.shell setLogin:openAtLogin];
-    atomic_store(&_loginOn, [self.shell loginEnabled]);
+    BOOL before = [self.shell loginEnabled];
+    if (before != openAtLogin) [self.shell setLogin:openAtLogin];
+    BOOL after = [self.shell loginEnabled];
+    atomic_store(&_loginOn, after);
+    // The rows go in on the window queue, never on main, and before the model they show in. The log holds what the
+    // login item became, which is what the system took, not only what was asked.
     dispatch_async(Queue(), ^{
+        MMLogSetting(MMWindowWelcomedKey, @NO, @YES, @"welcome");
+        MMLogSetting(MMWindowLoginKey, @(before), @(after), @"welcome");
         [self send];
-        // Each row's words follow the removal choice, so the experts build their findings again.
-        [MMGraph.shared rebuild:@"window welcome"];
     });
+}
+
+/// D3, on main: on a Mac that runs unattended nobody presses Start, so the welcome's defaults apply without it. The
+/// login item is turned on, as the welcome's switch starts for a person new to MinMacs, and the rows say it was
+/// unattended that did it. It runs once: after it, as after Start, the welcome never comes back.
++ (BOOL)skipWelcomeUnattended:(id<MMWindowLogin>)login {
+    if (!NSThread.isMainThread || !MMUnattended() || MMPrefBool(MMWindowWelcomedKey, NO)) return NO;
+    MMWindowWelcomeDone();
+    BOOL before = [login loginEnabled];
+    if (!before) [login setLogin:YES];
+    BOOL after = [login loginEnabled];
+    dispatch_async(Queue(), ^{
+        MMLogSetting(MMWindowWelcomedKey, @NO, @YES, @"unattended");
+        MMLogSetting(MMWindowLoginKey, @(before), @(after), @"unattended");
+    });
+    return YES;
 }
 
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on {
     if ([switchID isEqualToString:@"login"]) {
+        BOOL before = [self.shell loginEnabled];
         [self.shell setLogin:on];
-        atomic_store(&_loginOn, [self.shell loginEnabled]);
-        [self sendSoon];
+        BOOL after = [self.shell loginEnabled];
+        atomic_store(&_loginOn, after);
+        dispatch_async(Queue(), ^{ MMLogSetting(MMWindowLoginKey, @(before), @(after), @"window"); [self send]; });
+        return;
+    }
+    // Asking gh about a worktree's pull request: a pref, with its row in the log.
+    if ([switchID isEqualToString:@"prs"]) {
+        dispatch_async(Queue(), ^{ MMSetSetting(MMPullsPrefKey, @(on), @"window"); [self send]; });
+        return;
+    }
+    // Keep awake now and While agents work are Insomnia's own settings, set with their record, off main.
+    NSString *setting = @{@"awake": @"manual", @"agents": @"agents"}[switchID ?: @""];
+    if (setting) {
+        id<MMWindowLidExpert> e = (id)MMExpertNamed(@"insomnia");
+        if (![e respondsToSelector:@selector(set:value:by:)]) return;
+        dispatch_async(Queue(), ^{ (void)[e set:setting value:@(on) by:@"manual"]; [self send]; });
         return;
     }
     if (![switchID isEqualToString:@"lid"]) return;
     id<MMWindowLidExpert> e = (id)MMExpertNamed(@"insomnia");
     if (!e) return;
+    // D3: read now, at the press, on main. By the time the expert asks, the press is long past.
+    BOOL present = MMPersonPresses();
     dispatch_async(Queue(), ^{
         // Read again here, off main, so a press on a switch that already moved does nothing.
         if ([MMWindowExtras readWithLogin:NO].lidOn == on) { [self send]; return; }
         if ([e respondsToSelector:@selector(act:key:)]) {
-            // The expert's own toggle keeps its confirm, the one administrator prompt and its alert on failure.
+            // The expert's own toggle keeps its confirm for a person who is there, the one administrator prompt, and
+            // its notice on failure.
             // It changes the setting on its own queue and tells nobody, so the switch is read again a little later.
             dispatch_async(dispatch_get_main_queue(), ^{
-                [e act:@"lid" key:nil];
+                if ([e respondsToSelector:@selector(act:key:present:)]) [e act:@"lid" key:nil present:present];
+                else [e act:@"lid" key:nil];
                 for (NSNumber *wait in @[@1, @5])
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), Queue(), ^{ [self send]; });
             });
@@ -214,6 +268,68 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
             (void)[e set:@"lid" value:@(on) by:@"manual"];
             [self send];
         }
+    });
+}
+
+/// A press on Undo in the log. The same path as the notification's Undo: -[MMUndo restore:] on core.undo, which
+/// refuses a record it cannot take back and a second restore of one that runs. The entry shows that it is being taken
+/// back at once, and the log read again once the restore wrote its row shows it was.
+- (void)windowUndo:(NSString *)rid {
+    if (![rid isKindOfClass:NSString.class] || !rid.length) return;
+    dispatch_async(Queue(), ^{
+        if (!self->_undoing) self->_undoing = [NSMutableSet new];
+        if ([self->_undoing containsObject:rid]) return;
+        [self->_undoing addObject:rid];
+        [self->_undoProblems removeObjectForKey:rid];
+        [self send];
+        dispatch_async(MMQueue(@"core", @"undo", QOS_CLASS_UTILITY), ^{
+            NSString *problem = [MMUndo.shared restore:rid];
+            dispatch_async(Queue(), ^{
+                [self->_undoing removeObject:rid];
+                if (problem) { if (!self->_undoProblems) self->_undoProblems = [NSMutableDictionary new]; self->_undoProblems[rid] = problem; }
+                [self send];
+            });
+        });
+    });
+}
+
+/// The story of a row shows in the window. For a linked worktree on a branch, MMPulls asks the person's gh for its pull
+/// request: on demand only, never for a tick or a snapshot, and never while the window is closed. A look that began is
+/// shown at once, and once more past the time gh may take, so a look that got no answer leaves the story.
+- (void)windowShowsStory:(NSString *)key {
+    if (!self.open || ![key isKindOfClass:NSString.class] || !key.length) return;
+    dispatch_async(Queue(), ^{
+        if (!self.open || !self->_p) return;
+        MMPerformanceRow *r = [self->_p row:key];
+        MMFinding *f = r.finding ?: [self->_s finding:r.findingID];
+        if (![f.expert isEqualToString:@"workforest"] || ![f.kind isEqualToString:@"worktree"]) return;
+        NSDictionary *x = f.facts;
+        NSString *repo = [x[@"repo"] isKindOfClass:NSString.class] ? x[@"repo"] : nil, *branch = [x[@"branch"] isKindOfClass:NSString.class] ? x[@"branch"] : nil;
+        NSString *head = [x[@"head"] isKindOfClass:NSString.class] ? x[@"head"] : nil, *folder = f.path ?: x[@"path"];
+        if (!repo.length || !branch.length || [x[@"main"] boolValue] || [x[@"protected"] boolValue] || [x[@"missing"] boolValue]) return;
+        if (![MMPulls.shared want:folder repo:repo branch:branch head:head]) return;
+        [self send];
+        __weak MMWindowController *weak = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((MMPulls.shared.timeout + 1.2) * NSEC_PER_SEC)), Queue(), ^{ [weak send]; });
+    });
+}
+
+/// A press on Go to in an agent's story. Know's last answer for where the agent runs, with no wait, and MMGoTo off
+/// main, since cmux, tmux and AppleScript can take seconds. A place that is gone or a refusal is a notice, D3.
+- (void)windowGoTo:(NSString *)rowKey {
+    if (![rowKey isKindOfClass:NSString.class] || !rowKey.length) return;
+    dispatch_async(Queue(), ^{
+        MMFinding *f = [self->_s finding:rowKey];
+        MMSample *sample = self->_s.facts.sample;
+        if (![f.kind isEqualToString:@"agent"] || !f.procs.count || !sample) return;
+        MMProcKey k = {0, 0};
+        [f.procs.firstObject getValue:&k size:sizeof k];
+        MMPlace *place = MMWhereIs(k, sample, NO);
+        if (!place || !MMPlaceGoable(place)) return;
+        dispatch_async(MMQueue(@"core", @"go", QOS_CLASS_USER_INITIATED), ^{
+            NSString *err = nil;
+            if (!MMGoTo(place, &err) && err) MMNotice(@"minmacs", [NSString stringWithFormat:@"Could Not Go to %@", place.app.length ? place.app : @"It"], err);
+        });
     });
 }
 

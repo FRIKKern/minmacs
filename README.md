@@ -23,7 +23,7 @@ Every picture on this page is a PNG from `tools/render.sh`, which draws each exp
 | Noo-Noo | Caches, build output and leftovers of agents and tools | Remove them as you chose, or run the tool's own clean command | Noo-Noo 0.7 |
 | Insomnia | Agents that work right now, power, battery, lid and heat | Keep the Mac awake while an agent works, and let it sleep when none does | Insomnia 1.3 |
 
-Each expert has three modes. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge, a second model call, lets go. No mode acts on its own during the first day after the first launch. Every action is checked again right before it runs and writes an undo record first. What it removes goes where you chose: Smart, the default, deletes what git or its tool can give back and sends the rest to the Trash or a recovery folder. Trash keeps everything, and Delete deletes at once.
+Each expert has three modes. Idle acts on nothing. Proactive, the default, acts on what is clearly safe. Eager also acts on what the judge, a second model call, lets go. No mode acts on its own during the first day after the first launch. Every action is checked again right before it runs and writes an undo record first. Nothing it removes is deleted at once: a worktree goes through git, with its ignored files in a recovery folder, and everything else goes to the Trash or a recovery copy, so each can come back.
 
 <table>
 <tr>
@@ -60,6 +60,8 @@ git clone https://github.com/FRIKKern/minmacs.git && cd minmacs
 ```sh
 curl -fsSL https://raw.githubusercontent.com/FRIKKern/minmacs/main/install.sh | sh
 ```
+
+A fleet Mac that BarkBot drives is set up with `tools/provision.sh --fleet`, which installs the newest canary, turns unattended and Insomnia's lid and agent modes on, and lists what still needs a person once. [docs/PROVISION.md](docs/PROVISION.md) says what it does and what it reports.
 
 ## The CLI
 

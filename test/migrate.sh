@@ -220,6 +220,29 @@ check "migrate: the LocoHost and Insomnia apps are still there" "yes yes" \
 (MIGRATE_AGENT_STATUS=2 mg followup "$mg_old" yes "$mg_dir/asked-no.log") >/dev/null 2>&1
 check "migrate: no is asked once too" 2 "$(grep -c . "$mg_dir/asked-no.log")"
 
+# ----- D3: the app asks nobody. Each part keeps a way back, so the answer is yes, and what stayed is a notice -----
+mg_home="$mg_dir/new-unasked"; mkdir -p "$mg_home/migrate-fake"; echo 0 >"$mg_home/migrate-fake/lid"
+mg import "$mg_old" >/dev/null 2>&1
+(MIGRATE_AGENT_STATUS=1 perl -e 'alarm shift; exec @ARGV' 60 env MINMACS_HOME="$mg_home" MINMACS_INSOMNIA_CMD="$ROOT/test/migrate/fakecmd.sh" \
+  MINMACS_LAUNCHCTL_CMD="$ROOT/test/migrate/fakecmd.sh" sandbox-exec -p "$mg_profile" "$mg_tool" followup-unasked "$mg_old" </dev/null) >"$mg_dir/follow-unasked.json" 2>/dev/null
+check "D3: the unasked follow-up ends on its own, within a minute" 0 "$?"
+check "D3: it moves the agent and the old apps to the Trash, asking nobody" "removed trashed,trashed,trashed" \
+  "$(json 'j["noonoo.agent"]["state"] + " " + ",".join(a["state"] for a in j["apps"])' <"$mg_dir/follow-unasked.json")"
+check "D3: each record says the move from the old apps did it, not a person" "migration migration migration" \
+  "$(for mg_rid in $(json '" ".join(a["rid"] for a in j["apps"])' <"$mg_dir/follow-unasked.json"); do mg record "$mg_rid" | json 'j["by"]'; done | xargs)"
+mg_ok=""
+for mg_rid in $(json '" ".join([a["rid"] for a in j["apps"]] + [j["noonoo.agent"]["rid"]])' <"$mg_dir/follow-unasked.json"); do mg_ok="$mg_ok $(mg restore "$mg_rid")"; done
+check "D3: and Undo puts each back" " ok ok ok ok" "$mg_ok"
+# A Trash that cannot take them: what stayed is one row of the log's notice table.
+mg_home="$mg_dir/new-unasked-fail"; mkdir -p "$mg_home/migrate-fake"; echo 0 >"$mg_home/migrate-fake/lid"; : >"$mg_home/Trash"
+mg import "$mg_old" >/dev/null 2>&1
+(MIGRATE_AGENT_STATUS=1 perl -e 'alarm shift; exec @ARGV' 60 env MINMACS_HOME="$mg_home" MINMACS_INSOMNIA_CMD="$ROOT/test/migrate/fakecmd.sh" \
+  MINMACS_LAUNCHCTL_CMD="$ROOT/test/migrate/fakecmd.sh" sandbox-exec -p "$mg_profile" "$mg_tool" followup-unasked "$mg_old" </dev/null) >"$mg_dir/follow-fail-unasked.json" 2>/dev/null
+check "D3: with a Trash that takes nothing the apps stay" "failed,failed,failed" "$(json '",".join(a["state"] for a in j["apps"])' <"$mg_dir/follow-fail-unasked.json")"
+check "D3: and what stayed is one notice, with no alert" "1 Some Old Apps Stayed" \
+  "$(sqlite3 "$mg_home/minmacs.sqlite" "SELECT COUNT(*) FROM rows WHERE tbl='notice';") $(sqlite3 "$mg_home/minmacs.sqlite" "SELECT json_extract(body, '$.title') FROM rows WHERE tbl='notice';")"
+check "D3: the old apps are still in place" "yes yes yes" "$(for a in LocoHost WorkForest Insomnia; do [ -d "$mg_old/Applications/$a.app" ] && echo yes || echo no; done | xargs)"
+
 # ----- A lid the old lid mode never set, and a failed write -----
 mg_home="$mg_dir/new-other"; mkdir -p "$mg_home/migrate-fake" "$mg_dir/other/Library/Preferences"; echo 1 >"$mg_home/migrate-fake/lid"
 printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>insomnia.lid</key><false/></dict></plist>\n' \
@@ -243,16 +266,64 @@ check "migrate: through the one pmset command, and nothing touches the sudoers r
 mg_lidrid=$(json 'j["insomnia.lid"]["rid"]' <"$mg_dir/follow-fail2.json")
 check "migrate: the lid write has an undo record" "lid insomnia done guard" "$(mg record "$mg_lidrid" | json '"%s %s %s %s" % (j["kind"], j["expert"], j["state"], j["by"])')"
 
+# ----- The support folder 1.2 left, as the support folder of 2.0 -----
+# 1.2 kept rules.json and rules.json.lock at the top of the same folder 2.0 uses. The import runs there while another
+# thread serves and stops core.sock, and a third makes folders, as at the app's first start. Once core.sock was bound
+# under a process-wide umask of 0177, and a folder another thread made in that moment was born 0600, with no x bit.
+mg_v12="$mg_dir/v12"; mg_v12s="$mg_v12/Library/Application Support/MinMacs"
+mkdir -p "$mg_v12/Library/Preferences" "$mg_v12s"
+cp test/store/legacy/minmacs/rules.json "$mg_v12s/rules.json"; : >"$mg_v12s/rules.json.lock"
+chmod 644 "$mg_v12s/rules.json" "$mg_v12s/rules.json.lock"
+# A short name for the support folder, so core.sock's path fits in sun_path's 104 bytes.
+ln -s "$mg_v12s" "$mg_dir/s"; mg_home="$mg_dir/s"
+mg import-serve "$mg_v12" 150 >"$mg_dir/v12.out" 2>"$mg_dir/v12.err"
+check "migrate: 1.2's folder: the import beside core.sock runs" 0 "$?"
+check "migrate: 1.2's folder: 1.2's rules come over" yes "$([ -s "$mg_v12s/minmacs/rules.json" ] && echo yes || echo no)"
+check "migrate: 1.2's folder: core.sock is 0600 and answers" "socket 600 answers" "$(cat "$mg_dir/v12.out")"
+check "migrate: 1.2's folder: every folder made is 0700 or 0755, none without x" "" \
+  "$(find "$mg_v12s" -type d -exec stat -f '%Lp %N' {} + | grep -vE '^(700|755) ' | head -3)"
+check "migrate: 1.2's folder: it made folders to check" yes "$([ "$(find "$mg_v12s/race" -type d | grep -c .)" -gt 500 ] && echo yes || echo no)"
+check "migrate: 1.2's folder: no folder of the socket is left" "" "$(ls -a "$mg_v12s" | grep -E '^\.s[0-9]+$')"
+check "migrate: 1.2's files stay as they were" "644 644" "$(stat -f '%Lp' "$mg_v12s/rules.json") $(stat -f '%Lp' "$mg_v12s/rules.json.lock")"
+check "migrate: nothing in Core sets the umask" 0 "$(grep -rn 'umask(' Sources | grep -v '^[^:]*:[0-9]*: *//' | grep -c .)"
+
+# ----- The repair at Core's start -----
+# A test home with the folder the owner's Mac had, core at 0600, an expert folder and core/trashed at 0600 below it, a
+# 0600 folder of another user's, a link to a 0600 folder, and what a recovery folder saved, at 0600, which is the
+# person's. Only MinMacs's own real folders are set, to 0700, and one notice says so; a second start finds nothing.
+mg_home="$mg_dir/repair"; mkdir -p "$mg_home/core/trashed" "$mg_home/noonoo/recovery/r1/saved" "$mg_home/others" "$mg_dir/linked" "$mg_home/locohost"
+chmod 600 "$mg_home/noonoo/recovery/r1/saved" "$mg_home/others" "$mg_dir/linked"
+ln -s "$mg_dir/linked" "$mg_home/link"
+chmod 600 "$mg_home/core/trashed"; chmod 600 "$mg_home/core"; chmod 600 "$mg_home/locohost"
+mg repair >"$mg_dir/repair.json" 2>"$mg_dir/repair.err"
+check "migrate: repair: the 0600 folders of MinMacs's own are set, the parent first" "core,core/trashed,locohost" \
+  "$(json '",".join(j["first"])' <"$mg_dir/repair.json")"
+check "migrate: repair: to 0700" "700 700 700" "$(stat -f '%Lp' "$mg_home/core") $(stat -f '%Lp' "$mg_home/core/trashed") $(stat -f '%Lp' "$mg_home/locohost")"
+check "migrate: repair: another user's folder, a link's folder and what a recovery folder saved stay 0600" "600 600 600" \
+  "$(stat -f '%Lp' "$mg_home/others") $(stat -f '%Lp' "$mg_dir/linked") $(stat -f '%Lp' "$mg_home/noonoo/recovery/r1/saved")"
+check "migrate: repair: the link stays a link" yes "$([ -L "$mg_home/link" ] && echo yes || echo no)"
+check "migrate: repair: a second start finds nothing to set" "" "$(json '",".join(j["second"])' <"$mg_dir/repair.json")"
+check "migrate: repair: one notice, which names the folders" "1 MinMacs Opened Its Own Folders Again Its folders core, core/trashed and locohost had lost the owner's permission to open them, so nothing could be written there. MinMacs set them to 0700 again." \
+  "$(json '"%d %s" % (len(j["notices"]), j["notices"][0])' <"$mg_dir/repair.json")"
+mg_home="$mg_dir/repair-ok"; mkdir -p "$mg_home/core/trashed"; chmod 755 "$mg_home/core"
+mg repair >"$mg_dir/repair-ok.json" 2>/dev/null
+check "migrate: repair: folders that open are left as they are, and say nothing" "0 0 755" \
+  "$(json '"%d %d" % (len(j["first"]), len(j["notices"]))' <"$mg_dir/repair-ok.json") $(stat -f '%Lp' "$mg_home/core")"
+check "migrate: Core's start runs the repair first, on the store queue" 1 \
+  "$(grep -A3 'dispatch_async(MMQueue(@"core", @"store"' Sources/Core/MMCore.m | grep -c 'MMRepairedOwnFolders(MMRepairOwnFolders());')"
+
 # ----- The app -----
 mg_home="$mg_dir/probe-home"
 check "migrate: only the real app migrates, never a test home" "yes no no" "$(mg wanted)"
 check "migrate: Info.plist adds the insomnia scheme" insomnia \
   "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:2' "$APP/Contents/Info.plist" 2>/dev/null)"
 check "migrate: insomnia:// goes to the Insomnia expert" "expert insomnia" "$(mg route 'insomnia://lid-off')"
-check "migrate: the shell runs the follow-up off main" 1 "$(grep -c 'MMMigrateFollowUp(nil' Sources/Shell/MMShell.m)"
+check "migrate: the shell runs the follow-up off main, asking nobody" 1 "$(grep -c 'MMMigrateFollowUpUnasked(nil)' Sources/Shell/MMShell.m)"
+check "D3: the shell shows no alert for the migration" 0 "$(grep -cE 'NSAlert|runModal' Sources/Shell/MMShell.m)"
 check "migrate: the shell skips it in a test home and headless" 1 "$(grep -c '!self.headless && MMMigrateWanted' Sources/Shell/MMShell.m)"
 check "migrate: nothing in the migration deletes a file for good" 0 \
   "$(grep -nE 'removeItemAt|unlink\(|rmdir\(|emptyTrash|rm -rf' Sources/Core/Store/MMMigrate.m | grep -c .)"
 check "migrate: the release binary has no agent status fake" 0 "$(nm "$BIN" 2>/dev/null | grep -c MMUseNooNooAgentStatus)"
+check "migrate: the release binary has no folder owner fake" 0 "$(nm "$BIN" 2>/dev/null | grep -c MMUseFolderOwner)"
 
 MINMACS_HOME="$mg_saved_home"

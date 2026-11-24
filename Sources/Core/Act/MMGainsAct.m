@@ -6,11 +6,40 @@
 
 static BOOL Stops(NSString *actionKind) { return [actionKind isEqualToString:@"stop"] || [actionKind isEqualToString:@"quit"]; }
 
-uint64_t MMGainsMemoryBefore(id<MMAction> action, MMFinding *f, MMFacts *fresh) {
+/// Every process a gain row counted, as "pid:start", to the rid of that row. A process is ended once, so its memory
+/// comes back once: a quit of Terminal counts the dev server that runs in it, and a stop of that server later in the
+/// same Fix Everything, or any time after while it still runs, counts it no more. A row taken back by an undo no
+/// longer holds its processes. Kept for a day, at most 4096.
+static NSMutableDictionary<NSString *, NSArray *> *gCounted;
+
+static BOOL CountedBefore(NSString *key) {
+    NSArray *had;
+    @synchronized (MMGains.class) { had = gCounted[key]; }
+    if (!had) return NO;
+    MMGain *g = [MMGains.shared gain:had[0]];
+    return g && !g.undone;
+}
+
+static void NoteCounted(NSSet<NSString *> *keys, NSString *rid) {
+    if (!keys.count || !rid.length) return;
+    @synchronized (MMGains.class) {
+        if (!gCounted) gCounted = [NSMutableDictionary new];
+        NSDate *now = NSDate.date;
+        if (gCounted.count + keys.count > 4096) {
+            for (NSString *k in gCounted.allKeys) if ([now timeIntervalSinceDate:gCounted[k][1]] > 86400) [gCounted removeObjectForKey:k];
+            while (gCounted.count + keys.count > 4096) [gCounted removeObjectForKey:gCounted.allKeys.firstObject];
+        }
+        for (NSString *k in keys) gCounted[k] = @[rid, now];
+    }
+}
+
+uint64_t MMGainsMemoryBefore(id<MMAction> action, MMFinding *f, MMFacts *fresh, NSSet<NSString *> **counted) {
+    if (counted) *counted = nil;
     if (!f || !Stops(action.kind)) return 0;
     MMSample *s = fresh.sample;
     if (!s || !f.procs.count) return f.cost.ramBytes;
     NSMutableSet<NSNumber *> *seen = [NSMutableSet new];
+    NSMutableSet<NSString *> *keys = [NSMutableSet new];
     uint64_t sum = 0;
     for (NSValue *v in f.procs) {
         MMProcKey k; [v getValue:&k size:sizeof k];
@@ -25,10 +54,14 @@ uint64_t MMGainsMemoryBefore(id<MMAction> action, MMFinding *f, MMFacts *fresh) 
             [todo removeLastObject];
             if ([seen containsObject:pid]) continue;
             [seen addObject:pid];
-            sum += [s proc:pid.intValue].footprint;
+            MMProc *q = [s proc:pid.intValue];
+            NSString *key = q ? [NSString stringWithFormat:@"%d:%llu", pid.intValue, (unsigned long long)q.startSec] : nil;
+            // Its children still count: a process an earlier action counted can hold one that came after.
+            if (key && !CountedBefore(key)) { [keys addObject:key]; sum += q.footprint; }
             [todo addObjectsFromArray:[s childrenOf:pid.intValue]];
         }
     }
+    if (counted) *counted = keys;
     return sum;
 }
 
@@ -74,14 +107,15 @@ static NSString *WorkstreamOf(MMFinding *f, MMUndoRecord *r) {
     return nil;
 }
 
-MMGain *MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding *f, uint64_t memoryBefore, NSNumber *diskBefore) {
+MMGain *MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding *f, uint64_t memoryBefore, NSSet<NSString *> *counted,
+                            NSNumber *diskBefore) {
     if (!record || record.state != MMUndoDone || !f) return nil;
     // The migration's own moves, the old apps and Noo-Noo's agent, are not gains. Their findings are Core's.
     if ([f.expert isEqualToString:@"core"]) return nil;
     NSString *kind = KindOf(action.kind, f);
     if (!kind) return nil;
     NSDictionary *p = record.payload;
-    NSArray *trashed = [p[@"trashed"] isKindOfClass:NSArray.class] ? p[@"trashed"] : @[];
+    NSArray *trashed = MMRecordTrashed(p);
     NSString *state = MMGainDiskNone;
     uint64_t disk = 0;
     NSInteger items = 1;
@@ -99,5 +133,6 @@ MMGain *MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding
     BOOL ok = [MMGains.shared add:record.rid run:run kind:gainKind part:part who:who by:record.by ?: @"manual"
                            expert:f.expert ?: @"" subject:record.subject ?: f.title ?: @"" workstream:WorkstreamOf(f, record)
                                at:NSDate.date memory:memoryBefore disk:disk diskState:state trashed:trashed items:items];
+    if (ok) NoteCounted(counted, record.rid);
     return ok ? [MMGains.shared gain:record.rid] : nil;
 }

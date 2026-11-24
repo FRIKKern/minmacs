@@ -12,12 +12,8 @@ NSString *MMFixStepText(NSString *kind, NSString *name) {
     if ([kind isEqualToString:@"stop"]) return [@"Stopping " stringByAppendingString:name];
     if ([kind isEqualToString:@"quit"]) return [@"Quitting " stringByAppendingString:name];
     if ([kind isEqualToString:@"remove"]) return [@"Removing " stringByAppendingString:name];
-    if ([kind isEqualToString:@"trash"]) {
-        // Under Smart the step's own fresh check decides, so the step says neither before it ran.
-        MMRemovalChoice c = MMRemovalChoiceNow();
-        return c == MMRemovalTrash ? [NSString stringWithFormat:@"Moving %@ to the Trash", name]
-             : [(c == MMRemovalDelete ? @"Deleting " : @"Cleaning up ") stringByAppendingString:name];
-    }
+    // Everything MinMacs removes keeps a way back, MMRemoval.h.
+    if ([kind isEqualToString:@"trash"]) return [NSString stringWithFormat:@"Moving %@ to the Trash", name];
     return [@"Fixing " stringByAppendingString:name];
 }
 
@@ -36,10 +32,11 @@ NSString *MMFixStepAction(NSString *kind) {
     NSInteger _unmeasuredLeft;                  // fixes with a part not measured yet that have not landed
     BOOL _recovered;
     NSMutableArray<MMUndoRecord *> *_removed;   // each finished record of the run, a Wrap Up as its parts
+    NSMutableArray<NSDictionary *> *_notReached; // what a stop left, as the run row's skips
 }
 
 - (instancetype)initWithPerformance:(MMPerformance *)p {
-    if ((self = [super init])) { _p = p; _results = [NSMutableArray new]; _removed = [NSMutableArray new]; }
+    if ((self = [super init])) { _p = p; _results = [NSMutableArray new]; _removed = [NSMutableArray new]; _notReached = [NSMutableArray new]; }
     return self;
 }
 
@@ -109,15 +106,26 @@ NSString *MMFixStepAction(NSString *kind) {
     for (MMPerformanceFix *f in _p.fixes) {
         if (f.needsYou) { needYou++; continue; }
         [fixes addObject:f];
-        _memoryPlanned += f.memoryBack; _diskPlanned += f.diskBack;
+        _diskPlanned += f.diskBack;
         // A fix with a part not measured yet adds only its measured parts, so until it landed the sum is no total.
         if (f.diskPartial) _unmeasuredLeft++;
     }
+    // Memory planned counts each process once: a server's stop and its app's quit would end that server once.
+    _memoryPlanned = _p.memoryBackOnce;
     _total = (NSInteger)fixes.count;
     BOOL treesMoved = NO;
     NSInteger notRun = 0, notReached = 0;
+    // Before acting, what the acts need. A move to the Trash needs MinMacs's own list of what it sends there, issue
+    // #74, so when that list cannot be written no item is tried: each would fail the same way, and one notice says why.
+    NSString *noTrash = nil;
+    for (MMPerformanceFix *f in fixes) if ([f.kind isEqualToString:@"trash"] && !f.wrapUp) { noTrash = MMRemovalTrashListCannot(); break; }
+    NSMutableArray<NSString *> *unmoved = [NSMutableArray new];
     for (MMPerformanceFix *f in fixes) {
-        if (atomic_load(&_stop)) { notRun++; continue; }
+        if (atomic_load(&_stop)) { notRun++; [self notReached:f from:0]; continue; }
+        if (noTrash && [f.kind isEqualToString:@"trash"] && !f.wrapUp) {
+            for (id<MMAction> a in f.actions) { [self note:f name:MMWindowNameOf(a.finding) record:nil error:noTrash]; [unmoved addObject:a.finding.path ?: @""]; }
+            continue;
+        }
         BOOL landed = NO, sizeUnknown = NO;   // sizeUnknown: a thing not measured was kept or failed, so its size is still not known
         uint64_t diskWas = _diskBack;
         if (f.wrapUp) {
@@ -150,6 +158,7 @@ NSString *MMFixStepAction(NSString *kind) {
             // Stopped inside the fix: it is not done. What it did stays in the results, and the rest is counted as not reached.
             NSInteger left = (NSInteger)f.actions.count - reached;
             if (left > 0) {
+                [self notReached:f from:reached];
                 landed = NO;
                 if (reached) notReached += left; else notRun++;
             }
@@ -164,6 +173,7 @@ NSString *MMFixStepAction(NSString *kind) {
             _unmeasuredLeft--;
         }
     }
+    if (unmoved.count) MMNoticeTrashUnwritten(@"core", unmoved, @"Fix Everything");
     self.endedAt = NSDate.date;
     // What the menus do after a removal: the repo index reads the worktrees again, then the graph builds anew.
     if (treesMoved) [MMRepoIndex.shared refresh:nil];
@@ -173,11 +183,45 @@ NSString *MMFixStepAction(NSString *kind) {
     end.running = NO;
     end.endTitle = MMWindowEndTitle(_done, _total);
     end.endNote = [self endNote:needYou notRun:notRun notReached:notReached];
+    [self logRun];
     // A stop asked for before the run began is kept, so it ends the run at once. It is spent here, at the end.
     atomic_store(&_stop, false);
     atomic_store(&_running, false);
     [self tell:end];
     return end;
+}
+
+/// The things of a fix from its index on, which a stop left. A Wrap Up is one thing.
+- (void)notReached:(MMPerformanceFix *)f from:(NSInteger)index {
+    if (f.wrapUp) {
+        NSString *name = f.wrapUp.subject.worktree.branch.length ? f.wrapUp.subject.worktree.branch : f.wrapUp.subject.path.lastPathComponent;
+        [_notReached addObject:MMLogRunSkip(name, @"the run was stopped before it", @"stopped")];
+        return;
+    }
+    for (NSInteger i = index; i < (NSInteger)f.actions.count; i++)
+        [_notReached addObject:MMLogRunSkip(MMWindowNameOf(f.actions[(NSUInteger)i].finding), @"the run was stopped before it", @"stopped")];
+}
+
+/// The run's row in the log, MMLogRun: what it planned, what it did, and each thing it skipped with why. The agents
+/// that ask and the fixes that wait for their own press are skipped as the end note says.
+- (void)logRun {
+    NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
+    NSInteger planned = 0, done = 0;
+    for (MMPerformanceGroup *g in _p.memoryGroups) for (MMPerformanceRow *r in g.rows)
+        if (r.needsYou) [skipped addObject:MMLogRunSkip(r.name, @"it asks you", @"asks")];
+    for (MMPerformanceFix *f in _p.fixes) {
+        planned += f.wrapUp ? 1 : (NSInteger)f.actions.count;
+        if (!f.needsYou) continue;
+        for (id<MMAction> a in f.actions) [skipped addObject:MMLogRunSkip(MMWindowNameOf(a.finding), @"it waits for your own press", @"press")];
+    }
+    for (MMFixResult *x in self.results) {
+        if ([x.outcome isEqualToString:@"done"]) { done++; continue; }
+        NSString *why = x.why.length ? x.why : nil;
+        if ([why hasPrefix:@"kept: "]) why = [why substringFromIndex:6];
+        [skipped addObject:MMLogRunSkip(x.name, why, x.outcome)];
+    }
+    [skipped addObjectsFromArray:_notReached];
+    MMLogRun(MMLogRunFixEverything, @"manual", planned, done, skipped, _memoryBack, _diskBack);
 }
 
 /// One or two short sentences: what was skipped and why, then where removed things went in this run, counted from the
@@ -189,6 +233,10 @@ NSString *MMFixStepAction(NSString *kind) {
         else if (![x.outcome isEqualToString:@"done"]) stuck++;
     }
     NSMutableArray<NSString *> *out = [NSMutableArray new];
+    // D9: a press still runs during a quiet hold, and the note says the hold is there, so nobody is surprised.
+    NSString *quiet = MMQuietWhy();
+    if (quiet) [out addObject:[NSString stringWithFormat:@"%@%@. MinMacs acts on nothing on its own until it ends; what you press still runs.",
+                               [quiet substringToIndex:1].uppercaseString, [quiet substringFromIndex:1]]];
     NSString *skipped = MMWindowSkippedNote(_p.needsYou, needYou, kept, stuck, notReached, notRun);
     if (skipped) [out addObject:skipped];
     NSString *where = MMRemovalWhereWords(_removed);

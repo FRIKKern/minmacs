@@ -31,15 +31,12 @@ NSString *MMWindowSkippedNote(NSInteger asks, NSInteger needYou, NSInteger kept,
     return [NSString stringWithFormat:@"Skipped %@.", list];
 }
 
-NSString *MMWindowFixCountTitle(NSString *kind, NSInteger n, NSInteger removal) {
+NSString *MMWindowFixCountTitle(NSString *kind, NSInteger n) {
     if ([kind isEqualToString:@"stop"]) return [@"Stop " stringByAppendingString:MMWindowCount(n, @"idle server", @"idle servers")];
     if ([kind isEqualToString:@"quit"]) return [@"Quit " stringByAppendingString:MMWindowCount(n, @"app", @"apps")];
     if ([kind isEqualToString:@"remove"]) return [@"Remove " stringByAppendingString:MMWindowCount(n, @"merged worktree", @"merged worktrees")];
-    // What the press does follows the removal choice. Under Smart some are deleted and the rest go to the Trash.
-    if ([kind isEqualToString:@"trash"]) {
-        NSString *what = MMWindowCount(n, @"leftover", @"leftovers");
-        return removal == 1 ? [NSString stringWithFormat:@"Move %@ to the Trash", what] : removal == 2 ? [@"Delete " stringByAppendingString:what] : [@"Clean up " stringByAppendingString:what];
-    }
+    // Everything MinMacs removes keeps a way back, Core/Act/MMRemoval.h, so a leftover goes to the Trash.
+    if ([kind isEqualToString:@"trash"]) return [NSString stringWithFormat:@"Move %@ to the Trash", MMWindowCount(n, @"leftover", @"leftovers")];
     if ([kind isEqualToString:@"clean"]) return [@"Run " stringByAppendingString:MMWindowCount(n, @"tool cleanup", @"tool cleanups")];
     return nil;
 }
@@ -52,6 +49,14 @@ NSString *MMWindowAfterTitle(NSInteger fixes) {
 NSString *MMWindowMoreLine(NSInteger below, NSInteger above) {
     if (below > 0) return [NSString stringWithFormat:@"%ld more below", (long)below];
     return above > 0 ? [NSString stringWithFormat:@"%ld more above", (long)above] : nil;
+}
+
+NSString *MMWindowProjectMoreLine(NSInteger hidden, NSString *project) {
+    return project.length ? [NSString stringWithFormat:@"%ld more in %@", (long)hidden, project] : [NSString stringWithFormat:@"%ld more", (long)hidden];
+}
+
+NSString *MMWindowProjectsMoreLine(NSInteger hidden, NSInteger projects) {
+    return [NSString stringWithFormat:@"%ld more in %@", (long)hidden, MMWindowCount(projects, @"project", @"projects")];
 }
 
 NSString *MMWindowTabsName(NSInteger tabs, NSString *browser) {
@@ -87,4 +92,27 @@ NSString *MMWindowPlaceLine(NSInteger place, NSInteger count, NSInteger unmeasur
         rank = [NSString stringWithFormat:@"%ld%@ biggest", (long)place, end];
     }
     return [NSString stringWithFormat:@"%@ of %ld %@%@", rank, (long)known, title, unmeasured > 0 ? @" measured so far" : @""];
+}
+
+NSString *MMWindowCollapsedSplit(NSInteger go, NSInteger inUse, NSInteger kept, NSInteger other, NSString *one, NSString *many) {
+    // The unit stands once, at the first count, as a person says it: "168 groups can go, 1 in use".
+    NSMutableArray<NSString *> *parts = [NSMutableArray new];
+    __block BOOL unit = NO;
+    NSString *(^count)(NSInteger, NSString *) = ^NSString *(NSInteger n, NSString *what) {
+        NSString *c = unit ? [NSString stringWithFormat:@"%ld", (long)n] : MMWindowCount(n, one, many);
+        // The verb takes its number from the count: "1 group stays", "2 groups stay".
+        if ([what isEqualToString:@"stay"] && n == 1) what = @"stays";
+        unit = YES;
+        return [NSString stringWithFormat:@"%@ %@", c, what];
+    };
+    if (go > 0) [parts addObject:count(go, @"can go")];
+    if (inUse > 0) [parts addObject:count(inUse, @"in use")];
+    if (kept > 0) [parts addObject:count(kept, @"kept")];
+    if (other > 0) [parts addObject:count(other, @"stay")];
+    return [parts componentsJoinedByString:@", "];
+}
+
+NSString *MMWindowMembersLine(NSInteger shown, NSInteger count, NSString *one, NSString *many) {
+    if (shown >= count) return [@"Its " stringByAppendingString:MMWindowCount(count, one, many)];
+    return [NSString stringWithFormat:@"The %ld biggest of its %@", (long)shown, MMWindowCount(count, one, many)];
 }

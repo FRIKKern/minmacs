@@ -5,7 +5,7 @@
 /// The other side of StopSecond: run as `removaltest --stop-second <tree> <first> <second> <point>`. One part asks both
 /// paths, sends the first to the Trash with no stop, then the second, stopping at point. Prints the rids first.
 static int StopSecondChild(NSString *tree, NSString *first, NSString *second, NSString *point) {
-    MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalConfigFiles, nil);
+    MMRemovalDecision *keep = MMRemovalDecide(MMRemovalConfigFiles, nil, nil);
     MMUndoRecord *parent = Unfinished(@"two names of one file", tree, MMRemovalOwner());
     MMUndoRecord *part = Part(parent.rid, @"config, two names of one file");
     MMRemovalNote(part, keep, nil); MMRemovalAsk(part, @[first, second]);

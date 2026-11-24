@@ -133,9 +133,10 @@ MMVerbSpec *MMFindVerb(NSString *program, NSString *verb) {
     return nil;
 }
 
-/// Verbs that always run in this process: they say who this binary is, or they are the worker of P4.
+/// Verbs that always run in this process: they say who this binary is, they are the worker of P4, or they measure
+/// the app from outside, as self does.
 static BOOL RunsHere(NSString *verb) {
-    return [@[@"version", @"help", @"_walk", @"_serve"] containsObject:verb] || [verb hasPrefix:@"_"];
+    return [@[@"version", @"help", @"self", @"_walk", @"_serve"] containsObject:verb] || [verb hasPrefix:@"_"];
 }
 
 BOOL MMWantsCLI(int argc, const char *argv[]) {
@@ -334,10 +335,10 @@ static NSArray<NSString *> *Resolve(NSString *program, NSArray<NSString *> *word
     return words;
 }
 
-static int Run(MMVerbSpec *spec, NSArray<NSString *> *words, NSString *program, NSString *cwd, BOOL inApp,
+static int Run(MMVerbSpec *spec, NSArray<NSString *> *words, NSString *program, NSString *cwd, BOOL inApp, BOOL noPerson,
                NSMutableString *out, NSMutableString *err) {
     MMArgs *args = [MMArgs verb:spec.verb words:[words subarrayWithRange:NSMakeRange(1, words.count - 1)] usage:spec.usage];
-    args.program = program; args.inApp = inApp; args.outBuffer = out; args.errBuffer = err;
+    args.program = program; args.inApp = inApp; args.noPerson = noPerson; args.outBuffer = out; args.errBuffer = err;
     if (cwd.length) args.cwd = cwd;
     // A verb that changes things runs in the app. With --dry-run it only reads, so it runs anywhere.
     // A verb whose mutatingForms change things checks those forms itself, after its usage checks.
@@ -355,15 +356,56 @@ NSDictionary *MMCLIReply(NSDictionary *request) {
     for (id w in words) if (![w isKindOfClass:NSString.class]) return @{@"status": @(MMExitUsage), @"out": @"", @"err": @"bad request\n"};
     NSString *program = [request[@"program"] isKindOfClass:NSString.class] ? request[@"program"] : @"minmacs";
     NSString *cwd = [request[@"cwd"] isKindOfClass:NSString.class] ? request[@"cwd"] : nil;
+    // D3: whether a person sits at the CLI's terminal, as the CLI saw it. A URL sends no such word, so a link never
+    // gets the yes that nobody at a terminal gets: a verb that wants --yes refuses one from a link without it.
+    BOOL noPerson = [request[@"noPerson"] isKindOfClass:NSNumber.class] && [request[@"noPerson"] boolValue];
     MMVerbSpec *spec = nil;
     words = Resolve(program, words, &spec);
     NSMutableString *out = [NSMutableString new], *err = [NSMutableString new];
     int status;
     // A hidden verb, such as the worker of P4, runs only in the process that was started for it, never in the app.
     if (spec && [spec.verb hasPrefix:@"_"]) spec = nil;
-    if (!spec) { [err appendFormat:@"%@: unknown verb '%@'. Try '%@ help'.\n", program, words.firstObject, program]; status = MMExitUsage; }
-    else status = Run(spec, words, program, cwd, YES, out, err);
+    // unknownVerb tells a newer CLI apart from a verb that failed its usage: the app is older than the CLI.
+    if (!spec) {
+        [err appendFormat:@"%@: unknown verb '%@'. Try '%@ help'.\n", program, words.firstObject, program];
+        return @{@"status": @(MMExitUsage), @"out": out, @"err": err, @"inApp": @YES, @"unknownVerb": @YES};
+    }
+    status = Run(spec, words, program, cwd, YES, noPerson, out, err);
     return @{@"status": @(status), @"out": out, @"err": err, @"inApp": @YES};
+}
+
+#pragma mark - An app older than this CLI
+
+/// YES when the app's reply says it has no such verb, while this CLI has it: the app is an older build. An app of
+/// now says so with unknownVerb. One from before that key says it only in its error line, with exit 2 and no output.
+static BOOL AppLacksVerb(NSDictionary *r) {
+    if ([r[@"unknownVerb"] boolValue]) return YES;
+    NSString *o = r[@"out"], *e = r[@"err"];
+    return [r[@"status"] intValue] == MMExitUsage && !([o isKindOfClass:NSString.class] && o.length)
+        && [e isKindOfClass:NSString.class] && [e rangeOfString:@": unknown verb '"].location != NSNotFound;
+}
+
+/// YES when the words run a form that changes things: a verb that mutates, whatever its flags, or one of the forms
+/// mutatingForms names. Each verb checks those forms itself when it runs; this is the same reading, made before.
+static BOOL FormMutates(MMVerbSpec *spec, NSArray<NSString *> *words) {
+    if (spec.mutates) return YES;
+    if (!spec.mutatingForms.count) return NO;
+    NSArray *rest = words.count > 1 ? [words subarrayWithRange:NSMakeRange(1, words.count - 1)] : @[];
+    MMArgs *a = [MMArgs verb:spec.verb words:rest usage:spec.usage];
+    for (NSString *form in spec.mutatingForms) {
+        if ([form hasPrefix:@"!"]) { if (![a has:[form substringFromIndex:1]]) return YES; }
+        else if ([form hasPrefix:@"-"]) { if ([a has:form]) return YES; }
+        else if ([[a word:0] isEqualToString:form]) return YES;
+    }
+    return NO;
+}
+
+/// "2.0.1, build 412", or the version alone when no build stamp is known. nil with neither.
+static NSString *BuildName(id version, id build) {
+    NSString *v = [version isKindOfClass:NSString.class] && [version length] ? version : nil;
+    NSString *b = [build isKindOfClass:NSString.class] && [build length] ? build : nil;
+    if (v && b) return [NSString stringWithFormat:@"%@, build %@", v, b];
+    return v ?: (b ? [@"build " stringByAppendingString:b] : nil);
 }
 
 int MMRunCLI(int argc, const char *argv[]) {
@@ -383,8 +425,23 @@ int MMRunCLI(int argc, const char *argv[]) {
     NSString *cwd = NSFileManager.defaultManager.currentDirectoryPath;
     // Ask the running app first. MINMACS_COLD=1 skips it, for scripts that want Core cold.
     BOOL cold = [NSProcessInfo.processInfo.environment[@"MINMACS_COLD"] isEqualToString:@"1"];
-    if (!RunsHere(spec.verb) && !cold && [[MMCoreSocket ask:@{@"verb": @"ping"} timeout:0.2][@"ok"] boolValue]) {
-        NSDictionary *r = [MMCoreSocket ask:@{@"verb": @"cli", @"cli": words, @"program": program, @"cwd": cwd ?: @""} timeout:600];
+    NSDictionary *ping = RunsHere(spec.verb) || cold ? nil : [MMCoreSocket ask:@{@"verb": @"ping"} timeout:0.2];
+    if ([ping[@"ok"] boolValue]) {
+        NSDictionary *r = [MMCoreSocket ask:@{@"verb": @"cli", @"cli": words, @"program": program, @"cwd": cwd ?: @"",
+                                              @"noPerson": @(MMNoPersonAtTerminal())} timeout:600];
+        // An app older than this CLI, as on a canary rollout, lacks the verb. A form that only reads runs here cold.
+        // One that changes things never does: changes go through the app, so it says to update the app.
+        if ([r[@"status"] isKindOfClass:NSNumber.class] && AppLacksVerb(r)) {
+            if (!FormMutates(spec, resolved)) {
+                fprintf(stderr, "%s: the running app is an older build; read without it\n", program.UTF8String);
+                return Run(spec, resolved, program, cwd, NO, MMNoPersonAtTerminal(), nil, nil);
+            }
+            NSString *app = BuildName(ping[@"version"], ping[@"build"]) ?: @"an older build";
+            NSString *mine = BuildName(@MM_VERSION, NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"]);
+            fprintf(stderr, "%s: the running MinMacs (%s) does not know %s; update it. This %s is %s.\n", program.UTF8String,
+                    app.UTF8String, spec.verb.UTF8String, program.UTF8String, mine.UTF8String);
+            return MMExitNeedsApp;
+        }
         if ([r[@"status"] isKindOfClass:NSNumber.class]) {
             NSString *o = r[@"out"], *e = r[@"err"];
             if ([o isKindOfClass:NSString.class]) fputs(o.UTF8String, stdout);
@@ -395,5 +452,5 @@ int MMRunCLI(int argc, const char *argv[]) {
         fprintf(stderr, "%s: MinMacs did not answer. Try again, or set MINMACS_COLD=1 to run without it.\n", program.UTF8String);
         return MMExitFailed;
     }
-    return Run(spec, resolved, program, cwd, NO, nil, nil);
+    return Run(spec, resolved, program, cwd, NO, MMNoPersonAtTerminal(), nil, nil);
 }

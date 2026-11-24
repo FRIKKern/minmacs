@@ -8,7 +8,10 @@
 #import "Core/Act/MMWorktreeAct.h"
 #import "UI/MMFormat.h"
 #import "UI/MMInvestigateUI.h"
+#import "UI/MMConfirm.h"
+#import "Core/Act/MMNotice.h"
 #include <stdlib.h>
+#include <sys/stat.h>
 
 static NSString *const kExpert = @"workforest";
 static const NSTimeInterval kEventGap = 30 * 60;   // reviews woken by events are at least this far apart
@@ -80,6 +83,9 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ProcessesIn(NSArray<NSSt
         return a.length > b.length ? NSOrderedAscending : a.length < b.length ? NSOrderedDescending : [a compare:b];
     }];
     NSMutableDictionary *out = [NSMutableDictionary new];
+    // Within, with each tree's "path/" made once rather than once per process and tree.
+    NSMutableArray<NSString *> *slashed = [NSMutableArray arrayWithCapacity:sorted.count];
+    for (NSString *t in sorted) [slashed addObject:[t stringByAppendingString:@"/"]];
     uid_t me = getuid(); pid_t self = getpid();
     for (NSNumber *n in s.procs) {
         MMProc *p = s.procs[n];
@@ -87,8 +93,9 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ProcessesIn(NSArray<NSSt
         if ([p.name isEqualToString:@"git"]) continue;   // short git commands, ours and the person's
         NSString *cwd = [s cwdOf:p.pid];
         if (cwd.length < 2) continue;
-        for (NSString *t in sorted) {
-            if (!Within(cwd, t)) continue;
+        for (NSUInteger i = 0; i < sorted.count; i++) {
+            NSString *t = sorted[i];
+            if (!t.length || !([cwd isEqualToString:t] || [cwd hasPrefix:slashed[i]])) continue;
             NSMutableArray *l = out[t] ?: (out[t] = [NSMutableArray new]);
             if (![l containsObject:p.name ?: @"?"]) [l addObject:p.name ?: @"?"];
             break;
@@ -143,6 +150,7 @@ static MMWFTree *TreeFrom(MMWorktree *w, MMFacts *facts, NSArray *procs, MMSessi
         t.merged = t.isMain ? nil : MergedWord(g.merged);
         t.dirty = g.dirty; t.untracked = g.untracked; t.stashes = g.stashes; t.unpushed = g.unpushed;
         t.notInDefault = g.notInDefault; t.onRemote = g.onRemote; t.lastCommit = g.lastCommit;
+        t.subject = g.subject; t.behindDefault = g.behindDefault;
     }
     MMTreeDiskFacts *d = t.missing ? nil : [MMTreeDisk.shared factsFor:t.path read:read];
     if (d) {
@@ -156,6 +164,25 @@ static MMWFTree *TreeFrom(MMWorktree *w, MMFacts *facts, NSArray *procs, MMSessi
     return t;
 }
 
+/// Issue #52. The processes and sessions inputDigestFrom: read for each tree, kept for the findingsFrom: of the same
+/// facts that follows it when the digest moved, so a build reads them once.
+static NSObject *gDigestLock;
+static __weak MMFacts *gDigestFacts;
+static NSArray<NSString *> *gDigestPaths;
+static NSDictionary *gDigestProcs, *gDigestSessions;
+static void KeepDigestReads(MMFacts *facts, NSArray<NSString *> *paths, NSDictionary *procs, NSDictionary *sessions) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ gDigestLock = [NSObject new]; });
+    @synchronized (gDigestLock) { gDigestFacts = facts; gDigestPaths = paths; gDigestProcs = procs; gDigestSessions = sessions; }
+}
+static void TakeDigestReads(MMFacts *facts, NSArray<NSString *> *paths, NSDictionary **procs, NSDictionary **sessions) {
+    if (!gDigestLock) return;
+    @synchronized (gDigestLock) {
+        if (facts && gDigestFacts == facts && [gDigestPaths isEqualToArray:paths]) { *procs = gDigestProcs; *sessions = gDigestSessions; }
+        gDigestFacts = nil; gDigestPaths = nil; gDigestProcs = gDigestSessions = nil;
+    }
+}
+
 /// Every tree in these facts. read says how fresh the disk facts must be.
 static NSArray<MMWFTree *> *TreesFrom(MMFacts *facts, MMTreeDiskRead read, NSString *only) {
     NSMutableArray *ws = [NSMutableArray new], *paths = [NSMutableArray new];
@@ -167,8 +194,10 @@ static NSArray<MMWFTree *> *TreesFrom(MMFacts *facts, MMTreeDiskRead read, NSStr
         [ws addObject:w]; [paths addObject:p];
     }
     if (!ws.count) return @[];
-    NSDictionary *procs = ProcessesIn(paths, facts.sample);
-    NSDictionary *sessions = SessionsIn(paths, facts.sessions);
+    NSDictionary *procs = nil, *sessions = nil;
+    if (!only) TakeDigestReads(facts, paths, &procs, &sessions);
+    if (!procs) procs = ProcessesIn(paths, facts.sample);
+    if (!sessions) sessions = SessionsIn(paths, facts.sessions);
     NSArray *branches = [MMWFRules() entries:@"protect.branches"] ?: @[];
     NSMutableArray *out = [NSMutableArray new];
     for (NSUInteger i = 0; i < ws.count; i++)
@@ -314,16 +343,14 @@ static MMRemovalFacts *RemovalFactsNow(NSString *path) {
 
 - (NSString *)dryRun {
     MMWFTree *t = MMWFTreeOf(self.finding);
-    // The words follow the removal choice as it is now. Only Delete leaves the ignored files unsaved.
-    BOOL keepsNothing = MMRemovalDecide(MMRemovalIgnoredFiles, nil, nil).deleteNow;
+    // Everything keeps a way back, MMRemoval.h: its ignored files are always saved first.
     NSMutableArray *steps = [NSMutableArray new];
     if (!t.onRemote) [steps addObject:@"take a git bundle of the commits on no remote"];
-    [steps addObject:keepsNothing ? @"leave its ignored files unsaved" : @"save its ignored files except caches"];
+    [steps addObject:@"save its ignored files except caches"];
     [steps addObject:@"run git worktree remove with no --force"];
     [steps addObject:t.merged.length && t.branch.length ? [NSString stringWithFormat:@"delete the merged branch %@ with git branch -d", t.branch]
                                                          : [NSString stringWithFormat:@"keep the branch %@", t.branch ?: @"(detached)"]];
-    NSString *end = keepsNothing ? @"You chose Delete, so it cannot be brought back."
-                                 : [NSString stringWithFormat:@"Restore recreates it at %@.", t.head.length >= 8 ? [t.head substringToIndex:8] : @"its commit"];
+    NSString *end = [NSString stringWithFormat:@"Restore recreates it at %@.", t.head.length >= 8 ? [t.head substringToIndex:8] : @"its commit"];
     return [NSString stringWithFormat:@"would remove %@: %@. %@", t.path.stringByAbbreviatingWithTildeInPath, [steps componentsJoinedByString:@", "], end];
 }
 
@@ -333,14 +360,14 @@ static MMRemovalFacts *RemovalFactsNow(NSString *path) {
     NSDictionary *where = @{@"repo": t.repo ?: @"", @"worktree": t.path ?: @"", @"head": t.head ?: @"", @"branch": t.branch ?: @""};
     [u note:record payload:@{@"removed": @{@"path": t.path ?: @"", @"repo": t.repo ?: @"", @"branch": t.branch ?: @"", @"head": t.head ?: @"",
                                            @"merged": t.merged ?: @"", @"diskBytes": @(t.diskBytes), @"freedBytes": @(t.freedBytes)}}];
-    // The removal choice, MMRemoval.h, on git facts read now. git removes the folder in every choice, and git is the
-    // way back for what it holds, so the worktree's own answer changes no step here: it is the record's word for
-    // where the worktree went. The answer for the ignored files decides whether they are saved first.
+    // MMRemoval.h, on git facts read now. git removes the folder, and git is the way back for what it holds, so the
+    // worktree's own answer changes no step here: it is the record's word for where the worktree went. The ignored
+    // files are always saved first, to the recovery folder.
     MMRemovalFacts *now = RemovalFactsNow(t.path);
     MMRemovalDecision *whole = MMRemovalDecide(MMRemovalWorktree, now, record.by), *ignored = MMRemovalDecide(MMRemovalIgnoredFiles, now, record.by);
     MMRemovalNote(record, whole, nil);
     MMRemovalNote(record, ignored, @"ignored");
-    // Decision 7 and PLAN.md Act: a git bundle whenever commits exist on no remote, in every removal choice.
+    // Decision 7 and PLAN.md Act: a git bundle whenever commits exist on no remote.
     // No bundle, no removal. -bundle: counts the commits itself, right now, so it is asked whatever the listing said.
     NSString *bundleError = nil;
     NSString *bundle = [u bundle:t.path record:record error:&bundleError];
@@ -355,9 +382,7 @@ static MMRemovalFacts *RemovalFactsNow(NSString *path) {
         return NO;
     }
     NSString *err = nil;
-    // Only the Delete choice leaves them unsaved. The record then names them, so it says what went with the folder.
-    if (ignored.deleteNow) { if (files.count) [u note:record payload:@{@"ignoredDeleted": files}]; }
-    else if (files.count && ![u recover:files from:t.path record:record error:&err]) {
+    if (files.count && ![u recover:files from:t.path record:record error:&err]) {
         if (error) *error = [@"its ignored files could not be saved: " stringByAppendingString:err ?: @""];
         return NO;
     }
@@ -430,8 +455,7 @@ static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
 @end
 
 /// Moves the worktree's untracked config files to the Trash, so git worktree remove runs with no --force.
-/// Restore moves them back once the worktree is there again. git does not hold them, so MMRemovalDecide keeps them
-/// in the Trash under Smart too. Only the Delete choice deletes them at once.
+/// Restore moves them back once the worktree is there again. git does not hold them, and MinMacs never deletes them.
 @interface MMWFConfigMove : NSObject <MMAction>
 @property (strong) MMFinding *finding;
 @property (copy) NSArray<NSString *> *files;
@@ -461,10 +485,6 @@ static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
 - (NSString *)dryRun {
     NSArray *files = self.files;
     if (!files && !NSThread.isMainThread) { NSString *why = nil; files = [self list:&why]; if (why) return [@"would keep the worktree: " stringByAppendingString:why]; }
-    if (MMRemovalDecide(MMRemovalConfigFiles, nil, nil).deleteNow)
-        return files.count ? [NSString stringWithFormat:@"would delete %@: %@. You chose Delete, so they cannot be brought back.", MMPlural(files.count, @"untracked config file"),
-                              MMCut([files componentsJoinedByString:@", "], 80)]
-                           : @"would delete the untracked config files. You chose Delete, so they cannot be brought back.";
     return files.count ? [NSString stringWithFormat:@"would move %@ to the Trash: %@. Restore moves them back.", MMPlural(files.count, @"untracked config file"),
                           MMCut([files componentsJoinedByString:@", "], 80)]
                        : @"would move the untracked config files to the Trash. Restore moves them back.";
@@ -478,13 +498,12 @@ static NSArray<MMProc *> *ProcsInside(NSString *path, MMSample *s) {
     MMRemovalNote(record, d, nil);
     NSMutableArray *paths = [NSMutableArray new];
     for (NSString *rel in files) [paths addObject:[self.path stringByAppendingPathComponent:rel]];
-    // The files git listed a moment ago. Under Delete each one waits in MinMacs's staging folder until git worktree remove went
-    // through, since this is a part of a Wrap Up: MMRemovalApply stages it, and Core deletes or puts it back.
+    // The files git listed a moment ago, each to the Trash. When a later part of the Wrap Up refuses, Core moves them back.
     MMRemovalAsk(record, paths);
     for (NSString *rel in files) {
         NSError *e = nil;
         if (!MMRemovalApply([self.path stringByAppendingPathComponent:rel], d, record, &e)) {
-            if (error) *error = [NSString stringWithFormat:@"%@ could not %@: %@", rel, d.deleteNow ? @"be deleted" : @"go to the Trash", e.localizedDescription ?: @"unknown"];
+            if (error) *error = [NSString stringWithFormat:@"%@ could not %@: %@", rel, @"go to the Trash", e.localizedDescription ?: @"unknown"];
             return NO;
         }
     }
@@ -719,7 +738,7 @@ NSArray<NSDictionary *> *MMWFRemoved(NSUInteger limit) {
                                     @"bundle": p[@"bundle"] ? @YES : @NO, @"error": r.error ?: NSNull.null,
                                     @"taken": @(path.length && [NSFileManager.defaultManager fileExistsAtPath:path])} mutableCopy];
         if (Str(p[@"legacyID"])) j[@"legacyID"] = p[@"legacyID"];
-        // Removed under the Delete choice: the record stays, and nothing brings the worktree back, MMRemoval.h.
+        // Removed by an older MinMacs under the Delete choice: the record stays, and nothing brings the worktree back, MMRemoval.h.
         j[@"canRestore"] = r.state == MMUndoRestored || r.canRestore ? @YES : @NO;
         j[@"deleted"] = r.deletedNow ? @YES : @NO;
         // A worktree that went in a Wrap Up comes back with the rest of it: Restore takes back the whole record.
@@ -800,6 +819,55 @@ static NSString *ModelWords(MMReview *r) {
     return out;
 }
 
+/// Issue #52. What findingsFrom: reads, so the graph hands back the last findings when none of it moved: each
+/// worktree and its git facts, which the repo index replaces when they change, so their identity is the index's
+/// generation; each checkout folder's own stat, which says whether it is there and whether its disk walk is stale;
+/// the disk walks' generation; the protected branches; and what ProcessesIn and SessionsIn give each tree, which
+/// findingsFrom: of the same facts then reads from here rather than again. Ages, such as the
+/// quiet time and the day of recent work, move only at the heartbeat build, at most 30 seconds later.
+static uint64_t WFMix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t WFObj(id o, uint64_t salt) { return WFMix((uint64_t)(uintptr_t)(__bridge void *)o ^ WFMix(salt)); }
+static uint64_t WFStr(NSString *s, uint64_t salt) { return WFMix((s ? s.hash ^ ((uint64_t)s.length << 40) : 0x5bd1e995ull) ^ WFMix(salt)); }
+
+- (uint64_t)inputDigestFrom:(MMFacts *)facts {
+    if (MMWFReadNow) return WFMix(facts.generation ^ 0x5a5a);   // the CLI walks now, and never reuses
+    uint64_t h = WFMix(facts.worktrees.count + 1) ^ WFMix(MMTreeDisk.shared.generation + 2);
+    // The trees as TreesFrom lists them, each folder once.
+    NSMutableArray<NSString *> *paths = [NSMutableArray new];
+    for (MMWorktree *w in facts.worktrees) {
+        h += WFObj(w, 3) + WFObj([facts gitFor:w], 4);
+        if (!w.path.length) continue;
+        NSString *p = Real(w.path);
+        if (![paths containsObject:p]) [paths addObject:p];
+    }
+    for (NSString *p in paths) {
+        struct stat st;
+        BOOL there = stat(p.fileSystemRepresentation, &st) == 0;
+        h += WFStr(p, 5) ^ (there ? WFMix((uint64_t)st.st_mtimespec.tv_sec * NSEC_PER_SEC + (uint64_t)st.st_mtimespec.tv_nsec + 6) : 7);
+    }
+    for (NSString *b in [MMWFRules() entries:@"protect.branches"]) h += WFStr([b description], 8);
+    // What each tree reads from the sample and the sessions: the names of the processes inside, and the newest
+    // session that ran there, with what its JSON holds. Sessions elsewhere, whose transcripts an agent at work
+    // writes every second, change nothing.
+    NSDictionary<NSString *, NSArray<NSString *> *> *procs = paths.count ? ProcessesIn(paths, facts.sample) : @{};
+    NSDictionary<NSString *, MMSession *> *sessions = paths.count ? SessionsIn(paths, facts.sessions) : @{};
+    for (NSString *p in paths) {
+        uint64_t t = WFStr(p, 9);
+        for (NSString *name in procs[p]) h += WFStr(name, t);
+        MMSession *x = sessions[p];
+        if (x) h += t ^ WFStr(x.agent, 10) ^ WFStr(x.sessionID, 11) ^ WFStr(x.title, 12) ^ WFMix((uint64_t)x.stillWorking + 13) ^
+                    WFMix((uint64_t)(x.lastActive.timeIntervalSince1970 * 1000) + 14) ^ WFMix((uint64_t)(x.started.timeIntervalSince1970 * 1000) + 15);
+    }
+    KeepDigestReads(facts, paths, procs, sessions);
+    // A build that reuses these findings reads them as built from these facts, so a plan on the snapshot reads
+    // each finding's tree and walks nothing, as after findingsFrom:.
+    gBuiltFacts = facts;
+    return h;
+}
+
 /// The broker saves each review to the log. The graph carries the newest one, so menus read it without a query.
 /// Runs on the graph queue, at most once a minute.
 - (void)syncReview {
@@ -830,7 +898,7 @@ static NSString *ModelWords(MMReview *r) {
     if (t.untracked != 0) {
         MMWFConfigMove *c = [MMWFConfigMove new];
         c.finding = w;
-        MMWrapUpPart *p = [MMWrapUpPart step:MMWrapUpConfig expert:kExpert title:MMRemovalDecide(MMRemovalConfigFiles, nil, nil).deleteNow ? @"Delete untracked config files" : @"Move untracked config files to the Trash"
+        MMWrapUpPart *p = [MMWrapUpPart step:MMWrapUpConfig expert:kExpert title:@"Move untracked config files to the Trash"
                                       action:c policy:policy];
         if (p) [parts addObject:p];
     }
@@ -969,55 +1037,81 @@ static NSDictionary *WrapUpsIn(MMSnapshot *s, NSArray<MMFinding *> *findings) {
 - (BOOL)openURL:(NSURL *)url {
     NSString *c = url.host.lowercaseString ?: @"";
     if ([c isEqualToString:@"review"]) { [self act:@"review" key:nil option:NO snapshot:MMGraph.shared.current]; return YES; }
-    if ([c isEqualToString:@"clean-up"]) { [self act:@"clean-up" key:nil option:NO snapshot:MMGraph.shared.current]; return YES; }
+    if ([c isEqualToString:@"clean-up"]) { [self cleanUpFromLink:MMGraph.shared.current]; return YES; }
     if ([c isEqualToString:@"rescan"]) { [MMRepoIndex.shared refresh:nil]; return YES; }
     return NO;
 }
 
 #pragma mark Actions from the menu
 
-static void Alert(NSString *title, NSString *text) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSAlert *a = [NSAlert new];
-        a.messageText = title; a.informativeText = text ?: @"";
-        [NSApp activateIgnoringOtherApps:YES];
-        [a runModal];
-    });
+/// D3: what failed goes to the log as a notice, with at most one notification. No alert waits for a person.
+static void Notice(NSString *title, NSString *text) { MMNotice(kExpert, title, text); }
+
+/// A confirm only for a press a person plainly made, MMPersonPresses at the press. With nobody there the answer is
+/// yes: every removal here keeps a way back, as `trees remove` with nobody at the terminal answers.
+static BOOL Confirm(BOOL present, NSString *title, NSString *text, NSString *button) {
+    return !present || MMAskPerson(title, text, button, nil);
 }
 
-static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
-    NSAlert *a = [NSAlert new];
-    a.messageText = title; a.informativeText = text ?: @"";
-    [a addButtonWithTitle:button]; [a addButtonWithTitle:@"Cancel"];
-    [NSApp activateIgnoringOtherApps:YES];
-    return [a runModal] == NSAlertFirstButtonReturn;
+/// The stale worktrees Clean Up would remove now, and the confirm's text that names them.
+static NSArray<MMFinding *> *CleanUpCandidates(MMSnapshot *s, NSString **text) {
+    NSArray *c = MMWFCandidates([s findingsFor:kExpert], s.facts, [s reviewFor:kExpert]);
+    NSMutableString *list = [NSMutableString new];
+    for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
+    [list appendString:@"\nEach is checked again first. Branches stay unless merged, ignored files such as .env are saved, "
+                       @"and Recently Removed can restore each one."];
+    if (text) *text = list;
+    return c;
+}
+
+/// workforest://clean-up, on main. A link can come from any web page, so with a person at the Mac it shows the same
+/// confirm a press of Clean Up gets and never acts unasked. On a Mac that runs unattended, D3, nobody could answer,
+/// so it runs as `trees clean-up` does with nobody at the terminal: each worktree checked fresh, each keeping a way
+/// back, each with its record by "url".
+- (void)cleanUpFromLink:(MMSnapshot *)s {
+    NSString *text = nil;
+    NSArray *c = CleanUpCandidates(s, &text);
+    if (!c.count) return;
+    if (!MMUnattended() && !MMAskPerson([NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], text, @"Remove Them", nil)) return;
+    [self remove:c why:@"Clean Up from a link" by:@"url"];
 }
 
 /// Removes on the act queue, each one checked fresh by MMRunAction, then says what stayed.
-- (void)remove:(NSArray<MMFinding *> *)fs why:(NSString *)why {
+- (void)remove:(NSArray<MMFinding *> *)fs why:(NSString *)why { [self remove:fs why:why by:@"manual"]; }
+
+- (void)remove:(NSArray<MMFinding *> *)fs why:(NSString *)why by:(NSString *)by {
     if (_removing || !fs.count) return;
     _removing = YES;
     dispatch_async(ActQueue(), ^{
         NSMutableArray *failed = [NSMutableArray new];
         for (MMFinding *f in fs) {
             NSString *err = nil;
-            MMUndoRecord *r = MMRunAction(MMWFRemoveAction(f), MMWFManualPolicy(), nil, @"manual", why, &err);
+            MMUndoRecord *r = MMRunAction(MMWFRemoveAction(f), MMWFManualPolicy(), nil, by, why, &err);
             if (!r || r.state != MMUndoDone) [failed addObject:[NSString stringWithFormat:@"%@: %@", f.title, err ?: r.error ?: @"it was not removed"]];
         }
         dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
-        if (failed.count) Alert([NSString stringWithFormat:@"%@ Kept", MMCapitalized(MMPlural(failed.count, @"worktree"))], [failed componentsJoinedByString:@"\n"]);
+        if (failed.count) Notice([NSString stringWithFormat:@"%@ Kept", MMCapitalized(MMPlural(failed.count, @"worktree"))], [failed componentsJoinedByString:@"\n"]);
         [MMRepoIndex.shared refresh:nil];
         [MMGraph.shared rebuild:@"workforest remove"];
     });
 }
 
-/// Main thread. Anything that changes a worktree runs on the act queue, through MMRunAction or MMUndo.
+/// Main thread, from the menu: whether a person is plainly there is read now, at the press.
 - (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s {
+    [self act:what key:key option:option snapshot:s present:MMPersonPresses()];
+}
+
+/// Main thread. Anything that changes a worktree runs on the act queue, through MMRunAction or MMUndo.
+/// present: a person made this press and is there to answer a confirm. NO for a link and while unattended.
+- (void)act:(NSString *)what key:(NSString *)key option:(BOOL)option snapshot:(MMSnapshot *)s present:(BOOL)present {
     if ([what isEqualToString:@"investigate"] && key) {
-        // Issue #35. The cost and the model show first, and only a confirmed run starts.
+        // Issue #35. The cost and the model show first, and only a confirmed run starts. A run costs tokens and has
+        // no way back, so with nobody there to confirm it nothing runs, and the notice says how to run it.
         [MMInvestigations.shared ask:key snapshot:s confirm:^NSString *(NSString *title, NSString *text, NSString *placeholder) {
-            return MMInvestigateConfirm(title, text, placeholder);
-        } failed:^(NSString *error) { MMInvestigateFailed(error); }];
+            if (present) return MMInvestigateConfirm(title, text, placeholder);
+            Notice(@"Investigate Did Not Run", [NSString stringWithFormat:@"Nobody was there to confirm what it costs. minmacs investigate %@ --yes runs it.", key]);
+            return nil;
+        } failed:^(NSString *error) { Notice(@"Investigate Failed", MMSentence(error ?: @"the model did not answer")); }];
         return;
     }
     MMFinding *f = key ? [s finding:key] : nil;
@@ -1026,17 +1120,14 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         _reviewing = YES; _view = nil;
         [MMReviewBroker.shared wake:@"manual" expert:kExpert];
     } else if ([what isEqualToString:@"clean-up"]) {
-        NSArray *c = MMWFCandidates([s findingsFor:kExpert], s.facts, [s reviewFor:kExpert]);
+        NSString *list = nil;
+        NSArray *c = CleanUpCandidates(s, &list);
         if (!c.count) return;
-        NSMutableString *list = [NSMutableString new];
-        for (MMFinding *x in c) [list appendFormat:@"%@\n", x.title];
-        [list appendString:@"\nEach is checked again first. Branches stay unless merged, ignored files such as .env are saved, "
-                           @"and Recently Removed can restore each one."];
-        if (Confirm([NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], list, @"Remove Them")) [self remove:c why:@"Clean Up"];
+        if (Confirm(present, [NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")], list, @"Remove Them")) [self remove:c why:@"Clean Up"];
     } else if ([what isEqualToString:@"restore"] && key) {
         dispatch_async(ActQueue(), ^{
             NSString *problem = [MMUndo.shared restore:key];
-            if (problem) Alert(@"Could Not Restore", MMSentence(problem));
+            if (problem) Notice(@"Could Not Restore", MMSentence(problem));
             [MMRepoIndex.shared refresh:nil];
             [MMGraph.shared rebuild:@"workforest restore"];
         });
@@ -1050,7 +1141,7 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     } else if (!t) {
         return;
     } else if ([what isEqualToString:@"remove"]) {
-        if (Confirm([NSString stringWithFormat:@"Remove the Worktree %@?", t.name],
+        if (Confirm(present, [NSString stringWithFormat:@"Remove the Worktree %@?", t.name],
                     @"It is checked again first. The branch stays unless it is merged, ignored files such as .env are saved, "
                     @"and Recently Removed can restore it.", @"Remove")) [self remove:@[f] why:@"removed from the menu"];
     } else if ([what isEqualToString:@"wrap-up"]) {
@@ -1059,17 +1150,17 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         dispatch_async(ActQueue(), ^{
             MMWrapUpPlan *plan = MMWrapUpPlanFor(path, s);
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (plan.whyNot) { Alert(@"Cannot Wrap Up", MMSentence(plan.whyNot)); return; }
+                if (plan.whyNot) { Notice(@"Cannot Wrap Up", MMSentence(plan.whyNot)); return; }
                 NSMutableString *list = [NSMutableString new];
                 for (MMWrapUpPart *p in plan.parts) [list appendFormat:@"%@\n", p.title];
                 [list appendString:@"\nEach part is checked again first, and again right before it runs. A part that fails stops the rest. "
                                    @"Recently Removed restores it all in one step."];
-                if (self->_removing || !Confirm([NSString stringWithFormat:@"Wrap Up %@?", name], list, @"Wrap Up")) return;
+                if (self->_removing || !Confirm(present, [NSString stringWithFormat:@"Wrap Up %@?", name], list, @"Wrap Up")) return;
                 self->_removing = YES;
                 dispatch_async(ActQueue(), ^{
                     NSString *err = nil;
                     MMUndoRecord *r = MMRunWrapUp(plan, @"manual", &err);
-                    if (!r || r.state != MMUndoDone) Alert(@"Wrap Up Stopped", MMSentence(err ?: r.error ?: @"it did not run"));
+                    if (!r || r.state != MMUndoDone) Notice(@"Wrap Up Stopped", MMSentence(err ?: r.error ?: @"it did not run"));
                     dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
                     [MMRepoIndex.shared refresh:nil];
                     [MMGraph.shared rebuild:@"workforest wrap up"];
@@ -1088,10 +1179,10 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     } else if ([what isEqualToString:@"keep"]) {
         // The keeps and rules files are read and written on the act queue, so main never waits on disk.
         // The rebuild after it carries the change to the menu.
-        NSString *stable = f.stableKey;
+        NSString *stable = f.stableKey, *name = f.title;
         dispatch_async(ActQueue(), ^{
             BOOL kept = [MMKeep keptUntil:stable expert:kExpert] != nil;
-            [MMKeep keep:stable expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400]];
+            [MMKeep keep:stable expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400] by:@"manual" name:name];
             [MMGraph.shared rebuild:@"workforest keep"];
         });
         _view = nil;
@@ -1180,17 +1271,25 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
     uint64_t freed = 0;
     NSString *lastRid = nil;
     NSMutableArray *lines = [NSMutableArray new];
+    NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
     for (NSArray *t in todo) {
         MMFinding *f = t[0];
         NSString *err = nil;
         MMUndoRecord *rec = MMRunAction(MMWFRemoveAction(f), MMWFModePolicy(), r, MMModeName(mode), t[1], &err);
-        if (!rec || rec.state != MMUndoDone) continue;
+        if (!rec || rec.state != MMUndoDone) {
+            NSString *why = rec ? (rec.error ?: err) : err;
+            BOOL kept = !rec && [why hasPrefix:@"kept: "];
+            [skipped addObject:MMLogRunSkip(MMWFTreeOf(f).branch ?: f.title, kept ? [why substringFromIndex:6] : why, kept ? @"kept" : rec ? @"failed" : @"blocked")];
+            continue;
+        }
         MMWFTree *tree = MMWFTreeOf(f);
         freed += rec.freedBytes > 0 ? (uint64_t)rec.freedBytes : tree.freedBytes;
         lastRid = rec.rid;
         [lines addObject:[NSString stringWithFormat:@"%@ %@", tree.repoName, tree.branch ?: tree.name]];
     }
     dispatch_async(dispatch_get_main_queue(), ^{ self->_removing = NO; self->_view = nil; });
+    // The pass's row in the log: what it planned, what it did and what it skipped, with why.
+    MMLogRun(kExpert, MMModeName(mode), (NSInteger)todo.count, (NSInteger)lines.count, skipped, 0, freed);
     if (!lines.count) return;
     NSString *title = [NSString stringWithFormat:@"Removed %@, Freed %@", MMCapitalized(MMPlural(lines.count, @"worktree")).capitalizedString, MMBytes(freed)];
     NSString *body = [NSString stringWithFormat:@"%@ removed %@. Undo recreates %@ at its commit with its saved files.",

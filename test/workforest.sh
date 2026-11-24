@@ -100,6 +100,23 @@ check "a process inside is found" True "$(get busy "['processes'] != []")"
 check "the agent session is found" "Claude Code" "$(get agent "['session']['agent']")"
 r=$("$MM" trees list --json | json "len(j['trees'])");                    check "minmacs trees list reads the same worktrees" 12 "$r"
 
+echo "== a worktree's story: its last commit, where it stands against main, and its pull request"
+check "the last commit's subject is read in the same git run as its time" "squash part two|try a thing" "$(get squash "['subject']")|$(get judged "['subject']")"
+check "the commits main has that a branch does not are counted" "2 0" "$(get squash "['behindDefault']") $(get judged "['behindDefault']")"
+# What the window last heard from gh, as MMPulls keeps it. The CLI reads it and never runs gh.
+wf_repo=$(get judged "['repo']"); wf_head=$(get judged "['head']"); mkdir -p "$MINMACS_HOME/workforest"
+python3 - "$MINMACS_HOME/workforest/pulls.json" "$wf_repo" "$wf_head" <<'PY'
+import json, sys, time
+pull = {"number": 7, "title": "Try a thing", "url": "https://github.com/acme/app/pull/7", "state": "open", "draft": False,
+        "review": None, "checks": {"passing": 2, "failing": 0, "pending": 0}, "milestone": "Phase 6: Bench and polish"}
+json.dump({sys.argv[2] + "\njudged": {"at": time.time(), "head": sys.argv[3], "pull": pull},
+           sys.argv[2] + "\nunpushed": {"at": time.time(), "head": "an older head", "pull": None}}, open(sys.argv[1], "w"))
+PY
+check "explain --json shows the pull request the window last heard of, with its milestone" "found 7 open 2 Phase 6: Bench and polish" \
+  "$("$MM" trees explain "$W/judged" --json | json "' '.join(str(x) for x in [j['pullRequest']['known'], j['pullRequest']['pull']['number'], j['pullRequest']['pull']['state'], j['pullRequest']['pull']['checks']['passing'], j['pullRequest']['pull']['milestone']])")"
+check "a worktree gh was not asked about, or was asked at another head, has no pullRequest" "False False" \
+  "$("$MM" trees explain "$W/merged" --json | json "'pullRequest' in j") $("$MM" trees explain "$W/unpushed" --json | json "'pullRequest' in j")"
+
 echo "== clean-up with no review, issue #88"
 wf_cu=$("$WF" clean-up --dry-run 2>&1)
 check "clean-up with no review says so, and names the merged worktrees that pass every keep" "1 1" \
@@ -109,7 +126,8 @@ wf_cm=$("$WF" clean-up --merged --dry-run 2>&1)
 check "clean-up --merged lists the merged worktrees with nothing to lose" "envy merged squash" \
   "$(printf '%s\n' "$wf_cm" | awk '/^  /{sub("^app/", "", $1); print $1}' | sort | tr '\n' ' ' | sed 's/ $//')"
 check "and none that a work keep holds, merged by ancestry as they are" 0 "$(printf '%s\n' "$wf_cm" | grep -cE '^  app/(dirty|untracked|locked|busy|recent|agent|unpushed|loose|judged) ')"
-"$WF" clean-up --merged >/dev/null 2>&1;                                   check "clean-up --merged without --yes asks for it, exit 2" 2 "$?"
+# D3: with no TTY the answer would be yes, so MINMACS_UNATTENDED=0 says a person is here, and then it refuses.
+MINMACS_UNATTENDED=0 "$WF" clean-up --merged </dev/null >/dev/null 2>&1;    check "clean-up --merged without --yes asks for it, exit 2" 2 "$?"
 check "a dry run and a refusal remove nothing" "yes yes yes" "$(wf_has "$W/merged") $(wf_has "$W/squash") $(wf_has "$W/envy")"
 
 echo "== every mode keeps work, even when the review calls it all stale"
@@ -203,9 +221,9 @@ echo "== ignored files are saved, caches are not"
 RV_TEST_GO=/envy "$WF" review --model haiku --mode eager --fresh >/dev/null 2>&1
 "$WF" auto --mode eager --path "$W/envy" >/dev/null
 check "envy is removed" no "$(wf_has "$W/envy")"
-# Nobody has chosen what happens to removed things yet, and Eager removed this on its own: a way back is kept.
-check "a mode's removal before the person chose keeps a way back, and says why" "False you have not chosen what happens to removed things yet, so a way back is kept" \
-  "$("$MM" restore --list --json --limit 6 | json "(lambda r: '%s %s' % (r['removal']['wants'], r['removal']['why']))([r for r in j['records'] if r['kind'] == 'remove'][0])")"
+# Eager removed this on its own, and it keeps a way back, as everything MinMacs removes does.
+check "a mode's removal keeps a way back" "False trash" \
+  "$("$MM" restore --list --json --limit 6 | json "(lambda r: '%s %s' % (r['removal']['wants'], r['removal']['choice']))([r for r in j['records'] if r['kind'] == 'remove'][0])")"
 REC=$("$WF" removed --json)
 check ".env is saved" True "$(echo "$REC" | json "'.env' in j[0]['saved']")"
 check "node_modules is not" False "$(echo "$REC" | json "any('node_modules' in s for s in j[0]['saved'])")"
@@ -237,7 +255,7 @@ check "at its commit" "squash part two" "$(G -C "$W/squash" log -1 --format=%s 2
 r=$(python3 -c "import sqlite3; c=sqlite3.connect('$MINMACS_HOME/minmacs.sqlite'); print(c.execute(\"select count(distinct rid) from rows where tbl='undo' and expert='workforest'\").fetchone()[0])" 2>&1)
 check "the four removals are undo records in Core's log" 4 "$r"
 "$WF" restore "$(echo "$REC" | json "j[0]['id']")" >/dev/null 2>&1;      check "a second restore of the same record is refused" 1 "$?"
-"$WF" remove "$W/recent" >/dev/null 2>&1;                                  check "remove without --yes asks for it, exit 2" 2 "$?"
+MINMACS_UNATTENDED=0 "$WF" remove "$W/recent" </dev/null >/dev/null 2>&1;  check "remove without --yes asks for it, exit 2" 2 "$?"
 "$WF" remove "$W/merged" --dry-run >/dev/null 2>&1;                       check "remove --dry-run of a protected worktree says kept, exit 1" 1 "$?"
 check "and changes nothing" yes "$(wf_has "$W/merged")"
 "$MM" _verbs >"$wf/verbs.txt" 2>/dev/null
@@ -279,11 +297,27 @@ check "the worktree is gone, and the one outside --path stays" "no yes" "$(wf_ha
 check "it says what it removed" 1 "$(grep -c '^removed app/cm1' "$wf/cm.out")"
 check "the record says who removed it and why" "cli merged, removed by clean-up --merged" "$("$WF" removed --json | json "'%s %s' % (j[0]['by'], j[0]['why'])")"
 "$WF" restore "$W/cm1" >/dev/null 2>&1;                                    check "and restore brings it back" "0 yes" "$? $(wf_has "$W/cm1")"
+# D3: nobody at the terminal. A removal keeps a way back, so it goes ahead as --yes would, and nothing waits.
+# script gives a command a TTY of its own, so a check can tell a person at a terminal from none. Its input stays
+# open a few seconds with nothing in it, since script ends its command when its own input ends.
+wt cm3; wt cm4; wt cm5
+find "$W/cm3" "$W/cm4" "$W/cm5" -exec touch -h -t 202501011200 {} +
+wf_t() { perl -e 'alarm shift; exec @ARGV' 60 "$@"; }
+wf_t "$WF" clean-up --merged --path "$W/cm3" </dev/null >"$wf/cm3.out" 2>&1
+check "D3: clean-up --merged with no TTY and no --yes removes as --yes does, within a minute" "0 no" "$? $(wf_has "$W/cm3")"
+check "D3: and its record says the command line removed it" cli "$("$WF" removed --json | json "j[0]['by']")"
+sleep 5 | wf_t env MINMACS_UNATTENDED=1 script -q /dev/null "$WF" remove "$W/cm4" >/dev/null 2>&1
+check "D3: remove with a TTY and MINMACS_UNATTENDED=1 removes as --yes does" "0 no" "$? $(wf_has "$W/cm4")"
+sleep 5 | wf_t script -q /dev/null "$WF" remove "$W/cm5" >"$wf/cm5.out" 2>&1
+check "D3: with a person at the TTY, remove still wants --yes, exit 2, and removes nothing" "2 yes" "$? $(wf_has "$W/cm5")"
+check "D3: and says to add --yes" 1 "$(grep -c 'Add --yes to remove' "$wf/cm5.out")"
+"$WF" restore "$W/cm3" >/dev/null 2>&1; "$WF" restore "$W/cm4" >/dev/null 2>&1
 G -C "$A" worktree remove --force "$W/cm1" 2>/dev/null; G -C "$A" worktree remove --force "$W/cm2" 2>/dev/null
-G -C "$A" branch -q -D cm1 cm2 2>/dev/null
+for c in cm3 cm4 cm5; do G -C "$A" worktree remove --force "$W/$c" 2>/dev/null; done
+G -C "$A" branch -q -D cm1 cm2 cm3 cm4 cm5 2>/dev/null
 kill "$wf_busy" 2>/dev/null
 
-# The removal choice, issue #62, on worktrees of its own. It runs after the counts above.
+# Where a removed worktree goes, issue #62 and D2, on worktrees of its own. It runs after the counts above.
 . ./test/workforest/removal.sh
 # The keep check's fresh read under a root that is a link, issue #125, on repos of its own.
 . ./test/workforest/fresh.sh

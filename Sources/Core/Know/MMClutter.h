@@ -36,8 +36,8 @@ NSString *MMClutterClassName(MMClutterClass c);          // cache, tool, build, 
 @property (readonly) BOOL reportOnly;                   // such as the root-owned simulator dyld cache
 @property (readonly) BOOL skipWhenTracked;              // dist and build are skipped when git tracks them
 /// YES only when the row says "rebuilt": a tool rebuilds or downloads all of it again, such as node_modules or the
-/// pip cache. Under the Smart removal choice of Act/MMRemoval.h such an item is deleted at once. A row with logs,
-/// hand-made content or a leftover never says it, so it keeps a way back.
+/// pip cache. It no longer decides where an item goes: everything MinMacs removes keeps a way back, Act/MMRemoval.h.
+/// A row with logs, hand-made content or a leftover never says it.
 @property (readonly) BOOL rebuilt;
 /// For a rebuilt row of folders inside projects: the files that prove its tool can rebuild this one, such as
 /// package-lock.json beside node_modules. One must sit beside the folder now. The row's "rebuiltFrom", or its
@@ -73,6 +73,12 @@ typedef struct {
 @property (readonly) MMClutterKind *kind;
 @property (readonly, copy) NSString *path;              // a family is named root/prefix-*, its members are in members
 @property (readonly) NSArray<NSString *> *members;      // what a family holds, or the one path
+/// A family's members judged one by one, -[MMClutterCatalog judge...]: the ones that may go now, each past the walls,
+/// older than its quiet period (an empty folder 1 hour, family.emptyMinAge; anything else the row's minAge) and held
+/// by no process. Empty for any other row. Read on the scan and again by inspect:, right before an action.
+@property (readonly) NSArray<NSString *> *leftovers;
+/// What an action on this item removes: a family's leftovers, or the members of any other row.
+- (NSArray<NSString *> *)actOn;
 /// P29. The project or install this item belongs to, from a back-link in the tool's own files:
 /// DerivedData info.plist WorkspacePath, Playwright .links, pnpm .modules.yaml storeDir, simulator device.plist.
 /// For build output the checkout that holds it. nil when the tool keeps no back-link.
@@ -130,6 +136,9 @@ extern NSNotificationName const MMClutterDidChangeNotification;
 /// support folder, a symlink, a path of another user and anything a row's "never" protects are always refused.
 /// kind nil looks the row up with kindFor:.
 - (NSString *)whyNot:(NSString *)path kind:(MMClutterKind *)kind;
+/// whyNot:kind: of each path, read now in one pass, so a family's thousands of members resolve the walls' folders
+/// and the checkouts once. Only the refused paths are keys, each with why.
+- (NSDictionary<NSString *, NSString *> *)whyNotEach:(NSArray<NSString *> *)paths kind:(MMClutterKind *)kind;
 /// Starts the scan timer on MMQueue(@"core", @"clutter"): due rows a few minutes after launch, then every 5 minutes.
 - (void)start;
 - (void)stop;

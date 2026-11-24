@@ -1,9 +1,14 @@
 # Core checks: the build, the bundle and the CLI. Sourced by test.sh.
 # test.sh always runs this section first, since it builds the copy the other sections test.
 
-out=$(BUILD_DIR="$MINMACS_HOME/build" ./build.sh --no-install 2>&1); r=$?
+# The build runs with TMPDIR at a fresh folder. clang with two -arch flags leaves an empty folder per input in TMPDIR,
+# 234 a build, and MinMacs's own clutter scan walks TMPDIR. build.sh gives clang a private one, so nothing is left here.
+co_tmp="$MINMACS_HOME/outer-tmp"; mkdir -p "$co_tmp"
+out=$(TMPDIR="$co_tmp/" BUILD_DIR="$MINMACS_HOME/build" ./build.sh --no-install 2>&1); r=$?
 check "build.sh builds into BUILD_DIR" 0 "$r"
 [ "$r" = 0 ] || printf '%s\n' "$out" | tail -20
+check "build.sh leaves nothing in TMPDIR" 0 "$(ls -A "$co_tmp" | wc -l | tr -d ' ')"
+check "build.sh removes its private clang folder" 0 "$(ls -d "$MINMACS_HOME"/build/clang-tmp.* 2>/dev/null | wc -l | tr -d ' ')"
 check "the build has no warnings" 0 "$(grep -c "warning:" "$MINMACS_HOME/build/clang.log" 2>/dev/null)"
 check "the binary is universal" "x86_64 arm64" "$(lipo -archs "$BIN" 2>/dev/null)"
 check "the binary targets macOS 14" "14.0" "$(vtool -arch arm64 -show-build "$BIN" 2>/dev/null | awk '/minos/ {print $2}')"

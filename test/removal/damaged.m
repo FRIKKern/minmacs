@@ -75,7 +75,7 @@ static void Damaged(void) {
       YN([MMUndo.shared record:part.rid].deletedNow)]);
     // A hand-pressed Undo of a Trash removal, which is no part of a Wrap Up.
     Write(plain, @"PLAIN=1");
-    MMRemovalDecision *keep = MMRemovalDecideWith(MMRemovalTrash, MMRemovalClutter, nil);
+    MMRemovalDecision *keep = MMRemovalDecide(MMRemovalClutter, nil, nil);
     MMUndoRecord *single = Begin(@"trash", @"a cache to the Trash");
     MMRemovalNote(single, keep, nil); MMRemovalAsk(single, @[plain]);
     MMRemovalApply(plain, keep, single, nil);

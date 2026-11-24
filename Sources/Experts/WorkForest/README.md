@@ -14,6 +14,8 @@ One finding per checkout, kind `worktree`, id `workforest:worktree:<path>`. The 
 
 The fingerprint holds HEAD, the merge state, the upstream, the dirty, untracked and unpushed counts, whether HEAD is on a remote, whether anything runs inside, the session's age bucket, the quiet bucket, protected and locked. The finding's facts are the whole tree as JSON, for `--json`, the menu and the review.
 
+`inputDigestFrom:` digests what the trees are built from, issue #52: the identity of each worktree, its git facts and each session, which Know replaces when they change; a stat of each checkout folder, which says whether it is there and whether its disk walk is stale; `-[MMTreeDisk generation]`, which moves with every walk; the protected branches; and the name and folder of each process of this user whose folder lies in a checkout, each pair once. When it matches, the graph hands back the last findings, and plans on that snapshot read them as built from its facts, so nothing walks again. The quiet time and the day of recent work move at the next heartbeat build, at most 30 seconds later.
+
 ## Keeps
 
 - **Every mode, on fresh facts.** The main checkout, a missing folder, a worktree Cursor or Conductor made (decision 6), a protected branch, a lock, git facts not known yet, uncommitted or untracked files, commits on no remote that are not merged, a detached HEAD with commits no branch holds, a process inside, an agent session that works in it now or was active in the last day, a file change in the last day, files not walked yet, and a worktree made in the last day. HEAD that moved since the plan cannot be verified, so it stays.
@@ -28,16 +30,16 @@ The fingerprint holds HEAD, the merge state, the upstream, the dirty, untracked 
 
 `MMRunAction` checks the action again, reads fresh facts, writes the undo record, then the action:
 
-0. `MMRemovalDecide` answers for the worktree and for its ignored files, on git facts read now, and both answers go into the record's `removal`. git removes the folder in every choice and is the way back for what it holds, so the worktree's answer is the record's word for where it went. Under Smart it says deleted only for a merged or remote-gone branch with no change, no untracked file, no commit on no remote and no stash.
+0. `MMRemovalDecide` answers for the worktree and for its ignored files, on git facts read now, and both answers go into the record's `removal`. git removes the folder and is the way back for what it holds. Both answers keep a way back, and the worktree's why says whether git alone can give it back.
 1. `-[MMUndo bundle:]` counts the commits on no remote itself and takes a git bundle when there are any, in every choice. No bundle, no removal.
-2. The ignored files that are not caches, from `MMWorktreeIgnoredFiles`, are copied to the recovery folder with `-[MMUndo recover:]`. A `.env` is saved, and `node_modules` is not. Under the Delete choice they are not saved, the record lists them as `ignoredDeleted`, and it cannot restore.
+2. The ignored files that are not caches, from `MMWorktreeIgnoredFiles`, are copied to the recovery folder with `-[MMUndo recover:]`. A `.env` is saved, and `node_modules` is not.
 3. `MMWorktreeRemove` runs `git worktree remove` with no `--force`, so git refuses a worktree with changes, then `git branch -d` for a merged branch only.
 
 `-[MMUndo restore:]` recreates the worktree at its commit, from the bundle when the repo lost it, then copies the saved files back without writing over anything. WorkForest 0.1's `removed.json` is imported into the undo log once per record, with its saved files left where 0.1 put them, so `restore <0.1 id>` still works. The 0.1 files are never changed.
 
 ## Wrap Up
 
-A merged worktree whose agent sessions ended gets Wrap Up… on its card, after Open in Terminal, when every part passes its keeps. The gray tail is the servers it stops and what it frees. WorkForest owns two of its parts: untracked config files such as `.env.local` go to the Trash, and under the Delete choice wait in MinMacs's staging folder and are deleted only once `git worktree remove` went through, and the worktree goes the way Remove takes it. Its keeps are Remove's work keeps on the tree read again, with three changes: the processes the server and helper parts end do not count, the day of quiet after the last change and the last session is waived, and untracked files are the config part's, which refuses any file that is not a config file. Recently Removed restores a worktree that went in a Wrap Up together with the rest of it. `Sources/Core/README.md` describes the run and the record.
+A merged worktree whose agent sessions ended gets Wrap Up… on its card, after Open in Terminal, when every part passes its keeps. The gray tail is the servers it stops and what it frees. WorkForest owns two of its parts: untracked config files such as `.env.local` go to the Trash, and the worktree goes the way Remove takes it. Its keeps are Remove's work keeps on the tree read again, with three changes: the processes the server and helper parts end do not count, the day of quiet after the last change and the last session is waived, and untracked files are the config part's, which refuses any file that is not a config file. Recently Removed restores a worktree that went in a Wrap Up together with the rest of it. `Sources/Core/README.md` describes the run and the record.
 
 ## What the review gets
 
@@ -51,7 +53,7 @@ A worktree's card lists the servers LocoHost finds inside it, such as ":3000 Vit
 
 ## Verbs
 
-`trees` and its other name `worktrees`, registered through `MMExpert`: `list [--all]`, `explain <path>`, `review [--model] [--mode] [--fresh] [--path]`, `plan`, `auto [--mode] [--path] [--review]`, `clean-up [--merged] [--yes]`, `remove <path> --yes`, `restore <id|path>`, `removed`, `keep <path> [--days n] [--off]`, `protect <path> [--off]`, `prune <path>` and `rules`. Every command takes `--json` and `--dry-run`. A command that changes things needs the app, unless it is given `--dry-run`. That holds for `keep` and `protect` too, since a keep and the protect list change what the modes may remove. The verb is registered with `mutates:NO` because `list`, `explain` and the other reads run anywhere, so each changing command calls `needsApp` itself. `--fresh` sends every worktree to the model past the fingerprint cache.
+`trees` and its other name `worktrees`, registered through `MMExpert`: `list [--all]`, `explain <path>`, `review [--model] [--mode] [--fresh] [--path]`, `plan`, `auto [--mode] [--path] [--review]`, `clean-up [--merged] [--yes]`, `remove <path> --yes`, `restore <id|path>`, `removed`, `keep <path> [--days n] [--off]`, `protect <path> [--off]`, `prune <path>`, `rules` and `prs on|off`. Every command takes `--json` and `--dry-run`. A command that changes things needs the app, unless it is given `--dry-run`. That holds for `keep` and `protect` too, since a keep and the protect list change what the modes may remove. The verb is registered with `mutates:NO` because `list`, `explain` and the other reads run anywhere, so each changing command calls `needsApp` itself. `--fresh` sends every worktree to the model past the fingerprint cache.
 
 WorkForest 0.1's syntax works under the `workforest` name through the shim in `Sources/CLI/MMCLI.m`: `list`, `explain`, `review`, `summary`, `auto`, `clean-up`, `remove`, `restore`, `removed`, `keep`, `prune`, `rules` and `fetch` become `trees` commands, and `mode` becomes Core's `mode workforest`. `openURL:` handles `workforest://review`, `clean-up` and `rescan`.
 
@@ -61,12 +63,12 @@ WorkForest 0.1's syntax works under the `workforest` name through the shim in `S
 
 ## Left open
 
-- `MMGitFacts` has no last commit subject, so the subject is neither shown nor sent. WorkForest 0.1's check that a secret in the subject is redacted is run on the session title instead.
+- `MMGitFacts` reads the last commit's subject, in the same git run as its time, and the tree carries it as `subject` for the window's story and `--json`. It is not in the review's facts, so it is not sent. WorkForest 0.1's check that a secret in the subject is redacted is run on the session title instead.
 - The disk walk of `MMTreeDisk` runs in process on `no.guerrilla.minmacs.core.disk`, with an autorelease pool per walk. It belongs in the worker of P4, next to `sizeTrees:`.
 - Process folders come from `-[MMSample cwdOf:]` for every process of the person's uid on each rebuild. A rebuild with a thousand processes reads a thousand folders.
 - On a snapshot made by hand, with nothing prepared, `viewFor:` on main reads the undo log, the keeps and the rules, as LocoHost's does. It leaves out the Wrap Up tails and the server links, which only `prepareFor:` on the graph queue makes.
 - Sessions that only named a worktree in a parent folder's log, WorkForest 0.1's "a session named this folder", are not matched. Know's session index matches by working folder only.
-- `fetch` is gone: MinMacs never fetches. The merged pull request check through `gh` is gone too.
+- `fetch` is gone: MinMacs never fetches. The merged pull request check through `gh` is gone too. What `gh` is still asked is a worktree's pull request for the window's story, on demand only, by `MMPulls` in `Sources/Core/Know`, which the window's controller asks and nothing in WorkForest does. `trees prs on|off` sets whether it may, and `trees explain <path> --json` shows the last answer as `pullRequest`.
 
 ## Investigate, issue #35
 

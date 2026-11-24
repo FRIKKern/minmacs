@@ -195,8 +195,33 @@ Then the model asks for tool calls, and their results are sent too:
 
 So unlike a review, Investigate sends the contents of files in the folders it may read. Each tool call writes one line to an audit file in the support folder. When the run ends, MinMacs keeps the count of calls and refusals and the bytes handed to the model, and deletes that file.
 
+## Pull requests
+
+This is the one ask that goes to GitHub and not to a model. MinMacs asks about a worktree's pull request only while that worktree's story shows in the window: while the pointer rests on its row, or the row is the active one. It asks through the `gh` CLI on the person's own login, so the ask goes where gh sends it, under that account, as the same command typed in a terminal would. Nothing asks on a timer, for a snapshot, from a verb or while the window is closed. A main checkout and a protected branch are never asked about. With gh missing or not logged in, nothing is asked and the story says nothing about pull requests.
+
+`MMPullArguments` in `Sources/Core/Know/MMPulls.m` builds the call, which runs in the worktree's folder:
+
+```
+gh pr list --head <branch> --state all --limit 1 --json number,title,state,isDraft,url,reviewDecision,statusCheckRollup,mergedAt,updatedAt,milestone
+```
+
+| What GitHub gets | Where it comes from |
+|---|---|
+| The repo | gh reads it from the git remote of the worktree's folder, such as github.com/acme/atlas |
+| The branch name | The worktree's branch |
+| Who asks | The person's own gh login |
+| The fields asked for | Those after `--json` above: the pull request's number, title, state, draft, address, review decision, checks, times and the title of its milestone |
+
+No file contents, no folder path, no commit, no diff and nothing about other worktrees is sent. gh adds its own version and the usual web headers. One call runs at a time, with a limit of 5 seconds. An answer is kept for five minutes per repo and branch and asked again sooner only when the branch's head moved. After a failure the repo waits a minute, then longer each time, up to 30 minutes, before it is asked again, and gh that is not logged in is left alone for 10 minutes. The answers stay on this Mac, in `workforest/pulls.json` in the support folder, so `minmacs trees explain <path> --json` can show the last one as `pullRequest`. No review or Investigate call sends them.
+
+`minmacs trees prs off`, or the Pull requests switch in Settings under This Mac, turns it off. It is the pref `workforest.pullRequests`, on by default.
+
 ## Where it goes
 
-A search of `Sources` for `http://` and `https://` strings finds only localhost URLs, which LocoHost uses to open or check a local server. `NSURLSession` appears only in LocoHost's port check. The code holds no telemetry. The model calls go out through the `claude` or `codex` CLI.
+The log, `minmacs.sqlite` in the support folder, stays on this Mac. It holds each action and its undo record, each review with its verdicts and tokens, each look of Investigate, each setting that changed with who changed it, each keep with the name of what it keeps, and each quiet hold with the pid, its start time, the reason it was given and when it began and ended. The window's middle and `minmacs log` read it. No review or Investigate call sends it or its sentences.
+
+The quiet holds that are active now sit in `quiet/holds.json` in the support folder, so every MinMacs process obeys them: each held pid with its start time, the reason, who asked, when, and which MinMacs process keeps the Mac awake for it. An entry leaves the file when its hold ends. `minmacs device` writes nothing. It prints the Mac's name, model, power, displays, load, the agents that run and the names other processes give their sleep assertions to whoever runs it, and sends nothing anywhere.
+
+A search of `Sources` for `http://` and `https://` strings finds only localhost URLs, which LocoHost uses to open or check a local server, and the check in `MMPulls.m` that a pull request's address is a web page before the window opens it. `NSURLSession` appears only in LocoHost's port check. The code holds no telemetry. The model calls go out through the `claude` or `codex` CLI, and the pull request asks through `gh`.
 
 There is no switch yet that turns the review off for one expert. [PLAN.md](2.0/PLAN.md) section 10 asks for one.
