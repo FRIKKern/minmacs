@@ -14,7 +14,9 @@
 #   canary.sh publish           the same, then upload the healthy build as the canary everyone's update gets
 #   options: --no-gate, --full (every section but soak now), --quick (the blast radius even when a full run is due),
 #            --base <ref> (what the gate diffs against; default the commit that runs here, else origin/main; a publish
-#            diffs against the newest published canary, so what it shares was tested since the last one)
+#            diffs against the newest published canary, so what it shares was tested since the last one),
+#            --gate local|ci (default local: the gate runs ./test.sh here. ci: the gate is the workflow CI, finished
+#            green on this exact commit on GitHub, so nothing heavy runs on this Mac; needs a pushed clean commit, gh)
 #
 # A build is stamped CFBundleVersion <version>+<commit>[-dirty] and signed ad hoc again, so the commit that runs is
 # always known. The newest 5 builds are kept in $MINMACS_CANARY_HOME (default ~/.local/share/minmacs-canary), with a
@@ -139,12 +141,14 @@ esac
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || die "run it inside a MinMacs checkout, or use update"
 [ -f build.sh ] && [ -d Sources ] || die "$(pwd) is not a MinMacs checkout"
 PUBLISH=0; [ "${1:-}" = publish ] && { PUBLISH=1; shift; }
-GATE=1; BASE=""; FULL=auto
+GATE=1; BASE=""; FULL=auto; GATE_BY=local
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-gate) GATE=0; shift ;;
     --full) FULL=yes; shift ;;
     --quick) FULL=no; shift ;;
+    --gate) [ $# -ge 2 ] || die "--gate needs local or ci"
+            case "$2" in local|ci) GATE_BY="$2" ;; *) die "--gate is local or ci, not $2" ;; esac; shift 2 ;;
     --base) [ $# -ge 2 ] || die "--base needs a ref"; BASE="$2"; shift 2 ;;
     -h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1. Try --help." ;;
@@ -211,8 +215,25 @@ cp install.sh "$OUT/install.sh"
   || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $STAMP" "$OUT/MinMacs.app/Contents/Info.plist"
 codesign -s - --force --deep "$OUT/MinMacs.app" >/dev/null 2>&1 || die "could not sign the stamped copy"
 
+[ "$GATE" = 0 ] && [ "$GATE_BY" = ci ] && die "--no-gate and --gate ci say different things"
+
+# The CI gate: the newest finished run of the workflow CI on this exact commit passed.
+ci_gate() {
+  [ -z "$(git status --porcelain --untracked-files=no)" ] || die "the CI gate needs a clean checkout: CI never ran these changes"
+  command -v gh >/dev/null 2>&1 || die "the CI gate needs gh, logged in"
+  sha=$(git rev-parse HEAD)
+  runs=$(gh run list -R "$REPO" --commit "$sha" --workflow CI --json databaseId,status,conclusion \
+    --jq '.[] | "\(.databaseId) \(.status) \(.conclusion)"' 2>/dev/null) || die "could not read the CI runs of $sha from $REPO"
+  done_run=$(printf '%s\n' "$runs" | awk '$2 == "completed" { print; exit }')
+  [ -n "$done_run" ] || { [ -n "$runs" ] && die "CI has not finished on $sha yet"; die "CI never ran on $sha: push it, or use --gate local"; }
+  set -- $done_run
+  [ "$3" = success ] || die "CI on $sha ended $3, run $1. Nothing was built."
+  GATED="CI green on $(git rev-parse --short HEAD), run $1"
+  say "Gate: $GATED"
+}
 GATED="skipped"
-if [ "$GATE" = 1 ]; then
+[ "$GATE" = 1 ] && [ "$GATE_BY" = ci ] && ci_gate
+if [ "$GATE" = 1 ] && [ "$GATE_BY" = local ]; then
   secs=$(gate_sections)
   render=0; case "$secs" in *+render*) render=1; secs=$(echo "$secs" | sed 's/+render//') ;; esac
   # A canary with nothing changed runs core alone.
