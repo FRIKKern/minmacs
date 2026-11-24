@@ -1,9 +1,10 @@
 // A row under the pointer and a row a press picked, DESIGN rule 2 and the row states: the pointer gives a quiet white
-// wash, a press makes the row active, blue, with its story pinned in the middle while the pointer goes over other
-// rows. tools/render.m includes this file after render-window-caches.m and uses its Check, WindowLists, PolishView,
+// wash and previews its row's story in the middle, a press makes the row active, blue, and its story comes back once
+// the pointer leaves the rows. tools/render.m includes this file after render-window-caches.m and uses its Check, WindowLists, PolishView,
 // PolishHost, PolishDock, WordViews and LogDraw. It is not built on its own.
 
-/// fixture, state, the row the pointer rests on. "active" makes server:6006 the active row as well.
+/// fixture, state, the row the pointer rests on. "active" makes server:6006 the active row as well, while the middle
+/// previews the row under the pointer.
 static NSArray<NSArray *> *WindowPressShots(void) {
     return @[@[@"busy", @"hover", @"server:6006"], @[@"busy", @"active", @"agent:4"]];
 }
@@ -13,6 +14,9 @@ static void PressShotState(MMWindowView *v, NSString *state) {
 }
 
 static MMWindowMiddleView *PressMiddle(MMWindowView *v) { return WordViews(v, MMWindowMiddleView.class).firstObject; }
+
+/// Longer than the beat the window waits after the pointer leaves the rows.
+static void PressBeat(void) { [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.4]]; }
 
 /// The list that holds a row, and the middle of that row where it is drawn, in the list's coordinates.
 static MMWindowListView *PressList(MMWindowView *v, NSString *key, NSPoint *at) {
@@ -67,7 +71,9 @@ static void WindowPressChecks(void) {
     }
 
     // A press picks a row: blue, its story in the middle and its numbers in the dock. The pointer on another row then
-    // gives that row the wash only: the pinned story and the dock stay. Nothing reaches the host.
+    // gives that row the wash and previews its story, and the dock tells its share, while the active row stays blue.
+    // Once the pointer leaves the rows, a beat later, the middle and the dock go back to the active row. Nothing
+    // reaches the host.
     MMWindowView *v = PolishView(@"busy");
     PolishHost *host = [PolishHost new];
     v.host = host;
@@ -81,12 +87,18 @@ static void WindowPressChecks(void) {
     [la pressAt:a];
     BOOL picked = [v.activeRow isEqualToString:@"server:6006"] && [la.hotKey isEqualToString:@"server:6006"] && !la.hoverKey;
     [lb pointAt:b];
-    BOOL stays = [middle.row.key isEqualToString:@"server:6006"] && [dock.pointed.key isEqualToString:@"server:6006"] &&
-                 [la.hotKey isEqualToString:@"server:6006"] && [lb.hoverKey isEqualToString:@"agent:4"];
+    BOOL other = [middle.row.key isEqualToString:@"agent:4"] && [dock.pointed.key isEqualToString:@"agent:4"] &&
+                 [la.hotKey isEqualToString:@"server:6006"] && [lb.hoverKey isEqualToString:@"agent:4"] && [v.activeRow isEqualToString:@"server:6006"];
     [lc pointAt:c];
-    BOOL across = [middle.row.key isEqualToString:@"server:6006"] && lc == WindowLists(v).lastObject && [lc.hoverKey isEqualToString:disk] && [lc.hotKey isEqualToString:@"server:6006"];
-    Check(preview && picked && stays && across, @"window rows: the pointer previews a row's story; a press pins it, blue, and the pointer on other rows, on either side, only washes them while the story and the dock keep the active row",
-          [NSString stringWithFormat:@"preview %d, picked %d, stays %d, across %d, middle %@", preview, picked, stays, across, middle.row.key]);
+    BOOL across = [middle.row.key isEqualToString:disk] && [dock.pointed.key isEqualToString:disk] && lc == WindowLists(v).lastObject &&
+                  [lc.hoverKey isEqualToString:disk] && [lc.hotKey isEqualToString:@"server:6006"];
+    [lc pointAt:NSMakePoint(-10, -10)];
+    BOOL beat = [middle.row.key isEqualToString:disk];
+    PressBeat();
+    BOOL back = [middle.row.key isEqualToString:@"server:6006"] && [dock.pointed.key isEqualToString:@"server:6006"] && !lc.hoverKey && [lc.hotKey isEqualToString:@"server:6006"];
+    Check(preview && picked && other && across && beat && back,
+          @"window rows: the pointer previews a row's story, active row or not, on either side, with the dock's numbers; a press makes it blue, and a beat after the pointer leaves the rows the middle and the dock show the active row again",
+          [NSString stringWithFormat:@"preview %d, picked %d, other %d, across %d, beat %d, back %d, middle %@", preview, picked, other, across, beat, back, middle.row.key]);
 
     // A press on another row moves the active state there; a second press on it, a press on empty space and Escape each let it go.
     [lb pointAt:b];
@@ -103,6 +115,14 @@ static void WindowPressChecks(void) {
     Check(moved && again && empty && escaped, @"window rows: a press on another row moves the active row, and a second press, a press on a header or Escape lets it go",
           [NSString stringWithFormat:@"moved %d, again %d, empty %d, escape %d", moved, again, empty, escaped]);
 
+    // No row is active and the pointer leaves the rows: a beat later the middle shows the log, and the dock the Mac.
+    [lb pointAt:b];
+    BOOL shown = [middle.row.key isEqualToString:@"agent:4"] && v.activeRow == nil;
+    [lb pointAt:NSMakePoint(-10, -10)];
+    PressBeat();
+    Check(shown && middle.row == nil && !middle.logView.hidden && dock.pointed == nil,
+          @"window rows: with no active row, a beat after the pointer leaves the rows the middle shows the log", middle.row.key ?: @"log");
+
     // Escape leaves Settings before it lets go of a row, and the press only selects: no fix, stop, rule, switch or Undo.
     [la pressAt:a];
     v.showsSettings = YES;
@@ -110,6 +130,42 @@ static void WindowPressChecks(void) {
     v.showsSettings = NO;
     Check(settingsLets && host.fixes == 0 && host.stops == 0 && host.rules == 0 && host.switches == 0 && host.undos == 0,
           @"window rows: a press on a row reaches no host call, and Settings lets the active row go", [NSString stringWithFormat:@"%ld %ld %ld %ld %ld", (long)host.fixes, (long)host.stops, (long)host.rules, (long)host.switches, (long)host.undos]);
+
+    // From a row the pointer previews onto the middle: the story stays past the beat, and its presses can be pressed.
+    // Leaving the middle brings back the active row; a press on a link makes that row active and tells its story.
+    MMWindowView *m = PolishView(@"agents");
+    MMWindowMiddleView *mm = PressMiddle(m);
+    NSPoint p3, p2 = NSZeroPoint;
+    MMWindowListView *l3 = PressList(m, @"agent:3", &p3);
+    m.activeRow = @"agent:2";
+    [l3 pointAt:p3];
+    [l3 pointAt:NSMakePoint(-10, -10)];
+    mm.onPointer(YES);
+    PressBeat();
+    BOOL reach = mm.storyPresses.count == 4;
+    for (MMWindowButton *press in mm.storyPresses) if (press.hidden || !MMWindowTakesPresses(press)) reach = NO;
+    BOOL held = [mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && reach && [m.activeRow isEqualToString:@"agent:2"];
+    mm.onPointer(NO);
+    PressBeat();
+    BOOL away = [mm.row.key isEqualToString:@"agent:2"] && [PolishDock(m).pointed.key isEqualToString:@"agent:2"];
+    [l3 pointAt:p3];
+    [l3 pointAt:NSMakePoint(-10, -10)];
+    mm.onPointer(YES);
+    PressBeat();
+    MMWindowButton *tree = nil;
+    for (MMWindowButton *press in mm.storyPresses) if ([press.identifier isEqualToString:@"worktree:lane-c"]) tree = press;
+    [tree performClick:nil];
+    BOOL linked = [m.activeRow isEqualToString:@"worktree:lane-c"] && [mm.row.key isEqualToString:@"worktree:lane-c"];
+    NSString *drawn = nil;
+    for (MMWindowListView *l in WindowLists(m)) for (NSString *k in l.rowKeys) if (!drawn && ![k isEqualToString:@"worktree:lane-c"] && !NSIsEmptyRect([l frameOfRow:k])) drawn = k;
+    MMWindowListView *ld = drawn ? PressList(m, drawn, &p2) : nil;
+    [ld pointAt:p2];
+    mm.onPointer(NO);
+    PressBeat();
+    BOOL onRow = drawn && [mm.row.key isEqualToString:drawn] && [ld.hoverKey isEqualToString:drawn];
+    Check(l3 && held && away && linked && onRow,
+          @"window rows: the pointer from a previewed row onto the middle keeps that story and its presses, leaving it brings back the active row, and a link makes its row active",
+          [NSString stringWithFormat:@"held %d, left %d, linked %d, on a row %d, middle %@, row %@", held, away, linked, onRow, mm.row.key, drawn]);
 
     // The active row leaves the model, as when its process ended: the pin goes, and the middle shows the log again.
     MMWindowView *gone = PolishView(@"busy");

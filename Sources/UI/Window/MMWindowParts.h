@@ -267,6 +267,8 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 @property (copy, nullable) void (^onLink)(NSString *rowKey);
 /// A press on Go to in an agent's story, with the agent row's key.
 @property (copy, nullable) void (^onGoTo)(NSString *rowKey);
+/// The pointer came onto the middle, YES, or left it, NO: the window keeps the story that shows while it rests here.
+@property (copy, nullable) void (^onPointer)(BOOL over);
 /// The story's presses as they stand now, for the checks: Go to and each link.
 @property (readonly) NSArray<MMWindowButton *> *storyPresses;
 @end
@@ -294,7 +296,7 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (nonatomic) double memoryShown, diskShown;                 // the gains while they count up, in bytes
 @property (nonatomic) double glow;                                   // 1 right as a run ends, then down to 0
 @property (nonatomic) double stepIn;                                 // 0 as a new step's words arrive in the button, up to 1
-@property (nonatomic, strong, nullable) MMWindowRow *pointed;        // the row under the pointer: the ring and the numbers beside it tell its share
+@property (nonatomic, strong, nullable) MMWindowRow *pointed;        // the row under the pointer, else the active row: the ring and the numbers beside it tell its share
 @property (readonly) MMWindowButton *fix;
 /// YES while the glow around the button breathes: at rest, with something to fix, in a window that shows.
 @property (readonly) BOOL breathes;

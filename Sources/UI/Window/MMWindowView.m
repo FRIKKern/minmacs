@@ -90,6 +90,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
         _middle.onStory = ^(NSString *key) { id<MMWindowHost> h = me.host; if ([h respondsToSelector:@selector(windowShowsStory:)]) [h windowShowsStory:key]; };
         _middle.onLink = ^(NSString *key) { [me showRow:key]; };
         _middle.onGoTo = ^(NSString *key) { [me goTo:key]; };
+        _middle.onPointer = ^(BOOL over) { [me pointMiddle:over]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
     }
     return self;
@@ -249,12 +250,12 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self showPointed];
 }
 
-/// The middle shows the active row's story, pinned, while the pointer goes over other rows. With no active row it
-/// shows the story of the row under the pointer, or of the row the render tool names. The dock's numbers follow it.
-/// The active row is blue and the one under the pointer has a white wash.
+/// The middle shows the story of the row under the pointer, or of the row the render tool names, and else the active
+/// row's. The pointer on the middle keeps whichever story shows, so its presses can be reached. The dock's ring and
+/// numbers follow the same row. The active row is blue and the one under the pointer has a white wash.
 - (void)showPointed {
     NSString *key = _hovered ?: _pointedRow;
-    MMWindowRow *hover = key ? [_model row:key] : nil, *active = _active ? [_model row:_active] : nil, *story = active ?: hover;
+    MMWindowRow *hover = key ? [_model row:key] : nil, *active = _active ? [_model row:_active] : nil, *story = hover ?: active;
     NSString *wash = [hover.key isEqualToString:active.key] ? nil : hover.key;
     _left.hotKey = active.key; _right.hotKey = active.key;
     _left.hoverKey = wash; _right.hoverKey = wash;
@@ -275,6 +276,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
 - (void)showRow:(NSString *)key {
     if (_quiet || _flips > 0 || ![_model row:key]) return;
     [_left reveal:key]; [_right reveal:key];
+    // The press asked for that row's story: the row the pointer came from no longer stands over it.
+    _hovered = nil; _pointedRow = nil;
     self.activeRow = key;
 }
 
@@ -311,23 +314,35 @@ BOOL MMWindowTakesPresses(NSView *view) {
         next = next ?: to.rowKeys.firstObject ?: _active;
     } else next = _active;
     if (next) { [_left reveal:next]; [_right reveal:next]; }
+    // The keyboard picks what the middle tells: the row under the pointer gives it back once the pointer moves again.
+    _hovered = nil;
     self.activeRow = next;
     return YES;
 }
 
 - (void)point:(NSString *)key {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
+    _onRow = key != nil;
     if (key) {
         if ([key isEqualToString:_hovered]) return;
         _hovered = [key copy];
         [self showPointed];
     } else if (_hovered) {
-        // A short beat after the pointer leaves, the graphs come back.
+        // A short beat after the pointer leaves the rows, the middle goes back to the active row's story, or the log.
         [self performSelector:@selector(unpoint) withObject:nil afterDelay:kBeat inModes:@[NSRunLoopCommonModes]];
     }
 }
 
-- (void)unpoint { _hovered = nil; [self showPointed]; }
+/// The pointer on the middle keeps the story that shows, the row it came from or the active row, so its presses,
+/// Open pull request, Go to and the links, stay where the pointer goes. Leaving it for anything but a row lets the
+/// beat run, whichever of the two views hears of the move first.
+- (void)pointMiddle:(BOOL)over {
+    _overMiddle = over;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
+    if (!over && !_onRow && _hovered) [self performSelector:@selector(unpoint) withObject:nil afterDelay:kBeat inModes:@[NSRunLoopCommonModes]];
+}
+
+- (void)unpoint { if (_overMiddle) return; _hovered = nil; [self showPointed]; }
 
 #pragma mark Opening and closing
 
@@ -350,7 +365,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(sayLooking) object:nil];
     [_left rest]; [_right rest]; [_welcome rest]; [_dock rest]; [_middle.logView rest];
     [self settleStart];
-    _hovered = nil; _active = nil;
+    _hovered = nil; _active = nil; _overMiddle = NO; _onRow = NO;
     [self showPointed];
 }
 
@@ -366,7 +381,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     self.needsDisplay = YES;
     _gear.accessibilityValue = on ? @"on" : @"off";
     NSView *comes = on ? _settings : _main, *goes = on ? _main : _settings;
-    if (on) { _hovered = nil; _active = nil; [self showPointed]; }
+    if (on) { _hovered = nil; _active = nil; _overMiddle = NO; _onRow = NO; [self showPointed]; }
     BOOL fade = self.window.isVisible && self.layer && !MMWindowReduceMotion();
     comes.hidden = NO;
     if (!fade) { comes.alphaValue = 1; goes.alphaValue = 1; goes.hidden = YES; return; }

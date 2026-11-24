@@ -10,6 +10,7 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
 @implementation MMWindowMiddleView {
     NSString *_storyKey;                             // the row whose story was last told to onStory
     NSMutableArray<MMWindowButton *> *_presses;       // the story's Go to and its links, placePresses
+    NSTrackingArea *_tracking;                       // the pointer coming onto the middle and leaving it
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -52,8 +53,14 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
 }
 
 /// A press on the middle keeps the active row: its story is what the person reads there. Only the log's own presses
-/// take a press here.
+/// take a press here. The pointer on the middle keeps the story that shows: the window hears when it comes and goes.
 - (void)mouseDown:(NSEvent *)e {}
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas]; if (_tracking) [self removeTrackingArea:_tracking];
+    [self addTrackingArea:_tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect owner:self userInfo:nil]];
+}
+- (void)mouseEntered:(NSEvent *)e { if (self.onPointer) self.onPointer(YES); }
+- (void)mouseExited:(NSEvent *)e { if (self.onPointer) self.onPointer(NO); }
 
 - (void)drawRect:(NSRect)dirty {
     MMWindowCrisp();
