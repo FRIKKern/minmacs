@@ -68,6 +68,21 @@ static BOOL HasHour(MMWindowGroup *g) {
     if (_hotKey == hotKey || [_hotKey isEqualToString:hotKey]) return;
     _hotKey = [hotKey copy];
     self.needsDisplay = YES;
+    // VoiceOver hears that the selected row changed.
+    NSAccessibilityPostNotification(self, NSAccessibilitySelectedChildrenChangedNotification);
+}
+
+- (void)setHoverKey:(NSString *)hoverKey {
+    if (_hoverKey == hoverKey || [_hoverKey isEqualToString:hoverKey]) return;
+    _hoverKey = [hoverKey copy];
+    self.needsDisplay = YES;
+}
+
+- (NSArray<NSString *> *)rowKeys {
+    NSMutableArray<NSString *> *out = [NSMutableArray new];
+    for (NSInteger i = 0; i < (NSInteger)_groups.count && i < (NSInteger)_order.count; i++)
+        for (NSInteger r = 0; r < (NSInteger)MIN(_groups[i].rows.count, _order[i].count); r++) [out addObject:[self drawn:r in:i].key];
+    return out;
 }
 
 #pragma mark Layout
@@ -385,7 +400,8 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
         MMWindowRow *row = [self drawn:(NSInteger)r in:i];
         CGFloat lead = _leads[i][r].doubleValue;
         if (lead > 0) [self drawProjectOf:row in:g top:NSMinY(at) - lead];
-        MMWindowDrawRowAs(row, [self nameOf:row in:g], at, g.side, hasHour, [row.key isEqualToString:_hotKey], _rowHeight >= kTall);
+        MMWindowRowLook look = [row.key isEqualToString:_hotKey] ? MMWindowRowActive : [row.key isEqualToString:_hoverKey] ? MMWindowRowHover : MMWindowRowRest;
+        MMWindowDrawRowAs(row, [self nameOf:row in:g], at, g.side, hasHour, look, _rowHeight >= kTall);
         foot = NSMaxY(at);
         if (_trails[i][r] != NSNull.null) [lines addObject:@[_trails[i][r], @(foot)]];
     }

@@ -10,7 +10,7 @@
 @end
 @implementation RowCanvas
 - (BOOL)isFlipped { return YES; }
-- (void)drawRect:(NSRect)dirty { MMWindowDrawRow(self.row, self.rowRect, self.side, self.hasHour, NO, self.tall); }
+- (void)drawRect:(NSRect)dirty { MMWindowDrawRow(self.row, self.rowRect, self.side, self.hasHour, MMWindowRowRest, self.tall); }
 @end
 
 /// Draws one row as a list lays it out, 310 points wide, and says what is wrong: two of its strings on one another,

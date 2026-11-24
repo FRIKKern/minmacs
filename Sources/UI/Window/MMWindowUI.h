@@ -37,6 +37,10 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 @property (nonatomic) BOOL showsSettings;               // the gear's state
 /// For the render tool: draw as if the pointer rested on this row, so its story shows in the middle. nil for none.
 @property (nonatomic, copy, nullable) NSString *pointedRow;
+/// The active row: the one a press or the arrow keys picked. It is drawn in blue, the middle holds its story while the
+/// pointer goes over other rows, and it stays until it is pressed again, a press lands on empty space, Escape, the
+/// window closes or the row leaves the model. nil for none. The render tool sets it too.
+@property (nonatomic, copy, nullable) NSString *activeRow;
 /// Moving numbers and lines advance on this, so the shell ticks it only while the window is open.
 - (void)tick:(NSDate *)now;
 @end

@@ -104,6 +104,8 @@ echo "-- the sources"
 wn_new="Sources/Shell/MMWindowFeed.h Sources/Shell/MMWindowLog.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h Sources/Shell/MMWindowController.h Sources/Shell/MMWindowController.m Sources/Shell/MMWindowCLI.h Sources/Shell/MMWindowCLI.m"
 check "window: the feed, the JSON and the runner import no AppKit" 0 \
   "$(cat Sources/Shell/MMWindowFeed.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h | grep -cE '#import <(Cocoa|AppKit)')"
+check "window: a press on a row only selects: the list's input names no host and no action" 0 \
+  "$(grep -cE 'MMWindowHost|\.host|MMRunAction|window(Run|Stop|Undo|Set|Quit|Welcome)' Sources/UI/Window/MMWindowListInput.m)"
 check "window: each file stays under 500 lines" 0 "$(wc -l $wn_new | awk '$2 != "total" && $1 >= 500' | grep -c .)"
 check "window: the model stays plain: no Core and no AppKit" 0 "$(grep -cE '#import (<(Cocoa|AppKit)|"Core/)' Sources/UI/Window/MMWindowModel.h Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m | awk -F: '{s+=$2} END {print s+0}')"
 check "window: the runner acts only through MMRunAction and MMRunWrapUp" "1 1 0" \

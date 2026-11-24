@@ -15,7 +15,8 @@ typedef NS_ENUM(NSInteger, MMWindowInk) {
     MMWindowInkText,        // names and numbers
     MMWindowInkText2,       // state words, units, explain lines
     MMWindowInkText3,       // the quietest text
-    MMWindowInkHot,         // the row under the pointer
+    MMWindowInkHot,         // the active row, the one a press picked: solid blue
+    MMWindowInkHover,       // the row under the pointer: a quiet white wash
     MMWindowInkMemory,      // the memory line and gain
     MMWindowInkDisk,        // the disk line and gain
     MMWindowInkFix,         // Fix Everything and what it touches
@@ -168,18 +169,25 @@ extern const CGFloat MMWindowNameLine;
 /// A row's second line, where its side has the room: why it stays, or its first facts that the name does not say
 /// already, each as the phrase a person would say. Whole phrases only: one that does not fit is left out. nil for none.
 NSString *_Nullable MMWindowRowSecondLine(MMWindowRow *row, CGFloat width);
-void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall);
-void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall);
+/// How a row is drawn: at rest; under the pointer, a quiet white wash with its text as at rest; or active, the row a
+/// press picked, solid blue with white text.
+typedef NS_ENUM(NSInteger, MMWindowRowLook) { MMWindowRowRest = 0, MMWindowRowHover, MMWindowRowActive };
+void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasHour, MMWindowRowLook look, BOOL tall);
+void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSide side, BOOL hasHour, MMWindowRowLook look, BOOL tall);
 
 /// One side: its groups, each with a still header and its own scrolling. Drawn in one drawRect.
 @interface MMWindowListView : MMWindowFlipped
 @property (nonatomic, copy) NSArray<MMWindowGroup *> *groups;
-@property (nonatomic, copy, nullable) NSString *hotKey;             // the row drawn as pointed at
+@property (nonatomic, copy, nullable) NSString *hotKey;             // the active row, drawn in blue and read as selected
+@property (nonatomic, copy, nullable) NSString *hoverKey;           // the row under the pointer, drawn with a white wash
 /// The Mac's whole numbers, for the lines that close a side with room left: "This disk", free, held here, the rest.
 @property (nonatomic, strong, nullable) MMWindowRing *ring;
 /// A new model: both at once, laid out once.
 - (void)setGroups:(NSArray<MMWindowGroup *> *)groups ring:(nullable MMWindowRing *)ring;
 @property (copy, nullable) void (^onPoint)(NSString *_Nullable key); // the pointer came to rest on a row, or left
+@property (copy, nullable) void (^onPress)(NSString *_Nullable key); // a press on a row, or on the list's empty space: nil
+/// Every row's key, group after group, each group in the order it is drawn: the order the arrow keys go.
+- (NSArray<NSString *> *)rowKeys;
 - (void)reveal:(NSString *)key;                                      // scroll so the row shows
 - (void)rest;                                                        // the window closed: no pending calls, every group back at its top
 /// Each row's name as it is drawn at this width, in order, for the checks: whole, its lines joined by a newline.
@@ -199,6 +207,13 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 - (NSArray<NSArray<NSString *> *> *)sumLines;
 /// How many rows got the short light of a new row at the last change of the groups, for the checks.
 @property (readonly) NSInteger flashed;
+@end
+
+/// The pointer at a point, and a press at a point, in the list's own coordinates: what the mouse does, and what the
+/// checks do in its place. MMWindowListInput.m.
+@interface MMWindowListView (Pointer)
+- (void)pointAt:(NSPoint)p;
+- (void)pressAt:(NSPoint)p;
 @end
 
 /// What a list says of its groups with projects, for the checks. MMWindowListProjects.m.
@@ -337,6 +352,11 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (readonly) BOOL showsWelcome;                              // the welcome is what shows now
 /// The render tool sets this: draw as if the pointer rested on Fix Everything.
 @property (nonatomic) BOOL pointsAtFix;
+/// A press on a row, as the lists send it: the row becomes active, or stops being active when it was, and nil, a
+/// press on empty space, leaves none active. It only selects: it never acts.
+- (void)pressRow:(nullable NSString *)key;
+/// What Escape does, for the checks: leaves Settings, else lets go of the active row, else closes the window.
+- (void)escape;
 @property (readonly, nullable) MMWindowWelcomeView *welcomeView;
 @end
 

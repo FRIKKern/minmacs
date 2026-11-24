@@ -30,6 +30,10 @@ static const CGFloat kStrip = 80;                    // the strip, from the midd
     self.needsDisplay = YES;
 }
 
+/// A press on the middle keeps the active row: its story is what the person reads there. Only the log's own presses
+/// take a press here.
+- (void)mouseDown:(NSEvent *)e {}
+
 - (void)drawRect:(NSRect)dirty {
     MMWindowCrisp();
     if (self.row) { [self drawStory:self.row]; return; }

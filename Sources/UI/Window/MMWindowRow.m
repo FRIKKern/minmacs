@@ -87,11 +87,14 @@ NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
     return line.length ? [[line substringToIndex:1].localizedUppercaseString stringByAppendingString:[line substringFromIndex:1]] : nil;
 }
 
-void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall) {
-    MMWindowDrawRowAs(row, row.shownName, r, side, hasHour, hot, tall);
+void MMWindowDrawRow(MMWindowRow *row, NSRect r, MMWindowSide side, BOOL hasHour, MMWindowRowLook look, BOOL tall) {
+    MMWindowDrawRowAs(row, row.shownName, r, side, hasHour, look, tall);
 }
 
-void MMWindowDrawRowAs(MMWindowRow *row, NSString *shown, NSRect r, MMWindowSide side, BOOL hasHour, BOOL hot, BOOL tall) {
+void MMWindowDrawRowAs(MMWindowRow *row, NSString *shown, NSRect r, MMWindowSide side, BOOL hasHour, MMWindowRowLook look, BOOL tall) {
+    // The active row is solid blue with white text. The row under the pointer only gets a quiet wash: its text stays
+    // as at rest, so a calm name stays calm.
+    BOOL hot = look == MMWindowRowActive;
     // Nothing going on in it, no fix touches it and it asks nothing: its name steps back, so the busy rows lead.
     BOOL calm = row.quiet && !row.inFix && !row.needsYou && !hot, disk = side == MMWindowDisk;
     MMWindowRowColumns col;
@@ -106,6 +109,16 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *shown, NSRect r, MMWindowSide
     if (hot) {
         [MMWindowColor(MMWindowInkHot) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:r xRadius:6 yRadius:6] fill];
+    } else if (look == MMWindowRowHover) {
+        [MMWindowColor(MMWindowInkHover) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:r xRadius:6 yRadius:6] fill];
+        // Increase Contrast: the wash is stronger and has an edge, so the row under the pointer reads without color.
+        if (MMWindowContrast()) {
+            NSBezierPath *edge = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(r, 0.5, 0.5) xRadius:5.5 yRadius:5.5];
+            edge.lineWidth = 1;
+            [[NSColor colorWithWhite:1 alpha:0.42] setStroke];
+            [edge stroke];
+        }
     }
     MMWindowDrawIcon(row, NSMakeRect(r.origin.x + 9, (col.lines > 1 ? mid : NSMidY(r)) - 8, 16, 16), hot ? MMWindowColor(MMWindowInkHot) : [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1]);
 

@@ -29,6 +29,7 @@ NSColor *MMWindowColor(MMWindowInk ink) {
         case MMWindowInkText2:  return RGBA(235, 235, 245, hc ? 0.86 : 0.56);
         case MMWindowInkText3:  return RGBA(235, 235, 245, hc ? 0.72 : 0.44);
         case MMWindowInkHot:    return RGBA(11, 99, 216, 1);
+        case MMWindowInkHover:  return RGBA(255, 255, 255, hc ? 0.15 : 0.07);
         case MMWindowInkMemory: return RGBA(158, 194, 255, 1);
         case MMWindowInkDisk:   return RGBA(242, 196, 107, 1);
         case MMWindowInkFix:    return RGBA(255, 159, 69, 1);

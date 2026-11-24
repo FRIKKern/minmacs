@@ -653,6 +653,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-projects.m"
 #include "render-window-log.m"
 #include "render-window-caches.m"
+#include "render-window-press.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -677,6 +678,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
                                   @[@"caches", @"main", @""], @[@"caches", @"families", @"kin:noonoo:tmpdir-families"], @[@"caches", @"scratch", @"kin:noonoo:claude-code-scratch"]];
     shots = [shots arrayByAddingObjectsFromArray:WindowPolishShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowLogShots()];
+    shots = [shots arrayByAddingObjectsFromArray:WindowPressShots()];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -689,6 +691,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
             v.showsSettings = [shot[1] isEqualToString:@"settings"];
             v.pointsAtFix = [shot[1] isEqualToString:@"fix"];
             LogShotState(v, shot[1]);
+            PressShotState(v, shot[1]);
             NSString *path = [dir stringByAppendingFormat:@"/%@-%@-%@.png", shot[0], shot[1], mode];
             if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
         }
@@ -741,6 +744,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowShownChecks();
     WindowLogChecks();
     WindowCachesChecks();
+    WindowPressChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
 }
 

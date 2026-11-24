@@ -82,6 +82,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
         __weak typeof(self) me = self;
         _left.onPoint = ^(NSString *key) { [me point:key]; };
         _right.onPoint = ^(NSString *key) { [me point:key]; };
+        _left.onPress = ^(NSString *key) { [me pressRow:key]; };
+        _right.onPress = ^(NSString *key) { [me pressRow:key]; };
         _settings.onDone = ^{ me.showsSettings = NO; };
         _middle.logView.onUndo = ^(NSString *rid) { [me.host windowUndo:rid]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
@@ -136,6 +138,9 @@ BOOL MMWindowTakesPresses(NSView *view) {
     _dock.model = model;
     _settings.settings = model.settings;
     if (_hovered && ![model row:_hovered]) _hovered = nil;
+    // The active row left the model, its process ended or it went into a row of its kin: nothing stays pinned, and
+    // the middle shows what the pointer rests on, or the log.
+    if (_active && ![model row:_active]) _active = nil;
     [self showPointed];
     [self followRun:hadRun];
     self.needsDisplay = YES;
@@ -240,14 +245,57 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self showPointed];
 }
 
-/// The middle shows the story of the row under the pointer, or of the row the render tool names.
+/// The middle shows the active row's story, pinned, while the pointer goes over other rows. With no active row it
+/// shows the story of the row under the pointer, or of the row the render tool names. The dock's numbers follow it.
+/// The active row is blue and the one under the pointer has a white wash.
 - (void)showPointed {
     NSString *key = _hovered ?: _pointedRow;
-    MMWindowRow *row = key ? [_model row:key] : nil;
-    _left.hotKey = row.key; _right.hotKey = row.key;
+    MMWindowRow *hover = key ? [_model row:key] : nil, *active = _active ? [_model row:_active] : nil, *story = active ?: hover;
+    NSString *wash = [hover.key isEqualToString:active.key] ? nil : hover.key;
+    _left.hotKey = active.key; _right.hotKey = active.key;
+    _left.hoverKey = wash; _right.hoverKey = wash;
     _middle.model = _model;
-    _middle.row = row;
-    _dock.pointed = row;
+    _middle.row = story;
+    _dock.pointed = story;
+}
+
+- (NSString *)activeRow { return _active; }
+
+- (void)setActiveRow:(NSString *)key {
+    _active = key && [_model row:key] ? [key copy] : nil;
+    [self showPointed];
+}
+
+- (void)pressRow:(NSString *)key {
+    if (_quiet || _flips > 0) return;
+    self.activeRow = !key || [key isEqualToString:_active] ? nil : key;
+}
+
+/// The arrow keys move the active row: up and down in its side, group after group, left and right to the row of
+/// the other side at its height. With none active, the first row of the side the key points to. Scrolls it in view.
+- (BOOL)arrow:(unsigned short)code {
+    if (code < 123 || code > 126) return NO;
+    NSArray<NSString *> *left = _left.rowKeys, *right = _right.rowKeys;
+    BOOL onLeft = _active && [left containsObject:_active], onRight = _active && [right containsObject:_active];
+    NSString *next = nil;
+    if (!onLeft && !onRight) next = code == 124 ? right.firstObject ?: left.firstObject : left.firstObject ?: right.firstObject;
+    else if (code == 125 || code == 126) {
+        NSArray<NSString *> *side = onLeft ? left : right;
+        NSInteger at = (NSInteger)[side indexOfObject:_active] + (code == 125 ? 1 : -1);
+        next = side[(NSUInteger)MIN(MAX(at, 0), (NSInteger)side.count - 1)];
+    } else if ((code == 123 && onRight) || (code == 124 && onLeft)) {
+        MMWindowListView *from = onLeft ? _left : _right, *to = onLeft ? _right : _left;
+        CGFloat y = NSMidY([from frameOfRow:_active]), best = CGFLOAT_MAX;
+        for (NSString *k in to.rowKeys) {
+            NSRect f = [to frameOfRow:k];
+            if (NSIsEmptyRect(f) || fabs(NSMidY(f) - y) >= best) continue;
+            best = fabs(NSMidY(f) - y); next = k;
+        }
+        next = next ?: to.rowKeys.firstObject ?: _active;
+    } else next = _active;
+    if (next) { [_left reveal:next]; [_right reveal:next]; }
+    self.activeRow = next;
+    return YES;
 }
 
 - (void)point:(NSString *)key {
@@ -285,7 +333,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(sayLooking) object:nil];
     [_left rest]; [_right rest]; [_welcome rest]; [_dock rest]; [_middle.logView rest];
     [self settleStart];
-    _hovered = nil;
+    _hovered = nil; _active = nil;
     [self showPointed];
 }
 
@@ -301,7 +349,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     self.needsDisplay = YES;
     _gear.accessibilityValue = on ? @"on" : @"off";
     NSView *comes = on ? _settings : _main, *goes = on ? _main : _settings;
-    if (on) { _hovered = nil; [self showPointed]; }
+    if (on) { _hovered = nil; _active = nil; [self showPointed]; }
     BOOL fade = self.window.isVisible && self.layer && !MMWindowReduceMotion();
     comes.hidden = NO;
     if (!fade) { comes.alphaValue = 1; goes.alphaValue = 1; goes.hidden = YES; return; }
@@ -360,14 +408,24 @@ BOOL MMWindowTakesPresses(NSView *view) {
     if (self.showsWelcome && !_started && (e.keyCode == 36 || e.keyCode == 76)) { [_welcome pressStart]; return; }
     // Until the menu has arrived no key reaches it, Tab among them. Escape still closes the window.
     if (_quiet && e.keyCode != 53) return;
-    if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil]; else [super keyDown:e];
+    if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil];
+    else if (!(_model && !self.showsWelcome && !self.showsSettings && [self arrow:e.keyCode])) [super keyDown:e];
 }
 
-/// Escape leaves Settings first, and closes the window when Settings does not show.
+/// Escape leaves Settings first, then lets go of the active row, and closes the window when neither is there.
 - (void)cancelOperation:(id)sender {
     if (!self.window.isKeyWindow) return;
-    if (self.showsSettings) self.showsSettings = NO; else [self.window close];
+    [self escape];
 }
+
+- (void)escape {
+    if (self.showsSettings) self.showsSettings = NO;
+    else if (_active) self.activeRow = nil;
+    else [self.window close];
+}
+
+/// A press that no button, row or story took, on the top line, the dock or the lists' empty space: no row stays active.
+- (void)mouseDown:(NSEvent *)e { [self pressRow:nil]; }
 
 #pragma mark Drawing
 
