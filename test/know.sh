@@ -161,6 +161,29 @@ check "  the cwd and branch from the head, escapes undone" "$K/proj/é dir|br\"a
 check "  the last whole aiTitle in the tail, in UTF-8" 'Café "nuit" \ fin' "$(printf '%s' "$BS" | json "j['withID']['title']")"
 rm -f "$CLAUDE_CONFIG_DIR/projects/fixture/sess-big.jsonl"
 
+echo "-- what a session did in its last hour, from the tail the title is read from"
+python3 - "$CLAUDE_CONFIG_DIR/projects/fixture/sess-acts.jsonl" "$K/proj" <<'PY'
+import json, sys, datetime
+path, cwd = sys.argv[1:3]
+now = datetime.datetime.now(datetime.timezone.utc)
+def ts(mins): return (now - datetime.timedelta(minutes=mins)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+def tool(mins, name, inp): return {"type": "assistant", "timestamp": ts(mins), "message": {"content": [{"type": "tool_use", "id": "t", "name": name, "input": inp}]}}
+with open(path, "w") as f:
+    f.write(json.dumps({"type": "user", "cwd": cwd, "timestamp": ts(200)}) + "\n")
+    f.write(json.dumps(tool(150, "Edit", {"file_path": cwd + "/old.m", "old_string": "a", "new_string": "b"})) + "\n")
+    f.write(json.dumps(tool(40, "Bash", {"command": "echo \"type\":\"tool_use\" file_path"})) + "\n")
+    f.write(json.dumps(tool(30, "Edit", {"file_path": cwd + "/a.m", "old_string": "a", "new_string": "b"})) + "\n")
+    f.write(json.dumps(tool(20, "Write", {"file_path": cwd + "/b \"q\".m", "content": "x"})) + "\n")
+    f.write(json.dumps(tool(10, "Edit", {"file_path": cwd + "/a.m", "old_string": "b", "new_string": "c"})) + "\n")
+    f.write(json.dumps({"type": "user", "timestamp": ts(5), "message": {"content": "thanks"}}) + "\n")
+    f.write('{"type":"assistant","timestamp":"' + ts(1) + '","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/cut')
+PY
+AS=$("$KT" sessions --id sess-acts)
+check "  tool uses and files edited in the hour before its newest whole line, the old edit and the unfinished line left out" \
+  "4|$K/proj/a.m,$K/proj/b \"q\".m|None" \
+  "$(printf '%s' "$AS" | json "'|'.join([str(j['withID']['toolUses']), ','.join(j['withID']['edited']), str(j['withID']['activityFrom'])])")"
+rm -f "$CLAUDE_CONFIG_DIR/projects/fixture/sess-acts.jsonl"
+
 echo "-- a file Know reads that is a named pipe, a socket or a device, issue #96"
 . ./test/know/pipes.sh
 

@@ -101,6 +101,24 @@ NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking)
     return rows;
 }
 
+void MMWindowFixtureAgentStories(NSArray<MMWindowRow *> *agents) {
+    // As MMWindowAgentFacts tells them, Shell/MMWindowAgent.m. "Sort lane C by due" has every fact: its folder and
+    // branch, how long it runs, what it did in the last hour, its cmux tab with Go to, its worktree with the pull
+    // request, the server it started, its session's scratch and the processes under it. "Match studio views", Codex,
+    // has no session facts: only what is known is said.
+    if (agents.count > 3) {
+        MMWindowRow *r = agents[3];
+        r.goTo = @"cmux";
+        r.facts = Facts(@[MMWindowFactAgent(@"Claude Code"), MMWindowFactProject(@"~/code/barkbot-worktrees/lane-c"), MMWindowFactBranch(@"lane-c"),
+                          MMWindowFactUp(2 * 3600 + 36 * 60), MMWindowFactLastActive(5), MMWindowFactRecently(42, 6, 3600),
+                          MMWindowFactRunsIn(@"cmux, barkbot, lane C"), MMWindowFactWorktree(@"barkbot · lane-c", @"worktree:lane-c"),
+                          MMWindowFactPullRequest(142, @"open", NO, @"Phase 6"), MMWindowFactServes(@[@49211]),
+                          MMWindowFactServer(@":5175 Vite", @"server:5175"), MMWindowFactCache(@"Claude Code scratch", 112 * DMB, YES, @"kin:noonoo:claude-code-scratch"),
+                          MMWindowFactProcesses(14, 820 * MB), MMWindowFactState(@"working")]);
+    }
+    if (agents.count > 2) agents[2].facts = Facts(@[MMWindowFactAgent(@"Codex"), MMWindowFactState(@"idle")]);
+}
+
 NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count) {
     // name, bundle id or "" for a helper, megabytes, CPU in tenths or -1, state, why it stays or ""
     NSArray *t = @[@[@"Safari", @"com.apple.Safari", @4915, @19, @"kept", @"it is on the keep list"],

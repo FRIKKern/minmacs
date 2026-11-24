@@ -75,6 +75,9 @@ NSString *MMWindowHourTitle(BOOL disk);
 @interface MMWindowFact : NSObject
 @property (copy) NSString *label, *value;
 @property (copy, nullable) NSString *phrase;
+/// The key of another row this fact names, such as an agent's worktree: in the story its value is a press that makes
+/// that row the active one. nil for a fact that names no row.
+@property (copy, nullable) NSString *link;
 + (instancetype)label:(NSString *)label value:(NSString *)value;
 @end
 
@@ -144,6 +147,18 @@ MMWindowFact *_Nullable MMWindowFactFiles(NSInteger changed, NSInteger added);  
 MMWindowFact *_Nullable MMWindowFactNotPushed(NSInteger commits);                  // Not pushed, "2 commits"; "2 commits not pushed"
 MMWindowFact *_Nullable MMWindowFactUntouched(NSTimeInterval seconds);             // Untouched, "12 d"; "untouched for 12 d". "Changed", "just now" under ten seconds
 MMWindowFact *_Nullable MMWindowFactKind(NSString *_Nullable kind);                // Kind, "Xcode build output"; the same alone
+// An agent's story. Each says only what its facts hold, and nil where they hold nothing.
+MMWindowFact *_Nullable MMWindowFactLastActive(NSTimeInterval ago);              // Last active, "3 min ago"; "last active 3 min ago". An agent's first line says it
+/// Recently, "42 tool uses, 6 files edited in the last hour", or "in the last 40 min" where the part of the transcript
+/// read spans less. tools below 0 is not known: nil. Not for the second line.
+MMWindowFact *_Nullable MMWindowFactRecently(NSInteger tools, NSInteger files, NSTimeInterval span);
+MMWindowFact *_Nullable MMWindowFactWorktree(NSString *_Nullable name, NSString *_Nullable link);   // Worktree, "minmacs · agent-story", a press to its row
+/// Pull request, "#142 · open · milestone: Phase 6", or "draft" for an open draft. nil without a number.
+MMWindowFact *_Nullable MMWindowFactPullRequest(NSInteger number, NSString *_Nullable state, BOOL draft, NSString *_Nullable milestone);
+MMWindowFact *_Nullable MMWindowFactServer(NSString *_Nullable name, NSString *_Nullable link);     // Server, ":3000 Next.js", a press to its row
+/// Cache, "Claude Code scratch · 112 MB", a press to its row. With measured NO, the name alone.
+MMWindowFact *_Nullable MMWindowFactCache(NSString *_Nullable name, uint64_t bytes, BOOL measured, NSString *_Nullable link);
+MMWindowFact *_Nullable MMWindowFactProcesses(NSInteger children, uint64_t bytes); // Processes, "14 processes under it · 820 MB". nil with none
 /// Holds, of a row that stands for several, MMWindowCollapsed: "45,282 folders in 169 groups" when each member holds
 /// things of its own, else "4 projects"; the same alone. nil under two members.
 MMWindowFact *_Nullable MMWindowFactHolds(NSInteger members, NSString *one, NSString *many, NSInteger inner, NSString *_Nullable innerOne, NSString *_Nullable innerMany);
@@ -165,8 +180,8 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 @end
 
 /// What lets near-identical rows stand as one, DESIGN rule 16. A cache's kin is the registry row it was found by, and
-/// a helper's is its name and the worktree that left it. Rows of one kin, MMWindowCollapseLeast of them or more and none
-/// holding another, are one row in the window, MMWindowCollapsed. The CLI's own verbs keep every member apart.
+/// a helper's is its name and the worktree that left it. Rows of one kin, MMWindowCollapseLeast of them or more, are
+/// one row in the window, MMWindowCollapsed. The CLI's own verbs keep every member apart.
 @interface MMWindowKin : NSObject
 @property (copy) NSString *key;                         // "noonoo:tmpdir-families", "helper:node|/code/atlas-trees/wip"
 @property (copy) NSString *title;                       // the one row's name, "Temp folders left by tools"
@@ -174,8 +189,11 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 /// What a member holds when it holds things of its own, as a temp-folder family holds folders: "folder", "folders".
 @property (copy, nullable) NSString *innerOne, *innerMany;
 @property NSInteger inner;                              // how many of those this member holds
-/// Where the member is. Two members of which one holds the other are never summed, so their kin stays apart.
+/// Where the member is. A member inside another by path is never summed with it: MMWindowCollapsedRow marks it within.
 @property (copy, nullable) NSString *path;
+/// Set by MMWindowCollapsedRow: this member lies inside another member, so its size and count are in that one's
+/// already. The row's size, its count and its split leave it out, and its story does not list it. --json keeps it.
+@property BOOL within;
 /// The member has something that may go now: a cache that is free and kept by nothing, a helper Fix Everything ends.
 @property BOOL canGo;
 /// Why it stays, in plain words, when it does.
@@ -233,13 +251,16 @@ extern const NSInteger MMWindowCollapseLeast;
 @property (strong, nullable) MMWindowKin *kin;
 /// A row that stands for several, MMWindowCollapsed: its members, biggest first. nil for any other row.
 @property (copy, nullable) NSArray<MMWindowRow *> *members;
+/// An agent whose terminal tab, pane or app MinMacs can bring forward: the app's name, "Ghostty". Its story then has a
+/// Go to press beside where it runs, which only a person's press runs, through MMWindowHost. nil for any other row.
+@property (copy, nullable) NSString *goTo;
 @end
 
-/// The rows with each kin of MMWindowCollapseLeast members or more, none of which holds another, made one row by
-/// MMWindowCollapsedRow, in the place of its first member. Every other row as it came. The order is the caller's.
+/// The rows with each kin of MMWindowCollapseLeast members or more made one row by MMWindowCollapsedRow, in the place
+/// of its first member. Every other row as it came. The order is the caller's.
 NSArray<MMWindowRow *> *MMWindowCollapsed(NSArray<MMWindowRow *> *rows);
-/// The one row of these members, which share a kin. Its key is "kin:" and the kin's key; its size is the members'
-/// sum, true since none holds another; it goes with Fix Everything when any member does, and is quiet when all are.
+/// The one row of these members, which share a kin. Its key is "kin:" and the kin's key; its size is the sum of the
+/// members that lie inside no other member, so nothing is counted twice, and its count and split are of those too; it goes with Fix Everything when any member does, and is quiet when all are.
 /// Its quiet word is the one all members share, else "in use" when any is in use, else "kept" when any is kept: a
 /// member in use stops none of the others. Its story says how many can go and why the rest stay.
 MMWindowRow *MMWindowCollapsedRow(NSArray<MMWindowRow *> *members);

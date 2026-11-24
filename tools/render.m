@@ -653,6 +653,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-projects.m"
 #include "render-window-log.m"
 #include "render-window-caches.m"
+#include "render-window-agents.m"
 #include "render-window-press.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
@@ -675,7 +676,9 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
                                   // The welcome a person meets who used MinMacs for more than a day before it.
                                   @[@"welcome-watched", @"main", @""],
                                   // DESIGN rule 16: 169 temp-folder families and four sessions' scratch, each kin one row, and its story.
-                                  @[@"caches", @"main", @""], @[@"caches", @"families", @"kin:noonoo:tmpdir-families"], @[@"caches", @"scratch", @"kin:noonoo:claude-code-scratch"]];
+                                  @[@"caches", @"main", @""], @[@"caches", @"families", @"kin:noonoo:tmpdir-families"], @[@"caches", @"scratch", @"kin:noonoo:claude-code-scratch"],
+                                  // An agent's story: one with every fact, with Go to and its links, and one with almost none.
+                                  @[@"agents", @"agent-full", @"agent:3"], @[@"agents", @"agent-sparse", @"agent:2"]];
     shots = [shots arrayByAddingObjectsFromArray:WindowPolishShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowLogShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowPressShots()];
@@ -720,7 +723,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"log-empty", @"log-new", @"log-busy", @"log-undo"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"agents", @"log-empty", @"log-new", @"log-busy", @"log-undo"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])
@@ -744,6 +747,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowShownChecks();
     WindowLogChecks();
     WindowCachesChecks();
+    WindowAgentChecks();
     WindowPressChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
 }

@@ -46,7 +46,9 @@ static void AgentPort(void) {
     T(@"window: its story names the agent and its session, and who started the agent", @"Port=:49210; Agent=Claude Code; Session=Access permissions request inquiry; Project=app; Started by=Terminal; Running=44 min",
       story(server));
     T(@"window: and as phrases on its second line", @"Claude Code; Access permissions request inquiry; in app; started by Terminal; up 44 min", phrases(server));
-    T(@"window: the agent's row says the port it serves", @"Access permissions request inquiry | Agent=Claude Code; Project=app; Serves=port 49210; State=working | serves port 49210",
+    T(@"window: the agent's row says the port it serves",
+      [NSString stringWithFormat:@"Access permissions request inquiry | Agent=Claude Code; Project=%@; Running=44 min; Last active=just now; Serves=port 49210; State=working | serves port 49210",
+       [Dir(@"app") stringByAbbreviatingWithTildeInPath]],
       [NSString stringWithFormat:@"%@ | %@ | %@", agent.name, story(agent), [phrases(agent) componentsSeparatedByString:@"; "].lastObject]);
     T(@"window: a server an agent started still says it was started by the agent", @"Started by=Claude Code",
       [story([m row:@"locohost:server:app#dev"]) componentsSeparatedByString:@"; "][3]);

@@ -8,7 +8,6 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
 static NSNumber *Num(id v) { return [v isKindOfClass:NSNumber.class] ? v : nil; }
 static NSDate *Date(id v) { return Num(v) && [v doubleValue] > 0 ? [NSDate dateWithTimeIntervalSince1970:[v doubleValue]] : nil; }
 static NSString *Folder(NSString *path) { return path.length ? path.stringByAbbreviatingWithTildeInPath : nil; }
-static BOOL HomeOrTop(NSString *path) { NSString *p = path.stringByStandardizingPath; return [p isEqualToString:NSHomeDirectory()] || [p isEqualToString:@"/"]; }
 
 static BOOL Is(MMFinding *f, NSString *expert, NSString *kind) { return [f.expert isEqualToString:expert] && [f.kind isEqualToString:kind]; }
 
@@ -154,12 +153,7 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             break;
         }
         case MMWindowAgent:
-            Add(out, MMWindowFactAgent(Str(x[@"name"])));
-            // An agent that runs in the home folder or at the disk's top has no project.
-            Add(out, MMWindowFactProject(HomeOrTop(Str(x[@"project"])) ? nil : Str(x[@"project"]).lastPathComponent));
-            // The ports its own process listens on: the same process is a row in Servers, named by this agent.
-            Add(out, MMWindowFactServes(ports));
-            Add(out, MMWindowFactState(Str(x[@"state"])));
+            // MMWindowAgentFacts tells an agent's story, from the whole snapshot. MMWindowRowFrom calls it.
             break;
         case MMWindowApp:
             Add(out, MMWindowFactUsedBy(Str(x[@"agent"])));
@@ -282,6 +276,12 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
         row.workedAt = [Num(x[@"lastWorkAt"]) doubleValue] > 0 ? [x[@"lastWorkAt"] doubleValue] : 0;
     }
     row.facts = FactsOf(f, row.kind);
+    if (row.kind == MMWindowAgent) {
+        NSString *goTo = nil;
+        NSArray<MMWindowFact *> *story = MMWindowAgentFacts(f, SessionOf(f, s), row.name, s, &goTo);
+        row.facts = [story arrayByAddingObjectsFromArray:row.facts];
+        row.goTo = goTo;
+    }
     row.kin = KinOf(f, row);
     return row;
 }

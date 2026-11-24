@@ -17,6 +17,8 @@ Performance: apps, agents, RAM, CPU, energy and heat. Issue #21. Ported from Min
 - Loopback listeners come from the sample's socket table. Remote debugging comes from the sample's arguments.
 - A working agent spares every app in its process tree. Agents come from `facts.agents`, hosted agents included, and from `facts.sessions` whose `stillWorking` is set. Waiting on the person counts as working.
 
+- An agent's finding holds where it runs on screen, `where`, `whereApp` and `whereGo`, from `MMWhereIs` with no wait: Know's last answer, asked again on Know's own queue, as LocoHost does for a server. The window's story shows it, and its Go to runs `MMGoTo` through the window's controller on a person's press only. None of the three is in `reviewFactsFor:`.
+
 ## What it does
 
 - Quit and Force Quit run through `MMRunAction` and `MMQuitApps`. Force Quit is refused until this app instance was asked to quit once. The undo record holds `relaunch` with the bundle path, bundle id, pid and step, so `MMUndo restore` opens the app again.

@@ -67,7 +67,7 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # while the pointer rests on another row.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 118 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 122 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
                young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main measuring-main measuring-worktree measuring-measured measuring-fix welcome-main welcome-off-main  welcome-watched-main welcome-started \
@@ -80,7 +80,7 @@ check "every window PNG is 1020 by 728 points, two pixels each" "2040x1456 " "$u
 ui_md() { md5 -q "$ui_win/$1.png" 2>/dev/null; }
 check "the window differs under Increase Contrast, with a pointed row and in Settings" "yes yes yes" \
   "$([ "$(ui_md busy-main-dark)" != "$(ui_md busy-main-contrast-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-server-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-settings-dark)" ] && echo yes || echo no)"
-check "no window fixture shows a banned phrase or an old app name" 18 \
+check "no window fixture shows a banned phrase or an old app name" 19 \
   "$(grep -c '^ok    window .*: no shown string holds a banned phrase or an old app name' "$ui_out/checks.txt" 2>/dev/null)"
 
 ui_look() { grep -c "^ok    window$1" "$ui_out/checks.txt" 2>/dev/null; }

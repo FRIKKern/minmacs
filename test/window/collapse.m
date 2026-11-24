@@ -64,7 +64,7 @@ static void Collapse(void) {
     [clutter addObject:Modules(@"atlas", @"free", nil, nil)];
     [clutter addObject:Modules(@"barkbot", @"free", nil, nil)];
     [clutter addObject:Modules(@"helperbot", @"kept", @"an agent works in the project", nil)];
-    // Three of a kin where one lies inside another: their sizes could not add up, so they stay apart.
+    // Three of a kin where one lies inside another: one row still, whose size counts the outer two only.
     [clutter addObject:Finding(@"noonoo", @"clutter", @"dist:a", @"dist", Dir(@"web/dist"), 0, 0, 100ull * 1000 * 1000, nil,
                                @{@"kindID": @"dist-build", @"kindTitle": @"dist", @"name": @"dist", @"state": @"free", @"path": Dir(@"web/dist")})];
     [clutter addObject:Finding(@"noonoo", @"clutter", @"dist:b", @"dist", Dir(@"web/dist/inner/dist"), 0, 0, 40ull * 1000 * 1000, nil,
@@ -86,8 +86,11 @@ static void Collapse(void) {
     }
     T(@"collapse: Performance keeps all 169 families apart, and the window shows them as one row", @"177 1 0",
       [NSString stringWithFormat:@"%lu %@ %ld", (unsigned long)p.diskGroups[1].rows.count, fam ? @"1" : @"0", (long)apart]);
-    T(@"collapse: Caches holds the family row, two scratch rows, the node_modules row and three dist rows", @"7 2 3 yes",
+    T(@"collapse: Caches holds the family row, two scratch rows, the node_modules row and one dist row", @"5 2 1 yes",
       [NSString stringWithFormat:@"%lu %ld %ld %@", (unsigned long)caches.rows.count, (long)scratch, (long)dist, YN(mods != nil)]);
+    MMWindowRow *dists = [m row:@"kin:noonoo:dist-build"];
+    T(@"collapse: a kin with one member inside another is one row that counts what lies inside once: size, count and --json", @"130 2 folders 3 1",
+      [NSString stringWithFormat:@"%llu %@ %@ %@", dists.bytes / (1000 * 1000), FactOf(dists, @"Holds").value, dists.json[@"collapsed"][@"count"], dists.json[@"collapsed"][@"inside"]]);
     T(@"collapse: the row is named in plain words from its registry row, and holds every member, biggest first", @"Temp folders left by tools 169 MMFam168-* folders",
       [NSString stringWithFormat:@"%@ %lu %@", fam.name, (unsigned long)fam.members.count, fam.members.firstObject.name]);
     T(@"collapse: its size is the members' sum, true since none holds another", @(familyBytes), @(fam.bytes));
@@ -124,7 +127,7 @@ static void Collapse(void) {
     T(@"collapse: --json says collapsed, with the count and every member", @"169 169 noonoo:tmpdir-families yes",
       [NSString stringWithFormat:@"%@ %lu %@ %@", j[@"collapsed"][@"count"], (unsigned long)[j[@"collapsed"][@"members"] count], j[@"collapsed"][@"kin"],
        YN([j[@"collapsed"][@"members"][0][@"key"] hasPrefix:@"noonoo:clutter:tmpdir-families:"])]);
-    T(@"collapse: a row that stands alone has no collapsed key", @"no", YN([caches.rows.lastObject json][@"collapsed"] != nil));
+    T(@"collapse: a row that stands alone has no collapsed key", @"no", YN([[caches.rows filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"members == nil"]].lastObject json][@"collapsed"] != nil));
 
     // Every family's own facts are still there for `clutter list`, which reads the findings: none was merged in Core.
     NSInteger findings = 0;

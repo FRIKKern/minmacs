@@ -27,7 +27,10 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 @end
 
 @implementation MMWindowFact (MMJSON)
-- (NSDictionary *)json { return @{@"label": self.label ?: @"", @"value": self.value ?: @""}; }
+- (NSDictionary *)json {
+    if (!self.link.length) return @{@"label": self.label ?: @"", @"value": self.value ?: @""};
+    return @{@"label": self.label ?: @"", @"value": self.value ?: @"", @"link": self.link};
+}
 @end
 
 @implementation MMWindowRow (MMJSON)
@@ -37,10 +40,14 @@ NSString *MMWindowKindName(MMWindowKind kind) {
              // A size not measured yet is null, never 0.
              @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": self.unmeasured ? @NO : @YES, @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
              @"hour": Or(self.hour), @"facts": All(self.facts), @"project": Or(self.project), @"workedAt": self.workedAt > 0 ? @(self.workedAt) : NSNull.null};
+    if (self.goTo.length) { NSMutableDictionary *g = [j mutableCopy]; g[@"goTo"] = self.goTo; j = g; }
     if (!self.members) return j;
     // A row that stands for several, DESIGN rule 16, says so and holds each member whole, as the rows it stands for.
     NSMutableDictionary *x = [j mutableCopy];
-    x[@"collapsed"] = @{@"count": @(self.members.count), @"kin": self.kin.key ?: @"", @"members": All(self.members)};
+    // inside: the members that lie inside another member, whose size is in that one's and is not counted again.
+    NSInteger inside = 0;
+    for (MMWindowRow *m in self.members) if (m.kin.within) inside++;
+    x[@"collapsed"] = @{@"count": @(self.members.count), @"inside": @(inside), @"kin": self.kin.key ?: @"", @"members": All(self.members)};
     return x;
 }
 @end

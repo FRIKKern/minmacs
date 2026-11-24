@@ -27,6 +27,10 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// A press on Undo in the log: take back the record rid, as the notification's Undo does. Only an entry that can
 /// still be taken back carries the press.
 - (void)windowUndo:(NSString *)rid;
+@optional
+/// A press on Go to in an agent's story: bring forward the terminal tab, pane or app the agent of this row runs in.
+/// Only a person's press sends it. The shell goes there off main.
+- (void)windowGoTo:(NSString *)rowKey;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,

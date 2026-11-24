@@ -15,6 +15,13 @@
 @property (readonly, copy) NSString *liveStatus;
 /// YES while liveStatus says a turn runs: busy, waiting or inProgress. "shell" is not working.
 @property (readonly) BOOL stillWorking;
+/// Claude Code only, from the transcript's tail that the title is read from, nil for other agents: what it did in the
+/// hour before its newest line. The time of each tool use, and each file an edit tool wrote with when it last did.
+/// activityFrom is the time of the tail's first whole line when the tail is not the whole file: nothing before it
+/// was read, so a count over a span that starts earlier is a count since then. nil when the whole file was read.
+@property (readonly, copy) NSArray<NSNumber *> *toolUseTimes;
+@property (readonly, copy) NSDictionary<NSString *, NSNumber *> *edits;
+@property (readonly) NSDate *activityFrom;
 @end
 
 /// P19, P20 and P21. One index of every session for every folder, built in one pass and refreshed by FSEvents.

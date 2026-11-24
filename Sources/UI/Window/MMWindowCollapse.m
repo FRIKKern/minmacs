@@ -14,15 +14,24 @@ static BOOL Holds(NSString *outer, NSString *inner) {
     return inner.length == outer.length || [inner characterAtIndex:outer.length] == '/' || [outer hasSuffix:@"/"];
 }
 
-/// No member is another, or lies inside another, so their sizes add up to what they hold together. A member with no
-/// path claims no place and holds no other.
-static BOOL Apart(NSArray<MMWindowRow *> *members) {
-    NSMutableArray<NSString *> *paths = [NSMutableArray new];
-    for (MMWindowRow *m in members) if (m.kin.path.length) [paths addObject:m.kin.path];
-    for (NSUInteger i = 0; i < paths.count; i++)
-        for (NSUInteger j = i + 1; j < paths.count; j++)
-            if (Holds(paths[i], paths[j]) || Holds(paths[j], paths[i])) return NO;
-    return YES;
+/// Marks each member that lies inside another member by path, kin.within: what it holds is already in the size of
+/// the one it lies in. The owner's Mac had Claude Code's scratch of 317 sessions and, inside one live session's folder,
+/// 71 entries of its scratchpad, each a member of the same registry row, since a live session's old entries may go
+/// on their own. Kept apart for that, 388 rows stood in Caches one by one. A member with no path holds no other.
+static void MarkWithin(NSArray<MMWindowRow *> *members) {
+    for (MMWindowRow *m in members) m.kin.within = NO;
+    for (NSUInteger i = 0; i < members.count; i++) {
+        NSString *a = members[i].kin.path;
+        if (!a.length) continue;
+        for (NSUInteger j = 0; j < members.count; j++) {
+            NSString *b = members[j].kin.path;
+            if (i == j || !b.length || !Holds(b, a)) continue;
+            // Two members at one path are one place: the first stands for both.
+            if ([a isEqualToString:b] && j > i) continue;
+            members[i].kin.within = YES;
+            break;
+        }
+    }
 }
 
 NSArray<MMWindowRow *> *MMWindowCollapsed(NSArray<MMWindowRow *> *rows) {
@@ -34,7 +43,7 @@ NSArray<MMWindowRow *> *MMWindowCollapsed(NSArray<MMWindowRow *> *rows) {
         [by[k] addObject:r];
     }
     NSMutableDictionary<NSString *, MMWindowRow *> *one = [NSMutableDictionary new];
-    for (NSString *k in by) if ((NSInteger)by[k].count >= MMWindowCollapseLeast && Apart(by[k])) one[k] = MMWindowCollapsedRow(by[k]);
+    for (NSString *k in by) if ((NSInteger)by[k].count >= MMWindowCollapseLeast) one[k] = MMWindowCollapsedRow(by[k]);
     if (!one.count) return rows;
     NSMutableArray<MMWindowRow *> *out = [NSMutableArray arrayWithCapacity:rows.count];
     NSMutableSet<NSString *> *placed = [NSMutableSet new];
@@ -68,6 +77,7 @@ MMWindowRow *MMWindowCollapsedRow(NSArray<MMWindowRow *> *given) {
     MMWindowRow *row = [MMWindowRow new];
     row.key = [@"kin:" stringByAppendingString:kin.key ?: @""];
     row.kind = first.kind; row.iconHint = first.iconHint; row.name = kin.title.length ? kin.title : first.name;
+    MarkWithin(members);
     row.members = members;
     row.kin = kin;
     uint64_t bytes = 0;
@@ -75,11 +85,15 @@ MMWindowRow *MMWindowCollapsedRow(NSArray<MMWindowRow *> *given) {
     NSInteger inner = 0, go = 0, inUse = 0, kept = 0, other = 0, unmeasured = 0;
     BOOL quiet = YES, sameState = YES;
     NSMutableArray<NSString *> *why = [NSMutableArray new];
+    // What lies inside another member is in that one's size and count already: it is counted with it, never again.
+    NSInteger outer = 0;
     for (MMWindowRow *m in members) {
-        if (m.unmeasured) unmeasured++; else bytes += m.bytes;
-        if (m.cpuPercent >= 0) cpu = MAX(cpu, 0) + m.cpuPercent;
         if (m.inFix) row.inFix = YES;
         if (m.needsYou) row.needsYou = YES;
+        if (m.kin.within) continue;
+        outer++;
+        if (m.unmeasured) unmeasured++; else bytes += m.bytes;
+        if (m.cpuPercent >= 0) cpu = MAX(cpu, 0) + m.cpuPercent;
         if (!m.quiet) quiet = NO;
         if (!(m.state == first.state || [m.state isEqualToString:first.state])) sameState = NO;
         inner += MAX(m.kin.inner, 0);
@@ -89,7 +103,7 @@ MMWindowRow *MMWindowCollapsedRow(NSArray<MMWindowRow *> *given) {
             if (m.kin.why.length) [why addObject:m.kin.why];
         }
     }
-    row.bytes = bytes; row.unmeasured = unmeasured == (NSInteger)members.count; row.cpuPercent = cpu; row.quiet = quiet;
+    row.bytes = bytes; row.unmeasured = unmeasured == outer; row.cpuPercent = cpu; row.quiet = quiet;
     // One word for all: theirs when they share it. A member in use stops none of the others, so "in use" says that
     // some of it is, and the story says how many.
     BOOL anyInUse = NO, anyKept = NO;
@@ -98,7 +112,7 @@ MMWindowRow *MMWindowCollapsedRow(NSArray<MMWindowRow *> *given) {
 
     NSMutableArray<MMWindowFact *> *facts = [NSMutableArray new];
     void (^add)(MMWindowFact *) = ^(MMWindowFact *f) { if (f) [facts addObject:f]; };
-    add(MMWindowFactHolds((NSInteger)members.count, kin.one, kin.many, inner, kin.innerOne, kin.innerMany));
+    add(MMWindowFactHolds(outer, kin.one, kin.many, inner, kin.innerOne, kin.innerMany));
     add(Shared(members, @"Kind"));
     add(Shared(members, @"Left by"));
     add(Shared(members, @"Folder"));

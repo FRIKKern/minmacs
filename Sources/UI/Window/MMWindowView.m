@@ -86,6 +86,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
         _right.onPress = ^(NSString *key) { [me pressRow:key]; };
         _settings.onDone = ^{ me.showsSettings = NO; };
         _middle.logView.onUndo = ^(NSString *rid) { [me.host windowUndo:rid]; };
+        _middle.onLink = ^(NSString *key) { [me showRow:key]; };
+        _middle.onGoTo = ^(NSString *key) { [me goTo:key]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
     }
     return self;
@@ -264,6 +266,19 @@ BOOL MMWindowTakesPresses(NSView *view) {
 - (void)setActiveRow:(NSString *)key {
     _active = key && [_model row:key] ? [key copy] : nil;
     [self showPointed];
+}
+
+/// A press on a fact of a story that names another row: that row becomes the active one, in view in its list, and
+/// the middle tells its story.
+- (void)showRow:(NSString *)key {
+    if (_quiet || _flips > 0 || ![_model row:key]) return;
+    [_left reveal:key]; [_right reveal:key];
+    self.activeRow = key;
+}
+
+- (void)goTo:(NSString *)key {
+    if (_quiet || _flips > 0 || ![_model row:key].goTo) return;
+    if ([self.host respondsToSelector:@selector(windowGoTo:)]) [self.host windowGoTo:key];
 }
 
 - (void)pressRow:(NSString *)key {

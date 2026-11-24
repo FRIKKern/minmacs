@@ -146,7 +146,10 @@ static MMWindowModel *Day(NSString *name) {
     }
     // "caches": the busy day whose Caches also holds 169 temp-folder families and four sessions' scratch, as the owner's
     // Mac had them, each kin one row as the feed shows it, DESIGN rule 16.
-    BOOL leftovers = [name isEqualToString:@"caches"];
+    // "agents": the same, with an agent whose story holds every fact and one whose holds almost none.
+    BOOL stories = [name isEqualToString:@"agents"];
+    if (stories) MMWindowFixtureAgentStories(agents);
+    BOOL leftovers = [name isEqualToString:@"caches"] || stories;
     if (leftovers) caches = MMWindowCollapsed([caches arrayByAddingObjectsFromArray:MMWindowFixtureLeftovers()]);
     if (measuring) for (NSUInteger i = 1; i < trees.count; i++) { trees[i].unmeasured = YES; trees[i].bytes = 0; }
     if (longNames) {

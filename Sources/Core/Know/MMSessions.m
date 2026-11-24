@@ -26,6 +26,9 @@ static const NSTimeInterval kSessionWindow = 30 * 86400;   // older transcripts 
 @property (readwrite, copy) NSString *agent, *sessionID, *title, *cwd, *branch, *transcript, *liveStatus;
 @property (readwrite) NSDate *started, *lastActive;
 @property (readwrite) pid_t pid;
+@property (readwrite, copy) NSArray<NSNumber *> *toolUseTimes;
+@property (readwrite, copy) NSDictionary<NSString *, NSNumber *> *edits;
+@property (readwrite) NSDate *activityFrom;
 @end
 
 @implementation MMSession
@@ -203,6 +206,69 @@ static NSArray<NSString *> *Names(NSString *dir) {
 
 #pragma mark Claude Code
 
+static const NSUInteger kTailBytes = 512 * 1024;
+
+/// The tool names whose input names a file the agent wrote.
+static BOOL EditTool(NSString *name) { return [@[@"Edit", @"Write", @"MultiEdit", @"NotebookEdit"] containsObject:name ?: @""]; }
+
+/// What a session did in the hour before its newest line, from the tail already read for its title, so no byte more is
+/// read: the time of each tool use, and each file an edit tool wrote with the time it last did. Only a line that holds
+/// a tool use has its time read. Anything older than that hour can never be recent, so it is not kept, and an idle
+/// transcript keeps next to nothing. `whole` says the tail is the whole file; else its first line is cut and skipped,
+/// and tailFrom is the time of its first whole line: the tail says nothing of what came before it.
+/// YES when the "tool_use" at `at` is the value of a "type" key, with or without space around the colon.
+static BOOL IsToolType(const char *start, const char *at) {
+    const char *p = at - 1;
+    while (p >= start && (*p == ' ' || *p == '\t')) p--;
+    if (p < start || *p != ':') return NO;
+    p--;
+    while (p >= start && (*p == ' ' || *p == '\t')) p--;
+    return p - 5 >= start && !memcmp(p - 5, "\"type\"", 6);
+}
+
+static void TailActivity(NSData *tail, BOOL whole, NSMutableDictionary *f) {
+    if (!tail.length) return;
+    const char *b = tail.bytes, *end = b + tail.length, *line = b;
+    if (!whole) { const char *nl = memchr(b, '\n', (size_t)(end - b)); if (!nl) return; line = nl + 1; }
+    static const char kTool[] = "\"tool_use\"";
+    NSMutableArray<NSNumber *> *tools = [NSMutableArray new];
+    NSMutableDictionary<NSString *, NSNumber *> *edits = [NSMutableDictionary new];
+    double first = 0, newest = 0;
+    const char *lastLine = NULL, *lastEnd = NULL;
+    while (line < end) {
+        const char *nl = memchr(line, '\n', (size_t)(end - line));
+        if (!nl) break;   // the line being written is not whole yet
+        NSData *d = [NSData dataWithBytesNoCopy:(void *)line length:(NSUInteger)(nl - line) freeWhenDone:NO];
+        if (!first && !whole) first = ISODate(JSONValueIn(d, "timestamp", YES, YES)).timeIntervalSince1970;
+        if (nl > line) { lastLine = line; lastEnd = nl; }
+        if (memmem(line, (size_t)(nl - line), kTool, sizeof kTool - 1)) {
+            double t = ISODate(JSONValueIn(d, "timestamp", YES, YES)).timeIntervalSince1970;
+            for (const char *at = line; t > 0 && (at = memmem(at, (size_t)(nl - at), kTool, sizeof kTool - 1)); at += sizeof kTool - 1) {
+                if (!IsToolType(line, at)) continue;
+                [tools addObject:@(t)];
+                NSData *rest = [NSData dataWithBytesNoCopy:(void *)at length:(NSUInteger)(nl - at) freeWhenDone:NO];
+                if (!EditTool(JSONValueIn(rest, "name", NO, YES))) continue;
+                NSString *file = Unescape(JSONValueIn(rest, "file_path", NO, NO) ?: JSONValueIn(rest, "notebook_path", NO, NO));
+                if (file.length) edits[file] = @(MAX(t, [edits[file] doubleValue]));
+            }
+            newest = MAX(newest, t);
+        }
+        line = nl + 1;
+    }
+    if (lastLine) {
+        NSData *d = [NSData dataWithBytesNoCopy:(void *)lastLine length:(NSUInteger)(lastEnd - lastLine) freeWhenDone:NO];
+        newest = MAX(newest, ISODate(JSONValueIn(d, "timestamp", YES, YES)).timeIntervalSince1970);
+    }
+    double since = newest - 3600;
+    NSMutableArray<NSNumber *> *recent = [NSMutableArray new];
+    for (NSNumber *t in tools) if (t.doubleValue >= since) [recent addObject:t];
+    NSMutableDictionary<NSString *, NSNumber *> *wrote = [NSMutableDictionary new];
+    for (NSString *k in edits) if (edits[k].doubleValue >= since) wrote[k] = edits[k];
+    f[@"toolTimes"] = recent;
+    f[@"edits"] = wrote;
+    if (first > 0) f[@"tailFrom"] = @(first);
+}
+
 /// One transcript's facts, read once per change of size or time through the fact cache.
 static NSDictionary *ClaudeTranscriptFacts(NSString *path) {
     NSData *head = Head(path, 64 * 1024);
@@ -214,8 +280,10 @@ static NSDictionary *ClaudeTranscriptFacts(NSString *path) {
     if (branch) f[@"branch"] = branch;
     NSDate *start = ISODate(JSONValueIn(head, "timestamp", NO, YES));
     if (start) f[@"started"] = @(start.timeIntervalSince1970);
-    NSString *title = Unescape(JSONValueIn(Tail(path, 512 * 1024), "aiTitle", YES, NO));
+    NSData *tail = Tail(path, kTailBytes);
+    NSString *title = Unescape(JSONValueIn(tail, "aiTitle", YES, NO));
     if (title) f[@"title"] = title;
+    TailActivity(tail, tail.length < kTailBytes, f);   // a shorter file is read whole
     return f;
 }
 
@@ -546,7 +614,8 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
 - (NSDictionary *)factsFor:(NSString *)path reader:(NSDictionary *(^)(NSString *))reader mtime:(NSDate **)mtime {
     NSString *fp = FileFingerprint(path, mtime);
     if (!fp) return nil;
-    return [_facts valueFor:path fingerprint:fp orCompute:^NSDictionary *{ return reader(path); } wait:YES];
+    // "a2": the facts gained what a session did in its last hour, so a value kept by an older MinMacs is read again.
+    return [_facts valueFor:path fingerprint:[fp stringByAppendingString:@":a2"] orCompute:^NSDictionary *{ return reader(path); } wait:YES];
 }
 
 /// YES when a folder that startWatching could not watch from above now exists, so the watch must start again.
@@ -605,6 +674,9 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
         s.agent = @"claude-code"; s.sessionID = facts[@"id"]; s.cwd = facts[@"cwd"]; s.branch = facts[@"branch"];
         s.title = facts[@"title"]; s.transcript = f; s.lastActive = m;
         s.started = facts[@"started"] ? [NSDate dateWithTimeIntervalSince1970:[facts[@"started"] doubleValue]] : m;
+        s.toolUseTimes = [facts[@"toolTimes"] isKindOfClass:NSArray.class] ? facts[@"toolTimes"] : nil;
+        s.edits = [facts[@"edits"] isKindOfClass:NSDictionary.class] ? facts[@"edits"] : nil;
+        s.activityFrom = [facts[@"tailFrom"] isKindOfClass:NSNumber.class] ? [NSDate dateWithTimeIntervalSince1970:[facts[@"tailFrom"] doubleValue]] : nil;
         MMSession *old = byID[s.sessionID];
         if (!old || [s.lastActive compare:old.lastActive] == NSOrderedDescending) byID[s.sessionID] = s;
         claudeFiles[s.sessionID] = f;

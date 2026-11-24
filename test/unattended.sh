@@ -46,7 +46,7 @@ check "D3: only an explicit turn of the lid to on writes the sudoers rule, behin
 
 echo "-- the tool: notices, each former alert path, and the welcome"
 un_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-un_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMWindowController.m"
+un_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMWindowController.m"
 # shellcheck disable=SC2086
 $un_cc $(find Sources/Core Sources/UI Sources/CLI Sources/Experts -name '*.m' | LC_ALL=C sort) $un_shell test/unattended/tool.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -framework QuartzCore -framework ServiceManagement -lsqlite3 \
