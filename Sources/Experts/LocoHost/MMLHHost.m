@@ -19,6 +19,7 @@ static NSString *CommandOf(NSArray<NSString *> *args, NSArray<NSString *> *wrapp
 }
 
 - (BOOL)isDev { return [self.kind isEqualToString:@"dev"]; }
+- (BOOL)isAgent { return [self.kind isEqualToString:@"agent"]; }
 
 - (NSString *)project {
     NSString *top = self.worktree ?: self.repo;   // a worktree by its folder name, which is what Finder shows
@@ -95,6 +96,7 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
              @"memoryBytes": @(self.memory), @"processes": @(self.processCount),
              @"treePids": self.treePids ?: @[], @"treeStarts": self.treeStarts ?: @[],
              @"command": self.command, @"launcher": self.launcher ?: @"", @"agent": Or(self.agent), @"agentPid": @(self.agentPid),
+             @"agentTitle": Or(self.agentTitle),
              @"orphaned": @(self.orphaned), @"wrapperPid": @(self.wrapperPid), @"wrapperStart": @(self.wrapperStart),
              @"wrapperArgs": self.wrapperArgs ?: @[], @"wrapperCwd": Or(self.wrapperCwd),
              @"connections": @(self.connections), @"newConnections": @(self.newConnections), @"busy": @(self.busy),
@@ -122,7 +124,7 @@ static NSDate *Date(id v) { return [v isKindOfClass:NSNumber.class] && [v double
     h.cpuPercent = [j[@"cpu"] doubleValue]; h.energyRank = [j[@"energyRank"] doubleValue];
     h.memory = [j[@"memoryBytes"] unsignedLongLongValue]; h.processCount = [j[@"processes"] integerValue];
     h.treePids = List(j[@"treePids"]); h.treeStarts = List(j[@"treeStarts"]);
-    h.launcher = Str(j[@"launcher"]); h.agent = Str(j[@"agent"]); h.agentPid = [j[@"agentPid"] intValue];
+    h.launcher = Str(j[@"launcher"]); h.agent = Str(j[@"agent"]); h.agentPid = [j[@"agentPid"] intValue]; h.agentTitle = Str(j[@"agentTitle"]);
     h.orphaned = [j[@"orphaned"] boolValue]; h.wrapperPid = [j[@"wrapperPid"] intValue];
     h.wrapperStart = [j[@"wrapperStart"] unsignedLongLongValue];
     h.wrapperArgs = List(j[@"wrapperArgs"]); h.wrapperCwd = Str(j[@"wrapperCwd"]);
@@ -202,6 +204,13 @@ void MMLHDetect(NSString *name, NSArray<NSString *> *args, NSArray<NSNumber *> *
 #pragma mark - Words
 
 NSString *MMLHStateName(MMLHState s) { return s == MMLHActive ? @"active" : s == MMLHRecent ? @"recent" : @"idle"; }
+
+NSString *MMLHAgentPortWords(MMLHHost *h) { return [NSString stringWithFormat:@"%@'s own port", h.agent.length ? h.agent : @"an agent"]; }
+
+NSString *MMLHAgentWords(MMLHHost *h) {
+    NSString *name = h.agent.length ? h.agent : @"An agent";
+    return h.agentTitle.length ? [NSString stringWithFormat:@"%@, session “%@”", name, MMCut(h.agentTitle, 60)] : name;
+}
 
 NSString *MMLHModeLabel(NSString *mode) { return mode.length ? MMCapitalized(mode) : @"Proactive"; }
 
@@ -316,7 +325,7 @@ MMMenuSpec *MMLHMenu(MMLHView *v) {
     NSMutableArray *inUse = [NSMutableArray new], *quiet = [NSMutableArray new], *services = [NSMutableArray new], *other = [NSMutableArray new];
     uint64_t mem = 0;
     for (MMLHHost *h in v.hosts) {
-        if ([h.kind isEqualToString:@"other"]) { [other addObject:h]; continue; }
+        if ([h.kind isEqualToString:@"other"] || h.isAgent) { [other addObject:h]; continue; }   // an agent's port is the agent's
         mem += h.memory;
         if (!h.isDev) { [services addObject:h]; continue; }
         if (h.state == MMLHIdle) [quiet addObject:h]; else [inUse addObject:h];
@@ -389,6 +398,10 @@ static void Status(MMLHHost *h, MMLHView *v, MMCardSpec *c) {
         if ([h.launcher containsString:@"Homebrew"]) c.statusText = @"No mode stops a shared service. Homebrew runs it, and brew services stop ends it.";
         else if (Managed(h)) c.statusText = @"No mode stops a shared service. launchd runs it, and launchctl ends it.";
         else c.statusText = @"No mode stops a shared service such as a database. Stop it yourself if you want it gone.";
+        return;
+    }
+    if (h.isAgent) {
+        c.statusWord = @"Stays."; c.statusText = [NSString stringWithFormat:@"This is %@. No mode stops an agent.", MMLHAgentWords(h)];
         return;
     }
     if (!h.isDev) {
@@ -507,6 +520,6 @@ NSString *MMLHBadge(MMLHView *v) { return v.candidates.count ? [NSString stringW
 NSString *MMLHAccessibilityState(MMLHView *v) {
     if (v.candidates.count) return MMPlural(v.candidates.count, @"idle server");
     NSInteger n = 0;
-    for (MMLHHost *h in v.hosts) if (![h.kind isEqualToString:@"other"]) n++;
+    for (MMLHHost *h in v.hosts) if (![h.kind isEqualToString:@"other"] && !h.isAgent) n++;
     return n ? MMPlural(n, @"server") : @"no servers";
 }

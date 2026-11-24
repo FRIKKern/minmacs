@@ -32,8 +32,10 @@ typedef NS_ENUM(NSInteger, MMLHState) { MMLHActive = 0, MMLHRecent = 1, MMLHIdle
 @property (copy) NSArray<NSNumber *> *treePids;
 @property (copy) NSArray<NSNumber *> *treeStarts;    // the start time of each pid in treePids, same order
 @property (copy) NSString *launcher;                 // "pnpm dev · Claude Code · cmux"
-@property (copy) NSString *agent;                    // the registry name of a live agent above it, else nil
+@property (copy) NSString *agent;                    // the registry name of the live agent it is or that runs above it, else nil
 @property pid_t agentPid;
+@property (copy) NSString *agentTitle;               // that agent's session title, from Know's sessions, for an agent's own port
+@property (readonly) BOOL isAgent;                   // the listener is the agent itself, so the port is the agent's own
 @property BOOL orphaned;                             // the shell, terminal or agent that started it is gone
 @property pid_t wrapperPid;                          // a package manager runner above it, 0 for none
 @property uint64_t wrapperStart;
@@ -79,6 +81,10 @@ NSString *MMLHStateWords(MMLHHost *h);
 NSString *MMLHWasteWords(MMLHHost *h);
 /// "Claude Code session “Fix login”, last active 20m ago", or "no agent session found".
 NSString *MMLHSessionWords(NSDictionary *session);
+/// An agent's own port: "Claude Code's own port".
+NSString *MMLHAgentPortWords(MMLHHost *h);
+/// The agent an agent's own port belongs to, and its session: "Claude Code, session “Fix login”", else "Claude Code".
+NSString *MMLHAgentWords(MMLHHost *h);
 /// The menu bar's mode word: "Idle", "Proactive", "Eager".
 NSString *MMLHModeLabel(NSString *mode);
 

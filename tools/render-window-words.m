@@ -47,8 +47,8 @@ static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedStates(void) {
              @(MMWindowHelper): @[@"left behind"], @(MMWindowTabs): @[@"will close"], @(MMWindowWorktree): @[@"changed", @"merged", @"kept"], @(MMWindowCache): @[@"kept", @"in use"]};
 }
 static NSDictionary<NSNumber *, NSArray<NSString *> *> *FeedLabels(void) {
-    return @{@(MMWindowServer): @[@"Port", @"Project", @"Runs in", @"Started by", @"Idle", @"Last used", @"Running", @"Kept", @"Stays"],
-             @(MMWindowAgent): @[@"Agent", @"Project", @"State", @"Stays"], @(MMWindowApp): @[@"Used by", @"Serves", @"Stays"],
+    return @{@(MMWindowServer): @[@"Port", @"Agent", @"Session", @"Project", @"Runs in", @"Started by", @"Idle", @"Last used", @"Running", @"Kept", @"Stays"],
+             @(MMWindowAgent): @[@"Agent", @"Project", @"Serves", @"State", @"Stays"], @(MMWindowApp): @[@"Used by", @"Serves", @"Stays"],
              @(MMWindowHelper): @[@"Left by", @"Folder", @"Stays"], @(MMWindowTabs): @[@"Open", @"On", @"Left by", @"Stays"],
              @(MMWindowWorktree): @[@"Branch", @"Files", @"Not pushed", @"Untouched", @"Changed", @"Folder", @"Stays"],
              @(MMWindowCache): @[@"Kind", @"Project", @"Last used", @"Folder", @"Stays"]};
@@ -197,7 +197,9 @@ static void WindowWordChecks(void) {
         @[said(MMWindowFactLastUsed(180)), @"Last used: 3 min ago / used 3 min ago"], @[said(MMWindowFactLastUsed(0)), @"Last used: just now / used just now"],
         @[said(MMWindowFactUp(9360)), @"Running: 2 h 36 min / up 2 h 36 min"], @[said(MMWindowFactUp(1)), @"Running: since just now / started just now"],
         @[said(MMWindowFactKept(4800)), @"Kept: 1 h 20 min more / kept for 1 h 20 min more"], @[said(MMWindowFactKept(0)), @"none"],
-        @[said(MMWindowFactAgent(@"Claude Code")), @"Agent: Claude Code / Claude Code"], @[said(MMWindowFactState(@"working")), @"State: working / (null)"],
+        @[said(MMWindowFactAgent(@"Claude Code")), @"Agent: Claude Code / Claude Code"],
+        @[said(MMWindowFactSession(@"Access permissions request inquiry")), @"Session: Access permissions request inquiry / Access permissions request inquiry"], @[said(MMWindowFactSession(@"")), @"none"],
+        @[said(MMWindowFactState(@"working")), @"State: working / (null)"],
         @[said(MMWindowFactUsedBy(@"Claude Code")), @"Used by: Claude Code / used by Claude Code"],
         @[said(MMWindowFactServes(@[@3000, @3001])), @"Serves: ports 3000, 3001 / serves ports 3000, 3001"], @[said(MMWindowFactServes(@[])), @"none"],
         @[said(MMWindowFactStays(@"it is on the keep list")), @"Stays: it is on the keep list / (null)"],
@@ -216,7 +218,7 @@ static void WindowWordChecks(void) {
         @[said(MMWindowFactKind(@"Xcode build output")), @"Kind: Xcode build output / Xcode build output"]];
     NSMutableArray<NSString *> *misworded = [NSMutableArray new];
     for (NSArray<NSString *> *f in facts) if (![f[0] isEqualToString:f[1]]) [misworded addObject:[NSString stringWithFormat:@"%@, want %@", f[0], f[1]]];
-    Check(misworded.count == 0 && facts.count >= 36, @"window facts: each of the 22 facts has its own words, with its label in the story and alone on a row's second line, and says nothing when it has nothing true to say",
+    Check(misworded.count == 0 && facts.count >= 36, @"window facts: each of the 23 facts has its own words, with its label in the story and alone on a row's second line, and says nothing when it has nothing true to say",
           [misworded componentsJoinedByString:@" | "]);
 
     // Every phrase the window shows with a count in it, at 0, 1 and 2: one of a thing is never plural, and a zero

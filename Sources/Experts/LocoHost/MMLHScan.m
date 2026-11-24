@@ -506,6 +506,25 @@ static NSString *LocalAddr(const MMSocket *s) {
         } else {
             NSString *fw, *kind; MMLHDetect(p.name, args, ports, &fw, &kind); h.framework = fw; h.kind = kind;
         }
+        NSString *detectedFramework = h.framework, *detectedKind = h.kind;
+        // An agent's own port: the listener is a process the registry knows as an agent, such as Claude Code, whose
+        // binary is named by its version. It is no dev server, whatever its port: stopping it ends the agent.
+        // It is named by the agent, and the agent's session title says which one.
+        MMAgentRow *ownRow = [MMRegistry.shared rowMatching:p sample:s];
+        MMAgent *own = nil;
+        for (MMAgent *a in facts.agents) {
+            if (a.key.pid == pid) own = a;
+            for (MMAgent *x in a.hosted) if (x.key.pid == pid) own = x;
+        }
+        if (own || ownRow) {
+            if (!own) own = [MMRegistry.shared agentAbove:pid in:facts.agents sample:s];   // a harness that re-executes itself
+            NSString *name = own.row.name ?: ownRow.name ?: AgentName(own.harnessID);
+            if (name.length) {
+                h.kind = @"agent"; h.framework = name; h.agent = name; h.agentPid = own ? own.key.pid : pid;
+                for (MMSession *x in facts.sessions)
+                    if (x.pid == h.agentPid && x.title.length && (!own.harnessID || !x.agent.length || [x.agent isEqualToString:own.harnessID])) { h.agentTitle = MMCut(x.title, 200); break; }
+            }
+        }
 
         // The tree: the listener and everything below it.
         NSArray<NSNumber *> *tree = [s treeOf:pid limit:500];
@@ -553,7 +572,7 @@ static NSString *LocalAddr(const MMSocket *s) {
             if (ag && ag.key.pid != pid) { h.agent = ag.row.name ?: AgentName(ag.harnessID); h.agentPid = ag.key.pid; }
         }
         if (wrapper) [via insertObject:wrapper atIndex:0];
-        if (h.agent && ![via containsObject:h.agent]) [via addObject:h.agent];
+        if (h.agent && !h.isAgent && ![via containsObject:h.agent]) [via addObject:h.agent];   // an agent does not start itself
         pid_t resp = MMResponsiblePidIn(s, pid);
         NSRunningApplication *ra = resp != pid ? MMAppWithPid(s, resp) : nil;
         if (ra.localizedName && ![via containsObject:ra.localizedName]) [via addObject:ra.localizedName];
@@ -611,7 +630,7 @@ static NSString *LocalAddr(const MMSocket *s) {
         MMLHTrack *t = _track[h.key];
         BOOL firstLook = !t;
         if (!t) { t = [MMLHTrack new]; t.since = date; _track[h.key] = t; }
-        t.detectArgs = h.args; t.detectPorts = h.ports; t.framework = h.framework; t.kind = h.kind;
+        t.detectArgs = h.args; t.detectPorts = h.ports; t.framework = detectedFramework; t.kind = detectedKind;
         NSMutableSet *fresh = [connNow mutableCopy];
         if (firstLook) [fresh removeAllObjects]; else [fresh minusSet:t.conns ?: [NSSet set]];   // the first look has nothing to compare with
         if (!advance) [fresh removeAllObjects];

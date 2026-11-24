@@ -134,11 +134,18 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
     NSArray *ports = [x[@"ports"] isKindOfClass:NSArray.class] ? x[@"ports"] : nil;
     switch (kind) {
         case MMWindowServer: {
+            // An agent's own port, kind agent: the server is that agent, so its facts name the agent and its session,
+            // and who started the agent. LocoHost names such a server by the agent, as MMWindowNameOf shows it.
+            BOOL agentOwn = [Str(x[@"kind"]) isEqualToString:@"agent"];
             Add(out, MMWindowFactPort([Num(x[@"port"]) integerValue]));
+            if (agentOwn) {
+                Add(out, MMWindowFactAgent(Str(x[@"agent"])));
+                Add(out, MMWindowFactSession(SessionTitle(Str(x[@"agentTitle"]))));
+            }
             // With no folder of its own, Core names a server's project by its process, "node": that is no folder.
             Add(out, MMWindowFactProject(Str(x[@"repo"]) || Str(x[@"worktree"]) || ![Str(x[@"project"]) isEqualToString:Str(x[@"name"])] ? Str(x[@"project"]) : nil));
             Add(out, MMWindowFactRunsIn(Str(x[@"where"]) ?: Str(x[@"whereApp"])));
-            Add(out, MMWindowFactStartedBy(Str(x[@"agent"]) ?: Str(x[@"launcher"])));
+            Add(out, MMWindowFactStartedBy(agentOwn ? Str(x[@"launcher"]) : Str(x[@"agent"]) ?: Str(x[@"launcher"])));
             NSDate *last = Date(x[@"lastActive"]);
             if (last) Add(out, [Str(x[@"state"]) isEqualToString:@"idle"] ? MMWindowFactIdle(-last.timeIntervalSinceNow) : MMWindowFactLastUsed(-last.timeIntervalSinceNow));
             if ([Num(x[@"uptimeSeconds"]) doubleValue] > 0) Add(out, MMWindowFactUp([x[@"uptimeSeconds"] doubleValue]));
@@ -150,6 +157,8 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             Add(out, MMWindowFactAgent(Str(x[@"name"])));
             // An agent that runs in the home folder or at the disk's top has no project.
             Add(out, MMWindowFactProject(HomeOrTop(Str(x[@"project"])) ? nil : Str(x[@"project"]).lastPathComponent));
+            // The ports its own process listens on: the same process is a row in Servers, named by this agent.
+            Add(out, MMWindowFactServes(ports));
             Add(out, MMWindowFactState(Str(x[@"state"])));
             break;
         case MMWindowApp:

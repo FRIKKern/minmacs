@@ -41,7 +41,7 @@ NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count) {
     // port, framework, megabytes, CPU in tenths or -1, state, project
     NSArray *t = @[@[@3001, @"Next.js", @412, @6, @"", @"atlas"], @[@6006, @"Storybook", @520, @3, @"", @"icons"],
                    @[@3000, @"Next.js", @412, @-1, @"", @"studio"], @[@4000, @"Phoenix", @260, @-1, @"kept", @"lexicon"],
-                   @[@8888, @"Jupyter", @290, @-1, @"", @"scoring"], @[@1313, @"Hugo", @60, @-1, @"idle", @"handbook"],
+                   @[@49210, @"Claude Code", @306, @-1, @"", @"scoring"], @[@1313, @"Hugo", @60, @-1, @"idle", @"handbook"],
                    @[@4100, @"Phoenix", @260, @5, @"", @"lexicon"], @[@3334, @"Astro", @240, @-1, @"idle", @"parity"],
                    @[@4321, @"Astro", @240, @4, @"idle", @"parity"], @[@4322, @"Astro", @240, @2, @"idle", @"parity"],
                    @[@9000, @"Django", @210, @-1, @"", @"uploader"], @[@5180, @"Vite", @188, @4, @"", @"speed"],
@@ -61,6 +61,14 @@ NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count) {
                                             [s[1] lowercaseString], [s[4] length] ? s[4] : nil, [s[2] unsignedLongLongValue] * MB, [s[3] integerValue] < 0 ? -1 : [s[3] integerValue] / 10.0);
         r.hour = MMWindowFixtureHour(r.bytes, r.key, i % 4);
         r.inFix = idle; r.quiet = idle;
+        // An agent's own port: Claude Code listens on it itself, so the server is named by the agent and says which
+        // session it is, as the agent "Score answers" says it serves this port.
+        if ([s[1] isEqualToString:@"Claude Code"]) {
+            r.facts = Facts(@[MMWindowFactPort(port), MMWindowFactAgent(s[1]), MMWindowFactSession(@"Score answers"), MMWindowFactProject(s[5]),
+                              MMWindowFactStartedBy(@"Terminal"), MMWindowFactLastUsed(180), MMWindowFactUp(2640)]);
+            [rows addObject:r];
+            continue;
+        }
         r.facts = Facts(@[MMWindowFactPort(port), MMWindowFactProject(i % 5 == 4 ? [NSString stringWithFormat:@"/Users/sam/code/%@-worktrees/review/apps/web", s[5]] : s[5]),
                           MMWindowFactRunsIn(i % 3 ? @"Ghostty, tab 2" : @"Terminal"), MMWindowFactStartedBy(i % 4 == 3 ? @"cmux · parent exited" : i % 2 ? @"Claude Code" : @"launchd"),
                           idle ? MMWindowFactIdle(7800) : MMWindowFactLastUsed(i % 6 ? 180 : 4), MMWindowFactUp(i % 2 ? 108000 : 9360),
@@ -87,7 +95,7 @@ NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking)
                                             asks ? @"asks" : idle ? @"idle" : @"working", [a[1] unsignedLongLongValue] * MB, [a[2] integerValue] < 0 ? -1 : [a[2] integerValue] / 10.0);
         r.needsYou = asks; r.quiet = idle;
         r.hour = MMWindowFixtureHour(r.bytes, r.key, (i + 1) % 4);
-        r.facts = Facts(@[MMWindowFactAgent(i % 3 == 2 ? @"Codex" : @"Claude Code"), MMWindowFactProject(a[3]), MMWindowFactState(asks ? @"waits on you" : idle ? @"idle" : @"working")]);
+        r.facts = Facts(@[MMWindowFactAgent(i % 3 == 2 ? @"Codex" : @"Claude Code"), MMWindowFactProject(a[3]), OR_NONE(i == 1 ? MMWindowFactServes(@[@49210]) : nil), MMWindowFactState(asks ? @"waits on you" : idle ? @"idle" : @"working")]);
         [rows addObject:r];
     }
     return rows;

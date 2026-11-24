@@ -57,6 +57,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run unmeasured
   echo "-- Fix Everything's planned disk with a worktree not measured, issue #83"
   wn_run planned
+  echo "-- an agent that serves a port of its own"
+  wn_run agentport
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
@@ -90,13 +92,13 @@ wn_has() { # file string...
   wn_f=$1; shift
   for wn_s in "$@"; do grep -qF -- "$wn_s" "Sources/Experts/$wn_f" && printf '1 ' || printf '0 '; done
 }
-wn_strings="$(wn_has LocoHost/MMLHHost.m '@"port": @(self.port)' '@"framework": self.framework' '@"project": self.project' '@"lastActive": Time(self.lastActive)' '@"uptimeSeconds"' '@"where": Or(self.placeLabel)' '@"whereApp"' '@"agent": Or(self.agent)' '@"launcher"' '@"protected": @(self.isProtected)' '? @"active" : s == MMLHRecent ? @"recent" : @"idle"'
+wn_strings="$(wn_has LocoHost/MMLHHost.m '@"port": @(self.port)' '@"framework": self.framework' '@"project": self.project' '@"lastActive": Time(self.lastActive)' '@"uptimeSeconds"' '@"where": Or(self.placeLabel)' '@"whereApp"' '@"agent": Or(self.agent)' '@"kind": self.kind' '@"agentTitle": Or(self.agentTitle)' '@"launcher"' '@"protected": @(self.isProtected)' '? @"active" : s == MMLHRecent ? @"recent" : @"idle"'
   wn_has LocoHost/MMLocoHost.m 'facts[@"keptUntil"]'
-  wn_has MinMacs/MMMinMacsExpert.m '@"harnessID": m.harnessID' '@"name": m.name' '@"state": StateWord(m.state)' '@"project": m.project' '@"why": m.why' 'return @"waits on you"' '@"bundleID": a.bundleID' '@"group": GroupName(g)' 'fx[@"reason"] = reason' 'fx[@"agent"] = a.agentName' 'fx[@"ports"] = a.loopbackPorts'
+  wn_has MinMacs/MMMinMacsExpert.m '@"harnessID": m.harnessID' '@"name": m.name' '@"state": StateWord(m.state)' '@"project": m.project' '@"why": m.why' 'return @"waits on you"' '@"bundleID": a.bundleID' '@"group": GroupName(g)' 'fx[@"reason"] = reason' 'fx[@"agent"] = a.agentName' 'fx[@"ports"] = a.loopbackPorts' 'fx[@"ports"] = m.ports'
   wn_has MinMacs/MMMinMacsWrapUp.m '@"cwd": cwd' '@"worktree": subject.path' '@"urls": urls' '@"ports": on.array' '@"bundleID": bid'
   wn_has WorkForest/MMWFTree.m '@"branch": Or(self.branch)' '@"merged": Or(self.merged)' '@"dirty": @(self.dirty)' '@"untracked": @(self.untracked)' '@"unpushed": @(self.unpushed)' '@"lastWorkAt": Time(self.lastWork)' '@"protected": @(self.isProtected)' '@"sized": @(self.sized)' '@"missing": @(self.missing)'
   wn_has NooNoo/MMNooNooExpert.m '@"kindTitle": k.title' '@"name": RowName(i)' '? @"free" : i.state == MMClutterLive ? @"live" : @"kept"' 'fx[@"owner"] = ownerName' 'fx[@"lastUsed"]' 'fx[@"keep"]' 'fx[@"why"]')"
-check "window: the experts still write the facts the rows read" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${wn_strings% }"
+check "window: the experts still write the facts the rows read" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" "${wn_strings% }"
 wn_rules="$(wn_has LocoHost/MMLHScan.m 'EnvMinutes(@"LOCOHOST_PROACTIVE_MINUTES", 6 * 60)'
   wn_has LocoHost/MMLocoHost.m 'if (m != MMModeProactive) return nil;' 'if (h.agent.length && !h.orphaned) return'
   wn_has WorkForest/MMWFTree.m 'EnvHours("WORKFOREST_PROACTIVE_HOURS", 7 * 24)' 'self.merged.length > 0 || [self.upstream isEqualToString:@"gone"]'
@@ -112,10 +114,10 @@ check "window: neither the feed's Settings nor the render's offers a removal car
 wn_words=$(for wn_s in '@"kept"' '@"idle"' '@"asks"' '@"left behind"' '@"changed"' '@"merged"' '@"in use"' '@"will close"'; do
   grep -qF -- "$wn_s" Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowFeed.m && printf '1' || printf '0(%s)' "$wn_s"; done
   # The fact labels are the model's, one function a fact. The feed and the fixtures both call those and write no label of their own.
-  for wn_s in Port Project 'Runs in' 'Started by' Idle 'Last used' Running Kept Agent State 'Used by' Serves Stays 'Left by' Folder Open On Branch Files 'Not pushed' Untouched Changed Kind; do
+  for wn_s in Port Project 'Runs in' 'Started by' Idle 'Last used' Running Kept Agent Session State 'Used by' Serves Stays 'Left by' Folder Open On Branch Files 'Not pushed' Untouched Changed Kind; do
   grep -qF -- "Fact(@\"$wn_s\"," Sources/UI/Window/MMWindowModel.m && printf '1' || printf '0(%s)' "$wn_s"; done
   printf ' %s' "$(grep -cE 'MMWindowFact label:|\[MMWindowFact new\]' Sources/Shell/MMWindowRows.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m | awk -F: '{n += $2} END {print n}')")
-check "window: every state word is one the feed writes, every fact label is the model's, and neither the feed nor the made-up rows word a fact themselves" "1111111111111111111111111111111 0" "$wn_words"
+check "window: every state word is one the feed writes, every fact label is the model's, and neither the feed nor the made-up rows word a fact themselves" "11111111111111111111111111111111 0" "$wn_words"
 check "window: the removal title is gone, and the first-look line is written once" "0 1" \
   "$(grep -rF '@"When MinMacs removes things"' Sources | grep -c .) $(grep -rF '@"MinMacs is taking its first look. It takes a few seconds."' Sources | grep -c .)"
 # The welcome: the login item is added in two places only, the old first launch and -setLogin:, and the window reaches
