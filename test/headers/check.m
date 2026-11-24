@@ -31,6 +31,7 @@
 #import "Core/Act/MMAct.h"
 #import "Core/Act/MMWorktreeAct.h"
 #import "Core/Act/MMClutterAct.h"
+#import "Core/Act/MMNotice.h"
 #import "Core/MMExpert.h"
 #import "Core/MMCore.h"
 #import "Core/MMPerformance.h"

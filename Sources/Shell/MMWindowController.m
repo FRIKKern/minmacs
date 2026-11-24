@@ -12,6 +12,8 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
 @protocol MMWindowLidExpert <NSObject>
 /// The menu's own toggle, on main: it asks first when the lid mode turns on, then changes it off main.
 - (void)act:(NSString *)what key:(nullable NSString *)key;
+/// The same, told whether a person made the press, read at the press: only then is there a confirm, D3.
+- (void)act:(NSString *)what key:(nullable NSString *)key present:(BOOL)present;
 /// The change itself, with its undo record. Never on main.
 - (NSString *)set:(NSString *)what value:(id)value by:(NSString *)by;
 @end
@@ -199,6 +201,22 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     });
 }
 
+/// D3, on main: on a Mac that runs unattended nobody presses Start, so the welcome's defaults apply without it. The
+/// login item is turned on, as the welcome's switch starts for a person new to MinMacs, and the rows say it was
+/// unattended that did it. It runs once: after it, as after Start, the welcome never comes back.
++ (BOOL)skipWelcomeUnattended:(id<MMWindowLogin>)login {
+    if (!NSThread.isMainThread || !MMUnattended() || MMPrefBool(MMWindowWelcomedKey, NO)) return NO;
+    MMWindowWelcomeDone();
+    BOOL before = [login loginEnabled];
+    if (!before) [login setLogin:YES];
+    BOOL after = [login loginEnabled];
+    dispatch_async(Queue(), ^{
+        MMLogSetting(MMWindowWelcomedKey, @NO, @YES, @"unattended");
+        MMLogSetting(MMWindowLoginKey, @(before), @(after), @"unattended");
+    });
+    return YES;
+}
+
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on {
     if ([switchID isEqualToString:@"login"]) {
         BOOL before = [self.shell loginEnabled];
@@ -219,14 +237,18 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (![switchID isEqualToString:@"lid"]) return;
     id<MMWindowLidExpert> e = (id)MMExpertNamed(@"insomnia");
     if (!e) return;
+    // D3: read now, at the press, on main. By the time the expert asks, the press is long past.
+    BOOL present = MMPersonPresses();
     dispatch_async(Queue(), ^{
         // Read again here, off main, so a press on a switch that already moved does nothing.
         if ([MMWindowExtras readWithLogin:NO].lidOn == on) { [self send]; return; }
         if ([e respondsToSelector:@selector(act:key:)]) {
-            // The expert's own toggle keeps its confirm, the one administrator prompt and its alert on failure.
+            // The expert's own toggle keeps its confirm for a person who is there, the one administrator prompt, and
+            // its notice on failure.
             // It changes the setting on its own queue and tells nobody, so the switch is read again a little later.
             dispatch_async(dispatch_get_main_queue(), ^{
-                [e act:@"lid" key:nil];
+                if ([e respondsToSelector:@selector(act:key:present:)]) [e act:@"lid" key:nil present:present];
+                else [e act:@"lid" key:nil];
                 for (NSNumber *wait in @[@1, @5])
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), Queue(), ^{ [self send]; });
             });

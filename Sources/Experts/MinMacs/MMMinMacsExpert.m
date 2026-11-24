@@ -444,7 +444,7 @@ static void RunOffMain(dispatch_block_t block) {
     return r;
 }
 
-/// Menu actions: run off main, then rebuild the graph. A failure the person should see goes in an alert.
+/// Menu actions: run off main, then rebuild the graph. A failure goes to the log as a notice.
 - (void)menuRun:(NSArray<id<MMAction>> *)actions {
     dispatch_async(MMQueue(kExpert, @"act", QOS_CLASS_USER_INITIATED), ^{
         NSMutableArray *problems = [NSMutableArray new];
@@ -455,12 +455,11 @@ static void RunOffMain(dispatch_block_t block) {
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             [MMGraph.shared rebuild:@"minmacs.action"];
-            if (!problems.count || !NSApp) return;
-            NSAlert *alert = [NSAlert new];
-            alert.messageText = problems.count == 1 ? @"MinMacs Could Not Do It" : [NSString stringWithFormat:@"MinMacs Could Not Do %ld Things", (long)problems.count];
-            alert.informativeText = [problems componentsJoinedByString:@"\n"];
-            [alert runModal];
         });
+        // D3: a failure is a notice in the log, with at most one notification. No alert waits for a person.
+        if (problems.count)
+            MMNotice(kExpert, problems.count == 1 ? @"MinMacs Could Not Do It" : [NSString stringWithFormat:@"MinMacs Could Not Do %ld Things", (long)problems.count],
+                     [problems componentsJoinedByString:@"\n"]);
     });
 }
 

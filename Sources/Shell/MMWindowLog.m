@@ -11,7 +11,7 @@ const NSTimeInterval MMWindowLogDays = 30 * 86400;
 static const NSUInteger kPage = 600;                 // rows per read
 static const NSUInteger kMostRows = 6000;            // what one read of the window looks at, at the most
 
-NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable, MMLogQuietTable]; }
+NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable, MMLogQuietTable, MMLogNoticeTable]; }
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v length] ? v : nil; }
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
@@ -25,6 +25,7 @@ static NSString *Who(NSString *by, NSString *why) {
     if ([by isEqualToString:@"manual"]) return [why isEqualToString:@"Fix Everything"] ? @"by you, in Fix Everything" : @"by you";
     NSDictionary *w = @{@"window": @"by you in the window", @"settings": @"by you in Settings",
                         @"welcome": @"by you in the welcome", @"cli": @"from the command line", @"migration": @"by the move from the old apps",
+                        @"unattended": @"on its own, unattended",
                         @"proactive": @"on its own, Careful", @"eager": @"on its own, Eager", @"guard": @"by its own rule", @"run": @"in a Wrap Up"};
     return w[by ?: @""];
 }
@@ -79,6 +80,8 @@ static NSString *SettingSentence(NSString *key, id old, id now) {
         return b ? [NSString stringWithFormat:@"The model reviews ask was set to %@.", b] : nil;
     }
     if ([key isEqualToString:MMWindowLoginKey]) return [NSString stringWithFormat:@"Open at login turned %@.", OnOff(now) ?: @"off"];
+    if ([key isEqualToString:MMUnattendedKey]) return [NSString stringWithFormat:@"Unattended turned %@.%@", OnOff(now) ?: @"off",
+                                                      [now boolValue] ? @" Nothing waits for a person, and nothing asks to be confirmed." : @""];
     if ([key isEqualToString:MMWindowWelcomedKey]) return @"Start was pressed in the welcome. The welcome does not come back.";
     return nil;
 }
@@ -234,7 +237,11 @@ static MMWindowLogEntry *InvestigateEntry(MMLogEntry *row, NSDate *now) {
 
 static MMWindowLogEntry *SettingEntry(MMLogEntry *row, NSDate *now) {
     NSDictionary *b = row.body;
-    NSString *s = SettingSentence(Str(b[@"key"]) ?: row.subject ?: @"", b[@"old"], b[@"new"]);
+    NSString *key = Str(b[@"key"]) ?: row.subject ?: @"";
+    NSString *s = SettingSentence(key, b[@"old"], b[@"new"]);
+    // D3: on a Mac that runs unattended nobody pressed Start. The welcome was skipped and its defaults applied.
+    if ([key isEqualToString:MMWindowWelcomedKey] && [Str(b[@"by"]) isEqualToString:@"unattended"])
+        s = @"The welcome was skipped, since this Mac runs unattended. Its defaults apply.";
     return Entry(row, @"setting", s ?: @"A setting changed.", Who(Str(b[@"by"]), nil), now);
 }
 
@@ -250,6 +257,16 @@ static MMWindowLogEntry *KeepEntry(MMLogEntry *row, NSDate *now) {
     // A keep is given from a menu or the command line, so a manual one says where.
     NSString *by = Str(b[@"by"]);
     return Entry(row, @"keep", s, [by isEqualToString:@"manual"] ? @"by you in a menu" : Who(by, nil), now);
+}
+
+/// A notice, D3: what would have been an alert, "Could Not Restore. The record is gone."
+static MMWindowLogEntry *NoticeEntry(MMLogEntry *row, NSDate *now) {
+    NSDictionary *b = row.body;
+    NSString *title = Str(b[@"title"]) ?: row.subject ?: @"Something did not work", *text = Str(b[@"text"]);
+    // The title is title case for a notification. In the log it is the first sentence, in sentence case.
+    NSString *first = Sentence([[title substringToIndex:1] stringByAppendingString:[title substringFromIndex:1].lowercaseString]);
+    NSString *s = text ? [NSString stringWithFormat:@"%@ %@", first, Sentence([text stringByReplacingOccurrencesOfString:@"\n" withString:@" "])] : first;
+    return Entry(row, @"notice", s, nil, now);
 }
 
 /// A quiet hold that ended: "Quiet for a screen recording (pid 4123), 12:03 to 12:41."
@@ -314,6 +331,7 @@ MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUIntege
         else if ([r.table isEqualToString:@"investigate"]) e = InvestigateEntry(r, now);
         else if ([r.table isEqualToString:MMLogSettingTable]) e = SettingEntry(r, now);
         else if ([r.table isEqualToString:MMLogKeepTable]) e = KeepEntry(r, now);
+        else if ([r.table isEqualToString:MMLogNoticeTable]) e = NoticeEntry(r, now);
         else if ([r.table isEqualToString:MMLogQuietTable]) {
             e = QuietEndEntry(r, now);
             NSString *hold = Str(r.body[@"holdRid"]);

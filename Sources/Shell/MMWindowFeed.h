@@ -76,7 +76,7 @@ extern NSString *const MMWindowLoginKey;
 /// @"core.loginNotAsked": YES from a first launch that left the login item alone, since the welcome asks. Start and
 /// any -setLogin: take it away. While it holds, a login item that is off is nobody's answer yet.
 extern NSString *const MMWindowLoginNotAskedKey;
-/// The welcome of the first launch, or nil once Start was pressed. There is no removal choice to make: everything
+/// The welcome of the first launch, or nil once Start was pressed or while the Mac runs unattended, MMUnattended. There is no removal choice to make: everything
 /// MinMacs removes keeps a way back, Core/Act/MMRemoval.h. The switch starts on for a person new to MinMacs. For one
 /// who used it before, which is when core.launched is set and the mark above is not, it starts where
 /// the login item stands now, loginNow, so an untouched Start changes nothing for them.

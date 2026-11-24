@@ -6,6 +6,7 @@
 #import <AppKit/AppKit.h>
 #import "Experts/Insomnia/MMInsomnia.h"
 #import "UI/MMFormat.h"
+#import "UI/MMConfirm.h"
 #include <sys/sysctl.h>
 
 static NSString *const kExpert = @"insomnia";
@@ -429,17 +430,16 @@ static NSString *PrefKey(NSString *what) {
 
 - (NSArray<MMVerbSpec *> *)verbs { return MMINVerbs(); }
 
-static void Alert(NSString *title, NSString *text) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSAlert *a = [NSAlert new];
-        a.messageText = title; a.informativeText = text ?: @"";
-        [NSApp activateIgnoringOtherApps:YES];
-        [a runModal];
-    });
-}
+/// D3: what failed goes to the log as a notice, with at most one notification. No alert waits for a person.
+static void Notice(NSString *title, NSString *text) { MMNotice(kExpert, title, text); }
 
-/// From the menu, on main. The change runs on the act queue.
-- (void)act:(NSString *)what key:(NSString *)key {
+/// From the menu, on main: whether a person is plainly there is read now, at the press.
+- (void)act:(NSString *)what key:(NSString *)key { [self act:what key:key present:MMPersonPresses()]; }
+
+/// On main. The change runs on the act queue. present: a person made this press and is there to answer the lid
+/// confirm. With nobody there, as from a link or while unattended, the lid is set as `insomnia lid on` sets it.
+/// Either way only this explicit turn to on can bring macOS's one administrator prompt, -set:value:by:.
+- (void)act:(NSString *)what key:(NSString *)key present:(BOOL)present {
     if ([what isEqualToString:@"skip"]) {
         for (MMINHolder *h in self.state.holders) if ([h.findingID isEqualToString:key]) [self skip:h.keyString];
         return;
@@ -448,22 +448,17 @@ static void Alert(NSString *title, NSString *text) {
     NSDictionary *now = @{@"manual": @(p.manual), @"agents": @(p.agents), @"lid": @(p.lid), @"screen": @(p.screenOff), @"heat": @(p.thermalGuard)};
     if (!now[what]) return;
     BOOL to = ![now[what] boolValue];
-    if ([what isEqualToString:@"lid"] && to) {
-        NSAlert *a = [NSAlert new];
-        a.messageText = @"Keep the Mac awake with the lid closed?";
-        a.informativeText = @"It keeps running with the lid shut, also inside a bag, and can get warm.\n\n"
+    if ([what isEqualToString:@"lid"] && to && present) {
+        NSString *text = @"It keeps running with the lid shut, also inside a bag, and can get warm.\n\n"
                              "On battery, MinMacs pauses this when the battery gets low, the charger has been out for a while, "
                              "the network has been gone for a while, or the Mac runs hot with the lid shut. "
                              "It clears when nothing keeps the Mac awake and when MinMacs quits. "
                              "The first time, macOS asks for your password to allow the change.";
-        [a addButtonWithTitle:@"Keep Awake"];
-        [a addButtonWithTitle:@"Cancel"];
-        [NSApp activateIgnoringOtherApps:YES];
-        if ([a runModal] != NSAlertFirstButtonReturn) return;
+        if (!MMAskPerson(@"Keep the Mac awake with the lid closed?", text, @"Keep Awake", nil)) return;
     }
     dispatch_async(ActQueue(), ^{
         NSString *problem = [self set:what value:@(to) by:@"manual"];
-        if (problem) Alert(@"Could Not Change Insomnia", MMSentence(problem));
+        if (problem) Notice(@"Could Not Change Keep Awake", MMSentence(problem));
     });
 }
 
@@ -475,7 +470,7 @@ static void Alert(NSString *title, NSString *text) {
     if (![@[@"battery", @"unplugged", @"offline", @"heat", @"quiet"] containsObject:key ?: @""] || !value) return;
     dispatch_async(ActQueue(), ^{
         NSString *problem = [self set:key value:value by:@"manual"];
-        if (problem) Alert(@"Could Not Change Insomnia", MMSentence(problem));
+        if (problem) Notice(@"Could Not Change Keep Awake", MMSentence(problem));
     });
 }
 
