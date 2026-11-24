@@ -106,6 +106,9 @@ int main(int argc, const char *argv[]) {
         [fm createDirectoryAtPath:[repo stringByAppendingPathComponent:@"src"] withIntermediateDirectories:YES attributes:nil error:nil];
         [fm createDirectoryAtPath:other withIntermediateDirectories:YES attributes:nil error:nil];
         [@"x" writeToFile:[repo stringByAppendingPathComponent:@"src/a.txt"] atomically:NO encoding:NSUTF8StringEncoding error:nil];
+        // The support folder is $MINMACS_HOME, which every section of one test.sh run shares, and test/act leaves its
+        // watching-since a day old. The day of watching starts here, so the watched step below moves the digest.
+        [fm removeItemAtPath:[MMSupportDir() stringByAppendingPathComponent:@"watching-since"] error:nil];
         MMStartWatching();
 
         MMNooNooExpert *nn = MMNooNooExpert.shared;
