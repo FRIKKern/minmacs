@@ -322,6 +322,52 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
     return out;
 }
 
+/// Issue #52. What findingsFrom: reads, so the graph hands back the last findings when none of it moved. Know replaces
+/// a clutter item when a scan changed it, a worktree when the repo index walked it again and a git fact when it moved,
+/// and arrays may be copied, so each element's identity counts: that is the catalog scan's generation and the index's.
+/// Then each session's id, folder, pid and whether it works, the checkouts that a working
+/// session started above them runs a process in, the timed keeps that hold now with their dates, the mode, the day of
+/// watching, the growth threshold and each tool row's last dry run. Ages, such as "last used 3 days ago", move only
+/// at the heartbeat build, at most 30 seconds later, as LocoHost's do.
+static uint64_t NNMix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t NNObj(id o, uint64_t salt) { return NNMix((uint64_t)(uintptr_t)(__bridge void *)o ^ NNMix(salt)); }
+static uint64_t NNStr(NSString *s, uint64_t salt) { return NNMix((s ? s.hash ^ ((uint64_t)s.length << 40) : 0x5bd1e995ull) ^ NNMix(salt)); }
+
+- (uint64_t)inputDigestFrom:(MMFacts *)facts {
+    uint64_t h = NNMix(facts.clutter.count + 1);
+    for (MMClutterItem *i in facts.clutter) {
+        h += NNObj(i, 1) + NNObj(i.kind, 2);
+        MMClutterKind *k = i.kind;
+        if (k.cleanupArgs.count && !k.reportOnly) {
+            NSDictionary *last = MMClutterLastDryRun(k.kindID);
+            if (last) h += NNMix([last[@"at"] doubleValue] * 1000 + 3) ^ NNMix([last[@"exit"] longLongValue] + 4) ^ NNMix([last[@"wouldFree"] longLongValue] + 5);
+        }
+    }
+    h += NNMix(facts.worktrees.count + 6);
+    for (MMWorktree *w in facts.worktrees) h += NNObj(w, 7) + NNObj([facts gitFor:w], 8);
+    // Of a session, only what the owner state and the agent keeps read: not its last activity or title, which an
+    // agent at work moves with every append to its transcript.
+    h += NNMix(facts.sessions.count + 9);
+    for (MMSession *x in facts.sessions)
+        h += NNStr(x.sessionID, 10) ^ NNStr(x.cwd, 18) ^ NNMix(((uint64_t)(uint32_t)x.pid << 1 | (uint64_t)x.stillWorking) + 19);
+    // The one input from the sample: the checkouts a working session started above them runs a process in.
+    NSDictionary<NSString *, MMSession *> *runs = AgentRuns(facts);
+    for (NSString *path in runs) h += NNStr(path, 11) ^ NNObj(runs[path], 12);
+    NSDictionary *keeps = [self keepsNow];
+    double now = NSDate.date.timeIntervalSince1970;
+    for (NSString *key in keeps) {
+        double until = [keeps[key] doubleValue];
+        if (until > now) h += NNStr(key, 13) ^ NNMix((uint64_t)until + 14);
+    }
+    h ^= NNMix((uint64_t)MMModeFor(kExpert) + 15);
+    h ^= NNMix((uint64_t)MMWatchedLongEnough(kExpert) + 16);
+    h ^= NNMix((uint64_t)MMPrefDouble(@"noonoo.growthMinBytes", 1024.0 * 1024 * 1024) + 17);
+    return h;
+}
+
 - (MMClutterItem *)itemFor:(MMFinding *)f facts:(MMFacts *)facts {
     for (MMClutterItem *i in facts.clutter ?: self.catalog.items) if ([i.key isEqualToString:f.stableKey]) return i;
     return nil;

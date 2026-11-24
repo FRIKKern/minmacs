@@ -14,6 +14,8 @@ One finding per checkout, kind `worktree`, id `workforest:worktree:<path>`. The 
 
 The fingerprint holds HEAD, the merge state, the upstream, the dirty, untracked and unpushed counts, whether HEAD is on a remote, whether anything runs inside, the session's age bucket, the quiet bucket, protected and locked. The finding's facts are the whole tree as JSON, for `--json`, the menu and the review.
 
+`inputDigestFrom:` digests what the trees are built from, issue #52: the identity of each worktree, its git facts and each session, which Know replaces when they change; a stat of each checkout folder, which says whether it is there and whether its disk walk is stale; `-[MMTreeDisk generation]`, which moves with every walk; the protected branches; and the name and folder of each process of this user whose folder lies in a checkout, each pair once. When it matches, the graph hands back the last findings, and plans on that snapshot read them as built from its facts, so nothing walks again. The quiet time and the day of recent work move at the next heartbeat build, at most 30 seconds later.
+
 ## Keeps
 
 - **Every mode, on fresh facts.** The main checkout, a missing folder, a worktree Cursor or Conductor made (decision 6), a protected branch, a lock, git facts not known yet, uncommitted or untracked files, commits on no remote that are not merged, a detached HEAD with commits no branch holds, a process inside, an agent session that works in it now or was active in the last day, a file change in the last day, files not walked yet, and a worktree made in the last day. HEAD that moved since the plan cannot be verified, so it stays.

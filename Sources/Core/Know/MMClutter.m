@@ -588,6 +588,32 @@ static NSString *FamilyKey(NSString *name) {
     return [name substringToIndex:r.location + 1];
 }
 
+/// What a scan's walls read that cannot change while it runs: the home folders, the roots and MinMacs's own folders,
+/// each resolved once, and each never pattern's glob, read once. A scan judges every member of every item, 560 in a
+/// TMPDIR like the development Mac's, and each member's walls resolved five paths twice and ran every never glob
+/// again. Only the thread that runs the scan sees it, so an action's whyNot: on another queue reads the disk now.
+@interface MMClutterScanMemo : NSObject
+@property (copy) NSString *home, *chome, *root, *support, *mmHome;
+@property (strong) NSMutableDictionary<NSString *, NSArray<NSString *> *> *globs;
+@end
+@implementation MMClutterScanMemo
+@end
+
+static NSString *const kScanMemoKey = @"no.guerrilla.minmacs.core.clutter.scanMemo";
+static MMClutterScanMemo *ScanMemo(void) { return NSThread.currentThread.threadDictionary[kScanMemoKey]; }
+
+/// Runs block with the memo on this thread, or with the one a scan that called this already holds.
+static void WithScanMemo(void (^block)(void)) {
+    NSMutableDictionary *td = NSThread.currentThread.threadDictionary;
+    if (td[kScanMemoKey]) { block(); return; }
+    MMClutterScanMemo *m = [MMClutterScanMemo new];
+    m.home = Real(NSHomeDirectory()); m.chome = MMClutterHome(); m.root = MMClutterRoot();
+    m.support = Real(MMSupportDir()); m.mmHome = Env(@"MINMACS_HOME") ? Real(Env(@"MINMACS_HOME")) : nil;
+    m.globs = [NSMutableDictionary new];
+    td[kScanMemoKey] = m;
+    @try { block(); } @finally { [td removeObjectForKey:kScanMemoKey]; }
+}
+
 #pragma mark - The catalog
 
 @implementation MMClutterCatalog {
@@ -770,7 +796,8 @@ static BOOL InsideCase(NSString *path, NSString *folder) {
 }
 
 - (NSString *)wallFor:(NSString *)p {
-    NSString *home = Real(NSHomeDirectory()), *chome = MMClutterHome(), *root = MMClutterRoot();
+    MMClutterScanMemo *memo = ScanMemo();
+    NSString *home = memo ? memo.home : Real(NSHomeDirectory()), *chome = memo ? memo.chome : MMClutterHome(), *root = memo ? memo.root : MMClutterRoot();
     NSMutableArray *roots = [NSMutableArray arrayWithObject:@""];
     if (root.length) [roots addObject:root];
     for (NSString *r in roots)
@@ -791,8 +818,8 @@ static BOOL InsideCase(NSString *path, NSString *folder) {
             if (w.length && [p.lowercaseString isEqualToString:w.lowercaseString]) return @"it is a system folder";
         }
     }
-    NSString *mmHome = Env(@"MINMACS_HOME") ? Real(Env(@"MINMACS_HOME")) : nil;
-    for (NSString *x in @[Real(MMSupportDir()), mmHome ?: @"", root ?: @""])
+    NSString *mmHome = memo ? memo.mmHome : Env(@"MINMACS_HOME") ? Real(Env(@"MINMACS_HOME")) : nil;
+    for (NSString *x in @[(memo ? memo.support : Real(MMSupportDir())) ?: @"", mmHome ?: @"", root ?: @""])
         if (x.length && (InsideOrSame(x, p))) return @"it holds MinMacs's own folder";
     return nil;
 }
@@ -801,7 +828,10 @@ static BOOL InsideCase(NSString *path, NSString *folder) {
 static BOOL NeverHits(NSString *never, NSString *p) {
     for (NSString *a = p; a.length > 1; a = a.stringByDeletingLastPathComponent) if (Match(never, a)) return YES;
     if ([never rangeOfString:@"*"].location == NSNotFound && [never rangeOfString:@"?"].location == NSNotFound) return Inside(never, p);
-    for (NSString *g in Glob(never)) if (Inside(g, p)) return YES;
+    NSMutableDictionary<NSString *, NSArray<NSString *> *> *globs = ScanMemo().globs;
+    NSArray<NSString *> *hits = globs[never];
+    if (!hits) { hits = Glob(never); if (globs) globs[never] = hits; }
+    for (NSString *g in hits) if (Inside(g, p)) return YES;
     return NO;
 }
 
@@ -1195,7 +1225,10 @@ static BOOL IsUUID(NSString *s) {
     NSMutableArray *candidates = [NSMutableArray new];
     for (MMClutterItem *i in found) @autoreleasepool { [self linkOwner:i projects:projects]; [candidates addObjectsFromArray:i.members]; }
     NSSet *open = MMOpenUnder(candidates);
-    for (MMClutterItem *i in found) @autoreleasepool { [self judge:i open:open sample:sample projects:projects]; }
+    // One memo of the walls for the whole judge pass. inspect:, right before an action, reads them now.
+    WithScanMemo(^{
+        for (MMClutterItem *i in found) @autoreleasepool { [self judge:i open:open sample:sample projects:projects]; }
+    });
     found = [found filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(MMClutterItem *i, id _) { return i.why != kWholeSession; }]];
     [self size:found];
     // Trends: one point a day per row, its total on disk, and the fit over the last 30 days.

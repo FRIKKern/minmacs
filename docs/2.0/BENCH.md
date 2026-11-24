@@ -73,7 +73,7 @@ The first profile, five experts on `main` at f04a47b, 60 seconds, 1.064 % CPU: 1
 
 **Senses.** A sample takes from the last one what holds for the same process: args, responsible pid and app lookups for the same pid, start, parent and name, and the cwd for a pass in which the process used no CPU time, otherwise for 30 seconds from its read. An exec changes the name, so its args are read again. A process that used no CPU time keeps its sockets for 45 to 60 seconds. One that ran but holds the same socket fds has only its TCP fds read again. `MMRunningApps()` reads each app once. An exit drops the process from the last sample with no pass. The pass backs off to 10 seconds on battery, 15 when the person is away 5 minutes, and 30 for both.
 
-**Graph.** A build after a new sample is skipped when the facts digest matches: each of our processes at a CPU band and 16 MB of memory, sockets, power, agents and the identity of Know's objects. It builds at least every 30 seconds, and always for any other reason. An expert that answers `inputDigestFrom:` gets its last findings back when its inputs did not change. Exits within 0.3 seconds share one build.
+**Graph.** A build after a new sample is skipped when the facts digest matches: each of our processes at a CPU band and 16 MB of memory, sockets, power, agents and the identity of Know's objects. It builds at least every 30 seconds, and always for any other reason but an exit. An expert that answers `inputDigestFrom:` gets its last findings back when its inputs did not change. Exits within 0.3 seconds share one build.
 
 **Know.** The session index reads only the folders FSEvents named, and all of them every 10 minutes. The registry reads its presence paths every 30 seconds, not on every match.
 
@@ -468,6 +468,55 @@ The open window reads 66 or 117 MB from one open to the next in both builds, as 
 A reopen after a rest makes the panel and draws a new view, about 6 ms more than a warm reopen and under #53's 30 ms. `tools/render.sh` on the same Mac, which times the view alone into a bitmap, read cold p95 26.1 to 29.0 ms and warm p95 24.8 to 28.2 ms over its three fixtures, within the earlier runs of [The menu window's first frame](#the-menu-windows-first-frame-2026-11-12).
 
 **The check.** `test/window/memory.m`, in `./test.sh window`, makes the holder as the shell does, with the busy fixture, and opens its panel far off every screen, with a rest of 3 s. It never starts the app or Core. It checks that each first frame, the first open's and the reopen's after a let-go, is drawn and committed before the panel is ordered in, that a quick reopen takes the same panel, that a run in play keeps it, that nothing holds the panel that was let go, and its own footprint. Its baseline is read after a plain window drew the same view once and went, since a process pays about 15 MB the first time it draws a window this large. On this Mac it read a baseline of 18.9 MB, 57.9 open, 33.7 after the rest and 38.8 after a second one, and eight more rounds stayed at 39.6 to 39.8 MB. With the panel kept it read 77.3 and 78.7 MB, 58 to 60 MB over the baseline. So the check asks for less than 35 MB over the baseline after each rest, at least 20 MB given back by the second rest, and less than 8 MB added by the second round.
+
+## Digests for Noo-Noo and WorkForest, 2026-11-24
+
+Issue #52, the three items left above.
+
+### What changed
+
+- **Noo-Noo and WorkForest answer `inputDigestFrom:`**, so the graph hands back their last findings when nothing they read moved. Noo-Noo's digest holds the identity of each clutter item and its row, worktree and git fact; each session's id, folder, pid and whether it works, but not its last write or title; the checkouts a working session started above them runs a process in; the keeps that hold now; the mode, the day of watching, the growth threshold and each tool row's last dry run. WorkForest's holds each worktree and git fact, a stat of each checkout folder, `-[MMTreeDisk generation]`, which moves with every walk, the protected branches, and what `ProcessesIn` and `SessionsIn` give each tree. Its `findingsFrom:` of the same facts takes those two from the digest, so a build that does not reuse reads them once. `./test.sh idle` changes each input in turn and checks that the digest moves, and that a second process of a name in a checkout, a process or session outside every checkout, or a transcript write leave it.
+- **An exit no longer forces a build.** An exit changes only the sample, which the facts digest and every expert's digest read, so it builds when they moved and reuses findings as a new sample does. In the trace below, 114 of 167 builds were exits: compilers, shells and git of the agents at work on this Mac, each a forced build of every expert.
+- **A clutter scan resolves its walls once.** `wallFor:` resolved the home folder, the clutter root and home, the support folder and `MINMACS_HOME` twice for each member, and `NeverHits` ran each never glob again for each member. The judge pass now keeps them in a memo on its own thread, so an action's `whyNot:` on another queue still reads the disk.
+
+### The clutter scan
+
+`minmacs clutter scan --json` in a fixture home whose TMPDIR holds 10,000 loose entries and 8 families of 70 members, with 4 checkouts and 12 transcripts. Two runs each, alternating, load average near 2:
+
+| | Before | After |
+| --- | --- | --- |
+| Instructions | 10.30 to 10.42 G | 6.68 to 6.78 G |
+| User CPU | 0.39 to 0.65 s | 0.26 to 0.45 s |
+| `clutter scan --json`, `clutter list --json` and `core/clutter.json` without its scan times | | the same, byte for byte |
+
+### The idle tick
+
+`bench idle --seconds 240 --warmup 30`, base and branch alternating, base, branch, branch, base, each in a fresh copy of one fixture home: the clutter root above, scanned before the run, four checkouts and a linked worktree as the roots, and 12 transcripts of 47 MB, two of them written every 2 seconds by one long-lived process, so the fixture itself makes no exits. About 595 processes, load average 1.4 to 2.2, other agents building. CPU ms are per build.
+
+| | Before | | After | |
+| --- | --- | --- | --- | --- |
+| CPU | 0.373 % | 0.309 % | 0.337 % | 0.344 % |
+| CPU a tick, median and mean | 17.2, 18.7 ms | 11.9, 15.5 ms | 14.2, 17.0 ms | 13.6, 17.8 ms |
+| Builds a minute | 39.0 | 28.5 | 37.0 | 39.2 |
+| Builds that reused both experts' findings | | | 138 of 148 | 146 of 157 |
+| Facts | 1.53 | 1.44 | 1.68 | 1.61 |
+| Findings and the snapshot, digests included | 2.80 | 3.19 | 2.33 | 2.26 |
+| Noo-Noo: findings, digest | 0.318, none | 0.380, none | 0.025, 0.087 | 0.024, 0.085 |
+| WorkForest: findings, digest | 0.723, none | 0.831, none | 0.027, 0.399 | 0.027, 0.378 |
+
+Each snapshot held 16 Noo-Noo findings, 6 WorkForest, 6 MinMacs, 3 LocoHost and 1 Insomnia. A build costs about 0.5 to 0.9 ms less. The CPU in percent is within the noise of other agents' work: the two base runs differ by more than base and branch. On the owner's Mac Noo-Noo's findings took about 1.1 ms a build, against 0.35 here, so the field should gain more.
+
+A first try hashed each session's identity, as LocoHost does. The session index makes new session objects at each read, and a transcript write asks for one, so with two agents at work only 53 of 144 builds reused the findings.
+
+### The CPU band
+
+A trace of each build's facts, 240 seconds in the same fixture, read what changed from one build to the next. 114 of the 167 builds were exits, forced. Every one of the other 53 had a process that started or ended, and none changed only a CPU band. Replaying the trace with hysteresis at the band edges of 10, 25 and 50 %, and with no CPU band at all, gave the same 167 builds. So the band has no hysteresis: what builds is processes that come and go.
+
+### What is left
+
+- WorkForest's digest is 0.4 ms, almost all `ProcessesIn`: the cwd of each of this user's processes, checked against each checkout. Senses carries the cwd of a process that did not change, so most of it is the lookup and the match.
+- Builds still come from processes that start and end, about 37 a minute with agents at work here. LocoHost and MinMacs build their findings for most of them: 0.5 and 0.4 ms. MinMacs has no digest.
+- The menu window, as above.
 
 ## The last hour in memory
 

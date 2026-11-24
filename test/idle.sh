@@ -81,7 +81,35 @@ check "idle: and the expert with the same inputs is not asked" True "$(ij 'j["re
 check "idle: its last findings are in the snapshot" 1 "$(ij 'j["reusedFindings"]')"
 check "idle: a build for any other reason asks every expert" True "$(ij 'j["forcedBuilt"]')"
 check "idle: CPU that leaves its band builds" True "$(ij 'j["bandBuilt"]')"
+check "idle: an exit builds, and the expert with the same inputs is not asked" "True True" "$(ij '"%s %s" % (j["exitBuilt"], j["exitReused"])')"
 check "idle: the graph counts reuse and cost per expert" "True True" "$(ij '"%s %s" % (j["reusedCounted"], j["costsByExpert"])')"
+
+# Noo-Noo's and WorkForest's input digests: each input they read moves the digest, and the graph hands back their
+# findings when only a process outside every checkout moved. The tool links every .m but main.m.
+id_dg="$id_dir/digest"; mkdir -p "$id_dg"
+clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -arch "$(uname -m)" -ISources -DMM_TESTS -DMM_VERSION='"2.0.0"' \
+  -Wall -Werror $(find Sources -name '*.m' ! -path 'Sources/main.m' | LC_ALL=C sort) test/idle/digesttool.m \
+  -framework Cocoa -framework IOKit -framework ServiceManagement -framework UserNotifications -framework QuartzCore -lsqlite3 \
+  -o "$id_dg/digesttool" >"$id_dg/clang.log" 2>&1
+id_r=$?
+check "idle: the digest tool builds with MM_TESTS and no warnings" 0 "$id_r"
+[ "$id_r" = 0 ] || tail -20 "$id_dg/clang.log"
+id_dgsleep="$id_dg/dg-sleep-$$"
+clang -O1 -o "$id_dgsleep" "$id_dir/sleeper.c" 2>>"$id_dg/clang.log"
+id_out=$(MINMACS_CLUTTER_ROWS="$ROOT/registry/clutter" "$id_dg/digesttool" "$id_dg/fx" "$id_dgsleep" 2>"$id_dg/err.txt")
+check "idle: the catalog has a cache row and a tool row for the digest checks" True "$(ij 'j["kinds"]')"
+check "idle: the same inputs give the same digests" "True True True True" "$(ij '"%s %s %s %s" % (j["nnSame"], j["wfSame"], j["nnQuiet"], j["wfQuiet"])')"
+for id_k in scan index git sessions sessionBack keep keepAgain mode watched growth dryRun agentAbove agentRuns; do
+  check "idle: Noo-Noo's digest moves with $id_k" True "$(ij "j['nn.$id_k']")"
+done
+for id_k in index git sessions sessionWrote disk folder protect procIn procGone missing; do
+  check "idle: WorkForest's digest moves with $id_k" True "$(ij "j['wf.$id_k']")"
+done
+check "idle: a second process of a name in a checkout, or one outside, moves nothing" "False False" "$(ij '"%s %s" % (j["wf.twin"], j["wf.away"])')"
+check "idle: a transcript write moves Noo-Noo's digest not, nor a session outside the checkouts WorkForest's" "False False" "$(ij '"%s %s" % (j["nn.sessionWrote"], j["wf.sessionAway"])')"
+check "idle: a new sample with the same inputs builds, and both hand back their findings" "True 1 1" "$(ij '"%s %d %d" % (j["graphBuilt"], j["graphReusedNN"], j["graphReusedWF"])')"
+check "idle: a build for another reason asks both again" True "$(ij 'j["graphForcedAsks"]')"
+rm -f "$id_dgsleep"
 
 # The session index reads its folders only after FSEvents names a change in them.
 id_cl="$id_dir/claude"; id_pi="$id_dir/pi"

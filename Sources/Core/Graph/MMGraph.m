@@ -671,9 +671,11 @@ static NSString *SizeBucket(uint64_t bytes) {
 
 - (void)rebuild:(NSString *)why {
     if (self.stopped) return;
-    // Only a new sample may find nothing changed. Every other reason, an exit, an app, a power change, Know or an
-    // action, always builds.
-    if (![why isEqualToString:@"sample"]) atomic_store(&_forced, true);
+    // Only a new sample, or the last one without the processes that exited, may find nothing changed. Every other
+    // reason, an app, a power change, Know or an action, always builds. An exit changes the sample alone, which the
+    // facts digest and every expert's input digest read, so it builds when they moved. Issue #52: with agents at
+    // work, the exits of their compilers, tests and shells asked for most builds, and each asked every expert anew.
+    if (![why isEqualToString:@"sample"] && ![why isEqualToString:@"exit"]) atomic_store(&_forced, true);
     if (atomic_exchange(&_pending, true)) return;       // one is queued already; it will see these facts too
     // Issue #54: a build waits until 4 times the last build's CPU time has passed since it ended, at most
     // 2 seconds, so builds take at most a fifth of the graph queue. With 300 worktrees a build took 150 to 250 ms,
