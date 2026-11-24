@@ -3,25 +3,82 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, dev-integration]
+  workflow_dispatch:
+# A newer push to the same pull request stops the run it replaces, so the macOS runners go to the newest commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  build:
+  # The sections of test/ in six shards, balanced by their time on CI. Each shard runs ./test.sh with its sections,
+  # and test.sh runs core first, which builds the copy that shard tests. Every section but core and soak is in exactly
+  # one shard: the gate fails when a section in test/ is in none. soak runs in soak.yml, nightly and by hand.
+  # Times are seconds on macos-latest; rebalance from a run's log when a shard grows past the others.
+  test:
+    name: test ${{ matrix.shard }}
     runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            sections: locohost
+          - shard: 2
+            sections: git graph idle links net performance removal
+          - shard: 3
+            sections: investigate linked migrate quiet settling shell wire workforest
+          - shard: 4
+            sections: docs gains know noonoo senses window wrapup
+          - shard: 5
+            sections: act bench device history insomnia minmacs polish unattended
+          - shard: 6
+            sections: fixes headers log provision release review store ui unsized
     steps:
       - uses: actions/checkout@v7
-      - name: Build
-        run: ./build.sh
-      - name: Test
-        run: ./test.sh
+      - name: Test core, ${{ matrix.sections }}
+        run: ./test.sh ${{ matrix.sections }}
+
+  # The menu kit's renders and their DESIGN.md checks, kept as the render artifact.
+  render:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Render the menus and check them
+        run: tools/render.sh
       - name: Check the install scripts parse
         run: sh -n install.sh && sh -n uninstall.sh
       - name: Find rendered menus
         id: render
+        if: always()
         run: |
           if ls build/render/*.png >/dev/null 2>&1; then echo "found=yes" >> "$GITHUB_OUTPUT"; fi
       - name: Keep rendered menus
-        if: steps.render.outputs.found == 'yes'
+        if: always() && steps.render.outputs.found == 'yes'
         uses: actions/upload-artifact@v7
         with:
           name: render
           path: build/render/*.png
+
+  # The one check to require: green only when every shard and the renders passed, and every section has a shard.
+  gate:
+    needs: [test, render]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Every section in test/ is in a shard
+        run: |
+          want=$(ls test/*.sh | sed 's#^test/##; s#\.sh$##' | grep -vxE 'core|soak' | LC_ALL=C sort)
+          have=$(sed -n 's/^ *sections: //p' .github/workflows/ci.yml | tr ' ' '\n' | grep . | LC_ALL=C sort)
+          missing=$(printf '%s\n' "$want" | grep -vxF "$have" || true)
+          twice=$(printf '%s\n' "$have" | uniq -d)
+          [ -z "$missing" ] || echo "::error::sections in no shard of ci.yml: $(echo $missing)"
+          [ -z "$twice" ] || echo "::error::sections in more than one shard: $(echo $twice)"
+          [ -z "$missing$twice" ]
+      - name: Every shard and the renders passed
+        run: |
+          echo "test: ${{ needs.test.result }}, render: ${{ needs.render.result }}"
+          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.render.result }}" = success ]

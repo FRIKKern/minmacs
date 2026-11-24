@@ -1,0 +1,31 @@
+name: Soak
+# Issue #56: the soak section's checks, then a longer soak of tools/soak/run.sh, nightly and by hand.
+# It stays out of CI, so a pull request never waits on it. docs/2.0/BENCH.md section Soak says what passes.
+# GitHub runs the schedule on the default branch only.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: How long the soak runs, in seconds
+        default: "2700"
+jobs:
+  soak:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      SOAK_SECONDS: ${{ inputs.seconds || '2700' }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test core, soak
+        run: ./test.sh soak
+      - name: Soak for ${{ env.SOAK_SECONDS }} seconds
+        run: BUILD_DIR=build/soak-build tools/soak/run.sh "$SOAK_SECONDS" 600 20 build/soak/ci
+      - name: Keep the soak's report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: soak
+          path: build/soak/ci
+          if-no-files-found: ignore
