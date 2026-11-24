@@ -3,10 +3,13 @@
 // device reads only what Core already holds: the last Senses pass and the graph's snapshot in the app, or one sample
 // when no app runs. A few one-off reads on the verb itself, each microseconds to a few ms: sysctl for the hardware,
 // the displays from CoreGraphics, the display-sleep setting from IOKit, host_statistics for memory, vm.swapusage and
-// one proc_pid_rusage of MinMacs. It runs no process, never pmset, ps or lsof, and adds nothing to any tick.
+// one proc_pid_rusage of MinMacs. It runs one process, `sudo -n -l` for the lid rule in provision, which never prompts,
+// never pmset, ps or lsof, and adds nothing to any tick.
 #import <IOKit/pwr_mgt/IOPMLib.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #import <sys/sysctl.h>
+#import <objc/message.h>
+#import <UserNotifications/UserNotifications.h>
 #import <stdlib.h>
 #import "CLI/MMCLI.h"
 #import "Core/MMCore.h"
@@ -160,6 +163,50 @@ static NSDictionary *Agents(NSArray<MMAgent *> *all, MMSample *s) {
     return @{@"working": @(working), @"total": @(all.count), @"workingNames": names, @"list": list};
 }
 
+/// Runs work on a utility queue and waits at most seconds for it, for a read that must not run on main.
+static void OffMainWait(NSTimeInterval seconds, dispatch_block_t work) {
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ work(); dispatch_semaphore_signal(done); });
+    dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)));
+}
+
+/// The login item's state from SMAppService, read by name so a build without ServiceManagement still links, as
+/// MMMigrate.m reads it. nil when the class is not loaded or the bundle is no app.
+static NSString *LoginItemWord(void) {
+    Class c = NSClassFromString(@"SMAppService");
+    SEL main = NSSelectorFromString(@"mainAppService"), status = NSSelectorFromString(@"status");
+    if (!c || ![c respondsToSelector:main] || ![NSBundle.mainBundle.bundlePath hasSuffix:@".app"]) return nil;
+    id svc = ((id (*)(id, SEL))objc_msgSend)(c, main);
+    if (![svc respondsToSelector:status]) return nil;
+    NSInteger st = ((NSInteger (*)(id, SEL))objc_msgSend)(svc, status);
+    return @[@"notRegistered", @"enabled", @"requiresApproval", @"notFound"][st >= 0 && st <= 3 ? (NSUInteger)st : 3];
+}
+
+/// D3: what a fleet Mac still needs a person for once, read without asking anything. The lid rule from sudo -n -l,
+/// the notification permission from UNUserNotificationCenter's settings, which only an app process can read, and the
+/// login item from SMAppService. A value that cannot be read is null. needsPerson lists what is missing.
+static NSDictionary *Provision(BOOL inApp) {
+    __block BOOL lidRule = NO;
+    OffMainWait(15, ^{ lidRule = [MMLidOverride ruleInstalled]; });
+    __block id notifications = NSNull.null;
+    if (inApp && NSBundle.mainBundle.bundleIdentifier.length && !NSThread.isMainThread) {
+        dispatch_semaphore_t got = dispatch_semaphore_create(0);
+        [UNUserNotificationCenter.currentNotificationCenter getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *st) {
+            notifications = @(st.authorizationStatus == UNAuthorizationStatusAuthorized || st.authorizationStatus == UNAuthorizationStatusProvisional);
+            dispatch_semaphore_signal(got);
+        }];
+        dispatch_semaphore_wait(got, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)));
+    }
+    NSString *login = LoginItemWord();
+    NSMutableArray *needs = [NSMutableArray new];
+    if (!lidRule) [needs addObject:@"lidRule"];
+    if ([notifications isEqual:@NO]) [needs addObject:@"notifications"];
+    if ([login isEqualToString:@"requiresApproval"]) [needs addObject:@"loginItem"];
+    return @{@"unattended": @(MMUnattended()), @"lidRuleInstalled": @(lidRule), @"notificationsAuthorized": notifications,
+             @"loginItem": Or(login), @"loginItemApproved": login ? @([login isEqualToString:@"enabled"]) : NSNull.null,
+             @"needsPerson": needs};
+}
+
 /// The whole report. Pure but for the one-off reads named at the top of the file.
 static NSDictionary *DeviceReport(BOOL inApp) {
     MMSnapshot *snap = inApp ? MMGraph.shared.latest : nil;
@@ -197,6 +244,7 @@ static NSDictionary *DeviceReport(BOOL inApp) {
         @"agents": Agents(agents, s),
         @"quiet": @{@"active": @((BOOL)(quiet.count > 0)), @"holders": qj},
         @"minmacs": Or(cost),
+        @"provision": Provision(inApp),
     };
 }
 
@@ -219,6 +267,8 @@ static int Device(MMArgs *a) {
     [a print:@"Agents:  %@ working of %@%@", ag[@"working"], ag[@"total"],
              [ag[@"workingNames"] count] ? [@": " stringByAppendingString:[ag[@"workingNames"] componentsJoinedByString:@", "]] : @""];
     [a print:@"Quiet:   %@", [q[@"active"] boolValue] ? MMQuietWhy() ?: @"active" : @"no hold"];
+    NSArray *needs = j[@"provision"][@"needsPerson"];
+    [a print:@"Setup:   %@", [needs count] ? [@"a person is still needed once for " stringByAppendingString:[needs componentsJoinedByString:@", "]] : @"nothing waits for a person"];
     return MMExitOK;
 }
 
