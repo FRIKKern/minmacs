@@ -18,11 +18,18 @@ check "D3: NSAlert and runModal appear only in Sources/UI/MMConfirm, the one all
 check "D3: MMConfirm.m holds one NSAlert and one runModal" "1 1" "$(grep -c '\[NSAlert new\]' Sources/UI/MMConfirm.m) $(grep -c 'runModal\]' Sources/UI/MMConfirm.m)"
 # Every caller of the confirm asks only when a person made the press: present, read with MMPersonPresses at the press.
 un_callers=$(grep -rl 'MMAskPerson(' Sources --include='*.m' 2>/dev/null | grep -v '^Sources/UI/MMConfirm\.m$' | LC_ALL=C sort | paste -sd' ' -)
-check "D3: three files call the confirm" "Sources/Experts/Insomnia/MMInsomniaExpert.m Sources/Experts/WorkForest/MMWorkForest.m Sources/UI/MMInvestigateUI.m" "$un_callers"
+check "D3: five files call the confirm" "Sources/Experts/Insomnia/MMInsomniaExpert.m Sources/Experts/LocoHost/MMLocoHost.m Sources/Experts/WorkForest/MMWorkForest.m Sources/Shell/MMShell.m Sources/UI/MMInvestigateUI.m" "$un_callers"
 check "D3: each guard reads present: the lid, WorkForest's confirm, and both Investigate confirms" "1 1 2" \
   "$(grep -c 'if (\[what isEqualToString:@"lid"\] && to && present) {' Sources/Experts/Insomnia/MMInsomniaExpert.m) $(grep -c 'return !present || MMAskPerson(title, text, button, nil);' Sources/Experts/WorkForest/MMWorkForest.m) $(grep -h 'if (present) return MMInvestigateConfirm(title, text, placeholder);' Sources/Experts/WorkForest/MMWorkForest.m Sources/Experts/LocoHost/MMLocoHost.m | grep -c .)"
-check "D3: a link runs with present NO: workforest://clean-up, locohost://close-idle and review" "1 2" \
-  "$(grep -c 'act:@"clean-up" key:nil option:NO snapshot:MMGraph.shared.current present:NO' Sources/Experts/WorkForest/MMWorkForest.m) $(grep -c 'snapshot:MMGraph.shared.current present:NO' Sources/Experts/LocoHost/MMLocoHost.m)"
+# A link can come from any web page. One that acts asks a person who is here, with the confirm a press gets, and runs
+# unasked only while the Mac runs unattended, by "url".
+check "D3: workforest://clean-up, locohost://close-idle and run-now confirm unless unattended" "1 1 1" \
+  "$(grep -c 'if (!MMUnattended() && !MMAskPerson(\[NSString stringWithFormat:@"Remove %@?", MMPlural(c.count, @"Stale Worktree")\], text, @"Remove Them", nil)) return;' Sources/Experts/WorkForest/MMWorkForest.m) $(grep -c 'if (!MMUnattended() && !MMAskPerson(\[NSString stringWithFormat:@"Stop %@?", MMPlural(c.count, @"Idle Server")\], list, @"Stop Them", nil)) return;' Sources/Experts/LocoHost/MMLocoHost.m) $(grep -c 'if (MMURLWordsAct(r.words) && !MMUnattended() &&' Sources/Shell/MMShell.m)"
+check "D3: the links route to those guards and record by url" "1 1 1 1 1" \
+  "$(grep -c '\[self cleanUpFromLink:MMGraph.shared.current\]' Sources/Experts/WorkForest/MMWorkForest.m) $(grep -c '\[self closeIdleFromLink:MMGraph.shared.current\]' Sources/Experts/LocoHost/MMLocoHost.m) $(grep -c '\[self remove:c why:@"Clean Up from a link" by:@"url"\]' Sources/Experts/WorkForest/MMWorkForest.m) $(grep -c '\[self closeIdle:c by:@"url" why:@"Close Idle from a link"\]' Sources/Experts/LocoHost/MMLocoHost.m) $(grep -c 'set:m\[0\] value:m\[1\] by:@"url"' Sources/Experts/Insomnia/MMInsomniaExpert.m)"
+check "D3: url is a by word MMAct.h lists, the log says it, and it needs no notification" "1 1 1" \
+  "$(grep -c '"url" from a link' Sources/Core/Act/MMAct.h) $(grep -c '@"url": @"from a link"' Sources/Shell/MMWindowLog.m) $(grep -c '\[r.by isEqualToString:@"url"\]) return;' Sources/Core/Act/MMAct.m)"
+check "D3: run-now is the one link of CLI words that acts" 1 "$(grep -c 'return \[words.firstObject isEqualToString:@"tidy"\];' Sources/Shell/MMShell.m)"
 check "D3: the window's lid switch reads present at the press" 1 "$(grep -c 'BOOL present = MMPersonPresses();' Sources/Shell/MMWindowController.m)"
 check "D3: each expert's failure helper writes a notice" "1 1 1 1 1" \
   "$(for f in WorkForest/MMWorkForest.m LocoHost/MMLocoHost.m Insomnia/MMInsomniaExpert.m; do grep -c 'static void Notice(NSString \*title, NSString \*text) { MMNotice(kExpert, title, text); }' "Sources/Experts/$f"; done | xargs) $(grep -c 'MMNotice(kExpert, problems.count == 1' Sources/Experts/MinMacs/MMMinMacsExpert.m) $(grep -c 'MMNotice(kExpert, problems.count == 1' Sources/Experts/NooNoo/MMNooNooExpert.m)"
@@ -63,6 +70,10 @@ if [ "$un_r" = 0 ]; then
   un_run notice
   un_run paths
   un_run welcome
+  # The lid's commands go to the Insomnia checks' fake, which writes the rule when its osascript runs.
+  MINMACS_INSOMNIA_CMD="$ROOT/test/insomnia/fakecmd.sh"; export MINMACS_INSOMNIA_CMD
+  un_run lid
+  unset MINMACS_INSOMNIA_CMD
 fi
 
 echo "-- the CLI with nobody at the terminal: every verb ends within its limit"
@@ -103,3 +114,22 @@ check "D3: anything but on or off is a usage error" 2 "$?"
 check "D3: each change is a setting row by the command line, and the log says it" \
   "Unattended turned off.|from the command line Unattended turned on. Nothing waits for a person, and nothing asks to be confirmed.|from the command line" \
   "$(un_bin log --json </dev/null | json "' '.join(e['sentence'] + '|' + (e['who'] or '') for e in j['entries'] if e['kind'] == 'setting')")"
+
+echo "-- minmacs device --json: what a fleet Mac still needs a person for"
+un_dev() { un_limit 60 env MINMACS_HOME="$1" MINMACS_COLD=1 MINMACS_INSOMNIA_CMD="$ROOT/test/insomnia/fakecmd.sh" "$BIN" device --json </dev/null; }
+un_dh="$un_dir/device"; mkdir -p "$un_dh"
+un_dev "$un_dh" >"$un_dir/device.json" 2>/dev/null
+check "D3: device --json has a provision object with every field" "lidRuleInstalled loginItem loginItemApproved needsPerson notificationsAuthorized unattended" \
+  "$(json "' '.join(sorted(j['provision'].keys()))" <"$un_dir/device.json")"
+check "D3: with no sudoers rule, lidRuleInstalled is false and lidRule is needed" "False True" \
+  "$(json "'%s %s' % (j['provision']['lidRuleInstalled'], 'lidRule' in j['provision']['needsPerson'])" <"$un_dir/device.json")"
+check "D3: the CLI cannot read the notification permission, so it is null" None "$(json "j['provision']['notificationsAuthorized']" <"$un_dir/device.json")"
+check "D3: the login item is one of its words, read without asking" yes \
+  "$(json "'yes' if j['provision']['loginItem'] in (None, 'enabled', 'requiresApproval', 'notRegistered', 'notFound') else j['provision']['loginItem']" <"$un_dir/device.json")"
+mkdir -p "$un_dh/insomnia-fake"; : >"$un_dh/insomnia-fake/rule"
+un_dev "$un_dh" >"$un_dir/device-rule.json" 2>/dev/null
+check "D3: with the rule in place, lidRuleInstalled is true and lidRule is not needed" "True False" \
+  "$(json "'%s %s' % (j['provision']['lidRuleInstalled'], 'lidRule' in j['provision']['needsPerson'])" <"$un_dir/device-rule.json")"
+check "D3: the rule is read with sudo -n only, which never prompts" "/usr/bin/sudo -n -l /usr/bin/pmset -a disablesleep 1" "$(sort -u "$un_dh/insomnia-fake/log")"
+un_limit 60 env MINMACS_HOME="$un_dh" MINMACS_COLD=1 MINMACS_UNATTENDED=1 "$BIN" device --json </dev/null >"$un_dir/device-un.json" 2>/dev/null
+check "D3: provision says when the Mac runs unattended" True "$(json "j['provision']['unattended']" <"$un_dir/device-un.json")"

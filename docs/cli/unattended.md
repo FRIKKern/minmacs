@@ -2,4 +2,4 @@
 
 `MINMACS_UNATTENDED=1` in a process's environment makes that process unattended whatever the pref holds, and `MINMACS_UNATTENDED=0` makes it attended. `--json` prints `{"unattended", "pref", "env"}`: what holds now, the pref, and the environment's word or null.
 
-The one prompt MinMacs cannot take away is macOS's own: the administrator password for the lid rule, the first time lid mode is turned on, and only on that explicit turn, such as `insomnia lid on`. A fleet Mac takes it once at setup.
+The one prompt MinMacs cannot take away is macOS's own: the administrator password for the lid rule, the first time lid mode is turned on, and only on that explicit turn with a person here, such as `insomnia lid on`. Unattended, lid on without the rule is refused at once with a notice. A fleet Mac takes it once at setup, and `device --json` names what is still missing in `provision.needsPerson`. A link that acts, such as `workforest://clean-up`, asks a person who is here first, and runs unasked only while unattended.
