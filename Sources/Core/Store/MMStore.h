@@ -21,7 +21,7 @@ NSArray<NSString *> *MMRepairOwnFolders(void);
 #ifdef MM_TESTS
 /// A check's seam: the owner MMRepairOwnFolders sees for a folder, from its real owner, so a check can give a fixture
 /// folder another user without root. nil for the real owner.
-void MMUseFolderOwner(uid_t (^owner)(NSString *path, uid_t owner));
+void MMUseFolderOwner(uid_t (^)(NSString *path, uid_t owner));
 #endif
 
 /// P35. The one prefs domain. The old apps' domains are read once by the migration in PLAN.md section 8.
