@@ -23,7 +23,7 @@ static BOOL IsBool(id v) { return v && CFGetTypeID((__bridge CFTypeRef)v) == CFB
 /// Who acted, as the quiet line says it. nil for a who the log does not know, so nothing made up stands there.
 static NSString *Who(NSString *by, NSString *why) {
     if ([by isEqualToString:@"manual"]) return [why isEqualToString:@"Fix Everything"] ? @"by you, in Fix Everything" : @"by you";
-    NSDictionary *w = @{@"menu": @"by you in a menu", @"window": @"by you in the window", @"settings": @"by you in Settings",
+    NSDictionary *w = @{@"window": @"by you in the window", @"settings": @"by you in Settings",
                         @"welcome": @"by you in the welcome", @"cli": @"from the command line", @"migration": @"by the move from the old apps",
                         @"proactive": @"on its own, Careful", @"eager": @"on its own, Eager", @"guard": @"by its own rule", @"run": @"in a Wrap Up"};
     return w[by ?: @""];
@@ -240,7 +240,9 @@ static MMWindowLogEntry *KeepEntry(MMLogEntry *row, NSDate *now) {
         NSString *span = MMWindowSpan(until.doubleValue - row.at.timeIntervalSince1970);
         s = span ? [NSString stringWithFormat:@"Kept %@ for %@. No rule acts on it until then.", name, span] : [NSString stringWithFormat:@"Kept %@.", name];
     } else s = [NSString stringWithFormat:@"%@ is no longer kept. The rules decide for it again.", name];
-    return Entry(row, @"keep", s, Who(Str(b[@"by"]), nil), now);
+    // A keep is given from a menu or the command line, so a manual one says where.
+    NSString *by = Str(b[@"by"]);
+    return Entry(row, @"keep", s, [by isEqualToString:@"manual"] ? @"by you in a menu" : Who(by, nil), now);
 }
 
 MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUInteger most, NSTimeInterval maxAge, NSTimeInterval watchingLeft) {

@@ -173,9 +173,12 @@ rm -f "$sh_dir/bin/locohost" "$sh_dir/bin/locohost-real"
 sh_port=""; sh_l=""
 for sh_try in 0 1 2 3 4 5 6 7; do
   sh_p=$(( 40000 + ($$ * 7 + sh_try * 131) % 20000 ))
-  "$sh_dir/bin/${sh_tag}-listen" "$sh_p" & sh_l=$!
-  sleep 0.3
-  if kill -0 "$sh_l" 2>/dev/null; then sh_port=$sh_p; procs="$procs $sh_l"; break; fi
+  rm -f "$sh_dir/listen.ready"
+  "$sh_dir/bin/${sh_tag}-listen" "$sh_p" "$sh_dir/listen.ready" & sh_l=$!
+  # A live pid is not yet a listener: wait, 5 s at most, until it says it listens or it exits on a taken port.
+  for sh_w in $(seq 50); do [ -e "$sh_dir/listen.ready" ] || ! kill -0 "$sh_l" 2>/dev/null && break; sleep 0.1; done
+  if [ -e "$sh_dir/listen.ready" ] && kill -0 "$sh_l" 2>/dev/null; then sh_port=$sh_p; procs="$procs $sh_l"; break; fi
+  kill "$sh_l" 2>/dev/null; wait "$sh_l" 2>/dev/null
 done
 check "the fixture listener holds a high port" yes "$([ -n "$sh_port" ] && echo yes || echo no)"
 check "where --port finds the listener's pid" "$sh_l" "$("$BIN" where --port "$sh_port" --json | jq_ 'j["pid"]')"

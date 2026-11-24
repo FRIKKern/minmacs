@@ -1081,7 +1081,7 @@ static BOOL Confirm(NSString *title, NSString *text, NSString *button) {
         NSString *stable = f.stableKey, *name = f.title;
         dispatch_async(ActQueue(), ^{
             BOOL kept = [MMKeep keptUntil:stable expert:kExpert] != nil;
-            [MMKeep keep:stable expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400] by:@"menu" name:name];
+            [MMKeep keep:stable expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:7 * 86400] by:@"manual" name:name];
             [MMGraph.shared rebuild:@"workforest keep"];
         });
         _view = nil;

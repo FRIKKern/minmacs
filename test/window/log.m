@@ -51,7 +51,7 @@ static void LogWords(void) {
     MMLogSetting(MMReviewModelKey, nil, @"opus", @"settings");
     MMLogSetting(MMWindowLoginKey, @NO, @YES, @"welcome");
     MMLogSetting(MMWindowWelcomedKey, @NO, @YES, @"welcome");
-    [MMKeep keep:@"atlas#dev" expert:@"locohost" until:[NSDate dateWithTimeIntervalSinceNow:4 * 3600 + 30] by:@"menu" name:@":3000 Next.js atlas"];
+    [MMKeep keep:@"atlas#dev" expert:@"locohost" until:[NSDate dateWithTimeIntervalSinceNow:4 * 3600 + 30] by:@"manual" name:@":3000 Next.js atlas"];
     [MMKeep keep:@"atlas#dev" expert:@"locohost" until:nil by:@"cli" name:@":3000 Next.js atlas"];
     Undo(log, @"r-back", @"trash", @"leftovers in atlas", @"restored", @"cli", nil, @{@"trashed": @[@{@"from": @"/a", @"to": @"/b"}]}, nil, nil);
     Undo(log, @"r-hang", @"stop", @":5173 Vite site", @"pending", @"proactive", nil, nil, nil, nil);
