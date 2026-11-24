@@ -253,9 +253,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self showPointed];
 }
 
-/// The middle shows the story of the row under the pointer, or of the row the render tool names, and else the active
-/// row's. The pointer on the middle keeps whichever story shows, so its presses can be reached. The dock's ring and
-/// numbers follow the same row. The active row is blue and the one under the pointer has a white wash.
+/// The middle shows the story of the row under the pointer, or of the row the render tool names, else the active row's.
+/// The dock's ring and numbers follow the same row. The active row is blue and the one under the pointer has a wash.
 - (void)showPointed {
     NSString *key = _hovered ?: _pointedRow;
     MMWindowRow *hover = key ? [_model row:key] : nil, *active = _active ? [_model row:_active] : nil, *story = hover ?: active;
@@ -274,12 +273,11 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self showPointed];
 }
 
-/// A press on a fact of a story that names another row: that row becomes the active one, in view in its list, and
-/// the middle tells its story.
+/// A press on a story's fact that names another row: that row becomes the active one, in view in its list, and the
+/// middle tells its story, no longer the one of the row the pointer came from.
 - (void)showRow:(NSString *)key {
     if (_quiet || _flips > 0 || ![_model row:key]) return;
     [_left reveal:key]; [_right reveal:key];
-    // The press asked for that row's story: the row the pointer came from no longer stands over it.
     _hovered = nil; _pointedRow = nil;
     self.activeRow = key;
 }
@@ -336,16 +334,24 @@ BOOL MMWindowTakesPresses(NSView *view) {
     }
 }
 
-/// The pointer on the middle keeps the story that shows, the row it came from or the active row, so its presses,
-/// Open pull request, Go to and the links, stay where the pointer goes. Leaving it for anything but a row lets the
-/// beat run, whichever of the two views hears of the move first.
+/// With no active row, the pointer on the middle keeps the story of the row it came from, so its presses, Open pull
+/// request, Go to and the links, can be reached. With one, hover only peeks: the beat brings the active row back.
 - (void)pointMiddle:(BOOL)over {
-    _overMiddle = over;
+    _overMiddle = over; if (_active) return;
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
     if (!over && !_onRow && _hovered) [self performSelector:@selector(unpoint) withObject:nil afterDelay:kBeat inModes:@[NSRunLoopCommonModes]];
 }
 
-- (void)unpoint { if (_overMiddle) return; _hovered = nil; [self showPointed]; }
+- (void)unpoint { if (_overMiddle && !_active) return; _hovered = nil; [self showPointed]; }
+- (void)pointLeft {                     // the pointer left the window: an active row's story comes back at once, no beat
+    _onRow = NO; _overMiddle = NO;
+    if (_active && _hovered) { [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil]; [self unpoint]; }
+}
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas]; if (_tracking) [self removeTrackingArea:_tracking];
+    [self addTrackingArea:_tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect owner:self userInfo:nil]];
+}
+- (void)mouseExited:(NSEvent *)e { if (e.trackingArea == _tracking) [self pointLeft]; }
 
 #pragma mark Opening and closing
 
