@@ -520,6 +520,87 @@ A trace of each build's facts, 240 seconds in the same fixture, read what change
 - Builds still come from processes that start and end, about 37 a minute with agents at work here. LocoHost and MinMacs build their findings for most of them: 0.5 and 0.4 ms. MinMacs has no digest.
 - The menu window, as above.
 
+## The features of 2026-11-24 evening
+
+Issue #52. The installed app, `2.0.0+26780d7` from `dev-integration`, was within budget the night before, at 0.18 % CPU over 4.4 hours. After the agent story, `MMPulls`, the cache collapse, Noo-Noo's family members, the log with folds, the worktree story's git facts and the hover preview landed, it read 1.72 % CPU over its first 45 minutes.
+
+### The installed app, read only
+
+The field monitor's `report.py` and `minmacs-cost.csv`, `minmacs self --window 30 --json` twice, two `sample <pid> 10` with the window closed and `footprint <pid>`, at 22:47 to 22:50 local time, load average 2.1 to 2.9:
+
+| | Value | Budget |
+|---|---|---|
+| CPU over the run, 45 min | 1.72 % | 0.3 % |
+| CPU a minute once started, from the CSV | 0.85 to 1.05 s, 1.4 to 1.75 % | 0.18 s |
+| `minmacs self`, 30 s windows | 1.98 % and 1.44 %, children 0.20 and 0.26 % | |
+| Idle wakeups | 0.1 to 0.2 a second | 1 |
+| Footprint | 55 to 58 MB now, 52 to 154 MB in the run | 45 MB |
+
+The steady state is over budget, and startup is not the reason. Each 10 s `sample` held about 0.1 s of work on `core.graph` and 33 to 82 samples on `core.where`, most of them waiting for a `cmux top` child:
+
+1. **WorkForest's `prepareFor:` read the whole undo log on every build**, 33 to 42 samples a build: `makeView:` → `MMWFRemoved(6)` → `-[MMUndo recent:limit:]` → `MMLog latest:`, which parsed the newest body of every record of every expert. At 19:00 the family-member cleans of Noo-Noo wrote 365 records with 6 rows each. Read only, the log held 373 records, 2.37 MB of newest bodies, and none of them WorkForest's. Every build since parsed 2.37 MB of JSON to find nothing.
+2. **The agent story asked Where on every build.** `-[MMMinMacsExpert findingsFrom:]` called `MMWhereIs` with no wait for each agent, and each call queued a new `Compute` on `core.where`: the parent chain, LaunchServices, and `cmux top` at most every 15 s. Only the window's story reads the answer, and it read it while the window was closed.
+3. **The transcript tail parse.** Each changed transcript is read again at the next build, and `TailActivity` took 1.0 of the 1.5 ms per read on the owner's 36 MB transcript, with 35 tool uses in its 512 KB tail. That time went to libc `memmem`, which stops at each `"` that JSON holds every few bytes, and to `NSISO8601DateFormatter` through ICU, about 20 us a timestamp.
+4. Smaller: Noo-Noo's sort made `-[MMClutterItem key]` with `stringWithFormat:` on every comparison.
+
+The window-closed path of the other features is clean. The controller stops observing at the close and builds no model, the log with folds reads the log only while open, `MMPulls` asks gh only on demand, and the collapse and the hover preview run only in a model build.
+
+### The canary of main, `2.0.0+4119a65`
+
+It was installed at 23:20 local time, with the same sources for all of this. The coordinator's health check read 17 % CPU and 205 MB right after start, and 2.99 % and 97.3 MB, peak 218.5 MB, a minute later. Read only, at load averages of 2.6 to 2.9:
+
+| Running for | CPU, 30 or 60 s | Footprint | What ran |
+|---|---|---|---|
+| 159 s | 7.7 % | 168 MB, peak 229 MB | the window open: model builds, drawing, the collapse, and `gh` for the pull requests |
+| 234 to 384 s | 6.5, 3.4, 2.7, 2.7, 2.9, 2.1 % | 182 down to 105 MB | the window closed and its panel held, 42 MB IOSurface and 15 MB owned graphics |
+| 479 s | 1.97 % over 60 s, children 0.38 % | 59 MB, IOSurface 7 MB | the panel let go; `sample` as below |
+
+So the peak and the minute after start are the window, open for the health check, and its panel until the holder lets it go after 45 s closed. The 2 % that stays is the same as above: in a 10 s `sample` with the window closed, 45 of the graph queue's 71 samples were `MMWFRemoved` reading the log, and `core.where` ran cmux for the agent finding. 40 MB of MALLOC_SMALL remain, 23 MB of it reclaimable.
+
+### What changed
+
+- `-[MMUndo recent:limit:]` with an expert reads only that expert's rows, and the parent ids only from the bodies that hold `"parentRid"`, through `-[MMLog latest:holding:]`. WorkForest keeps its bounded read until `MMLogStamp()` moves, as MinMacs and LocoHost do.
+- The MinMacs finding holds no place. While the window is open its controller asks `MMWhereIs` for each agent on the window queue, and the story reads `MMWhereKnown`, memory only. `MMWhereIs` with no wait now asks again for a process at most once a minute, or every 9 s with no answer, as LocoHost already paced its servers.
+- `MMSessions` finds its needles with a Horspool search and reads `2026-11-24T21:47:01.123Z` with `timegm`, falling back to the formatter for any other form. On 39 of the owner's transcripts the facts are the same JSON, byte for byte, and 17,720 timestamps read the same double.
+- Noo-Noo makes each item's key once.
+
+### Before and after
+
+`bench idle --seconds 240 --warmup 30 --tick-runs 0`, base `26780d7` and this change alternating base, change, change, base, each in a fresh copy of one fixture home. The home held 4 Claude Code transcripts of 44 MB with tool uses, the two largest written every 2 s with an Edit and its result. It also held a live fake agent with its session file, one checkout, a counting fake cmux, and an undo log of 365 Noo-Noo records with 6 pending rows each and 2.6 MB of newest bodies, as in the field. About 790 processes, at a load average of 2.1 to 2.9, with other agents building.
+
+| | Base | Change | Change | Base |
+|---|---|---|---|---|
+| CPU | 0.460 % | 0.149 % | 0.142 % | 0.446 % |
+| CPU a tick, median and mean | 19.8, 22.9 ms | 4.9, 7.7 ms | 5.0, 7.2 ms | 20.6, 22.3 ms |
+| Snapshot, prepare included, a build | 16.9 ms | 3.18 ms | 3.27 ms | 16.7 ms |
+| Builds a minute | 12.5 | 13.0 | 12.0 | 12.2 |
+| Footprint at the end, peak | 25.1, 53.9 MB | 18.5, 41.2 MB | 18.3, 33.2 MB | 21.7, 53.5 MB |
+| Idle wakeups a second | 0.000 | 0.012 | 0.008 | 0.000 |
+
+The same four runs again after the rebase, `origin/main` at `31b5437` and this change, main, change, change, main, at load averages of 1.7 to 3.2:
+
+| | Main | Change | Change | Main |
+|---|---|---|---|---|
+| CPU | 0.523 % | 0.148 % | 0.136 % | 0.647 % |
+| CPU a tick, median and mean | 22.2, 26.3 ms | 4.9, 7.4 ms | 4.8, 6.9 ms | 23.1, 32.5 ms |
+| Snapshot, prepare included, a build | 19.8 ms | 3.28 ms | 3.09 ms | 19.2 ms |
+| Builds a minute | 12.0 | 12.0 | 12.2 | 15.2 |
+| Footprint at the end, peak | 20.2, 54.2 MB | 14.3, 41.8 MB | 13.2, 41.6 MB | 20.9, 53.7 MB |
+
+About 13.6 ms a build left the snapshot, the undo read in WorkForest's prepare step. In the field, with 35 to 45 ms a build there, the gain is larger. The fixture's own agent sat under no cmux, so the Where asks show up in the field's `core.where` samples and not here.
+
+One transcript read, `ClaudeTranscriptFacts`, 40 runs on one thread, alternating:
+
+| Transcript | Base | Change |
+|---|---|---|
+| 36 MB, 35 tool uses in the tail | 1.48 to 1.51 ms, of it `TailActivity` 0.99 ms | 0.49 to 0.66 ms, `TailActivity` 0.27 to 0.32 ms |
+| 4.3 MB | 1.40 ms, `TailActivity` 0.95 ms | 0.37 ms, `TailActivity` 0.20 ms |
+
+### What is left
+
+- The installed app's footprint of 52 to 154 MB is over the 45 MB budget, and the bench reads 18 to 25 MB. This audit did not look into it.
+- LocoHost still asks Where for each server, now paced in `MMWhereIs` as well as in LocoHost.
+
 ## The last hour in memory
 
 `bench history` fills `Graph/MMHistory.h` to its caps: 250 trees for 60 minutes, so 198 tree rings plus the Mac and the disk, with every state slot and all 256 subagent slots full. Then it makes 20 copies, as 20 builds would, and holds the last two. The app holds two as well: the graph's latest snapshot and main's current one, one build apart. The budget `historyKB` in `tools/bench/budgets.json` is 1 MB of footprint growth.

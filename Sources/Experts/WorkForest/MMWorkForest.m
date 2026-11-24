@@ -10,8 +10,10 @@
 #import "UI/MMInvestigateUI.h"
 #import "UI/MMConfirm.h"
 #import "Core/Act/MMNotice.h"
+#import "Core/Store/MMLog.h"
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <os/lock.h>
 
 static NSString *const kExpert = @"workforest";
 static const NSTimeInterval kEventGap = 30 * 60;   // reviews woken by events are at least this far apart
@@ -722,10 +724,28 @@ NSInteger MMWFImportLegacy(void) {
     return added;
 }
 
+/// The records MMWFRemoved reads. prepareFor: asks on every build, so a bounded read is kept until MMLogStamp() moves,
+/// as MinMacs and LocoHost keep theirs, issue #52. A read with no bound, the CLI's, always goes to the log.
+static NSArray<MMUndoRecord *> *RemoveRecords(NSUInteger n) {
+    if (!n) return [MMUndo.shared recent:kExpert limit:0];
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    static NSString *keptStamp; static NSArray<MMUndoRecord *> *kept; static NSUInteger keptN;
+    NSString *stamp = MMLogStamp();
+    os_unfair_lock_lock(&lock);
+    NSArray *hit = keptN == n && [keptStamp isEqualToString:stamp] ? kept : nil;
+    os_unfair_lock_unlock(&lock);
+    if (hit) return hit;
+    NSArray *records = [MMUndo.shared recent:kExpert limit:n];
+    os_unfair_lock_lock(&lock);
+    keptStamp = stamp; kept = records; keptN = n;
+    os_unfair_lock_unlock(&lock);
+    return records;
+}
+
 NSArray<NSDictionary *> *MMWFRemoved(NSUInteger limit) {
     NSMutableArray *out = [NSMutableArray new];
     // The menu asks for six on main, so the log is read with a bound, as LocoHost reads it.
-    for (MMUndoRecord *r in [MMUndo.shared recent:kExpert limit:limit ? MAX(limit * 4, (NSUInteger)20) : 0]) {
+    for (MMUndoRecord *r in RemoveRecords(limit ? MAX(limit * 4, (NSUInteger)20) : 0)) {
         if (![r.kind isEqualToString:@"remove"] || r.state == MMUndoPending) continue;
         NSDictionary *p = r.payload, *rm = Dict(p[@"removed"]);
         NSString *path = Str(rm[@"path"]) ?: Str(Dict(p[@"worktree"])[@"worktree"]) ?: Str(Dict(p[@"bundle"])[@"worktree"]);

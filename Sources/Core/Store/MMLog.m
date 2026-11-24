@@ -218,6 +218,13 @@ NSUInteger MMLogMainThreadQueries(void) { return gMainQueries; }
     return [self select:sql args:args];
 }
 
+- (NSArray<MMLogEntry *> *)latest:(NSString *)table holding:(NSString *)text {
+    if (!text.length) return @[];
+    NSString *sql = [NSString stringWithFormat:@"SELECT %s FROM rows WHERE row IN (SELECT MAX(row) FROM rows WHERE tbl = ? GROUP BY rid)"
+                                                " AND instr(body, ?) > 0 ORDER BY row DESC", kColumns];
+    return [self select:sql args:@[table ?: @"", text]];
+}
+
 - (NSArray<MMLogEntry *> *)history:(NSString *)rid {
     return [self select:[NSString stringWithFormat:@"SELECT %s FROM rows WHERE rid = ? ORDER BY row", kColumns] args:@[rid ?: @""]];
 }

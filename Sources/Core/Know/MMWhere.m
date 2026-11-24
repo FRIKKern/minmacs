@@ -243,6 +243,14 @@ static NSMutableDictionary<NSString *, MMPlace *> *Answers(void) {
     return d;
 }
 
+/// When each process was last asked with no wait, by the same key as the answers. Use with answers locked.
+static NSMutableDictionary<NSString *, NSNumber *> *AskedAt(void) {
+    static NSMutableDictionary *d; static dispatch_once_t once;
+    dispatch_once(&once, ^{ d = [NSMutableDictionary new]; });
+    return d;
+}
+static const NSTimeInterval kReaskAge = 60, kReaskNoAnswer = 9;
+
 static NSString *KeyString(MMProcKey k) { return [NSString stringWithFormat:@"%d:%llu", k.pid, k.startSec]; }
 
 /// YES when the pid still runs with this start time, read from sysctl. A start time of 0 matches any.
@@ -279,8 +287,19 @@ MMPlace *MMWhereIs(MMProcKey key, MMSample *s, BOOL wait) {
         }
         return w;
     }
+    // Issue #52. An ask with no wait comes from a build, which runs every few seconds for each agent and server, and
+    // each ask walks the process's parents and asks LaunchServices and cmux or tmux. So a process is asked again
+    // only when its last ask is a minute old, or 9 seconds with no answer yet, as LocoHost paced its servers.
     MMPlace *old;
-    @synchronized (answers) { old = answers[k]; }
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
+    @synchronized (answers) {
+        old = answers[k];
+        NSMutableDictionary<NSString *, NSNumber *> *asked = AskedAt();
+        NSNumber *at = asked[k];
+        if (at && now - at.doubleValue < (old ? kReaskAge : kReaskNoAnswer)) return old;
+        asked[k] = @(now);
+        if (asked.count > kMaxAnswers) for (NSString *x in asked.allKeys) if (now - asked[x].doubleValue > kReaskAge) [asked removeObjectForKey:x];
+    }
     dispatch_async(MMQueue(@"core", @"where", QOS_CLASS_UTILITY), ^{
         MMPlace *w = StillThere(key) ? Compute(key.pid) : nil;
         @synchronized (answers) {
@@ -289,6 +308,12 @@ MMPlace *MMWhereIs(MMProcKey key, MMSample *s, BOOL wait) {
         }
     });
     return old;
+}
+
+MMPlace *MMWhereKnown(MMProcKey key) {
+    if (key.pid <= 1) return nil;
+    NSMutableDictionary *answers = Answers();
+    @synchronized (answers) { return answers[KeyString(key)]; }
 }
 
 /// YES while an answer for key is cached. For the Know checks, which declare it themselves.

@@ -397,12 +397,8 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
                         @"pid": @(m.key.pid)} mutableCopy];
             // The ports the agent's own process listens on, which LocoHost lists as that agent's server.
             if (m.ports.count) fx[@"ports"] = m.ports;
-            // Where it runs on screen, for the window's story and its Go to. MMWhereIs with no wait gives the last
-            // answer Know holds, or nothing, and asks again on Know's own queue, as LocoHost does for a server.
-            MMPlace *place = facts.sample ? MMWhereIs(m.key, facts.sample, NO) : nil;
-            if (place.label.length) fx[@"where"] = place.label;
-            if (place.app.length) fx[@"whereApp"] = place.app;
-            if (place && MMPlaceGoable(place)) fx[@"whereGo"] = @YES;
+            // Where it runs on screen is the window's alone, so the window asks Know for it while it is open and its
+            // story reads Know's answer, MMWindowAgentFacts. A build here asks nothing for it, issue #52.
             b.facts = fx;
             b.fingerprint = StateWord(m.state);
         }]];

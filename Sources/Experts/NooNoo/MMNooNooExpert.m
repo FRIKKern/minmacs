@@ -247,7 +247,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         MMWorktree *tree = nil;
         NSString *ownerState = i.kind.klass == MMClutterBuild || i.ownerGone ? OwnerState(i, facts, &tree) : nil;
         if (!tree && i.ownerPath) tree = TreeOf(i.ownerPath, facts);
-        [rows addObject:@[i, ownerState ?: @"", tree ?: NSNull.null]];
+        [rows addObject:@[i, ownerState ?: @"", tree ?: NSNull.null, i.key]];   // the key made once, not per compare
     }
     // Finished projects first, the most finished first, then by what deleting frees.
     [rows sortUsingComparator:^NSComparisonResult(NSArray *a, NSArray *b) {
@@ -255,7 +255,7 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         if (ra != rb) return ra > rb ? NSOrderedAscending : NSOrderedDescending;
         MMClutterItem *x = a[0], *y = b[0];
         if (x.size.freedIfDeleted != y.size.freedIfDeleted) return x.size.freedIfDeleted > y.size.freedIfDeleted ? NSOrderedAscending : NSOrderedDescending;
-        return [x.key compare:y.key];
+        return [(NSString *)a[3] compare:b[3]];
     }];
     NSMutableArray *out = [NSMutableArray new];
     NSDictionary<NSString *, MMSession *> *runs = AgentRuns(facts);
@@ -263,13 +263,14 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         MMClutterItem *i = row[0];
         NSString *ownerState = [row[1] length] ? row[1] : nil;
         MMWorktree *tree = row[2] == NSNull.null ? nil : row[2];
+        NSString *key = row[3];
         MMClutterKind *k = i.kind;
         MMNNSection section = SectionOf(i, ownerState);
         NSMutableArray *keep = [NSMutableArray new];
         if (i.state != MMClutterFree) [keep addObject:i.why ?: @"it is in use"];
         NSString *agent = AgentKeeps(i.ownerPath ?: tree.path, facts, runs);
         if (agent) [keep addObject:agent];
-        double until = [keeps[i.key] doubleValue];
+        double until = [keeps[key] doubleValue];
         if (until > now) [keep addObject:[NSString stringWithFormat:@"kept by you until %@", [NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:until] dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterNoStyle]]];
         if (keep.count && section != MMNNKept) section = MMNNKept;
         MMProposal *proposal = nil;
@@ -314,8 +315,8 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         }
         if (k.ownerSetting) fx[@"ownerSetting"] = k.ownerSetting;
         if (i.sessionID) fx[@"sessionID"] = i.sessionID;
-        [out addObject:[MMFinding expert:kExpert kind:kKind stableKey:i.key build:^(MMFindingBuilder *b) {
-            b.instanceKey = i.key;
+        [out addObject:[MMFinding expert:kExpert kind:kKind stableKey:key build:^(MMFindingBuilder *b) {
+            b.instanceKey = key;
             b.title = ownerName.length && k.names.count ? [NSString stringWithFormat:@"%@ in %@", RowName(i), ownerName] : RowName(i);
             b.path = [k.signature isEqualToString:@"family"] ? i.path.stringByDeletingLastPathComponent : i.path;
             b.ownerPath = i.ownerPath ?: tree.path;
