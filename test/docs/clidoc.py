@@ -104,6 +104,12 @@ def main():
            "```", "",
            "The app binary is also the command line tool. `install.sh` and `build.sh --install` link it as `~/.local/bin/minmacs`. "
            "When the app runs, the CLI hands each verb to it over `core.sock` in the support folder. When no app answers, it builds a snapshot itself and answers from that.", "",
+           "## Nobody at the terminal", "",
+           "No verb ever waits for a person, decision D3. When stdin is not a TTY, or `MINMACS_UNATTENDED=1` is set, or `minmacs unattended on` was run, "
+           "the CLI reads nothing from stdin. A change that keeps a way back, such as a worktree removal or a plain stop that Undo starts again, "
+           "goes ahead as `--yes` would. One that does not is not done without `--yes`: `locohost close --force`, a SIGKILL, "
+           "is refused with a message that names what to add and exit 2, and `investigate` only shows what a run would cost. `MINMACS_UNATTENDED=0` says a person is here: "
+           "then nothing is read without a TTY either, and a verb that would ask refuses instead.", "",
            "## Exit codes", ""]
     for num, name, note in exit_codes(root):
         out.append("- **%d.** %s" % (num, (note[0].upper() + note[1:] + ".") if note else name[len("MMExit"):] + "."))

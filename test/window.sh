@@ -84,7 +84,8 @@ check "window: no string claims a result or says for good" 0 \
   "$(grep -ciE '@"[^"]*(is clean|all good|for good|everything is fine|nothing needs you)[^"]*"' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
 check "window: only MMShell.m names the panel, and the feed names no view" 0 \
   "$(grep -cE 'MMWindowView|MMWindowPanel|MMWindowFixture' $(ls Sources/Shell/*.m Sources/Shell/*.h Sources/CLI/*.m | grep -v 'Shell/MMShell.m') | awk -F: '{s+=$2} END {print s+0}')"
-check "window: the icon opens the panel while core.window is on, it is on by default, and one function reads it" "1 1 0 5" \
+# The sixth MMWindowMode() is the unattended skip of the welcome, D3, which only the menu window has.
+check "window: the icon opens the panel while core.window is on, it is on by default, and one function reads it" "1 1 0 6" \
   "$(grep -c 'static NSString \*const kWindowKey = @"core.window";' Sources/Shell/MMShell.m) $(grep -c 'BOOL MMWindowMode(void) { return MMPrefBool(kWindowKey, YES); }' Sources/Shell/MMShell.m) $(grep -c 'MMPrefBool(kWindowKey, NO)' Sources/Shell/MMShell.m) $(grep -c 'MMWindowMode()' Sources/Shell/MMShell.m)"
 # The rows read each expert's facts by key, and Settings says what each expert's mode rule does. A rename or a changed
 # rule in an expert would leave a line out or make a sentence false with no error, so each string must still be there.

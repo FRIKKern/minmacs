@@ -109,7 +109,8 @@ wf_cm=$("$WF" clean-up --merged --dry-run 2>&1)
 check "clean-up --merged lists the merged worktrees with nothing to lose" "envy merged squash" \
   "$(printf '%s\n' "$wf_cm" | awk '/^  /{sub("^app/", "", $1); print $1}' | sort | tr '\n' ' ' | sed 's/ $//')"
 check "and none that a work keep holds, merged by ancestry as they are" 0 "$(printf '%s\n' "$wf_cm" | grep -cE '^  app/(dirty|untracked|locked|busy|recent|agent|unpushed|loose|judged) ')"
-"$WF" clean-up --merged >/dev/null 2>&1;                                   check "clean-up --merged without --yes asks for it, exit 2" 2 "$?"
+# D3: with no TTY the answer would be yes, so MINMACS_UNATTENDED=0 says a person is here, and then it refuses.
+MINMACS_UNATTENDED=0 "$WF" clean-up --merged </dev/null >/dev/null 2>&1;    check "clean-up --merged without --yes asks for it, exit 2" 2 "$?"
 check "a dry run and a refusal remove nothing" "yes yes yes" "$(wf_has "$W/merged") $(wf_has "$W/squash") $(wf_has "$W/envy")"
 
 echo "== every mode keeps work, even when the review calls it all stale"
@@ -237,7 +238,7 @@ check "at its commit" "squash part two" "$(G -C "$W/squash" log -1 --format=%s 2
 r=$(python3 -c "import sqlite3; c=sqlite3.connect('$MINMACS_HOME/minmacs.sqlite'); print(c.execute(\"select count(distinct rid) from rows where tbl='undo' and expert='workforest'\").fetchone()[0])" 2>&1)
 check "the four removals are undo records in Core's log" 4 "$r"
 "$WF" restore "$(echo "$REC" | json "j[0]['id']")" >/dev/null 2>&1;      check "a second restore of the same record is refused" 1 "$?"
-"$WF" remove "$W/recent" >/dev/null 2>&1;                                  check "remove without --yes asks for it, exit 2" 2 "$?"
+MINMACS_UNATTENDED=0 "$WF" remove "$W/recent" </dev/null >/dev/null 2>&1;  check "remove without --yes asks for it, exit 2" 2 "$?"
 "$WF" remove "$W/merged" --dry-run >/dev/null 2>&1;                       check "remove --dry-run of a protected worktree says kept, exit 1" 1 "$?"
 check "and changes nothing" yes "$(wf_has "$W/merged")"
 "$MM" _verbs >"$wf/verbs.txt" 2>/dev/null
@@ -279,8 +280,24 @@ check "the worktree is gone, and the one outside --path stays" "no yes" "$(wf_ha
 check "it says what it removed" 1 "$(grep -c '^removed app/cm1' "$wf/cm.out")"
 check "the record says who removed it and why" "cli merged, removed by clean-up --merged" "$("$WF" removed --json | json "'%s %s' % (j[0]['by'], j[0]['why'])")"
 "$WF" restore "$W/cm1" >/dev/null 2>&1;                                    check "and restore brings it back" "0 yes" "$? $(wf_has "$W/cm1")"
+# D3: nobody at the terminal. A removal keeps a way back, so it goes ahead as --yes would, and nothing waits.
+# script gives a command a TTY of its own, so a check can tell a person at a terminal from none. Its input stays
+# open a few seconds with nothing in it, since script ends its command when its own input ends.
+wt cm3; wt cm4; wt cm5
+find "$W/cm3" "$W/cm4" "$W/cm5" -exec touch -h -t 202501011200 {} +
+wf_t() { perl -e 'alarm shift; exec @ARGV' 60 "$@"; }
+wf_t "$WF" clean-up --merged --path "$W/cm3" </dev/null >"$wf/cm3.out" 2>&1
+check "D3: clean-up --merged with no TTY and no --yes removes as --yes does, within a minute" "0 no" "$? $(wf_has "$W/cm3")"
+check "D3: and its record says the command line removed it" cli "$("$WF" removed --json | json "j[0]['by']")"
+sleep 5 | wf_t env MINMACS_UNATTENDED=1 script -q /dev/null "$WF" remove "$W/cm4" >/dev/null 2>&1
+check "D3: remove with a TTY and MINMACS_UNATTENDED=1 removes as --yes does" "0 no" "$? $(wf_has "$W/cm4")"
+sleep 5 | wf_t script -q /dev/null "$WF" remove "$W/cm5" >"$wf/cm5.out" 2>&1
+check "D3: with a person at the TTY, remove still wants --yes, exit 2, and removes nothing" "2 yes" "$? $(wf_has "$W/cm5")"
+check "D3: and says to add --yes" 1 "$(grep -c 'Add --yes to remove' "$wf/cm5.out")"
+"$WF" restore "$W/cm3" >/dev/null 2>&1; "$WF" restore "$W/cm4" >/dev/null 2>&1
 G -C "$A" worktree remove --force "$W/cm1" 2>/dev/null; G -C "$A" worktree remove --force "$W/cm2" 2>/dev/null
-G -C "$A" branch -q -D cm1 cm2 2>/dev/null
+for c in cm3 cm4 cm5; do G -C "$A" worktree remove --force "$W/$c" 2>/dev/null; done
+G -C "$A" branch -q -D cm1 cm2 cm3 cm4 cm5 2>/dev/null
 kill "$wf_busy" 2>/dev/null
 
 # Where a removed worktree goes, issue #62 and D2, on worktrees of its own. It runs after the counts above.
