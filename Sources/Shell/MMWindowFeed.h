@@ -35,6 +35,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (strong, nullable) MMWindowWelcome *welcome;
 /// The log for the middle, Shell/MMWindowLog.h. The controller reads it while open. nil in the CLI.
 @property (strong, nullable) MMWindowLog *log;
+/// The strip's choice, MMWindowWeekKey, and the last 7 days of each side, MMHistoryWeekHours: 168 values an hour,
+/// oldest first, from weekFirstAt. The controller reads them only while open and only while the choice is the 7 days.
+@property BOOL stripWeek;
+@property (copy, nullable) NSArray *memoryWeek, *diskWeek;
+@property NSTimeInterval weekFirstAt;
 /// The lid switch as the keep-awake expert holds it now, and Open at login as given. Any queue.
 /// It reads the expert's last published state, or its pref before the first pass. It never runs pmset.
 /// The two looks are read from the repo index and the clutter catalog as they stand, with no walk and no scan.

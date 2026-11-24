@@ -343,6 +343,7 @@ void MMCoreStart(void) {
     // and the clutter scans.
     [MMAgentEvents.shared start];
     [MMHistory.shared start];   // subagent starts from the events above; each graph build fills the rest
+    MMHistoryWeekStart();       // each hour that ended goes to the log's points, off main, for the 7 days
     [MMSessions.shared startWatching];
     gSessionsToken = [NSNotificationCenter.defaultCenter addObserverForName:MMSessionsDidChangeNotification object:MMSessions.shared
                                                                     queue:nil usingBlock:^(NSNotification *n) { SessionsChanged(n); }];
@@ -383,6 +384,7 @@ void MMCoreStop(void) {
     [MMSenses.shared stopObserving:gSensesToken]; gSensesToken = nil;
     [MMSenses.shared stop];
     [MMHistory.shared stop];
+    MMHistoryWeekStop();
     [MMAgentEvents.shared stop];
     [MMSessions.shared stopWatching];
     if (gSessionsToken) { [NSNotificationCenter.defaultCenter removeObserver:gSessionsToken]; gSessionsToken = nil; }

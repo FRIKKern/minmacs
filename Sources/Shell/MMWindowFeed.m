@@ -23,6 +23,14 @@ static MMWindowHour *Hour(MMHistoryRing *ring, MMWindowSide side, NSString *titl
     return h;
 }
 
+static MMWindowHour *Week(NSArray *values, MMWindowSide side, NSTimeInterval firstAt, uint64_t whole) {
+    if (!values) return nil;
+    BOOL disk = side == MMWindowDisk;
+    MMWindowHour *h = [MMWindowHour new];
+    h.side = side; h.title = MMWindowHourTitle(disk); h.explain = MMWindowHourExplain(disk, whole); h.values = values; h.firstAt = firstAt;
+    return h;
+}
+
 #pragma mark - Fixes
 
 static NSString *TreeName(MMWrapUpPlan *plan) {
@@ -134,6 +142,10 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
     MMHistoryView *h = s.history;
     m.memoryHour = Hour(h.mac, MMWindowMemory, MMWindowHourTitle(NO), MMWindowHourExplain(NO, ring.memoryTotal));
     m.diskHour = Hour(h.disk, MMWindowDisk, MMWindowHourTitle(YES), MMWindowHourExplain(YES, ring.diskTotal));
+    // The last 7 days, one value an hour, as the controller read them from the log's points.
+    m.stripWeek = extras.stripWeek;
+    m.memoryWeek = Week(extras.memoryWeek, MMWindowMemory, extras.weekFirstAt, ring.memoryTotal);
+    m.diskWeek = Week(extras.diskWeek, MMWindowDisk, extras.weekFirstAt, ring.diskTotal);
 
     // The mark says a press on Fix Everything acts on the row, so a fix that waits for its own press marks none.
     NSMutableSet<NSString *> *inFix = [NSMutableSet new];

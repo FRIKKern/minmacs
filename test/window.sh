@@ -13,7 +13,7 @@ mkdir -p "$wn_dir/home"
 wn_home="$wn_dir/home"
 wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/Window/MMWindowFixtureWeek.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -71,6 +71,9 @@ if [ "$wn_r" = 0 ]; then
   wn_run collapse-run
   echo "-- a worktree's pull request through a fake gh, only on demand"
   wn_run pulls
+  echo "-- the strip's 7 days: honest words, the feed, and reads only while open and on the 7 days"
+  wn_run week
+  wn_run week-controller
   echo "-- an agent row's story, and Claude Code's scratch as the owner's Mac had it"
   wn_run agentstory
   wn_run collapse-real
@@ -121,6 +124,8 @@ check "window: the runner and the controller each have a labeled queue" "1 1" \
   "$(grep -c 'MMQueue(@"core", @"fix-everything", QOS_CLASS_USER_INITIATED)' Sources/Shell/MMFixRunner.m) $(grep -c 'MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED)' Sources/Shell/MMWindowController.m)"
 check "window: nothing in the window's shell files runs lsof, nettop, ps or pmset, or makes a timer" 0 \
   "$(grep -cE '"[^"]*(lsof|nettop|pmset|/bin/ps)[^"]*"|MMTimer\(|NSTimer|dispatch_source' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
+check "window: the 7 days are read by the controller alone, and only when the strip shows them" "Sources/Shell/MMWindowController.m 1" \
+  "$(grep -rl 'MMHistoryWeekHours(' Sources/Shell Sources/UI | tr '\n' ' ' | sed 's/ $//') $(grep -c 'if (x.stripWeek) \[self readWeek:x\];' Sources/Shell/MMWindowController.m)"
 check "window: one MMPerformance per snapshot, built in the controller only while open" "1 1" \
   "$(cat Sources/Shell/MMWindowController.m Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMFixRunner.m | grep -c 'MMPerformance from:') $(grep -c 'if (!self.open || !s || s.generation <= atomic_load(&_wanted)) return;' Sources/Shell/MMWindowController.m)"
 check "window: no string in these files names an old app" 0 \

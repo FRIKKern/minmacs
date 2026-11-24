@@ -46,6 +46,9 @@ hs_left=$(pgrep -x "$hs_sleeper" | tr '\n' ' ')
 check "history: the fake cmux's sleeper stopped with the reader" "" "$hs_left"
 for p in $hs_left; do kill "$p" 2>/dev/null; done   # pgrep matched the name this run gave it, nothing else
 
+echo "-- the 7 days: one point an hour in the log, off main, pruned past 8 days"
+hs_run week
+
 echo "-- in memory only, and no timer of its own"
 check "history: MMHistory.m writes no file and opens no log" 0 \
   "$(grep -cE 'writeToFile|writeToURL|MMStateFile|MMLog|fopen|open\(|NSFileManager|MMSupportDir|NSUserDefaults|MMSetPref' Sources/Core/Graph/MMHistory.m)"
@@ -60,6 +63,18 @@ check "history: cold, minmacs history --json says no app and holds no ring" "Fal
   "$(printf '%s' "$hs_out" | json '"%s %d %d %d" % (j["app"], j["rings"], j["maxRings"], j["minutes"])')"
 check "history: cold, the plain form says why there is none" yes \
   "$(env MINMACS_HOME="$hs/home" "$BIN" history 2>/dev/null | grep -q 'memory only' && echo yes || echo no)"
+# The week mode above left three hours in this home's log, two hours apart from a gap, so the CLI reads them cold.
+hs_out=$(env MINMACS_HOME="$hs/home" "$BIN" history --days 7 --json 2>/dev/null)
+check "history: --days 7 --json gives 168 hours a side, the three kept, and null for the gap between them" "168 168 168 3 3 3 None 3600" \
+  "$(printf '%s' "$hs_out" | json '"%d %d %d %d %d %d %s %d" % (j["hours"], len(j["memoryUsedMB"]), len(j["diskFreeMB"]), j["held"]["memory"], j["held"]["disk"], len(j["points"]), j["memoryUsedMB"][165], j["stepSeconds"])')"
+check "history: --days 7 --json has its keys, and says no app runs" "app days diskFreeMB from held hours keepDays memoryUsedMB points stepSeconds to False" \
+  "$(printf '%s' "$hs_out" | json '" ".join(sorted(j)) + " " + str(j["app"])')"
+check "history: --days 7 says how many hours it kept" yes \
+  "$(env MINMACS_HOME="$hs/home" "$BIN" history --days 7 2>/dev/null | grep -q '^Memory used: 3 of 168 hours kept' && echo yes || echo no)"
+env MINMACS_HOME="$hs/home" "$BIN" history --days 9 >/dev/null 2>&1
+check "history: --days takes 1 to 8 only" 2 "$?"
+check "history: the week's writer is the one file that names its series, and it writes through the log's points" "1 1 1" \
+  "$(find Sources -name '*.m' -exec grep -lF '@"core.memory.used"' {} + | grep -c .) $(grep -c 'addPoint:MMHistoryWeekMemory value:memoryUsed at:at bucket:3600' Sources/Core/Graph/MMHistoryWeek.m) $(grep -c 'MMQueue(@"core", @"history.week", QOS_CLASS_UTILITY)' Sources/Core/Graph/MMHistoryWeek.m)"
 check "history: help --json lists it as a verb that reads only" "False" \
   "$(env MINMACS_HOME="$hs/home" "$BIN" help --json | json '[v["mutates"] for v in j["verbs"] if v["verb"] == "history"][0]')"
 

@@ -1,9 +1,9 @@
-// The middle of the window: a strip with memory in use and disk free over the last hour, small, and the log under
-// it. Or the story of the row the pointer rests on, over all of it.
+// The middle of the window: a strip with memory in use and disk free over the last hour or the last 7 days, small,
+// MMWindowStrip.m, and the log under it. Or the story of the row the pointer rests on, over all of it.
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
 
-static const CGFloat kStrip = 80;                    // the strip, from the middle's top to the hairline under it
+static const CGFloat kStrip = MMWindowStripHeight;   // the strip, from the middle's top to the hairline under it
 
 static const CGFloat kPullButton = 24;               // the Open pull request press, high
 
@@ -20,15 +20,19 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
         _pullButton = [MMWindowButton kind:MMWindowButtonOutline title:MMWindowOpenPull target:self action:@selector(pressPull:)];
         _pullButton.hidden = YES;
         [self addSubview:_pullButton];
+        [self makeStripPresses];
     }
     return self;
 }
 
 - (CGFloat)stripHeight { return kStrip; }
 - (NSRect)logFrame { return NSMakeRect(0, kStrip + 1, self.bounds.size.width, MAX(self.bounds.size.height - kStrip - 1, 0)); }
-- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; _logView.frame = [self logFrame]; [self placePull]; [self placePresses]; }
+- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; _logView.frame = [self logFrame]; [self placePull]; [self placePresses]; [self placeStripPresses]; }
 
-- (void)setModel:(MMWindowModel *)model { _model = model; _logView.log = model.log; [self placePull]; self.needsDisplay = YES; [self placePresses]; }
+- (void)setModel:(MMWindowModel *)model {
+    _model = model; _logView.log = model.log; [self placePull]; self.needsDisplay = YES; [self placePresses];
+    [self takeStripWeek:model.stripWeek];
+}
 - (void)setMemoryHour:(MMWindowHour *)h { _memoryHour = h; self.needsDisplay = YES; }
 - (void)setDiskHour:(MMWindowHour *)h { _diskHour = h; self.needsDisplay = YES; }
 - (void)setRow:(MMWindowRow *)row {
@@ -37,6 +41,7 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
     // A row's story stands over the whole middle, so the log is away while it shows.
     _logView.hidden = row != nil;
     [self placePull];
+    [self placeStripPresses];
     self.needsDisplay = YES;
     [self placePresses];
     // Told once a row, not at every model: a new model of the same row is the same story.
@@ -57,89 +62,27 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
 - (void)mouseDown:(NSEvent *)e {}
 - (void)updateTrackingAreas {
     [super updateTrackingAreas]; if (_tracking) [self removeTrackingArea:_tracking];
-    [self addTrackingArea:_tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect owner:self userInfo:nil]];
+    [self addTrackingArea:_tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways | NSTrackingInVisibleRect owner:self userInfo:nil]];
 }
 - (void)mouseEntered:(NSEvent *)e { if (self.onPointer) self.onPointer(YES); }
-- (void)mouseExited:(NSEvent *)e { if (self.onPointer) self.onPointer(NO); }
+- (void)mouseExited:(NSEvent *)e { [self pointStripAt:NSMakePoint(-1, -1)]; if (self.onPointer) self.onPointer(NO); }
+/// The pointer over the strip shows the reading under it: a redraw of the strip, nothing read.
+- (void)mouseMoved:(NSEvent *)e { [self pointStripAt:[self convertPoint:e.locationInWindow fromView:nil]]; }
 
 - (void)drawRect:(NSRect)dirty {
     MMWindowCrisp();
     if (self.row) { [self drawStory:self.row]; return; }
-    CGFloat gap = 16, w = floor((self.bounds.size.width - 28 - gap) / 2);
-    MMWindowHour *memory = self.memoryHour ?: [self before:MMWindowMemory], *disk = self.diskHour ?: [self before:MMWindowDisk];
-    if (memory) [self drawStrip:memory in:NSMakeRect(14, 6, w, kStrip - 12)];
-    if (disk) [self drawStrip:disk in:NSMakeRect(14 + w + gap, 6, w, kStrip - 12)];
+    [self drawStrips];
     [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.07] setFill];
     NSRectFillUsingOperation(NSMakeRect(14, kStrip, self.bounds.size.width - 28, 1), NSCompositingOperationSourceOver);
 }
 
-/// Before Core has kept a first minute there is no hour. The strip still stands: the same frame with no minute
-/// filled, and the number the ring holds now. Nothing in it is a reading of the past.
-- (MMWindowHour *)before:(MMWindowSide)side {
-    MMWindowRing *ring = self.model.ring;
-    if (!ring || !(side == MMWindowDisk ? ring.diskTotal : ring.memoryTotal)) return nil;
-    MMWindowHour *h = [MMWindowHour new];
-    h.side = side;
-    BOOL disk = side == MMWindowDisk;
-    h.title = MMWindowHourTitle(disk);
-    h.explain = MMWindowHourExplain(disk, disk ? ring.diskTotal : ring.memoryTotal);
-    NSMutableArray *none = [NSMutableArray new];
-    for (NSInteger i = 0; i < 60; i++) [none addObject:NSNull.null];
-    h.values = none;
-    return h;
-}
-
 /// How long ago the minute at this index was, as an end of a line says it. The newest minute is "now".
-static NSString *Ago(NSInteger index, NSInteger count) {
+NSString *MMWindowAgo(NSInteger index, NSInteger count) {
     NSInteger minutes = count - 1 - index;
     if (minutes <= 0) return @"now";
     if (minutes >= 59) return @"an hour ago";
     return [NSString stringWithFormat:@"%ld min ago", (long)minutes];
-}
-
-/// One side of the strip: its title and how much of the hour it holds, MMWindowHourSpanWords, the newest value and how far it moved, and the
-/// filled line small under them. In the first minutes, the newest value over an empty track, with words for what
-/// will come. No value is made up.
-- (void)drawStrip:(MMWindowHour *)hour in:(NSRect)r {
-    NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
-    NSColor *ink = MMWindowColor(hour.side == MMWindowDisk ? MMWindowInkDisk : MMWindowInkMemory);
-    BOOL disk = hour.side == MMWindowDisk;
-    NSInteger a, b, filled, count = (NSInteger)hour.values.count;
-    // The strip draws a line as soon as two minutes hold a value, and says how long it spans: "the last 4 min".
-    NSArray *span = MMWindowHourSpanAtLeast(hour.values, MMWindowHourGraphLeast, &a, &b, &filled);
-    MMWindowDraw(MMWindowText(hour.title, 11.5, NSFontWeightMedium, NSColor.whiteColor), r.origin.x, r.origin.y + 8, -1);
-    MMWindowDraw(MMWindowText(span ? MMWindowHourSpanWords(b - a + 1) : @"now", 10.5, NSFontWeightRegular, t3), NSMaxX(r), r.origin.y + 8, 1);
-    MMWindowRing *ring = self.model.ring;
-    BOOL known = b >= 0 || ring;
-    uint64_t newest = b >= 0 ? [hour.values[b] unsignedLongLongValue] : disk ? ring.diskFree : ring.memoryUsed;
-    if (known) MMWindowDraw(MMWindowNumber(newest, disk, 15, NSFontWeightMedium, text, 10.5), r.origin.x, r.origin.y + 27, -1);
-    if (span) {
-        double first = [hour.values[a] doubleValue], last = [hour.values[b] doubleValue], moved = last - first;
-        // A move too small for the unit to show reads as no move.
-        uint64_t by = (uint64_t)fabs(moved);
-        NSString *move = by < (1 << 20) || by < MAX(first, last) * 0.002 ? @"about the same"
-            : [NSString stringWithFormat:@"%@ %@", moved > 0 ? @"up" : @"down", MMWindowBytes(by, disk)];
-        MMWindowDraw(MMWindowText(move, 10.5, NSFontWeightRegular, t2), NSMaxX(r), r.origin.y + 27, 1);
-        MMWindowDrawHour(hour.values, NSMakeRect(r.origin.x, r.origin.y + 38, r.size.width, NSMaxY(r) - r.origin.y - 38), ink, MMWindowHourStrip);
-        return;
-    }
-    // The first minutes: an empty track with the minutes that passed filled in at its right end, where now is.
-    CGFloat floorY = NSMaxY(r) - 3, left = NSMinX(r) + 1, right = NSMaxX(r) - 3;
-    NSBezierPath *track = [NSBezierPath bezierPath];
-    [track moveToPoint:NSMakePoint(left, floorY)]; [track lineToPoint:NSMakePoint(right, floorY)];
-    track.lineWidth = 1.5; track.lineCapStyle = NSLineCapStyleRound;
-    [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.24 : 0.09] setStroke];
-    [track stroke];
-    if (b >= 0 && count > 1) {
-        CGFloat end = left + (right - left) * b / (count - 1), start = end - (right - left) * MAX(filled - 1, 0) / (count - 1);
-        NSBezierPath *line = [NSBezierPath bezierPath];
-        [line moveToPoint:NSMakePoint(start, floorY)]; [line lineToPoint:NSMakePoint(end, floorY)];
-        line.lineWidth = 1.5; line.lineCapStyle = NSLineCapStyleRound;
-        [ink setStroke]; [line stroke];
-        [ink setFill];
-        [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(end - 2.4, floorY - 2.4, 4.8, 4.8)] fill];
-    }
-    MMWindowDraw(MMWindowText(@"Fills in as the hour passes.", 10.5, NSFontWeightRegular, t3), r.origin.x, floorY - 11, -1);
 }
 
 #pragma mark A row's story
@@ -380,7 +323,7 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
         MMWindowDraw(MMWindowText(@"Its last hour", 11, NSFontWeightRegular, t2), at, top + 7, -1);
         MMWindowDrawHour(row.hour, NSMakeRect(at, top + 16, x + w - at, 28), ink, MMWindowHourStory);
         // Where the line began, under it, when it fits on its one line at 10 points or more. A detail: left out when it does not.
-        NSString *began = [NSString stringWithFormat:@"%@, %@", Ago(a, (NSInteger)row.hour.count), MMWindowBytes([row.hour[a] unsignedLongLongValue], disk)];
+        NSString *began = [NSString stringWithFormat:@"%@, %@", MMWindowAgo(a, (NSInteger)row.hour.count), MMWindowBytes([row.hour[a] unsignedLongLongValue], disk)];
         if (MMWindowLines(began, 10, NSFontWeightRegular, x + w - at).count == 1) MMWindowDrawBlock(began, 10.5, 10, NSFontWeightRegular, t3, at, top + 44, x + w - at, -1, -1, 14);
     }
     CGFloat y = top + 66;

@@ -90,6 +90,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
         _middle.onStory = ^(NSString *key) { id<MMWindowHost> h = me.host; if ([h respondsToSelector:@selector(windowShowsStory:)]) [h windowShowsStory:key]; };
         _middle.onLink = ^(NSString *key) { [me showRow:key]; };
         _middle.onGoTo = ^(NSString *key) { [me goTo:key]; };
+        _middle.onWeek = ^(BOOL week) { id<MMWindowHost> h = me.host; if ([h respondsToSelector:@selector(windowStripWeek:)]) [h windowStripWeek:week]; };
         _middle.onPointer = ^(BOOL over) { [me pointMiddle:over]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
     }
@@ -139,6 +140,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [_right setGroups:model.diskGroups ring:model.ring];
     _middle.model = model;
     _middle.memoryHour = model.memoryHour;
+    _middle.memoryWeek = model.memoryWeek;
+    _middle.diskWeek = model.diskWeek;
     _middle.diskHour = model.diskHour;
     _dock.model = model;
     _settings.settings = model.settings;

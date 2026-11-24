@@ -92,11 +92,14 @@ static uint64_t LeftoversBack(NSArray<MMWindowRow *> *caches) {
 /// Each day with its log. "log-empty", "log-new", "log-busy" and "log-undo" are the young, the young, the busy and the
 /// young day with an empty log, a new Mac's first hour, 300 entries over a month and the Undo presses with two runs. The days of a new Mac show the first hour too.
 MMWindowModel *MMWindowFixture(NSString *name) {
-    NSString *day = [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;
+    // "week", "week-young" and "week-gap": the calm day with its strip on the 7 days.
+    BOOL week = [name hasPrefix:@"week"];
+    NSString *day = week ? @"calm" : [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;
     MMWindowModel *m = Day(day);
+    if (week) MMWindowFixtureWeek(m, name);
     NSString *log = [name isEqualToString:@"log-empty"] || [name isEqualToString:@"empty"] ? @"empty"
                   : [name isEqualToString:@"log-busy"] ? @"busy" : [name isEqualToString:@"log-undo"] ? @"undo"
-                  : [name isEqualToString:@"log-new"] || [name isEqualToString:@"young"] || [name isEqualToString:@"calm"] || [name hasPrefix:@"welcome"] ? @"new" : @"day";
+                  : [name isEqualToString:@"log-new"] || [name isEqualToString:@"young"] || [name isEqualToString:@"calm"] || week || [name hasPrefix:@"welcome"] ? @"new" : @"day";
     m.log = MMWindowFixtureLog(log);
     return m;
 }

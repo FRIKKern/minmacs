@@ -41,6 +41,9 @@ typedef struct { NSTimeInterval at; double value; } MMTrendPoint;
 /// One point per bucket is kept, and a newer value in the same bucket replaces it.
 - (void)addPoint:(NSString *)series value:(double)value at:(NSDate *)at bucket:(NSTimeInterval)bucket;
 - (NSData *)points:(NSString *)series since:(NSDate *)since;   // packed MMTrendPoint values, oldest first
+/// Deletes the points of one series older than `before`, and returns how many went. Only the rows table is
+/// append-only: points are a trend's working set, and a series that keeps a few days prunes what is past them.
+- (NSUInteger)prunePoints:(NSString *)series before:(NSDate *)before;
 @end
 
 /// Opens the shared log on its own queue now, and from then on +shared on main never opens it.

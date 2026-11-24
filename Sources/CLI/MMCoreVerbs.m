@@ -751,7 +751,7 @@ NSArray<MMVerbSpec *> *MMCoreVerbs(void) {
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"restore" usage:@"restore [rid] [--list] [--expert <expert>] [--limit <n>] [--dry-run] [--json]   undo the last run, or one record; a thing deleted at once cannot be brought back" mutates:NO run:^(MMArgs *a) { return Restore(a); }],
                   MMVerbReadsNoWorktrees, @[@"!--list"]),
-            Reads([MMVerbSpec verb:@"history" usage:@"history [--json]   the last hour in memory: Mac, disk, agent and server rings, one value a minute" mutates:NO run:^(MMArgs *a) { return MMHistoryVerb(a); }],
+            Reads([MMVerbSpec verb:@"history" usage:@"history [--days <n>] [--json]   the last hour in memory: Mac, disk, agent and server rings, one value a minute; with --days, memory used and disk free one value an hour over the last 1 to 8 days, kept in the log" mutates:NO run:^(MMArgs *a) { return MMHistoryVerb(a); }],
                   MMVerbReadsNoWorktrees, nil),
             Reads([MMVerbSpec verb:@"gains" usage:@"gains [--days <n>] [--json]   what came back: memory and disk by day, by kind and by who did it" mutates:NO run:^(MMArgs *a) { return MMGainsVerb(a); }],
                   MMVerbReadsNoWorktrees, nil),

@@ -215,9 +215,11 @@ NSArray *MMWindowHourSpanAtLeast(NSArray *values, NSInteger least, NSInteger *fi
 }
 
 void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHourLook look) {
-    BOOL graph = look == MMWindowHourGraph, small = look == MMWindowHourRow || look == MMWindowHourStrip;
+    BOOL graph = look == MMWindowHourGraph, week = look == MMWindowHourWeek, small = look == MMWindowHourRow || look == MMWindowHourStrip || week;
     // Only the filled part is drawn, across the whole width, so a young hour is a short line and never a stroke at the edge.
-    NSArray *span = MMWindowHourSpanAtLeast(values, graph || look == MMWindowHourStrip ? MMWindowHourGraphLeast : MMWindowHourLeast, NULL, NULL, NULL);
+    // The 7 days keep their newest hour at the right end, so hours with nothing kept at the end stay a gap there.
+    NSArray *span = week ? MMWindowWeekSpan(values, NULL, NULL)
+                         : MMWindowHourSpanAtLeast(values, graph || look == MMWindowHourStrip ? MMWindowHourGraphLeast : MMWindowHourLeast, NULL, NULL, NULL);
     if (!span) return;
     NSArray<NSNumber *> *v = MMWindowHourValues(span, NULL);
     double lo = INFINITY, hi = -INFINITY;
@@ -238,14 +240,21 @@ void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHour
     NSBezierPath *line = [NSBezierPath bezierPath], *fill = [NSBezierPath bezierPath];
     NSPoint last = NSZeroPoint, first = NSZeroPoint;
     BOOL open = NO, any = NO;
-    NSInteger count = (NSInteger)v.count;
+    NSInteger count = (NSInteger)v.count, run = 0;
+    // An hour alone between two gaps makes no line, so the 7 days mark it with a dot of its own.
+    NSMutableArray<NSValue *> *alone = [NSMutableArray new];
     for (NSInteger i = 0; i < count; i++) {
         double d = v[i].doubleValue;
-        if (isnan(d)) { if (open) { [fill lineToPoint:NSMakePoint(last.x, NSMaxY(rect))]; [fill lineToPoint:NSMakePoint(first.x, NSMaxY(rect))]; [fill closePath]; open = NO; } continue; }
+        if (isnan(d)) {
+            if (open) { [fill lineToPoint:NSMakePoint(last.x, NSMaxY(rect))]; [fill lineToPoint:NSMakePoint(first.x, NSMaxY(rect))]; [fill closePath]; open = NO; }
+            if (run == 1) [alone addObject:[NSValue valueWithPoint:last]];
+            run = 0;
+            continue;
+        }
         NSPoint p = NSMakePoint(left + width * i / MAX(count - 1, 1), bottom - (bottom - top) * (d - lo) / span2);
         if (!open) { [line moveToPoint:p]; [fill moveToPoint:p]; first = p; open = YES; }
         else { [line lineToPoint:p]; [fill lineToPoint:p]; }
-        last = p; any = YES;
+        last = p; any = YES; run++;
     }
     if (open) { [fill lineToPoint:NSMakePoint(last.x, NSMaxY(rect))]; [fill lineToPoint:NSMakePoint(first.x, NSMaxY(rect))]; [fill closePath]; }
     if (!any) return;
@@ -256,5 +265,6 @@ void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHour
     [line stroke];
     CGFloat dot = graph ? 2.4 : 1.6;
     [color setFill];
+    if (week) for (NSValue *p in alone) [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(p.pointValue.x - 1.2, p.pointValue.y - 1.2, 2.4, 2.4)] fill];
     [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(last.x - dot, last.y - dot, dot * 2, dot * 2)] fill];
 }

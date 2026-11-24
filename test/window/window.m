@@ -691,6 +691,7 @@ static void RunStopped(void) {
 #import "logundo.m"
 #import "trashlist.m"
 #import "pulls.m"
+#import "week.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -731,6 +732,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"trash-list"]) TrashList();
         else if ([mode isEqualToString:@"log-fold"]) LogFold();
         else if ([mode isEqualToString:@"pulls"]) Pulls();
+        else if ([mode isEqualToString:@"week"]) WeekWords();
+        else if ([mode isEqualToString:@"week-controller"]) WeekController();
         else return 2;
         printf("END\n");
     }

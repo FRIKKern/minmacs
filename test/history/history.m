@@ -347,13 +347,16 @@ static void Events(void) {
     [MMHistory.shared stop];
 }
 
+#import "week.m"
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         NSString *mode = argc > 1 ? @(argv[1]) : @"";
         if ([mode isEqualToString:@"rings"]) Rings();
         else if ([mode isEqualToString:@"graph"]) Graph();
         else if ([mode isEqualToString:@"events"]) Events();
-        else { fprintf(stderr, "usage: history rings | graph | events\n"); return 2; }
+        else if ([mode isEqualToString:@"week"]) Week();
+        else { fprintf(stderr, "usage: history rings | graph | events | week\n"); return 2; }
     }
     return 0;
 }

@@ -123,13 +123,13 @@ It changes things, so it runs only through the running app, unless `--dry-run` i
 
 #### `history`
 
-The last hour in memory: Mac, disk, agent and server rings, one value a minute.
+The last hour in memory: Mac, disk, agent and server rings, one value a minute; with --days, memory used and disk free one value an hour over the last 1 to 8 days, kept in the log.
 
 ```
-history [--json]
+history [--days <n>] [--json]
 ```
 
-Flags: `--json`.
+Flags: `--days`, `--json`.
 
 #### `gains`
 
