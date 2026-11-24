@@ -60,6 +60,31 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 @property (copy, nullable) void (^onOpenChange)(BOOL open);
 @end
 
+/// Who holds the panel, for the shell. Drawn once, the panel, its views and their layers hold about 100 MB, and a
+/// panel only ordered out keeps it all. So after the window stayed closed for `rest` seconds the panel is let go, and
+/// the next ask for it makes it again, given the last model first, so its first frame is drawn before it comes on
+/// screen. Nothing is let go while it is open, nor while `busy` answers YES: then it is asked again a while later.
+extern const NSTimeInterval MMWindowRestSeconds;        // 45 s: a quick reopen keeps the same panel
+@interface MMWindowHolder : NSObject
+- (instancetype)initWithHost:(nullable id<MMWindowHost>)host;
+/// The panel, made when there is none.
+@property (readonly) MMWindowPanel *panel;
+/// The panel when there is one, nil once it was let go. Asks for nothing to be made.
+@property (readonly, nullable) MMWindowPanel *madePanel;
+@property (readonly) BOOL isOpen;
+/// A new model: shown now when there is a panel, and kept for the first frame of the next.
+- (void)show:(MMWindowModel *)model;
+/// Called on main after the panel opened or closed, as -[MMWindowPanel onOpenChange].
+@property (copy, nullable) void (^onOpenChange)(BOOL open);
+/// YES keeps the panel past its rest, as while a run of Fix Everything plays.
+@property (copy, nullable) BOOL (^busy)(void);
+/// How long the window stays closed before its panel goes. Below 0, never. Set it before the first close.
+@property NSTimeInterval rest;
+/// How many panels were made, and the last one let go while anything still holds it, for the checks.
+@property (readonly) NSUInteger made;
+@property (readonly, weak, nullable) MMWindowPanel *lastLetGo;
+@end
+
 /// A model of made-up values for the render tool and the checks: "quiet", "busy", "peak", "running", "done", "empty",
 /// and three days that came from the first look at the real window: "young", "calm" and "long".
 /// "memory-only" and "disk-only" are the busy day with fixes that give only that side back.
