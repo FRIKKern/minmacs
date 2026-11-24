@@ -683,10 +683,11 @@ static void RunStopped(void) {
 #import "Shell/MMWindowLog.h"
 #import "log.m"
 #import "logundo.m"
+#import "trashlist.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|log-words|log-controller|log-undo\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|log-words|log-controller|log-undo|trash-list|log-fold\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -715,6 +716,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"log-words"]) LogWords();
         else if ([mode isEqualToString:@"log-controller"]) LogController();
         else if ([mode isEqualToString:@"log-undo"]) LogUndo();
+        else if ([mode isEqualToString:@"trash-list"]) TrashList();
+        else if ([mode isEqualToString:@"log-fold"]) LogFold();
         else return 2;
         printf("END\n");
     }

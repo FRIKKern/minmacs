@@ -76,7 +76,7 @@ static void LogUndoWords(void) {
     T(@"log run: Fix Everything and a mode pass are one entry each, with who", @"Fix Everything: 5 done, 2 skipped. 2 agents ask you. [14:00] run by you | "
       @"Stop idle servers: 2 done, 1 skipped. 1 failed. [13:00] run on its own, Careful",
       [NSString stringWithFormat:@"%@ %@ | %@ %@", Said(@[runs.firstObject]), runs.firstObject.who, Said(@[runs.lastObject]), runs.lastObject.who]);
-    T(@"log run: its more says each skip and why, and what came back", @"Skipped Claude Code in atlas: it asks you. Skipped Codex in notes: it asks you. It gave back 2.34 GB memory and 1.86 GB disk.",
+    T(@"log run: its more says each skip and why, the same why once, and what came back", @"Skipped Claude Code in atlas and Codex in notes: it asks you. It gave back 2.34 GB memory and 1.86 GB disk.",
       runs.firstObject.more);
     NSDictionary *j = MMWindowLogEntryJSON(runs.lastObject);
     T(@"log run: --json gives the skips as the row holds them", @":4321 Astro docs|it ignored SIGTERM and still runs|failed",

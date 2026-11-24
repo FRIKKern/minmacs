@@ -56,11 +56,23 @@ MMWindowLogEntry *MMWindowLogRunEntry(MMLogEntry *row, NSDate *now) {
         s = [NSString stringWithFormat:@"%@: %ld done, %ld skipped. %@.", title, (long)done, (long)skips.count, Cap(Joined(clauses))];
     }
     // The whole story, for the tooltip and VoiceOver: each skip and why, then what came back.
+    // Skips with the same why are one line, "Skipped a, b and 167 more: why.", so a run where everything failed the
+    // same way says it once.
     NSMutableArray<NSString *> *more = [NSMutableArray new];
-    NSUInteger listed = 0;
+    NSMutableArray<NSString *> *whys = [NSMutableArray new];
+    NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *named = [NSMutableDictionary new];
     for (NSDictionary *x in skips) {
-        if (listed++ == 12) { [more addObject:[NSString stringWithFormat:@"And %lu more.", (unsigned long)(skips.count - 12)]]; break; }
-        [more addObject:[NSString stringWithFormat:@"Skipped %@: %@", x[@"subject"], Period(x[@"why"])]];
+        if (!named[x[@"why"]]) { named[x[@"why"]] = [NSMutableArray new]; [whys addObject:x[@"why"]]; }
+        [named[x[@"why"]] addObject:x[@"subject"]];
+    }
+    NSUInteger listed = 0, left = skips.count;
+    for (NSString *why in whys) {
+        if (listed++ == 12) { [more addObject:[NSString stringWithFormat:@"And %lu more.", (unsigned long)left]]; break; }
+        NSArray<NSString *> *names = named[why];
+        NSString *who = names.count <= 3 ? Joined(names)
+                      : [NSString stringWithFormat:@"%@, %@ and %lu more", names[0], names[1], (unsigned long)(names.count - 2)];
+        [more addObject:[NSString stringWithFormat:@"Skipped %@: %@", who, Period(why)]];
+        left -= names.count;
     }
     NSDictionary *gains = [b[@"gains"] isKindOfClass:NSDictionary.class] ? b[@"gains"] : @{};
     uint64_t memory = (uint64_t)MAX(Num(gains[@"memory"]), 0), disk = (uint64_t)MAX(Num(gains[@"disk"]), 0);

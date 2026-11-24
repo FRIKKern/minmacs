@@ -451,7 +451,7 @@ static void RunOffMain(dispatch_block_t block) {
         for (id<MMAction> a in actions) {
             NSString *err = nil;
             MMUndoRecord *r = MMRunAction(a, self.policy, nil, @"manual", @"asked from the menu", &err);
-            if (!r || r.state == MMUndoFailed) [problems addObject:[NSString stringWithFormat:@"%@: %@", a.finding.title, err ?: r.error ?: @"it failed"]];
+            if (!r || r.state == MMUndoFailed) [problems addObject:@[a.finding.title ?: @"", err ?: r.error ?: @"it failed"]];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             [MMGraph.shared rebuild:@"minmacs.action"];
@@ -459,7 +459,7 @@ static void RunOffMain(dispatch_block_t block) {
         // D3: a failure is a notice in the log, with at most one notification. No alert waits for a person.
         if (problems.count)
             MMNotice(kExpert, problems.count == 1 ? @"MinMacs Could Not Do It" : [NSString stringWithFormat:@"MinMacs Could Not Do %ld Things", (long)problems.count],
-                     [problems componentsJoinedByString:@"\n"]);
+                     MMNoticeLines(problems));
     });
 }
 

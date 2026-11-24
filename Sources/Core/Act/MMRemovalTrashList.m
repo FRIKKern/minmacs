@@ -13,9 +13,11 @@
 // leaves an item only this list names, issue #113: MMRemovalTrashStranded.m reads it for that, and writes nothing.
 #import "Core/Act/MMRemoval.h"
 #import "Core/Act/MMUndo.h"
+#import "Core/Act/MMNotice.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
 #include <sys/stat.h>
+#include <unistd.h>
 
 /// The list's file for rid, or nil when rid is no name MinMacs gives a record: letters and digits only, so a record
 /// can never name a file outside the list's folder.
@@ -53,6 +55,29 @@ static BOOL Write(NSString *path, NSArray<NSDictionary *> *items) {
         !FolderIsOurs(dir)) return NO;
     NSData *data = [NSJSONSerialization dataWithJSONObject:@{@"items": items} options:NSJSONWritingWithoutEscapingSlashes error:nil];
     return data && [data writeToFile:path atomically:YES];
+}
+
+NSString *const MMRemovalTrashListUnwritten = @"MinMacs could not write its own list of what it sends to the Trash, so the item stays where it is";
+
+NSString *MMRemovalTrashListCannot(void) {
+    NSString *dir = [MMExpertDir(@"core") stringByAppendingPathComponent:@"trashed"];
+    if (!FolderIsOurs(dir) || ![NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions: @0700} error:nil] ||
+        !FolderIsOurs(dir)) return MMRemovalTrashListUnwritten;
+    // A list is written as a new file in that folder renamed over the old one, which needs its write and search
+    // bits, and a volume that takes writes. This file never makes or deletes a file to find that out.
+    return access(dir.fileSystemRepresentation, W_OK | X_OK) == 0 ? nil : MMRemovalTrashListUnwritten;
+}
+
+void MMNoticeTrashUnwritten(NSString *expert, NSArray<NSString *> *paths, NSString *run) {
+    NSUInteger n = paths.count;
+    if (!n) return;
+    BOOL groups = YES;
+    for (NSString *p in paths) if ([p.lastPathComponent rangeOfString:@"*"].location == NSNotFound) { groups = NO; break; }
+    NSString *noun = groups ? (n == 1 ? @"Group" : @"Groups") : (n == 1 ? @"Leftover" : @"Leftovers");
+    NSString *title = [NSString stringWithFormat:@"Could Not Move %lu %@ to the Trash", (unsigned long)n, noun];
+    NSString *text = [NSString stringWithFormat:@"MinMacs could not write its own list of what it sends to the Trash, so %@. %@ tried none of %@.",
+                      n == 1 ? @"it stays where it is" : @"they stay where they are", run.length ? run : @"The run", n == 1 ? @"it" : @"them"];
+    MMNotice(expert, title, text);
 }
 
 /// One lock for the lists of every record in this process. Each record has its own file, so two processes write the

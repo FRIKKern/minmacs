@@ -298,12 +298,31 @@ static MMWindowLogEntry *KeepEntry(MMLogEntry *row, NSDate *now) {
     return MMWindowLogEntryOf(row, @"keep", s, [by isEqualToString:@"manual"] ? @"by you in a menu" : MMWindowLogWho(by, nil), now);
 }
 
+/// Title case to sentence case: each word of one capital and small letters after the first word is made small, but
+/// for a name. A word with a capital inside, MinMacs, or of capitals only, stays as it is.
+static NSString *SentenceCase(NSString *title) {
+    static NSRegularExpression *word; static NSSet *names; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        word = [NSRegularExpression regularExpressionWithPattern:@"\\b[A-Z][a-z]*\\b" options:0 error:nil];
+        names = [NSSet setWithArray:@[@"Trash", @"Mac", @"Finder", @"Xcode"]];
+    });
+    NSMutableString *out = [title mutableCopy];
+    NSArray<NSTextCheckingResult *> *hits = [word matchesInString:title options:0 range:NSMakeRange(0, title.length)];
+    for (NSTextCheckingResult *m in hits.reverseObjectEnumerator) {
+        if (m.range.location == 0) continue;
+        NSString *w = [title substringWithRange:m.range];
+        if (![names containsObject:w]) [out replaceCharactersInRange:m.range withString:w.lowercaseString];
+    }
+    return out;
+}
+
 /// A notice, D3: what would have been an alert, "Could Not Restore. The record is gone."
 static MMWindowLogEntry *NoticeEntry(MMLogEntry *row, NSDate *now) {
     NSDictionary *b = row.body;
     NSString *title = Str(b[@"title"]) ?: row.subject ?: @"Something did not work", *text = Str(b[@"text"]);
-    // The title is title case for a notification. In the log it is the first sentence, in sentence case.
-    NSString *first = Sentence([[title substringToIndex:1] stringByAppendingString:[title substringFromIndex:1].lowercaseString]);
+    // The title is title case for a notification. In the log it is the first sentence, in sentence case, where a name
+    // keeps its capitals: MinMacs, the Trash, the Mac.
+    NSString *first = Sentence(SentenceCase(title));
     NSString *s = text ? [NSString stringWithFormat:@"%@ %@", first, Sentence([text stringByReplacingOccurrencesOfString:@"\n" withString:@" "])] : first;
     return MMWindowLogEntryOf(row, @"notice", s, nil, now);
 }
@@ -350,6 +369,7 @@ MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUIntege
     // between them: they acted on nothing, so no entry between them depends on them. The line holds its place in the
     // list from the first of them on, and is made once the day's rows are read.
     NSMutableArray<MMLogEntry *> *quiet = [NSMutableArray new];
+    MMWindowLogFold *fold = nil;
     __block NSUInteger slot = 0;
     __block NSString *quietDay = nil;
     void (^flush)(void) = ^{
@@ -369,7 +389,14 @@ MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUIntege
         }
         MMWindowLogEntry *e = nil;
         if ([r.table isEqualToString:@"undo"]) {
+            BOOL taken = r.rid && backAt[r.rid];
             e = UndoEntry(r, parts, newer, ended, backAt, now);
+            // Identical failures one after another, as a run gives when each thing fails the same way, are one entry:
+            // "Could not move 169 groups to the Trash. ..., so they stay where they are." Anything between ends it.
+            if ([e.kind isEqualToString:@"failed"] && !taken && MMWindowLogFoldFailed(&fold, e, r, day, out.lastObject)) {
+                if (r.rid) [newer addObject:r.rid];
+                continue;
+            }
             if (r.rid) {
                 [newer addObject:r.rid];
                 if ([r.state isEqualToString:@"restored"] && !backAt[r.rid]) backAt[r.rid] = r.at;

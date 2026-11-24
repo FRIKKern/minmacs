@@ -161,6 +161,18 @@ void MMRemovalTrashListDrop(NSString *rid, NSString *from, NSString *to);
 /// Why the "trashed" entry of record rid is not one MinMacs's own list names, or nil when it is: the same from and to,
 /// and the same file by inode and volume UUID. A record names a file in the Trash; this list says MinMacs put it there.
 NSString *MMRemovalTrashListWhyNot(NSString *rid, NSDictionary *entry);
+/// The words a move to the Trash fails with when that list cannot be written: the item stays where it is.
+extern NSString *const MMRemovalTrashListUnwritten;
+/// Before a run moves anything to the Trash: nil when MinMacs can write that list now, made 0700 when it is not there
+/// yet, else why not, MMRemovalTrashListUnwritten: a folder that is a link, another user's, or whose mode or volume
+/// refuses the list's writes, as a core/ at 0600 did. A run that gets a why moves none of its
+/// items, and says so once, rather than trying each. Any queue but main.
+NSString *MMRemovalTrashListCannot(void);
+/// The one notice of a run that moved none of paths to the Trash, since MMRemovalTrashListCannot gave a why:
+/// "Could Not Move 169 Groups to the Trash. MinMacs could not write its own list of what it sends to the Trash, so
+/// they stay where they are." A group is a family, a path with a * in its name; anything else is a leftover. run names
+/// the run in the text, "Fix Everything" or the rule of a mode pass. Any queue.
+void MMNoticeTrashUnwritten(NSString *expert, NSArray<NSString *> *paths, NSString *run);
 /// Every entry of rid's list, for MMRemovalTrashStranded, issue #113: an empty list when it has none, or nil, and
 /// *unread YES, when something is there that is not a list MinMacs wrote, or one of its entries is not one MinMacs
 /// writes: an old path or a Trash path that is no real path, or no inode. Then nothing in it is believed.

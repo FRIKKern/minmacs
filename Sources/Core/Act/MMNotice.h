@@ -34,6 +34,11 @@ extern NSString *const MMLogNoticeTable;                 // @"notice"
 /// MMNotify's rate limit, with no Undo and no button. title is short title case, text full sentences. Any queue.
 void MMNotice(NSString *expert, NSString *title, NSString *text);
 
+/// A notice's text for several failures, each @[subject, why]: one line per why, in the order the whys first came,
+/// so identical failures fold into one line. "DerivedData: it is in use", "a, b and 167 more: MinMacs could not ...".
+/// At most three subjects are named in a line.
+NSString *MMNoticeLines(NSArray<NSArray<NSString *> *> *failures);
+
 /// Posted on the default center when `minmacs unattended on` ran in the app, so the shell applies what the welcome
 /// would have. Any queue.
 extern NSString *const MMUnattendedChangedNotification;

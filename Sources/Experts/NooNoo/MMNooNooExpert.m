@@ -61,6 +61,7 @@ static NSString *SectionName(MMNNSection s) { return @[@"finished", @"leftovers"
     NSDate *_undoRead, *_reviewRead;
     BOOL _hooked;
     NSDate *_actedOn;
+    BOOL _toldNoTrash;      // a mode pass said once that the Trash list cannot be written; set again once it can
     double _growthMin;
 }
 
@@ -447,18 +448,25 @@ static void RunOffMain(dispatch_block_t block) {
     for (NSString *fid in ids) { MMFinding *f = [s finding:fid]; if (f) [fs addObject:f]; }
     dispatch_async(ActQueue(), ^{
         NSMutableArray *problems = [NSMutableArray new];
+        // A move to the Trash needs MinMacs's own list of it. When that list cannot be written, none is tried, and one
+        // notice says why.
+        NSMutableArray<NSString *> *unmoved = [NSMutableArray new];
+        NSString *noTrash = nil;
+        for (MMFinding *f in fs) if ([[self actionFor:f step:MMStopTerm].kind isEqualToString:@"trash"]) { noTrash = MMRemovalTrashListCannot(); break; }
         for (MMFinding *f in fs) {
+            if (noTrash && [[self actionFor:f step:MMStopTerm].kind isEqualToString:@"trash"]) { [unmoved addObject:f.path ?: @""]; continue; }
             NSString *err = nil;
             MMUndoRecord *r = [self clean:f by:@"manual" error:&err];
-            if (!r || r.state == MMUndoFailed) [problems addObject:[NSString stringWithFormat:@"%@: %@", f.title, err ?: @"it failed"]];
+            if (!r || r.state == MMUndoFailed) [problems addObject:@[f.title ?: @"", err ?: @"it failed"]];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             [MMGraph.shared rebuild:@"noonoo.action"];
         });
         // D3: a failure is a notice in the log, with at most one notification. No alert waits for a person.
+        if (unmoved.count) MMNoticeTrashUnwritten(kExpert, unmoved, @"MinMacs");
         if (problems.count)
             MMNotice(kExpert, problems.count == 1 ? @"MinMacs Could Not Clean It" : [NSString stringWithFormat:@"MinMacs Could Not Clean %lu Items", (unsigned long)problems.count],
-                     [problems componentsJoinedByString:@"\n"]);
+                     MMNoticeLines(problems));
     });
 }
 
@@ -523,10 +531,26 @@ static void RunOffMain(dispatch_block_t block) {
         NSString *lastRid = nil;
         NSInteger planned = 0;
         NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
-        for (MMPlanEntry *e in MMPlan(findings, facts, r, mode, self.policy)) {
+        // Before acting, what the acts need: a move to the Trash needs MinMacs's own list of it. When that list cannot
+        // be written no move is tried, and one notice says why, once until the list can be written again.
+        NSArray<MMPlanEntry *> *plan = MMPlan(findings, facts, r, mode, self.policy);
+        NSMutableDictionary<NSString *, id<MMAction>> *acts = [NSMutableDictionary new];
+        BOOL trashes = NO;
+        for (MMPlanEntry *e in plan) {
+            id<MMAction> a = e.act ? [self actionFor:e.finding step:MMStopTerm] : nil;
+            if (a && e.finding.findingID) { acts[e.finding.findingID] = a; if ([a.kind isEqualToString:@"trash"]) trashes = YES; }
+        }
+        NSString *noTrash = trashes ? MMRemovalTrashListCannot() : nil;
+        NSMutableArray<NSString *> *unmoved = [NSMutableArray new];
+        for (MMPlanEntry *e in plan) {
             if (!e.act) continue;
             planned++;
-            id<MMAction> a = [self actionFor:e.finding step:MMStopTerm];
+            id<MMAction> a = e.finding.findingID ? acts[e.finding.findingID] : nil;
+            if (noTrash && [a.kind isEqualToString:@"trash"]) {
+                [skipped addObject:MMLogRunSkip(e.finding.title, noTrash, @"blocked")];
+                [unmoved addObject:e.finding.path ?: @""];
+                continue;
+            }
             NSString *err = nil;
             MMUndoRecord *rec = a ? MMRunAction(a, self.policy, r, MMModeName(mode), e.why, &err) : nil;
             if (rec.state != MMUndoDone) {
@@ -544,6 +568,10 @@ static void RunOffMain(dispatch_block_t block) {
         [self forgetUndo];
         // The pass's row in the log, when it planned anything: what it did and what it skipped, with why.
         if (planned) MMLogRun(kExpert, MMModeName(mode), planned, (NSInteger)done.count, skipped, 0, freed);
+        @synchronized (self) {
+            if (unmoved.count && !self->_toldNoTrash) MMNoticeTrashUnwritten(kExpert, unmoved, MMCapitalized(MMModeName(mode)));
+            if (trashes) self->_toldNoTrash = noTrash != nil;
+        }
         if (!done.count) return;
         // The words say where each thing went in this run, from its record: deleted, or to the Trash.
         NSString *title = [NSString stringWithFormat:@"Cleaned Up %@", MMPlural((NSInteger)done.count, @"Item").capitalizedString];

@@ -11,7 +11,7 @@
 
 lg_dir="$(cd "$MINMACS_HOME" && pwd -P)/log.$$"
 mkdir -p "$lg_dir"
-lg_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowController.m"
+lg_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMWindowController.m"
 lg_ui="Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/MMFormat.m"
 lg_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
 $lg_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $lg_shell $lg_ui test/window/window.m \
@@ -42,6 +42,8 @@ if [ "$lg_r" = 0 ]; then
   lg_run log-controller
   echo "-- Undo from the log, one entry per thing, folds and run rows"
   lg_run log-undo
+  echo "-- identical failures fold into one entry"
+  lg_run log-fold
   # The read is a range of the (tbl, row) index for each table, so its cost does not grow with the log.
   lg_plan=$(/usr/bin/sqlite3 "$lg_dir/home-log-words/minmacs.sqlite" "EXPLAIN QUERY PLAN SELECT * FROM (SELECT row FROM rows WHERE tbl = 'undo' AND row < 9e18 ORDER BY row DESC LIMIT 600) UNION ALL SELECT * FROM (SELECT row FROM rows WHERE tbl = 'setting' AND row < 9e18 ORDER BY row DESC LIMIT 600) ORDER BY row DESC LIMIT 600" 2>&1)
   check "log: each table's part is a search of the index rows_tbl, never a scan of the log" "2 0" \
@@ -120,7 +122,7 @@ check "log: the login switch, Start, the unattended skip of the welcome and the 
 check "log: the keep-awake switches write undo records, so they need no setting row" "2 0" \
   "$(grep -c 'MMRunAction(a, self->_policy, nil, by\|MMRunAction(a, _policy, nil, @"guard"' Sources/Experts/Insomnia/MMInsomniaExpert.m) $(grep -c 'MMLogSetting' Sources/Experts/Insomnia/MMInsomniaExpert.m)"
 check "log: the log's files import no AppKit, run no timer and stay under 500 lines" "0 0 0" \
-  "$(grep -cE '#import <(Cocoa|AppKit)' Sources/Shell/MMWindowLog.h Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogParts.h | awk -F: '{s+=$2} END {print s+0}') $(grep -cE 'NSTimer|dispatch_source|MMTimer\(|performSelector:.*afterDelay' Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/UI/Window/MMWindowLogView.m | awk -F: '{s+=$2} END {print s+0}') $(wc -l Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/UI/Window/MMWindowLogView.m Sources/UI/Window/MMWindowFixtureLog.m | awk '$2 != "total" && $1 >= 500' | grep -c .)"
+  "$(grep -cE '#import <(Cocoa|AppKit)' Sources/Shell/MMWindowLog.h Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMWindowLogParts.h | awk -F: '{s+=$2} END {print s+0}') $(grep -cE 'NSTimer|dispatch_source|MMTimer\(|performSelector:.*afterDelay' Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/UI/Window/MMWindowLogView.m | awk -F: '{s+=$2} END {print s+0}') $(wc -l Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/UI/Window/MMWindowLogView.m Sources/UI/Window/MMWindowFixtureLog.m | awk '$2 != "total" && $1 >= 500' | grep -c .)"
 check "log: one function writes run rows, and Fix Everything and the three mode passes call it" "1 1 3" \
   "$(grep -rc 'append:MMLogRunTable' Sources | awk -F: '{s+=$2} END {print s+0}') $(grep -c 'MMLogRun(MMLogRunFixEverything' Sources/Shell/MMFixRunner.m) $(grep -c 'MMLogRun(kExpert, MMModeName(mode)' Sources/Experts/LocoHost/MMLocoHost.m Sources/Experts/WorkForest/MMWorkForest.m Sources/Experts/NooNoo/MMNooNooExpert.m | awk -F: '{s+=$2} END {print s+0}')"
 check "log: the Undo press goes to -[MMUndo restore:] on core.undo, as the notification's does" "1 1" \
