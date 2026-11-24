@@ -214,9 +214,9 @@ NSArray *MMWindowHourSpanAtLeast(NSArray *values, NSInteger least, NSInteger *fi
 }
 
 void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHourLook look) {
-    BOOL graph = look == MMWindowHourGraph, small = look == MMWindowHourRow;
+    BOOL graph = look == MMWindowHourGraph, small = look == MMWindowHourRow || look == MMWindowHourStrip;
     // Only the filled part is drawn, across the whole width, so a young hour is a short line and never a stroke at the edge.
-    NSArray *span = MMWindowHourSpanAtLeast(values, graph ? MMWindowHourGraphLeast : MMWindowHourLeast, NULL, NULL, NULL);
+    NSArray *span = MMWindowHourSpanAtLeast(values, graph || look == MMWindowHourStrip ? MMWindowHourGraphLeast : MMWindowHourLeast, NULL, NULL, NULL);
     if (!span) return;
     NSArray<NSNumber *> *v = MMWindowHourValues(span, NULL);
     double lo = INFINITY, hi = -INFINITY;

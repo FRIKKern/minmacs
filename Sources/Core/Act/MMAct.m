@@ -11,6 +11,7 @@
 #import "Core/Store/MMGains.h"
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Store/MMStore.h"
+#import "Core/Store/MMLog.h"
 
 static const double kSureConfidence = 0.8;               // Proactive acts only on a go this sure
 static const double kMinConfidence = 0.6;                // Eager acts on a go this sure, or one the judge made
@@ -46,7 +47,13 @@ MMMode MMModeFor(NSString *expert) {
     NSInteger m = [v isKindOfClass:NSString.class] ? MMModeFrom(v) : -1;
     return m < 0 ? MMModeProactive : (MMMode)m;
 }
-void MMSetMode(NSString *expert, MMMode mode) { MMSetPref([expert stringByAppendingString:@".mode"], MMModeName(mode)); }
+void MMSetMode(NSString *expert, MMMode mode, NSString *by) {
+    NSString *key = [expert stringByAppendingString:@".mode"];
+    // The mode as it stood, Proactive when the pref has none, so the row says what changed for the person.
+    NSString *old = MMModeName(MMModeFor(expert));
+    MMSetPref(key, MMModeName(mode));
+    MMLogSetting(key, old, MMModeName(mode), by);
+}
 
 #pragma mark - The day of watching
 
@@ -128,8 +135,12 @@ static BOOL ProtectedIn(NSString *expert, NSString *value) {
     else { @synchronized (self) { n = KeepsAll(expert)[stableKey]; } }
     return [n isKindOfClass:NSNumber.class] && n.doubleValue > NSDate.date.timeIntervalSince1970 ? [NSDate dateWithTimeIntervalSince1970:n.doubleValue] : nil;
 }
-+ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until {
++ (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until by:(NSString *)by name:(NSString *)name {
     if (!stableKey.length || !expert.length) return;
+    // The log's row first, so the keep can be followed: who gave it, for what and until when.
+    NSDictionary *row = @{@"key": stableKey, @"name": name.length ? name : stableKey, @"by": by.length ? by : @"unknown",
+                          @"until": until ? @(until.timeIntervalSince1970) : NSNull.null};
+    MMLogWhenOpen(^(MMLog *log) { [log append:MMLogKeepTable rid:nil expert:expert subject:stableKey state:until ? @"kept" : @"ended" body:row]; });
     @synchronized (self) {
         NSMutableDictionary *all = KeepsAll(expert);
         double now = NSDate.date.timeIntervalSince1970;

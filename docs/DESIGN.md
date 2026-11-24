@@ -12,9 +12,10 @@ The layout is prototype 195-a, Dock Below, with the dock made slim:
 +------------------------------------------------------------------------+
 | 2 agents ask you             (folded away when nobody asks)            |
 +------------------+---------------------------+-------------------------+
-| Servers          | Memory in use, last hour  | Worktrees               |
-| Agents           | Disk free, last hour      | Caches                  |
-| Apps and helpers | (or a pointed row's story)|                         |
+| Servers          | Memory ~^~    Disk ___    | Worktrees               |
+| Agents           | Today                     | Caches                  |
+| Apps and helpers | Stopped :3000 Next.js.    |                         |
+|                  | (or a pointed row's story)|                         |
 +------------------+---------------------------+-------------------------+
 | o 42.4 / 64 GB memory in use  ( Fix Everything 7 )  +3.1 GB memory  * |
 |   182 GB disk free                                  7 fixes, x first   |
@@ -23,7 +24,7 @@ The layout is prototype 195-a, Dock Below, with the dock made slim:
 ```
 
 1. **Memory left, disk right.** What holds memory is on the left: servers, agents, apps and helpers. What holds disk is on the right: worktrees and caches. Memory and disk are two numbers everywhere and are never added into one.
-2. **The middle.** It shows memory in use and disk free over the last hour. While the pointer rests on a row it shows that row's story: its name and group, its number, and one line that says whether it asks, goes or stays and why, then its facts and where it stands in its group. The dock's ring lights that row's arc, and the numbers beside it are the row's. From the second minute each graph is a real line over the minutes kept so far, and its title says how long that is, "the last 4 min", until it spans "the last hour". The very first minute shows the newest value large over an empty track, never a made-up line.
+2. **The middle.** At its top a strip shows memory in use and disk free, small and side by side: each its newest value, how far it moved and a small line. From the second minute each side is a real line over the minutes kept so far, and it says how long that is, "the last 4 min", until it spans "the last hour". The very first minute shows the newest value over an empty track, never a made-up line. Under the strip is the log, down to the slim dock: what MinMacs did and decided, and each setting that changed, with who changed it. Each entry is one plain sentence, "Stopped :3000 Next.js. Undo starts it again.", with a quiet line under it: the time, who acted and the tokens a model call took. Undo is named only where the record can still be taken back. Entries group by day, and hourly reviews that acted on nothing fold into one line. The log holds the newest 300 entries of the last 30 days, whole entries only, moved an entry at a time, with "12 more below" at its foot. On a new Mac it says what MinMacs watches and that it acts on nothing on its own in its first day, and never claims a result. The window reads the log only while it is open, off main, and again only when the log changed: no timer, and nothing on main but drawing. While the pointer rests on a row the middle shows that row's story instead, over all of it: its name and group, its number, and one line that says whether it asks, goes or stays and why, then its facts and where it stands in its group. The dock's ring lights that row's arc, and the numbers beside it are the row's.
 3. **The top line** says who asks the person, such as "2 agents ask you". When nobody asks it folds away and the lists get its height.
 4. **The dock** is one slim band, 64 points high, at the window's foot: the lists and the middle get the rest. At its left a small ring shows memory by group, with the disk as the thin outer track, and beside it two quiet lines, "42.4 / 64 GB memory in use" and "182 GB disk free". Fix Everything stands in the middle of the window and runs every fix that does not need the person, in order. When there is something to fix it is the one vivid thing in the window: a warm orange pill that says "Fix Everything" with the count in a small capsule. Right of it one line says what a press gives back and one what runs first: "7 fixes, Wrap Up fix-auth-redirect first". While the pointer rests on the button it lifts and brightens, the gains brighten, and the numbers beside the ring are the Mac after the fixes. While a run plays, the button turns dark and fills with orange from the left as fixes land, and holds the step. "Fix 3 of 7" and a small Stop stand right of it with what came back so far, and a press on either stops the run after that step. As the run ends the button is bright again, with how it ended, a check when it did all it set out to, and what came back on its face; the end note stands right of it. With nothing to fix the button stays in place, calm, with a check and "No fixes to run", and takes no press. It says what a press would do, never that the Mac is clean: the window never claims a result.
 5. **The orange mark** on a row says a press on Fix Everything acts on it. A row whose fix waits for its own press, such as a cache its tool cleans, carries none.
@@ -88,11 +89,12 @@ MMGraph snapshot --> MMPerformance --> MMWindowModelFrom --> MMWindowModel --> M
 - **The view model**, `Sources/UI/Window/MMWindowModel.h`, is plain values with no AppKit and no Core type. Every string in it is shown as is.
 - **The feed**, `Sources/Shell/MMWindowFeed.h`, makes one model from one snapshot and its `MMPerformance`, off main. `minmacs window --json` prints what it makes.
 - **The controller**, `Sources/Shell/MMWindowController.h`, works only while the window is open. It builds one model per snapshot, applies a press that comes through `MMWindowHost`, and sends a new model. Fix Everything runs through `MMFixRunner`, which acts only through `MMRunAction` and `MMRunWrapUp`.
+- **The log**, `Sources/Shell/MMWindowLog.h`, makes the middle's entries from the rows of `minmacs.sqlite`, off main. The controller reads it on its queue while the window is open, and again only when `MMLogStamp` moved. `minmacs log` prints the same entries.
 - **The views**, `Sources/UI/Window`, run on main and read only the model: no disk, no process, no graph.
 
 ### Checked, not assumed
 
-`tools/render.sh` draws the window from fixture models into `build/render/window/`, in dark and in dark with Increase Contrast: the main view, a pointed row, Settings, a run and its end, nothing to fix, one gain alone, and the welcome. It runs its checks of this page into `checks.txt`, and writes how long a first frame took to `window/open-ms.txt`. After a change to the window, look at the PNGs.
+`tools/render.sh` draws the window from fixture models into `build/render/window/`, in dark and in dark with Increase Contrast: the main view, a pointed row, Settings, a run and its end, nothing to fix, one gain alone, the welcome, and the log empty, on a new Mac and busy with 300 entries, scrolled and at its end. It runs its checks of this page into `checks.txt`, and writes how long a first frame took to `window/open-ms.txt`. After a change to the window, look at the PNGs.
 
 ## The menus of before
 

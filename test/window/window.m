@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a removed file lands in
 // $MINMACS_HOME/Trash: MMRemovalDecide never deletes at once. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport | log-words | log-controller
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -258,7 +258,7 @@ static NSString *Bad(NSArray<NSString *> *shown) {
 
 static void WindowModel(void) {
     World();
-    MMSetMode(@"locohost", MMModeEager); MMSetMode(@"minmacs", MMModeIdle);
+    MMSetMode(@"locohost", MMModeEager, @"test"); MMSetMode(@"minmacs", MMModeIdle, @"test");
     WLidState *lid = [WLidState new]; lid.prefs = [WLidPrefs new]; lid.prefs.lid = YES; lid.laptop = YES; lid.pauseReason = @"battery under 20%";
     gLid.state = lid;
     MMSnapshot *s = WorldSnapshot();
@@ -508,7 +508,7 @@ static void WindowModel(void) {
     T(@"window: the JSON is valid and keeps the ring's sides apart", @"yes disk memory", [NSString stringWithFormat:@"%@ %@", YN([NSJSONSerialization isValidJSONObject:j]),
       [[[j[@"ring"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]]);
     T(@"window: no shown string names an old app or claims a result", @"", Bad(Shown(m)));
-    MMSetMode(@"locohost", MMModeProactive); MMSetMode(@"minmacs", MMModeProactive);
+    MMSetMode(@"locohost", MMModeProactive, @"test"); MMSetMode(@"minmacs", MMModeProactive, @"test");
 }
 
 static void WindowCalm(void) {
@@ -674,9 +674,12 @@ static void RunStopped(void) {
 // An agent that serves a port of its own.
 #import "agentport.m"
 
+#import "Shell/MMWindowLog.h"
+#import "log.m"
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|planned|agentport\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|planned|agentport|log-words|log-controller\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -700,6 +703,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"unmeasured"]) Unmeasured();
         else if ([mode isEqualToString:@"planned"]) Planned();
         else if ([mode isEqualToString:@"agentport"]) AgentPort();
+        else if ([mode isEqualToString:@"log-words"]) LogWords();
+        else if ([mode isEqualToString:@"log-controller"]) LogController();
         else return 2;
         printf("END\n");
     }

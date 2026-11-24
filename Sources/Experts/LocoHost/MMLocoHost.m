@@ -743,9 +743,9 @@ static void Copy(NSString *s) {
     } else if ([what isEqualToString:@"keep"]) {
         // The keeps file is read and written on the act queue. The rebuild after it carries the new keep to the menu.
         BOOL kept = [f.facts[@"keptUntil"] doubleValue] > NSDate.date.timeIntervalSince1970;
-        NSString *key = f.stableKey;
+        NSString *key = f.stableKey, *name = f.title;
         dispatch_async(ActQueue(), ^{
-            [MMKeep keep:key expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600]];
+            [MMKeep keep:key expert:kExpert until:kept ? nil : [NSDate dateWithTimeIntervalSinceNow:4 * 3600] by:@"menu" name:name];
             [MMGraph.shared rebuild:@"locohost keep"];
         });
         _view = nil;

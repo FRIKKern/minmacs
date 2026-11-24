@@ -12,6 +12,7 @@
 #import "Shell/MMWindowCLI.h"
 #import "Shell/MMWindowController.h"
 #import "Shell/MMWindowFeed.h"
+#import "Shell/MMWindowLog.h"
 
 NSString *const MMLoginNotice = @"MinMacs opens at login. Settings can turn that off.";
 static NSString *const kLaunchedKey = @"core.launched";          // set on the first launch
@@ -593,10 +594,14 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
             // An item made just now shows its state and badge from the current snapshot, not only at the next one.
             if (visible && i.item && i.expert && MMGraph.shared.current) [i label:MMGraph.shared.current];
         };
-        st.onMode = ^(NSString *expert, NSString *mode) { NSInteger m = MMModeFrom(mode); if (m >= 0) MMSetMode(expert, (MMMode)m); };
-        st.onModel = ^(NSString *model) { MMSetPref(MMReviewModelKey, model); };
+        st.onMode = ^(NSString *expert, NSString *mode) { NSInteger m = MMModeFrom(mode); if (m >= 0) MMSetMode(expert, (MMMode)m, @"settings"); };
+        st.onModel = ^(NSString *model) { MMSetSetting(MMReviewModelKey, model, @"settings"); };
         st.onOneIcon = ^(BOOL on) { MMSetPref(MMOneIconKey, @(on)); [weak rebuildItems]; };
-        st.onOpenAtLogin = ^(BOOL on) { [weak setLogin:on]; };
+        st.onOpenAtLogin = ^(BOOL on) {
+            BOOL before = weak.loginEnabled;
+            [weak setLogin:on];
+            MMLogSetting(MMWindowLoginKey, @(before), @(weak.loginEnabled), @"settings");
+        };
         st.onPref = ^(NSString *expert, NSString *key, NSNumber *value) {
             id<MMExpert> e = MMExpertNamed(expert);
             if ([e respondsToSelector:@selector(setPref:value:)]) [e setPref:key value:value];
@@ -659,6 +664,7 @@ int MMMain(int argc, const char *argv[]) {
     MMStartupBegin();
     // The window's feed lives in the shell, so the shell adds the verb that prints it, for the CLI and for the app.
     MMAddVerb(MMWindowVerbSpec());
+    MMAddVerb(MMLogVerbSpec());
     if (MMWantsCLI(argc, argv)) return MMRunCLI(argc, argv);
     NSApplication *app = NSApplication.sharedApplication;
     MMShell *delegate = [MMShell new];

@@ -72,6 +72,7 @@ static MMLog *gShared;                       // under gSharedLock, which guards 
 static os_unfair_lock gSharedLock = OS_UNFAIR_LOCK_INIT;
 static atomic_bool gOffMainOnly;             // set by MMLogOpenOffMain
 static atomic_uint gMainOpens;
+static atomic_uint gMainWrites;
 
 static dispatch_queue_t OpenQueue(void) { return MMQueue(@"core", @"log.open", QOS_CLASS_UTILITY); }
 
@@ -107,6 +108,7 @@ void MMLogWhenOpen(MMLogWork work) {
 }
 
 NSUInteger MMLogMainThreadOpens(void) { return atomic_load(&gMainOpens); }
+NSUInteger MMLogMainThreadWrites(void) { return atomic_load(&gMainWrites); }
 
 - (instancetype)initWithPath:(NSString *)path {
     if (!(self = [super init])) return nil;
@@ -160,6 +162,7 @@ static const char *kColumns = "row, rid, tbl, expert, subject, state, at, body";
     NSData *json = body && [NSJSONSerialization isValidJSONObject:body] ? [NSJSONSerialization dataWithJSONObject:body options:NSJSONWritingSortedKeys error:nil] : nil;
     NSString *bodyText = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"{}";
     double at = NSDate.date.timeIntervalSince1970;
+    if (NSThread.isMainThread && atomic_load(&gOffMainOnly)) atomic_fetch_add(&gMainWrites, 1);
     __block MMLogEntry *e = nil;
     dispatch_sync(_q, ^{
         sqlite3_stmt *st = NULL;
@@ -219,6 +222,21 @@ NSUInteger MMLogMainThreadQueries(void) { return gMainQueries; }
     return [self select:[NSString stringWithFormat:@"SELECT %s FROM rows WHERE rid = ? ORDER BY row", kColumns] args:@[rid ?: @""]];
 }
 
+- (NSArray<MMLogEntry *> *)rows:(NSArray<NSString *> *)tables before:(int64_t)before limit:(NSUInteger)limit {
+    if (!tables.count || !limit) return @[];
+    // One part per table, each a range read of rows_tbl from `before` down, at most `limit` rows. The parts are put
+    // together and the newest `limit` of them kept, so the read never looks at more than tables x limit rows.
+    NSMutableArray *parts = [NSMutableArray new], *args = [NSMutableArray new];
+    double top = before > 0 ? (double)before : 9.0e18;
+    for (NSString *t in tables) {
+        [parts addObject:[NSString stringWithFormat:@"SELECT * FROM (SELECT %s FROM rows WHERE tbl = ? AND row < ? ORDER BY row DESC LIMIT %lu)",
+                                                    kColumns, (unsigned long)limit]];
+        [args addObject:t]; [args addObject:@(top)];
+    }
+    NSString *sql = [NSString stringWithFormat:@"%@ ORDER BY row DESC LIMIT %lu", [parts componentsJoinedByString:@" UNION ALL "], (unsigned long)limit];
+    return [self select:sql args:args];
+}
+
 - (void)addPoint:(NSString *)series value:(double)value at:(NSDate *)at bucket:(NSTimeInterval)bucket {
     if (!_db || !series.length) return;
     double t = (at ?: NSDate.date).timeIntervalSince1970;
@@ -249,6 +267,34 @@ NSUInteger MMLogMainThreadQueries(void) { return gMainQueries; }
 }
 
 @end
+
+#pragma mark - Settings and keeps
+
+NSString *const MMLogSettingTable = @"setting";
+NSString *const MMLogKeepTable = @"keep";
+
+/// A value as a row holds it: text, a number or a yes and no, and null for none.
+static id Plain(id v) {
+    if (!v || v == NSNull.null) return NSNull.null;
+    if ([v isKindOfClass:NSString.class] || [v isKindOfClass:NSNumber.class]) return v;
+    return [v description] ?: NSNull.null;
+}
+
+void MMLogSetting(NSString *key, id old, id now, NSString *by) {
+    if (!key.length) return;
+    id o = Plain(old), n = Plain(now);
+    if ([o isEqual:n]) return;
+    NSString *expert = [key componentsSeparatedByString:@"."].firstObject;
+    NSDictionary *body = @{@"key": key, @"old": o, @"new": n, @"by": by.length ? by : @"unknown"};
+    MMLogWhenOpen(^(MMLog *log) { [log append:MMLogSettingTable rid:nil expert:expert subject:key state:@"set" body:body]; });
+}
+
+void MMSetSetting(NSString *key, id value, NSString *by) {
+    if (!key.length) return;
+    id old = MMPref(key);
+    MMSetPref(key, value);
+    MMLogSetting(key, old, value, by);
+}
 
 NSString *MMLogStamp(void) {
     NSString *base = [MMSupportDir() stringByAppendingPathComponent:@"minmacs.sqlite"];

@@ -209,6 +209,16 @@ window [--json]
 
 Flags: `--json`.
 
+#### `log`
+
+What MinMacs did and decided, and each setting that changed, newest first, 50 entries unless --limit says.
+
+```
+log [--limit <n>] [--json]
+```
+
+Flags: `--limit`, `--json`.
+
 ### LocoHost
 
 #### `hosts`

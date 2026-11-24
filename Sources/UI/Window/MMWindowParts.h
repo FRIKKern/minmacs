@@ -79,8 +79,8 @@ NSAttributedString *MMWindowNumber(uint64_t bytes, BOOL disk, CGFloat size, NSFo
 NSArray<NSNumber *> *MMWindowHourValues(NSArray *_Nullable values, NSInteger *_Nullable filled);
 /// A row's small hour draws as a line only once this many of its minutes hold a value. Under that it shows nothing.
 static const NSInteger MMWindowHourLeast = 5;
-/// The middle's large graph draws as soon as two minutes hold a value, the least that makes a line. It spans the
-/// minutes kept so far and its title says how long that is, "the last 4 min", so a young hour is a real line.
+/// The middle's strip draws as soon as two minutes hold a value, the least that makes a line. It spans the
+/// minutes kept so far and says how long that is, "the last 4 min", so a young hour is a real line.
 static const NSInteger MMWindowHourGraphLeast = 2;
 /// The part of an hour from its first filled minute to its last, or nil when fewer than MMWindowHourLeast are filled.
 /// `first` and `last` get the two indexes, -1 when none, and `filled` how many minutes hold a value.
@@ -90,11 +90,12 @@ NSArray *_Nullable MMWindowHourSpanAtLeast(NSArray *_Nullable values, NSInteger 
 /// How long the kept part of a graph is, as its title says it: "the last hour" once it spans 60 minutes, else
 /// "the last 4 min".
 NSString *MMWindowHourSpanWords(NSInteger minutes);
-/// How an hour is drawn: the large graph, a row's small line, or the line in a row's story. Each spreads its filled
-/// part across its whole width. The small ones show a wobble as flat, on a scale of at least a quarter of their value.
-typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHourRow, MMWindowHourStory };
+/// How an hour is drawn: the large graph, a row's small line, the line in a row's story, or one side of the middle's
+/// strip. Each spreads its filled part across its whole width. The small ones, a row's and the strip's, show a wobble
+/// as flat, on a scale of at least a quarter of their value.
+typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHourRow, MMWindowHourStory, MMWindowHourStrip };
 /// An hour in the rect: the fill, the line, and a dot at the newest minute. Nothing when fewer than
-/// MMWindowHourLeast minutes are filled, or MMWindowHourGraphLeast for the large graph.
+/// MMWindowHourLeast minutes are filled, or MMWindowHourGraphLeast for the large graph and the strip.
 void MMWindowDrawHour(NSArray *_Nullable values, NSRect rect, NSColor *color, MMWindowHourLook look);
 
 /// The Mac as a ring around `center`: memory by holder inside, the disk as the thin outer track, each row an arc of
@@ -196,12 +197,28 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasH
 @property (readonly) NSInteger flashed;
 @end
 
-/// The middle: the two last-hour graphs, or one row's story.
+/// The log under the middle's strip, MMWindowLogView.m: the entries newest first, grouped by day, each a sentence and
+/// a quiet line. Only whole entries are drawn: the fingers move it an entry at a time, and the foot says how many
+/// wait above and below. A new log keeps the entry at the top where it was.
+@interface MMWindowLogView : MMWindowFlipped
+@property (nonatomic, strong, nullable) MMWindowLog *log;
+/// The index of the entry at the top. Setting it moves the log there, as far as the entries below it fill the view.
+@property (nonatomic) NSInteger first;
+/// For the checks: the sentences drawn at the last drawing, top to bottom, and the line at the foot.
+@property (readonly) NSArray<NSString *> *drawnSentences;
+@property (readonly, nullable) NSString *footLine;
+- (void)rest;                                                        // the window closed: back at the newest entry
+@end
+
+/// The middle: a strip with the two last hours small, and the log under it. Or one row's story, over all of it.
 @interface MMWindowMiddleView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowHour *memoryHour, *diskHour;
 @property (nonatomic, strong, nullable) MMWindowRow *row;
-/// The whole model, for a story's ring and for where its row stands in its group.
+/// The whole model, for a story's ring, for where its row stands in its group, and for the log.
 @property (nonatomic, strong, nullable) MMWindowModel *model;
+@property (readonly) MMWindowLogView *logView;
+/// How high the strip of the two hours stands, from the middle's top to the log.
+@property (readonly) CGFloat stripHeight;
 @end
 
 typedef NS_ENUM(NSInteger, MMWindowDockPhase) { MMWindowDockCalm = 0, MMWindowDockRunning, MMWindowDockEnded };

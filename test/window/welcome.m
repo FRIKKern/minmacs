@@ -62,11 +62,11 @@ static void Welcome(void) {
     NSString *(^first)(void) = ^NSString *{ return [[facts(MMWindowWelcomeNow(NO)) componentsSeparatedByString:@" | You set every rule"] firstObject]; };
     T(@"welcome: after a day of watching it names what the rules as they stand may do: on Careful, no app is quit and no cache cleaned",
       @"It has watched a day: MinMacs may now stop servers, remove worktrees and clean up leftovers on its own.", first());
-    MMSetMode(@"noonoo", MMModeEager); MMSetMode(@"minmacs", MMModeEager); MMSetMode(@"workforest", MMModeIdle);
+    MMSetMode(@"noonoo", MMModeEager, @"test"); MMSetMode(@"minmacs", MMModeEager, @"test"); MMSetMode(@"workforest", MMModeIdle, @"test");
     T(@"welcome: with rules moved it follows them, and no longer says where rules start",
       @"It has watched a day: MinMacs may now stop servers, quit apps and clean up caches on its own. | You set every rule: Each rule can be Off, Careful or Eager. Settings shows where each stands.",
       [[facts(MMWindowWelcomeNow(NO)) componentsSeparatedByString:@" | It starts quietly"] firstObject]);
-    MMSetMode(@"locohost", MMModeIdle); MMSetMode(@"noonoo", MMModeIdle); MMSetMode(@"minmacs", MMModeProactive);
+    MMSetMode(@"locohost", MMModeIdle, @"test"); MMSetMode(@"noonoo", MMModeIdle, @"test"); MMSetMode(@"minmacs", MMModeProactive, @"test");
     T(@"welcome: with nothing left that acts, apps on Careful among them, it says so", @"It has watched a day: As the rules stand, MinMacs stops, quits and removes nothing on its own.", first());
     // Awake while agents work is read from its pref, so the welcome does not say it once that is off.
     MMSetPref(@"insomnia.agents", @NO);

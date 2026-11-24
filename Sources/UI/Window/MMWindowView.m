@@ -282,7 +282,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [_timer invalidate]; _timer = nil;
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(unpoint) object:nil];
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(sayLooking) object:nil];
-    [_left rest]; [_right rest]; [_welcome rest]; [_dock rest];
+    [_left rest]; [_right rest]; [_welcome rest]; [_dock rest]; [_middle.logView rest];
     [self settleStart];
     _hovered = nil;
     [self showPointed];

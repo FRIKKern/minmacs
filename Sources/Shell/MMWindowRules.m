@@ -80,6 +80,8 @@ NSString *const MMWindowWelcomedKey = @"core.welcomed";
 
 NSString *const MMWindowLoginNotAskedKey = @"core.loginNotAsked";
 
+NSString *const MMWindowLoginKey = @"core.login";
+
 /// "servers and worktrees", "servers, worktrees and leftovers".
 static NSString *Listed(NSArray<NSString *> *words) {
     if (words.count < 2) return words.firstObject ?: @"";

@@ -11,9 +11,9 @@ wn_dir="$(cd "$MINMACS_HOME" && pwd -P)/window.$$"
 mkdir -p "$wn_dir/home"
 # A home of its own inside the test home, so its prefs, log and Trash are this section's only.
 wn_home="$wn_dir/home"
-wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m"
+wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -65,7 +65,7 @@ if [ "$wn_r" = 0 ]; then
 fi
 
 echo "-- the sources"
-wn_new="Sources/Shell/MMWindowFeed.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h Sources/Shell/MMWindowController.h Sources/Shell/MMWindowController.m Sources/Shell/MMWindowCLI.h Sources/Shell/MMWindowCLI.m"
+wn_new="Sources/Shell/MMWindowFeed.h Sources/Shell/MMWindowLog.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h Sources/Shell/MMWindowController.h Sources/Shell/MMWindowController.m Sources/Shell/MMWindowCLI.h Sources/Shell/MMWindowCLI.m"
 check "window: the feed, the JSON and the runner import no AppKit" 0 \
   "$(cat Sources/Shell/MMWindowFeed.h $wn_shell Sources/Shell/MMWindowJSON.h Sources/Shell/MMFixRunner.h | grep -cE '#import <(Cocoa|AppKit)')"
 check "window: each file stays under 500 lines" 0 "$(wc -l $wn_new | awk '$2 != "total" && $1 >= 500' | grep -c .)"
@@ -132,7 +132,7 @@ check "window: every way to Settings waits for the launch, then goes by core.win
 check "window: the window's icon is made visible whatever was saved, and a way to Settings activates MinMacs and holds the panel" "1 1 1" \
   "$(grep -A6 'if (!self.expert && MMWindowMode()) {' Sources/Shell/MMShell.m | grep -c 'self.item.visible = YES;') $(grep -A6 -- '^- (BOOL)showWindowSettings {' Sources/Shell/MMShell.m | grep -c '\[NSApp activateIgnoringOtherApps:YES\];') $(grep -c '\[self.windowPanel holdOpen:MMWindowRouteHold\];' Sources/Shell/MMShell.m)"
 check "window: the controller asks for the login item from the Settings switch and from Start only, and Start only for a change" "2 1 1" \
-  "$(grep -c 'self.shell setLogin:' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:on\];' Sources/Shell/MMWindowController.m) $(grep -c 'if (\[self.shell loginEnabled\] != openAtLogin) \[self.shell setLogin:openAtLogin\];' Sources/Shell/MMWindowController.m)"
+  "$(grep -c 'self.shell setLogin:' Sources/Shell/MMWindowController.m) $(grep -c '\[self.shell setLogin:on\];' Sources/Shell/MMWindowController.m) $(grep -c 'if (before != openAtLogin) \[self.shell setLogin:openAtLogin\];' Sources/Shell/MMWindowController.m)"
 check "window: a first launch that leaves the login item alone says so, and any -setLogin: takes the mark away" "1 1 1" \
   "$(grep -c 'if (!MMFirstLaunchAddsLogin(MMWindowMode())) MMSetPref(MMWindowLoginNotAskedKey, @YES);' Sources/Shell/MMShell.m) $(grep -c 'MMSetPref(MMWindowLoginNotAskedKey, nil);' Sources/Shell/MMShell.m) $(grep -c 'MMSetPref(MMWindowLoginNotAskedKey, nil);' Sources/Shell/MMWindowRules.m)"
 check "window: SMAppService is registered in MMShell.m only" 0 "$(grep -lE 'registerAndReturnError|unregisterAndReturnError' $(find Sources -name '*.m') | grep -vc '^Sources/Shell/MMShell.m$')"
