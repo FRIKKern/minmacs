@@ -252,6 +252,45 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 - (void)rest;                                                        // the window closed: back at the newest entry
 @end
 
+/// Ask MinMacs at the foot of the middle, MMWindowAsk.m: a band this high with the one-line field in it.
+static const CGFloat MMWindowAskBand = 44;
+
+/// The field of Ask MinMacs: one line, a real text field, so typing, an input method, the keyboard and VoiceOver work.
+/// Return asks; Escape clears it first, then does what Escape does in the window.
+@interface MMWindowAskBar : MMWindowFlipped
+@property (readonly) NSTextField *field;
+/// Return with words in the field: the question. The field is empty again after it.
+@property (copy, nullable) void (^onAsk)(NSString *question);
+/// Escape with the field empty.
+@property (copy, nullable) void (^onEscape)(void);
+/// YES while the keyboard is in the field.
+@property (readonly) BOOL focused;
+/// The keyboard goes to the field with the caret at its end, and the key is typed there, through the input method.
+- (void)typeKey:(NSEvent *)key;
+- (void)rest;                                                        // the window closed: an empty field
+@end
+
+/// An answer of Ask MinMacs, in the middle in place of the log: the question, the answer, its button that exists
+/// already when it offers one, its entries, and Back to the log. Whole entries only, moved an entry at a time.
+@interface MMWindowAnswerView : MMWindowFlipped
+@property (nonatomic, strong, nullable) MMWindowAnswer *answer;
+@property (copy, nullable) void (^onBack)(void);
+/// A press on an example question: ask it.
+@property (copy, nullable) void (^onAsk)(NSString *question);
+/// A press on the answer's button: Keep or Undo. Nothing acts before it.
+@property (copy, nullable) void (^onSuggest)(MMWindowSuggest *suggest);
+/// A press on an entry that names a row: that row becomes the active one.
+@property (copy, nullable) void (^onRow)(NSString *rowKey);
+/// A press on an entry of the log: the log comes back with that entry at its top.
+@property (copy, nullable) void (^onLog)(NSString *logKey);
+/// The index of the entry at the top.
+@property (nonatomic) NSInteger first;
+/// For the checks: the presses as they stand, top to bottom, the button, and the words drawn at the last drawing.
+@property (readonly) NSArray<MMWindowButton *> *presses;
+@property (readonly, nullable) MMWindowButton *backButton, *suggestButton;
+@property (readonly) NSArray<NSString *> *drawnLines;
+@end
+
 /// How long ago the minute at this index of an hour was: "now", "12 min ago", "an hour ago".
 NSString *MMWindowAgo(NSInteger index, NSInteger count);
 /// How high the middle's strip stands: the two sides, then the row of its two words "hour · 7 days".
@@ -278,6 +317,22 @@ static const CGFloat MMWindowStripHeight = 92;
 @property (copy, nullable) void (^onPointer)(BOOL over);
 /// The story's presses as they stand now, for the checks: Go to and each link.
 @property (readonly) NSArray<MMWindowButton *> *storyPresses;
+/// Ask MinMacs at its foot, and the answer in the log's place. MMWindowAsk.m.
+@property (readonly) MMWindowAskBar *askBar;
+@property (readonly) MMWindowAnswerView *answerView;
+/// The serial of the answer that Back to the log or Escape put away: it shows no more, though the model holds it.
+@property (nonatomic) NSInteger putAway;
+/// YES while an answer shows in the log's place.
+@property (readonly) BOOL showsAnswer;
+@end
+
+@interface MMWindowMiddleView (Ask)
+- (void)makeAsk;                                                     // the field and the answer's view, once
+- (void)placeAsk;                                                    // their frames, for the middle's size
+/// The log, the answer or neither, by what shows: a story over all of it, else an answer that was not put away.
+- (void)showAnswer;
+/// Where the story ends, over the field.
+- (CGFloat)storyBottom;
 @end
 
 @class MMWindowStripState;
@@ -405,11 +460,27 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 /// A press on a row, as the lists send it: the row becomes active, or stops being active when it was, and nil, a
 /// press on empty space, leaves none active. It only selects: it never acts.
 - (void)pressRow:(nullable NSString *)key;
-/// What Escape does, for the checks: leaves Settings, else lets go of the active row, else closes the window.
+/// What Escape does, for the checks: leaves Settings, else lets go of the active row, else puts an answer away, else
+/// closes the window. Escape in the field of Ask MinMacs clears the field first.
 - (void)escape;
 /// The pointer left the window, for the checks too: with an active row, its story comes back at once.
 - (void)pointLeft;
 @property (readonly, nullable) MMWindowWelcomeView *welcomeView;
+@end
+
+@interface MMWindowView (Ask)
+/// Ask MinMacs in the window, MMWindowViewAsk.m: the field's question and the answer's presses go to the host.
+- (void)wireAsk;
+/// A new answer in the model: one that names a row makes it the active one, so its story shows.
+- (void)takeAnswer;
+/// Escape over an answer puts it away. NO when no answer shows.
+- (BOOL)escapeAsk;
+/// A key typed while the keyboard is nowhere else goes to the field. NO for a key that is not typing.
+- (BOOL)typeIntoAsk:(NSEvent *)key;
+/// Command and X, C, V, A or Z while the keyboard is in the field: cut, copy, paste, select all and undo, which the
+/// app has no menu for.
+- (BOOL)editKey:(NSEvent *)key;
+- (void)restAsk;
 @end
 
 @interface MMWindowView (Words)

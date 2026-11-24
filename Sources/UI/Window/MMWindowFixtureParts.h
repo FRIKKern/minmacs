@@ -32,6 +32,9 @@ MMWindowLog *MMWindowFixtureLog(NSString *kind);
 /// The 7 days of "week", "week-young" and "week-gap", MMWindowFixtureWeek.m, on a model with its ring set: full, the
 /// last 2 days only, and with gaps. The strip shows them.
 void MMWindowFixtureWeek(MMWindowModel *m, NSString *name);
+/// An answer of Ask MinMacs, MMWindowFixtureAsk.m: "ask-why", "ask-keep", "ask-undo", "ask-undone", "ask-plan" or,
+/// for any other name, the answer to a question no rule knows.
+MMWindowAnswer *MMWindowFixtureAnswer(NSString *name);
 /// "real" and "extreme", MMWindowFixtureMore.m. nil for any other name.
 MMWindowModel *_Nullable MMWindowFixtureMore(NSString *name);
 

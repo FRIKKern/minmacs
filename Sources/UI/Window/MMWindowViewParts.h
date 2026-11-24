@@ -27,7 +27,18 @@
     BOOL _quiet;                        // from Start until the menu has arrived and a moment more: only Quit takes a press
     NSInteger _startRun;                // counts Starts and closes, so a fade that outlived its window changes nothing
     NSInteger _flips;                   // fades between the menu and Settings under way
+    NSInteger _answerSeen;              // the serial of the newest answer this view took
 }
+@end
+
+@interface MMWindowView (Keys)
+/// An arrow key moves the active row, MMWindowViewKeys.m. NO for any other key.
+- (BOOL)arrow:(unsigned short)code;
+@end
+
+@interface MMWindowView (Shown)
+/// A row named by a press of the middle becomes the active one, in view in its list. MMWindowView.m.
+- (void)showRow:(NSString *)key;
 @end
 
 @interface MMWindowView (Run)

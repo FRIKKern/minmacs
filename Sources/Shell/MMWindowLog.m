@@ -11,7 +11,7 @@ const NSTimeInterval MMWindowLogDays = 30 * 86400;
 static const NSUInteger kPage = 600;                 // rows per read
 static const NSUInteger kMostRows = 6000;            // what one read of the window looks at, at the most
 
-NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable, MMLogQuietTable, MMLogRunTable, MMLogNoticeTable]; }
+NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable, MMLogQuietTable, MMLogRunTable, MMLogNoticeTable, @"ask"]; }
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v length] ? v : nil; }
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
@@ -408,6 +408,7 @@ MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUIntege
         else if ([r.table isEqualToString:MMLogKeepTable]) e = KeepEntry(r, now);
         else if ([r.table isEqualToString:MMLogRunTable]) e = MMWindowLogRunEntry(r, now);
         else if ([r.table isEqualToString:MMLogNoticeTable]) e = NoticeEntry(r, now);
+        else if ([r.table isEqualToString:@"ask"]) e = MMWindowLogAskEntry(r, now);
         else if ([r.table isEqualToString:MMLogQuietTable]) {
             e = QuietEndEntry(r, now);
             NSString *hold = Str(r.body[@"holdRid"]);

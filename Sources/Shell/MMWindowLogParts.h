@@ -13,6 +13,9 @@ NSString *_Nullable MMWindowLogRuleTitle(NSString *_Nullable expert);
 /// A run row, MMLogRunTable: "Fix Everything: 5 done, 2 skipped. 2 agents ask you.", with each skip and why in more.
 MMWindowLogEntry *MMWindowLogRunEntry(MMLogEntry *row, NSDate *now);
 
+/// An ask row, MMLogAskTable: "Asked “why did you stop :3000”. Answered from what MinMacs knows, with no model."
+MMWindowLogEntry *MMWindowLogAskEntry(MMLogEntry *row, NSDate *now);
+
 /// Failed records folded so far into one entry, MMWindowLogFold.m.
 @class MMWindowLogFold;
 /// Identical failures one after another, as a run gives when each thing fails the same way, are one entry: "Could not

@@ -657,6 +657,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-press.m"
 #include "render-window-pulls.m"
 #include "render-window-week.m"
+#include "render-window-ask.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -685,6 +686,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     shots = [shots arrayByAddingObjectsFromArray:WindowLogShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowPressShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowWeekShots()];
+    shots = [shots arrayByAddingObjectsFromArray:WindowAskShots()];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -699,6 +701,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
             LogShotState(v, shot[1]);
             PressShotState(v, shot[1]);
             WeekShotState(v, shot[1]);
+            AskShotState(v, shot[1]);
             NSString *path = [dir stringByAppendingFormat:@"/%@-%@-%@.png", shot[0], shot[1], mode];
             if (!MMRenderView(v, path, ap)) [unwritten addObject:path.lastPathComponent];
         }
@@ -757,6 +760,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowPressChecks();
     WindowPullsChecks();
     WindowWeekChecks();
+    WindowAskChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
 }
 

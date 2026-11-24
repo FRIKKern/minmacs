@@ -1,5 +1,6 @@
 // The middle of the window: a strip with memory in use and disk free over the last hour or the last 7 days, small,
-// MMWindowStrip.m, and the log under it. Or the story of the row the pointer rests on, over all of it.
+// MMWindowStrip.m, the log under it and Ask MinMacs at its foot, MMWindowAsk.m, whose answer stands in the log's
+// place. Or the story of the row the pointer rests on, over all of it but the field.
 #import "UI/Window/MMWindowParts.h"
 #import "UI/MMFormat.h"
 
@@ -21,16 +22,17 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
         _pullButton.hidden = YES;
         [self addSubview:_pullButton];
         [self makeStripPresses];
+        _answerView = [MMWindowAnswerView new]; _askBar = [MMWindowAskBar new]; [self makeAsk];
     }
     return self;
 }
 
 - (CGFloat)stripHeight { return kStrip; }
-- (NSRect)logFrame { return NSMakeRect(0, kStrip + 1, self.bounds.size.width, MAX(self.bounds.size.height - kStrip - 1, 0)); }
-- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; _logView.frame = [self logFrame]; [self placePull]; [self placePresses]; [self placeStripPresses]; }
+- (NSRect)logFrame { return NSMakeRect(0, kStrip + 1, self.bounds.size.width, MAX(self.bounds.size.height - kStrip - 1 - MMWindowAskBand, 0)); }
+- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; _logView.frame = [self logFrame]; [self placeAsk]; [self placePull]; [self placePresses]; [self placeStripPresses]; }
 
 - (void)setModel:(MMWindowModel *)model {
-    _model = model; _logView.log = model.log; [self placePull]; self.needsDisplay = YES; [self placePresses];
+    _model = model; _logView.log = model.log; [self showAnswer]; [self placePull]; self.needsDisplay = YES; [self placePresses];
     [self takeStripWeek:model.stripWeek];
 }
 - (void)setMemoryHour:(MMWindowHour *)h { _memoryHour = h; self.needsDisplay = YES; }
@@ -38,8 +40,8 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
 - (void)setRow:(MMWindowRow *)row {
     if (_row == row) return;
     _row = row;
-    // A row's story stands over the whole middle, so the log is away while it shows.
-    _logView.hidden = row != nil;
+    // A row's story stands over the whole middle, so the log and an answer are away while it shows.
+    [self showAnswer];
     [self placePull];
     [self placeStripPresses];
     self.needsDisplay = YES;
@@ -53,8 +55,7 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
 
 /// The press opens the pull request's page in the default browser. Only a web address the model holds.
 - (void)pressPull:(id)sender {
-    NSURL *url = self.row.pull.opens ? [NSURL URLWithString:self.row.pull.url] : nil;
-    if ([url.scheme isEqualToString:@"https"]) [NSWorkspace.sharedWorkspace openURL:url];
+    NSURL *url = self.row.pull.opens ? [NSURL URLWithString:self.row.pull.url] : nil; if ([url.scheme isEqualToString:@"https"]) [NSWorkspace.sharedWorkspace openURL:url];
 }
 
 /// A press on the middle keeps the active row: its story is what the person reads there. Only the log's own presses
@@ -184,7 +185,7 @@ static CGFloat PullBlock(MMWindowPull *pull, CGFloat x, CGFloat y, CGFloat w, BO
     if (row.pull.opens) {
         CGFloat w = self.bounds.size.width - 28;
         PullBlock(row.pull, 14, [self pullTop:row], w, NO, &press);
-        if (NSMaxY(press) > self.bounds.size.height - 8) press = NSZeroRect;
+        if (NSMaxY(press) > [self storyBottom]) press = NSZeroRect;
     }
     BOOL shows = !NSIsEmptyRect(press);
     if (!shows && self.window.firstResponder == _pullButton) [self.window makeFirstResponder:self.window.contentView];
@@ -207,7 +208,7 @@ static BOOL HoldsGo(MMWindowRow *row, MMWindowFact *f) { return row.goTo.length 
     CGFloat y = [self pullTop:row], w = self.bounds.size.width - 28;
     if (row.pull) {
         CGFloat need = PullBlock(row.pull, 14, y, w, NO, NULL);
-        if (y + need <= self.bounds.size.height - 8) y += need + 12;
+        if (y + need <= [self storyBottom]) y += need + 12;
     }
     return y;
 }
@@ -245,7 +246,7 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
     _presses = [NSMutableArray new];
     MMWindowRow *row = self.row;
     if (!row || !self.model) return;
-    CGFloat x = 14, w = self.bounds.size.width - 28, bottom = self.bounds.size.height - 8, y = [self factsTop:row];
+    CGFloat x = 14, w = self.bounds.size.width - 28, bottom = [self storyBottom], y = [self factsTop:row];
     NSArray<MMWindowFact *> *facts = row.storyFacts;
     CGFloat column = FactColumn(facts);
     for (MMWindowFact *f in facts) {
@@ -283,7 +284,7 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
 /// stands in its group.
 - (void)drawStory:(MMWindowRow *)row {
     NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
-    CGFloat x = 14, w = self.bounds.size.width - 28, bottom = self.bounds.size.height - 8;
+    CGFloat x = 14, w = self.bounds.size.width - 28, bottom = [self storyBottom];
     BOOL disk = row.kind == MMWindowWorktree || row.kind == MMWindowCache;
     MMWindowGroup *group = [self groupOf:row];
     NSColor *backing = [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1];
