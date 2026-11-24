@@ -12,6 +12,8 @@ if ! command -v check >/dev/null 2>&1; then
   pass=0; fail=0; ui_alone=1
   check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); printf '  ok    %-56s %s\n' "$1" "$3"; else fail=$((fail+1)); printf '  FAIL  %-56s got %s, want %s\n' "$1" "$3" "$2"; fi; }
   trap 'rm -rf "$MINMACS_HOME"' EXIT
+  CC_TMP="$MINMACS_HOME/clang-tmp"; mkdir -p "$CC_TMP"
+  clang() { TMPDIR="$CC_TMP" command clang "$@"; }   # as test.sh: clang leaves empty folders in TMPDIR
   echo "== ui"
 fi
 

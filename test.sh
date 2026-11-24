@@ -29,6 +29,10 @@ check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); printf '  ok    %-56s %s\n'
 json() { python3 -c "import json,sys; j=json.load(sys.stdin); print($1)"; }
 cleanup() { for p in $procs; do kill "$p" 2>/dev/null; done; rm -rf "$MINMACS_HOME"; }
 trap cleanup EXIT
+# clang with two -arch flags leaves an empty folder per input in TMPDIR. Every clang a section runs, through this
+# function, uses a private folder inside MINMACS_HOME, which cleanup removes. Scripts the sections run do the same.
+CC_TMP="$MINMACS_HOME/clang-tmp"; mkdir -p "$CC_TMP"
+clang() { TMPDIR="$CC_TMP" command clang "$@"; }
 # Issue #58: nc run from the shell against local ports reads as a reverse shell to an endpoint security agent.
 PORT="$MINMACS_HOME/port"
 clang -O1 -Wall -mmacosx-version-min=14.0 test/port.c -o "$PORT" || { echo "test/port.c does not build"; exit 1; }
