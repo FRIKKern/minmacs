@@ -422,15 +422,16 @@ static void WindowWelcomeChecks(void) {
     Check(!MMWindowFixture(@"welcome-off").welcome.loginOn && MMWindowFixture(@"welcome-trash").welcome.removalPicked == 1 && MMWindowFixture(@"welcome-delete").welcome.removalPicked == 2 &&
           MMWindowFixture(@"welcome").welcome.loginOn && MMWindowFixture(@"welcome").welcome.removalPicked == 0,
           @"welcome: the fixtures cover the switch on and off and each removal choice", @"");
-    // Welcome and Settings show the same words for both choices.
+    // Welcome and Settings show the same words for both choices: the removal choice in the model, which Settings no
+    // longer draws, and Open at login, whose sentence is the Settings switch's tooltip.
     MMWindowSettings *st = MMWindowFixture(@"welcome").settings;
     MMWindowRule *card = st.rules.lastObject;
     BOOL same = [card.title isEqualToString:words.removalTitle] && card.choices.count == words.removal.count;
     for (NSUInteger i = 0; same && i < card.choices.count; i++)
         same = [card.choices[i].title isEqualToString:words.removal[i].title] && [card.choices[i].explain isEqualToString:words.removal[i].explain];
-    Check(same && [st.switches.lastObject.title isEqualToString:words.loginTitle] && [st.switches.lastObject.note isEqualToString:words.loginOnNote] &&
+    Check(same && [st.switches.lastObject.title isEqualToString:words.loginTitle] && [st.switches.lastObject.help isEqualToString:words.loginOnNote] && !st.switches.lastObject.note &&
           [MMWindowLoginNote(NO) isEqualToString:words.loginOffNote],
-          @"welcome: the removal choice and Open at login say the same words as their Settings card and switch", @"");
+          @"welcome: the removal choice and Open at login say the same words as the Settings model and the switch's tooltip", @"");
     NSMutableArray<NSString *> *bad = [NSMutableArray new];
     for (NSString *s in [MMWindowView shownStrings:MMWindowFixture(@"welcome")])
         for (NSString *no in @[@"!", @"…", @"...", @"hide icon", @"nothing needs you", @"everything is fine"])

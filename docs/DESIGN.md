@@ -42,20 +42,18 @@ The layout is prototype 195-a, Dock Below:
 
 Settings is prototype 197-b. The gear turns the area under the top line into cards, in the same window, and back. Escape leaves Settings first. Opening MinMacs again and `minmacs://settings` bring MinMacs to the front and open the window turned over to Settings, or on the welcome until Start was pressed. A link that starts MinMacs waits for the launch.
 
-Four cards, two across:
+Three cards that read at a glance, as System Settings does. Each card has its own color and mark, and a tinted wash and edge: **Keep this Mac awake** in amber with a cup, **Clean up on its own** in green with sparkles, **This Mac** in gray with a display. In each card a row is one line high, 44 points: a small tile in the card's color with the row's own mark, a short title and the switch. A row has a second line only when it says a state, such as "Awake now for 2 agents", "This Mac has no lid." or "1 ready. It waits for your press.". What a switch does is its tooltip and what VoiceOver says after its name, never a sentence under every row. The cards are as tall as their rows and stand from the top in two columns, each under the shorter column, so no card is stretched to fill the window: Keep this Mac awake with This Mac under it, and Clean up on its own beside them.
 
-- **Keep this Mac awake** stands first, so it is never hunted for. Three switches: "Keep awake now" keeps the Mac from sleeping, as `caffeinate` does, until it is turned off (`insomnia.awake`); "While agents work" keeps it awake while an agent works and its quiet minutes after, and says for how many agents it does so now (`insomnia.agents`); "With the lid closed" keeps it working with the lid shut (`insomnia.lid`).
-- **Clean up on its own**: one switch a rule, "Stop idle dev servers", "Quit apps when memory runs low", "Remove finished worktrees" and "Clean build output and leftovers", each with one short sentence of what it does when on. On is the mode that acts on its own: Careful, or Eager for apps, where Careful acts on nothing. Off is Off. A rule set to Eager elsewhere shows on, with Eager's sentence. Core keeps its three modes, and `minmacs mode` still sets any of them.
-- **When MinMacs removes things**: Smart, Trash or Delete, each with Core's own sentence.
-- **This Mac**: "Open at login".
-- While no removal choice is made, none is drawn picked and the card's note says what holds until then. A press on any choice, Smart too, makes it.
-- In a card of choices the explanations start past the widest title. With room in the cards the type is 13 points and the choices stand apart; when a card's words would not fit, all cards go back to 12. When nobody asks, Settings starts at the window's top, as the menu does. On a Mac with no lid the lid switch is drawn as not available and takes no press.
+- **Keep this Mac awake** stands first, so it is never hunted for. Three switches: "Keep awake now" keeps the Mac from sleeping, as `caffeinate` does, until it is turned off (`insomnia.awake`); "While agents work" keeps it awake while an agent works and its quiet minutes after, and says for how many agents it does so now (`insomnia.agents`); "Lid closed" keeps it working with the lid shut (`insomnia.lid`), and says when it is paused, live or set by another app.
+- **Clean up on its own**: one switch a rule, "Idle dev servers", "Apps when memory is low", "Finished worktrees" and "Build output and leftovers". The tooltip says what the rule does when on. On is the mode that acts on its own: Careful, or Eager for apps, where Careful acts on nothing. Off is Off. A rule set to Eager elsewhere shows on, with Eager's tooltip. Core keeps its three modes, and `minmacs mode` still sets any of them. While the rules that are on still only watch, in MinMacs's first day, the card's head has one badge, "Starts in 23 h", and no row says it.
+- **This Mac**: "Open at login", and one line at its foot, "Removed things go to the Trash.". The removal choice is not drawn in Settings. It stays in the model and in `minmacs window --json`, and `minmacs removal` still reads and sets it.
+- When nobody asks, Settings starts at the window's top, as the menu does. On a Mac with no lid the lid switch is drawn as not available and takes no press.
 
 A press applies at once. There is no Save.
 
 What the Settings window of before held, and where it is with the menu window:
 
-- **Keep Mac Awake, Awake While Agents Work and Keep Awake With Lid Closed** are the three switches of Keep this Mac awake.
+- **Keep Mac Awake, Awake While Agents Work and Keep Awake With Lid Closed** are the three switches of Keep this Mac awake: Keep awake now, While agents work and Lid closed.
 - **The model reviews ask** has no place in the window. `minmacs review --model auto|haiku|sonnet|opus|luna` sets it.
 - **Showing and hiding an icon, and One Icon,** mean nothing with one icon and one window, and are not there. The one icon is shown at every start, whatever was hidden before, since nothing in the window could bring it back.
 - **An expert's own pane,** such as the keep-awake timings, is not in the window. Those prefs keep their values, and the Settings window of before still edits them when `core.window` is off.
@@ -71,7 +69,7 @@ The first time the window opens it shows the welcome alone, prototype 199-a: wha
 
 ### The removal choice
 
-Where a removed thing goes is one setting, the pref `core.removal`, shown in the welcome, on its Settings card and by `minmacs removal`. Smart deletes what git or its tool can give back, and the rest goes to the Trash. Trash sends everything to the Trash. Delete deletes everything at once. Every word about a removal follows the choice. [AGENTS.md](../AGENTS.md) invariant 1 has the whole rule.
+Where a removed thing goes is one setting, the pref `core.removal`, shown in the welcome and by `minmacs removal`. Settings draws no choice for it: it says in one line that removed things go to the Trash. Smart deletes what git or its tool can give back, and the rest goes to the Trash. Trash sends everything to the Trash. Delete deletes everything at once. Every word about a removal follows the choice. [AGENTS.md](../AGENTS.md) invariant 1 has the whole rule.
 
 ### Words in the window
 

@@ -310,47 +310,57 @@ MMWindowRule *MMWindowRuleCard(NSString *ruleID, NSInteger picked, NSString *not
     return MMWindowChoiceCard(ruleID, MMWindowRuleTitle(ruleID), picked, choices, note);
 }
 
-NSString *MMWindowWatchingNote(NSString *left) { return [NSString stringWithFormat:@"It only watches for %@ more, then it may act.", left]; }
+NSString *MMWindowStartsNote(NSTimeInterval left) {
+    if (left <= 0) return nil;
+    // A badge, so short: whole hours past an hour, "Starts in 23 h", and minutes under it.
+    long t = (long)left;
+    if (t >= 3600 && t <= 86400) return [NSString stringWithFormat:@"Starts in %ld h", MAX(1L, (t + 1800) / 3600)];
+    NSString *span = MMWindowSpan(left);
+    return span ? [@"Starts in " stringByAppendingString:span] : @"Starts soon";
+}
 
-NSString *const MMWindowNoLidNote = @"This Mac has no lid, so it changes nothing here.";
+NSString *const MMWindowStartsHelp = @"For its first day MinMacs only watches. Then the rules that are on may act.";
+NSString *const MMWindowTrashLine = @"Removed things go to the Trash.";
+
+NSString *const MMWindowNoLidNote = @"This Mac has no lid.";
 
 NSString *const MMWindowAwakeCard = @"Keep this Mac awake", *const MMWindowMacCard = @"This Mac",
                 *const MMWindowCleanupCard = @"Clean up on its own";
 
-static MMWindowSwitch *Switch(NSString *switchID, NSString *title, NSString *card, BOOL on, NSString *note) {
+static MMWindowSwitch *Switch(NSString *switchID, NSString *title, NSString *card, BOOL on, NSString *note, NSString *help) {
     MMWindowSwitch *s = [MMWindowSwitch new];
-    s.switchID = switchID; s.title = title; s.card = card; s.on = on; s.note = note;
+    s.switchID = switchID; s.title = title; s.card = card; s.on = on; s.note = note; s.help = help;
     return s;
 }
 
-NSString *MMWindowAwakeNote(BOOL on) {
-    return on ? @"On. The Mac does not sleep, as with caffeinate, until you turn this off."
-              : @"Keeps the Mac from sleeping, as caffeinate does, until you turn it off.";
+NSString *MMWindowAwakeHelp(void) { return @"Keeps the Mac from sleeping, as caffeinate does, until you turn it off."; }
+
+NSString *MMWindowAgentsHelp(NSInteger quietMinutes) {
+    return [NSString stringWithFormat:@"Keeps the Mac awake while an agent works, and %ld min after.", (long)MAX(quietMinutes, 0)];
 }
 
-NSString *MMWindowAgentsNote(BOOL on, NSInteger holding, NSInteger quietMinutes) {
-    if (on && holding > 0) return [NSString stringWithFormat:@"Awake now for %@.", MMWindowCount(holding, @"agent", @"agents")];
-    return [NSString stringWithFormat:@"The Mac stays awake while an agent works, and %ld min after.", (long)MAX(quietMinutes, 0)];
+NSString *MMWindowAgentsNote(BOOL on, NSInteger holding) {
+    return on && holding > 0 ? [NSString stringWithFormat:@"Awake now for %@", MMWindowCount(holding, @"agent", @"agents")] : nil;
 }
 
 MMWindowSwitch *MMWindowAwakeSwitch(BOOL on, NSString *note) {
-    return Switch(@"awake", @"Keep awake now", MMWindowAwakeCard, on, note ?: MMWindowAwakeNote(on));
+    return Switch(@"awake", @"Keep awake now", MMWindowAwakeCard, on, note, MMWindowAwakeHelp());
 }
 
 MMWindowSwitch *MMWindowAgentsSwitch(BOOL on, NSString *note) {
-    return Switch(@"agents", @"While agents work", MMWindowAwakeCard, on, note ?: MMWindowAgentsNote(on, 0, 10));
+    return Switch(@"agents", @"While agents work", MMWindowAwakeCard, on, note, MMWindowAgentsHelp(10));
 }
 
 MMWindowSwitch *MMWindowLidSwitch(BOOL on, BOOL inert, NSString *note) {
-    MMWindowSwitch *s = Switch(@"lid", @"With the lid closed", MMWindowAwakeCard, on,
-                               note ?: @"Keeps working with the lid shut, while something keeps the Mac awake.");
+    MMWindowSwitch *s = Switch(@"lid", @"Lid closed", MMWindowAwakeCard, on, note,
+                               @"Keeps the Mac working with the lid shut, while something keeps it awake.");
     s.inert = inert;
     return s;
 }
 
 NSString *MMWindowRuleSwitchTitle(NSString *ruleID) {
-    return @{@"servers": @"Stop idle dev servers", @"apps": @"Quit apps when memory runs low",
-             @"worktrees": @"Remove finished worktrees", @"caches": @"Clean build output and leftovers"}[ruleID ?: @""];
+    return @{@"servers": @"Idle dev servers", @"apps": @"Apps when memory is low",
+             @"worktrees": @"Finished worktrees", @"caches": @"Build output and leftovers"}[ruleID ?: @""];
 }
 
 /// Careful quits no app, so for apps only Eager is on.
@@ -361,22 +371,19 @@ NSInteger MMWindowRuleOnChoice(NSString *ruleID) { return [ruleID isEqualToStrin
 NSString *MMWindowRuleSwitchNote(NSString *ruleID, NSInteger picked) {
     // The same rules as MMWindowRuleExplains, said short: Careful's and Eager's, by the mode it is in or would turn on to.
     NSInteger mode = MMWindowRuleIsOn(ruleID, picked) ? picked : MMWindowRuleOnChoice(ruleID);
-    NSDictionary *careful = @{@"servers": @"After a review: a server quiet for 6 hours that no agent uses.",
-                              @"worktrees": @"After a review: merged or remote gone, and quiet for 7 days.",
-                              @"caches": @"After a review: build output of finished projects, and leftovers."};
-    NSDictionary *eager = @{@"servers": @"After a review: each idle server the review finds no use for.",
-                            @"apps": @"Only apps on your close list, and only while memory pressure or heat is high.",
-                            @"worktrees": @"After a review: each worktree the review finds no use for.",
-                            @"caches": @"After a review: caches too. A tool's own cleanup waits for your press."};
+    NSDictionary *careful = @{@"servers": @"After a review, stops a dev server quiet for 6 hours that no agent uses.",
+                              @"worktrees": @"After a review, removes a worktree that is merged or whose remote is gone, and quiet for 7 days.",
+                              @"caches": @"After a review, cleans up the build output of finished projects, and leftovers."};
+    NSDictionary *eager = @{@"servers": @"After a review, stops each idle dev server the review finds no use for.",
+                            @"apps": @"Quits only apps on your close list, and only while memory pressure or heat is high.",
+                            @"worktrees": @"After a review, removes each worktree the review finds no use for.",
+                            @"caches": @"After a review, cleans up caches too. A tool's own cleanup waits for your press."};
     return (mode == 2 ? eager : careful)[ruleID ?: @""];
 }
 
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *note) {
-    MMWindowSwitch *s = [MMWindowSwitch new];
-    s.switchID = @"login"; s.title = @"Open at login"; s.card = MMWindowMacCard; s.on = on;
-    // The same sentence the welcome shows for this state of the switch.
-    s.note = note ?: MMWindowLoginNote(on);
-    return s;
+    // No state line: the switch says it. The welcome's sentence for this state is its tooltip.
+    return Switch(@"login", @"Open at login", MMWindowMacCard, on, note, MMWindowLoginNote(on));
 }
 
 NSString *const MMWindowRemovalTitle = @"When MinMacs removes things";

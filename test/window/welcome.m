@@ -50,8 +50,8 @@ static void Welcome(void) {
       [words(@"", w.removal) substringFromIndex:3]);
     T(@"welcome: Open at login says what each state means, as the Settings switch does", @"Open at login: MinMacs starts when you sign in. / MinMacs starts only when you open it.",
       [NSString stringWithFormat:@"%@: %@ / %@", w.loginTitle, w.loginOnNote, w.loginOffNote]);
-    T(@"welcome: the Settings switch has the same two sentences", [NSString stringWithFormat:@"%@: %@ / %@", w.loginTitle, w.loginOnNote, w.loginOffNote],
-      [NSString stringWithFormat:@"%@: %@ / %@", st.switches.lastObject.title, st.switches.lastObject.note, off.switches.lastObject.note]);
+    T(@"welcome: the Settings switch has the same two sentences, as its tooltip, and no line under it", [NSString stringWithFormat:@"%@: %@ / %@ (nil)", w.loginTitle, w.loginOnNote, w.loginOffNote],
+      [NSString stringWithFormat:@"%@: %@ / %@ %@", st.switches.lastObject.title, st.switches.lastObject.help, off.switches.lastObject.help, st.switches.lastObject.note ?: @"(nil)"]);
     NSString *(^facts)(MMWindowWelcome *) = ^NSString *(MMWindowWelcome *x) {
         NSMutableArray *out = [NSMutableArray new];
         for (MMWindowFact *f in x.facts) [out addObject:[NSString stringWithFormat:@"%@: %@", f.label, f.value]];
@@ -143,8 +143,8 @@ static void Welcome(void) {
     [c windowSetSwitch:@"login" on:YES];
     settle();
     Spin(20, ^BOOL { return models.lastObject.settings.switches.lastObject.on; });
-    T(@"welcome: the Settings switch adds the login item later, and the model shows it on with its sentence", @"1 yes MinMacs starts when you sign in.",
-      [NSString stringWithFormat:@"%@ %@ %@", Asked(login), YN(models.lastObject.settings.switches.lastObject.on), models.lastObject.settings.switches.lastObject.note]);
+    T(@"welcome: the Settings switch adds the login item later, and the model shows it on with its sentence as its tooltip", @"1 yes MinMacs starts when you sign in.",
+      [NSString stringWithFormat:@"%@ %@ %@", Asked(login), YN(models.lastObject.settings.switches.lastObject.on), models.lastObject.settings.switches.lastObject.help]);
     [c windowSetSwitch:@"login" on:NO];
     T(@"welcome: and takes it away again", @"1,0 no", [NSString stringWithFormat:@"%@ %@", Asked(login), YN(login.enabled)]);
     [c setOpen:NO];

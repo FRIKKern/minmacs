@@ -136,6 +136,10 @@ void MMWindowIconsOnLoad(void (^_Nullable block)(void));
 void MMWindowDrawDiamond(NSRect rect, NSColor *color);
 void MMWindowDrawGear(NSRect rect, NSColor *color);
 void MMWindowDrawPower(NSRect rect, NSColor *color);
+/// A Settings mark by name: "cup", "sun", "spark", "laptop", "sparkles", "server", "memory", "branch", "layers",
+/// "display", "power", "trash". `solid` fills the tile with the tint and draws the mark dark, for a card's head; else
+/// the tile is the tint deepened and the mark is the tint, as a row's icon. `dim` steps a row that changes nothing back.
+void MMWindowDrawSettingMark(NSString *name, NSRect rect, NSColor *tint, BOOL solid, BOOL dim);
 
 #pragma mark Views
 
@@ -237,7 +241,7 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 @property (readonly, nullable) NSString *announced;
 @end
 
-/// Settings in place: a card per rule and one for the switches.
+/// Settings in place: three cards of switch rows, each with its own color and mark.
 @interface MMWindowSettingsView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowSettings *settings;
 @property (weak, nullable) id<MMWindowHost> host;
