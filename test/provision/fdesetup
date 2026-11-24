@@ -1,0 +1,4 @@
+#!/bin/sh
+# The fixture Mac's FileVault, for test/provision.sh.
+[ "$1" = status ] || exit 1
+echo "FileVault is $(cat "$PV_MAC/filevault" 2>/dev/null || echo Off)."

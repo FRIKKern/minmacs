@@ -1,0 +1,4 @@
+#!/bin/sh
+# Any call is a failure of test/provision.sh: provision never runs sudo. This one only writes that it was called.
+printf '%s\n' "$*" >>"$PV_MAC/sudo.log"
+exit 1

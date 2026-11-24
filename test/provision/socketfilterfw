@@ -1,0 +1,5 @@
+#!/bin/sh
+# The fixture Mac's firewall, for test/provision.sh.
+[ "$1" = --getglobalstate ] || exit 1
+s=$(cat "$PV_MAC/firewall" 2>/dev/null || echo 0)
+[ "$s" = 1 ] && echo "Firewall is enabled. (State = 1)" || echo "Firewall is disabled. (State = 0)"
