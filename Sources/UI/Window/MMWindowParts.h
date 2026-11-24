@@ -407,6 +407,8 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 - (void)pressRow:(nullable NSString *)key;
 /// What Escape does, for the checks: leaves Settings, else lets go of the active row, else closes the window.
 - (void)escape;
+/// The pointer left the window, for the checks too: with an active row, its story comes back at once.
+- (void)pointLeft;
 @property (readonly, nullable) MMWindowWelcomeView *welcomeView;
 @end
 

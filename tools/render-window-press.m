@@ -131,23 +131,22 @@ static void WindowPressChecks(void) {
     Check(settingsLets && host.fixes == 0 && host.stops == 0 && host.rules == 0 && host.switches == 0 && host.undos == 0,
           @"window rows: a press on a row reaches no host call, and Settings lets the active row go", [NSString stringWithFormat:@"%ld %ld %ld %ld %ld", (long)host.fixes, (long)host.stops, (long)host.rules, (long)host.switches, (long)host.undos]);
 
-    // From a row the pointer previews onto the middle: the story stays past the beat, and its presses can be pressed.
-    // Leaving the middle brings back the active row; a press on a link makes that row active and tells its story.
+    // With no active row, the pointer from a previewed row onto the middle keeps that story past the beat, and its
+    // presses can be pressed; leaving the middle brings back the log, and a press on a link makes its row active.
     MMWindowView *m = PolishView(@"agents");
     MMWindowMiddleView *mm = PressMiddle(m);
     NSPoint p3, p2 = NSZeroPoint;
     MMWindowListView *l3 = PressList(m, @"agent:3", &p3);
-    m.activeRow = @"agent:2";
     [l3 pointAt:p3];
     [l3 pointAt:NSMakePoint(-10, -10)];
     mm.onPointer(YES);
     PressBeat();
     BOOL reach = mm.storyPresses.count == 4;
     for (MMWindowButton *press in mm.storyPresses) if (press.hidden || !MMWindowTakesPresses(press)) reach = NO;
-    BOOL held = [mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && reach && [m.activeRow isEqualToString:@"agent:2"];
+    BOOL held = [mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && reach && m.activeRow == nil;
     mm.onPointer(NO);
     PressBeat();
-    BOOL away = [mm.row.key isEqualToString:@"agent:2"] && [PolishDock(m).pointed.key isEqualToString:@"agent:2"];
+    BOOL away = mm.row == nil && !mm.logView.hidden;
     [l3 pointAt:p3];
     [l3 pointAt:NSMakePoint(-10, -10)];
     mm.onPointer(YES);
@@ -156,16 +155,37 @@ static void WindowPressChecks(void) {
     for (MMWindowButton *press in mm.storyPresses) if ([press.identifier isEqualToString:@"worktree:lane-c"]) tree = press;
     [tree performClick:nil];
     BOOL linked = [m.activeRow isEqualToString:@"worktree:lane-c"] && [mm.row.key isEqualToString:@"worktree:lane-c"];
+    Check(l3 && held && away && linked,
+          @"window rows: with no active row, the pointer from a previewed row onto the middle keeps that story and its presses, leaving it brings back the log, and a link makes its row active",
+          [NSString stringWithFormat:@"held %d, log %d, linked %d, middle %@", held, away, linked, mm.row.key]);
+
+    // With an active row, hover only peeks: the pointer from another row onto the middle brings back the active row's
+    // story and its numbers after the beat, and a row the pointer goes to from the middle shows its own.
+    mm.onPointer(NO);
+    m.activeRow = @"agent:3";
     NSString *drawn = nil;
-    for (MMWindowListView *l in WindowLists(m)) for (NSString *k in l.rowKeys) if (!drawn && ![k isEqualToString:@"worktree:lane-c"] && !NSIsEmptyRect([l frameOfRow:k])) drawn = k;
+    for (MMWindowListView *l in WindowLists(m)) for (NSString *k in l.rowKeys) if (!drawn && ![k isEqualToString:@"agent:3"] && !NSIsEmptyRect([l frameOfRow:k])) drawn = k;
     MMWindowListView *ld = drawn ? PressList(m, drawn, &p2) : nil;
+    [ld pointAt:p2];
+    BOOL peek = drawn && [mm.row.key isEqualToString:drawn];
+    [ld pointAt:NSMakePoint(-10, -10)];
+    mm.onPointer(YES);
+    BOOL waits = [mm.row.key isEqualToString:drawn];
+    PressBeat();
+    BOOL active = [mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && !ld.hoverKey;
     [ld pointAt:p2];
     mm.onPointer(NO);
     PressBeat();
-    BOOL onRow = drawn && [mm.row.key isEqualToString:drawn] && [ld.hoverKey isEqualToString:drawn];
-    Check(l3 && held && away && linked && onRow,
-          @"window rows: the pointer from a previewed row onto the middle keeps that story and its presses, leaving it brings back the active row, and a link makes its row active",
-          [NSString stringWithFormat:@"held %d, left %d, linked %d, on a row %d, middle %@, row %@", held, away, linked, onRow, mm.row.key, drawn]);
+    BOOL onRow = [mm.row.key isEqualToString:drawn] && [ld.hoverKey isEqualToString:drawn];
+    Check(peek && waits && active && onRow,
+          @"window rows: with an active row the pointer only peeks: onto the middle, the active row's story and numbers come back after the beat",
+          [NSString stringWithFormat:@"peek %d, waits %d, active %d, on a row %d, middle %@, row %@", peek, waits, active, onRow, mm.row.key, drawn]);
+
+    // The pointer leaves the window from a previewed row: the active row's story comes back at once, with no beat.
+    [ld pointAt:NSMakePoint(-10, -10)];
+    [m pointLeft];
+    BOOL atOnce = [mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && !ld.hoverKey;
+    Check(atOnce, @"window rows: with an active row, the pointer leaving the window brings back its story at once", mm.row.key ?: @"log");
 
     // The active row leaves the model, as when its process ended: the pin goes, and the middle shows the log again.
     MMWindowView *gone = PolishView(@"busy");

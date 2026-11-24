@@ -12,7 +12,8 @@
     MMWindowButton *_gear, *_power;
     NSString *_hovered;                 // the row under the pointer
     NSString *_active;                  // the row a press or an arrow key picked: its story shows when no row is pointed at
-    BOOL _overMiddle;                   // the pointer rests on the middle: the story that shows stays
+    BOOL _overMiddle;                   // the pointer rests on the middle: with no active row, the story that shows stays
+    NSTrackingArea *_tracking;          // the pointer leaving the window
     BOOL _onRow;                        // the pointer rests on a row of a list
     NSTimer *_timer;                    // runs only while something moves and the window shows
     NSDate *_stepped, *_endSeen;        // the last step, and when this view first saw the run ended
