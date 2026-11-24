@@ -80,13 +80,13 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
 
 static MMWindowModel *Day(NSString *name);
 
-/// Each day with its log. "log-empty", "log-new" and "log-busy" are the young, the young and the busy day with an
-/// empty log, a new Mac's first hour and 300 entries over a month. The days of a new Mac show the first hour too.
+/// Each day with its log. "log-empty", "log-new", "log-busy" and "log-undo" are the young, the young, the busy and the
+/// young day with an empty log, a new Mac's first hour, 300 entries over a month and the Undo presses with two runs. The days of a new Mac show the first hour too.
 MMWindowModel *MMWindowFixture(NSString *name) {
     NSString *day = [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;
     MMWindowModel *m = Day(day);
     NSString *log = [name isEqualToString:@"log-empty"] || [name isEqualToString:@"empty"] ? @"empty"
-                  : [name isEqualToString:@"log-busy"] ? @"busy"
+                  : [name isEqualToString:@"log-busy"] ? @"busy" : [name isEqualToString:@"log-undo"] ? @"undo"
                   : [name isEqualToString:@"log-new"] || [name isEqualToString:@"young"] || [name isEqualToString:@"calm"] || [name hasPrefix:@"welcome"] ? @"new" : @"day";
     m.log = MMWindowFixtureLog(log);
     return m;

@@ -5,13 +5,16 @@
 /// fixture, state, the row the pointer rests on. "scrolled" moves the log 120 entries down, "end" to its last.
 static NSArray<NSArray *> *WindowLogShots(void) {
     return @[@[@"log-empty", @"main", @""], @[@"log-new", @"main", @""], @[@"log-busy", @"main", @""],
-             @[@"log-busy", @"scrolled", @""], @[@"log-busy", @"end", @""], @[@"log-busy", @"server", @"server:6006"]];
+             @[@"log-busy", @"scrolled", @""], @[@"log-busy", @"end", @""], @[@"log-busy", @"server", @"server:6006"],
+             // The Undo presses and the runs, and Undo under the pointer.
+             @[@"log-undo", @"main", @""], @[@"log-undo", @"undo-hover", @""]];
 }
 
 static MMWindowLogView *LogViewOf(MMWindowView *v) { return WordViews(v, MMWindowLogView.class).firstObject; }
 
 /// Moves the log of a shot where its state says.
 static void LogShotState(MMWindowView *v, NSString *state) {
+    if ([state isEqualToString:@"undo-hover"]) [LogViewOf(v).undoButtons.firstObject setHover:YES];
     if ([state isEqualToString:@"scrolled"]) LogViewOf(v).first = 120;
     if ([state isEqualToString:@"end"]) LogViewOf(v).first = 100000;
 }
@@ -20,6 +23,64 @@ static void LogShotState(MMWindowView *v, NSString *state) {
 static void LogDraw(NSView *v) {
     NSBitmapImageRep *rep = [v bitmapImageRepForCachingDisplayInRect:v.bounds];
     [v cacheDisplayInRect:v.bounds toBitmapImageRep:rep];
+}
+
+/// The Undo presses: one for each shown entry that can still be taken back and none for any other, each inside the
+/// log and clear of the words beside it, a press hands its record to the host, and Tab and VoiceOver reach them.
+static void WindowLogUndoChecks(void) {
+    PolishHost *host = [PolishHost new];
+    MMWindowView *v = PolishView(@"log-undo");
+    v.host = host;
+    MMWindowLogView *log = LogViewOf(v);
+    LogDraw(v);
+    NSArray<MMWindowButton *> *presses = log.undoButtons;
+    NSMutableArray<NSString *> *want = [NSMutableArray new], *got = [NSMutableArray new];
+    for (MMWindowLogEntry *e in log.log.entries) if (e.canUndo && [log.drawnSentences containsObject:e.sentence]) [want addObject:e.undoRid];
+    for (MMWindowButton *b in presses) [got addObject:b.identifier ?: @"-"];
+    Check(want.count == 2 && [want isEqualToArray:got], @"window log: an Undo press stands at each shown entry that can still be taken back, and at no other: not the one taken back, the one being taken back or the deleted one",
+          [NSString stringWithFormat:@"want %@, got %@", [want componentsJoinedByString:@" "], [got componentsJoinedByString:@" "]]);
+    // Each press inside the log, at its right edge, and clear of every word drawn in the log.
+    __block NSMutableArray<NSValue *> *words = [NSMutableArray new];
+    MMWindowWatchDraws(^(NSString *text, NSRect used, NSRect allowed, NSRect bounds) { if (NSEqualRects(bounds, log.bounds)) [words addObject:[NSValue valueWithRect:used]]; });
+    LogDraw(log);
+    MMWindowWatchDraws(nil);
+    NSInteger clear = 0;
+    for (MMWindowButton *b in presses) {
+        BOOL inside = NSContainsRect(log.bounds, b.frame), apart = YES;
+        for (NSValue *w in words) if (NSIntersectsRect(NSInsetRect(b.frame, 1, 1), w.rectValue)) apart = NO;
+        if (inside && apart && b.toolTip.length && [b.accessibilityLabel hasPrefix:@"Undo: "]) clear++;
+    }
+    Check(presses.count && clear == (NSInteger)presses.count && words.count > 10, @"window log: each Undo press is inside the log, over no drawn word, with a tooltip and a VoiceOver label that names its entry",
+          [NSString stringWithFormat:@"%ld of %lu, %lu words, %@", (long)clear, (unsigned long)presses.count, (unsigned long)words.count, presses.firstObject.accessibilityLabel]);
+    [presses.firstObject performClick:nil];
+    Check(host.undos == 1 && [host.lastUndo isEqualToString:want.firstObject ?: @"?"], @"window log: a press on Undo hands the entry's record to the host, once",
+          [NSString stringWithFormat:@"%ld %@", (long)host.undos, host.lastUndo]);
+    // VoiceOver reads each entry and its press after it, and a run's skips after its quiet line.
+    NSArray *kids = log.accessibilityChildren;
+    NSUInteger at = [kids indexOfObject:presses.firstObject];
+    id before = at != NSNotFound && at > 0 ? kids[at - 1] : nil;
+    BOOL runSaid = NO;
+    for (id k in kids) if ([[k accessibilityLabel] containsString:@"Fix Everything: 5 done, 2 skipped."] && [[k accessibilityLabel] containsString:@"Skipped Claude Code in atlas: it asks you."]) runSaid = YES;
+    Check(at != NSNotFound && [[before accessibilityLabel] containsString:@"Stopped :3000 Next.js atlas."] && runSaid, @"window log: VoiceOver reads each entry with its Undo press right after it, and a run with each thing it skipped",
+          [NSString stringWithFormat:@"%lu children", (unsigned long)kids.count]);
+    // Tab reaches every press, in the window as it is shown.
+    NSWindow *win = [[NSWindow alloc] initWithContentRect:v.frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES];
+    win.releasedWhenClosed = NO;
+    win.contentView = v;
+    [win recalculateKeyViewLoop];
+    NSInteger reached = 0;
+    for (MMWindowButton *b in presses) if (b.canBecomeKeyView) reached++;
+    NSView *next = presses.firstObject.nextValidKeyView;
+    Check(reached == (NSInteger)presses.count && next != nil, @"window log: Tab reaches every Undo press", [NSString stringWithFormat:@"%ld of %lu", (long)reached, (unsigned long)presses.count]);
+    // A run is one entry with its skips as its more, and the restored action says both its times in one entry.
+    MMWindowLog *l = log.log;
+    NSInteger runs = 0, backs = 0;
+    for (MMWindowLogEntry *e in l.entries) {
+        if ([e.kind isEqualToString:@"run"] && e.more.length) runs++;
+        if ([e.kind isEqualToString:@"restored"] && [e.time containsString:@", started again "]) backs++;
+    }
+    Check(runs == 2 && backs == 1, @"window log: a run is one entry with what it skipped as its more, and an action taken back is one entry with its two times", @"");
+    [win close];
 }
 
 static void WindowLogChecks(void) {
@@ -40,7 +101,7 @@ static void WindowLogChecks(void) {
     NSInteger places = 0;
     for (NSNumber *contrast in @[@NO, @YES]) {
         MMWindowForceContrast(contrast.boolValue);
-        for (NSString *name in @[@"log-empty", @"log-new", @"log-busy", @"busy", @"young", @"long"]) {
+        for (NSString *name in @[@"log-empty", @"log-new", @"log-busy", @"log-undo", @"busy", @"young", @"long"]) {
             MMWindowView *v = PolishView(name);
             MMWindowLogView *log = LogViewOf(v);
             NSInteger n = (NSInteger)log.log.entries.count;
@@ -113,4 +174,6 @@ static void WindowLogChecks(void) {
     Check(hour && twelve && young, @"window log: the strip says the last hour, how many minutes a young hour holds, and that the first minutes fill in",
           [NSString stringWithFormat:@"%@ %@ (%@) %@", hour ? @"yes" : @"no", twelve ? @"yes" : @"no", calmWords, young ? @"yes" : @"no"]);
     MMWindowWatchDraws(nil);
+    // Its own word watch, so after the one above.
+    WindowLogUndoChecks();
 }

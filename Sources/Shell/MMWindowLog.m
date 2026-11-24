@@ -1,7 +1,7 @@
 // The log's entries from its rows, MMWindowLog.h. Every sentence is in the window's words, DESIGN.md "Words": plain
 // names, no old app's name, no claim of a result, and "Undo" only where the record can still be taken back.
 #import <stdatomic.h>
-#import "Shell/MMWindowLog.h"
+#import "Shell/MMWindowLogParts.h"
 #import "Shell/MMWindowFeed.h"
 #import "Core/MMCore.h"
 #import "CLI/MMCLI.h"
@@ -11,7 +11,7 @@ const NSTimeInterval MMWindowLogDays = 30 * 86400;
 static const NSUInteger kPage = 600;                 // rows per read
 static const NSUInteger kMostRows = 6000;            // what one read of the window looks at, at the most
 
-NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable, MMLogQuietTable]; }
+NSArray<NSString *> *MMWindowLogTables(void) { return @[@"undo", @"review", @"investigate", MMLogSettingTable, MMLogKeepTable, MMLogQuietTable, MMLogRunTable]; }
 
 static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v length] ? v : nil; }
 static NSDictionary *Dict(id v) { return [v isKindOfClass:NSDictionary.class] ? v : nil; }
@@ -21,7 +21,7 @@ static BOOL IsBool(id v) { return v && CFGetTypeID((__bridge CFTypeRef)v) == CFB
 #pragma mark - Words
 
 /// Who acted, as the quiet line says it. nil for a who the log does not know, so nothing made up stands there.
-static NSString *Who(NSString *by, NSString *why) {
+NSString *MMWindowLogWho(NSString *by, NSString *why) {
     if ([by isEqualToString:@"manual"]) return [why isEqualToString:@"Fix Everything"] ? @"by you, in Fix Everything" : @"by you";
     NSDictionary *w = @{@"window": @"by you in the window", @"settings": @"by you in Settings",
                         @"welcome": @"by you in the welcome", @"cli": @"from the command line", @"migration": @"by the move from the old apps",
@@ -53,7 +53,7 @@ static NSString *Sentence(NSString *s) {
 }
 
 /// The rule a mode key belongs to, "Stop idle servers" for locohost.mode.
-static NSString *RuleTitleFor(NSString *expert) {
+NSString *MMWindowLogRuleTitle(NSString *expert) {
     for (NSString *rid in MMWindowRuleIDs()) if ([MMWindowRuleExpert(rid) isEqualToString:expert]) return MMWindowRuleTitle(rid);
     return nil;
 }
@@ -68,7 +68,7 @@ static NSString *OnOff(id v) { return IsBool(v) || [v isKindOfClass:NSNumber.cla
 /// What a setting's name is in the window, and how its values read. nil names a key the window has no words for.
 static NSString *SettingSentence(NSString *key, id old, id now) {
     if ([key hasSuffix:@".mode"]) {
-        NSString *title = RuleTitleFor([key substringToIndex:key.length - 5]), *a = ModeWord(old), *b = ModeWord(now);
+        NSString *title = MMWindowLogRuleTitle([key substringToIndex:key.length - 5]), *a = ModeWord(old), *b = ModeWord(now);
         if (title && a && b) return [NSString stringWithFormat:@"%@ changed from %@ to %@.", title, a, b];
         if (title && b) return [NSString stringWithFormat:@"%@ was set to %@.", title, b];
         return nil;
@@ -92,10 +92,15 @@ static NSString *AwakeSetting(NSDictionary *p) {
     return @"A keep-awake setting changed.";
 }
 
-/// What an action did, by its kind, and how Undo takes it back. done is the past, todo what it set out to do.
-static void ActionWords(MMUndoRecord *r, NSInteger parts, NSString **done, NSString **todo, NSString **undo, NSString **back) {
+/// What an action did, by its kind, and how Undo takes it back. done is the past, todo what it set out to do, back
+/// what a restore did when its action is out of reach, and again what the quiet line says of a restore beside its
+/// action's time: "12:00, started again 12:05".
+static void ActionWords(MMUndoRecord *r, NSInteger parts, NSString **done, NSString **todo, NSString **undo, NSString **back, NSString **again) {
     NSString *s = r.subject.length ? r.subject : @"something";
     NSString *k = r.kind ?: @"";
+    *again = @{@"stop": @"started again", @"quit": @"opened again", @"trash": @"moved back", @"remove": @"brought back", @"clean": @"put back",
+               @"tool": @"put back", @"wrapup": @"brought back", @"tabs": @"opened again", @"trim": @"opened again", @"lid": @"set back",
+               @"setting": @"set back"}[k] ?: @"taken back";
     if ([k isEqualToString:@"stop"]) { *done = [@"Stopped " stringByAppendingString:s]; *todo = [@"stop " stringByAppendingString:s]; *undo = @"Undo starts it again."; *back = [@"Started again: " stringByAppendingString:s]; }
     else if ([k isEqualToString:@"quit"]) { *done = [@"Quit " stringByAppendingString:s]; *todo = [@"quit " stringByAppendingString:s]; *undo = @"Undo opens it again."; *back = [@"Opened again: " stringByAppendingString:s]; }
     else if ([k isEqualToString:@"trash"]) { *done = [NSString stringWithFormat:@"Moved %@ to the Trash", s]; *todo = [NSString stringWithFormat:@"move %@ to the Trash", s]; *undo = @"Undo moves it back."; *back = [@"Moved back from the Trash: " stringByAppendingString:s]; }
@@ -117,6 +122,9 @@ static void ActionWords(MMUndoRecord *r, NSInteger parts, NSString **done, NSStr
     else if ([k isEqualToString:@"quiet"]) { *done = [s stringByAppendingString:@" began"]; *todo = [@"keep quiet: " stringByAppendingString:s]; *undo = @""; *back = @"The quiet hold ended"; }
     else if ([k isEqualToString:@"hold"]) { *done = [@"Kept the Mac awake for " stringByAppendingString:s]; *todo = [@"keep the Mac awake for " stringByAppendingString:s]; *undo = @""; *back = @"The hold ended"; }
     else { *done = [@"Acted on " stringByAppendingString:s]; *todo = [@"act on " stringByAppendingString:s]; *undo = @"It can be undone."; *back = [@"Took back what was done to " stringByAppendingString:s]; }
+    // A record an older MinMacs wrote under its Delete choice: the thing was deleted, not moved, so the words say so.
+    if (r.deletedNow && !r.canRestore && ([k isEqualToString:@"trash"] || [k isEqualToString:@"remove"] || [k isEqualToString:@"clean"]))
+        *done = [@"Deleted " stringByAppendingString:s];
 }
 
 static NSInteger Tokens(NSArray *calls) {
@@ -137,7 +145,7 @@ static BOOL Quiet(MMLogEntry *e) {
 
 #pragma mark - Entries
 
-static MMWindowLogEntry *Entry(MMLogEntry *row, NSString *kind, NSString *sentence, NSString *who, NSDate *now) {
+MMWindowLogEntry *MMWindowLogEntryOf(MMLogEntry *row, NSString *kind, NSString *sentence, NSString *who, NSDate *now) {
     MMWindowLogEntry *e = [MMWindowLogEntry new];
     e.key = [NSString stringWithFormat:@"%@:%lld", row.table, row.row];
     e.kind = kind; e.sentence = sentence; e.who = who;
@@ -146,35 +154,60 @@ static MMWindowLogEntry *Entry(MMLogEntry *row, NSString *kind, NSString *senten
     return e;
 }
 
-static MMWindowLogEntry *UndoEntry(MMLogEntry *row, NSDictionary<NSString *, NSNumber *> *parts, NSSet<NSString *> *newer, NSDate *now) {
+/// The quiet line's time of an action that was taken back: "12:00, started again 12:05", with the day when the
+/// restore came on another one.
+static NSString *BackTime(NSDate *at, NSDate *back, NSString *again, NSDate *now) {
+    NSString *day = DayOf(back, now);
+    if ([day isEqualToString:DayOf(at, now)]) return [NSString stringWithFormat:@"%@, %@ %@", Clock(at), again, Clock(back)];
+    BOOL near = [day isEqualToString:@"Today"] || [day isEqualToString:@"Yesterday"];
+    return [NSString stringWithFormat:@"%@, %@ %@%@ at %@", Clock(at), again, near ? @"" : @"on ", near ? day.lowercaseString : day, Clock(back)];
+}
+
+/// One undo row's entry. ended holds the records whose done or failed row is in reach, and backAt when each record
+/// read so far, newest first, was taken back: a restore is told in its action's entry, with both times.
+static MMWindowLogEntry *UndoEntry(MMLogEntry *row, NSDictionary<NSString *, NSNumber *> *parts, NSSet<NSString *> *newer, NSSet<NSString *> *ended,
+                                   NSDictionary<NSString *, NSDate *> *backAt, NSDate *now) {
     MMUndoRecord *r = [MMUndoRecord fromBody:row.body hasParts:[parts[row.rid] integerValue] > 0];
     if (!r || r.parentRid.length) return nil;               // a part is told with its Wrap Up
-    NSString *done = @"", *todo = @"", *undo = @"", *back = @"";
-    ActionWords(r, [parts[r.rid] integerValue], &done, &todo, &undo, &back);
-    NSString *who = Who(r.by, r.why);
+    NSString *done = @"", *todo = @"", *undo = @"", *back = @"", *again = @"";
+    ActionWords(r, [parts[r.rid] integerValue], &done, &todo, &undo, &back, &again);
+    NSDate *backed = r.rid ? backAt[r.rid] : nil;
+    NSString *who = MMWindowLogWho(r.by, r.why);
     // A quiet hold that ended is told once, by its end row, from its start to its end.
     if ([r.kind isEqualToString:@"quiet"] && r.state == MMUndoDone) {
         if ([newer containsObject:[r.rid stringByAppendingString:@"#quiet-ended"]]) return nil;
         NSString *s = r.subject.length ? r.subject : @"Quiet";
-        return Entry(row, @"quiet", [NSString stringWithFormat:@"%@ since %@. It lasts while that process runs.", s, Clock(row.at)], who, now);
+        return MMWindowLogEntryOf(row, @"quiet", [NSString stringWithFormat:@"%@ since %@. It lasts while that process runs.", s, Clock(row.at)], who, now);
     }
     switch (r.state) {
-        case MMUndoRestored: return Entry(row, @"restored", Sentence(back), who, now);
+        case MMUndoRestored:
+            // The action's own entry tells it, with both times. Only a restore whose action is out of reach stands alone.
+            if ([ended containsObject:r.rid]) return nil;
+            return MMWindowLogEntryOf(row, @"restored", Sentence(back), who, now);
         case MMUndoFailed: {
             NSString *err = r.error.length ? [@" " stringByAppendingString:Sentence(r.error)] : @"";
-            return Entry(row, @"failed", [NSString stringWithFormat:@"Could not %@.%@", todo, err], who, now);
+            MMWindowLogEntry *e = MMWindowLogEntryOf(row, @"failed", [NSString stringWithFormat:@"Could not %@.%@", todo, err], who, now);
+            if (backed) e.time = BackTime(row.at, backed, again, now);
+            return e;
         }
         case MMUndoPending:
             // A pending row with a later row of its record is the start of that record, told by the later row.
             if ([newer containsObject:r.rid]) return nil;
-            return Entry(row, @"began", [NSString stringWithFormat:@"Began to %@. No end is written yet.", todo], who, now);
+            return MMWindowLogEntryOf(row, @"began", [NSString stringWithFormat:@"Began to %@. No end is written yet.", todo], who, now);
         case MMUndoDone: {
-            // Undo only for a record that can still be taken back: one restored later says so in its own entry.
-            BOOL can = r.canRestore && ![newer containsObject:[r.rid stringByAppendingString:@"#restored"]];
-            NSString *tail = can && undo.length ? [@" " stringByAppendingString:undo]
+            if (backed) {
+                MMWindowLogEntry *e = MMWindowLogEntryOf(row, @"restored", Sentence(done), who, now);
+                e.time = BackTime(row.at, backed, again, now);
+                return e;
+            }
+            // Undo only for a record that can still be taken back, that restore would not refuse, and that keeps a way
+            // back: never for a deleted thing, a tool's own cleanup or a damaged record.
+            BOOL can = r.canRestore && !r.damage && r.rid.length && undo.length;
+            NSString *tail = can ? [@" " stringByAppendingString:undo]
                            : r.deletedNow && !r.canRestore ? @" It cannot be brought back." : @"";
-            MMWindowLogEntry *e = Entry(row, @"action", [Sentence(done) stringByAppendingString:tail], who, now);
-            e.canUndo = can && undo.length;
+            MMWindowLogEntry *e = MMWindowLogEntryOf(row, @"action", [Sentence(done) stringByAppendingString:tail], who, now);
+            e.canUndo = can;
+            if (can) { e.undoRid = r.rid; e.undoHelp = undo; }
             return e;
         }
     }
@@ -202,7 +235,7 @@ static MMWindowLogEntry *ReviewEntry(MMLogEntry *row, NSDate *now) {
     }
     NSString *trigger = Str(b[@"trigger"]);
     NSString *who = [trigger isEqualToString:@"manual"] ? @"asked by you" : [trigger isEqualToString:@"schedule"] ? @"on its hourly round" : trigger ? @"on its own" : nil;
-    MMWindowLogEntry *e = Entry(row, @"review", s, who, now);
+    MMWindowLogEntry *e = MMWindowLogEntryOf(row, @"review", s, who, now);
     e.tokens = Tokens(List(b[@"calls"]));
     return e;
 }
@@ -210,10 +243,12 @@ static MMWindowLogEntry *ReviewEntry(MMLogEntry *row, NSDate *now) {
 /// A run of quiet reviews, newest first, as one line.
 static MMWindowLogEntry *Folded(NSArray<MMLogEntry *> *run, NSDate *now) {
     MMLogEntry *newest = run.firstObject, *oldest = run.lastObject;
-    MMWindowLogEntry *e = Entry(newest, @"reviews", [NSString stringWithFormat:@"%@ acted on nothing.", Cap(MMWindowCount((NSInteger)run.count, @"review", @"reviews"))],
+    MMWindowLogEntry *e = MMWindowLogEntryOf(newest, @"reviews", [NSString stringWithFormat:@"%@ acted on nothing.", Cap(MMWindowCount((NSInteger)run.count, @"review", @"reviews"))],
                                 @"on its hourly round", now);
     e.key = [NSString stringWithFormat:@"reviews:%lld", oldest.row];
-    e.time = [NSString stringWithFormat:@"%@ to %@", Clock(oldest.at), Clock(newest.at)];
+    // A run within one minute has one time: "02:58", never "02:58 to 02:58".
+    NSString *from = Clock(oldest.at), *to = Clock(newest.at);
+    e.time = [from isEqualToString:to] ? to : [NSString stringWithFormat:@"%@ to %@", from, to];
     NSInteger t = 0;
     for (MMLogEntry *r in run) t += Tokens(List(r.body[@"calls"]));
     e.tokens = t;
@@ -225,7 +260,7 @@ static MMWindowLogEntry *InvestigateEntry(MMLogEntry *row, NSDate *now) {
     NSString *what = Str(b[@"title"]) ?: Str(b[@"subject"]) ?: @"a folder";
     NSString *model = Str(b[@"model"]);
     BOOL ok = Str(b[@"answer"]) != nil;
-    MMWindowLogEntry *e = Entry(row, @"investigate", ok ? [NSString stringWithFormat:@"Looked into %@.", what]
+    MMWindowLogEntry *e = MMWindowLogEntryOf(row, @"investigate", ok ? [NSString stringWithFormat:@"Looked into %@.", what]
                                                         : [NSString stringWithFormat:@"Could not look into %@. The model did not answer.", what],
                                 model ? [@"with " stringByAppendingString:model] : nil, now);
     e.tokens = [Dict(b[@"usage"])[@"uncached"] integerValue];
@@ -235,7 +270,7 @@ static MMWindowLogEntry *InvestigateEntry(MMLogEntry *row, NSDate *now) {
 static MMWindowLogEntry *SettingEntry(MMLogEntry *row, NSDate *now) {
     NSDictionary *b = row.body;
     NSString *s = SettingSentence(Str(b[@"key"]) ?: row.subject ?: @"", b[@"old"], b[@"new"]);
-    return Entry(row, @"setting", s ?: @"A setting changed.", Who(Str(b[@"by"]), nil), now);
+    return MMWindowLogEntryOf(row, @"setting", s ?: @"A setting changed.", MMWindowLogWho(Str(b[@"by"]), nil), now);
 }
 
 static MMWindowLogEntry *KeepEntry(MMLogEntry *row, NSDate *now) {
@@ -249,7 +284,7 @@ static MMWindowLogEntry *KeepEntry(MMLogEntry *row, NSDate *now) {
     } else s = [NSString stringWithFormat:@"%@ is no longer kept. The rules decide for it again.", name];
     // A keep is given from a menu or the command line, so a manual one says where.
     NSString *by = Str(b[@"by"]);
-    return Entry(row, @"keep", s, [by isEqualToString:@"manual"] ? @"by you in a menu" : Who(by, nil), now);
+    return MMWindowLogEntryOf(row, @"keep", s, [by isEqualToString:@"manual"] ? @"by you in a menu" : MMWindowLogWho(by, nil), now);
 }
 
 /// A quiet hold that ended: "Quiet for a screen recording (pid 4123), 12:03 to 12:41."
@@ -264,56 +299,66 @@ static MMWindowLogEntry *QuietEndEntry(MMLogEntry *row, NSDate *now) {
     if (from && until) s = [NSString stringWithFormat:@"%@, %@ to %@.", what, from, Clock([NSDate dateWithTimeIntervalSince1970:until.doubleValue])];
     else if (from) s = [NSString stringWithFormat:@"%@ from %@. It ended while MinMacs did not run.", what, from];
     else s = [what stringByAppendingString:@" ended."];
-    if ([how isEqualToString:@"released"]) who = Who(Str(b[@"by"]), nil) ?: @"when it was released";
+    if ([how isEqualToString:@"released"]) who = MMWindowLogWho(Str(b[@"by"]), nil) ?: @"when it was released";
     else if ([how isEqualToString:@"exited"]) who = @"when its process ended";
     else who = @"when MinMacs started again";
-    MMWindowLogEntry *e = Entry(row, @"quiet", s, who, now);
+    MMWindowLogEntry *e = MMWindowLogEntryOf(row, @"quiet", s, who, now);
     return e;
 }
 
 MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUInteger most, NSTimeInterval maxAge, NSTimeInterval watchingLeft) {
     now = now ?: NSDate.date;
-    // What each record holds in these rows: how many parts a Wrap Up has, and which records have a newer row.
+    // What each record holds in these rows: how many parts a Wrap Up has, and which records have their done or failed
+    // row in reach, so a restore is told in that row's entry.
     NSMutableDictionary<NSString *, NSMutableSet *> *partsOf = [NSMutableDictionary new];
-    NSMutableSet<NSString *> *newer = [NSMutableSet new];
+    NSMutableSet<NSString *> *ended = [NSMutableSet new];
     for (MMLogEntry *r in rows) {
         if (![r.table isEqualToString:@"undo"]) continue;
         NSString *parent = Str(r.body[@"parentRid"]);
         if (parent && r.rid) { if (!partsOf[parent]) partsOf[parent] = [NSMutableSet new]; [partsOf[parent] addObject:r.rid]; }
+        BOOL inReach = maxAge <= 0 || -[r.at timeIntervalSinceDate:now] <= maxAge;
+        if (inReach && r.rid && ([r.state isEqualToString:@"done"] || [r.state isEqualToString:@"failed"])) [ended addObject:r.rid];
     }
     NSMutableDictionary<NSString *, NSNumber *> *parts = [NSMutableDictionary new];
     for (NSString *k in partsOf) parts[k] = @(partsOf[k].count);
 
     NSMutableArray<MMWindowLogEntry *> *out = [NSMutableArray new];
+    NSMutableSet<NSString *> *newer = [NSMutableSet new];
+    NSMutableDictionary<NSString *, NSDate *> *backAt = [NSMutableDictionary new];
+    // The quiet reviews of one day fold into one line, which stands where the newest of them does, whatever came
+    // between them: they acted on nothing, so no entry between them depends on them. The line holds its place in the
+    // list from the first of them on, and is made once the day's rows are read.
     NSMutableArray<MMLogEntry *> *quiet = [NSMutableArray new];
+    __block NSUInteger slot = 0;
+    __block NSString *quietDay = nil;
     void (^flush)(void) = ^{
-        if (quiet.count == 1) [out addObject:ReviewEntry(quiet.firstObject, now)];
-        else if (quiet.count > 1) [out addObject:Folded(quiet, now)];
+        if (!quiet.count) return;
+        out[slot] = quiet.count == 1 ? ReviewEntry(quiet.firstObject, now) : Folded(quiet, now);
         [quiet removeAllObjects];
     };
     for (MMLogEntry *r in rows) {
         if (out.count >= most) break;
         if (maxAge > 0 && -[r.at timeIntervalSinceDate:now] > maxAge) break;
-        // Quiet reviews fold while nothing else came between them, on one day.
+        NSString *day = DayOf(r.at, now);
+        if (quiet.count && ![day isEqualToString:quietDay]) flush();
         if (Quiet(r)) {
-            if (quiet.count && ![DayOf(quiet.lastObject.at, now) isEqualToString:DayOf(r.at, now)]) flush();
+            if (!quiet.count) { slot = out.count; quietDay = day; [out addObject:[MMWindowLogEntry new]]; }
             [quiet addObject:r];
             continue;
         }
-        flush();
-        if (out.count >= most) break;
         MMWindowLogEntry *e = nil;
         if ([r.table isEqualToString:@"undo"]) {
-            e = UndoEntry(r, parts, newer, now);
+            e = UndoEntry(r, parts, newer, ended, backAt, now);
             if (r.rid) {
                 [newer addObject:r.rid];
-                if ([r.state isEqualToString:@"restored"]) [newer addObject:[r.rid stringByAppendingString:@"#restored"]];
+                if ([r.state isEqualToString:@"restored"] && !backAt[r.rid]) backAt[r.rid] = r.at;
             }
         }
         else if ([r.table isEqualToString:@"review"]) e = ReviewEntry(r, now);
         else if ([r.table isEqualToString:@"investigate"]) e = InvestigateEntry(r, now);
         else if ([r.table isEqualToString:MMLogSettingTable]) e = SettingEntry(r, now);
         else if ([r.table isEqualToString:MMLogKeepTable]) e = KeepEntry(r, now);
+        else if ([r.table isEqualToString:MMLogRunTable]) e = MMWindowLogRunEntry(r, now);
         else if ([r.table isEqualToString:MMLogQuietTable]) {
             e = QuietEndEntry(r, now);
             NSString *hold = Str(r.body[@"holdRid"]);
@@ -321,7 +366,7 @@ MMWindowLog *MMWindowLogFrom(NSArray<MMLogEntry *> *rows, NSDate *now, NSUIntege
         }
         if (e) [out addObject:e];
     }
-    if (out.count < most) flush();
+    flush();
     MMWindowLog *log = [MMWindowLog new];
     log.entries = out;
     log.note = MMWindowLogNote(out.count == 0, watchingLeft > 0 ? MMWindowSpan(watchingLeft) : nil);
@@ -351,7 +396,8 @@ MMWindowLog *MMWindowLogRead(MMLog *log, NSDate *now, NSUInteger most, NSTimeInt
 
 NSDictionary *MMWindowLogEntryJSON(MMWindowLogEntry *e) {
     return @{@"key": e.key ?: @"", @"kind": e.kind ?: @"", @"sentence": e.sentence ?: @"", @"time": e.time ?: @"", @"day": e.day ?: @"",
-             @"who": e.who ?: NSNull.null, @"tokens": @(e.tokens), @"at": @(e.at), @"row": @(e.row), @"canUndo": @(e.canUndo), @"detail": e.detail};
+             @"who": e.who ?: NSNull.null, @"tokens": @(e.tokens), @"at": @(e.at), @"row": @(e.row), @"canUndo": @(e.canUndo), @"detail": e.detail,
+             @"rid": e.undoRid ?: NSNull.null, @"more": e.more ?: NSNull.null, @"skipped": e.skipped};
 }
 
 #pragma mark - The verb
@@ -377,6 +423,7 @@ static int LogVerb(MMArgs *a) {
         if (![e.day isEqualToString:day]) { day = e.day; [a print:@"%@", day]; }
         [a print:@"  %@", e.sentence];
         [a print:@"    %@", e.detail];
+        if (e.more) [a print:@"    %@", e.more];
     }
     return 0;
 }

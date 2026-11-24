@@ -380,7 +380,8 @@ extern NSString *const MMWindowLookingNote;
 /// time, who acted and the tokens a model call took. Shell/MMWindowLog.m makes them from the log's rows, off main.
 @interface MMWindowLogEntry : NSObject
 @property (copy) NSString *key;                         // stable across reads: the record's rid, or the row's number
-/// What it is: "action", "restored", "failed", "began", "review", "reviews", "investigate", "setting" or "keep".
+/// What it is: "action", "restored", "failed", "began", "review", "reviews", "investigate", "setting", "keep",
+/// "quiet" or "run".
 @property (copy) NSString *kind;
 @property (copy) NSString *sentence;                    // "Stopped :3000 Next.js. Undo starts it again."
 @property (copy) NSString *time;                        // "14:02", or "08:00 to 13:00" for folded reviews
@@ -389,9 +390,20 @@ extern NSString *const MMWindowLookingNote;
 @property (copy) NSString *day;                         // "Today", "Yesterday", "Monday 23 November"
 @property double at;                                    // seconds since 1970, of its newest row
 @property int64_t row;                                  // the log's newest row behind it
-/// The record can still be taken back, so the sentence says how. Words only in this slice: no button.
+/// The record can still be taken back, so the sentence says how and the quiet line has an Undo press.
 @property BOOL canUndo;
-/// The quiet line: "14:02 · by you in the window · 1,240 tokens".
+/// The record an Undo press takes back, set only while canUndo.
+@property (copy, nullable) NSString *undoRid;
+/// How Undo takes it back, "Undo starts it again.", for the press's tooltip and what VoiceOver says after its name.
+@property (copy, nullable) NSString *undoHelp;
+/// The press went in and the record is being taken back: no press shows, and the quiet line says so.
+@property BOOL undoing;
+/// The whole story where the sentence is short, such as each thing a run skipped and why: the entry's tooltip, and
+/// what VoiceOver reads after the quiet line. nil for none.
+@property (copy, nullable) NSString *more;
+/// What a run skipped, each {subject, why, as}, as the run row holds it. Empty for any other entry.
+@property (nonatomic, copy) NSArray<NSDictionary<NSString *, NSString *> *> *skipped;
+/// The quiet line: "14:02 · by you in the window · 1,240 tokens", and "taking it back" while undoing.
 @property (readonly) NSString *detail;
 @end
 

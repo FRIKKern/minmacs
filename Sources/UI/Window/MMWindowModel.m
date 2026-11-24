@@ -396,8 +396,10 @@ NSString *MMWindowLoginNote(BOOL on) { return on ? @"MinMacs starts when you sig
     NSMutableArray *parts = [NSMutableArray arrayWithObject:self.time ?: @""];
     if (self.who.length) [parts addObject:self.who];
     if (self.tokens > 0) [parts addObject:MMWindowTokens(self.tokens)];
+    if (self.undoing) [parts addObject:@"taking it back"];
     return [parts componentsJoinedByString:@" · "];
 }
+- (NSArray *)skipped { return _skipped ?: @[]; }
 @end
 
 NSString *MMWindowTokens(NSInteger tokens) {

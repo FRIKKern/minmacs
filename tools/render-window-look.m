@@ -138,6 +138,7 @@ static void WindowLookChecks(void) {
 - (void)windowSetRule:(NSString *)ruleID picked:(NSInteger)choice { self.rules++; }
 - (void)windowSetSwitch:(NSString *)switchID on:(BOOL)on { self.rules++; }
 - (void)windowQuit {}
+- (void)windowUndo:(NSString *)rid {}
 - (void)windowWelcomeStart:(BOOL)openAtLogin { self.starts++; self.login = openAtLogin; }
 @end
 

@@ -20,7 +20,8 @@ NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count);
 MMWindowGroup *MMWindowFixtureGroup(NSString *key, NSString *title, MMWindowSide side, NSArray<MMWindowRow *> *rows);
 /// The ring of a model: its groups as slices, and the rest.
 void MMWindowFixtureRing(MMWindowModel *m, uint64_t memoryUsed, uint64_t memoryTotal, uint64_t diskFree, uint64_t diskTotal);
-/// A made-up log, MMWindowFixtureLog.m: "empty", "new", "busy" with 300 entries, or "day".
+/// A made-up log, MMWindowFixtureLog.m: "empty", "new", "busy" with 300 entries, "undo" with the Undo presses and
+/// two runs, or "day".
 MMWindowLog *MMWindowFixtureLog(NSString *kind);
 /// "real" and "extreme", MMWindowFixtureMore.m. nil for any other name.
 MMWindowModel *_Nullable MMWindowFixtureMore(NSString *name);

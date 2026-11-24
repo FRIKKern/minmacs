@@ -197,6 +197,8 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasH
 @property (readonly) NSInteger flashed;
 @end
 
+@class MMWindowButton;
+
 /// The log under the middle's strip, MMWindowLogView.m: the entries newest first, grouped by day, each a sentence and
 /// a quiet line. Only whole entries are drawn: the fingers move it an entry at a time, and the foot says how many
 /// wait above and below. A new log keeps the entry at the top where it was.
@@ -207,6 +209,10 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasH
 /// For the checks: the sentences drawn at the last drawing, top to bottom, and the line at the foot.
 @property (readonly) NSArray<NSString *> *drawnSentences;
 @property (readonly, nullable) NSString *footLine;
+/// The Undo presses of the entries shown, top to bottom, for the checks.
+@property (readonly) NSArray<MMWindowButton *> *undoButtons;
+/// A press on an entry's Undo, with the record's rid. The window's view hands it to its host.
+@property (copy, nullable) void (^onUndo)(NSString *rid);
 - (void)rest;                                                        // the window closed: back at the newest entry
 @end
 
@@ -224,7 +230,8 @@ void MMWindowDrawRow(MMWindowRow *row, NSRect rect, MMWindowSide side, BOOL hasH
 typedef NS_ENUM(NSInteger, MMWindowDockPhase) { MMWindowDockCalm = 0, MMWindowDockRunning, MMWindowDockEnded };
 
 /// A button the window draws itself: a real NSButton, so keyboard, tooltips and accessibility come with it.
-typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWindowButtonGear, MMWindowButtonPower, MMWindowButtonPill, MMWindowButtonOutline };
+/// Link is the log's small Undo press, in the quiet line's size.
+typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWindowButtonGear, MMWindowButtonPower, MMWindowButtonPill, MMWindowButtonOutline, MMWindowButtonLink };
 @interface MMWindowButton : NSButton
 @property (nonatomic) MMWindowButtonKind kind;
 @property (nonatomic) BOOL lit;                                      // the gear while Settings shows

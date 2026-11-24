@@ -57,6 +57,14 @@
             MMWindowDraw(MMWindowText(self.title, 12, NSFontWeightRegular, [NSColor colorWithWhite:1 alpha:on ? 1 : 0.82]), NSMidX(b), NSMidY(b), 0);
             return;
         }
+        case MMWindowButtonLink: {
+            // The log's Undo: a quiet pill in the quiet line's size, a step brighter than the line beside it.
+            NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.5, 0.5) xRadius:b.size.height / 2 - 0.5 yRadius:b.size.height / 2 - 0.5];
+            [[NSColor colorWithWhite:1 alpha:on ? 0.16 : 0.07] setFill]; [pill fill];
+            if (MMWindowContrast()) { [[NSColor colorWithWhite:1 alpha:0.5] setStroke]; pill.lineWidth = 1; [pill stroke]; }
+            MMWindowDraw(MMWindowText(self.title, 10.5, NSFontWeightSemibold, on ? NSColor.whiteColor : MMWindowColor(MMWindowInkText)), NSMidX(b), NSMidY(b), 0);
+            return;
+        }
         case MMWindowButtonPill: {
             [[NSColor colorWithWhite:1 alpha:on ? 0.14 : 0.07] setFill];
             [[NSBezierPath bezierPathWithRoundedRect:b xRadius:b.size.height / 2 yRadius:b.size.height / 2] fill];

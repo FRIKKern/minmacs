@@ -34,6 +34,8 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
     NSDate *_endedAt;                                    // when the last run ended: a plan built before it is spent
     MMWindowLog *_log;                                   // the log as last read, while open
     NSString *_logStamp;                                 // MMLogStamp and the day at that read
+    NSMutableSet<NSString *> *_undoing;                  // the records an Undo press is taking back now
+    NSMutableDictionary<NSString *, NSString *> *_undoProblems;   // what a restore answered, by rid, while open
 }
 
 static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED); }
@@ -47,7 +49,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         _token = nil; _model = nil; _shown = 0;
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
-        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; });
+        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; });
         return;
     }
     atomic_store(&_loginOn, [self.shell loginEnabled]);
@@ -84,7 +86,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (!_s || !_p || !self.open) return;
     MMWindowExtras *x = [MMWindowExtras readWithLogin:atomic_load(&_loginOn)];
     x.run = _run;
-    x.log = [self readLog];
+    x.log = MMWindowLogWithUndo([self readLog], _undoing, _undoProblems);
     x.welcome = MMWindowWelcomeNow(x.loginOn);
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -234,6 +236,28 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
             (void)[e set:@"lid" value:@(on) by:@"manual"];
             [self send];
         }
+    });
+}
+
+/// A press on Undo in the log. The same path as the notification's Undo: -[MMUndo restore:] on core.undo, which
+/// refuses a record it cannot take back and a second restore of one that runs. The entry shows that it is being taken
+/// back at once, and the log read again once the restore wrote its row shows it was.
+- (void)windowUndo:(NSString *)rid {
+    if (![rid isKindOfClass:NSString.class] || !rid.length) return;
+    dispatch_async(Queue(), ^{
+        if (!self->_undoing) self->_undoing = [NSMutableSet new];
+        if ([self->_undoing containsObject:rid]) return;
+        [self->_undoing addObject:rid];
+        [self->_undoProblems removeObjectForKey:rid];
+        [self send];
+        dispatch_async(MMQueue(@"core", @"undo", QOS_CLASS_UTILITY), ^{
+            NSString *problem = [MMUndo.shared restore:rid];
+            dispatch_async(Queue(), ^{
+                [self->_undoing removeObject:rid];
+                if (problem) { if (!self->_undoProblems) self->_undoProblems = [NSMutableDictionary new]; self->_undoProblems[rid] = problem; }
+                [self send];
+            });
+        });
     });
 }
 

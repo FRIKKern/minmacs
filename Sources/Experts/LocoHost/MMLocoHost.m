@@ -828,16 +828,24 @@ static void Copy(NSString *s) {
     NSInteger stopped = 0;
     NSString *lastRid = nil;
     NSMutableArray *lines = [NSMutableArray new];
+    NSMutableArray<NSDictionary *> *skipped = [NSMutableArray new];
     for (NSArray *t in todo) {
         MMFinding *f = t[0];
         NSString *err = nil;
         MMUndoRecord *rec = MMRunAction(MMLHStopAction(f, MMStopTerm), MMLHModePolicy(), r, MMModeName(mode), t[1], &err);
-        if (!rec) continue;
         MMLHHost *h = HostOf(f);
+        NSString *name = [NSString stringWithFormat:@":%ld %@", (long)h.port, h.project ?: @""];
+        if (!rec) {
+            [skipped addObject:MMLogRunSkip(name, [err hasPrefix:@"kept: "] ? [err substringFromIndex:6] : err, [err hasPrefix:@"kept: "] ? @"kept" : @"blocked")];
+            continue;
+        }
         BOOL ok = rec.state == MMUndoDone;
         if (ok) { stopped++; freed += h.memory; lastRid = rec.rid; }
+        else [skipped addObject:MMLogRunSkip(name, @"it ignored SIGTERM and still runs", @"failed")];
         [lines addObject:[NSString stringWithFormat:@":%ld %@%@", (long)h.port, h.project, ok ? @"" : @" is still running, since it ignored SIGTERM"]];
     }
+    // The pass's row in the log: what it planned, what it did and what it skipped, with why.
+    MMLogRun(kExpert, MMModeName(mode), (NSInteger)todo.count, stopped, skipped, freed, 0);
     if (!lines.count) return;
     NSString *title = [NSString stringWithFormat:@"Stopped %@, Freed %@", MMCapitalized(MMPlural(stopped, @"server")).capitalizedString, MMBytes(freed)];
     NSString *body = [NSString stringWithFormat:@"%@ stopped %@. Undo starts %@ again from its recorded command.",

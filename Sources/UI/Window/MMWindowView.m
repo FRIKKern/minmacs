@@ -83,6 +83,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
         _left.onPoint = ^(NSString *key) { [me point:key]; };
         _right.onPoint = ^(NSString *key) { [me point:key]; };
         _settings.onDone = ^{ me.showsSettings = NO; };
+        _middle.logView.onUndo = ^(NSString *rid) { [me.host windowUndo:rid]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
     }
     return self;
