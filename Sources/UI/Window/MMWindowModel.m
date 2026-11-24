@@ -234,6 +234,61 @@ NSString *const MMWindowOpenPull = @"Open pull request";
     return [p componentsJoinedByString:@" · "];
 }
 @end
+#pragma mark An agent's story
+
+MMWindowFact *MMWindowFactLastActive(NSTimeInterval ago) {
+    NSString *span = MMWindowSpan(ago), *when = span ? [span stringByAppendingString:@" ago"] : @"just now";
+    return Fact(@"Last active", when, [@"last active " stringByAppendingString:when]);
+}
+
+MMWindowFact *MMWindowFactRecently(NSInteger tools, NSInteger files, NSTimeInterval span) {
+    if (tools < 0) return nil;
+    // The span is an hour, or shorter where the part of the transcript MinMacs read starts later.
+    NSString *over = span >= 3540 ? @"in the last hour" : [NSString stringWithFormat:@"in the last %@", MMWindowSpan(MAX(span, 60)) ?: @"minute"];
+    NSString *v = tools == 0 ? [@"no tool use " stringByAppendingString:over]
+                : files > 0 ? [NSString stringWithFormat:@"%@, %@ edited %@", MMWindowCount(tools, @"tool use", @"tool uses"),
+                               MMWindowCount(files, @"file", @"files"), over]
+                            : [NSString stringWithFormat:@"%@ %@", MMWindowCount(tools, @"tool use", @"tool uses"), over];
+    return Fact(@"Recently", v, nil);
+}
+
+MMWindowFact *MMWindowFactWorktree(NSString *name, NSString *link) {
+    NSString *n = Trimmed(name);
+    MMWindowFact *f = Fact(@"Worktree", n, nil);
+    f.link = link.length ? link : nil;
+    return f;
+}
+
+MMWindowFact *MMWindowFactPullRequest(NSInteger number, NSString *state, BOOL draft, NSString *milestone) {
+    if (number <= 0) return nil;
+    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"#%ld", (long)number]];
+    NSString *st = Trimmed(state).lowercaseString;
+    if (draft && (!st.length || [st isEqualToString:@"open"])) [parts addObject:@"draft"];
+    else if (st.length) [parts addObject:st];
+    if (Trimmed(milestone).length) [parts addObject:[@"milestone: " stringByAppendingString:Trimmed(milestone)]];
+    return Fact(@"Pull request", [parts componentsJoinedByString:@" · "], nil);
+}
+
+MMWindowFact *MMWindowFactServer(NSString *name, NSString *link) {
+    MMWindowFact *f = Fact(@"Server", Trimmed(name), nil);
+    f.link = link.length ? link : nil;
+    return f;
+}
+
+MMWindowFact *MMWindowFactCache(NSString *name, uint64_t bytes, BOOL measured, NSString *link) {
+    NSString *n = Trimmed(name);
+    if (!n.length) return nil;
+    MMWindowFact *f = Fact(@"Cache", measured ? [NSString stringWithFormat:@"%@ · %@", n, MMWindowSizeText(bytes, YES)] : n, nil);
+    f.link = link.length ? link : nil;
+    return f;
+}
+
+MMWindowFact *MMWindowFactProcesses(NSInteger children, uint64_t bytes) {
+    if (children <= 0) return nil;
+    NSString *v = [MMWindowCount(children, @"process", @"processes") stringByAppendingString:@" under it"];
+    if (bytes > 0) v = [NSString stringWithFormat:@"%@ · %@", v, MMWindowSizeText(bytes, NO)];
+    return Fact(@"Processes", v, nil);
+}
 
 /// A count with its thousands set apart, as a person writes it: "45,282".
 static NSString *Grouped(NSInteger n) {
@@ -344,11 +399,12 @@ static NSString *Sentence(NSString *words) {
     if (self.needsYou) { f.kind = MMWindowFateAsks; f.lead = @"Asks you."; says = YES; }
     else if (self.inFix) { f.kind = MMWindowFateGoes; f.lead = @"Goes with Fix Everything."; }
     else if (stays || now) { f.lead = @"Stays."; from = stays; }
-    else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); says = YES; }
+    else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); says = YES; from = [self factLabelled:@"Last active"]; }
     else return nil;
     // A row that stands for several says under any lead how many of them can go and how many stay.
     if (now) from = now;
-    f.note = Sentence(from.value);
+    // An agent's line says when it was last active, "Working. Last active just now.", in the fact's own phrase.
+    f.note = [from.label isEqualToString:@"Last active"] ? Sentence(from.phrase) : Sentence(from.value);
     if (source) *source = from;
     if (saysState) *saysState = says;
     return f;

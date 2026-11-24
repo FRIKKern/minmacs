@@ -31,6 +31,9 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// The middle shows this row's story now, while the pointer rests on the row or it is the active one; nil when no
 /// story shows. A worktree's story asks the shell, off main, for its pull request, which comes in a later model.
 - (void)windowShowsStory:(nullable NSString *)rowKey;
+/// A press on Go to in an agent's story: bring forward the terminal tab, pane or app the agent of this row runs in.
+/// Only a person's press sends it. The shell goes there off main.
+- (void)windowGoTo:(NSString *)rowKey;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,

@@ -70,7 +70,10 @@ static NSDictionary *SessionJSON(MMSession *s) {
     return @{ @"agent": s.agent ?: @"", @"id": s.sessionID ?: @"", @"title": s.title ?: @"", @"cwd": s.cwd ?: @"",
               @"branch": s.branch ?: @"", @"transcript": s.transcript ?: @"", @"pid": @(s.pid),
               @"live": s.liveStatus ?: NSNull.null, @"stillWorking": @(s.stillWorking),
-              @"started": @(round(s.started.timeIntervalSince1970)), @"lastActive": @(round(s.lastActive.timeIntervalSince1970)) };
+              @"started": @(round(s.started.timeIntervalSince1970)), @"lastActive": @(round(s.lastActive.timeIntervalSince1970)),
+              @"toolUses": s.toolUseTimes ? @(s.toolUseTimes.count) : NSNull.null,
+              @"edited": s.edits ? [s.edits.allKeys sortedArrayUsingSelector:@selector(compare:)] : NSNull.null,
+              @"activityFrom": s.activityFrom ? @(round(s.activityFrom.timeIntervalSince1970)) : NSNull.null };
 }
 
 static NSDictionary *PlaceJSON(MMPlace *w) {

@@ -66,6 +66,7 @@ static NSValue *V(pid_t pid, uint64_t start) { MMProcKey k = { pid, start }; ret
 @interface TSession : NSObject
 @property NSString *agent, *sessionID, *title, *cwd, *branch, *transcript, *liveStatus; @property NSDate *started, *lastActive;
 @property pid_t pid; @property BOOL stillWorking;
+@property NSArray *toolUseTimes; @property NSDictionary *edits; @property NSDate *activityFrom;
 @end
 @implementation TSession @end
 

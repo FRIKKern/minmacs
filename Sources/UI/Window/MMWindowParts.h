@@ -263,6 +263,12 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 @property (readonly) MMWindowButton *pullButton;
 /// Called on main when the story shown changes to another row, with its key, or nil when no story shows.
 @property (copy, nullable) void (^onStory)(NSString *_Nullable rowKey);
+/// A press on a story's fact that names another row, with that row's key: the window makes it the active row.
+@property (copy, nullable) void (^onLink)(NSString *rowKey);
+/// A press on Go to in an agent's story, with the agent row's key.
+@property (copy, nullable) void (^onGoTo)(NSString *rowKey);
+/// The story's presses as they stand now, for the checks: Go to and each link.
+@property (readonly) NSArray<MMWindowButton *> *storyPresses;
 @end
 
 typedef NS_ENUM(NSInteger, MMWindowDockPhase) { MMWindowDockCalm = 0, MMWindowDockRunning, MMWindowDockEnded };

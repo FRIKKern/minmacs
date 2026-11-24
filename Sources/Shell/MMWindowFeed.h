@@ -54,6 +54,14 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s);
 MMWindowPull *_Nullable MMWindowPullOf(NSDictionary *facts);
 /// The window's words for one answer of MMPulls. nil when nothing is known.
 MMWindowPull *_Nullable MMWindowPullFrom(MMPullAnswer *_Nullable answer);
+/// An agent's story, MMWindowAgent.m: its harness, folder and branch, its session's title where `shownName` is not it,
+/// how long it runs, when it was last active and what it did in the last hour, where it runs, its worktrees with their
+/// pull requests, its servers, its session's caches and the processes under it, then its State. Each from the
+/// snapshot alone, and only where a fact holds it. goTo gets the app's name when Know can bring its place forward.
+NSArray<MMWindowFact *> *MMWindowAgentFacts(MMFinding *f, MMSession *_Nullable session, NSString *shownName, MMSnapshot *s, NSString *_Nullable *_Nullable goTo);
+/// Points each fact's link at the row the window shows for it: a member of a row that stands for several at that row,
+/// and a row the window does not show at none.
+void MMWindowResolveLinks(MMWindowModel *m);
 /// The name the window shows for a finding: ":3000 Next.js" for a server, the branch for a worktree, else its title.
 NSString *MMWindowNameOf(MMFinding *f);
 /// 60 values, bytes or NSNull, oldest first. megabytes of the ring are MiB. nil when ring is nil.

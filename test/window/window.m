@@ -346,7 +346,7 @@ static void WindowModel(void) {
       [@[YN(next.quiet), YN(db.quiet), YN(asks.quiet), YN(chat.quiet), YN(helper.quiet), YN(wip.quiet), YN(spike.quiet), YN(sims.quiet)] componentsJoinedByString:@" "]);
     // The story's first line: a kept app's reason, written for a person, is its sentence. An agent's raw why, a word
     // about its processes such as "a permission prompt is open" here or "child caffeinate", is in no fact at all.
-    T(@"window: the story's first line uses plain words only", @"2 Asks you. (null) | 0 Stays. An agent works in it. | Agent; Project",
+    T(@"window: the story's first line uses plain words only", @"2 Asks you. (null) | 0 Stays. An agent works in it. | Agent; Project; Last active; Server; Processes",
       [NSString stringWithFormat:@"%ld %@ %@ | %ld %@ %@ | %@", (long)asks.fate.kind, asks.fate.lead, asks.fate.note, (long)editor.fate.kind, editor.fate.lead, editor.fate.note,
        [[asks.storyFacts valueForKey:@"label"] componentsJoinedByString:@"; "]]);
     // One disk, one size: the graph's line and the window's own rule give the same whole, in thousands as the Finder counts.
@@ -372,7 +372,9 @@ static void WindowModel(void) {
         return [a componentsJoinedByString:@"; "];
     };
     T(@"window: a server's story", @"Port=:3001; Project=app; Runs in=Ghostty, tab 2; Started by=Claude Code; Idle=1 h; Running=1 d", story(next));
-    T(@"window: an agent's story names its harness, and leaves the raw why out", @"Agent=Claude Code; Project=app; State=waits on you", story(asks));
+    T(@"window: an agent's story names its harness, and leaves the raw why out",
+      [NSString stringWithFormat:@"Agent=Claude Code; Project=%@; Last active=just now; Server=:3001 Next.js; Processes=1 process under it · 512 MB; State=waits on you",
+       [Dir(@"app") stringByAbbreviatingWithTildeInPath]], story(asks));
     // Said alone, as on a row's second line, each fact is a phrase.
     NSString *(^phrases)(MMWindowRow *) = ^(MMWindowRow *r) { return [[[r.storyFacts valueForKey:@"phrase"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF != nil AND SELF != %@", NSNull.null]] componentsJoinedByString:@"; "]; };
     T(@"window: a server's facts as phrases", @"in app; runs in Ghostty, tab 2; started by Claude Code; idle for 1 h; up 1 d", phrases(next));
@@ -681,6 +683,8 @@ static void RunStopped(void) {
 #import "overlap.m"
 // Near-identical rows as one, DESIGN rule 16.
 #import "collapse.m"
+// An agent row's story, and Claude Code's scratch as the owner's Mac had it.
+#import "agentstory.m"
 
 #import "Shell/MMWindowLog.h"
 #import "log.m"
@@ -690,7 +694,7 @@ static void RunStopped(void) {
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|collapse|collapse-helpers|collapse-run|log-words|log-controller|log-undo|trash-list|log-fold|pulls\n"); return 2; }
+        if (argc < 3) { fprintf(stderr, "usage: window <dir> model|calm|run|stop|inside|refused|controller|smart|delete|welcome|unmeasured|projects|planned|agentport|overlap|collapse|collapse-helpers|collapse-run|agentstory|collapse-real|log-words|log-controller|log-undo|trash-list|log-fold|pulls\n"); return 2; }
         char real[PATH_MAX];
         [NSFileManager.defaultManager createDirectoryAtPath:@(argv[1]) withIntermediateDirectories:YES attributes:nil error:nil];
         gDir = realpath(argv[1], real) ? @(real) : @(argv[1]);
@@ -719,6 +723,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"collapse"]) Collapse();
         else if ([mode isEqualToString:@"collapse-helpers"]) CollapseHelpers();
         else if ([mode isEqualToString:@"collapse-run"]) CollapseRun();
+        else if ([mode isEqualToString:@"agentstory"]) AgentStory();
+        else if ([mode isEqualToString:@"collapse-real"]) CollapseReal();
         else if ([mode isEqualToString:@"log-words"]) LogWords();
         else if ([mode isEqualToString:@"log-controller"]) LogController();
         else if ([mode isEqualToString:@"log-undo"]) LogUndo();

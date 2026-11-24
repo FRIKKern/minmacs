@@ -9,6 +9,7 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
 
 @implementation MMWindowMiddleView {
     NSString *_storyKey;                             // the row whose story was last told to onStory
+    NSMutableArray<MMWindowButton *> *_presses;       // the story's Go to and its links, placePresses
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -24,9 +25,9 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
 
 - (CGFloat)stripHeight { return kStrip; }
 - (NSRect)logFrame { return NSMakeRect(0, kStrip + 1, self.bounds.size.width, MAX(self.bounds.size.height - kStrip - 1, 0)); }
-- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; _logView.frame = [self logFrame]; [self placePull]; }
+- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; _logView.frame = [self logFrame]; [self placePull]; [self placePresses]; }
 
-- (void)setModel:(MMWindowModel *)model { _model = model; _logView.log = model.log; [self placePull]; self.needsDisplay = YES; }
+- (void)setModel:(MMWindowModel *)model { _model = model; _logView.log = model.log; [self placePull]; self.needsDisplay = YES; [self placePresses]; }
 - (void)setMemoryHour:(MMWindowHour *)h { _memoryHour = h; self.needsDisplay = YES; }
 - (void)setDiskHour:(MMWindowHour *)h { _diskHour = h; self.needsDisplay = YES; }
 - (void)setRow:(MMWindowRow *)row {
@@ -36,6 +37,7 @@ static const CGFloat kPullButton = 24;               // the Open pull request pr
     _logView.hidden = row != nil;
     [self placePull];
     self.needsDisplay = YES;
+    [self placePresses];
     // Told once a row, not at every model: a new model of the same row is the same story.
     NSString *key = row.key.length ? row.key : nil;
     if (key == _storyKey || [key isEqualToString:_storyKey]) return;
@@ -242,6 +244,90 @@ static CGFloat PullBlock(MMWindowPull *pull, CGFloat x, CGFloat y, CGFloat w, BO
     _pullButton.accessibilityLabel = shows ? [NSString stringWithFormat:@"%@, #%ld", MMWindowOpenPull, (long)row.pull.number] : MMWindowOpenPull;
 }
 
+static const CGFloat kGoPad = 8, kGoHigh = 18, kGoGap = 8;
+
+/// The width of the Go to press beside where an agent runs.
+static CGFloat GoWidth(void) { return ceil(MMWindowWidth(MMWindowText(@"Go to", 10.5, NSFontWeightSemibold, NSColor.whiteColor))) + 2 * kGoPad; }
+
+/// The fact beside which the Go to press stands: where the agent runs.
+static BOOL HoldsGo(MMWindowRow *row, MMWindowFact *f) { return row.goTo.length && [f.label isEqualToString:@"Runs in"]; }
+
+/// Where the story's facts start: under its one line and a worktree's pull request, the same sums drawStory: makes.
+- (CGFloat)factsTop:(MMWindowRow *)row {
+    CGFloat y = [self pullTop:row], w = self.bounds.size.width - 28;
+    if (row.pull) {
+        CGFloat need = PullBlock(row.pull, 14, y, w, NO, NULL);
+        if (y + need <= self.bounds.size.height - 8) y += need + 12;
+    }
+    return y;
+}
+
+/// The label column of the facts, and one fact's value with the room it has and its height.
+static CGFloat FactColumn(NSArray<MMWindowFact *> *facts) {
+    CGFloat column = 0;
+    for (MMWindowFact *f in facts) column = MAX(column, MMWindowWidth(MMWindowText(f.label, 12, NSFontWeightRegular, NSColor.whiteColor)));
+    return MIN(MAX(column + 16, 100), 150);
+}
+
+- (NSAttributedString *)value:(MMWindowFact *)f {
+    NSMutableParagraphStyle *wrap = [NSMutableParagraphStyle new];
+    wrap.lineBreakMode = NSLineBreakByWordWrapping;
+    // A fact that names another row is a press to it, in the color of that row's group.
+    MMWindowRow *to = f.link ? [self.model row:f.link] : nil;
+    NSColor *ink = to ? MMWindowGroupColor(GroupKey(to.kind)) : MMWindowColor(MMWindowInkText);
+    return [[NSAttributedString alloc] initWithString:f.value ?: @"" attributes:@{
+        NSFontAttributeName: MMWindowFont(12.5, to ? NSFontWeightMedium : NSFontWeightRegular), NSForegroundColorAttributeName: ink, NSParagraphStyleAttributeName: wrap}];
+}
+
+static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat column) { return w - column - (HoldsGo(row, f) ? GoWidth() + kGoGap : 0); }
+
+/// The presses of a story: Go to beside where an agent runs, and each fact that names another row. Real buttons, so
+/// Tab, Space and VoiceOver reach them. Placed with the same sums the story is drawn with, for the facts that show.
+- (void)placePresses {
+    for (NSView *b in _presses) {
+        if (self.window.firstResponder == b) {
+            NSView *top = self;
+            while (top.superview) top = top.superview;
+            [self.window makeFirstResponder:top];
+        }
+        [b removeFromSuperview];
+    }
+    _presses = [NSMutableArray new];
+    MMWindowRow *row = self.row;
+    if (!row || !self.model) return;
+    CGFloat x = 14, w = self.bounds.size.width - 28, bottom = self.bounds.size.height - 8, y = [self factsTop:row];
+    NSArray<MMWindowFact *> *facts = row.storyFacts;
+    CGFloat column = FactColumn(facts);
+    for (MMWindowFact *f in facts) {
+        CGFloat room = ValueRoom(row, f, w, column);
+        NSRect need = [[self value:f] boundingRectWithSize:NSMakeSize(room, 400) options:NSStringDrawingUsesLineFragmentOrigin];
+        CGFloat h = MAX(ceil(need.size.height), 16);
+        if (y + h > bottom) break;
+        if (HoldsGo(row, f)) {
+            MMWindowButton *go = [MMWindowButton kind:MMWindowButtonLink title:@"Go to" target:self action:@selector(pressGo:)];
+            go.identifier = row.key;
+            go.frame = NSMakeRect(x + w - GoWidth(), round(y + 8 - kGoHigh / 2), GoWidth(), kGoHigh);
+            go.accessibilityLabel = [@"Go to " stringByAppendingString:row.goTo];
+            go.toolTip = go.accessibilityHelp = [NSString stringWithFormat:@"Brings %@ forward, where this agent runs.", row.goTo];
+            [self addSubview:go]; [_presses addObject:go];
+        }
+        if (f.link && [self.model row:f.link]) {
+            MMWindowButton *link = [MMWindowButton kind:MMWindowButtonClear title:f.value target:self action:@selector(pressLink:)];
+            link.identifier = f.link;
+            link.frame = NSMakeRect(x + column, y, MIN(ceil(need.size.width) + 2, room), h);
+            link.accessibilityLabel = [NSString stringWithFormat:@"%@ %@", f.label, f.value];
+            link.toolTip = link.accessibilityHelp = [NSString stringWithFormat:@"Shows this %@ in its list.", f.label.lowercaseString];
+            [self addSubview:link]; [_presses addObject:link];
+        }
+        y += h + 6;
+    }
+    if (self.window) [self.window recalculateKeyViewLoop];
+}
+
+- (NSArray<MMWindowButton *> *)storyPresses { return [_presses copy] ?: @[]; }
+- (void)pressGo:(MMWindowButton *)b { if (b.identifier.length && self.onGoTo) self.onGoTo(b.identifier); }
+- (void)pressLink:(MMWindowButton *)b { if (b.identifier.length && self.onLink) self.onLink(b.identifier); }
+
 /// A row's story, 195-a's: its icon, name and group with the Mac's ring small beside them; its number large, CPU and
 /// its own hour; the one line on whether it stays, goes or asks; a worktree's pull request; its facts; and where it
 /// stands in its group.
@@ -293,7 +379,6 @@ static CGFloat PullBlock(MMWindowPull *pull, CGFloat x, CGFloat y, CGFloat w, BO
     CGFloat y = top + 66;
 
     // The one line: a mark, the lead in bold and the sentence after it, in the color of what it says.
-    NSParagraphStyle *wrap = Wrapping();
     MMWindowFate *fate = row.fate;
     if (fate) {
         NSColor *ink = fate.kind == MMWindowFateAsks ? NSColor.whiteColor : fate.kind == MMWindowFateGoes ? MMWindowColor(MMWindowInkFix) : MMWindowGroupColor(GroupKey(row.kind));
@@ -317,19 +402,18 @@ static CGFloat PullBlock(MMWindowPull *pull, CGFloat x, CGFloat y, CGFloat w, BO
         if (y + need <= bottom) { y += PullBlock(row.pull, x, y, w, YES, NULL) + 12; }
     }
 
-    // The facts, labels in one column. A long value wraps and is never cut.
-    CGFloat column = 0;
+    // The facts, labels in one column. A long value wraps and is never cut. Where an agent runs has its Go to press
+    // at the right, and a fact that names another row is a press to it: placePresses lays both with these sums.
     NSArray<MMWindowFact *> *facts = row.storyFacts;
-    for (MMWindowFact *f in facts) column = MAX(column, MMWindowWidth(MMWindowText(f.label, 12, NSFontWeightRegular, t2)));
-    column = MIN(MAX(column + 16, 100), 150);
+    CGFloat column = FactColumn(facts);
     for (MMWindowFact *f in facts) {
-        NSAttributedString *value = [[NSAttributedString alloc] initWithString:f.value ?: @"" attributes:@{
-            NSFontAttributeName: MMWindowFont(12.5, NSFontWeightRegular), NSForegroundColorAttributeName: text, NSParagraphStyleAttributeName: wrap}];
-        NSRect need = [value boundingRectWithSize:NSMakeSize(w - column, 400) options:NSStringDrawingUsesLineFragmentOrigin];
+        NSAttributedString *value = [self value:f];
+        CGFloat room = ValueRoom(row, f, w, column);
+        NSRect need = [value boundingRectWithSize:NSMakeSize(room, 400) options:NSStringDrawingUsesLineFragmentOrigin];
         CGFloat h = MAX(ceil(need.size.height), 16);
         if (y + h > bottom) return;
         MMWindowDraw(MMWindowText(f.label, 12, NSFontWeightRegular, t2), x, y + 8, -1);
-        MMWindowDrawIn(value, NSMakeRect(x + column, y, w - column, h));
+        MMWindowDrawIn(value, NSMakeRect(x + column, y, room, h));
         y += h + 6;
     }
 
@@ -378,7 +462,11 @@ static NSString *MemberName(MMWindowRow *m, MMWindowRow *row) {
     if (y + 12 + 26 + 21 > bottom) return;
     NSMutableArray<NSArray *> *lines = [NSMutableArray new];   // name, size, height
     CGFloat at = y + 6 + 28;
+    NSInteger outer = 0;
+    for (MMWindowRow *m in row.members) if (!m.kin.within) outer++;
     for (MMWindowRow *m in row.members) {
+        // A member inside another is part of that one: it is not listed beside it.
+        if (m.kin.within) continue;
         NSString *name = m.state.length ? [NSString stringWithFormat:@"%@ · %@", MemberName(m, row), m.state] : MemberName(m, row);
         NSAttributedString *size = m.showsSize ? MMWindowText(MMWindowBytes(m.bytes, disk), 11.5, NSFontWeightRegular, t2)
                                  : m.sizeWord ? MMWindowText(m.sizeWord, 11.5, NSFontWeightRegular, t2) : nil;
@@ -392,7 +480,7 @@ static NSString *MemberName(MMWindowRow *m, MMWindowRow *row) {
     [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.07] setFill];
     NSRectFillUsingOperation(NSMakeRect(x, y, w, 1), NSCompositingOperationSourceOver);
     MMWindowKin *kin = row.kin;
-    MMWindowDraw(MMWindowText(MMWindowMembersLine((NSInteger)lines.count, (NSInteger)row.members.count, kin.one, kin.many), 11, NSFontWeightRegular, t2), x, y + 17, -1);
+    MMWindowDraw(MMWindowText(MMWindowMembersLine((NSInteger)lines.count, outer, kin.one, kin.many), 11, NSFontWeightRegular, t2), x, y + 17, -1);
     y += 28;
     for (NSArray *l in lines) {
         MMWindowDrawBlock(l[0], 12.5, 12.5, NSFontWeightRegular, text, x, y + 2, [l[3] doubleValue], -1, -1, 0);

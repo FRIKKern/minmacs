@@ -167,6 +167,8 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
         [fixes addObject:x];
     }
     m.fixes = fixes;
+    // An agent's story names its worktrees, servers and caches by the rows the window shows for them.
+    MMWindowResolveLinks(m);
     // The total counts each process once, though each fix shows its own.
     m.memoryBackOnce = @(p.memoryBackOnce);
 

@@ -314,6 +314,25 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     });
 }
 
+/// A press on Go to in an agent's story. Know's last answer for where the agent runs, with no wait, and MMGoTo off
+/// main, since cmux, tmux and AppleScript can take seconds. A place that is gone or a refusal is a notice, D3.
+- (void)windowGoTo:(NSString *)rowKey {
+    if (![rowKey isKindOfClass:NSString.class] || !rowKey.length) return;
+    dispatch_async(Queue(), ^{
+        MMFinding *f = [self->_s finding:rowKey];
+        MMSample *sample = self->_s.facts.sample;
+        if (![f.kind isEqualToString:@"agent"] || !f.procs.count || !sample) return;
+        MMProcKey k = {0, 0};
+        [f.procs.firstObject getValue:&k size:sizeof k];
+        MMPlace *place = MMWhereIs(k, sample, NO);
+        if (!place || !MMPlaceGoable(place)) return;
+        dispatch_async(MMQueue(@"core", @"go", QOS_CLASS_USER_INITIATED), ^{
+            NSString *err = nil;
+            if (!MMGoTo(place, &err) && err) MMNotice(@"minmacs", [NSString stringWithFormat:@"Could Not Go to %@", place.app.length ? place.app : @"It"], err);
+        });
+    });
+}
+
 /// The shell's -applicationShouldTerminate: lets a run end its step first, so this never quits in the middle of one.
 - (void)windowQuit { [NSApp terminate:nil]; }
 

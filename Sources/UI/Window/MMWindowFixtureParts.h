@@ -14,6 +14,8 @@ MMWindowRow *MMWindowFixtureRow(MMWindowKind kind, NSString *key, NSString *name
 NSArray<MMWindowRow *> *MMWindowFixtureServers(NSInteger count);
 NSArray<MMWindowRow *> *MMWindowFixtureAgents(NSInteger count, NSInteger asking);
 NSArray<MMWindowRow *> *MMWindowFixtureApps(NSInteger count);
+/// The day "agents": the fourth agent with every fact of an agent's story and the third with almost none.
+void MMWindowFixtureAgentStories(NSArray<MMWindowRow *> *agents);
 /// The worktrees of five made-up projects, or with `projects` 1 all of one repo, as a Mac with one project has them.
 NSArray<MMWindowRow *> *MMWindowFixtureWorktrees(NSInteger count, NSInteger projects);
 NSArray<MMWindowRow *> *MMWindowFixtureCaches(NSInteger count);

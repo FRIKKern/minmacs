@@ -24,3 +24,6 @@ MMPlace *MMWhereIs(MMProcKey key, MMSample *s, BOOL wait);
 /// Brings the place forward. Terminal and iTerm2 need the person's permission the first time. It runs cmux, tmux or
 /// osascript and can block for seconds, so call it off the main thread.
 BOOL MMGoTo(MMPlace *place, NSString **error);
+/// YES when MMGoTo has something to go to: a cmux surface, a tmux pane, a Terminal or iTerm2 tab by its tty, or a
+/// running app. It looks at the place only and runs nothing.
+BOOL MMPlaceGoable(MMPlace *place);
