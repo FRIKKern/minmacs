@@ -19,7 +19,7 @@
     "signature": {"enum": ["agent-scratch", "open", "aged", "family"], "description": "Noo-Noo's leak signatures"},
     "minAge": {"type": "number", "description": "seconds the newest file must be old"},
     "session": {"type": "object", "description": "agent-scratch: deadAfter, entryIdle, transcriptWindow in seconds, scratchDir"},
-    "family": {"type": "object", "description": "family: minMembers, exclude name prefixes"},
+    "family": {"type": "object", "description": "family: minMembers, exclude name prefixes, emptyMinAge, the quiet period in seconds of an empty member (1 hour when absent, at least 600, never past minAge). Members are judged one by one, and a member that is not empty needs minAge"},
     "cleanup": {"type": "array", "items": {"type": "string"}, "description": "a tool row's own command as argv"},
     "dryRun": {"description": "the command's dry-run argv, or null when it has none"},
     "owner": {"enum": ["project", "session", "derived-data", "playwright-links", "pnpm-store", "simulator-device"]},

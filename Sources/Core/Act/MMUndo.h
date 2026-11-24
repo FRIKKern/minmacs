@@ -60,6 +60,18 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// Moves item to the Trash with NSFileManager trashItemAtURL and notes where it went. Never empties the Trash.
 /// With MINMACS_HOME set it moves item into MMTrashFolder() instead, so a test never touches the person's Trash.
 - (NSURL *)trash:(NSURL *)item record:(MMUndoRecord *)record error:(NSError **)error;
+/// A temp-folder family's members, all in one folder, to the Trash as one folder, so 45,000 empty folders are one
+/// item in the Trash and one entry in MinMacs's list and the record, not 45,000. A new empty folder named name is made
+/// beside them and goes to the Trash as -trash: sends an item, through MinMacs's own list. The record's "held" then
+/// names that folder, {from, to, ino, dev, vol}, and every member by name and inode, before the first one moves. Each
+/// member then moves into the folder in the Trash with one rename that never replaces anything, only when it is still
+/// the file the record names; one on another volume than the Trash fails the rename and is never copied. One that cannot is left where it is and named in refused.
+/// The record's list is written again with only what went. Returns how many went.
+/// -restore: and -moveBackOnly: move each member back from that folder to its old name, the very file only and never
+/// over something there, once the folder passes the checks a "trashed" entry passes. The empty folder stays in the
+/// Trash, and nothing is deleted.
+- (NSInteger)trashMembers:(NSArray<NSString *> *)paths asFolder:(NSString *)name record:(MMUndoRecord *)record
+                  refused:(NSMutableArray<NSString *> *)refused error:(NSError **)error;
 /// P52. `git bundle create` of every commit in the worktree that is on no remote, into <expert>/bundles/<rid>.bundle.
 /// Returns the bundle path, or nil with *error. An action that needs a bundle does not run without one.
 - (NSString *)bundle:(NSString *)worktree record:(MMUndoRecord *)record error:(NSString **)error;
@@ -73,7 +85,7 @@ typedef NS_ENUM(NSInteger, MMUndoState) { MMUndoPending, MMUndoDone, MMUndoFaile
 /// A Wrap Up record restores each of its parts, newest first. A tool command's record cannot be restored.
 /// Returns nil on success, else the problem in words.
 - (NSString *)restore:(NSString *)rid;
-/// Only what the record moved aside goes back: its "staged" and "trashed" items, each as restore moves them. Unlike
+/// Only what the record moved aside goes back: its "staged", "trashed" and "held" items, each as restore moves them. Unlike
 /// restore it also runs for a record with a damaged field, as long as -[MMUndoRecord moveDamage] is nil, and it never
 /// deletes, restarts, recreates or copies anything. A record whose every item is back is marked restored.
 /// Returns nil, or what is not back, in words.
@@ -104,6 +116,9 @@ BOOL MMRecordHas(id from, NSString *key);                          // YES when t
 NSDictionary *MMRecordDict(id from, NSString *key);
 NSArray<NSDictionary *> *MMRecordList(id from, NSString *key);     // a list, with only its dictionaries
 NSArray<NSString *> *MMRecordStrings(id from, NSString *key);      // a list, with only its strings
+/// What a payload names in the Trash: its "trashed" entries, and the folder of a family's members, "held", as one more
+/// entry {from, to, ino, dev, vol}. For whoever asks what a record sent there. The members come back through "held".
+NSArray<NSDictionary *> *MMRecordTrashed(id payload);
 
 /// The very file at path, for a "staged" or "trashed" entry: {ino, vol, dev}. vol is the UUID of the volume that
 /// holds it, which stays the same across a replug or a restart. The device number does not, so it is kept only to

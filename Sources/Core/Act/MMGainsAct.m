@@ -115,7 +115,7 @@ MMGain *MMGainsRecordAction(id<MMAction> action, MMUndoRecord *record, MMFinding
     NSString *kind = KindOf(action.kind, f);
     if (!kind) return nil;
     NSDictionary *p = record.payload;
-    NSArray *trashed = [p[@"trashed"] isKindOfClass:NSArray.class] ? p[@"trashed"] : @[];
+    NSArray *trashed = MMRecordTrashed(p);
     NSString *state = MMGainDiskNone;
     uint64_t disk = 0;
     NSInteger items = 1;

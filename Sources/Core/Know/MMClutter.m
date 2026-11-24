@@ -206,7 +206,20 @@ static NSArray<NSString *> *Glob(NSString *pattern) {
     return [out sortedArrayUsingSelector:@selector(compare:)];
 }
 
+static NSData *PassFSR(NSString *s, size_t *literal);
 static BOOL Match(NSString *pattern, NSString *path) {
+    // Within a scan or an inspect pass, each string's file system form is made once: every member of a family is
+    // matched against every row's patterns, and the form costs more than fnmatch itself.
+    size_t lit = 0;
+    // The data, not its bytes, is held here, so a cache cleared by the second call frees neither.
+    NSData *da = PassFSR(pattern, &lit), *db = da ? PassFSR(path, NULL) : nil;
+    const char *a = da.bytes, *b = db.bytes;
+    if (a && b) {
+        // fnmatch matches the pattern's literal start byte for byte, so a path that does not start with those bytes
+        // cannot match. Most rows' patterns fail there for a TMPDIR's names, before fnmatch's slow multibyte walk.
+        if (strncmp(a, b, lit) != 0) return NO;
+        return fnmatch(a, b, FNM_PATHNAME) == 0;
+    }
     return fnmatch(pattern.fileSystemRepresentation, path.fileSystemRepresentation, FNM_PATHNAME) == 0;
 }
 
@@ -315,6 +328,7 @@ static NSString *Str(id v) { return [v isKindOfClass:NSString.class] && [v lengt
 @property (readwrite) MMClutterKind *kind;
 @property (readwrite, copy) NSString *path, *ownerPath, *sessionID, *why, *unproven;
 @property (readwrite) NSArray<NSString *> *members;
+@property (readwrite) NSArray<NSString *> *leftovers;
 @property (readwrite) BOOL ownerGone;
 @property (readwrite) MMSize size;
 /// What the walk measured for the members, with everything in them. size is this less the items that lie inside,
@@ -329,6 +343,7 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
 
 @implementation MMClutterItem
 - (NSString *)key { return [NSString stringWithFormat:@"%@:%@", self.kind.kindID, self.path]; }
+- (NSArray<NSString *> *)actOn { return self.kind.isFamily ? (self.leftovers ?: @[]) : (self.members ?: @[]); }
 - (NSString *)description { return [NSString stringWithFormat:@"<MMClutterItem %@ %@>", self.key, StateName(self.state)]; }
 - (NSDictionary *)json {
     NSMutableDictionary *j = [@{@"kind": self.kind.kindID ?: @"", @"path": self.path ?: @"", @"members": self.members ?: @[],
@@ -338,6 +353,8 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
     if (self.sessionID) j[@"sessionID"] = self.sessionID;
     if (self.why) j[@"why"] = self.why;
     if (self.unproven) j[@"unproven"] = self.unproven;
+    // A family's leftovers by name, since they all sit in the family's folder.
+    if (self.kind.isFamily) j[@"leftovers"] = [self.leftovers valueForKey:@"lastPathComponent"] ?: @[];
     if (self.lastUsed) j[@"lastUsed"] = @(self.lastUsed.timeIntervalSince1970);
     MMSize w = self.whole, s = self.size;
     if (w.allocated != s.allocated || w.freedIfDeleted != s.freedIfDeleted || w.files != s.files)
@@ -351,6 +368,12 @@ static NSString *StateName(MMClutterState s) { return s == MMClutterFree ? @"fre
     if (!k || !Str(j[@"path"])) return nil;
     MMClutterItem *i = [MMClutterItem new];
     i.kind = k; i.path = j[@"path"]; i.members = Strings(j[@"members"]).count ? Strings(j[@"members"]) : @[i.path];
+    if (k.isFamily) {
+        NSString *dir = i.path.stringByDeletingLastPathComponent;
+        NSMutableArray *left = [NSMutableArray new];
+        for (NSString *n in Strings(j[@"leftovers"])) if ([n rangeOfString:@"/"].location == NSNotFound) [left addObject:[dir stringByAppendingPathComponent:n]];
+        i.leftovers = left;
+    }
     i.ownerPath = Str(j[@"ownerPath"]); i.sessionID = Str(j[@"sessionID"]); i.why = Str(j[@"why"]);
     i.ownerGone = [j[@"ownerGone"] boolValue];
     i.unproven = Str(j[@"unproven"]);
@@ -592,9 +615,26 @@ static NSString *FamilyKey(NSString *name) {
 /// each resolved once, and each never pattern's glob, read once. A scan judges every member of every item, 560 in a
 /// TMPDIR like the development Mac's, and each member's walls resolved five paths twice and ran every never glob
 /// again. Only the thread that runs the scan sees it, so an action's whyNot: on another queue reads the disk now.
+@class MMClutterWallPlan;
 @interface MMClutterScanMemo : NSObject
 @property (copy) NSString *home, *chome, *root, *support, *mmHome;
 @property (strong) NSMutableDictionary<NSString *, NSArray<NSString *> *> *globs;
+/// The checkouts, resolved once for the pass. The owner's profile of a TMPDIR with 45,000 entries put a fifth of a
+/// scan in -currentProjects, a realpath of every checkout for every member whyNot: judged.
+@property (strong) NSArray<NSString *> *projects;   // strong, so kindFor: knows the pass's own list by pointer
+/// The real path of each folder that holds a judged path, so a member that is no symlink is its folder's real path
+/// plus its name, one lstat instead of a realpath of every name above it.
+@property (strong) NSMutableDictionary<NSString *, NSString *> *realDirs;
+/// The file system form of the patterns and paths Match compares, each made once in the pass. Cleared when it grows
+/// past kPassCacheMax.
+/// Keyed by the string object itself, not its text: the patterns are the rows' own strings, and a path is asked of
+/// every row as one object, so no long path is hashed again. Each value is the form and its literal start's length.
+@property (strong) NSMapTable<NSString *, NSArray *> *fsr;
+@property (strong) MMClutterWallPlan *wallPlan;
+/// -kindFor:projects: of each real path asked in the pass, NSNull for none.
+@property (strong) NSMutableDictionary<NSString *, id> *kinds;
+/// Whether a never pattern of any row matches a folder or a folder above it, by folder.
+@property (strong) NSMutableDictionary<NSString *, NSNumber *> *neverAbove;
 @end
 @implementation MMClutterScanMemo
 @end
@@ -603,15 +643,102 @@ static NSString *const kScanMemoKey = @"no.guerrilla.minmacs.core.clutter.scanMe
 static MMClutterScanMemo *ScanMemo(void) { return NSThread.currentThread.threadDictionary[kScanMemoKey]; }
 
 /// Runs block with the memo on this thread, or with the one a scan that called this already holds.
-static void WithScanMemo(void (^block)(void)) {
+static void WithScanMemoProjects(NSArray<NSString *> *projects, void (^block)(void)) {
     NSMutableDictionary *td = NSThread.currentThread.threadDictionary;
     if (td[kScanMemoKey]) { block(); return; }
     MMClutterScanMemo *m = [MMClutterScanMemo new];
+    m.projects = projects;
     m.home = Real(NSHomeDirectory()); m.chome = MMClutterHome(); m.root = MMClutterRoot();
     m.support = Real(MMSupportDir()); m.mmHome = Env(@"MINMACS_HOME") ? Real(Env(@"MINMACS_HOME")) : nil;
     m.globs = [NSMutableDictionary new];
+    m.realDirs = [NSMutableDictionary new];
+    m.fsr = [NSMapTable mapTableWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality
+                                  valueOptions:NSPointerFunctionsStrongMemory];
+    m.kinds = [NSMutableDictionary new];
+    m.neverAbove = [NSMutableDictionary new];
     td[kScanMemoKey] = m;
     @try { block(); } @finally { [td removeObjectForKey:kScanMemoKey]; }
+}
+
+static const NSUInteger kPassCacheMax = 4096;
+static NSData *PassFSR(NSString *s, size_t *literal) {
+    MMClutterScanMemo *m = ScanMemo();
+    if (!m || !s) return nil;
+    NSArray *got = [m.fsr objectForKey:s];
+    if (!got) {
+        const char *c = s.fileSystemRepresentation;
+        if (!c) return nil;
+        if (m.fsr.count >= kPassCacheMax) [m.fsr removeAllObjects];
+        got = @[[NSData dataWithBytes:c length:strlen(c) + 1], @(strcspn(c, "*?[\\"))];
+        [m.fsr setObject:got forKey:s];
+    }
+    if (literal) *literal = [got[1] unsignedLongValue];
+    return got[0];
+}
+/// Real(p) within a pass. A path that lstat says is no symlink resolves as its folder's real path, read once per
+/// folder in the pass, plus its own name: realpath would resolve the same folders again for each of 45,000 siblings.
+/// A symlink, or a path that is not there, goes through Real as before, so no link is followed differently.
+static NSString *RealInPass(NSString *p) {
+    MMClutterScanMemo *memo = ScanMemo();
+    if (!memo || !p.length || ![p hasPrefix:@"/"] || [p isEqualToString:@"/"]) return Real(p);
+    NSString *c = Clean(p);
+    struct stat st;
+    if (lstat(c.fileSystemRepresentation, &st) != 0 || S_ISLNK(st.st_mode)) return Real(p);
+    NSString *dir = c.stringByDeletingLastPathComponent, *name = c.lastPathComponent;
+    if (!name.length || [name isEqualToString:@".."] || [name isEqualToString:@"."]) return Real(p);
+    NSString *rd = memo.realDirs[dir];
+    if (!rd) { rd = Real(dir); memo.realDirs[dir] = rd; }
+    return [rd stringByAppendingPathComponent:name];
+}
+
+/// The folders nothing may ever touch, and nothing inside the first group either. Matching ignores case,
+/// because APFS does by default, as NN's leakCategoricalCheck.
+static NSArray<NSString *> *WalledTrees(void) {
+    return @[@"/System", @"/Library", @"/usr", @"/bin", @"/sbin", @"/private/etc", @"/Applications", @"/opt", @"/dev",
+             @"/Volumes", @"/cores"];
+}
+/// What the walls compare, lower-cased once: the walled trees under each root with the name each reason gives, the
+/// homes, the shared folders in them and the system folders. A pass keeps one; without a pass it is made each time.
+@interface MMClutterWallPlan : NSObject
+@property NSArray<NSArray<NSString *> *> *walled;         // [lower-cased folder, its name for the reason]
+@property NSArray<NSString *> *homes, *homesLower;
+@property NSSet<NSString *> *shared, *system;           // lower-cased
+@property NSArray<NSString *> *own;                     // MinMacs's own folders, as they are spelled
+@end
+@implementation MMClutterWallPlan
+@end
+
+static MMClutterWallPlan *WallPlan(void) {
+    MMClutterScanMemo *memo = ScanMemo();
+    if (memo.wallPlan) return memo.wallPlan;
+    NSString *home = memo ? memo.home : Real(NSHomeDirectory()), *chome = memo ? memo.chome : MMClutterHome(), *root = memo ? memo.root : MMClutterRoot();
+    MMClutterWallPlan *w = [MMClutterWallPlan new];
+    NSMutableArray *roots = [NSMutableArray arrayWithObject:@""];
+    if (root.length) [roots addObject:root];
+    NSMutableArray *walled = [NSMutableArray new];
+    for (NSString *r in roots) for (NSString *t in WalledTrees()) [walled addObject:@[[r stringByAppendingString:t].lowercaseString, t]];
+    w.walled = walled;
+    NSMutableArray *homes = [NSMutableArray arrayWithObject:home ?: @""];
+    if (chome && ![chome isEqualToString:home]) [homes addObject:chome];
+    w.homes = homes;
+    w.homesLower = [homes valueForKey:@"lowercaseString"];
+    NSMutableSet *shared = [NSMutableSet new];
+    for (NSString *h in homes)
+        for (NSString *top in @[@"Library", @"Library/Caches", @"Library/Application Support", @"Library/Developer", @"Library/Logs",
+                                @"Library/Containers", @"Library/Group Containers", @"Library/Preferences", @".cache", @".config", @".local"])
+            [shared addObject:[h stringByAppendingPathComponent:top].lowercaseString];
+    w.shared = shared;
+    NSMutableSet *system = [NSMutableSet new];
+    for (NSString *top in @[@"/", @"/private", @"/private/tmp", @"/private/var", @"/private/var/folders", @"/Users"])
+        for (NSString *r in roots) {
+            NSString *x = [r stringByAppendingString:[top isEqualToString:@"/"] && r.length ? @"" : top];
+            if (x.length) [system addObject:x.lowercaseString];
+        }
+    w.system = system;
+    NSString *mmHome = memo ? memo.mmHome : Env(@"MINMACS_HOME") ? Real(Env(@"MINMACS_HOME")) : nil;
+    w.own = @[(memo ? memo.support : Real(MMSupportDir())) ?: @"", mmHome ?: @"", root ?: @""];
+    if (memo) memo.wallPlan = w;
+    return w;
 }
 
 #pragma mark - The catalog
@@ -719,6 +846,8 @@ static void WithScanMemo(void (^block)(void)) {
 #pragma mark Matching
 
 - (NSArray<NSString *> *)currentProjects {
+    NSArray *memo = ScanMemo().projects;
+    if (memo) return memo;
     NSArray *p = self.projectsProvider ? self.projectsProvider() : self.projects;
     NSMutableArray *out = [NSMutableArray new];
     for (NSString *x in p) if (x.length) [out addObject:Real(x)];
@@ -776,62 +905,80 @@ static NSString *ProjectOf(NSString *path, NSArray<NSString *> *projects) {
 
 - (MMClutterKind *)kindFor:(NSString *)path projects:(NSArray<NSString *> *)projects {
     if (!path.length) return nil;
-    NSString *p = Real(path);
-    for (MMClutterKind *k in _kinds) if ([self path:p matches:k projects:projects]) return k;
-    return nil;
+    NSString *p = RealInPass(path);
+    // Within a pass the answer for a real path is kept: discovery asks it of each name, and whyNot: again.
+    MMClutterScanMemo *memo = ScanMemo();
+    id kept = memo && projects == memo.projects ? memo.kinds[p] : nil;
+    if (kept) return kept == NSNull.null ? nil : kept;
+    MMClutterKind *found = nil;
+    for (MMClutterKind *k in _kinds) if ([self path:p matches:k projects:projects]) { found = k; break; }
+    if (memo && projects == memo.projects) memo.kinds[p] = found ?: (id)NSNull.null;
+    return found;
 }
 - (MMClutterKind *)kindFor:(NSString *)path { return [self kindFor:path projects:[self currentProjects]]; }
 
 #pragma mark The walls
 
-/// The folders nothing may ever touch, and nothing inside the first group either. Matching ignores case,
-/// because APFS does by default, as NN's leakCategoricalCheck.
-static NSArray<NSString *> *WalledTrees(void) {
-    return @[@"/System", @"/Library", @"/usr", @"/bin", @"/sbin", @"/private/etc", @"/Applications", @"/opt", @"/dev",
-             @"/Volumes", @"/cores"];
-}
-static BOOL InsideCase(NSString *path, NSString *folder) {
-    NSString *a = path.lowercaseString, *b = folder.lowercaseString;
-    return [a isEqualToString:b] || [a hasPrefix:[b stringByAppendingString:@"/"]];
-}
-
 - (NSString *)wallFor:(NSString *)p {
-    MMClutterScanMemo *memo = ScanMemo();
-    NSString *home = memo ? memo.home : Real(NSHomeDirectory()), *chome = memo ? memo.chome : MMClutterHome(), *root = memo ? memo.root : MMClutterRoot();
-    NSMutableArray *roots = [NSMutableArray arrayWithObject:@""];
-    if (root.length) [roots addObject:root];
-    for (NSString *r in roots)
-        for (NSString *w in WalledTrees())
-            if (InsideCase(p, [r stringByAppendingString:w])) return [NSString stringWithFormat:@"it is under %@, which MinMacs never touches", w];
-    NSMutableArray *homes = [NSMutableArray arrayWithObject:home];
-    if (chome && ![chome isEqualToString:home]) [homes addObject:chome];
-    for (NSString *h in homes) {
-        if ([p.lowercaseString isEqualToString:h.lowercaseString] || Inside(h, p)) return @"it is the home folder or holds it";
-        if ([p.stringByDeletingLastPathComponent isEqualToString:h]) return @"it sits right in the home folder";
-        for (NSString *top in @[@"Library", @"Library/Caches", @"Library/Application Support", @"Library/Developer", @"Library/Logs",
-                                @"Library/Containers", @"Library/Group Containers", @"Library/Preferences", @".cache", @".config", @".local"])
-            if ([p.lowercaseString isEqualToString:[h stringByAppendingPathComponent:top].lowercaseString]) return @"it is a folder macOS or many apps share";
+    MMClutterWallPlan *plan = WallPlan();
+    NSString *pl = p.lowercaseString;
+    for (NSArray<NSString *> *w in plan.walled)
+        if ([pl isEqualToString:w[0]] || ([pl hasPrefix:w[0]] && pl.length > w[0].length && [pl characterAtIndex:w[0].length] == '/'))
+            return [NSString stringWithFormat:@"it is under %@, which MinMacs never touches", w[1]];
+    NSString *parent = p.stringByDeletingLastPathComponent;
+    for (NSUInteger i = 0; i < plan.homes.count; i++) {
+        NSString *h = plan.homes[i];
+        if ([pl isEqualToString:plan.homesLower[i]] || Inside(h, p)) return @"it is the home folder or holds it";
+        if ([parent isEqualToString:h]) return @"it sits right in the home folder";
     }
-    for (NSString *top in @[@"/", @"/private", @"/private/tmp", @"/private/var", @"/private/var/folders", @"/Users"]) {
-        for (NSString *r in roots) {
-            NSString *w = [r stringByAppendingString:[top isEqualToString:@"/"] && r.length ? @"" : top];
-            if (w.length && [p.lowercaseString isEqualToString:w.lowercaseString]) return @"it is a system folder";
-        }
-    }
-    NSString *mmHome = memo ? memo.mmHome : Env(@"MINMACS_HOME") ? Real(Env(@"MINMACS_HOME")) : nil;
-    for (NSString *x in @[(memo ? memo.support : Real(MMSupportDir())) ?: @"", mmHome ?: @"", root ?: @""])
+    if ([plan.shared containsObject:pl]) return @"it is a folder macOS or many apps share";
+    if ([plan.system containsObject:pl]) return @"it is a system folder";
+    for (NSString *x in plan.own)
         if (x.length && (InsideOrSame(x, p))) return @"it holds MinMacs's own folder";
     return nil;
 }
 
-/// A never path protects itself, everything inside it, and every folder that holds it.
-static BOOL NeverHits(NSString *never, NSString *p) {
-    for (NSString *a = p; a.length > 1; a = a.stringByDeletingLastPathComponent) if (Match(never, a)) return YES;
-    if ([never rangeOfString:@"*"].location == NSNotFound && [never rangeOfString:@"?"].location == NSNotFound) return Inside(never, p);
+/// A never path protects itself, everything inside it, and every folder that holds it. Here: p itself, or a folder
+/// inside p. NeverHits adds the folders above p.
+static BOOL NeverHitsAt(NSString *never, NSString *p) {
+    if (Match(never, p)) return YES;
+    NSData *cd = PassFSR(never, NULL);
+    const char *c = cd.bytes;
+    BOOL literal = c ? strpbrk(c, "*?") == NULL : [never rangeOfString:@"*"].location == NSNotFound && [never rangeOfString:@"?"].location == NSNotFound;
+    if (literal) return Inside(never, p);
     NSMutableDictionary<NSString *, NSArray<NSString *> *> *globs = ScanMemo().globs;
     NSArray<NSString *> *hits = globs[never];
     if (!hits) { hits = Glob(never); if (globs) globs[never] = hits; }
     for (NSString *g in hits) if (Inside(g, p)) return YES;
+    return NO;
+}
+/// Whether never matches dir or a folder above it.
+static BOOL NeverAbove(NSString *never, NSString *dir) {
+    for (NSString *a = dir; a.length > 1; a = a.stringByDeletingLastPathComponent) if (Match(never, a)) return YES;
+    return NO;
+}
+static BOOL NeverHits(NSString *never, NSString *p) {
+    return NeverAbove(never, p) || NeverHitsAt(never, p);
+}
+
+/// Whether any row's never path protects p. Within a pass, what protects the folders above p is asked once for each
+/// folder, since every member of a family shares them, and only p itself is matched for each member.
+- (BOOL)neverProtects:(NSString *)p {
+    MMClutterScanMemo *memo = ScanMemo();
+    if (!memo || p.length <= 1) {
+        for (MMClutterKind *any in _kinds) for (NSString *n in any.neverPaths) if (NeverHits(n, p)) return YES;
+        return NO;
+    }
+    NSString *dir = p.stringByDeletingLastPathComponent;
+    NSNumber *above = memo.neverAbove[dir];
+    if (!above) {
+        BOOL hit = NO;
+        for (MMClutterKind *any in _kinds) for (NSString *n in any.neverPaths) if (dir.length > 1 && NeverAbove(n, dir)) hit = YES;
+        if (memo.neverAbove.count >= kPassCacheMax) [memo.neverAbove removeAllObjects];
+        memo.neverAbove[dir] = above = @(hit);
+    }
+    if (above.boolValue) return YES;
+    for (MMClutterKind *any in _kinds) for (NSString *n in any.neverPaths) if (NeverHitsAt(n, p)) return YES;
     return NO;
 }
 
@@ -845,15 +992,15 @@ static BOOL NeverHits(NSString *never, NSString *p) {
     if (lstat(raw.fileSystemRepresentation, &st) != 0) return @"it is gone";
     if (S_ISLNK(st.st_mode)) return @"it is a symlink, and MinMacs never follows one";
     if (st.st_uid != getuid()) return @"it belongs to another user";
-    NSString *p = Real(raw);
+    NSString *p = RealInPass(raw);
     if ((w = [self wallFor:p])) return w;
-    for (MMClutterKind *any in _kinds)
-        for (NSString *n in any.neverPaths) if (NeverHits(n, p)) return @"its owner keeps it, and the row says never";
+    if ([self neverProtects:p]) return @"its owner keeps it, and the row says never";
     NSArray *projects = [self currentProjects];
     MMClutterKind *first = [self kindFor:p projects:projects];
     MMClutterKind *k = kind ?: first;
     if (!k) return @"no clutter row lists it";
-    if (![self path:p matches:k projects:projects]) return [NSString stringWithFormat:@"the %@ row does not list it", k.title];
+    // The row kindFor: found matches by definition, so only another row is matched again.
+    if (k != first && ![self path:p matches:k projects:projects]) return [NSString stringWithFormat:@"the %@ row does not list it", k.title];
     // The row that claims it first decides, so a path two rows match is judged once.
     if (first && first != k) return [NSString stringWithFormat:@"it belongs to the %@ row", first.title];
     if (k.reportOnly) return k.ownerSetting ?: @"its row only reports it";
@@ -865,6 +1012,14 @@ static BOOL NeverHits(NSString *never, NSString *p) {
         if (out.length) return @"git tracks it, so it is part of the project";
     }
     return nil;
+}
+
+- (NSDictionary<NSString *, NSString *> *)whyNotEach:(NSArray<NSString *> *)paths kind:(MMClutterKind *)kind {
+    NSMutableDictionary *out = [NSMutableDictionary new];
+    WithScanMemoProjects([self currentProjects], ^{
+        for (NSString *p in paths) @autoreleasepool { NSString *w = [self whyNot:p kind:kind]; if (w) out[p] = w; }
+    });
+    return out;
 }
 
 #pragma mark Discovery
@@ -1061,6 +1216,7 @@ static BOOL IsUUID(NSString *s) {
         struct stat st;
         if (lstat(i.path.fileSystemRepresentation, &st) == 0 && st.st_uid != getuid()) { i.state = MMClutterKept; i.why = @"root owns it, so MinMacs only reports it"; return; }
     }
+    if (k.isFamily) { [self judgeFamily:i open:open now:now]; return; }
     for (NSString *m in i.members) {
         NSString *w = [self whyNot:m kind:k];
         if (w) { i.state = MMClutterKept; i.why = w; return; }
@@ -1102,12 +1258,8 @@ static BOOL IsUUID(NSString *s) {
                 if (age < dead) { i.state = MMClutterLive; i.why = [NSString stringWithFormat:@"it was written %@ ago", Span(age)]; return; }
             }
         } else if (age < k.minAge) { i.state = MMClutterLive; i.why = [NSString stringWithFormat:@"it was written %@ ago", Span(age)]; return; }
-    } else if ([sig isEqualToString:@"aged"] || [sig isEqualToString:@"family"]) {
+    } else if ([sig isEqualToString:@"aged"]) {
         if (age < k.minAge) { i.state = MMClutterLive; i.why = [NSString stringWithFormat:@"it was written %@ ago", Span(age)]; return; }
-        if ([sig isEqualToString:@"family"]) {
-            NSInteger minMembers = MAX(2, [k.family[@"minMembers"] integerValue] ?: 5);
-            if ((NSInteger)i.members.count < minMembers) { i.state = MMClutterLive; i.why = @"it is no longer a family"; return; }
-        }
     }
     // Nothing held open: a process's cwd, executable or open file under it keeps it, in every class.
     NSSet *held = open ?: MMOpenUnder(i.members);
@@ -1115,10 +1267,77 @@ static BOOL IsUUID(NSString *s) {
     if (leak) i.why = [NSString stringWithFormat:@"nothing has used it for %@", Span(age)];
 }
 
+/// The quiet period of a family's empty folder: the row's family.emptyMinAge, 1 hour when it names none, and never
+/// longer than the row's minAge. An empty folder holds nothing to lose, and a tool that wants it again makes a new
+/// one under a new name, as clang does for every compile with two -arch flags.
+static NSTimeInterval EmptyQuiet(MMClutterKind *k) {
+    NSNumber *n = [k.family[@"emptyMinAge"] isKindOfClass:NSNumber.class] ? k.family[@"emptyMinAge"] : nil;
+    NSTimeInterval q = n ? MAX(600, n.doubleValue) : 3600;
+    return k.minAge > 0 ? MIN(q, k.minAge) : q;
+}
+
+/// "412 old and empty, 3 written in the last hour, 1 in use": the counts that are not 0, in that order.
+static NSString *Split(NSArray<NSArray *> *parts) {
+    NSMutableArray *out = [NSMutableArray new];
+    for (NSArray *p in parts) if ([p[0] integerValue] > 0) [out addObject:[NSString stringWithFormat:@"%@ %@", p[0], p[1]]];
+    return [out componentsJoinedByString:@", "];
+}
+
+/// A temp-folder family, member by member. The family is still found by its name, at least minMembers siblings, but
+/// a family something keeps making is never quiet as a whole: the owner's TMPDIR held 413 MMUndo-* folders, nearly all
+/// empty and days old, kept as "written 3 minutes ago" by the newest. So each member is its own question:
+///   it passes the walls, as every path acted on must ............ else kept, and never touched
+///   its tree reads, and holds no socket, pipe or device ........ else it stays
+///   it is older than its quiet period: EmptyQuiet for an empty folder, the row's minAge, 12 hours, for the rest
+///   no process has it as cwd, executable or open file ......... else it is in use
+/// What passes all four is a leftover, in i.leftovers, and only those go. The item is free when there is one, and its
+/// why says the split. lastUsed is the newest change of any member, as before.
+- (void)judgeFamily:(MMClutterItem *)i open:(NSSet<NSString *> *)open now:(NSTimeInterval)now {
+    MMClutterKind *k = i.kind;
+    NSInteger minMembers = MAX(2, [k.family[@"minMembers"] integerValue] ?: 5);
+    NSTimeInterval emptyQuiet = EmptyQuiet(k);
+    NSSet *held = open ?: MMOpenUnder(i.members);
+    NSMutableArray<NSString *> *left = [NSMutableArray new];
+    NSInteger empty = 0, old = 0, recentEmpty = 0, recentFull = 0, inUse = 0, walled = 0, unread = 0, special = 0;
+    NSString *firstWall = nil;
+    double newest = 0, youngest = 0;
+    for (NSString *m in i.members) @autoreleasepool {
+        NSString *w = [self whyNot:m kind:k];
+        if (w) { walled++; firstWall = firstWall ?: w; continue; }
+        MMTreeFacts t = TreeFacts(m);
+        if (t.failed || t.tooBig) { unread++; continue; }
+        if (t.special) { special++; continue; }
+        newest = MAX(newest, t.newest);
+        struct stat st;
+        BOOL isEmpty = t.entries == 1 && lstat(m.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode);
+        NSTimeInterval age = t.newest > 0 ? now - t.newest : 0;
+        if (age < (isEmpty ? emptyQuiet : k.minAge)) { if (isEmpty) recentEmpty++; else recentFull++; youngest = MAX(youngest, t.newest); continue; }
+        if ([held containsObject:m]) { inUse++; continue; }
+        [left addObject:m];
+        if (isEmpty) empty++; else old++;
+    }
+    i.lastUsed = newest > 0 ? [NSDate dateWithTimeIntervalSince1970:newest] : nil;
+    i.leftovers = left;
+    if ((NSInteger)i.members.count < minMembers) { i.leftovers = @[]; i.state = MMClutterLive; i.why = @"it is no longer a family"; return; }
+    NSInteger recent = recentEmpty + recentFull;
+    NSString *split = Split(@[@[@(empty), @"old and empty"], @[@(old), [NSString stringWithFormat:@"quiet for over %@", Span(k.minAge)]],
+                              @[@(recentEmpty), [NSString stringWithFormat:@"empty and written in the last %@", Span(emptyQuiet)]],
+                              @[@(recentFull), [NSString stringWithFormat:@"written in the last %@", Span(k.minAge)]], @[@(inUse), @"in use"], @[@(walled), @"MinMacs never touches"],
+                              @[@(unread), @"that cannot be read"], @[@(special), @"holding a socket or a pipe"]]);
+    if (left.count) { i.state = MMClutterFree; i.why = split; return; }
+    // Nothing may go. One reason alone reads as before.
+    if (walled == (NSInteger)i.members.count) { i.state = MMClutterKept; i.why = firstWall; return; }
+    i.state = MMClutterLive;
+    if (recent == (NSInteger)i.members.count) i.why = [NSString stringWithFormat:@"it was written %@ ago", Span(now - youngest)];
+    else if (inUse == (NSInteger)i.members.count) i.why = @"a running process has a file open in it";
+    else i.why = split;
+}
+
 /// Sizes through the worker in the app, in process elsewhere. Rows that must not be walked get no size.
 - (void)size:(NSArray<MMClutterItem *> *)items {
     NSMutableArray *roots = [NSMutableArray new];
-    for (MMClutterItem *i in items) if (i.kind.walk) [roots addObjectsFromArray:i.members];
+    // A family counts what goes: its leftovers. Its other members stay, so deleting frees nothing of theirs.
+    for (MMClutterItem *i in items) if (i.kind.walk) [roots addObjectsFromArray:i.actOn];
     NSMutableDictionary<NSString *, NSDictionary *> *sizes = [NSMutableDictionary new];
     if (self.sizeWithWorker && roots.count) {
         dispatch_semaphore_t done = dispatch_semaphore_create(0);
@@ -1126,14 +1345,14 @@ static BOOL IsUUID(NSString *s) {
         [MMSharedWorker() sizeTrees:roots reply:^(NSDictionary *s, NSError *e) { got = s; dispatch_semaphore_signal(done); }];
         if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 600 * NSEC_PER_SEC)) == 0 && got) [sizes addEntriesFromDictionary:got];
     }
-    for (NSString *r in roots) {
+    for (NSString *r in roots) @autoreleasepool {
         if (sizes[r]) continue;
         MMSize s = [MMSizer quick:r];
         sizes[r] = @{@"allocated": @(s.allocated), @"freedIfDeleted": @(s.freedIfDeleted), @"files": @(s.files), @"errors": @(s.errors)};
     }
     for (MMClutterItem *i in items) {
         MMSize total = {0};
-        if (i.kind.walk) for (NSString *m in i.members) {
+        if (i.kind.walk) for (NSString *m in i.actOn) {
             NSDictionary *s = sizes[m];
             total.allocated += [s[@"allocated"] unsignedLongLongValue];
             total.freedIfDeleted += [s[@"freedIfDeleted"] unsignedLongLongValue];
@@ -1190,13 +1409,22 @@ static BOOL IsUUID(NSString *s) {
 - (MMClutterItem *)inspect:(MMClutterItem *)old {
     if (!old.kind) return nil;
     NSArray *projects = [self currentProjects];
+    __block MMClutterItem *got = nil;
+    // One memo for this read, made now: the walls' folders and the checkouts are read once for all of a family's
+    // members, not once for each. Nothing is kept from the scan.
+    WithScanMemoProjects(projects, ^{ got = [self inspectNow:old projects:projects]; });
+    return got;
+}
+
+- (MMClutterItem *)inspectNow:(MMClutterItem *)old projects:(NSArray<NSString *> *)projects {
     MMClutterItem *i = [MMClutterItem new];
     i.kind = old.kind; i.path = old.path;
     if (old.kind.isFamily) {
         // A family is found again from its root, so members that came or went since the scan count.
         NSString *root = old.path.stringByDeletingLastPathComponent, *key = [old.path.lastPathComponent stringByReplacingOccurrencesOfString:@"*" withString:@""];
         NSMutableArray *members = [NSMutableArray new];
-        for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) {
+        for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) @autoreleasepool {
+            if (![FamilyKey(name) isEqualToString:key]) continue;
             NSString *p = [root stringByAppendingPathComponent:name];
             if ([FamilyKey(name) isEqualToString:key] && [self kindFor:p projects:projects] == old.kind) [members addObject:p];
         }
@@ -1220,13 +1448,15 @@ static BOOL IsUUID(NSString *s) {
     [self loadIfNeeded];
     if (!MMClutterRoot()) return @[];   // a test with no clutter root scans nothing
     NSArray *projects = [self currentProjects];
-    NSArray<MMClutterItem *> *found = [self discover:kinds projects:projects];
+    __block NSArray<MMClutterItem *> *found = nil;
     MMSample *sample = [self sampleForLiveness];
-    NSMutableArray *candidates = [NSMutableArray new];
-    for (MMClutterItem *i in found) @autoreleasepool { [self linkOwner:i projects:projects]; [candidates addObjectsFromArray:i.members]; }
-    NSSet *open = MMOpenUnder(candidates);
-    // One memo of the walls for the whole judge pass. inspect:, right before an action, reads them now.
-    WithScanMemo(^{
+    // One memo of the walls and the checkouts for the whole pass: discovery and judging. inspect:, right before an
+    // action, makes its own.
+    WithScanMemoProjects(projects, ^{
+        found = [self discover:kinds projects:projects];
+        NSMutableArray *candidates = [NSMutableArray new];
+        for (MMClutterItem *i in found) @autoreleasepool { [self linkOwner:i projects:projects]; [candidates addObjectsFromArray:i.members]; }
+        NSSet *open = MMOpenUnder(candidates);
         for (MMClutterItem *i in found) @autoreleasepool { [self judge:i open:open sample:sample projects:projects]; }
     });
     found = [found filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(MMClutterItem *i, id _) { return i.why != kWholeSession; }]];

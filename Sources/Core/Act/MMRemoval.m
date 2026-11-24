@@ -149,7 +149,7 @@ NSString *MMRemovalWhereWords(NSArray<MMUndoRecord *> *records) {
         BOOL removes = [r.kind isEqualToString:@"remove"] || [r.kind isEqualToString:@"trash"] || [r.kind isEqualToString:@"clean"];
         if (!removes) continue;
         NSDictionary *p = r.payload;
-        if ([p[@"trashed"] isKindOfClass:NSArray.class] && [p[@"trashed"] count]) trashed++;
+        if (MMRecordTrashed(p).count) trashed++;
         else if (r.deletedNow) deleted++;
         else kept++;
     }

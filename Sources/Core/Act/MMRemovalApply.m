@@ -105,6 +105,23 @@ BOOL MMRemovalApply(NSString *path, MMRemovalDecision *d, MMUndoRecord *record, 
     return ok;
 }
 
+NSInteger MMRemovalApplyHeld(NSArray<NSString *> *paths, NSString *name, MMRemovalDecision *d, MMUndoRecord *record,
+                             NSMutableArray<NSString *> *refused, NSError **error) {
+    if (!paths.count || !d || !record) { if (error) *error = Problem(@"cannot verify what to remove"); return 0; }
+    // Only to the Trash. A decision that deletes, which only a check's seam makes, takes no family this way.
+    if (d.deleteNow) { if (error) *error = Problem(@"a family goes to the Trash or nowhere"); return 0; }
+    NSMutableArray<NSString *> *go = [NSMutableArray arrayWithCapacity:paths.count];
+    for (NSString *p in paths) {
+        if (![p hasPrefix:@"/"] || [p.pathComponents containsObject:@".."] || [p.pathComponents containsObject:@"."]) {
+            [refused addObject:[p.lastPathComponent stringByAppendingString:@": its path is not a real path"]];
+            continue;
+        }
+        [go addObject:p];
+    }
+    if (!go.count) { if (error) *error = Problem(@"no member has a real path"); return 0; }
+    return [MMUndo.shared trashMembers:go asFolder:name record:record refused:refused error:error];
+}
+
 #pragma mark - What a Wrap Up stages
 //
 //   a part wants a delete ──rename──▶ staging folder ──┬─ every part went through ──▶ deleted, folder removed
@@ -445,7 +462,7 @@ NSString *MMRemovalPutBack(NSArray<MMUndoRecord *> *parts) {
         // No Wrap Up part trashes without a "removal" today: MMRemovalApply and MMClutterAct note it first. The key
         // stays as a rule, so a part that sent something to the Trash for another reason, as a migration does, never
         // has it pulled back here. No test reaches it.
-        BOOL holds = MMRecordList(p, @"staged").count || (MMRecordHas(p, @"removal") && MMRecordList(p, @"trashed").count);
+        BOOL holds = MMRecordList(p, @"staged").count || (MMRecordHas(p, @"removal") && MMRecordTrashed(p).count);
         if ((r.state != MMUndoDone && r.state != MMUndoFailed) || !holds) continue;
         // Nobody asked for this put-back: a Wrap Up, recovery or the sweep runs it. So only what the part moved aside
         // is moved back, -[MMUndo moveBackOnly:], each staged item to its exact old path and never over something
