@@ -5,8 +5,6 @@
 st_dir="$MINMACS_HOME/store"
 mkdir -p "$st_dir"
 st_bin="$st_dir/check"
-st_real_prefs="$HOME/Library/Preferences/no.guerrilla.minmacs.plist"
-st_real_before=$(stat -f '%m %z' "$st_real_prefs" 2>/dev/null || echo none)
 
 if clang -fobjc-arc -Wall -mmacosx-version-min=14.0 -ISources -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 \
      $(find Sources/Core -name '*.m' | LC_ALL=C sort) test/store/check.m -o "$st_bin" >"$st_dir/build.log" 2>&1; then
@@ -157,5 +155,40 @@ check "the Settings panes have the window's width" "1080 " \
 check "the render's Settings checks all pass" "0 13" \
   "$(grep -c '^FAIL  settings' "$st_out/checks.txt") $(grep -c '^ok    settings' "$st_out/checks.txt")"
 
-check "the person's own prefs file was not touched" "$st_real_before" "$(stat -f '%m %z' "$st_real_prefs" 2>/dev/null || echo none)"
+# The person's own prefs. Their plist's mtime and size say nothing here: the installed app writes that file whenever
+# the person presses something, such as "7 days" on the strip. What holds is that no test process can write it:
+# test.sh exports MINMACS_PREFS_TRIPWIRE and checks after every section that no process reached it.
+check "a test process refuses to write the person's own prefs" yes "$("$st_bin" refused)"
+check "the installed app, with no tripwire, writes them as before" no "$(env -u MINMACS_PREFS_TRIPWIRE "$st_bin" refused)"
+st_trip="$st_dir/tripwire"; : >"$st_trip"
+st_got=$(env -u MINMACS_HOME MINMACS_PREFS_TRIPWIRE="$st_trip" "$st_bin" realwrite 2>"$st_dir/realwrite.err"; echo "exit $?")
+check "a test that lost MINMACS_HOME stops at the tripwire before CFPreferences" "exit 70 check store.tripwire 1" \
+  "$st_got $(awk '{print $2, $3}' "$st_trip") $(grep -c "person's own prefs" "$st_dir/realwrite.err")"
+# No code writes the prefs domain past MMSetPref, whose tripwire stops a test. In Sources, test and tools: no
+# NSUserDefaults made or kept in a variable, no setter on the standard one, and no CFPreferences write or
+# synchronize outside MMStore.m. Reads stay allowed: MMMigrate reads the old domains, MMSessions reads cmux's.
+st_direct=$(grep -rnE 'initWithSuiteName|NSUserDefaults (alloc|new)|\[NSUserDefaults new\]|=[[:space:]]*\[?NSUserDefaults[[:space:].]standardUserDefaults|standardUserDefaults\]?[[:space:].]*(set[A-Z][A-Za-z]*:|removeObjectForKey|removePersistentDomain|setPersistentDomain|synchronize)|CFPreferences(Set|AppSynchronize|Synchronize|AddSuite)' \
+  --include='*.m' --include='*.h' --include='*.c' Sources test tools | grep -v '^Sources/Core/Store/MMStore.m:' | cut -d: -f1-2 | paste -sd' ' -)
+check "no code writes prefs past MMSetPref" "" "$st_direct"
+# No script writes the real domain: defaults with its name, which always means the real one, or plutil, PlistBuddy,
+# cp, mv or rm on the real plist's path. Test homes' plists stay free to read and write. The one allowed: uninstall.sh's
+# --purge deletes the person's own prefs on purpose, and only when its prefix is the real home, checked below.
+st_scripts=$(grep -rnE '(defaults[[:space:]]+(write|delete|import|rename)[[:space:]]+(-app[[:space:]]+)?["'"'"']?(no\.guerrilla\.minmacs|\$\{?BUNDLE_ID))|((plutil[[:space:]]+-(replace|remove|insert|convert)|PlistBuddy.*-c[[:space:]]*["'"'"'](Set|Add|Delete|Merge|Import|Clear)|(^|[[:space:];])(cp|mv|rm)[[:space:]]).*(Library/Preferences/no\.guerrilla\.minmacs|REAL_PREFS|_real))' \
+  --include='*.sh' --include='*.py' test tools ./*.sh | grep -v '^\./uninstall\.sh:' | grep -v 'grep -rnE' | cut -d: -f1-2 | paste -sd' ' -)
+check "no script writes the person's prefs with defaults or plutil" "" "$st_scripts"
+check "uninstall.sh deletes the prefs only for the real home, under --purge" '1   if [ "$REAL" = 1 ]; then' \
+  "$(grep -c 'defaults delete' uninstall.sh) $(grep -B1 'defaults delete' uninstall.sh | head -1)"
+
+# The backstop's rule, on fixtures: a key only tests use fails, a change while no installed app ran fails, and a
+# change of the app's own keys while it runs is a note.
+st_rp="$st_dir/realprefs"; mkdir -p "$st_rp"
+printf '%s' '{"stamp": "1 10", "keys": {"core.window.week": "False"}, "app": true}' >"$st_rp/a.json"
+printf '%s' '{"stamp": "2 12", "keys": {"core.window.week": "True"}, "app": true}' >"$st_rp/app.json"
+printf '%s' '{"stamp": "2 12", "keys": {"core.window.week": "False", "test.int": "42"}, "app": true}' >"$st_rp/test.json"
+printf '%s' '{"stamp": "2 12", "keys": {"core.window.week": "True"}, "app": false}' >"$st_rp/noapp.json"
+printf '%s' '{"stamp": "1 10", "keys": {"core.window.week": "False"}, "app": false}' >"$st_rp/a-noapp.json"
+check "the backstop: the app's own key changed while it runs is a note" "note" "$(realprefs diff "$st_rp/a.json" "$st_rp/app.json" | cut -d' ' -f1)"
+check "the backstop: a key only tests use fails" "fail a key only tests use: test.int" "$(realprefs diff "$st_rp/a.json" "$st_rp/test.json")"
+check "the backstop: a change while no installed app ran fails" "fail" "$(realprefs diff "$st_rp/a-noapp.json" "$st_rp/noapp.json" | cut -d' ' -f1)"
+check "the backstop: no change is the same" "same" "$(realprefs diff "$st_rp/a.json" "$st_rp/a.json")"
 # ===== end of Store =====

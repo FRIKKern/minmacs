@@ -6,6 +6,9 @@
 //   check logwrite <n> <tag>   appends n log rows, for the two-writer check
 //   check plan <home>          prints MMLegacyPlan(home) as JSON
 //   check import <home>        prints MMImportLegacy(home) as JSON
+//   check refused              prints yes when MMRealPrefsRefused says this process never writes the real domain
+//   check realwrite            with MINMACS_HOME unset: MMSetPref, which must exit 70 at the tripwire. It calls
+//                              MMSetPref only once MMRealPrefsRefused says yes, so it can never reach the real domain
 #import <Foundation/Foundation.h>
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
@@ -152,6 +155,13 @@ static void Unit(void) {
 
 int main(int argc, const char *argv[]) { @autoreleasepool {
     NSString *verb = argc > 1 ? @(argv[1]) : @"unit";
+    // The one verb that runs with no MINMACS_HOME: it calls MMSetPref only once the tripwire guard says yes.
+    if ([verb isEqualToString:@"realwrite"]) {
+        if (getenv("MINMACS_HOME") || !MMRealPrefsRefused()) { printf("unguarded\n"); return 3; }
+        MMSetPref(@"store.tripwire", @YES);
+        printf("written\n");
+        return 0;
+    }
     if (![NSProcessInfo.processInfo.environment[@"MINMACS_HOME"] length]) { fprintf(stderr, "MINMACS_HOME must be set\n"); return 2; }
     if ([verb isEqualToString:@"unit"]) { Unit(); return 0; }
     if ([verb isEqualToString:@"counter"] && argc > 2) {
@@ -165,6 +175,7 @@ int main(int argc, const char *argv[]) { @autoreleasepool {
             if (![MMLog.shared append:@"usage" rid:nil expert:@(argv[3]) subject:N(i) state:@"done" body:@{@"i": @(i)}]) return 1;
         return 0;
     }
+    if ([verb isEqualToString:@"refused"]) { printf("%s\n", MMRealPrefsRefused() ? "yes" : "no"); return 0; }
     if ([verb isEqualToString:@"plan"] && argc > 2) { PrintJSON(Printable(MMLegacyPlan(@(argv[2])))); return 0; }
     if ([verb isEqualToString:@"import"] && argc > 2) { PrintJSON(Printable(MMImportLegacy(@(argv[2])))); return 0; }
     fprintf(stderr, "usage: check unit | counter <n> | logwrite <n> <tag> | plan <home> | import <home>\n");

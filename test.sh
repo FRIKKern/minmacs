@@ -19,6 +19,16 @@ export CLAUDE_CONFIG_DIR="$MINMACS_HOME/claude" CODEX_HOME="$MINMACS_HOME/codex"
 # git and MinMacs's reader of the files git reads outside the repo see none of this Mac's: no global or XDG file, no
 # system file, no config in the environment. A section about those files names its own, test/git/outside.sh.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+# The person's own prefs, no.guerrilla.minmacs, are never written by a test. With MINMACS_HOME set MMSetPref writes
+# a plist inside it. A process that lost MINMACS_HOME but still has this variable never reaches CFPreferences:
+# MMSetPref appends "pid name key" here and exits 70. After each section the file must be empty. The real plist's
+# mtime and size are no test: the installed app writes that file whenever the person presses something.
+export MINMACS_PREFS_TRIPWIRE="$MINMACS_HOME/prefs-tripwire"
+: >"$MINMACS_PREFS_TRIPWIRE"
+# The backstop for a write that skips MMSetPref: test/realprefs.py reads the real plist around each section and fails
+# it only on a change the installed app cannot have made. Any other change is a note line.
+REAL_PREFS="$HOME/Library/Preferences/no.guerrilla.minmacs.plist"
+realprefs() { python3 -I "$ROOT/test/realprefs.py" "$@"; }
 unset GIT_CONFIG_SYSTEM XDG_CONFIG_HOME GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 APP="$MINMACS_HOME/build/MinMacs.app"
 BIN="$APP/Contents/MacOS/MinMacs"
@@ -56,7 +66,17 @@ fi
 for f in $sections; do
   [ -f "$f" ] || { echo "no section $f"; fail=$((fail+1)); continue; }
   echo "== $(basename "$f" .sh)"
+  sec_name=$(basename "$f" .sh)   # a section may use $f itself
+  realprefs snap "$REAL_PREFS" "$MINMACS_HOME/realprefs-before.json"
   . "./$f"
+  check "$sec_name: no process wrote the person's own prefs" "" "$(tr '\n' ';' <"$MINMACS_PREFS_TRIPWIRE" 2>/dev/null)"
+  : >"$MINMACS_PREFS_TRIPWIRE"
+  realprefs snap "$REAL_PREFS" "$MINMACS_HOME/realprefs-after.json"
+  rp=$(realprefs diff "$MINMACS_HOME/realprefs-before.json" "$MINMACS_HOME/realprefs-after.json")
+  case "$rp" in
+    fail*) check "$sec_name: the person's own prefs file changed only as the app changes it" "" "${rp#fail }" ;;
+    note*) echo "  note  the person's own prefs file changed during $sec_name; ${rp#note }" ;;
+  esac
 done
 
 echo; echo "$pass passed, $fail failed"
