@@ -1,6 +1,6 @@
 # What MinMacs sends to the model
 
-MinMacs asks a model only through the review broker and Investigate, both in `Sources/Core/Review`. It runs the `claude` CLI or the `codex` CLI on the person's own login, so the data goes where that CLI sends it, under that account. [REVIEW.md](REVIEW.md) says when a call happens and how the broker keeps calls few.
+MinMacs asks a model only through the review broker and Investigate, both in `Sources/Core/Review`, and through Ask MinMacs when its rules have no answer, which uses the broker's own `claude` call, [below](#ask-minmacs). It runs the `claude` CLI or the `codex` CLI on the person's own login, so the data goes where that CLI sends it, under that account. [REVIEW.md](REVIEW.md) says when a call happens and how the broker keeps calls few.
 
 This page lists every field a review sends, per expert, from the code that builds it. `./test.sh docs` runs `test/docs/privacy.py`, which reads that code. It fails when an expert sends a key that is not in a table here, or when a table here names a key the code no longer sends. It also fails when a facts function writes a key it cannot name, such as one from a variable or a merged dictionary.
 
@@ -19,7 +19,7 @@ Every value goes through the same steps in `MMCompactFacts` in `Sources/Core/Rev
 
 The finding `id` is the one string that is not redacted, so the answer can be matched back to it. It does have the home folder as `~`.
 
-**What is never sent.** No file contents beyond the few project fields of LocoHost below, no `.env` file, no environment variables, no transcript or log, no page body and no first prompt. LocoHost's and WorkForest's code say so in a comment above their facts functions. The tables below are everything those functions write.
+**What is never sent.** No file contents beyond the few project fields of LocoHost below, no `.env` file, no environment variables, no transcript or log, no page body and no first prompt. A review never sends the log. Only an ask that goes to Claude sends some of the log's sentences, as "Ask MinMacs" below says. LocoHost's and WorkForest's code say so in a comment above their facts functions. The tables below are everything those functions write.
 
 ## Every review call
 
@@ -218,16 +218,35 @@ No file contents, no folder path, no commit, no diff and nothing about other wor
 
 ## Ask MinMacs
 
-Ask MinMacs, the field at the foot of the window's middle and `minmacs ask`, sends nothing. It answers from what MinMacs already holds on this Mac: the log, the window's rows and the plan of Fix Everything, by matching the words of the question to them. It asks no model, runs no command and opens no connection. `test/ask.sh` holds its code to that.
+Ask MinMacs is the field at the foot of the window's middle and `minmacs ask`. Its rules answer first, from what MinMacs already holds on this Mac: the log, the window's rows and the plan of Fix Everything. They ask no model, run no command and open no connection.
 
-Each ask is stored locally, as a row of the log's `ask` table, `{question, kind, answer, answeredBy, by}`, so what was asked and answered can be followed. The question stays in `minmacs.sqlite` on this Mac and is never sent anywhere. An answer never acts: a keep or an undo it offers runs only on a person's press of its button, or as the verb it names when whoever asked runs it.
+**When something is sent.** Only when a person or a verb asks a question the rules cannot answer, and the switch "Ask uses Claude" in Settings under This Mac, the pref `ask.claude`, is on. It is on by default. `minmacs ask --no-model` never sends. Nothing is sent for a question the rules answer, on a timer, for a snapshot, while nobody asks, or with the switch off. `test/ask.sh` holds the code to that.
+
+**Where it goes.** To Claude, through the same `claude -p` call the reviews make, on the person's own claude login, with every tool off, no session saved, in a fresh folder, at low effort, on the reviews' model when that is a Claude model and Opus otherwise. It never goes to Sol. `MMAskTier1` in `Sources/Shell/MMAskClaude.m` builds it, and `+[MMModel askClaude:system:timeout:stop:]` sends it. A call that takes more than 30 seconds is ended, and Stop in the window ends it at once.
+
+**What is sent.** Plain text, at most 8 KB, `MMAskContext`:
+
+| What | Where it comes from |
+|---|---|
+| The question | As typed, on one line, at most 1000 characters |
+| The questions and answers before it | The last 3 of this open window, each cut short. The window lets them go when it closes, and the command line keeps none |
+| The Mac's memory and disk | Memory in use of the total, and disk free of the total, as the dock shows them |
+| The rules' near matches | The rows a word of the question names, and the questions the rules can answer |
+| The window's rows by group | Each row's name, kind, size and state word, and the line that says whether it stays, goes or asks, as the window shows them. Rows past the room left are counted, not sent |
+| The log | The newest 20 entries as their plain sentences, with their day and time, without the asks |
+
+Every line goes through `MMRedact` as a review's facts do, the home folder becomes `~`, and anything that looks like a path is sent as "a path". No file contents, no transcript text, no fact of a row's story, no folder path, no environment and no `.env` are sent. Claude Code adds its own system prompt, as for a review.
+
+**What comes back.** Words, shown in the middle with "Answered by Claude" and the tokens the call took. A last line in the form `ACTION: keep <what>` or `ACTION: undo <what|last>` becomes the rules' own Keep or Undo button, only when a rule finds what it names; any other line of that kind is dropped. Nothing acts until a person presses the button, or runs the verb it names. When Claude is not reachable, the answer says so and why, "Claude isn't reachable: ...", with the rules' examples.
+
+Each ask is stored locally, as a row of the log's `ask` table, `{question, kind, answer, answeredBy, by}`, with `tokens` and `model` when Claude was asked, so what was asked and answered can be followed. `answeredBy` is `rules` or `claude`. The row stays in `minmacs.sqlite` on this Mac.
 
 ## Where it goes
 
-The log, `minmacs.sqlite` in the support folder, stays on this Mac. It holds each action and its undo record, each review with its verdicts and tokens, each look of Investigate, each setting that changed with who changed it, each keep with the name of what it keeps, each ask with its question and answer, and each quiet hold with the pid, its start time, the reason it was given and when it began and ended, and for the strip's 7 days the whole Mac's memory used and free disk once an hour, the last 8 days. The window's middle and `minmacs log` read it. No review or Investigate call sends it or its sentences.
+The log, `minmacs.sqlite` in the support folder, stays on this Mac. It holds each action and its undo record, each review with its verdicts and tokens, each look of Investigate, each setting that changed with who changed it, each keep with the name of what it keeps, each ask with its question and answer, and each quiet hold with the pid, its start time, the reason it was given and when it began and ended, and for the strip's 7 days the whole Mac's memory used and free disk once an hour, the last 8 days. The window's middle and `minmacs log` read it. No review or Investigate call sends it or its sentences. An ask Claude answers sends the newest 20 of its sentences, as "Ask MinMacs" above says.
 
 The quiet holds that are active now sit in `quiet/holds.json` in the support folder, so every MinMacs process obeys them: each held pid with its start time, the reason, who asked, when, and which MinMacs process keeps the Mac awake for it. An entry leaves the file when its hold ends. `minmacs device` writes nothing. It prints the Mac's name, model, power, displays, load, the agents that run and the names other processes give their sleep assertions to whoever runs it, and sends nothing anywhere.
 
-A search of `Sources` for `http://` and `https://` strings finds only localhost URLs, which LocoHost uses to open or check a local server, and the check in `MMPulls.m` that a pull request's address is a web page before the window opens it. `NSURLSession` appears only in LocoHost's port check. The code holds no telemetry. The model calls go out through the `claude` or `codex` CLI, and the pull request asks through `gh`.
+A search of `Sources` for `http://` and `https://` strings finds only localhost URLs, which LocoHost uses to open or check a local server, and the check in `MMPulls.m` that a pull request's address is a web page before the window opens it. `NSURLSession` appears only in LocoHost's port check. The code holds no telemetry. The model calls, the reviews', Investigate's and an ask's, go out through the `claude` or `codex` CLI, and the pull request asks through `gh`.
 
 There is no switch yet that turns the review off for one expert. [PLAN.md](2.0/PLAN.md) section 10 asks for one.

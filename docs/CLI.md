@@ -339,13 +339,13 @@ Flags: `--limit`, `--json`.
 
 #### `ask`
 
-Ask MinMacs about what it did, would do or knows, answered from the log and the window with no model; it never acts.
+Ask MinMacs about what it did, would do or knows, answered from the log and the window; what no rule answers goes to Claude unless --no-model; it never acts.
 
 ```
-ask <question> [--json]
+ask <question> [--json] [--no-model]
 ```
 
-Flags: `--json`.
+Flags: `--json`, `--no-model`.
 
 #### `keep`
 

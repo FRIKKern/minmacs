@@ -40,7 +40,7 @@ static MMWindowSettings *SettingsLike(NSArray<NSNumber *> *picked, NSDictionary<
     for (NSUInteger i = 0; i < ids.count; i++) [rules addObject:MMWindowRuleCard(ids[i], picked[i].integerValue, notes[ids[i]])];
     s.rules = rules;
     s.switches = @[MMWindowAwakeSwitch(NO, nil), MMWindowAgentsSwitch(YES, MMWindowAgentsNote(YES, 2)),
-                    MMWindowLidSwitch(YES, NO, @"Working with the lid shut now."), MMWindowLoginSwitch(YES, nil), MMWindowPullsSwitch(YES)];
+                    MMWindowLidSwitch(YES, NO, @"Working with the lid shut now."), MMWindowLoginSwitch(YES, nil), MMWindowPullsSwitch(YES), MMWindowAskClaudeSwitch(YES)];
     return s;
 }
 
@@ -153,7 +153,7 @@ static MMWindowModel *Day(NSString *name) {
         // so the cleanup card's badge says when they start, the lid switch not available and the login item left alone.
         m.settings = SettingsLike(@[@1, @1, @1, @1], @{});
         m.settings.startsIn = MMWindowStartsNote(23 * 3600 + 7 * 60);
-        m.settings.switches = @[MMWindowAwakeSwitch(YES, nil), MMWindowAgentsSwitch(YES, nil), MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil), MMWindowPullsSwitch(YES)];
+        m.settings.switches = @[MMWindowAwakeSwitch(YES, nil), MMWindowAgentsSwitch(YES, nil), MMWindowLidSwitch(NO, YES, MMWindowNoLidNote), MMWindowLoginSwitch(NO, nil), MMWindowPullsSwitch(YES), MMWindowAskClaudeSwitch(YES)];
     }
     if (empty) m.settings = SettingsLike(@[@0, @0, @0, @0], @{});
     if (welcome) m.welcome = Welcome(![name isEqualToString:@"welcome-off"], [name isEqualToString:@"welcome-watched"]);

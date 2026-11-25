@@ -26,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property BOOL loginOn;
 @property (copy, nullable) NSString *loginNote;
 @property BOOL pullsOn;                                 // workforest.pullRequests: the window may ask gh about a pull request
+@property BOOL askClaudeOn;                             // ask.claude: Ask asks Claude what the rules cannot answer
 @property (strong, nullable) MMWindowRun *run;
 /// How far the look for worktrees and for caches went, for the line of an empty group. Worktrees: nowhere with no
 /// folder to look in, which is MMRepoIndex's roots being empty, and not yet until its first walk ended. Caches:

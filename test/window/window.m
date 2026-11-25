@@ -6,7 +6,7 @@
 // fixture folder, through MMRemovalDecide and MMRemovalApply as the real removal paths do, so a removed file lands in
 // $MINMACS_HOME/Trash: MMRemovalDecide never deletes at once. A stop or a quit only writes its
 // key to a list. No process starts, and no server, worktree, cache or app outside the fixture folder is read.
-// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport | overlap | log-words | log-controller | log-undo | pulls | ask-engine | ask-controller | ask-rows
+// Usage: window <fixture dir> model | calm | run | stop | inside | refused | controller | smart | delete | welcome | unmeasured | planned | agentport | overlap | log-words | log-controller | log-undo | pulls | ask-engine | ask-controller | ask-rows | ask-claude | ask-claude-controller
 #define main PerformanceMain
 #import "../performance/performance.m"
 #undef main
@@ -488,7 +488,7 @@ static void WindowModel(void) {
       [NSString stringWithFormat:@"%@ %@ %@ %@", st.startsIn ?: @"(nil)", st.rules[0].note ?: @"(nil)", st.rules[2].note ?: @"(nil)", st.rules[3].note ?: @"(nil)"]);
     T(@"window: a rule maps back to its expert", @"locohost minmacs workforest noonoo (null)", [NSString stringWithFormat:@"%@ %@ %@ %@ %@",
       MMWindowRuleExpert(@"servers"), MMWindowRuleExpert(@"apps"), MMWindowRuleExpert(@"worktrees"), MMWindowRuleExpert(@"caches"), MMWindowRuleExpert(@"icons")]);
-    T(@"window: the switches are Keep awake now, While agents work, the lid, Open at login and Pull requests, and no other", @"awake=Keep awake now:0,agents=While agents work:1,lid=Lid closed:1,login=Open at login:1,prs=Pull requests:1", ({
+    T(@"window: the switches are Keep awake now, While agents work, the lid, Open at login, Pull requests and Ask uses Claude, and no other", @"awake=Keep awake now:0,agents=While agents work:1,lid=Lid closed:1,login=Open at login:1,prs=Pull requests:1,askclaude=Ask uses Claude:1", ({
         NSMutableArray *a = [NSMutableArray new];
         for (MMWindowSwitch *x in st.switches) [a addObject:[NSString stringWithFormat:@"%@=%@:%d", x.switchID, x.title, x.on]];
         [a componentsJoinedByString:@","]; }));
@@ -693,6 +693,7 @@ static void RunStopped(void) {
 #import "pulls.m"
 #import "week.m"
 #import "ask.m"
+#import "askclaude.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -738,6 +739,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"ask-engine"]) AskEngine();
         else if ([mode isEqualToString:@"ask-controller"]) AskController();
         else if ([mode isEqualToString:@"ask-rows"]) AskRows();
+        else if ([mode isEqualToString:@"ask-claude"]) AskClaude();
+        else if ([mode isEqualToString:@"ask-claude-controller"]) AskClaudeController();
         else return 2;
         printf("END\n");
     }

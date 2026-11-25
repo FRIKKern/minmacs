@@ -5,16 +5,18 @@
 //   the log's rows ──┘    ^            │
 //   the window's model ───┘            └──► an `ask` row of the log: {question, kind, answer, answeredBy, by}
 //
-// It matches words and the names of rows and of what the log acted on. No NLP library, no network, no model:
-// tier 1 will plug in where the answer's kind is "unknown". It never acts. A keep or an undo comes back as the
-// existing button and verb, and only a person's press on it, or the verb run by whoever asked, does anything.
+// It matches words and the names of rows and of what the log acted on. No NLP library, no network, no model.
+// Tier 1, MMAskClaude.m, plugs in where the answer's kind is "unknown": with the pref ask.claude on, the question, a
+// short plain summary of the window and the log, and the rules' near matches go to Claude through the reviews' own
+// `claude -p` on the person's login, PRIVACY.md "Ask MinMacs". It never acts either. A keep or an undo comes back
+// as the existing button and verb, and only a person's press on it, or the verb run by whoever asked, does anything.
 // Nothing here imports AppKit, and nothing runs on main in the app.
 #import <Foundation/Foundation.h>
 #import "UI/Window/MMWindowModel.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class MMLog, MMLogEntry, MMSnapshot, MMFinding, MMVerbSpec;
+@class MMLog, MMLogEntry, MMSnapshot, MMFinding, MMVerbSpec, MMModelStop;
 
 /// The table of asks, one row per ask with its answer: {question, kind, answer, answeredBy, by}. The question stays
 /// on this Mac: nothing sends it anywhere.
@@ -57,13 +59,55 @@ NSString *_Nullable MMAskQuestion(NSString *_Nullable raw);
 /// The answer. Pure: the same question and world give the same answer. It reads nothing and acts on nothing.
 MMWindowAnswer *MMAskTier0(NSString *question, MMAskWorld *world);
 
+/// The rules' near matches, for tier 1: the rows a word of the question partly names, and the questions the rules
+/// answer. Plain sentences, at most 8.
+NSArray<NSString *> *MMAskNear(NSString *question, MMAskWorld *world);
+
+#pragma mark - Tier 1, Claude, MMAskClaude.m
+
+/// The pref ask.claude, MMAskClaudeKey in Core/Store/MMStore.h: when the rules have no answer, Ask asks Claude. On by
+/// default, so it works out of the box.
+BOOL MMAskUsesClaude(void);
+/// The most bytes of plain text sent to Claude for one ask: the question, the summary and the near matches.
+extern const NSUInteger MMAskContextMost;                // 8192
+/// How long Claude may take, 30 seconds. $MINMACS_ASK_TIMEOUT may make it shorter, for a test, never longer.
+NSTimeInterval MMAskClaudeTimeout(void);
+/// "Asking Claude", what the answer says while Claude is asked. It ends on no ellipsis, DESIGN.md rule 8.
+extern NSString *const MMAskAskingLine;
+
+/// One question and its answer, of the asks in this open window. The window keeps the last MMAskTurnsKept and lets
+/// them go when it closes.
+@interface MMAskTurn : NSObject
+@property (copy) NSString *question, *answer;
++ (instancetype)question:(NSString *)q answer:(NSString *)a;
+@end
+extern const NSUInteger MMAskTurnsKept;                  // 3
+
+/// What is sent: plain text, at most MMAskContextMost bytes. The question; the turns before it; the Mac's memory and
+/// disk; the rules' near matches; the window's rows by group with their name, kind, size, state word and the line
+/// that says whether it stays, goes or asks; and the newest 20 entries of the log as sentences. No file contents, no
+/// transcript text, no fact of a story, and no path: what looks like one is sent as "a path".
+NSString *MMAskContext(NSString *question, MMAskWorld *world, MMWindowAnswer *_Nullable rules, NSArray<MMAskTurn *> *_Nullable turns);
+/// The answer while Claude is asked: "Asking Claude", with Stop.
+MMWindowAnswer *MMAskAsking(MMWindowAnswer *rules);
+/// The answer once Stop was pressed: nothing came back, and the rules' examples stay.
+MMWindowAnswer *MMAskStopped(MMWindowAnswer *rules);
+/// The answer from Claude's words: plain text, "Answered by Claude" with its tokens. A last line "ACTION: keep <what>"
+/// or "ACTION: undo <what|last>" becomes the rules' own button for it, when a rule finds what it names; any other
+/// ACTION is dropped. nil text, a failure, gives the honest answer that Claude is not reachable, and why.
+MMWindowAnswer *MMAskFromClaude(MMWindowAnswer *rules, MMAskWorld *world, NSString *_Nullable text, NSString *_Nullable error,
+                                NSInteger tokens, NSString *_Nullable model);
+/// Tier 1: rules' answer of kind "unknown" in, Claude's answer out, through MMModel's askClaude. Blocks for at most
+/// MMAskClaudeTimeout(). Never on main. stop may be nil.
+MMWindowAnswer *MMAskTier1(MMWindowAnswer *rules, MMAskWorld *world, NSArray<MMAskTurn *> *_Nullable turns, MMModelStop *_Nullable stop);
+
 /// The ask's row in the log, through MMLogWhenOpen. by is "window" or "cli".
 void MMAskLog(MMWindowAnswer *answer, NSString *by);
 
-/// The answer as `minmacs ask --json` prints it: {question, kind, answer, answeredBy, entries, suggest, examples, row}.
+/// The answer as `minmacs ask --json` prints it: {question, kind, answer, answeredBy, tokens, entries, suggest, examples, row}.
 NSDictionary *MMAskJSON(MMWindowAnswer *answer);
 
-/// `minmacs ask "<question>" [--json]`. The shell adds it with MMAddVerb.
+/// `minmacs ask "<question>" [--json] [--no-model]`. The shell adds it with MMAddVerb.
 MMVerbSpec *MMAskVerbSpec(void);
 
 /// The server, worktree or cache `minmacs keep` names: a port, ":3000" or "3000", a path, or a cache's name. nil for

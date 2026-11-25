@@ -12,6 +12,10 @@
 
 static const NSTimeInterval kTimeout = 240;
 
+@interface MMModelStop ()
+- (BOOL)hold:(NSTask *)t;
+@end
+
 /// <support folder>/review, made on first use.
 static NSString *MMReviewDir(void) { return MMExpertDir(@"review"); }
 
@@ -201,8 +205,9 @@ static NSString *CallDir(void) {
 
 /// Runs a CLI with input on stdin, in cwd, with the given variables removed and env added.
 /// Returns NO with *error set when it could not start or did not finish in time.
+/// timeout 0 is kTimeout. A stop that is pressed sends the running child SIGTERM, and the call then says it was stopped.
 static BOOL Run(NSString *path, NSArray *args, NSData *input, NSString *cwd, NSDictionary *add, BOOL (^drop)(NSString *key),
-                NSData **outData, NSData **errData, int *status, NSString **error) {
+                NSTimeInterval timeout, MMModelStop *stop, NSData **outData, NSData **errData, int *status, NSString **error) {
     NSTask *t = [NSTask new];
     t.executableURL = [NSURL fileURLWithPath:path];
     t.arguments = args;
@@ -215,10 +220,14 @@ static BOOL Run(NSString *path, NSArray *args, NSData *input, NSString *cwd, NSD
     // MMRunTask feeds stdin and drains both pipes on one thread. Past the limit it sends SIGTERM, then SIGKILL
     // one second later, and closes the pipes, so no reader outlives the call.
     NSData *o = nil, *x = nil;
-    MMRunResult r = MMRunTask(t, input ?: NSData.data, kTimeout, &o, &x);
+    NSTimeInterval limit = timeout > 0 ? timeout : kTimeout;
+    if (stop && ![stop hold:t]) { *error = @"stopped"; return NO; }
+    MMRunResult r = MMRunTask(t, input ?: NSData.data, limit, &o, &x);
+    [stop hold:nil];
+    if (stop.stopped) { *error = @"stopped"; return NO; }
     if (!r.didRun) { *error = [NSString stringWithFormat:@"could not start %@", path.lastPathComponent]; return NO; }
     if (r.timedOut) {
-        *error = [NSString stringWithFormat:@"%@ did not answer within %.0f seconds", path.lastPathComponent, kTimeout];
+        *error = [NSString stringWithFormat:@"%@ did not answer within %.0f seconds", path.lastPathComponent, limit];
         return NO;
     }
     *outData = o; *errData = x; *status = r.status;
@@ -233,6 +242,22 @@ static NSString *Trimmed(NSData *d, NSUInteger max) {
 
 static NSString *JSONText(id obj) { return [[NSString alloc] initWithData:MMReviewJSON(obj) encoding:NSUTF8StringEncoding]; }
 
+#pragma mark - A stop
+
+@implementation MMModelStop {
+    NSTask *_task;          // the child that runs now, under @synchronized(self)
+    BOOL _stopped;
+}
+- (BOOL)stopped { @synchronized (self) { return _stopped; } }
+- (void)stop {
+    NSTask *t;
+    @synchronized (self) { _stopped = YES; t = _task; }
+    if (t.isRunning) [t terminate];   // SIGTERM; MMRunTask then reaps it and returns
+}
+/// The child of the call, or nil once it ended. NO when the stop was pressed before the child started.
+- (BOOL)hold:(NSTask *)t { @synchronized (self) { if (t && _stopped) return NO; _task = t; return YES; } }
+@end
+
 #pragma mark - Claude
 
 /// What one claude call needs. tools "" turns every tool off. schema nil asks for words. cwd nil makes a fresh folder.
@@ -241,6 +266,8 @@ static NSString *JSONText(id obj) { return [[NSString alloc] initWithData:MMRevi
 @property NSDictionary *schema;
 @property (copy) NSString *allowed;                     // --allowedTools; nil takes tools
 @property (copy) NSArray<NSString *> *extra;            // more flags, such as --mcp-config
+@property NSTimeInterval timeout;                       // 0 is kTimeout
+@property (strong) MMModelStop *stop;                   // nil: the call cannot be stopped
 @end
 @implementation MMClaudeCall @end
 
@@ -262,7 +289,7 @@ static NSDictionary *AskClaude(MMAnswer *a, NSString *claude, MMClaudeCall *c, N
     a.model = c.model;
     NSDate *start = NSDate.date;
     BOOL ran = Run(claude, args, prompt, c.cwd ?: dir ?: NSTemporaryDirectory(), add,
-                   ^BOOL(NSString *k) { return [dropped containsObject:k]; }, &out, &err, &status, &e);
+                   ^BOOL(NSString *k) { return [dropped containsObject:k]; }, c.timeout, c.stop, &out, &err, &status, &e);
     if (dir) [NSFileManager.defaultManager removeItemAtPath:dir error:nil];
     if (!ran) { a.error = e; return nil; }
 
@@ -345,7 +372,7 @@ static NSDictionary *AskCodexModel(MMAnswer *a, NSString *codex, NSString *model
     NSDate *start = NSDate.date;
     BOOL ran = Run(codex, args, prompt, dir, nil, ^BOOL(NSString *k) {
         return [@[@"OPENAI_API_KEY", @"OPENAI_BASE_URL"] containsObject:k] || ([k hasPrefix:@"CODEX_"] && ![k isEqualToString:@"CODEX_HOME"]);
-    }, &out, &err, &status, &e);
+    }, 0, nil, &out, &err, &status, &e);
     NSData *d = ran ? [NSData dataWithContentsOfFile:answer] : nil;
     [NSFileManager.defaultManager removeItemAtPath:dir error:nil];
     if (!ran) { a.error = e; return nil; }
@@ -459,6 +486,24 @@ NSString *const MMModelCodexFirst = @"sol";     // the newest Sol this Codex acc
     }
     a.json = so;
     if (!a.usage) { a.usage = [MMUsage new]; a.usage.model = a.model; }
+    return a;
+}
+
+/// Ask MinMacs, tier 1: words from Claude, never Sol, on the person's own claude login, with every tool off, in a
+/// fresh folder, within timeout seconds, and stoppable. The model is the reviews' pref when that names a Claude model,
+/// else MMModelClaudeFirst. a.json[@"text"] holds the answer. Blocks. Never on main.
++ (MMAnswer *)askClaude:(NSString *)prompt system:(NSString *)system timeout:(NSTimeInterval)timeout stop:(MMModelStop *)stop {
+    MMAnswer *a = [MMAnswer new];
+    id pref = MMPref(MMReviewModelKey);
+    NSString *model = [pref isKindOfClass:NSString.class] && [@[@"opus", @"sonnet", @"haiku"] containsObject:pref] ? pref : MMModelClaudeFirst;
+    NSString *claude = [self claudePath];
+    if (!claude) { a.error = @"the claude CLI was not found on this Mac"; a.model = model; a.usage = [MMUsage new]; return a; }
+    MMClaudeCall *c = [MMClaudeCall new];
+    c.model = model; c.system = system; c.tools = @""; c.effort = @"low"; c.schema = nil; c.timeout = timeout; c.stop = stop;
+    NSDictionary *so = AskClaude(a, claude, c, [prompt dataUsingEncoding:NSUTF8StringEncoding] ?: NSData.data);
+    if (so && ![so[@"text"] isKindOfClass:NSString.class]) { so = nil; a.error = @"claude gave no answer"; }
+    a.json = so;
+    if (!a.usage) { a.usage = [MMUsage new]; a.usage.model = model; }
     return a;
 }
 

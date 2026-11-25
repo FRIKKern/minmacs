@@ -42,6 +42,8 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 - (void)windowAsk:(NSString *)question row:(nullable NSString *)rowKey;
 /// Back to the log, or Escape over an answer: the answer goes.
 - (void)windowAskBack;
+/// Stop, while the answer says "Asking Claude": the Claude call ends, and nothing comes of it.
+- (void)windowAskStop;
 /// A press on an answer's Keep: keep this row as its own menu does, for 4 hours or 7 days. Only a person's press
 /// sends it.
 - (void)windowKeep:(NSString *)rowKey;

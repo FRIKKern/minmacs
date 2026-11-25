@@ -46,7 +46,12 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
     MMWindowModel *_built;                               // the last model sent, which an ask reads its rows and plan from
     MMWindowAnswer *_answer;                             // the answer of the last ask, while open
     NSInteger _asks;                                     // counts the asks, so the window tells a new answer
+    MMModelStop *_asking;                                // the Claude call of the ask that runs now, or nil
+    MMWindowAnswer *_askingRules;                        // the rules' answer of that ask, for its Stop
+    NSMutableArray<MMAskTurn *> *_turns;                 // the last questions and answers of this open window
 }
+
+static dispatch_queue_t AskQueue(void) { return MMQueue(@"core", @"ask", QOS_CLASS_USER_INITIATED); }
 
 static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED); }
 
@@ -61,7 +66,9 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
         dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; self->_week = nil;
-                                     self->_built = nil; self->_answer = nil; });
+                                     // A closed window stops a Claude call that runs, and lets its answer and its conversation go.
+                                     [self stopAsking];
+                                     self->_built = nil; self->_answer = nil; self->_turns = nil; });
         return;
     }
     atomic_store(&_loginOn, [self.shell loginEnabled]);
@@ -287,6 +294,11 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         dispatch_async(Queue(), ^{ MMSetSetting(MMPullsPrefKey, @(on), @"window"); [self send]; });
         return;
     }
+    // Ask uses Claude: a pref, with its row in the log.
+    if ([switchID isEqualToString:@"askclaude"]) {
+        dispatch_async(Queue(), ^{ MMSetSetting(MMAskClaudeKey, @(on), @"window"); [self send]; });
+        return;
+    }
     // Keep awake now and While agents work are Insomnia's own settings, set with their record, off main.
     NSString *setting = @{@"awake": @"manual", @"agents": @"agents"}[switchID ?: @""];
     if (setting) {
@@ -352,14 +364,36 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if ([s.action isEqualToString:action] && [s.target isEqualToString:target]) _answer = [_answer withNote:note];
 }
 
-/// Return in Ask MinMacs. Tier 0 answers on the window queue from the model last sent and the log's rows, writes the
-/// ask's row and sends a model with the answer. It acts on nothing.
+/// The window queue: a question and its answer, kept for the next ask's context while the window stays open.
+- (void)remember:(MMWindowAnswer *)a {
+    if (!a.question.length || a.asking) return;
+    if (!_turns) _turns = [NSMutableArray new];
+    [_turns addObject:[MMAskTurn question:a.question answer:a.answer]];
+    while (_turns.count > MMAskTurnsKept) [_turns removeObjectAtIndex:0];
+}
+
+/// The window queue: the Claude call that runs now stops, and its ask is told as stopped, in the window and the log.
+- (void)stopAsking {
+    if (!_asking) return;
+    [_asking stop];
+    _asking = nil;
+    MMWindowAnswer *stopped = MMAskStopped(_askingRules);
+    _askingRules = nil;
+    MMAskLog(stopped, @"window");
+    if (_answer.asking) _answer = stopped;
+}
+
+/// Return in Ask MinMacs. Tier 0 answers on the window queue from the model last sent and the log's rows. What it has
+/// no answer for goes to Claude, tier 1, with the pref ask.claude on: the answer says "Asking Claude" with Stop at
+/// once, and Claude's words come in a later model, off this queue on the ask queue, within MMAskClaudeTimeout().
+/// Each ask writes its row and sends a model with the answer. It acts on nothing.
 - (void)windowAsk:(NSString *)question row:(NSString *)rowKey {
     NSString *q = MMAskQuestion(question);
     if (!q) return;
     NSString *row = [rowKey isKindOfClass:NSString.class] && rowKey.length ? [rowKey copy] : nil;
     dispatch_async(Queue(), ^{
         if (!self.open || !self->_built) return;
+        [self stopAsking];
         MMAskWorld *w = [MMAskWorld new];
         w.model = self->_built;
         w.rows = [MMAskWorld rowsOf:MMLog.shared];
@@ -368,13 +402,37 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         w.now = NSDate.date;
         MMWindowAnswer *a = MMAskTier0(q, w);
         a.serial = ++self->_asks;
-        MMAskLog(a, @"window");
-        self->_answer = a;
+        if (![a.kind isEqualToString:@"unknown"] || !MMAskUsesClaude()) {
+            MMAskLog(a, @"window");
+            [self remember:a];
+            self->_answer = a;
+            [self send];
+            return;
+        }
+        MMModelStop *stop = [MMModelStop new];
+        NSArray<MMAskTurn *> *turns = [self->_turns copy];
+        self->_asking = stop; self->_askingRules = a;
+        self->_answer = MMAskAsking(a);
         [self send];
+        dispatch_async(AskQueue(), ^{
+            MMWindowAnswer *b = stop.stopped ? nil : MMAskTier1(a, w, turns, stop);
+            dispatch_async(Queue(), ^{
+                // A Stop, a newer ask or a closed window told it already.
+                if (!b || stop.stopped || self->_asking != stop) return;
+                self->_asking = nil; self->_askingRules = nil;
+                b.serial = a.serial;
+                MMAskLog(b, @"window");
+                [self remember:b];
+                if (self.open) { self->_answer = b; [self send]; }
+            });
+        });
     });
 }
 
-- (void)windowAskBack { dispatch_async(Queue(), ^{ if (!self->_answer) return; self->_answer = nil; [self send]; }); }
+/// Stop, while Claude is asked: the call ends, and the answer says nothing came back.
+- (void)windowAskStop { dispatch_async(Queue(), ^{ if (!self->_asking) return; [self stopAsking]; [self send]; }); }
+
+- (void)windowAskBack { dispatch_async(Queue(), ^{ [self stopAsking]; if (!self->_answer) return; self->_answer = nil; [self send]; }); }
 
 /// A press on an answer's Keep. The keep its row's own menu gives: MMKeep, by the expert's stable key, for 4 hours or
 /// 7 days, with its row in the log, then a rebuild so the rows say it. Read fresh from the snapshot at the press.

@@ -37,11 +37,21 @@
 extern NSString *const MMModelClaudeFirst;              // @"opus", auto's first choice
 extern NSString *const MMModelCodexFirst;               // @"sol", auto's choice when Claude is out of reach
 
+/// A stop for one model call: -stop sends its claude SIGTERM, from any thread, and the call returns with error "stopped".
+@interface MMModelStop : NSObject
+@property (readonly) BOOL stopped;
+- (void)stop;
+@end
+
 @interface MMModel : NSObject
 + (NSString *)claudePath;                               // $MINMACS_CLAUDE, the review.claudePath pref, or the usual paths
 + (NSString *)codexPath;                                // $MINMACS_CODEX, the review.codexPath pref, or the usual paths
 + (MMAnswer *)ask:(NSString *)model system:(NSString *)system schema:(NSDictionary *)schema
             input:(NSDictionary *)input effort:(NSString *)effort;   // effort "low" by default, research F3
+/// Ask MinMacs, tier 1: the prompt as plain text to Claude through `claude -p`, the reviews' own path and login, with
+/// every tool off, at low effort, within timeout seconds. Claude only, never Sol. a.json[@"text"] is the answer; nil
+/// with a.error set when claude is missing, signed out, offline, too slow or stopped ("stopped"). Blocks. Never on main.
++ (MMAnswer *)askClaude:(NSString *)prompt system:(NSString *)system timeout:(NSTimeInterval)timeout stop:(MMModelStop *)stop;
 @end
 
 /// P41. The three verdicts Core stores. Decision 9: each expert keeps its own words in menus, prompts and --json.

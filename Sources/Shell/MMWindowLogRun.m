@@ -28,14 +28,19 @@ static NSString *Cap(NSString *s) { return s.length ? [[s substringToIndex:1].up
 static NSString *Period(NSString *s) { return [s hasSuffix:@"."] ? s : [s stringByAppendingString:@"."]; }
 
 /// An ask of Ask MinMacs, MMAsk.h: the question in quotes and who answered it. The answer is the ask's own; the log
-/// says only that one was given, and that no model was asked.
+/// says only that one was given, and whether Claude answered, with the tokens its call took on the quiet line.
 MMWindowLogEntry *MMWindowLogAskEntry(MMLogEntry *row, NSDate *now) {
     NSDictionary *b = [row.body isKindOfClass:NSDictionary.class] ? row.body : @{};
     NSString *q = Str(b[@"question"]) ?: @"", *kind = Str(b[@"kind"]) ?: @"unknown", *by = Str(b[@"by"]);
-    BOOL rules = [Str(b[@"answeredBy"]) ?: @"rules" isEqualToString:@"rules"];
-    NSString *said = [kind isEqualToString:@"unknown"] ? @"It had no answer without the model." : rules ? @"Answered from what MinMacs knows, with no model." : @"Answered.";
+    NSString *answeredBy = Str(b[@"answeredBy"]) ?: @"rules";
+    BOOL rules = [answeredBy isEqualToString:@"rules"], claude = [answeredBy isEqualToString:@"claude"], tried = [b[@"tokens"] isKindOfClass:NSNumber.class];
+    NSString *said = claude ? @"Answered by Claude."
+                   : [kind isEqualToString:@"unknown"] ? (tried ? @"Claude did not answer, and the rules had none." : @"It had no answer without the model.")
+                   : rules ? @"Answered from what MinMacs knows, with no model." : @"Answered.";
     NSString *s = [NSString stringWithFormat:@"Asked \u201C%@\u201D. %@", q, said];
-    return MMWindowLogEntryOf(row, @"ask", s, MMWindowLogWho(by, nil), now);
+    MMWindowLogEntry *e = MMWindowLogEntryOf(row, @"ask", s, MMWindowLogWho(by, nil), now);
+    e.tokens = tried ? [b[@"tokens"] integerValue] : 0;
+    return e;
 }
 
 MMWindowLogEntry *MMWindowLogRunEntry(MMLogEntry *row, NSDate *now) {

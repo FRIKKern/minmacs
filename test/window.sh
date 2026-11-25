@@ -11,7 +11,7 @@ wn_dir="$(cd "$MINMACS_HOME" && pwd -P)/window.$$"
 mkdir -p "$wn_dir/home"
 # A home of its own inside the test home, so its prefs, log and Trash are this section's only.
 wn_home="$wn_dir/home"
-wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMAsk.m Sources/Shell/MMAskCLI.m Sources/Shell/MMKeepCLI.m"
+wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMAsk.m Sources/Shell/MMAskCLI.m Sources/Shell/MMAskClaude.m Sources/Shell/MMKeepCLI.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
 $wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowFixtureAsk.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/Window/MMWindowFixtureWeek.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
@@ -234,7 +234,7 @@ check "window: --json rows say whether their size is measured, and one that is n
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if all((r['bytes'] is None) != r['measured'] for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json rows carry a kind and their own key" yes \
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
-check "window: --json has a rule per expert with modes, three choices each, no removal card, and the five switches" "servers,apps,worktrees,caches 3 awake,agents,lid,login,prs" \
+check "window: --json has a rule per expert with modes, three choices each, no removal card, and the six switches" "servers,apps,worktrees,caches 3 awake,agents,lid,login,prs,askclaude" \
   "$(printf '%s' "$wn_json" | json "','.join(r['ruleID'] for r in j['settings']['rules']) + ' ' + str(max(len(r['choices']) for r in j['settings']['rules'])) + ' ' + ','.join(s['switchID'] for s in j['settings']['switches'])")"
 wn_text=$(MINMACS_HOME="$wn_home" "$BIN" window 2>/dev/null)
 check "window: the text form runs to its end" 0 "$?"
@@ -246,7 +246,7 @@ wn_fresh="$wn_dir/fresh-home"; mkdir -p "$wn_fresh"
 old_removal "$wn_fresh" delete
 wn_text=$(MINMACS_HOME="$wn_fresh" "$BIN" window 2>/dev/null)
 check "window: with an old delete in the pref the text form still exits 0" 0 "$?"
-check "window: and names no removal rule, then prints the switches" "0 4 5" \
+check "window: and names no removal rule, then prints the switches" "0 4 6" \
   "$(printf '%s\n' "$wn_text" | grep -c 'When MinMacs removes things') $(printf '%s\n' "$wn_text" | grep -c '^Rule ') $(printf '%s\n' "$wn_text" | grep -c '^Switch ')"
 wn_json=$(MINMACS_HOME="$wn_fresh" "$BIN" window --json 2>/dev/null)
 check "window: with an old delete in the pref --json exits 0 and has no removal rule" "0 0" "$? $(printf '%s' "$wn_json" | json "len([r for r in j['settings']['rules'] if r['ruleID'] == 'removal'])")"

@@ -50,8 +50,11 @@ MMAskTarget *MMAskTargetOf(MMFinding *f) {
 
 void MMAskLog(MMWindowAnswer *a, NSString *by) {
     if (!a.question.length) return;
-    NSDictionary *body = @{@"question": a.question, @"kind": a.kind ?: @"unknown", @"answer": a.answer ?: @"", @"answeredBy": a.answeredBy ?: @"rules",
-                           @"by": by.length ? by : @"unknown"};
+    NSMutableDictionary *body = [@{@"question": a.question, @"kind": a.kind ?: @"unknown", @"answer": a.answer ?: @"", @"answeredBy": a.answeredBy ?: @"rules",
+                                   @"by": by.length ? by : @"unknown"} mutableCopy];
+    // Tier 1: the tokens Claude's call took, as a review's row counts them, and the model that answered.
+    if (a.tokens || a.model.length || [a.answeredBy isEqualToString:@"claude"]) body[@"tokens"] = @(a.tokens);
+    if (a.model.length) body[@"model"] = a.model;
     MMLogWhenOpen(^(MMLog *log) { [log append:MMLogAskTable rid:nil expert:@"minmacs" subject:a.kind state:@"answered" body:body]; });
 }
 
@@ -64,7 +67,7 @@ NSDictionary *MMAskJSON(MMWindowAnswer *a) {
     MMWindowSuggest *s = a.suggest;
     id suggest = s ? @{@"action": s.action ?: @"", @"title": s.title ?: @"", @"target": s.target ?: @"", @"command": Or(s.command)} : NSNull.null;
     return @{@"question": a.question ?: @"", @"kind": a.kind ?: @"unknown", @"answer": a.answer ?: @"", @"answeredBy": a.answeredBy ?: @"rules",
-             @"entries": entries, @"suggest": suggest, @"examples": a.examples ?: @[], @"row": Or(a.row)};
+             @"tokens": @(a.tokens), @"entries": entries, @"suggest": suggest, @"examples": a.examples ?: @[], @"row": Or(a.row)};
 }
 
 #pragma mark - The verb
@@ -82,10 +85,13 @@ static int AskVerb(MMArgs *a) {
     w.targets = [MMAskWorld targetsOf:w.model snapshot:s];
     w.now = NSDate.date;
     MMWindowAnswer *answer = MMAskTier0(q, w);
-    // Every ask is a row of the log, so it can be followed. The question stays on this Mac.
+    // Tier 1: what no rule answers goes to Claude, unless --no-model or the pref ask.claude says not to.
+    if ([answer.kind isEqualToString:@"unknown"] && ![a has:@"--no-model"] && MMAskUsesClaude()) answer = MMAskTier1(answer, w, nil, nil);
+    // Every ask is a row of the log, so it can be followed. Only an ask Claude answers sends anything, PRIVACY.md.
     MMAskLog(answer, @"cli");
     if (a.json) { [a printJSON:MMAskJSON(answer)]; return 0; }
     [a print:@"%@", answer.answer];
+    if (answer.byline.length) [a print:@"  %@", answer.byline];
     for (MMWindowAnswerEntry *e in answer.entries) {
         [a print:@"  %@", e.sentence];
         if (e.why) [a print:@"    %@", e.why];
@@ -98,7 +104,7 @@ static int AskVerb(MMArgs *a) {
 }
 
 MMVerbSpec *MMAskVerbSpec(void) {
-    MMVerbSpec *v = [MMVerbSpec verb:@"ask" usage:@"ask <question> [--json]   ask MinMacs about what it did, would do or knows, answered from the log and the window with no model; it never acts"
+    MMVerbSpec *v = [MMVerbSpec verb:@"ask" usage:@"ask <question> [--json] [--no-model]   ask MinMacs about what it did, would do or knows, answered from the log and the window; what no rule answers goes to Claude unless --no-model; it never acts"
                              mutates:NO run:^int(MMArgs *a) { return AskVerb(a); }];
     v.reads = MMVerbReadsCachedGit;
     return v;

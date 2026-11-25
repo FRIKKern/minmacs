@@ -271,16 +271,17 @@ static void WindowPolishChecks(void) {
         if (sub.frame.size.height < 36 || sub.frame.size.height > (note.length ? 56 : 44)) tall++;
         if (((NSButton *)sub).toolTip.length > 20 && [((NSButton *)sub).toolTip isEqualToString:sub.accessibilityHelp]) helped++;
     }
-    NSButton *lid = switches[@"lid"], *login = switches[@"login"], *prs = switches[@"prs"];
+    NSButton *lid = switches[@"lid"], *login = switches[@"login"], *prs = switches[@"prs"], *askClaude = switches[@"askclaude"];
     NSButton *awake = switches[@"awake"], *agents = switches[@"agents"], *servers = switches[@"rule:servers"], *caches = switches[@"rule:caches"];
-    Check(awake && agents && lid && login && servers && caches && switches.count == 9 && others == 0 && sv.model.settings.rules.count == 4 &&
+    Check(awake && agents && lid && login && servers && caches && switches.count == 10 && others == 0 && sv.model.settings.rules.count == 4 &&
           NSMinX(awake.frame) == NSMinX(agents.frame) && NSMinX(agents.frame) == NSMinX(lid.frame) && NSMaxY(awake.frame) <= NSMinY(agents.frame) && NSMaxY(agents.frame) <= NSMinY(lid.frame) &&
           NSMinY(awake.frame) == NSMinY(servers.frame) && NSMinX(awake.frame) < NSMinX(servers.frame) && NSMinX(servers.frame) == NSMinX(caches.frame) &&
           NSMinX(login.frame) == NSMinX(awake.frame) && NSMinY(login.frame) > NSMaxY(lid.frame) + 40 &&
-          prs && NSMinX(prs.frame) == NSMinX(login.frame) && NSMaxY(login.frame) <= NSMinY(prs.frame),
-          @"window settings: Keep this Mac awake stands first with Keep awake now, While agents work and the lid, each rule is one switch beside it, This Mac stands under the first with Open at login and Pull requests, and no removal choice is drawn",
+          prs && NSMinX(prs.frame) == NSMinX(login.frame) && NSMaxY(login.frame) <= NSMinY(prs.frame) &&
+          askClaude && NSMinX(askClaude.frame) == NSMinX(prs.frame) && NSMaxY(prs.frame) <= NSMinY(askClaude.frame),
+          @"window settings: Keep this Mac awake stands first with Keep awake now, While agents work and the lid, each rule is one switch beside it, This Mac stands under the first with Open at login, Pull requests and Ask uses Claude, and no removal choice is drawn",
           [NSString stringWithFormat:@"%@, %ld others", [switches.allKeys componentsJoinedByString:@","], (long)others]);
-    Check(tall == 0 && noted == 1 && helped == 9 && [[lid valueForKey:@"note"] isEqualToString:MMWindowNoLidNote],
+    Check(tall == 0 && noted == 1 && helped == 10 && [[lid valueForKey:@"note"] isEqualToString:MMWindowNoLidNote],
           @"window settings: every row is one line high, a second line only says a state, here that the Mac has no lid, and what each switch does is its tooltip and VoiceOver's help",
           [NSString stringWithFormat:@"%ld too tall, %ld with a second line, %ld with help", (long)tall, (long)noted, (long)helped]);
     NSArray *cards = [panel valueForKey:@"cards"];
