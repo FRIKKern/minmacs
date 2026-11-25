@@ -183,6 +183,7 @@ gate_sections() {
     /^Sources\/Core\/Store\// { s["store"] }
     /^Sources\/Core\/.*\.h$|^test\/headers\// { s["headers"] }
     /^Sources\/Experts\/|^Sources\/Core\/Graph\// { s["idle"] }
+    /^Sources\/Shell\/|^Sources\/UI\/Window\// { s["unattended"]; s["log"]; s["ask"] }
     /^Sources\/Core\/Review\// { s["review"] }
     /^Sources\/CLI\/|^docs\/CLI.md/ { s["docs"] }
     /^Sources\/Experts\/MinMacs\// { s["minmacs"] }
