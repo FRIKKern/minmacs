@@ -58,15 +58,15 @@ static void WindowMeasuringChecks(void) {
     NSString *onRow = [dock.macLines componentsJoinedByString:@" | "];
     NSArray<NSString *> *story = MeasuringDrawn(middle);
     // A view can draw a string in more than one pass, so each is counted as there or not.
-    BOOL storySays = MeasuringCount(story, @"Notmeasuredyet") >= 1 && MeasuringCount(story, @"0MB") == 0 && MeasuringCount(story, @"16worktrees") >= 1;
+    BOOL storySays = MeasuringCount(story, @"Notmeasuredyet") >= 1 && MeasuringCount(story, @"0MB") == 0;
     Check([onRow isEqualToString:[un.shownName stringByAppendingString:@" | Not measured yet"]] && storySays,
-          @"window measuring: the dock and the story of a row not measured say Not measured yet, give it no place by size, and show no number for it",
+          @"window measuring: the dock and the story of a row not measured say Not measured yet, and show no number for it",
           [NSString stringWithFormat:@"%@ / %@", onRow, [story componentsJoinedByString:@" | "]]);
-    // The measured row's place counts only what was measured.
+    // The measured row's story shows its size and no other row's.
     v.pointedRow = trees.rows[0].key;
     story = MeasuringDrawn(middle);
-    Check(MeasuringCount(story, @"Theonlyonemeasuredsofarof16worktrees") >= 1 && MeasuringCount(story, @"measuring") >= 1 && MeasuringCount(story, @"0MB") == 0,
-          @"window measuring: the measured row's place says it is the only one measured, and the others under it read measuring", [story componentsJoinedByString:@" | "]);
+    Check(MeasuringCount(story, @"3.14GB") >= 1 && MeasuringCount(story, @"0MB") == 0,
+          @"window measuring: the measured row's story shows its size and no 0 MB", [story componentsJoinedByString:@" | "]);
     v.pointedRow = nil;
 
     // VoiceOver hears the same.

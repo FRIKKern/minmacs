@@ -130,10 +130,6 @@ NSString *MMWindowSumText(NSString *size, NSInteger count, NSInteger unmeasured)
 /// What a fix gives back on disk: "456 MB", "456 MB or more" when a part is not measured yet, and "not measured yet"
 /// when nothing of it is. `size` is the measured sum as its words, and `nothing` says that sum is 0.
 NSString *MMWindowBackText(NSString *size, BOOL nothing, BOOL partial);
-/// Where a row stands in its group, "The biggest of 16 worktrees". With rows not measured yet it counts the measured
-/// ones only and says so, "2nd biggest of 5 worktrees measured so far", and a row not measured has no place: "16 worktrees".
-/// `place` counts from 1 among the measured rows, and `title` is the group's, in small letters.
-NSString *MMWindowPlaceLine(NSInteger place, NSInteger count, NSInteger unmeasured, BOOL rowMeasured, NSString *title);
 /// A tabs row's name, "1 localhost tab in Safari", "14 localhost tabs in Google Chrome".
 NSString *MMWindowTabsName(NSInteger tabs, NSString *_Nullable browser);
 

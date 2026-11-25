@@ -300,7 +300,7 @@ static const CGFloat MMWindowStripHeight = 92;
 @interface MMWindowMiddleView : MMWindowFlipped
 @property (nonatomic, strong, nullable) MMWindowHour *memoryHour, *diskHour;
 @property (nonatomic, strong, nullable) MMWindowRow *row;
-/// The whole model, for a story's ring, for where its row stands in its group, and for the log.
+/// The whole model, for a story's ring and for the log.
 @property (nonatomic, strong, nullable) MMWindowModel *model;
 @property (readonly) MMWindowLogView *logView;
 /// How high the strip of the two hours stands, from the middle's top to the log.

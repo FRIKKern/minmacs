@@ -280,13 +280,12 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
 - (void)pressLink:(MMWindowButton *)b { if (b.identifier.length && self.onLink) self.onLink(b.identifier); }
 
 /// A row's story, 195-a's: its icon, name and group with the Mac's ring small beside them; its number large, CPU and
-/// its own hour; the one line on whether it stays, goes or asks; a worktree's pull request; its facts; and where it
-/// stands in its group.
+/// its own hour; the one line on whether it stays, goes or asks; a worktree's pull request; its facts; and, for a row that
+/// stands for several, its biggest members.
 - (void)drawStory:(MMWindowRow *)row {
     NSColor *text = MMWindowColor(MMWindowInkText), *t2 = MMWindowColor(MMWindowInkText2), *t3 = MMWindowColor(MMWindowInkText3);
     CGFloat x = 14, w = self.bounds.size.width - 28, bottom = [self storyBottom];
     BOOL disk = row.kind == MMWindowWorktree || row.kind == MMWindowCache;
-    MMWindowGroup *group = [self groupOf:row];
     NSColor *backing = [NSColor colorWithSRGBRed:0.12 green:0.115 blue:0.16 alpha:1];
 
     // The whole name, on as many lines as it needs. Everything under it moves down by those lines.
@@ -368,32 +367,9 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
         y += h + 6;
     }
 
-    // A row that stands for several lists its biggest members under a hairline, DESIGN rule 16, in the place of the
-    // others of its group: what it holds is what the person wants to see.
-    if (row.members.count) { [self drawMembers:row from:y in:NSMakeRect(x, 0, w, bottom) disk:disk]; return; }
-
-    // Where it stands in its group, with the biggest of the others, under a hairline. The worktrees come by activity,
-    // so the place is counted by size here.
-    NSArray<MMWindowRow *> *bySize = !group.byProject ? group.rows
-                                   : [group.rows sortedArrayUsingComparator:^NSComparisonResult(MMWindowRow *a, MMWindowRow *b) { return MMWindowRowOrder(a, b); }];
-    NSInteger place = group ? (NSInteger)[bySize indexOfObject:row] : NSNotFound;
-    if (place == NSNotFound || group.rows.count < 2 || y + 12 + 26 + 21 > bottom) return;
-    y += 6;
-    [[NSColor colorWithWhite:1 alpha:MMWindowContrast() ? 0.3 : 0.07] setFill];
-    NSRectFillUsingOperation(NSMakeRect(x, y, w, 1), NSCompositingOperationSourceOver);
-    MMWindowDraw(MMWindowText(MMWindowPlaceLine(place + 1, (NSInteger)group.rows.count, group.unmeasured, !row.unmeasured, group.title.lowercaseString), 11, NSFontWeightRegular, t2), x, y + 17, -1);
-    y += 28;
-    NSInteger shown = 0;
-    for (MMWindowRow *other in bySize) {
-        if (other == row) continue;
-        NSAttributedString *size = other.showsSize ? MMWindowText(MMWindowBytes(other.bytes, disk), 11.5, NSFontWeightRegular, t2)
-                                 : other.sizeWord ? MMWindowText(other.sizeWord, 11.5, NSFontWeightRegular, t2) : nil;
-        CGFloat room = w - (size ? MMWindowWidth(size) + 12 : 0), h = MAX(21, MMWindowBlockHeight(other.shownName, 12.5, 12.5, NSFontWeightRegular, room) + 4);
-        if (shown >= 5 || y + h > bottom) break;
-        MMWindowDrawBlock(other.shownName, 12.5, 12.5, NSFontWeightRegular, text, x, y + 2, room, -1, -1, 0);
-        if (size) MMWindowDraw(size, x + w, y + 10.5, 1);
-        y += h; shown++;
-    }
+    // A row that stands for several lists its biggest members under a hairline, DESIGN rule 16: what it holds is what
+    // the person wants to see. A row's place among the others of its group is not told: it said nothing worth reading.
+    if (row.members.count) [self drawMembers:row from:y in:NSMakeRect(x, 0, w, bottom) disk:disk];
 }
 
 /// What tells a member from the others: its name, or, where every member has the row's own name, as the scratch of
