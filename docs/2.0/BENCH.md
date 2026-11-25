@@ -617,6 +617,27 @@ On this Mac at a load average near 45, three runs of `bench history` alone read:
 
 Each copy goes back to the store when no view reads it, and the store keeps two for the next copies, so 20 copies cost no more than two.
 
+## The peak of a Careful run, 2026-11-25
+
+The installed canary `2.0.0+3c726ce`, started at 01:05, read 56.7 MB and a peak of 659.2 MB at 04:30. The field sampler put the peak between its rows at 04:15:24 and 04:16:24: 33.5 MB with a lifetime peak of 81.9 MB, then 56.6 MB with 659.2 MB, and 2.8 s of CPU in that minute. The log holds one thing in that minute: Noo-Noo's Careful run at 04:15:27, 32 trash actions in 1.5 s, 31 of Claude Code scratch and one of `.com.google.Chrome.*` folders, 195 MB to the Trash. No review, scan of its own, Ask or Fix Everything ran then. The review before it ended at 03:16. `vmmap` read 396 MB of `MALLOC_SMALL` regions and 312 MB more of them empty, with 10.8 MB allocated and 88 % of the default zone free: small blocks taken and given back inside one block.
+
+**The cause.** `-[MMUndo record:]` set `hasParts` through `-partsOf:`, and `-partsOf:` parsed the latest body of every undo record of every expert to find the few that name a parent. The log held 376 records then, 2.4 MB of JSON. A clutter action reads its record twice, once in `perform:` and once at the end of `MMRunAction`. Noo-Noo's `-watch:` runs the whole plan in one block on its act queue, so nothing drained until the last action: 64 parses of the whole log, each one's strings, data and dictionaries kept. The cost grows with the log and with the run: the same run over 1000 records peaked at 1453 MB.
+
+**What changed.** `-partsOf:` asks SQLite for the latest bodies that hold the rid as a JSON string, `-[MMLog latest:holding:]`, and checks each exactly, as before. `MMRunAction` and `MMRunActionPart` run each action inside its own autorelease pool, so a run of many holds one action's reads at a time, whoever calls them: a mode's run, Fix Everything, `tidy` or a Wrap Up.
+
+**Before and after.** `acttest peak <dir> 376 32` in `test/act/act.m`, a process of its own, as the field log stood: 376 finished trash records of 6.4 KB, then 32 trash actions through `MMRunAction` in one block off main, each reading its record in `perform:` as `MMClutterAction` does. Three runs after read the same numbers.
+
+| 32 actions | Before | MMRunAction's pool alone | After |
+| --- | --- | --- | --- |
+| Over 376 records, peak footprint | 571.4 MB | 26.8 MB | 10.6 MB |
+| Over 376 records, the process's CPU, the 376 writes included | 0.85 s | 0.88 s | 0.30 s |
+| Over 1000 records, peak footprint | 1453.0 MB | | 13.5 MB |
+| Over no records, peak footprint | 39.4 MB | | 5.5 MB |
+
+`./test.sh act` runs it and fails at 16 MB over the run's start, which the pool alone would fail too.
+
+**What is left.** The footprint after the peak, 56.7 MB and 89 MB an hour later, is over the 45 MB budget. The default zone held 714 MB of regions for 10.8 MB of blocks, so most of it is fragmentation the peak left. `-[MMUndo recent:nil ...]`, which the stranded and waiting lists read, still parses every record once per call.
+
 ## The Performance model
 
 `Core/MMPerformance.h` builds the Performance tab of design 132-a on demand from one snapshot. `./test.sh performance` times it on its fixture: 18 findings from five fake experts, four worktrees of which two are merged, one finished workstream with five Wrap Up parts, and six fixes. The test binary is built with `-O2`, as build.sh builds the app, and the number is the mean thread CPU time of 400 builds after 20 that warm up.

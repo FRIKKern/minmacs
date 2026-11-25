@@ -794,7 +794,14 @@ static NSString *TrashedWhyNot(MMUndoRecord *r, NSDictionary *x) {
 /// The parts of a Wrap Up record, newest first: by the "part" index each was run with, else as the log returns them.
 - (NSArray<MMUndoRecord *> *)partsOf:(NSString *)rid {
     NSMutableArray *parts = [NSMutableArray new];
-    for (NSDictionary *b in LogLatest(nil)) {
+    // Only the latest bodies that hold rid as a JSON string are read, by SQLite, and then checked exactly. Every
+    // record of every expert was parsed here before, twice for each action through -record:, and one Careful run
+    // of 32 actions over a log of 376 records peaked at 659 MB in the field, 2026-11-25.
+    NSData *quoted = rid.length ? [NSJSONSerialization dataWithJSONObject:@[rid] options:0 error:nil] : nil;
+    NSString *needle = quoted.length > 2 ? [[NSString alloc] initWithData:[quoted subdataWithRange:NSMakeRange(1, quoted.length - 2)]
+                                                                 encoding:NSUTF8StringEncoding] : nil;
+    for (MMLogEntry *e in needle ? [MMLog.shared latest:kTable holding:needle] : @[]) @autoreleasepool {
+        NSDictionary *b = e.body;
         MMUndoRecord *part = [MMRecordString(b, @"parentRid") isEqualToString:rid] ? [MMUndoRecord fromBody:b] : nil;
         if (part) [parts addObject:part];
     }

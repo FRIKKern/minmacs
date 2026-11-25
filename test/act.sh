@@ -52,3 +52,16 @@ if [ "$act_r" = 0 ]; then
     [ "$act_tag" = CHECK ] && check "$act_name" "$act_want" "$act_got"
   done <"$act_dir/out.txt"
 fi
+
+# A mode's run of many actions holds one action's reads at a time, 2026-11-25. In the field one Careful run of 32
+# actions over a log of 376 undo records peaked at 659 MB: each action read every record twice through
+# -[MMUndo record:], and the queue block that ran them all drained once at its end. The same run in a process of its
+# own read a 571 MB peak before the fix and 10.6 MB after; MMRunAction's own pool alone read 26.8 MB.
+if [ -x "$act_dir/acttest" ]; then
+  mkdir -p "$act_dir/peak/fx"
+  act_peak=$(MINMACS_HOME="$act_dir/peak" "$act_dir/acttest" peak "$act_dir/peak/fx" 376 32 2>"$act_dir/peak.err")
+  echo "  $act_peak"
+  check "act: a run of 32 actions over 376 records does all 32" 32 "$(echo "$act_peak" | awk '{print $6}')"
+  check "act: that run's peak stays under 16 MB over its start" yes \
+    "$(echo "$act_peak" | awk '{print ($14 + 0 < 16) ? "yes" : $14 " MB"}')"
+fi
