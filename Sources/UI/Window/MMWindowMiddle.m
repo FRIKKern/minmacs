@@ -108,7 +108,8 @@ static NSString *GroupKey(MMWindowKind kind) {
 /// Under the name: the group it is listed in, and its quiet word.
 - (NSString *)subOf:(MMWindowRow *)row {
     NSString *sub = [self groupOf:row].title ?: @"";
-    if (row.state.length) sub = sub.length ? [NSString stringWithFormat:@"%@ · %@", sub, row.state] : row.state;
+    NSString *state = row.stateInFull ?: row.state;
+    if (state.length) sub = sub.length ? [NSString stringWithFormat:@"%@ · %@", sub, state] : state;
     return sub;
 }
 

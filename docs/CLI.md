@@ -255,7 +255,7 @@ An example of the shape, for a Mac with the lid shut, Insomnia's lid mode live, 
              "list": [{"pid": 2767, "name": "Claude Code", "harness": "claude-code", "state": "working", "working": true, "ports": [49210]}]},
   "quiet": {"active": true, "holders": [{"pid": 4989, "reason": "screen recording", "since": 1795506000, "by": "cli", "rid": "25537f7a3643", "awake": true}]},
   "minmacs": {"pid": 812, "runningSeconds": 86400, "sinceLaunch": {"cpuPercent": 0.21, "idleWakeupsPerSecond": 0.6},
-              "memory": {"footprintBytes": 41943040, "peakBytes": 62914560}, "budgets": {"cpuPercent": 0.3, "idleWakeupsPerSecond": 1}, "over": []},
+              "memory": {"footprintBytes": 41943040, "peakBytes": 62914560}, "budgets": {"cpuPercent": 0.3, "idleWakeupsPerSecond": 1, "memoryBytes": 47185920}, "over": []},
   "provision": {"unattended": true, "lidRuleInstalled": true, "notificationsAuthorized": true, "loginItem": "enabled", "loginItemApproved": true, "needsPerson": []}
 }
 ```

@@ -283,6 +283,9 @@ extern const NSInteger MMWindowCollapseLeast;
 @property (copy, nullable) NSString *iconHint;
 @property (copy) NSString *name;                        // ":3000 Next.js", "Tune the ranking", "fix-auth-redirect"
 @property (copy, nullable) NSString *state;             // one quiet word: "merged", "kept", "will close"
+/// The state in full, where there is room for it: the story's line under the name and what VoiceOver reads. nil says
+/// state as it is. MinMacs's row says "over" in its list and "over budget" here.
+@property (copy, nullable) NSString *stateInFull;
 @property double cpuPercent;                            // of one core; below 0 when not known, then not drawn
 @property uint64_t bytes;                               // the one number
 /// The size was not measured yet: a worktree whose files have not been walked. bytes is then 0 and no reading, so no
@@ -291,6 +294,11 @@ extern const NSInteger MMWindowCollapseLeast;
 @property NSInteger tabs;                               // for MMWindowTabs, the count shown in the name
 @property BOOL needsYou;                                // an agent that asks: a white diamond on its icon
 @property BOOL inFix;                                   // Fix Everything touches it: a small orange mark
+/// MinMacs itself, MMWindowSelfRow: the app that watches, judged against its own budgets. Never in a fix.
+@property BOOL own;
+/// Over a budget of its own: the row of MinMacs over its CPU, wakeup or memory budget. It carries the white diamond
+/// a row that needs the person carries, and is never drawn quiet, though it asks nothing and the top line counts it not.
+@property BOOL attention;
 /// Nothing is going on in it now: an idle server or agent, an app that uses next to no CPU, a helper left behind,
 /// a worktree with nothing uncommitted, a cache nothing uses. Its name is drawn a step quieter, so the rows where
 /// something happens lead. A row a fix touches or that asks is never drawn quiet, whatever this says.
@@ -306,6 +314,8 @@ extern const NSInteger MMWindowCollapseLeast;
 @property (readonly, nullable) MMWindowFate *fate;
 /// The facts under that line: all of them but the ones the line already said.
 @property (readonly) NSArray<MMWindowFact *> *storyFacts;
+/// The first fact with this label, or nil.
+- (nullable MMWindowFact *)factLabelled:(NSString *)label;
 /// The name as every view draws it: a tabs row's is its count and its browser, "3 localhost tabs in Safari".
 @property (readonly) NSString *shownName;
 /// A worktree's project, its repo's folder name, "minmacs". nil for any other row, and for a worktree with no repo.
@@ -670,6 +680,29 @@ extern NSString *const MMWindowAskCannot;
 /// "Asking Claude", the answer while tier 1 waits for Claude, with Stop for its button.
 extern NSString *const MMWindowAskAsking;
 
+#pragma mark - MinMacs itself
+
+@class MMWindowModel;
+
+/// "self:minmacs", the key of the row of MinMacs itself.
+extern NSString *const MMWindowSelfKey;
+/// "It is the app that watches. Its cost is checked against its budget.", why MinMacs stays, in its row's line.
+extern NSString *const MMWindowSelfStays;
+/// The budgets of `report` that are over and that a row judges by, in its `over` words, in the order cpu, wakeups,
+/// memory: cpuSinceLaunch, idleWakeupsSinceLaunch, memoryNow. A rate now over a few seconds counts the window that
+/// draws it, so it is shown and not judged.
+NSArray<NSString *> *MMWindowSelfOver(NSDictionary *report);
+/// What over a budget says, plainly: "over its CPU budget: 0.92 % against 0.3 %", "over its wakeup budget: 1.4 a
+/// second against 1", "over its memory budget: 58 MB against 45 MB". nil for a word it does not know.
+NSString *_Nullable MMWindowSelfOverText(NSDictionary *report, NSString *over);
+/// The row of MinMacs from its report: its icon and name, its memory now and its CPU now, its own hour, and the
+/// story that judges it against its budgets. cpuNow is the pass's own reading of this process, used where the report
+/// has no rate now; below 0 when not known. hour is its ring's 60 values, or nil.
+MMWindowRow *MMWindowSelfRow(NSDictionary *report, NSArray *_Nullable hour, double cpuNow);
+/// Puts the row of MinMacs into the model's Apps and helpers, where its size sorts it like any app, sets `own`, and
+/// counts its memory in the ring's apps slice, from what the ring called other. Nothing when report is nil.
+void MMWindowAddSelf(MMWindowModel *m, NSDictionary *_Nullable report, NSArray *_Nullable hour, double cpuNow);
+
 #pragma mark - The whole window
 
 @interface MMWindowModel : NSObject
@@ -705,6 +738,9 @@ extern NSString *const MMWindowAskAsking;
 /// it: a stop of a server and a quit of the app it rolls up into end that server once. nil sums the fixes, as a
 /// fixture's model does.
 @property (strong, nullable) NSNumber *memoryBackOnce;
+/// What MinMacs itself costs, MMSelfCost.h's report as `minmacs self --json` prints it, with version and build. The row
+/// MMWindowSelfRow is made from it. nil where no MinMacs app runs this model, as in a cold `minmacs window`.
+@property (copy, nullable) NSDictionary *own;
 /// What Fix Everything gives back: the fixes that do not need the person, each side on its own. Memory is
 /// memoryBackOnce when set, else the fixes' sum.
 - (uint64_t)memoryBack;

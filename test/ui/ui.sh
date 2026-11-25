@@ -88,7 +88,8 @@ for ui_name in busy-main busy-server busy-worktree busy-settings removal-setting
                week-main week-young-main week-gap-main week-gap-hover week-gap-hover-gap \
                strip-3-main strip-46-main strip-60-main strip-gap-main strip-sleep-main \
                ask-empty-main ask-typing-typing ask-why-main ask-keep-main ask-undo-main ask-undone-main ask-plan-main ask-fallback-main \
-               ask-asking-main ask-claude-main ask-unreachable-main; do
+               ask-asking-main ask-claude-main ask-unreachable-main \
+               self-main self-self-within self-cpu-self-over-cpu self-memory-self-over-memory; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
@@ -97,7 +98,7 @@ check "every window PNG is 1020 by 728 points, two pixels each" "2040x1456 " "$u
 ui_md() { md5 -q "$ui_win/$1.png" 2>/dev/null; }
 check "the window differs under Increase Contrast, with a pointed row and in Settings" "yes yes yes" \
   "$([ "$(ui_md busy-main-dark)" != "$(ui_md busy-main-contrast-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-server-dark)" ] && echo yes || echo no) $([ "$(ui_md busy-main-dark)" != "$(ui_md busy-settings-dark)" ] && echo yes || echo no)"
-check "no window fixture shows a banned phrase or an old app name" 22 \
+check "no window fixture shows a banned phrase or an old app name" 26 \
   "$(grep -c '^ok    window .*: no shown string holds a banned phrase or an old app name' "$ui_out/checks.txt" 2>/dev/null)"
 
 ui_look() { grep -c "^ok    window$1" "$ui_out/checks.txt" 2>/dev/null; }

@@ -12,6 +12,8 @@
 //   in that build's Senses sample. Its state changes come from MMAgent.state in the same build.
 // - One ring per server tree: each graph build, from the cost of LocoHost's server findings, keyed by the first
 //   MMProcKey the finding names.
+// - One ring for MinMacs itself: each graph build, from this process's own CPU and footprint in that build's Senses
+//   sample, for the menu window's row of MinMacs.
 // - Subagent starts: each SubagentStart hook event that MMAgentEvents reads from cmux events, on its events queue.
 // A build that the graph skips because its facts did not change adds nothing. The graph builds at least every 30
 // seconds, so a minute with a running pass holds at least one value. A minute with no build holds none.
@@ -31,8 +33,8 @@ enum {
 /// A tree whose process is gone keeps its ring this long, then the ring is dropped.
 extern const NSTimeInterval MMHistoryGoneKeep;
 
-typedef NS_ENUM(uint8_t, MMHistoryKind) { MMHistoryMac = 1, MMHistoryDisk, MMHistoryAgent, MMHistoryServer };
-/// "mac", "disk", "agent" or "server".
+typedef NS_ENUM(uint8_t, MMHistoryKind) { MMHistoryMac = 1, MMHistoryDisk, MMHistoryAgent, MMHistoryServer, MMHistorySelf };
+/// "mac", "disk", "agent", "server" or "self".
 NSString *MMHistoryKindName(MMHistoryKind kind);
 
 /// One minute of one ring. passes is 0 when no pass filled that minute, and then both values are -1.
@@ -51,7 +53,7 @@ typedef struct { NSTimeInterval at; MMAgentState state; } MMHistoryStateChange;
 
 /// One tree a pass saw, for -noteTrees:at:. A graph build makes these from its agents and server findings.
 @interface MMHistoryTreeSample : NSObject
-@property MMHistoryKind kind;                        // agent or server
+@property MMHistoryKind kind;                        // agent, server or self
 @property MMProcKey key;
 @property double cpuPercent;                         // 100 is one core
 @property uint64_t footprint;                        // bytes
@@ -80,6 +82,7 @@ typedef struct { NSTimeInterval at; MMAgentState state; } MMHistoryStateChange;
 @property (readonly) uint32_t minute;                // the minute of slot 59
 @property (readonly) MMHistoryRing *mac, *disk;      // nil before the first fill
 @property (readonly) NSArray<MMHistoryRing *> *trees;   // agents, then servers, each oldest first
+@property (readonly) MMHistoryRing *own;            // MinMacs itself, the process that fills the store; nil before its first fill
 /// Subagent starts within the hour, oldest first: {"at", "agent", "session"}.
 @property (readonly) NSArray<NSDictionary *> *subagentStarts;
 @property (readonly) NSUInteger rings;               // every ring held, the Mac and the disk included

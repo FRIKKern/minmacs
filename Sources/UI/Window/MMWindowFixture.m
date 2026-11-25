@@ -100,6 +100,17 @@ MMWindowModel *MMWindowFixture(NSString *name) {
         if (![name isEqualToString:@"ask-empty"] && ![name isEqualToString:@"ask-typing"]) m.answer = MMWindowFixtureAnswer(name);
         return m;
     }
+    // "self", "self-cpu", "self-memory" and "self-wakeups": the calm day with MinMacs itself among six apps, within every
+    // budget or over one, MMWindowFixtureSelfReport, with its own hour.
+    if ([name hasPrefix:@"self"]) {
+        MMWindowModel *m = Day(@"calm");
+        m.log = MMWindowFixtureLog(@"new");
+        for (MMWindowGroup *g in m.memoryGroups) if ([g.key isEqualToString:@"apps"]) g.rows = [g.rows subarrayWithRange:NSMakeRange(0, MIN((NSUInteger)6, g.rows.count))];
+        NSDictionary *own = MMWindowFixtureSelfReport(name);
+        double now = [own[@"memory"][@"footprintBytes"] doubleValue];
+        MMWindowAddSelf(m, own, Hour(@"MinMacs", @"", MMWindowMemory, now - 6.0 * MB, now, 60).values, -1);
+        return m;
+    }
     // "week", "week-young" and "week-gap": the calm day with its strip on the 7 days.
     BOOL week = [name hasPrefix:@"week"];
     NSString *day = week || [name hasPrefix:@"strip-"] ? @"calm" : [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;

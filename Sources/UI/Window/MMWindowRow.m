@@ -66,6 +66,13 @@ NSArray<NSString *> *MMWindowRowNameAs(MMWindowRow *row, NSString *name, MMWindo
 
 NSString *MMWindowRowSecondLine(MMWindowRow *row, CGFloat width) {
     NSDictionary *at = @{NSFontAttributeName: MMWindowFont(11, NSFontWeightRegular)};
+    // MinMacs itself says how it stands against its budgets, whole, or only that it is over when that does not fit.
+    if (row.own) {
+        NSString *v = [row factLabelled:@"Budget"].value;
+        if (!v.length) return nil;
+        NSString *line = [[v substringToIndex:1].localizedUppercaseString stringByAppendingString:[v substringFromIndex:1]];
+        return ceil([line sizeWithAttributes:at].width) <= width ? line : row.attention ? @"Over budget" : nil;
+    }
     BOOL byWhy = row.kind == MMWindowCache || row.kind == MMWindowApp || row.kind == MMWindowHelper || row.kind == MMWindowTabs;
     // A row that stands for several says its totals here, DESIGN rule 16: its split is its story's first line.
     NSString *note = row.members ? nil : row.fate.note;
@@ -96,7 +103,7 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *shown, NSRect r, MMWindowSide
     // as at rest, so a calm name stays calm.
     BOOL hot = look == MMWindowRowActive;
     // Nothing going on in it, no fix touches it and it asks nothing: its name steps back, so the busy rows lead.
-    BOOL calm = row.quiet && !row.inFix && !row.needsYou && !hot, disk = side == MMWindowDisk;
+    BOOL calm = row.quiet && !row.inFix && !row.needsYou && !row.attention && !hot, disk = side == MMWindowDisk;
     MMWindowRowColumns col;
     NSArray<NSString *> *name = MMWindowRowNameAs(row, shown, side, hasHour, r, &col);
     CGFloat nameLeft = NSMinX(col.name);

@@ -654,6 +654,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-log.m"
 #include "render-window-caches.m"
 #include "render-window-agents.m"
+#include "render-window-self.m"
 #include "render-window-press.m"
 #include "render-window-pulls.m"
 #include "render-window-week.m"
@@ -688,6 +689,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     shots = [shots arrayByAddingObjectsFromArray:WindowPressShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowWeekShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowAskShots()];
+    shots = [shots arrayByAddingObjectsFromArray:WindowSelfShots()];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -733,7 +735,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"agents", @"log-empty", @"log-new", @"log-busy", @"log-undo", @"week", @"week-young", @"week-gap"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"agents", @"log-empty", @"log-new", @"log-busy", @"log-undo", @"week", @"week-young", @"week-gap", @"self", @"self-cpu", @"self-memory", @"self-wakeups"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])
@@ -758,6 +760,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowLogChecks();
     WindowCachesChecks();
     WindowAgentChecks();
+    WindowSelfChecks();
     WindowPressChecks();
     WindowPullsChecks();
     WindowWeekChecks();
@@ -870,6 +873,10 @@ static void RenderShell(NSString *out, NSDictionary<NSString *, NSAppearance *> 
 int main(int argc, char **argv) { @autoreleasepool {
     if (argc < 2) { fprintf(stderr, "usage: render <output folder>\n"); return 2; }
     [NSApplication sharedApplication];
+    // The render is no app bundle, so AppKit's own icon is a generic one. MinMacs's row draws the app's icon, so the
+    // render gives it the icon build.sh puts in the bundle.
+    NSImage *icon = [[NSImage alloc] initWithContentsOfFile:@"AppIcon.icns"];
+    if (icon) NSApp.applicationIconImage = icon;
     NSString *out = @(argv[1]);
     [NSFileManager.defaultManager createDirectoryAtPath:out withIntermediateDirectories:YES attributes:nil error:nil];
     gChecks = [NSMutableArray new];

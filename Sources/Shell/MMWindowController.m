@@ -126,6 +126,8 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     x.stripWeek = MMPrefBool(MMWindowWeekKey, NO);
     if (x.stripWeek) [self readWeek:x];
     x.welcome = MMWindowWelcomeNow(x.loginOn);
+    // What MinMacs itself costs, on this queue and only while open: one proc_pid_rusage a build, no timer.
+    x.own = MMSelfOnBuild();
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
     m.answer = _answer;
     _built = m;

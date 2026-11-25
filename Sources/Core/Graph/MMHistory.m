@@ -15,6 +15,7 @@ NSString *MMHistoryKindName(MMHistoryKind kind) {
         case MMHistoryDisk: return @"disk";
         case MMHistoryAgent: return @"agent";
         case MMHistoryServer: return @"server";
+        case MMHistorySelf: return @"self";
     }
     return @"unknown";
 }
@@ -203,7 +204,7 @@ static NSString *StateWord(MMAgentState st) {
         j[@"cpuPercent"] = cpu;
         j[k == MMHistoryMac ? @"memoryUsedMB" : @"footprintMB"] = mb;
     }
-    if (k == MMHistoryAgent || k == MMHistoryServer) {
+    if (k == MMHistoryAgent || k == MMHistoryServer || k == MMHistorySelf) {
         MMProcKey key = self.key;
         j[@"pid"] = @(key.pid); j[@"start"] = @(key.startSec); j[@"key"] = MMProcKeyString(key);
         j[@"label"] = self.label ?: NSNull.null;
@@ -233,7 +234,7 @@ static NSString *StateWord(MMAgentState st) {
 /// A view holds only its buffer until something reads its rings, so a build that nobody reads costs one memcpy.
 @implementation MMHistoryView {
     BOOL _made;
-    MMHistoryRing *_mac, *_disk;
+    MMHistoryRing *_mac, *_disk, *_own;
     NSArray<MMHistoryRing *> *_trees;
     NSArray<NSDictionary *> *_subagentStarts;
 }
@@ -252,6 +253,8 @@ static NSString *StateWord(MMAgentState st) {
                 case MMHistoryDisk: _disk = r; break;
                 case MMHistoryAgent: [agents addObject:r]; break;
                 case MMHistoryServer: [servers addObject:r]; break;
+                // A MinMacs that started again keeps the ring of the one before for a while: the live one is newest.
+                case MMHistorySelf: if (!_own || r.firstSeen > _own.firstSeen) _own = r; break;
             }
         }
         NSSortDescriptor *byFirst = [NSSortDescriptor sortDescriptorWithKey:@"firstSeen" ascending:YES];
@@ -271,6 +274,7 @@ static NSString *StateWord(MMAgentState st) {
 - (MMHistoryRing *)mac { [self make]; return _mac; }
 - (MMHistoryRing *)disk { [self make]; return _disk; }
 - (NSArray<MMHistoryRing *> *)trees { [self make]; return _trees; }
+- (MMHistoryRing *)own { [self make]; return _own; }
 - (NSArray<NSDictionary *> *)subagentStarts { [self make]; return _subagentStarts; }
 
 - (MMHistoryRing *)treeFor:(MMProcKey)key {
@@ -290,7 +294,7 @@ static NSString *StateWord(MMAgentState st) {
              @"fills": @(self.fills), @"storeBytes": @(self.storeBytes), @"copyBytes": @(self.copyBytes),
              @"goneKeepSeconds": @(MMHistoryGoneKeep),
              @"mac": self.mac.json ?: NSNull.null, @"disk": self.disk.json ?: NSNull.null,
-             @"agents": agents, @"servers": servers, @"subagentStarts": subs};
+             @"agents": agents, @"servers": servers, @"self": self.own.json ?: NSNull.null, @"subagentStarts": subs};
 }
 
 @end
@@ -394,7 +398,7 @@ static double HourMean(const MMHistorySlot *s, uint32_t hour) {
     os_unfair_lock_lock(&_lock);
     BOOL seen[MMHistoryMaxRings] = {NO};
     for (MMHistoryTreeSample *x in trees) {
-        if (x.kind != MMHistoryAgent && x.kind != MMHistoryServer) continue;
+        if (x.kind != MMHistoryAgent && x.kind != MMHistoryServer && x.kind != MMHistorySelf) continue;
         NSInteger i = [self slotFor:x.kind key:x.key];
         if (i < 0) { _refused++; continue; }
         if (seen[i]) continue;                          // the same tree twice in one pass counts once
@@ -507,6 +511,15 @@ static double HourMean(const MMHistorySlot *s, uint32_t hour) {
         MMCost c = f.cost;
         x.kind = MMHistoryServer; x.key = k; x.cpuPercent = c.cpuPercent; x.footprint = c.ramBytes;
         x.label = f.title; x.ident = f.findingID;
+        [trees addObject:x];
+    }
+    // MinMacs itself, from the same sample: the process that builds the graph is the one that fills this store.
+    MMSample *sample = snap.facts.sample;
+    MMProc *me = [sample respondsToSelector:@selector(proc:)] ? [sample proc:getpid()] : nil;
+    if ([me respondsToSelector:@selector(key)]) {
+        MMHistoryTreeSample *x = [MMHistoryTreeSample new];
+        x.kind = MMHistorySelf; x.key = me.key; x.cpuPercent = me.cpuPercent; x.footprint = me.footprint;
+        x.label = @"MinMacs"; x.ident = @"self";
         [trees addObject:x];
     }
     [self noteTrees:trees at:t];

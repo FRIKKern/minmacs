@@ -4,6 +4,7 @@
 #import "Core/Runtime/MMRuntime.h"
 #import "Core/Runtime/MMWorker.h"
 #import "Core/Runtime/MMCoreSocket.h"
+#import "Core/Runtime/MMSelfCost.h"
 #import "Core/Senses/MMSenses.h"
 #import "Core/Senses/MMFolders.h"
 #import "Core/Senses/MMNet.h"

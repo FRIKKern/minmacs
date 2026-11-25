@@ -35,6 +35,10 @@ void MMWindowFixtureWeek(MMWindowModel *m, NSString *name);
 /// An answer of Ask MinMacs, MMWindowFixtureAsk.m: "ask-why", "ask-keep", "ask-undo", "ask-undone", "ask-plan" or,
 /// for any other name, the answer to a question no rule knows.
 MMWindowAnswer *MMWindowFixtureAnswer(NSString *name);
+/// What MinMacs itself costs on the made-up days, in the shape of MMSelfCost.h's report, MMWindowFixtureMore.m:
+/// "self" within every budget, "self-cpu" over its CPU budget, "self-memory" over its memory budget and
+/// "self-wakeups" over its wakeup budget.
+NSDictionary *MMWindowFixtureSelfReport(NSString *name);
 /// "real" and "extreme", MMWindowFixtureMore.m. nil for any other name.
 MMWindowModel *_Nullable MMWindowFixtureMore(NSString *name);
 

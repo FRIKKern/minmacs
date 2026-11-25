@@ -47,7 +47,7 @@ NSString *MMWindowKindName(MMWindowKind kind) {
     NSDictionary *j = @{@"key": self.key, @"kind": MMWindowKindName(self.kind), @"iconHint": Or(self.iconHint), @"name": self.name,
              @"state": Or(self.state), @"cpuPercent": self.cpuPercent >= 0 ? @(round(self.cpuPercent * 10) / 10) : NSNull.null,
              // A size not measured yet is null, never 0.
-             @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": self.unmeasured ? @NO : @YES, @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet),
+             @"bytes": self.unmeasured ? NSNull.null : @(self.bytes), @"measured": self.unmeasured ? @NO : @YES, @"tabs": @(self.tabs), @"needsYou": @(self.needsYou), @"inFix": @(self.inFix), @"quiet": @(self.quiet), @"own": @(self.own), @"attention": @(self.attention), @"stateInFull": Or(self.stateInFull),
              @"hour": Or(self.hour), @"facts": All(self.facts), @"project": Or(self.project), @"workedAt": self.workedAt > 0 ? @(self.workedAt) : NSNull.null};
     if (self.pull) {
         NSMutableDictionary *x = [j mutableCopy];
@@ -134,6 +134,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
                                   @"diskBackPartial": @(self.diskBackPartial)},
              @"backToday": @{@"memoryBack": @(self.memoryBackToday), @"diskBack": @(self.diskBackToday),
                               @"diskBackPartial": @(self.diskBackTodayPartial)},
-             @"run": Or(self.run.json), @"settings": self.settings.json};
+             @"run": Or(self.run.json), @"settings": self.settings.json,
+             // What MinMacs itself costs, as `minmacs self --json` says it: the report its own row is made from.
+             @"self": Or(self.own)};
 }
 @end

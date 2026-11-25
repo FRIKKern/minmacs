@@ -157,7 +157,8 @@ void MMWindowDrawDiamond(NSRect rect, NSColor *color) {
 }
 
 void MMWindowDrawIcon(MMWindowRow *row, NSRect rect, NSColor *backing) {
-    NSImage *own = row.kind == MMWindowApp ? AppIcon(row.iconHint) : nil;
+    // MinMacs itself is drawn with the app's own icon, which AppKit holds already: no lookup and no disk.
+    NSImage *own = row.own ? NSApp.applicationIconImage : row.kind == MMWindowApp ? AppIcon(row.iconHint) : nil;
     if (own) {
         [own drawInRect:rect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:nil];
     } else {
@@ -173,13 +174,14 @@ void MMWindowDrawIcon(MMWindowRow *row, NSRect rect, NSColor *backing) {
             }
         });
     }
-    if (!row.needsYou && !row.inFix) return;
+    // MinMacs over a budget of its own carries the diamond a row that needs the person carries.
+    if (!row.needsYou && !row.inFix && !row.attention) return;
     // The badge sits on the lower right corner, on a disc of the color behind the row, so it reads on any icon.
     CGFloat u = rect.size.width / 16;
     NSRect b = NSMakeRect(NSMaxX(rect) - 6 * u, NSMaxY(rect) - 7 * u, 11 * u, 11 * u);
     [backing setFill];
     [[NSBezierPath bezierPathWithOvalInRect:b] fill];
-    if (row.needsYou) { MMWindowDrawDiamond(NSInsetRect(b, 0.5 * u, 0.5 * u), NSColor.whiteColor); return; }
+    if (row.needsYou || row.attention) { MMWindowDrawDiamond(NSInsetRect(b, 0.5 * u, 0.5 * u), NSColor.whiteColor); return; }
     // What Fix Everything touches: a small orange triangle that points down.
     NSRect t = NSInsetRect(b, 2.2 * u, 2.6 * u);
     NSBezierPath *p = [NSBezierPath bezierPath];

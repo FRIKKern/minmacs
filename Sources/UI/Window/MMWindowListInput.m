@@ -104,7 +104,7 @@
             NSMutableArray *say = [NSMutableArray arrayWithObjects:g.title, nil];
             if (g.grouped) [say addObject:row.project ?: MMWindowNoProject];
             [say addObject:[self nameOf:row in:g]];
-            if (row.state.length) [say addObject:row.state];
+            if (row.state.length) [say addObject:row.stateInFull ?: row.state];
             if (row.showsSize) [say addObject:MMWindowBytes(row.bytes, g.side == MMWindowDisk)];
             else if (row.sizeWord) [say addObject:@"size not measured yet"];
             if (row.needsYou) [say addObject:@"asks you"];
