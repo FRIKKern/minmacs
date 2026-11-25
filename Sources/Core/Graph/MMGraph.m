@@ -671,6 +671,7 @@ static NSString *SizeBucket(uint64_t bytes) {
 
 - (void)rebuild:(NSString *)why {
     if (self.stopped) return;
+    AddCost([@"why." stringByAppendingString:why ?: @"?"], 1);   // what asks for builds, issue #52: a count, not a time
     // Only a new sample, or the last one without the processes that exited, may find nothing changed. Every other
     // reason, an app, a power change, Know or an action, always builds. An exit changes the sample alone, which the
     // facts digest and every expert's input digest read, so it builds when they moved. Issue #52: with agents at
