@@ -18,6 +18,7 @@
 #import "Core/Know/MMClutter.h"
 #import "Core/Know/MMTreeDisk.h"
 #import "Core/Know/MMPulls.h"
+#import "Core/Know/MMAppInsides.h"
 #import "Core/Graph/MMGraph.h"
 #import "Core/Graph/MMHistory.h"
 #import "Core/Graph/MMHistoryWeek.h"
@@ -37,6 +38,7 @@
 #import "Core/MMExpert.h"
 #import "Core/MMCore.h"
 #import "Core/MMPerformance.h"
+#import "Core/Runtime/MMSelfCost.h"
 
 // Calls one thing from each part, as an expert or the app would. Never called; it only has to compile.
 __attribute__((unused)) static void MMCheckUse(id<MMExpert> e, MMSnapshot *s, MMFinding *f) {
