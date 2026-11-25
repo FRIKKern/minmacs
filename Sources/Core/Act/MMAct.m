@@ -310,15 +310,26 @@ static MMUndoRecord *RunAction(id<MMAction> action, id<MMExpertPolicy> policy, M
     return [MMUndo.shared record:record.rid] ?: record;
 }
 
+/// Each action drains its own pool, so a run of many, such as a mode's run on one queue block, holds one action's
+/// reads at a time, not all of them. The record and the error are strong here, so they outlive the pool.
+static MMUndoRecord *RunActionPooled(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review, NSString *by, NSString *why,
+                                     NSString *parent, NSInteger index, NSString **error) {
+    MMUndoRecord *record = nil;
+    NSString *problem = nil;
+    @autoreleasepool { record = RunAction(action, policy, review, by, why, parent, index, &problem); }
+    if (error && problem) *error = problem;
+    return record;
+}
+
 MMUndoRecord *MMRunAction(id<MMAction> action, id<MMExpertPolicy> policy, MMReview *review,
                           NSString *by, NSString *why, NSString **error) {
-    return RunAction(action, policy, review, by, why, nil, 0, error);
+    return RunActionPooled(action, policy, review, by, why, nil, 0, error);
 }
 
 MMUndoRecord *MMRunActionPart(id<MMAction> action, id<MMExpertPolicy> policy, NSString *by, NSString *why,
                               NSString *parentRid, NSInteger index, NSString **error) {
     if (!parentRid.length) { if (error) *error = @"a part needs the record it belongs to"; return nil; }
-    return RunAction(action, policy, nil, by, why, parentRid, index, error);
+    return RunActionPooled(action, policy, nil, by, why, parentRid, index, error);
 }
 
 #pragma mark - Stopping

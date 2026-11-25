@@ -5,6 +5,7 @@
 // Every process, file and repo it acts on is a fixture it or act.sh made inside $MINMACS_HOME.
 // It prints one line per check, CHECK<tab>name<tab>want<tab>got, and act.sh hands each to check.
 #import <IOKit/pwr_mgt/IOPMLib.h>
+#import <libproc.h>
 #import <spawn.h>
 #import <sys/sysctl.h>
 #import <sys/stat.h>
@@ -716,8 +717,72 @@ static void Notify(void) {
     MMUseNotifier(nil);
 }
 
+#pragma mark - The peak of a mode's run
+
+static double FootprintMB(BOOL peak) {
+    struct rusage_info_v4 ri;
+    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) != 0) return -1;
+    return (double)(peak ? ri.ri_lifetime_max_phys_footprint : ri.ri_phys_footprint) / 1048576.0;
+}
+
+/// acttest peak <dir> <records> <actions>: the 04:15 run on 2026-11-25, in a process of its own so its peak is its
+/// own. The log first holds `records` finished trash records of about 6.4 KB each, as the field log's 376 were. Then
+/// one block off main runs `actions` trash actions one after the other through MMRunAction, with no pool of its
+/// own, as Noo-Noo's -watch: does, each reading its record again in perform as MMClutterAction does. It prints
+/// the footprint before, the peak, and the peak over before, in MB.
+static int Peak(NSString *dir, NSUInteger records, NSUInteger actions) {
+    NSMutableArray *audit = [NSMutableArray new];
+    for (int i = 0; i < 40; i++)
+        [audit addObject:@{@"path": [NSString stringWithFormat:@"%@/scratch/session-%04d/render-%02d", dir, i * 37, i], @"exists": @YES,
+                           @"allocated": @(96403456 + i), @"files": @(302 + i), @"mtime": @(1795481108 + i)}];
+    for (NSUInteger i = 0; i < records; i++) @autoreleasepool {
+        MMUndoRecord *r = [MMUndo.shared begin:@"noonoo" kind:@"trash" finding:[NSString stringWithFormat:@"noonoo:clutter:old-%lu", (unsigned long)i]
+                                       subject:@"Claude Code scratch" why:@"nothing has used it for 25 hours" by:@"proactive" parent:nil
+                                       payload:@{@"kindID": @"claude-code-scratch", @"audit": @{@"before": audit}}];
+        [MMUndo.shared finish:r ok:YES freed:0 error:nil];
+    }
+    NSMutableArray<MMTestAction *> *acts = [NSMutableArray new];
+    for (NSUInteger i = 0; i < actions; i++) {
+        NSString *item = [dir stringByAppendingPathComponent:[NSString stringWithFormat:@"scratch-%lu", (unsigned long)i]];
+        [NSFileManager.defaultManager createDirectoryAtPath:item withIntermediateDirectories:YES attributes:nil error:nil];
+        Write([item stringByAppendingPathComponent:@"file.txt"], @"scratch");
+        MMFinding *f = Remake(Finding(@"dir", item.lastPathComponent), ^(MMFindingBuilder *b) { b.path = item; });
+        [acts addObject:Action(f, @"trash", ^BOOL(MMUndoRecord *r, NSString **error) {
+            [MMUndo.shared note:r payload:@{@"paths": @[item], @"audit": @{@"before": audit}}];
+            NSError *e = nil;
+            BOOL ok = [MMUndo.shared trash:[NSURL fileURLWithPath:item] record:r error:&e] != nil;
+            if (!ok) *error = e.localizedDescription;
+            MMUndoRecord *now = [MMUndo.shared record:r.rid];
+            [MMUndo.shared note:r payload:@{@"audit": now.payload[@"audit"] ?: @{}}];
+            return ok;
+        })];
+    }
+    MMTestPolicy *p = [MMTestPolicy new];
+    MMGraph.shared.source = [ACTSource new];
+    gGather = ^MMFacts *(MMFinding *f) { return Gather(f); };
+    double before = FootprintMB(NO);
+    __block NSUInteger done = 0;
+    __block NSString *firstErr = nil;
+    OffMain(^{
+        for (MMTestAction *a in acts) {
+            NSString *err = nil;
+            if (MMRunAction(a, p, nil, @"manual", @"test", &err).state == MMUndoDone) done++;
+            else if (!firstErr) firstErr = err ?: @"failed";
+        }
+    });
+    if (firstErr) fprintf(stderr, "peak: %s\n", firstErr.UTF8String);
+    double peak = FootprintMB(YES);
+    printf("records %lu actions %lu done %lu before %.1f MB peak %.1f MB over %.1f MB\n", (unsigned long)records,
+           (unsigned long)actions, (unsigned long)done, before, peak, peak - before);
+    return done == actions ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     @autoreleasepool {
+        if (argc == 5 && !strcmp(argv[1], "peak")) {
+            if (!NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) { fprintf(stderr, "MINMACS_HOME is not set\n"); return 2; }
+            return Peak(@(argv[2]), (NSUInteger)atol(argv[3]), (NSUInteger)atol(argv[4]));
+        }
         if (argc < 3) { fprintf(stderr, "usage: acttest <fixture> <dir>\n"); return 2; }
         gFixture = @(argv[1]); gDir = @(argv[2]);
         gStarted = [NSMutableArray new];
