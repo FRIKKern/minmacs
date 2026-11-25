@@ -30,6 +30,7 @@
     id<MMWindowHost> h = self.host;
     if ([s.action isEqualToString:@"undo"]) [h windowUndo:s.target];
     else if ([s.action isEqualToString:@"keep"] && [h respondsToSelector:@selector(windowKeep:)]) [h windowKeep:s.target];
+    else if ([s.action isEqualToString:@"stop"] && [h respondsToSelector:@selector(windowAskStop)]) [h windowAskStop];
 }
 
 - (void)putAnswerAway {

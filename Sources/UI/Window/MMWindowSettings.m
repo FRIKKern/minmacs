@@ -25,7 +25,7 @@ static NSString *CardMark(NSString *card) {
 
 static NSString *RowMark(NSString *ownerID) {
     return @{@"awake": @"sun", @"agents": @"spark", @"lid": @"laptop", @"login": @"power", @"rule:servers": @"server",
-             @"rule:apps": @"memory", @"rule:worktrees": @"branch", @"rule:caches": @"layers", @"prs": @"branch"}[ownerID ?: @""] ?: @"display";
+             @"rule:apps": @"memory", @"rule:worktrees": @"branch", @"rule:caches": @"layers", @"prs": @"branch", @"askclaude": @"spark"}[ownerID ?: @""] ?: @"display";
 }
 
 /// One switch row: a real button that draws its tile, its title, its state line when it has one, and the switch.

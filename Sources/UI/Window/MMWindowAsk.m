@@ -35,7 +35,7 @@ static const CGFloat kPill = 28, kLink = 17, kButton = 24;
         _field.placeholderAttributedString = MMWindowText(MMWindowAskTitle, 12.5, NSFontWeightRegular, MMWindowColor(MMWindowInkText3));
         _field.delegate = self;
         _field.accessibilityLabel = MMWindowAskTitle;
-        _field.accessibilityHelp = @"Type a question and press Return. MinMacs answers from what it knows, with no model, and acts on nothing.";
+        _field.accessibilityHelp = @"Type a question and press Return. MinMacs answers from what it knows, asks Claude what it cannot, and acts on nothing.";
         _field.toolTip = @"Ask what MinMacs did, would do or knows. Return asks, Escape clears.";
         [self addSubview:_field];
         [self layField];
@@ -147,6 +147,8 @@ static CGFloat BackWidth(void) { return Width(MMWindowAskBack, 10.5, NSFontWeigh
     y += draw ? MMWindowDrawBlock(asked, 11, 11, NSFontWeightRegular, t3, x, y, qw, -1, -1, 0) : MMWindowBlockHeight(asked, 11, 11, NSFontWeightRegular, qw);
     y = MAX(y, kTop + kLink) + 8;
     y += draw ? MMWindowDrawBlock(a.answer, 13, 13, NSFontWeightMedium, text, x, y, w, -1, -1, 0) : MMWindowBlockHeight(a.answer, 13, 13, NSFontWeightMedium, w);
+    // Who answered and what it took, in quiet type: "Answered by Claude · 1,240 tokens".
+    if (a.byline.length) { y += 5; y += draw ? MMWindowDrawBlock(a.byline, 10.5, 10.5, NSFontWeightRegular, t3, x, y, w, -1, -1, 0) : MMWindowBlockHeight(a.byline, 10.5, 10.5, NSFontWeightRegular, w); }
     MMWindowSuggest *s = a.suggest;
     if (s) {
         y += 10;
@@ -292,6 +294,7 @@ static CGFloat BackWidth(void) { return Width(MMWindowAskBack, 10.5, NSFontWeigh
     NSMutableArray *out = [NSMutableArray new];
     if (!self.answer) return out;
     NSString *said = [NSString stringWithFormat:@"You asked %@. %@", self.answer.question, self.answer.answer];
+    if (self.answer.byline.length) said = [NSString stringWithFormat:@"%@ %@.", said, self.answer.byline];
     if (self.answer.suggest.note.length) said = [NSString stringWithFormat:@"%@ %@", said, self.answer.suggest.note];
     [out addObject:[NSAccessibilityElement accessibilityElementWithRole:NSAccessibilityStaticTextRole frame:NSZeroRect label:said parent:self]];
     [out addObjectsFromArray:_buttons];

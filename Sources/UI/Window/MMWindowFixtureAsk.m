@@ -47,6 +47,21 @@ MMWindowAnswer *MMWindowFixtureAnswer(NSString *name) {
                       Entry(@"Remove 3 merged worktrees.", nil, @"+2.62 GB disk", nil, nil),
                       Entry(@"Clean npm cache.", @"Skipped, since it waits for your own press.", nil, nil, nil),
                       Entry(@"Tune the ranking", @"Skipped, since it asks you.", nil, @"agent:0", nil)];
+    } else if ([name isEqualToString:@"ask-asking"]) {
+        // Tier 1 while Claude is asked, in the words Shell/MMAskClaude.m gives: Asking Claude, with Stop.
+        a.question = @"Hey there"; a.kind = @"unknown"; a.asking = YES;
+        a.answer = MMWindowAskAsking;
+        a.suggest = Suggest(@"stop", @"Stop", @"ask", nil, @"Stops asking Claude. Nothing was done, and nothing will be.");
+    } else if ([name isEqualToString:@"ask-claude"]) {
+        a.question = @"is :6006 still needed"; a.kind = @"claude"; a.answeredBy = @"claude"; a.model = @"opus"; a.tokens = 1240;
+        a.answer = @":6006 Storybook has had no requests for 6 hours and no agent above it, so Fix Everything would stop it. If you still use it, keep it.";
+        a.byline = @"Answered by Claude · 1,240 tokens";
+        a.entries = @[Entry(@":6006 Storybook", nil, nil, @"server:6006", nil)];
+        a.suggest = Suggest(@"keep", @"Keep for 4 hours", @"server:6006", @"minmacs keep 6006", @"No rule stops or removes it for 4 hours. Fix Everything leaves it too.");
+    } else if ([name isEqualToString:@"ask-unreachable"]) {
+        a.question = @"Hey there"; a.kind = @"unknown"; a.model = @"opus";
+        a.answer = @"Claude isn't reachable: Not logged in · Please run /login. The rules answer the questions below.";
+        a.examples = @[@"Why did you stop :4321 Astro?", @"What would you clean now?", @"What is :3001 Next.js?"];
     } else {
         a.question = @"is it going to rain tomorrow"; a.kind = @"unknown";
         a.answer = MMWindowAskCannot;

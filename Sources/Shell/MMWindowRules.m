@@ -71,6 +71,7 @@ MMWindowSettings *MMWindowSettingsFrom(MMPerformance *p, MMWindowExtras *extras)
     [switches addObject:MMWindowLidSwitch(extras.lidOn, extras.lidInert, extras.lidNote)];
     [switches addObject:MMWindowLoginSwitch(extras.loginOn, extras.loginNote)];
     [switches addObject:MMWindowPullsSwitch(extras.pullsOn)];
+    [switches addObject:MMWindowAskClaudeSwitch(extras.askClaudeOn)];
     st.switches = switches;
     return st;
 }
@@ -144,6 +145,7 @@ void MMWindowWelcomeDone(void) {
     MMWindowExtras *x = [MMWindowExtras new];
     x.loginOn = loginOn;
     x.pullsOn = [MMPulls enabled];
+    x.askClaudeOn = MMPrefBool(MMAskClaudeKey, YES);
     MMRepoIndex *index = MMRepoIndex.shared;
     x.worktreesLooked = !index.roots.count ? MMWindowLookedNowhere : index.walked ? MMWindowLookedDone : MMWindowLookedNotYet;
     x.cachesLooked = !MMClutterRoot() ? MMWindowLookedNowhere : MMClutterCatalog.shared.lastScan ? MMWindowLookedDone : MMWindowLookedNotYet;

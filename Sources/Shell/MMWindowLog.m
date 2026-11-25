@@ -79,6 +79,7 @@ static NSString *SettingSentence(NSString *key, id old, id now) {
         if (a && b) return [NSString stringWithFormat:@"The model reviews ask changed from %@ to %@.", a, b];
         return b ? [NSString stringWithFormat:@"The model reviews ask was set to %@.", b] : nil;
     }
+    if ([key isEqualToString:MMAskClaudeKey]) return [NSString stringWithFormat:@"Ask uses Claude turned %@.", OnOff(now) ?: @"off"];
     if ([key isEqualToString:MMWindowLoginKey]) return [NSString stringWithFormat:@"Open at login turned %@.", OnOff(now) ?: @"off"];
     if ([key isEqualToString:MMUnattendedKey]) return [NSString stringWithFormat:@"Unattended turned %@.%@", OnOff(now) ?: @"off",
                                                       [now boolValue] ? @" Nothing waits for a person, and nothing asks to be confirmed." : @""];

@@ -487,6 +487,10 @@ MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *_Nullable note);
 /// workforest.pullRequests. MMWindowPullsHelp is its tooltip.
 MMWindowSwitch *MMWindowPullsSwitch(BOOL on);
 extern NSString *const MMWindowPullsHelp;
+/// Ask uses Claude, in "This Mac" next to Pull requests: whether a question the rules cannot answer goes to Claude,
+/// the pref ask.claude, on by default. MMWindowAskClaudeHelp is its tooltip.
+MMWindowSwitch *MMWindowAskClaudeSwitch(BOOL on);
+extern NSString *const MMWindowAskClaudeHelp;
 /// What Keep awake now and While agents work do, for their tooltips. MMWindowAgentsNote is the state line of While
 /// agents work: "Awake now for 2 agents", nil while no agent holds the Mac awake. `holding` is how many do now.
 NSString *MMWindowAwakeHelp(void);
@@ -593,7 +597,7 @@ NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
 /// What an answer offers to do: the action button that exists already, "Keep for 7 days" or "Undo". Nothing acts
 /// until a person presses it, and then it goes through the keep or the restore the rest of MinMacs uses.
 @interface MMWindowSuggest : NSObject
-@property (copy) NSString *action;                      // "keep" or "undo"
+@property (copy) NSString *action;                      // "keep" or "undo", or "stop" while Claude is asked
 @property (copy) NSString *title;                       // "Keep for 7 days", "Keep for 4 hours", "Undo"
 @property (copy) NSString *target;                      // the row's key for a keep, the record's rid for an undo
 /// The verb that does the same from the command line, "minmacs restore <rid>". nil when no verb does it.
@@ -618,8 +622,16 @@ NSString *MMWindowLogNote(BOOL empty, NSString *_Nullable left);
 @property (copy) NSArray<NSString *> *examples;
 /// For "about": the row the answer makes active, so its story shows.
 @property (copy, nullable) NSString *row;
-/// Who answered: "rules" for tier 0. The model of tier 1 will say its own name.
+/// Who answered: "rules" for tier 0, "claude" for tier 1.
 @property (copy) NSString *answeredBy;
+/// The quiet line under the answer: "Answered by Claude · 1,240 tokens". nil for the rules' own answers.
+@property (copy, nullable) NSString *byline;
+/// The uncached tokens Claude's call took, as the log counts a review's. 0 when no model was asked.
+@property NSInteger tokens;
+/// The model tier 1 asked, such as "opus", or "claude" when the call was stopped before it said. nil when no model was asked.
+@property (copy, nullable) NSString *model;
+/// YES while Claude is asked: the answer says MMWindowAskAsking, and its button is Stop.
+@property BOOL asking;
 /// The same answer with its suggestion pressed and this note in the button's place. The answer itself is not changed.
 - (MMWindowAnswer *)withNote:(NSString *)note;
 @end
@@ -630,6 +642,8 @@ extern NSString *const MMWindowAskTitle;
 extern NSString *const MMWindowAskBack;
 /// "I can't answer that without the model yet.", the answer to anything tier 0 has no rule for.
 extern NSString *const MMWindowAskCannot;
+/// "Asking Claude", the answer while tier 1 waits for Claude, with Stop for its button.
+extern NSString *const MMWindowAskAsking;
 
 #pragma mark - The whole window
 

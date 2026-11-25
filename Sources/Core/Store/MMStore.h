@@ -47,6 +47,8 @@ BOOL MMIconVisible(NSString *expert);                   // YES when the key is m
 /// The values review.model takes, auto first.
 NSArray<NSString *> *MMReviewModelNames(void);
 extern NSString *const MMReviewModelKey;                // @"review.model": auto, opus, sol, sonnet or haiku. auto by default
+/// @"ask.claude": Ask MinMacs asks Claude what its rules cannot answer, Shell/MMAsk.h. YES by default.
+extern NSString *const MMAskClaudeKey;
 extern NSString *const MMOneIconKey;                    // @"core.oneIcon": one menu with a section per expert. NO by default
 
 /// P36. One expert's rules file, <expert>/rules.json: named lists of entries the person or an expert set.

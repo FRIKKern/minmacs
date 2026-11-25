@@ -6,7 +6,8 @@
 /// fixture, state, the row the pointer rests on.
 static NSArray<NSArray *> *WindowAskShots(void) {
     return @[@[@"ask-empty", @"main", @""], @[@"ask-typing", @"typing", @""], @[@"ask-why", @"main", @""], @[@"ask-keep", @"main", @""],
-             @[@"ask-undo", @"main", @""], @[@"ask-undone", @"main", @""], @[@"ask-plan", @"main", @""], @[@"ask-fallback", @"main", @""]];
+             @[@"ask-undo", @"main", @""], @[@"ask-undone", @"main", @""], @[@"ask-plan", @"main", @""], @[@"ask-fallback", @"main", @""],
+             @[@"ask-asking", @"main", @""], @[@"ask-claude", @"main", @""], @[@"ask-unreachable", @"main", @""]];
 }
 
 static MMWindowMiddleView *AskMiddle(MMWindowView *v) { return WordViews(v, MMWindowMiddleView.class).firstObject; }
@@ -17,13 +18,14 @@ static void AskShotState(MMWindowView *v, NSString *state) {
 
 /// A host that counts what the answer's presses ask for. Nothing it is told acts.
 @interface AskHost : PolishHost
-@property NSInteger asks, backs, keeps;
+@property NSInteger asks, backs, keeps, askStops;
 @property (copy) NSString *lastAsk, *lastKeep, *lastRow;
 @end
 @implementation AskHost
 - (void)windowAsk:(NSString *)question row:(NSString *)rowKey { self.asks++; self.lastAsk = question; self.lastRow = rowKey; }
 - (void)windowAskBack { self.backs++; }
 - (void)windowKeep:(NSString *)rowKey { self.keeps++; self.lastKeep = rowKey; }
+- (void)windowAskStop { self.askStops++; }
 @end
 
 /// The views of the middle in the order Tab reaches them, from the first that can take the keyboard.
@@ -45,14 +47,14 @@ static void WindowAskChecks(void) {
         else if (!NSIsEmptyRect(bounds) && (NSMinX(used) < NSMinX(bounds) - 1 || NSMaxX(used) > NSMaxX(bounds) + 1 || NSMinY(used) < NSMinY(bounds) - 1 || NSMaxY(used) > NSMaxY(bounds) + 1)) fault = @"past its view";
         if (fault && faults.count < 10) [faults addObject:[NSString stringWithFormat:@"%@: %@", fault, text]];
     });
-    NSArray<NSString *> *names = @[@"ask-why", @"ask-keep", @"ask-undo", @"ask-undone", @"ask-plan", @"ask-fallback"];
+    NSArray<NSString *> *names = @[@"ask-why", @"ask-keep", @"ask-undo", @"ask-undone", @"ask-plan", @"ask-fallback", @"ask-asking", @"ask-claude", @"ask-unreachable"];
     NSInteger drawn = 0;
     for (NSNumber *contrast in @[@NO, @YES]) {
         MMWindowForceContrast(contrast.boolValue);
         for (NSString *name in names) { LogDraw(PolishView(name)); drawn++; }
     }
     MMWindowForceContrast(NO);
-    Check(faults.count == 0 && drawn == 12, @"window ask: in every answer, in both looks, no drawn string holds an ellipsis, none is past its box and none leaves its view",
+    Check(faults.count == 0 && drawn == 18, @"window ask: in every answer, in both looks, no drawn string holds an ellipsis, none is past its box and none leaves its view",
           [faults componentsJoinedByString:@" | "]);
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently", @"is clean", @"all clean", @"(", @")", @"!"];
     NSMutableArray *bad = [NSMutableArray new];
@@ -136,6 +138,41 @@ static void WindowAskChecks(void) {
     [examples.firstObject performClick:nil];
     Check([seen containsObject:@"I can't answer that without the model yet."] && examples.count == 3 && fh.asks == 1 && [fh.lastAsk isEqualToString:@"Why did you stop :4321 Astro?"],
           @"window ask: the fallback says it cannot answer without the model, and offers three questions, each a press that asks it", [NSString stringWithFormat:@"%lu examples, %@", (unsigned long)examples.count, fh.lastAsk]);
+
+    // Tier 1: Asking Claude with Stop, whose press goes to the host and acts on nothing; Claude's answer with its quiet
+    // line and the rules' own Keep; and Claude out of reach, said so, with the rules' examples.
+    AskHost *sh = [AskHost new];
+    MMWindowView *asking = PolishView(@"ask-asking");
+    asking.host = sh;
+    MMWindowAnswerView *sa = AskMiddle(asking).answerView;
+    [seen removeAllObjects];
+    LogDraw(asking);
+    MMWindowButton *stopButton = sa.suggestButton;
+    [stopButton performClick:nil];
+    Check([seen containsObject:@"Asking Claude"] && [stopButton.title isEqualToString:@"Stop"] && sh.askStops == 1 && sh.keeps == 0 && sh.undos == 0 && sh.asks == 0,
+          @"window ask: while Claude is asked the answer says Asking Claude, with Stop, whose press goes to the host once and acts on nothing",
+          [NSString stringWithFormat:@"%@ %ld stops", stopButton.title, (long)sh.askStops]);
+    AskHost *ch = [AskHost new];
+    MMWindowView *claude = PolishView(@"ask-claude");
+    claude.host = ch;
+    MMWindowAnswerView *ca = AskMiddle(claude).answerView;
+    [seen removeAllObjects];
+    LogDraw(claude);
+    BOOL beforePress = ch.keeps == 0;
+    [ca.suggestButton performClick:nil];
+    Check([seen containsObject:@"Answered by Claude · 1,240 tokens"] && [ca.suggestButton.title isEqualToString:@"Keep for 4 hours"] && beforePress && ch.keeps == 1
+          && [ch.lastKeep isEqualToString:@"server:6006"] && NSContainsRect(ca.bounds, ca.suggestButton.frame),
+          @"window ask: Claude's answer stands in the middle with Answered by Claude and its tokens, and its suggestion is the rules' Keep, which acts only on its press",
+          [NSString stringWithFormat:@"%@ %ld keeps", ca.suggestButton.title, (long)ch.keeps]);
+    MMWindowView *gone = PolishView(@"ask-unreachable");
+    MMWindowAnswerView *ga = AskMiddle(gone).answerView;
+    [seen removeAllObjects];
+    LogDraw(gone);
+    NSInteger gex = 0;
+    for (MMWindowButton *b in ga.presses) if ([b.accessibilityLabel hasPrefix:@"Ask: "]) gex++;
+    BOOL saidWhy = NO;
+    for (NSString *x in seen) if ([x hasPrefix:@"Claude isn't reachable: "]) saidWhy = YES;
+    Check(saidWhy && gex == 3 && !ga.suggestButton, @"window ask: Claude out of reach says so and why, with the rules' three questions, and no button", @(gex).stringValue);
 
     // The field: Return asks with the row whose story shows, Escape clears it first and then does the window's Escape.
     AskHost *kh = [AskHost new];

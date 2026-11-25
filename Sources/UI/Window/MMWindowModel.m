@@ -606,6 +606,13 @@ MMWindowSwitch *MMWindowPullsSwitch(BOOL on) {
 NSString *const MMWindowPullsHelp = @"When you point at a worktree, asks GitHub about its pull request through your own gh login. "
                                     @"That sends the repo and the branch name.";
 
+MMWindowSwitch *MMWindowAskClaudeSwitch(BOOL on) {
+    return Switch(@"askclaude", @"Ask uses Claude", MMWindowMacCard, on, nil, MMWindowAskClaudeHelp);
+}
+
+NSString *const MMWindowAskClaudeHelp = @"When the rules can't answer a question in Ask MinMacs, asks Claude through your own claude login. "
+                                        @"That sends the question and a short summary of the window and the log, never a file.";
+
 MMWindowSwitch *MMWindowLoginSwitch(BOOL on, NSString *note) {
     // No state line: the switch says it. The welcome's sentence for this state is its tooltip.
     return Switch(@"login", @"Open at login", MMWindowMacCard, on, note, MMWindowLoginNote(on));

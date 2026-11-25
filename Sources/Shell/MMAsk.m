@@ -437,3 +437,25 @@ MMWindowAnswer *MMAskTier0(NSString *question, MMAskWorld *world) {
     a.examples = Examples(world);
     return a;
 }
+
+NSArray<NSString *> *MMAskNear(NSString *question, MMAskWorld *world) {
+    NSMutableArray<NSString *> *out = [NSMutableArray new];
+    NSArray<NSString *> *asked = Meant(Words(MMAskQuestion(question) ?: @""));
+    // Each word on its own, so a row that one word names is near even when the question as a whole names none.
+    NSMutableArray<MMWindowRow *> *rows = [NSMutableArray new];
+    for (MMWindowRow *r in AllRows(world.model)) {
+        if (rows.count >= 5) break;
+        for (NSString *w in asked) {
+            if (w.length < 3 && ![w hasPrefix:@":"]) continue;
+            if (Score(@[w], r.shownName) || Score(@[w], r.name)) { [rows addObject:r]; break; }
+        }
+    }
+    for (MMWindowRow *r in rows) {
+        NSString *group = GroupOf(world.model, r);
+        [out addObject:group ? [NSString stringWithFormat:@"A word of the question names %@, in %@.", r.shownName, group.lowercaseString]
+                             : [NSString stringWithFormat:@"A word of the question names %@.", r.shownName]];
+    }
+    NSArray<NSString *> *examples = Examples(world);
+    [out addObject:[@"The rules answer questions such as: " stringByAppendingString:[examples componentsJoinedByString:@" "]]];
+    return out;
+}
