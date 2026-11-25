@@ -191,8 +191,29 @@ void MMSetPref(NSString *key, id value) {
         });
         return;
     }
+    if (MMRealPrefsRefused()) {
+        // A test lost MINMACS_HOME on the way. The key goes to the tripwire, which test.sh reads after each section,
+        // and the process stops before CFPreferences or cfprefsd hear of it. _exit leaves no crash report.
+        const char *trip = getenv("MINMACS_PREFS_TRIPWIRE");
+        if (trip && *trip) {
+            int fd = open(trip, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0600);
+            if (fd >= 0) { dprintf(fd, "%d %s %s\n", getpid(), getprogname(), key.UTF8String); close(fd); }
+        }
+        fprintf(stderr, "minmacs: a test process tried to write %s to the person's own prefs, %s; refused\n",
+                key.UTF8String, MMPrefsDomain.UTF8String);
+        _exit(70);
+    }
     CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, (__bridge CFStringRef)MMPrefsDomain);
     CFPreferencesAppSynchronize((__bridge CFStringRef)MMPrefsDomain);
+}
+
+BOOL MMRealPrefsRefused(void) {
+#ifdef MM_TESTS
+    return YES;
+#else
+    const char *trip = getenv("MINMACS_PREFS_TRIPWIRE");
+    return trip && *trip;
+#endif
 }
 
 BOOL MMPrefBool(NSString *key, BOOL dflt) {

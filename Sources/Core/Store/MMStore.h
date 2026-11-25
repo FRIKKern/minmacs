@@ -39,6 +39,10 @@ NSString *MMPrefString(NSString *key, NSString *dflt);
 /// when MINMACS_HOME is set. That plist is read and written as a file under an flock, never through CFPreferences,
 /// so tests never write the person's prefs.
 NSString *MMPrefsTarget(void);
+/// P35. YES in a test process: one built with MM_TESTS, or one with MINMACS_PREFS_TRIPWIRE set, which test.sh exports.
+/// Such a process never writes MMPrefsDomain: should it lose MINMACS_HOME, MMSetPref appends its pid, name and key to
+/// the tripwire file and exits 70 before CFPreferences runs. The installed app never has the variable.
+BOOL MMRealPrefsRefused(void);
 /// P35. The key AppKit keeps a status item's visible state under, for autosaveName minmacs.<expert>.
 /// Settings reads and writes the same key, so it shows what the menu bar shows.
 NSString *MMIconVisibleKey(NSString *expert);
