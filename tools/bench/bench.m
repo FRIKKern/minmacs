@@ -385,11 +385,12 @@ static int Idle(NSArray<NSString *> *args) {
     // Issue #52: what each part of the tick cost in the window, in CPU ms a build, from the graph's own counters,
     // and what the Senses passes read and carried.
     double builds = MAX(1, [costB[@"builds"] doubleValue] - [costA[@"builds"] doubleValue]);
-    NSMutableDictionary *perBuild = [NSMutableDictionary new], *reused = [NSMutableDictionary new];
+    NSMutableDictionary *perBuild = [NSMutableDictionary new], *reused = [NSMutableDictionary new], *asked = [NSMutableDictionary new];
     for (NSString *k in costB) {
         if ([k isEqualToString:@"builds"] || [k isEqualToString:@"skipped"]) continue;
         double d = [costB[k] doubleValue] - [costA[k] doubleValue];
         if ([k hasPrefix:@"reused."]) { reused[[k substringFromIndex:7]] = @((uint64_t)d); continue; }   // a count
+        if ([k hasPrefix:@"why."]) { if (d > 0) asked[[k substringFromIndex:4]] = @((uint64_t)d); continue; }   // a count
         perBuild[k] = R3(d / 1e6 / builds);
     }
     double passes = MAX(1, (double)(sensesB.passes - sensesA.passes));
@@ -408,7 +409,7 @@ static int Idle(NSArray<NSString *> *args) {
                                               @"net": R3((sensesB.netNs - sensesA.netNs) / 1e6 / passes)}};
     NSDictionary *graph = @{@"builds": @((NSUInteger)builds),
                             @"skipped": @([costB[@"skipped"] unsignedLongLongValue] - [costA[@"skipped"] unsignedLongLongValue]),
-                            @"perBuildCPUms": perBuild, @"reusedFindings": reused,
+                            @"perBuildCPUms": perBuild, @"reusedFindings": reused, @"askedBy": asked,
                             @"sessionReads": @(readsB - readsA), @"sessionSkips": @(skipsB - skipsA)};
     double window = (b.wallNs - a.wallNs) / 1e9;
     NSArray *old = OldAppsOver(apps, appStart, psStart, window);
@@ -1277,7 +1278,7 @@ static NSDictionary *GraphCosts(NSDictionary *a, NSDictionary *b) {
     double builds = MAX(1, [b[@"builds"] doubleValue] - [a[@"builds"] doubleValue]);
     NSMutableDictionary *per = [NSMutableDictionary new];
     for (NSString *k in b) {
-        if ([k isEqualToString:@"builds"] || [k isEqualToString:@"skipped"] || [k hasPrefix:@"reused."]) continue;
+        if ([k isEqualToString:@"builds"] || [k isEqualToString:@"skipped"] || [k hasPrefix:@"reused."] || [k hasPrefix:@"why."]) continue;
         per[k] = R3(([b[k] doubleValue] - [a[k] doubleValue]) / 1e6 / builds);
     }
     return @{@"builds": @(Counter(a, b, @"builds")), @"skipped": @(Counter(a, b, @"skipped")), @"perBuildCPUms": per};
@@ -1565,6 +1566,38 @@ static int History(NSArray<NSString *> *args) {
     return 0;
 }
 
+#pragma mark - Seed
+
+/// bench seed [--undo N] [--notes N] [--scan]: the undo log of the field into MINMACS_HOME, before a `bench idle` there.
+/// On the owner's Mac on 2026-11-25 it held 404 finished Noo-Noo trash records in 2881 rows, about 6.4 KB each:
+/// the begin, a few notes of the audit and the finish. Each is written through MMUndo, as an action writes it.
+/// It moves, removes and signals nothing.
+static int Seed(NSArray<NSString *> *args) {
+    if (!SafeEnvironment()) return 2;
+    NSUInteger records = (NSUInteger)MAX(0, Option(args, @"--undo", @"400").integerValue);
+    NSUInteger notes = (NSUInteger)MAX(0, Option(args, @"--notes", @"5").integerValue);
+    NSString *home = NSProcessInfo.processInfo.environment[@"MINMACS_HOME"];
+    NSMutableArray *audit = [NSMutableArray new];
+    for (int i = 0; i < 40; i++)
+        [audit addObject:@{@"path": [NSString stringWithFormat:@"%@/scratch/session-%04d/render-%02d", home, i * 37, i], @"exists": @YES,
+                           @"allocated": @(96403456 + i), @"files": @(302 + i), @"mtime": @(1795481108 + i)}];
+    uint64_t c0 = ProcessCPUNs();
+    for (NSUInteger i = 0; i < records; i++) @autoreleasepool {
+        MMUndoRecord *r = [MMUndo.shared begin:@"noonoo" kind:@"trash" finding:[NSString stringWithFormat:@"noonoo:clutter:old-%lu", (unsigned long)i]
+                                       subject:@"Claude Code scratch" why:@"nothing has used it for 25 hours" by:@"proactive" parent:nil
+                                       payload:@{@"kindID": @"claude-code-scratch"}];
+        for (NSUInteger n = 0; n < notes; n++) [MMUndo.shared note:r payload:@{@"audit": @{@"before": audit}, @"step": @(n)}];
+        [MMUndo.shared finish:r ok:YES freed:0 error:nil];
+    }
+    // The app reads the last scan from core/clutter.json at launch, and scans a few minutes later. --scan writes that
+    // file now, so a `bench idle` in this home starts with the clutter of the field from its first build.
+    NSUInteger items = 0;
+    if ([args containsObject:@"--scan"]) items = MMClutterCatalog.shared.scan.count;
+    PrintJSON(@{@"kind": @"seed", @"undoRecords": @([MMUndo.shared recent:nil limit:0].count), @"notesPerRecord": @(notes),
+                @"clutterItems": @(items), @"cpuSeconds": R3((ProcessCPUNs() - c0) / 1e9)});
+    return 0;
+}
+
 #pragma mark - Apps
 
 static int Apps(void) {
@@ -1598,8 +1631,10 @@ int main(int argc, const char *argv[]) {
         if ([mode isEqualToString:@"apps"]) return Apps();
         if ([mode isEqualToString:@"scale"]) return Scale(args);
         if ([mode isEqualToString:@"history"]) return History(args);
+        if ([mode isEqualToString:@"seed"]) return Seed(args);
         fprintf(stderr, "usage: bench idle --seconds N [--warmup N] | menus [--iterations N] | hangs [--rounds N] | startup [--wait N] | apps\n"
-                        "       bench scale [--expect N] [--warm N] [--clutter] [--review N] [--idle S] | history [--trees N]\n");
+                        "       bench scale [--expect N] [--warm N] [--clutter] [--review N] [--idle S] | history [--trees N]\n"
+                        "       bench seed [--undo N] [--notes N] [--scan]\n");
         return 2;
     }
 }

@@ -11,6 +11,7 @@
     NSMutableSet<NSString *> *_pending;
     dispatch_queue_t _queue;
     BOOL _saveQueued;
+    uint64_t _savedAt;                                          // CLOCK_UPTIME_RAW ns of the last write
 }
 
 - (instancetype)initWithName:(NSString *)name maxAge:(NSTimeInterval)maxAge persist:(BOOL)persist {
@@ -41,9 +42,22 @@
 
 /// Writes the cache once per burst of changes, on the cache's queue.
 - (void)saveSoon {
-    if (!_persist || _saveQueued) return;
-    _saveQueued = YES;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), _queue, ^{ [self save]; });
+    double wait = 0.2;
+    @synchronized (self) {
+        if (!_persist || _saveQueued) return;
+        _saveQueued = YES;
+        double since = _savedAt ? (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - _savedAt) / 1e9 : 1e9;
+        if (self.saveEvery > 0) wait = MAX(wait, self.saveEvery - since);
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), _queue, ^{ [self save]; });
+}
+
+- (void)saveIfDue {
+    BOOL now;
+    @synchronized (self) {
+        now = !_savedAt || clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - _savedAt >= (uint64_t)(self.saveEvery * NSEC_PER_SEC);
+    }
+    if (now) [self save]; else [self saveSoon];
 }
 
 /// Writes the cache now when it changed since the last write. Values that JSON cannot hold are left out.
@@ -53,6 +67,7 @@
     @synchronized (self) {
         if (!_saveQueued) return;
         _saveQueued = NO;
+        _savedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         for (NSString *k in _entries) {
             NSDictionary *e = _entries[k];
             if (![NSJSONSerialization isValidJSONObject:@[e[@"value"]]]) continue;

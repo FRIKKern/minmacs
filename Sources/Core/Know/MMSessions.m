@@ -178,10 +178,16 @@ static BOOL FastISO(NSString *s, double *out) {
         offset = (b[i] == '-' ? -1 : 1) * (h * 3600 + m * 60);
         i += 6;
     } else return NO;
-    struct tm t = { .tm_year = v[0] - 1900, .tm_mon = v[1] - 1, .tm_mday = v[2], .tm_hour = v[3], .tm_min = v[4], .tm_sec = v[5] };
-    time_t secs = timegm(&t);
-    if (secs == (time_t)-1 || t.tm_mday != v[2]) return NO;   // a day past the month's end, such as 02-30, is the formatter's
-    *out = (double)secs - offset + frac;
+    // A day past the month's end, such as 02-30, is the formatter's.
+    static const int kDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    BOOL leap = (v[0] % 4 == 0 && v[0] % 100 != 0) || v[0] % 400 == 0;
+    if (v[2] > kDays[v[1] - 1] + (v[1] == 2 && leap)) return NO;
+    // The days since 1970-01-01 by the civil calendar, as timegm counts them, with no time zone read: timegm checked
+    // the zone with notify_check_tz on every call, a third of a session read with agents at work, issue #52.
+    int64_t y = v[0] - (v[1] <= 2), era = (y >= 0 ? y : y - 399) / 400, yoe = y - era * 400;
+    int64_t doy = (153 * (v[1] + (v[1] > 2 ? -3 : 9)) + 2) / 5 + v[2] - 1, doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    int64_t days = era * 146097 + doe - 719468;
+    *out = (double)(days * 86400 + v[3] * 3600 + v[4] * 60 + v[5]) - offset + frac;
     return YES;
 }
 
@@ -486,6 +492,10 @@ static const NSTimeInterval kFullReadEvery = 600;    // and every folder is list
     NSDate *_readAt;                     // under @synchronized (self): when the folders were last read
     NSDictionary<NSNumber *, NSNumber *> *_liveStarts;   // under @synchronized (self): live status file pid to start
     NSUInteger _reads, _skips;
+    // Issue #52. Each transcript's last parse, path to [inode, size, when, facts], and whether this read parses every
+    // changed file anyway. Under _readLock.
+    NSMutableDictionary<NSString *, NSArray *> *_parsed;
+    BOOL _parseAll;
     // Issue #52. What each session folder held when it was last listed, so a change lists only its own folder.
     // Keys are Plain paths. Touched only inside a read, which runs on one queue at a time under _readLock.
     NSMutableSet<NSString *> *_dirtyDirs;                // under @synchronized (self): folders FSEvents named
@@ -581,7 +591,9 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
             NSString *p = Plain(@(paths[i]));
             if (flags[i] & (kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagRootChanged |
                             kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped)) { _allDirty = YES; transcriptsOnly = NO; }
-            if (![p hasPrefix:projects]) transcriptsOnly = NO;
+            // A path that cannot move the index, such as a Codex rollout under its home folder, or anything under the
+            // folder a missing one is watched from, says nothing about what changed.
+            if (![p hasPrefix:projects] && Matters(p, dirs, missing)) transcriptsOnly = NO;
             [_dirtyDirs addObject:p];
         }
     }
@@ -663,6 +675,7 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
     if ((self = [super init])) {
         _all = @[]; _byPid = @{}; _byID = @{};
         _facts = [[MMFactCache alloc] initWithName:@"sessions" maxAge:0 persist:YES];
+        _facts.saveEvery = 60;
         _dirtyDirs = [NSMutableSet new]; _allDirty = YES;
         _subdirs = [NSMutableDictionary new]; _listing = [NSMutableDictionary new];
         _readLock = [NSLock new];
@@ -670,11 +683,27 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
     return self;
 }
 
+/// How long a transcript that only grew keeps the facts of its last parse, issue #52. An agent at work appends to its
+/// transcript about once a second, and each read parsed the 64 KB head and 512 KB tail of each one that grew: with
+/// eight agents most of a build's facts. Its last write comes from its modification time at every read, so only its
+/// title and what it did in its last hour wait, at most this long. A read of everything parses every changed file.
+static const NSTimeInterval kGrownParseEvery = 15;
+
 - (NSDictionary *)factsFor:(NSString *)path reader:(NSDictionary *(^)(NSString *))reader mtime:(NSDate **)mtime {
+    struct stat st;
+    BOOL known = stat(path.fileSystemRepresentation, &st) == 0;
     NSString *fp = FileFingerprint(path, mtime);
     if (!fp) return nil;
+    NSArray *last = _parsed[path];
+    double now = NSDate.date.timeIntervalSince1970;
+    if (!_parseAll && known && last && [last[0] unsignedLongLongValue] == (uint64_t)st.st_ino &&
+        (uint64_t)st.st_size >= [last[1] unsignedLongLongValue] && now - [last[2] doubleValue] < kGrownParseEvery) return last[3];
     // "a2": the facts gained what a session did in its last hour, so a value kept by an older MinMacs is read again.
-    return [_facts valueFor:path fingerprint:[fp stringByAppendingString:@":a2"] orCompute:^NSDictionary *{ return reader(path); } wait:YES];
+    NSDictionary *facts = [_facts valueFor:path fingerprint:[fp stringByAppendingString:@":a2"] orCompute:^NSDictionary *{ return reader(path); } wait:YES];
+    if (!_parsed) _parsed = [NSMutableDictionary new];
+    if (known && facts) _parsed[path] = @[@((uint64_t)st.st_ino), @((uint64_t)st.st_size), @(now), facts];
+    else [_parsed removeObjectForKey:path];
+    return facts;
 }
 
 /// YES when a folder that startWatching could not watch from above now exists, so the watch must start again.
@@ -715,6 +744,7 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
         _allDirty = NO;
     }
     if (everything) _fullAt = NSDate.date;
+    _parseAll = everything;
     NSDate *since = [NSDate dateWithTimeIntervalSinceNow:-kSessionWindow];
     NSMutableDictionary<NSNumber *, NSNumber *> *liveStarts = [NSMutableDictionary new];
     NSMutableDictionary<NSString *, MMSession *> *byID = [NSMutableDictionary new];
@@ -789,7 +819,10 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
     }
 
     [_facts forget:live];
-    [_facts save];   // the index is read again at the next launch, so it is written now
+    if (everything) for (NSString *k in _parsed.allKeys) if (![live containsObject:k]) [_parsed removeObjectForKey:k];
+    // The index is read again at the next launch, so it is written soon after a change: at most once a minute, since
+    // with agents at work each read changes it, and writing it whole took a fifth of a read, issue #52.
+    [_facts saveIfDue];
     NSArray *all = [byID.allValues sortedArrayUsingComparator:^NSComparisonResult(MMSession *a, MMSession *b) {
         NSComparisonResult r = [b.lastActive ?: NSDate.distantPast compare:a.lastActive ?: NSDate.distantPast];
         return r != NSOrderedSame ? r : [a.sessionID compare:b.sessionID];

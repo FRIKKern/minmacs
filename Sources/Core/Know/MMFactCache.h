@@ -10,6 +10,12 @@
 @interface MMFactCache<V> : NSObject
 - (instancetype)initWithName:(NSString *)name maxAge:(NSTimeInterval)maxAge persist:(BOOL)persist;
 @property (readonly, copy) NSString *name;
+/// A persisted cache writes its file at most this often, 0 for a write 0.2 s after each burst of changes.
+@property NSTimeInterval saveEvery;
+/// Writes the file soon, once per burst of changes and at most every saveEvery.
+- (void)saveSoon;
+/// Writes the file now when it changed and the last write is at least saveEvery old, or there was none, else soon.
+- (void)saveIfDue;
 - (V)valueFor:(NSString *)key fingerprint:(NSString *)fingerprint orCompute:(V (^)(void))work wait:(BOOL)wait;
 /// The cached value whatever its fingerprint, or nil.
 - (V)peek:(NSString *)key;

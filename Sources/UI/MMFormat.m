@@ -27,6 +27,13 @@ NSString *MMAgo(NSDate *d) {
     return s < 60 ? @"now" : [MMShortDuration(s) stringByAppendingString:@" ago"];
 }
 
+int64_t MMAgoStep(NSDate *d) {
+    if (!d) return -1;
+    // MMAgo shows MMShortDuration's first part: seconds under a minute read "now", then minutes, hours and days.
+    long t = (long)MAX(0, -d.timeIntervalSinceNow);
+    return t < 60 ? 0 : t < 3600 ? 1000000 + t / 60 : t < 86400 ? 2000000 + t / 3600 : 3000000 + t / 86400;
+}
+
 NSString *MMPlural(NSInteger n, NSString *word) {
     if (n == 1 || !word.length) return [NSString stringWithFormat:@"%ld %@", (long)n, word ?: @""];
     NSString *w = word;

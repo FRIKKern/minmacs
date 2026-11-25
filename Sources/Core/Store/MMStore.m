@@ -3,6 +3,7 @@
 #import "Core/Store/MMStore.h"
 #import <sys/file.h>
 #import <stdatomic.h>
+#import <os/lock.h>
 #import <sys/stat.h>
 #import <fcntl.h>
 #import <unistd.h>
@@ -275,8 +276,45 @@ void MMRulesCheckNow(void) { atomic_fetch_add(&gRulesWrites, 1); }
 }
 
 + (instancetype)rulesFor:(NSString *)expert defaults:(NSDictionary<NSString *, NSArray *> *)defaults {
-    MMStateFile *file = [MMStateFile fileNamed:@"rules" expert:expert];
     NSDictionary *wanted = [defaults copy] ?: @{};
+    // Issue #52: MMKeep asks for the expert's and core's rules for each finding on every build, and each ask made the
+    // file's path with a stat of the support folder and one of the expert's, stated the file and made a string of the
+    // stamp: about 400 stats a build in the field. The same rules again while one stat of the file reads as at the
+    // last merge, with no write through MMRules since and the same support folder.
+    static os_unfair_lock quickLock = OS_UNFAIR_LOCK_INIT;
+    static NSMutableDictionary<NSString *, NSArray *> *quick;   // expert to [home, wanted, rules, path, stat, writes]
+    const char *he = getenv("MINMACS_HOME");
+    NSString *homeKey = he ? @(he) : @"";
+    NSString *qkey = expert.length ? expert : @"core";
+    uint64_t writes = atomic_load(&gRulesWrites);
+    os_unfair_lock_lock(&quickLock);
+    NSArray *q = quick[qkey];
+    os_unfair_lock_unlock(&quickLock);
+    if (q && [q[0] isEqualToString:homeKey] && [q[1] isEqual:wanted] && [q[5] unsignedLongLongValue] == writes) {
+        struct stat st;
+        NSData *was = q[4];
+        if (stat([q[3] fileSystemRepresentation], &st) == 0 && was.length == 4 * sizeof(uint64_t)) {
+            const uint64_t *w = was.bytes;
+            if (w[0] == (uint64_t)st.st_ino && w[1] == (uint64_t)st.st_mtimespec.tv_sec && w[2] == (uint64_t)st.st_mtimespec.tv_nsec &&
+                w[3] == (uint64_t)st.st_size) return q[2];
+        }
+    }
+    MMRules *r = [self slowRulesFor:expert defaults:wanted];
+    NSString *path = r->_file.path;
+    struct stat st;
+    if (path && stat(path.fileSystemRepresentation, &st) == 0) {
+        uint64_t w[4] = {(uint64_t)st.st_ino, (uint64_t)st.st_mtimespec.tv_sec, (uint64_t)st.st_mtimespec.tv_nsec, (uint64_t)st.st_size};
+        os_unfair_lock_lock(&quickLock);
+        if (!quick) quick = [NSMutableDictionary new];
+        if (quick.count > 64) [quick removeAllObjects];
+        quick[qkey] = @[homeKey, wanted, r, path, [NSData dataWithBytes:w length:sizeof w], @(writes)];
+        os_unfair_lock_unlock(&quickLock);
+    }
+    return r;
+}
+
++ (instancetype)slowRulesFor:(NSString *)expert defaults:(NSDictionary<NSString *, NSArray *> *)wanted {
+    MMStateFile *file = [MMStateFile fileNamed:@"rules" expert:expert];
     // Issue #54: the same rules again, while the file is the one the last call merged into. WorkForest asks for
     // its protect list once per worktree on each build, and each call took the file's lock and parsed it,
     // 300 times a build with 300 worktrees. A changed or missing file merges its defaults again, as before.

@@ -8,6 +8,7 @@
 #import "Core/Act/MMRemoval.h"
 #include <sys/stat.h>
 #include <stdio.h>
+#include <os/lock.h>
 #import "Core/Store/MMStore.h"
 #import "Core/Store/MMLog.h"
 #import "Core/Store/MMGains.h"
@@ -37,11 +38,48 @@ static MMUndoState StateFrom(NSString *s) {
 static void LogAppend(NSDictionary *body) {
     [MMLog.shared append:kTable rid:body[@"rid"] expert:body[@"expert"] subject:body[@"subject"] state:body[@"state"] body:body];
 }
-/// The newest body of each record, newest first.
-static NSArray<NSDictionary *> *LogLatest(NSString *expert) {
-    NSMutableArray *out = [NSMutableArray new];
-    for (MMLogEntry *e in [MMLog.shared latest:kTable expert:expert subject:nil since:nil limit:100000]) if (e.body) [out addObject:e.body];
-    return out;
+/// Issue #52. What the log said for a question, kept until MMLogStamp() moves, so a list asked again with nothing
+/// written since parses nothing: the stranded and waiting lists each read every record, and Noo-Noo's Undo list read
+/// all 404 of its records, 10 MB of JSON, each minute to keep 50. The bodies are immutable, so callers share them.
+/// An answer goes 30 seconds after it was read, so the whole log that recovery reads at launch is not held after.
+static NSArray *Kept(NSString *question, NSArray *(^ask)(void)) {
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    static NSMutableDictionary<NSString *, NSArray *> *kept;   // question to [stamp, answer]
+    NSString *stamp = MMLogStamp();   // read before the query, so a write during it reads again next time
+    os_unfair_lock_lock(&lock);
+    NSArray *hit = [kept[question].firstObject isEqualToString:stamp] ? kept[question].lastObject : nil;
+    os_unfair_lock_unlock(&lock);
+    if (hit) return hit;
+    NSArray *answer = ask() ?: @[];
+    NSArray *entry = @[stamp, answer];
+    os_unfair_lock_lock(&lock);
+    if (!kept || kept.count > 32) kept = [NSMutableDictionary new];
+    kept[question] = entry;
+    os_unfair_lock_unlock(&lock);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * (int64_t)NSEC_PER_SEC), dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        os_unfair_lock_lock(&lock);
+        if (kept[question] == entry) [kept removeObjectForKey:question];
+        os_unfair_lock_unlock(&lock);
+    });
+    return answer;
+}
+
+/// The newest body of each record, newest first: all of them with limit 0, else the newest limit.
+static NSArray<NSDictionary *> *LogLatest(NSString *expert, NSUInteger limit) {
+    NSString *q = [NSString stringWithFormat:@"latest|%@|%lu", expert ?: @"*", (unsigned long)limit];
+    return Kept(q, ^NSArray *{
+        NSMutableArray *out = [NSMutableArray new];
+        for (MMLogEntry *e in [MMLog.shared latest:kTable expert:expert subject:nil since:nil limit:limit ?: 100000]) if (e.body) [out addObject:e.body];
+        return [out copy];
+    });
+}
+/// The bodies that name a parent, which tell which records have parts.
+static NSArray<NSDictionary *> *LogWithParent(void) {
+    return Kept(@"parents", ^NSArray *{
+        NSMutableArray *bodies = [NSMutableArray new];
+        for (MMLogEntry *e in [MMLog.shared latest:kTable holding:@"\"parentRid\""]) if (e.body) [bodies addObject:e.body];
+        return [bodies copy];
+    });
 }
 static NSDictionary *LogLatestOf(NSString *rid) {
     return rid ? [MMLog.shared history:rid].lastObject.body : nil;
@@ -975,25 +1013,26 @@ static NSMutableSet<NSString *> *Restoring(void) {
     // Issue #52. An expert's records come from its own rows, and the parents from the few bodies that name one, so an
     // expert with no records reads none. Parsing every record of every expert took 35 to 45 ms a build in the field,
     // with 373 records, 365 of them Noo-Noo's, when WorkForest's prepareFor: asked for its six.
-    NSArray *all = LogLatest(expert);
+    // With a bound, the newest rows of that many records are read. Should some not make a record, the whole list is
+    // read, so a bound never gives fewer records than before.
+    NSArray *all = LogLatest(expert, limit);
+    BOOL whole = !limit;
     NSMutableSet *parents = [NSMutableSet new];
-    NSArray *withParent = all;
-    if (expert) {
-        NSMutableArray *bodies = [NSMutableArray new];
-        for (MMLogEntry *e in [MMLog.shared latest:kTable holding:@"\"parentRid\""]) if (e.body) [bodies addObject:e.body];
-        withParent = bodies;
+    for (NSDictionary *b in LogWithParent()) if (MMRecordString(b, @"parentRid")) [parents addObject:MMRecordString(b, @"parentRid")];
+    while (YES) {
+        NSMutableArray *out = [NSMutableArray new];
+        for (NSDictionary *b in all) {
+            if (expert && ![MMRecordString(b, @"expert") isEqualToString:expert]) continue;
+            MMUndoRecord *r = [MMUndoRecord fromBody:b];
+            if (!r) continue;
+            r.hasParts = [parents containsObject:r.rid];
+            [out addObject:r];
+            if (limit && out.count >= limit) break;
+        }
+        if (whole || out.count >= limit || all.count < limit) return out;
+        all = LogLatest(expert, 0);
+        whole = YES;
     }
-    for (NSDictionary *b in withParent) if (MMRecordString(b, @"parentRid")) [parents addObject:MMRecordString(b, @"parentRid")];
-    NSMutableArray *out = [NSMutableArray new];
-    for (NSDictionary *b in all) {
-        if (expert && ![MMRecordString(b, @"expert") isEqualToString:expert]) continue;
-        MMUndoRecord *r = [MMUndoRecord fromBody:b];
-        if (!r) continue;
-        r.hasParts = [parents containsObject:r.rid];
-        [out addObject:r];
-        if (limit && out.count >= limit) break;
-    }
-    return out;
 }
 
 - (MMUndoRecord *)record:(NSString *)rid {
