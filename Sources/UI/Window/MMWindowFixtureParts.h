@@ -39,6 +39,10 @@ MMWindowAnswer *MMWindowFixtureAnswer(NSString *name);
 /// "self" within every budget, "self-cpu" over its CPU budget, "self-memory" over its memory budget and
 /// "self-wakeups" over its wakeup budget.
 NSDictionary *MMWindowFixtureSelfReport(NSString *name);
+/// The rest of the memory, MMWindowFixtureRest.m: the group as the feed makes it on the measured 16 GB Mac, "real",
+/// "calm" or "growing", and the days "rest", "rest-calm" and "rest-growing" that hold it.
+MMWindowGroup *MMWindowFixtureRest(NSString *day);
+MMWindowModel *MMWindowFixtureRestDay(NSString *name);
 /// "real" and "extreme", MMWindowFixtureMore.m. nil for any other name.
 MMWindowModel *_Nullable MMWindowFixtureMore(NSString *name);
 

@@ -427,6 +427,8 @@ static NSString *Sentence(NSString *words) {
     if (self.needsYou) { f.kind = MMWindowFateAsks; f.lead = @"Asks you."; says = YES; }
     else if (self.inFix) { f.kind = MMWindowFateGoes; f.lead = @"Goes with Fix Everything."; }
     else if (stays || now) { f.lead = @"Stays."; from = stays; }
+    // A category of the rest of the memory leads with what it is.
+    else if (self.kind == MMWindowSystem && self.about.length) { f.lead = self.about; }
     else if (self.kind == MMWindowAgent && state.value.length) { f.lead = Sentence(state.value); says = YES; from = [self factLabelled:@"Last active"]; }
     else return nil;
     // A row that stands for several says under any lead how many of them can go and how many stay.

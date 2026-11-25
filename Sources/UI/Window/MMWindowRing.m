@@ -43,6 +43,24 @@ static void Track(NSArray<MMWindowSlice *> *slices, NSArray<MMWindowGroup *> *gr
         CGFloat sweep = MIN(kWhole * s.bytes / (double)total, end - at);
         if (sweep <= 0) continue;
         if ([s.group isEqualToString:@"other"]) { Arc(c, radius, width, at, sweep, [rest colorWithAlphaComponent:rest.alphaComponent * (lit ? 0.5 : 1)]); at += sweep; continue; }
+        // The rest of the memory by category, in calm grays and soft tints, in the list's order: eight slices at most,
+        // the smallest merged into Everything else, MMWindowRestArcs.
+        if ([s.group isEqualToString:MMWindowRestGroup]) {
+            NSArray<MMWindowSlice *> *arcs = MMWindowRestArcs(GroupOf(groups, s.group).rows ?: @[]);
+            CGFloat used = 0;
+            for (NSUInteger i = 0; i < arcs.count && used < sweep; i++) {
+                CGFloat part = MIN(kWhole * arcs[i].bytes / (double)total, sweep - used);
+                if (part >= 0.144) {
+                    CGFloat gap = MIN(part * 0.3, i + 1 == arcs.count ? 1.8 : 0.43);
+                    if (lit && [arcs[i].group isEqualToString:lit.key]) Arc(c, radius + 2, width + 4, at + used, part - gap, NSColor.whiteColor);
+                    else { NSColor *tint = MMWindowRestTint(arcs[i].group); Arc(c, radius, width, at + used, part - gap, [tint colorWithAlphaComponent:tint.alphaComponent * back]); }
+                }
+                used += part;
+            }
+            if (sweep - used > 0.144) Arc(c, radius, width, at + used, sweep - used, [rest colorWithAlphaComponent:rest.alphaComponent * (lit ? 0.5 : 1)]);
+            at += sweep;
+            continue;
+        }
         NSColor *color = [MMWindowGroupColor(s.group) colorWithAlphaComponent:hc ? 1 : 0.8];
         CGFloat used = 0;
         NSArray<MMWindowRow *> *rows = GroupOf(groups, s.group).rows;

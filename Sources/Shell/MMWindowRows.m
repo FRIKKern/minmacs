@@ -115,6 +115,7 @@ static NSString *StateOf(MMFinding *f, MMWindowKind kind) {
         case MMWindowCache:
             if ([state isEqualToString:@"kept"]) return @"kept";
             return [state isEqualToString:@"live"] ? @"in use" : nil;
+        case MMWindowSystem: return nil;   // the rest of the memory has rows of its own, MMWindowRest.m
     }
     return nil;
 }
@@ -199,6 +200,7 @@ static NSArray<MMWindowFact *> *FactsOf(MMFinding *f, MMWindowKind kind) {
             Add(out, MMWindowFactStays(stays ?: Str(x[@"keep"]) ?: Str(x[@"why"])));
             stays = nil;
             break;
+        case MMWindowSystem: break;
     }
     Add(out, MMWindowFactStays(stays));
     return out;
@@ -296,6 +298,7 @@ MMWindowRow *MMWindowRowFrom(MMPerformanceRow *r, MMSnapshot *s) {
         case MMWindowHelper: case MMWindowTabs: row.quiet = YES; break;
         case MMWindowWorktree: row.quiet = Num(x[@"dirty"]) && Num(x[@"untracked"]) && [Num(x[@"dirty"]) integerValue] + [Num(x[@"untracked"]) integerValue] == 0; break;
         case MMWindowCache: row.quiet = state.length && ![state isEqualToString:@"live"]; break;
+        case MMWindowSystem: break;
     }
     // Core keeps an hour for an agent's tree and a server's tree, keyed by the first process the finding names.
     if ((row.kind == MMWindowServer || row.kind == MMWindowAgent) && f.procs.count) {

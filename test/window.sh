@@ -11,9 +11,9 @@ wn_dir="$(cd "$MINMACS_HOME" && pwd -P)/window.$$"
 mkdir -p "$wn_dir/home"
 # A home of its own inside the test home, so its prefs, log and Trash are this section's only.
 wn_home="$wn_dir/home"
-wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowInsides.m Sources/Shell/MMWindowControllerInsides.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMAsk.m Sources/Shell/MMAskCLI.m Sources/Shell/MMAskClaude.m Sources/Shell/MMKeepCLI.m Sources/Shell/MMWindowMenu.m Sources/Shell/MMWindowActs.m"
+wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRestFeed.m Sources/Shell/MMWindowInsides.m Sources/Shell/MMWindowControllerInsides.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMAsk.m Sources/Shell/MMAskCLI.m Sources/Shell/MMAskClaude.m Sources/Shell/MMKeepCLI.m Sources/Shell/MMWindowMenu.m Sources/Shell/MMWindowActs.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowFixtureAsk.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowSelf.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/Window/MMWindowFixtureWeek.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowFixtureAsk.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowRest.m Sources/UI/Window/MMWindowFixtureRest.m Sources/UI/Window/MMWindowSelf.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/Window/MMWindowFixtureWeek.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -85,6 +85,9 @@ if [ "$wn_r" = 0 ]; then
   echo "-- a row's menu: the items of each kind, and what a pick runs, by window"
   wn_run row-menu
   wn_run row-menu-controller
+  echo "-- the rest of the memory by category: the table, the fold, the ring, --json, and nothing with the window closed"
+  wn_run rest
+  wn_run rest-closed
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null
@@ -236,12 +239,12 @@ echo "-- minmacs window"
 # The verb runs cold here, read only, as performance does: the Mac's own processes, and no worktree walk.
 wn_json=$(MINMACS_HOME="$wn_home" "$BIN" window --json 2>/dev/null)
 check "window: window --json runs" 0 "$?"
-check "window: --json has the asks line, both sides, the ring, the fixes and Settings" "app asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run self settings" \
+check "window: --json has the asks line, both sides, the ring, the fixes and Settings" "app asks backToday categories disk diskHour fixEverything fixes generation memory memoryHour ring run self settings" \
   "$(printf '%s' "$wn_json" | json "' '.join(sorted(j))")"
 # Run cold, the verb is no MinMacs app: it has no report of its own and no row of MinMacs.
 check "window: a cold --json has no self and no row of MinMacs" "None 0" \
   "$(printf '%s' "$wn_json" | json "str(j['self']) + ' ' + str(sum(1 for g in j['memory'] for r in g['rows'] if r['own']))")"
-check "window: --json groups in the window's order" "servers agents apps worktrees caches" \
+check "window: --json groups in the window's order" "servers agents apps rest worktrees caches" \
   "$(printf '%s' "$wn_json" | json "' '.join(g['key'] for g in j['memory'] + j['disk'])")"
 check "window: --json keeps memory and disk apart in the ring and in Fix Everything" "disk memory | diskBack diskBackPartial fixes memoryBack" \
   "$(printf '%s' "$wn_json" | json "' '.join(sorted(j['ring'])) + ' | ' + ' '.join(sorted(j['fixEverything']))")"
@@ -250,7 +253,7 @@ check "window: --json memory slices add up to memory in use" yes \
 check "window: --json rows say whether their size is measured, and one that is not holds null and no 0" yes \
   "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if all((r['bytes'] is None) != r['measured'] for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json rows carry a kind and their own key" yes \
-  "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
+  "$(printf '%s' "$wn_json" | json "(lambda rows: 'yes' if len(set(r['key'] for r in rows)) == len(rows) and all(r['kind'] in ('server','agent','app','helper','tabs','worktree','cache','system') for r in rows) else 'no')([r for g in j['memory'] + j['disk'] for r in g['rows']])")"
 check "window: --json has a rule per expert with modes, three choices each, no removal card, and the six switches" "servers,apps,worktrees,caches 3 awake,agents,lid,login,prs,askclaude" \
   "$(printf '%s' "$wn_json" | json "','.join(r['ruleID'] for r in j['settings']['rules']) + ' ' + str(max(len(r['choices']) for r in j['settings']['rules'])) + ' ' + ','.join(s['switchID'] for s in j['settings']['switches'])")"
 wn_text=$(MINMACS_HOME="$wn_home" "$BIN" window 2>/dev/null)

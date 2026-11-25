@@ -34,7 +34,8 @@ typedef NS_ENUM(NSInteger, MMWindowKind) {
     MMWindowHelper,
     MMWindowTabs,
     MMWindowWorktree,
-    MMWindowCache
+    MMWindowCache,
+    MMWindowSystem         // one category of the rest of the memory, or one of its processes; iconHint is its category key
 };
 
 #pragma mark - Sizes
@@ -342,6 +343,8 @@ extern const NSInteger MMWindowCollapseLeast;
 /// The row's menu, top to bottom, alternates right under the item they stand for. nil or empty when the row has none,
 /// such as a row that stands for several, a tabs row or MinMacs itself: then a right-click only makes it active.
 @property (copy, nullable) NSArray<MMWindowMenuItem *> *menu;
+/// A category of the rest of the memory: what it is, in one plain sentence, which leads its story. nil for any other row.
+@property (copy, nullable) NSString *about;
 @end
 
 /// The rows with each kin of MMWindowCollapseLeast members or more made one row by MMWindowCollapsedRow, in the place
@@ -401,6 +404,70 @@ NSString *_Nullable MMWindowEmptyNote(NSString *groupKey, MMWindowLooked looked)
 /// YES when the list shows sub-headers: the group comes by project and holds more than one.
 @property (readonly) BOOL grouped;
 @end
+
+#pragma mark - The rest of the memory, MMWindowRest.m
+
+@class MMWindowSlice;
+
+/// The group of the rest of the memory: "rest", titled "macOS and background". Its rows are categories, kind
+/// MMWindowSystem, keyed "rest:" and the category's key, each with its processes as members, biggest first.
+extern NSString *const MMWindowRestGroup, *const MMWindowRestTitle;
+/// The most lines a category's story lists before one line says what is left.
+extern const NSInteger MMWindowRestMostLines;
+/// The most slices the ring gives the rest: the smallest categories merge into the last, Everything else.
+extern const NSInteger MMWindowRestRingMost;
+/// The key of the Everything else category's row, "rest:else", where the ring merges the smallest.
+extern NSString *const MMWindowRestElseKey;
+
+/// A category's processes as its story lists them.
+@interface MMWindowRestList : NSObject
+/// Biggest first. Three or more of one name fold into one line, "12 mdworker_shared", whose members are those processes.
+@property (copy) NSArray<MMWindowRow *> *lines;
+/// The processes and bytes after the lines shown, for "and 40 smaller, 210 MB".
+@property NSInteger more;
+@property uint64_t moreBytes;
+/// The processes another user runs, whose memory cannot be read: counted, never listed with a size.
+@property NSInteger unmeasured;
+@end
+/// The lines of a category's story, `most` at most, measured processes only.
+MMWindowRestList *MMWindowRestListOf(MMWindowRow *category, NSInteger most);
+/// "and 40 smaller, 210 MB", or nil for none.
+NSString *_Nullable MMWindowRestMoreLine(NSInteger more, uint64_t bytes);
+/// "6 more that macOS runs as another user, not measured", or nil for none.
+NSString *_Nullable MMWindowRestUnmeasuredLine(NSInteger n, BOOL more);
+/// "38 processes": a category's quiet word.
+NSString *MMWindowRestCountWord(NSInteger n);
+/// The quiet word of a category that grew fast: "up 1.2 GB this hour", or "up 1.2 GB in 12 min" over a shorter
+/// span. nil unless it grew by 512 MB or more and by a third or more within the span its hour holds. Only something
+/// really unusual says anything: a calm category keeps its count.
+NSString *_Nullable MMWindowRestGrowth(NSArray *_Nullable hour);
+/// The same as a row's quiet word, short, "up 1.2 GB": the row's own hour line beside it says over what span.
+NSString *_Nullable MMWindowRestGrowthWord(NSString *_Nullable growth);
+/// The rest's slices of the ring, at most MMWindowRestRingMost, in the list's order: a slice a category, keyed by its
+/// row, with the smallest merged into the last, which Everything else's key names. group is the row key.
+NSArray<MMWindowSlice *> *MMWindowRestArcs(NSArray<MMWindowRow *> *rows);
+/// The facts of the rest, worded here once. A category: Processes, "24, 6 that macOS runs as another user";
+/// In no process, macOS's kernel, wired and compressed memory; Lately, "up 1.2 GB this hour". A process: Process,
+/// its raw name where a plain one shows; Pid; Path; Parent, "launchd, pid 1"; Launched by, the app macOS holds
+/// responsible; Memory, for one another user runs.
+MMWindowFact *_Nullable MMWindowFactRestCount(NSInteger n, NSInteger unmeasured);
+MMWindowFact *_Nullable MMWindowFactUnheld(uint64_t bytes);
+MMWindowFact *_Nullable MMWindowFactGrowth(NSString *_Nullable growth);
+MMWindowFact *_Nullable MMWindowFactRawName(NSString *_Nullable raw);
+MMWindowFact *_Nullable MMWindowFactPid(int pid);
+MMWindowFact *_Nullable MMWindowFactPath(NSString *_Nullable path);
+MMWindowFact *_Nullable MMWindowFactParent(NSString *_Nullable name, int pid);
+MMWindowFact *_Nullable MMWindowFactLaunchedBy(NSString *_Nullable app);
+MMWindowFact *_Nullable MMWindowFactOtherUser(void);
+/// A process's facts, one "Label: value" a line, for its tooltip and what VoiceOver reads.
+NSString *MMWindowRestDetailsText(MMWindowRow *proc);
+/// Gives a category its insides in the list's tree, MMWindowTree.h: its story's lines, a fold opening into the
+/// processes it stands for, and one quiet row for the smaller ones left. Each is a real row with its own story.
+void MMWindowRestOpens(MMWindowRow *category);
+/// How many processes a category holds: its members but the one line of what no process holds, "|unheld".
+NSInteger MMWindowRestProcessCount(MMWindowRow *row);
+/// What VoiceOver reads for a category's row: "Spotlight, 332 MB, 24 processes".
+NSString *MMWindowRestSpoken(MMWindowRow *row);
 
 #pragma mark - The ring
 

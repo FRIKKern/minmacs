@@ -39,6 +39,7 @@
 #import "Core/MMCore.h"
 #import "Core/MMPerformance.h"
 #import "Core/Runtime/MMSelfCost.h"
+#import "Core/MMRest.h"
 
 // Calls one thing from each part, as an expert or the app would. Never called; it only has to compile.
 __attribute__((unused)) static void MMCheckUse(id<MMExpert> e, MMSnapshot *s, MMFinding *f) {

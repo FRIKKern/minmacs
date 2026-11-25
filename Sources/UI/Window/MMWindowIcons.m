@@ -171,6 +171,7 @@ void MMWindowDrawIcon(MMWindowRow *row, NSRect rect, NSColor *backing) {
                 case MMWindowTabs:     DrawTabs(); break;
                 case MMWindowWorktree: DrawWorktree(); break;
                 case MMWindowCache:    DrawCache(); break;
+                case MMWindowSystem:   MMWindowDrawRestMark(row.iconHint); break;
             }
         });
     }

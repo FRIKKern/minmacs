@@ -161,6 +161,8 @@ static MMWindowModel *Extreme(NSString *name) {
 MMWindowModel *MMWindowFixtureMore(NSString *name) {
     if ([name isEqualToString:@"real"]) return Real();
     if ([name hasPrefix:@"extreme"]) return Extreme(name);
+    // The rest of the memory on the measured 16 GB Mac, MMWindowFixtureRest.m.
+    if ([name isEqualToString:@"rest"] || [name hasPrefix:@"rest-"]) return MMWindowFixtureRestDay(name);
     return nil;
 }
 

@@ -88,8 +88,10 @@ static void SelfRow(void) {
     // Its memory counts in the ring's apps slice, from what the ring called other.
     MMWindowModel *none = SelfModel(s, p, nil);
     uint64_t appsWith = 0, appsWithout = 0, otherWith = 0, otherWithout = 0;
-    for (MMWindowSlice *x in m.ring.memory) { if ([x.group isEqualToString:@"apps"]) appsWith = x.bytes; if ([x.group isEqualToString:@"other"]) otherWith = x.bytes; }
-    for (MMWindowSlice *x in none.ring.memory) { if ([x.group isEqualToString:@"apps"]) appsWithout = x.bytes; if ([x.group isEqualToString:@"other"]) otherWithout = x.bytes; }
+    // The ring's rest is the slice of macOS and background, rest.m, where its categories stand.
+    BOOL (^rest)(NSString *) = ^BOOL(NSString *g) { return [g isEqualToString:@"other"] || [g isEqualToString:MMWindowRestGroup]; };
+    for (MMWindowSlice *x in m.ring.memory) { if ([x.group isEqualToString:@"apps"]) appsWith = x.bytes; if (rest(x.group)) otherWith = x.bytes; }
+    for (MMWindowSlice *x in none.ring.memory) { if ([x.group isEqualToString:@"apps"]) appsWithout = x.bytes; if (rest(x.group)) otherWithout = x.bytes; }
     T(@"self: its memory counts in the ring's apps slice, taken from other", @"38 38",
       [NSString stringWithFormat:@"%llu %llu", (appsWith - appsWithout) / MB, (otherWithout - otherWith) / MB]);
     T(@"self: a model with no report, as a cold CLI makes, has no row of MinMacs", @"no null",

@@ -45,6 +45,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// build, and `minmacs window` when it runs in the app: one proc_pid_rusage, no timer. nil in a cold CLI, which is no
 /// MinMacs app, and then the window shows no row of MinMacs.
 @property (copy, nullable) NSDictionary *own;
+/// The rest of the memory, MMWindowRestFeed.m. restStory is the key of the category whose story shows now, "rest:spotlight",
+/// set by the controller from windowShowsStory: only that category's processes get their details read, D11. restHours
+/// maps a category's key to its last hour, 60 NSNumber bytes or NSNull, as the controller kept it while the window
+/// was open. Both nil in the CLI.
+@property (copy, nullable) NSString *restStory;
+@property (copy, nullable) NSDictionary<NSString *, NSArray *> *restHours;
 /// The lid switch as the keep-awake expert holds it now, and Open at login as given. Any queue.
 /// It reads the expert's last published state, or its pref before the first pass. It never runs pmset.
 /// The two looks are read from the repo index and the clutter catalog as they stand, with no walk and no scan.
@@ -87,6 +93,26 @@ void MMWindowMenusOn(MMWindowModel *m, MMSnapshot *s, MMPerformance *p);
 pid_t MMWindowPidOf(MMFinding *f);
 /// YES when the finding is MinMacs itself, by its process or its bundle id, which no row menu may quit or hide.
 BOOL MMWindowIsMinMacs(MMFinding *f);
+#pragma mark The rest of the memory, MMWindowRestFeed.m
+
+/// The group "macOS and background": one row a category of what no other group holds, busiest first, Everything else
+/// last, each with its processes as members. nil without a sample, where nothing is known of the rest.
+/// It reads the snapshot's sample and nothing else, but for restStory's processes, whose path, parent and launcher it
+/// reads now. rest is the ring's rest in bytes; own is MinMacs's pid when its own row stands among the apps, or 0.
+MMWindowGroup *_Nullable MMWindowRestGroupFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras *_Nullable extras, uint64_t rest, pid_t own);
+/// The controller's hour of each category, kept while the window is open and only then: one value a minute, an hour
+/// at most, in memory. Noted after each model, read before the next. Any queue.
+void MMWindowRestNote(MMWindowGroup *_Nullable group, NSTimeInterval at);
+NSDictionary<NSString *, NSArray *> *MMWindowRestHours(NSTimeInterval at);
+/// Forgets the hours. For the checks.
+void MMWindowRestForgetHours(void);
+/// The controller's model: MMWindowModelFrom with the rest's hour as kept so far and the category whose story shows,
+/// then this model's minute of each category kept. The window queue, while open.
+MMWindowModel *MMWindowRestModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras *extras);
+/// The controller's story, on the window queue: the category of the rest whose story shows now becomes the one the
+/// window told, by its row key, or none for any other key and nil. YES when a new category's story shows, so a model
+/// with its processes' details is due. nil when the window closes.
+BOOL MMWindowRestStoryNow(id _Nullable rowKey);
 
 #pragma mark Fixes
 

@@ -12,6 +12,8 @@
 //                                         each expert's first summary line, timed from where MMMain starts
 //   bench apps                            the old apps that run now, read once with proc_pid_rusage
 //   bench history [--trees N]             the last hour of Graph/MMHistory.h at its caps: footprint, fill and copy
+//   bench rest [--iterations N]           the rest of the memory by category on the real process table: cold, warm
+//                                         and a story's details, bench-rest.m
 //
 // Each prints one JSON object on stdout. It reads itself with getrusage, task_info and proc_pid_rusage,
 // and the old apps with proc_pid_rusage and ps. It never signals a process.
@@ -26,6 +28,7 @@
 #import <sys/resource.h>
 #import <sys/sysctl.h>
 #import "Core/MMCore.h"
+#import "Core/MMRest.h"
 #import "Shell/MMShell.h"
 #import "UI/MMUI.h"
 #import "UI/MMSpecMenu.h"
@@ -439,6 +442,8 @@ static int Idle(NSArray<NSString *> *args) {
         @"windowSeconds": (R2(window)), @"warmupSeconds": @(warmup),
         @"experts": @(experts), @"expertIDs": [MMExperts() valueForKey:@"expertID"], @"findings": findings,
         @"modes": @"idle", @"undoRecords": @(records), @"appkit": @(appkit), @"looking": @(looking),
+        // The rest of the memory is classified only while the window is open: with none, Core classifies nothing.
+        @"restClassified": @(MMRestCountsNow().classified),
         @"cpuSeconds": (R3(cpu)), @"cpuPercent": (R3(cpu / window * 100)), @"cpuSecondsPerMinute": (R3(cpu / window * 60)),
         @"cpuPercentFromRusageInfo": (R3((selfB.cpuNs - selfA.cpuNs) / 1e9 / window * 100)),
         @"childCPUSeconds": (R3((b.childCPUNs - a.childCPUNs) / 1e9)),
@@ -1604,6 +1609,8 @@ static int Seed(NSArray<NSString *> *args) {
     return 0;
 }
 
+#include "bench-rest.m"
+
 #pragma mark - Apps
 
 static int Apps(void) {
@@ -1638,9 +1645,10 @@ int main(int argc, const char *argv[]) {
         if ([mode isEqualToString:@"scale"]) return Scale(args);
         if ([mode isEqualToString:@"history"]) return History(args);
         if ([mode isEqualToString:@"seed"]) return Seed(args);
+        if ([mode isEqualToString:@"rest"]) return Rest(args);
         fprintf(stderr, "usage: bench idle --seconds N [--warmup N] | menus [--iterations N] | hangs [--rounds N] | startup [--wait N] | apps\n"
                         "       bench scale [--expect N] [--warm N] [--clutter] [--review N] [--idle S] | history [--trees N]\n"
-                        "       bench seed [--undo N] [--notes N] [--scan]\n");
+                        "       bench seed [--undo N] [--notes N] [--scan] | rest [--iterations N]\n");
         return 2;
     }
 }

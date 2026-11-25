@@ -47,6 +47,7 @@ static NSString *KindWord(MMWindowKind k) {
         case MMWindowTabs: return @"tabs";
         case MMWindowWorktree: return @"worktree";
         case MMWindowCache: return @"cache";
+        case MMWindowSystem: return @"system";
     }
     return @"thing";
 }

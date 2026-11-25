@@ -62,6 +62,12 @@ bm() { json "$1" <"$bn/menus.json" 2>/dev/null; }
 bn_linked=$(bi 'len(j["expertIDs"])')
 check "bench: every linked built-in expert runs" yes "$(bi '"yes" if j["experts"] >= 2 and "minmacs" in j["expertIDs"] and "locohost" in j["expertIDs"] else j["expertIDs"]')"
 check "bench: every mode is Idle and nothing acted" "idle 0" "$(bi '"%s %d" % (j["modes"], j["undoRecords"])')"
+# D11: the rest of the memory is classified only while the window is open. With no window, Core classifies nothing.
+check "bench: with the window closed, no process of the rest is classified" 0 "$(bi 'j["restClassified"]')"
+bn_env "$bn_bin" rest --iterations 20 >"$bn/rest.json" 2>"$bn/rest.err"
+check "bench: the rest by category classifies each process once, and a warm build stays under 5 ms" "0 yes" \
+  "$(json '"%d %s" % (j["classifiedAgain"], "yes" if j["warmMs"]["p95"] < 5 else j["warmMs"])' <"$bn/rest.json" 2>/dev/null)"
+printf '    rest: %s\n' "$(json '"%d processes, cold %s ms with %d paths read, warm median %s ms, a story %s ms" % (j["processes"], j["coldMs"], j["pathsRead"], j["warmMs"]["median"], j["storyDetailsMs"])' <"$bn/rest.json" 2>/dev/null)"
 check "bench: the window is 30 seconds" yes "$(bi '"yes" if 29.5 <= j["windowSeconds"] <= 32 else j["windowSeconds"]')"
 # An exit of a watched process adds a sample of its own, so gaps can be shorter, never longer.
 check "bench: Senses samples at least every 5 seconds in the window" yes "$(bi '"yes" if j["samples"] >= 5 and j["tickSeconds"]["max"] <= 6.5 else (j["samples"], j["tickSeconds"])')"

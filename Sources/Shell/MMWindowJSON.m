@@ -19,6 +19,7 @@ NSString *MMWindowKindName(MMWindowKind kind) {
         case MMWindowTabs: return @"tabs";
         case MMWindowWorktree: return @"worktree";
         case MMWindowCache: return @"cache";
+        case MMWindowSystem: return @"system";
     }
     return @"app";
 }
@@ -69,6 +70,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
     // An app that knows its insides, cmux: its workspaces, panes and tabs, and what runs in each. MMWindowInsides.h.
     if (MMWindowInsidesJSON(self)) { NSMutableDictionary *g = [j mutableCopy]; g[@"insides"] = MMWindowInsidesJSON(self); j = g; }
     if (!self.members) return j;
+    // A category of the rest of the memory gives its processes in the model's categories, not as a collapsed row.
+    if (self.kind == MMWindowSystem) { NSMutableDictionary *x = [j mutableCopy]; x[@"processes"] = @(MMWindowRestProcessCount(self)); return x; }
     // A row that stands for several, DESIGN rule 16, says so and holds each member whole, as the rows it stands for.
     NSMutableDictionary *x = [j mutableCopy];
     // inside: the members that lie inside another member, whose size is in that one's and is not counted again.
@@ -127,6 +130,32 @@ NSString *MMWindowKindName(MMWindowKind kind) {
 }
 @end
 
+/// The rest of the memory by category, busiest first, each with every process it holds, biggest first. A process
+/// another user runs has a null size: its memory cannot be read. unheld is what no process holds, macOS's own.
+static NSArray *Categories(MMWindowModel *m) {
+    MMWindowGroup *rest = nil;
+    for (MMWindowGroup *g in m.memoryGroups) if ([g.key isEqualToString:MMWindowRestGroup]) rest = g;
+    NSMutableArray *out = [NSMutableArray new];
+    for (MMWindowRow *r in rest.rows) {
+        NSMutableArray *procs = [NSMutableArray new];
+        uint64_t unheld = 0;
+        for (MMWindowRow *p in r.members) {
+            if ([p.key hasSuffix:@"|unheld"]) { unheld = p.bytes; continue; }
+            NSString *raw = nil, *pid = nil;
+            for (MMWindowFact *f in p.facts) { if ([f.label isEqualToString:@"Process"]) raw = f.value; if ([f.label isEqualToString:@"Pid"]) pid = f.value; }
+            NSMutableDictionary *facts = [NSMutableDictionary new];
+            for (MMWindowFact *f in p.facts) facts[f.label] = f.value;
+            [procs addObject:@{@"pid": @(pid.intValue), @"name": raw ?: p.name, @"shownName": p.name,
+                               @"bytes": p.unmeasured ? NSNull.null : @(p.bytes), @"measured": @(!p.unmeasured),
+                               @"cpuPercent": p.cpuPercent >= 0 ? @(round(p.cpuPercent * 10) / 10) : NSNull.null, @"facts": facts}];
+        }
+        [out addObject:@{@"key": r.iconHint ?: @"", @"title": r.name, @"about": Or(r.about), @"bytes": @(r.bytes), @"unheld": @(unheld),
+                         @"cpuPercent": r.cpuPercent >= 0 ? @(round(r.cpuPercent * 10) / 10) : NSNull.null,
+                         @"count": @(procs.count), @"state": Or(r.state), @"hour": Or(r.hour), @"processes": procs}];
+    }
+    return out;
+}
+
 @implementation MMWindowModel (MMJSON)
 - (NSDictionary *)json {
     return @{@"generation": @(self.generation), @"asks": Or(self.asks),
@@ -139,6 +168,6 @@ NSString *MMWindowKindName(MMWindowKind kind) {
                               @"diskBackPartial": @(self.diskBackTodayPartial)},
              @"run": Or(self.run.json), @"settings": self.settings.json,
              // What MinMacs itself costs, as `minmacs self --json` says it: the report its own row is made from.
-             @"self": Or(self.own)};
+             @"self": Or(self.own), @"categories": Categories(self)};
 }
 @end

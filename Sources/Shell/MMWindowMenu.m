@@ -195,7 +195,7 @@ void MMWindowMenusOn(MMWindowModel *m, MMSnapshot *s, MMPerformance *p) {
             case MMWindowAgent: items = AgentMenu(f, r, treeOf[r.key]); break;
             case MMWindowWorktree: items = WorktreeMenu(f, r, p); break;
             case MMWindowCache: items = CacheMenu(f); break;
-            case MMWindowTabs: break;
+            case MMWindowTabs: case MMWindowSystem: break;   // the rest of the memory has no menu: macOS's processes are not MinMacs's to act on
         }
         r.menu = items.count ? items : nil;
     }

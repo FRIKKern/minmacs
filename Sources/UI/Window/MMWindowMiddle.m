@@ -95,6 +95,7 @@ static NSString *GroupKey(MMWindowKind kind) {
         case MMWindowApp: case MMWindowHelper: case MMWindowTabs: return @"apps";
         case MMWindowWorktree: return @"worktrees";
         case MMWindowCache: return @"caches";
+        case MMWindowSystem: return @"rest";
     }
     return @"";
 }
@@ -246,6 +247,7 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
     }
     _presses = [NSMutableArray new];
     MMWindowRow *row = self.row;
+    [self removeAllToolTips];
     if (!row || !self.model) return;
     CGFloat x = 14, w = self.bounds.size.width - 28, bottom = [self storyBottom], y = [self factsTop:row];
     NSArray<MMWindowFact *> *facts = row.storyFacts;
@@ -273,6 +275,8 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
         }
         y += h + 6;
     }
+    // A category's process lines carry their details as tooltips, laid with the sums its drawing uses.
+    if (row.kind == MMWindowSystem) [self placeRestTips:row from:y];
     if (self.window) [self.window recalculateKeyViewLoop];
 }
 
@@ -370,7 +374,9 @@ static CGFloat ValueRoom(MMWindowRow *row, MMWindowFact *f, CGFloat w, CGFloat c
 
     // A row that stands for several lists its biggest members under a hairline, DESIGN rule 16: what it holds is what
     // the person wants to see. A row's place among the others of its group is not told: it said nothing worth reading.
-    if (row.members.count) [self drawMembers:row from:y in:NSMakeRect(x, 0, w, bottom) disk:disk];
+    // A category of the rest of the memory lists its processes, MMWindowMiddleRest.m.
+    if (row.kind == MMWindowSystem && row.members.count) [self drawRest:row from:y];
+    else if (row.members.count) [self drawMembers:row from:y in:NSMakeRect(x, 0, w, bottom) disk:disk];
 }
 
 /// What tells a member from the others: its name, or, where every member has the row's own name, as the scratch of
