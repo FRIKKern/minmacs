@@ -6,6 +6,7 @@
 # <template> is a home `fieldfix.py make` wrote. Each run takes a fresh APFS clone of it, so runs of a base and a
 # change start from the same files, writes the undo log with `bench seed`, starts `fieldfix.py run`, and runs
 # `bench idle` with every CLI a fake. It stops only the player it started, which stops only its own sleepers.
+# MM_FIELD_LOOKING=1 runs `bench idle --looking`, as while the menu window is open, D11.
 set -u
 bench=$1 template=$2 out=$3 seconds=${4:-240} warmup=${5:-30}
 here=$(cd "$(dirname "$0")" && pwd)
@@ -37,7 +38,7 @@ run() {
 run "$bench" seed --undo "${MM_FIELD_UNDO:-400}" --scan >"$out.seed" || exit 1
 python3 -I "$here/fieldfix.py" run "$home" --seconds $((seconds + warmup + 30)) --agents "${MM_FIELD_AGENTS:-8}" &
 player=$!
-run "$bench" idle --seconds "$seconds" --warmup "$warmup" --tick-runs 0 >"$out"
+run "$bench" idle --seconds "$seconds" --warmup "$warmup" --tick-runs 0 ${MM_FIELD_LOOKING:+--looking} >"$out"
 status=$?
 kill -TERM "$player" 2>/dev/null
 wait "$player" 2>/dev/null

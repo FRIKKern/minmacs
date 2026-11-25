@@ -687,7 +687,13 @@ static BOOL Matters(NSString *path, NSArray<NSString *> *dirs, NSMutableSet<NSSt
 /// transcript about once a second, and each read parsed the 64 KB head and 512 KB tail of each one that grew: with
 /// eight agents most of a build's facts. Its last write comes from its modification time at every read, so only its
 /// title and what it did in its last hour wait, at most this long. A read of everything parses every changed file.
-static const NSTimeInterval kGrownParseEvery = 15;
+/// 60 seconds since the field's idle of 2026-11-25, where eight agents at work made these parses most of every pass's
+/// facts once a build no longer followed each pass: what an agent did in its last hour is counted in minutes, and a
+/// title, written once, shows at most a minute late. A new file is parsed at once.
+static const NSTimeInterval kGrownParseEvery = 60;
+/// While the menu window is open, D11: an agent row's title and last hour within about 15 seconds.
+static const NSTimeInterval kGrownParseLooking = 15;
+NSTimeInterval MMSessionsGrownParseEvery(void) { return MMSomeoneLooks() ? kGrownParseLooking : kGrownParseEvery; }
 
 - (NSDictionary *)factsFor:(NSString *)path reader:(NSDictionary *(^)(NSString *))reader mtime:(NSDate **)mtime {
     struct stat st;
@@ -697,7 +703,8 @@ static const NSTimeInterval kGrownParseEvery = 15;
     NSArray *last = _parsed[path];
     double now = NSDate.date.timeIntervalSince1970;
     if (!_parseAll && known && last && [last[0] unsignedLongLongValue] == (uint64_t)st.st_ino &&
-        (uint64_t)st.st_size >= [last[1] unsignedLongLongValue] && now - [last[2] doubleValue] < kGrownParseEvery) return last[3];
+        (uint64_t)st.st_size >= [last[1] unsignedLongLongValue] &&
+        now - [last[2] doubleValue] < MMSessionsGrownParseEvery()) return last[3];
     // "a2": the facts gained what a session did in its last hour, so a value kept by an older MinMacs is read again.
     NSDictionary *facts = [_facts valueFor:path fingerprint:[fp stringByAppendingString:@":a2"] orCompute:^NSDictionary *{ return reader(path); } wait:YES];
     if (!_parsed) _parsed = [NSMutableDictionary new];

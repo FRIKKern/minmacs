@@ -301,10 +301,13 @@ static NSDictionary *TickCost(int n) {
 static int Idle(NSArray<NSString *> *args) {
     double seconds = Option(args, @"--seconds", @"60").doubleValue, warmup = Option(args, @"--warmup", @"10").doubleValue;
     int tickRuns = Option(args, @"--tick-runs", @"20").intValue;
-    if (seconds <= 0 || warmup < 0) { fprintf(stderr, "usage: bench idle --seconds N [--warmup N] [--tick-runs N]\n"); return 2; }
+    if (seconds <= 0 || warmup < 0) { fprintf(stderr, "usage: bench idle --seconds N [--warmup N] [--tick-runs N] [--looking]\n"); return 2; }
     if (!SafeEnvironment()) return 2;
     // AppKit loaded as in the app, with no status item, window or Dock icon. --no-appkit leaves it out.
     BOOL appkit = ![args containsObject:@"--no-appkit"];
+    // --looking: as while the menu window is open, D11, without drawing it. MinMacs's numbers follow every pass.
+    BOOL looking = [args containsObject:@"--looking"];
+    MMSetSomeoneLooks(looking);
     if (appkit) [NSApplication sharedApplication].activationPolicy = NSApplicationActivationPolicyProhibited;
     pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);   // main runs at the app's QoS
     NSUInteger experts = MMRegisterBuiltInExperts();
@@ -386,11 +389,13 @@ static int Idle(NSArray<NSString *> *args) {
     // and what the Senses passes read and carried.
     double builds = MAX(1, [costB[@"builds"] doubleValue] - [costA[@"builds"] doubleValue]);
     NSMutableDictionary *perBuild = [NSMutableDictionary new], *reused = [NSMutableDictionary new], *asked = [NSMutableDictionary new];
+    NSMutableDictionary *skippedBy = [NSMutableDictionary new];
     for (NSString *k in costB) {
         if ([k isEqualToString:@"builds"] || [k isEqualToString:@"skipped"]) continue;
         double d = [costB[k] doubleValue] - [costA[k] doubleValue];
         if ([k hasPrefix:@"reused."]) { reused[[k substringFromIndex:7]] = @((uint64_t)d); continue; }   // a count
         if ([k hasPrefix:@"why."]) { if (d > 0) asked[[k substringFromIndex:4]] = @((uint64_t)d); continue; }   // a count
+        if ([k hasPrefix:@"skipped."]) { skippedBy[[k substringFromIndex:8]] = @((uint64_t)d); continue; }   // a count
         perBuild[k] = R3(d / 1e6 / builds);
     }
     double passes = MAX(1, (double)(sensesB.passes - sensesA.passes));
@@ -410,6 +415,7 @@ static int Idle(NSArray<NSString *> *args) {
     NSDictionary *graph = @{@"builds": @((NSUInteger)builds),
                             @"skipped": @([costB[@"skipped"] unsignedLongLongValue] - [costA[@"skipped"] unsignedLongLongValue]),
                             @"perBuildCPUms": perBuild, @"reusedFindings": reused, @"askedBy": asked,
+                            @"skippedNoInputMoved": skippedBy[@"inputs"] ?: @0,
                             @"sessionReads": @(readsB - readsA), @"sessionSkips": @(skipsB - skipsA)};
     double window = (b.wallNs - a.wallNs) / 1e9;
     NSArray *old = OldAppsOver(apps, appStart, psStart, window);
@@ -432,7 +438,7 @@ static int Idle(NSArray<NSString *> *args) {
         @"startedAt": @(round(startedAt.timeIntervalSince1970)),
         @"windowSeconds": (R2(window)), @"warmupSeconds": @(warmup),
         @"experts": @(experts), @"expertIDs": [MMExperts() valueForKey:@"expertID"], @"findings": findings,
-        @"modes": @"idle", @"undoRecords": @(records), @"appkit": @(appkit),
+        @"modes": @"idle", @"undoRecords": @(records), @"appkit": @(appkit), @"looking": @(looking),
         @"cpuSeconds": (R3(cpu)), @"cpuPercent": (R3(cpu / window * 100)), @"cpuSecondsPerMinute": (R3(cpu / window * 60)),
         @"cpuPercentFromRusageInfo": (R3((selfB.cpuNs - selfA.cpuNs) / 1e9 / window * 100)),
         @"childCPUSeconds": (R3((b.childCPUNs - a.childCPUNs) / 1e9)),

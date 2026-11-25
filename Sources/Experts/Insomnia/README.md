@@ -24,6 +24,10 @@ Keeping the Mac awake while an agent works, and letting it sleep when nothing do
 - **Quiet holds.** `minmacs quiet hold <pid>` is Core's, `Store/MMQuiet.h`, not Insomnia's: it holds the Mac and the display awake with assertions of its own, so Insomnia's pass never releases them, and while it lasts no mode acts. Insomnia's lid override does not count a quiet hold as something that keeps the Mac awake.
 - **Failures.** A refused write leaves the state as IOKit says, shows the reason on the lid row and waits five minutes before the same write again.
 
+## The idle tick, issue #52
+
+`inputDigestFrom:` digests each worker the findings are made from: its kind, process, names, folder, why, key and whether it works, in order. A process that comes and goes elsewhere leaves it, so the graph hands back the last findings. The pass reads its own power, clocks and holds, and runs on each snapshot it is given.
+
 ## The lid commands
 
 `MMLidOverride` in `Core/Act/MMLid.m` runs Insomnia's commands word for word: `sudo -n /usr/bin/pmset -a disablesleep 1` and `0`, `sudo -n -l` to see if the rule is in place, and `pmset displaysleepnow`. The rule is Insomnia's `/etc/sudoers.d/insomnia`, so a Mac that has it keeps it. The first time lid mode is turned on without the rule, one administrator prompt writes it, through `osascript` with Insomnia's script, and `visudo -cf` checks it. macOS asks for that password and MinMacs cannot answer it, D3: it comes only from an explicit turn of lid mode to on, by `insomnia lid on`, `insomnia://lid-on`, the window's switch or the menu, never on its own. A fleet Mac takes it once at setup. While the Mac runs unattended, lid on without the rule is refused at once, with the notice "Lid Mode Needs a One-Time Setup", and never waits on a prompt nobody answers. `minmacs device --json` reports `provision.lidRuleInstalled`. The menu's lid confirm shows only for a press a person made while plainly there, and a failure is a notice in the log. Every command runs off main with a time limit. The override itself is read from IOKit, `IOPMrootDomain` `SleepDisabled`, never from `pmset -g`.

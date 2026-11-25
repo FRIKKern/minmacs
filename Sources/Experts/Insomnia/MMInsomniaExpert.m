@@ -178,6 +178,25 @@ static MMFinding *Subject(NSString *kind, NSString *key, NSString *title, NSDict
 
 #pragma mark Findings
 
+/// Issue #52. What findingsFrom: reads: each worker's kind, process, names, folder, why and whether it works. The
+/// standalone app is read by the pass and by the policy on their own facts, never by a finding. So a process that
+/// comes and goes elsewhere leaves the digest, and the graph hands back the last findings.
+static uint64_t INMix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t INStr(NSString *s, uint64_t salt) { return INMix((s ? s.hash ^ ((uint64_t)s.length << 40) : 0x5bd1e995ull) ^ INMix(salt)); }
+
+- (uint64_t)inputDigestFrom:(MMFacts *)facts {
+    NSArray<MMINWorker *> *workers = [self inputFor:facts].workers;
+    uint64_t h = INMix(workers.count + 1);
+    NSUInteger i = 0;
+    for (MMINWorker *w in workers)   // in order, since the findings keep it
+        h = INMix(h + ++i) ^ INMix(((uint64_t)(uint32_t)w.key.pid << 32) ^ w.key.startSec) ^ INStr(w.kind, 2) ^ INStr(w.name, 3) ^
+            INStr(w.harness, 4) ^ INStr(w.sessionID, 5) ^ INStr(w.cwd, 6) ^ INStr(w.why, 7) ^ INStr(w.stableKey, 8) ^ INMix((uint64_t)w.working + 9);
+    return h;
+}
+
 - (NSArray<MMFinding *> *)findingsFrom:(MMFacts *)facts {
     NSMutableArray *out = [NSMutableArray new];
     for (MMINWorker *w in [self inputFor:facts].workers) {

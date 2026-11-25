@@ -1,5 +1,6 @@
 // Labeled queues, dispatch timers, jobs with budgets and crash breadcrumbs. Patterns P1, P2, P3 and P5.
 #import "Core/Runtime/MMRuntime.h"
+#import <stdatomic.h>
 #import "Core/Senses/MMSenses.h"
 #import "Core/Store/MMStore.h"
 #import <os/lock.h>
@@ -164,6 +165,10 @@ static void CrumbWrite(void) {
     if (pwrite(gCrumbFd, d.bytes, d.length, 0) < 0) return;
     ftruncate(gCrumbFd, (off_t)d.length);
 }
+
+static _Atomic bool gSomeoneLooks;
+BOOL MMSomeoneLooks(void) { return atomic_load(&gSomeoneLooks); }
+void MMSetSomeoneLooks(BOOL looks) { atomic_store(&gSomeoneLooks, looks); }
 
 void MMBreadcrumbEnter(NSString *expert, NSString *job) {
     CrumbSetUp();

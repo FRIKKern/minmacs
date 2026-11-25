@@ -713,6 +713,40 @@ Each snapshot held 653 Noo-Noo findings, 20 WorkForest, 9 Insomnia and 8 MinMacs
 - The footprint after the field's peak, 57 to 90 MB, is the fragmentation #200 left. This change does not touch it.
 - The new canary of main was not installed during this work, so the field numbers above are the canary of before. Its idle paths are the same as main's.
 
+## The fixed cost of a build, 2026-11-25
+
+Issue #52, the first item left above. A build in which every expert reused its findings still owned each finding, made each workstream, prepared every menu and planned each Wrap Up again, and every pass built, since about 800 processes came and went.
+
+### What changed
+
+- **A pass where nothing an expert or the owner rules read moved builds nothing.** All five experts now answer `inputDigestFrom:`. When every expert's digest matches the last build's and so does the graph's own, the last snapshot stands, owners, workstreams and prepared menus included, as after a facts-digest skip. The graph's own digest holds what the owner rules and workstreams read beyond the findings: power and pressure, each agent's process, state, session and folder, each session's id, pid, whether it runs and works, folder, harness, title, start and the age bucket of its last write, the identity of every worktree, git fact and clutter item, and for each finding's processes whether each runs, the first one's folder and the parents above each. Not the rest of the process table. `costs` counts the skips as `skipped.inputs`, and `bench idle` prints them as `graph.skippedNoInputMoved`.
+- **New git facts and a new read of the sessions no longer force a build.** Know replaces either object when it changes, and every digest that reads one reads it, so an edit in a worktree builds WorkForest's, Noo-Noo's and LocoHost's findings anew and hands back MinMacs's and Insomnia's.
+- **MinMacs's digest** holds each app's and agent's identity, ports, debugging, the working agent that spares it, the rules, `minmacs.quitBrowsers` and the quit requests and restorable records of the log. Not an app's CPU, memory, energy or process count: an agent's tools roll up into the terminal that runs them, and in the trace cmux moved between 3.2 and 6.8 GB and across every CPU band from pass to pass, while no group, reason or proposal reads them. With the window closed they move at the heartbeat build, at most 30 seconds later. While it is open, decision D11, `MMSomeoneLooks()` puts them in the digest at the facts digest's precision, so they follow every pass as before, and the Shell asks for a build when the window opens. **Insomnia's** holds each worker.
+- **Digests that moved for nothing.** LocoHost's hashed the count of processes on the Mac and each session object, which the session index makes anew at every read, so it moved at every pass. It now holds a session's fields but its last write. WorkForest's counts a session's last write by `MMAgoStep`.
+- **A build reuses owners.** With the same worktree objects and the same workstream, session and agent owners, a finding with no processes and no hint that an expert handed back is the very owned finding of the last build. The workstreams' findings come from one walk up each owner, and their clutter is kept while the items and folders are the same.
+- **Less per pass.** A transcript that only grew is parsed at most once a minute, not every 15 seconds, and every 15 seconds while the window is open. WorkForest resolves a session's folder at most once a minute, and its and Noo-Noo's path checks make no string. MinMacs's roll-up keeps an unchanged memo.
+
+### Before and after
+
+`tools/bench/field.sh <bench> <home> <out> 240 30`, base `24d2296`, main with #206 to #208, and this change, in the order base, change, change open, base, change open, change, each in a fresh clone of one made home. "Open" is `MM_FIELD_LOOKING=1`, `bench idle --looking`: what the window's being open asks of the graph and the session index, without drawing it. The base does the same open or closed. About 880 processes, load average 2.2 to 3.1, with other agents running test sections.
+
+| | Base | Change, closed | Change, open | Base | Change, open | Change, closed |
+|---|---|---|---|---|---|---|
+| CPU | 0.713 % | 0.477 % | 0.584 % | 0.695 % | 0.556 % | 0.474 % |
+| CPU a tick, median and mean | 29.4, 35.9 ms | 15.9, 23.6 ms | 24.3, 29.2 ms | 30.2, 34.9 ms | 22.9, 27.9 ms | 17.9, 23.9 ms |
+| Builds a minute | 19.0 | 10.0 | 17.0 | 18.5 | 17.5 | 10.5 |
+| Passes kept with no expert's inputs moved | | 31 | 4 | | 5 | 30 |
+| Facts, a build | 3.78 ms | 5.49 ms | 4.50 ms | 3.94 ms | 3.61 ms | 4.80 ms |
+| Snapshot, a build | 12.72 ms | 11.49 ms | 9.68 ms | 12.75 ms | 9.25 ms | 11.30 ms |
+| Footprint at the end, peak | 19.4, 51.5 MB | 19.4, 56.3 MB | 25.3, 51.2 MB | 20.3, 51.2 MB | 26.7, 51.1 MB | 24.7, 51.9 MB |
+| Idle wakeups a second | 0.012 | 0 | 0 | 0 | 0 | 0 |
+
+With the window open nearly every pass builds again, since MinMacs's numbers move at every pass, but each build reuses the other experts' findings and the owners, so it costs less than the base's. Facts a build rose with the window closed since a build now follows only the passes whose inputs moved, and a kept pass pays the facts and the digests, about 7 ms. `bench idle` in a plain home, 120 seconds: base 0.133 % and 12 builds a minute, change 0.129 % and 2.5 a minute, 9.9 MB.
+
+### What is left
+
+The fixture reads about 0.50 %, over the 0.3 % budget. What builds now is what moved: the fixture's edit every 15 seconds asks git, and a walk of the worktree follows it; a status flips every 20 seconds; and a process starts in a checkout now and then. A build costs about 11 ms: Noo-Noo's findings 3.4 ms, since every git fact is in its digest, WorkForest's prepare step with its 16 Wrap Up plans 1.9, owners 1.3 and the digests 3. A pass costs about 5 ms of facts, most of it the session index, and the digests about 3 ms, WorkForest's and MinMacs's 1.2 each. The undo log is read again whenever any write moves its stamp, 26 ms a read with 2800 rows and no index on the expert.
+
 ## The Performance model
 
 `Core/MMPerformance.h` builds the Performance tab of design 132-a on demand from one snapshot. `./test.sh performance` times it on its fixture: 18 findings from five fake experts, four worktrees of which two are merged, one finished workstream with five Wrap Up parts, and six fixes. The test binary is built with `-O2`, as build.sh builds the app, and the number is the mean thread CPU time of 400 builds after 20 that warm up.

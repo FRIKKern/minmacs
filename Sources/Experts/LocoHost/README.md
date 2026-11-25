@@ -17,7 +17,7 @@ A listener that the registry knows as an agent, by its command line as `-[MMRegi
 
 ## The idle tick, issue #52
 
-- `inputDigestFrom:` digests what the hosts are built from: the listeners and the connections to or from a listening port, each listener's tree with each process's start, a CPU band and its memory in 16 MB steps, the parents above it, each agent and its state, and the session, worktree and git objects. When it matches, the graph hands back the last findings. A server tree at 10 % CPU or more always builds, since two busy samples in a row mark a server busy, and so does a server that still waits for its first place.
+- `inputDigestFrom:` digests what the hosts are built from: the listeners and the connections to or from a listening port, each listener's tree with each process's start, a CPU band and its memory in 16 MB steps, the parents above it, each agent and its state, each session's id, pid, folder, harness, title, live status and start, and the worktree and git objects. Not a session's last write, which an agent at work moves every second, nor the count of processes on the Mac: an age moves at the heartbeat build, at most 30 seconds later. When it matches, the graph hands back the last findings. A server tree at 10 % CPU or more always builds, since two busy samples in a row mark a server busy, and so does a server that still waits for its first place.
 - Know's Where works out a new place in the background on every call. A rebuild asks it once a minute per server, and once more 10 seconds after the first ask, and reuses the last answer in between.
 - The stopped records come from the undo log only after `MMLogStamp()` moved. `MMLHQuote` makes its character set once, and the env lookups use `getenv`.
 

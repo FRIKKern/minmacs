@@ -33,6 +33,9 @@ NSInteger MMMinMacsVerdictFrom(NSString *name);       // -1 when unknown
 - (void)setIgnoresServing:(BOOL)ignore forBundleID:(NSString *)bundleID;
 /// Reads the file again and merges defaults it lacks. Writes only when something was added.
 - (void)reload;
+/// The lists as they stand, as one object that is replaced whenever they change, on disk or through this class.
+/// The expert's input digest reads its identity, issue #52.
+- (id)current;
 @end
 
 #pragma mark Browsers

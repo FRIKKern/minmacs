@@ -65,8 +65,27 @@ static NSString *RealOf(MMWorktree *w, BOOL repo) {
 }
 
 static BOOL Within(NSString *path, NSString *folder) {
-    if (!path.length || !folder.length) return NO;
-    return [path isEqualToString:folder] || [path hasPrefix:[folder stringByAppendingString:@"/"]];
+    if (!path.length || !folder.length || ![path hasPrefix:folder]) return NO;   // no string made: a digest asks this often
+    return path.length == folder.length || [path characterAtIndex:folder.length] == '/';
+}
+
+/// Real(cwd) of a session's folder, kept for a minute, issue #52. The session index makes new session objects at every
+/// read, and the digest resolved each of 40 sessions' folders with realpath at every pass. A folder whose links change
+/// is read as it is now within a minute.
+static NSString *SessionReal(NSString *cwd) {
+    if (!cwd.length) return cwd;
+    static NSMutableDictionary<NSString *, NSArray *> *kept; static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    double now = NSDate.date.timeIntervalSince1970;
+    os_unfair_lock_lock(&lock);
+    NSArray *have = kept[cwd];
+    os_unfair_lock_unlock(&lock);
+    if (have && now - [have[1] doubleValue] < 60) return have[0];
+    NSString *real = Real(cwd);
+    os_unfair_lock_lock(&lock);
+    if (!kept || kept.count > 2000) kept = [NSMutableDictionary new];
+    kept[cwd] = @[real ?: cwd, @(now)];
+    os_unfair_lock_unlock(&lock);
+    return real;
 }
 
 MMRules *MMWFRules(void) {
@@ -137,7 +156,7 @@ static NSDictionary<NSString *, MMSession *> *SessionsIn(NSArray<NSString *> *pa
     }];
     NSMutableDictionary *out = [NSMutableDictionary new];
     for (MMSession *x in sessions) {
-        NSString *cwd = Real(x.cwd);
+        NSString *cwd = SessionReal(x.cwd);
         for (NSString *t in sorted) {
             if (!Within(cwd, t)) continue;
             MMSession *old = out[t];
@@ -903,7 +922,7 @@ static uint64_t WFStr(NSString *s, uint64_t salt) { return WFMix((s ? s.hash ^ (
         for (NSString *name in procs[p]) h += WFStr(name, t);
         MMSession *x = sessions[p];
         if (x) h += t ^ WFStr(x.agent, 10) ^ WFStr(x.sessionID, 11) ^ WFStr(x.title, 12) ^ WFMix((uint64_t)x.stillWorking + 13) ^
-                    WFMix((uint64_t)(x.lastActive.timeIntervalSince1970 * 1000) + 14) ^ WFMix((uint64_t)(x.started.timeIntervalSince1970 * 1000) + 15);
+                    WFMix((uint64_t)MMAgoStep(x.lastActive) + 14) ^ WFMix((uint64_t)(x.started.timeIntervalSince1970 * 1000) + 15);
     }
     KeepDigestReads(facts, paths, procs, sessions);
     // A build that reuses these findings reads them as built from these facts, so a plan on the snapshot reads

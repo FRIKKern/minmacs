@@ -447,7 +447,7 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
     MMSample *s = facts.sample;
     uint64_t fresh = LHMix(facts.generation ^ 0xa5a5);   // a digest that never matches
     if (!s || ![(NSObject *)s respondsToSelector:@selector(sockets:)] || MMLHPlacesPending()) return fresh;
-    uint64_t h = LHMix(s.procs.count);
+    uint64_t h = LHMix(0x1c0);
     NSUInteger n = 0;
     const MMSocket *sv = [s sockets:&n];
     // Listeners, and the connections to or from a listening port. A browser's connections to the internet change
@@ -475,8 +475,13 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
     }
     for (NSNumber *pid in peers) { MMProc *p = [s proc:pid.intValue]; h += LHMix(((uint64_t)pid.intValue << 32) ^ p.startSec ^ p.name.hash); }
     for (MMAgent *a in facts.agents) h += LHMix(((uint64_t)a.key.pid << 32) ^ a.key.startSec ^ ((uint64_t)a.state << 56));
-    // Know replaces a session or worktree object when it changes, and arrays may be copied, so each element counts.
-    for (id x in facts.sessions) h += LHMix((uint64_t)(uintptr_t)(__bridge void *)x + 1);
+    // Of a session, what a host reads: its id, pid, folder, harness, title, live status and start. Not its last write,
+    // which an agent at work moves every second and the session index carries in a new object at every read, issue #52:
+    // it only says how long ago the session was active, which moves at the heartbeat build, at most 30 seconds later.
+    for (MMSession *x in facts.sessions)
+        h += LHMix(((uint64_t)(uint32_t)x.pid << 32) ^ x.sessionID.hash ^ LHMix(x.cwd.hash + 1) ^ LHMix(x.agent.hash + 2) ^
+                   LHMix(x.title.hash + 3) ^ LHMix(x.liveStatus.hash + 4) ^ LHMix((uint64_t)(x.started.timeIntervalSince1970 * 1000) + 5));
+    // Know replaces a worktree or git object when it changes, and arrays may be copied, so each element counts.
     for (id x in facts.worktrees) h += LHMix((uint64_t)(uintptr_t)(__bridge void *)x + 2);
     for (MMWorktree *w in facts.worktrees) h += LHMix((uint64_t)(uintptr_t)(__bridge void *)[facts gitFor:w] + 3);
     return h;

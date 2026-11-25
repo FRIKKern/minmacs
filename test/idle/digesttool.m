@@ -1,13 +1,17 @@
-// Noo-Noo's and WorkForest's input digests, issue #52. test/idle.sh builds this with every .m under Sources except
-// main.m, under -DMM_TESTS, and runs it in its own folder inside $MINMACS_HOME:
-//   digesttool <dir>    each input the digests read, changed one at a time, as JSON: same, then one key per input
-// The facts are built by hand from objects made here. The one process it starts is a sleeper of its own, under a
-// name unique to the run, with its cwd in the fixture checkout; it stops that pid and no other.
+// The experts' input digests and the graph's skip, issue #52. test/idle.sh builds this with every .m under Sources
+// except main.m, under -DMM_TESTS, and runs it in its own folder inside $MINMACS_HOME:
+//   digesttool <dir> <sleeper> <server.py>    each input the digests read, changed one at a time, as JSON
+// The facts are built by hand from objects made here. The processes it starts are sleepers of its own, under a name
+// unique to the run, with their cwd in the fixture's folders, and test/idle/server.py, a listener in a session of its
+// own; it stops those pids and no other.
 #import <Cocoa/Cocoa.h>
 #import "Core/MMCore.h"
 #import "Core/Know/MMTreeDisk.h"
 #import "Experts/NooNoo/MMNooNoo.h"
 #import "Experts/WorkForest/MMWorkForest.h"
+#import "Experts/MinMacs/MMMinMacs.h"
+#import "Experts/Insomnia/MMInsomnia.h"
+#import "Experts/LocoHost/MMLocoHost.h"
 #include <signal.h>
 #include <spawn.h>
 #include <sys/wait.h>
@@ -93,8 +97,8 @@ static void StopDetached(pid_t pid, NSString *bin) {
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc < 3 || !NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) {
-            fprintf(stderr, "usage: digesttool <dir> <sleeper>, with MINMACS_HOME set\n"); return 2;
+        if (argc < 4 || !NSProcessInfo.processInfo.environment[@"MINMACS_HOME"].length) {
+            fprintf(stderr, "usage: digesttool <dir> <sleeper> <server.py>, with MINMACS_HOME set\n"); return 2;
         }
         NSString *sleeper = @(argv[2]);
         NSFileManager *fm = NSFileManager.defaultManager;
@@ -196,35 +200,141 @@ int main(int argc, const char *argv[]) {
         (void)[MMTreeDisk.shared factsFor:repo read:MMTreeDiskNow];   // a fresh walk, so the graph's first build queues none
         out[@"wfQuiet"] = @((BOOL)([wf inputDigestFrom:[f facts]] == [wf inputDigestFrom:[f facts]]));
 
-        // Through the graph: a new sample in which only a process outside the checkout moved builds, and both experts
-        // hand back their findings.
+        // MinMacs's and Insomnia's input digests, on input made here: what a row's group, reason or proposal reads
+        // moves them, and an app's live numbers do not.
+        MMMinMacsExpert *mm = MMMinMacsExpert.shared;
+        MMMinMacsApp *app = [MMMinMacsApp new];
+        app.pid = 4242; app.startSec = 1761000000; app.bundleID = @"com.example.dg"; app.name = @"DG"; app.memory = 300ull << 20; app.cpuPercent = 2;
+        MMMinMacsAgent *ag = [MMMinMacsAgent new];
+        ag.name = @"Claude Code"; ag.harnessID = @"claude-code"; ag.sessionID = @"dg-s"; ag.project = repo; ag.state = MMAgentWorking;
+        MMProcKey ak = { 4343, 1761000001 }; ag.key = ak;
+        __block NSArray *apps = @[app], *agents = @[ag];
+        mm.inputFrom = ^MMMinMacsInput *(MMFacts *x) {
+            MMMinMacsInput *in = [MMMinMacsInput new];
+            in.apps = apps; in.agents = agents; in.memoryPressure = 1;
+            return in;
+        };
+        uint64_t m0 = [mm inputDigestFrom:[f facts]];
+        out[@"mmSame"] = @((BOOL)([mm inputDigestFrom:[f facts]] == m0));
+        void (^mmStep)(NSString *, dispatch_block_t) = ^(NSString *key, dispatch_block_t change) {
+            uint64_t before = [mm inputDigestFrom:[f facts]];
+            change();
+            out[[@"mm." stringByAppendingString:key]] = @((BOOL)([mm inputDigestFrom:[f facts]] != before));
+        };
+        mmStep(@"numbers", ^{ app.memory = 2ull << 30; app.cpuPercent = 85; app.processCount = 40; ag.cpuPercent = 120; ag.memory = 1ull << 30; });
+        mmStep(@"ports", ^{ app.loopbackPorts = @[@5173]; });
+        mmStep(@"spared", ^{ app.agentName = @"Claude Code"; app.agentPath = repo; });
+        mmStep(@"agentState", ^{ ag.state = MMAgentIdle; });
+        mmStep(@"newApp", ^{ MMMinMacsApp *b = [MMMinMacsApp new]; b.pid = 4444; b.startSec = 1761000002; b.bundleID = @"com.example.dg2"; apps = @[app, b]; });
+        mmStep(@"rules", ^{ [MMMinMacsRules.shared setVerdict:MMMinMacsKeep forBundleID:@"com.example.dg"]; });
+        // D11: while someone looks, the numbers a row shows move the digest, and stop moving it once nobody does.
+        MMSetSomeoneLooks(YES);
+        mmStep(@"numbersLooking", ^{ app.memory = 3ull << 30; app.cpuPercent = 20; app.processCount = 41; });
+        mmStep(@"agentLooking", ^{ ag.cpuPercent = 3; ag.memory = 2ull << 30; });
+        MMSetSomeoneLooks(NO);
+        mmStep(@"numbersClosed", ^{ app.memory = 4ull << 30; app.cpuPercent = 60; });
+        // The session index parses a grown transcript every minute, and every 15 seconds while someone looks.
+        double parseClosed = MMSessionsGrownParseEvery();
+        MMSetSomeoneLooks(YES);
+        double parseLooking = MMSessionsGrownParseEvery();
+        MMSetSomeoneLooks(NO);
+        out[@"parseEvery"] = [NSString stringWithFormat:@"%.0f %.0f", parseClosed, parseLooking];
+        MMInsomniaExpert *in = MMInsomniaExpert.shared;
+        MMINWorker *wk = [MMINWorker new];
+        wk.kind = @"agent"; wk.key = ak; wk.name = @"Claude Code"; wk.cwd = repo; wk.working = YES; wk.stableKey = @"claude-code:dg-s";
+        in.inputFrom = ^MMINInput *(MMFacts *x) { MMINInput *i = [MMINInput new]; i.workers = @[wk]; return i; };
+        uint64_t i0 = [in inputDigestFrom:[f facts]];
+        out[@"inSame"] = @((BOOL)([in inputDigestFrom:[f facts]] == i0));
+        wk.working = NO;
+        out[@"in.working"] = @((BOOL)([in inputDigestFrom:[f facts]] != i0));
+        in.inputFrom = nil;
+
+        // Through the graph: a new sample in which only a process outside the checkout came builds nothing, and the
+        // last snapshot stands, issue #52.
         DGSource *src = [DGSource new]; src.f = f;
         MMGraph *g = MMGraph.shared;
         g.source = src;
-        [g addExpert:nn]; [g addExpert:wf];
+        [g addExpert:nn]; [g addExpert:wf]; [g addExpert:mm];
         NSInteger (^cost)(NSString *) = ^NSInteger(NSString *k) { return [g.costs[k] integerValue]; };
-        BOOL (^waitBuilds)(NSInteger) = ^BOOL(NSInteger n) {
-            for (int i = 0; i < 100 && cost(@"builds") < n; i++) usleep(50000);
-            return cost(@"builds") >= n;
+        BOOL (^waitCost)(NSString *, NSInteger) = ^BOOL(NSString *k, NSInteger n) {
+            for (int i = 0; i < 100 && cost(k) < n; i++) usleep(50000);
+            return cost(k) >= n;
         };
+        BOOL (^waitBuilds)(NSInteger) = ^BOOL(NSInteger n) { return waitCost(@"builds", n); };
         [g start];
         BOOL first = waitBuilds(1);
-        NSInteger b0 = cost(@"builds"), rn = cost(@"reused.noonoo"), rw = cost(@"reused.workforest");
+        NSInteger b0 = cost(@"builds"), rn = cost(@"reused.noonoo"), rw = cost(@"reused.workforest"), k0 = cost(@"skipped.inputs");
+        MMSnapshot *snap0 = g.latest;
         pid_t outside = SpawnDetached(sleeper, other);
         usleep(200000);
         f.sample = MMSenses.shared.sampleNow;
         [g rebuild:@"sample"];
-        BOOL built = waitBuilds(b0 + 1);
-        out[@"graphBuilt"] = @((BOOL)(first && built));
-        out[@"graphReusedNN"] = @(cost(@"reused.noonoo") - rn);
-        out[@"graphReusedWF"] = @(cost(@"reused.workforest") - rw);
+        BOOL kept = waitCost(@"skipped.inputs", k0 + 1);
+        usleep(100000);
+        out[@"graphFirst"] = @(first);
+        out[@"graphUnrelated"] = @((BOOL)(kept && cost(@"builds") == b0 && g.latest == snap0));
+        // D11: with the window closed, an app's numbers alone build nothing; while it is open they build, and the
+        // snapshot's MinMacs row holds the new memory.
+        NSInteger k1 = cost(@"skipped.inputs"), bm = cost(@"builds");
+        app.memory = 5ull << 30;
+        f.sample = MMSenses.shared.sampleNow;
+        [g rebuild:@"sample"];
+        BOOL closedKept = waitCost(@"skipped.inputs", k1 + 1) && cost(@"builds") == bm;
+        MMSetSomeoneLooks(YES);
+        app.memory = 6ull << 30;
+        f.sample = MMSenses.shared.sampleNow;
+        [g rebuild:@"sample"];
+        BOOL openBuilt = waitBuilds(bm + 1);
+        uint64_t shown = 0;
+        for (MMFinding *x in [g.latest findingsFor:@"minmacs"]) if ([x.stableKey isEqualToString:@"com.example.dg"]) shown = x.cost.ramBytes;
+        MMSetSomeoneLooks(NO);
+        out[@"graphNumbers"] = [NSString stringWithFormat:@"%d %d %d", closedKept, openBuilt, shown == (6ull << 30)];
+        b0 = cost(@"builds");
+        // A process that came in the checkout builds, and WorkForest's finding names it.
+        StopDetached(outside, sleeper);
+        pid_t inCheckout = SpawnDetached(sleeper, repo);
+        usleep(200000);
+        f.sample = MMSenses.shared.sampleNow;
+        [g rebuild:@"sample"];
+        BOOL builtIn = waitBuilds(b0 + 1);
+        NSString *sleeperName = [sleeper.lastPathComponent substringToIndex:MIN((NSUInteger)16, sleeper.lastPathComponent.length)];
+        BOOL named = NO;
+        for (MMFinding *x in [g.latest findingsFor:@"workforest"]) if ([x.facts[@"processes"] containsObject:sleeperName]) named = YES;
+        out[@"graphProcIn"] = @((BOOL)(builtIn && named));
+        StopDetached(inCheckout, sleeper);
         // Any reason but a new sample asks every expert again.
         NSInteger b1 = cost(@"builds");
+        rn = cost(@"reused.noonoo"); rw = cost(@"reused.workforest");
         [g rebuild:@"digest check action"];
         BOOL forced = waitBuilds(b1 + 1);
-        out[@"graphForcedAsks"] = @((BOOL)(forced && cost(@"reused.noonoo") - rn == 1 && cost(@"reused.workforest") - rw == 1));
+        out[@"graphForcedAsks"] = @((BOOL)(forced && cost(@"reused.noonoo") == rn && cost(@"reused.workforest") == rw));
+        // A server that starts to listen builds within one pass, with LocoHost there, and its socket is in the snapshot.
+        // NSTask starts it in a process group of its own, where setsid may refuse; it is stopped by its pid below.
+        [g addExpert:MMLocoHost.shared];
+        NSInteger b2 = cost(@"builds");
+        [g rebuild:@"digest check action"];
+        waitBuilds(b2 + 1);
+        NSString *portFile = [dir stringByAppendingPathComponent:@"port"];
+        NSTask *srv = [NSTask new];
+        srv.executableURL = [NSURL fileURLWithPath:@"/usr/bin/python3"];
+        srv.arguments = @[@"-I", @"-c", @"import os, runpy, sys\ntry: os.setsid()\nexcept OSError: pass\nsys.argv = sys.argv[1:]\nrunpy.run_path(sys.argv[0], run_name='__main__')",
+                          @(argv[3]), portFile];
+        srv.currentDirectoryURL = [NSURL fileURLWithPath:other];
+        BOOL launched = [srv launchAndReturnError:nil];
+        for (int i = 0; i < 100 && ![fm fileExistsAtPath:portFile]; i++) usleep(50000);
+        usleep(200000);
+        NSInteger b3 = cost(@"builds");
+        f.sample = MMSenses.shared.sampleNow;
+        [g rebuild:@"sample"];
+        BOOL builtServer = waitBuilds(b3 + 1);
+        BOOL listens = NO;
+        NSUInteger n = 0;
+        const MMSocket *sv = [g.latest.facts.sample sockets:&n];
+        for (NSUInteger i = 0; sv && i < n; i++) if (sv[i].pid == srv.processIdentifier && sv[i].state == MMSocketListen) listens = YES;
+        out[@"graphServer"] = [NSString stringWithFormat:@"%d %d %d", launched, builtServer, listens];
+        if (launched && srv.running) { [srv terminate]; [srv waitUntilExit]; }
         [g stop];
-        StopDetached(outside, sleeper);
+        mm.inputFrom = nil;
         NSData *d = [NSJSONSerialization dataWithJSONObject:out options:NSJSONWritingSortedKeys error:nil];
         printf("%s\n", [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding].UTF8String);
     }

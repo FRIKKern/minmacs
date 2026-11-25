@@ -32,6 +32,10 @@
 /// because a read-only connection cannot create the -shm file and nothing writes then.
 /// It never walks the rollout folders and never writes Codex's notify setting.
 /// pi sessions come from $PI_CODING_AGENT_SESSION_DIR, $PI_CODING_AGENT_DIR/sessions or ~/.pi/agent/sessions.
+/// How long a transcript that only grew keeps the facts of its last parse: a minute, and 15 seconds while someone
+/// looks, MMSomeoneLooks, decision D11. Its last write comes from its modification time at every read.
+NSTimeInterval MMSessionsGrownParseEvery(void);
+
 @interface MMSessions : NSObject
 + (instancetype)shared;
 /// The graph queue calls this; reads never block. Issue #52: once startWatching ran, it reads the folders again only
