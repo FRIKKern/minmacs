@@ -74,7 +74,7 @@ static void WindowWordChecks(void) {
         if (fault) WordFault(fault, text);
     });
     NSInteger states = 0;
-    BOOL smallest = NO;
+    BOOL ranked = NO;
     for (NSString *name in WordFixtures()) {
         MMWindowView *v = PolishView(name);
         MMWindowModel *m = v.model;
@@ -89,9 +89,8 @@ static void WindowWordChecks(void) {
                 v.pointedRow = g.rows[i].key;
                 NSString *where = [NSString stringWithFormat:@"%@ %@", name, g.rows[i].key];
                 WordDraw(middle, where); WordDraw(dock, where); states++;
-                // The worktrees come by activity, so their smallest is the one of fewest bytes, wherever it stands.
-                if ([name isEqualToString:@"peak"] && [g.key isEqualToString:@"worktrees"] && g.rows[i].bytes == [[g.rows valueForKeyPath:@"@min.bytes"] unsignedLongLongValue])
-                    smallest = [gWordSeen containsObject:@"The smallest of 18 worktrees"];
+                // A story tells no row's place in its group: it said nothing worth reading.
+                for (NSString *seen in gWordSeen) if (([seen containsString:@" biggest of "] && ![seen containsString:@" biggest of its "]) || [seen hasPrefix:@"The smallest of "]) ranked = YES;
             }
         }
         // The scrolled lists too: the last row of each group is in view after the pointing above.
@@ -122,7 +121,7 @@ static void WindowWordChecks(void) {
     Check(gWordFaults.count == 0 && strings > 20000 && states > 300,
           @"window words: on every day and in every state no drawn string holds an ellipsis, none is wider or taller than its box, and none leaves its view",
           [NSString stringWithFormat:@"%ld strings in %ld states. %@", (long)strings, (long)states, [gWordFaults componentsJoinedByString:@" | "]]);
-    Check(smallest, @"window words: the last of a group is its smallest, not its 18th biggest", @"");
+    Check(!ranked, @"window words: no story tells its row's place in its group, \"13th biggest of 49 worktrees\"", @"");
 
     // Every name is drawn whole: its lines, put together, are the name. A long one wraps, and its row is taller for it.
     NSMutableArray<NSString *> *broken = [NSMutableArray new];

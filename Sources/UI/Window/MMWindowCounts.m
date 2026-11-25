@@ -80,20 +80,6 @@ NSString *MMWindowBackText(NSString *size, BOOL nothing, BOOL partial) {
     return nothing ? @"not measured yet" : [size stringByAppendingString:@" or more"];
 }
 
-NSString *MMWindowPlaceLine(NSInteger place, NSInteger count, NSInteger unmeasured, BOOL rowMeasured, NSString *title) {
-    NSInteger known = count - unmeasured;
-    if (!rowMeasured) return [NSString stringWithFormat:@"%ld %@", (long)count, title];
-    if (known == 1 && unmeasured > 0) return [NSString stringWithFormat:@"The only one measured so far of %ld %@", (long)count, title];
-    NSString *rank;
-    if (place <= 1) rank = @"The biggest";
-    else if (place == known) rank = @"The smallest";
-    else {
-        NSString *end = place % 100 >= 11 && place % 100 <= 13 ? @"th" : place % 10 == 1 ? @"st" : place % 10 == 2 ? @"nd" : place % 10 == 3 ? @"rd" : @"th";
-        rank = [NSString stringWithFormat:@"%ld%@ biggest", (long)place, end];
-    }
-    return [NSString stringWithFormat:@"%@ of %ld %@%@", rank, (long)known, title, unmeasured > 0 ? @" measured so far" : @""];
-}
-
 NSString *MMWindowCollapsedSplit(NSInteger go, NSInteger inUse, NSInteger kept, NSInteger other, NSString *one, NSString *many) {
     // The unit stands once, at the first count, as a person says it: "168 groups can go, 1 in use".
     NSMutableArray<NSString *> *parts = [NSMutableArray new];

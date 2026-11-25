@@ -65,12 +65,6 @@ static void Unmeasured(void) {
     T(@"unmeasured: Fix Everything's disk back is marked as no total, in the model and in --json", @"yes yes yes",
       [NSString stringWithFormat:@"%@ %@ %@", YN(m.diskBackPartial), YN([all[@"diskBackPartial"] boolValue]), YN([wrap.json[@"diskBackPartial"] boolValue])]);
 
-    // Where a row stands in its group counts the measured rows only.
-    T(@"unmeasured: a row's place counts the measured rows, and a row not measured has none",
-      @"The biggest of 3 worktrees measured so far | The smallest of 3 worktrees measured so far | 5 worktrees | 2nd biggest of 5 worktrees | The only one measured so far of 1493 worktrees",
-      [@[MMWindowPlaceLine(1, 5, 2, YES, @"worktrees"), MMWindowPlaceLine(3, 5, 2, YES, @"worktrees"), MMWindowPlaceLine(4, 5, 2, NO, @"worktrees"),
-         MMWindowPlaceLine(2, 5, 0, YES, @"worktrees"), MMWindowPlaceLine(1, 1493, 1492, YES, @"worktrees")] componentsJoinedByString:@" | "]);
-
     // The world of every other mode writes no sized fact, as a finding of before would: its rows are all readings.
     World();
     MMSnapshot *s2 = WorldSnapshot();
