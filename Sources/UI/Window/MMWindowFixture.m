@@ -81,6 +81,7 @@ static MMWindowHour *Hour(NSString *title, NSString *explain, MMWindowSide side,
 }
 
 static MMWindowModel *Day(NSString *name);
+static void MMWindowFixtureStripHour(MMWindowModel *m, NSString *name);
 
 /// What the families and the scratch that may go give back, in disk megabytes.
 static uint64_t LeftoversBack(NSArray<MMWindowRow *> *caches) {
@@ -101,14 +102,31 @@ MMWindowModel *MMWindowFixture(NSString *name) {
     }
     // "week", "week-young" and "week-gap": the calm day with its strip on the 7 days.
     BOOL week = [name hasPrefix:@"week"];
-    NSString *day = week ? @"calm" : [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;
+    NSString *day = week || [name hasPrefix:@"strip-"] ? @"calm" : [name hasPrefix:@"log-"] ? ([name isEqualToString:@"log-busy"] ? @"busy" : @"young") : name;
     MMWindowModel *m = Day(day);
     if (week) MMWindowFixtureWeek(m, name);
     NSString *log = [name isEqualToString:@"log-empty"] || [name isEqualToString:@"empty"] ? @"empty"
                   : [name isEqualToString:@"log-busy"] ? @"busy" : [name isEqualToString:@"log-undo"] ? @"undo"
-                  : [name isEqualToString:@"log-new"] || [name isEqualToString:@"young"] || [name isEqualToString:@"calm"] || week || [name hasPrefix:@"welcome"] ? @"new" : @"day";
+                  : [name isEqualToString:@"log-new"] || [name isEqualToString:@"young"] || [name isEqualToString:@"calm"] || week || [name hasPrefix:@"strip-"] || [name hasPrefix:@"welcome"] ? @"new" : @"day";
     m.log = MMWindowFixtureLog(log);
+    if ([name hasPrefix:@"strip-"]) MMWindowFixtureStripHour(m, name);
     return m;
+}
+
+/// "strip-3", "strip-46" and "strip-60": the calm day with that many minutes kept, the newest now. Both 46 minutes:
+/// "strip-gap", a Mac on battery and away whose backed-off pass left every other minute without a build until the
+/// last three, and "strip-sleep", a Mac that slept from its first minute until the last three.
+static void MMWindowFixtureStripHour(MMWindowModel *m, NSString *name) {
+    BOOL gap = [name isEqualToString:@"strip-gap"], sleep = [name isEqualToString:@"strip-sleep"];
+    NSInteger minutes = gap || sleep ? 46 : MAX([name substringFromIndex:6].integerValue, 1);
+    MMWindowHour *memory = Hour(m.memoryHour.title, m.memoryHour.explain, MMWindowMemory, 20.0 * GB, 23.2 * GB, minutes);
+    MMWindowHour *disk = Hour(m.diskHour.title, m.diskHour.explain, MMWindowDisk, 188.0 * DGB, 182.0 * DGB, minutes);
+    if (gap || sleep) for (MMWindowHour *h in @[memory, disk]) {
+        NSMutableArray *v = [h.values mutableCopy];
+        for (NSInteger i = 60 - minutes + 1; i < 57; i++) if (sleep || (i - (60 - minutes)) % 2) v[i] = NSNull.null;
+        h.values = v;
+    }
+    m.memoryHour = memory; m.diskHour = disk;
 }
 
 static MMWindowModel *Day(NSString *name) {

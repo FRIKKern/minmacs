@@ -67,16 +67,18 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # while the pointer rests on another row.
 # The four busy-pr pictures are a worktree's story with its pull request open with checks passing, merged, none and
 # still being looked for. The five week pictures are the strip on 7 days: full, two days young, with a gap, and the
-# pointer on its line and in its gap. The eight ask pictures are Ask MinMacs: its field empty and while typing, an answer
+# pointer on its line and in its gap. The five strip pictures are the strip's hour with 3, 46 and 60 minutes kept, 46 with
+# every other minute missed, and 46 across a sleep. The eight ask pictures are Ask MinMacs: its field empty and while typing, an answer
 # with entries, with Keep, with Undo and after it, the Fix Everything plan, and the honest fallback.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 156 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "every window PNG is there" 166 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
                young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main measuring-main measuring-worktree measuring-measured measuring-fix welcome-main welcome-off-main  welcome-watched-main welcome-started \
                caches-main caches-families caches-scratch log-empty-main log-new-main log-busy-main log-busy-scrolled log-busy-end log-busy-server log-undo-main log-undo-undo-hover \
                week-main week-young-main week-gap-main week-gap-hover week-gap-hover-gap \
+               strip-3-main strip-46-main strip-60-main strip-gap-main strip-sleep-main \
                ask-empty-main ask-typing-typing ask-why-main ask-keep-main ask-undo-main ask-undone-main ask-plan-main ask-fallback-main; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done

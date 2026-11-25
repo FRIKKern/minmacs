@@ -93,7 +93,8 @@ NSArray *_Nullable MMWindowHourSpanAtLeast(NSArray *_Nullable values, NSInteger 
 NSString *MMWindowHourSpanWords(NSInteger minutes);
 /// How an hour is drawn: the large graph, a row's small line, the line in a row's story, or one side of the middle's
 /// strip. Each spreads its filled part across its whole width. The small ones, a row's and the strip's, show a wobble
-/// as flat, on a scale of at least a quarter of their value.
+/// as flat, on a scale of at least a quarter of their value. The strip's hour draws its line across a minute or two
+/// with no value, which a backed-off pass leaves, while a longer gap, a sleep, stays one and a minute alone is a dot.
 /// MMWindowHourWeek is the strip's 7 days: it spreads MMWindowWeekSpan, from the first hour that holds a value to the
 /// newest hour, so hours with none at its end stay a gap there, and an hour alone between two gaps is a dot.
 typedef NS_ENUM(NSInteger, MMWindowHourLook) { MMWindowHourGraph = 0, MMWindowHourRow, MMWindowHourStory, MMWindowHourStrip, MMWindowHourWeek };

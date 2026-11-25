@@ -5,7 +5,8 @@
 /// fixture, state, the row the pointer rests on. "hover" puts the pointer on the memory line, "hover-gap" in its gap.
 static NSArray<NSArray *> *WindowWeekShots(void) {
     return @[@[@"week", @"main", @""], @[@"week-young", @"main", @""], @[@"week-gap", @"main", @""],
-             @[@"week-gap", @"hover", @""], @[@"week-gap", @"hover-gap", @""]];
+             @[@"week-gap", @"hover", @""], @[@"week-gap", @"hover-gap", @""],
+             @[@"strip-3", @"main", @""], @[@"strip-46", @"main", @""], @[@"strip-60", @"main", @""], @[@"strip-gap", @"main", @""], @[@"strip-sleep", @"main", @""]];
 }
 
 static MMWindowMiddleView *WeekMiddle(MMWindowView *v) { return WordViews(v, MMWindowMiddleView.class).firstObject; }
@@ -37,7 +38,63 @@ static CGFloat WeekInk(NSBitmapImageRep *rep, MMWindowMiddleView *m, CGFloat x) 
     return most;
 }
 
+/// Where a side's line has ink, as a share of the side's width: its leftmost and rightmost columns with any, and the
+/// most ink in the columns between from and to, shares of the width. Graph rows only, the words above left out.
+typedef struct { CGFloat left, right, between; } StripInk;
+static StripInk StripSideInk(NSBitmapImageRep *rep, MMWindowMiddleView *m, NSInteger side, CGFloat from, CGFloat to) {
+    CGFloat w = floor((m.bounds.size.width - 28 - 16) / 2), x0 = side == 2 ? 14 + w + 16 : 14;
+    StripInk ink = { 1, 0, 0 };
+    for (CGFloat x = x0; x < x0 + w; x += 0.5) {
+        CGFloat most = WeekInk(rep, m, x), at = (x - x0) / w;
+        if (most > 0.3) { ink.left = MIN(ink.left, at); ink.right = MAX(ink.right, at); }
+        if (at >= from && at <= to) ink.between = MAX(ink.between, most);
+    }
+    return ink;
+}
+
+/// The strip's hour spans the side's whole width over the minutes kept: 3, 46 and 60 of them, and 46 where a pass
+/// that backed off left every other minute without a value. Where the Mac slept, its first minute is a dot at the
+/// left end and no line is drawn across the sleep. In dark and Increase Contrast, on both sides.
+static void WindowStripHourChecks(void) {
+    NSMutableArray<NSString *> *said = [NSMutableArray new];
+    BOOL wide = YES;
+    for (NSNumber *contrast in @[@NO, @YES]) {
+        MMWindowForceContrast(contrast.boolValue);
+        for (NSString *name in @[@"strip-3", @"strip-46", @"strip-60", @"strip-gap", @"strip-sleep"]) {
+            MMWindowMiddleView *m = WeekMiddle(PolishView(name));
+            NSBitmapImageRep *rep = [m bitmapImageRepForCachingDisplayInRect:m.bounds];
+            [m cacheDisplayInRect:m.bounds toBitmapImageRep:rep];
+            BOOL sleep = [name isEqualToString:@"strip-sleep"];
+            for (NSInteger side = 1; side <= 2; side++) {
+                StripInk ink = StripSideInk(rep, m, side, 0.1, 0.85);
+                BOOL ok = ink.right - ink.left >= 0.9 && (!sleep || ink.between < 0.02);
+                wide = wide && ok;
+                [said addObject:[NSString stringWithFormat:@"%@%@ %@ %.0f%%%@%@", contrast.boolValue ? @"contrast " : @"", name, side == 1 ? @"memory" : @"disk",
+                                 MAX(ink.right - ink.left, 0) * 100, sleep ? [NSString stringWithFormat:@" in sleep %.2f", ink.between] : @"", ok ? @"" : @" FAIL"]];
+            }
+        }
+    }
+    MMWindowForceContrast(NO);
+    Check(wide, @"window strip: the hour's line spans at least 90 % of its side over the minutes kept, 3, 46 and 60 of them and with minutes missed, and draws nothing across a sleep",
+          [said componentsJoinedByString:@", "]);
+
+    // The words still count from the first minute kept, gaps and all.
+    NSMutableArray<NSString *> *seen = [NSMutableArray new];
+    MMWindowWatchDraws(^(NSString *text, NSRect used, NSRect allowed, NSRect bounds) { [seen addObject:text]; });
+    NSMutableArray<NSString *> *words = [NSMutableArray new];
+    for (NSString *name in @[@"strip-3", @"strip-46", @"strip-60", @"strip-gap", @"strip-sleep"]) {
+        [seen removeAllObjects];
+        LogDraw(WeekMiddle(PolishView(name)));
+        NSString *want = [name isEqualToString:@"strip-60"] ? @"the last hour" : [name isEqualToString:@"strip-3"] ? @"the last 3 min" : @"the last 46 min";
+        [words addObject:[NSString stringWithFormat:@"%@ %@", name, [seen containsObject:want] ? want : @"wrong"]];
+    }
+    MMWindowWatchDraws(nil);
+    Check(![[words componentsJoinedByString:@" "] containsString:@"wrong"], @"window strip: each side says how long its hour holds, from the first minute kept",
+          [words componentsJoinedByString:@", "]);
+}
+
 static void WindowWeekChecks(void) {
+    WindowStripHourChecks();
     // Honest words: a full week says 7 days, two days young say 2 days, and none of them says the hour.
     NSMutableArray<NSString *> *seen = [NSMutableArray new];
     MMWindowWatchDraws(^(NSString *text, NSRect used, NSRect allowed, NSRect bounds) { [seen addObject:text]; });

@@ -214,6 +214,9 @@ NSArray *MMWindowHourSpanAtLeast(NSArray *values, NSInteger least, NSInteger *fi
     return n >= MAX(least, 1) ? [values subarrayWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a + 1))] : nil;
 }
 
+/// The longest run of minutes with no value the strip's hour draws its line across, MMWindowDrawHour.
+static const NSInteger kStripBridgeMinutes = 2;
+
 void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHourLook look) {
     BOOL graph = look == MMWindowHourGraph, week = look == MMWindowHourWeek, small = look == MMWindowHourRow || look == MMWindowHourStrip || week;
     // Only the filled part is drawn, across the whole width, so a young hour is a short line and never a stroke at the edge.
@@ -241,10 +244,19 @@ void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHour
     NSPoint last = NSZeroPoint, first = NSZeroPoint;
     BOOL open = NO, any = NO;
     NSInteger count = (NSInteger)v.count, run = 0;
-    // An hour alone between two gaps makes no line, so the 7 days mark it with a dot of its own.
+    // An hour or a minute alone between two gaps makes no line, so the 7 days and the strip mark it with a dot of its own.
     NSMutableArray<NSValue *> *alone = [NSMutableArray new];
+    // The strip's hour bridges a minute or two with no build in them: the graph builds at least every 30 seconds while
+    // MinMacs runs, but a pass that backs off on battery and away, and skips a turn, can leave a minute without one.
+    // A longer gap is a Mac asleep or MinMacs not running, and stays a gap, as on the 7 days.
+    NSInteger bridge = look == MMWindowHourStrip ? kStripBridgeMinutes : 0;
     for (NSInteger i = 0; i < count; i++) {
         double d = v[i].doubleValue;
+        if (isnan(d) && open && bridge > 0) {
+            NSInteger end = i;
+            while (end < count && isnan(v[end].doubleValue)) end++;
+            if (end < count && end - i <= bridge) { i = end - 1; continue; }
+        }
         if (isnan(d)) {
             if (open) { [fill lineToPoint:NSMakePoint(last.x, NSMaxY(rect))]; [fill lineToPoint:NSMakePoint(first.x, NSMaxY(rect))]; [fill closePath]; open = NO; }
             if (run == 1) [alone addObject:[NSValue valueWithPoint:last]];
@@ -265,6 +277,6 @@ void MMWindowDrawHour(NSArray *values, NSRect rect, NSColor *color, MMWindowHour
     [line stroke];
     CGFloat dot = graph ? 2.4 : 1.6;
     [color setFill];
-    if (week) for (NSValue *p in alone) [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(p.pointValue.x - 1.2, p.pointValue.y - 1.2, 2.4, 2.4)] fill];
+    if (week || look == MMWindowHourStrip) for (NSValue *p in alone) [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(p.pointValue.x - 1.2, p.pointValue.y - 1.2, 2.4, 2.4)] fill];
     [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(last.x - dot, last.y - dot, dot * 2, dot * 2)] fill];
 }
