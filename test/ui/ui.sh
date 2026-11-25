@@ -72,14 +72,23 @@ grep '^FAIL' "$ui_out/checks.txt" 2>/dev/null | sed 's/^/        /'
 # with entries, with Keep, with Undo and after it, the Fix Everything plan, and the honest fallback.
 # It is dark glass in every appearance, and wider than a menu, so its PNGs stay out of the 720 px check above.
 ui_win="$ui_out/window"
-check "every window PNG is there" 166 "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+# No fixed total, which every new picture had to raise and two changes raising it at once broke: each state named
+# below must be there, and every picture comes as a pair, dark and Increase Contrast.
+ui_unpaired=0
+for f in "$ui_win"/*-dark.png; do
+  case "$f" in *-contrast-dark.png) other="${f%-contrast-dark.png}-dark.png" ;; *) other="${f%-dark.png}-contrast-dark.png" ;; esac
+  [ -s "$other" ] || { ui_unpaired=$((ui_unpaired + 1)); echo "        no pair for $(basename "$f")"; }
+done
+check "every window PNG is there, each as a pair in dark and Increase Contrast" "yes 0" \
+  "$([ "$(ls "$ui_win"/*.png 2>/dev/null | wc -l | tr -d ' ')" -ge 166 ] && echo yes || echo no) $ui_unpaired"
 ui_ok=yes
 for ui_name in busy-main busy-server busy-worktree busy-settings removal-settings quiet-main quiet-server peak-main peak-worktree running-main done-main empty-main memory-only-main disk-only-main \
                young-main calm-main long-main long-agent busy-agent busy-asks busy-app busy-cache busy-fix calm-cache young-server calm-settings real-main real-agent real-server real-fix extreme-main extreme-server extreme-asks extreme-tree extreme-running-main extreme-done-main measuring-main measuring-worktree measuring-measured measuring-fix welcome-main welcome-off-main  welcome-watched-main welcome-started \
                caches-main caches-families caches-scratch log-empty-main log-new-main log-busy-main log-busy-scrolled log-busy-end log-busy-server log-undo-main log-undo-undo-hover \
                week-main week-young-main week-gap-main week-gap-hover week-gap-hover-gap \
                strip-3-main strip-46-main strip-60-main strip-gap-main strip-sleep-main \
-               ask-empty-main ask-typing-typing ask-why-main ask-keep-main ask-undo-main ask-undone-main ask-plan-main ask-fallback-main; do
+               ask-empty-main ask-typing-typing ask-why-main ask-keep-main ask-undo-main ask-undone-main ask-plan-main ask-fallback-main \
+               ask-asking-main ask-claude-main ask-unreachable-main; do
   for ui_mode in dark contrast-dark; do [ -s "$ui_win/$ui_name-$ui_mode.png" ] || { ui_ok=no; echo "        missing $ui_name-$ui_mode.png"; }; done
 done
 check "each window state in dark and Increase Contrast" yes "$ui_ok"
