@@ -162,6 +162,17 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
         Group(MMPerformanceWorktrees, @"Worktrees", extras.worktreesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceWorktrees], s, inFix),
         Group(kCaches, @"Caches", extras.cachesLooked, MMWindowDisk, p.diskGroups, @[MMPerformanceClutter], s, inFix)];
 
+    // MinMacs itself, a row of Apps and helpers like any app of its size, judged against its own budgets. No fix names
+    // it: the MinMacs expert leaves its own process out of every app, and Act never signals MinMacs. Its hour is the
+    // ring the graph build keeps of this process, and its CPU now, where the report has no rate, the pass's own.
+    if (extras.own) {
+        pid_t pid = (pid_t)[extras.own[@"pid"] intValue];
+        MMProc *me = pid > 0 ? [s.facts.sample proc:pid] : nil;
+        MMHistoryRing *ring = s.history.own;
+        BOOL mine = ring && me && ring.key.pid == me.pid && ring.key.startSec == me.startSec;
+        MMWindowAddSelf(m, extras.own, mine ? MMWindowRingHour(ring) : nil, me ? me.cpuPercent : -1);
+    }
+
     // The fixes, in Fix Everything's order. A fix counts what it acts on as the window shows it: the members of a row
     // that stands for several, DESIGN rule 16, are that one row, though each member is still its own action and record.
     NSMutableDictionary<NSString *, NSString *> *shownAs = [NSMutableDictionary new];

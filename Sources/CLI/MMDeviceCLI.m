@@ -16,7 +16,6 @@
 #import "UI/MMFormat.h"
 
 // From MMSelfCLI.m.
-NSDictionary *MMSelfSinceLaunch(pid_t pid);
 // IOKit exports it and pmset reads the same: the active power settings, by power source. No header declares it.
 extern CFDictionaryRef IOPMCopyActivePMPreferences(void);
 

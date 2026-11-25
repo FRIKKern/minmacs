@@ -13,7 +13,7 @@ mkdir -p "$wn_dir/home"
 wn_home="$wn_dir/home"
 wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMAsk.m Sources/Shell/MMAskCLI.m Sources/Shell/MMAskClaude.m Sources/Shell/MMKeepCLI.m Sources/Shell/MMWindowMenu.m Sources/Shell/MMWindowActs.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
-$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowFixtureAsk.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/Window/MMWindowFixtureWeek.m Sources/UI/MMFormat.m test/window/window.m \
+$wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowFixtureAsk.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowSelf.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/Window/MMWindowFixtureWeek.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
 wn_r=$?
 check "window: the test binary builds with no warnings" 0 "$wn_r"
@@ -76,6 +76,8 @@ if [ "$wn_r" = 0 ]; then
   wn_run week-controller
   echo "-- an agent row's story, and Claude Code's scratch as the owner's Mac had it"
   wn_run agentstory
+  echo "-- MinMacs itself as a row, judged against its own budgets"
+  wn_run self
   wn_run collapse-real
   echo "-- a row's menu: the items of each kind, and what a pick runs, by window"
   wn_run row-menu
@@ -120,13 +122,19 @@ check "window: the feed, the JSON and the runner import no AppKit" 0 \
 check "window: a press on a row only selects: the list's input names no host and no action" 0 \
   "$(grep -cE 'MMWindowHost|\.host|MMRunAction|window(Run|Stop|Undo|Set|Quit|Welcome)' Sources/UI/Window/MMWindowListInput.m)"
 check "window: each file stays under 500 lines" 0 "$(wc -l $wn_new | awk '$2 != "total" && $1 >= 500' | grep -c .)"
-check "window: the model stays plain: no Core and no AppKit" 0 "$(grep -cE '#import (<(Cocoa|AppKit)|"Core/)' Sources/UI/Window/MMWindowModel.h Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m | awk -F: '{s+=$2} END {print s+0}')"
+check "window: the model stays plain: no Core and no AppKit" 0 "$(grep -cE '#import (<(Cocoa|AppKit)|"Core/)' Sources/UI/Window/MMWindowModel.h Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowSelf.m | awk -F: '{s+=$2} END {print s+0}')"
 check "window: the runner acts only through MMRunAction and MMRunWrapUp" "1 1 0" \
   "$(grep -c 'MMRunAction(a, f.policy, nil, @"manual"' Sources/Shell/MMFixRunner.m) $(grep -c 'MMRunWrapUp(f.wrapUp, @"manual"' Sources/Shell/MMFixRunner.m) $(grep -cE '[^a-zA-Z_]kill\(|removeItemAt|trashItemAt|unlink\(|rmdir\(|NSTask|terminate\]|perform:' Sources/Shell/MMFixRunner.m)"
 check "window: the runner and the controller each have a labeled queue" "1 1" \
   "$(grep -c 'MMQueue(@"core", @"fix-everything", QOS_CLASS_USER_INITIATED)' Sources/Shell/MMFixRunner.m) $(grep -c 'MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED)' Sources/Shell/MMWindowController.m)"
 check "window: nothing in the window's shell files runs lsof, nettop, ps or pmset, or makes a timer" 0 \
   "$(grep -cE '"[^"]*(lsof|nettop|pmset|/bin/ps)[^"]*"|MMTimer\(|NSTimer|dispatch_source' $wn_new | awk -F: '{s+=$2} END {print s+0}')"
+# MinMacs's own row: its numbers come from one proc_pid_rusage on the build the window already does, never a timer,
+# never main, and the report is the one `minmacs self` prints.
+check "window: MinMacs's own numbers are read on the window's build, in the controller's send and the in-app verb only, with no timer and nothing on main" "1 1 2 0 1" \
+  "$(awk '/^- \(void\)send \{/,/^}/' Sources/Shell/MMWindowController.m | grep -c 'x.own = MMSelfOnBuild();') $(grep -c 'if (a.inApp) x.own = MMSelfOnBuild();' Sources/Shell/MMWindowCLI.m) $(grep -rl 'MMSelfOnBuild()' Sources | grep -c .) $(grep -cE 'MMTimer\(|NSTimer|dispatch_source|dispatch_get_main_queue|dispatch_after|performSelector' Sources/Core/Runtime/MMSelfCost.m Sources/UI/Window/MMWindowSelf.m | awk -F: '{s+=$2} END {print s+0}') $(grep -c 'NSDictionary \*j = MMSelfReportWith(pid, first, second, window, version, build);' Sources/CLI/MMSelfCLI.m)"
+check "window: the controller's send, which reads MinMacs's own numbers, is the window queue's, and no send is asked for on main" "1 0" \
+  "$(grep -B2 '^- (void)send {' Sources/Shell/MMWindowController.m | grep -c '^/// The window queue.') $(grep -E 'dispatch_(a)?sync\(dispatch_get_main_queue\(\)' -A3 Sources/Shell/MMWindowController.m | grep -c 'self send\]')"
 check "window: the 7 days are read by the controller alone, and only when the strip shows them" "Sources/Shell/MMWindowController.m 1" \
   "$(grep -rl 'MMHistoryWeekHours(' Sources/Shell Sources/UI | tr '\n' ' ' | sed 's/ $//') $(grep -c 'if (x.stripWeek) \[self readWeek:x\];' Sources/Shell/MMWindowController.m)"
 check "window: one MMPerformance per snapshot, built in the controller only while open" "1 1" \
@@ -225,8 +233,11 @@ echo "-- minmacs window"
 # The verb runs cold here, read only, as performance does: the Mac's own processes, and no worktree walk.
 wn_json=$(MINMACS_HOME="$wn_home" "$BIN" window --json 2>/dev/null)
 check "window: window --json runs" 0 "$?"
-check "window: --json has the asks line, both sides, the ring, the fixes and Settings" "app asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings" \
+check "window: --json has the asks line, both sides, the ring, the fixes and Settings" "app asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run self settings" \
   "$(printf '%s' "$wn_json" | json "' '.join(sorted(j))")"
+# Run cold, the verb is no MinMacs app: it has no report of its own and no row of MinMacs.
+check "window: a cold --json has no self and no row of MinMacs" "None 0" \
+  "$(printf '%s' "$wn_json" | json "str(j['self']) + ' ' + str(sum(1 for g in j['memory'] for r in g['rows'] if r['own']))")"
 check "window: --json groups in the window's order" "servers agents apps worktrees caches" \
   "$(printf '%s' "$wn_json" | json "' '.join(g['key'] for g in j['memory'] + j['disk'])")"
 check "window: --json keeps memory and disk apart in the ring and in Fix Everything" "disk memory | diskBack diskBackPartial fixes memoryBack" \

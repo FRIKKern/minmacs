@@ -47,6 +47,8 @@ static int Window(MMArgs *a) {
     MMWindowExtras *x = [MMWindowExtras readWithLogin:login];
     // Run cold, the facts hold no clutter at all: the catalog's scans run in the app only.
     if (!a.inApp) x.cachesLooked = MMWindowLookedNowhere;
+    // MinMacs itself, only where this runs in the app: a cold CLI is no MinMacs app, and has no row of its own.
+    if (a.inApp) x.own = MMSelfOnBuild();
     MMWindowModel *m = MMWindowModelFrom(s, p, x);
     if (a.json) {
         NSMutableDictionary *j = [m.json mutableCopy];

@@ -6,7 +6,7 @@
 static NSArray<NSString *> *WordFixtures(void) {
     return @[@"quiet", @"busy", @"peak", @"young", @"calm", @"empty", @"long", @"running", @"done", @"memory-only", @"disk-only", @"real",
              @"extreme", @"extreme-running", @"extreme-done", @"measuring", @"caches", @"agents", @"log-new", @"log-busy", @"log-undo",
-             @"week", @"week-young", @"week-gap",
+             @"week", @"week-young", @"week-gap", @"self", @"self-cpu", @"self-memory", @"self-wakeups",
              @"ask-why", @"ask-keep", @"ask-plan", @"ask-fallback"];
 }
 
@@ -334,6 +334,8 @@ static void WindowWordChecks(void) {
     for (NSString *name in WordFixtures()) {
         MMWindowModel *m = MMWindowFixture(name);
         for (NSArray<MMWindowGroup *> *side in @[m.memoryGroups, m.diskGroups]) for (MMWindowGroup *g in side) for (MMWindowRow *r in g.rows) {
+            // MinMacs itself is made by the feed's own MMWindowSelfRow on the made-up days too, so it speaks as the feed does.
+            if (r.own) continue;
             if (r.state && ![FeedStates()[@(r.kind)] containsObject:r.state]) [foreign addObject:[NSString stringWithFormat:@"%@ %@ state %@", name, r.key, r.state]];
             for (MMWindowFact *f in r.facts) if (![FeedLabels()[@(r.kind)] containsObject:f.label]) [foreign addObject:[NSString stringWithFormat:@"%@ %@ fact %@", name, r.key, f.label]];
         }

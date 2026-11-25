@@ -505,9 +505,9 @@ static void WindowModel(void) {
     T(@"window: before the first pass the lid switch reads the pref", @"no", YN([MMWindowExtras readWithLogin:NO].lidOn));
 
     // The JSON and the words.
-    T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings",
+    T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run self settings",
       [[j.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
-    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind measured menu name needsYou project quiet state tabs workedAt",
+    T(@"window: a row's JSON keys", @"attention bytes cpuPercent facts hour iconHint inFix key kind measured menu name needsYou own project quiet state stateInFull tabs workedAt",
       [[[next.json allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"window: the JSON is valid and keeps the ring's sides apart", @"yes disk memory", [NSString stringWithFormat:@"%@ %@", YN([NSJSONSerialization isValidJSONObject:j]),
       [[[j[@"ring"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]]);
@@ -685,6 +685,8 @@ static void RunStopped(void) {
 #import "collapse.m"
 // An agent row's story, and Claude Code's scratch as the owner's Mac had it.
 #import "agentstory.m"
+// MinMacs itself as a row, judged against its own budgets.
+#import "self.m"
 
 #import "Shell/MMWindowLog.h"
 #import "log.m"
@@ -728,6 +730,7 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"collapse-helpers"]) CollapseHelpers();
         else if ([mode isEqualToString:@"collapse-run"]) CollapseRun();
         else if ([mode isEqualToString:@"agentstory"]) AgentStory();
+        else if ([mode isEqualToString:@"self"]) SelfRow();
         else if ([mode isEqualToString:@"collapse-real"]) CollapseReal();
         else if ([mode isEqualToString:@"log-words"]) LogWords();
         else if ([mode isEqualToString:@"log-controller"]) LogController();

@@ -41,6 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property BOOL stripWeek;
 @property (copy, nullable) NSArray *memoryWeek, *diskWeek;
 @property NSTimeInterval weekFirstAt;
+/// What MinMacs itself costs, MMSelfOnBuild's report, for its own row. The controller reads it on its queue at each
+/// build, and `minmacs window` when it runs in the app: one proc_pid_rusage, no timer. nil in a cold CLI, which is no
+/// MinMacs app, and then the window shows no row of MinMacs.
+@property (copy, nullable) NSDictionary *own;
 /// The lid switch as the keep-awake expert holds it now, and Open at login as given. Any queue.
 /// It reads the expert's last published state, or its pref before the first pass. It never runs pmset.
 /// The two looks are read from the repo index and the clutter catalog as they stand, with no walk and no scan.

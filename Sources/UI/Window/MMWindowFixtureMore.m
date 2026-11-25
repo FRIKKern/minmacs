@@ -163,3 +163,23 @@ MMWindowModel *MMWindowFixtureMore(NSString *name) {
     if ([name hasPrefix:@"extreme"]) return Extreme(name);
     return nil;
 }
+
+NSDictionary *MMWindowFixtureSelfReport(NSString *name) {
+    BOOL cpu = [name isEqualToString:@"self-cpu"], memory = [name isEqualToString:@"self-memory"], wakes = [name isEqualToString:@"self-wakeups"];
+    double up = 3 * 3600 + 12 * 60, cpuAll = cpu ? 0.92 : 0.21, wakeAll = wakes ? 1.42 : 0.35;
+    uint64_t footprint = (memory ? 58 : 38) * MB, peak = (memory ? 121 : 44) * MB;
+    NSMutableArray *over = [NSMutableArray new];
+    if (cpu) [over addObject:@"cpuSinceLaunch"];
+    if (wakes) [over addObject:@"idleWakeupsSinceLaunch"];
+    if (memory) [over addObject:@"memoryNow"];
+    if (cpu) [over addObject:@"cpuNow"];
+    return @{@"pid": @4242, @"runningSeconds": @(up), @"version": @"2.0.0", @"build": @"412",
+             @"now": @{@"seconds": @5, @"cpuPercent": @(cpu ? 1.4 : 0.18), @"childCpuPercent": @0, @"idleWakeupsPerSecond": @(wakes ? 1.6 : 0.4),
+                       @"interruptWakeupsPerSecond": @2.1, @"writtenBytes": @0},
+             @"sinceLaunch": @{@"cpuSeconds": @(cpuAll * up / 100), @"cpuPercent": @(cpuAll), @"childCpuSeconds": @41.6, @"childCpuPercent": @(41.6 / up * 100),
+                               @"idleWakeupsPerSecond": @(wakeAll), @"interruptWakeupsPerSecond": @1.9},
+             @"memory": @{@"footprintBytes": @(footprint), @"peakBytes": @(peak)},
+             @"disk": @{@"readBytes": @(212 * DMB), @"writtenBytes": @(14 * DMB), @"logicalWrittenBytes": @(18 * DMB)},
+             @"budgets": @{@"cpuPercent": @0.3, @"idleWakeupsPerSecond": @1, @"memoryBytes": @(45 * MB)},
+             @"over": over};
+}
