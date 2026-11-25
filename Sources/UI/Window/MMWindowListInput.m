@@ -108,6 +108,9 @@
             if (row.state.length) [say addObject:row.stateInFull ?: row.state];
             if (row.showsSize) [say addObject:MMWindowBytes(row.bytes, g.side == MMWindowDisk)];
             else if (row.sizeWord) [say addObject:@"size not measured yet"];
+            // A category of the rest says its count even when its quiet word says how it grew.
+            if (row.kind == MMWindowSystem && row.members && ![row.state isEqualToString:MMWindowRestCountWord(MMWindowRestProcessCount(row))])
+                [say addObject:MMWindowRestCountWord(MMWindowRestProcessCount(row))];
             if (row.needsYou) [say addObject:@"asks you"];
             if (row.inFix) [say addObject:@"in Fix Everything"];
             NSString *cpu = MMWindowCPU(row.cpuPercent);

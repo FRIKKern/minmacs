@@ -653,6 +653,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-projects.m"
 #include "render-window-log.m"
 #include "render-window-caches.m"
+#include "render-window-rest.m"
 #include "render-window-agents.m"
 #include "render-window-self.m"
 #include "render-window-press.m"
@@ -691,6 +692,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     shots = [shots arrayByAddingObjectsFromArray:WindowWeekShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowAskShots()];
     shots = [shots arrayByAddingObjectsFromArray:WindowSelfShots()];
+    shots = [shots arrayByAddingObjectsFromArray:WindowRestShots()];
     for (NSString *mode in @[@"dark", @"contrast-dark"]) {
         NSAppearance *ap = appearances[mode];
         if (!ap) continue;
@@ -735,10 +737,11 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     RenderWindowPulls(dir, appearances, unwritten);
     // An app row's insides: cmux closed and open, its story, a tab pointed at and picked, looking and unreachable.
     RenderWindowInsides(dir, appearances, unwritten);
+    RenderWindowRestOpen(dir, appearances, unwritten);
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
-    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"agents", @"log-empty", @"log-new", @"log-busy", @"log-undo", @"week", @"week-young", @"week-gap", @"self", @"self-cpu", @"self-memory", @"self-wakeups"]) {
+    for (NSString *name in @[@"quiet", @"busy", @"peak", @"running", @"done", @"empty", @"young", @"calm", @"long", @"removal", @"welcome", @"welcome-watched", @"measuring", @"caches", @"agents", @"rest", @"rest-calm", @"rest-growing", @"log-empty", @"log-new", @"log-busy", @"log-undo", @"week", @"week-young", @"week-gap", @"self", @"self-cpu", @"self-memory", @"self-wakeups"]) {
         MMWindowModel *m = MMWindowFixture(name);
         NSMutableArray *bad = [NSMutableArray new];
         for (NSString *s in [MMWindowView shownStrings:m])
@@ -762,6 +765,8 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowShownChecks();
     WindowLogChecks();
     WindowCachesChecks();
+    WindowRestChecks();
+    WindowRestTreeChecks();
     WindowAgentChecks();
     WindowSelfChecks();
     WindowPressChecks();

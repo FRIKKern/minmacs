@@ -172,6 +172,11 @@ MMWindowModel *MMWindowModelFrom(MMSnapshot *s, MMPerformance *p, MMWindowExtras
         BOOL mine = ring && me && ring.key.pid == me.pid && ring.key.startSec == me.startSec;
         MMWindowAddSelf(m, extras.own, mine ? MMWindowRingHour(ring) : nil, me ? me.cpuPercent : -1);
     }
+    // What no group holds, by category, MMWindowRestFeed.m: the ring's rest, after MinMacs took its own, is its slice.
+    MMWindowSlice *other = nil;
+    for (MMWindowSlice *x in m.ring.memory) if ([x.group isEqualToString:MMPerformanceOther]) other = x;
+    MMWindowGroup *rest = other ? MMWindowRestGroupFrom(s, p, extras, other.bytes, (pid_t)[extras.own[@"pid"] intValue]) : nil;
+    if (rest) { m.memoryGroups = [m.memoryGroups arrayByAddingObject:rest]; other.group = MMWindowRestGroup; }
 
     // The fixes, in Fix Everything's order. A fix counts what it acts on as the window shows it: the members of a row
     // that stands for several, DESIGN rule 16, are that one row, though each member is still its own action and record.

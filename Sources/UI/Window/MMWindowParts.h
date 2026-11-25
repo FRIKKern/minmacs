@@ -109,6 +109,11 @@ void MMWindowDrawRing(MMWindowModel *model, NSPoint center, BOOL small, MMWindow
 /// The keys of the rows the ring gives an arc, for the checks: all of them, or with `after` all but the rows Fix
 /// Everything touches. The drawing asks the same rule.
 NSArray<NSString *> *MMWindowRingRows(MMWindowModel *model, BOOL after);
+/// The calm tint of a category of the rest of the memory, by its row key, "rest:spotlight": a gray or a soft hue,
+/// stronger in Increase Contrast. MMWindowRestDraw.m.
+NSColor *MMWindowRestTint(NSString *rowKey);
+/// A category's small mark, in the 18 by 18 box of the row icons.
+void MMWindowDrawRestMark(NSString *_Nullable category);
 
 #pragma mark Motion, MMWindowMotion.m
 
@@ -344,6 +349,12 @@ static const CGFloat MMWindowStripHeight = 92;
 - (void)showAnswer;
 /// Where the story ends, over the field.
 - (CGFloat)storyBottom;
+@end
+
+/// A category's story, MMWindowMiddleRest.m: its processes under its facts, and their details as tooltips.
+@interface MMWindowMiddleView (Rest)
+- (void)drawRest:(MMWindowRow *)row from:(CGFloat)y;
+- (void)placeRestTips:(MMWindowRow *)row from:(CGFloat)y;
 @end
 
 @class MMWindowStripState;

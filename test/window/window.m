@@ -274,7 +274,7 @@ static void WindowModel(void) {
         for (MMWindowGroup *g in gs) [a addObject:[NSString stringWithFormat:@"%@=%@:%lu", g.key, g.title, (unsigned long)g.rows.count]];
         return [a componentsJoinedByString:@" "];
     };
-    T(@"window: memory groups, in order, with their rows", @"servers=Servers:3 agents=Agents:2 apps=Apps and helpers:4", titles(m.memoryGroups));
+    T(@"window: memory groups, in order, with their rows", @"servers=Servers:3 agents=Agents:2 apps=Apps and helpers:4 rest=macOS and background:1", titles(m.memoryGroups));
     T(@"window: disk groups, in order, with their rows", @"worktrees=Worktrees:4 caches=Caches:4", titles(m.diskGroups));
     BOOL sides = YES, sorted = YES;
     for (MMWindowGroup *g in m.memoryGroups) if (g.side != MMWindowMemory) sides = NO;
@@ -286,11 +286,13 @@ static void WindowModel(void) {
       [[[m.memoryGroups[2].rows valueForKey:@"json"] valueForKey:@"kind"] componentsJoinedByString:@","]);
 
     // The rows.
-    NSSet *keys = [NSSet setWithArray:[Rows(m) valueForKey:@"key"]];
+    // The rest of the memory has rows of its own, by category, rest.m: here the rows of the Performance model.
+    NSArray<MMWindowRow *> *found = [Rows(m) filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"kind != %d", MMWindowSystem]];
+    NSSet *keys = [NSSet setWithArray:[found valueForKey:@"key"]];
     NSMutableSet *want = [NSMutableSet new];
     for (MMPerformanceGroup *g in [p.memoryGroups arrayByAddingObjectsFromArray:p.diskGroups]) [want addObjectsFromArray:[g.rows valueForKey:@"key"]];
     T(@"window: every row has its own key, the Performance row's", @"17 yes", [NSString stringWithFormat:@"%lu %@", (unsigned long)keys.count,
-      YN([keys isEqualToSet:want] && keys.count == Rows(m).count)]);
+      YN([keys isEqualToSet:want] && keys.count == found.count)]);
     T(@"window: a server is named by its port and framework", @":3001 Next.js,:3000 Vite,:5432 Postgres", [[m.memoryGroups[0].rows valueForKey:@"name"] componentsJoinedByString:@","]);
     T(@"window: an agent by its session's title on one line, else by its project folder, never all by the harness, and a worktree by its branch",
       @"Tune the ranking | app | fix-auth-redirect",
@@ -298,7 +300,8 @@ static void WindowModel(void) {
     // The words of an empty group. This test home has no folder to look in and no clutter root, so neither disk
     // group may say "found": nothing looked.
     NSString *(^notes)(MMWindowModel *) = ^(MMWindowModel *x) {
-        return [[[x.memoryGroups arrayByAddingObjectsFromArray:x.diskGroups] valueForKey:@"emptyNote"] componentsJoinedByString:@" | "];
+        NSArray *gs = [[x.memoryGroups arrayByAddingObjectsFromArray:x.diskGroups] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"key != %@", MMWindowRestGroup]];
+        return [[gs valueForKey:@"emptyNote"] componentsJoinedByString:@" | "];
     };
     T(@"window: with no folder to look in, the empty disk groups claim no result", @"No servers found | No agents found | No apps found | No folders to look in | Not looked at", notes(m));
     // A folder to look in whose first walk has not ended: still looking. No walk starts here.
@@ -399,7 +402,7 @@ static void WindowModel(void) {
     // The ring and the hours. Memory and disk are two numbers.
     T(@"window: the ring's memory is the Performance model's", @"yes", YN(m.ring.memoryUsed == p.memory.used && m.ring.memoryTotal == p.memory.total));
     T(@"window: the ring's disk is free and total", @"182 994", [NSString stringWithFormat:@"%llu %llu", m.ring.diskFree / 1000000000, m.ring.diskTotal / 1000000000]);
-    T(@"window: memory slices in ring order", @"servers,agents,apps,other", [[m.ring.memory valueForKey:@"group"] componentsJoinedByString:@","]);
+    T(@"window: memory slices in ring order", @"servers,agents,apps,rest", [[m.ring.memory valueForKey:@"group"] componentsJoinedByString:@","]);
     T(@"window: disk slices in ring order", @"worktrees,caches,other", [[m.ring.disk valueForKey:@"group"] componentsJoinedByString:@","]);
     uint64_t ms = 0, ds = 0;
     for (MMWindowSlice *x in m.ring.memory) ms += x.bytes;
@@ -505,7 +508,7 @@ static void WindowModel(void) {
     T(@"window: before the first pass the lid switch reads the pref", @"no", YN([MMWindowExtras readWithLogin:NO].lidOn));
 
     // The JSON and the words.
-    T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run self settings",
+    T(@"window: the JSON's keys", @"asks backToday categories disk diskHour fixEverything fixes generation memory memoryHour ring run self settings",
       [[j.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"window: a row's JSON keys", @"attention bytes cpuPercent facts hour iconHint inFix key kind measured menu name needsYou own project quiet state stateInFull tabs workedAt",
       [[[next.json allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
@@ -530,7 +533,7 @@ static void WindowCalm(void) {
     T(@"calm: no asks line, no fix, and no row marked", @"(nil) 0 0", [NSString stringWithFormat:@"%@ %ld %lu", m.asks ?: @"(nil)", (long)m.fixCount,
       (unsigned long)[[Rows(m) filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"inFix == YES"]] count]]);
     T(@"calm: before the first fill there is no hour to draw", @"yes yes", [NSString stringWithFormat:@"%@ %@", YN(m.memoryHour == nil), YN(m.diskHour == nil)]);
-    T(@"calm: every group is still there", @"3 2", [NSString stringWithFormat:@"%lu %lu", (unsigned long)m.memoryGroups.count, (unsigned long)m.diskGroups.count]);
+    T(@"calm: every group is still there", @"4 2", [NSString stringWithFormat:@"%lu %lu", (unsigned long)m.memoryGroups.count, (unsigned long)m.diskGroups.count]);
     T(@"calm: no shown string names an old app or claims a result", @"", Bad(Shown(m)));
     for (TAgent *a in gAgents) a.state = MMAgentWaiting;
     MMSnapshot *s2 = Snapshot(kDiskTotal, kDiskFree, 1);
@@ -683,6 +686,7 @@ static void RunStopped(void) {
 #import "overlap.m"
 // Near-identical rows as one, DESIGN rule 16.
 #import "collapse.m"
+#import "rest.m"
 // An agent row's story, and Claude Code's scratch as the owner's Mac had it.
 #import "agentstory.m"
 // MinMacs itself as a row, judged against its own budgets.
@@ -712,6 +716,8 @@ int main(int argc, const char *argv[]) {
             fprintf(stderr, "window: the fixture folder must be inside MINMACS_HOME\n"); return 2;
         }
         RegisterW();
+        // The fake pids may be real processes on this Mac: the rest of the memory reads no path of theirs.
+        MMRestUsePathReader(^NSString *(pid_t pid) { return nil; });
         NSString *mode = @(argv[2]);
         if ([mode isEqualToString:@"model"]) WindowModel();
         else if ([mode isEqualToString:@"calm"]) WindowCalm();
@@ -729,6 +735,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"agentport"]) AgentPort();
         else if ([mode isEqualToString:@"overlap"]) WindowOverlap();
         else if ([mode isEqualToString:@"collapse"]) Collapse();
+        else if ([mode isEqualToString:@"rest"]) Rest();
+        else if ([mode isEqualToString:@"rest-closed"]) RestClosed();
         else if ([mode isEqualToString:@"collapse-helpers"]) CollapseHelpers();
         else if ([mode isEqualToString:@"collapse-run"]) CollapseRun();
         else if ([mode isEqualToString:@"agentstory"]) AgentStory();

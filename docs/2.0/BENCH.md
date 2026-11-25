@@ -747,6 +747,27 @@ With the window open nearly every pass builds again, since MinMacs's numbers mov
 
 The fixture reads about 0.50 %, over the 0.3 % budget. What builds now is what moved: the fixture's edit every 15 seconds asks git, and a walk of the worktree follows it; a status flips every 20 seconds; and a process starts in a checkout now and then. A build costs about 11 ms: Noo-Noo's findings 3.4 ms, since every git fact is in its digest, WorkForest's prepare step with its 16 Wrap Up plans 1.9, owners 1.3 and the digests 3. A pass costs about 5 ms of facts, most of it the session index, and the digests about 3 ms, WorkForest's and MinMacs's 1.2 each. The undo log is read again whenever any write moves its stamp, 26 ms a read with 2800 rows and no index on the expert.
 
+## The rest of the memory by category, 2026-11-25
+
+`Core/MMRest.h` puts what no server, agent, app or helper row holds into the categories of "macOS and background", DESIGN rule 18. It is the window's alone: the feed builds it while the window is open, from the sample Senses already took, and nothing on a tick asks for it.
+
+**What the rest was.** On the development Mac, a 16 GB MacBook Air running dev agents, at 20:30, `minmacs window --json` run cold read 9.0 GB in use: agents 0.74 GB, apps 3.53 GB, and 4.75 GB that no row held. Of 875 processes, 284 run as another user, root and the system's own users, and their memory cannot be read without root. By category the rest was macOS 2.09 GB in 499 processes, 0.51 GB of it in no process, then Desktop and widgets 939 MB in 55, iCloud and accounts 452 MB in 45, Photos and media 430 MB in 25, Siri and suggestions 395 MB in 32, Spotlight 325 MB in 23, Apple apps in the background 191 MB in 20, Security 36 MB in 19 and Everything else 7 MB in 1. No developer tool or browser helper stood outside its agent or app that hour.
+
+**What it costs.** `bench rest` classifies every process of the real sample, with no row claiming any, so more than the window ever does. Its numbers on that Mac, one run of 100 builds:
+
+| | |
+|---|---|
+| processes classified | 862, each once |
+| paths read, once a process's life | 722: names the table does not know, and names the kernel cut at 15 characters |
+| first build, cold | 25.2 ms thread CPU, on the window's queue |
+| each build after it, warm | median 0.91 ms, p95 0.94 ms |
+| a story's details, 60 processes | 0.32 ms |
+| classified again over 100 builds | 0 |
+
+The first open of the window pays the cold build once; every snapshot after it pays the warm one, a dictionary read a process. A pid used again is looked up again, and the lookups of processes that ended go with them.
+
+**With the window closed it costs nothing.** `bench idle` now reports `restClassified`, the processes the kept table holds after the idle window, and `test/bench.sh` fails when it is not 0. A run of 20 seconds after a warmup of 3, on the same Mac after the rebase on main, read `restClassified` 0 at 0.134 % CPU, and a second `bench rest` read cold 24.9 ms, warm median 0.93 ms and 0 classified again. `./test.sh window` checks the same through the controller: five snapshots with the window closed build no model, classify nothing, read no path and keep no hour.
+
 ## The Performance model
 
 `Core/MMPerformance.h` builds the Performance tab of design 132-a on demand from one snapshot. `./test.sh performance` times it on its fixture: 18 findings from five fake experts, four worktrees of which two are merged, one finished workstream with five Wrap Up parts, and six fixes. The test binary is built with `-O2`, as build.sh builds the app, and the number is the mean thread CPU time of 400 builds after 20 that warm up.
@@ -783,6 +804,7 @@ tools/bench/scale.sh                    # 300 worktrees, the clutter tree and a 
 ./test.sh bench                         # the short run and the gate
 tools/bench/fieldfix.py make /tmp/fx && tools/bench/field.sh build/bench/bench /tmp/fx out.json 240 30   # the field's idle
 ./test.sh performance                   # the Performance model, one build at fixture scale
+build/bench/bench rest --iterations 100   # the rest of the memory by category, on the real process table
 tools/bench/run.sh 60 10 200          # one minute of idle, then menus, startup twice, the watchdog run and the gate
 DEBUG=1 BUILD_DIR=build/debug ./build.sh   # a build whose main-thread watchdog is on
 tools/soak/run.sh 3600 600 20           # one hour of soak, a sample every 10 minutes

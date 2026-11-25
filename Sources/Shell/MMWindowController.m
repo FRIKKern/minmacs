@@ -64,7 +64,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         _token = nil; _pulls = nil; _model = nil; _shown = 0; [self insidesOpen:NO];
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
-        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; self->_week = nil;
+        dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; self->_week = nil; MMWindowRestStoryNow(nil);
                                      // A closed window stops a Claude call that runs, and lets its answer and its conversation go.
                                      [self stopAsking];
                                      self->_built = nil; self->_answer = nil; self->_turns = nil; });
@@ -127,7 +127,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (x.stripWeek) [self readWeek:x];
     x.welcome = MMWindowWelcomeNow(x.loginOn);
     x.own = MMSelfOnBuild();   // MinMacs's own cost: one proc_pid_rusage a build, only while open.
-    MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
+    MMWindowModel *m = MMWindowRestModelFrom(_s, _p, x);   // MMWindowModelFrom with the rest's hour and the story that shows
     m.answer = _answer; MMWindowInsidesAttach(m, _s, [MMAppInsides.shared knownFor:MMAppInsidesCmux]);   // memory only
     _built = m;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -442,9 +442,9 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 /// request: on demand only, never for a tick or a snapshot, and never while the window is closed. A look that began is
 /// shown at once, and once more past the time gh may take, so a look that got no answer leaves the story.
 - (void)windowShowsStory:(NSString *)key {
-    if (!self.open || ![key isKindOfClass:NSString.class] || !key.length || [self insidesStory:key]) return;
-    dispatch_async(Queue(), ^{
-        if (!self.open || !self->_p) return;
+    if (self.open) dispatch_async(Queue(), ^{
+        if (MMWindowRestStoryNow(key) && self.open) { [self send]; return; }   // a category of the rest: its details while it shows
+        if (!self.open || !self->_p || ![key isKindOfClass:NSString.class] || !key.length || [self insidesStory:key]) return;
         MMPerformanceRow *r = [self->_p row:key];
         MMFinding *f = r.finding ?: [self->_s finding:r.findingID];
         if (![f.expert isEqualToString:@"workforest"] || ![f.kind isEqualToString:@"worktree"]) return;

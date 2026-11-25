@@ -42,7 +42,9 @@ NSArray<NSString *> *MMWindowRowNameAs(MMWindowRow *row, NSString *name, MMWindo
     // A column is there where its group has it: the hour where any row of the group has one, CPU on the memory side.
     // So the hour lines and the CPU numbers of a group stand one under another.
     CGFloat width[kColumns] = {hasHour ? 40 : 0, disk ? 0 : 46, row.state.length ? Wide(row.state, 11.5) + 8 : 0};
-    BOOL shows[kColumns] = {MMWindowHourSpan(row.hour, NULL, NULL, NULL) != nil, MMWindowCPU(row.cpuPercent) != nil, row.state.length > 0};
+    // A category of the rest of the memory under 1 % of a core has nothing to say in CPU: it gives way before its count.
+    BOOL calmCPU = row.kind == MMWindowSystem && row.cpuPercent < 1;
+    BOOL shows[kColumns] = {MMWindowHourSpan(row.hour, NULL, NULL, NULL) != nil, MMWindowCPU(row.cpuPercent) != nil && !calmCPU, row.state.length > 0};
     BOOL held[kColumns];
     for (int i = 0; i < kColumns; i++) held[i] = width[i] > 0;
     CGFloat need = Wide(name, 13);
