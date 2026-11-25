@@ -15,8 +15,18 @@ static void PressShotState(MMWindowView *v, NSString *state) {
 
 static MMWindowMiddleView *PressMiddle(MMWindowView *v) { return WordViews(v, MMWindowMiddleView.class).firstObject; }
 
-/// Longer than the beat the window waits after the pointer leaves the rows.
+/// Longer than the beat the window waits after the pointer leaves the rows. Only for a check that the beat changes
+/// nothing: one that waits for the beat to change something uses PressUntil.
 static void PressBeat(void) { [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.4]]; }
+
+/// Turns the run loop until done holds, for at most 3 seconds, and says whether it holds. The beat is 0.26 s, but on
+/// a slow CI runner that draws in software a fixed wait can end before its timer fired: render 45512807813.
+static BOOL PressUntil(BOOL (^done)(void)) {
+    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:3];
+    while (!done() && end.timeIntervalSinceNow > 0)
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+    return done();
+}
 
 /// The list that holds a row, and the middle of that row where it is drawn, in the list's coordinates.
 static MMWindowListView *PressList(MMWindowView *v, NSString *key, NSPoint *at) {
@@ -94,8 +104,8 @@ static void WindowPressChecks(void) {
                   [lc.hoverKey isEqualToString:disk] && [lc.hotKey isEqualToString:@"server:6006"];
     [lc pointAt:NSMakePoint(-10, -10)];
     BOOL beat = [middle.row.key isEqualToString:disk];
-    PressBeat();
-    BOOL back = [middle.row.key isEqualToString:@"server:6006"] && [dock.pointed.key isEqualToString:@"server:6006"] && !lc.hoverKey && [lc.hotKey isEqualToString:@"server:6006"];
+    BOOL back = PressUntil(^{ return (BOOL)([middle.row.key isEqualToString:@"server:6006"] && [dock.pointed.key isEqualToString:@"server:6006"] &&
+                                            !lc.hoverKey && [lc.hotKey isEqualToString:@"server:6006"]); });
     Check(preview && picked && other && across && beat && back,
           @"window rows: the pointer previews a row's story, active row or not, on either side, with the dock's numbers; a press makes it blue, and a beat after the pointer leaves the rows the middle and the dock show the active row again",
           [NSString stringWithFormat:@"preview %d, picked %d, other %d, across %d, beat %d, back %d, middle %@", preview, picked, other, across, beat, back, middle.row.key]);
@@ -119,8 +129,8 @@ static void WindowPressChecks(void) {
     [lb pointAt:b];
     BOOL shown = [middle.row.key isEqualToString:@"agent:4"] && v.activeRow == nil;
     [lb pointAt:NSMakePoint(-10, -10)];
-    PressBeat();
-    Check(shown && middle.row == nil && !middle.logView.hidden && dock.pointed == nil,
+    BOOL log = PressUntil(^{ return (BOOL)(middle.row == nil && !middle.logView.hidden && dock.pointed == nil); });
+    Check(shown && log,
           @"window rows: with no active row, a beat after the pointer leaves the rows the middle shows the log", middle.row.key ?: @"log");
 
     // Escape leaves Settings before it lets go of a row, and the press only selects: no fix, stop, rule, switch or Undo.
@@ -145,8 +155,7 @@ static void WindowPressChecks(void) {
     for (MMWindowButton *press in mm.storyPresses) if (press.hidden || !MMWindowTakesPresses(press)) reach = NO;
     BOOL held = [mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && reach && m.activeRow == nil;
     mm.onPointer(NO);
-    PressBeat();
-    BOOL away = mm.row == nil && !mm.logView.hidden;
+    BOOL away = PressUntil(^{ return (BOOL)(mm.row == nil && !mm.logView.hidden); });
     [l3 pointAt:p3];
     [l3 pointAt:NSMakePoint(-10, -10)];
     mm.onPointer(YES);
@@ -171,8 +180,7 @@ static void WindowPressChecks(void) {
     [ld pointAt:NSMakePoint(-10, -10)];
     mm.onPointer(YES);
     BOOL waits = [mm.row.key isEqualToString:drawn];
-    PressBeat();
-    BOOL active = [mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && !ld.hoverKey;
+    BOOL active = PressUntil(^{ return (BOOL)([mm.row.key isEqualToString:@"agent:3"] && [PolishDock(m).pointed.key isEqualToString:@"agent:3"] && !ld.hoverKey); });
     [ld pointAt:p2];
     mm.onPointer(NO);
     PressBeat();
