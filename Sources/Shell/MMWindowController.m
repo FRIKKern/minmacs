@@ -348,7 +348,6 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 }
 
 #pragma mark - Ask MinMacs
-
 /// The window queue. The answer's suggestion was pressed: its button gives way to this line.
 - (void)noteAnswer:(NSString *)action target:(NSString *)target note:(NSString *)note {
     MMWindowSuggest *s = _answer.suggest;
