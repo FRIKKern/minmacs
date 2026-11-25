@@ -107,21 +107,20 @@ static BOOL Answers(id o, SEL const *sels, size_t n, MMDigestClass *seen) {
     return ok;
 }
 
+static uint64_t KnowDigest(MMFacts *f, BOOL sessionFields);
+static NSString *AgeBucket(NSDate *when, NSDate *now);
 static uint64_t FactsDigest(MMFacts *f) {
-    uint64_t h = 0, i = 1;
+    uint64_t h = 0;
     MMSample *s = f.sample;
     uid_t me = getuid();
     static SEL procSels[7];
-    static SEL agentSels[8];
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         SEL ps[7] = { @selector(pid), @selector(ppid), @selector(uid), @selector(startSec), @selector(name),
                       @selector(cpuPercent), @selector(footprint) };
-        SEL as[8] = { @selector(key), @selector(state), @selector(signal), @selector(sessionID), @selector(cwd),
-                      @selector(treeCPU), @selector(treeFootprint), @selector(hosted) };
-        memcpy(procSels, ps, sizeof ps); memcpy(agentSels, as, sizeof as);
+        memcpy(procSels, ps, sizeof ps);
     });
-    MMDigestClass pc = { Nil, NO }, ac = { Nil, NO };
+    MMDigestClass pc = { Nil, NO };
     for (MMProc *p in s.procs.objectEnumerator) {
         if (!Answers(p, procSels, 7, &pc)) { h += Mix(MixObj(p)); continue; }
         if (p.uid != me && p.pid != 1) continue;   // no expert reads another user's processes, which Senses cannot measure
@@ -138,6 +137,23 @@ static uint64_t FactsDigest(MMFacts *f) {
             h += Mix(x);
         }
     }
+    return h + KnowDigest(f, NO);
+}
+
+/// The facts digest's part that is not the process table or the sockets: power and pressure, every agent's state,
+/// and the identity of the worktree, git and clutter objects. Sessions by identity, or with sessionFields by what the
+/// graph reads of them: the session index makes new session objects at every read, and an agent at work moves its
+/// last write every second, which only moves an age bucket of a workstream's fingerprint.
+static uint64_t KnowDigest(MMFacts *f, BOOL sessionFields) {
+    uint64_t h = 0, i = 1;
+    MMDigestClass ac = { Nil, NO };
+    static SEL agentSels[8];
+    static dispatch_once_t agentOnce;
+    dispatch_once(&agentOnce, ^{
+        SEL as[8] = { @selector(key), @selector(state), @selector(signal), @selector(sessionID), @selector(cwd),
+                      @selector(treeCPU), @selector(treeFootprint), @selector(hosted) };
+        memcpy(agentSels, as, sizeof as);
+    });
     MMPower *pw = f.power;
     static SEL powerSels[11];
     static dispatch_once_t powerOnce;
@@ -149,13 +165,20 @@ static uint64_t FactsDigest(MMFacts *f) {
     });
     MMDigestClass wc = { Nil, NO };
     if (pw && Answers(pw, powerSels, 11, &wc)) {
+        // The free disk space in GB, or for the graph's own digest only on which side of what a snapshot's reader tells
+        // apart, WorkForest's 15 GB and the Performance model's 100 GB: other work on the Mac moves it by GBs. A
+        // snapshot's power facts may be up to 30 seconds old, and its readers take Senses' own when newer.
+        uint64_t disk = sessionFields ? (uint64_t)(pw.diskFree < 15000000000ull) | (uint64_t)(pw.diskFree < 100000000000ull) << 1
+                                      : pw.diskFree >> 30;
         h ^= Mix(++i * ((uint64_t)pw.onAC | (uint64_t)pw.lidClosed << 1 | (uint64_t)pw.lowPowerMode << 2 |
                         (uint64_t)pw.lidOverride << 3 | (uint64_t)pw.online << 4 | (uint64_t)(pw.batteryPercent + 1) << 8 |
-                        (uint64_t)pw.thermal << 16 | (uint64_t)pw.memoryPressure << 24 | (pw.diskFree >> 30) << 32));
+                        (uint64_t)pw.thermal << 16 | (uint64_t)pw.memoryPressure << 24 | disk << 32));
+        // The assertions are the registry's, which reads them into the agents above. No snapshot reader reads them.
         uint64_t a = 0;
-        for (NSNumber *pid in pw.assertionsByPid)
-            for (NSDictionary *x in pw.assertionsByPid[pid])
-                a += Mix(pid.unsignedLongLongValue ^ MixStr([x isKindOfClass:NSDictionary.class] ? [x[@"AssertName"] description] : nil));
+        if (!sessionFields)
+            for (NSNumber *pid in pw.assertionsByPid)
+                for (NSDictionary *x in pw.assertionsByPid[pid])
+                    a += Mix(pid.unsignedLongLongValue ^ MixStr([x isKindOfClass:NSDictionary.class] ? [x[@"AssertName"] description] : nil));
         h ^= Mix(a + ++i);
     } else if (pw) {
         h ^= Mix(MixObj(pw) + ++i);
@@ -163,20 +186,78 @@ static uint64_t FactsDigest(MMFacts *f) {
     uint64_t ag = 0;
     for (MMAgent *a in f.agents) {
         if (!Answers(a, agentSels, 8, &ac)) { ag += Mix(MixObj(a)); continue; }
+        // Its tree's CPU and memory only in the facts digest: the owner rules and workstreams read none of it, and a
+        // working agent's tree moves at every pass. MinMacs's agent rows read it at the heartbeat build.
         uint64_t x = Mix(((uint64_t)a.key.pid << 32) ^ a.key.startSec) ^ Mix((uint64_t)a.state << 8 | (uint64_t)a.signal) ^
-                     MixStr(a.sessionID) ^ MixStr(a.cwd) ^ Mix(CPUBand(a.treeCPU) << 20 | MemBand(a.treeFootprint) << 24);
+                     MixStr(a.sessionID) ^ MixStr(a.cwd) ^ (sessionFields ? 0 : Mix(CPUBand(a.treeCPU) << 20 | MemBand(a.treeFootprint) << 24));
         for (MMAgent *o in a.hosted) x ^= Mix(MixObj(o));
         ag += Mix(x);
     }
     h ^= Mix(ag + ++i);
     // Know replaces a session, worktree, git fact or clutter item with a new object when it changes, and its arrays
     // may be copied on the way, so each element's identity is summed in its place.
-    h ^= Mix(MixAll(f.sessions) + ++i);
+    if (sessionFields) {
+        static SEL sessionSels[8];
+        static dispatch_once_t sessionOnce;
+        dispatch_once(&sessionOnce, ^{
+            SEL ss[8] = { @selector(sessionID), @selector(pid), @selector(cwd), @selector(agent), @selector(title),
+                          @selector(stillWorking), @selector(started), @selector(lastActive) };
+            memcpy(sessionSels, ss, sizeof ss);
+        });
+        MMDigestClass sc = { Nil, NO };
+        MMSample *sample = f.sample;
+        NSDate *now = sample.at ?: [NSDate date];
+        uint64_t x = f.sessions.count;
+        for (MMSession *z in f.sessions) {
+            if (!Answers(z, sessionSels, 8, &sc)) { x += Mix(MixObj(z)); continue; }
+            BOOL running = z.pid > 0 && [sample proc:z.pid] != nil;
+            x += Mix(MixStr(z.sessionID) ^ Mix(MixStr(z.cwd) + 1) ^ Mix(MixStr(z.agent) + 2) ^ Mix(MixStr(z.title) + 3) ^
+                     Mix(((uint64_t)(uint32_t)z.pid << 2 | (uint64_t)running << 1 | (uint64_t)z.stillWorking) + 4) ^
+                     Mix((uint64_t)(z.started.timeIntervalSince1970 * 1000) + 5) ^ Mix(MixStr(AgeBucket(z.lastActive, now)) + 6));
+        }
+        h ^= Mix(x + ++i);
+    } else {
+        h ^= Mix(MixAll(f.sessions) + ++i);
+    }
     h ^= Mix(MixAll(f.worktrees) + ++i);
     h ^= Mix(MixAll(f.clutter) + ++i);
     uint64_t g = 0;
     for (MMWorktree *w in f.worktrees) g += MixObj([f gitFor:w]);
     h ^= Mix(g + ++i);
+    return h;
+}
+
+/// What a build reads of facts besides what each expert's input digest covers: the Know part above, with sessions by
+/// what the workstreams read, and for each finding's processes whether each still runs, the folder of the first that
+/// runs and the parents above each, which pick its owner, and which processes held awake still run. When every
+/// expert's digest and this one match the last build's, no part of a snapshot can come out otherwise, owners included,
+/// so the graph keeps it. The rest of the process table, about 800 processes that come and go on a Mac at work, is
+/// left out: no expert and no owner rule reads a process that is none of these.
+static uint64_t CoreDigest(MMFacts *f, NSArray<NSArray<MMFinding *> *> *findings, NSDictionary<NSString *, NSString *> *holds) {
+    uint64_t h = KnowDigest(f, YES);
+    MMSample *s = f.sample;
+    for (NSArray<MMFinding *> *list in findings) {
+        h = Mix(h + list.count);
+        for (MMFinding *x in list) {
+            if (!x.procs.count) continue;
+            BOOL first = YES;
+            uint64_t p = 0;
+            for (NSValue *v in x.procs) {
+                MMProcKey k; [v getValue:&k size:sizeof k];
+                MMProc *live = LiveProc(s, k);
+                p = Mix(p + ((uint64_t)(uint32_t)k.pid << 32 ^ k.startSec) + (live ? 1 : 2));
+                if (!live) continue;
+                if (first) { p ^= Mix(MixStr([s cwdOf:k.pid]) + 3); first = NO; }
+                for (NSNumber *a in [s ancestorsOf:k.pid limit:kAncestorHops]) p = Mix(p + a.unsignedLongLongValue);
+            }
+            h += Mix(p ^ MixObj(x));
+        }
+    }
+    for (NSString *key in holds) {
+        NSArray *parts = [key componentsSeparatedByString:@":"];
+        MMProcKey k = { (pid_t)[parts.firstObject intValue], (uint64_t)[parts.lastObject longLongValue] };
+        h += Mix(MixStr(key) ^ (parts.count == 2 && LiveProc(s, k) ? 7 : 8));
+    }
     return h;
 }
 
@@ -332,6 +413,90 @@ static uint64_t FactsDigest(MMFacts *f) {
 
 @end
 
+/// Issue #52. The owned findings of the last build, for a build whose owner rules read the same: the same worktree
+/// objects in the same order and the same workstream, session and agent owners, names included. Then a finding with no
+/// processes and no owner hint, whose owner comes from its paths alone, is the very finding the last build made of the
+/// same raw finding, which an expert that reused its findings hands in again. A finding with processes is owned anew,
+/// since its owner reads the sample. The workstream and session owners are the last build's objects, and a finding
+/// taken from the last build brings its owners along, so equal owners stay one object: one whose owner this build
+/// already made as another object is owned anew. With 650 clutter findings, owning each anew took 2 ms a build.
+@interface MMOwnerMemo : NSObject
+@property uint64_t context;
+@property NSDictionary<NSString *, MMOwner *> *owners;  // by ownerID, the workstream, session and agent owners
+@property NSMapTable<MMFinding *, MMFinding *> *owned;  // raw to owned, by identity, from the last build
+@property NSMapTable<MMFinding *, MMFinding *> *made;   // what this build made, for the next
+@property (weak) MMBuild *build;
++ (instancetype)takeFor:(MMBuild *)b;
+- (MMFinding *)ownedFor:(MMFinding *)raw;
+- (void)keep:(MMFinding *)owned of:(MMFinding *)raw;
+- (void)putBack;
+@end
+
+static os_unfair_lock gOwnerMemoLock = OS_UNFAIR_LOCK_INIT;
+static MMOwnerMemo *gOwnerMemo;
+
+static uint64_t OwnerMix(MMOwner *o) {
+    if (!o) return 0x9e3779b97f4a7c15ull;
+    return Mix(MixStr(o.ownerID) ^ Mix(MixStr(o.name) + 1) ^ Mix(MixStr(o.path) + 2) ^ Mix(MixStr(o.parent.ownerID) + 3));
+}
+
+@implementation MMOwnerMemo
+
+/// Right after the workstreams are linked, while b.owners holds only theirs.
++ (instancetype)takeFor:(MMBuild *)b {
+    uint64_t c = Mix(b.trees.count + 0x51);
+    NSUInteger i = 0;
+    for (MMWorktree *w in b.trees) c = Mix(c + MixObj(w) + ++i);
+    for (NSString *oid in b.owners) c += Mix(OwnerMix(b.owners[oid]) + 4);
+    for (NSString *path in b.ownerOfTree) c += Mix(MixStr(path) ^ Mix(MixStr(b.ownerOfTree[path].ownerID) + 5));
+    for (NSNumber *pid in b.ownerOfAgentPid) c += Mix(pid.unsignedLongLongValue ^ Mix(MixStr(b.ownerOfAgentPid[pid].ownerID) + 6));
+    MMOwnerMemo *m = [MMOwnerMemo new];
+    m.context = c; m.build = b;
+    m.made = [NSMapTable strongToStrongObjectsMapTable];
+    m.owners = [b.owners copy];
+    os_unfair_lock_lock(&gOwnerMemoLock);
+    MMOwnerMemo *last = gOwnerMemo;
+    os_unfair_lock_unlock(&gOwnerMemoLock);
+    if (!last || last.context != c || last.owners.count != b.owners.count) return m;
+    // The same owners as the last build, field for field: its objects stand in for this build's, wherever they are held.
+    NSDictionary<NSString *, MMOwner *> *was = last.owners;
+    MMOwner *(^same)(MMOwner *) = ^MMOwner *(MMOwner *o) { return (o ? was[o.ownerID] : nil) ?: o; };
+    for (NSString *oid in b.owners.allKeys) b.owners[oid] = same(b.owners[oid]);
+    for (NSString *path in b.ownerOfTree.allKeys) b.ownerOfTree[path] = same(b.ownerOfTree[path]);
+    for (NSNumber *pid in b.ownerOfAgentPid.allKeys) b.ownerOfAgentPid[pid] = same(b.ownerOfAgentPid[pid]);
+    for (MMWorkstream *w in b.streams) w.owner = same(w.owner);
+    m.owners = was;
+    m.owned = last.owned;
+    return m;
+}
+
+- (MMFinding *)ownedFor:(MMFinding *)raw {
+    if (!self.owned || raw.procs.count || raw.owner) return nil;
+    MMFinding *f = [self.owned objectForKey:raw];
+    MMBuild *b = self.build;
+    if (!f || !b) return nil;
+    for (MMOwner *o = f.owner; o; o = o.parent) {
+        MMOwner *have = b.owners[o.ownerID];
+        if (have && have != o) return nil;
+    }
+    for (MMOwner *o = f.owner; o; o = o.parent) b.owners[o.ownerID] = o;
+    return f;
+}
+
+- (void)keep:(MMFinding *)owned of:(MMFinding *)raw {
+    if (!raw.procs.count && !raw.owner) [self.made setObject:owned forKey:raw];
+}
+
+- (void)putBack {
+    self.owned = self.made;
+    self.made = nil;
+    os_unfair_lock_lock(&gOwnerMemoLock);
+    gOwnerMemo = self;
+    os_unfair_lock_unlock(&gOwnerMemoLock);
+}
+
+@end
+
 /// How much of path the workstream's folder is: the length of the folder, as kept or resolved, that holds path, or 0
 /// when neither does. Text only.
 static NSUInteger HeldBy(MMWorkstream *w, NSString *path) {
@@ -378,6 +543,32 @@ static NSString *SizeBucket(uint64_t bytes) {
     int b = 0;
     for (uint64_t v = bytes >> 20; v >= 4; v >>= 2) b++;
     return [NSString stringWithFormat:@"%d", b + 1];
+}
+
+/// The clutter items each workstream holds, by HeldBy, in the catalog's order. Issue #52: the answer of the last build
+/// while the items are the very same objects and the workstreams' folders the same text, since the catalog replaces
+/// an item that changed. With 650 items, asking each workstream about each took most of a millisecond a build.
+static NSArray<NSArray<MMClutterItem *> *> *ClutterOf(NSArray<MMWorkstream *> *streams, NSArray<MMClutterItem *> *clutter) {
+    NSMutableArray<NSString *> *folders = [NSMutableArray arrayWithCapacity:streams.count * 2];
+    for (MMWorkstream *w in streams) { [folders addObject:w.folder ?: @""]; [folders addObject:w.realFolder ?: @""]; }
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    static NSArray *memoClutter, *memoFolders, *memoAnswer;
+    os_unfair_lock_lock(&lock);
+    BOOL same = memoAnswer && memoClutter.count == clutter.count && [memoFolders isEqualToArray:folders];
+    for (NSUInteger i = 0; same && i < clutter.count; i++) same = memoClutter[i] == clutter[i];
+    NSArray *hit = same ? memoAnswer : nil;
+    os_unfair_lock_unlock(&lock);
+    if (hit) return hit;
+    NSMutableArray *out = [NSMutableArray arrayWithCapacity:streams.count];
+    for (MMWorkstream *w in streams) {
+        NSMutableArray *cl = [NSMutableArray new];
+        for (MMClutterItem *c in clutter) if (HeldBy(w, c.ownerPath.length ? c.ownerPath : c.path)) [cl addObject:c];
+        [out addObject:[cl copy]];
+    }
+    os_unfair_lock_lock(&lock);
+    memoClutter = [clutter copy]; memoFolders = [folders copy]; memoAnswer = [out copy];
+    os_unfair_lock_unlock(&lock);
+    return out;
 }
 
 @implementation MMSnapshot
@@ -521,6 +712,7 @@ static NSString *SizeBucket(uint64_t bytes) {
     }];
     b.trees = trees;
     [self linkWorkstreams:b];
+    MMOwnerMemo *memo = [MMOwnerMemo takeFor:b];
 
     // Findings in expert order, then each expert's own order. The first of two equal ids stays.
     NSMutableArray<MMFinding *> *all = [NSMutableArray new];
@@ -536,32 +728,53 @@ static NSString *SizeBucket(uint64_t bytes) {
         NSArray<MMFinding *> *raws = [e findingsFrom:facts];
         AddCost([@"findings." stringByAppendingString:eid], ThreadNs() - c0);
         os_signpost_interval_end(TickLog(), sp, "findings", "%{public}@ %lu", eid, (unsigned long)raws.count);
+        uint64_t o0 = ThreadNs();
         for (MMFinding *raw in raws) {
             if (byID[raw.findingID]) continue;
-            MMFinding *f = [raw withOwner:[self ownerOf:raw build:b]];
+            MMFinding *f = [memo ownedFor:raw] ?: [raw withOwner:[self ownerOf:raw build:b]];
+            [memo keep:f of:raw];
             byID[f.findingID] = f;
             [all addObject:f];
             [mine addObject:f];
         }
+        AddCost(@"owners", ThreadNs() - o0);
     }
+    uint64_t w0 = ThreadNs();
 
     NSDate *now = facts.sample.at ?: [NSDate date];
     NSInteger working = 0;
     for (MMAgent *a in facts.agents) if (a.state == MMAgentWorking) working++;
-    for (MMWorkstream *w in b.streams) {
-        NSMutableArray *fs = [NSMutableArray new];
+    // Each finding goes to every workstream its owner or one of the owner's parents is, in the order of all. Issue
+    // #52: a walk up each owner, where asking each workstream about each of 680 findings took a millisecond a build.
+    NSUInteger ns = b.streams.count;
+    NSMutableDictionary<MMOwner *, NSMutableArray<NSNumber *> *> *streamsOf = [NSMutableDictionary new];
+    for (NSUInteger i = 0; i < ns; i++) {
+        MMOwner *o = b.streams[i].owner;
+        if (o) [streamsOf[o] ?: (streamsOf[o] = [NSMutableArray new]) addObject:@(i)];
+    }
+    NSMutableArray<NSMutableArray<MMFinding *> *> *fsOf = [NSMutableArray arrayWithCapacity:ns];
+    uint64_t *found = calloc(ns ? ns : 1, sizeof(uint64_t));
+    for (NSUInteger i = 0; i < ns; i++) [fsOf addObject:[NSMutableArray new]];
+    for (MMFinding *f in all)
+        for (MMOwner *o = f.owner; o && streamsOf.count; o = o.parent)
+            for (NSNumber *n in streamsOf[o]) {
+                NSUInteger i = n.unsignedIntegerValue;
+                if (fsOf[i].lastObject == f) continue;   // once, when two owners above it are the same workstream
+                [fsOf[i] addObject:f]; found[i] += f.cost.diskFreed;
+            }
+    NSArray<NSArray<MMClutterItem *> *> *clOf = ClutterOf(b.streams, facts.clutter);
+    for (NSUInteger i = 0; i < ns; i++) {
+        MMWorkstream *w = b.streams[i];
         // A clutter item can also be a finding, so the size is the larger of the two sums, never both.
-        uint64_t found = 0, items = 0;
-        for (MMFinding *f in all) if ([f.owner isWithin:w.owner]) { [fs addObject:f]; found += f.cost.diskFreed; }
-        NSMutableArray *cl = [NSMutableArray new];
-        for (MMClutterItem *c in facts.clutter)
-            if (HeldBy(w, c.ownerPath.length ? c.ownerPath : c.path)) { [cl addObject:c]; items += c.size.freedIfDeleted; }
-        uint64_t bytes = MAX(found, items);
-        w.findings = [fs copy];
-        w.clutter = [cl copy];
+        uint64_t items = 0;
+        for (MMClutterItem *c in clOf[i]) items += c.size.freedIfDeleted;
+        uint64_t bytes = MAX(found[i], items);
+        w.findings = [fsOf[i] copy];
+        w.clutter = clOf[i];
         w.fingerprintText = [NSString stringWithFormat:@"%@|%ld%@|%@", w.git.head ?: @"-", (long)w.agentState,
                              AgeBucket(w.session.lastActive, now), SizeBucket(bytes)];
     }
+    free(found);
 
     NSMutableDictionary *alive = [NSMutableDictionary new];
     [holds enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *reason, BOOL *stop) {
@@ -570,6 +783,8 @@ static NSString *SizeBucket(uint64_t bytes) {
         if (parts.count == 2 && LiveProc(facts.sample, k)) alive[key] = reason;
     }];
 
+    [memo putBack];
+    AddCost(@"streams", ThreadNs() - w0);
     MMSnapshot *snap = [MMSnapshot new];
     snap.generation = facts.generation;
     snap.builtAt = [NSDate date];
@@ -612,7 +827,9 @@ static NSString *SizeBucket(uint64_t bytes) {
     NSMutableDictionary *p = [NSMutableDictionary new];
     for (id<MMExpert> e in experts) {
         if (![e respondsToSelector:@selector(prepareFor:)] || !e.expertID) continue;
+        uint64_t p0 = ThreadNs();
         id v = [e prepareFor:self];
+        AddCost([@"prepare." stringByAppendingString:e.expertID], ThreadNs() - p0);
         if (v) p[e.expertID] = v;
     }
     self.prepared = [p copy];
@@ -636,6 +853,7 @@ static NSString *SizeBucket(uint64_t bytes) {
     atomic_bool _forced;                                // a rebuild asked for a reason other than a new sample
     _Atomic uint64_t _lastCPUNs, _lastEndNs;            // the last build's CPU time, and when it ended
     uint64_t _lastDigest;                               // graph queue only: the digest of the last build's facts
+    uint64_t _lastCoreDigest;                           // graph queue only: CoreDigest of the last build
     uint64_t _lastBuiltNs;                              // graph queue only
     NSMutableDictionary<NSString *, MMKeptFindings *> *_kept;   // graph queue only: each expert's last findings
     NSArray<id<MMExpert>> *_experts;                    // set on main before -start, read on the graph queue
@@ -691,11 +909,15 @@ static NSString *SizeBucket(uint64_t bytes) {
 - (void)rebuild:(NSString *)why {
     if (self.stopped) return;
     AddCost([@"why." stringByAppendingString:why ?: @"?"], 1);   // what asks for builds, issue #52: a count, not a time
-    // Only a new sample, or the last one without the processes that exited, may find nothing changed. Every other
-    // reason, an app, a power change, Know or an action, always builds. An exit changes the sample alone, which the
-    // facts digest and every expert's input digest read, so it builds when they moved. Issue #52: with agents at
-    // work, the exits of their compilers, tests and shells asked for most builds, and each asked every expert anew.
-    if (![why isEqualToString:@"sample"] && ![why isEqualToString:@"exit"]) atomic_store(&_forced, true);
+    // Only a new sample, the last one without the processes that exited, new git facts or a new read of the sessions
+    // may find nothing changed. Every other reason, an app, a power change, the worktrees, clutter, a review or an
+    // action, always builds. An exit changes the sample alone, which the facts digest and every expert's input digest
+    // read, so it builds when they moved. Issue #52: with agents at work, the exits of their compilers, tests and
+    // shells asked for most builds, and each asked every expert anew. Know replaces a git fact or a session with a new
+    // object when it changes, and every digest that reads one reads it, so a git or session change builds anew what
+    // reads it and hands back the rest: an edit in a worktree moves WorkForest's findings, not MinMacs's.
+    if (![why isEqualToString:@"sample"] && ![why isEqualToString:@"exit"] && ![why isEqualToString:@"git"] &&
+        ![why isEqualToString:@"sessions"]) atomic_store(&_forced, true);
     if (atomic_exchange(&_pending, true)) return;       // one is queued already; it will see these facts too
     // Issue #54: a build waits until 4 times the last build's CPU time has passed since it ended, at most
     // 2 seconds, so builds take at most a fifth of the graph queue. With 300 worktrees a build took 150 to 250 ms,
@@ -738,8 +960,6 @@ static NSString *SizeBucket(uint64_t bytes) {
         os_signpost_interval_end(TickLog(), sp, "rebuild", "skipped: the facts did not change");
         return;
     }
-    _lastDigest = digest; _lastBuiltNs = nowNs;
-    _generation = gen;
     c1 = ThreadNs();
     if (facts.generation != gen)                        // the generation is the graph's count, never the source's
         facts = [MMFacts generation:gen sample:facts.sample power:facts.power agents:facts.agents sessions:facts.sessions
@@ -747,6 +967,8 @@ static NSString *SizeBucket(uint64_t bytes) {
     // Each expert whose inputs did not change hands back its last findings. A forced build asks every expert.
     NSMutableArray *experts = [NSMutableArray new];
     NSMutableDictionary<NSString *, NSNumber *> *digests = [NSMutableDictionary new];
+    BOOL allReused = !forced && self.latest != nil;
+    NSMutableArray<NSArray<MMFinding *> *> *reusedLists = [NSMutableArray new];
     for (id<MMExpert> e in self.experts) {
         NSString *eid = e.expertID ?: @"";
         MMFindingsReuse *r = [MMFindingsReuse alloc];
@@ -759,14 +981,33 @@ static NSString *SizeBucket(uint64_t bytes) {
             MMKeptFindings *k = _kept[eid];
             if (!forced && k.findings && k.digest == d && nowNs - k.atNs < kHeartbeatNs) {
                 r.findings = k.findings; r.reused = YES;
-                AddCost([@"reused." stringByAppendingString:eid], 1);
+                [reusedLists addObject:k.findings];
             }
         }
+        if (!r.reused) allReused = NO;
         [experts addObject:r];
     }
+    // Issue #52. The facts moved, but nothing any expert or the owner rules read did: the last snapshot stands, with
+    // its owners, workstreams and what each expert prepared, as it would after a skip above. On a Mac at work about
+    // 800 processes come and go, so the facts digest moved at every pass and every pass built.
+    if (allReused && experts.count && CoreDigest(facts, reusedLists, _holds) == _lastCoreDigest) {
+        _lastDigest = digest;
+        AddCost(@"skipped", 1);
+        AddCost(@"skipped.inputs", 1);
+        AddCost(@"digest", ThreadNs() - c1);
+        os_signpost_interval_end(TickLog(), sp, "rebuild", "skipped: no expert's inputs moved");
+        return;
+    }
+    for (MMFindingsReuse *r in experts) if (r.reused) AddCost([@"reused." stringByAppendingString:r.expertID ?: @""], 1);
+    _lastDigest = digest; _lastBuiltNs = nowNs;
+    _generation = gen;
     MMSnapshot *snap = [MMSnapshot snapshotFrom:facts experts:(NSArray<id<MMExpert>> *)experts reviews:_reviews holds:_holds];
+    BOOL everyDigest = experts.count > 0;
+    NSMutableArray<NSArray<MMFinding *> *> *lists = [NSMutableArray new];
     for (MMFindingsReuse *r in experts) {
         NSString *eid = r.expertID ?: @"";
+        [lists addObject:r.findings ?: @[]];
+        if (!digests[eid]) everyDigest = NO;
         if (r.reused || !digests[eid]) { if (!digests[eid]) [_kept removeObjectForKey:eid]; continue; }
         MMKeptFindings *k = [MMKeptFindings new];
         k.digest = digests[eid].unsignedLongLongValue; k.atNs = nowNs; k.findings = r.findings;
@@ -781,8 +1022,12 @@ static NSString *SizeBucket(uint64_t bytes) {
     snap.awakeHolds = [kept copy];
     [_holds setDictionary:kept];
     for (NSString *k in _holdSince.allKeys) if (!kept[k]) [_holdSince removeObjectForKey:k];
+    // What the next build compares with, on the findings this one was made from and the holds as they stand now.
+    _lastCoreDigest = everyDigest ? CoreDigest(facts, lists, _holds) : 0;
     // The last hour, filled by this build and copied into the snapshot, Graph/MMHistory.h.
+    uint64_t h0 = ThreadNs();
     snap.history = [MMHistory.shared fillFrom:snap];
+    AddCost(@"history", ThreadNs() - h0);
     // What each menu reads, made here so main never reads the keeps, rules, prefs or undo log.
     [snap prepareFor:self.experts];
     // A build that was running when -stop came publishes nothing. The check and the store share -stop's lock,

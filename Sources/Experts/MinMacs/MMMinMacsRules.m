@@ -251,6 +251,8 @@ static NSDictionary *FileFrom(MMMinMacsLists *l, id disk) {
     @synchronized (self) { _lists = after; [self stamp]; }
 }
 
+- (id)current { return self.lists; }
+
 - (NSArray<NSString *> *)keep { return self.lists.keep; }
 - (NSArray<NSString *> *)close { return self.lists.close; }
 - (NSArray<NSString *> *)unsorted { return self.lists.unsorted; }

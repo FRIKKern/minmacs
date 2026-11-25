@@ -523,7 +523,13 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     self.windowHolder = [[MMWindowHolder alloc] initWithHost:self.windowController];
     __weak MMShell *weak = self;
     self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowHolder show:model]; };
-    self.windowHolder.onOpenChange = ^(BOOL open) { [weak.windowController setOpen:open]; };
+    // D11: while the window is open, MinMacs's numbers and the agents' last hour follow every pass. A build on open
+    // brings the numbers the window shows up to now, rather than from the last build, up to 30 seconds old.
+    self.windowHolder.onOpenChange = ^(BOOL open) {
+        MMSetSomeoneLooks(open);
+        [weak.windowController setOpen:open];
+        if (open) [MMGraph.shared rebuild:@"window open"];
+    };
     self.windowHolder.busy = ^BOOL { return weak.windowController.running; };
 #ifdef MM_TESTS
     NSString *rest = NSProcessInfo.processInfo.environment[@"MINMACS_TEST_WINDOW_REST"];

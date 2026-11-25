@@ -40,6 +40,13 @@ void MMBreadcrumbLeave(NSString *expert, NSString *job);
 /// "workforest.scan" when the last run crashed inside that job, nil after a clean exit. Read once at launch.
 NSString *MMBreadcrumbLeftOver(void);
 
+/// Decision D11: a cost is paid only while someone looks. YES while the menu window is open; the Shell sets it when the
+/// window opens and closes. Then MinMacs's input digest holds each app's and agent's CPU and memory, so its rows and
+/// their order follow every pass, and the session index parses a transcript that only grew every 15 seconds rather than
+/// every minute. Any queue.
+BOOL MMSomeoneLooks(void);
+void MMSetSomeoneLooks(BOOL looks);
+
 /// Which bytes of a plain file MMReadPlain gives.
 typedef NS_ENUM(NSInteger, MMPlainPart) {
     MMPlainHead,    // the first max bytes, or all of a shorter file

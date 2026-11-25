@@ -39,8 +39,8 @@ static NSInteger FinishedRank(NSString *state) {
 static NSString *Tilde(NSString *p) { return p.stringByAbbreviatingWithTildeInPath; }
 
 static BOOL Within(NSString *path, NSString *folder) {
-    if (!path.length || !folder.length) return NO;
-    return [path isEqualToString:folder] || [path hasPrefix:[folder stringByAppendingString:@"/"]];
+    if (!path.length || !folder.length || ![path hasPrefix:folder]) return NO;   // no string made: a build asks this for
+    return path.length == folder.length || [path characterAtIndex:folder.length] == '/';   // each item and session
 }
 
 static NSString *SectionName(MMNNSection s) { return @[@"finished", @"leftovers", @"caches", @"kept"][s]; }

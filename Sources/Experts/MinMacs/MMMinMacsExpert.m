@@ -130,6 +130,8 @@ typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
     NSDictionary<NSNumber *, NSValue *> *_ownerOf;
     NSString *_logStamp;                 // the log's stamp when _quitAsked and restorableRecords were read
     NSSet<NSString *> *_quitAsked;
+    __weak MMFacts *_digestFacts;        // the facts inputDigestFrom: last read, and the input it made of them
+    MMMinMacsInput *_digestInput;
 }
 
 + (instancetype)shared {
@@ -218,7 +220,9 @@ typedef struct { uint64_t start; pid_t ppid; pid_t owner; } MMMinMacsOwnerMemo;
             }
         }
         MMMinMacsOwnerMemo now = { p.startSec, p.ppid, owner ? owner.pid : 0 };
-        ownerNow[@(p.pid)] = [NSValue valueWithBytes:&now objCType:@encode(MMMinMacsOwnerMemo)];
+        // The last memo again when it says the same, so a pass makes no new value for a process that did not change.
+        ownerNow[@(p.pid)] = v && m.start == now.start && m.ppid == now.ppid && m.owner == now.owner ? v
+                           : [NSValue valueWithBytes:&now objCType:@encode(MMMinMacsOwnerMemo)];
         if (!owner) continue;
         owner.cpuPercent += MAX(0, p.cpuPercent);
         owner.memory += p.footprint;
@@ -322,22 +326,76 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
     return nil;
 }
 
-- (NSArray<MMFinding *> *)findingsFrom:(MMFacts *)facts {
-    MMMinMacsInput *in = [self inputFrom:facts];
-    MMMinMacsRules *rules = MMMinMacsRules.shared;
-    BOOL quitBrowsers = QuitBrowsers();
-    // The undo log is read here on the graph queue, so the menu and cards never read it on main.
-    // It is read again only when the log moved, issue #52.
-    NSSet *asked = nil;
+/// Issue #52. What findingsFrom: reads, so the graph hands back the last findings when none of it moved: each app's
+/// pid, start, bundle, name and path, its loopback ports, whether remote debugging is on and the working agent that
+/// started it; each agent's process, names, folder, state, why and ports; the pressure and the thermal state; the
+/// rules, the quit-browsers pref, and the quit requests and restorable records of the log. Not an app's or an agent's
+/// CPU, memory, energy rank or process count: an agent's tools roll up into the terminal that runs it, so on a Mac at
+/// work they move at every pass, by hundreds of MB and across every CPU band, and no group, reason or proposal reads
+/// them. With the window closed they and the order by memory move at the heartbeat build, at most 30 seconds later, or
+/// with any other input; while it is open, MMSomeoneLooks, they are in the digest, D11.
+/// findingsFrom: of the same facts takes the input made here rather than rolling up again.
+static uint64_t MMMix(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull; x ^= x >> 33;
+    return x;
+}
+static uint64_t MMStr(NSString *s, uint64_t salt) { return MMMix((s ? s.hash ^ ((uint64_t)s.length << 40) : 0x5bd1e995ull) ^ MMMix(salt)); }
+static uint64_t MMBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 ? 1 : cpu < 15 ? 2 : cpu < 40 ? 3 : cpu < 100 ? 4 : 5; }
+static uint64_t MMPorts(NSArray<NSNumber *> *ports, uint64_t salt) {
+    uint64_t h = MMMix(ports.count + salt);
+    for (NSNumber *p in ports) h = MMMix(h ^ p.unsignedLongLongValue);   // in order: the row lists them in this order
+    return h;
+}
+
+/// The quit requests in the undo log, with the records Restore can bring back. The log is read here on the graph queue,
+/// so the menu and cards never read it on main, and read again only when it moved, issue #52.
+- (NSSet<NSString *> *)quitAskedNow {
     NSString *stamp = MMLogStamp();
     @synchronized (self) {
-        if (_logStamp && [_logStamp isEqualToString:stamp]) asked = _quitAsked;
+        if (_logStamp && [_logStamp isEqualToString:stamp]) return _quitAsked;
     }
-    if (!asked) {
-        asked = QuitAsked();
-        self.restorableRecords = Restorable();
-        @synchronized (self) { _quitAsked = asked; _logStamp = stamp; }
+    NSSet *asked = QuitAsked();
+    self.restorableRecords = Restorable();
+    @synchronized (self) { _quitAsked = asked; _logStamp = stamp; }
+    return asked;
+}
+
+- (uint64_t)inputDigestFrom:(MMFacts *)facts {
+    MMMinMacsInput *in = [self inputFrom:facts];
+    @synchronized (self) { _digestFacts = facts; _digestInput = in; }
+    uint64_t h = MMMix(in.apps.count + 1) ^ MMMix((uint64_t)in.memoryPressure + 2) ^ MMMix((uint64_t)in.thermal + 3);
+    // D11: while someone looks, the numbers each row shows and the order by memory follow every pass, at the precision
+    // of the facts digest: CPU in its bands, memory in 16 MB steps, and the process count.
+    BOOL live = MMSomeoneLooks();
+    for (MMMinMacsApp *a in in.apps)
+        h += MMMix(((uint64_t)(uint32_t)a.pid << 32) ^ a.startSec) ^ MMStr(a.bundleID, 4) ^ MMStr(a.name, 5) ^ MMStr(a.bundlePath, 6) ^
+             (live ? MMMix(MMBand(a.cpuPercent) << 8 | (a.memory >> 24) << 16 | (uint64_t)a.processCount << 48 | 26) : 0) ^
+             MMPorts(a.loopbackPorts, 7) ^ MMStr(a.debugging, 8) ^
+             MMStr(a.agentName, 9) ^ MMStr(a.agentPath, 10);
+    h += MMMix(in.agents.count + 11);
+    for (MMMinMacsAgent *m in in.agents)
+        h += MMMix(((uint64_t)(uint32_t)m.key.pid << 32) ^ m.key.startSec ^ 12) ^ MMStr(m.name, 13) ^ MMStr(m.harnessID, 14) ^
+             MMStr(m.sessionID, 15) ^ MMStr(m.project, 16) ^ MMStr(m.why, 17) ^ MMMix((uint64_t)m.state + 18) ^ MMPorts(m.ports, 20) ^
+             (live ? MMMix(MMBand(m.cpuPercent) << 8 | (m.memory >> 24) << 16 | 27) : 0);
+    h ^= MMMix((uint64_t)(uintptr_t)(__bridge void *)[MMMinMacsRules.shared current] + 21);
+    h ^= MMMix((uint64_t)QuitBrowsers() + 22);
+    // The log moves with every record any expert writes. What the findings and the menu read of it are the quit
+    // requests and the records Restore can bring back, read again only when the log moved.
+    for (NSString *k in [self quitAskedNow]) h += MMStr(k, 23);
+    for (MMUndoRecord *r in self.restorableRecords) h += MMStr(r.rid, 24) ^ MMMix((uint64_t)r.state + 25);
+    return h;
+}
+
+- (NSArray<MMFinding *> *)findingsFrom:(MMFacts *)facts {
+    MMMinMacsInput *in = nil;
+    @synchronized (self) {
+        if (facts && _digestFacts == facts) in = _digestInput;
+        _digestFacts = nil; _digestInput = nil;
     }
+    if (!in) in = [self inputFrom:facts];
+    MMMinMacsRules *rules = MMMinMacsRules.shared;
+    BOOL quitBrowsers = QuitBrowsers();
+    NSSet *asked = [self quitAskedNow];
     NSArray *apps = [in.apps sortedArrayUsingComparator:^NSComparisonResult(MMMinMacsApp *x, MMMinMacsApp *y) {
         if (x.memory != y.memory) return x.memory > y.memory ? NSOrderedAscending : NSOrderedDescending;
         return [x.bundleID compare:y.bundleID];
