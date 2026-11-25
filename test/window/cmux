@@ -1,0 +1,17 @@
+#!/bin/sh
+# A fake cmux CLI for test/window/insides.m. Never the real cmux: the check copies it into its fixture folder and names
+# it in MINMACS_CMUX. It answers from the files beside it and writes one line a call, so a check can count them.
+#   cmux.calls     one line per run: its arguments
+#   cmux.mode      answer (the default): prints cmux-top.json, the shape `cmux --json top --all --processes` has in
+#                  cmux 0.65; sleep: never answers in time; socket: cannot reach cmux's socket, exit 1;
+#                  old: an older cmux that knows no --json, exit 2; garbage: prints what is no JSON
+here=$(cd "$(dirname "$0")" && pwd -P)
+printf '%s\n' "$*" >>"$here/cmux.calls"
+mode=$(cat "$here/cmux.mode" 2>/dev/null || echo answer)
+case "$mode" in
+  sleep) exec sleep 30 ;;
+  socket) echo "Error: Failed to connect to socket at /tmp/cmux.sock (No such file or directory)" >&2; exit 1 ;;
+  old) echo "Error: unknown option '--json'" >&2; echo "usage: cmux <command> [options]" >&2; exit 2 ;;
+  garbage) echo "cmux 0.40"; exit 0 ;;
+esac
+cat "$here/cmux-top.json"

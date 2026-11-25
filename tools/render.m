@@ -660,6 +660,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-week.m"
 #include "render-window-ask.m"
 #include "render-window-menu.m"
+#include "render-window-insides.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -732,6 +733,8 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     }
     // A worktree's story with its pull request: open with checks passing, merged, none and still looking.
     RenderWindowPulls(dir, appearances, unwritten);
+    // An app row's insides: cmux closed and open, its story, a tab pointed at and picked, looking and unreachable.
+    RenderWindowInsides(dir, appearances, unwritten);
     // The words: no old app name, nothing that claims a result, nothing that says a delete cannot be taken back, no asides.
     NSArray<NSString *> *banned = @[@"LocoHost", @"WorkForest", @"Noo-Noo", @"NooNoo", @"Insomnia", @"for good", @"forever", @"permanently",
                                     @"is clean", @"all clean", @"All clear", @"optimized", @"(", @")"];
@@ -763,10 +766,12 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowSelfChecks();
     WindowPressChecks();
     WindowPullsChecks();
+    WindowInsidesChecks();
     WindowWeekChecks();
     WindowAskChecks();
     WindowMenuChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
+    InsidesOpenTiming(appearances[@"dark"]);
 }
 
 /// The shell's PNGs go in their own folder: each expert's menu and card as the shell builds them, One Icon, the icons.

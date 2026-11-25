@@ -697,6 +697,8 @@ static void RunStopped(void) {
 #import "ask.m"
 #import "askclaude.m"
 #import "rowmenu.m"
+// An app row's insides: cmux's workspaces, panes and tabs, and D11's measures.
+#import "insides.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -738,6 +740,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"trash-list"]) TrashList();
         else if ([mode isEqualToString:@"log-fold"]) LogFold();
         else if ([mode isEqualToString:@"pulls"]) Pulls();
+        else if ([mode isEqualToString:@"insides"]) Insides();
+        else if ([mode isEqualToString:@"insides-controller"]) InsidesController();
         else if ([mode isEqualToString:@"week"]) WeekWords();
         else if ([mode isEqualToString:@"week-controller"]) WeekController();
         else if ([mode isEqualToString:@"ask-engine"]) AskEngine();

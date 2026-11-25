@@ -156,6 +156,15 @@ static MMPlace *InCmux(NSArray<NSNumber *> *chain) {
     return nil;
 }
 
+MMPlace *MMPlaceInCmux(NSString *window, NSString *workspace, NSString *surface, NSString *label) {
+    MMPlace *w = [MMPlace new];
+    w.kind = MMPlaceCmux; w.app = @"cmux";
+    w.label = label.length ? [@"cmux, " stringByAppendingString:label] : @"cmux";
+    w.tab = label ?: @""; w.window = window ?: @""; w.workspace = workspace ?: @""; w.surface = surface ?: @"";
+    w.appPid = Env()[@"MINMACS_CMUX"].length ? 0 : CmuxApp().processIdentifier;   // a fake cmux has no app to bring forward
+    return w;
+}
+
 #pragma mark tmux
 
 /// The tmux CLI. MINMACS_TMUX names another one, which tests use for a fake.

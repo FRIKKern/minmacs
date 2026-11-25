@@ -6,6 +6,7 @@
 #import "Shell/MMWindowCLI.h"
 #import "Shell/MMWindowFeed.h"
 #import "Shell/MMWindowJSON.h"
+#import "Shell/MMWindowInsides.h"
 #import "CLI/MMCLI.h"
 #import "UI/MMFormat.h"
 
@@ -50,6 +51,8 @@ static int Window(MMArgs *a) {
     // MinMacs itself, only where this runs in the app: a cold CLI is no MinMacs app, and has no row of its own.
     if (a.inApp) x.own = MMSelfOnBuild();
     MMWindowModel *m = MMWindowModelFrom(s, p, x);
+    // cmux's insides, read once now, since the verb asks for what the window would show, D11. Only with a cmux row.
+    MMWindowInsidesAttach(m, s, MMWindowInsidesReadOnce(m));
     if (a.json) {
         NSMutableDictionary *j = [m.json mutableCopy];
         j[@"app"] = @(a.inApp);

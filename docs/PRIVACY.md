@@ -216,6 +216,25 @@ No file contents, no folder path, no commit, no diff and nothing about other wor
 
 `minmacs trees prs off`, or the Pull requests switch in Settings under This Mac, turns it off. It is the pref `workforest.pullRequests`, on by default.
 
+## An app's insides
+
+This ask goes to an app on this Mac and nowhere else. When the window shows the cmux row's story, or the cmux row is opened in the list, MinMacs asks cmux what is inside it: its windows, workspaces, panes and tabs, and the processes in each. It asks through cmux's own CLI, which talks to cmux over its local socket. Nothing asks while the window is closed, while the row is closed and its story does not show, on a timer, for a snapshot, for a review or for the digest. Decision D11 holds it to that, and `./test.sh window` counts the calls.
+
+`+[MMCmuxInsides arguments]` in `Sources/Core/Know/MMCmuxInsides.m` builds the one call. It only reads: nothing is typed into a tab, and nothing opens or closes.
+
+```
+cmux --json top --all --processes
+```
+
+| What MinMacs reads | What it is for |
+|---|---|
+| The titles of workspaces and tabs | The rows' names, as cmux shows them, so the person knows their layout |
+| Each tab's processes, with their pids, names, CPU and memory | Which agent or server runs where, and the tab's numbers |
+| A tab's terminal, its kind, and a browser tab's address on this Mac | The story, and the server a tab shows. An address that is not on this Mac is dropped as it is read |
+| cmux's own word for an agent, such as Working | The tab's state, where MinMacs knows none of its own |
+
+Where each tab runs, its folder, MinMacs reads itself from the tab's foreground process, as it does for every agent. One call runs at a time, with a limit of 1 second, at most once in 5 seconds while the row stays open. An answer that holds the same insides as the one before is kept as it was. The one answer is kept in memory only, and let go when the window closes. `minmacs window` reads once when it is run, and prints the tree as the cmux row's `insides` in `--json`. Nothing of it is written to disk, sent to a model or sent anywhere else.
+
 ## Ask MinMacs
 
 Ask MinMacs is the field at the foot of the window's middle and `minmacs ask`. Its rules answer first, from what MinMacs already holds on this Mac: the log, the window's rows and the plan of Fix Everything. They ask no model, run no command and open no connection.

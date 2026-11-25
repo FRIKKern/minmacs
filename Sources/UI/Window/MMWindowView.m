@@ -3,6 +3,7 @@
 // Until the person pressed Start once, the welcome stands alone in the same window, MMWindowWelcome.m, and Start lets
 // the menu fade up in its place.
 #import "UI/Window/MMWindowViewParts.h"
+#import "UI/Window/MMWindowTree.h"
 #import "UI/MMFormat.h"
 #import <QuartzCore/CAMediaTimingFunction.h>
 
@@ -138,8 +139,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
     [self layBand];
     _rule.fillColor = MMWindowColor(MMWindowInkLine);
     _rule.hidden = model == nil;
-    [_left setGroups:model.memoryGroups ring:model.ring];
-    [_right setGroups:model.diskGroups ring:model.ring];
+    // The groups with each open row's insides under it, MMWindowTree.m.
+    [self treeShow];
     _middle.model = model;
     _middle.memoryHour = model.memoryHour;
     _middle.memoryWeek = model.memoryWeek;
@@ -280,6 +281,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
 /// middle tells its story, no longer the one of the row the pointer came from.
 - (void)showRow:(NSString *)key {
     if (_quiet || _flips > 0 || ![_model row:key]) return;
+    [self treeReveal:key];
     [_left reveal:key]; [_right reveal:key];
     _hovered = nil; _pointedRow = nil;
     self.activeRow = key;
@@ -291,7 +293,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
 }
 
 - (void)pressRow:(NSString *)key {
-    if (_quiet || _flips > 0) return;
+    if (_quiet || _flips > 0 || [self treePress:key]) return;
     self.activeRow = !key || [key isEqualToString:_active] ? nil : key;
 }
 

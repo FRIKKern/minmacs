@@ -31,6 +31,7 @@ The shared core of MinMacs 2.0. Issue #11 wrote it as headers. Each type's doc c
 | P17, P18 | `Know/MMRegistry.h` | `MMAgentRow`, `MMAgent`, `MMRegistry` and the ranked working signal |
 | P19 to P22, P64 | `Know/MMSessions.h` | `MMSession`, `MMSessions`, `MMAgentEvents`, `MMHookIngest` |
 | none | `Know/MMWhere.h` | `MMPlace`, `MMWhereIs`, `MMGoTo`, from LocoHost's Where |
+| none | `Know/MMAppInsides.h` | `MMAppInsides`, `MMInsidesNode` and the reader seam of an app that knows its insides; `MMCmuxInsides` reads cmux |
 | P23 to P26 | `Know/MMGit.h` | `MMRun`, `MMGit`, `MMWorktree`, `MMGitFacts`, `MMRepoIndex` |
 | P27 | `Know/MMFactCache.h` | `MMFactCache` for git facts, sizes and review fingerprints |
 | P28 to P30 | `Know/MMClutter.h` | `MMClutterKind`, `MMClutterItem`, `MMClutterCatalog`, `MMCachePathOf` |
@@ -83,6 +84,7 @@ Noo-Noo, issues #28 to #30, adds `MMClutter.m` and `Act/MMClutterAct.{h,m}`: the
 - `MMRun` and `MMRunTask` do all pipe work on the calling thread with poll. The child's exit and its status come from a kqueue `NOTE_EXIT` with `NOTE_EXITSTATUS` in the same poll, which does not reap it, so NSTask still does. A child that exited normally is not waited for through `waitUntilExit`, which noticed the exit 70 to 95 ms late. MEASUREMENTS.md, section Git, has the cost per run. Past the limit the child gets SIGTERM, then SIGKILL a second later, and the pipes are closed half a second after that, even when a grandchild holds them. The review broker and Act's tool commands run through `MMRunTask`.
 - `MMWhereIs` drops a cached place once its pid and start time are gone, on every call, and empties the cache past 256 answers. With no wait it asks again for a process at most once a minute, or every 9 seconds while it has no answer, issue #52, since every build of LocoHost asks for each server. `MMWhereKnown` reads the last answer and asks nothing.
 - `MMPlaceGoable` says whether `MMGoTo` has somewhere to go, from the place alone.
+- `MMAppInsides` asks an app what is inside it only when the window asks, on `core.insides`, one read at a time with a limit of 1 second and at most once in 5 seconds, and keeps the one answer in memory until the window closes, D11. `knownFor:` reads memory and asks nothing. `MMPlaceInCmux` makes the place of a cmux tab from cmux's own handles, for Go to.
 - A Claude Code session also holds what it did in the hour before its newest line, `toolUseTimes` and `edits`, read from the same 512 KB tail as its title, only on the lines that hold a tool use, and kept in the same fact cache. Nothing older than that hour is kept.
 - The cmux events reader is behind the pref `core.cmuxEvents` or `MINMACS_CMUX_EVENTS=1`. `MINMACS_CMUX` and `MINMACS_TMUX` name the CLIs, which the checks use for fakes.
 
