@@ -52,7 +52,6 @@ static const NSTimeInterval kEndShows = 4;               // an ended run stays o
 }
 
 static dispatch_queue_t AskQueue(void) { return MMQueue(@"core", @"ask", QOS_CLASS_USER_INITIATED); }
-
 static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLASS_USER_INITIATED); }
 
 - (BOOL)open { return atomic_load(&_open); }
@@ -189,9 +188,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 
 - (BOOL)stopRunThen:(void (^)(void))then {
     if (!atomic_load(&_busy)) return NO;
-    _afterRun = [then copy];
-    [self windowStopRun];
-    return YES;
+    _afterRun = [then copy]; [self windowStopRun]; return YES;
 }
 
 - (void)windowRunFixEverything {
@@ -289,16 +286,9 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         dispatch_async(Queue(), ^{ MMLogSetting(MMWindowLoginKey, @(before), @(after), @"window"); [self send]; });
         return;
     }
-    // Asking gh about a worktree's pull request: a pref, with its row in the log.
-    if ([switchID isEqualToString:@"prs"]) {
-        dispatch_async(Queue(), ^{ MMSetSetting(MMPullsPrefKey, @(on), @"window"); [self send]; });
-        return;
-    }
-    // Ask uses Claude: a pref, with its row in the log.
-    if ([switchID isEqualToString:@"askclaude"]) {
-        dispatch_async(Queue(), ^{ MMSetSetting(MMAskClaudeKey, @(on), @"window"); [self send]; });
-        return;
-    }
+    // Asking gh about a worktree's pull request, and Ask uses Claude: a pref each, with its row in the log.
+    NSString *pref = @{@"prs": MMPullsPrefKey, @"askclaude": MMAskClaudeKey}[switchID ?: @""];
+    if (pref) { dispatch_async(Queue(), ^{ MMSetSetting(pref, @(on), @"window"); [self send]; }); return; }
     // Keep awake now and While agents work are Insomnia's own settings, set with their record, off main.
     NSString *setting = @{@"awake": @"manual", @"agents": @"agents"}[switchID ?: @""];
     if (setting) {
@@ -431,7 +421,6 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 
 /// Stop, while Claude is asked: the call ends, and the answer says nothing came back.
 - (void)windowAskStop { dispatch_async(Queue(), ^{ if (!self->_asking) return; [self stopAsking]; [self send]; }); }
-
 - (void)windowAskBack { dispatch_async(Queue(), ^{ [self stopAsking]; if (!self->_answer) return; self->_answer = nil; [self send]; }); }
 
 /// A press on an answer's Keep. The keep its row's own menu gives: MMKeep, by the expert's stable key, for 4 hours or
@@ -485,6 +474,21 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
         dispatch_async(MMQueue(@"core", @"go", QOS_CLASS_USER_INITIATED), ^{
             NSString *err = nil;
             if (!MMGoTo(place, &err) && err) MMNotice(@"minmacs", [NSString stringWithFormat:@"Could Not Go to %@", place.app.length ? place.app : @"It"], err);
+        });
+    });
+}
+
+/// A pick in a row's menu: read from the snapshot shown, and run off the window queue, since a quit waits for its app.
+/// The log is read again once the record is written, so its entry and its Undo show at once. Go to is the story's.
+- (void)windowRow:(NSString *)rowKey item:(NSString *)action {
+    if (![rowKey isKindOfClass:NSString.class] || ![action isKindOfClass:NSString.class]) return;
+    if ([action isEqualToString:@"go-to"]) { [self windowGoTo:rowKey]; return; }
+    id<MMWindowDesk> desk = self.desk;
+    dispatch_async(Queue(), ^{
+        MMSnapshot *s = self->_s; MMPerformance *p = self->_p;
+        if (s && p) dispatch_async(MMQueue(@"core", @"window-act", QOS_CLASS_USER_INITIATED), ^{
+            (void)MMWindowRowAct(action, rowKey, s, p, desk, NULL);
+            dispatch_async(Queue(), ^{ [self send]; });
         });
     });
 }

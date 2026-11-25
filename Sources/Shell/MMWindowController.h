@@ -14,6 +14,7 @@
 // Fix Everything runs on its own queue through MMFixRunner, and each step sends a model whose run moved.
 #import <Cocoa/Cocoa.h>
 #import "UI/Window/MMWindowUI.h"
+#import "Shell/MMWindowActs.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -30,6 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// The shell, for Open at login. Without one the switch reads off and a press changes nothing.
 /// Only two things ever call -setLogin: here: the switch in Settings, and Start in the welcome.
 @property (weak, nullable) id<MMWindowLogin> shell;
+/// The row menus' hands for what only shows or copies, MMWindowActs.h: the shell gives the app's, a check its fake.
+/// Without one those items do nothing. Every item that acts runs through MMWindowRowAct, by "window".
+@property (strong, nullable) id<MMWindowDesk> desk;
 /// The last model sent, main only. nil before the first and after -setOpen:NO.
 @property (readonly, nullable) MMWindowModel *model;
 @property (readonly) BOOL open;

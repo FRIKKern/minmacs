@@ -507,7 +507,7 @@ static void WindowModel(void) {
     // The JSON and the words.
     T(@"window: the JSON's keys", @"asks backToday disk diskHour fixEverything fixes generation memory memoryHour ring run settings",
       [[j.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
-    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind measured name needsYou project quiet state tabs workedAt",
+    T(@"window: a row's JSON keys", @"bytes cpuPercent facts hour iconHint inFix key kind measured menu name needsYou project quiet state tabs workedAt",
       [[[next.json allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]);
     T(@"window: the JSON is valid and keeps the ring's sides apart", @"yes disk memory", [NSString stringWithFormat:@"%@ %@", YN([NSJSONSerialization isValidJSONObject:j]),
       [[[j[@"ring"] allKeys] sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@" "]]);
@@ -694,6 +694,7 @@ static void RunStopped(void) {
 #import "week.m"
 #import "ask.m"
 #import "askclaude.m"
+#import "rowmenu.m"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -741,6 +742,8 @@ int main(int argc, const char *argv[]) {
         else if ([mode isEqualToString:@"ask-rows"]) AskRows();
         else if ([mode isEqualToString:@"ask-claude"]) AskClaude();
         else if ([mode isEqualToString:@"ask-claude-controller"]) AskClaudeController();
+        else if ([mode isEqualToString:@"row-menu"]) RowMenu();
+        else if ([mode isEqualToString:@"row-menu-controller"]) RowMenuController();
         else return 2;
         printf("END\n");
     }

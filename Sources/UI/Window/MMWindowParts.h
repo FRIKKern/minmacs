@@ -189,6 +189,11 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 - (void)setGroups:(NSArray<MMWindowGroup *> *)groups ring:(nullable MMWindowRing *)ring;
 @property (copy, nullable) void (^onPoint)(NSString *_Nullable key); // the pointer came to rest on a row, or left
 @property (copy, nullable) void (^onPress)(NSString *_Nullable key); // a press on a row, or on the list's empty space: nil
+/// A right-click or a control-click on a row asks for its menu: the window makes the row active and gives the menu,
+/// or nil when the row has none. MMWindowListMenu.m.
+@property (copy, nullable) NSMenu *_Nullable (^onMenu)(NSString *key);
+/// The Menu key, Shift-F10 or VoiceOver's Show Menu on a row: the window opens its menu under the row. NO with none.
+@property (copy, nullable) BOOL (^onShowMenu)(NSString *key);
 /// Every row's key, group after group, each group in the order it is drawn: the order the arrow keys go.
 - (NSArray<NSString *> *)rowKeys;
 - (void)reveal:(NSString *)key;                                      // scroll so the row shows
@@ -217,6 +222,11 @@ void MMWindowDrawRowAs(MMWindowRow *row, NSString *name, NSRect rect, MMWindowSi
 @interface MMWindowListView (Pointer)
 - (void)pointAt:(NSPoint)p;
 - (void)pressAt:(NSPoint)p;
+@end
+
+/// The menu a right-click at a point would open, in the list's own coordinates, for the checks. MMWindowListMenu.m.
+@interface MMWindowListView (Menu)
+- (nullable NSMenu *)menuAt:(NSPoint)p;
 @end
 
 /// What a list says of its groups with projects, for the checks. MMWindowListProjects.m.
@@ -483,6 +493,21 @@ typedef NS_ENUM(NSInteger, MMWindowButtonKind) { MMWindowButtonClear = 0, MMWind
 - (BOOL)editKey:(NSEvent *)key;
 - (void)restAsk;
 @end
+
+/// A row's menu, MMWindowViewMenu.m: a real NSMenu of the row's MMWindowMenuItem list, alternates under Option. Opening
+/// it makes the row the active one, as a press does, but never lets it go. A pick sends its item to the host, and
+/// only a pick acts.
+@interface MMWindowView (Menu)
+/// The menu of the row `key`, with the row made active. nil when the window takes no press now or the row has none.
+- (nullable NSMenu *)menuForRow:(NSString *)key;
+/// The Menu key, Shift-F10 and VoiceOver: opens the menu of the row `key` under it. NO when it has none.
+- (BOOL)showMenuForRow:(NSString *)key;
+/// The keys that open the active row's menu: the Menu key and Shift-F10. NO for any other key.
+- (BOOL)menuKey:(NSEvent *)key;
+@end
+/// Where a menu the keyboard or VoiceOver opens goes on screen. nil in the app, which pops it up under the row. The
+/// render tool sets it to take the menu without a menu tracking loop: it gets the menu, the list and the point.
+extern void (^_Nullable MMWindowMenuPops)(NSMenu *menu, NSView *view, NSPoint at);
 
 @interface MMWindowView (Words)
 /// Every string the window can show for this model, for the render tool's word check. In MMWindowWords.m.

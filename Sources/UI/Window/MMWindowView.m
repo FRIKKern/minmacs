@@ -94,6 +94,7 @@ BOOL MMWindowTakesPresses(NSView *view) {
         _middle.onPointer = ^(BOOL over) { [me pointMiddle:over]; };
         MMWindowIconsOnLoad(^{ [me iconsLoaded]; });
         [self wireAsk];
+        [self wireMenus];
     }
     return self;
 }
@@ -423,6 +424,8 @@ BOOL MMWindowTakesPresses(NSView *view) {
     if (self.showsWelcome && !_started && (e.keyCode == 36 || e.keyCode == 76)) { [_welcome pressStart]; return; }
     // Until the menu has arrived no key reaches it, Tab among them. Escape still closes the window.
     if (_quiet && e.keyCode != 53) return;
+    // The Menu key and Shift-F10 open the active row's menu, as a right-click does.
+    if (_model && !self.showsWelcome && !self.showsSettings && [self menuKey:e]) return;
     if (e.keyCode == 53 && self.window.isKeyWindow) [self cancelOperation:nil];
     else if (!(_model && !self.showsWelcome && !self.showsSettings && [self arrow:e.keyCode]) && ![self typeIntoAsk:e]) [super keyDown:e];
 }

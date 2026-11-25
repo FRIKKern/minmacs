@@ -39,6 +39,10 @@
 @interface MMWindowView (Shown)
 /// A row named by a press of the middle becomes the active one, in view in its list. MMWindowView.m.
 - (void)showRow:(NSString *)key;
+/// Go to in an agent's story, from a row's menu too: the host brings its place forward. MMWindowView.m.
+- (void)goTo:(NSString *)key;
+/// The lists ask the window for a row's menu. MMWindowViewMenu.m, wired once at init.
+- (void)wireMenus;
 @end
 
 @interface MMWindowView (Run)

@@ -11,7 +11,7 @@ wn_dir="$(cd "$MINMACS_HOME" && pwd -P)/window.$$"
 mkdir -p "$wn_dir/home"
 # A home of its own inside the test home, so its prefs, log and Trash are this section's only.
 wn_home="$wn_dir/home"
-wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMAsk.m Sources/Shell/MMAskCLI.m Sources/Shell/MMAskClaude.m Sources/Shell/MMKeepCLI.m"
+wn_shell="Sources/Shell/MMWindowFeed.m Sources/Shell/MMWindowRows.m Sources/Shell/MMWindowAgent.m Sources/Shell/MMWindowRules.m Sources/Shell/MMWindowJSON.m Sources/Shell/MMFixRunner.m Sources/Shell/MMWindowLog.m Sources/Shell/MMWindowLogRun.m Sources/Shell/MMWindowLogFold.m Sources/Shell/MMAsk.m Sources/Shell/MMAskCLI.m Sources/Shell/MMAskClaude.m Sources/Shell/MMKeepCLI.m Sources/Shell/MMWindowMenu.m Sources/Shell/MMWindowActs.m"
 wn_cc="clang -fobjc-arc -O1 -mmacosx-version-min=14.0 -ISources -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Werror -DMM_TESTS"
 $wn_cc $(find Sources/Core -name '*.m' | LC_ALL=C sort) $wn_shell Sources/Shell/MMWindowController.m Sources/UI/Window/MMWindowModel.m Sources/UI/Window/MMWindowAnswer.m Sources/UI/Window/MMWindowFixtureAsk.m Sources/UI/Window/MMWindowCounts.m Sources/UI/Window/MMWindowCollapse.m Sources/UI/Window/MMWindowFixture.m Sources/UI/Window/MMWindowFixtureRows.m Sources/UI/Window/MMWindowFixtureMore.m Sources/UI/Window/MMWindowFixtureLog.m Sources/UI/Window/MMWindowFixtureWeek.m Sources/UI/MMFormat.m test/window/window.m \
   -framework Cocoa -framework IOKit -framework UserNotifications -lsqlite3 -o "$wn_dir/windowtest-$$" >"$wn_dir/build.log" 2>&1
@@ -77,6 +77,9 @@ if [ "$wn_r" = 0 ]; then
   echo "-- an agent row's story, and Claude Code's scratch as the owner's Mac had it"
   wn_run agentstory
   wn_run collapse-real
+  echo "-- a row's menu: the items of each kind, and what a pick runs, by window"
+  wn_run row-menu
+  wn_run row-menu-controller
   MINMACS_HOME="$MINMACS_HOME" "$wn_dir/windowtest-$$" "${TMPDIR:-/tmp}/window-outside-$$" run >/dev/null 2>&1
   check "window: the tool refuses a fixture folder outside the test home" "2 no" "$? $([ -e "${TMPDIR:-/tmp}/window-outside-$$/library" ] && echo yes || echo no)"
   rmdir "${TMPDIR:-/tmp}/window-outside-$$" 2>/dev/null

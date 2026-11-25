@@ -442,6 +442,16 @@ static uint64_t NNStr(NSString *s, uint64_t salt) { return NNMix((s ? s.hash ^ (
     return i ? [MMClutterAction actionFor:f item:i catalog:self.catalog] : nil;
 }
 
+/// Move to Trash from a row's menu in the window: the menu's own clean, only where it sends the item to the Trash.
+/// A tool's own cleanup waits for its own press in the menus, so the window's row menu never runs it.
+- (id<MMAction>)pressAction:(NSString *)what finding:(MMFinding *)f step:(MMStopStep)step policy:(id<MMExpertPolicy> *)policy {
+    if (![what isEqualToString:@"trash"]) return nil;
+    id<MMAction> a = [self actionFor:f step:step];
+    if (![a.kind isEqualToString:@"trash"]) return nil;
+    if (policy) *policy = self.policy;
+    return a;
+}
+
 /// Wrap Up, issue #27: one part per cache or build folder the worktree owns, by back-link or by place, that goes to
 /// the Trash, MMRemoval.h. A tool's own cleanup is for the whole Mac, not one
 /// workstream, so it is never a part.

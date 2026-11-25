@@ -47,6 +47,9 @@ extern const NSSize MMWindowSize;                       // 1020 x 728 points, as
 /// A press on an answer's Keep: keep this row as its own menu does, for 4 hours or 7 days. Only a person's press
 /// sends it.
 - (void)windowKeep:(NSString *)rowKey;
+/// The person picked an item of a row's menu, MMWindowRow.menu: run its action on the row, with "window" as who acted.
+/// Only that pick sends it: opening the menu acts on nothing. "show-row" never comes here, the window does it.
+- (void)windowRow:(NSString *)rowKey item:(NSString *)action;
 @end
 
 /// The whole window as one view, MMWindowSize large: the top line, the two sides with the middle between them,

@@ -388,6 +388,12 @@ NSArray<MMWindowRow *> *MMWindowByProject(NSArray<MMWindowRow *> *rows) {
     return out;
 }
 
+@implementation MMWindowMenuItem
++ (instancetype)action:(NSString *)action title:(NSString *)title {
+    MMWindowMenuItem *i = [MMWindowMenuItem new]; i.action = action; i.title = title; return i;
+}
+@end
+
 @implementation MMWindowRow
 - (instancetype)init { if ((self = [super init])) { _key = @""; _name = @""; _cpuPercent = -1; _facts = @[]; } return self; }
 - (NSString *)shownName {

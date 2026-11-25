@@ -397,6 +397,15 @@ void MMMinMacsRegisterTabRestore(void) {
 }
 
 
+/// A helper's stop on its own, from a row's menu in the window: the first request only, as its Wrap Up part, with its policy.
+- (id<MMAction>)helperStop:(MMFinding *)f step:(MMStopStep)step policy:(id<MMExpertPolicy> *)policy {
+    if (step != MMStopTerm || ![f.kind isEqualToString:@"helper"]) return nil;
+    MMMMHelperStop *a = [MMMMHelperStop new];
+    a.finding = f;
+    if (policy) *policy = HelperPolicy();
+    return a;
+}
+
 - (NSArray<MMWrapUpPart *> *)wrapUpPartsAfter:(NSArray<MMWrapUpPart *> *)earlier subject:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {
     NSArray<NSNumber *> *ports = subject.serverPorts;
     if (!ports.count) return @[];
