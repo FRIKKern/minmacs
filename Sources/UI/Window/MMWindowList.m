@@ -2,6 +2,7 @@
 // The whole side is one view drawn in one drawRect, so opening the window lays out no row views. MMWindowRow.m draws a
 // row, and MMWindowListInput.m takes the pointer, the scrolling and VoiceOver.
 #import "UI/Window/MMWindowListParts.h"
+#import "UI/Window/MMWindowTree.h"
 #import "UI/MMFormat.h"
 
 // A header, a row, the gap between groups, and the two fades: 22 points at the foot where rows wait below, 16 under
@@ -373,7 +374,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
 
     // The header stays still: the title, how many, and how many rows wait under the fold.
     NSAttributedString *head = MMWindowJoin(@[MMWindowText(g.title, 11, NSFontWeightBold, t2),
-                                              MMWindowText([NSString stringWithFormat:@"   %lu", (unsigned long)g.rows.count], 11, NSFontWeightMedium, t3)]);
+                                              MMWindowText([NSString stringWithFormat:@"   %ld", (long)MMWindowTreeTopRows(g)], 11, NSFontWeightMedium, t3)]);
     MMWindowDraw(head, 14, f.origin.y + kHead / 2, -1);
     // Rows wait under the fold, or, once the group is scrolled to its end, above it. With all of them in view the
     // header says what they are sorted by.
@@ -401,7 +402,7 @@ static void Fade(CGContextRef cg, CGFloat from, CGFloat to) {
         CGFloat lead = _leads[i][r].doubleValue;
         if (lead > 0) [self drawProjectOf:row in:g top:NSMinY(at) - lead];
         MMWindowRowLook look = [row.key isEqualToString:_hotKey] ? MMWindowRowActive : [row.key isEqualToString:_hoverKey] ? MMWindowRowHover : MMWindowRowRest;
-        MMWindowDrawRowAs(row, [self nameOf:row in:g], at, g.side, hasHour, look, _rowHeight >= kTall);
+        MMWindowTreeDrawRow(row, [self nameOf:row in:g], at, g.side, hasHour, look, _rowHeight >= kTall);
         foot = NSMaxY(at);
         if (_trails[i][r] != NSNull.null) [lines addObject:@[_trails[i][r], @(foot)]];
     }

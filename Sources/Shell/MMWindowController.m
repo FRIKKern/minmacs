@@ -1,7 +1,7 @@
 // The window's controller, MMWindowController.h.
 #import <stdatomic.h>
 #import "Shell/MMWindowController.h"
-#import "Shell/MMWindowFeed.h"
+#import "Shell/MMWindowControllerInsides.h"   // the feed, and cmux's insides
 #import "Shell/MMFixRunner.h"
 #import "Shell/MMWindowLog.h"
 #import "Shell/MMAsk.h"
@@ -61,7 +61,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     if (!open) {
         [MMGraph.shared stopObserving:_token];
         if (_pulls) [NSNotificationCenter.defaultCenter removeObserver:_pulls];
-        _token = nil; _pulls = nil; _model = nil; _shown = 0;
+        _token = nil; _pulls = nil; _model = nil; _shown = 0; [self insidesOpen:NO];
         atomic_store(&_wanted, 0);
         // The run and its runner stay: a run under way ends on its own and then clears itself.
         dispatch_async(Queue(), ^{ self->_s = nil; self->_p = nil; self->_lookBack = nil; self->_log = nil; self->_logStamp = nil; self->_undoProblems = nil; self->_week = nil;
@@ -128,7 +128,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
     x.welcome = MMWindowWelcomeNow(x.loginOn);
     x.own = MMSelfOnBuild();   // MinMacs's own cost: one proc_pid_rusage a build, only while open.
     MMWindowModel *m = MMWindowModelFrom(_s, _p, x);
-    m.answer = _answer;
+    m.answer = _answer; MMWindowInsidesAttach(m, _s, [MMAppInsides.shared knownFor:MMAppInsidesCmux]);   // memory only
     _built = m;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (!self.open || m.generation < self->_shown) return;
@@ -442,7 +442,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 /// request: on demand only, never for a tick or a snapshot, and never while the window is closed. A look that began is
 /// shown at once, and once more past the time gh may take, so a look that got no answer leaves the story.
 - (void)windowShowsStory:(NSString *)key {
-    if (!self.open || ![key isKindOfClass:NSString.class] || !key.length) return;
+    if (!self.open || ![key isKindOfClass:NSString.class] || !key.length || [self insidesStory:key]) return;
     dispatch_async(Queue(), ^{
         if (!self.open || !self->_p) return;
         MMPerformanceRow *r = [self->_p row:key];
@@ -462,7 +462,7 @@ static dispatch_queue_t Queue(void) { return MMQueue(@"core", @"window", QOS_CLA
 /// A press on Go to in an agent's story. Know's last answer for where the agent runs, with no wait, and MMGoTo off
 /// main, since cmux, tmux and AppleScript can take seconds. A place that is gone or a refusal is a notice, D3.
 - (void)windowGoTo:(NSString *)rowKey {
-    if (![rowKey isKindOfClass:NSString.class] || !rowKey.length) return;
+    if (![rowKey isKindOfClass:NSString.class] || !rowKey.length || [self insidesGoTo:rowKey]) return;
     dispatch_async(Queue(), ^{
         MMFinding *f = [self->_s finding:rowKey];
         MMSample *sample = self->_s.facts.sample;

@@ -1,5 +1,6 @@
 // The window's model as JSON, MMWindowJSON.h.
 #import "Shell/MMWindowJSON.h"
+#import "UI/Window/MMWindowInsides.h"
 
 static id Or(id v) { return v ?: NSNull.null; }
 static NSString *SideName(MMWindowSide s) { return s == MMWindowDisk ? @"disk" : @"memory"; }
@@ -65,6 +66,8 @@ NSString *MMWindowKindName(MMWindowKind kind) {
         }
         NSMutableDictionary *g = [j mutableCopy]; g[@"menu"] = items; j = g;
     }
+    // An app that knows its insides, cmux: its workspaces, panes and tabs, and what runs in each. MMWindowInsides.h.
+    if (MMWindowInsidesJSON(self)) { NSMutableDictionary *g = [j mutableCopy]; g[@"insides"] = MMWindowInsidesJSON(self); j = g; }
     if (!self.members) return j;
     // A row that stands for several, DESIGN rule 16, says so and holds each member whole, as the rows it stands for.
     NSMutableDictionary *x = [j mutableCopy];

@@ -3,6 +3,7 @@
 // a group with projects can show: its plans, each a number of rows a project, the order its rows are drawn in, the
 // sub-headers and the lines that say how many rows wait. DESIGN.md, the menu window, rule 15.
 #import "UI/Window/MMWindowListParts.h"
+#import "UI/Window/MMWindowTree.h"
 
 @implementation MMWindowListView (Projects)
 
@@ -18,7 +19,7 @@
 /// How high a row of a group is: `row` points, and a name that wraps adds a line for each line more.
 - (CGFloat)heightOf:(MMWindowRow *)r in:(MMWindowGroup *)g hasHour:(BOOL)hasHour row:(CGFloat)row {
     // Every name is measured with the real font. The widths are kept, so a model that brings the same names costs little.
-    NSInteger lines = (NSInteger)MMWindowRowNameAs(r, [self nameOf:r in:g], g.side, hasHour, NSMakeRect(5, 0, self.bounds.size.width - 10, row), NULL).count;
+    NSInteger lines = (NSInteger)MMWindowRowNameAs(r, [self nameOf:r in:g], g.side, hasHour, MMWindowTreeContent(r, NSMakeRect(5, 0, self.bounds.size.width - 10, row)), NULL).count;
     return row + MMWindowNameLine * (lines - 1);
 }
 

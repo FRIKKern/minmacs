@@ -2,6 +2,7 @@
 // and how it comes to rest, and a row for VoiceOver each. MMWindowList.m lays the side out and draws it.
 // A press here only selects: it names no host and runs nothing.
 #import "UI/Window/MMWindowListParts.h"
+#import "UI/Window/MMWindowTree.h"
 #import "UI/MMFormat.h"
 
 /// A row as VoiceOver reads it: selected when it is the active row, and a press on it picks it as a click does.
@@ -116,6 +117,7 @@
             MMWindowRowElement *el = [MMWindowRowElement accessibilityElementWithRole:NSAccessibilityStaticTextRole frame:screen
                                                                                 label:[say componentsJoinedByString:@", "] parent:self];
             el.key = row.key; el.list = self;
+            MMWindowTreeAccessibility(el, row);
             el.accessibilitySelected = [row.key isEqualToString:self.hotKey];
             [out addObject:el];
         }

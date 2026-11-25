@@ -1,5 +1,6 @@
 // The arrow keys of the whole window, MMWindowViewParts.h: they move the active row between the two sides.
 #import "UI/Window/MMWindowViewParts.h"
+#import "UI/Window/MMWindowTree.h"
 
 @implementation MMWindowView (Keys)
 
@@ -7,6 +8,8 @@
 /// the other side at its height. With none active, the first row of the side the key points to. Scrolls it in view.
 - (BOOL)arrow:(unsigned short)code {
     if (code < 123 || code > 126) return NO;
+    // → opens a row with insides and ← closes it, or goes up to the row it is in, MMWindowTree.m.
+    if ([self treeArrow:code]) return YES;
     NSArray<NSString *> *left = _left.rowKeys, *right = _right.rowKeys;
     BOOL onLeft = _active && [left containsObject:_active], onRight = _active && [right containsObject:_active];
     NSString *next = nil;

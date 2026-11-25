@@ -725,6 +725,20 @@ Four runs on this Mac at load averages of 4 to 7, at 2026-10-31 06:05 local time
 
 On the CI runner, run 41171369826 at 6b4e977, the later launch of `test/bench.sh` read 24.3 ms a build, 7.0 ms of it Wrap Up plans. The other 17 ms against 4 ms on this Mac is not broken down yet.
 
+## An app's insides, cmux, D11, 2026-11-25
+
+The owner: "big ambitions for understanding significant apps, but strong measures so it doesn't hurt performance." The window reads cmux's insides with one `cmux --json top --all --processes`, `Sources/Core/Know/MMCmuxInsides.m`. Measured on the owner's Mac, a Mac17,4 with an Apple M5, with cmux 0.65.2 running 1 window, 2 workspaces and 2 tabs; the answer is 258 KB of JSON.
+
+| What | Cost |
+|---|---|
+| The window closed | Nothing: no cmux call and nothing kept. `./test.sh window`, `insides-controller`, counts 0 calls |
+| The window open, the cmux row closed and its story not shown | Nothing: 0 calls in the same check |
+| One read by cmux's CLI, 20 runs | 46 ms wall on average, 120 ms the most; 30 ms user CPU; 20.7 MB peak resident, in the CLI's own short process |
+| The cmux app answering it | Not told apart from its own idle: 0.15 s of its CPU for 20 reads in 1 s, against 0.10 s in 1 s of idle |
+| One read in MinMacs, the CLI's spawn, the parse and the rows, `minmacs window --json` with cmux against with no cmux CLI, 10 runs each | +68 ms wall, +39 ms user and +10 ms system CPU, of which the CLI's own is about 30 ms; +3.9 MB peak resident while it parses |
+| The cmux row opened in the window | At most one read in 5 s, off main, with a limit of 1 s: about 1 % of one core while it stays open. An answer with the same insides is kept as it was |
+| The window open on the day "agents" with cmux, `tools/render.sh` | cmux closed p50 45.4 ms, p95 48.2 ms; cmux, a workspace and a tab open p50 45.4 ms, p95 48.1 ms; n 30 |
+
 ## Rerun
 
 ```sh

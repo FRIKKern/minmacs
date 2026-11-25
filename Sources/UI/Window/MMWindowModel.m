@@ -1,5 +1,6 @@
 // The window's view model, issue #62. Plain values. MMWindowModel.h says what each holds.
 #import "UI/Window/MMWindowModel.h"
+#import "UI/Window/MMWindowInsides.h"
 #import <math.h>
 
 NSArray<NSString *> *MMWindowSizeParts(uint64_t bytes, BOOL disk) {
@@ -687,7 +688,8 @@ NSString *MMWindowLogNote(BOOL empty, NSString *left) {
     for (NSArray<MMWindowGroup *> *side in @[self.memoryGroups, self.diskGroups])
         for (MMWindowGroup *g in side)
             for (MMWindowRow *r in g.rows) if ([r.key isEqualToString:key]) return r;
-    return nil;
+    // A row inside an app's insides: a workspace or a tab of cmux, MMWindowInsides.h.
+    return MMWindowInsidesFind(self, key);
 }
 
 - (uint64_t)memoryBack {

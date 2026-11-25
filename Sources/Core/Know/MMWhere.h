@@ -27,6 +27,9 @@ MMPlace *MMWhereKnown(MMProcKey key);
 /// Brings the place forward. Terminal and iTerm2 need the person's permission the first time. It runs cmux, tmux or
 /// osascript and can block for seconds, so call it off the main thread.
 BOOL MMGoTo(MMPlace *place, NSString **error);
+/// A cmux tab named by cmux's own handles, as an app's insides give them: "window:1", "workspace:2", "surface:4".
+/// MMGoTo selects that workspace and focuses that tab. label is how the story names it.
+MMPlace *MMPlaceInCmux(NSString *window, NSString *workspace, NSString *surface, NSString *label);
 /// YES when MMGoTo has something to go to: a cmux surface, a tmux pane, a Terminal or iTerm2 tab by its tty, or a
 /// running app. It looks at the place only and runs nothing.
 BOOL MMPlaceGoable(MMPlace *place);

@@ -1,0 +1,1185 @@
+{
+ "active": {
+  "window_ref": "window:1"
+ },
+ "caller": {},
+ "coding_agents": [],
+ "include_processes": true,
+ "memory_diagnostic": {},
+ "program_totals": [],
+ "sample": {
+  "cmux_scope": true,
+  "sampled_at": "2026-11-25T18:52:52Z"
+ },
+ "totals": {
+  "cpu_percent": 19.8,
+  "memory_bytes": 1402000000,
+  "process_count": 20,
+  "pids": [],
+  "missing_pids": []
+ },
+ "windows": [
+  {
+   "ref": "window:1",
+   "index": 0,
+   "key": true,
+   "kind": "window",
+   "visible": true,
+   "selected_workspace_ref": "workspace:1",
+   "selected_workspace_id": "AAAA0001-0000-4000-8000-000000000001",
+   "workspace_count": 3,
+   "app_process_pids": [
+    72000
+   ],
+   "top_level_pids": [],
+   "foreground_pgids": [],
+   "processes": [
+    {
+     "pid": 72000,
+     "ppid": 0,
+     "name": "cmux",
+     "path": "/bin/cmux",
+     "kind": "process",
+     "attribution_reason": "cmux-environment",
+     "pgid": 72000,
+     "tpgid": 72000,
+     "tty_device": "ttys009",
+     "thread_count": 1,
+     "resources": {
+      "cpu_percent": 4.5,
+      "memory_bytes": 417000000,
+      "process_count": 1,
+      "pids": [],
+      "missing_pids": []
+     },
+     "children": []
+    }
+   ],
+   "resources": {
+    "cpu_percent": 19.8,
+    "memory_bytes": 1402000000,
+    "process_count": 20,
+    "pids": [],
+    "missing_pids": []
+   },
+   "workspaces": [
+    {
+     "ref": "workspace:1",
+     "id": "AAAA0001-0000-4000-8000-000000000001",
+     "title": "minmacs",
+     "kind": "workspace",
+     "index": 0,
+     "selected": true,
+     "pinned": false,
+     "description": null,
+     "host": null,
+     "top_level_pids": [],
+     "foreground_pgids": [],
+     "resources": {
+      "cpu_percent": 2,
+      "memory_bytes": 2,
+      "process_count": 1,
+      "pids": [],
+      "missing_pids": []
+     },
+     "tags": [
+      {
+       "key": "claude_code",
+       "value": "Waiting",
+       "pid": 71010,
+       "icon": "hourglass",
+       "color": "#8E8E93",
+       "kind": "tag",
+       "ref": "t",
+       "index": 0,
+       "priority": 0,
+       "visible": true,
+       "format": null,
+       "url": null,
+       "processes": [],
+       "resources": {
+        "cpu_percent": 0,
+        "memory_bytes": 0,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "root_pids": [],
+       "top_level_pids": [],
+       "foreground_pgids": []
+      }
+     ],
+     "panes": [
+      {
+       "ref": "pane:1",
+       "kind": "pane",
+       "index": 0,
+       "focused": true,
+       "selected_surface_ref": "surface:1",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:1"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:1",
+         "title": "\u25d0 Tune the ranking",
+         "type": "terminal",
+         "tty": "ttys001",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [
+          71010
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72001,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72001,
+           "tpgid": 72001,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72002,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72002,
+             "tpgid": 72002,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": [
+              {
+               "pid": 71010,
+               "ppid": 72002,
+               "name": "2.1.331",
+               "path": "/bin/2.1.331",
+               "kind": "process",
+               "attribution_reason": "cmux-environment",
+               "pgid": 71010,
+               "tpgid": 71010,
+               "tty_device": "ttys009",
+               "thread_count": 1,
+               "resources": {
+                "cpu_percent": 12.5,
+                "memory_bytes": 900000000,
+                "process_count": 1,
+                "pids": [],
+                "missing_pids": []
+               },
+               "children": []
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "ref": "pane:2",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:2",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:2"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:2",
+         "title": "dev server",
+         "type": "terminal",
+         "tty": "ttys002",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [
+          71001
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72003,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72003,
+           "tpgid": 72003,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72004,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72004,
+             "tpgid": 72004,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": [
+              {
+               "pid": 71001,
+               "ppid": 72004,
+               "name": "node",
+               "path": "/bin/node",
+               "kind": "process",
+               "attribution_reason": "cmux-environment",
+               "pgid": 71001,
+               "tpgid": 71001,
+               "tty_device": "ttys009",
+               "thread_count": 1,
+               "resources": {
+                "cpu_percent": 3.2,
+                "memory_bytes": 300000000,
+                "process_count": 1,
+                "pids": [],
+                "missing_pids": []
+               },
+               "children": []
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "ref": "pane:3",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:3",
+       "surface_count": 2,
+       "surface_refs": [
+        "surface:3",
+        "surface:4"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:3",
+         "title": "zsh",
+         "type": "terminal",
+         "tty": "ttys003",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [
+          72006
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72005,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72005,
+           "tpgid": 72005,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72006,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72006,
+             "tpgid": 72006,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": []
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "ref": "surface:4",
+         "title": "logs",
+         "type": "terminal",
+         "tty": "ttys004",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": false,
+         "selected_in_pane": false,
+         "focused": false,
+         "foreground_pgids": [
+          72008
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72007,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72007,
+           "tpgid": 72007,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72009,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72009,
+             "tpgid": 72009,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": [
+              {
+               "pid": 72008,
+               "ppid": 72009,
+               "name": "tail",
+               "path": "/bin/tail",
+               "kind": "process",
+               "attribution_reason": "cmux-environment",
+               "pgid": 72008,
+               "tpgid": 72008,
+               "tty_device": "ttys009",
+               "thread_count": 1,
+               "resources": {
+                "cpu_percent": 0.1,
+                "memory_bytes": 900000,
+                "process_count": 1,
+                "pids": [],
+                "missing_pids": []
+               },
+               "children": []
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ref": "workspace:2",
+     "id": "BBBB0002-0000-4000-8000-000000000002",
+     "title": "scratch",
+     "kind": "workspace",
+     "index": 0,
+     "selected": false,
+     "pinned": false,
+     "description": null,
+     "host": null,
+     "top_level_pids": [],
+     "foreground_pgids": [],
+     "resources": {
+      "cpu_percent": 2,
+      "memory_bytes": 2,
+      "process_count": 1,
+      "pids": [],
+      "missing_pids": []
+     },
+     "tags": [],
+     "panes": [
+      {
+       "ref": "pane:4",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:5",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:5"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:5",
+         "title": "~",
+         "type": "terminal",
+         "tty": "ttys005",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [
+          72012
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72011,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72011,
+           "tpgid": 72011,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72012,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72012,
+             "tpgid": 72012,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": []
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "ref": "pane:5",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:6",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:6"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:6",
+         "title": "~/code",
+         "type": "terminal",
+         "tty": "ttys006",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [
+          72014
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72013,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72013,
+           "tpgid": 72013,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72014,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72014,
+             "tpgid": 72014,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": []
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "ref": "pane:6",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:7",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:7"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:7",
+         "title": "zsh",
+         "type": "terminal",
+         "tty": "ttys007",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [
+          72016
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72015,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72015,
+           "tpgid": 72015,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72016,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72016,
+             "tpgid": 72016,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": []
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "ref": "pane:7",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:8",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:8"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:8",
+         "title": "Preview",
+         "type": "browser",
+         "tty": null,
+         "url": "http://localhost:3001/",
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": []
+        }
+       ]
+      },
+      {
+       "ref": "pane:8",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:9",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:9"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:9",
+         "title": "Docs",
+         "type": "browser",
+         "tty": null,
+         "url": "https://example.com/private",
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ref": "workspace:3",
+     "id": "CCCC0003-0000-4000-8000-000000000003",
+     "title": "Agent story",
+     "kind": "workspace",
+     "index": 0,
+     "selected": false,
+     "pinned": false,
+     "description": null,
+     "host": null,
+     "top_level_pids": [],
+     "foreground_pgids": [],
+     "resources": {
+      "cpu_percent": 2,
+      "memory_bytes": 2,
+      "process_count": 1,
+      "pids": [],
+      "missing_pids": []
+     },
+     "tags": [
+      {
+       "key": "claude_code",
+       "value": "Working",
+       "pid": 71011
+      }
+     ],
+     "panes": [
+      {
+       "ref": "pane:9",
+       "kind": "pane",
+       "index": 0,
+       "focused": false,
+       "selected_surface_ref": "surface:10",
+       "surface_count": 1,
+       "surface_refs": [
+        "surface:10"
+       ],
+       "top_level_pids": [],
+       "foreground_pgids": [],
+       "resources": {
+        "cpu_percent": 1,
+        "memory_bytes": 1,
+        "process_count": 1,
+        "pids": [],
+        "missing_pids": []
+       },
+       "surfaces": [
+        {
+         "ref": "surface:10",
+         "title": "Give the agent row a story",
+         "type": "terminal",
+         "tty": "ttys008",
+         "url": null,
+         "kind": "surface",
+         "index": 0,
+         "index_in_pane": 0,
+         "pane_ref": "",
+         "selected": true,
+         "selected_in_pane": true,
+         "focused": true,
+         "foreground_pgids": [
+          71011
+         ],
+         "root_pids": [],
+         "top_level_pids": [],
+         "cmux_process_pids": [],
+         "tty_process_pids": [],
+         "tty_ownership_reasons": {},
+         "browser_web_content_pid": null,
+         "webviews": [],
+         "unattributed_resources": {
+          "cpu_percent": 0,
+          "memory_bytes": 0,
+          "process_count": 0,
+          "pids": [],
+          "missing_pids": []
+         },
+         "unattributed_tty_process_pids": [],
+         "resources": {
+          "cpu_percent": 1,
+          "memory_bytes": 1,
+          "process_count": 1,
+          "pids": [],
+          "missing_pids": []
+         },
+         "processes": [
+          {
+           "pid": 72021,
+           "ppid": 0,
+           "name": "login",
+           "path": "/bin/login",
+           "kind": "process",
+           "attribution_reason": "cmux-environment",
+           "pgid": 72021,
+           "tpgid": 72021,
+           "tty_device": "ttys009",
+           "thread_count": 1,
+           "resources": {
+            "cpu_percent": 0,
+            "memory_bytes": 0,
+            "process_count": 1,
+            "pids": [],
+            "missing_pids": []
+           },
+           "children": [
+            {
+             "pid": 72022,
+             "ppid": 0,
+             "name": "zsh",
+             "path": "/bin/zsh",
+             "kind": "process",
+             "attribution_reason": "cmux-environment",
+             "pgid": 72022,
+             "tpgid": 72022,
+             "tty_device": "ttys009",
+             "thread_count": 1,
+             "resources": {
+              "cpu_percent": 0,
+              "memory_bytes": 1600000,
+              "process_count": 1,
+              "pids": [],
+              "missing_pids": []
+             },
+             "children": [
+              {
+               "pid": 71011,
+               "ppid": 72022,
+               "name": "2.1.331",
+               "path": "/bin/2.1.331",
+               "kind": "process",
+               "attribution_reason": "cmux-environment",
+               "pgid": 71011,
+               "tpgid": 71011,
+               "tty_device": "ttys009",
+               "thread_count": 1,
+               "resources": {
+                "cpu_percent": 4.0,
+                "memory_bytes": 200000000,
+                "process_count": 1,
+                "pids": [],
+                "missing_pids": []
+               },
+               "children": []
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
