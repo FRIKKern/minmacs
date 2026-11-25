@@ -9,9 +9,11 @@
 
 @implementation MMOwner {
     MMOwnerKind _kind;
-    NSString *_key, *_name, *_path;
+    NSString *_key, *_name, *_path, *_ownerID;
     MMOwner *_parent;
 }
+
+static NSString *KindWord(MMOwnerKind k);
 
 + (instancetype)kind:(MMOwnerKind)kind key:(NSString *)key name:(NSString *)name path:(NSString *)path parent:(MMOwner *)parent {
     MMOwner *o = [self new];
@@ -20,6 +22,8 @@
     o->_name = [name copy] ?: o->_key;
     o->_path = [path copy];
     o->_parent = parent;
+    // Made once: a build asks it of each owner of each finding, and it was a new string each time, issue #52.
+    o->_ownerID = [NSString stringWithFormat:@"%@:%@", KindWord(kind), o->_key];
     return o;
 }
 
@@ -40,7 +44,7 @@ static NSString *KindWord(MMOwnerKind k) {
     return @"owner";
 }
 
-- (NSString *)ownerID { return [NSString stringWithFormat:@"%@:%@", KindWord(_kind), _key]; }
+- (NSString *)ownerID { return _ownerID; }
 
 - (BOOL)isWithin:(MMOwner *)other {
     if (!other) return NO;

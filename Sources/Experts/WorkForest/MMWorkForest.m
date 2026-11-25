@@ -40,6 +40,30 @@ static NSString *Real(NSString *path) {
     return realpath(path.fileSystemRepresentation, buf) ? @(buf) : path.stringByStandardizingPath;
 }
 
+/// Real(w.path) and Real(w.repo), kept for each worktree object, issue #52: the digest and the trees of every build
+/// resolved each checkout's path twice with realpath. The repo index makes a new object whenever it walks a worktree
+/// again, at a change under it and every 10 minutes, and a path that did not resolve is never kept.
+static NSString *RealOf(MMWorktree *w, BOOL repo) {
+    static NSMapTable *kept; static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    NSString *path = repo ? (w.repo ?: w.path) : w.path;
+    if (!w || !path.length) return Real(path);
+    os_unfair_lock_lock(&lock);
+    if (!kept) kept = [NSMapTable weakToStrongObjectsMapTable];
+    NSArray *have = [kept objectForKey:w];
+    os_unfair_lock_unlock(&lock);
+    NSUInteger at = repo ? 1 : 0;
+    if (have && have[at] != NSNull.null && [have[at + 2] isEqualToString:path]) return have[at];
+    char buf[PATH_MAX];
+    NSString *real = realpath(path.fileSystemRepresentation, buf) ? @(buf) : nil;
+    if (!real) return path.stringByStandardizingPath;
+    os_unfair_lock_lock(&lock);
+    NSMutableArray *now = have ? [have mutableCopy] : [@[NSNull.null, NSNull.null, @"", @""] mutableCopy];
+    now[at] = real; now[at + 2] = path;
+    [kept setObject:now forKey:w];
+    os_unfair_lock_unlock(&lock);
+    return real;
+}
+
 static BOOL Within(NSString *path, NSString *folder) {
     if (!path.length || !folder.length) return NO;
     return [path isEqualToString:folder] || [path hasPrefix:[folder stringByAppendingString:@"/"]];
@@ -136,7 +160,7 @@ static NSDictionary *SessionJSON(MMSession *s) {
 
 static MMWFTree *TreeFrom(MMWorktree *w, MMFacts *facts, NSArray *procs, MMSession *session, MMTreeDiskRead read, NSArray *protectedBranches) {
     MMWFTree *t = [MMWFTree new];
-    t.path = Real(w.path); t.repo = Real(w.repo ?: w.path); t.branch = w.branch;
+    t.path = RealOf(w, NO); t.repo = RealOf(w, YES); t.branch = w.branch;
     t.findingID = [NSString stringWithFormat:@"%@:worktree:%@", kExpert, t.path];
     t.isMain = w.isMain || [t.path isEqualToString:t.repo];
     t.locked = w.locked;
@@ -190,7 +214,7 @@ static NSArray<MMWFTree *> *TreesFrom(MMFacts *facts, MMTreeDiskRead read, NSStr
     NSMutableArray *ws = [NSMutableArray new], *paths = [NSMutableArray new];
     for (MMWorktree *w in facts.worktrees) {
         if (!w.path.length) continue;
-        NSString *p = Real(w.path);
+        NSString *p = RealOf(w, NO);
         if (only && ![p isEqualToString:only]) continue;
         if ([paths containsObject:p]) continue;
         [ws addObject:w]; [paths addObject:p];
@@ -860,7 +884,7 @@ static uint64_t WFStr(NSString *s, uint64_t salt) { return WFMix((s ? s.hash ^ (
     for (MMWorktree *w in facts.worktrees) {
         h += WFObj(w, 3) + WFObj([facts gitFor:w], 4);
         if (!w.path.length) continue;
-        NSString *p = Real(w.path);
+        NSString *p = RealOf(w, NO);
         if (![paths containsObject:p]) [paths addObject:p];
     }
     for (NSString *p in paths) {

@@ -638,6 +638,81 @@ The installed canary `2.0.0+3c726ce`, started at 01:05, read 56.7 MB and a peak 
 
 **What is left.** The footprint after the peak, 56.7 MB and 89 MB an hour later, is over the 45 MB budget. The default zone held 714 MB of regions for 10.8 MB of blocks, so most of it is fragmentation the peak left. `-[MMUndo recent:nil ...]`, which the stranded and waiting lists read, still parses every record once per call.
 
+## The idle of the owner's Mac, 2026-11-25
+
+Issue #52. `bench idle` read about 0.14 % since #195, and the installed app about 1 %.
+
+### The installed app, read only
+
+The canary `2.0.0+3c726ce`, whose idle paths are main's, with #200 only in `MMAct.m` and `MMUndo.m`. The window was closed, and agents worked in many Claude Code sessions. All of it was read with `report.py`, `minmacs self --window 60 --json`, three `sample <pid> 30` and `log stream --signpost` of its own pid, at 04:43 to 04:50 local time, load average 1.8 to 3.3.
+
+| | Value | Budget |
+|---|---|---|
+| CPU over the last hour | 1.07 %, child processes 0.41 % more | 0.3 % |
+| CPU a minute once quiet, from the CSV | 0.59 to 0.95 s, 1.0 to 1.6 % | 0.18 s |
+| `minmacs self`, 60 s | 0.96 %, children 0.08 %, 0.00 idle wakeups a second | 1 |
+| Idle wakeups over the hour | 0.47 a second | 1 |
+| Footprint | 90.3 MB, 31.7 to 90.3 MB in the hour, 659 MB at the peak #200 fixed | 45 MB |
+
+**What dominates.** In each 30 s `sample` the graph queue held 180, 250 and 190 ms, Senses 51, 50 and 48 ms, and in one of them the log queue 39 ms. Nothing else held more than 10 ms. Within the graph queue, in samples of 1 ms:
+
+| Part | The three samples |
+|---|---|
+| Noo-Noo's findings: 672 findings, 665 of them live Claude Code scratch folders | 24, 85, 67 |
+| WorkForest's prepare step, a third of it `+[MMKeep isProtected:]` | 39, 29, 24 |
+| The facts: the session index 5, 20, 16, the registry 16, 13, 13 | 21, 36, 32 |
+| WorkForest's input digest: `realpath` of each checkout and the processes in each | 18, 23, 17 |
+| `ownerOf:` for each of 733 findings | 20, 18, 14 |
+| Noo-Noo's menu view, a row for each finding | 13, 9, 9 |
+
+The log queue's 39 ms was Noo-Noo's Undo list, `-[MMUndo recent:noonoo limit:50]` once a minute, which read all 404 of its records, 10 MB of JSON, to keep 50. Transcript reads, git, the registry and timers were small. No build ran git, and the `core.git` queues held 13 ms in all.
+
+**How often a build runs, and why.** The signposts of one minute: 12 passes and 13 builds, none skipped. The facts digest moves at every pass, since 800 processes start, end and change CPU band, so every pass builds. A build in which every expert reused its findings still took 27 to 31 ms, and Noo-Noo made its 672 findings again in 4 of the 13, 18 to 54 ms each. Its digest moved with the session objects in `AgentRuns`: every session there starts in the home folder, above every checkout, and its tools run inside them, so the checkouts it runs a process in are mixed in, and the session index makes new session objects at every read, which agents at work ask for at every pass. WorkForest's digest moved with the processes in its checkouts.
+
+### The fixture
+
+`tools/bench/fieldfix.py make` writes the field into a home: 4 repos with 16 linked worktrees, 40 Claude Code transcripts, one of 36 MB and three of 4 to 8 MB, and 650 Claude Code scratch folders written a minute before. Two sessions start inside a worktree and the rest in `roots/`, above every checkout, and Codex's and pi's folders are there and quiet, so the session watch watches what it watches on the owner's Mac. `fieldfix.py run` plays 8 agents: each a shell with its status file, working in a worktree, where it starts a child every 2 seconds. Each appends an Edit and its result, 1.5 KB, to its transcript every second. An edit lands in a worktree every 15 seconds, and a status flips every 20. `bench seed --undo 400 --scan` writes 400 finished Noo-Noo trash records of 7 rows each, as the field log held 404 in 2881 rows, and the clutter scan the app reads at launch. `tools/bench/field.sh` runs one `bench idle` in a fresh APFS clone of the made home. `bench idle` now prints what asked for builds in `graph.askedBy`.
+
+In the fixture the base read 1.66 and 1.81 %, more than the field's 1 %. The fixture asks for 18 builds a minute against the field's 13, since its edits ask git every 15 seconds, and its 8 agents append to 8 transcripts that each build reads.
+
+### What changed
+
+- **Noo-Noo keeps each item's finding** with what it was made from: the item, its row and worktree objects, the owner state, the keep reasons, the mode, the day of watching, the row's last dry run and `MMAgoStep` of its last use, which moves exactly when `MMAgo`'s words can. A build whose digest moved makes again only the items whose inputs moved. Its digest reads a session in `AgentRuns` by its id and folder, which is all `AgentKeeps` reads, so a session read no longer moves it. Its menu view keeps each row by the finding's facts, which the graph's copy of a finding for each build shares.
+- **The session index parses a transcript that only grew at most every 15 seconds.** Same inode, no smaller, parsed less than 15 s ago: it keeps the title and what the session did in its last hour from that parse. The last write still comes from the modification time at every read, and a read of everything parses every changed file. `FastISO` computes the UTC time itself: `timegm` read the time zone through `notify_check_tz` at every call, a third of a read. 2 million dates read the same seconds as `timegm`. The index's cache is written at most once a minute, the first write at once: writing it whole was a fifth of a read.
+- **A transcripts-only change** is judged by the paths that can move the index only, so a Codex rollout, or a write under the folder a missing one is watched from, in the same second no longer asks for a build at once.
+- **`-[MMUndo recent:limit:]` reads only `limit` records** when there is a bound, and the whole list only when some of those do not make a record. Its answers, and the bodies that name a parent, are kept until `MMLogStamp()` moves, for at most 30 seconds, so the stranded and waiting lists asked again parse nothing, and recovery's read of every record at launch is not held after.
+- **`+[MMRules rulesFor:defaults:]` answers from its last merge with one stat of the file** while the file's inode, change time and size are as then, the support folder is the same and nothing wrote through MMRules since. Each ask made the file's path with a stat of the support folder and one of the expert's, stated the file and made a string of its stamp. `+[MMKeep isProtected:]` takes no `~` form when the protect list is empty, and `keptUntil:` reads the keeps without a mutable copy.
+- **The graph keeps `treeAt:`'s answers** while the worktrees are the very same objects, and an owner makes its `ownerID` once. WorkForest keeps each checkout's `realpath` per worktree object, which the repo index makes again when it walks that worktree.
+
+Stories, digests and findings stay the same: every memo is keyed by every input its output reads, or by an object Know replaces when it changes.
+
+### Before and after
+
+`tools/bench/field.sh <bench> <home> <out> 240 30`, base `c026db0`, the fixture alone on main, and this change, alternating base, change, change, base, each in a fresh clone of one made home. About 820 processes, load average 2.5 to 3.5, with other agents building.
+
+| | Base | Change | Change | Base |
+|---|---|---|---|---|
+| CPU | 1.658 % | 0.705 % | 0.679 % | 1.805 % |
+| CPU a tick, median and mean | 60.2, 82.5 ms | 30.8, 35.0 ms | 29.1, 34.1 ms | 65.5, 90.3 ms |
+| Builds a minute | 18.0 | 17.8 | 17.7 | 17.8 |
+| Facts, a build | 16.25 ms | 4.20 ms | 3.80 ms | 20.93 ms |
+| Snapshot, prepare included, a build | 31.55 ms | 12.84 ms | 12.77 ms | 32.26 ms |
+| Noo-Noo's findings, a build | 14.80 ms | 1.89 ms | 1.84 ms | 15.11 ms |
+| Builds that reused Noo-Noo's findings | 0 of 72 | 35 of 71 | 37 of 71 | 0 of 71 |
+| Footprint at the end, peak | 18.8, 60.5 MB | 29.2, 51.4 MB | 27.9, 51.3 MB | 18.8, 61.2 MB |
+| Idle wakeups a second | 0.000 | 0.004 | 0.012 | 0.012 |
+
+Each snapshot held 653 Noo-Noo findings, 20 WorkForest, 9 Insomnia and 8 MinMacs. The 10 MB more at the end in the change runs was the undo log's answers, the whole log that recovery read at launch held for good. With them let go after 30 s, and the rules read as below, one more run of 240 s read 0.662 %, a tick of 24.3 and 33.3 ms at the median and mean, facts 3.69 ms and a snapshot 12.73 ms a build, Noo-Noo's findings reused in 40 of 70 builds, and 19.8 MB at the end, peak 51.4 MB, at a load average of 2.9 to 3.7.
+
+`./test.sh noonoo workforest store act removal know graph idle bench` read 1540 passed and 5 failed: a rules file written from outside and read at once, which a first form of the rules change hid for up to a second. With the form below, `./test.sh act store` read 280 passed and 0 failed. `bench idle` in `./test.sh bench` read 0.122 % CPU, 9.8 MB and 0.233 wakeups a second, and the gate passed.
+
+### What is left
+
+- The fixture's 0.69 % is over the 0.3 % budget. A build still costs about 17 ms of CPU, and a pass about 4.6 ms. Every pass builds, since 800 processes move the facts digest. A build in which no expert's digest moved still builds a snapshot: `ownerOf:` and `withOwner:` for each finding, WorkForest's prepare step with its Wrap Up plans, and MinMacs's findings, which have no digest.
+- WorkForest's digest, 1.4 ms, is still `ProcessesIn` over every process.
+- The footprint after the field's peak, 57 to 90 MB, is the fragmentation #200 left. This change does not touch it.
+- The new canary of main was not installed during this work, so the field numbers above are the canary of before. Its idle paths are the same as main's.
+
 ## The Performance model
 
 `Core/MMPerformance.h` builds the Performance tab of design 132-a on demand from one snapshot. `./test.sh performance` times it on its fixture: 18 findings from five fake experts, four worktrees of which two are merged, one finished workstream with five Wrap Up parts, and six fixes. The test binary is built with `-O2`, as build.sh builds the app, and the number is the mean thread CPU time of 400 builds after 20 that warm up.
@@ -658,6 +733,7 @@ MM_BENCH_BACKOFF=1 tools/bench/run.sh   # with the backoff the app uses
 ./test.sh idle                          # the checks of issue #52
 tools/bench/scale.sh                    # 300 worktrees, the clutter tree and a review of 100, issue #54
 ./test.sh bench                         # the short run and the gate
+tools/bench/fieldfix.py make /tmp/fx && tools/bench/field.sh build/bench/bench /tmp/fx out.json 240 30   # the field's idle
 ./test.sh performance                   # the Performance model, one build at fixture scale
 tools/bench/run.sh 60 10 200          # one minute of idle, then menus, startup twice, the watchdog run and the gate
 DEBUG=1 BUILD_DIR=build/debug ./build.sh   # a build whose main-thread watchdog is on

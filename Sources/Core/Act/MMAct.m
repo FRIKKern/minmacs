@@ -90,7 +90,11 @@ static NSMutableDictionary<NSString *, NSDictionary *> *KeepCache(void) {
     return c;
 }
 static NSMutableDictionary *ReadKeeps(NSString *path);
-static NSMutableDictionary *KeepsAll(NSString *expert) {
+static NSDictionary *KeepsRead(NSString *expert);
+static NSMutableDictionary *KeepsAll(NSString *expert) { return [KeepsRead(expert) mutableCopy]; }
+/// The keeps as last read, parsed again only when the file changed. A read takes no copy, issue #52: keptUntil: asks
+/// once per finding on every build.
+static NSDictionary *KeepsRead(NSString *expert) {
     if (NSThread.isMainThread) gKeepMainReads++;
     // The file is parsed again only when it changed, issue #52. A rebuild asks once per finding.
     static NSMutableDictionary<NSString *, NSArray *> *parsed;   // expert to [stamp, keeps]
@@ -102,10 +106,10 @@ static NSMutableDictionary *KeepsAll(NSString *expert) {
     @synchronized (KeepCache()) {
         if (!parsed) parsed = [NSMutableDictionary new];
         NSArray *p = parsed[expert];
-        if ([p.firstObject isEqualToString:stamp]) return [p.lastObject mutableCopy];
+        if ([p.firstObject isEqualToString:stamp]) return p.lastObject;
     }
-    NSMutableDictionary *all = ReadKeeps(path);
-    @synchronized (KeepCache()) { KeepCache()[expert] = [all copy]; parsed[expert] = @[stamp, [all copy]]; }
+    NSDictionary *all = [ReadKeeps(path) copy];
+    @synchronized (KeepCache()) { KeepCache()[expert] = all; parsed[expert] = @[stamp, all]; }
     return all;
 }
 
@@ -119,6 +123,8 @@ static NSMutableDictionary *ReadKeeps(NSString *path) {
 /// so a path is also matched in its ~ form.
 static BOOL ProtectedIn(NSString *expert, NSString *value) {
     MMRules *r = [MMRules rulesFor:expert defaults:@{}];
+    // Most protect lists are empty, and the ~ form asks for the home folder each time, issue #52.
+    if (![r entries:@"protect"].count) return NO;
     NSString *short_ = [value hasPrefix:@"/"] ? value.stringByAbbreviatingWithTildeInPath : nil;
     return [r list:@"protect" key:nil matches:value] ||
            (short_.length && ![short_ isEqualToString:value] && [r list:@"protect" key:nil matches:short_]);
@@ -133,7 +139,7 @@ static BOOL ProtectedIn(NSString *expert, NSString *value) {
     NSDictionary *cached = nil;
     if (NSThread.isMainThread) { @synchronized (KeepCache()) { cached = KeepCache()[expert]; } }
     if (cached) n = cached[stableKey];
-    else { @synchronized (self) { n = KeepsAll(expert)[stableKey]; } }
+    else { @synchronized (self) { n = KeepsRead(expert)[stableKey]; } }
     return [n isKindOfClass:NSNumber.class] && n.doubleValue > NSDate.date.timeIntervalSince1970 ? [NSDate dateWithTimeIntervalSince1970:n.doubleValue] : nil;
 }
 + (void)keep:(NSString *)stableKey expert:(NSString *)expert until:(NSDate *)until by:(NSString *)by name:(NSString *)name {

@@ -11,6 +11,9 @@ NSString *MMDuration(NSTimeInterval seconds);
 NSString *MMShortDuration(NSTimeInterval seconds);
 /// "9m ago" for a date in the past, "now" under a minute, empty for nil.
 NSString *MMAgo(NSDate *date);
+/// A number that moves exactly when MMAgo's words for date can: "now", then each minute, hour and day. A memo of words
+/// made with MMAgo holds while it stays the same, issue #52. -1 for nil.
+int64_t MMAgoStep(NSDate *date);
 /// "1 server", "2 servers", "3 processes", "2 entries". One rule for every expert.
 NSString *MMPlural(NSInteger n, NSString *word);
 /// The text cut at the tail with an ellipsis, at most n characters. Never cuts in the middle.

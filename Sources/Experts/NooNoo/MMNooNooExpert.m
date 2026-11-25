@@ -53,8 +53,27 @@ static NSString *SectionName(MMNNSection s) { return @[@"finished", @"leftovers"
 @interface MMNNOwnerRule : NSObject <MMRule>
 @end
 
+/// Issue #52. One item's finding with everything findingsFrom: made it from, so a build whose digest moved makes again
+/// only the items whose inputs moved. On the owner's Mac 665 scratch folders made 672 findings, 18 to 54 ms a build,
+/// and the digest moved with every session read while an agent ran a process in a checkout.
+@interface MMNNMade : NSObject
+@property MMClutterItem *item;
+@property MMClutterKind *kind;
+@property MMWorktree *tree;
+@property NSString *ownerState;
+@property NSArray<NSString *> *keep;
+@property NSDictionary *dryRun;
+@property int64_t ago;
+@property MMMode mode;
+@property BOOL watched;
+@property MMFinding *finding;
+@end
+@implementation MMNNMade @end
+
 @implementation MMNooNooExpert {
     MMVerdictWords *_words;
+    NSDictionary<NSString *, MMNNMade *> *_made;   // under @synchronized (self): the last findingsFrom:'s, by item key
+    NSMapTable *_rows;                             // under @synchronized (self): the last view's rows, by the facts they read
     NSDictionary *_keeps;               // stableKey to until, read once per rebuild when the file changed
     NSDate *_keepsMtime;
     NSArray<MMUndoRecord *> *_undo;     // the restorable records, read at most once a minute on the graph queue
@@ -259,6 +278,9 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
     }];
     NSMutableArray *out = [NSMutableArray new];
     NSDictionary<NSString *, MMSession *> *runs = AgentRuns(facts);
+    NSDictionary<NSString *, MMNNMade *> *was;
+    @synchronized (self) { was = _made; }
+    NSMutableDictionary<NSString *, MMNNMade *> *made = [NSMutableDictionary dictionaryWithCapacity:rows.count];
     for (NSArray *row in rows) {
         MMClutterItem *i = row[0];
         NSString *ownerState = [row[1] length] ? row[1] : nil;
@@ -281,6 +303,17 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
         }
         BOOL goes = proposal && !keep.count && watched && mode != MMModeIdle && k.klass != MMClutterTool &&
                     (section == MMNNFinished || section == MMNNLeftovers || (mode == MMModeEager && k.klass == MMClutterCache));
+        // The same item, row, owner, keeps, mode and last dry run, with the same words for its age: the same finding.
+        NSDictionary *dry = k.cleanupArgs.count && !k.reportOnly ? MMClutterLastDryRun(k.kindID) : nil;
+        int64_t ago = MMAgoStep(i.lastUsed);
+        MMNNMade *m = was[key];
+        if (m && m.item == i && m.kind == k && m.tree == tree && m.mode == mode && m.watched == watched && m.ago == ago &&
+            (m.ownerState == ownerState || [m.ownerState isEqualToString:ownerState]) && [m.keep isEqualToArray:keep] &&
+            (m.dryRun == dry || [m.dryRun isEqualToDictionary:dry])) {
+            made[key] = m;
+            [out addObject:m.finding];
+            continue;
+        }
         MMClutterTrend t = i.trend;
         NSMutableDictionary *fx = [@{@"kindID": k.kindID, @"kindTitle": k.title, @"class": MMClutterClassName(k.klass), @"path": i.path,
                                      @"members": @(i.members.count), @"state": i.state == MMClutterFree ? @"free" : i.state == MMClutterLive ? @"live" : @"kept",
@@ -309,13 +342,13 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
                                           @"askOnly": @YES, @"hasDryRun": @((BOOL)(k.dryRunArgs.count > 0))} mutableCopy];
             if (k.dryRun) cmd[@"dryRun"] = k.dryRun;
             if (k.quitFirst.count) cmd[@"quitFirst"] = k.quitFirst;
-            NSDictionary *last = MMClutterLastDryRun(k.kindID);
+            NSDictionary *last = dry;
             if (last) cmd[@"lastDryRun"] = @{@"at": last[@"at"] ?: @0, @"exit": last[@"exit"] ?: @-1, @"wouldFree": last[@"wouldFree"] ?: @-1};
             fx[@"command"] = cmd;
         }
         if (k.ownerSetting) fx[@"ownerSetting"] = k.ownerSetting;
         if (i.sessionID) fx[@"sessionID"] = i.sessionID;
-        [out addObject:[MMFinding expert:kExpert kind:kKind stableKey:key build:^(MMFindingBuilder *b) {
+        MMFinding *finding = [MMFinding expert:kExpert kind:kKind stableKey:key build:^(MMFindingBuilder *b) {
             b.instanceKey = key;
             b.title = ownerName.length && k.names.count ? [NSString stringWithFormat:@"%@ in %@", RowName(i), ownerName] : RowName(i);
             b.path = [k.signature isEqualToString:@"family"] ? i.path.stringByDeletingLastPathComponent : i.path;
@@ -331,8 +364,14 @@ static BOOL InApp(void) { return NSBundle.mainBundle.bundleIdentifier.length > 0
             b.facts = fx;
             // What must change for the review to look again: the state, the owner and a size bucket of 256 MB.
             b.fingerprint = [NSString stringWithFormat:@"%@|%@|%@|%llu", k.kindID, fx[@"state"], ownerState ?: @"", i.size.freedIfDeleted >> 28];
-        }]];
+        }];
+        m = [MMNNMade new];
+        m.item = i; m.kind = k; m.tree = tree; m.ownerState = ownerState; m.keep = [keep copy]; m.dryRun = dry;
+        m.ago = ago; m.mode = mode; m.watched = watched; m.finding = finding;
+        made[key] = m;
+        [out addObject:finding];
     }
+    @synchronized (self) { _made = made; }
     if (InApp()) {
         [self syncReview];
         BOOL hook = NO;
@@ -375,7 +414,9 @@ static uint64_t NNStr(NSString *s, uint64_t salt) { return NNMix((s ? s.hash ^ (
         h += NNStr(x.sessionID, 10) ^ NNStr(x.cwd, 18) ^ NNMix(((uint64_t)(uint32_t)x.pid << 1 | (uint64_t)x.stillWorking) + 19);
     // The one input from the sample: the checkouts a working session started above them runs a process in.
     NSDictionary<NSString *, MMSession *> *runs = AgentRuns(facts);
-    for (NSString *path in runs) h += NNStr(path, 11) ^ NNObj(runs[path], 12);
+    // By the session's id and folder, which AgentKeeps reads: the session index makes new session objects at every
+    // read, and with agents at work it reads at every pass, so the object moved the digest each build, issue #52.
+    for (NSString *path in runs) h += NNStr(path, 11) ^ NNStr(runs[path].sessionID, 12) ^ NNStr(runs[path].cwd, 20);
     NSDictionary *keeps = [self keepsNow];
     double now = NSDate.date.timeIntervalSince1970;
     for (NSString *key in keeps) {
@@ -691,10 +732,20 @@ static void RunOffMain(dispatch_block_t block) {
     double best = 0, minBytes;
     @synchronized (self) { minBytes = _growthMin > 0 ? _growthMin : 1024.0 * 1024 * 1024; }
     NSMutableSet *seenKinds = [NSMutableSet new];
+    // Issue #52. A row reads only the finding's id, facts, cost, keep reasons and proposal, and the graph's copy of a
+    // finding for each build shares them, so a finding the graph reused gives the row of the last view.
+    NSMapTable *was, *made = [NSMapTable mapTableWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality
+                                                    valueOptions:NSPointerFunctionsStrongMemory];
+    @synchronized (self) { was = _rows; }
     for (MMFinding *f in [s findingsFor:kExpert]) {
         NSDictionary *x = f.facts;
         if ([x[@"kindID"] isEqual:@"trash"]) { v.trashBytes += [x[@"allocated"] unsignedLongLongValue]; continue; }
-        [rows addObject:[self rowFor:f]];
+        NSArray *kept = [was objectForKey:x];
+        MMNNRow *row = kept && kept[1] == f.keepReasons && kept[2] == (f.proposal ?: (id)NSNull.null) && [kept[3] isEqualToString:f.findingID] &&
+                       ((MMNNRow *)kept[0]).freed == f.cost.diskFreed && ((MMNNRow *)kept[0]).allocated == f.cost.diskAllocated
+            ? kept[0] : [self rowFor:f];
+        [made setObject:@[row, f.keepReasons, f.proposal ?: NSNull.null, f.findingID] forKey:x];
+        [rows addObject:row];
         NSDictionary *t = x[@"trend"];
         if (![seenKinds containsObject:x[@"kindID"]]) {
             [seenKinds addObject:x[@"kindID"]];
@@ -703,6 +754,7 @@ static void RunOffMain(dispatch_block_t block) {
             if (line && [t[@"bytesPerDay"] doubleValue] > best) { best = [t[@"bytesPerDay"] doubleValue]; growth = line; }
         }
     }
+    @synchronized (self) { _rows = made; }
     v.rows = rows;
     v.growthLine = growth;
     MMMode mode = MMModeFor(kExpert);

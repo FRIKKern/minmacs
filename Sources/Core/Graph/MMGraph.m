@@ -301,7 +301,26 @@ static uint64_t FactsDigest(MMFacts *f) {
     NSDictionary<NSString *, MMWorktree *> *by = self.treeByPath;
     MMWorktree *w = by[path];
     if (w) return w;
-    // Each folder above path, deepest first: the part before each slash.
+    // Issue #52. The answers of the last builds, while their trees are these very objects: with 650 clutter findings
+    // a build walked each one's folders, about 4 ms. The repo index makes a new object for a worktree that changed.
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    static NSArray *memoTrees; static NSMutableDictionary *memo;
+    os_unfair_lock_lock(&lock);
+    if (memoTrees != self.trees && ![memoTrees isEqualToArray:self.trees]) { memoTrees = self.trees; memo = [NSMutableDictionary new]; }
+    else memoTrees = self.trees;
+    id hit = memo[path];
+    os_unfair_lock_unlock(&lock);
+    if (hit) return hit == NSNull.null ? nil : hit;
+    w = [self walkUp:path in:by];
+    os_unfair_lock_lock(&lock);
+    if (memoTrees == self.trees) { if (memo.count > 20000) [memo removeAllObjects]; memo[path] = w ?: NSNull.null; }
+    os_unfair_lock_unlock(&lock);
+    return w;
+}
+
+/// Each folder above path, deepest first: the part before each slash.
+- (MMWorktree *)walkUp:(NSString *)path in:(NSDictionary<NSString *, MMWorktree *> *)by {
+    MMWorktree *w;
     for (NSUInteger i = path.length; i > 0;) {
         NSRange r = [path rangeOfString:@"/" options:NSBackwardsSearch | NSLiteralSearch range:NSMakeRange(0, i)];
         if (r.location == NSNotFound) break;
