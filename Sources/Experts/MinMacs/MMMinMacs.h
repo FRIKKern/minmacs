@@ -144,4 +144,6 @@ void MMMinMacsAddTestBrowser(NSString *bundleID);
 void MMMinMacsRegisterTabRestore(void);
 @interface MMMinMacsExpert (MMWrapUp) <MMWrapUpLateParts>
 - (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s;
+/// A helper's stop on its own, the first request only, with the policy of its Wrap Up part. nil for MMStopKill or another kind.
+- (id<MMAction>)helperStop:(MMFinding *)f step:(MMStopStep)step policy:(id<MMExpertPolicy> *)policy;
 @end

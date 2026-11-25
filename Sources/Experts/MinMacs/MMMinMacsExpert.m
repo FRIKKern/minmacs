@@ -428,6 +428,18 @@ static NSString *SpareReason(MMMinMacsApp *a, MMMinMacsRules *rules) {
     return q;
 }
 
+/// Quit from a row's menu in the window: always a quit, never Trim Tabs, under the expert's own policy, as the card's
+/// Quit. Force Quit comes only after Quit, which the action checks again. Stop on a helper is its Wrap Up part's stop.
+- (id<MMAction>)pressAction:(NSString *)what finding:(MMFinding *)f step:(MMStopStep)step policy:(id<MMExpertPolicy> *)policy {
+    if (![f.expert isEqualToString:kExpert]) return nil;
+    if ([what isEqualToString:@"stop"] && [f.kind isEqualToString:@"helper"]) return [self helperStop:f step:step policy:policy];
+    if (![what isEqualToString:@"quit"] || ![f.kind isEqualToString:@"app"]) return nil;
+    MMMinMacsQuit *q = [MMMinMacsQuit new];
+    q.finding = f; q.step = step; q.expert = self;
+    if (policy) *policy = self.policy;
+    return q;
+}
+
 /// Runs block off main and waits. On main the run loop keeps turning, so AppKit callbacks still arrive.
 static void RunOffMain(dispatch_block_t block) {
     if (!NSThread.isMainThread) { block(); return; }

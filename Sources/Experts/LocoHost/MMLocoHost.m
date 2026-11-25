@@ -518,6 +518,13 @@ static uint64_t LHBand(double cpu) { return cpu < 0 ? 7 : cpu < 1 ? 0 : cpu < 5 
 
 - (id<MMAction>)actionFor:(MMFinding *)f step:(MMStopStep)step { return f.proposal ? MMLHStopAction(f, step) : nil; }
 
+/// Stop from a row's menu in the window: the menu's own stop, with or without a proposal, under the manual policy.
+- (id<MMAction>)pressAction:(NSString *)what finding:(MMFinding *)f step:(MMStopStep)step policy:(id<MMExpertPolicy> *)policy {
+    if (![what isEqualToString:@"stop"] || ![f.expert isEqualToString:kExpert] || ![f.kind isEqualToString:@"server"]) return nil;
+    if (policy) *policy = MMLHManualPolicy();
+    return MMLHStopAction(f, step);
+}
+
 /// Wrap Up, issue #27: one part per dev server that runs in the worktree. Its record keeps the restart command,
 /// so restore starts it again in the worktree that the later parts bring back first.
 - (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {

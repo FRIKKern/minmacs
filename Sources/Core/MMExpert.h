@@ -177,6 +177,11 @@ typedef NS_ENUM(NSInteger, MMVerbReads) {
 /// Wrap Up, PLAN.md section 6, in MMAct.h. The parts of one finished workstream that this expert owns, such as
 /// LocoHost's servers in it. Reads the subject and the snapshot only, so it may run on main.
 - (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s;
+/// A person's own press on f, such as Stop in a row's menu in the window: the action and the policy the expert's own
+/// menu runs that press with, which need not be -actionFor:step: and -policy, a mode's. what is "stop" for a server or
+/// a helper, "quit" for an app, "remove" for a worktree or "trash" for a cache. step is MMStopKill for the Option
+/// alternate, the second request. nil when the expert has no such press on f. The caller runs it through MMRunAction.
+- (id<MMAction>)pressAction:(NSString *)what finding:(MMFinding *)f step:(MMStopStep)step policy:(id<MMExpertPolicy> *)policy;
 @end
 
 /// Registers an expert with the graph, the broker and the CLI. Called once per expert at launch.

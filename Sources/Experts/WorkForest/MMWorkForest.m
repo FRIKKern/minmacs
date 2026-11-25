@@ -928,6 +928,14 @@ static uint64_t WFStr(NSString *s, uint64_t salt) { return WFMix((s ? s.hash ^ (
 
 - (id<MMAction>)actionFor:(MMFinding *)f step:(MMStopStep)step { return f.proposal ? MMWFRemoveAction(f) : nil; }
 
+/// Remove from a row's menu in the window: the menu's own removal under the manual policy, which saves ignored files,
+/// never runs git with --force and keeps a way back. A worktree with nothing proposed has nothing to remove.
+- (id<MMAction>)pressAction:(NSString *)what finding:(MMFinding *)f step:(MMStopStep)step policy:(id<MMExpertPolicy> *)policy {
+    if (![what isEqualToString:@"remove"] || ![f.expert isEqualToString:kExpert] || !f.proposal || step != MMStopTerm) return nil;
+    if (policy) *policy = MMWFManualPolicy();
+    return MMWFRemoveAction(f);
+}
+
 /// Wrap Up, issue #27: the untracked config files to the Trash when there are any, then the worktree itself,
 /// with its ignored files such as .env saved and its merged branch deleted with git branch -d.
 - (NSArray<MMWrapUpPart *> *)wrapUpParts:(MMWrapUpSubject *)subject snapshot:(MMSnapshot *)s {

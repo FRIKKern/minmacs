@@ -658,6 +658,7 @@ static MMCardSpec *SCard(NSString *fid) {
 #include "render-window-pulls.m"
 #include "render-window-week.m"
 #include "render-window-ask.m"
+#include "render-window-menu.m"
 
 /// The window that opens from the icon, issue #62, in its own folder: it is wider than a menu, and dark glass in every
 /// appearance, so it is drawn in dark and in dark with Increase Contrast. Each PNG is <fixture>-<state>-<appearance>.
@@ -761,6 +762,7 @@ static void RenderWindow(NSString *out, NSDictionary<NSString *, NSAppearance *>
     WindowPullsChecks();
     WindowWeekChecks();
     WindowAskChecks();
+    WindowMenuChecks();
     WindowOpenTiming(dir, appearances[@"dark"]);
 }
 

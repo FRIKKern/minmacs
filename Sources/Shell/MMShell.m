@@ -519,6 +519,7 @@ NSDictionary *MMStartupTimes(void) { return [gStartup copy] ?: @{}; }
     if (self.windowHolder) return;
     self.windowController = [MMWindowController new];
     self.windowController.shell = self;
+    self.windowController.desk = MMWindowRealDesk();
     self.windowHolder = [[MMWindowHolder alloc] initWithHost:self.windowController];
     __weak MMShell *weak = self;
     self.windowController.onModel = ^(MMWindowModel *model) { [weak.windowHolder show:model]; };

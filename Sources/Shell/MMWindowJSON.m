@@ -55,6 +55,16 @@ NSString *MMWindowKindName(MMWindowKind kind) {
         j = x;
     }
     if (self.goTo.length) { NSMutableDictionary *g = [j mutableCopy]; g[@"goTo"] = self.goTo; j = g; }
+    // Its right-click menu, as the window offers it: what each item does, its title, and an Option alternate.
+    if (self.menu.count) {
+        NSMutableArray *items = [NSMutableArray new];
+        for (MMWindowMenuItem *i in self.menu) {
+            NSMutableDictionary *it = [@{@"action": i.action, @"title": i.title, @"alternate": @(i.alternate)} mutableCopy];
+            if (i.link) it[@"link"] = i.link;
+            [items addObject:it];
+        }
+        NSMutableDictionary *g = [j mutableCopy]; g[@"menu"] = items; j = g;
+    }
     if (!self.members) return j;
     // A row that stands for several, DESIGN rule 16, says so and holds each member whole, as the rows it stands for.
     NSMutableDictionary *x = [j mutableCopy];

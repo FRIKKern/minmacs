@@ -73,6 +73,17 @@ NSString *MMWindowNameOf(MMFinding *f);
 /// 60 values, bytes or NSNull, oldest first. megabytes of the ring are MiB. nil when ring is nil.
 NSArray *_Nullable MMWindowRingHour(MMHistoryRing *_Nullable ring);
 
+#pragma mark Row menus, MMWindowMenu.m
+
+/// Gives each row of m its menu, MMWindowRow.menu: for each kind the items that work on it now, by its finding's facts,
+/// the experts' -pressAction:finding:step:policy: and Fix Everything's plan in p. A row that stands for several, a
+/// tabs row and MinMacs itself get none. It acts on nothing.
+void MMWindowMenusOn(MMWindowModel *m, MMSnapshot *s, MMPerformance *p);
+/// The first process a finding names, or 0.
+pid_t MMWindowPidOf(MMFinding *f);
+/// YES when the finding is MinMacs itself, by its process or its bundle id, which no row menu may quit or hide.
+BOOL MMWindowIsMinMacs(MMFinding *f);
+
 #pragma mark Fixes
 
 /// "Wrap Up fix-auth-redirect", "Stop 3 idle servers", "Quit 2 apps", "Remove 2 merged worktrees",

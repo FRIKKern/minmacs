@@ -254,6 +254,28 @@ typedef NS_ENUM(NSInteger, MMWindowFateKind) { MMWindowFateStays = 0, MMWindowFa
 /// Three of one kin or more become one row: two rows of one kind still read as two things, a third as a list.
 extern const NSInteger MMWindowCollapseLeast;
 
+/// One item of a row's menu, the menu a right-click, a control-click, the Menu key, Shift-F10 or VoiceOver's
+/// Show Menu opens on a row. The feed offers only what works on that row now, MMWindowMenusOn, and every action an item
+/// names runs in the shell through MMWindowHost -windowRow:item:, with "window" as who acted. Nothing runs before the
+/// person's own pick of an item. No title ends on an ellipsis: no item opens a dialog.
+@interface MMWindowMenuItem : NSObject
+/// What the item does: "show", "hide", "quit", "force-quit", "stop", "force-stop", "reveal", "open-folder",
+/// "terminal", "open-url", "open-pr", "copy-pid", "copy-url", "copy-session", "copy-branch", "keep", "wrap-up",
+/// "remove", "trash", "go-to" and "show-row", which makes the row `link` names the active one in the window itself.
+@property (copy) NSString *action;
+@property (copy) NSString *title;                       // title case, as a menu item: "Show in Finder", "Force Quit"
+/// The Option alternate of the item before it, such as Force Quit under Quit: it shows in that item's place while
+/// Option is held, and never stands alone.
+@property BOOL alternate;
+/// A separator goes above this item.
+@property BOOL startsGroup;
+/// The row a "show-row" item makes active. nil for any other.
+@property (copy, nullable) NSString *link;
+/// What the item does, in one sentence, as its tooltip: "Undo opens it again." nil for an item whose title says it all.
+@property (copy, nullable) NSString *help;
++ (instancetype)action:(NSString *)action title:(NSString *)title;
+@end
+
 /// One thing that holds memory or disk.
 @interface MMWindowRow : NSObject
 @property (copy) NSString *key;                         // stable across snapshots, so hover and scroll stay
@@ -307,6 +329,9 @@ extern const NSInteger MMWindowCollapseLeast;
 /// An agent whose terminal tab, pane or app MinMacs can bring forward: the app's name, "Ghostty". Its story then has a
 /// Go to press beside where it runs, which only a person's press runs, through MMWindowHost. nil for any other row.
 @property (copy, nullable) NSString *goTo;
+/// The row's menu, top to bottom, alternates right under the item they stand for. nil or empty when the row has none,
+/// such as a row that stands for several, a tabs row or MinMacs itself: then a right-click only makes it active.
+@property (copy, nullable) NSArray<MMWindowMenuItem *> *menu;
 @end
 
 /// The rows with each kin of MMWindowCollapseLeast members or more made one row by MMWindowCollapsedRow, in the place

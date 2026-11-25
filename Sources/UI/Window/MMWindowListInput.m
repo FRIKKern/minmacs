@@ -17,6 +17,11 @@
     list.onPress(self.key);
     return YES;
 }
+/// VoiceOver's Show Menu, VO-Shift-M: the row's menu, as a right-click opens it.
+- (BOOL)accessibilityPerformShowMenu {
+    MMWindowListView *list = self.list;
+    return list.onShowMenu ? list.onShowMenu(self.key) : NO;
+}
 @end
 
 @implementation MMWindowListView (Input)
@@ -44,7 +49,15 @@
     if (self.onPress) self.onPress(row.key);
 }
 
-- (void)mouseDown:(NSEvent *)e { [self pressAt:[self convertPoint:e.locationInWindow fromView:nil]]; }
+- (void)mouseDown:(NSEvent *)e {
+    // A control-click is a right-click: the row's menu, MMWindowListMenu.m, where AppKit has not opened it already.
+    if (e.modifierFlags & NSEventModifierFlagControl) {
+        NSMenu *menu = [self menuForEvent:e];
+        if (menu) [NSMenu popUpContextMenu:menu withEvent:e forView:self];
+        return;
+    }
+    [self pressAt:[self convertPoint:e.locationInWindow fromView:nil]];
+}
 /// The panel does not take the keyboard from the app in front, so the first press already picks a row.
 - (BOOL)acceptsFirstMouse:(NSEvent *)e { return YES; }
 - (void)mouseEntered:(NSEvent *)e { [self mouseMoved:e]; }
