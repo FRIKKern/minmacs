@@ -16,6 +16,10 @@
 - (void)saveSoon;
 /// Writes the file now when it changed and the last write is at least saveEvery old, or there was none, else soon.
 - (void)saveIfDue;
+/// Writes the file now when it changed since the last write, and returns once it is written. A process that exits
+/// before a write saveSoon queued loses what it learned, so a cold CLI run calls this before it ends. Not on the
+/// cache's own queue.
+- (void)saveNow;
 - (V)valueFor:(NSString *)key fingerprint:(NSString *)fingerprint orCompute:(V (^)(void))work wait:(BOOL)wait;
 /// The cached value whatever its fingerprint, or nil.
 - (V)peek:(NSString *)key;

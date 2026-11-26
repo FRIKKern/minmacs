@@ -60,6 +60,10 @@
     if (now) [self save]; else [self saveSoon];
 }
 
+- (void)saveNow {
+    dispatch_sync(_queue, ^{ [self save]; });
+}
+
 /// Writes the cache now when it changed since the last write. Values that JSON cannot hold are left out.
 - (void)save {
     if (!_persist) return;

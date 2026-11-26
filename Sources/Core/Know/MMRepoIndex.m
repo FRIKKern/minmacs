@@ -353,6 +353,12 @@ MMRepoIndexStep MMRepoIndexTestStep;
     }
 }
 
+- (void)saveCaches {
+    MMFactCache *git, *patchIds, *sizes;
+    @synchronized (self) { git = _git; patchIds = _patchIds; sizes = _sizes; }
+    [git saveNow]; [patchIds saveNow]; [sizes saveNow];
+}
+
 - (void)count:(NSString *)key by:(NSInteger)n {
     @synchronized (_counts) { _counts[key] = @([_counts[key] integerValue] + n); }
 }
