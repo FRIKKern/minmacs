@@ -151,6 +151,12 @@ pl_git=""; for g in /Library/Developer/CommandLineTools/usr/bin/git /opt/homebre
 printf '#!/bin/sh\necho "$*" >>"%s"\nexec "%s" "$@"\n' "$pl/git.log" "$pl_git" >"$pl/bin/git-logged"; chmod +x "$pl/bin/git-logged"
 pl_cold() { : >"$pl/git.log"; MINMACS_COLD=1 MINMACS_GIT="$pl/bin/git-logged" "$BIN" "$@" >/dev/null 2>&1; grep -c 'status --porcelain' "$pl/git.log"; }
 check "polish: trees list runs git status for each of the seven checkouts" yes "$(n=$(pl_cold trees list --all --json); [ "$n" -ge 7 ] && echo yes || echo "$n")"
+# A cold run writes what it learned before it ends. The cache was written 0.2 s after a burst of changes, so a run
+# that ended sooner lost the last checkouts' facts, and under load all of them: the status below then ran git status
+# for every checkout, the flake of the 2026-11-25 canary gate.
+check "polish: trees list leaves a status fingerprint for each of the seven checkouts" 7 \
+  "$(python3 -c 'import json,sys; print(sum(1 for e in json.load(open(sys.argv[1])).values() if e["value"].get("sfp")))' \
+     "$(find "$pl" -name git.json ! -path "$pl/code/*" | head -1)" 2>&1)"
 # Before, every cold verb ran git status for every checkout. status now takes the cached facts, and the repo index
 # runs git status only for a checkout whose index file or HEAD moved since the facts were cached. An earlier git
 # status may have rewritten an index, so a few may run, never one for every checkout.

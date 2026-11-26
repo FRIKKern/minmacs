@@ -347,7 +347,12 @@ static int Run(MMVerbSpec *spec, NSArray<NSString *> *words, NSString *program, 
     // that takes the cached facts.
     if (!inApp) { gColdReads = spec.reads; ColdClutterProjects(); }
     if (!spec.run) return MMExitFailed;
-    @autoreleasepool { return spec.run(args); }
+    int status;
+    @autoreleasepool { status = spec.run(args); }
+    // A cold run ends with the process: what its git passes learned is written now, not 0.2 s later, so the next
+    // cold run takes those facts and runs no git status for them.
+    if (!inApp && gColdReads != MMVerbReadsNoWorktrees) [MMRepoIndex.shared saveCaches];
+    return status;
 }
 
 NSDictionary *MMCLIReply(NSDictionary *request) {

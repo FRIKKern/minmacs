@@ -138,6 +138,10 @@ typedef NS_ENUM(NSInteger, MMMergeKind) {
 /// Brings the facts of every marked worktree up to date on the git queue. git runs only where a fingerprint moved
 /// or the status was dropped. done, which may be nil, runs on that queue with the number of worktrees git ran for.
 - (void)updateFacts:(void (^)(NSUInteger ran))done;
+/// Writes the git, patch id and size caches now, where they changed, and returns once they are written. A cold CLI
+/// run calls it before it ends: a write queued for 0.2 s later would die with the process, and the next run would run
+/// git status again for every checkout whose facts it lost.
+- (void)saveCaches;
 /// One FSEvents stream per root, each with its own saved event id, so a restart replays only what changed.
 /// Each change marks worktrees through invalidate and may start a walk through refresh.
 - (void)startWatching;
