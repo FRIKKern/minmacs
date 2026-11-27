@@ -4,6 +4,7 @@
 //   tool verb <words...>     one verb, as `minmacs <words...>` runs it in the app
 //   tool card <path>         the WorkForest card of that worktree, as JSON: its title, status and actions
 //   tool plan <path> <n>     the plan built on main n times, a second apart, as a menu builds it: step and title each
+//   tool walks <path>        whether a plan off main on an older snapshot walks the worktree's disk, and a check does
 //   tool _walk               the worker child of P4, which the repo index starts from this same binary
 // Facts are real and fixture-scoped: the Senses sample, Know's sessions under $CLAUDE_CONFIG_DIR, the repo index
 // under $MINMACS_ROOTS with git facts read now, and the clutter catalog scanned under $MINMACS_CLUTTER_ROOT.
@@ -15,6 +16,7 @@
 #import <Cocoa/Cocoa.h>
 #import "Core/MMCore.h"
 #import "Core/Store/MMLog.h"
+#import "Core/Know/MMTreeDisk.h"
 #import "CLI/MMCLI.h"
 #import "Experts/LocoHost/MMLocoHost.h"
 #import "Experts/WorkForest/MMWorkForest.h"
@@ -243,6 +245,31 @@ int main(int argc, const char *argv[]) {
                 if (i + 1 < n) [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1]];
             }
             PrintJSON(rounds);
+            return 0;
+        }
+        if (!strcmp(argv[1], "walks") && argc == 3) {
+            // Issue #215: a plan on an older snapshot, made off main after a newer build, as the window's build makes
+            // it on a busy Mac. It reads that snapshot alone. MMWrapUpCheck then reads the disk fresh.
+            // MMTreeDisk keeps each walk by the resolved path, as WorkForest reads it: /private/var, not /var.
+            char buf[PATH_MAX];
+            NSString *path = realpath(argv[2], buf) ? @(buf) : @(argv[2]).stringByStandardizingPath;
+            __block NSDictionary *j = nil;
+            OffMain(^{
+                MMTreeDisk *disk = MMTreeDisk.shared;
+                // Every checkout walked first, so a snapshot's build queues no walk and the count below is the plan's.
+                // A walk keeps the old entry while the folder's stamp holds, so the count is the generation, not .at.
+                for (MMWorktree *w in MMRepoIndex.shared.worktrees) if (w.path) (void)[disk factsFor:w.realPath ?: w.path read:MMTreeDiskNow];
+                MMSnapshot *old = MMCLISnapshot(NO);
+                MMSnapshot *now = MMCLISnapshot(NO);             // WorkForest now holds the newer build's facts
+                uint64_t before = disk.generation;
+                MMWrapUpPlan *plan = MMWrapUpPlanFor(path, old);
+                uint64_t planned = disk.generation;
+                NSString *check = MMWrapUpCheck(plan);
+                uint64_t checked = disk.generation;
+                j = @{@"newer": old.facts != now.facts ? @YES : @NO, @"whyNot": plan.whyNot ?: @"", @"check": check ?: @"",
+                      @"planWalks": @(planned - before), @"checkWalks": @(checked - planned)};
+            });
+            PrintJSON(j);
             return 0;
         }
         if (!strcmp(argv[1], "leave-waiting") && argc == 3) return LeaveWaiting(@(argv[2]));

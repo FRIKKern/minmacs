@@ -240,6 +240,10 @@ NSString *MMWrapUpStepName(MMWrapUpStep step);         // servers, helpers, tabs
 /// and never on main.
 NSNumber *MMWrapUpConfigOnly(NSString *path, NSString *head, NSInteger untracked, BOOL wait);
 
+/// YES on a thread while MMWrapUpPlanFor makes its plan. An expert's keeps then read each finding as the snapshot
+/// holds it and read no disk, since only MMWrapUpCheck and the run check fresh, issue #215.
+extern _Thread_local BOOL MMWrapUpOnSnapshot;
+
 /// Builds the plan for the worktree at path from the snapshot: the subject, then each registered expert's parts
 /// through -[MMExpert wrapUpParts:snapshot:], then the server ports and the late parts of MMWrapUpLateParts,
 /// then MustKeep of every part on the snapshot's facts. A part whose

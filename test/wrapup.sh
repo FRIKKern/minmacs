@@ -152,6 +152,12 @@ check "wrapup: Wrap Up sits among the card's first four actions" yes "$(echo "$C
 check "wrapup: no Wrap Up when an untracked file is work" no "$("$T" card "$W/notes" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 check "wrapup: no Wrap Up on an unmerged branch" no "$("$T" card "$W/open" | json "'yes' if any(a['title'] == 'Wrap Up…' for a in j['actions']) else 'no'")"
 
+echo "-- a plan off main reads the snapshot alone, issue #215"
+J=$("$T" walks "$F")
+check "wrapup: a plan on an older snapshot, off main, after a newer build, walks no disk" "newer=True why= walks=0" \
+  "$(echo "$J" | json "'newer=%s why=%s walks=%s' % (j['newer'], j['whyNot'], j['planWalks'])")"
+check "wrapup: the check before a run still walks the worktree's disk" yes "$(echo "$J" | json "'yes' if j['checkWalks'] > 0 else j")"
+
 # D2: everything goes to the Trash. The plan says where each thing goes.
 J=$("$T" verb work wrap-up "$F" --dry-run --json)
 check "wrapup: the plan sends node_modules and the config files to the Trash" \
