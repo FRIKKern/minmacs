@@ -304,8 +304,9 @@ static __weak MMFacts *gBuiltFacts;
 
 static MMWFTree *TreeFor(MMFinding *f, MMFacts *facts) {
     // Main never reads disk or processes. The menu plans on the facts each finding was built from,
-    // and MMRunAction checks fresh off main before anything is removed.
-    if (NSThread.isMainThread || (facts && facts == gBuiltFacts)) return MMWFTreeOf(f);
+    // and MMRunAction checks fresh off main before anything is removed. A Wrap Up plan reads the snapshot alone on any
+    // queue: the window's build walked every merged worktree here once a newer build had moved gBuiltFacts, issue #215.
+    if (NSThread.isMainThread || MMWrapUpOnSnapshot || (facts && facts == gBuiltFacts)) return MMWFTreeOf(f);
     return FreshTree(f, facts);
 }
 

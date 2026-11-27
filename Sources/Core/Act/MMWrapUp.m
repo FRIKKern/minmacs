@@ -282,7 +282,21 @@ static void SortBySteps(NSMutableArray<MMWrapUpPart *> *all) {
     }];
 }
 
+_Thread_local BOOL MMWrapUpOnSnapshot = NO;
+
+static MMWrapUpPlan *PlanFor(NSString *path, MMSnapshot *s);
+
+/// The plan reads the snapshot alone. A keep that walked a worktree's disk here kept the window on its first look
+/// for minutes on a Mac with many merged worktrees, issue #215.
 MMWrapUpPlan *MMWrapUpPlanFor(NSString *path, MMSnapshot *s) {
+    BOOL was = MMWrapUpOnSnapshot;
+    MMWrapUpOnSnapshot = YES;
+    MMWrapUpPlan *plan = PlanFor(path, s);
+    MMWrapUpOnSnapshot = was;
+    return plan;
+}
+
+static MMWrapUpPlan *PlanFor(NSString *path, MMSnapshot *s) {
     MMWrapUpPlan *plan = [MMWrapUpPlan new];
     plan.subject = [MMWrapUpSubject subjectAt:path facts:s.facts snapshot:s];
     plan.parts = @[];
